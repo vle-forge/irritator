@@ -299,20 +299,19 @@ static bool check_connection_already_exists(
     return false;
 }
 
-status modeling::connect_input(generic_component& parent,
-                               port&              x,
-                               child&             c,
-                               connection::port   p_c) noexcept
+status2 modeling::connect_input(generic_component& parent,
+                                port&              x,
+                                child&             c,
+                                connection::port   p_c) noexcept
 {
-    irt_return_if_fail(connections.can_alloc(),
-                       status::simulation_not_enough_connection);
+    if (!connections.can_alloc())
+        return new_error(status::simulation_not_enough_connection);
 
-    irt_return_if_fail(
-      !check_connection_already_exists(
-        *this,
-        parent,
-        connection::input_t{ children.get_id(c), ports.get_id(x), p_c }),
-      status::model_connect_already_exist);
+    if (check_connection_already_exists(
+          *this,
+          parent,
+          connection::input_t{ children.get_id(c), ports.get_id(x), p_c }))
+        return new_error(status::model_connect_already_exist);
 
     const auto c_id = children.get_id(c);
     const auto x_id = ports.get_id(x);
@@ -329,23 +328,22 @@ status modeling::connect_input(generic_component& parent,
         parent.connections.emplace_back(con_id);
     }
 
-    return status::success;
+    return success();
 }
 
-status modeling::connect_output(generic_component& parent,
-                                child&             c,
-                                connection::port   p_c,
-                                port&              y) noexcept
+status2 modeling::connect_output(generic_component& parent,
+                                 child&             c,
+                                 connection::port   p_c,
+                                 port&              y) noexcept
 {
-    irt_return_if_fail(connections.can_alloc(),
-                       status::simulation_not_enough_connection);
+    if (!connections.can_alloc())
+        return new_error(status::simulation_not_enough_connection);
 
-    irt_return_if_fail(
-      !check_connection_already_exists(
-        *this,
-        parent,
-        connection::output_t{ children.get_id(c), ports.get_id(y), p_c }),
-      status::model_connect_already_exist);
+    if (check_connection_already_exists(
+          *this,
+          parent,
+          connection::output_t{ children.get_id(c), ports.get_id(y), p_c }))
+        return new_error(status::model_connect_already_exist);
 
     const auto c_id = children.get_id(c);
     const auto y_id = ports.get_id(y);
@@ -362,24 +360,24 @@ status modeling::connect_output(generic_component& parent,
         parent.connections.emplace_back(con_id);
     }
 
-    return status::success;
+    return success();
 }
 
-status modeling::connect(generic_component& parent,
-                         child&             src,
-                         connection::port   y,
-                         child&             dst,
-                         connection::port   x) noexcept
+status2 modeling::connect(generic_component& parent,
+                          child&             src,
+                          connection::port   y,
+                          child&             dst,
+                          connection::port   x) noexcept
 {
-    irt_return_if_fail(connections.can_alloc(),
-                       status::simulation_not_enough_connection);
+    if (!connections.can_alloc())
+        return new_error(status::simulation_not_enough_connection);
 
-    irt_return_if_fail(!check_connection_already_exists(
-                         *this,
-                         parent,
-                         connection::internal_t{
-                           children.get_id(src), children.get_id(dst), y, x }),
-                       status::model_connect_already_exist);
+    if (check_connection_already_exists(
+          *this,
+          parent,
+          connection::internal_t{
+            children.get_id(src), children.get_id(dst), y, x }))
+        return new_error(status::model_connect_already_exist);
 
     const auto src_id = children.get_id(src);
     const auto dst_id = children.get_id(dst);
@@ -414,45 +412,43 @@ status modeling::connect(generic_component& parent,
         }
     }
 
-    return status::success;
+    return success();
 }
 
-static status modeling_connect(modeling&          mod,
-                               generic_component& gen,
-                               child_id           src,
-                               connection::port   p_src,
-                               child_id           dst,
-                               connection::port   p_dst) noexcept
+static status2 modeling_connect(modeling&          mod,
+                                generic_component& gen,
+                                child_id           src,
+                                connection::port   p_src,
+                                child_id           dst,
+                                connection::port   p_dst) noexcept
 {
-    status ret = status::unknown_dynamics;
-
-    if_data_exists_do(mod.children, src, [&](auto& child_src) noexcept {
-        if_data_exists_do(mod.children, dst, [&](auto& child_dst) noexcept {
-            if (child_src.type == child_type::component) {
-                if (child_dst.type == child_type::component) {
-                    ret = mod.connect(
-                      gen, child_src, p_src.compo, child_dst, p_dst.compo);
+    if (auto* child_src = mod.children.try_to_get(src); child_src) {
+        if (auto* child_dst = mod.children.try_to_get(dst); child_dst) {
+            if (child_src->type == child_type::component) {
+                if (child_dst->type == child_type::component) {
+                    return mod.connect(
+                      gen, *child_src, p_src.compo, *child_dst, p_dst.compo);
                 } else {
-                    ret = mod.connect(
-                      gen, child_src, p_src.compo, child_dst, p_dst.model);
+                    return mod.connect(
+                      gen, *child_src, p_src.compo, *child_dst, p_dst.model);
                 }
             } else {
-                if (child_dst.type == child_type::component) {
-                    ret = mod.connect(
-                      gen, child_src, p_src.model, child_dst, p_dst.compo);
+                if (child_dst->type == child_type::component) {
+                    return mod.connect(
+                      gen, *child_src, p_src.model, *child_dst, p_dst.compo);
                 } else {
-                    ret = mod.connect(
-                      gen, child_src, p_src.model, child_dst, p_src.model);
+                    return mod.connect(
+                      gen, *child_src, p_src.model, *child_dst, p_src.model);
                 }
             }
-        });
-    });
+        }
+    }
 
-    return ret;
+    return success();
 }
 
-status modeling::copy(const generic_component& src,
-                      generic_component&       dst) noexcept
+status2 modeling::copy(const generic_component& src,
+                       generic_component&       dst) noexcept
 {
     table<child_id, child_id> mapping; // @TODO move this mapping variable into
                                        // the modeling or cache class.
@@ -497,25 +493,23 @@ status modeling::copy(const generic_component& src,
 
     mapping.sort();
 
-    for_specified_data(connections, src.connections, [&](auto& con) noexcept {
-        if (con.type == connection::connection_type::internal) {
-            if (auto* child_src = mapping.get(con.internal.src); child_src) {
-                if (auto* child_dst = mapping.get(con.internal.dst);
+    for (auto c_id : src.connections) {
+        if (auto* con = connections.try_to_get(c_id); con) {
+            if (auto* child_src = mapping.get(con->internal.src); child_src) {
+                if (auto* child_dst = mapping.get(con->internal.dst);
                     child_dst) {
-                    irt_return_if_bad(modeling_connect(*this,
-                                                       dst,
-                                                       *child_src,
-                                                       con.internal.index_src,
-                                                       *child_dst,
-                                                       con.internal.index_dst));
+                    irt_check(modeling_connect(*this,
+                                               dst,
+                                               *child_src,
+                                               con->internal.index_src,
+                                               *child_dst,
+                                               con->internal.index_dst));
                 }
             }
         }
+    }
 
-        return status::success;
-    });
-
-    return status::success;
+    return success();
 }
 
 } // namespace irt

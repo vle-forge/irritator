@@ -169,7 +169,7 @@ void project_window::save(const char* filename) noexcept
         app.notifications.enable(n);
     } else {
         if (auto ret = app.pj.save(app.mod, app.sim, app.cache, filename);
-            is_bad(ret)) {
+            !ret) {
             auto& n = app.notifications.alloc(log_level::error);
             n.title = "Save project fail";
             format(n.message, "Can not access file `{}'", filename);
@@ -189,8 +189,7 @@ void project_window::load(const char* filename) noexcept
 
     app.cache.clear();
 
-    if (auto ret = app.pj.load(app.mod, app.sim, app.cache, filename);
-        is_bad(ret)) {
+    if (auto ret = app.pj.load(app.mod, app.sim, app.cache, filename); !ret) {
         auto& n = app.notifications.alloc(log_level::error);
         n.title = "Load project fail";
         format(n.message, "Can not access file `{}'", filename);
@@ -213,10 +212,13 @@ void task_load_project(void* param) noexcept
     auto  id   = enum_cast<registred_path_id>(g_task->param_1);
     auto* file = g_task->app->mod.registred_paths.try_to_get(id);
     if (file) {
-        g_task->app->pj.load(g_task->app->mod,
-                             g_task->app->sim,
-                             g_task->app->cache,
-                             file->path.c_str());
+        auto ret = g_task->app->pj.load(g_task->app->mod,
+                                        g_task->app->sim,
+                                        g_task->app->cache,
+                                        file->path.c_str());
+        if (!ret)
+            debug_log("task_load_project fail\n");
+
         g_task->app->mod.registred_paths.free(*file);
     }
 
@@ -231,10 +233,13 @@ void task_save_project(void* param) noexcept
     auto  id   = enum_cast<registred_path_id>(g_task->param_1);
     auto* file = g_task->app->mod.registred_paths.try_to_get(id);
     if (file) {
-        g_task->app->pj.save(g_task->app->mod,
-                             g_task->app->sim,
-                             g_task->app->cache,
-                             file->path.c_str());
+        auto ret = g_task->app->pj.save(g_task->app->mod,
+                                        g_task->app->sim,
+                                        g_task->app->cache,
+                                        file->path.c_str());
+        if (!ret)
+            debug_log("task_save_project fail\n");
+
         g_task->app->mod.registred_paths.free(*file);
     }
 

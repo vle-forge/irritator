@@ -129,14 +129,12 @@ void component_editor::add_grid_component() noexcept
 // task implementation
 //
 
-static status save_component_impl(modeling&             mod,
-                                  component&            compo,
-                                  const registred_path& reg_path,
-                                  const dir_path&       dir,
-                                  const file_path&      file) noexcept
+static status2 save_component_impl(modeling&             mod,
+                                   component&            compo,
+                                   const registred_path& reg_path,
+                                   const dir_path&       dir,
+                                   const file_path&      file) noexcept
 {
-    status ret = status::success;
-
     try {
         std::filesystem::path p{ reg_path.path.sv() };
         p /= dir.path.sv();
@@ -144,11 +142,11 @@ static status save_component_impl(modeling&             mod,
 
         if (!std::filesystem::exists(p, ec)) {
             if (!std::filesystem::create_directory(p, ec)) {
-                return status::io_filesystem_make_directory_error;
+                return new_error(status::io_filesystem_make_directory_error);
             }
         } else {
             if (!std::filesystem::is_directory(p, ec)) {
-                return status::io_filesystem_not_directory_error;
+                return new_error(status::io_filesystem_not_directory_error);
             }
         }
 
@@ -156,13 +154,12 @@ static status save_component_impl(modeling&             mod,
         p.replace_extension(".irt");
 
         io_manager cache;
-        irt_return_if_bad(
-          component_save(mod, compo, cache, p.string().c_str()));
+        irt_check(component_save(mod, compo, cache, p.string().c_str()));
     } catch (...) {
-        ret = status::io_not_enough_memory;
+        return new_error(status::io_not_enough_memory);
     }
 
-    return ret;
+    return success();
 }
 
 void task_save_component(void* param) noexcept
@@ -180,12 +177,12 @@ void task_save_component(void* param) noexcept
         auto* file = g_task->app->mod.file_paths.try_to_get(compo->file);
 
         if (reg && dir && file) {
-            if (is_bad(save_component_impl(
-                  g_task->app->mod, *compo, *reg, *dir, *file))) {
-                compo->state = component_status::modified;
-            } else {
+            if (auto ret = save_component_impl(
+                  g_task->app->mod, *compo, *reg, *dir, *file);
+                !ret)
                 compo->state = component_status::unmodified;
-            }
+            else
+                compo->state = component_status::modified;
         }
     }
 

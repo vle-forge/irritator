@@ -273,12 +273,12 @@ void run_simulation(irt::real   begin,
     irt::external_source      srcs;
     irt::io_manager           cache;
 
-    if (irt::is_bad(pj.init(init))) {
+    if (auto ret = pj.init(init); !ret) {
         fmt::print(stderr, "Fail to allocate project structure\n");
         return;
     }
 
-    if (irt::is_bad(mod.init(init))) {
+    if (!mod.init(init)) {
         fmt::print(stderr, "Fail to allocate modeling structure\n");
         return;
     }
@@ -294,12 +294,8 @@ void run_simulation(irt::real   begin,
         return;
     }
 
-    if (auto ret = irt::project_load(pj, mod, sim, cache, file_name);
-        is_bad(ret)) {
-        fmt::print(stderr,
-                   "Fail to read file `{}: {}'\n",
-                   file_name,
-                   status_string(ret));
+    if (auto ret = irt::project_load(pj, mod, sim, cache, file_name); !ret) {
+        fmt::print(stderr, "Fail to read file `{}'\n", file_name);
         return;
     }
 

@@ -81,29 +81,42 @@ modeling::modeling() noexcept
 {
 }
 
-status modeling::init(modeling_initializer& p) noexcept
+status2 modeling::init(modeling_initializer& p) noexcept
 {
-    irt_return_if_bad(descriptions.init(p.description_capacity));
-    irt_return_if_bad(ports.init(p.model_capacity));
-    irt_return_if_bad(components.init(p.component_capacity));
-    irt_return_if_bad(grid_components.init(p.component_capacity));
-    irt_return_if_bad(graph_components.init(p.component_capacity));
-    irt_return_if_bad(generic_components.init(p.component_capacity));
-    irt_return_if_bad(hsm_components.init(p.component_capacity));
-    irt_return_if_bad(dir_paths.init(p.dir_path_capacity));
-    irt_return_if_bad(file_paths.init(p.file_path_capacity));
-    irt_return_if_bad(registred_paths.init(p.dir_path_capacity));
+    if (is_bad(descriptions.init(p.description_capacity)))
+        return new_error(status::data_array_not_enough_memory);
+    if (is_bad(ports.init(p.model_capacity)))
+        return new_error(status::data_array_not_enough_memory);
+    if (is_bad(components.init(p.component_capacity)))
+        return new_error(status::data_array_not_enough_memory);
+    if (is_bad(grid_components.init(p.component_capacity)))
+        return new_error(status::data_array_not_enough_memory);
+    if (is_bad(graph_components.init(p.component_capacity)))
+        return new_error(status::data_array_not_enough_memory);
+    if (is_bad(generic_components.init(p.component_capacity)))
+        return new_error(status::data_array_not_enough_memory);
+    if (is_bad(hsm_components.init(p.component_capacity)))
+        return new_error(status::data_array_not_enough_memory);
+    if (is_bad(dir_paths.init(p.dir_path_capacity)))
+        return new_error(status::data_array_not_enough_memory);
+    if (is_bad(file_paths.init(p.file_path_capacity)))
+        return new_error(status::data_array_not_enough_memory);
+    if (is_bad(registred_paths.init(p.dir_path_capacity)))
+        return new_error(status::data_array_not_enough_memory);
 
-    irt_return_if_bad(hsms.init(p.component_capacity));
-    irt_return_if_bad(children.init(p.children_capacity));
-    irt_return_if_bad(connections.init(p.connection_capacity));
+    if (is_bad(hsms.init(p.component_capacity)))
+        return new_error(status::data_array_not_enough_memory);
+    if (is_bad(children.init(p.children_capacity)))
+        return new_error(status::data_array_not_enough_memory);
+    if (is_bad(connections.init(p.connection_capacity)))
+        return new_error(status::data_array_not_enough_memory);
 
     children_positions.resize(children.capacity());
     children_names.resize(children.capacity());
     children_parameters.resize(children.capacity());
     component_colors.resize(components.capacity());
 
-    return status::success;
+    return success();
 }
 
 static void prepare_component_loading(modeling&             mod,
@@ -133,16 +146,11 @@ static void prepare_component_loading(modeling&             mod,
                 desc.status = description_status::unread;
                 compo.desc  = mod.descriptions.get_id(desc);
             } else {
-                log_warning(mod,
-                            log_level::error,
-                            status::modeling_too_many_description_open);
+                log_warning(mod, log_level::error);
             }
         }
     } catch (const std::exception& /*e*/) {
-        log_warning(mod,
-                    log_level::error,
-                    status::io_filesystem_error,
-                    reg_dir.path.c_str());
+        log_warning(mod, log_level::error, reg_dir.path.c_str());
     }
 }
 
@@ -185,17 +193,13 @@ static void prepare_component_loading(modeling&             mod,
         if (too_many_file) {
             log_warning(mod,
                         log_level::error,
-                        status::modeling_too_many_file_open,
                         "registred path {}, directory {}",
                         reg_dir.path.sv(),
                         dir.path.sv());
         }
     } catch (...) {
-        log_warning(mod,
-                    log_level::error,
-                    status::modeling_file_access_error,
-                    "registred path {}",
-                    reg_dir.path.sv());
+        log_warning(
+          mod, log_level::error, "registred path {}", reg_dir.path.sv());
     }
 }
 
@@ -240,22 +244,15 @@ static void prepare_component_loading(modeling&              mod,
             if (too_many_directory)
                 log_warning(mod,
                             log_level::error,
-                            status::modeling_too_many_directory_open,
                             "registred path {}",
                             reg_dir.path.sv());
         } else {
-            log_warning(mod,
-                        log_level::error,
-                        status::modeling_file_access_error,
-                        "registred path {}",
-                        reg_dir.path.sv());
+            log_warning(
+              mod, log_level::error, "registred path {}", reg_dir.path.sv());
         }
     } catch (...) {
-        log_warning(mod,
-                    log_level::error,
-                    status::modeling_file_access_error,
-                    "registred path {}",
-                    reg_dir.path.sv());
+        log_warning(
+          mod, log_level::error, "registred path {}", reg_dir.path.sv());
     }
 }
 
@@ -276,16 +273,12 @@ static void prepare_component_loading(modeling&       mod,
 
             log_warning(mod,
                         log_level::debug,
-                        status::modeling_file_access_error,
                         "registred path does not exist {} ",
                         reg_dir.path.sv());
         }
     } catch (...) {
-        log_warning(mod,
-                    log_level::debug,
-                    status::modeling_file_access_error,
-                    "registred path: {} ",
-                    reg_dir.path.sv());
+        log_warning(
+          mod, log_level::debug, "registred path: {} ", reg_dir.path.sv());
     }
 }
 
@@ -298,7 +291,7 @@ static void prepare_component_loading(modeling& mod) noexcept
     }
 }
 
-static status load_component(modeling& mod, component& compo) noexcept
+static status2 load_component(modeling& mod, component& compo) noexcept
 {
     try {
         auto* reg  = mod.registred_paths.try_to_get(compo.reg_path);
@@ -316,18 +309,17 @@ static status load_component(modeling& mod, component& compo) noexcept
             auto       ret =
               component_load(mod, compo, cache, file_path.string().c_str());
 
-            if (is_success(ret)) {
+            if (ret) {
                 read_description = true;
                 compo.state      = component_status::unmodified;
             } else {
                 compo.state = component_status::unreadable;
                 log_warning(mod,
                             log_level::error,
-                            ret,
-                            "Fail to load component {} ({})",
-                            file_path.string(),
-                            status_string(ret));
-                irt_bad_return(ret);
+                            "Fail to load component {}",
+                            file_path.string());
+
+                return ret.error();
             }
 
             if (read_description) {
@@ -350,18 +342,18 @@ static status load_component(modeling& mod, component& compo) noexcept
             }
         }
     } catch (const std::bad_alloc& /*e*/) {
-        return status::io_not_enough_memory;
+        return new_error(status::io_not_enough_memory);
     } catch (...) {
-        return status::io_filesystem_error;
+        return new_error(status::io_filesystem_error);
     }
 
-    return status::success;
+    return success();
 }
 
-status modeling::fill_internal_components() noexcept
+status2 modeling::fill_internal_components() noexcept
 {
-    irt_return_if_fail(components.can_alloc(internal_component_count),
-                       status::modeling_too_many_file_open);
+    if (!components.can_alloc(internal_component_count))
+        return new_error(modeling::error::too_many_file_open);
 
     for (int i = 0, e = internal_component_count; i < e; ++i) {
         auto& compo          = components.alloc();
@@ -369,10 +361,10 @@ status modeling::fill_internal_components() noexcept
         compo.id.internal_id = enum_cast<internal_component>(i);
     }
 
-    return status::success;
+    return success();
 }
 
-status modeling::fill_components() noexcept
+status2 modeling::fill_components() noexcept
 {
     prepare_component_loading(*this);
     bool have_unread_component = components.size() > 0u;
@@ -381,12 +373,10 @@ status modeling::fill_components() noexcept
         have_unread_component = false;
 
         for_each_data(components, [&](auto& compo) {
-            if (auto ret = load_component(*this, compo); is_bad(ret)) {
-
+            if (auto ret = load_component(*this, compo); !ret) {
                 if (compo.state == component_status::unread) {
                     log_warning(*this,
                                 log_level::warning,
-                                ret,
                                 "Need to read dependency for component {} - {}",
                                 compo.name.sv(),
                                 static_cast<u64>(components.get_id(compo)));
@@ -397,7 +387,6 @@ status modeling::fill_components() noexcept
                 if (compo.state == component_status::unreadable) {
                     log_warning(*this,
                                 log_level::warning,
-                                ret,
                                 "Fail to read component {} - {}",
                                 compo.name.sv(),
                                 static_cast<u64>(components.get_id(compo)));
@@ -416,10 +405,10 @@ status modeling::fill_components() noexcept
         debug_component(*this, compo);
     });
 
-    return status::success;
+    return success();
 }
 
-status modeling::fill_components(registred_path& path) noexcept
+status2 modeling::fill_components(registred_path& path) noexcept
 {
     for (auto dir_id : path.children)
         if (auto* dir = dir_paths.try_to_get(dir_id); dir)
@@ -438,7 +427,7 @@ status modeling::fill_components(registred_path& path) noexcept
     } catch (...) {
     }
 
-    return status::success;
+    return success();
 }
 
 bool modeling::can_alloc_file(i32 number) const noexcept
@@ -956,7 +945,7 @@ child& modeling::alloc(generic_component& parent, dynamics_type type) noexcept
     return child;
 }
 
-status modeling::copy(const component& src, component& dst) noexcept
+status2 modeling::copy(const component& src, component& dst) noexcept
 {
     dst.x_names = src.x_names;
     dst.y_names = src.y_names;
@@ -973,22 +962,23 @@ status modeling::copy(const component& src, component& dst) noexcept
         if (const auto* s_src =
               generic_components.try_to_get(src.id.generic_id);
             s_src) {
-            irt_return_if_fail(generic_components.can_alloc(),
-                               status::data_array_not_enough_memory);
+            if (!generic_components.can_alloc())
+                return new_error(modeling::error::not_enough_memory);
 
             auto& s_dst       = generic_components.alloc();
             auto  s_dst_id    = generic_components.get_id(s_dst);
             dst.id.generic_id = s_dst_id;
             dst.type          = component_type::simple;
 
-            irt_return_if_bad(copy(*s_src, s_dst));
+            if (auto ret = copy(*s_src, s_dst); !ret)
+                return ret.error();
         }
         break;
 
     case component_type::grid:
         if (const auto* s = grid_components.try_to_get(src.id.grid_id); s) {
-            irt_return_if_fail(grid_components.can_alloc(),
-                               status::data_array_not_enough_memory);
+            if (!generic_components.can_alloc())
+                return new_error(modeling::error::not_enough_memory);
 
             auto& d        = grid_components.alloc();
             auto  d_id     = grid_components.get_id(d);
@@ -1000,8 +990,8 @@ status modeling::copy(const component& src, component& dst) noexcept
 
     case component_type::graph:
         if (const auto* s = graph_components.try_to_get(src.id.graph_id); s) {
-            irt_return_if_fail(graph_components.can_alloc(),
-                               status::data_array_not_enough_memory);
+            if (!generic_components.can_alloc())
+                return new_error(modeling::error::not_enough_memory);
 
             auto& d         = graph_components.alloc();
             auto  d_id      = graph_components.get_id(d);
@@ -1013,8 +1003,8 @@ status modeling::copy(const component& src, component& dst) noexcept
 
     case component_type::hsm:
         if (const auto* s = hsm_components.try_to_get(src.id.hsm_id); s) {
-            irt_return_if_fail(hsm_components.can_alloc(),
-                               status::data_array_not_enough_memory);
+            if (!generic_components.can_alloc())
+                return new_error(modeling::error::not_enough_memory);
 
             auto& d       = hsm_components.alloc(*s);
             auto  d_id    = hsm_components.get_id(d);
@@ -1027,7 +1017,7 @@ status modeling::copy(const component& src, component& dst) noexcept
         break;
     }
 
-    return status::success;
+    return success();
 }
 
 void modeling::free(file_path& file) noexcept
@@ -1054,16 +1044,19 @@ void modeling::free(registred_path& reg_dir) noexcept
     registred_paths.free(reg_dir);
 }
 
-status modeling::save(component& c) noexcept
+status2 modeling::save(component& c) noexcept
 {
     auto* reg = registred_paths.try_to_get(c.reg_path);
-    irt_return_if_fail(reg, status::modeling_directory_access_error);
+    if (!reg)
+        return new_error(status::modeling_directory_access_error);
 
     auto* dir = dir_paths.try_to_get(c.dir);
-    irt_return_if_fail(dir, status::modeling_directory_access_error);
+    if (!dir)
+        return new_error(status::modeling_directory_access_error);
 
     auto* file = file_paths.try_to_get(c.file);
-    irt_return_if_fail(file, status::modeling_file_access_error);
+    if (!file)
+        return new_error(status::modeling_file_access_error);
 
     {
         std::filesystem::path p{ reg->path.sv() };
@@ -1074,7 +1067,9 @@ status modeling::save(component& c) noexcept
         std::error_code ec;
         io_manager      cache;
 
-        irt_return_if_bad(component_save(*this, c, cache, p.string().c_str()));
+        if (auto ret = component_save(*this, c, cache, p.string().c_str());
+            !ret)
+            return ret.error();
     }
 
     if (auto* desc = descriptions.try_to_get(c.desc); desc) {
@@ -1087,7 +1082,7 @@ status modeling::save(component& c) noexcept
 
     c.state = component_status::unmodified;
 
-    return status::success;
+    return success();
 }
 
 } // namespace irt

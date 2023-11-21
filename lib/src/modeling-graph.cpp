@@ -89,16 +89,16 @@ struct local_rng
     sz           last_elem;
 };
 
-static auto build_graph_children(modeling&         mod,
-                                 graph_component&  graph,
-                                 vector<child_id>& ids,
-                                 i32               upper_limit,
-                                 i32               left_limit,
-                                 i32               space_x,
-                                 i32               space_y) noexcept -> status
+static status2 build_graph_children(modeling&         mod,
+                                    graph_component&  graph,
+                                    vector<child_id>& ids,
+                                    i32               upper_limit,
+                                    i32               left_limit,
+                                    i32               space_x,
+                                    i32               space_y) noexcept
 {
-    irt_return_if_fail(mod.children.can_alloc(graph.children.size()),
-                       status::data_array_not_enough_memory);
+    if (!mod.children.can_alloc(graph.children.size()))
+        return new_error(project::error::not_enough_memory);
 
     const auto old_size = ids.ssize();
     ids.reserve(graph.children.ssize() + old_size);
@@ -131,7 +131,7 @@ static auto build_graph_children(modeling&         mod,
         ids.emplace_back(new_id);
     }
 
-    return status::success;
+    return success();
 }
 
 static void connection_add(modeling&              mod,
@@ -174,49 +174,49 @@ static void named_connection_add(modeling&              mod,
     port_id p_src = undefined<port_id>();
     port_id p_dst = undefined<port_id>();
 
-    if_child_is_component_do(mod, src, [&](auto& /* ch_src */, auto& compo_src) {
-        if_child_is_component_do(mod, dst, [&](auto& /* ch_dst */, auto& compo_dst) {
-            auto     sz_src = compo_src.x_names.ssize();
-            auto     sz_dst = compo_dst.y_names.ssize();
-            port_str temp;
+    if_child_is_component_do(
+      mod, src, [&](auto& /* ch_src */, auto& compo_src) {
+          if_child_is_component_do(
+            mod, dst, [&](auto& /* ch_dst */, auto& compo_dst) {
+                auto     sz_src = compo_src.x_names.ssize();
+                auto     sz_dst = compo_dst.y_names.ssize();
+                port_str temp;
 
-            format(temp, "{}", sz_src);
-            p_src = mod.get_x_index(compo_src, temp.sv());
+                format(temp, "{}", sz_src);
+                p_src = mod.get_x_index(compo_src, temp.sv());
 
-            format(temp, "{}", sz_dst);
-            p_dst = mod.get_y_index(compo_dst, temp.sv());
-        });
-    });
+                format(temp, "{}", sz_dst);
+                p_dst = mod.get_y_index(compo_dst, temp.sv());
+            });
+      });
 
     if (is_defined(p_src) && is_defined(p_dst))
         connection_add(mod, cnts, src, p_src, dst, p_dst);
 }
 
-static bool get_dir(modeling& mod, dir_path_id id, dir_path*& out) noexcept
+static status2 get_dir(modeling& mod, dir_path_id id, dir_path*& out) noexcept
 {
-    return if_data_exists_return(
-      mod.dir_paths,
-      id,
-      [&](auto& dir) noexcept {
-          out = &dir;
-          return true;
-      },
-      false);
+    if (auto* dir = mod.dir_paths.try_to_get(id); dir) {
+        out = dir;
+        return success();
+    }
+
+    return new_error(project::error::io_project_file_component_directory_error);
 }
 
-static bool get_file(modeling& mod, file_path_id id, file_path*& out) noexcept
+static status2 get_file(modeling&    mod,
+                        file_path_id id,
+                        file_path*&  out) noexcept
 {
-    return if_data_exists_return(
-      mod.file_paths,
-      id,
-      [&](auto& file) noexcept {
-          out = &file;
-          return true;
-      },
-      false);
+    if (auto* f = mod.file_paths.try_to_get(id); f) {
+        out = f;
+        return success();
+    }
+
+    return new_error(project::error::io_project_file_component_path_error);
 }
 
-static bool open_file(dir_path& dir_p, file_path& file_p, file& out) noexcept
+static status2 open_file(dir_path& dir_p, file_path& file_p, file& out) noexcept
 {
     try {
         std::filesystem::path p = dir_p.path.u8sv();
@@ -227,23 +227,23 @@ static bool open_file(dir_path& dir_p, file_path& file_p, file& out) noexcept
 
         out.open(cstr, open_mode::read);
         if (out.is_open())
-            return true;
+            return success();
     } catch (...) {
     }
 
-    return false;
+    return new_error(project::error::io_project_file_component_file_error);
 }
 
-static bool read_dot_file(modeling& /* mod */,
-                          file& /* f */,
-                          graph_component& /* graph */,
-                          std::span<child_id> /* ids */,
-                          vector<connection_id>& /* cnts */) noexcept
+static status2 read_dot_file(modeling& /* mod */,
+                             file& /* f */,
+                             graph_component& /* graph */,
+                             std::span<child_id> /* ids */,
+                             vector<connection_id>& /* cnts */) noexcept
 {
-    return false;
+    return success();
 }
 
-static status build_dot_file_connections(
+static status2 build_dot_file_connections(
   modeling&                              mod,
   graph_component&                       graph,
   const graph_component::dot_file_param& params,
@@ -254,20 +254,20 @@ static status build_dot_file_connections(
     file_path* file_p = nullptr;
     file       f;
 
-    return get_dir(mod, params.dir, dir_p) &&
-               get_file(mod, params.file, file_p) &&
-               open_file(*dir_p, *file_p, f) &&
-               read_dot_file(mod, f, graph, ids, cnts)
-             ? status::success
-             : status::io_file_format_error;
+    irt_check(get_dir(mod, params.dir, dir_p));
+    irt_check(get_file(mod, params.file, file_p));
+    irt_check(open_file(*dir_p, *file_p, f));
+    irt_check(read_dot_file(mod, f, graph, ids, cnts));
+
+    return success();
 }
 
-static auto build_scale_free_connections(
+static status2 build_scale_free_connections(
   modeling&                                mod,
   graph_component&                         graph,
   const graph_component::scale_free_param& params,
   std::span<child_id>                      ids,
-  vector<connection_id>&                   cnts) noexcept -> status
+  vector<connection_id>&                   cnts) noexcept
 {
     const unsigned n = graph.children.size();
     irt_assert(n > 1);
@@ -285,7 +285,7 @@ static auto build_scale_free_connections(
 
         while (degree == 0) {
             if (++first >= n)
-                return status::success;
+                return success();
 
             xv = d(r);
             degree =
@@ -298,8 +298,8 @@ static auto build_scale_free_connections(
         } while (first == second);
         --degree;
 
-        irt_return_if_fail(mod.connections.can_alloc(),
-                           status::data_array_not_enough_memory);
+        if (!mod.connections.can_alloc())
+            return new_error(project::error::not_enough_memory);
 
         if (graph.type == graph_component::connection_type::name)
             named_connection_add(mod, cnts, ids[first], ids[second]);
@@ -307,15 +307,15 @@ static auto build_scale_free_connections(
             in_out_connection_add(mod, cnts, ids[first], ids[second]);
     }
 
-    return status::success;
+    return success();
 }
 
-static auto build_small_world_connections(
+static status2 build_small_world_connections(
   modeling&                                 mod,
   graph_component&                          graph,
   const graph_component::small_world_param& params,
   std::span<child_id>                       ids,
-  vector<connection_id>&                    cnts) noexcept -> status
+  vector<connection_id>&                    cnts) noexcept
 {
     const int n = graph.children.ssize();
     irt_assert(n > 1);
@@ -349,8 +349,8 @@ static auto build_small_world_connections(
             second = target;
         }
 
-        irt_return_if_fail(mod.connections.can_alloc(),
-                           status::data_array_not_enough_memory);
+        if (!mod.connections.can_alloc())
+            return new_error(project::error::not_enough_memory);
 
         irt_assert(first >= 0 && first < n);
         irt_assert(second >= 0 && second < n);
@@ -367,14 +367,13 @@ static auto build_small_world_connections(
                                   ids[static_cast<unsigned>(second)]);
     } while (source + 1 < n);
 
-    return status::success;
+    return success();
 }
 
-static auto build_graph_connections(modeling&              mod,
-                                    graph_component&       graph,
-                                    std::span<child_id>    ids,
-                                    vector<connection_id>& cnts) noexcept
-  -> status
+static status2 build_graph_connections(modeling&              mod,
+                                       graph_component&       graph,
+                                       std::span<child_id>    ids,
+                                       vector<connection_id>& cnts) noexcept
 {
     switch (graph.param.index()) {
     case 0:
@@ -400,10 +399,10 @@ static auto build_graph_connections(modeling&              mod,
           cnts);
     };
 
-    return status::success;
+    return success();
 }
 
-status modeling::build_graph_children_and_connections(
+status2 modeling::build_graph_children_and_connections(
   graph_component&       graph,
   vector<child_id>&      ids,
   vector<connection_id>& cnts,
@@ -416,19 +415,23 @@ status modeling::build_graph_children_and_connections(
     // vector.
     const auto old_size = ids.ssize();
 
-    irt_return_if_bad(build_graph_children(
-      *this, graph, ids, upper_limit, left_limit, space_x, space_y));
+    if (auto ret = build_graph_children(
+          *this, graph, ids, upper_limit, left_limit, space_x, space_y);
+        !ret)
+        return ret.error();
 
-    irt_return_if_bad(build_graph_connections(
-      *this,
-      graph,
-      std::span<child_id>(ids.begin() + old_size, ids.end()),
-      cnts));
+    if (auto ret = build_graph_connections(
+          *this,
+          graph,
+          std::span<child_id>(ids.begin() + old_size, ids.end()),
+          cnts);
+        !ret)
+        return ret.error();
 
-    return status::success;
+    return success();
 }
 
-status modeling::build_graph_component_cache(graph_component& graph) noexcept
+status2 modeling::build_graph_component_cache(graph_component& graph) noexcept
 {
     clear_graph_component_cache(graph);
 
@@ -448,7 +451,7 @@ void modeling::clear_graph_component_cache(graph_component& graph) noexcept
     graph.cache_connections.clear();
 }
 
-status modeling::copy(graph_component& grid, generic_component& s) noexcept
+status2 modeling::copy(graph_component& grid, generic_component& s) noexcept
 {
     return build_graph_children_and_connections(
       grid, s.children, s.connections);

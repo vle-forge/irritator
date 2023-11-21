@@ -23,21 +23,24 @@ static void simulation_clear(component_editor&  ed,
     sim_ed.display_graph = true;
 }
 
-static status simulation_init_grid_observation(application& app) noexcept
+static status2 simulation_init_grid_observation(application& app) noexcept
 {
     app.pj.grid_observation_systems.resize(app.pj.grid_observers.capacity());
 
-    return try_for_each_data(
-      app.pj.grid_observers, [&](auto& grid_obs) noexcept -> status {
-          const auto id  = app.pj.grid_observers.get_id(grid_obs);
-          const auto idx = get_index(id);
+    for (auto& grid_obs : app.pj.grid_observers) {
+        const auto id  = app.pj.grid_observers.get_id(grid_obs);
+        const auto idx = get_index(id);
 
-          return app.pj.grid_observation_systems[idx].init(
-            app.pj, app.mod, app.sim, grid_obs);
-      });
+        if (auto ret = app.pj.grid_observation_systems[idx].init(
+              app.pj, app.mod, app.sim, grid_obs);
+            !ret)
+            return ret.error();
+    }
+
+    return success();
 }
 
-static status simulation_init_observation(application& app) noexcept
+static status2 simulation_init_observation(application& app) noexcept
 {
     app.simulation_ed.plot_obs.init(app);
     // @TODO maybe clear project grid and graph obs ?
@@ -47,13 +50,12 @@ static status simulation_init_observation(application& app) noexcept
     // app.simulation_ed.grid_obs.clear();
     // app.simulation_ed.graph_obs.clear();
 
-    irt_return_if_bad(app.simulation_ed.plot_obs.init(app));
-    irt_return_if_bad(simulation_init_grid_observation(app));
+    irt_check(simulation_init_grid_observation(app));
     // irt_return_if_bad(simulation_init_graph_observation(app));
 
     app.sim_obs.init();
 
-    return status::success;
+    return success();
 }
 
 template<typename S, typename... Args>
@@ -112,9 +114,8 @@ static void simulation_copy(component_editor&  ed,
         return;
     }
 
-    if (auto ret = app.pj.set(app.mod, app.sim, *compo); is_bad(ret)) {
-        make_copy_error_msg(
-          ed, "Copy hierarchy failed: {}", status_string(ret));
+    if (auto ret = app.pj.set(app.mod, app.sim, *compo); !ret) {
+        make_copy_error_msg(ed, "Copy hierarchy failed");
         sim_ed.simulation_state = simulation_status::not_started;
         return;
     }
@@ -153,9 +154,8 @@ static void simulation_init(component_editor&  ed,
         return;
     }
 
-    if (auto ret = simulation_init_observation(app); is_bad(ret)) {
-        make_copy_error_msg(
-          ed, "Initialization of observation failed: {}", status_string(ret));
+    if (auto ret = simulation_init_observation(app); !ret) {
+        make_copy_error_msg(ed, "Initialization of observation failed");
         sim_ed.simulation_state = simulation_status::not_started;
         return;
     }

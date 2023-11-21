@@ -484,18 +484,6 @@ enum class status
     io_filesystem_make_directory_error,
     io_filesystem_not_directory_error,
 
-    io_project_component_empty,
-    io_project_component_type_error,
-    io_project_file_error,
-    io_project_file_component_type_error,
-    io_project_file_component_path_error,
-    io_project_file_component_directory_error,
-    io_project_file_component_file_error,
-    io_project_file_parameters_error,
-    io_project_file_parameters_access_error,
-    io_project_file_parameters_type_error,
-    io_project_file_parameters_init_error,
-
     io_file_format_error,
     io_file_format_source_number_error,
     io_file_source_full,

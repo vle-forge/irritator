@@ -1571,10 +1571,12 @@ int main()
             sim.alloc<irt::logical_invert>();
             sim.alloc<irt::hsm_wrapper>();
 
-            auto is_saved = irt::simulation_save(
-              sim, cache, out, irt::json_pretty_print::indent_2_one_line_array);
+            expect(!!irt::simulation_save(
+              sim,
+              cache,
+              out,
+              irt::json_pretty_print::indent_2_one_line_array));
 
-            expect(is_success(is_saved));
             expect(out.size() > 0);
         }
 
@@ -1595,10 +1597,8 @@ int main()
 
             expect(irt::is_success(sim.init(64lu, 32lu)));
 
-            auto in        = std::span(out.data(), out.size());
-            auto is_loaded = irt::simulation_load(sim, cache, in);
-
-            expect(is_success(is_loaded));
+            auto in = std::span(out.data(), out.size());
+            expect(!!irt::simulation_load(sim, cache, in));
             expect(sim.models.size() == 60);
         }
     };
@@ -3613,8 +3613,7 @@ int main()
             (void)sim.alloc<irt::qss1_integrator>();
             (void)sim.alloc<irt::qss1_multiplier>();
 
-            ret = simulation_save(sim, m);
-            expect(ret == irt::status::success);
+            expect(!!irt::simulation_save(sim, m));
 
             data.resize(static_cast<int>(m.pos));
             std::copy_n(m.data.data(), m.pos, data.data());
@@ -3626,17 +3625,12 @@ int main()
             irt::memory     m(data.size(), irt::open_mode::read);
             irt::simulation sim;
 
-            irt::status ret;
-
             irt::binary_cache cache;
 
             std::copy_n(data.data(), 200, m.data.data());
             m.pos = 0;
 
-            ret = irt::simulation_load(sim, m, cache);
-
-            expect(ret == irt::status::success);
-
+            expect(!!irt::simulation_load(sim, m, cache));
             expect(sim.models.size() == 3u);
             expect(sim.hsms.size() == 0u);
         }

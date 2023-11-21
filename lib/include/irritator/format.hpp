@@ -107,7 +107,6 @@ inline void debug_component(const modeling& mod, const component_id id) noexcept
 template<typename S, typename... Args>
 constexpr void log_warning(modeling& mod,
                            log_level level,
-                           status    st,
                            const S&  fmt,
                            Args&&... args) noexcept
 {
@@ -116,8 +115,7 @@ constexpr void log_warning(modeling& mod,
     if (mod.log_entries.full())
         mod.log_entries.pop_head();
 
-    mod.log_entries.push_tail(
-      { .buffer = "", .level = level, .st = status::success });
+    mod.log_entries.push_tail({ .buffer = "", .level = level });
     auto& warning = mod.log_entries.back();
 
     auto ret = fmt::vformat_to_n(warning.buffer.begin(),
@@ -126,7 +124,6 @@ constexpr void log_warning(modeling& mod,
                                  fmt::make_format_args(args...));
 
     warning.buffer.resize(static_cast<size_type>(ret.size));
-    warning.st = st;
 }
 
 //! Copy a formatted string into the \c modeling log_entries.
@@ -134,15 +131,12 @@ constexpr void log_warning(modeling& mod,
 //! The formatted string in take from the \c modeling \c ring-buffer.
 //! \param mode A reference to a modeling object.
 //! \param status The \c irt::status attached to the error.
-constexpr void log_warning(modeling& mod, log_level level, status st) noexcept
+constexpr void log_warning(modeling& mod, log_level level) noexcept
 {
     if (mod.log_entries.full())
         mod.log_entries.pop_head();
 
-    mod.log_entries.push_tail(
-      { .buffer = "", .level = level, .st = status::success });
-    auto& warning = mod.log_entries.back();
-    warning.st    = st;
+    mod.log_entries.push_tail({ .buffer = "", .level = level });
 }
 
 } //  irt

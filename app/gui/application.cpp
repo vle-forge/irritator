@@ -47,19 +47,15 @@ application::~application() noexcept
 
 bool application::init() noexcept
 {
-    if (auto ret = mod.init(mod_init); is_bad(ret)) {
+    if (!mod.init(mod_init)) {
         log_w(*this,
               log_level::error,
-              "Fail to initialize modeling components: {}\n",
-              status_string(ret));
+              "Fail to initialize modeling components: {}\n");
         return false;
     }
 
-    if (auto ret = pj.init(mod_init); is_bad(ret)) {
-        log_w(*this,
-              log_level::error,
-              "Fail to initialize project: {}\n",
-              status_string(ret));
+    if (auto ret = pj.init(mod_init); !ret) {
+        log_w(*this, log_level::error, "Fail to initialize project: {}\n");
         return false;
     }
 
@@ -170,11 +166,10 @@ bool application::init() noexcept
         return false;
     }
 
-    if (auto ret = mod.fill_internal_components(); is_bad(ret)) {
+    if (auto ret = mod.fill_internal_components(); !ret) {
         log_w(*this,
               log_level::error,
-              "Fail to fill internal component list: {}\n",
-              status_string(ret));
+              "Fail to fill internal component list: {}\n");
     }
 
     if (auto ret = graphs.init(32); is_bad(ret)) {
@@ -201,7 +196,8 @@ bool application::init() noexcept
         return false;
     }
 
-    mod.fill_components();
+    if (auto ret = mod.fill_components(); !ret)
+        log_w(*this, log_level::error, "Fail to read all components\n");
 
     component_sel.update();
 
@@ -478,10 +474,9 @@ void application::show() noexcept
             auto& w = mod.log_entries.front();
             mod.log_entries.pop_head();
 
-            auto& n   = notifications.alloc();
-            n.level   = w.level;
-            n.title   = w.buffer.sv();
-            n.message = status_string(w.st);
+            auto& n = notifications.alloc();
+            n.level = w.level;
+            n.title = w.buffer.sv();
 
             if (match(w.level, log_level::info, log_level::debug))
                 n.only_log = true;

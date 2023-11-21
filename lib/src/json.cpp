@@ -2826,12 +2826,10 @@ struct reader
     {
         auto_stack a(this, stack_id::component_generic_connect);
 
-        if (auto* c_src = mod().children.try_to_get(src); c_src) {
-            if (auto* c_dst = mod().children.try_to_get(dst); c_dst) {
-                return is_success(
-                  mod().connect(compo, *c_src, p_src, *c_dst, p_dst));
-            }
-        }
+        if (auto* c_src = mod().children.try_to_get(src); c_src)
+            if (auto* c_dst = mod().children.try_to_get(dst); c_dst)
+                if (mod().connect(compo, *c_src, p_src, *c_dst, p_dst))
+                    return true;
 
         report_json_error(error_id::modeling_connect_error);
     }
@@ -2845,8 +2843,8 @@ struct reader
 
         if (auto* c_dst = mod().children.try_to_get(dst); c_dst)
             if (auto* port = mod().ports.try_to_get(src_port); port)
-                return is_success(
-                  mod().connect_input(compo, *port, *c_dst, p_dst));
+                if (mod().connect_input(compo, *port, *c_dst, p_dst))
+                    return true;
 
         report_json_error(error_id::modeling_connect_error);
     }
@@ -2860,8 +2858,8 @@ struct reader
 
         if (auto* c_src = mod().children.try_to_get(src); c_src)
             if (auto* port = mod().ports.try_to_get(dst_port); port)
-                return is_success(
-                  mod().connect_output(compo, *c_src, p_src, *port));
+                if (mod().connect_output(compo, *c_src, p_src, *port))
+                    return true;
 
         report_json_error(error_id::modeling_connect_error);
     }
@@ -3820,7 +3818,7 @@ struct reader
         auto_stack s(this, stack_id::project_set_components);
 
         if (auto* compo = mod().components.try_to_get(c_id); compo) {
-            if (is_success(pj().set(mod(), sim(), *compo)))
+            if (auto ret = pj().set(mod(), sim(), *compo); ret)
                 return true;
             else
                 report_json_error(error_id::project_set_error);
@@ -4125,7 +4123,7 @@ struct reader
     }
 
     bool read_project_grid_observation(const rapidjson::Value& val,
-                                       grid_modeling_observer&          grid) noexcept
+                                       grid_modeling_observer& grid) noexcept
     {
         auto_stack s(this, stack_id::project_grid_observation);
 
@@ -4362,48 +4360,53 @@ static bool buffer_fill(std::ifstream& ifs, vector<char>& vec) noexcept
     return ifs.read(vec.data(), vec.size()).good();
 }
 
-static bool read_file_to_buffer(io_manager& cache,
-                                const char* filename) noexcept
+static status2 read_file_to_buffer(io_manager& cache,
+                                   const char* filename) noexcept
 {
     std::filesystem::path path;
     std::ifstream         ifs;
     u64                   size = 0;
 
-    return copy_filename_to(filename, path) && file_exists(path) &&
-           file_size(path, size) && buffer_resive(size, cache.buffer) &&
-           file_open(path, ifs) && buffer_fill(ifs, cache.buffer);
+    bool ret = copy_filename_to(filename, path) && file_exists(path) &&
+               file_size(path, size) && buffer_resive(size, cache.buffer) &&
+               file_open(path, ifs) && buffer_fill(ifs, cache.buffer);
+
+    if (ret)
+        return success();
+
+    return new_error(status::io_filesystem_error);
 }
 
-static bool parse_json_data(const std::span<char>& buffer,
-                            const char*            filename,
-                            rapidjson::Document&   doc) noexcept
+static status2 parse_json_data(const std::span<char>& buffer,
+                               const char*            filename,
+                               rapidjson::Document&   doc) noexcept
 {
     doc.Parse(buffer.data(), buffer.size());
 
-    if (!doc.HasParseError())
-        return true;
+    if (doc.HasParseError()) {
+        if (filename)
+            debug_logi(2,
+                       "Fail to parse {}. Error `{}' at offset {}\n",
+                       filename,
+                       rapidjson::GetParseError_En(doc.GetParseError()),
+                       doc.GetErrorOffset());
+        else
+            debug_logi(2,
+                       "Fail to parse buffer. Error `{}' at offset {}\n",
+                       rapidjson::GetParseError_En(doc.GetParseError()),
+                       doc.GetErrorOffset());
 
-#ifdef IRRITATOR_ENABLE_DEBUG
-    if (filename)
-        fmt::print(stderr,
-                   "Fail to parse {}. Error `{}' at offset {}\n",
-                   filename,
-                   rapidjson::GetParseError_En(doc.GetParseError()),
-                   doc.GetErrorOffset());
-    else
-        fmt::print(stderr,
-                   "Fail to parse buffer. Error `{}' at offset {}\n",
-                   rapidjson::GetParseError_En(doc.GetParseError()),
-                   doc.GetErrorOffset());
-    return false;
-#endif
+        return new_error(status::io_file_format_error);
+    }
+
+    return success();
 }
 
 //
 //
 
 template<typename Writer, int QssLevel>
-status write(Writer& writer, const abstract_integrator<QssLevel>& dyn) noexcept
+status2 write(Writer& writer, const abstract_integrator<QssLevel>& dyn) noexcept
 {
     writer.StartObject();
     writer.Key("X");
@@ -4411,95 +4414,29 @@ status write(Writer& writer, const abstract_integrator<QssLevel>& dyn) noexcept
     writer.Key("dQ");
     writer.Double(dyn.default_dQ);
     writer.EndObject();
-    return status::success;
+    return success();
 }
 
 template<typename Writer, int QssLevel>
-status write(Writer& writer,
-             const abstract_multiplier<QssLevel>& /*dyn*/) noexcept
+status2 write(Writer& writer,
+              const abstract_multiplier<QssLevel>& /*dyn*/) noexcept
 {
     writer.StartObject();
     writer.EndObject();
-    return status::success;
+    return success();
 }
 
 template<typename Writer, int QssLevel, int PortNumber>
-status write(Writer& writer,
-             const abstract_sum<QssLevel, PortNumber>& /*dyn*/) noexcept
+status2 write(Writer& writer,
+              const abstract_sum<QssLevel, PortNumber>& /*dyn*/) noexcept
 {
     writer.StartObject();
     writer.EndObject();
-    return status::success;
+    return success();
 }
 
 template<typename Writer>
-status write(Writer& writer, const qss1_wsum_2& dyn) noexcept
-{
-    writer.StartObject();
-    writer.Key("coeff-0");
-    writer.Double(dyn.default_input_coeffs[0]);
-    writer.Key("coeff-1");
-    writer.Double(dyn.default_input_coeffs[1]);
-    writer.EndObject();
-    return status::success;
-}
-
-template<typename Writer>
-status write(Writer& writer, const qss1_wsum_3& dyn) noexcept
-{
-    writer.StartObject();
-    writer.Key("coeff-0");
-    writer.Double(dyn.default_input_coeffs[0]);
-    writer.Key("coeff-1");
-    writer.Double(dyn.default_input_coeffs[1]);
-    writer.Key("coeff-2");
-    writer.Double(dyn.default_input_coeffs[2]);
-    writer.EndObject();
-    return status::success;
-}
-
-template<typename Writer>
-status write(Writer& writer, const qss1_wsum_4& dyn) noexcept
-{
-    writer.StartObject();
-    writer.Key("coeff-0");
-    writer.Double(dyn.default_input_coeffs[0]);
-    writer.Key("coeff-1");
-    writer.Double(dyn.default_input_coeffs[1]);
-    writer.Key("coeff-2");
-    writer.Double(dyn.default_input_coeffs[2]);
-    writer.Key("coeff-3");
-    writer.Double(dyn.default_input_coeffs[3]);
-    writer.EndObject();
-    return status::success;
-}
-
-template<typename Writer>
-status write(Writer& writer, const qss2_sum_2& /*dyn*/) noexcept
-{
-    writer.StartObject();
-    writer.EndObject();
-    return status::success;
-}
-
-template<typename Writer>
-status write(Writer& writer, const qss2_sum_3& /*dyn*/) noexcept
-{
-    writer.StartObject();
-    writer.EndObject();
-    return status::success;
-}
-
-template<typename Writer>
-status write(Writer& writer, const qss2_sum_4& /*dyn*/) noexcept
-{
-    writer.StartObject();
-    writer.EndObject();
-    return status::success;
-}
-
-template<typename Writer>
-status write(Writer& writer, const qss2_wsum_2& dyn) noexcept
+status2 write(Writer& writer, const qss1_wsum_2& dyn) noexcept
 {
     writer.StartObject();
     writer.Key("coeff-0");
@@ -4507,11 +4444,11 @@ status write(Writer& writer, const qss2_wsum_2& dyn) noexcept
     writer.Key("coeff-1");
     writer.Double(dyn.default_input_coeffs[1]);
     writer.EndObject();
-    return status::success;
+    return success();
 }
 
 template<typename Writer>
-status write(Writer& writer, const qss2_wsum_3& dyn) noexcept
+status2 write(Writer& writer, const qss1_wsum_3& dyn) noexcept
 {
     writer.StartObject();
     writer.Key("coeff-0");
@@ -4521,11 +4458,11 @@ status write(Writer& writer, const qss2_wsum_3& dyn) noexcept
     writer.Key("coeff-2");
     writer.Double(dyn.default_input_coeffs[2]);
     writer.EndObject();
-    return status::success;
+    return success();
 }
 
 template<typename Writer>
-status write(Writer& writer, const qss2_wsum_4& dyn) noexcept
+status2 write(Writer& writer, const qss1_wsum_4& dyn) noexcept
 {
     writer.StartObject();
     writer.Key("coeff-0");
@@ -4537,35 +4474,35 @@ status write(Writer& writer, const qss2_wsum_4& dyn) noexcept
     writer.Key("coeff-3");
     writer.Double(dyn.default_input_coeffs[3]);
     writer.EndObject();
-    return status::success;
+    return success();
 }
 
 template<typename Writer>
-status write(Writer& writer, const qss3_sum_2& /*dyn*/) noexcept
+status2 write(Writer& writer, const qss2_sum_2& /*dyn*/) noexcept
 {
     writer.StartObject();
     writer.EndObject();
-    return status::success;
+    return success();
 }
 
 template<typename Writer>
-status write(Writer& writer, const qss3_sum_3& /*dyn*/) noexcept
+status2 write(Writer& writer, const qss2_sum_3& /*dyn*/) noexcept
 {
     writer.StartObject();
     writer.EndObject();
-    return status::success;
+    return success();
 }
 
 template<typename Writer>
-status write(Writer& writer, const qss3_sum_4& /*dyn*/) noexcept
+status2 write(Writer& writer, const qss2_sum_4& /*dyn*/) noexcept
 {
     writer.StartObject();
     writer.EndObject();
-    return status::success;
+    return success();
 }
 
 template<typename Writer>
-status write(Writer& writer, const qss3_wsum_2& dyn) noexcept
+status2 write(Writer& writer, const qss2_wsum_2& dyn) noexcept
 {
     writer.StartObject();
     writer.Key("coeff-0");
@@ -4573,11 +4510,11 @@ status write(Writer& writer, const qss3_wsum_2& dyn) noexcept
     writer.Key("coeff-1");
     writer.Double(dyn.default_input_coeffs[1]);
     writer.EndObject();
-    return status::success;
+    return success();
 }
 
 template<typename Writer>
-status write(Writer& writer, const qss3_wsum_3& dyn) noexcept
+status2 write(Writer& writer, const qss2_wsum_3& dyn) noexcept
 {
     writer.StartObject();
     writer.Key("coeff-0");
@@ -4587,11 +4524,11 @@ status write(Writer& writer, const qss3_wsum_3& dyn) noexcept
     writer.Key("coeff-2");
     writer.Double(dyn.default_input_coeffs[2]);
     writer.EndObject();
-    return status::success;
+    return success();
 }
 
 template<typename Writer>
-status write(Writer& writer, const qss3_wsum_4& dyn) noexcept
+status2 write(Writer& writer, const qss2_wsum_4& dyn) noexcept
 {
     writer.StartObject();
     writer.Key("coeff-0");
@@ -4603,11 +4540,77 @@ status write(Writer& writer, const qss3_wsum_4& dyn) noexcept
     writer.Key("coeff-3");
     writer.Double(dyn.default_input_coeffs[3]);
     writer.EndObject();
-    return status::success;
+    return success();
 }
 
 template<typename Writer>
-status write(Writer& writer, const integrator& dyn) noexcept
+status2 write(Writer& writer, const qss3_sum_2& /*dyn*/) noexcept
+{
+    writer.StartObject();
+    writer.EndObject();
+    return success();
+}
+
+template<typename Writer>
+status2 write(Writer& writer, const qss3_sum_3& /*dyn*/) noexcept
+{
+    writer.StartObject();
+    writer.EndObject();
+    return success();
+}
+
+template<typename Writer>
+status2 write(Writer& writer, const qss3_sum_4& /*dyn*/) noexcept
+{
+    writer.StartObject();
+    writer.EndObject();
+    return success();
+}
+
+template<typename Writer>
+status2 write(Writer& writer, const qss3_wsum_2& dyn) noexcept
+{
+    writer.StartObject();
+    writer.Key("coeff-0");
+    writer.Double(dyn.default_input_coeffs[0]);
+    writer.Key("coeff-1");
+    writer.Double(dyn.default_input_coeffs[1]);
+    writer.EndObject();
+    return success();
+}
+
+template<typename Writer>
+status2 write(Writer& writer, const qss3_wsum_3& dyn) noexcept
+{
+    writer.StartObject();
+    writer.Key("coeff-0");
+    writer.Double(dyn.default_input_coeffs[0]);
+    writer.Key("coeff-1");
+    writer.Double(dyn.default_input_coeffs[1]);
+    writer.Key("coeff-2");
+    writer.Double(dyn.default_input_coeffs[2]);
+    writer.EndObject();
+    return success();
+}
+
+template<typename Writer>
+status2 write(Writer& writer, const qss3_wsum_4& dyn) noexcept
+{
+    writer.StartObject();
+    writer.Key("coeff-0");
+    writer.Double(dyn.default_input_coeffs[0]);
+    writer.Key("coeff-1");
+    writer.Double(dyn.default_input_coeffs[1]);
+    writer.Key("coeff-2");
+    writer.Double(dyn.default_input_coeffs[2]);
+    writer.Key("coeff-3");
+    writer.Double(dyn.default_input_coeffs[3]);
+    writer.EndObject();
+    return success();
+}
+
+template<typename Writer>
+status2 write(Writer& writer, const integrator& dyn) noexcept
 {
     writer.StartObject();
     writer.Key("value");
@@ -4615,11 +4618,11 @@ status write(Writer& writer, const integrator& dyn) noexcept
     writer.Key("reset");
     writer.Double(dyn.default_reset_value);
     writer.EndObject();
-    return status::success;
+    return success();
 }
 
 template<typename Writer>
-status write(Writer& writer, const quantifier& dyn) noexcept
+status2 write(Writer& writer, const quantifier& dyn) noexcept
 {
     writer.StartObject();
     writer.Key("step-size");
@@ -4636,11 +4639,11 @@ status write(Writer& writer, const quantifier& dyn) noexcept
     writer.Key("zero-init-offset");
     writer.Bool(dyn.default_zero_init_offset);
     writer.EndObject();
-    return status::success;
+    return success();
 }
 
 template<typename Writer>
-status write(Writer& writer, const adder_2& dyn) noexcept
+status2 write(Writer& writer, const adder_2& dyn) noexcept
 {
     writer.StartObject();
     writer.Key("value-0");
@@ -4652,11 +4655,11 @@ status write(Writer& writer, const adder_2& dyn) noexcept
     writer.Key("coeff-1");
     writer.Double(dyn.default_input_coeffs[1]);
     writer.EndObject();
-    return status::success;
+    return success();
 }
 
 template<typename Writer>
-status write(Writer& writer, const adder_3& dyn) noexcept
+status2 write(Writer& writer, const adder_3& dyn) noexcept
 {
     writer.StartObject();
     writer.Key("value-0");
@@ -4672,11 +4675,11 @@ status write(Writer& writer, const adder_3& dyn) noexcept
     writer.Key("coeff-2");
     writer.Double(dyn.default_input_coeffs[2]);
     writer.EndObject();
-    return status::success;
+    return success();
 }
 
 template<typename Writer>
-status write(Writer& writer, const adder_4& dyn) noexcept
+status2 write(Writer& writer, const adder_4& dyn) noexcept
 {
     writer.StartObject();
     writer.Key("value-0");
@@ -4696,11 +4699,11 @@ status write(Writer& writer, const adder_4& dyn) noexcept
     writer.Key("coeff-3");
     writer.Double(dyn.default_input_coeffs[3]);
     writer.EndObject();
-    return status::success;
+    return success();
 }
 
 template<typename Writer>
-status write(Writer& writer, const mult_2& dyn) noexcept
+status2 write(Writer& writer, const mult_2& dyn) noexcept
 {
     writer.StartObject();
     writer.Key("value-0");
@@ -4712,11 +4715,11 @@ status write(Writer& writer, const mult_2& dyn) noexcept
     writer.Key("coeff-1");
     writer.Double(dyn.default_values[1]);
     writer.EndObject();
-    return status::success;
+    return success();
 }
 
 template<typename Writer>
-status write(Writer& writer, const mult_3& dyn) noexcept
+status2 write(Writer& writer, const mult_3& dyn) noexcept
 {
     writer.StartObject();
     writer.Key("value-0");
@@ -4732,11 +4735,11 @@ status write(Writer& writer, const mult_3& dyn) noexcept
     writer.Key("coeff-2");
     writer.Double(dyn.default_values[2]);
     writer.EndObject();
-    return status::success;
+    return success();
 }
 
 template<typename Writer>
-status write(Writer& writer, const mult_4& dyn) noexcept
+status2 write(Writer& writer, const mult_4& dyn) noexcept
 {
     writer.StartObject();
     writer.Key("value-0");
@@ -4756,29 +4759,29 @@ status write(Writer& writer, const mult_4& dyn) noexcept
     writer.Key("coeff-3");
     writer.Double(dyn.default_values[3]);
     writer.EndObject();
-    return status::success;
+    return success();
 }
 
 template<typename Writer>
-status write(Writer& writer, const counter& /*dyn*/) noexcept
+status2 write(Writer& writer, const counter& /*dyn*/) noexcept
 {
     writer.StartObject();
     writer.EndObject();
-    return status::success;
+    return success();
 }
 
 template<typename Writer>
-status write(Writer& writer, const queue& dyn) noexcept
+status2 write(Writer& writer, const queue& dyn) noexcept
 {
     writer.StartObject();
     writer.Key("ta");
     writer.Double(dyn.default_ta);
     writer.EndObject();
-    return status::success;
+    return success();
 }
 
 template<typename Writer>
-status write(Writer& writer, const dynamic_queue& dyn) noexcept
+status2 write(Writer& writer, const dynamic_queue& dyn) noexcept
 {
     writer.StartObject();
     writer.Key("source-ta-type");
@@ -4788,11 +4791,11 @@ status write(Writer& writer, const dynamic_queue& dyn) noexcept
     writer.Key("stop-on-error");
     writer.Bool(dyn.stop_on_error);
     writer.EndObject();
-    return status::success;
+    return success();
 }
 
 template<typename Writer>
-status write(Writer& writer, const priority_queue& dyn) noexcept
+status2 write(Writer& writer, const priority_queue& dyn) noexcept
 {
     writer.StartObject();
     writer.Key("ta");
@@ -4804,11 +4807,11 @@ status write(Writer& writer, const priority_queue& dyn) noexcept
     writer.Key("stop-on-error");
     writer.Bool(dyn.stop_on_error);
     writer.EndObject();
-    return status::success;
+    return success();
 }
 
 template<typename Writer>
-status write(Writer& writer, const generator& dyn) noexcept
+status2 write(Writer& writer, const generator& dyn) noexcept
 {
     writer.StartObject();
     writer.Key("offset");
@@ -4824,11 +4827,11 @@ status write(Writer& writer, const generator& dyn) noexcept
     writer.Key("stop-on-error");
     writer.Bool(dyn.stop_on_error);
     writer.EndObject();
-    return status::success;
+    return success();
 }
 
 template<typename Writer>
-status write(Writer& writer, const constant& dyn) noexcept
+status2 write(Writer& writer, const constant& dyn) noexcept
 {
     writer.StartObject();
     writer.Key("value");
@@ -4859,11 +4862,11 @@ status write(Writer& writer, const constant& dyn) noexcept
         break;
     }
     writer.EndObject();
-    return status::success;
+    return success();
 }
 
 template<typename Writer>
-status write(Writer& writer, const qss1_cross& dyn) noexcept
+status2 write(Writer& writer, const qss1_cross& dyn) noexcept
 {
     writer.StartObject();
     writer.Key("threshold");
@@ -4871,11 +4874,11 @@ status write(Writer& writer, const qss1_cross& dyn) noexcept
     writer.Key("detect-up");
     writer.Bool(dyn.default_detect_up);
     writer.EndObject();
-    return status::success;
+    return success();
 }
 
 template<typename Writer>
-status write(Writer& writer, const qss2_cross& dyn) noexcept
+status2 write(Writer& writer, const qss2_cross& dyn) noexcept
 {
     writer.StartObject();
     writer.Key("threshold");
@@ -4883,11 +4886,11 @@ status write(Writer& writer, const qss2_cross& dyn) noexcept
     writer.Key("detect-up");
     writer.Bool(dyn.default_detect_up);
     writer.EndObject();
-    return status::success;
+    return success();
 }
 
 template<typename Writer>
-status write(Writer& writer, const qss3_cross& dyn) noexcept
+status2 write(Writer& writer, const qss3_cross& dyn) noexcept
 {
     writer.StartObject();
     writer.Key("threshold");
@@ -4895,11 +4898,11 @@ status write(Writer& writer, const qss3_cross& dyn) noexcept
     writer.Key("detect-up");
     writer.Bool(dyn.default_detect_up);
     writer.EndObject();
-    return status::success;
+    return success();
 }
 
 template<typename Writer>
-status write(Writer& writer, const qss1_filter& dyn) noexcept
+status2 write(Writer& writer, const qss1_filter& dyn) noexcept
 {
     writer.StartObject();
     writer.Key("lower-threshold");
@@ -4911,11 +4914,11 @@ status write(Writer& writer, const qss1_filter& dyn) noexcept
                     ? std::numeric_limits<double>::max()
                     : dyn.default_upper_threshold);
     writer.EndObject();
-    return status::success;
+    return success();
 }
 
 template<typename Writer>
-status write(Writer& writer, const qss2_filter& dyn) noexcept
+status2 write(Writer& writer, const qss2_filter& dyn) noexcept
 {
     writer.StartObject();
     writer.Key("lower-threshold");
@@ -4927,11 +4930,11 @@ status write(Writer& writer, const qss2_filter& dyn) noexcept
                     ? std::numeric_limits<double>::max()
                     : dyn.default_upper_threshold);
     writer.EndObject();
-    return status::success;
+    return success();
 }
 
 template<typename Writer>
-status write(Writer& writer, const qss3_filter& dyn) noexcept
+status2 write(Writer& writer, const qss3_filter& dyn) noexcept
 {
     writer.StartObject();
     writer.Key("lower-threshold");
@@ -4943,67 +4946,67 @@ status write(Writer& writer, const qss3_filter& dyn) noexcept
                     ? std::numeric_limits<double>::max()
                     : dyn.default_upper_threshold);
     writer.EndObject();
-    return status::success;
+    return success();
 }
 
 template<typename Writer>
-status write(Writer& writer, const qss1_power& dyn) noexcept
+status2 write(Writer& writer, const qss1_power& dyn) noexcept
 {
     writer.StartObject();
     writer.Key("n");
     writer.Double(dyn.default_n);
     writer.EndObject();
-    return status::success;
+    return success();
 }
 
 template<typename Writer>
-status write(Writer& writer, const qss2_power& dyn) noexcept
+status2 write(Writer& writer, const qss2_power& dyn) noexcept
 {
     writer.StartObject();
     writer.Key("n");
     writer.Double(dyn.default_n);
     writer.EndObject();
-    return status::success;
+    return success();
 }
 
 template<typename Writer>
-status write(Writer& writer, const qss3_power& dyn) noexcept
+status2 write(Writer& writer, const qss3_power& dyn) noexcept
 {
     writer.StartObject();
     writer.Key("n");
     writer.Double(dyn.default_n);
     writer.EndObject();
-    return status::success;
+    return success();
 }
 
 template<typename Writer, int QssLevel>
-status write(Writer& writer, const abstract_square<QssLevel>& /*dyn*/) noexcept
+status2 write(Writer& writer, const abstract_square<QssLevel>& /*dyn*/) noexcept
 {
     writer.StartObject();
     writer.EndObject();
-    return status::success;
+    return success();
 }
 
 template<typename Writer>
-status write(Writer& writer, const cross& dyn) noexcept
+status2 write(Writer& writer, const cross& dyn) noexcept
 {
     writer.StartObject();
     writer.Key("threshold");
     writer.Double(dyn.default_threshold);
     writer.EndObject();
-    return status::success;
+    return success();
 }
 
 template<typename Writer, int PortNumber>
-status write(Writer& writer, const accumulator<PortNumber>& /*dyn*/) noexcept
+status2 write(Writer& writer, const accumulator<PortNumber>& /*dyn*/) noexcept
 {
     writer.StartObject();
     writer.EndObject();
-    return status::success;
+    return success();
 }
 
 template<typename Writer>
-status write(Writer& writer, const time_func& dyn) noexcept
+status2 write(Writer& writer, const time_func& dyn) noexcept
 {
     writer.StartObject();
     writer.Key("function");
@@ -5011,11 +5014,11 @@ status write(Writer& writer, const time_func& dyn) noexcept
                   : dyn.default_f == &square_time_function ? "square"
                                                            : "sin");
     writer.EndObject();
-    return status::success;
+    return success();
 }
 
 template<typename Writer>
-status write(Writer& writer, const filter& dyn) noexcept
+status2 write(Writer& writer, const filter& dyn) noexcept
 {
     writer.StartObject();
     writer.Key("lower-threshold");
@@ -5023,11 +5026,11 @@ status write(Writer& writer, const filter& dyn) noexcept
     writer.Key("upper-threshold");
     writer.Double(dyn.default_upper_threshold);
     writer.EndObject();
-    return status::success;
+    return success();
 }
 
 template<typename Writer>
-status write(Writer& writer, const logical_and_2& dyn) noexcept
+status2 write(Writer& writer, const logical_and_2& dyn) noexcept
 {
     writer.StartObject();
     writer.Key("value-0");
@@ -5035,37 +5038,11 @@ status write(Writer& writer, const logical_and_2& dyn) noexcept
     writer.Key("value-1");
     writer.Bool(dyn.default_values[1]);
     writer.EndObject();
-    return status::success;
+    return success();
 }
 
 template<typename Writer>
-status write(Writer& writer, const logical_and_3& dyn) noexcept
-{
-    writer.StartObject();
-    writer.Key("value-0");
-    writer.Bool(dyn.default_values[0]);
-    writer.Key("value-1");
-    writer.Bool(dyn.default_values[1]);
-    writer.Key("value-2");
-    writer.Bool(dyn.default_values[2]);
-    writer.EndObject();
-    return status::success;
-}
-
-template<typename Writer>
-status write(Writer& writer, const logical_or_2& dyn) noexcept
-{
-    writer.StartObject();
-    writer.Key("value-0");
-    writer.Bool(dyn.default_values[0]);
-    writer.Key("value-1");
-    writer.Bool(dyn.default_values[1]);
-    writer.EndObject();
-    return status::success;
-}
-
-template<typename Writer>
-status write(Writer& writer, const logical_or_3& dyn) noexcept
+status2 write(Writer& writer, const logical_and_3& dyn) noexcept
 {
     writer.StartObject();
     writer.Key("value-0");
@@ -5075,19 +5052,45 @@ status write(Writer& writer, const logical_or_3& dyn) noexcept
     writer.Key("value-2");
     writer.Bool(dyn.default_values[2]);
     writer.EndObject();
-    return status::success;
+    return success();
 }
 
 template<typename Writer>
-status write(Writer& writer, const logical_invert& /*dyn*/) noexcept
+status2 write(Writer& writer, const logical_or_2& dyn) noexcept
+{
+    writer.StartObject();
+    writer.Key("value-0");
+    writer.Bool(dyn.default_values[0]);
+    writer.Key("value-1");
+    writer.Bool(dyn.default_values[1]);
+    writer.EndObject();
+    return success();
+}
+
+template<typename Writer>
+status2 write(Writer& writer, const logical_or_3& dyn) noexcept
+{
+    writer.StartObject();
+    writer.Key("value-0");
+    writer.Bool(dyn.default_values[0]);
+    writer.Key("value-1");
+    writer.Bool(dyn.default_values[1]);
+    writer.Key("value-2");
+    writer.Bool(dyn.default_values[2]);
+    writer.EndObject();
+    return success();
+}
+
+template<typename Writer>
+status2 write(Writer& writer, const logical_invert& /*dyn*/) noexcept
 {
     writer.StartObject();
     writer.EndObject();
-    return status::success;
+    return success();
 }
 
 template<typename Writer>
-status write(Writer& writer, const hsm_wrapper& dyn) noexcept
+status2 write(Writer& writer, const hsm_wrapper& dyn) noexcept
 {
     writer.StartObject();
     writer.Key("hsm");
@@ -5097,11 +5100,11 @@ status write(Writer& writer, const hsm_wrapper& dyn) noexcept
     writer.Key("b");
     writer.Int(dyn.exec.b);
     writer.EndObject();
-    return status::success;
+    return success();
 }
 
 template<typename Writer>
-status write(modeling& mod, Writer& writer, const hsm_wrapper& dyn) noexcept
+status2 write(modeling& mod, Writer& writer, const hsm_wrapper& dyn) noexcept
 {
     writer.StartObject();
     writer.Key("hsm");
@@ -5113,13 +5116,13 @@ status write(modeling& mod, Writer& writer, const hsm_wrapper& dyn) noexcept
     writer.Key("b");
     writer.Int(dyn.exec.b);
     writer.EndObject();
-    return status::success;
+    return success();
 }
 
 template<typename Writer>
-status write(Writer&                                         writer,
-             std::string_view                                name,
-             const hierarchical_state_machine::state_action& state) noexcept
+status2 write(Writer&                                         writer,
+              std::string_view                                name,
+              const hierarchical_state_machine::state_action& state) noexcept
 {
     writer.Key(name.data(), static_cast<rapidjson::SizeType>(name.size()));
     writer.StartObject();
@@ -5132,13 +5135,14 @@ status write(Writer&                                         writer,
     writer.Key("type");
     writer.Int(static_cast<int>(state.type));
     writer.EndObject();
-    return status::success;
+    return success();
 }
 
 template<typename Writer>
-status write(Writer&                                             writer,
-             std::string_view                                    name,
-             const hierarchical_state_machine::condition_action& state) noexcept
+status2 write(
+  Writer&                                             writer,
+  std::string_view                                    name,
+  const hierarchical_state_machine::condition_action& state) noexcept
 {
     writer.Key(name.data(), static_cast<rapidjson::SizeType>(name.size()));
     writer.StartObject();
@@ -5151,7 +5155,7 @@ status write(Writer&                                             writer,
     writer.Key("mask");
     writer.Int(static_cast<int>(state.mask));
     writer.EndObject();
-    return status::success;
+    return success();
 }
 
 void io_manager::clear() noexcept
@@ -5180,10 +5184,10 @@ void io_manager::destroy() noexcept
     sim_hsms_mapping.data.destroy();
 }
 
-static bool parse_json_component(modeling&                  mod,
-                                 component&                 compo,
-                                 io_manager&                cache,
-                                 const rapidjson::Document& doc) noexcept
+static status2 parse_json_component(modeling&                  mod,
+                                    component&                 compo,
+                                    io_manager&                cache,
+                                    const rapidjson::Document& doc) noexcept
 {
     reader r{ cache, mod };
     r.dependencies.emplace_back(mod.components.get_id(compo));
@@ -5217,61 +5221,59 @@ static bool parse_json_component(modeling&                  mod,
             r.show_error();
 #endif
 
-            if (r.dependencies.empty()) {
+            if (!r.dependencies.empty()) {
                 compo.state = component_status::unreadable;
-                return false;
+                return new_error(project::io_project_file_error);
             }
         }
     }
 
-    return true;
+    return success();
 }
 
-static bool parse_component(modeling&   mod,
-                            component&  compo,
-                            io_manager& cache,
-                            const char* filename) noexcept
+static status2 parse_component(modeling&   mod,
+                               component&  compo,
+                               io_manager& cache,
+                               const char* filename) noexcept
 {
     rapidjson::Document doc;
 
-    return read_file_to_buffer(cache, filename) &&
-           parse_json_data(std::span(cache.buffer.data(), cache.buffer.size()),
-                           filename,
-                           doc) &&
-           parse_json_component(mod, compo, cache, doc);
+    irt_check(read_file_to_buffer(cache, filename));
+
+    irt_check(parse_json_data(
+      std::span(cache.buffer.data(), cache.buffer.size()), filename, doc));
+    irt_check(parse_json_component(mod, compo, cache, doc));
+
+    return success();
 }
 
-static bool parse_component(modeling&       mod,
-                            component&      compo,
-                            io_manager&     cache,
-                            std::span<char> buffer) noexcept
+static status2 parse_component(modeling&       mod,
+                               component&      compo,
+                               io_manager&     cache,
+                               std::span<char> buffer) noexcept
 {
     rapidjson::Document doc;
 
-    return parse_json_data(buffer, nullptr, doc) &&
-           parse_json_component(mod, compo, cache, doc);
+    irt_check(parse_json_data(buffer, nullptr, doc));
+    irt_check(parse_json_component(mod, compo, cache, doc));
+
+    return success();
 }
 
-status component_load(modeling&   mod,
-                      component&  compo,
-                      io_manager& cache,
-                      const char* filename) noexcept
+status2 component_load(modeling&   mod,
+                       component&  compo,
+                       io_manager& cache,
+                       const char* filename) noexcept
 {
-    irt_return_if_fail(parse_component(mod, compo, cache, filename),
-                       status::io_file_format_model_error);
-
-    return status::success;
+    return parse_component(mod, compo, cache, filename);
 }
 
-status component_load(modeling&       mod,
-                      component&      compo,
-                      io_manager&     cache,
-                      std::span<char> buffer) noexcept
+status2 component_load(modeling&       mod,
+                       component&      compo,
+                       io_manager&     cache,
+                       std::span<char> buffer) noexcept
 {
-    irt_return_if_fail(parse_component(mod, compo, cache, buffer),
-                       status::io_file_format_model_error);
-
-    return status::success;
+    return parse_component(mod, compo, cache, buffer);
 }
 
 template<typename Writer>
@@ -5477,10 +5479,10 @@ static void write_random_sources(io_manager& /*cache*/,
 }
 
 template<typename Writer>
-static status write_child_component_path(Writer&               w,
-                                         const registred_path& reg,
-                                         const dir_path&       dir,
-                                         const file_path&      file) noexcept
+static status2 write_child_component_path(Writer&               w,
+                                          const registred_path& reg,
+                                          const dir_path&       dir,
+                                          const file_path&      file) noexcept
 {
     w.Key("name");
     w.String(reg.name.begin(), reg.name.size());
@@ -5491,37 +5493,42 @@ static status write_child_component_path(Writer&               w,
     w.Key("file");
     w.String(file.path.begin(), file.path.size());
 
-    return status::success;
+    return success();
 }
 
 template<typename Writer>
-static status write_child_component_path(const modeling&  mod,
-                                         const component& compo,
-                                         Writer&          w) noexcept
+static status2 write_child_component_path(const modeling&  mod,
+                                          const component& compo,
+                                          Writer&          w) noexcept
 {
     auto* reg = mod.registred_paths.try_to_get(compo.reg_path);
-    irt_return_if_fail(reg, status::io_project_file_component_directory_error);
-    irt_return_if_fail(!reg->path.empty(),
-                       status::io_project_file_component_directory_error);
-    irt_return_if_fail(!reg->name.empty(),
-                       status::io_project_file_component_directory_error);
+    if (!reg)
+        return new_error(project::io_project_file_component_directory_error);
+
+    if (reg->path.empty())
+        return new_error(project::io_project_file_component_directory_error);
+    if (reg->name.empty())
+        return new_error(project::io_project_file_component_directory_error);
 
     auto* dir = mod.dir_paths.try_to_get(compo.dir);
-    irt_return_if_fail(dir, status::io_project_file_component_directory_error);
-    irt_return_if_fail(!dir->path.empty(),
-                       status::io_project_file_component_directory_error);
+    if (!dir)
+        return new_error(project::io_project_file_component_directory_error);
+    if (dir->path.empty())
+        return new_error(project::io_project_file_component_directory_error);
 
     auto* file = mod.file_paths.try_to_get(compo.file);
-    irt_return_if_fail(file, status::io_project_file_error);
-    irt_return_if_fail(!file->path.empty(), status::io_project_file_error);
+    if (!file)
+        return new_error(project::io_project_file_error);
+    if (file->path.empty())
+        return new_error(project::io_project_file_error);
 
     return write_child_component_path(w, *reg, *dir, *file);
 }
 
 template<typename Writer>
-static status write_child_component(const modeling&    mod,
-                                    const component_id compo_id,
-                                    Writer&            w) noexcept
+static status2 write_child_component(const modeling&    mod,
+                                     const component_id compo_id,
+                                     Writer&            w) noexcept
 {
     if (auto* compo = mod.components.try_to_get(compo_id); compo) {
         w.Key("component-type");
@@ -5531,11 +5538,11 @@ static status write_child_component(const modeling&    mod,
         case component_type::none:
             w.Key("component-type");
             w.String(component_type_names[ordinal(component_type::none)]);
-            return status::success;
+            return success();
         case component_type::internal:
             w.Key("parameter");
             w.String(internal_component_names[ordinal(compo->id.internal_id)]);
-            return status::success;
+            return success();
         case component_type::grid:
             return write_child_component_path(mod, *compo, w);
         case component_type::graph:
@@ -5550,25 +5557,28 @@ static status write_child_component(const modeling&    mod,
     } else {
         w.Key("component-type");
         w.String(component_type_names[ordinal(component_type::none)]);
-        return status::success;
+        return success();
     }
 }
 
 template<typename Writer>
-static status write_child_model(model& mdl, Writer& w) noexcept
+static status2 write_child_model(model& mdl, Writer& w) noexcept
 {
     w.Key("dynamics");
 
-    return dispatch(mdl, [&w]<typename Dynamics>(Dynamics& dyn) -> status {
-        return write(w, dyn);
+    return dispatch(mdl, [&w]<typename Dynamics>(Dynamics& dyn) -> status2 {
+        if (auto ret = write(w, dyn); !ret)
+            return ret.error();
+
+        return success();
     });
 }
 
 template<typename Writer>
-static status write_child(const modeling& mod,
-                          const child&    ch,
-                          const u64       unique_id,
-                          Writer&         w) noexcept
+static status2 write_child(const modeling& mod,
+                           const child&    ch,
+                           const u64       unique_id,
+                           Writer&         w) noexcept
 {
     const auto child_id = mod.children.get_id(ch);
 
@@ -5604,7 +5614,7 @@ static status write_child(const modeling& mod,
             w.Key("type");
             w.String("component");
 
-            irt_return_if_bad(write_child_component(mod, compo_id, w));
+            irt_check(write_child_component(mod, compo_id, w));
         }
     } else {
         const auto ch_id    = mod.children.get_id(ch);
@@ -5622,16 +5632,16 @@ static status write_child(const modeling& mod,
         w.Key("type");
         w.String(dynamics_type_names[ordinal(ch.id.mdl_type)]);
 
-        irt_return_if_bad(write_child_model(mdl, w));
+        irt_check(write_child_model(mdl, w));
     }
 
     w.EndObject();
 
-    return status::success;
+    return success();
 }
 
 template<typename Writer>
-static status write_generic_component_children(
+static status2 write_generic_component_children(
   io_manager& /*cache*/,
   const modeling&          mod,
   const generic_component& simple_compo,
@@ -5642,23 +5652,23 @@ static status write_generic_component_children(
 
     for (auto child_id : simple_compo.children)
         if (auto* c = mod.children.try_to_get(child_id); c)
-            irt_return_if_bad(write_child(mod,
-                                          *c,
-                                          c->unique_id == 0
-                                            ? simple_compo.make_next_unique_id()
-                                            : c->unique_id,
-                                          w));
+            irt_check(write_child(mod,
+                                  *c,
+                                  c->unique_id == 0
+                                    ? simple_compo.make_next_unique_id()
+                                    : c->unique_id,
+                                  w));
 
     w.EndArray();
 
-    return status::success;
+    return success();
 }
 
 template<typename Writer>
-static status write_component_ports(io_manager& /*cache*/,
-                                    const modeling&  mod,
-                                    const component& compo,
-                                    Writer&          w) noexcept
+static status2 write_component_ports(io_manager& /*cache*/,
+                                     const modeling&  mod,
+                                     const component& compo,
+                                     Writer&          w) noexcept
 {
     if (!compo.x_names.empty()) {
         w.Key("x");
@@ -5682,7 +5692,7 @@ static status write_component_ports(io_manager& /*cache*/,
         w.EndArray();
     }
 
-    return status::success;
+    return success();
 }
 
 template<typename FunctionModel, typename FunctionComponent>
@@ -5889,10 +5899,10 @@ bool write_internal_connection(modeling&        mod,
 }
 
 template<typename Writer>
-static status write_generic_component_connections(io_manager& /*cache*/,
-                                                  modeling&          mod,
-                                                  generic_component& compo,
-                                                  Writer&            w) noexcept
+static status2 write_generic_component_connections(io_manager& /*cache*/,
+                                                   modeling&          mod,
+                                                   generic_component& compo,
+                                                   Writer& w) noexcept
 {
     w.Key("connections");
     w.StartArray();
@@ -5912,29 +5922,29 @@ static status write_generic_component_connections(io_manager& /*cache*/,
 
     w.EndArray();
 
-    return status::success;
+    return success();
 }
 
 template<typename Writer>
-static status write_generic_component(io_manager&        cache,
-                                      modeling&          mod,
-                                      generic_component& s_compo,
-                                      Writer&            w) noexcept
+static status2 write_generic_component(io_manager&        cache,
+                                       modeling&          mod,
+                                       generic_component& s_compo,
+                                       Writer&            w) noexcept
 {
     w.String("next-unique-id");
     w.Uint64(s_compo.next_unique_id);
 
-    write_generic_component_children(cache, mod, s_compo, w);
-    write_generic_component_connections(cache, mod, s_compo, w);
+    irt_check(write_generic_component_children(cache, mod, s_compo, w));
+    irt_check(write_generic_component_connections(cache, mod, s_compo, w));
 
-    return status::success;
+    return success();
 }
 
 template<typename Writer>
-static status write_grid_component(io_manager& /*cache*/,
-                                   const modeling&       mod,
-                                   const grid_component& grid,
-                                   Writer&               w) noexcept
+static status2 write_grid_component(io_manager& /*cache*/,
+                                    const modeling&       mod,
+                                    const grid_component& grid,
+                                    Writer&               w) noexcept
 {
     w.Key("rows");
     w.Int(grid.row);
@@ -5947,16 +5957,17 @@ static status write_grid_component(io_manager& /*cache*/,
     w.StartArray();
     for (auto& elem : grid.children) {
         w.StartObject();
-        write_child_component(mod, elem, w);
+        if (auto ret = write_child_component(mod, elem, w); !ret)
+            return ret.error();
         w.EndObject();
     }
     w.EndArray();
 
-    return status::success;
+    return success();
 }
 
 template<typename Writer>
-static status write_graph_component_param(
+static status2 write_graph_component_param(
   const modeling&                            mod,
   const graph_component::random_graph_param& param,
   Writer&                                    w) noexcept
@@ -5976,7 +5987,7 @@ static status write_graph_component_param(
             w.String(file->path.begin(), file->path.size());
         }
 
-        return status::success;
+        return success();
     }
 
     case 1: {
@@ -5987,7 +5998,7 @@ static status write_graph_component_param(
         w.Key("beta");
         w.Double(p.beta);
 
-        return status::success;
+        return success();
     }
 
     case 2: {
@@ -5998,7 +6009,7 @@ static status write_graph_component_param(
         w.Key("k");
         w.Int(p.k);
 
-        return status::success;
+        return success();
     }
     }
 
@@ -6008,29 +6019,31 @@ static status write_graph_component_param(
 }
 
 template<typename Writer>
-static status write_graph_component(io_manager& /*cache*/,
-                                    const modeling&        mod,
-                                    const graph_component& graph,
-                                    Writer&                w) noexcept
+static status2 write_graph_component(io_manager& /*cache*/,
+                                     const modeling&        mod,
+                                     const graph_component& graph,
+                                     Writer&                w) noexcept
 {
     w.Key("graph-type");
-    write_graph_component_param(mod, graph.param, w);
+    if (auto ret = write_graph_component_param(mod, graph.param, w); !ret)
+        return ret.error();
 
     w.Key("children");
     w.StartArray();
     for (auto& elem : graph.children) {
         w.StartObject();
-        write_child_component(mod, elem, w);
+        if (auto ret = write_child_component(mod, elem, w); !ret)
+            return ret.error();
         w.EndObject();
     }
     w.EndArray();
 
-    return status::success;
+    return success();
 }
 
 template<typename Writer>
-static status write_hsm_component(const hierarchical_state_machine& hsm,
-                                  Writer&                           w) noexcept
+static status2 write_hsm_component(const hierarchical_state_machine& hsm,
+                                   Writer&                           w) noexcept
 {
     w.Key("states");
     w.StartArray();
@@ -6057,11 +6070,11 @@ static status write_hsm_component(const hierarchical_state_machine& hsm,
         if (states_to_write[i]) {
             w.Key("id");
             w.Uint(i);
-            write(w, "enter", hsm.states[i].enter_action);
-            write(w, "exit", hsm.states[i].exit_action);
-            write(w, "if", hsm.states[i].if_action);
-            write(w, "else", hsm.states[i].else_action);
-            write(w, "condition", hsm.states[i].condition);
+            irt_check(write(w, "enter", hsm.states[i].enter_action));
+            irt_check(write(w, "exit", hsm.states[i].exit_action));
+            irt_check(write(w, "if", hsm.states[i].if_action));
+            irt_check(write(w, "else", hsm.states[i].else_action));
+            irt_check(write(w, "condition", hsm.states[i].condition));
 
             w.Key("if-transition");
             w.Int(hsm.states[i].if_transition);
@@ -6078,7 +6091,7 @@ static status write_hsm_component(const hierarchical_state_machine& hsm,
     w.Key("top");
     w.Uint(hsm.top_state);
 
-    return status::success;
+    return success();
 }
 template<typename Writer>
 static void write_internal_component(io_manager& /*cache*/,
@@ -6091,13 +6104,11 @@ static void write_internal_component(io_manager& /*cache*/,
 }
 
 template<typename Writer>
-static status do_component_save(Writer&     w,
-                                modeling&   mod,
-                                component&  compo,
-                                io_manager& cache) noexcept
+static status2 do_component_save(Writer&     w,
+                                 modeling&   mod,
+                                 component&  compo,
+                                 io_manager& cache) noexcept
 {
-    status ret = status::success;
-
     w.StartObject();
 
     w.Key("name");
@@ -6116,7 +6127,9 @@ static status do_component_save(Writer&     w,
     w.Double(color[2]);
     w.Double(color[3]);
     w.EndArray();
-    write_component_ports(cache, mod, compo, w);
+
+    irt_check(write_component_ports(cache, mod, compo, w));
+
     w.Key("type");
     w.String(component_type_names[ordinal(compo.type)]);
 
@@ -6129,60 +6142,57 @@ static status do_component_save(Writer&     w,
         break;
 
     case component_type::simple: {
-        ret = if_data_exists_return(
-          mod.generic_components,
-          compo.id.generic_id,
-          [&](auto& generic) noexcept -> status {
-              return write_generic_component(cache, mod, generic, w);
-          },
-          status::io_project_component_empty);
+        auto* p = mod.generic_components.try_to_get(compo.id.generic_id);
+        if (!p)
+            return new_error(project::io_project_component_empty);
+
+        if (auto ret = write_generic_component(cache, mod, *p, w); !ret)
+            return ret.error();
     } break;
 
     case component_type::grid: {
-        ret = if_data_exists_return(
-          mod.grid_components,
-          compo.id.grid_id,
-          [&](auto& grid) noexcept -> status {
-              return write_grid_component(cache, mod, grid, w);
-          },
-          status::io_project_component_empty);
+        auto* p = mod.grid_components.try_to_get(compo.id.grid_id);
+        if (!p)
+            return new_error(project::io_project_component_empty);
+
+        if (auto ret = write_grid_component(cache, mod, *p, w); !ret)
+            return ret.error();
     } break;
 
     case component_type::graph: {
-        ret = if_data_exists_return(
-          mod.graph_components,
-          compo.id.graph_id,
-          [&](auto& graph) noexcept -> status {
-              return write_graph_component(cache, mod, graph, w);
-          },
-          status::io_project_component_empty);
+        auto* p = mod.graph_components.try_to_get(compo.id.graph_id);
+        if (!p)
+            return new_error(project::io_project_component_empty);
+
+        if (auto ret = write_graph_component(cache, mod, *p, w); !ret)
+            return ret.error();
     } break;
 
     case component_type::hsm: {
-        ret = if_data_exists_return(
-          mod.hsm_components,
-          compo.id.hsm_id,
-          [&](auto& hsm) noexcept -> status {
-              return write_hsm_component(hsm.machine, w);
-          },
-          status::io_project_component_empty);
+        auto* p = mod.hsm_components.try_to_get(compo.id.hsm_id);
+        if (!p)
+            return new_error(project::io_project_component_empty);
+
+        if (auto ret = write_hsm_component(p->machine, w); !ret)
+            return ret.error();
     } break;
     }
 
     w.EndObject();
 
-    return ret;
+    return success();
 }
 
-status component_save(modeling&         mod,
-                      component&        compo,
-                      io_manager&       cache,
-                      const char*       filename,
-                      json_pretty_print print_options) noexcept
+status2 component_save(modeling&         mod,
+                       component&        compo,
+                       io_manager&       cache,
+                       const char*       filename,
+                       json_pretty_print print_options) noexcept
 {
     file f{ filename, open_mode::write };
 
-    irt_return_if_fail(f.is_open(), status::io_file_format_error);
+    if (!f.is_open())
+        return new_error(status::io_file_format_error);
 
     FILE* fp = reinterpret_cast<FILE*>(f.get_handle());
     cache.clear();
@@ -6194,28 +6204,27 @@ status component_save(modeling&         mod,
     switch (print_options) {
     case json_pretty_print::indent_2:
         w.SetIndent(' ', 2);
-        irt_return_if_bad(do_component_save(w, mod, compo, cache));
-        break;
+        return do_component_save(w, mod, compo, cache);
 
     case json_pretty_print::indent_2_one_line_array:
         w.SetIndent(' ', 2);
         w.SetFormatOptions(rapidjson::kFormatSingleLineArray);
-        irt_return_if_bad(do_component_save(w, mod, compo, cache));
-        break;
+        return do_component_save(w, mod, compo, cache);
 
     default:
-        irt_return_if_bad(do_component_save(w, mod, compo, cache));
-        break;
+        return do_component_save(w, mod, compo, cache);
     }
 
-    return status::success;
+    irt_unreachable();
+
+    return success();
 }
 
-status component_save(modeling&         mod,
-                      component&        compo,
-                      io_manager&       cache,
-                      vector<char>&     out,
-                      json_pretty_print print_options) noexcept
+status2 component_save(modeling&         mod,
+                       component&        compo,
+                       io_manager&       cache,
+                       vector<char>&     out,
+                       json_pretty_print print_options) noexcept
 {
     rapidjson::StringBuffer buffer;
     buffer.Reserve(4096u);
@@ -6224,23 +6233,23 @@ status component_save(modeling&         mod,
     case json_pretty_print::indent_2: {
         rapidjson::PrettyWriter<rapidjson::StringBuffer> w(buffer);
         w.SetIndent(' ', 2);
-        irt_return_if_bad(do_component_save(w, mod, compo, cache));
-        break;
-    }
+        if (auto ret = do_component_save(w, mod, compo, cache); !ret)
+            return ret.error();
+    } break;
 
     case json_pretty_print::indent_2_one_line_array: {
         rapidjson::PrettyWriter<rapidjson::StringBuffer> w(buffer);
         w.SetIndent(' ', 2);
         w.SetFormatOptions(rapidjson::kFormatSingleLineArray);
-        irt_return_if_bad(do_component_save(w, mod, compo, cache));
-        break;
-    }
+        if (auto ret = do_component_save(w, mod, compo, cache); !ret)
+            return ret.error();
+    } break;
 
     default: {
         rapidjson::Writer<rapidjson::StringBuffer> w(buffer);
-        irt_return_if_bad(do_component_save(w, mod, compo, cache));
-        break;
-    }
+        if (auto ret = do_component_save(w, mod, compo, cache); !ret)
+            return ret.error();
+    } break;
     }
 
     auto length = buffer.GetSize();
@@ -6248,7 +6257,7 @@ status component_save(modeling&         mod,
     out.resize(static_cast<int>(length));
     std::copy_n(str, length, out.data());
 
-    return status::success;
+    return success();
 }
 
 /*****************************************************************************
@@ -6258,47 +6267,57 @@ status component_save(modeling&         mod,
  ****************************************************************************/
 
 template<typename Writer>
-static status write_simulation_model(const simulation& sim, Writer& w) noexcept
+static status2 write_simulation_model(const simulation& sim, Writer& w) noexcept
 {
     w.Key("hsms");
     w.StartArray();
-    for_each_data(sim.hsms, [&](auto& machine) noexcept {
+
+    for (auto& machine : sim.hsms) {
         w.StartObject();
         w.Key("hsm");
         w.Uint64(ordinal(sim.hsms.get_id(machine)));
-        write_hsm_component(machine, w);
+        if (auto ret = write_hsm_component(machine, w); !ret)
+            return ret.error();
+
         w.EndObject();
-    });
+    }
     w.EndArray();
 
     w.Key("models");
     w.StartArray();
-    const model* mdl = nullptr;
-    while (sim.models.next(mdl)) {
-        const auto mdl_id = sim.models.get_id(*mdl);
+
+    for (auto& mdl : sim.models) {
+        const auto mdl_id = sim.models.get_id(mdl);
 
         w.StartObject();
         w.Key("id");
         w.Uint64(ordinal(mdl_id));
         w.Key("type");
-        w.String(dynamics_type_names[ordinal(mdl->type)]);
+        w.String(dynamics_type_names[ordinal(mdl.type)]);
         w.Key("dynamics");
 
-        dispatch(*mdl, [&w]<typename Dynamics>(const Dynamics& dyn) -> void {
-            write(w, dyn);
-        });
+        if (auto ret =
+              dispatch(mdl,
+                       [&w]<typename Dynamics>(const Dynamics& dyn) -> status2 {
+                           if (auto ret = write(w, dyn); !ret)
+                               return ret.error();
+
+                           return success();
+                       });
+            !ret)
+            return ret.error();
 
         w.EndObject();
     }
 
     w.EndArray();
 
-    return status::success;
+    return success();
 }
 
 template<typename Writer>
-static status write_simulation_connections(const simulation& sim,
-                                           Writer&           w) noexcept
+static void write_simulation_connections(const simulation& sim,
+                                         Writer&           w) noexcept
 {
     w.Key("connections");
     w.StartArray();
@@ -6330,13 +6349,12 @@ static status write_simulation_connections(const simulation& sim,
     }
 
     w.EndArray();
-    return status::success;
 }
 
 template<typename Writer>
-status do_simulation_save(Writer&           w,
-                          const simulation& sim,
-                          io_manager&       cache) noexcept
+status2 do_simulation_save(Writer&           w,
+                           const simulation& sim,
+                           io_manager&       cache) noexcept
 {
     w.StartObject();
 
@@ -6345,21 +6363,24 @@ status do_simulation_save(Writer&           w,
     write_text_file_sources(cache, sim.srcs, w);
     write_random_sources(cache, sim.srcs, w);
 
-    write_simulation_model(sim, w);
+    if (auto ret = write_simulation_model(sim, w); !ret)
+        return ret.error();
+
     write_simulation_connections(sim, w);
 
     w.EndObject();
 
-    return status::success;
+    return success();
 }
 
-status simulation_save(const simulation& sim,
-                       io_manager&       cache,
-                       const char*       filename,
-                       json_pretty_print print_options) noexcept
+status2 simulation_save(const simulation& sim,
+                        io_manager&       cache,
+                        const char*       filename,
+                        json_pretty_print print_options) noexcept
 {
     file f{ filename, open_mode::write };
-    irt_return_if_fail(f.is_open(), status::io_filesystem_error);
+    if (!f.is_open())
+        return new_error(status::io_filesystem_error);
 
     FILE* fp = reinterpret_cast<FILE*>(f.get_handle());
     cache.clear();
@@ -6371,27 +6392,22 @@ status simulation_save(const simulation& sim,
     switch (print_options) {
     case json_pretty_print::indent_2:
         w.SetIndent(' ', 2);
-        irt_return_if_bad(do_simulation_save(w, sim, cache));
-        break;
+        return do_simulation_save(w, sim, cache);
 
     case json_pretty_print::indent_2_one_line_array:
         w.SetIndent(' ', 2);
         w.SetFormatOptions(rapidjson::kFormatSingleLineArray);
-        irt_return_if_bad(do_simulation_save(w, sim, cache));
-        break;
+        return do_simulation_save(w, sim, cache);
 
     default:
-        irt_return_if_bad(do_simulation_save(w, sim, cache));
-        break;
+        return do_simulation_save(w, sim, cache);
     }
-
-    return status::success;
 }
 
-status simulation_save(const simulation& sim,
-                       io_manager&       cache,
-                       vector<char>&     out,
-                       json_pretty_print print_options) noexcept
+status2 simulation_save(const simulation& sim,
+                        io_manager&       cache,
+                        vector<char>&     out,
+                        json_pretty_print print_options) noexcept
 {
     rapidjson::StringBuffer buffer;
     buffer.Reserve(4096u);
@@ -6400,7 +6416,8 @@ status simulation_save(const simulation& sim,
     case json_pretty_print::indent_2: {
         rapidjson::PrettyWriter<rapidjson::StringBuffer> w(buffer);
         w.SetIndent(' ', 2);
-        irt_return_if_bad(do_simulation_save(w, sim, cache));
+        if (auto ret = do_simulation_save(w, sim, cache); !ret)
+            return ret.error();
         break;
     }
 
@@ -6408,13 +6425,15 @@ status simulation_save(const simulation& sim,
         rapidjson::PrettyWriter<rapidjson::StringBuffer> w(buffer);
         w.SetIndent(' ', 2);
         w.SetFormatOptions(rapidjson::kFormatSingleLineArray);
-        irt_return_if_bad(do_simulation_save(w, sim, cache));
+        if (auto ret = do_simulation_save(w, sim, cache); !ret)
+            return ret.error();
         break;
     }
 
     default: {
         rapidjson::Writer<rapidjson::StringBuffer> w(buffer);
-        irt_return_if_bad(do_simulation_save(w, sim, cache));
+        if (auto ret = do_simulation_save(w, sim, cache); !ret)
+            return ret.error();
         break;
     }
     }
@@ -6424,75 +6443,70 @@ status simulation_save(const simulation& sim,
     out.resize(static_cast<int>(length));
     std::copy_n(str, length, out.data());
 
-    return status::success;
+    return success();
 }
 
-static bool parse_json_simulation(simulation&                sim,
-                                  io_manager&                cache,
-                                  const rapidjson::Document& doc) noexcept
+static status2 parse_json_simulation(simulation&                sim,
+                                     io_manager&                cache,
+                                     const rapidjson::Document& doc) noexcept
 {
     sim.clear();
 
     reader r{ cache, sim };
     if (r.read_simulation(doc.GetObject()))
-        return true;
+        return success();
 
-#ifdef IRRITATOR_ENABLE_DEBUG
-    fmt::print(stderr,
-               "read simulation fail with {}\n",
-               error_id_names[ordinal(r.error)]);
+    debug_logi(
+      2, "read simulation fail with {}\n", error_id_names[ordinal(r.error)]);
 
     for (auto i = 0u; i < r.stack.size(); ++i)
-        fmt::print(stderr,
+        debug_logi(2,
                    "  {}: {}\n",
                    static_cast<int>(i),
                    stack_id_names[ordinal(r.stack[i])]);
-#endif
 
-    return false;
+    return new_error(status::io_file_format_error);
 }
 
-static bool parse_simulation(simulation& sim,
-                             io_manager& cache,
-                             const char* filename) noexcept
+static status2 parse_simulation(simulation& sim,
+                                io_manager& cache,
+                                const char* filename) noexcept
 {
     rapidjson::Document doc;
 
-    return read_file_to_buffer(cache, filename) &&
-           parse_json_data(std::span(cache.buffer.data(), cache.buffer.size()),
-                           filename,
-                           doc) &&
-           parse_json_simulation(sim, cache, doc);
+    irt_check(read_file_to_buffer(cache, filename));
+    irt_check(parse_json_data(
+      std::span(cache.buffer.data(), cache.buffer.size()), filename, doc));
+
+    irt_check(parse_json_simulation(sim, cache, doc));
+
+    return success();
 }
 
-static bool parse_simulation(simulation&     sim,
-                             io_manager&     cache,
-                             std::span<char> buffer) noexcept
+static status2 parse_simulation(simulation&     sim,
+                                io_manager&     cache,
+                                std::span<char> buffer) noexcept
 {
     rapidjson::Document doc;
 
-    return parse_json_data(buffer, nullptr, doc) &&
-           parse_json_simulation(sim, cache, doc);
+    irt_check(parse_json_data(buffer, nullptr, doc));
+    irt_check(parse_json_simulation(sim, cache, doc));
+
+    return success();
 }
 
-status simulation_load(simulation& sim,
-                       io_manager& cache,
-                       const char* filename) noexcept
+status2 simulation_load(simulation& sim,
+                        io_manager& cache,
+                        const char* filename) noexcept
 {
-    irt_return_if_fail(parse_simulation(sim, cache, filename),
-                       status::io_file_format_model_error);
-
-    return status::success;
+    return parse_simulation(sim, cache, filename);
 }
 
-status simulation_load(simulation&     sim,
-                       io_manager&     cache,
-                       std::span<char> buffer) noexcept
+status2 simulation_load(simulation&     sim,
+                        io_manager&     cache,
+                        std::span<char> buffer) noexcept
 {
-    irt_return_if_fail(parse_simulation(sim, cache, buffer),
-                       status::io_file_format_model_error);
-
-    return status::success;
+    return parse_simulation(sim, cache, buffer);
 }
 
 /*****************************************************************************
@@ -6501,82 +6515,76 @@ status simulation_load(simulation&     sim,
  *
  ****************************************************************************/
 
-static bool parse_json_project(project&                   pj,
-                               modeling&                  mod,
-                               simulation&                sim,
-                               io_manager&                cache,
-                               const rapidjson::Document& doc) noexcept
+static status2 parse_json_project(project&                   pj,
+                                  modeling&                  mod,
+                                  simulation&                sim,
+                                  io_manager&                cache,
+                                  const rapidjson::Document& doc) noexcept
 {
     pj.clear();
     sim.clear();
 
     reader r{ cache, mod, sim, pj };
     if (r.read_project(doc.GetObject()))
-        return true;
+        return success();
 
-#ifdef IRRITATOR_ENABLE_DEBUG
-    fmt::print(
-      stderr, "read project fail with {}\n", error_id_names[ordinal(r.error)]);
+    debug_log("read project fail with {}\n", error_id_names[ordinal(r.error)]);
 
     for (auto i = 0u; i < r.stack.size(); ++i)
-        fmt::print(stderr,
+        debug_logi(2,
                    "  {}: {}\n",
                    static_cast<int>(i),
                    stack_id_names[ordinal(r.stack[i])]);
-#endif
 
-    return false;
+    return new_error(status::io_file_format_error);
 }
 
-bool parse_project(project&    pj,
-                   modeling&   mod,
-                   simulation& sim,
-                   io_manager& cache,
-                   const char* filename) noexcept
+status2 parse_project(project&    pj,
+                      modeling&   mod,
+                      simulation& sim,
+                      io_manager& cache,
+                      const char* filename) noexcept
 {
     rapidjson::Document doc;
 
-    return read_file_to_buffer(cache, filename) &&
-           parse_json_data(std::span(cache.buffer.data(), cache.buffer.size()),
-                           filename,
-                           doc) &&
-           parse_json_project(pj, mod, sim, cache, doc);
+    irt_check(read_file_to_buffer(cache, filename));
+    irt_check(parse_json_data(
+      std::span(cache.buffer.data(), cache.buffer.size()), filename, doc));
+    irt_check(parse_json_project(pj, mod, sim, cache, doc));
+
+    return success();
 }
 
-bool parse_project(project&        pj,
-                   modeling&       mod,
-                   simulation&     sim,
-                   io_manager&     cache,
-                   std::span<char> buffer) noexcept
+status2 parse_project(project&        pj,
+                      modeling&       mod,
+                      simulation&     sim,
+                      io_manager&     cache,
+                      std::span<char> buffer) noexcept
 {
     rapidjson::Document doc;
 
-    return parse_json_data(buffer, nullptr, doc) &&
-           parse_json_project(pj, mod, sim, cache, doc);
+    irt_check(parse_json_data(buffer, nullptr, doc));
+    irt_check(parse_json_project(pj, mod, sim, cache, doc));
+
+    return success();
 }
 
-status project_load(project&    pj,
-                    modeling&   mod,
-                    simulation& sim,
-                    io_manager& cache,
-                    const char* filename) noexcept
+status2 project_load(project&    pj,
+                     modeling&   mod,
+                     simulation& sim,
+                     io_manager& cache,
+                     const char* filename) noexcept
 {
-    irt_return_if_fail(parse_project(pj, mod, sim, cache, filename),
-                       status::io_file_format_error);
-
-    return status::success;
+    return parse_project(pj, mod, sim, cache, filename);
 }
 
-status project_load(project&        pj,
-                    modeling&       mod,
-                    simulation&     sim,
-                    io_manager&     cache,
-                    std::span<char> buffer) noexcept
+status2 project_load(project&        pj,
+                     modeling&       mod,
+                     simulation&     sim,
+                     io_manager&     cache,
+                     std::span<char> buffer) noexcept
 {
-    irt_return_if_fail(parse_project(pj, mod, sim, cache, buffer),
-                       status::io_file_format_error);
-
-    return status::success;
+    return parse_project(pj, mod, sim, cache, buffer);
 }
 
 /*****************************************************************************
@@ -6609,19 +6617,20 @@ static void write_project_unique_id_path(Writer&               w,
 constexpr static std::array<u8, 4> color_white{ 255, 255, 255, 0 };
 
 template<typename Writer>
-static status do_project_save_parameters(Writer& w, project& pj) noexcept
+static status2 do_project_save_parameters(Writer& w, project& pj) noexcept
 {
     w.Key("parameters");
 
     w.StartObject();
-    irt_return_if_bad(do_project_save_global_parameters(w, pj));
+    irt_check((do_project_save_global_parameters(w, pj)));
     w.EndObject();
 
-    return status::success;
+    return success();
 }
 
 template<typename Writer>
-static status do_project_save_plot_observations(Writer& w, project& pj) noexcept
+static status2 do_project_save_plot_observations(Writer&  w,
+                                                 project& pj) noexcept
 {
     w.Key("global");
     w.StartArray();
@@ -6647,11 +6656,12 @@ static status do_project_save_plot_observations(Writer& w, project& pj) noexcept
 
     w.EndArray();
 
-    return status::success;
+    return success();
 }
 
 template<typename Writer>
-static status do_project_save_grid_observations(Writer& w, project& pj) noexcept
+static status2 do_project_save_grid_observations(Writer&  w,
+                                                 project& pj) noexcept
 {
     w.Key("grid");
     w.StartArray();
@@ -6674,24 +6684,24 @@ static status do_project_save_grid_observations(Writer& w, project& pj) noexcept
 
     w.EndArray();
 
-    return status::success;
+    return success();
 }
 
 template<typename Writer>
-static status do_project_save_observations(Writer& w, project& pj) noexcept
+static status2 do_project_save_observations(Writer& w, project& pj) noexcept
 {
     w.Key("observations");
 
     w.StartObject();
-    irt_return_if_bad(do_project_save_plot_observations(w, pj));
-    irt_return_if_bad(do_project_save_grid_observations(w, pj));
+    irt_check(do_project_save_plot_observations(w, pj));
+    irt_check(do_project_save_grid_observations(w, pj));
     w.EndObject();
 
-    return status::success;
+    return success();
 }
 
 template<typename Writer>
-static status write_parameter(Writer& w, const parameter& param) noexcept
+static status2 write_parameter(Writer& w, const parameter& param) noexcept
 {
     w.Key("parameter");
     w.StartObject();
@@ -6706,13 +6716,14 @@ static status write_parameter(Writer& w, const parameter& param) noexcept
         w.Int64(elem);
     w.EndArray();
 
-    return status::success;
+    return success();
 }
 
 template<typename Writer>
-static status do_project_save_global_parameter(Writer&           w,
-                                               project&          pj,
-                                               global_parameter& param) noexcept
+static status2 do_project_save_global_parameter(
+  Writer&           w,
+  project&          pj,
+  global_parameter& param) noexcept
 {
     w.StartObject();
     w.Key("name");
@@ -6723,33 +6734,33 @@ static status do_project_save_global_parameter(Writer&           w,
     pj.build_unique_id_path(param.tn_id, param.mdl_id, path);
     write_project_unique_id_path(w, path);
 
-    write_parameter(w, param.param);
+    irt_check(write_parameter(w, param.param));
     w.EndObject();
 
-    return status::success;
+    return success();
 }
 
 template<typename Writer>
-static status do_project_save_global_parameters(Writer& w, project& pj) noexcept
+static status2 do_project_save_global_parameters(Writer&  w,
+                                                 project& pj) noexcept
 {
     w.Key("global");
     w.StartArray();
 
-    for_each_data(pj.global_parameters, [&](auto& param) noexcept {
-        do_project_save_global_parameter(w, pj, param);
-    });
+    for (auto& p : pj.global_parameters)
+        irt_check(do_project_save_global_parameter(w, pj, p));
 
     w.EndArray();
 
-    return status::success;
+    return success();
 }
 
 template<typename Writer>
-static status do_project_save_component(Writer&               w,
-                                        component&            compo,
-                                        const registred_path& reg,
-                                        const dir_path&       dir,
-                                        const file_path&      file) noexcept
+static status2 do_project_save_component(Writer&               w,
+                                         component&            compo,
+                                         const registred_path& reg,
+                                         const dir_path&       dir,
+                                         const file_path&      file) noexcept
 {
     w.Key("component-type");
     w.String(component_type_names[ordinal(compo.type)]);
@@ -6775,62 +6786,81 @@ static status do_project_save_component(Writer&               w,
         break;
     };
 
-    return status::success;
+    return success();
 }
 
 template<typename Writer>
-static status do_project_save(Writer&    w,
-                              project&   pj,
-                              modeling&  mod,
-                              component& compo,
-                              io_manager& /* cache */) noexcept
+static status2 do_project_save(Writer&    w,
+                               project&   pj,
+                               modeling&  mod,
+                               component& compo,
+                               io_manager& /* cache */) noexcept
 {
     auto* reg = mod.registred_paths.try_to_get(compo.reg_path);
-    irt_return_if_fail(reg, status::io_project_file_component_directory_error);
-    irt_return_if_fail(!reg->path.empty(),
-                       status::io_project_file_component_directory_error);
-    irt_return_if_fail(!reg->name.empty(),
-                       status::io_project_file_component_directory_error);
+    if (!reg)
+        return new_error(
+          project::error::io_project_file_component_directory_error);
+    if (reg->path.empty())
+        return new_error(
+          project::error::io_project_file_component_directory_error);
+    if (reg->name.empty())
+        return new_error(
+          project::error::io_project_file_component_directory_error);
 
     auto* dir = mod.dir_paths.try_to_get(compo.dir);
-    irt_return_if_fail(dir, status::io_project_file_component_directory_error);
-    irt_return_if_fail(!dir->path.empty(),
-                       status::io_project_file_component_directory_error);
+    if (!dir)
+        return new_error(
+          project::error::io_project_file_component_directory_error);
+    if (dir->path.empty())
+        return new_error(
+          project::error::io_project_file_component_directory_error);
 
     auto* file = mod.file_paths.try_to_get(compo.file);
-    irt_return_if_fail(file, status::io_project_file_error);
-    irt_return_if_fail(!file->path.empty(), status::io_project_file_error);
+    if (!file)
+        return new_error(project::error::io_project_file_error);
+    if (file->path.empty())
+        return new_error(project::error::io_project_file_error);
 
     w.StartObject();
-    irt_return_if_bad(do_project_save_component(w, compo, *reg, *dir, *file));
-    irt_return_if_bad(do_project_save_parameters(w, pj));
-    irt_return_if_bad(do_project_save_observations(w, pj));
+    irt_check(do_project_save_component(w, compo, *reg, *dir, *file));
+    irt_check(do_project_save_parameters(w, pj));
+    irt_check(do_project_save_observations(w, pj));
     w.EndObject();
 
-    return status::success;
+    return success();
 }
 
-status project_save(project&  pj,
-                    modeling& mod,
-                    simulation& /* sim */,
-                    io_manager&       cache,
-                    const char*       filename,
-                    json_pretty_print print_options) noexcept
+status2 project_save(project&  pj,
+                     modeling& mod,
+                     simulation& /* sim */,
+                     io_manager&       cache,
+                     const char*       filename,
+                     json_pretty_print print_options) noexcept
 {
     auto* compo  = mod.components.try_to_get(pj.head());
     auto* parent = pj.tn_head();
 
-    irt_return_if_fail(compo && parent, status::block_allocator_bad_capacity);
+    if (!(compo && parent))
+        return new_error(project::error::empty_project);
 
     irt_assert(mod.components.get_id(compo) == parent->id);
 
     file f{ filename, open_mode::write };
-    irt_return_if_fail(f.is_open(), status::io_project_file_error);
+    if (!f.is_open())
+        return new_error(project::error::io_project_file_error);
 
-    auto* reg  = mod.registred_paths.try_to_get(compo->reg_path);
-    auto* dir  = mod.dir_paths.try_to_get(compo->dir);
+    auto* reg = mod.registred_paths.try_to_get(compo->reg_path);
+    if (!reg)
+        return new_error(project::error::io_project_file_component_path_error);
+
+    auto* dir = mod.dir_paths.try_to_get(compo->dir);
+    if (!dir)
+        return new_error(
+          project::error::io_project_file_component_directory_error);
+
     auto* file = mod.file_paths.try_to_get(compo->file);
-    irt_return_if_fail(reg && dir && file, status::io_filesystem_error);
+    if (!file)
+        return new_error(project::error::io_project_file_error);
 
     auto* fp = reinterpret_cast<FILE*>(f.get_handle());
     cache.clear();
@@ -6842,34 +6872,35 @@ status project_save(project&  pj,
     switch (print_options) {
     case json_pretty_print::indent_2:
         w.SetIndent(' ', 2);
-        irt_return_if_bad(do_project_save(w, pj, mod, *compo, cache));
+        irt_check(do_project_save(w, pj, mod, *compo, cache));
         break;
 
     case json_pretty_print::indent_2_one_line_array:
         w.SetIndent(' ', 2);
         w.SetFormatOptions(rapidjson::kFormatSingleLineArray);
-        irt_return_if_bad(do_project_save(w, pj, mod, *compo, cache));
+        irt_check(do_project_save(w, pj, mod, *compo, cache));
         break;
 
     default:
-        irt_return_if_bad(do_project_save(w, pj, mod, *compo, cache));
+        irt_check(do_project_save(w, pj, mod, *compo, cache));
         break;
     }
 
-    return status::success;
+    return success();
 }
 
-status project_save(project&  pj,
-                    modeling& mod,
-                    simulation& /* sim */,
-                    io_manager&       cache,
-                    vector<char>&     out,
-                    json_pretty_print print_options) noexcept
+status2 project_save(project&  pj,
+                     modeling& mod,
+                     simulation& /* sim */,
+                     io_manager&       cache,
+                     vector<char>&     out,
+                     json_pretty_print print_options) noexcept
 {
     auto* compo  = mod.components.try_to_get(pj.head());
     auto* parent = pj.tn_head();
 
-    irt_return_if_fail(compo && parent, status::block_allocator_bad_capacity);
+    if (!(compo && parent))
+        return new_error(project::error::empty_project);
 
     irt_assert(mod.components.get_id(compo) == parent->id);
 
@@ -6880,19 +6911,19 @@ status project_save(project&  pj,
     case json_pretty_print::indent_2: {
         rapidjson::PrettyWriter<rapidjson::StringBuffer> w(buffer);
         w.SetIndent(' ', 2);
-        irt_return_if_bad(do_project_save(w, pj, mod, *compo, cache));
+        irt_check(do_project_save(w, pj, mod, *compo, cache));
     } break;
 
     case json_pretty_print::indent_2_one_line_array: {
         rapidjson::PrettyWriter<rapidjson::StringBuffer> w(buffer);
         w.SetIndent(' ', 2);
         w.SetFormatOptions(rapidjson::kFormatSingleLineArray);
-        irt_return_if_bad(do_project_save(w, pj, mod, *compo, cache));
+        irt_check(do_project_save(w, pj, mod, *compo, cache));
     } break;
 
     default: {
         rapidjson::PrettyWriter<rapidjson::StringBuffer> w(buffer);
-        irt_return_if_bad(do_project_save(w, pj, mod, *compo, cache));
+        irt_check(do_project_save(w, pj, mod, *compo, cache));
     } break;
     }
 
@@ -6901,7 +6932,7 @@ status project_save(project&  pj,
     out.resize(static_cast<int>(length));
     std::copy_n(str, length, out.data());
 
-    return status::success;
+    return success();
 }
 
 } //  irt

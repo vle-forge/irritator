@@ -56,11 +56,12 @@ static auto build_grid_children(modeling&         mod,
                                 i32               upper_limit,
                                 i32               left_limit,
                                 i32               space_x,
-                                i32               space_y) noexcept -> status
+                                i32               space_y) noexcept -> status2
 {
-    irt_return_if_fail(grid.row && grid.column, status::io_project_file_error);
-    irt_return_if_fail(mod.children.can_alloc(grid.row * grid.column),
-                       status::data_array_not_enough_memory);
+    irt_assert(grid.row && grid.column);
+
+    if (!mod.children.can_alloc(grid.row * grid.column))
+        return new_error(project::error::not_enough_memory);
 
     const auto old_size = ids.ssize();
     ids.reserve(grid.row * grid.column + old_size);
@@ -85,7 +86,7 @@ static auto build_grid_children(modeling&         mod,
         ids.emplace_back(new_id);
     }
 
-    return status::success;
+    return success();
 }
 
 static void connection_add(modeling&              mod,
@@ -411,10 +412,10 @@ static auto build_grid_connections(modeling&              mod,
                                    grid_component&        grid,
                                    vector<child_id>&      ids,
                                    vector<connection_id>& cnts,
-                                   int old_size) noexcept -> status
+                                   int old_size) noexcept -> status2
 {
-    irt_return_if_fail(mod.connections.can_alloc(grid.row * grid.column * 4),
-                       status::data_array_not_enough_memory);
+    if (auto ret = mod.connections.can_alloc(grid.row * grid.column * 4); !ret)
+        return new_error(project::error::not_enough_memory);
 
     if (grid.connection_type == grid_component::type::number) {
         switch (grid.neighbors) {
@@ -479,10 +480,10 @@ static auto build_grid_connections(modeling&              mod,
         }
     }
 
-    return status::success;
+    return success();
 }
 
-status modeling::build_grid_children_and_connections(
+status2 modeling::build_grid_children_and_connections(
   grid_component&        grid,
   vector<child_id>&      ids,
   vector<connection_id>& cnts,
@@ -491,18 +492,22 @@ status modeling::build_grid_children_and_connections(
   i32                    space_x,
   i32                    space_y) noexcept
 {
-    // Use to compute grid access with existing children in ids
-    // vector.
+    // Use to compute grid access with existing children in ids vector.
     const auto old_size = ids.ssize();
 
-    irt_return_if_bad(build_grid_children(
-      *this, grid, ids, upper_limit, left_limit, space_x, space_y));
-    irt_return_if_bad(build_grid_connections(*this, grid, ids, cnts, old_size));
+    if (auto ret = build_grid_children(
+          *this, grid, ids, upper_limit, left_limit, space_x, space_y);
+        !ret)
+        return ret.error();
 
-    return status::success;
+    if (auto ret = build_grid_connections(*this, grid, ids, cnts, old_size);
+        !ret)
+        return ret.error();
+
+    return success();
 }
 
-status modeling::build_grid_component_cache(grid_component& grid) noexcept
+status2 modeling::build_grid_component_cache(grid_component& grid) noexcept
 {
     clear_grid_component_cache(grid);
 
@@ -522,7 +527,7 @@ void modeling::clear_grid_component_cache(grid_component& grid) noexcept
     grid.cache_connections.clear();
 }
 
-status modeling::copy(grid_component& grid, generic_component& s) noexcept
+status2 modeling::copy(grid_component& grid, generic_component& s) noexcept
 {
     return build_grid_children_and_connections(grid, s.children, s.connections);
 }
@@ -531,19 +536,19 @@ status modeling::copy(grid_component& grid, generic_component& s) noexcept
 //
 //
 
-static status build_grid(grid_simulation_observer& grid_system,
-                         project&                 pj,
-                         simulation&              sim,
-                         tree_node&               grid_parent,
-                         grid_component&          grid_compo,
-                         grid_modeling_observer&           grid_obs) noexcept
+static status2 build_grid(grid_simulation_observer& grid_system,
+                          project&                  pj,
+                          simulation&               sim,
+                          tree_node&                grid_parent,
+                          grid_component&           grid_compo,
+                          grid_modeling_observer&   grid_obs) noexcept
 {
     irt_assert(pj.tree_nodes.try_to_get(grid_obs.tn_id) != nullptr);
 
     const auto* to = pj.tree_nodes.try_to_get(grid_obs.tn_id);
 
     if (!to)
-        return status::unknown_dynamics;
+        return new_error(status::unknown_dynamics);
 
     const auto relative_path =
       pj.build_relative_path(grid_parent, *to, grid_obs.mdl_id);
@@ -584,16 +589,15 @@ static status build_grid(grid_simulation_observer& grid_system,
         child = child->tree.get_sibling();
     }
 
-    return status::success;
+    return success();
 }
 
-status grid_simulation_observer::init(project&       pj,
-                                     modeling&      mod,
-                                     simulation&    sim,
-                                     grid_modeling_observer& grid_obs) noexcept
+status2 grid_simulation_observer::init(
+  project&                pj,
+  modeling&               mod,
+  simulation&             sim,
+  grid_modeling_observer& grid_obs) noexcept
 {
-    status ret = status::unknown_dynamics;
-
     if_tree_node_is_grid_do(
       pj,
       mod,
@@ -613,10 +617,14 @@ status grid_simulation_observer::init(project&       pj,
 
           id = pj.grid_observers.get_id(grid_obs);
 
-          ret = build_grid(*this, pj, sim, grid_parent_tn, grid, grid_obs);
+          if (auto ret =
+                build_grid(*this, pj, sim, grid_parent_tn, grid, grid_obs);
+              !ret)
+              fmt::print(
+                "bulud-grid error. Waiting for if_tree_node with success2\n");
       });
 
-    return ret;
+    return success();
 }
 
 void grid_simulation_observer::resize(int rows_, int cols_) noexcept

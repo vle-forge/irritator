@@ -29,24 +29,22 @@ static child_id alloc(modeling&              mod,
     return id;
 }
 
-static void connect(modeling&          mod,
-                    generic_component& c,
-                    child_id           src,
-                    int                port_src,
-                    child_id           dst,
-                    int                port_dst) noexcept
+static status2 connect(modeling&          mod,
+                       generic_component& c,
+                       child_id           src,
+                       int                port_src,
+                       child_id           dst,
+                       int                port_dst) noexcept
 {
-    [[maybe_unused]] const auto ret = mod.connect(
+    return mod.connect(
       c, mod.children.get(src), port_src, mod.children.get(dst), port_dst);
-
-    irt_assert(is_success(ret));
 }
 
-static void add_integrator_component_port(modeling&          mod,
-                                          component&         dst,
-                                          generic_component& com,
-                                          child_id           id,
-                                          std::string_view   port) noexcept
+static status2 add_integrator_component_port(modeling&          mod,
+                                             component&         dst,
+                                             generic_component& com,
+                                             child_id           id,
+                                             std::string_view   port) noexcept
 {
     auto  x_port_id = mod.get_or_add_x_index(dst, port);
     auto  y_port_id = mod.get_or_add_y_index(dst, port);
@@ -58,10 +56,11 @@ static void add_integrator_component_port(modeling&          mod,
     irt_assert(y_port);
     irt_assert(c);
 
-    irt_assert(is_success(mod.connect_input(com, *x_port, *c, 1)));
-    irt_assert(is_success(mod.connect_output(com, *c, 0, *y_port)));
-
+    irt_check(mod.connect_input(com, *x_port, *c, 1));
+    irt_check(mod.connect_output(com, *c, 0, *y_port));
     c->unique_id = com.make_next_unique_id();
+
+    return success();
 }
 
 static void affect_abstract_integrator(modeling&      mod,
@@ -148,15 +147,15 @@ static void affect_abstract_constant(modeling&      mod,
 }
 
 template<int QssLevel>
-status add_lotka_volterra(modeling&          mod,
-                          component&         dst,
-                          generic_component& com) noexcept
+status2 add_lotka_volterra(modeling&          mod,
+                           component&         dst,
+                           generic_component& com) noexcept
 {
     using namespace irt::literals;
     static_assert(1 <= QssLevel && QssLevel <= 3, "Only for Qss1, 2 and 3");
 
-    bool success = mod.children.can_alloc(5);
-    irt_return_if_fail(success, status::simulation_not_enough_model);
+    if (!mod.children.can_alloc(5))
+        return new_error(status::simulation_not_enough_model);
 
     auto integrator_a =
       alloc<abstract_integrator<QssLevel>>(mod, com, "X", child_flags::both);
@@ -176,29 +175,29 @@ status add_lotka_volterra(modeling&          mod,
       mod, com, "Y+XY", child_flags::configurable);
     affect_abstract_multiplier(mod, sum_b, -1.0_r, 0.1_r);
 
-    connect(mod, com, sum_a, 0, integrator_a, 0);
-    connect(mod, com, sum_b, 0, integrator_b, 0);
-    connect(mod, com, integrator_a, 0, sum_a, 0);
-    connect(mod, com, integrator_b, 0, sum_b, 0);
-    connect(mod, com, integrator_a, 0, product, 0);
-    connect(mod, com, integrator_b, 0, product, 1);
-    connect(mod, com, product, 0, sum_a, 1);
-    connect(mod, com, product, 0, sum_b, 1);
+    irt_check(connect(mod, com, sum_a, 0, integrator_a, 0));
+    irt_check(connect(mod, com, sum_b, 0, integrator_b, 0));
+    irt_check(connect(mod, com, integrator_a, 0, sum_a, 0));
+    irt_check(connect(mod, com, integrator_b, 0, sum_b, 0));
+    irt_check(connect(mod, com, integrator_a, 0, product, 0));
+    irt_check(connect(mod, com, integrator_b, 0, product, 1));
+    irt_check(connect(mod, com, product, 0, sum_a, 1));
+    irt_check(connect(mod, com, product, 0, sum_b, 1));
 
-    add_integrator_component_port(mod, dst, com, integrator_a, "X");
-    add_integrator_component_port(mod, dst, com, integrator_b, "Y");
+    irt_check(add_integrator_component_port(mod, dst, com, integrator_a, "X"));
+    irt_check(add_integrator_component_port(mod, dst, com, integrator_b, "Y"));
 
-    return status::success;
+    return success();
 }
 
 template<int QssLevel>
-status add_lif(modeling& mod, component& dst, generic_component& com) noexcept
+status2 add_lif(modeling& mod, component& dst, generic_component& com) noexcept
 {
     using namespace irt::literals;
     static_assert(1 <= QssLevel && QssLevel <= 3, "Only for Qss1, 2 and 3");
 
-    bool success = mod.children.can_alloc(5);
-    irt_return_if_fail(success, status::simulation_not_enough_model);
+    if (!mod.children.can_alloc(5))
+        return new_error(status::simulation_not_enough_model);
 
     constexpr irt::real tau = 10.0_r;
     constexpr irt::real Vt  = 1.0_r;
@@ -221,28 +220,27 @@ status add_lif(modeling& mod, component& dst, generic_component& com) noexcept
     auto cross = alloc<abstract_cross<QssLevel>>(mod, com);
     affect_abstract_cross(mod, cross, Vt, false);
 
-    connect(mod, com, cross, 0, integrator, 1);
-    connect(mod, com, cross, 1, sum, 0);
-    connect(mod, com, integrator, 0, cross, 0);
-    connect(mod, com, integrator, 0, cross, 2);
-    connect(mod, com, cst_cross, 0, cross, 1);
-    connect(mod, com, cst, 0, sum, 1);
-    connect(mod, com, sum, 0, integrator, 0);
+    irt_check(connect(mod, com, cross, 0, integrator, 1));
+    irt_check(connect(mod, com, cross, 1, sum, 0));
+    irt_check(connect(mod, com, integrator, 0, cross, 0));
+    irt_check(connect(mod, com, integrator, 0, cross, 2));
+    irt_check(connect(mod, com, cst_cross, 0, cross, 1));
+    irt_check(connect(mod, com, cst, 0, sum, 1));
+    irt_check(connect(mod, com, sum, 0, integrator, 0));
 
-    add_integrator_component_port(mod, dst, com, integrator, "V");
+    irt_check(add_integrator_component_port(mod, dst, com, integrator, "V"));
 
-    return status::success;
+    return success();
 }
 
 template<int QssLevel>
-status add_izhikevich(modeling&          mod,
-                      component&         dst,
-                      generic_component& com) noexcept
+status2 add_izhikevich(modeling&          mod,
+                       component&         dst,
+                       generic_component& com) noexcept
 {
     using namespace irt::literals;
-    bool success = mod.children.can_alloc(12);
-
-    irt_return_if_fail(success, status::simulation_not_enough_model);
+    if (!mod.children.can_alloc(12))
+        return new_error(status::simulation_not_enough_model);
 
     auto cst     = alloc<constant>(mod, com);
     auto cst2    = alloc<constant>(mod, com);
@@ -281,49 +279,48 @@ status add_izhikevich(modeling&          mod,
     affect_abstract_wsum(mod, sum_c, 0.04_r, 5.0_r, 140.0_r, 1.0_r);
     affect_abstract_wsum(mod, sum_d, 1.0_r, d);
 
-    connect(mod, com, integrator_a, 0, cross, 0);
-    connect(mod, com, cst2, 0, cross, 1);
-    connect(mod, com, integrator_a, 0, cross, 2);
+    irt_check(connect(mod, com, integrator_a, 0, cross, 0));
+    irt_check(connect(mod, com, cst2, 0, cross, 1));
+    irt_check(connect(mod, com, integrator_a, 0, cross, 2));
 
-    connect(mod, com, cross, 1, product, 0);
-    connect(mod, com, cross, 1, product, 1);
-    connect(mod, com, product, 0, sum_c, 0);
-    connect(mod, com, cross, 1, sum_c, 1);
-    connect(mod, com, cross, 1, sum_b, 1);
+    irt_check(connect(mod, com, cross, 1, product, 0));
+    irt_check(connect(mod, com, cross, 1, product, 1));
+    irt_check(connect(mod, com, product, 0, sum_c, 0));
+    irt_check(connect(mod, com, cross, 1, sum_c, 1));
+    irt_check(connect(mod, com, cross, 1, sum_b, 1));
 
-    connect(mod, com, cst, 0, sum_c, 2);
-    connect(mod, com, cst3, 0, sum_c, 3);
+    irt_check(connect(mod, com, cst, 0, sum_c, 2));
+    irt_check(connect(mod, com, cst3, 0, sum_c, 3));
 
-    connect(mod, com, sum_c, 0, sum_a, 0);
-    connect(mod, com, cross2, 1, sum_a, 1);
-    connect(mod, com, sum_a, 0, integrator_a, 0);
-    connect(mod, com, cross, 0, integrator_a, 1);
+    irt_check(connect(mod, com, sum_c, 0, sum_a, 0));
+    irt_check(connect(mod, com, cross2, 1, sum_a, 1));
+    irt_check(connect(mod, com, sum_a, 0, integrator_a, 0));
+    irt_check(connect(mod, com, cross, 0, integrator_a, 1));
 
-    connect(mod, com, cross2, 1, sum_b, 0);
-    connect(mod, com, sum_b, 0, integrator_b, 0);
+    irt_check(connect(mod, com, cross2, 1, sum_b, 0));
+    irt_check(connect(mod, com, sum_b, 0, integrator_b, 0));
 
-    connect(mod, com, cross2, 0, integrator_b, 1);
-    connect(mod, com, integrator_a, 0, cross2, 0);
-    connect(mod, com, integrator_b, 0, cross2, 2);
-    connect(mod, com, sum_d, 0, cross2, 1);
-    connect(mod, com, integrator_b, 0, sum_d, 0);
-    connect(mod, com, cst, 0, sum_d, 1);
+    irt_check(connect(mod, com, cross2, 0, integrator_b, 1));
+    irt_check(connect(mod, com, integrator_a, 0, cross2, 0));
+    irt_check(connect(mod, com, integrator_b, 0, cross2, 2));
+    irt_check(connect(mod, com, sum_d, 0, cross2, 1));
+    irt_check(connect(mod, com, integrator_b, 0, sum_d, 0));
+    irt_check(connect(mod, com, cst, 0, sum_d, 1));
 
-    add_integrator_component_port(mod, dst, com, integrator_a, "V");
-    add_integrator_component_port(mod, dst, com, integrator_b, "U");
+    irt_check(add_integrator_component_port(mod, dst, com, integrator_a, "V"));
+    irt_check(add_integrator_component_port(mod, dst, com, integrator_b, "U"));
 
-    return status::success;
+    return success();
 }
 
 template<int QssLevel>
-status add_van_der_pol(modeling&          mod,
-                       component&         dst,
-                       generic_component& com) noexcept
+status2 add_van_der_pol(modeling&          mod,
+                        component&         dst,
+                        generic_component& com) noexcept
 {
     using namespace irt::literals;
-    bool success = mod.children.can_alloc(5);
-
-    irt_return_if_fail(success, status::simulation_not_enough_model);
+    if (!mod.children.can_alloc(5))
+        return new_error(status::simulation_not_enough_model);
 
     auto sum      = alloc<abstract_wsum<QssLevel, 3>>(mod, com);
     auto product1 = alloc<abstract_multiplier<QssLevel>>(mod, com);
@@ -339,31 +336,30 @@ status add_van_der_pol(modeling&          mod,
     constexpr double mu = 4.0_r;
     affect_abstract_wsum(mod, sum, mu, -mu, -1.0_r);
 
-    connect(mod, com, integrator_b, 0, integrator_a, 0);
-    connect(mod, com, sum, 0, integrator_b, 0);
-    connect(mod, com, integrator_b, 0, sum, 0);
-    connect(mod, com, product2, 0, sum, 1);
-    connect(mod, com, integrator_a, 0, sum, 2);
-    connect(mod, com, integrator_b, 0, product1, 0);
-    connect(mod, com, integrator_a, 0, product1, 1);
-    connect(mod, com, product1, 0, product2, 0);
-    connect(mod, com, integrator_a, 0, product2, 1);
+    irt_check(connect(mod, com, integrator_b, 0, integrator_a, 0));
+    irt_check(connect(mod, com, sum, 0, integrator_b, 0));
+    irt_check(connect(mod, com, integrator_b, 0, sum, 0));
+    irt_check(connect(mod, com, product2, 0, sum, 1));
+    irt_check(connect(mod, com, integrator_a, 0, sum, 2));
+    irt_check(connect(mod, com, integrator_b, 0, product1, 0));
+    irt_check(connect(mod, com, integrator_a, 0, product1, 1));
+    irt_check(connect(mod, com, product1, 0, product2, 0));
+    irt_check(connect(mod, com, integrator_a, 0, product2, 1));
 
-    add_integrator_component_port(mod, dst, com, integrator_a, "X");
-    add_integrator_component_port(mod, dst, com, integrator_b, "Y");
+    irt_check(add_integrator_component_port(mod, dst, com, integrator_a, "X"));
+    irt_check(add_integrator_component_port(mod, dst, com, integrator_b, "Y"));
 
-    return status::success;
+    return success();
 }
 
 template<int QssLevel>
-status add_negative_lif(modeling&          mod,
-                        component&         dst,
-                        generic_component& com) noexcept
+status2 add_negative_lif(modeling&          mod,
+                         component&         dst,
+                         generic_component& com) noexcept
 {
     using namespace irt::literals;
-    bool success = mod.children.can_alloc(5);
-
-    irt_return_if_fail(success, status::simulation_not_enough_model);
+    if (!mod.children.can_alloc(5))
+        return new_error(status::simulation_not_enough_model);
 
     auto sum = alloc<abstract_wsum<QssLevel, 2>>(mod, com);
     auto integrator =
@@ -383,26 +379,27 @@ status add_negative_lif(modeling&          mod,
     affect_abstract_integrator(mod, integrator, 0.0_r, 0.001_r);
     affect_abstract_cross(mod, cross, Vt, true);
 
-    connect(mod, com, cross, 0, integrator, 1);
-    connect(mod, com, cross, 1, sum, 0);
-    connect(mod, com, integrator, 0, cross, 0);
-    connect(mod, com, integrator, 0, cross, 2);
-    connect(mod, com, cst_cross, 0, cross, 1);
-    connect(mod, com, cst, 0, sum, 1);
-    connect(mod, com, sum, 0, integrator, 0);
+    irt_check(connect(mod, com, cross, 0, integrator, 1));
+    irt_check(connect(mod, com, cross, 1, sum, 0));
+    irt_check(connect(mod, com, integrator, 0, cross, 0));
+    irt_check(connect(mod, com, integrator, 0, cross, 2));
+    irt_check(connect(mod, com, cst_cross, 0, cross, 1));
+    irt_check(connect(mod, com, cst, 0, sum, 1));
+    irt_check(connect(mod, com, sum, 0, integrator, 0));
 
-    add_integrator_component_port(mod, dst, com, integrator, "V");
+    irt_check(add_integrator_component_port(mod, dst, com, integrator, "V"));
 
-    return status::success;
+    return success();
 }
 
 template<int QssLevel>
-status add_seirs(modeling& mod, component& dst, generic_component& com) noexcept
+status2 add_seirs(modeling&          mod,
+                  component&         dst,
+                  generic_component& com) noexcept
 {
     using namespace irt::literals;
-    bool success = mod.children.can_alloc(17);
-
-    irt_return_if_fail(success, status::simulation_not_enough_model);
+    if (!mod.children.can_alloc(17))
+        return new_error(status::simulation_not_enough_model);
 
     auto dS =
       alloc<abstract_integrator<QssLevel>>(mod, com, "dS", child_flags::both);
@@ -450,41 +447,41 @@ status add_seirs(modeling& mod, component& dst, generic_component& com) noexcept
       alloc<abstract_wsum<QssLevel, 2>>(mod, com, "gamma I - rho R");
     affect_abstract_wsum(mod, gamma_I_rho_R, -1.0_r, 1.0_r);
 
-    connect(mod, com, rho, 0, rho_R, 0);
-    connect(mod, com, beta, 0, rho_R, 1);
-    connect(mod, com, beta, 0, beta_S, 1);
-    connect(mod, com, dS, 0, beta_S, 0);
-    connect(mod, com, dI, 0, beta_S_I, 0);
-    connect(mod, com, beta_S, 0, beta_S_I, 1);
-    connect(mod, com, rho_R, 0, rho_R_beta_S_I, 0);
-    connect(mod, com, beta_S_I, 0, rho_R_beta_S_I, 1);
-    connect(mod, com, rho_R_beta_S_I, 0, dS, 0);
-    connect(mod, com, dE, 0, sigma_E, 0);
-    connect(mod, com, sigma, 0, sigma_E, 1);
-    connect(mod, com, beta_S_I, 0, beta_S_I_sigma_E, 0);
-    connect(mod, com, sigma_E, 0, beta_S_I_sigma_E, 1);
-    connect(mod, com, beta_S_I_sigma_E, 0, dE, 0);
-    connect(mod, com, dI, 0, gamma_I, 0);
-    connect(mod, com, gamma, 0, gamma_I, 1);
-    connect(mod, com, sigma_E, 0, sigma_E_gamma_I, 0);
-    connect(mod, com, gamma_I, 0, sigma_E_gamma_I, 1);
-    connect(mod, com, sigma_E_gamma_I, 0, dI, 0);
-    connect(mod, com, rho_R, 0, gamma_I_rho_R, 0);
-    connect(mod, com, gamma_I, 0, gamma_I_rho_R, 1);
-    connect(mod, com, gamma_I_rho_R, 0, dR, 0);
+    irt_check(connect(mod, com, rho, 0, rho_R, 0));
+    irt_check(connect(mod, com, beta, 0, rho_R, 1));
+    irt_check(connect(mod, com, beta, 0, beta_S, 1));
+    irt_check(connect(mod, com, dS, 0, beta_S, 0));
+    irt_check(connect(mod, com, dI, 0, beta_S_I, 0));
+    irt_check(connect(mod, com, beta_S, 0, beta_S_I, 1));
+    irt_check(connect(mod, com, rho_R, 0, rho_R_beta_S_I, 0));
+    irt_check(connect(mod, com, beta_S_I, 0, rho_R_beta_S_I, 1));
+    irt_check(connect(mod, com, rho_R_beta_S_I, 0, dS, 0));
+    irt_check(connect(mod, com, dE, 0, sigma_E, 0));
+    irt_check(connect(mod, com, sigma, 0, sigma_E, 1));
+    irt_check(connect(mod, com, beta_S_I, 0, beta_S_I_sigma_E, 0));
+    irt_check(connect(mod, com, sigma_E, 0, beta_S_I_sigma_E, 1));
+    irt_check(connect(mod, com, beta_S_I_sigma_E, 0, dE, 0));
+    irt_check(connect(mod, com, dI, 0, gamma_I, 0));
+    irt_check(connect(mod, com, gamma, 0, gamma_I, 1));
+    irt_check(connect(mod, com, sigma_E, 0, sigma_E_gamma_I, 0));
+    irt_check(connect(mod, com, gamma_I, 0, sigma_E_gamma_I, 1));
+    irt_check(connect(mod, com, sigma_E_gamma_I, 0, dI, 0));
+    irt_check(connect(mod, com, rho_R, 0, gamma_I_rho_R, 0));
+    irt_check(connect(mod, com, gamma_I, 0, gamma_I_rho_R, 1));
+    irt_check(connect(mod, com, gamma_I_rho_R, 0, dR, 0));
 
-    add_integrator_component_port(mod, dst, com, dS, "S");
-    add_integrator_component_port(mod, dst, com, dE, "E");
-    add_integrator_component_port(mod, dst, com, dI, "I");
-    add_integrator_component_port(mod, dst, com, dR, "R");
+    irt_check(add_integrator_component_port(mod, dst, com, dS, "S"));
+    irt_check(add_integrator_component_port(mod, dst, com, dE, "E"));
+    irt_check(add_integrator_component_port(mod, dst, com, dI, "I"));
+    irt_check(add_integrator_component_port(mod, dst, com, dR, "R"));
 
-    return status::success;
+    return success();
 }
 
-status modeling::copy(internal_component src, component& dst) noexcept
+status2 modeling::copy(internal_component src, component& dst) noexcept
 {
-    irt_return_if_fail(generic_components.can_alloc(),
-                       status::data_array_not_enough_memory);
+    if (!generic_components.can_alloc())
+        return new_error(modeling::error::not_enough_memory);
 
     auto& s_compo     = generic_components.alloc();
     auto  s_compo_id  = generic_components.get_id(s_compo);
@@ -531,6 +528,8 @@ status modeling::copy(internal_component src, component& dst) noexcept
     }
 
     irt_unreachable();
+
+    return success();
 }
 
 } // namespace irt

@@ -40,8 +40,8 @@ int main()
         irt::project              pj;
         irt::simulation           sim;
 
-        mod.init(mod_init);
-        pj.init(mod_init);
+        expect(!!mod.init(mod_init));
+        expect(!!pj.init(mod_init));
         sim.init(256, 4096);
 
         auto& c1    = mod.alloc_generic_component();
@@ -50,7 +50,7 @@ int main()
         auto  p1_id = mod.get_or_add_x_index(c1, "in");
         auto* p1    = mod.ports.try_to_get(p1_id);
         expect((p1 != nullptr) >> fatal);
-        expect(irt::is_success(mod.connect_input(s1, *p1, ch1, 0)));
+        expect(!!mod.connect_input(s1, *p1, ch1, 0));
 
         auto& c2    = mod.alloc_generic_component();
         auto& s2    = mod.generic_components.get(c2.id.generic_id);
@@ -58,13 +58,13 @@ int main()
         auto  p2_id = mod.get_or_add_y_index(c2, "out");
         auto* p2    = mod.ports.try_to_get(p2_id);
         expect((p2 != nullptr) >> fatal);
-        expect(irt::is_success(mod.connect_output(s2, ch2, 0, *p2)));
+        expect(!!mod.connect_output(s2, ch2, 0, *p2));
 
         auto& c3   = mod.alloc_generic_component();
         auto& s3   = mod.generic_components.get(c3.id.generic_id);
         auto& ch31 = mod.alloc(s3, mod.components.get_id(c2));
         auto& ch32 = mod.alloc(s3, mod.components.get_id(c1));
-        expect(irt::is_success(mod.connect(s3, ch31, p2_id, ch32, p1_id)));
+        expect(!!mod.connect(s3, ch31, p2_id, ch32, p1_id));
 
         expect(eq(mod.children.ssize(), 4));
         expect(eq(mod.connections.ssize(), 3));
@@ -72,7 +72,7 @@ int main()
         expect(eq(s2.connections.ssize(), 1));
         expect(eq(s3.connections.ssize(), 1));
 
-        expect(irt::is_success(pj.set(mod, sim, c3)));
+        expect(!!pj.set(mod, sim, c3));
         expect(eq(pj.tree_nodes_size().first, 3));
 
         expect(eq(sim.models.ssize(), 2));
@@ -96,8 +96,8 @@ int main()
         irt::project              pj;
         irt::simulation           sim;
 
-        mod.init(mod_init);
-        pj.init(mod_init);
+        expect(!!mod.init(mod_init));
+        expect(!!pj.init(mod_init));
         sim.init(256, 4096);
 
         auto& c1 = mod.alloc_generic_component();
@@ -116,7 +116,7 @@ int main()
         expect(eq(mod.children.ssize(), 4));
         expect(eq(mod.connections.ssize(), 0));
 
-        expect(irt::is_success(pj.set(mod, sim, c3)));
+        expect(!!pj.set(mod, sim, c3));
         expect(eq(pj.tree_nodes_size().first, 3));
 
         expect(eq(sim.models.ssize(), 2));
@@ -133,8 +133,8 @@ int main()
         irt::project              pj;
         irt::simulation           sim;
 
-        mod.init(mod_init);
-        pj.init(mod_init);
+        expect(!!mod.init(mod_init));
+        expect(!!pj.init(mod_init));
         sim.init(256, 4096);
 
         auto& c1    = mod.alloc_generic_component();
@@ -142,7 +142,7 @@ int main()
         auto& ch1   = mod.alloc(s1, irt::dynamics_type::counter);
         auto  p1_id = mod.get_or_add_x_index(c1, "in");
         auto* p1    = mod.ports.try_to_get(p1_id);
-        expect(irt::is_success(mod.connect_input(s1, *p1, ch1, 0)));
+        expect(!!mod.connect_input(s1, *p1, ch1, 0));
 
         auto& c11    = mod.alloc_generic_component();
         auto& s11    = mod.generic_components.get(c11.id.generic_id);
@@ -150,7 +150,7 @@ int main()
         auto  p11_id = mod.get_or_add_x_index(c11, "in");
         auto* p11    = mod.ports.try_to_get(p11_id);
 
-        expect(irt::is_success(mod.connect_input(s11, *p11, ch11, p1_id)));
+        expect(!!mod.connect_input(s11, *p11, ch11, p1_id));
 
         auto& c2    = mod.alloc_generic_component();
         auto& s2    = mod.generic_components.get(c2.id.generic_id);
@@ -158,7 +158,7 @@ int main()
         auto  p2_id = mod.get_or_add_y_index(c2, "out");
         auto* p2    = mod.ports.try_to_get(p2_id);
 
-        expect(irt::is_success(mod.connect_output(s2, ch2, 0, *p2)));
+        expect(!!mod.connect_output(s2, ch2, 0, *p2));
 
         auto& c22    = mod.alloc_generic_component();
         auto& s22    = mod.generic_components.get(c22.id.generic_id);
@@ -166,19 +166,19 @@ int main()
         auto  p22_id = mod.get_or_add_y_index(c22, "out");
         auto* p22    = mod.ports.try_to_get(p22_id);
 
-        expect(irt::is_success(mod.connect_output(s22, ch22, p2_id, *p22)));
+        expect(!!mod.connect_output(s22, ch22, p2_id, *p22));
 
         auto& c3   = mod.alloc_generic_component();
         auto& s3   = mod.generic_components.get(c3.id.generic_id);
         auto& ch31 = mod.alloc(s3, mod.components.get_id(c22));
         auto& ch32 = mod.alloc(s3, mod.components.get_id(c11));
 
-        expect(irt::is_success(mod.connect(s3, ch31, p22_id, ch32, p11_id)));
+        expect(!!mod.connect(s3, ch31, p22_id, ch32, p11_id));
 
         expect(eq(mod.children.ssize(), 6));
         expect(eq(mod.connections.ssize(), 5));
 
-        expect(irt::is_success(pj.set(mod, sim, c3)));
+        expect(!!pj.set(mod, sim, c3));
         expect(eq(pj.tree_nodes_size().first, 5));
 
         expect(eq(sim.models.ssize(), 2));
@@ -203,8 +203,8 @@ int main()
         irt::project              pj;
         irt::simulation           sim;
 
-        mod.init(mod_init);
-        pj.init(mod_init);
+        expect(!!mod.init(mod_init));
+        expect(!!pj.init(mod_init));
         sim.init(256, 4096);
 
         auto& c = mod.alloc_generic_component();
@@ -219,7 +219,7 @@ int main()
         g.resize(25, mod.components.get_id(c));
         g.param = irt::graph_component::small_world_param{};
 
-        expect(irt::is_success(pj.set(mod, sim, cg)));
+        expect(!!pj.set(mod, sim, cg));
         expect(eq(pj.tree_nodes_size().first, g.children.ssize() + 1));
         expect(eq(sim.models.ssize(), g.children.ssize()));
     };
@@ -230,8 +230,8 @@ int main()
         irt::project              pj;
         irt::simulation           sim;
 
-        mod.init(mod_init);
-        pj.init(mod_init);
+        expect(!!mod.init(mod_init));
+        expect(!!pj.init(mod_init));
         sim.init(256, 4096);
 
         auto& c = mod.alloc_generic_component();
@@ -246,7 +246,7 @@ int main()
         g.resize(25, mod.components.get_id(c));
         g.param = irt::graph_component::scale_free_param{};
 
-        expect(irt::is_success(pj.set(mod, sim, cg)));
+        expect(!!pj.set(mod, sim, cg));
         expect(eq(pj.tree_nodes_size().first, g.children.ssize() + 1));
         expect(eq(sim.models.ssize(), g.children.ssize()));
     };
@@ -257,8 +257,8 @@ int main()
         irt::project              pj;
         irt::simulation           sim;
 
-        mod.init(mod_init);
-        pj.init(mod_init);
+        expect(!!mod.init(mod_init));
+        expect(!!pj.init(mod_init));
         sim.init(256, 4096);
 
         auto& c = mod.alloc_generic_component();
@@ -272,7 +272,7 @@ int main()
         auto& g  = mod.grid_components.get(cg.id.grid_id);
         g.resize(5, 5, mod.components.get_id(c));
 
-        expect(irt::is_success(pj.set(mod, sim, cg)));
+        expect(!!pj.set(mod, sim, cg));
         expect(eq(pj.tree_nodes_size().first, g.row * g.column + 1));
         expect(eq(sim.models.ssize(), g.row * g.column));
     };
@@ -283,8 +283,8 @@ int main()
         irt::project              pj;
         irt::simulation           sim;
 
-        mod.init(mod_init);
-        pj.init(mod_init);
+        expect(!!mod.init(mod_init));
+        expect(!!pj.init(mod_init));
         sim.init(256, 4096);
 
         auto& c = mod.alloc_generic_component();
@@ -302,7 +302,7 @@ int main()
             for (int j = 1; j < 4; ++j)
                 g.children[g.pos(i, j)] = mod.components.get_id(c);
 
-        expect(irt::is_success(pj.set(mod, sim, cg)));
+        expect(!!pj.set(mod, sim, cg));
         expect(
           eq(pj.tree_nodes_size().first, (g.row - 2) * (g.column - 2) + 1));
         expect(eq(sim.models.ssize(), (g.row - 2) * (g.column - 2)));
@@ -321,8 +321,8 @@ int main()
             irt::project              pj;
             irt::simulation           sim;
 
-            mod.init(mod_init);
-            pj.init(mod_init);
+            expect(!!mod.init(mod_init));
+            expect(!!pj.init(mod_init));
             sim.init(256, 4096);
 
             auto& c1    = mod.alloc_generic_component();
@@ -331,7 +331,7 @@ int main()
             auto  p1_id = mod.get_or_add_x_index(c1, "in");
             auto* p1    = mod.ports.try_to_get(p1_id);
             expect(p1 != nullptr);
-            expect(irt::is_success(mod.connect_input(s1, *p1, ch1, 0)));
+            expect(!!mod.connect_input(s1, *p1, ch1, 0));
 
             auto& c2    = mod.alloc_generic_component();
             auto& s2    = mod.generic_components.get(c2.id.generic_id);
@@ -339,13 +339,13 @@ int main()
             auto  p2_id = mod.get_or_add_y_index(c2, "out");
             auto* p2    = mod.ports.try_to_get(p2_id);
             expect(p2 != nullptr);
-            expect(irt::is_success(mod.connect_output(s2, ch2, 0, *p2)));
+            expect(!!mod.connect_output(s2, ch2, 0, *p2));
 
             auto& c3   = mod.alloc_generic_component();
             auto& s3   = mod.generic_components.get(c3.id.generic_id);
             auto& ch31 = mod.alloc(s3, mod.components.get_id(c2));
             auto& ch32 = mod.alloc(s3, mod.components.get_id(c1));
-            expect(irt::is_success(mod.connect(s3, ch31, p2_id, ch32, p1_id)));
+            expect(!!mod.connect(s3, ch31, p2_id, ch32, p1_id));
 
             expect(eq(mod.children.ssize(), 4));
             expect(eq(mod.connections.ssize(), 3));
@@ -393,23 +393,23 @@ int main()
             cg.dir      = dir_id;
             cg.file     = mod.file_paths.get_id(file_cg);
 
-            expect(is_success(mod.save(c1)));
-            expect(is_success(mod.save(c2)));
-            expect(is_success(mod.save(c3)));
-            expect(is_success(mod.save(cg)));
+            expect(!!mod.save(c1));
+            expect(!!mod.save(c2));
+            expect(!!mod.save(c3));
+            expect(!!mod.save(cg));
 
-            expect(irt::is_success(pj.set(mod, sim, cg)));
+            expect(!!pj.set(mod, sim, cg));
             expect(eq(pj.tree_nodes_size().first, g.row * g.column * 3 + 1));
 
             expect(eq(sim.models.ssize(), g.row * g.column * 2));
 
-            expect(irt::is_success(irt::project_save(
+            expect(!!irt::project_save(
               pj,
               mod,
               sim,
               cache,
               buffer,
-              irt::json_pretty_print::indent_2_one_line_array)));
+              irt::json_pretty_print::indent_2_one_line_array));
         }
 
         expect(buffer.size() > 0u);
@@ -421,18 +421,18 @@ int main()
             irt::project              pj;
             irt::simulation           sim;
 
-            mod.init(mod_init);
-            pj.init(mod_init);
+            expect(!!mod.init(mod_init));
+            expect(!!pj.init(mod_init));
             sim.init(256, 4096);
 
             auto& reg = mod.alloc_registred("temp", 0);
             reg.path  = temp_path;
 
             mod.create_directories(reg);
-            expect(irt::is_success(mod.fill_components()) >> fatal);
+            expect(!!mod.fill_components());
 
-            expect(irt::is_success(irt::project_load(
-              pj, mod, sim, cache, std::span(buffer.data(), buffer.size()))));
+            expect(!!irt::project_load(
+              pj, mod, sim, cache, std::span(buffer.data(), buffer.size())));
         }
     };
 
@@ -442,7 +442,7 @@ int main()
         {
             irt::modeling mod;
 
-            mod.init(mod_init);
+            expect(!!mod.init(mod_init));
             irt::component_id ids[irt::internal_component_count];
 
             mod.registred_paths.init(8);
@@ -474,16 +474,15 @@ int main()
                 c.dir      = dir_id;
                 c.file     = file_id;
 
-                auto ret =
-                  mod.copy(irt::enum_cast<irt::internal_component>(i), c);
+                expect(
+                  !!mod.copy(irt::enum_cast<irt::internal_component>(i), c));
                 ids[i] = c_id;
-                expect(is_success(ret));
             }
 
             for (int i = 0, e = irt::internal_component_count; i != e; ++i) {
                 auto* c = mod.components.try_to_get(ids[i]);
                 expect(c != nullptr);
-                expect(irt::is_success(mod.save(*c)));
+                expect(!!mod.save(*c));
             }
 
             expect(mod.components.ssize() == irt::internal_component_count);
@@ -492,7 +491,7 @@ int main()
         {
             irt::modeling mod;
 
-            mod.init(mod_init);
+            expect(!!mod.init(mod_init));
 
             mod.registred_paths.init(8);
             mod.dir_paths.init(32);
@@ -504,7 +503,7 @@ int main()
             get_temp_registred_path(reg.path);
             mod.create_directories(reg);
 
-            expect(irt::is_success(mod.fill_components(reg)));
+            expect(!!mod.fill_components(reg));
             expect(mod.components.ssize() >= irt::internal_component_count);
         }
     };
@@ -519,8 +518,8 @@ int main()
             irt::project              pj;
             irt::simulation           sim;
 
-            mod.init(mod_init);
-            pj.init(mod_init);
+            expect(!!mod.init(mod_init));
+            expect(!!pj.init(mod_init));
             sim.init(256, 4096);
 
             auto& c1    = mod.alloc_generic_component();
@@ -529,7 +528,7 @@ int main()
             auto  p1_id = mod.get_or_add_x_index(c1, "in");
             auto* p1    = mod.ports.try_to_get(p1_id);
             expect(p1 != nullptr);
-            expect(irt::is_success(mod.connect_input(s1, *p1, ch1, 0)));
+            expect(!!mod.connect_input(s1, *p1, ch1, 0));
 
             auto& c2    = mod.alloc_generic_component();
             auto& s2    = mod.generic_components.get(c2.id.generic_id);
@@ -537,7 +536,7 @@ int main()
             auto  p2_id = mod.get_or_add_y_index(c2, "out");
             auto* p2    = mod.ports.try_to_get(p2_id);
             expect(p2 != nullptr);
-            expect(irt::is_success(mod.connect_output(s2, ch2, 0, *p2)));
+            expect(!!mod.connect_output(s2, ch2, 0, *p2));
 
             auto& c3     = mod.alloc_generic_component();
             auto& s3     = mod.generic_components.get(c3.id.generic_id);
@@ -560,9 +559,9 @@ int main()
               ordinal(irt::constant::init_type::incoming_component_all);
             p.integers[1] = 0;
 
-            expect(irt::is_success(mod.connect(s3, ch3, p2_id, ch4, p1_id)));
-            expect(irt::is_success(mod.connect_input(s3, *p31, ch4, p1_id)));
-            expect(irt::is_success(mod.connect_output(s3, ch3, p2_id, *p32)));
+            expect(!!mod.connect(s3, ch3, p2_id, ch4, p1_id));
+            expect(!!mod.connect_input(s3, *p31, ch4, p1_id));
+            expect(!!mod.connect_output(s3, ch3, p2_id, *p32));
 
             expect(eq(mod.children.ssize(), 5));
             expect(eq(mod.connections.ssize(), 5));
@@ -574,7 +573,7 @@ int main()
             g.connection_type = irt::grid_component::type::number;
             g.neighbors       = irt::grid_component::neighborhood::four;
 
-            expect(irt::is_success(pj.set(mod, sim, cg)));
+            expect(!!pj.set(mod, sim, cg));
             expect(gt(g.cache_connections.ssize(), 0));
             expect(eq(pj.tree_nodes_size().first, g.row * g.column * 3 + 1));
 
@@ -609,8 +608,8 @@ int main()
             irt::project              pj;
             irt::simulation           sim;
 
-            mod.init(mod_init);
-            pj.init(mod_init);
+            expect(!!mod.init(mod_init));
+            expect(!!pj.init(mod_init));
             sim.init(256, 4096);
 
             auto& c1    = mod.alloc_generic_component();
@@ -619,7 +618,7 @@ int main()
             auto  p1_id = mod.get_or_add_x_index(c1, "in");
             auto* p1    = mod.ports.try_to_get(p1_id);
             expect(p1 != nullptr);
-            expect(irt::is_success(mod.connect_input(s1, *p1, ch1, 0)));
+            expect(!!mod.connect_input(s1, *p1, ch1, 0));
 
             auto& c2    = mod.alloc_generic_component();
             auto& s2    = mod.generic_components.get(c2.id.generic_id);
@@ -627,7 +626,7 @@ int main()
             auto  p2_id = mod.get_or_add_y_index(c2, "out");
             auto* p2    = mod.ports.try_to_get(p2_id);
             expect(p2 != nullptr);
-            expect(irt::is_success(mod.connect_output(s2, ch2, 0, *p2)));
+            expect(!!mod.connect_output(s2, ch2, 0, *p2));
 
             auto& c3     = mod.alloc_generic_component();
             auto& s3     = mod.generic_components.get(c3.id.generic_id);
@@ -654,9 +653,9 @@ int main()
               ordinal(irt::constant::init_type::incoming_component_n);
             p_ch5.integers[1] = ordinal(p31_id);
 
-            expect(irt::is_success(mod.connect(s3, ch3, p2_id, ch4, p1_id)));
-            expect(irt::is_success(mod.connect_input(s3, *p31, ch4, p1_id)));
-            expect(irt::is_success(mod.connect_output(s3, ch3, p2_id, *p32)));
+            expect(!!mod.connect(s3, ch3, p2_id, ch4, p1_id));
+            expect(!!mod.connect_input(s3, *p31, ch4, p1_id));
+            expect(!!mod.connect_output(s3, ch3, p2_id, *p32));
 
             expect(eq(mod.children.ssize(), 5));
             expect(eq(mod.connections.ssize(), 5));
@@ -666,7 +665,7 @@ int main()
             g.resize(5, 5, mod.components.get_id(c3));
             g.connection_type = irt::grid_component::type::number;
 
-            expect(irt::is_success(pj.set(mod, sim, cg)));
+            expect(!!pj.set(mod, sim, cg));
             expect(eq(pj.tree_nodes_size().first, g.row * g.column * 3 + 1));
 
             expect(eq(sim.models.ssize(), g.row * g.column * 3));
@@ -698,8 +697,8 @@ int main()
             irt::project              pj;
             irt::simulation           sim;
 
-            mod.init(mod_init);
-            pj.init(mod_init);
+            expect(!!mod.init(mod_init));
+            expect(!!pj.init(mod_init));
             sim.init(256, 4096);
 
             auto& c1    = mod.alloc_generic_component();
@@ -708,7 +707,7 @@ int main()
             auto  p1_id = mod.get_or_add_x_index(c1, "in");
             auto* p1    = mod.ports.try_to_get(p1_id);
             expect(p1 != nullptr);
-            expect(irt::is_success(mod.connect_input(s1, *p1, ch1, 0)));
+            expect(!!mod.connect_input(s1, *p1, ch1, 0));
 
             auto& c2    = mod.alloc_generic_component();
             auto& s2    = mod.generic_components.get(c2.id.generic_id);
@@ -716,7 +715,7 @@ int main()
             auto  p2_id = mod.get_or_add_y_index(c2, "out");
             auto* p2    = mod.ports.try_to_get(p2_id);
             expect(p2 != nullptr);
-            expect(irt::is_success(mod.connect_output(s2, ch2, 0, *p2)));
+            expect(!!mod.connect_output(s2, ch2, 0, *p2));
 
             auto& c3  = mod.alloc_generic_component();
             auto& s3  = mod.generic_components.get(c3.id.generic_id);
@@ -737,7 +736,7 @@ int main()
               ordinal(irt::constant::init_type::incoming_component_n);
             p_ch5.integers[1] = 17; // Impossible port
 
-            expect(irt::is_success(mod.connect(s3, ch3, p2_id, ch4, p1_id)));
+            expect(!!mod.connect(s3, ch3, p2_id, ch4, p1_id));
 
             expect(eq(mod.children.ssize(), 5));
             expect(eq(mod.connections.ssize(), 3));
@@ -746,7 +745,7 @@ int main()
             auto& g  = mod.grid_components.get(cg.id.grid_id);
             g.resize(5, 5, mod.components.get_id(c3));
 
-            expect(irt::is_success(pj.set(mod, sim, cg)));
+            expect(!!pj.set(mod, sim, cg));
             expect(eq(pj.tree_nodes_size().first, g.row * g.column * 3 + 1));
 
             expect(eq(sim.models.ssize(), g.row * g.column * 3));

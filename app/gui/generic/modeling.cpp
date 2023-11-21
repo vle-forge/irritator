@@ -331,6 +331,9 @@ static void show(component_editor& ed,
       app.mod.children_parameters[index],
       id);
 
+    if (changed)
+        fmt::print("Send signal to component as updated\n");
+
     ImNodes::EndNode();
 
     ImNodes::PopColorStyle();
@@ -983,16 +986,20 @@ static void is_link_created(application& app,
             if (child->type == child_type::model) {
                 auto port_in = static_cast<int>(child_port.second);
 
-                if (is_success(
-                      app.mod.connect_input(s_parent, *port, *child, port_in)))
-                    parent.state = component_status::modified;
+                if (auto ret =
+                      app.mod.connect_input(s_parent, *port, *child, port_in);
+                    !ret)
+                    debug_log("fail to create link");
+                parent.state = component_status::modified;
             } else {
                 auto* port_in = app.mod.ports.try_to_get(child_port.second);
                 irt_assert(port_in);
 
-                if (is_success(app.mod.connect_input(
-                      s_parent, *port, *child, app.mod.ports.get_id(*port_in))))
-                    parent.state = component_status::modified;
+                if (auto ret = app.mod.connect_input(
+                      s_parent, *port, *child, app.mod.ports.get_id(*port_in));
+                    !ret)
+                    debug_log("fail to create link\n");
+                parent.state = component_status::modified;
             }
         } else {
             auto  ch_port_src = unpack_out(start);
@@ -1006,20 +1013,24 @@ static void is_link_created(application& app,
 
                 if (ch_src->type == child_type::model) {
                     auto port_out = static_cast<int>(ch_port_src.second);
-                    if (is_success(app.mod.connect_output(
-                          s_parent, *ch_src, port_out, *port)))
-                        parent.state = component_status::modified;
+                    if (auto ret = app.mod.connect_output(
+                          s_parent, *ch_src, port_out, *port);
+                        !ret)
+                        debug_log("fail to create link\n");
+                    parent.state = component_status::modified;
                 } else {
                     auto* port_out =
                       app.mod.ports.try_to_get(ch_port_src.second);
                     irt_assert(port_out);
 
-                    if (is_success(app.mod.connect_output(
+                    if (auto ret = app.mod.connect_output(
                           s_parent,
                           *ch_src,
                           app.mod.ports.get_id(*port_out),
-                          *port)))
-                        parent.state = component_status::modified;
+                          *port);
+                        !ret)
+                        debug_log("fail to create link\n");
+                    parent.state = component_status::modified;
                 }
             } else {
                 auto  ch_port_dst = unpack_in(end);
@@ -1031,21 +1042,25 @@ static void is_link_created(application& app,
                     if (ch_dst->type == child_type::model) {
                         auto port_in = static_cast<int>(ch_port_dst.second);
 
-                        if (is_success(app.mod.connect(
-                              s_parent, *ch_src, port_out, *ch_dst, port_in)))
-                            parent.state = component_status::modified;
+                        if (auto ret = app.mod.connect(
+                              s_parent, *ch_src, port_out, *ch_dst, port_in);
+                            !ret)
+                            debug_log("fail to create link\n");
+                        parent.state = component_status::modified;
                     } else {
                         auto* port_in =
                           app.mod.ports.try_to_get(ch_port_dst.second);
                         irt_assert(port_in);
 
-                        if (is_success(
+                        if (auto ret =
                               app.mod.connect(s_parent,
                                               *ch_src,
                                               port_out,
                                               *ch_dst,
-                                              app.mod.ports.get_id(*port_in))))
-                            parent.state = component_status::modified;
+                                              app.mod.ports.get_id(*port_in));
+                            !ret)
+                            debug_log("fail to create link\n");
+                        parent.state = component_status::modified;
                     }
                 } else {
                     auto* port_out =
@@ -1055,25 +1070,29 @@ static void is_link_created(application& app,
                     if (ch_dst->type == child_type::model) {
                         auto port_in = static_cast<int>(ch_port_dst.second);
 
-                        if (is_success(
+                        if (auto ret =
                               app.mod.connect(s_parent,
                                               *ch_src,
                                               app.mod.ports.get_id(port_out),
                                               *ch_dst,
-                                              port_in)))
-                            parent.state = component_status::modified;
+                                              port_in);
+                            !ret)
+                            debug_log("fail to create link\n");
+                        parent.state = component_status::modified;
                     } else {
                         auto* port_in =
                           app.mod.ports.try_to_get(ch_port_dst.second);
                         irt_assert(port_in);
 
-                        if (is_success(
+                        if (auto ret =
                               app.mod.connect(s_parent,
                                               *ch_src,
                                               app.mod.ports.get_id(port_out),
                                               *ch_dst,
-                                              app.mod.ports.get_id(*port_in))))
-                            parent.state = component_status::modified;
+                                              app.mod.ports.get_id(*port_in));
+                            !ret)
+                            debug_log("fail to create link\n");
+                        parent.state = component_status::modified;
                     }
                 }
             }

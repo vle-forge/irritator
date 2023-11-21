@@ -13,12 +13,12 @@
 namespace irt {
 
 static auto model_init(const parameter& param, integrator& dyn) noexcept
-  -> status
+  -> status2
 {
     dyn.default_current_value = param.reals[0];
     dyn.default_reset_value   = param.reals[1];
 
-    return status::success;
+    return success();
 }
 
 static auto parameter_init(parameter& param, const integrator& dyn) noexcept
@@ -29,12 +29,12 @@ static auto parameter_init(parameter& param, const integrator& dyn) noexcept
 }
 
 static auto model_init(const parameter& param, quantifier& dyn) noexcept
-  -> status
+  -> status2
 {
     dyn.default_step_size   = param.reals[0];
     dyn.default_past_length = static_cast<int>(param.integers[0]);
 
-    return status::success;
+    return success();
 }
 
 static auto parameter_init(parameter& param, const quantifier& dyn) noexcept
@@ -46,17 +46,17 @@ static auto parameter_init(parameter& param, const quantifier& dyn) noexcept
 
 template<int QssLevel>
 static auto model_init(const parameter&               param,
-                       abstract_integrator<QssLevel>& dyn) noexcept -> status
+                       abstract_integrator<QssLevel>& dyn) noexcept -> status2
 {
     dyn.default_X  = param.reals[0];
     dyn.default_dQ = param.reals[1];
 
-    return status::success;
+    return success();
 }
 
 template<int PortNumber>
 static auto model_init(const parameter& param, adder<PortNumber>& dyn) noexcept
-  -> status
+  -> status2
 {
     dyn.default_input_coeffs[0] = param.reals[0];
     dyn.default_input_coeffs[1] = param.reals[1];
@@ -67,7 +67,7 @@ static auto model_init(const parameter& param, adder<PortNumber>& dyn) noexcept
     if constexpr (PortNumber > 3)
         dyn.default_input_coeffs[3] = param.reals[3];
 
-    return status::success;
+    return success();
 }
 
 template<int PortNumber>
@@ -86,7 +86,7 @@ static auto parameter_init(parameter&               param,
 
 template<int PortNumber>
 static auto model_init(const parameter& param, mult<PortNumber>& dyn) noexcept
-  -> status
+  -> status2
 {
     dyn.default_input_coeffs[0] = param.reals[0];
     dyn.default_input_coeffs[1] = param.reals[1];
@@ -97,7 +97,7 @@ static auto model_init(const parameter& param, mult<PortNumber>& dyn) noexcept
     if constexpr (PortNumber > 3)
         dyn.default_input_coeffs[3] = param.reals[3];
 
-    return status::success;
+    return success();
 }
 
 template<int PortNumber>
@@ -114,11 +114,11 @@ static auto parameter_init(parameter&              param,
         param.reals[3] = dyn.default_input_coeffs[3];
 }
 
-static auto model_init(const parameter& param, cross& dyn) noexcept -> status
+static auto model_init(const parameter& param, cross& dyn) noexcept -> status2
 {
     dyn.default_threshold = param.reals[0];
 
-    return status::success;
+    return success();
 }
 
 static auto parameter_init(parameter& param, const cross& dyn) noexcept -> void
@@ -126,12 +126,12 @@ static auto parameter_init(parameter& param, const cross& dyn) noexcept -> void
     param.reals[0] = dyn.default_threshold;
 }
 
-static auto model_init(const parameter& param, filter& dyn) noexcept -> status
+static auto model_init(const parameter& param, filter& dyn) noexcept -> status2
 {
     dyn.default_lower_threshold = param.reals[0];
     dyn.default_upper_threshold = param.reals[1];
 
-    return status::success;
+    return success();
 }
 
 static auto parameter_init(parameter& param, const filter& dyn) noexcept -> void
@@ -141,9 +141,9 @@ static auto parameter_init(parameter& param, const filter& dyn) noexcept -> void
 }
 
 static auto model_init(const parameter& /*param*/, counter& /*dyn*/) noexcept
-  -> status
+  -> status2
 {
-    return status::success;
+    return success();
 }
 
 static auto parameter_init(parameter& /*param*/,
@@ -151,18 +151,19 @@ static auto parameter_init(parameter& /*param*/,
 {
 }
 
-static auto model_init(const parameter& param, constant& dyn) noexcept -> status
+static auto model_init(const parameter& param, constant& dyn) noexcept
+  -> status2
 {
     dyn.default_value  = param.reals[0];
     dyn.default_offset = param.reals[1];
 
     if (!(0 <= param.integers[0] && param.integers[0] < 5))
-        return status::unknown_dynamics; // modeling_parameter_error;
+        return new_error(modeling::error::unknown_type_constant);
 
     dyn.type = enum_cast<constant::init_type>(param.integers[0]);
     dyn.port = param.integers[1];
 
-    return status::success;
+    return success();
 }
 
 static auto parameter_init(parameter& param, const constant& dyn) noexcept
@@ -176,9 +177,9 @@ static auto parameter_init(parameter& param, const constant& dyn) noexcept
 
 template<int PortNumber>
 static auto model_init(const parameter& /*param*/,
-                       accumulator<PortNumber>& /*dyn*/) noexcept -> status
+                       accumulator<PortNumber>& /*dyn*/) noexcept -> status2
 {
-    return status::success;
+    return success();
 }
 
 template<int PortNumber>
@@ -188,14 +189,11 @@ static auto parameter_init(parameter& /*param*/,
 {
 }
 
-static auto model_init(const parameter& param, queue& dyn) noexcept -> status
+static auto model_init(const parameter& param, queue& dyn) noexcept -> status2
 {
-    if (param.reals.size() < 1)
-        return status::unknown_dynamics; // modeling_parameter_error;
-
     dyn.default_ta = param.reals[0];
 
-    return status::success;
+    return success();
 }
 
 static auto parameter_init(parameter& param, const queue& dyn) noexcept -> void
@@ -204,21 +202,18 @@ static auto parameter_init(parameter& param, const queue& dyn) noexcept -> void
 }
 
 static auto model_init(const parameter& param, dynamic_queue& dyn) noexcept
-  -> status
+  -> status2
 {
-    if (param.integers.size() < 3)
-        return status::unknown_dynamics; // modeling_parameter_error;
-
     dyn.stop_on_error        = param.integers[0] != 0;
     dyn.default_source_ta.id = static_cast<u64>(param.integers[1]);
 
     if (0 <= param.integers[2] && param.integers[2] < 4)
-        return status::unknown_dynamics; // modeling_parameter_error;
+        return new_error(modeling::error::unknown_source_type);
 
     dyn.default_source_ta.type =
       enum_cast<source::source_type>(param.integers[2]);
 
-    return status::success;
+    return success();
 }
 
 static auto parameter_init(parameter& param, const dynamic_queue& dyn) noexcept
@@ -230,21 +225,18 @@ static auto parameter_init(parameter& param, const dynamic_queue& dyn) noexcept
 }
 
 static auto model_init(const parameter& param, priority_queue& dyn) noexcept
-  -> status
+  -> status2
 {
-    if (param.integers.size() < 3)
-        return status::unknown_dynamics; // modeling_parameter_error;
-
     dyn.stop_on_error        = param.integers[0] != 0;
     dyn.default_source_ta.id = static_cast<u64>(param.integers[1]);
 
     if (0 <= param.integers[2] && param.integers[2] < 4)
-        return status::unknown_dynamics; // modeling_parameter_error;
+        return new_error(modeling::error::unknown_source_type);
 
     dyn.default_source_ta.type =
       enum_cast<source::source_type>(param.integers[2]);
 
-    return status::success;
+    return success();
 }
 
 static auto parameter_init(parameter& param, const priority_queue& dyn) noexcept
@@ -256,30 +248,24 @@ static auto parameter_init(parameter& param, const priority_queue& dyn) noexcept
 }
 
 static auto model_init(const parameter& param, generator& dyn) noexcept
-  -> status
+  -> status2
 {
-    if (param.reals.size() < 1 || param.integers.size() < 5)
-        return status::unknown_dynamics; // modeling_parameter_error;
-
     dyn.default_offset = param.reals[0];
     dyn.stop_on_error  = param.integers[0] != 0;
 
     dyn.default_source_ta.id = static_cast<u64>(param.integers[1]);
     if (0 <= param.integers[2] && param.integers[2] < 4)
-        return status::unknown_dynamics; // modeling_parameter_error;
-
+        return new_error(modeling::error::unknown_source_type);
     dyn.default_source_ta.type =
       enum_cast<source::source_type>(param.integers[2]);
 
     dyn.default_source_value.id = static_cast<u64>(param.integers[3]);
 
     if (0 <= param.integers[4] && param.integers[4] < 4)
-        return status::unknown_dynamics; // modeling_parameter_error;
+        dyn.default_source_value.type =
+          enum_cast<source::source_type>(param.integers[4]);
 
-    dyn.default_source_value.type =
-      enum_cast<source::source_type>(param.integers[4]);
-
-    return status::success;
+    return success();
 }
 
 static auto parameter_init(parameter& param, const generator& dyn) noexcept
@@ -304,9 +290,9 @@ static auto parameter_init(parameter&                           param,
 template<int QssLevel>
 static auto model_init(const parameter& /*param*/,
                        abstract_multiplier<QssLevel>& /*dyn*/) noexcept
-  -> status
+  -> status2
 {
-    return status::success;
+    return success();
 }
 
 template<int QssLevel>
@@ -319,9 +305,9 @@ static auto parameter_init(
 template<int QssLevel, int PortNumber>
 static auto model_init(const parameter& /*param*/,
                        abstract_sum<QssLevel, PortNumber>& /*dyn*/) noexcept
-  -> status
+  -> status2
 {
-    return status::success;
+    return success();
 }
 
 template<int QssLevel, int PortNumber>
@@ -334,7 +320,7 @@ static auto parameter_init(
 template<int QssLevel, int PortNumber>
 static auto model_init(const parameter&                     param,
                        abstract_wsum<QssLevel, PortNumber>& dyn) noexcept
-  -> status
+  -> status2
 {
     dyn.default_input_coeffs[0] = param.reals[0];
     dyn.default_input_coeffs[1] = param.reals[1];
@@ -345,7 +331,7 @@ static auto model_init(const parameter&                     param,
     if constexpr (PortNumber > 3)
         dyn.default_input_coeffs[3] = param.reals[3];
 
-    return status::success;
+    return success();
 }
 
 template<int QssLevel, int PortNumber>
@@ -365,15 +351,12 @@ static auto parameter_init(
 
 template<int QssLevel>
 static auto model_init(const parameter&          param,
-                       abstract_cross<QssLevel>& dyn) noexcept -> status
+                       abstract_cross<QssLevel>& dyn) noexcept -> status2
 {
-    if (param.reals.size() < 1 || param.integers.size() < 1)
-        return status::unknown_dynamics; // modeling_parameter_error;
-
     dyn.default_threshold = param.reals[0];
     dyn.default_detect_up = param.integers[0] ? true : false;
 
-    return status::success;
+    return success();
 }
 
 template<int QssLevel>
@@ -386,15 +369,12 @@ static auto parameter_init(parameter&                      param,
 
 template<int QssLevel>
 static auto model_init(const parameter&           param,
-                       abstract_filter<QssLevel>& dyn) noexcept -> status
+                       abstract_filter<QssLevel>& dyn) noexcept -> status2
 {
-    if (param.reals.size() < 2)
-        return status::unknown_dynamics; // modeling_parameter_error;
-
     dyn.default_lower_threshold = param.reals[0];
     dyn.default_upper_threshold = param.reals[1];
 
-    return status::success;
+    return success();
 }
 
 template<int QssLevel>
@@ -408,14 +388,11 @@ static auto parameter_init(parameter&                       param,
 
 template<int QssLevel>
 static auto model_init(const parameter&          param,
-                       abstract_power<QssLevel>& dyn) noexcept -> status
+                       abstract_power<QssLevel>& dyn) noexcept -> status2
 {
-    if (param.reals.size() < 1)
-        return status::unknown_dynamics; // modeling_parameter_error;
-
     dyn.default_n = param.reals[0];
 
-    return status::success;
+    return success();
 }
 
 template<int QssLevel>
@@ -427,9 +404,9 @@ static auto parameter_init(parameter&                      param,
 
 template<int QssLevel>
 static auto model_init(const parameter& /*param*/,
-                       abstract_square<QssLevel>& /*dyn*/) noexcept -> status
+                       abstract_square<QssLevel>& /*dyn*/) noexcept -> status2
 {
-    return status::success;
+    return success();
 }
 
 template<int QssLevel>
@@ -442,18 +419,15 @@ static auto parameter_init(parameter& /*param*/,
 template<typename AbstractLogicalTester, int PortNumber>
 static auto model_init(
   const parameter&                                     param,
-  abstract_logical<AbstractLogicalTester, PortNumber>& dyn) noexcept -> status
+  abstract_logical<AbstractLogicalTester, PortNumber>& dyn) noexcept -> status2
 {
-    if (param.integers.size() < 2)
-        return status::unknown_dynamics; // modeling_parameter_error;
-
     dyn.default_values[0] = param.integers[0];
     dyn.default_values[1] = param.integers[1];
 
     if constexpr (PortNumber == 3)
         dyn.default_values[2] = param.integers[2];
 
-    return status::success;
+    return success();
 }
 
 template<typename AbstractLogicalTester, int PortNumber>
@@ -470,9 +444,9 @@ static auto parameter_init(
 }
 
 static auto model_init(const parameter& /*param*/,
-                       logical_invert& /*dyn*/) noexcept -> status
+                       logical_invert& /*dyn*/) noexcept -> status2
 {
-    return status::success;
+    return success();
 }
 
 static auto parameter_init(parameter& /*param*/,
@@ -481,9 +455,9 @@ static auto parameter_init(parameter& /*param*/,
 }
 
 static auto model_init(const parameter& /*param*/,
-                       hsm_wrapper& /*dyn*/) noexcept -> status
+                       hsm_wrapper& /*dyn*/) noexcept -> status2
 {
-    return status::success;
+    return success();
 }
 
 static auto parameter_init(parameter& /*param*/,
@@ -492,16 +466,13 @@ static auto parameter_init(parameter& /*param*/,
 }
 
 static auto model_init(const parameter& param, time_func& dyn) noexcept
-  -> status
+  -> status2
 {
-    if (param.integers.size() < 1)
-        return status::unknown_dynamics;
-
     dyn.default_f = param.integers[0] == 0   ? &time_function
                     : param.integers[0] == 1 ? &square_time_function
                                              : sin_time_function;
 
-    return status::success;
+    return success();
 }
 
 static auto parameter_init(parameter& param, const time_func& dyn) noexcept
@@ -512,13 +483,13 @@ static auto parameter_init(parameter& param, const time_func& dyn) noexcept
                                                                  : 2;
 }
 
-status parameter::copy_to(model& mdl) const noexcept
+status2 parameter::copy_to(model& mdl) const noexcept
 {
     return dispatch(mdl,
-                    [&]<typename Dynamics>(Dynamics& dyn) noexcept -> status {
+                    [&]<typename Dynamics>(Dynamics& dyn) noexcept -> status2 {
                         return model_init(*this, dyn);
                     });
-};
+}
 
 void parameter::copy_from(const model& mdl) noexcept
 {

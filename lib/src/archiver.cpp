@@ -684,8 +684,7 @@ static void do_serialize_dynamics(const Archiver s,
         io(size);
 
         if (size > 0u)
-            io(std::span(dyn.exec.outputs.data(),
-                         dyn.exec.outputs.size()));
+            io(std::span(dyn.exec.outputs.data(), dyn.exec.outputs.size()));
     }
 
     io(dyn.exec.current_state);
@@ -1044,7 +1043,9 @@ static void do_serialize_external_source(const Archiver /*s*/,
 }
 
 template<typename Archiver, typename IO>
-static status do_serialize(const Archiver arc, simulation& sim, IO& io) noexcept
+static status2 do_serialize(const Archiver arc,
+                            simulation&    sim,
+                            IO&            io) noexcept
 {
     {
         auto constant_external_source = sim.srcs.constant_sources.ssize();
@@ -1115,7 +1116,8 @@ static status do_serialize(const Archiver arc, simulation& sim, IO& io) noexcept
             auto index = get_index(id);
             io(index);
             do_serialize(arc, io, *hsm);
-            irt_return_if_fail(io.success, status::io_filesystem_error);
+            if (!io.success)
+                return new_error(status::io_filesystem_error);
         }
     }
 
@@ -1126,7 +1128,8 @@ static status do_serialize(const Archiver arc, simulation& sim, IO& io) noexcept
             auto index = get_index(id);
             io(index);
             do_serialize(arc, io, *mdl);
-            irt_return_if_fail(io.success, status::io_filesystem_error);
+            if (!io.success)
+                return new_error(status::io_filesystem_error);
         }
     }
 
@@ -1160,14 +1163,14 @@ static status do_serialize(const Archiver arc, simulation& sim, IO& io) noexcept
         }
     }
 
-    return status::success;
+    return success();
 }
 
 template<typename Dearchiver, typename IO>
-static status do_deserialize(Dearchiver&   arc,
-                             simulation&   sim,
-                             IO&           io,
-                             binary_cache& cache) noexcept
+static status2 do_deserialize(Dearchiver&   arc,
+                              simulation&   sim,
+                              IO&           io,
+                              binary_cache& cache) noexcept
 {
     i32 constant_external_source = 0;
     i32 binary_external_source   = 0;
@@ -1184,17 +1187,20 @@ static status do_deserialize(Dearchiver&   arc,
         io(models);
         io(hsms);
 
-        irt_return_if_fail(constant_external_source >= 0,
-                           status::io_file_format_error);
-        irt_return_if_fail(binary_external_source >= 0,
-                           status::io_file_format_error);
-        irt_return_if_fail(text_external_source >= 0,
-                           status::io_file_format_error);
-        irt_return_if_fail(random_external_source >= 0,
-                           status::io_file_format_error);
-        irt_return_if_fail(models > 0, status::io_file_format_error);
-        irt_return_if_fail(hsms >= 0, status::io_file_format_error);
-        irt_return_if_fail(io.success, status::io_file_format_error);
+        if (constant_external_source < 0)
+            return new_error(status::io_file_format_error);
+        if (binary_external_source < 0)
+            return new_error(status::io_file_format_error);
+        if (text_external_source < 0)
+            return new_error(status::io_file_format_error);
+        if (random_external_source < 0)
+            return new_error(status::io_file_format_error);
+        if (models <= 0)
+            return new_error(status::io_file_format_error);
+        if (hsms < 0)
+            return new_error(status::io_file_format_error);
+        if (!io.success)
+            return new_error(status::io_file_format_error);
 
         sim.srcs.constant_sources.clear();
         sim.srcs.binary_file_sources.clear();
@@ -1203,35 +1209,33 @@ static status do_deserialize(Dearchiver&   arc,
         sim.models.clear();
         sim.hsms.clear();
 
-        irt_return_if_bad(sim.srcs.constant_sources.init(
-          to_unsigned(constant_external_source)));
-        irt_return_if_bad(sim.srcs.binary_file_sources.init(
-          to_unsigned(binary_external_source)));
-        irt_return_if_bad(
-          sim.srcs.text_file_sources.init(to_unsigned(text_external_source)));
-        irt_return_if_bad(
-          sim.srcs.random_sources.init(to_unsigned(random_external_source)));
+        if (is_bad(sim.srcs.constant_sources.init(constant_external_source)))
+            return new_error(project::error::not_enough_memory);
+        if (is_bad(sim.srcs.binary_file_sources.init(binary_external_source)))
+            return new_error(project::error::not_enough_memory);
+        if (is_bad(sim.srcs.text_file_sources.init(text_external_source)))
+            return new_error(project::error::not_enough_memory);
+        if (is_bad(sim.srcs.random_sources.init(random_external_source)))
+            return new_error(project::error::not_enough_memory);
 
-        irt_return_if_bad(sim.models.init(to_unsigned(models)));
-        irt_return_if_bad(sim.hsms.init(to_unsigned(hsms)));
-        irt_return_if_fail(sim.srcs.constant_sources.can_alloc(
-                             to_unsigned(constant_external_source)),
-                           status::io_not_enough_memory);
-        irt_return_if_fail(sim.srcs.binary_file_sources.can_alloc(
-                             to_unsigned(binary_external_source)),
-                           status::io_not_enough_memory);
+        if (is_bad(sim.models.init(models)))
+            return new_error(project::error::not_enough_memory);
+        if (is_bad(sim.hsms.init(hsms)))
+            return new_error(project::error::not_enough_memory);
 
-        irt_return_if_fail(sim.srcs.text_file_sources.can_alloc(
-                             to_unsigned(text_external_source)),
-                           status::io_not_enough_memory);
-        irt_return_if_fail(sim.srcs.random_sources.can_alloc(
-                             to_unsigned(random_external_source)),
-                           status::io_not_enough_memory);
+        if (!sim.srcs.constant_sources.can_alloc(constant_external_source))
+            return new_error(project::error::not_enough_memory);
+        if (!sim.srcs.binary_file_sources.can_alloc(binary_external_source))
+            return new_error(project::error::not_enough_memory);
+        if (!sim.srcs.text_file_sources.can_alloc(text_external_source))
+            return new_error(project::error::not_enough_memory);
+        if (!sim.srcs.random_sources.can_alloc(random_external_source))
+            return new_error(project::error::not_enough_memory);
 
-        irt_return_if_fail(sim.models.can_alloc(to_unsigned(models)),
-                           status::io_not_enough_memory);
-        irt_return_if_fail(sim.hsms.can_alloc(to_unsigned(hsms)),
-                           status::io_not_enough_memory);
+        if (!sim.models.can_alloc(models))
+            return new_error(project::error::not_enough_memory);
+        if (!sim.hsms.can_alloc(hsms))
+            return new_error(project::error::not_enough_memory);
     }
 
     cache.clear();
@@ -1348,30 +1352,36 @@ static status do_deserialize(Dearchiver&   arc,
         irt_assert(out_id && in_id);
 
         auto* mdl_src = sim.models.try_to_get(enum_cast<model_id>(*out_id));
-        irt_return_if_fail(mdl_src, status::io_file_format_model_unknown);
+        if (!mdl_src)
+            return new_error(status::io_file_format_model_unknown);
 
         auto* mdl_dst = sim.models.try_to_get(enum_cast<model_id>(*in_id));
-        irt_return_if_fail(mdl_dst, status::io_file_format_model_unknown);
+        if (!mdl_dst)
+            return new_error(status::io_file_format_model_unknown);
 
         output_port* pout = nullptr;
         input_port*  pin  = nullptr;
 
-        irt_return_if_bad(get_output_port(*mdl_src, port_out, pout));
-        irt_return_if_bad(get_input_port(*mdl_dst, port_in, pin));
-
-        irt_return_if_bad(sim.connect(*mdl_src, port_out, *mdl_dst, port_in));
+        if (is_bad(get_output_port(*mdl_src, port_out, pout)))
+            return new_error(status::io_file_format_error);
+        if (is_bad(get_input_port(*mdl_dst, port_in, pin)))
+            return new_error(status::io_file_format_error);
+        if (is_bad(sim.connect(*mdl_src, port_out, *mdl_dst, port_in)))
+            return new_error(status::io_file_format_error);
     }
 
-    return status::success;
+    return success();
 }
 
-status simulation_save(simulation& sim, file& f) noexcept
+status2 simulation_save(simulation& sim, file& f) noexcept
 {
     bool is_open     = f.is_open();
     bool is_readable = f.get_mode() == open_mode::read;
 
-    irt_return_if_fail(is_open, status::io_filesystem_error);
-    irt_return_if_fail(is_readable, status::io_filesystem_error);
+    if (!is_open)
+        return new_error(status::io_filesystem_error);
+    if (!is_readable)
+        return new_error(status::io_filesystem_error);
 
     write_binary_simulation<file> writer{ f };
 
@@ -1381,26 +1391,29 @@ status simulation_save(simulation& sim, file& f) noexcept
     writer(fh.version);
     writer(fh.type);
 
-    irt_return_if_fail(writer.success, status::io_file_format_model_error);
+    if (!writer.success)
+        return new_error(status::io_file_format_model_error);
 
     return do_serialize(archiver, sim, writer);
 }
 
-status simulation_save(simulation& sim, memory& m) noexcept
+status2 simulation_save(simulation& sim, memory& m) noexcept
 {
     write_binary_simulation<memory> writer{ m };
 
     return do_serialize(archiver, sim, writer);
 }
 
-status simulation_load(simulation& sim, file& f, binary_cache& cache) noexcept
+status2 simulation_load(simulation& sim, file& f, binary_cache& cache) noexcept
 {
     bool is_open = f.is_open();
     bool is_writeable =
       match(f.get_mode(), open_mode::write, open_mode::append);
 
-    irt_return_if_fail(is_open, status::io_filesystem_error);
-    irt_return_if_fail(is_writeable, status::io_filesystem_error);
+    if (!is_open)
+        return new_error(status::io_filesystem_error);
+    if (!is_writeable)
+        return new_error(status::io_filesystem_error);
 
     read_binary_simulation<file> reader{ f };
 
@@ -1410,19 +1423,24 @@ status simulation_load(simulation& sim, file& f, binary_cache& cache) noexcept
     reader(fh.version);
     reader(fh.type);
 
-    irt_return_if_fail(reader.success, status::io_file_format_model_error);
-    irt_return_if_fail(fh.code == 0x11223344,
-                       status::io_file_format_model_error);
-    irt_return_if_fail(fh.length == sizeof(file_header),
-                       status::io_file_format_model_error);
-    irt_return_if_fail(fh.version == 1, status::io_file_format_model_error);
-    irt_return_if_fail(fh.type == file_header::mode_type::all,
-                       status::io_file_format_model_error);
+    if (!reader.success)
+        return new_error(status::io_file_format_model_error);
+
+    if (!(fh.code == 0x11223344))
+        return new_error(status::io_file_format_model_error);
+    if (!(fh.length == sizeof(file_header)))
+        return new_error(status::io_file_format_model_error);
+    if (!(fh.version == 1))
+        return new_error(status::io_file_format_model_error);
+    if (!(fh.type == file_header::mode_type::all))
+        return new_error(status::io_file_format_model_error);
 
     return do_deserialize(dearchiver, sim, reader, cache);
 }
 
-status simulation_load(simulation& sim, memory& m, binary_cache& cache) noexcept
+status2 simulation_load(simulation&   sim,
+                        memory&       m,
+                        binary_cache& cache) noexcept
 {
     read_binary_simulation<memory> reader{ m };
 
