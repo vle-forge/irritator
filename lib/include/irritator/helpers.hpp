@@ -6,6 +6,7 @@
 #define ORG_VLEPROJECT_IRRITATOR_HELPERS_2023
 
 #include <irritator/core.hpp>
+#include <irritator/error.hpp>
 
 #include <type_traits>
 
@@ -55,8 +56,8 @@ void for_each_data(Data& d, Function&& f) noexcept
  * return this error.
  *
  * @return If @c f returns a boolean, this function return true or false if a
- * call to @c f fail. If @c f returns a irt::status, this function return @c
- * irt::status::success or the firt error that occured in @c f.
+ * call to @c f fail. If @c f returns a @c irt::result, this function return @c
+ * irt::result::success() or the firt error that occured in @c f.
  */
 template<typename Data, typename Function>
 auto try_for_each_data(Data& d, Function&& f) noexcept
@@ -67,7 +68,7 @@ auto try_for_each_data(Data& d, Function&& f) noexcept
     using value_type = typename Data::value_type;
 
     static_assert(std::is_same_v<return_type, bool> ||
-                  std::is_same_v<return_type, irt::status>);
+                  std::is_same_v<return_type, boost::leaf::result>);
 
     if constexpr (std::is_same_v<return_type, bool>) {
         value_type* ptr = nullptr;
@@ -77,14 +78,14 @@ auto try_for_each_data(Data& d, Function&& f) noexcept
             }
         }
         return true;
-    } else if constexpr (std::is_same_v<return_type, irt::status>) {
+    } else if constexpr (std::is_same_v<return_type, boost::leaf::result>) {
         value_type* ptr = nullptr;
         while (d.next(ptr)) {
-            if (auto ret = f(*ptr); is_bad(ret)) {
-                return ret;
+            if (auto ret = f(*ptr); !ret) {
+                return ret.error();
             }
         }
-        return status::success;
+        return success();
     }
 }
 
