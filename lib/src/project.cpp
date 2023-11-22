@@ -74,7 +74,7 @@ bool get_graph_connections(const modeling&                 mod,
 {
     irt_assert(compo.type == component_type::graph);
 
-    return if_data_exists_return(
+    return if_data_exists_do(
       mod.graph_components,
       compo.id.graph_id,
       [&](auto& graph) noexcept -> bool {
@@ -82,7 +82,7 @@ bool get_graph_connections(const modeling&                 mod,
                                                graph.cache_connections.ssize());
           return true;
       },
-      false);
+      +[]() noexcept -> bool { return false; });
 }
 
 bool get_grid_connections(const modeling&                 mod,

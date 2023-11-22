@@ -521,37 +521,36 @@ static bool show_local_simulation_settings(application& app,
 static bool show_local_simulation_specific_observers(application& app,
                                                      tree_node&   tn) noexcept
 {
-    return if_data_exists_return(
+    return if_data_exists_do(
       app.mod.components,
       tn.id,
       [&](auto& compo) noexcept -> bool {
           switch (compo.type) {
           case component_type::graph:
-              return if_data_exists_return(
+              return if_data_exists_do(
                 app.mod.graph_components,
                 compo.id.graph_id,
-                [&](auto& graph) noexcept {
+                [&](auto& graph) noexcept -> bool {
                     return show_local_graph_observers(app, tn, compo, graph);
                 },
-                false);
+                []() noexcept -> bool { return false; });
 
           case component_type::grid:
-              return if_data_exists_return(
+              return if_data_exists_do(
                 app.mod.grid_components,
                 compo.id.grid_id,
                 [&](auto& grid) noexcept {
                     return show_local_grid_observers(app, tn, compo, grid);
                 },
-                false);
+                []() noexcept -> bool { return false; });
 
           case component_type::simple:
-              // return if_data_exists_return(
+              // return if_data_exists_do(
               //   app.mod.generic_components,
               //   compo.id.generic_id,
               //   [&](auto& generic) noexcept {
               //       return show_local_observers(app, tn, compo, generic);
-              //   },
-              //   false);
+              //   });
               return true;
 
           default:
@@ -560,7 +559,7 @@ static bool show_local_simulation_specific_observers(application& app,
 
           return false;
       },
-      false);
+      []() noexcept -> bool { return false; });
 }
 
 static void show_local_variable_plot(variable_observer& var_obs,
@@ -677,7 +676,6 @@ static bool show_simulation_grid_observers(application& app) noexcept
             }
 
             ImGui::TableNextColumn();
-
 
             if (ImGui::Button("del"))
                 to_delete = app.pj.grid_observers.get_id(grid);

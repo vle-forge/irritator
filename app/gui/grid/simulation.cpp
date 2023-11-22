@@ -51,11 +51,14 @@ static bool grid_simulation_combobox_component(application&            app,
                                                grid_simulation_editor& grid_sim,
                                                component_id& selected) noexcept
 {
-    small_string<31> preview = if_data_exists_return(
+    small_string<31> preview = if_data_exists_do(
       app.mod.components,
       selected,
       [&](auto& compo) noexcept -> std::string_view { return compo.name.sv(); },
-      std::string_view("-"));
+      []() noexcept -> std::string_view {
+          static constexpr std::string_view empty{ "-" };
+          return empty;
+      });
 
     bool ret = false;
 
@@ -318,10 +321,10 @@ static bool grid_simulation_show_observations(application&            app,
         ImGui::Text("Select the model to observe");
 
         irt_assert(grid_sim.selected_tn != nullptr);
-        //show_select_observation_model(app,
-        //                              grid_sim,
-        //                              *grid_sim.selected_tn,
-        //                              &grid_sim.selected_observation_model);
+        // show_select_observation_model(app,
+        //                               grid_sim,
+        //                               *grid_sim.selected_tn,
+        //                               &grid_sim.selected_observation_model);
 
         if (ImGui::Button("OK", ImVec2(120, 0))) {
             grid_sim.selected_position.reset();
@@ -411,7 +414,7 @@ bool show_local_observers(application& app,
         }
 
         std::optional<grid_modeling_observer_id> to_delete;
-        bool                            is_modified = false;
+        bool                                     is_modified = false;
 
         for_specified_data(
           app.pj.grid_observers,

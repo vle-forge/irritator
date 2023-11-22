@@ -813,13 +813,14 @@ static auto get(hsm_editor& ed, component_id cid) noexcept
 {
     auto& app = container_of(&ed, &application::hsm_ed);
 
-    if_data_exists_do(app.mod.components, cid, [&](auto& compo) noexcept {
-        if (compo.type == component_type::hsm) {
-            if_data_exists_do(app.mod.hsm_components,
-                              compo.id.hsm_id,
-                              [&](auto& hsm) noexcept { return &hsm.machine; });
+    if (auto* compo = app.mod.components.try_to_get(cid);
+        compo && compo->type == component_type::hsm) {
+
+        if (auto* hsm = app.mod.hsm_components.try_to_get(compo->id.hsm_id);
+            hsm) {
+            return &hsm->machine;
         }
-    });
+    }
 
     return nullptr;
 }

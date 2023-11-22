@@ -25,113 +25,126 @@ struct limiter
         irt_assert(lower_ < upper_);
     }
 
-    constexpr bool is_valid(const T& value) const noexcept
+    constexpr bool is_valid(const T value) const noexcept
     {
         return lower <= value && value <= upper;
     }
 };
 
-template<typename Data, typename Function>
-void for_each_data(Data& d, Function&& f) noexcept
+template<typename T, T Lower, T Upper>
+struct static_limiter
 {
-    using value_type = typename Data::value_type;
+    static_assert(Lower < Upper);
 
-    if constexpr (std::is_const_v<Data>) {
-        const value_type* ptr = nullptr;
-        while (d.next(ptr)) {
-            f(*ptr);
-        }
-    } else {
-        value_type* ptr = nullptr;
-        while (d.next(ptr)) {
-            f(*ptr);
-        }
+    constexpr bool is_valid(const T value) const noexcept
+    {
+        return Lower <= value && value <= Upper;
     }
+};
+
+template<typename>
+struct is_result : std::false_type
+{};
+
+template<typename T>
+struct is_result<::boost::leaf::result<T>> : std::true_type
+{};
+
+//! @brief Apply the function @c f for all elements of the @c data_array.
+template<typename Data, typename Function>
+auto for_each_data(Data& d, Function&& f) noexcept -> void
+{
+    using return_t = std::invoke_result_t<Function, typename Data::value_type&>;
+
+    static_assert(std::is_same_v<return_t, void>);
+
+    for (auto& data : d)
+        f(data);
 }
 
-/**
- * @brief Apply function @c f until an error occurend in @f.
- * @details For all element in data_array @c d try to call the function @c f. If
- * this function return false or return a @c is_bad status, then the function
- * return this error.
- *
- * @return If @c f returns a boolean, this function return true or false if a
- * call to @c f fail. If @c f returns a @c irt::result, this function return @c
- * irt::result::success() or the firt error that occured in @c f.
- */
+//! @brief Apply function @c f until an error occurend in @f.
+//!
+//! For all element in data_array @c d try to call the function @c f.
+//! If this function return false or return a @c is_bad status, then the
+//! function return this error.
+//!
+//! @return If @c f returns a boolean, this function return true or false if a
+//! call to @c f fail. If @c f returns a @c irt::result, this function return @c
+//! irt::result::success() or the firt error that occured in @c f.
 template<typename Data, typename Function>
-auto try_for_each_data(Data& d, Function&& f) noexcept
-  -> std::invoke_result_t<Function, typename Data::value_type&>
+auto try_for_each_data(Data& d, Function&& f) noexcept ->
+  typename std::decay<decltype(std::declval<Function>()().value())>::type
 {
-    using return_type =
-      std::invoke_result_t<Function, typename Data::value_type&>;
-    using value_type = typename Data::value_type;
+    using return_t = std::invoke_result_t<Function, typename Data::value_type&>;
 
-    static_assert(std::is_same_v<return_type, bool> ||
-                  std::is_same_v<return_type, boost::leaf::result>);
+    static_assert(std::is_same_v<return_t, bool> || is_result<return_t>::value);
 
-    if constexpr (std::is_same_v<return_type, bool>) {
-        value_type* ptr = nullptr;
-        while (d.next(ptr)) {
-            if (!f(*ptr)) {
+    if constexpr (std::is_same_v<return_t, bool>) {
+        for (auto& elem : d)
+            if (!f(elem))
                 return false;
-            }
-        }
         return true;
-    } else if constexpr (std::is_same_v<return_type, boost::leaf::result>) {
-        value_type* ptr = nullptr;
-        while (d.next(ptr)) {
-            if (auto ret = f(*ptr); !ret) {
+    }
+
+    if constexpr (is_result<return_t>::value) {
+        for (auto& data : d)
+            if (auto ret = f(data); !ret)
                 return ret.error();
-            }
-        }
         return success();
     }
 }
 
-template<typename Data, typename Function, typename Return>
-auto if_data_exists_return(Data&                          d,
-                           typename Data::identifier_type id,
-                           Function&&                     f,
-                           const Return& default_return) noexcept -> Return
-{
-    static_assert(
-      std::is_same_v<std::invoke_result_t<Function, typename Data::value_type&>,
-                     Return>);
-
-    if constexpr (std::is_const_v<Data>) {
-        const auto* ptr = d.try_to_get(id);
-        return ptr ? f(*ptr) : default_return;
-    } else {
-        auto* ptr = d.try_to_get(id);
-        return ptr ? f(*ptr) : default_return;
-    }
-}
-
+//! @brief Call function @c f if @c id exists in @c data_array.
 template<typename Data, typename Function>
-auto if_data_exists_do(Data&                          d,
+void if_data_exists_do(Data&                          d,
                        typename Data::identifier_type id,
-                       Function&&                     f) noexcept -> void
+                       Function&&                     f) noexcept
 {
+    using return_t = std::invoke_result_t<Function, typename Data::value_type&>;
+
+    static_assert(std::is_same_v<return_t, void>);
+
     if (auto* ptr = d.try_to_get(id); ptr)
         f(*ptr);
 }
 
-/**
- * @brief Apply function @c f for all element in vector @c.
- * @details For each element in vector @c (type must be @c typename @c
- * Data::identifier_type with @c Data a @c data_array) call the function @c f.
- * If the @c vec vector is no-const then, undefined element are removed from the
- * vector.
- */
+//! @brief Call function @c f_if if @c id exists in @c data_array otherwise call
+//! the function @c f_else.
+template<typename Data, typename FunctionIf, typename FunctionElse>
+auto if_data_exists_do(Data&                          d,
+                       typename Data::identifier_type id,
+                       FunctionIf&&                   f_if,
+                       FunctionElse&&                 f_else) noexcept
+  -> std::invoke_result_t<FunctionIf, typename Data::value_type&>
+{
+    using ret_if_t =
+      std::invoke_result_t<FunctionIf, typename Data::value_type&>;
+    using ret_else_t = std::invoke_result_t<FunctionElse>;
+
+    static_assert(std::is_same_v<ret_if_t, ret_else_t>);
+
+    if (auto* ptr = d.try_to_get(id); ptr)
+        return f_if(*ptr);
+    else
+        return f_else();
+}
+
+//! @brief Apply function @c f for all element in vector @c.
+//!
+//! For each element in vector @c (type must be @c typename @c
+//! Data::identifier_type with @c Data a @c data_array) call the function
+//! @c f. If the @c vec vector is no-const then, undefined element are
+//! removed from the vector.
 template<typename Data, typename Vector, typename Function>
 void for_specified_data(Data& d, Vector& vec, Function&& f) noexcept
 {
+    using return_t = std::invoke_result_t<Function, typename Data::value_type&>;
+
+    static_assert(std::is_same_v<return_t, void>);
+
     if constexpr (std::is_const_v<Vector>) {
-        for (unsigned i = 0, e = vec.size(); i != e; ++i) {
-            if (auto* ptr = d.try_to_get(vec[i]); ptr)
-                f(*ptr);
-        }
+        for (unsigned i = 0, e = vec.size(); i != e; ++i)
+            if_data_exists_do(d, vec[i], f);
     } else {
         unsigned i = 0;
 
@@ -142,77 +155,6 @@ void for_specified_data(Data& d, Vector& vec, Function&& f) noexcept
             } else {
                 vec.swap_pop_back(i);
             }
-        }
-    }
-}
-
-/**
- * @brief Apply function @c f for all element in vector @c and stop if @c f
- * fail.
- * @details For each element in vector @c (type must be @c typename @c
- * Data::identifier_type with @c Data a @c data_array) call the function @c f.
- * If the call failed, then function return false or the bad status. (see @c
- * try_for_each_data function) If the @c vec vector is no-const then, undefined
- * element are removed from the vector.
- */
-template<typename Data, typename Vector, typename Function>
-auto try_for_specified_data(Data& d, Vector& vec, Function&& f) noexcept
-  -> std::invoke_result_t<Function, typename Data::value_type&>
-{
-    using return_type =
-      std::invoke_result_t<Function, typename Data::value_type&>;
-
-    static_assert(std::is_same_v<return_type, bool> ||
-                  std::is_same_v<return_type, irt::status>);
-
-    if constexpr (std::is_const_v<Vector>) {
-        if constexpr (std::is_same_v<return_type, bool>) {
-            for (unsigned i = 0, e = vec.size(); i != e; ++i) {
-                if (const auto* ptr = d.try_to_get(vec[i]); ptr)
-                    if (!f(*ptr))
-                        return false;
-            }
-
-            return true;
-        } else if constexpr (std::is_same_v<return_type, irt::status>) {
-            for (unsigned i = 0, e = vec.size(); i != e; ++i) {
-                if (const auto* ptr = d.try_to_get(vec[i]); ptr)
-                    if (auto ret = f(*ptr); is_bad(ret))
-                        return ret;
-            }
-
-            return status::success;
-        }
-    } else {
-        if constexpr (std::is_same_v<return_type, bool>) {
-            unsigned i = 0;
-
-            while (i < vec.size()) {
-                if (auto* ptr = d.try_to_get(vec[i]); ptr) {
-                    if (!f(*ptr))
-                        return false;
-                    ++i;
-                } else {
-                    vec.swap_pop_back(i);
-                }
-            }
-
-            return true;
-        } else if constexpr (std::is_same_v<return_type, irt::status>) {
-
-            unsigned i = 0;
-
-            while (i < vec.size()) {
-                if (auto* ptr = d.try_to_get(vec[i]); ptr) {
-                    if (auto ret = f(*ptr); is_bad(ret))
-                        return ret;
-                    ++i;
-                } else {
-                    vec.swap_pop_back(i);
-                }
-            }
-
-            return status::success;
         }
     }
 }
@@ -243,6 +185,10 @@ void remove_data_if(Data& d, Predicate&& pred) noexcept
     }
 }
 
+//! @brief If @c pred returns true, remove datas.
+//!
+//! Remove data from @c vector @c vec and @c data_array @c d when the predicate
+//! function @c pred returns true. Otherwise do noting.
 template<typename Data, typename Vector, typename Predicate>
 void remove_specified_data_if(Data& d, Vector& vec, Predicate&& pred) noexcept
 {
@@ -263,20 +209,15 @@ void remove_specified_data_if(Data& d, Vector& vec, Predicate&& pred) noexcept
     }
 }
 
-/**
- * @brief Search in @c vec and element of @c d which valid the predicate @c
- * pred.
- * @details Do a `O(n)` search in @c vec to search the first element which the
- * call to @c pref function returns true. All invalid identifier in the vector
- * @c vec will be removed.
- *
- * @param d [description]
- * @param vec [description]
- * @param pred [description]
- *
- * @return A `nullptr` if no element in @c vec validates the @c pred predicte
- * otherwise returns the first element.
- */
+//! @brief Search in @c vec and element of @c d that valid the predicate
+//! @c pred.
+//!
+//! Do a `O(n)` search in @c vec to search the first element which the call to
+//! @c pref function returns true. All invalid identifier in the vector @c vec
+//! will be removed.
+//!
+//! @return A `nullptr` if no element in @c vec validates the @c pred predicte
+//! otherwise returns the first element.
 template<typename Data, typename Vector, typename Predicate>
 auto find_specified_data_if(Data& d, Vector& vec, Predicate&& pred) noexcept ->
   typename Data::value_type*
