@@ -712,8 +712,8 @@ public:
     constexpr small_vector(small_vector&& other) noexcept;
     constexpr small_vector& operator=(small_vector&& other) noexcept;
 
-    constexpr status resize(std::integral auto capacity) noexcept;
-    constexpr void   clear() noexcept;
+    constexpr void resize(std::integral auto capacity) noexcept;
+    constexpr void clear() noexcept;
 
     constexpr reference       front() noexcept;
     constexpr const_reference front() const noexcept;
@@ -9084,16 +9084,21 @@ constexpr small_vector<T, length>& small_vector<T, length>::operator=(
 }
 
 template<typename T, int length>
-constexpr status small_vector<T, length>::resize(
+constexpr void small_vector<T, length>::resize(
   std::integral auto default_size) noexcept
 {
     static_assert(std::is_nothrow_default_constructible_v<T>,
                   "T must be nothrow default constructible to use "
                   "init() function");
 
-    irt_return_if_fail(std::cmp_greater(default_size, 0) &&
-                         std::cmp_less(default_size, length),
-                       status::vector_init_capacity_error);
+    irt_assert(std::cmp_greater_equal(default_size, 0) &&
+               std::cmp_less(default_size, length));
+
+    if (!std::cmp_greater_equal(default_size, 0))
+        default_size = 0;
+
+    if (!std::cmp_less(default_size, length))
+        default_size = length - 1;
 
     const auto new_default_size = static_cast<size_type>(default_size);
 
@@ -9104,8 +9109,6 @@ constexpr status small_vector<T, length>::resize(
         std::destroy_n(data() + new_default_size, m_size - new_default_size);
 
     m_size = new_default_size;
-
-    return status::success;
 }
 
 template<typename T, int length>
