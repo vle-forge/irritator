@@ -724,12 +724,12 @@ static void compute_grid_layout(settings_window&               settings,
     data.update_position();
 }
 
-static status add_component_to_current(component_editor&              ed,
-                                       generic_component_editor_data& data,
-                                       component&                     parent,
-                                       generic_component& parent_compo,
-                                       component&         compo_to_add,
-                                       ImVec2             click_pos = ImVec2())
+static void add_component_to_current(component_editor&              ed,
+                                     generic_component_editor_data& data,
+                                     component&                     parent,
+                                     generic_component& parent_compo,
+                                     component&         compo_to_add,
+                                     ImVec2             click_pos = ImVec2())
 {
     auto&      app             = container_of(&ed, &application::component_ed);
     const auto compo_to_add_id = app.mod.components.get_id(compo_to_add);
@@ -741,8 +741,6 @@ static status add_component_to_current(component_editor&              ed,
                "Irritator does not accept recursive component {}",
                compo_to_add.name.sv());
         app.notifications.enable(notif);
-        return status::gui_not_enough_memory; //! @TODO replace with correct
-                                              //! error
     }
 
     auto& c    = app.mod.alloc(parent_compo, compo_to_add_id);
@@ -751,8 +749,6 @@ static status add_component_to_current(component_editor&              ed,
     app.mod.children_positions[get_index(c_id)].x = click_pos.x;
     app.mod.children_positions[get_index(c_id)].y = click_pos.y;
     data.update_position();
-
-    return status::success;
 }
 
 static void show_popup_menuitem(component_editor&              ed,
@@ -1197,7 +1193,10 @@ static void show_component_editor(component_editor&              ed,
                            app.mod.components.try_to_get(c.id.compo_id) !=
                              nullptr))
                           app.mod.children_positions[get_index(
-                            s_compo.children[i])] = { i * 30.f, i * 10.f };
+                            s_compo.children[i])] = {
+                              static_cast<float>(i) * 30.f,
+                              static_cast<float>(i) * 10.f
+                          };
                   });
             }
         }
@@ -1220,7 +1219,10 @@ static void show_component_editor(component_editor&              ed,
                            app.mod.components.try_to_get(c.id.compo_id) !=
                              nullptr))
                           app.mod.children_positions[get_index(
-                            s_compo.children[i])] = { i * 30.f, i * 10.f };
+                            s_compo.children[i])] = {
+                              static_cast<float>(i) * 30.f,
+                              static_cast<float>(i) * 10.f
+                          };
                   });
             }
         }

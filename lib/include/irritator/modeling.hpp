@@ -819,7 +819,14 @@ struct modeling
         not_enough_memory,
         unknown_type_constant,
         unknown_source_type,
+
         too_many_file_open,
+        too_many_description_open,
+        too_many_directory_open,
+
+        registred_path_access_error,
+        directory_access_error,
+        file_access_error,
     };
 
     data_array<description, description_id>             descriptions;
@@ -1009,17 +1016,21 @@ public:
         unknown_source,
         impossible_connection,
         empty_project,
-        io_project_component_empty,
-        io_project_component_type_error,
-        io_project_file_error,
-        io_project_file_component_type_error,
-        io_project_file_component_path_error,
-        io_project_file_component_directory_error,
-        io_project_file_component_file_error,
-        io_project_file_parameters_error,
-        io_project_file_parameters_access_error,
-        io_project_file_parameters_type_error,
-        io_project_file_parameters_init_error,
+
+        component_empty,
+        component_type_error,
+        file_error,
+        file_component_type_error,
+
+        registred_path_access_error,
+        directory_access_error,
+        file_access_error,
+        file_open_error,
+
+        file_parameters_error,
+        file_parameters_access_error,
+        file_parameters_type_error,
+        file_parameters_init_error,
     };
 
     status2 init(const modeling_initializer& init) noexcept;

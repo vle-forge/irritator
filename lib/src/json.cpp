@@ -5223,7 +5223,7 @@ static status2 parse_json_component(modeling&                  mod,
 
             if (!r.dependencies.empty()) {
                 compo.state = component_status::unreadable;
-                return new_error(project::io_project_file_error);
+                return new_error(project::file_error);
             }
         }
     }
@@ -5503,24 +5503,24 @@ static status2 write_child_component_path(const modeling&  mod,
 {
     auto* reg = mod.registred_paths.try_to_get(compo.reg_path);
     if (!reg)
-        return new_error(project::io_project_file_component_directory_error);
+        return new_error(project::registred_path_access_error);
 
     if (reg->path.empty())
-        return new_error(project::io_project_file_component_directory_error);
+        return new_error(project::error::registred_path_access_error);
     if (reg->name.empty())
-        return new_error(project::io_project_file_component_directory_error);
+        return new_error(project::error::registred_path_access_error);
 
     auto* dir = mod.dir_paths.try_to_get(compo.dir);
     if (!dir)
-        return new_error(project::io_project_file_component_directory_error);
+        return new_error(project::error::directory_access_error);
     if (dir->path.empty())
-        return new_error(project::io_project_file_component_directory_error);
+        return new_error(project::error::directory_access_error);
 
     auto* file = mod.file_paths.try_to_get(compo.file);
     if (!file)
-        return new_error(project::io_project_file_error);
+        return new_error(project::error::file_access_error);
     if (file->path.empty())
-        return new_error(project::io_project_file_error);
+        return new_error(project::error::file_access_error);
 
     return write_child_component_path(w, *reg, *dir, *file);
 }
@@ -6144,7 +6144,7 @@ static status2 do_component_save(Writer&     w,
     case component_type::simple: {
         auto* p = mod.generic_components.try_to_get(compo.id.generic_id);
         if (!p)
-            return new_error(project::io_project_component_empty);
+            return new_error(project::component_empty);
 
         if (auto ret = write_generic_component(cache, mod, *p, w); !ret)
             return ret.error();
@@ -6153,7 +6153,7 @@ static status2 do_component_save(Writer&     w,
     case component_type::grid: {
         auto* p = mod.grid_components.try_to_get(compo.id.grid_id);
         if (!p)
-            return new_error(project::io_project_component_empty);
+            return new_error(project::component_empty);
 
         if (auto ret = write_grid_component(cache, mod, *p, w); !ret)
             return ret.error();
@@ -6162,7 +6162,7 @@ static status2 do_component_save(Writer&     w,
     case component_type::graph: {
         auto* p = mod.graph_components.try_to_get(compo.id.graph_id);
         if (!p)
-            return new_error(project::io_project_component_empty);
+            return new_error(project::component_empty);
 
         if (auto ret = write_graph_component(cache, mod, *p, w); !ret)
             return ret.error();
@@ -6171,7 +6171,7 @@ static status2 do_component_save(Writer&     w,
     case component_type::hsm: {
         auto* p = mod.hsm_components.try_to_get(compo.id.hsm_id);
         if (!p)
-            return new_error(project::io_project_component_empty);
+            return new_error(project::component_empty);
 
         if (auto ret = write_hsm_component(p->machine, w); !ret)
             return ret.error();
@@ -6798,28 +6798,23 @@ static status2 do_project_save(Writer&    w,
 {
     auto* reg = mod.registred_paths.try_to_get(compo.reg_path);
     if (!reg)
-        return new_error(
-          project::error::io_project_file_component_directory_error);
+        return new_error(project::error::registred_path_access_error);
     if (reg->path.empty())
-        return new_error(
-          project::error::io_project_file_component_directory_error);
+        return new_error(project::error::registred_path_access_error);
     if (reg->name.empty())
-        return new_error(
-          project::error::io_project_file_component_directory_error);
+        return new_error(project::error::registred_path_access_error);
 
     auto* dir = mod.dir_paths.try_to_get(compo.dir);
     if (!dir)
-        return new_error(
-          project::error::io_project_file_component_directory_error);
+        return new_error(project::error::directory_access_error);
     if (dir->path.empty())
-        return new_error(
-          project::error::io_project_file_component_directory_error);
+        return new_error(project::error::directory_access_error);
 
     auto* file = mod.file_paths.try_to_get(compo.file);
     if (!file)
-        return new_error(project::error::io_project_file_error);
+        return new_error(project::error::file_access_error);
     if (file->path.empty())
-        return new_error(project::error::io_project_file_error);
+        return new_error(project::error::file_access_error);
 
     w.StartObject();
     irt_check(do_project_save_component(w, compo, *reg, *dir, *file));
@@ -6847,20 +6842,19 @@ status2 project_save(project&  pj,
 
     file f{ filename, open_mode::write };
     if (!f.is_open())
-        return new_error(project::error::io_project_file_error);
+        return new_error(project::error::file_error);
 
     auto* reg = mod.registred_paths.try_to_get(compo->reg_path);
     if (!reg)
-        return new_error(project::error::io_project_file_component_path_error);
+        return new_error(project::error::registred_path_access_error);
 
     auto* dir = mod.dir_paths.try_to_get(compo->dir);
     if (!dir)
-        return new_error(
-          project::error::io_project_file_component_directory_error);
+        return new_error(project::error::directory_access_error);
 
     auto* file = mod.file_paths.try_to_get(compo->file);
     if (!file)
-        return new_error(project::error::io_project_file_error);
+        return new_error(project::error::file_access_error);
 
     auto* fp = reinterpret_cast<FILE*>(f.get_handle());
     cache.clear();

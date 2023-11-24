@@ -201,7 +201,7 @@ static status2 get_dir(modeling& mod, dir_path_id id, dir_path*& out) noexcept
         return success();
     }
 
-    return new_error(project::error::io_project_file_component_directory_error);
+    return new_error(project::error::directory_access_error);
 }
 
 static status2 get_file(modeling&    mod,
@@ -213,7 +213,7 @@ static status2 get_file(modeling&    mod,
         return success();
     }
 
-    return new_error(project::error::io_project_file_component_path_error);
+    return new_error(project::error::file_access_error);
 }
 
 static status2 open_file(dir_path& dir_p, file_path& file_p, file& out) noexcept
@@ -231,7 +231,7 @@ static status2 open_file(dir_path& dir_p, file_path& file_p, file& out) noexcept
     } catch (...) {
     }
 
-    return new_error(project::error::io_project_file_component_file_error);
+    return new_error(project::error::file_open_error);
 }
 
 static status2 read_dot_file(modeling& /* mod */,

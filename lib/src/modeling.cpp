@@ -1048,15 +1048,15 @@ status2 modeling::save(component& c) noexcept
 {
     auto* reg = registred_paths.try_to_get(c.reg_path);
     if (!reg)
-        return new_error(status::modeling_directory_access_error);
+        return new_error(modeling::error::registred_path_access_error);
 
     auto* dir = dir_paths.try_to_get(c.dir);
     if (!dir)
-        return new_error(status::modeling_directory_access_error);
+        return new_error(modeling::error::directory_access_error);
 
     auto* file = file_paths.try_to_get(c.file);
     if (!file)
-        return new_error(status::modeling_file_access_error);
+        return new_error(modeling::error::file_access_error);
 
     {
         std::filesystem::path p{ reg->path.sv() };

@@ -63,7 +63,13 @@ static void show_component_popup_menu(application& app, component& sel) noexcept
                     new_c.type  = component_type::simple;
                     new_c.name  = sel.name;
                     new_c.state = component_status::modified;
-                    app.mod.copy(sel, new_c);
+                    if (auto ret = app.mod.copy(sel, new_c); !ret) {
+                        auto& n = app.notifications.alloc();
+                        n.level = log_level::error;
+                        n.title = "Can not alloc a new component";
+                        app.notifications.enable(n);
+                    }
+
                     app.component_sel.update();
                 } else {
                     auto& n = app.notifications.alloc();
@@ -107,8 +113,16 @@ static void show_component_popup_menu(application& app, component& sel) noexcept
                     new_c.name =
                       internal_component_names[ordinal(sel.id.internal_id)];
                     new_c.state = component_status::modified;
-                    app.mod.copy(
-                      enum_cast<internal_component>(sel.id.internal_id), new_c);
+                    if (auto ret = app.mod.copy(
+                          enum_cast<internal_component>(sel.id.internal_id),
+                          new_c);
+                        !ret) {
+                        auto& n = app.notifications.alloc();
+                        n.level = log_level::error;
+                        n.title = "Can not alloc a new component";
+                        app.notifications.enable(n);
+                    }
+
                     app.component_sel.update();
                 } else {
                     auto& n = app.notifications.alloc();
