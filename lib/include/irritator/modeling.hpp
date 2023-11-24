@@ -857,8 +857,13 @@ struct modeling
 
     status2 init(modeling_initializer& params) noexcept;
 
+    //! Add internal components to component lists.
     status2 fill_internal_components() noexcept;
+
+    //! Reads all registered paths and search component files.
     status2 fill_components() noexcept;
+
+    //! Adds a new path to read and search component files.
     status2 fill_components(registred_path& path) noexcept;
 
     /// Clean data used as cache for simulation.
