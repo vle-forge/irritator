@@ -3269,109 +3269,94 @@ int main()
         {
             irt::simulation sim;
             expect(sim.init(30u, 30u) == irt::status::success);
-            expect(irt::example_qss_lotka_volterra<1>(sim, empty_fun) ==
-                   irt::status::success);
+            expect(!!irt::example_qss_lotka_volterra<1>(sim, empty_fun));
             expect(run_simulation(sim, 30.) == irt::status::success);
         }
 
         {
             irt::simulation sim;
             expect(sim.init(30u, 30u) == irt::status::success);
-            expect(irt::example_qss_negative_lif<1>(sim, empty_fun) ==
-                   irt::status::success);
+            expect(!!irt::example_qss_negative_lif<1>(sim, empty_fun));
             expect(run_simulation(sim, 30.) == irt::status::success);
         }
         {
             irt::simulation sim;
             expect(sim.init(30u, 30u) == irt::status::success);
-            expect(irt::example_qss_lif<1>(sim, empty_fun) ==
-                   irt::status::success);
+            expect(!!irt::example_qss_lif<1>(sim, empty_fun));
             expect(run_simulation(sim, 30.) == irt::status::success);
         }
         {
             irt::simulation sim;
             expect(sim.init(30u, 30u) == irt::status::success);
-            expect(irt::example_qss_van_der_pol<1>(sim, empty_fun) ==
-                   irt::status::success);
+            expect(!!irt::example_qss_van_der_pol<1>(sim, empty_fun));
             expect(run_simulation(sim, 30.) == irt::status::success);
         }
         {
             irt::simulation sim;
             expect(sim.init(30u, 30u) == irt::status::success);
-            expect(irt::example_qss_izhikevich<1>(sim, empty_fun) ==
-                   irt::status::success);
+            expect(!!irt::example_qss_izhikevich<1>(sim, empty_fun));
             expect(run_simulation(sim, 30.) == irt::status::success);
         }
 
         {
             irt::simulation sim;
             expect(sim.init(30u, 30u) == irt::status::success);
-            expect(irt::example_qss_lotka_volterra<2>(sim, empty_fun) ==
-                   irt::status::success);
+            expect(!!irt::example_qss_lotka_volterra<2>(sim, empty_fun));
             expect(run_simulation(sim, 30.) == irt::status::success);
         }
         {
             irt::simulation sim;
             expect(sim.init(30u, 30u) == irt::status::success);
-            expect(irt::example_qss_negative_lif<2>(sim, empty_fun) ==
-                   irt::status::success);
+            expect(!!irt::example_qss_negative_lif<2>(sim, empty_fun));
             expect(run_simulation(sim, 30.) == irt::status::success);
         }
         {
             irt::simulation sim;
             expect(sim.init(30u, 30u) == irt::status::success);
-            expect(irt::example_qss_lif<2>(sim, empty_fun) ==
-                   irt::status::success);
+            expect(!!irt::example_qss_lif<2>(sim, empty_fun));
             expect(run_simulation(sim, 30.) == irt::status::success);
         }
         {
             irt::simulation sim;
             expect(sim.init(30u, 30u) == irt::status::success);
-            expect(irt::example_qss_van_der_pol<2>(sim, empty_fun) ==
-                   irt::status::success);
+            expect(!!irt::example_qss_van_der_pol<2>(sim, empty_fun));
             expect(run_simulation(sim, 30.) == irt::status::success);
         }
         {
             irt::simulation sim;
             expect(sim.init(30u, 30u) == irt::status::success);
-            expect(irt::example_qss_izhikevich<2>(sim, empty_fun) ==
-                   irt::status::success);
+            expect(!!irt::example_qss_izhikevich<2>(sim, empty_fun));
             expect(run_simulation(sim, 30.) == irt::status::success);
         }
 
         {
             irt::simulation sim;
             expect(sim.init(30u, 30u) == irt::status::success);
-            expect(irt::example_qss_lotka_volterra<3>(sim, empty_fun) ==
-                   irt::status::success);
+            expect(!!irt::example_qss_lotka_volterra<3>(sim, empty_fun));
             expect(run_simulation(sim, 30.) == irt::status::success);
         }
         {
             irt::simulation sim;
             expect(sim.init(30u, 30u) == irt::status::success);
-            expect(irt::example_qss_negative_lif<3>(sim, empty_fun) ==
-                   irt::status::success);
+            expect(!!irt::example_qss_negative_lif<3>(sim, empty_fun));
             expect(run_simulation(sim, 30.) == irt::status::success);
         }
         {
             irt::simulation sim;
             expect(sim.init(30u, 30u) == irt::status::success);
-            expect(irt::example_qss_lif<3>(sim, empty_fun) ==
-                   irt::status::success);
+            expect(!!irt::example_qss_lif<3>(sim, empty_fun));
             expect(run_simulation(sim, 30.) == irt::status::success);
         }
         {
             irt::simulation sim;
             expect(sim.init(30u, 30u) == irt::status::success);
-            expect(irt::example_qss_van_der_pol<3>(sim, empty_fun) ==
-                   irt::status::success);
+            expect(!!irt::example_qss_van_der_pol<3>(sim, empty_fun));
             expect(run_simulation(sim, 30.) == irt::status::success);
         }
         {
             irt::simulation sim;
             expect(sim.init(30u, 30u) == irt::status::success);
-            expect(irt::example_qss_izhikevich<3>(sim, empty_fun) ==
-                   irt::status::success);
+            expect(!!irt::example_qss_izhikevich<3>(sim, empty_fun));
             expect(run_simulation(sim, 30.) == irt::status::success);
         }
     };

@@ -6,6 +6,7 @@
 #define ORG_VLEPROJECT_IRRITATOR_EXAMPLES_2020
 
 #include <irritator/core.hpp>
+#include <irritator/error.hpp>
 
 namespace irt {
 
@@ -20,14 +21,14 @@ namespace irt {
  * @return
  */
 template<int QssLevel, typename F>
-status example_qss_lotka_volterra(simulation& sim, F f) noexcept
+status2 example_qss_lotka_volterra(simulation& sim, F f) noexcept
 {
     using namespace irt::literals;
+
     static_assert(1 <= QssLevel && QssLevel <= 3, "Only for Qss1, 2 and 3");
 
-    bool success = sim.can_alloc(5) && sim.can_connect(8);
-
-    irt_return_if_fail(success, status::simulation_not_enough_model);
+    if (!(sim.can_alloc(5) && sim.can_connect(8)))
+        return new_error(status::simulation_not_enough_model);
 
     auto& integrator_a      = sim.alloc<abstract_integrator<QssLevel>>();
     integrator_a.default_X  = 18.0_r;
@@ -62,20 +63,18 @@ status example_qss_lotka_volterra(simulation& sim, F f) noexcept
     f(sim.get_id(integrator_a));
     f(sim.get_id(integrator_b));
 
-    return status::success;
+    return success();
 }
 
 template<int QssLevel, typename F>
-status example_qss_lif(simulation& sim, F f) noexcept
+status2 example_qss_lif(simulation& sim, F f) noexcept
 {
     using namespace irt::literals;
+
     static_assert(1 <= QssLevel && QssLevel <= 3, "Only for Qss1, 2 and 3");
 
-    bool success = sim.can_alloc(5) && sim.can_connect(7);
-
-    irt_return_if_fail(success, status::simulation_not_enough_model);
-
-    using namespace irt::literals;
+    if (!(sim.can_alloc(5) && sim.can_connect(7)))
+        return new_error(status::simulation_not_enough_model);
 
     constexpr irt::real tau = 10.0_r;
     constexpr irt::real Vt  = 1.0_r;
@@ -113,16 +112,18 @@ status example_qss_lif(simulation& sim, F f) noexcept
     f(sim.get_id(integrator));
     f(sim.get_id(cross));
 
-    return status::success;
+    return success();
 }
 
 template<int QssLevel, typename F>
-status example_qss_izhikevich(simulation& sim, F f) noexcept
+status2 example_qss_izhikevich(simulation& sim, F f) noexcept
 {
     using namespace irt::literals;
-    bool success = sim.can_alloc(12) && sim.can_connect(22);
 
-    irt_return_if_fail(success, status::simulation_not_enough_model);
+    static_assert(1 <= QssLevel && QssLevel <= 3, "Only for Qss1, 2 and 3");
+
+    if (!(sim.can_alloc(12) && sim.can_connect(22)))
+        return new_error(status::simulation_not_enough_model);
 
     auto& cst          = sim.alloc<constant>();
     auto& cst2         = sim.alloc<constant>();
@@ -209,16 +210,18 @@ status example_qss_izhikevich(simulation& sim, F f) noexcept
     f(sim.get_id(cross));
     f(sim.get_id(cross2));
 
-    return status::success;
+    return success();
 }
 
 template<int QssLevel, typename F>
-status example_qss_van_der_pol(simulation& sim, F f) noexcept
+status2 example_qss_van_der_pol(simulation& sim, F f) noexcept
 {
     using namespace irt::literals;
-    bool success = sim.can_alloc(5) && sim.can_connect(9);
 
-    irt_return_if_fail(success, status::simulation_not_enough_model);
+    static_assert(1 <= QssLevel && QssLevel <= 3, "Only for Qss1, 2 and 3");
+
+    if (!(sim.can_alloc(5) && sim.can_connect(9)))
+        return new_error(status::simulation_not_enough_model);
 
     auto& sum          = sim.alloc<abstract_wsum<QssLevel, 3>>();
     auto& product1     = sim.alloc<abstract_multiplier<QssLevel>>();
@@ -253,16 +256,18 @@ status example_qss_van_der_pol(simulation& sim, F f) noexcept
     f(sim.get_id(integrator_a));
     f(sim.get_id(integrator_b));
 
-    return status::success;
+    return success();
 }
 
 template<int QssLevel, typename F>
-status example_qss_negative_lif(simulation& sim, F f) noexcept
+status2 example_qss_negative_lif(simulation& sim, F f) noexcept
 {
     using namespace irt::literals;
-    bool success = sim.can_alloc(5) && sim.can_connect(7);
 
-    irt_return_if_fail(success, status::simulation_not_enough_model);
+    static_assert(1 <= QssLevel && QssLevel <= 3, "Only for Qss1, 2 and 3");
+
+    if (!(sim.can_alloc(5) && sim.can_connect(7)))
+        return new_error(status::simulation_not_enough_model);
 
     auto& sum        = sim.alloc<abstract_wsum<QssLevel, 2>>();
     auto& integrator = sim.alloc<abstract_integrator<QssLevel>>();
@@ -301,7 +306,7 @@ status example_qss_negative_lif(simulation& sim, F f) noexcept
     f(sim.get_id(cst));
     f(sim.get_id(cst_cross));
 
-    return status::success;
+    return success();
 }
 
 } // namespace irritator
