@@ -129,11 +129,11 @@ void component_editor::add_grid_component() noexcept
 // task implementation
 //
 
-static status2 save_component_impl(modeling&             mod,
-                                   component&            compo,
-                                   const registred_path& reg_path,
-                                   const dir_path&       dir,
-                                   const file_path&      file) noexcept
+static status save_component_impl(modeling&             mod,
+                                  component&            compo,
+                                  const registred_path& reg_path,
+                                  const dir_path&       dir,
+                                  const file_path&      file) noexcept
 {
     try {
         std::filesystem::path p{ reg_path.path.sv() };
@@ -142,11 +142,12 @@ static status2 save_component_impl(modeling&             mod,
 
         if (!std::filesystem::exists(p, ec)) {
             if (!std::filesystem::create_directory(p, ec)) {
-                return new_error(status::io_filesystem_make_directory_error);
+                return new_error(
+                  old_status::io_filesystem_make_directory_error);
             }
         } else {
             if (!std::filesystem::is_directory(p, ec)) {
-                return new_error(status::io_filesystem_not_directory_error);
+                return new_error(old_status::io_filesystem_not_directory_error);
             }
         }
 
@@ -156,7 +157,7 @@ static status2 save_component_impl(modeling&             mod,
         io_manager cache;
         irt_check(component_save(mod, compo, cache, p.string().c_str()));
     } catch (...) {
-        return new_error(status::io_not_enough_memory);
+        return new_error(old_status::io_not_enough_memory);
     }
 
     return success();
@@ -194,8 +195,6 @@ static status save_component_description_impl(const registred_path& reg_dir,
                                               const file_path&      file,
                                               const description& desc) noexcept
 {
-    status ret = status::success;
-
     try {
         std::filesystem::path p{ reg_dir.path.sv() };
         p /= dir.path.sv();
@@ -203,11 +202,12 @@ static status save_component_description_impl(const registred_path& reg_dir,
 
         if (!std::filesystem::exists(p, ec)) {
             if (!std::filesystem::create_directory(p, ec)) {
-                return status::io_filesystem_make_directory_error;
+                return new_error(
+                  old_status::io_filesystem_make_directory_error);
             }
         } else {
             if (!std::filesystem::is_directory(p, ec)) {
-                return status::io_filesystem_not_directory_error;
+                return new_error(old_status::io_filesystem_not_directory_error);
             }
         }
 
@@ -218,13 +218,13 @@ static status save_component_description_impl(const registred_path& reg_dir,
         if (ofs.is_open()) {
             ofs.write(desc.data.c_str(), desc.data.size());
         } else {
-            ret = status::io_file_format_error;
+            return new_error(old_status::io_filesystem_error);
         }
     } catch (...) {
-        ret = status::io_not_enough_memory;
+        return new_error(old_status::io_not_enough_memory);
     }
 
-    return ret;
+    return success();
 }
 
 void task_save_description(void* param) noexcept
@@ -243,8 +243,9 @@ void task_save_description(void* param) noexcept
         auto* desc = g_task->app->mod.descriptions.try_to_get(compo->desc);
 
         if (dir && file && desc) {
-            if (is_bad(
-                  save_component_description_impl(*reg, *dir, *file, *desc))) {
+            if (auto ret =
+                  save_component_description_impl(*reg, *dir, *file, *desc);
+                ret) {
                 compo->state = component_status::modified;
             } else {
                 compo->state = component_status::unmodified;

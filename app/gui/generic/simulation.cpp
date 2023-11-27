@@ -33,7 +33,8 @@
 #include <fstream>
 #include <string>
 
-namespace irt {
+namespace irt
+{
 
 const char* observable_type_names[] = {
     "none", "file", "plot", "graph", "grid",
@@ -145,15 +146,13 @@ static void add_output_attribute(simulation_editor& ed,
     }
 }
 
-struct gport
-{
+struct gport {
     gport() noexcept = default;
 
     gport(irt::model* model_, const int port_index_) noexcept
       : model(model_)
       , port_index(port_index_)
-    {
-    }
+    {}
 
     irt::model* model      = nullptr;
     int         port_index = 0;
@@ -669,7 +668,7 @@ static status copy_port(simulation&                      sim,
 {
     if (src == static_cast<u64>(-1)) {
         dst = src;
-        return status::success;
+        return success();
     }
 
     auto src_list = get_node(sim, src);
@@ -680,13 +679,14 @@ static status copy_port(simulation&                      sim,
 
     while (it != et) {
         if (auto* found = mapping.get(it->model); found) {
-            irt_return_if_fail(sim.can_connect(1u),
-                               status::simulation_not_enough_connection);
+            if (!sim.can_connect(1u))
+                return new_error(old_status::simulation_not_enough_connection);
             dst_list.emplace_back(*found, it->port_index);
         } else {
             if (model* mdl = sim.models.try_to_get(it->model); mdl) {
-                irt_return_if_fail(sim.can_connect(1u),
-                                   status::simulation_not_enough_connection);
+                if (!sim.can_connect(1u))
+                    return new_error(
+                      old_status::simulation_not_enough_connection);
 
                 dst_list.emplace_back(it->model, it->port_index);
             }
@@ -695,7 +695,7 @@ static status copy_port(simulation&                      sim,
         ++it;
     }
 
-    return status::success;
+    return success();
 }
 
 static status copy(simulation_editor& ed, const ImVector<int>& nodes) noexcept
@@ -710,14 +710,14 @@ static status copy(simulation_editor& ed, const ImVector<int>& nodes) noexcept
         if (!src_mdl)
             continue;
 
-        irt_return_if_fail(app.sim.can_alloc(1),
-                           status::simulation_not_enough_model);
+        if (!app.sim.can_alloc(1))
+            return new_error(old_status::simulation_not_enough_model);
 
         auto& dst_mdl    = app.sim.clone(*src_mdl);
         auto  src_mdl_id = app.sim.models.get_id(src_mdl);
         auto  dst_mdl_id = app.sim.models.get_id(dst_mdl);
 
-        app.sim.make_initialize(dst_mdl, ed.simulation_current);
+        irt_check(app.sim.make_initialize(dst_mdl, ed.simulation_current));
 
         mapping.data.emplace_back(src_mdl_id, dst_mdl_id);
     }
@@ -728,20 +728,27 @@ static status copy(simulation_editor& ed, const ImVector<int>& nodes) noexcept
         auto& src_mdl = app.sim.models.get(mapping.data[i].id);
         auto& dst_mdl = app.sim.models.get(mapping.data[i].value);
 
-        dispatch(src_mdl,
-                 [&app, &mapping, &dst_mdl]<typename Dynamics>(Dynamics& dyn) {
-                     if constexpr (has_output_port<Dynamics>) {
-                         for (int i = 0, e = length(dyn.y); i != e; ++i) {
-                             auto& dst_dyn = get_dyn<Dynamics>(dst_mdl);
-                             irt_return_if_bad(copy_port(
-                               app.sim, mapping, dyn.y[i], dst_dyn.y[i]));
-                         }
-                     }
-                     return status::success;
-                 });
+        if (auto ret = dispatch(
+              src_mdl,
+              [&app, &mapping, &dst_mdl]<typename Dynamics>(
+                Dynamics& dyn) noexcept -> status {
+                  if constexpr (has_output_port<Dynamics>) {
+                      for (int i = 0, e = length(dyn.y); i != e; ++i) {
+                          auto& dst_dyn = get_dyn<Dynamics>(dst_mdl);
+
+                          if (auto ret = copy_port(
+                                app.sim, mapping, dyn.y[i], dst_dyn.y[i]);
+                              !ret)
+                              return ret.error();
+                      }
+                  }
+                  return success();
+              });
+            !ret)
+            return ret.error();
     }
 
-    return status::success;
+    return success();
 }
 
 static void free_children(simulation_editor&   ed,
@@ -1142,23 +1149,39 @@ void try_create_connection(application& app) noexcept
 {
     int start = 0, end = 0;
 
-    if (ImNodes::IsLinkCreated(&start, &end) && app.simulation_ed.can_edit()) {
-        const gport out = get_out(app.sim, start);
-        const gport in  = get_in(app.sim, end);
+    if (!(ImNodes::IsLinkCreated(&start, &end) && app.simulation_ed.can_edit()))
+        return;
 
-        if (out.model && in.model && app.sim.can_connect(1)) {
-            if (is_ports_compatible(
-                  *out.model, out.port_index, *in.model, in.port_index)) {
-                if (auto status = app.sim.connect(
-                      *out.model, out.port_index, *in.model, in.port_index);
-                    is_bad(status)) {
-                    auto& notif = app.notifications.alloc(log_level::warning);
-                    notif.title = "Not enough memory to connect model";
-                    app.notifications.enable(notif);
-                }
-            }
-        }
-    }
+    const gport out = get_out(app.sim, start);
+    const gport in  = get_in(app.sim, end);
+
+    if (!out.model && in.model && app.sim.can_connect(1))
+        return;
+
+    if (!is_ports_compatible(
+          *out.model, out.port_index, *in.model, in.port_index))
+        return;
+
+    attempt_all(
+      [&]() noexcept -> status {
+          irt_check(app.sim.connect(
+            *out.model, out.port_index, *in.model, in.port_index));
+          return success();
+      },
+
+      [&app](const old_status s) noexcept -> void {
+          auto& notif = app.notifications.alloc(log_level::warning);
+          notif.title = "Fail to create connection";
+          format(notif.message, "Error: {}", status_string(s));
+          app.notifications.enable(notif);
+      },
+
+      [&app]() noexcept -> void {
+          auto& notif   = app.notifications.alloc(log_level::warning);
+          notif.title   = "Fail to create connection";
+          notif.message = "Error: Unknown";
+          app.notifications.enable(notif);
+      });
 }
 
 void show_simulation_editor(application& app) noexcept
@@ -1208,7 +1231,13 @@ void show_simulation_editor(application& app) noexcept
             num_selected_nodes = 0;
             ImNodes::ClearNodeSelection();
         } else if (ImGui::IsKeyReleased(ImGuiKey_D)) {
-            copy(app.simulation_ed, app.simulation_ed.selected_nodes);
+            if (auto ret =
+                  copy(app.simulation_ed, app.simulation_ed.selected_nodes);
+                !ret) {
+                auto& n = app.notifications.alloc();
+                n.title = "Fail to copy selected nodes";
+                app.notifications.enable(n);
+            }
             app.simulation_ed.selected_nodes.clear();
             num_selected_nodes = 0;
             ImNodes::ClearNodeSelection();

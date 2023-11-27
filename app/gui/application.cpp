@@ -22,8 +22,10 @@ application::application() noexcept
     settings_wnd.update();
     settings_wnd.apply_default_style();
 
-    sim_tasks.init(simulation_task_number);
-    gui_tasks.init(simulation_task_number);
+    if (auto ret = sim_tasks.init(simulation_task_number); !ret)
+        log_w(*this, log_level::error, "Tasks Initialization failed");
+    if (auto ret = gui_tasks.init(simulation_task_number); !ret)
+        log_w(*this, log_level::error, "Tasks Initialization failed");
 
     log_w(*this, log_level::info, "GUI Irritator start\n");
 
@@ -59,14 +61,14 @@ bool application::init() noexcept
         return false;
     }
 
-    if (auto ret = load_settings(); is_bad(ret)) {
+    if (auto ret = load_settings(); !ret) {
         log_w(*this,
               log_level::alert,
               "Fail to read settings files. Default parameters used\n");
 
         mod_init = modeling_initializer{};
 
-        if (auto ret = save_settings(); is_bad(ret)) {
+        if (auto ret = save_settings(); !ret) {
             log_w(*this,
                   log_level::alert,
                   "Fail to save settings files. Default parameters used\n");
@@ -131,17 +133,16 @@ bool application::init() noexcept
           });
     }
 
-    if (auto ret = save_settings(); is_bad(ret)) {
+    if (auto ret = save_settings(); !ret) {
         log_w(*this, log_level::error, "Fail to save settings files.\n");
     }
 
     if (auto ret =
           sim.init(mod_init.model_capacity, mod_init.model_capacity * 256);
-        is_bad(ret)) {
+        !ret) {
         log_w(*this,
               log_level::error,
-              "Fail to initialize simulation components: {}\n",
-              status_string(ret));
+              "Fail to initialize simulation components\n");
         return false;
     }
 
@@ -150,19 +151,16 @@ bool application::init() noexcept
     // simulation_ed.plot_obs.clear();
     // simulation_ed.grid_obs.resize(pj.grid_observers.size());
 
-    if (auto ret = simulation_ed.copy_obs.init(16); is_bad(ret)) {
+    if (auto ret = simulation_ed.copy_obs.init(16); !ret) {
         log_w(*this,
               log_level::error,
-              "Fail to initialize copy simulation observation: {}\n",
-              status_string(ret));
+              "Fail to initialize copy simulation observation\n");
         return false;
     }
 
-    if (auto ret = mod.srcs.init(50); is_bad(ret)) {
-        log_w(*this,
-              log_level::error,
-              "Fail to initialize external sources: {}\n",
-              status_string(ret));
+    if (auto ret = mod.srcs.init(50); !ret) {
+        log_w(
+          *this, log_level::error, "Fail to initialize external sources:\n");
         return false;
     }
 
@@ -172,27 +170,24 @@ bool application::init() noexcept
               "Fail to fill internal component list: {}\n");
     }
 
-    if (auto ret = graphs.init(32); is_bad(ret)) {
+    if (auto ret = graphs.init(32); !ret) {
         log_w(*this,
               log_level::error,
-              "Fail to initialize graph component editors: {}\n",
-              status_string(ret));
+              "Fail to initialize graph component editors:\n");
         return false;
     }
 
-    if (auto ret = grids.init(32); is_bad(ret)) {
+    if (auto ret = grids.init(32); !ret) {
         log_w(*this,
               log_level::error,
-              "Fail to initialize grid component editors: {}\n",
-              status_string(ret));
+              "Fail to initialize grid component editors:\n");
         return false;
     }
 
-    if (auto ret = generics.init(32); is_bad(ret)) {
+    if (auto ret = generics.init(32); !ret) {
         log_w(*this,
               log_level::error,
-              "Fail to initialize generic component editors: {}\n",
-              status_string(ret));
+              "Fail to initialize generic component editors:\n");
         return false;
     }
 
@@ -277,11 +272,49 @@ static void application_show_menu(application& app) noexcept
             ImGui::Separator();
             ImGui::MenuItem("Settings", nullptr, &app.settings_wnd.is_open);
 
-            if (ImGui::MenuItem("Load settings"))
-                app.load_settings();
+            if (ImGui::MenuItem("Load settings")) {
+                attempt_all(
+                  [&app]() noexcept -> status {
+                      irt_check(app.load_settings());
+                      return success();
+                  },
 
-            if (ImGui::MenuItem("Save settings"))
-                app.save_settings();
+                  [&app](const old_status s) noexcept -> void {
+                      auto& n = app.notifications.alloc();
+                      n.title = "Fail to load settings";
+                      format(n.message, "Error: {}", status_string(s));
+                      app.notifications.enable(n);
+                  },
+
+                  [&app]() noexcept -> void {
+                      auto& n   = app.notifications.alloc();
+                      n.title   = "Fail to load settings";
+                      n.message = "Unknown error";
+                      app.notifications.enable(n);
+                  });
+            }
+
+            if (ImGui::MenuItem("Save settings")) {
+                attempt_all(
+                  [&app]() noexcept -> status {
+                      irt_check(app.save_settings());
+                      return success();
+                  },
+
+                  [&app](const old_status s) noexcept -> void {
+                      auto& n = app.notifications.alloc();
+                      n.title = "Fail to save settings";
+                      format(n.message, "Error: {}", status_string(s));
+                      app.notifications.enable(n);
+                  },
+
+                  [&app]() noexcept -> void {
+                      auto& n   = app.notifications.alloc();
+                      n.title   = "Fail to load settings";
+                      n.message = "Unknown error";
+                      app.notifications.enable(n);
+                  });
+            }
 
             ImGui::EndMenu();
         }
@@ -789,16 +822,27 @@ void task_simulation_back(void* param) noexcept
     g_task->state = task_status::started;
 
     if (g_task->app->simulation_ed.tl.can_back()) {
-        auto ret = back(g_task->app->simulation_ed.tl,
-                        g_task->app->sim,
-                        g_task->app->simulation_ed.simulation_current);
+        attempt_all(
+          [&]() noexcept -> status {
+              irt_check(back(g_task->app->simulation_ed.tl,
+                             g_task->app->sim,
+                             g_task->app->simulation_ed.simulation_current));
+              return success();
+          },
 
-        if (is_bad(ret)) {
-            auto& n = g_task->app->notifications.alloc(log_level::error);
-            n.title = "Fail to back the simulation";
-            format(n.message, "Advance message: {}", status_string(ret));
-            g_task->app->notifications.enable(n);
-        }
+          [&g_task](const old_status s) noexcept -> void {
+              auto& n = g_task->app->notifications.alloc(log_level::error);
+              n.title = "Fail to back the simulation";
+              format(n.message, "Advance message: {}", status_string(s));
+              g_task->app->notifications.enable(n);
+          },
+
+          [&g_task]() noexcept -> void {
+              auto& n   = g_task->app->notifications.alloc(log_level::error);
+              n.title   = "Fail to back the simulation";
+              n.message = "Error: Unknown";
+              g_task->app->notifications.enable(n);
+          });
     }
 
     g_task->state = task_status::finished;
@@ -810,16 +854,27 @@ void task_simulation_advance(void* param) noexcept
     g_task->state = task_status::started;
 
     if (g_task->app->simulation_ed.tl.can_advance()) {
-        auto ret = advance(g_task->app->simulation_ed.tl,
-                           g_task->app->sim,
-                           g_task->app->simulation_ed.simulation_current);
+        attempt_all(
+          [&]() noexcept -> status {
+              irt_check(advance(g_task->app->simulation_ed.tl,
+                                g_task->app->sim,
+                                g_task->app->simulation_ed.simulation_current));
+              return success();
+          },
 
-        if (is_bad(ret)) {
-            auto& n = g_task->app->notifications.alloc(log_level::error);
-            n.title = "Fail to advance the simulation";
-            format(n.message, "Advance message: {}", status_string(ret));
-            g_task->app->notifications.enable(n);
-        }
+          [&g_task](const old_status s) noexcept -> void {
+              auto& n = g_task->app->notifications.alloc(log_level::error);
+              n.title = "Fail to advance the simulation";
+              format(n.message, "Advance message: {}", status_string(s));
+              g_task->app->notifications.enable(n);
+          },
+
+          [&g_task]() noexcept -> void {
+              auto& n   = g_task->app->notifications.alloc(log_level::error);
+              n.title   = "Fail to advance the simulation";
+              n.message = "Error: Unknown";
+              g_task->app->notifications.enable(n);
+          });
     }
 
     g_task->state = task_status::finished;

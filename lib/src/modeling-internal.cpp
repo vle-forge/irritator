@@ -29,22 +29,22 @@ static child_id alloc(modeling&              mod,
     return id;
 }
 
-static status2 connect(modeling&          mod,
-                       generic_component& c,
-                       child_id           src,
-                       int                port_src,
-                       child_id           dst,
-                       int                port_dst) noexcept
+static status connect(modeling&          mod,
+                      generic_component& c,
+                      child_id           src,
+                      int                port_src,
+                      child_id           dst,
+                      int                port_dst) noexcept
 {
     return mod.connect(
       c, mod.children.get(src), port_src, mod.children.get(dst), port_dst);
 }
 
-static status2 add_integrator_component_port(modeling&          mod,
-                                             component&         dst,
-                                             generic_component& com,
-                                             child_id           id,
-                                             std::string_view   port) noexcept
+static status add_integrator_component_port(modeling&          mod,
+                                            component&         dst,
+                                            generic_component& com,
+                                            child_id           id,
+                                            std::string_view   port) noexcept
 {
     auto  x_port_id = mod.get_or_add_x_index(dst, port);
     auto  y_port_id = mod.get_or_add_y_index(dst, port);
@@ -147,15 +147,15 @@ static void affect_abstract_constant(modeling&      mod,
 }
 
 template<int QssLevel>
-status2 add_lotka_volterra(modeling&          mod,
-                           component&         dst,
-                           generic_component& com) noexcept
+status add_lotka_volterra(modeling&          mod,
+                          component&         dst,
+                          generic_component& com) noexcept
 {
     using namespace irt::literals;
     static_assert(1 <= QssLevel && QssLevel <= 3, "Only for Qss1, 2 and 3");
 
     if (!mod.children.can_alloc(5))
-        return new_error(status::simulation_not_enough_model);
+        return new_error(old_status::simulation_not_enough_model);
 
     auto integrator_a =
       alloc<abstract_integrator<QssLevel>>(mod, com, "X", child_flags::both);
@@ -191,13 +191,13 @@ status2 add_lotka_volterra(modeling&          mod,
 }
 
 template<int QssLevel>
-status2 add_lif(modeling& mod, component& dst, generic_component& com) noexcept
+status add_lif(modeling& mod, component& dst, generic_component& com) noexcept
 {
     using namespace irt::literals;
     static_assert(1 <= QssLevel && QssLevel <= 3, "Only for Qss1, 2 and 3");
 
     if (!mod.children.can_alloc(5))
-        return new_error(status::simulation_not_enough_model);
+        return new_error(old_status::simulation_not_enough_model);
 
     constexpr irt::real tau = 10.0_r;
     constexpr irt::real Vt  = 1.0_r;
@@ -234,13 +234,13 @@ status2 add_lif(modeling& mod, component& dst, generic_component& com) noexcept
 }
 
 template<int QssLevel>
-status2 add_izhikevich(modeling&          mod,
-                       component&         dst,
-                       generic_component& com) noexcept
+status add_izhikevich(modeling&          mod,
+                      component&         dst,
+                      generic_component& com) noexcept
 {
     using namespace irt::literals;
     if (!mod.children.can_alloc(12))
-        return new_error(status::simulation_not_enough_model);
+        return new_error(old_status::simulation_not_enough_model);
 
     auto cst     = alloc<constant>(mod, com);
     auto cst2    = alloc<constant>(mod, com);
@@ -314,13 +314,13 @@ status2 add_izhikevich(modeling&          mod,
 }
 
 template<int QssLevel>
-status2 add_van_der_pol(modeling&          mod,
-                        component&         dst,
-                        generic_component& com) noexcept
+status add_van_der_pol(modeling&          mod,
+                       component&         dst,
+                       generic_component& com) noexcept
 {
     using namespace irt::literals;
     if (!mod.children.can_alloc(5))
-        return new_error(status::simulation_not_enough_model);
+        return new_error(old_status::simulation_not_enough_model);
 
     auto sum      = alloc<abstract_wsum<QssLevel, 3>>(mod, com);
     auto product1 = alloc<abstract_multiplier<QssLevel>>(mod, com);
@@ -353,13 +353,13 @@ status2 add_van_der_pol(modeling&          mod,
 }
 
 template<int QssLevel>
-status2 add_negative_lif(modeling&          mod,
-                         component&         dst,
-                         generic_component& com) noexcept
+status add_negative_lif(modeling&          mod,
+                        component&         dst,
+                        generic_component& com) noexcept
 {
     using namespace irt::literals;
     if (!mod.children.can_alloc(5))
-        return new_error(status::simulation_not_enough_model);
+        return new_error(old_status::simulation_not_enough_model);
 
     auto sum = alloc<abstract_wsum<QssLevel, 2>>(mod, com);
     auto integrator =
@@ -393,13 +393,11 @@ status2 add_negative_lif(modeling&          mod,
 }
 
 template<int QssLevel>
-status2 add_seirs(modeling&          mod,
-                  component&         dst,
-                  generic_component& com) noexcept
+status add_seirs(modeling& mod, component& dst, generic_component& com) noexcept
 {
     using namespace irt::literals;
     if (!mod.children.can_alloc(17))
-        return new_error(status::simulation_not_enough_model);
+        return new_error(old_status::simulation_not_enough_model);
 
     auto dS =
       alloc<abstract_integrator<QssLevel>>(mod, com, "dS", child_flags::both);
@@ -478,7 +476,7 @@ status2 add_seirs(modeling&          mod,
     return success();
 }
 
-status2 modeling::copy(internal_component src, component& dst) noexcept
+status modeling::copy(internal_component src, component& dst) noexcept
 {
     if (!generic_components.can_alloc())
         return new_error(modeling::error::not_enough_memory);

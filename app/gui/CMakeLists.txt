@@ -22,6 +22,7 @@ set(gui_sources
     hsm/modeling.cpp
 
     ${PROJECT_SOURCE_DIR}/../../lib/src/archiver.cpp
+    ${PROJECT_SOURCE_DIR}/../../lib/src/error.cpp
     ${PROJECT_SOURCE_DIR}/../../lib/src/external_source.cpp
     ${PROJECT_SOURCE_DIR}/../../lib/src/hsm.cpp
     ${PROJECT_SOURCE_DIR}/../../lib/src/json.cpp

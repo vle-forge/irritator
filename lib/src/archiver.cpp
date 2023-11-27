@@ -8,28 +8,27 @@
 
 namespace irt {
 
-struct archiver_tag_type
-{};
+struct file_header {
+    enum class mode_type : i32 {
+        none = 0,
+        all  = 1,
+    };
 
-struct dearchiver_tag_type
-{};
+    i32       code    = 0x11223344;
+    i32       length  = sizeof(file_header);
+    i32       version = 1;
+    mode_type type    = mode_type::all;
+};
+
+struct archiver_tag_type {};
+
+struct dearchiver_tag_type {};
 
 static inline constexpr archiver_tag_type   archiver;
 static inline constexpr dearchiver_tag_type dearchiver;
 
-inline void binary_cache::clear() noexcept
-{
-    to_models.data.clear();
-    to_hsms.data.clear();
-    to_constant.data.clear();
-    to_binary.data.clear();
-    to_text.data.clear();
-    to_random.data.clear();
-}
-
 template<typename Stream>
-struct write_operator
-{
+struct write_operator {
     template<typename T>
     bool operator()(Stream& f, T t) noexcept
     {
@@ -44,8 +43,7 @@ struct write_operator
 };
 
 template<typename Stream>
-struct read_operator
-{
+struct read_operator {
     template<typename T>
     bool operator()(Stream& f, T& t) noexcept
     {
@@ -60,12 +58,10 @@ struct read_operator
 };
 
 template<typename Stream, typename ReadOrWriteOperator>
-struct read_write_operator
-{
+struct read_write_operator {
     read_write_operator(Stream& io_) noexcept
       : io(io_)
-    {
-    }
+    {}
 
     template<typename T>
         requires(std::is_same_v<ReadOrWriteOperator, read_operator<Stream>>)
@@ -954,8 +950,8 @@ static void do_serialize(const Archiver s, IO& io, model& mdl) noexcept
     }
 
     if (io.success) {
-        return dispatch(mdl, [&s, &io]<typename Dynamics>(Dynamics& dyn) {
-            return do_serialize_dynamics<Archiver, IO>(s, io, dyn);
+        dispatch(mdl, [&s, &io]<typename Dynamics>(Dynamics& dyn) {
+            do_serialize_dynamics<Archiver, IO>(s, io, dyn);
         });
     }
 }
@@ -1043,9 +1039,7 @@ static void do_serialize_external_source(const Archiver /*s*/,
 }
 
 template<typename Archiver, typename IO>
-static status2 do_serialize(const Archiver arc,
-                            simulation&    sim,
-                            IO&            io) noexcept
+static status do_serialize(const Archiver arc, simulation& sim, IO& io) noexcept
 {
     {
         auto constant_external_source = sim.srcs.constant_sources.ssize();
@@ -1116,8 +1110,6 @@ static status2 do_serialize(const Archiver arc,
             auto index = get_index(id);
             io(index);
             do_serialize(arc, io, *hsm);
-            if (!io.success)
-                return new_error(status::io_filesystem_error);
         }
     }
 
@@ -1128,8 +1120,6 @@ static status2 do_serialize(const Archiver arc,
             auto index = get_index(id);
             io(index);
             do_serialize(arc, io, *mdl);
-            if (!io.success)
-                return new_error(status::io_filesystem_error);
         }
     }
 
@@ -1167,10 +1157,10 @@ static status2 do_serialize(const Archiver arc,
 }
 
 template<typename Dearchiver, typename IO>
-static status2 do_deserialize(Dearchiver&   arc,
-                              simulation&   sim,
-                              IO&           io,
-                              binary_cache& cache) noexcept
+static status do_deserialize(Dearchiver&             arc,
+                             simulation&             sim,
+                             IO&                     io,
+                             binary_archiver::cache& cache) noexcept
 {
     i32 constant_external_source = 0;
     i32 binary_external_source   = 0;
@@ -1188,19 +1178,19 @@ static status2 do_deserialize(Dearchiver&   arc,
         io(hsms);
 
         if (constant_external_source < 0)
-            return new_error(status::io_file_format_error);
+            return new_error(binary_archiver::file_format_error{});
         if (binary_external_source < 0)
-            return new_error(status::io_file_format_error);
+            return new_error(binary_archiver::file_format_error{});
         if (text_external_source < 0)
-            return new_error(status::io_file_format_error);
+            return new_error(binary_archiver::file_format_error{});
         if (random_external_source < 0)
-            return new_error(status::io_file_format_error);
+            return new_error(binary_archiver::file_format_error{});
         if (models <= 0)
-            return new_error(status::io_file_format_error);
+            return new_error(binary_archiver::file_format_error{});
         if (hsms < 0)
-            return new_error(status::io_file_format_error);
+            return new_error(binary_archiver::file_format_error{});
         if (!io.success)
-            return new_error(status::io_file_format_error);
+            return new_error(binary_archiver::file_format_error{});
 
         sim.srcs.constant_sources.clear();
         sim.srcs.binary_file_sources.clear();
@@ -1209,33 +1199,26 @@ static status2 do_deserialize(Dearchiver&   arc,
         sim.models.clear();
         sim.hsms.clear();
 
-        if (is_bad(sim.srcs.constant_sources.init(constant_external_source)))
-            return new_error(project::error::not_enough_memory);
-        if (is_bad(sim.srcs.binary_file_sources.init(binary_external_source)))
-            return new_error(project::error::not_enough_memory);
-        if (is_bad(sim.srcs.text_file_sources.init(text_external_source)))
-            return new_error(project::error::not_enough_memory);
-        if (is_bad(sim.srcs.random_sources.init(random_external_source)))
-            return new_error(project::error::not_enough_memory);
-
-        if (is_bad(sim.models.init(models)))
-            return new_error(project::error::not_enough_memory);
-        if (is_bad(sim.hsms.init(hsms)))
-            return new_error(project::error::not_enough_memory);
+        irt_check(sim.srcs.constant_sources.init(constant_external_source));
+        irt_check(sim.srcs.binary_file_sources.init(binary_external_source));
+        irt_check(sim.srcs.text_file_sources.init(text_external_source));
+        irt_check(sim.srcs.random_sources.init(random_external_source));
+        irt_check(sim.models.init(models));
+        irt_check(sim.hsms.init(hsms));
 
         if (!sim.srcs.constant_sources.can_alloc(constant_external_source))
-            return new_error(project::error::not_enough_memory);
+            return new_error(binary_archiver::not_enough_memory{});
         if (!sim.srcs.binary_file_sources.can_alloc(binary_external_source))
-            return new_error(project::error::not_enough_memory);
+            return new_error(binary_archiver::not_enough_memory{});
         if (!sim.srcs.text_file_sources.can_alloc(text_external_source))
-            return new_error(project::error::not_enough_memory);
+            return new_error(binary_archiver::not_enough_memory{});
         if (!sim.srcs.random_sources.can_alloc(random_external_source))
-            return new_error(project::error::not_enough_memory);
+            return new_error(binary_archiver::not_enough_memory{});
 
         if (!sim.models.can_alloc(models))
-            return new_error(project::error::not_enough_memory);
+            return new_error(binary_archiver::not_enough_memory{});
         if (!sim.hsms.can_alloc(hsms))
-            return new_error(project::error::not_enough_memory);
+            return new_error(binary_archiver::not_enough_memory{});
     }
 
     cache.clear();
@@ -1348,40 +1331,40 @@ static status2 do_deserialize(Dearchiver&   arc,
 
         auto* out_id = cache.to_models.get(out);
         auto* in_id  = cache.to_models.get(in);
+        if (!out_id || !in_id)
+            return new_error(binary_archiver::unknown_model_error{});
 
         irt_assert(out_id && in_id);
 
         auto* mdl_src = sim.models.try_to_get(enum_cast<model_id>(*out_id));
         if (!mdl_src)
-            return new_error(status::io_file_format_model_unknown);
+            return new_error(binary_archiver::unknown_model_error{});
 
         auto* mdl_dst = sim.models.try_to_get(enum_cast<model_id>(*in_id));
         if (!mdl_dst)
-            return new_error(status::io_file_format_model_unknown);
+            return new_error(binary_archiver::unknown_model_error{});
 
         output_port* pout = nullptr;
         input_port*  pin  = nullptr;
 
-        if (is_bad(get_output_port(*mdl_src, port_out, pout)))
-            return new_error(status::io_file_format_error);
-        if (is_bad(get_input_port(*mdl_dst, port_in, pin)))
-            return new_error(status::io_file_format_error);
-        if (is_bad(sim.connect(*mdl_src, port_out, *mdl_dst, port_in)))
-            return new_error(status::io_file_format_error);
+        if (auto ret = get_output_port(*mdl_src, port_out, pout); !ret)
+            return new_error(binary_archiver::unknown_model_port_error{});
+        if (auto ret = get_input_port(*mdl_dst, port_in, pin); !ret)
+            return new_error(binary_archiver::unknown_model_port_error{});
+        if (auto ret = sim.connect(*mdl_src, port_out, *mdl_dst, port_in); !ret)
+            return new_error(binary_archiver::unknown_model_port_error{});
     }
 
     return success();
 }
 
-status2 simulation_save(simulation& sim, file& f) noexcept
+status binary_archiver::simulation_save(simulation& sim, file& f) noexcept
 {
-    bool is_open     = f.is_open();
-    bool is_readable = f.get_mode() == open_mode::read;
+    if (f.is_open())
+        return new_error(open_file_error{});
 
-    if (!is_open)
-        return new_error(status::io_filesystem_error);
-    if (!is_readable)
-        return new_error(status::io_filesystem_error);
+    if (match(f.get_mode(), open_mode::write, open_mode::append))
+        return new_error(write_file_error{});
 
     write_binary_simulation<file> writer{ f };
 
@@ -1392,28 +1375,25 @@ status2 simulation_save(simulation& sim, file& f) noexcept
     writer(fh.type);
 
     if (!writer.success)
-        return new_error(status::io_file_format_model_error);
+        return new_error(write_file_error{});
 
     return do_serialize(archiver, sim, writer);
 }
 
-status2 simulation_save(simulation& sim, memory& m) noexcept
+status binary_archiver::simulation_save(simulation& sim, memory& m) noexcept
 {
     write_binary_simulation<memory> writer{ m };
 
     return do_serialize(archiver, sim, writer);
 }
 
-status2 simulation_load(simulation& sim, file& f, binary_cache& cache) noexcept
+status binary_archiver::simulation_load(simulation& sim, file& f) noexcept
 {
-    bool is_open = f.is_open();
-    bool is_writeable =
-      match(f.get_mode(), open_mode::write, open_mode::append);
+    if (f.is_open())
+        return new_error(open_file_error{});
 
-    if (!is_open)
-        return new_error(status::io_filesystem_error);
-    if (!is_writeable)
-        return new_error(status::io_filesystem_error);
+    if (match(f.get_mode(), open_mode::write, open_mode::append))
+        return new_error(write_file_error{});
 
     read_binary_simulation<file> reader{ f };
 
@@ -1424,27 +1404,35 @@ status2 simulation_load(simulation& sim, file& f, binary_cache& cache) noexcept
     reader(fh.type);
 
     if (!reader.success)
-        return new_error(status::io_file_format_model_error);
+        return new_error(file_format_error{});
 
     if (!(fh.code == 0x11223344))
-        return new_error(status::io_file_format_model_error);
+        return new_error(file_format_error{});
     if (!(fh.length == sizeof(file_header)))
-        return new_error(status::io_file_format_model_error);
+        return new_error(file_format_error{});
     if (!(fh.version == 1))
-        return new_error(status::io_file_format_model_error);
+        return new_error(file_format_error{});
     if (!(fh.type == file_header::mode_type::all))
-        return new_error(status::io_file_format_model_error);
+        return new_error(file_format_error{});
 
-    return do_deserialize(dearchiver, sim, reader, cache);
+    return do_deserialize(dearchiver, sim, reader, c);
 }
 
-status2 simulation_load(simulation&   sim,
-                        memory&       m,
-                        binary_cache& cache) noexcept
+status binary_archiver::simulation_load(simulation& sim, memory& m) noexcept
 {
     read_binary_simulation<memory> reader{ m };
 
-    return do_deserialize(dearchiver, sim, reader, cache);
+    return do_deserialize(dearchiver, sim, reader, c);
+}
+
+void binary_archiver::cache::clear() noexcept
+{
+    to_models.data.clear();
+    to_hsms.data.clear();
+    to_constant.data.clear();
+    to_binary.data.clear();
+    to_text.data.clear();
+    to_random.data.clear();
 }
 
 } //  irt

@@ -9,7 +9,8 @@
 #include "irritator/core.hpp"
 #include "irritator/helpers.hpp"
 
-namespace irt {
+namespace irt
+{
 
 using hsm_t = hierarchical_state_machine;
 
@@ -86,21 +87,18 @@ constexpr hsm_t::state_id get_state(int idx) noexcept
     return static_cast<hsm_t::state_id>(idx);
 }
 
-enum class transition_type : u8
-{
+enum class transition_type : u8 {
     // super_transition = 1,
     if_transition = 1,
     else_transition,
 };
 
-struct output
-{
+struct output {
     hsm_t::state_id output;
     transition_type type;
 };
 
-struct transition
-{
+struct transition {
     hsm_t::state_id input;
     hsm_t::state_id output;
     transition_type type;
@@ -519,10 +517,10 @@ hsm_editor::~hsm_editor() noexcept
 
 void hsm_editor::clear() noexcept
 {
+    m_hsm.clear();
+
     m_enabled.fill(false);
-    m_hsm.set_state(0u, hsm_t::invalid_state_id, hsm_t::invalid_state_id);
-    m_hsm.top_state = 0u;
-    m_enabled[0]    = true;
+    m_enabled[0] = true;
 
     m_selected_links.clear();
     m_selected_nodes.clear();

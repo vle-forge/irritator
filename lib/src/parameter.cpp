@@ -13,7 +13,7 @@
 namespace irt {
 
 static auto model_init(const parameter& param, integrator& dyn) noexcept
-  -> status2
+  -> status
 {
     dyn.default_current_value = param.reals[0];
     dyn.default_reset_value   = param.reals[1];
@@ -29,7 +29,7 @@ static auto parameter_init(parameter& param, const integrator& dyn) noexcept
 }
 
 static auto model_init(const parameter& param, quantifier& dyn) noexcept
-  -> status2
+  -> status
 {
     dyn.default_step_size   = param.reals[0];
     dyn.default_past_length = static_cast<int>(param.integers[0]);
@@ -46,7 +46,7 @@ static auto parameter_init(parameter& param, const quantifier& dyn) noexcept
 
 template<int QssLevel>
 static auto model_init(const parameter&               param,
-                       abstract_integrator<QssLevel>& dyn) noexcept -> status2
+                       abstract_integrator<QssLevel>& dyn) noexcept -> status
 {
     dyn.default_X  = param.reals[0];
     dyn.default_dQ = param.reals[1];
@@ -56,7 +56,7 @@ static auto model_init(const parameter&               param,
 
 template<int PortNumber>
 static auto model_init(const parameter& param, adder<PortNumber>& dyn) noexcept
-  -> status2
+  -> status
 {
     dyn.default_input_coeffs[0] = param.reals[0];
     dyn.default_input_coeffs[1] = param.reals[1];
@@ -86,7 +86,7 @@ static auto parameter_init(parameter&               param,
 
 template<int PortNumber>
 static auto model_init(const parameter& param, mult<PortNumber>& dyn) noexcept
-  -> status2
+  -> status
 {
     dyn.default_input_coeffs[0] = param.reals[0];
     dyn.default_input_coeffs[1] = param.reals[1];
@@ -114,7 +114,7 @@ static auto parameter_init(parameter&              param,
         param.reals[3] = dyn.default_input_coeffs[3];
 }
 
-static auto model_init(const parameter& param, cross& dyn) noexcept -> status2
+static auto model_init(const parameter& param, cross& dyn) noexcept -> status
 {
     dyn.default_threshold = param.reals[0];
 
@@ -126,7 +126,7 @@ static auto parameter_init(parameter& param, const cross& dyn) noexcept -> void
     param.reals[0] = dyn.default_threshold;
 }
 
-static auto model_init(const parameter& param, filter& dyn) noexcept -> status2
+static auto model_init(const parameter& param, filter& dyn) noexcept -> status
 {
     dyn.default_lower_threshold = param.reals[0];
     dyn.default_upper_threshold = param.reals[1];
@@ -141,7 +141,7 @@ static auto parameter_init(parameter& param, const filter& dyn) noexcept -> void
 }
 
 static auto model_init(const parameter& /*param*/, counter& /*dyn*/) noexcept
-  -> status2
+  -> status
 {
     return success();
 }
@@ -151,8 +151,7 @@ static auto parameter_init(parameter& /*param*/,
 {
 }
 
-static auto model_init(const parameter& param, constant& dyn) noexcept
-  -> status2
+static auto model_init(const parameter& param, constant& dyn) noexcept -> status
 {
     dyn.default_value  = param.reals[0];
     dyn.default_offset = param.reals[1];
@@ -177,7 +176,7 @@ static auto parameter_init(parameter& param, const constant& dyn) noexcept
 
 template<int PortNumber>
 static auto model_init(const parameter& /*param*/,
-                       accumulator<PortNumber>& /*dyn*/) noexcept -> status2
+                       accumulator<PortNumber>& /*dyn*/) noexcept -> status
 {
     return success();
 }
@@ -189,7 +188,7 @@ static auto parameter_init(parameter& /*param*/,
 {
 }
 
-static auto model_init(const parameter& param, queue& dyn) noexcept -> status2
+static auto model_init(const parameter& param, queue& dyn) noexcept -> status
 {
     dyn.default_ta = param.reals[0];
 
@@ -202,7 +201,7 @@ static auto parameter_init(parameter& param, const queue& dyn) noexcept -> void
 }
 
 static auto model_init(const parameter& param, dynamic_queue& dyn) noexcept
-  -> status2
+  -> status
 {
     dyn.stop_on_error        = param.integers[0] != 0;
     dyn.default_source_ta.id = static_cast<u64>(param.integers[1]);
@@ -225,7 +224,7 @@ static auto parameter_init(parameter& param, const dynamic_queue& dyn) noexcept
 }
 
 static auto model_init(const parameter& param, priority_queue& dyn) noexcept
-  -> status2
+  -> status
 {
     dyn.stop_on_error        = param.integers[0] != 0;
     dyn.default_source_ta.id = static_cast<u64>(param.integers[1]);
@@ -248,7 +247,7 @@ static auto parameter_init(parameter& param, const priority_queue& dyn) noexcept
 }
 
 static auto model_init(const parameter& param, generator& dyn) noexcept
-  -> status2
+  -> status
 {
     dyn.default_offset = param.reals[0];
     dyn.stop_on_error  = param.integers[0] != 0;
@@ -290,7 +289,7 @@ static auto parameter_init(parameter&                           param,
 template<int QssLevel>
 static auto model_init(const parameter& /*param*/,
                        abstract_multiplier<QssLevel>& /*dyn*/) noexcept
-  -> status2
+  -> status
 {
     return success();
 }
@@ -305,7 +304,7 @@ static auto parameter_init(
 template<int QssLevel, int PortNumber>
 static auto model_init(const parameter& /*param*/,
                        abstract_sum<QssLevel, PortNumber>& /*dyn*/) noexcept
-  -> status2
+  -> status
 {
     return success();
 }
@@ -320,7 +319,7 @@ static auto parameter_init(
 template<int QssLevel, int PortNumber>
 static auto model_init(const parameter&                     param,
                        abstract_wsum<QssLevel, PortNumber>& dyn) noexcept
-  -> status2
+  -> status
 {
     dyn.default_input_coeffs[0] = param.reals[0];
     dyn.default_input_coeffs[1] = param.reals[1];
@@ -351,7 +350,7 @@ static auto parameter_init(
 
 template<int QssLevel>
 static auto model_init(const parameter&          param,
-                       abstract_cross<QssLevel>& dyn) noexcept -> status2
+                       abstract_cross<QssLevel>& dyn) noexcept -> status
 {
     dyn.default_threshold = param.reals[0];
     dyn.default_detect_up = param.integers[0] ? true : false;
@@ -369,7 +368,7 @@ static auto parameter_init(parameter&                      param,
 
 template<int QssLevel>
 static auto model_init(const parameter&           param,
-                       abstract_filter<QssLevel>& dyn) noexcept -> status2
+                       abstract_filter<QssLevel>& dyn) noexcept -> status
 {
     dyn.default_lower_threshold = param.reals[0];
     dyn.default_upper_threshold = param.reals[1];
@@ -388,7 +387,7 @@ static auto parameter_init(parameter&                       param,
 
 template<int QssLevel>
 static auto model_init(const parameter&          param,
-                       abstract_power<QssLevel>& dyn) noexcept -> status2
+                       abstract_power<QssLevel>& dyn) noexcept -> status
 {
     dyn.default_n = param.reals[0];
 
@@ -404,7 +403,7 @@ static auto parameter_init(parameter&                      param,
 
 template<int QssLevel>
 static auto model_init(const parameter& /*param*/,
-                       abstract_square<QssLevel>& /*dyn*/) noexcept -> status2
+                       abstract_square<QssLevel>& /*dyn*/) noexcept -> status
 {
     return success();
 }
@@ -419,7 +418,7 @@ static auto parameter_init(parameter& /*param*/,
 template<typename AbstractLogicalTester, int PortNumber>
 static auto model_init(
   const parameter&                                     param,
-  abstract_logical<AbstractLogicalTester, PortNumber>& dyn) noexcept -> status2
+  abstract_logical<AbstractLogicalTester, PortNumber>& dyn) noexcept -> status
 {
     dyn.default_values[0] = param.integers[0];
     dyn.default_values[1] = param.integers[1];
@@ -444,7 +443,7 @@ static auto parameter_init(
 }
 
 static auto model_init(const parameter& /*param*/,
-                       logical_invert& /*dyn*/) noexcept -> status2
+                       logical_invert& /*dyn*/) noexcept -> status
 {
     return success();
 }
@@ -455,7 +454,7 @@ static auto parameter_init(parameter& /*param*/,
 }
 
 static auto model_init(const parameter& /*param*/,
-                       hsm_wrapper& /*dyn*/) noexcept -> status2
+                       hsm_wrapper& /*dyn*/) noexcept -> status
 {
     return success();
 }
@@ -466,7 +465,7 @@ static auto parameter_init(parameter& /*param*/,
 }
 
 static auto model_init(const parameter& param, time_func& dyn) noexcept
-  -> status2
+  -> status
 {
     dyn.default_f = param.integers[0] == 0   ? &time_function
                     : param.integers[0] == 1 ? &square_time_function
@@ -483,10 +482,10 @@ static auto parameter_init(parameter& param, const time_func& dyn) noexcept
                                                                  : 2;
 }
 
-status2 parameter::copy_to(model& mdl) const noexcept
+status parameter::copy_to(model& mdl) const noexcept
 {
     return dispatch(mdl,
-                    [&]<typename Dynamics>(Dynamics& dyn) noexcept -> status2 {
+                    [&]<typename Dynamics>(Dynamics& dyn) noexcept -> status {
                         return model_init(*this, dyn);
                     });
 }

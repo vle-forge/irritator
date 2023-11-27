@@ -23,7 +23,7 @@ static void simulation_clear(component_editor&  ed,
     sim_ed.display_graph = true;
 }
 
-static status2 simulation_init_grid_observation(application& app) noexcept
+static status simulation_init_grid_observation(application& app) noexcept
 {
     app.pj.grid_observation_systems.resize(app.pj.grid_observers.capacity());
 
@@ -40,7 +40,7 @@ static status2 simulation_init_grid_observation(application& app) noexcept
     return success();
 }
 
-static status2 simulation_init_observation(application& app) noexcept
+static status simulation_init_observation(application& app) noexcept
 {
     app.simulation_ed.plot_obs.init(app);
     // @TODO maybe clear project grid and graph obs ?
@@ -109,32 +109,28 @@ static void simulation_copy(component_editor&  ed,
     auto* compo    = app.mod.components.try_to_get(compo_id);
     auto* head     = app.pj.tn_head();
     if (!head || !compo) {
+        sim_ed.simulation_state = simulation_status::not_started;
         make_copy_error_msg(ed, "Empty component");
-        sim_ed.simulation_state = simulation_status::not_started;
         return;
     }
 
-    if (auto ret = app.pj.set(app.mod, app.sim, *compo); !ret) {
-        make_copy_error_msg(ed, "Copy hierarchy failed");
-        sim_ed.simulation_state = simulation_status::not_started;
-        return;
-    }
-
-    if (auto ret = app.mod.srcs.prepare(); is_bad(ret)) {
-        make_copy_error_msg(
-          ed, "External sources initialization: {}", status_string(ret));
-        sim_ed.simulation_state = simulation_status::not_started;
-        return;
-    }
-
-    if (auto ret = app.sim.initialize(sim_ed.simulation_begin); is_bad(ret)) {
-        make_copy_error_msg(
-          ed, "Models initialization models: {}", status_string(ret));
-        sim_ed.simulation_state = simulation_status::not_started;
-        return;
-    }
-
-    sim_ed.simulation_state = simulation_status::initialized;
+    attempt_all(
+      [&]() noexcept -> status {
+          irt_check(app.pj.set(app.mod, app.sim, *compo));
+          irt_check(app.mod.srcs.prepare());
+          irt_check(app.sim.initialize(sim_ed.simulation_begin));
+          sim_ed.simulation_state = simulation_status::initialized;
+          return success();
+      },
+      [&](const old_status s) noexcept -> void {
+          sim_ed.simulation_state = simulation_status::not_started;
+          make_copy_error_msg(
+            ed, "Error {} in simulation copy", status_string(s));
+      },
+      [&]() noexcept -> void {
+          sim_ed.simulation_state = simulation_status::not_started;
+          make_copy_error_msg(ed, "Unknown error");
+      });
 }
 
 static void simulation_init(component_editor&  ed,
@@ -149,32 +145,38 @@ static void simulation_init(component_editor&  ed,
 
     auto* head = app.pj.tn_head();
     if (!head) {
+        sim_ed.simulation_state = simulation_status::not_started;
         make_init_error_msg(ed, "Empty component");
-        sim_ed.simulation_state = simulation_status::not_started;
         return;
     }
 
-    if (auto ret = simulation_init_observation(app); !ret) {
-        make_copy_error_msg(ed, "Initialization of observation failed");
-        sim_ed.simulation_state = simulation_status::not_started;
-        return;
-    }
+    attempt_all(
+      [&]() noexcept -> status {
+          irt_check(simulation_init_observation(app));
+          irt_check(app.mod.srcs.prepare());
+          irt_check(app.sim.initialize(sim_ed.simulation_begin));
+          sim_ed.simulation_state = simulation_status::initialized;
+          return success();
+      },
 
-    if (auto ret = app.mod.srcs.prepare(); is_bad(ret)) {
-        make_init_error_msg(
-          ed, "Fail to initalize external sources: {}", status_string(ret));
-        sim_ed.simulation_state = simulation_status::not_started;
-        return;
-    }
+      [&](const old_status s) noexcept -> void {
+          sim_ed.simulation_state = simulation_status::not_started;
+          make_copy_error_msg(ed, "Error: {}", status_string(s));
 
-    if (auto ret = app.sim.initialize(sim_ed.simulation_begin); is_bad(ret)) {
-        make_init_error_msg(
-          ed, "Models initialization models: {}", status_string(ret));
-        sim_ed.simulation_state = simulation_status::not_started;
-        return;
-    }
+          // make_init_error_msg(
+          //   ed, "Fail to initalize external sources: {}",
+          //   status_string(ret));
+          // sim_ed.simulation_state = simulation_status::not_started;
 
-    sim_ed.simulation_state = simulation_status::initialized;
+          // make_init_error_msg(
+          //   ed, "Models initialization models: {}", status_string(ret));
+          // sim_ed.simulation_state = simulation_status::not_started;
+      },
+
+      [&]() noexcept -> void {
+          sim_ed.simulation_state = simulation_status::not_started;
+          make_copy_error_msg(ed, "Unknown error");
+      });
 }
 
 static void task_simulation_clear(void* param) noexcept
@@ -215,33 +217,32 @@ static status debug_run(simulation_editor& sim_ed) noexcept
 {
     auto& app = container_of(&sim_ed, &application::simulation_ed);
 
-    if (auto ret = run(sim_ed.tl, app.sim, sim_ed.simulation_current);
-        is_bad(ret)) {
+    if (auto ret = run(sim_ed.tl, app.sim, sim_ed.simulation_current); !ret) {
         auto& app = container_of(&sim_ed, &application::simulation_ed);
         auto& n   = app.notifications.alloc(log_level::error);
         n.title   = "Debug run error";
         app.notifications.enable(n);
         sim_ed.simulation_state = simulation_status::finish_requiring;
-        return ret;
+        return ret.error();
     }
 
-    return status::success;
+    return success();
 }
 
 static status run(simulation_editor& sim_ed) noexcept
 {
     auto& app = container_of(&sim_ed, &application::simulation_ed);
 
-    if (auto ret = app.sim.run(sim_ed.simulation_current); is_bad(ret)) {
+    if (auto ret = app.sim.run(sim_ed.simulation_current); !ret) {
         auto& app = container_of(&sim_ed, &application::simulation_ed);
         auto& n   = app.notifications.alloc(log_level::error);
         n.title   = "Run error";
         app.notifications.enable(n);
         sim_ed.simulation_state = simulation_status::finish_requiring;
-        return ret;
+        return ret.error();
     }
 
-    return status::success;
+    return success();
 }
 
 static void task_simulation_static_run(simulation_editor& sim_ed) noexcept
@@ -265,12 +266,12 @@ static void task_simulation_static_run(simulation_editor& sim_ed) noexcept
             return;
 
         if (sim_ed.store_all_changes) {
-            if (auto ret = debug_run(sim_ed); is_bad(ret)) {
+            if (auto ret = debug_run(sim_ed); !ret) {
                 sim_ed.simulation_state = simulation_status::finish_requiring;
                 return;
             }
         } else {
-            if (auto ret = run(sim_ed); is_bad(ret)) {
+            if (auto ret = run(sim_ed); !ret) {
                 sim_ed.simulation_state = simulation_status::finish_requiring;
                 return;
             }
@@ -332,12 +333,12 @@ static void task_simulation_live_run(simulation_editor& sim_ed) noexcept
             return;
 
         if (sim_ed.store_all_changes) {
-            if (auto ret = debug_run(sim_ed); is_bad(ret)) {
+            if (auto ret = debug_run(sim_ed); !ret) {
                 sim_ed.simulation_state = simulation_status::finish_requiring;
                 return;
             }
         } else {
-            if (auto ret = run(sim_ed); is_bad(ret)) {
+            if (auto ret = run(sim_ed); !ret) {
                 sim_ed.simulation_state = simulation_status::finish_requiring;
                 return;
             }
@@ -397,7 +398,7 @@ static void task_simulation_run_1(simulation_editor& sim_ed) noexcept
 {
     sim_ed.simulation_state = simulation_status::running;
 
-    if (auto ret = debug_run(sim_ed); is_bad(ret)) {
+    if (auto ret = debug_run(sim_ed); !ret) {
         sim_ed.simulation_state = simulation_status::finish_requiring;
         return;
     }
@@ -430,10 +431,21 @@ static void task_simulation_finish(component_editor& /*ed*/,
     app.sim.immediate_observers.clear();
     app.sim_obs.update();
 
-    if (sim_ed.store_all_changes)
-        finalize(sim_ed.tl, app.sim, sim_ed.simulation_current);
-    else
-        app.sim.finalize(sim_ed.simulation_end);
+    if (sim_ed.store_all_changes) {
+        if (auto ret = finalize(sim_ed.tl, app.sim, sim_ed.simulation_current);
+            !ret) {
+            auto& n = app.notifications.alloc();
+            n.title =
+              "Simulation finalizing fail (with store all changes option)";
+            app.notifications.enable(n);
+        }
+    } else {
+        if (auto ret = app.sim.finalize(sim_ed.simulation_end); !ret) {
+            auto& n = app.notifications.alloc();
+            n.title = "simulation finish fail";
+            app.notifications.enable(n);
+        }
+    }
 
     sim_ed.simulation_state = simulation_status::finished;
 }
@@ -495,24 +507,35 @@ static void task_enable_or_disable_debug(void* param) noexcept
 
     g_task->app->simulation_ed.tl.reset();
 
-    if (g_task->app->simulation_ed.store_all_changes) {
-        auto ret = initialize(g_task->app->simulation_ed.tl,
-                              g_task->app->sim,
-                              g_task->app->simulation_ed.simulation_current);
+    attempt_all(
+      [&]() -> status {
+          irt_check(initialize(g_task->app->simulation_ed.tl,
+                               g_task->app->sim,
+                               g_task->app->simulation_ed.simulation_current));
 
-        if (is_bad(ret)) {
-            auto& n = g_task->app->notifications.alloc(log_level::error);
-            n.title = "Debug mode failed to initialize";
-            format(n.message,
-                   "Fail to initialize the debug mode: {}",
-                   status_string(ret));
-            g_task->app->notifications.enable(n);
-            g_task->app->simulation_ed.simulation_state =
-              simulation_status::not_started;
-        }
-    }
+          g_task->state = task_status::finished;
+          return success();
+      },
 
-    g_task->state = task_status::finished;
+      [&](const old_status s) noexcept -> void {
+          auto& n = g_task->app->notifications.alloc(log_level::error);
+          n.title = "Debug mode failed to initialize";
+          format(n.message,
+                 "Fail to initialize the debug mode: {}",
+                 status_string(s));
+          g_task->app->notifications.enable(n);
+          g_task->app->simulation_ed.simulation_state =
+            simulation_status::not_started;
+      },
+
+      [&]() noexcept -> void {
+          auto& n = g_task->app->notifications.alloc(log_level::error);
+          n.title = "Debug mode failed to initialize";
+          format(n.message, "Fail to initialize the debug mode: Unknown error");
+          g_task->app->notifications.enable(n);
+          g_task->app->simulation_ed.simulation_state =
+            simulation_status::not_started;
+      });
 }
 
 //

@@ -7,7 +7,7 @@
 
 namespace irt {
 
-status plot_observation_widget::init(application& app) noexcept
+void plot_observation_widget::init(application& app) noexcept
 {
     const auto len = app.pj.variable_observers.size();
     clear();
@@ -27,8 +27,6 @@ status plot_observation_widget::init(application& app) noexcept
             ids.emplace_back(app.pj.variable_observers.get_id(var));
         });
     });
-
-    return status::success;
 }
 
 void plot_observation_widget::clear() noexcept

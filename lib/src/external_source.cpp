@@ -3,6 +3,7 @@
 // http://www.boost.org/LICENSE_1_0.txt)
 
 #include <irritator/core.hpp>
+#include <irritator/error.hpp>
 #include <irritator/ext.hpp>
 
 #include <filesystem>
@@ -26,7 +27,8 @@
 #pragma GCC diagnostic pop
 #endif
 
-namespace irt {
+namespace irt
+{
 
 constant_source::constant_source(const constant_source& other) noexcept
   : name(other.name)
@@ -36,33 +38,30 @@ constant_source::constant_source(const constant_source& other) noexcept
       std::data(other.buffer), std::size(other.buffer), std::data(buffer));
 }
 
-status constant_source::init() noexcept { return status::success; }
+status constant_source::init() noexcept { return success(); }
 
 status constant_source::init(source& src) noexcept
 {
     src.buffer = std::span(buffer.data(), length);
     src.index  = 0;
 
-    return status::success;
+    return success();
 }
 
 status constant_source::update(source& src) noexcept
 {
     src.index = 0;
 
-    return status::success;
+    return success();
 }
 
-status constant_source::restore(source& /*src*/) noexcept
-{
-    return status::success;
-}
+status constant_source::restore(source& /*src*/) noexcept { return success(); }
 
 status constant_source::finalize(source& src) noexcept
 {
     src.clear();
 
-    return status::success;
+    return success();
 }
 
 binary_file_source::binary_file_source(const binary_file_source& other) noexcept
@@ -74,11 +73,13 @@ binary_file_source::binary_file_source(const binary_file_source& other) noexcept
   , file_path(other.file_path)
   , next_client(other.next_client)
   , next_offset(other.next_offset)
-{
-}
+{}
 
 status binary_file_source::init() noexcept
 {
+    auto _ = on_error(external_source::binary_file_source_error{},
+                      e_file_name{ file_path.string() });
+
     next_client = 0;
     next_offset = 0;
 
@@ -92,28 +93,32 @@ status binary_file_source::init() noexcept
         ifs.close();
 
     try {
+
         std::error_code ec;
 
         auto size = std::filesystem::file_size(file_path, ec);
-        irt_return_if_fail(ec, status::source_empty);
+        if (!ec)
+            return new_error(access_file_error{});
 
         auto number = size / sizeof(double);
-        irt_return_if_fail(number > 0, status::source_empty);
+        if (number <= 0)
+            return new_error(too_small_file_error{});
 
         auto chunks = number / external_source_chunk_size;
-        irt_return_if_fail(chunks >= max_clients, status::source_empty);
+        if (chunks < max_clients)
+            return new_error(too_small_file_error{});
 
         max_reals = static_cast<u64>(number);
     } catch (const std::exception& /*e*/) {
-        irt_bad_return(status::source_empty);
+        return new_error(access_file_error{});
     }
 
     ifs.open(file_path);
 
     if (!ifs)
-        return status::source_empty;
+        return new_error(open_file_error{});
 
-    return status::success;
+    return success();
 }
 
 void binary_file_source::finalize() noexcept
@@ -128,25 +133,28 @@ static status binary_file_source_fill_buffer(binary_file_source& ext,
     const auto to_seek = src.chunk_id[1] * sizeof(double);
 
     if (!ext.ifs.seekg(static_cast<long>(to_seek)))
-        return status::source_empty;
+        return new_error(binary_file_source::eof_file_error{});
 
     auto* s = reinterpret_cast<char*>(src.buffer.data());
     if (!ext.ifs.read(s, external_source_chunk_size))
-        return status::source_empty;
+        return new_error(binary_file_source::eof_file_error{});
 
     const auto tellg = ext.ifs.tellg();
     if (tellg < 0)
-        return status::source_empty;
+        return new_error(binary_file_source::eof_file_error{});
 
     const auto current_position = static_cast<u64>(tellg) / sizeof(double);
     src.chunk_id[1]             = current_position;
     ext.offsets[numeric_cast<int>(src.chunk_id[0])] = current_position;
 
-    return status::success;
+    return success();
 }
 
 status binary_file_source::init(source& src) noexcept
 {
+    auto _ = on_error(external_source::binary_file_source_error{},
+                      e_file_name{ file_path.string() });
+
     src.buffer      = std::span(buffers[next_client]);
     src.index       = 0;
     src.chunk_id[0] = to_unsigned(next_client);
@@ -156,18 +164,22 @@ status binary_file_source::init(source& src) noexcept
     next_client += 1;
     next_offset += external_source_chunk_size;
 
-    irt_return_if_fail(next_offset < max_reals, status::source_empty);
+    if (!(next_offset < max_reals))
+        return new_error(eof_file_error{});
 
     return binary_file_source_fill_buffer(*this, src);
 }
 
 status binary_file_source::update(source& src) noexcept
 {
+    auto _ = on_error(external_source::binary_file_source_error{},
+                      e_file_name{ file_path.string() });
+
     const auto distance = external_source_chunk_size * max_clients;
     const auto next     = src.chunk_id[1] + distance;
 
-    irt_return_if_fail(next + external_source_chunk_size < max_reals,
-                       status::source_empty);
+    if (!(next + external_source_chunk_size < max_reals))
+        return new_error(eof_file_error{});
 
     src.index = 0;
 
@@ -179,14 +191,14 @@ status binary_file_source::restore(source& src) noexcept
     if (offsets[numeric_cast<int>(src.chunk_id[0])] != src.chunk_id[1])
         return binary_file_source_fill_buffer(*this, src);
 
-    return status::success;
+    return success();
 }
 
 status binary_file_source::finalize(source& src) noexcept
 {
     src.clear();
 
-    return status::success;
+    return success();
 }
 
 text_file_source::text_file_source(const text_file_source& other) noexcept
@@ -194,21 +206,23 @@ text_file_source::text_file_source(const text_file_source& other) noexcept
   , buffer(other.buffer)
   , offset(other.offset)
   , file_path(other.file_path)
-{
-}
+{}
 
 status text_file_source::init() noexcept
 {
+    auto _ = on_error(external_source::text_file_source_error{},
+                      e_file_name{ file_path.string() });
+
     if (ifs.is_open())
         ifs.close();
 
     ifs.open(file_path);
     if (!ifs)
-        return status::source_empty;
+        return new_error(open_file_error{});
 
     offset = 0;
 
-    return status::success;
+    return success();
 }
 
 static status text_file_source_fill_buffer(text_file_source& ext,
@@ -216,18 +230,22 @@ static status text_file_source_fill_buffer(text_file_source& ext,
 {
     for (int i = 0; i < external_source_chunk_size; ++i)
         if (!(ext.ifs >> ext.buffer[static_cast<sz>(i)]))
-            return status::source_empty;
+            return new_error(text_file_source::eof_file_error{});
 
-    return status::success;
+    return success();
 }
 
 status text_file_source::init(source& src) noexcept
 {
+    auto _ = on_error(external_source::text_file_source_error{},
+                      e_file_name{ file_path.string() });
+
     src.buffer = std::span(buffer);
     src.index  = 0;
 
     const auto tellg = ifs.tellg();
-    irt_return_if_fail(tellg != -1, status::source_empty);
+    if (tellg == -1)
+        return new_error(eof_file_error{});
 
     src.chunk_id[0] = static_cast<u64>(tellg);
     offset          = static_cast<u64>(tellg);
@@ -243,10 +261,14 @@ void text_file_source::finalize() noexcept
 
 status text_file_source::update(source& src) noexcept
 {
+    auto _ = on_error(external_source::text_file_source_error{},
+                      e_file_name{ file_path.string() });
+
     src.index = 0;
 
     const auto tellg = ifs.tellg();
-    irt_return_if_fail(tellg != -1, status::source_empty);
+    if (tellg == -1)
+        return new_error(eof_file_error{});
 
     src.chunk_id[0] = static_cast<u64>(tellg);
     offset          = static_cast<u64>(tellg);
@@ -256,18 +278,20 @@ status text_file_source::update(source& src) noexcept
 
 status text_file_source::restore(source& src) noexcept
 {
+    auto _     = on_error(external_source::text_file_source_error{},
+                      e_file_name{ file_path.string() });
     src.buffer = std::span(buffer);
 
     if (offset != src.chunk_id[0]) {
-        irt_return_if_fail(
-          is_numeric_castable<std::ifstream::off_type>(src.chunk_id[0]),
-          status::source_empty);
+        if (!(is_numeric_castable<std::ifstream::off_type>(src.chunk_id[0])))
+            return new_error(eof_file_error{});
 
         if (!ifs.seekg(numeric_cast<std::ifstream::off_type>(src.chunk_id[0])))
-            return status::source_empty;
+            return new_error(eof_file_error{});
 
         const auto tellg = ifs.tellg();
-        irt_return_if_fail(tellg < 0, status::source_empty);
+        if (!(tellg < 0))
+            return new_error(eof_file_error{});
 
         offset = static_cast<u64>(tellg);
     }
@@ -280,11 +304,10 @@ status text_file_source::finalize(source& src) noexcept
     src.clear();
     offset = 0;
 
-    return status::success;
+    return success();
 }
 
-struct local_rng
-{
+struct local_rng {
     using rng          = r123::Philox4x64;
     using counter_type = r123::Philox4x64::ctr_type;
     using key_type     = r123::Philox4x64::key_type;
@@ -401,8 +424,7 @@ random_source::random_source(const random_source& other) noexcept
   , b32(other.b32)
   , t32(other.t32)
   , k32(other.k32)
-{
-}
+{}
 
 status random_source::init() noexcept
 {
@@ -414,13 +436,13 @@ status random_source::init() noexcept
     buffers.resize(max_clients);
     counters.resize(max_clients);
 
-    return status::success;
+    return success();
 }
 
 status random_source::finalize(source& src) noexcept
 {
     src.clear();
-    return status::success;
+    return success();
 }
 
 static status random_source_fill_buffer(random_source& ext,
@@ -508,7 +530,7 @@ static status random_source_fill_buffer(random_source& ext,
         break;
     }
 
-    return status::success;
+    return success();
 }
 
 status random_source::init(source& src) noexcept
@@ -550,7 +572,7 @@ status random_source::restore(source& src) noexcept
           counters[client][3] == src.chunk_id[3]))
         return random_source_fill_buffer(*this, src);
 
-    return status::success;
+    return success();
 }
 
 status external_source::prepare() noexcept
@@ -558,19 +580,19 @@ status external_source::prepare() noexcept
     {
         constant_source* src = nullptr;
         while (constant_sources.next(src))
-            irt_return_if_bad(src->init());
+            irt_check(src->init());
     }
 
     {
         binary_file_source* src = nullptr;
         while (binary_file_sources.next(src))
-            irt_return_if_bad(src->init());
+            irt_check(src->init());
     }
 
     {
         text_file_source* src = nullptr;
         while (text_file_sources.next(src))
-            irt_return_if_bad(src->init());
+            irt_check(src->init());
     }
 
     {
@@ -581,11 +603,11 @@ status external_source::prepare() noexcept
             src->start_counter = start_counter;
             start_counter += src->max_clients;
 
-            irt_return_if_bad(src->init());
+            irt_check(src->init());
         }
     }
 
-    return status::success;
+    return success();
 }
 
 void external_source::finalize() noexcept
@@ -630,42 +652,45 @@ status external_source::dispatch(source&                      src,
 {
     switch (src.type) {
     case source::source_type::none:
-        return status::success;
+        return success();
 
     case source::source_type::binary_file: {
         const auto src_id = enum_cast<binary_file_source_id>(src.id);
-        if (auto* bin_src = binary_file_sources.try_to_get(src_id); bin_src) {
+        if (auto* bin_src = binary_file_sources.try_to_get(src_id); bin_src)
             return external_source_dispatch(*bin_src, src, op);
-        } else {
-            irt_bad_return(status::source_empty);
-        }
+
+        return new_error(binary_file_source_error{},
+                         unknown_source_error{},
+                         e_ulong_id{ src.id });
     } break;
 
     case source::source_type::constant: {
         const auto src_id = enum_cast<constant_source_id>(src.id);
-        if (auto* cst_src = constant_sources.try_to_get(src_id); cst_src) {
+        if (auto* cst_src = constant_sources.try_to_get(src_id); cst_src)
             return external_source_dispatch(*cst_src, src, op);
-        } else {
-            irt_bad_return(status::source_empty);
-        }
+
+        return new_error(constant_source_error{},
+                         unknown_source_error{},
+                         e_ulong_id{ src.id });
     } break;
 
     case source::source_type::random: {
         const auto src_id = enum_cast<random_source_id>(src.id);
-        if (auto* rnd_src = random_sources.try_to_get(src_id); rnd_src) {
+        if (auto* rnd_src = random_sources.try_to_get(src_id); rnd_src)
             return external_source_dispatch(*rnd_src, src, op);
-        } else {
-            irt_bad_return(status::source_empty);
-        }
+
+        return new_error(
+          random_source_error{}, unknown_source_error{}, e_ulong_id{ src.id });
     } break;
 
     case source::source_type::text_file: {
         const auto src_id = enum_cast<text_file_source_id>(src.id);
-        if (auto* txt_src = text_file_sources.try_to_get(src_id); txt_src) {
+        if (auto* txt_src = text_file_sources.try_to_get(src_id); txt_src)
             return external_source_dispatch(*txt_src, src, op);
-        } else {
-            irt_bad_return(status::source_empty);
-        }
+
+        return new_error(text_file_source_error{},
+                         unknown_source_error{},
+                         e_ulong_id{ src.id });
     } break;
     }
 
@@ -678,6 +703,40 @@ void external_source::clear() noexcept
     binary_file_sources.clear();
     text_file_sources.clear();
     random_sources.clear();
+}
+
+constexpr auto external_source::make_error_handlers() const noexcept
+{
+    return std::make_tuple([](external_source::constant_source_error&,
+                              external_source::unknown_source_error&,
+                              const e_ulong_id) {},
+                           [](external_source::binary_file_source_error&,
+                              external_source::unknown_source_error&,
+                              const e_ulong_id) {},
+                           [](external_source::text_file_source_error&,
+                              external_source::unknown_source_error&,
+                              const e_ulong_id) {},
+                           [](external_source::random_source_error&,
+                              external_source::unknown_source_error&,
+                              const e_ulong_id) {},
+                           [](external_source::binary_file_source_error&,
+                              binary_file_source::access_file_error&,
+                              const e_file_name&) {},
+                           [](external_source::binary_file_source_error&,
+                              binary_file_source::too_small_file_error&,
+                              const e_file_name&) {},
+                           [](external_source::binary_file_source_error&,
+                              binary_file_source::open_file_error&,
+                              const e_file_name&) {},
+                           [](external_source::binary_file_source_error&,
+                              binary_file_source::eof_file_error&,
+                              const e_file_name&) {},
+                           [](external_source::text_file_source_error&,
+                              text_file_source::open_file_error&,
+                              const e_file_name&) {},
+                           [](external_source::text_file_source_error&,
+                              text_file_source::eof_file_error&,
+                              const e_file_name&) {});
 }
 
 } // namespace irt

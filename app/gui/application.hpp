@@ -223,7 +223,7 @@ public:
     //!  simulation layer.
     //!
     //! @return The status.
-    status init(application& app) noexcept;
+    void init(application& app) noexcept;
 
     //! Clear the children vector.
     void clear() noexcept;
@@ -1040,18 +1040,18 @@ struct application
 
 /// Display dialog box to choose a @c model in a hierarchy of a @c tree_node
 /// build from the @c tree_node @c tn that reference a grid component.
-bool show_select_model_box(const char*    button_label,
-                           const char*    popup_label,
-                           application&   app,
-                           tree_node&     tn,
+bool show_select_model_box(const char*             button_label,
+                           const char*             popup_label,
+                           application&            app,
+                           tree_node&              tn,
                            grid_modeling_observer& access) noexcept;
 
 /// Display dialog box to choose a @c model in a hierarchy of a @c tree_node
 /// build from the @c tree_node @c tn that reference a graph component.
-bool show_select_model_box(const char*     button_label,
-                           const char*     popup_label,
-                           application&    app,
-                           tree_node&      tn,
+bool show_select_model_box(const char*              button_label,
+                           const char*              popup_label,
+                           application&             app,
+                           tree_node&               tn,
                            graph_modeling_observer& access) noexcept;
 
 bool show_local_observers(application&     app,

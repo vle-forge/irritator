@@ -3,6 +3,7 @@
 // http://www.boost.org/LICENSE_1_0.txt)
 
 #include <irritator/core.hpp>
+#include <irritator/error.hpp>
 #include <irritator/io.hpp>
 
 #include <fstream>
@@ -266,70 +267,41 @@ void run_simulation(irt::real   begin,
                duration,
                file_name);
 
-    irt::project              pj;
-    irt::modeling_initializer init;
-    irt::modeling             mod;
-    irt::simulation           sim;
-    irt::external_source      srcs;
-    irt::io_manager           cache;
+    irt::attempt_all(
+      [&]() noexcept -> irt::status {
+          irt::project              pj;
+          irt::modeling_initializer init;
+          irt::modeling             mod;
+          irt::simulation           sim;
+          irt::external_source      srcs;
+          irt::io_manager           cache;
 
-    if (auto ret = pj.init(init); !ret) {
-        fmt::print(stderr, "Fail to allocate project structure\n");
-        return;
-    }
+          irt_check(pj.init(init));
+          irt_check(mod.init(init));
+          irt_check(sim.init(models, messages));
+          irt_check(srcs.init(64u));
+          irt_check(irt::project_load(pj, mod, sim, cache, file_name));
 
-    if (!mod.init(init)) {
-        fmt::print(stderr, "Fail to allocate modeling structure\n");
-        return;
-    }
+          irt::time       t   = begin;
+          const irt::time end = begin + duration;
 
-    if (irt::is_bad(sim.init(static_cast<unsigned>(models),
-                             static_cast<unsigned>(messages)))) {
-        fmt::print(stderr, "Fail to allocate {} models\n", models);
-        return;
-    }
+          irt_check(srcs.prepare());
+          irt_check(sim.initialize(t));
 
-    if (irt::is_bad(srcs.init(64u))) {
-        fmt::print(stderr, "Fail to allocate 64 external sources\n");
-        return;
-    }
+          do {
+              irt_check(sim.run(t));
+          } while (t < end);
 
-    if (auto ret = irt::project_load(pj, mod, sim, cache, file_name); !ret) {
-        fmt::print(stderr, "Fail to read file `{}'\n", file_name);
-        return;
-    }
+          irt_check(sim.finalize(t));
 
-    irt::status ret;
-    irt::time   t   = begin;
-    irt::time   end = begin + duration;
+          return irt::success();
+      },
 
-    if (ret = srcs.prepare(); is_bad(ret)) {
-        fmt::print(stderr,
-                   "Fail to initialize external sources: {}\n",
-                   status_string(ret));
-        return;
-    }
+      [](const irt::old_status s) noexcept -> void {
+          fmt::print(stderr,
+                     "Fail to initialize run simulation: {}\n",
+                     status_string(s));
+      },
 
-    if (ret = sim.initialize(t); is_bad(ret)) {
-        fmt::print(
-          stderr, "Fail in initialize simulation: {}\n", status_string(ret));
-        return;
-    }
-
-    do {
-        if (ret = sim.run(t); is_bad(ret)) {
-            fmt::print(
-              stderr, "Fail in during simulation: {}\n", status_string(ret));
-            break;
-        }
-
-    } while (t < end);
-
-    if (ret = sim.finalize(t); is_bad(ret)) {
-        fmt::print(stderr,
-                   "Fail in finalizing simulation operation: {}\n",
-                   status_string(ret));
-    }
-
-    fmt::print("\n\n");
+      []() noexcept -> void { fmt::print(stderr, "Unknown error\n"); });
 }

@@ -187,24 +187,26 @@ static void try_init_source(data_window& data, source& src) noexcept
 {
     auto& app = container_of(&data, &application::data_ed);
 
-    status ret = app.sim.srcs.dispatch(src, source::operation_type::initialize);
-
-    if (is_bad(ret)) {
+    if (auto ret =
+          app.sim.srcs.dispatch(src, source::operation_type::initialize);
+        !ret) {
         auto& n = app.notifications.alloc(log_level::error);
         n.title = "Fail to initialize data";
         app.notifications.enable(n);
+    } else {
+        data.plot.clear();
 
-        return;
+        for (sz i = 0, e = src.buffer.size(); i != e; ++i)
+            data.plot.push_back(ImVec2{ static_cast<float>(i),
+                                        static_cast<float>(src.buffer[i]) });
+        data.plot_available = true;
+
+        if (auto ret = app.mod.srcs.prepare(); !ret) {
+            auto& n = app.notifications.alloc(log_level::error);
+            n.title = "Fail to prepare data";
+            app.notifications.enable(n);
+        }
     }
-
-    data.plot.clear();
-
-    for (sz i = 0, e = src.buffer.size(); i != e; ++i)
-        data.plot.push_back(
-          ImVec2{ static_cast<float>(i), static_cast<float>(src.buffer[i]) });
-    data.plot_available = true;
-
-    app.mod.srcs.prepare();
 }
 
 static void task_try_finalize_source(application&        app,
@@ -214,9 +216,9 @@ static void task_try_finalize_source(application&        app,
     source src;
     src.id   = id;
     src.type = type;
-    auto ret = app.sim.srcs.dispatch(src, source::operation_type::finalize);
 
-    if (is_bad(ret)) {
+    if (auto ret = app.sim.srcs.dispatch(src, source::operation_type::finalize);
+        !ret) {
         auto& n = app.notifications.alloc(log_level::error);
         n.title = "Fail to finalize data";
         app.notifications.enable(n);
@@ -417,11 +419,29 @@ void data_window::show() noexcept
         if (ImGui::Button("+constant", button_sz)) {
             if (app.mod.srcs.constant_sources.can_alloc(1u)) {
                 auto& new_src = app.mod.srcs.constant_sources.alloc();
-                new_src.init();
-                new_src.length    = 3;
-                new_src.buffer[0] = 0.0;
-                new_src.buffer[1] = 1.0;
-                new_src.buffer[2] = 2.0;
+                attempt_all(
+                  [&]() noexcept -> status {
+                      irt_check(new_src.init());
+                      new_src.length    = 3;
+                      new_src.buffer[0] = 0.0;
+                      new_src.buffer[1] = 1.0;
+                      new_src.buffer[2] = 2.0;
+                      return success();
+                  },
+
+                  [&](const old_status s) noexcept -> void {
+                      auto& n = app.notifications.alloc();
+                      n.title = "Fail to initialize source";
+                      format(n.message, "Error: {}", status_string(s));
+                      app.notifications.enable(n);
+                  },
+
+                  [&]() noexcept -> void {
+                      auto& n   = app.notifications.alloc();
+                      n.title   = "Fail to initialize source";
+                      n.message = "Error: unknown";
+                      app.notifications.enable(n);
+                  });
             }
         }
 
@@ -429,7 +449,25 @@ void data_window::show() noexcept
         if (ImGui::Button("+text file", button_sz)) {
             if (app.mod.srcs.text_file_sources.can_alloc(1u)) {
                 auto& new_src = app.mod.srcs.text_file_sources.alloc();
-                new_src.init();
+                attempt_all(
+                  [&]() noexcept -> status {
+                      irt_check(new_src.init());
+                      return success();
+                  },
+
+                  [&](const old_status s) noexcept -> void {
+                      auto& n = app.notifications.alloc();
+                      n.title = "Fail to initialize source";
+                      format(n.message, "Error: {}", status_string(s));
+                      app.notifications.enable(n);
+                  },
+
+                  [&]() noexcept -> void {
+                      auto& n   = app.notifications.alloc();
+                      n.title   = "Fail to initialize source";
+                      n.message = "Error: unknown";
+                      app.notifications.enable(n);
+                  });
             }
         }
 
@@ -437,7 +475,25 @@ void data_window::show() noexcept
         if (ImGui::Button("+binary file", button_sz)) {
             if (app.mod.srcs.binary_file_sources.can_alloc(1u)) {
                 auto& new_src = app.mod.srcs.binary_file_sources.alloc();
-                new_src.init();
+                attempt_all(
+                  [&]() noexcept -> status {
+                      irt_check(new_src.init());
+                      return success();
+                  },
+
+                  [&](const old_status s) noexcept -> void {
+                      auto& n = app.notifications.alloc();
+                      n.title = "Fail to initialize source";
+                      format(n.message, "Error: {}", status_string(s));
+                      app.notifications.enable(n);
+                  },
+
+                  [&]() noexcept -> void {
+                      auto& n   = app.notifications.alloc();
+                      n.title   = "Fail to initialize source";
+                      n.message = "Error: unknown";
+                      app.notifications.enable(n);
+                  });
             }
         }
 
@@ -445,10 +501,28 @@ void data_window::show() noexcept
         if (ImGui::Button("+random", button_sz)) {
             if (app.mod.srcs.random_sources.can_alloc(1u)) {
                 auto& new_src = app.mod.srcs.random_sources.alloc();
-                new_src.init();
-                new_src.a32          = 0;
-                new_src.b32          = 100;
-                new_src.distribution = distribution_type::uniform_int;
+                attempt_all(
+                  [&]() noexcept -> status {
+                      irt_check(new_src.init());
+                      new_src.a32          = 0;
+                      new_src.b32          = 100;
+                      new_src.distribution = distribution_type::uniform_int;
+                      return success();
+                  },
+
+                  [&](const old_status s) noexcept -> void {
+                      auto& n = app.notifications.alloc();
+                      n.title = "Fail to initialize source";
+                      format(n.message, "Error: {}", status_string(s));
+                      app.notifications.enable(n);
+                  },
+
+                  [&]() noexcept -> void {
+                      auto& n   = app.notifications.alloc();
+                      n.title   = "Fail to initialize source";
+                      n.message = "Error: unknown";
+                      app.notifications.enable(n);
+                  });
             }
         }
 
@@ -558,7 +632,11 @@ void data_window::show() noexcept
                   "max source",
                   ImGuiDataType_U32,
                   reinterpret_cast<void*>(&binary_file_ptr->max_clients))) {
-                binary_file_ptr->init();
+                if (auto ret = binary_file_ptr->init(); !ret) {
+                    auto& n = app.notifications.alloc();
+                    n.title = "Fail to initialize binary file source";
+                    app.notifications.enable(n);
+                }
             }
 
             ImGui::Text("%s", binary_file_ptr->file_path.string().c_str());
@@ -588,7 +666,11 @@ void data_window::show() noexcept
                   "max source",
                   ImGuiDataType_U32,
                   reinterpret_cast<void*>(&random_source_ptr->max_clients))) {
-                random_source_ptr->init();
+                if (auto ret = random_source_ptr->init(); !ret) {
+                    auto& n = app.notifications.alloc();
+                    n.title = "Fail to initialize random source";
+                    app.notifications.enable(n);
+                }
             }
 
             show_random_distribution_input(*random_source_ptr);
@@ -712,7 +794,8 @@ void data_window::show() noexcept
     ImGui::End();
 }
 
-void show_menu_external_sources(external_source& srcs,
+void show_menu_external_sources(application&     app,
+                                external_source& srcs,
                                 const char*      title,
                                 source&          src) noexcept
 {
@@ -804,22 +887,38 @@ void show_menu_external_sources(external_source& srcs,
 
     if (constant_ptr) {
         src.reset();
-        constant_ptr->init(src);
+        if (auto ret = constant_ptr->init(src); !ret) {
+            auto& n = app.notifications.alloc();
+            n.title = "Fail to initalize constant source";
+            app.notifications.enable(n);
+        }
     }
 
     if (binary_file_ptr) {
         src.reset();
-        binary_file_ptr->init(src);
+        if (auto ret = binary_file_ptr->init(src); !ret) {
+            auto& n = app.notifications.alloc();
+            n.title = "Fail to initalize binary file source";
+            app.notifications.enable(n);
+        }
     }
 
     if (text_file_ptr) {
         src.reset();
-        text_file_ptr->init(src);
+        if (auto ret = text_file_ptr->init(src); !ret) {
+            auto& n = app.notifications.alloc();
+            n.title = "Fail to initalize text file source";
+            app.notifications.enable(n);
+        }
     }
 
     if (random_ptr) {
         src.reset();
-        random_ptr->init(src);
+        if (auto ret = random_ptr->init(src); !ret) {
+            auto& n = app.notifications.alloc();
+            n.title = "Fail to initalize random source";
+            app.notifications.enable(n);
+        }
     }
 }
 

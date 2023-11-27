@@ -38,16 +38,16 @@ struct simulation_copy
     table<hsm_component_id, hsm_id>      hsm_mod_to_sim;
 };
 
-static status2 simulation_copy_source(simulation_copy& sc,
-                                      const u64        id,
-                                      const u64        type,
-                                      source&          dst) noexcept;
+static status simulation_copy_source(simulation_copy& sc,
+                                     const u64        id,
+                                     const u64        type,
+                                     source&          dst) noexcept;
 
-static status2 make_tree_recursive(simulation_copy& sc,
-                                   tree_node&       parent,
-                                   component&       compo,
-                                   child_id         id_in_parent,
-                                   u64              unique_id) noexcept;
+static status make_tree_recursive(simulation_copy& sc,
+                                  tree_node&       parent,
+                                  component&       compo,
+                                  child_id         id_in_parent,
+                                  u64              unique_id) noexcept;
 
 static bool get_parent(modeling&   mod,
                        tree_node&  node,
@@ -313,12 +313,12 @@ static int compute_outcoming_component(modeling&  mod,
              : 0;
 }
 
-static status2 make_tree_leaf(simulation_copy& sc,
-                              tree_node&       parent,
-                              u64              unique_id,
-                              dynamics_type    mdl_type,
-                              child_id         ch_id,
-                              child&           ch) noexcept
+static status make_tree_leaf(simulation_copy& sc,
+                             tree_node&       parent,
+                             u64              unique_id,
+                             dynamics_type    mdl_type,
+                             child_id         ch_id,
+                             child&           ch) noexcept
 {
     if (!sc.sim.models.can_alloc())
         return new_error(project::error::not_enough_memory);
@@ -335,7 +335,7 @@ static status2 make_tree_leaf(simulation_copy& sc,
     new_mdl.handle = nullptr;
 
     auto ret =
-      dispatch(new_mdl, [&]<typename Dynamics>(Dynamics& dyn) -> status2 {
+      dispatch(new_mdl, [&]<typename Dynamics>(Dynamics& dyn) -> status {
           std::construct_at(&dyn);
 
           if constexpr (has_input_port<Dynamics>)
@@ -461,9 +461,9 @@ static status2 make_tree_leaf(simulation_copy& sc,
     return success();
 }
 
-static status2 make_tree_recursive(simulation_copy&   sc,
-                                   tree_node&         new_tree,
-                                   generic_component& src) noexcept
+static status make_tree_recursive(simulation_copy&   sc,
+                                  tree_node&         new_tree,
+                                  generic_component& src) noexcept
 {
 
     for (auto child_id : src.children) {
@@ -499,9 +499,9 @@ static status2 make_tree_recursive(simulation_copy&   sc,
     return success();
 }
 
-static status2 make_tree_recursive(simulation_copy& sc,
-                                   tree_node&       new_tree,
-                                   grid_component&  src) noexcept
+static status make_tree_recursive(simulation_copy& sc,
+                                  tree_node&       new_tree,
+                                  grid_component&  src) noexcept
 {
     for (int i = 0, e = src.cache.ssize(); i != e; ++i) {
         if (auto* child = sc.mod.children.try_to_get(src.cache[i]); child) {
@@ -534,9 +534,9 @@ static status2 make_tree_recursive(simulation_copy& sc,
     return success();
 }
 
-static status2 make_tree_recursive(simulation_copy& sc,
-                                   tree_node&       new_tree,
-                                   graph_component& src) noexcept
+static status make_tree_recursive(simulation_copy& sc,
+                                  tree_node&       new_tree,
+                                  graph_component& src) noexcept
 {
     for (int i = 0, e = src.cache.ssize(); i != e; ++i) {
         if (auto* child = sc.mod.children.try_to_get(src.cache[i]); child) {
@@ -569,20 +569,20 @@ static status2 make_tree_recursive(simulation_copy& sc,
     return success();
 }
 
-static status2 make_tree_recursive([[maybe_unused]] simulation_copy& sc,
-                                   [[maybe_unused]] tree_node&       new_tree,
-                                   [[maybe_unused]] hsm_component& src) noexcept
+static status make_tree_recursive([[maybe_unused]] simulation_copy& sc,
+                                  [[maybe_unused]] tree_node&       new_tree,
+                                  [[maybe_unused]] hsm_component& src) noexcept
 {
     irt_assert(false && "missing hsm-component implementation");
 
     return success();
 }
 
-static status2 make_tree_recursive(simulation_copy& sc,
-                                   tree_node&       parent,
-                                   component&       compo,
-                                   child_id         id_in_parent,
-                                   u64              unique_id) noexcept
+static status make_tree_recursive(simulation_copy& sc,
+                                  tree_node&       parent,
+                                  component&       compo,
+                                  child_id         id_in_parent,
+                                  u64              unique_id) noexcept
 {
     if (!sc.tree_nodes.can_alloc())
         return new_error(project::error::not_enough_memory);
@@ -631,10 +631,10 @@ static status2 make_tree_recursive(simulation_copy& sc,
     return success();
 }
 
-static status2 simulation_copy_source(simulation_copy& sc,
-                                      const u64        id,
-                                      const u64        type,
-                                      source&          dst) noexcept
+static status simulation_copy_source(simulation_copy& sc,
+                                     const u64        id,
+                                     const u64        type,
+                                     source&          dst) noexcept
 {
     switch (enum_cast<source::source_type>(type)) {
     case source::source_type::none:
@@ -705,20 +705,18 @@ static status get_input_models(simulation_copy& sc,
                                child_id         ch,
                                connection::port port)
 {
-    status ret = status::success;
-
-    if_data_exists_do(sc.mod.children, ch, [&](auto& child) {
+    if (auto* child = sc.mod.children.try_to_get(ch); child) {
         auto* node = tree.child_to_node.get(ch);
         irt_assert(node);
 
-        if (child.type == child_type::model) {
+        if (child->type == child_type::model) {
             sc.cache.inputs.emplace_back(std::make_pair(node->mdl, port.model));
         } else {
-            ret = get_input_models(sc, *node->tn, port.compo);
+            return get_input_models(sc, *node->tn, port.compo);
         }
-    });
+    }
 
-    return ret;
+    return success();
 }
 
 static status get_output_models(simulation_copy& sc,
@@ -726,21 +724,19 @@ static status get_output_models(simulation_copy& sc,
                                 child_id         ch,
                                 connection::port port)
 {
-    status ret = status::success;
-
-    if_data_exists_do(sc.mod.children, ch, [&](auto& child) {
+    if (auto* child = sc.mod.children.try_to_get(ch); child) {
         auto* node = tree.child_to_node.get(ch);
         irt_assert(node);
 
-        if (child.type == child_type::model) {
+        if (child->type == child_type::model) {
             sc.cache.outputs.emplace_back(
               std::make_pair(node->mdl, port.model));
         } else {
-            ret = get_output_models(sc, *node->tn, port.compo);
+            return get_output_models(sc, *node->tn, port.compo);
         }
-    });
+    }
 
-    return ret;
+    return success();
 }
 
 static status get_input_models(simulation_copy& sc,
@@ -759,11 +755,10 @@ static status get_input_models(simulation_copy& sc,
                         cnx) {
                         if (cnx->type == connection::connection_type::input &&
                             cnx->input.index == port_dst) {
-                            irt_return_if_bad(
-                              get_input_models(sc,
-                                               tree,
-                                               cnx->output.src,
-                                               cnx->output.index_src));
+                            irt_check(get_input_models(sc,
+                                                       tree,
+                                                       cnx->output.src,
+                                                       cnx->output.index_src));
                         }
                     }
                 }
@@ -778,11 +773,10 @@ static status get_input_models(simulation_copy& sc,
                         cnx) {
                         if (cnx->type == connection::connection_type::input &&
                             cnx->input.index == port_dst) {
-                            irt_return_if_bad(
-                              get_input_models(sc,
-                                               tree,
-                                               cnx->output.src,
-                                               cnx->output.index_src));
+                            irt_check(get_input_models(sc,
+                                                       tree,
+                                                       cnx->output.src,
+                                                       cnx->output.index_src));
                         }
                     }
                 }
@@ -798,11 +792,10 @@ static status get_input_models(simulation_copy& sc,
                         cnx) {
                         if (cnx->type == connection::connection_type::input &&
                             cnx->input.index == port_dst) {
-                            irt_return_if_bad(
-                              get_input_models(sc,
-                                               tree,
-                                               cnx->output.src,
-                                               cnx->output.index_src));
+                            irt_check(get_input_models(sc,
+                                                       tree,
+                                                       cnx->output.src,
+                                                       cnx->output.index_src));
                         }
                     }
                 }
@@ -820,7 +813,7 @@ static status get_input_models(simulation_copy& sc,
         }
     }
 
-    return status::success;
+    return success();
 }
 
 static status get_output_models(simulation_copy& sc,
@@ -840,7 +833,7 @@ static status get_output_models(simulation_copy& sc,
                       cnx->output.index == port_dst;
 
                     if (is_output)
-                        irt_return_if_bad(get_output_models(
+                        irt_check(get_output_models(
                           sc, tree, cnx->input.dst, cnx->input.index_dst));
                 }
             }
@@ -854,7 +847,7 @@ static status get_output_models(simulation_copy& sc,
                         cnx) {
                         if (cnx->type == connection::connection_type::output &&
                             cnx->output.index == port_dst) {
-                            irt_return_if_bad(get_output_models(
+                            irt_check(get_output_models(
                               sc, tree, cnx->input.dst, cnx->input.index_dst));
                         }
                     }
@@ -871,7 +864,7 @@ static status get_output_models(simulation_copy& sc,
                         cnx) {
                         if (cnx->type == connection::connection_type::output &&
                             cnx->output.index == port_dst) {
-                            irt_return_if_bad(get_output_models(
+                            irt_check(get_output_models(
                               sc, tree, cnx->input.dst, cnx->input.index_dst));
                         }
                     }
@@ -890,26 +883,27 @@ static status get_output_models(simulation_copy& sc,
         }
     }
 
-    return status::success;
+    return success();
 }
 
-static status2 simulation_copy_connections(
+static status simulation_copy_connections(
   const vector<std::pair<model*, int>>& inputs,
   const vector<std::pair<model*, int>>& outputs,
   simulation&                           sim) noexcept
 {
     for (auto src : outputs)
         for (auto dst : inputs)
-            if (is_bad(
-                  sim.connect(*src.first, src.second, *dst.first, dst.second)))
+            if (auto ret =
+                  sim.connect(*src.first, src.second, *dst.first, dst.second);
+                !ret)
                 return new_error(project::error::impossible_connection);
 
     return success();
 }
 
-static status2 simulation_copy_connections(simulation_copy&       sc,
-                                           tree_node&             tree,
-                                           vector<connection_id>& connections)
+static status simulation_copy_connections(simulation_copy&       sc,
+                                          tree_node&             tree,
+                                          vector<connection_id>& connections)
 {
     for (auto cnx_id : connections) {
         sc.cache.inputs.clear();
@@ -938,19 +932,19 @@ static status2 simulation_copy_connections(simulation_copy&       sc,
                     sc.cache.inputs.emplace_back(std::make_pair(
                       node_dst->mdl, cnx->internal.index_dst.model));
                 } else {
-                    get_input_models(
-                      sc, *node_dst->tn, cnx->internal.index_dst.compo);
+                    irt_check(get_input_models(
+                      sc, *node_dst->tn, cnx->internal.index_dst.compo));
                 }
             } else {
-                get_output_models(
-                  sc, *node_src->tn, cnx->internal.index_src.compo);
+                irt_check(get_output_models(
+                  sc, *node_src->tn, cnx->internal.index_src.compo));
 
                 if (dst->type == child_type::model) {
                     sc.cache.inputs.emplace_back(std::make_pair(
                       node_dst->mdl, cnx->internal.index_dst.model));
                 } else {
-                    get_input_models(
-                      sc, *node_dst->tn, cnx->internal.index_dst.compo);
+                    irt_check(get_input_models(
+                      sc, *node_dst->tn, cnx->internal.index_dst.compo));
                 }
             }
 
@@ -964,9 +958,9 @@ static status2 simulation_copy_connections(simulation_copy&       sc,
     return success();
 }
 
-static status2 simulation_copy_connections(simulation_copy& sc,
-                                           tree_node&       tree,
-                                           component&       compo)
+static status simulation_copy_connections(simulation_copy& sc,
+                                          tree_node&       tree,
+                                          component&       compo)
 {
     switch (compo.type) {
     case component_type::simple: {
@@ -998,8 +992,8 @@ static status2 simulation_copy_connections(simulation_copy& sc,
     return success();
 }
 
-static status2 simulation_copy_connections(simulation_copy& sc,
-                                           tree_node&       head) noexcept
+static status simulation_copy_connections(simulation_copy& sc,
+                                          tree_node&       head) noexcept
 {
     sc.cache.stack.clear();
     sc.cache.stack.emplace_back(&head);
@@ -1022,16 +1016,19 @@ static status2 simulation_copy_connections(simulation_copy& sc,
     return success();
 }
 
-static status2 simulation_copy_sources(project::cache& cache,
-                                       modeling&       mod,
-                                       simulation&     sim) noexcept
+static status simulation_copy_sources(project::cache& cache,
+                                      modeling&       mod,
+                                      simulation&     sim) noexcept
 {
     sim.srcs.clear();
 
-    sim.srcs.constant_sources.init(mod.srcs.constant_sources.capacity());
-    sim.srcs.binary_file_sources.init(mod.srcs.binary_file_sources.capacity());
-    sim.srcs.text_file_sources.init(mod.srcs.text_file_sources.capacity());
-    sim.srcs.random_sources.init(mod.srcs.random_sources.capacity());
+    irt_check(
+      sim.srcs.constant_sources.init(mod.srcs.constant_sources.capacity()));
+    irt_check(sim.srcs.binary_file_sources.init(
+      mod.srcs.binary_file_sources.capacity()));
+    irt_check(
+      sim.srcs.text_file_sources.init(mod.srcs.text_file_sources.capacity()));
+    irt_check(sim.srcs.random_sources.init(mod.srcs.random_sources.capacity()));
 
     {
         constant_source* src = nullptr;
@@ -1084,7 +1081,7 @@ static status2 simulation_copy_sources(project::cache& cache,
     return success();
 }
 
-static status2 make_component_cache(project& /*pj*/, modeling& mod) noexcept
+static status make_component_cache(project& /*pj*/, modeling& mod) noexcept
 {
     for (auto& grid : mod.grid_components)
         if (auto ret = mod.build_grid_component_cache(grid); !ret)
@@ -1097,10 +1094,10 @@ static status2 make_component_cache(project& /*pj*/, modeling& mod) noexcept
     return success();
 }
 
-static status2 make_tree_from(simulation_copy&                     sc,
-                              data_array<tree_node, tree_node_id>& data,
-                              component&                           parent,
-                              tree_node_id*                        out) noexcept
+static status make_tree_from(simulation_copy&                     sc,
+                             data_array<tree_node, tree_node_id>& data,
+                             component&                           parent,
+                             tree_node_id*                        out) noexcept
 {
     if (!data.can_alloc())
         return new_error(project::error::not_enough_memory);
@@ -1151,23 +1148,19 @@ static status2 make_tree_from(simulation_copy&                     sc,
     return success();
 }
 
-status2 project::init(const modeling_initializer& init) noexcept
+status project::init(const modeling_initializer& init) noexcept
 {
-    if (is_bad(tree_nodes.init(init.tree_capacity)))
-        return new_error(project::error::not_enough_memory);
-    if (is_bad(variable_observers.init(init.tree_capacity)))
-        return new_error(project::error::not_enough_memory);
-    if (is_bad(grid_observers.init(init.tree_capacity)))
-        return new_error(project::error::not_enough_memory);
-    if (is_bad(global_parameters.init(init.tree_capacity)))
-        return new_error(project::error::not_enough_memory);
+    irt_check(tree_nodes.init(init.tree_capacity));
+    irt_check(variable_observers.init(init.tree_capacity));
+    irt_check(grid_observers.init(init.tree_capacity));
+    irt_check(global_parameters.init(init.tree_capacity));
 
     grid_observation_systems.resize(init.tree_capacity);
 
     return success();
 }
 
-status2 project::set(modeling& mod, simulation& sim, component& compo) noexcept
+status project::set(modeling& mod, simulation& sim, component& compo) noexcept
 {
     clear();
     clear_cache();
@@ -1194,7 +1187,7 @@ status2 project::set(modeling& mod, simulation& sim, component& compo) noexcept
     return success();
 }
 
-status2 project::rebuild(modeling& mod, simulation& sim) noexcept
+status project::rebuild(modeling& mod, simulation& sim) noexcept
 {
     clear();
     clear_cache();
@@ -1248,18 +1241,18 @@ void project::clean_simulation() noexcept
     });
 }
 
-status2 project::load(modeling&   mod,
-                      simulation& sim,
-                      io_manager& cache,
-                      const char* filename) noexcept
+status project::load(modeling&   mod,
+                     simulation& sim,
+                     io_manager& cache,
+                     const char* filename) noexcept
 {
     return project_load(*this, mod, sim, cache, filename);
 }
 
-status2 project::save(modeling&   mod,
-                      simulation& sim,
-                      io_manager& cache,
-                      const char* filename) noexcept
+status project::save(modeling&   mod,
+                     simulation& sim,
+                     io_manager& cache,
+                     const char* filename) noexcept
 {
     return project_save(*this, mod, sim, cache, filename);
 }

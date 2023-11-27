@@ -10,8 +10,7 @@
 
 #include <boost/ut.hpp>
 
-static void
-dot_graph_save(const irt::simulation& /*sim*/, std::FILE* /*os*/)
+static void dot_graph_save(const irt::simulation& /*sim*/, std::FILE* /*os*/)
 {
     using namespace boost::ut;
 
@@ -96,8 +95,7 @@ struct synapse
     irt::model_id accumulator_syn;
 };
 
-struct neuron
-make_neuron(irt::simulation* sim) noexcept
+struct neuron make_neuron(irt::simulation* sim) noexcept
 {
     using namespace boost::ut;
     irt::real tau_lif =
@@ -143,36 +141,28 @@ make_neuron(irt::simulation* sim) noexcept
     };
 
     // Connections
-    expect(sim->connect(quantifier_lif, 0, integrator_lif, 0) ==
-           irt::status::success);
-    expect(sim->connect(prod_lif, 0, integrator_lif, 1) ==
-           irt::status::success);
-    expect(sim->connect(cross_lif, 0, integrator_lif, 2) ==
-           irt::status::success);
-    expect(sim->connect(cross_lif, 0, quantifier_lif, 0) ==
-           irt::status::success);
-    expect(sim->connect(cross_lif, 0, sum_lif, 0) == irt::status::success);
-    expect(sim->connect(integrator_lif, 0, cross_lif, 0) ==
-           irt::status::success);
-    expect(sim->connect(integrator_lif, 0, cross_lif, 2) ==
-           irt::status::success);
-    expect(sim->connect(constant_cross_lif, 0, cross_lif, 1) ==
-           irt::status::success);
-    expect(sim->connect(constant_lif, 0, sum_lif, 1) == irt::status::success);
-    expect(sim->connect(sum_lif, 0, prod_lif, 0) == irt::status::success);
-    expect(sim->connect(constant_lif, 0, prod_lif, 1) == irt::status::success);
+    expect(!!sim->connect(quantifier_lif, 0, integrator_lif, 0));
+    expect(!!sim->connect(prod_lif, 0, integrator_lif, 1));
+    expect(!!sim->connect(cross_lif, 0, integrator_lif, 2));
+    expect(!!sim->connect(cross_lif, 0, quantifier_lif, 0));
+    expect(!!sim->connect(cross_lif, 0, sum_lif, 0));
+    expect(!!sim->connect(integrator_lif, 0, cross_lif, 0));
+    expect(!!sim->connect(integrator_lif, 0, cross_lif, 2));
+    expect(!!sim->connect(constant_cross_lif, 0, cross_lif, 1));
+    expect(!!sim->connect(constant_lif, 0, sum_lif, 1));
+    expect(!!sim->connect(sum_lif, 0, prod_lif, 0));
+    expect(!!sim->connect(constant_lif, 0, prod_lif, 1));
 
     return neuron_model;
 }
 
-struct synapse
-make_synapse(irt::simulation* sim,
-             long unsigned int /*source*/,
-             long unsigned int /*target*/,
-             irt::model& presynaptic_model,
-             int         presynaptic_port,
-             irt::model& postsynaptic_model,
-             int         postsynaptic_port)
+struct synapse make_synapse(irt::simulation* sim,
+                            long unsigned int /*source*/,
+                            long unsigned int /*target*/,
+                            irt::model& presynaptic_model,
+                            int         presynaptic_port,
+                            irt::model& postsynaptic_model,
+                            int         postsynaptic_port)
 {
     using namespace boost::ut;
     irt::real taupre(20);
@@ -235,54 +225,45 @@ make_synapse(irt::simulation* sim,
     };
 
     // Connections
-    expect(sim->connect(quant_pre, 0, int_pre, 0) == irt::status::success);
-    expect(sim->connect(mult_pre, 0, int_pre, 1) == irt::status::success);
-    expect(sim->connect(cross_pre, 0, int_pre, 2) == irt::status::success);
-    expect(sim->connect(int_pre, 0, cross_pre, 2) == irt::status::success);
-    expect(sim->connect(cross_pre, 0, quant_pre, 0) == irt::status::success);
-    expect(sim->connect(cross_pre, 0, mult_pre, 0) == irt::status::success);
-    expect(sim->connect(const_syn, 0, mult_pre, 1) == irt::status::success);
-    expect(sim->connect(int_pre, 0, sum_pre, 0) == irt::status::success);
-    expect(sim->connect(const_syn, 0, sum_pre, 1) == irt::status::success);
-    expect(sim->connect(sum_pre, 0, cross_pre, 1) == irt::status::success);
-    expect(sim->connect(presynaptic_model,
-                        presynaptic_port,
-                        irt::get_model(cross_pre),
-                        0) == irt::status::success);
+    expect(!!sim->connect(quant_pre, 0, int_pre, 0));
+    expect(!!sim->connect(mult_pre, 0, int_pre, 1));
+    expect(!!sim->connect(cross_pre, 0, int_pre, 2));
+    expect(!!sim->connect(int_pre, 0, cross_pre, 2));
+    expect(!!sim->connect(cross_pre, 0, quant_pre, 0));
+    expect(!!sim->connect(cross_pre, 0, mult_pre, 0));
+    expect(!!sim->connect(const_syn, 0, mult_pre, 1));
+    expect(!!sim->connect(int_pre, 0, sum_pre, 0));
+    expect(!!sim->connect(const_syn, 0, sum_pre, 1));
+    expect(!!sim->connect(sum_pre, 0, cross_pre, 1));
+    expect(!!sim->connect(
+      presynaptic_model, presynaptic_port, irt::get_model(cross_pre), 0));
 
-    expect(sim->connect(quant_post, 0, int_post, 0) == irt::status::success);
-    expect(sim->connect(mult_post, 0, int_post, 1) == irt::status::success);
-    expect(sim->connect(cross_post, 0, int_post, 2) == irt::status::success);
-    expect(sim->connect(int_post, 0, cross_post, 2) == irt::status::success);
-    expect(sim->connect(cross_post, 0, quant_post, 0) == irt::status::success);
-    expect(sim->connect(cross_post, 0, mult_post, 0) == irt::status::success);
-    expect(sim->connect(const_syn, 0, mult_post, 1) == irt::status::success);
-    expect(sim->connect(int_post, 0, sum_post, 0) == irt::status::success);
-    expect(sim->connect(const_syn, 0, sum_post, 1) == irt::status::success);
-    expect(sim->connect(sum_post, 0, cross_post, 1) == irt::status::success);
-    expect(sim->connect(postsynaptic_model,
-                        postsynaptic_port,
-                        irt::get_model(cross_post),
-                        0) == irt::status::success);
+    expect(!!sim->connect(quant_post, 0, int_post, 0));
+    expect(!!sim->connect(mult_post, 0, int_post, 1));
+    expect(!!sim->connect(cross_post, 0, int_post, 2));
+    expect(!!sim->connect(int_post, 0, cross_post, 2));
+    expect(!!sim->connect(cross_post, 0, quant_post, 0));
+    expect(!!sim->connect(cross_post, 0, mult_post, 0));
+    expect(!!sim->connect(const_syn, 0, mult_post, 1));
+    expect(!!sim->connect(int_post, 0, sum_post, 0));
+    expect(!!sim->connect(const_syn, 0, sum_post, 1));
+    expect(!!sim->connect(sum_post, 0, cross_post, 1));
+    expect(!!sim->connect(
+      postsynaptic_model, postsynaptic_port, irt::get_model(cross_post), 0));
 
-    expect(sim->connect(presynaptic_model,
-                        presynaptic_port,
-                        irt::get_model(accumulator_syn),
-                        0) == irt::status::success);
-    expect(sim->connect(postsynaptic_model,
-                        postsynaptic_port,
-                        irt::get_model(accumulator_syn),
-                        1) == irt::status::success);
-    expect(sim->connect(cross_post, 0, accumulator_syn, 2) ==
-           irt::status::success);
-    expect(sim->connect(cross_pre, 0, accumulator_syn, 3) ==
-           irt::status::success);
+    expect(!!sim->connect(
+      presynaptic_model, presynaptic_port, irt::get_model(accumulator_syn), 0));
+    expect(!!sim->connect(postsynaptic_model,
+                          postsynaptic_port,
+                          irt::get_model(accumulator_syn),
+                          1));
+    expect(!!sim->connect(cross_post, 0, accumulator_syn, 2));
+    expect(!!sim->connect(cross_pre, 0, accumulator_syn, 3));
 
     return synapse_model;
 }
 
-int
-main()
+int main()
 {
     using namespace boost::ut;
 
@@ -301,7 +282,7 @@ main()
 
         // double ginbar = 0.05;
 
-        expect(irt::is_success(sim.init(10000lu, 10000lu)));
+        expect(!!sim.init(10000lu, 10000lu));
 
         expect(sim.can_alloc(N + 2u * N * N + 2u * N * N + 4u * N * N + N +
                              2u * N * N));
@@ -358,11 +339,10 @@ main()
         for (long unsigned int i = 0; i < N * N; i++)
             s = s + "W" + std::to_string(i) + ",";
         fmt::print(os, "{}\n", s);
-        expect(irt::status::success == sim.initialize(t));
+        expect(!!sim.initialize(t));
 
         do {
-            irt::status st = sim.run(t);
-            expect(st == irt::status::success);
+            expect(!!sim.run(t));
 
             fmt::print(os, "{},", t);
 

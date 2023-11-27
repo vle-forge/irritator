@@ -299,19 +299,19 @@ static bool check_connection_already_exists(
     return false;
 }
 
-status2 modeling::connect_input(generic_component& parent,
-                                port&              x,
-                                child&             c,
-                                connection::port   p_c) noexcept
+status modeling::connect_input(generic_component& parent,
+                               port&              x,
+                               child&             c,
+                               connection::port   p_c) noexcept
 {
     if (!connections.can_alloc())
-        return new_error(status::simulation_not_enough_connection);
+        return new_error(old_status::simulation_not_enough_connection);
 
     if (check_connection_already_exists(
           *this,
           parent,
           connection::input_t{ children.get_id(c), ports.get_id(x), p_c }))
-        return new_error(status::model_connect_already_exist);
+        return new_error(old_status::model_connect_already_exist);
 
     const auto c_id = children.get_id(c);
     const auto x_id = ports.get_id(x);
@@ -331,19 +331,19 @@ status2 modeling::connect_input(generic_component& parent,
     return success();
 }
 
-status2 modeling::connect_output(generic_component& parent,
-                                 child&             c,
-                                 connection::port   p_c,
-                                 port&              y) noexcept
+status modeling::connect_output(generic_component& parent,
+                                child&             c,
+                                connection::port   p_c,
+                                port&              y) noexcept
 {
     if (!connections.can_alloc())
-        return new_error(status::simulation_not_enough_connection);
+        return new_error(old_status::simulation_not_enough_connection);
 
     if (check_connection_already_exists(
           *this,
           parent,
           connection::output_t{ children.get_id(c), ports.get_id(y), p_c }))
-        return new_error(status::model_connect_already_exist);
+        return new_error(old_status::model_connect_already_exist);
 
     const auto c_id = children.get_id(c);
     const auto y_id = ports.get_id(y);
@@ -363,21 +363,21 @@ status2 modeling::connect_output(generic_component& parent,
     return success();
 }
 
-status2 modeling::connect(generic_component& parent,
-                          child&             src,
-                          connection::port   y,
-                          child&             dst,
-                          connection::port   x) noexcept
+status modeling::connect(generic_component& parent,
+                         child&             src,
+                         connection::port   y,
+                         child&             dst,
+                         connection::port   x) noexcept
 {
     if (!connections.can_alloc())
-        return new_error(status::simulation_not_enough_connection);
+        return new_error(old_status::simulation_not_enough_connection);
 
     if (check_connection_already_exists(
           *this,
           parent,
           connection::internal_t{
             children.get_id(src), children.get_id(dst), y, x }))
-        return new_error(status::model_connect_already_exist);
+        return new_error(old_status::model_connect_already_exist);
 
     const auto src_id = children.get_id(src);
     const auto dst_id = children.get_id(dst);
@@ -415,12 +415,12 @@ status2 modeling::connect(generic_component& parent,
     return success();
 }
 
-static status2 modeling_connect(modeling&          mod,
-                                generic_component& gen,
-                                child_id           src,
-                                connection::port   p_src,
-                                child_id           dst,
-                                connection::port   p_dst) noexcept
+static status modeling_connect(modeling&          mod,
+                               generic_component& gen,
+                               child_id           src,
+                               connection::port   p_src,
+                               child_id           dst,
+                               connection::port   p_dst) noexcept
 {
     if (auto* child_src = mod.children.try_to_get(src); child_src) {
         if (auto* child_dst = mod.children.try_to_get(dst); child_dst) {
@@ -447,8 +447,8 @@ static status2 modeling_connect(modeling&          mod,
     return success();
 }
 
-status2 modeling::copy(const generic_component& src,
-                       generic_component&       dst) noexcept
+status modeling::copy(const generic_component& src,
+                      generic_component&       dst) noexcept
 {
     table<child_id, child_id> mapping; // @TODO move this mapping variable into
                                        // the modeling or cache class.

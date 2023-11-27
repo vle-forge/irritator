@@ -48,10 +48,10 @@ void hierarchical_state_machine::condition_action::clear() noexcept
 status hierarchical_state_machine::start(execution& exec) noexcept
 {
     if (states.empty())
-        return status::success;
+        return success();
 
-    irt_return_if_fail(top_state != invalid_state_id,
-                       status::model_hsm_bad_top_state);
+    if (top_state == invalid_state_id)
+        return new_error(old_status::model_hsm_bad_top_state);
 
     exec.current_state = top_state;
     exec.next_state    = invalid_state_id;
@@ -60,15 +60,14 @@ status hierarchical_state_machine::start(execution& exec) noexcept
 
     while ((exec.next_state = states[exec.current_state].sub_id) !=
            invalid_state_id) {
-        irt_return_if_bad(on_enter_sub_state(exec));
+        irt_check(on_enter_sub_state(exec));
     }
 
-    return status::success;
+    return success();
 }
 
-std::pair<status, bool> hierarchical_state_machine::dispatch(
-  const event_type event,
-  execution&       exec) noexcept
+result<bool> hierarchical_state_machine::dispatch(const event_type event,
+                                                  execution& exec) noexcept
 {
     irt_assert(!is_dispatching(exec));
 
@@ -81,8 +80,8 @@ std::pair<status, bool> hierarchical_state_machine::dispatch(
         if (handle(sid, event, exec)) {
             if (exec.next_state != invalid_state_id) {
                 do {
-                    if (auto ret = on_enter_sub_state(exec); is_bad(ret))
-                        return { ret, false };
+                    if (auto ret = on_enter_sub_state(exec); !ret)
+                        return ret.error();
                 } while (
                   (exec.next_state = states[exec.current_state].sub_id) !=
                   invalid_state_id);
@@ -95,13 +94,13 @@ std::pair<status, bool> hierarchical_state_machine::dispatch(
     }
     exec.current_source_state = invalid_state_id;
 
-    return { status::success, is_processed };
+    return is_processed;
 }
 
 status hierarchical_state_machine::on_enter_sub_state(execution& exec) noexcept
 {
-    irt_return_if_fail(exec.next_state != invalid_state_id,
-                       status::model_hsm_bad_next_state);
+    if (exec.next_state == invalid_state_id)
+        return new_error(old_status::model_hsm_bad_next_state);
 
     small_vector<state_id, max_number_of_state> entry_path;
     for (state_id sid = exec.next_state; sid != exec.current_state;) {
@@ -110,8 +109,8 @@ status hierarchical_state_machine::on_enter_sub_state(execution& exec) noexcept
         entry_path.emplace_back(sid);
         sid = state.super_id;
 
-        irt_return_if_fail(sid != invalid_state_id,
-                           status::model_hsm_bad_next_state);
+        if (sid == invalid_state_id)
+            return new_error(old_status::model_hsm_bad_next_state);
     }
 
     while (!entry_path.empty()) {
@@ -126,7 +125,7 @@ status hierarchical_state_machine::on_enter_sub_state(execution& exec) noexcept
     exec.current_state = exec.next_state;
     exec.next_state    = invalid_state_id;
 
-    return status::success;
+    return success();
 }
 
 void hierarchical_state_machine::transition(state_id   target,
@@ -168,19 +167,19 @@ status hierarchical_state_machine::set_state(state_id id,
                                              state_id sub_id) noexcept
 {
     if (super_id == invalid_state_id) {
-        irt_return_if_fail(top_state == invalid_state_id,
-                           status::model_hsm_bad_top_state);
+        if (top_state != invalid_state_id)
+            return new_error(old_status::model_hsm_bad_top_state);
         top_state = id;
     }
 
     states[id].super_id = super_id;
     states[id].sub_id   = sub_id;
 
-    irt_return_if_fail((super_id == invalid_state_id ||
-                        states[super_id].sub_id != invalid_state_id),
-                       status::model_hsm_bad_top_state);
+    if (!((super_id == invalid_state_id ||
+           states[super_id].sub_id != invalid_state_id)))
+        return new_error(old_status::model_hsm_bad_top_state);
 
-    return status::success;
+    return success();
 }
 
 void hierarchical_state_machine::clear_state(state_id id) noexcept

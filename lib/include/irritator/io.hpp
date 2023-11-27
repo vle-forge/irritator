@@ -16,68 +16,53 @@
 
 namespace irt {
 
-struct file_header
-{
-    enum class mode_type : i32
-    {
-        none = 0,
-        all  = 1,
-    };
-
-    i32       code    = 0x11223344;
-    i32       length  = sizeof(file_header);
-    i32       version = 1;
-    mode_type type    = mode_type::all;
-};
-
 //! Control the json output stream (memory or file) pretty print.
-enum class json_pretty_print
-{
+enum class json_pretty_print {
     off,                    //! disable pretty print.
     indent_2,               //! enable pretty print, use 2 spaces as indent.
     indent_2_one_line_array //! idem but merge simple array in one line.
 };
 
 //! Load a simulation structure from a json file.
-status2 simulation_load(simulation& sim,
-                        io_manager& cache,
-                        const char* filename) noexcept;
-
-//! Load a simulation structure from a json memory buffer. This function is
-//! mainly used in unit-test to check i/o functions.
-status2 simulation_load(simulation&     sim,
-                        io_manager&     cache,
-                        std::span<char> in) noexcept;
-
-//! Save a component structure into a json memory buffer. This function is
-//! mainly used in unit-test to check i/o functions.
-status2 simulation_save(
-  const simulation& sim,
-  io_manager&       cache,
-  vector<char>&     out,
-  json_pretty_print print_options = json_pretty_print::off) noexcept;
-
-//! Save a component structure into a json file.
-status2 simulation_save(
-  const simulation& sim,
-  io_manager&       cache,
-  const char*       filename,
-  json_pretty_print print_options = json_pretty_print::off) noexcept;
-
-//! Load a component structure from a json file.
-status2 component_load(modeling&   mod,
-                       component&  compo,
+status simulation_load(simulation& sim,
                        io_manager& cache,
                        const char* filename) noexcept;
 
-//! Load a component structure from a json file.
-status2 component_load(modeling&       mod,
-                       component&      compo,
+//! Load a simulation structure from a json memory buffer. This function is
+//! mainly used in unit-test to check i/o functions.
+status simulation_load(simulation&     sim,
                        io_manager&     cache,
-                       std::span<char> buffer) noexcept;
+                       std::span<char> in) noexcept;
+
+//! Save a component structure into a json memory buffer. This function is
+//! mainly used in unit-test to check i/o functions.
+status simulation_save(
+  const simulation& sim,
+  io_manager&       cache,
+  vector<char>&     out,
+  json_pretty_print print_options = json_pretty_print::off) noexcept;
 
 //! Save a component structure into a json file.
-status2 component_save(
+status simulation_save(
+  const simulation& sim,
+  io_manager&       cache,
+  const char*       filename,
+  json_pretty_print print_options = json_pretty_print::off) noexcept;
+
+//! Load a component structure from a json file.
+status component_load(modeling&   mod,
+                      component&  compo,
+                      io_manager& cache,
+                      const char* filename) noexcept;
+
+//! Load a component structure from a json file.
+status component_load(modeling&       mod,
+                      component&      compo,
+                      io_manager&     cache,
+                      std::span<char> buffer) noexcept;
+
+//! Save a component structure into a json file.
+status component_save(
   modeling&         mod,
   component&        compo,
   io_manager&       cache,
@@ -85,7 +70,7 @@ status2 component_save(
   json_pretty_print print_options = json_pretty_print::off) noexcept;
 
 //! Save a component structure into a json file.
-status2 component_save(
+status component_save(
   modeling&         mod,
   component&        compo,
   io_manager&       cache,
@@ -93,21 +78,21 @@ status2 component_save(
   json_pretty_print print_options = json_pretty_print::off) noexcept;
 
 //! Load a project from a project json file.
-status2 project_load(project&    pj,
-                     modeling&   mod,
-                     simulation& sim,
-                     io_manager& cache,
-                     const char* filename) noexcept;
+status project_load(project&    pj,
+                    modeling&   mod,
+                    simulation& sim,
+                    io_manager& cache,
+                    const char* filename) noexcept;
 
 //! Load a project from a project json file.
-status2 project_load(project&        pj,
-                     modeling&       mod,
-                     simulation&     sim,
-                     io_manager&     cache,
-                     std::span<char> buffer) noexcept;
+status project_load(project&        pj,
+                    modeling&       mod,
+                    simulation&     sim,
+                    io_manager&     cache,
+                    std::span<char> buffer) noexcept;
 
 //! Save a project from the current modeling.
-status2 project_save(
+status project_save(
   project&          pj,
   modeling&         mod,
   simulation&       sim,
@@ -116,7 +101,7 @@ status2 project_save(
   json_pretty_print print_options = json_pretty_print::off) noexcept;
 
 //! Save a project from the current modeling.
-status2 project_save(
+status project_save(
   project&          pj,
   modeling&         mod,
   simulation&       sim,
@@ -124,32 +109,41 @@ status2 project_save(
   vector<char>&     buffer,
   json_pretty_print print_options = json_pretty_print::off) noexcept;
 
-struct binary_cache
+class binary_archiver
 {
-    table<u32, model_id>              to_models;
-    table<u32, hsm_id>                to_hsms;
-    table<u32, constant_source_id>    to_constant;
-    table<u32, binary_file_source_id> to_binary;
-    table<u32, text_file_source_id>   to_text;
-    table<u32, random_source_id>      to_random;
+public:
+    struct not_enough_memory {};
+    struct open_file_error {};
+    struct write_file_error {};
+    struct file_format_error {};
+    struct unknown_model_error {};
+    struct unknown_model_port_error {};
 
-    void clear() noexcept;
+    status simulation_save(simulation& sim, file& io) noexcept;
+
+    status simulation_save(simulation& sim, memory& io) noexcept;
+
+    status simulation_load(simulation& sim, file& io) noexcept;
+
+    status simulation_load(simulation& sim, memory& io) noexcept;
+
+    struct cache {
+        table<u32, model_id>              to_models;
+        table<u32, hsm_id>                to_hsms;
+        table<u32, constant_source_id>    to_constant;
+        table<u32, binary_file_source_id> to_binary;
+        table<u32, text_file_source_id>   to_text;
+        table<u32, random_source_id>      to_random;
+
+        void clear() noexcept;
+    };
+
+private:
+    cache c;
 };
 
-status2 simulation_save(simulation& sim, file& io) noexcept;
-
-status2 simulation_save(simulation& sim, memory& io) noexcept;
-
-status2 simulation_load(simulation&   sim,
-                        file&         io,
-                        binary_cache& cache) noexcept;
-
-status2 simulation_load(simulation&   sim,
-                        memory&       io,
-                        binary_cache& cache) noexcept;
-
 //! Return the description string for each status.
-const char* status_string(const status s) noexcept;
+const char* status_string(const old_status s) noexcept;
 
 static inline constexpr const std::string_view log_level_names[] = {
     "emergency", "alert",  "critical", "error",
@@ -562,7 +556,6 @@ static constexpr const char** get_output_port_names(
 }
 
 static constexpr inline const char* status_string_names[] = {
-    "success",
     "unknown dynamics",
     "block allocator bad capacity",
     "block allocator not enough memory",
@@ -603,19 +596,10 @@ static constexpr inline const char* status_string_names[] = {
     "io not enough memory",
     "io filesystem error",
     "io filesystem make directory error",
-    "io filesystem not directory error",
-    "io file format error",
-    "io file format source number error",
-    "io file source full",
-    "io file format model error",
-    "io file format model number error",
-    "io file format model unknown",
-    "io file format dynamics unknown",
-    "io file format dynamics limit reach",
-    "io file format dynamics init error",
+    "io filesystem not directory error"
 };
 
-inline const char* status_string(const status s) noexcept
+inline const char* status_string(const old_status s) noexcept
 {
     static_assert(std::size(status_string_names) == status_size());
 
@@ -649,8 +633,7 @@ inline const char* distribution_str(const distribution_type type) noexcept
 auto get_distribution_type(std::string_view name) noexcept
   -> std::optional<distribution_type>;
 
-enum class random_file_type
-{
+enum class random_file_type {
     binary,
     text,
 };

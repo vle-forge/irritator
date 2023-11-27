@@ -19,10 +19,8 @@
 
 namespace irt {
 
-struct settings_handler
-{
-    enum class stack
-    {
+struct settings_handler {
+    enum class stack {
         empty,
         top,
         paths,
@@ -62,8 +60,7 @@ struct settings_handler
       , priority(0)
       , read_name(false)
       , read_path(false)
-    {
-    }
+    {}
 
     bool Null() { return false; }
 
@@ -307,14 +304,12 @@ struct settings_handler
     }
 };
 
-struct settings_parser
-{
+struct settings_parser {
     application& app;
 
     settings_parser(application& app_) noexcept
       : app(app_)
-    {
-    }
+    {}
 
     bool build_notification_load_success() noexcept
     {
@@ -525,16 +520,20 @@ status application::load_settings() noexcept
 {
     settings_parser parser(*this);
 
-    return parser.load_settings() ? status::success
-                                  : status::io_file_format_error;
+    if (parser.load_settings())
+        return success();
+
+    return new_error(old_status::io_filesystem_error);
 }
 
 status application::save_settings() noexcept
 {
     settings_parser parser(*this);
 
-    return parser.save_settings() ? status::success
-                                  : status::io_file_format_error;
+    if (parser.save_settings())
+        return success();
+
+    return new_error(old_status::io_filesystem_error);
 }
 
 } // irt

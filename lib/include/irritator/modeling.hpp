@@ -628,10 +628,10 @@ public:
     ///  simulation layer.
     ///
     /// @return The status.
-    status2 init(project&                pj,
-                 modeling&               mod,
-                 simulation&             sim,
-                 grid_modeling_observer& grid) noexcept;
+    status init(project&                pj,
+                modeling&               mod,
+                simulation&             sim,
+                grid_modeling_observer& grid) noexcept;
 
     /// Assign a new size to children and remove all @c model_id.
     void resize(int row, int col) noexcept;
@@ -747,7 +747,7 @@ struct parameter
     std::array<i64, 4>  integers;
 
     /// Copy data from the vectors of this parameter to the simulation model.
-    status2 copy_to(model& mdl) const noexcept;
+    status copy_to(model& mdl) const noexcept;
 
     /// Copy data from model to the vectors of this parameter.
     void copy_from(const model& mdl) noexcept;
@@ -855,16 +855,16 @@ struct modeling
 
     modeling() noexcept;
 
-    status2 init(modeling_initializer& params) noexcept;
+    status init(modeling_initializer& params) noexcept;
 
     //! Add internal components to component lists.
-    status2 fill_internal_components() noexcept;
+    status fill_internal_components() noexcept;
 
     //! Reads all registered paths and search component files.
-    status2 fill_components() noexcept;
+    status fill_components() noexcept;
 
     //! Adds a new path to read and search component files.
-    status2 fill_components(registred_path& path) noexcept;
+    status fill_components(registred_path& path) noexcept;
 
     /// Clean data used as cache for simulation.
     void clean_simulation() noexcept;
@@ -930,7 +930,19 @@ struct modeling
     /// based on children vectors and grid_component options (torus, cylinder
     /// etc.). The newly allocated child and connection are append to the output
     /// vectors. The vectors are not cleared.
-    status2 build_grid_children_and_connections(grid_component&        grid,
+    status build_grid_children_and_connections(grid_component&        grid,
+                                               vector<child_id>&      ids,
+                                               vector<connection_id>& cnts,
+                                               i32 upper_limit = 0,
+                                               i32 left_limit  = 0,
+                                               i32 space_x     = 30,
+                                               i32 space_y     = 50) noexcept;
+
+    /// For graph_component, build the children and connections
+    /// based on children vectors and graph_component options (torus, cylinder
+    /// etc.). The newly allocated child and connection are append to the output
+    /// vectors. The vectors are not cleared.
+    status build_graph_children_and_connections(graph_component&       graph,
                                                 vector<child_id>&      ids,
                                                 vector<connection_id>& cnts,
                                                 i32 upper_limit = 0,
@@ -938,27 +950,15 @@ struct modeling
                                                 i32 space_x     = 30,
                                                 i32 space_y     = 50) noexcept;
 
-    /// For graph_component, build the children and connections
-    /// based on children vectors and graph_component options (torus, cylinder
-    /// etc.). The newly allocated child and connection are append to the output
-    /// vectors. The vectors are not cleared.
-    status2 build_graph_children_and_connections(graph_component&       graph,
-                                                 vector<child_id>&      ids,
-                                                 vector<connection_id>& cnts,
-                                                 i32 upper_limit = 0,
-                                                 i32 left_limit  = 0,
-                                                 i32 space_x     = 30,
-                                                 i32 space_y     = 50) noexcept;
-
     /// For grid_component, build the real children and connections grid
     /// based on default_chidren and specific_children vectors and
     /// grid_component options (torus, cylinder etc.).
-    status2 build_grid_component_cache(grid_component& grid) noexcept;
+    status build_grid_component_cache(grid_component& grid) noexcept;
 
     /// For graph_component, build the real children and connections graph
     /// based on default_chidren and specific_children vectors and
     /// graph_component options (torus, cylinder etc.).
-    status2 build_graph_component_cache(graph_component& graph) noexcept;
+    status build_graph_component_cache(graph_component& graph) noexcept;
 
     /// Delete children and connections from @c modeling for the @c
     /// grid_component cache.
@@ -976,12 +976,12 @@ struct modeling
     child& alloc(generic_component& parent, dynamics_type type) noexcept;
     child& alloc(generic_component& parent, component_id id) noexcept;
 
-    status2 copy(const generic_component& src, generic_component& dst) noexcept;
-    status2 copy(internal_component src, component& dst) noexcept;
-    status2 copy(const component& src, component& dst) noexcept;
-    status2 copy(grid_component& grid, component& dst) noexcept;
-    status2 copy(grid_component& grid, generic_component& s) noexcept;
-    status2 copy(graph_component& grid, generic_component& s) noexcept;
+    status copy(const generic_component& src, generic_component& dst) noexcept;
+    status copy(internal_component src, component& dst) noexcept;
+    status copy(const component& src, component& dst) noexcept;
+    status copy(grid_component& grid, component& dst) noexcept;
+    status copy(grid_component& grid, generic_component& s) noexcept;
+    status copy(graph_component& grid, generic_component& s) noexcept;
 
     port_id get_x_index(const component& c,
                         std::string_view name) const noexcept;
@@ -991,23 +991,23 @@ struct modeling
     port_id get_or_add_x_index(component& c, std::string_view name) noexcept;
     port_id get_or_add_y_index(component& c, std::string_view name) noexcept;
 
-    status2 connect_input(generic_component& parent,
-                          port&              x,
+    status connect_input(generic_component& parent,
+                         port&              x,
+                         child&             c,
+                         connection::port   p_c) noexcept;
+
+    status connect_output(generic_component& parent,
                           child&             c,
-                          connection::port   p_c) noexcept;
+                          connection::port   p_c,
+                          port&              y) noexcept;
 
-    status2 connect_output(generic_component& parent,
-                           child&             c,
-                           connection::port   p_c,
-                           port&              y) noexcept;
+    status connect(generic_component& parent,
+                   child&             src,
+                   connection::port   y,
+                   child&             dst,
+                   connection::port   x) noexcept;
 
-    status2 connect(generic_component& parent,
-                    child&             src,
-                    connection::port   y,
-                    child&             dst,
-                    connection::port   x) noexcept;
-
-    status2 save(component& c) noexcept; // will call clean(component&) first.
+    status save(component& c) noexcept; // will call clean(component&) first.
 
     ring_buffer<log_entry> log_entries;
 };
@@ -1038,24 +1038,24 @@ public:
         file_parameters_init_error,
     };
 
-    status2 init(const modeling_initializer& init) noexcept;
+    status init(const modeling_initializer& init) noexcept;
 
-    status2 load(modeling&   mod,
-                 simulation& sim,
-                 io_manager& cache,
-                 const char* filename) noexcept;
+    status load(modeling&   mod,
+                simulation& sim,
+                io_manager& cache,
+                const char* filename) noexcept;
 
-    status2 save(modeling&   mod,
-                 simulation& sim,
-                 io_manager& cache,
-                 const char* filename) noexcept;
+    status save(modeling&   mod,
+                simulation& sim,
+                io_manager& cache,
+                const char* filename) noexcept;
 
     /// Assign a new @c component head. The previously allocated tree_node
     /// hierarchy is removed and a newly one is allocated.
-    status2 set(modeling& mod, simulation& sim, component& compo) noexcept;
+    status set(modeling& mod, simulation& sim, component& compo) noexcept;
 
     /// Build the complete @c tree_node hierarchy from the @c component head.
-    status2 rebuild(modeling& mod, simulation& sim) noexcept;
+    status rebuild(modeling& mod, simulation& sim) noexcept;
 
     /// Remove @c tree_node hierarchy and clear the @c component head.
     void clear() noexcept;

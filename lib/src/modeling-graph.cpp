@@ -89,13 +89,13 @@ struct local_rng
     sz           last_elem;
 };
 
-static status2 build_graph_children(modeling&         mod,
-                                    graph_component&  graph,
-                                    vector<child_id>& ids,
-                                    i32               upper_limit,
-                                    i32               left_limit,
-                                    i32               space_x,
-                                    i32               space_y) noexcept
+static status build_graph_children(modeling&         mod,
+                                   graph_component&  graph,
+                                   vector<child_id>& ids,
+                                   i32               upper_limit,
+                                   i32               left_limit,
+                                   i32               space_x,
+                                   i32               space_y) noexcept
 {
     if (!mod.children.can_alloc(graph.children.size()))
         return new_error(project::error::not_enough_memory);
@@ -194,7 +194,7 @@ static void named_connection_add(modeling&              mod,
         connection_add(mod, cnts, src, p_src, dst, p_dst);
 }
 
-static status2 get_dir(modeling& mod, dir_path_id id, dir_path*& out) noexcept
+static status get_dir(modeling& mod, dir_path_id id, dir_path*& out) noexcept
 {
     if (auto* dir = mod.dir_paths.try_to_get(id); dir) {
         out = dir;
@@ -204,9 +204,7 @@ static status2 get_dir(modeling& mod, dir_path_id id, dir_path*& out) noexcept
     return new_error(project::error::directory_access_error);
 }
 
-static status2 get_file(modeling&    mod,
-                        file_path_id id,
-                        file_path*&  out) noexcept
+static status get_file(modeling& mod, file_path_id id, file_path*& out) noexcept
 {
     if (auto* f = mod.file_paths.try_to_get(id); f) {
         out = f;
@@ -216,7 +214,7 @@ static status2 get_file(modeling&    mod,
     return new_error(project::error::file_access_error);
 }
 
-static status2 open_file(dir_path& dir_p, file_path& file_p, file& out) noexcept
+static status open_file(dir_path& dir_p, file_path& file_p, file& out) noexcept
 {
     try {
         std::filesystem::path p = dir_p.path.u8sv();
@@ -234,16 +232,16 @@ static status2 open_file(dir_path& dir_p, file_path& file_p, file& out) noexcept
     return new_error(project::error::file_open_error);
 }
 
-static status2 read_dot_file(modeling& /* mod */,
-                             file& /* f */,
-                             graph_component& /* graph */,
-                             std::span<child_id> /* ids */,
-                             vector<connection_id>& /* cnts */) noexcept
+static status read_dot_file(modeling& /* mod */,
+                            file& /* f */,
+                            graph_component& /* graph */,
+                            std::span<child_id> /* ids */,
+                            vector<connection_id>& /* cnts */) noexcept
 {
     return success();
 }
 
-static status2 build_dot_file_connections(
+static status build_dot_file_connections(
   modeling&                              mod,
   graph_component&                       graph,
   const graph_component::dot_file_param& params,
@@ -262,7 +260,7 @@ static status2 build_dot_file_connections(
     return success();
 }
 
-static status2 build_scale_free_connections(
+static status build_scale_free_connections(
   modeling&                                mod,
   graph_component&                         graph,
   const graph_component::scale_free_param& params,
@@ -310,7 +308,7 @@ static status2 build_scale_free_connections(
     return success();
 }
 
-static status2 build_small_world_connections(
+static status build_small_world_connections(
   modeling&                                 mod,
   graph_component&                          graph,
   const graph_component::small_world_param& params,
@@ -370,10 +368,10 @@ static status2 build_small_world_connections(
     return success();
 }
 
-static status2 build_graph_connections(modeling&              mod,
-                                       graph_component&       graph,
-                                       std::span<child_id>    ids,
-                                       vector<connection_id>& cnts) noexcept
+static status build_graph_connections(modeling&              mod,
+                                      graph_component&       graph,
+                                      std::span<child_id>    ids,
+                                      vector<connection_id>& cnts) noexcept
 {
     switch (graph.param.index()) {
     case 0:
@@ -402,7 +400,7 @@ static status2 build_graph_connections(modeling&              mod,
     return success();
 }
 
-status2 modeling::build_graph_children_and_connections(
+status modeling::build_graph_children_and_connections(
   graph_component&       graph,
   vector<child_id>&      ids,
   vector<connection_id>& cnts,
@@ -431,7 +429,7 @@ status2 modeling::build_graph_children_and_connections(
     return success();
 }
 
-status2 modeling::build_graph_component_cache(graph_component& graph) noexcept
+status modeling::build_graph_component_cache(graph_component& graph) noexcept
 {
     clear_graph_component_cache(graph);
 
@@ -451,7 +449,7 @@ void modeling::clear_graph_component_cache(graph_component& graph) noexcept
     graph.cache_connections.clear();
 }
 
-status2 modeling::copy(graph_component& grid, generic_component& s) noexcept
+status modeling::copy(graph_component& grid, generic_component& s) noexcept
 {
     return build_graph_children_and_connections(
       grid, s.children, s.connections);

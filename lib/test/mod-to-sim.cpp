@@ -42,7 +42,7 @@ int main()
 
         expect(!!mod.init(mod_init));
         expect(!!pj.init(mod_init));
-        sim.init(256, 4096);
+        expect(!!sim.init(256, 4096));
 
         auto& c1    = mod.alloc_generic_component();
         auto& s1    = mod.generic_components.get(c1.id.generic_id);
@@ -82,11 +82,9 @@ int main()
         expect(neq(m2, nullptr));
 
         if (m1->type == irt::dynamics_type::counter) {
-            auto ret = sim.connect(*m2, 0, *m1, 0);
-            expect(ret == irt::status::model_connect_already_exist);
+            expect(!sim.connect(*m2, 0, *m1, 0));
         } else {
-            auto ret = sim.connect(*m1, 0, *m2, 0);
-            expect(ret == irt::status::model_connect_already_exist);
+            expect(!sim.connect(*m1, 0, *m2, 0));
         }
     };
 
@@ -98,7 +96,7 @@ int main()
 
         expect(!!mod.init(mod_init));
         expect(!!pj.init(mod_init));
-        sim.init(256, 4096);
+        expect(!!sim.init(256, 4096));
 
         auto& c1 = mod.alloc_generic_component();
         auto& s1 = mod.generic_components.get(c1.id.generic_id);
@@ -135,7 +133,7 @@ int main()
 
         expect(!!mod.init(mod_init));
         expect(!!pj.init(mod_init));
-        sim.init(256, 4096);
+        expect(!!sim.init(256, 4096));
 
         auto& c1    = mod.alloc_generic_component();
         auto& s1    = mod.generic_components.get(c1.id.generic_id);
@@ -189,11 +187,9 @@ int main()
         expect(neq(m2, nullptr));
 
         if (m1->type == irt::dynamics_type::counter) {
-            auto ret = sim.connect(*m2, 0, *m1, 0);
-            expect(ret == irt::status::model_connect_already_exist);
+            expect(!sim.connect(*m2, 0, *m1, 0));
         } else {
-            auto ret = sim.connect(*m1, 0, *m2, 0);
-            expect(ret == irt::status::model_connect_already_exist);
+            expect(!sim.connect(*m1, 0, *m2, 0));
         }
     };
 
@@ -205,7 +201,7 @@ int main()
 
         expect(!!mod.init(mod_init));
         expect(!!pj.init(mod_init));
-        sim.init(256, 4096);
+        expect(!!sim.init(256, 4096));
 
         auto& c = mod.alloc_generic_component();
         auto& s = mod.generic_components.get(c.id.generic_id);
@@ -232,7 +228,7 @@ int main()
 
         expect(!!mod.init(mod_init));
         expect(!!pj.init(mod_init));
-        sim.init(256, 4096);
+        expect(!!sim.init(256, 4096));
 
         auto& c = mod.alloc_generic_component();
         auto& s = mod.generic_components.get(c.id.generic_id);
@@ -259,7 +255,7 @@ int main()
 
         expect(!!mod.init(mod_init));
         expect(!!pj.init(mod_init));
-        sim.init(256, 4096);
+        expect(!!sim.init(256, 4096));
 
         auto& c = mod.alloc_generic_component();
         auto& s = mod.generic_components.get(c.id.generic_id);
@@ -285,7 +281,7 @@ int main()
 
         expect(!!mod.init(mod_init));
         expect(!!pj.init(mod_init));
-        sim.init(256, 4096);
+        expect(!!sim.init(256, 4096));
 
         auto& c = mod.alloc_generic_component();
         auto& s = mod.generic_components.get(c.id.generic_id);
@@ -323,7 +319,7 @@ int main()
 
             expect(!!mod.init(mod_init));
             expect(!!pj.init(mod_init));
-            sim.init(256, 4096);
+            expect(!!sim.init(256, 4096));
 
             auto& c1    = mod.alloc_generic_component();
             auto& s1    = mod.generic_components.get(c1.id.generic_id);
@@ -423,7 +419,7 @@ int main()
 
             expect(!!mod.init(mod_init));
             expect(!!pj.init(mod_init));
-            sim.init(256, 4096);
+            expect(!!sim.init(256, 4096));
 
             auto& reg = mod.alloc_registred("temp", 0);
             reg.path  = temp_path;
@@ -445,9 +441,9 @@ int main()
             expect(!!mod.init(mod_init));
             irt::component_id ids[irt::internal_component_count];
 
-            mod.registred_paths.init(8);
-            mod.dir_paths.init(32);
-            mod.file_paths.init(256);
+            expect(!!mod.registred_paths.init(8));
+            expect(!!mod.dir_paths.init(32));
+            expect(!!mod.file_paths.init(256));
 
             expect(mod.components.can_alloc(irt::internal_component_count));
 
@@ -493,9 +489,9 @@ int main()
 
             expect(!!mod.init(mod_init));
 
-            mod.registred_paths.init(8);
-            mod.dir_paths.init(32);
-            mod.file_paths.init(256);
+            expect(!!mod.registred_paths.init(8));
+            expect(!!mod.dir_paths.init(32));
+            expect(!!mod.file_paths.init(256));
 
             expect(mod.components.can_alloc(irt::internal_component_count));
 
@@ -520,7 +516,7 @@ int main()
 
             expect(!!mod.init(mod_init));
             expect(!!pj.init(mod_init));
-            sim.init(256, 4096);
+            expect(!!sim.init(256, 4096));
 
             auto& c1    = mod.alloc_generic_component();
             auto& s1    = mod.generic_components.get(c1.id.generic_id);
@@ -610,7 +606,7 @@ int main()
 
             expect(!!mod.init(mod_init));
             expect(!!pj.init(mod_init));
-            sim.init(256, 4096);
+            expect(!!sim.init(256, 4096));
 
             auto& c1    = mod.alloc_generic_component();
             auto& s1    = mod.generic_components.get(c1.id.generic_id);
@@ -699,7 +695,7 @@ int main()
 
             expect(!!mod.init(mod_init));
             expect(!!pj.init(mod_init));
-            sim.init(256, 4096);
+            expect(!!sim.init(256, 4096));
 
             auto& c1    = mod.alloc_generic_component();
             auto& s1    = mod.generic_components.get(c1.id.generic_id);

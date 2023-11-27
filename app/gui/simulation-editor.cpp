@@ -965,25 +965,42 @@ void task_simulation_model_add(void* param) noexcept
     auto& mdl    = sim.alloc(enum_cast<dynamics_type>(task->param_1));
     auto  mdl_id = sim.models.get_id(mdl);
 
-    auto ret =
-      sim.make_initialize(mdl, task->app->simulation_ed.simulation_current);
-    if (is_bad(ret)) {
-        sim.deallocate(mdl_id);
+    attempt_all(
+      [&]() noexcept -> status {
+          irt_check(sim.make_initialize(
+            mdl, task->app->simulation_ed.simulation_current));
 
-        auto& n = task->app->notifications.alloc(log_level::error);
-        n.title = "Fail to initialize model";
-        task->app->notifications.enable(n);
-        task->state = task_status::finished;
-        return;
-    }
+          const auto x = static_cast<float>(task->param_2);
+          const auto y = static_cast<float>(task->param_3);
 
-    const auto   x = static_cast<float>(task->param_2);
-    const auto   y = static_cast<float>(task->param_3);
-    const ImVec2 pos{ x, y };
-    task->app->simulation_ed.models_to_move.push(
-      simulation_editor::model_to_move{ .id = mdl_id, .position = pos });
+          const ImVec2 pos{ x, y };
 
-    task->state = task_status::finished;
+          task->app->simulation_ed.models_to_move.push(
+            simulation_editor::model_to_move{ .id = mdl_id, .position = pos });
+          task->state = task_status::finished;
+
+          return success();
+      },
+
+      [&](const old_status s) noexcept -> void {
+          sim.deallocate(mdl_id);
+
+          auto& n = task->app->notifications.alloc(log_level::error);
+          n.title = "Fail to initialize model";
+          format(n.message, "Error: {}", status_string(s));
+          task->app->notifications.enable(n);
+          task->state = task_status::finished;
+      },
+
+      [&]() noexcept -> void {
+          sim.deallocate(mdl_id);
+
+          auto& n = task->app->notifications.alloc(log_level::error);
+          n.title = "Fail to initialize model";
+          format(n.message, "Unknown error");
+          task->app->notifications.enable(n);
+          task->state = task_status::finished;
+      });
 }
 
 void task_simulation_model_del(void* param) noexcept

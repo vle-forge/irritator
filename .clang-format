@@ -1,5 +1,4 @@
 BasedOnStyle: Mozilla
-BreakBeforeBraces: Mozilla
 AccessModifierOffset: -4
 ColumnLimit: 80
 UseTab: Never
@@ -23,3 +22,18 @@ SpacesInSquareBrackets: false
 AllowShortEnumsOnASingleLine: true
 AlwaysBreakAfterDefinitionReturnType: None
 AlwaysBreakAfterReturnType: None
+BreakBeforeBraces: Custom
+BraceWrapping:
+  SplitEmptyFunction: false
+  SplitEmptyRecord: false
+  SplitEmptyNamespace: false
+  AfterCaseLabel: false
+  AfterClass: true
+  AfterControlStatement: Never
+  AfterEnum: false
+  AfterFunction: true
+  AfterNamespace: false
+  AfterStruct: false
+  AfterUnion: false
+  AfterExternBlock: false
+  BeforeCatch: false

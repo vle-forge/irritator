@@ -5,6 +5,7 @@ option(WITH_DEBUG "enable maximium debug code. [default: ON]" ON)
 
 set(public_irritator_header
     ${CMAKE_CURRENT_SOURCE_DIR}/include/irritator/core.hpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/include/irritator/error.hpp
     ${CMAKE_CURRENT_SOURCE_DIR}/include/irritator/examples.hpp
     ${CMAKE_CURRENT_SOURCE_DIR}/include/irritator/ext.hpp
     ${CMAKE_CURRENT_SOURCE_DIR}/include/irritator/file.hpp
@@ -74,7 +75,7 @@ install(DIRECTORY include/irritator
   ${CMAKE_INSTALL_INCLUDEDIR}/irritator-${PROJECT_VERSION_MAJOR}.${PROJECT_VERSION_MINOR})
 
 function(irritator_add_test test_name)
-  add_executable(${test_name} ${ARGN} "src/archiver.cpp;src/external_source.cpp;src/file.cpp;src/hsm.cpp;src/io.cpp;src/json.cpp;src/modeling.cpp;src/modeling-generic.cpp;src/modeling-graph.cpp;src/modeling-grid.cpp;src/modeling-internal.cpp;src/parameter.cpp;src/project.cpp;src/timeline.cpp")
+  add_executable(${test_name} ${ARGN} "src/archiver.cpp;src/error.cpp;src/external_source.cpp;src/file.cpp;src/hsm.cpp;src/io.cpp;src/json.cpp;src/modeling.cpp;src/modeling-generic.cpp;src/modeling-graph.cpp;src/modeling-grid.cpp;src/modeling-internal.cpp;src/parameter.cpp;src/project.cpp;src/timeline.cpp")
 
   set_target_properties(${test_name} PROPERTIES
     COMPILE_DEFINITIONS EXAMPLES_DIR=\"${CMAKE_CURRENT_SOURCE_DIR}/test\"

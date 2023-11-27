@@ -99,7 +99,25 @@ void settings_window::show() noexcept
             ImGui::TableNextColumn();
             ImGui::PushItemWidth(60.f);
             if (ImGui::Button("Refresh")) {
-                app.mod.fill_components(*dir);
+                attempt_all(
+                  [&]() noexcept -> status {
+                      irt_check(app.mod.fill_components(*dir));
+                      return success();
+                  },
+
+                  [&app](const old_status s) noexcept -> void {
+                      auto& n = app.notifications.alloc();
+                      n.title = "Refresh components from directory failed";
+                      format(n.message, "Error: {}", status_string(s));
+                      app.notifications.enable(n);
+                  },
+
+                  [&app]() noexcept -> void {
+                      auto& n   = app.notifications.alloc();
+                      n.title   = "Refresh components from directory failed";
+                      n.message = "Error: Unknown";
+                      app.notifications.enable(n);
+                  });
             }
             ImGui::PopItemWidth();
 

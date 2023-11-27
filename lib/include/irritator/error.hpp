@@ -1,4 +1,4 @@
-// Copyright (c) 2024 INRAE Distributed under the Boost Software License,
+// Copyright (c) 2023 INRAE Distributed under the Boost Software License,
 // Version 1.0. (See accompanying file LICENSE_1_0.txt or copy at
 // http://www.boost.org/LICENSE_1_0.txt)
 
@@ -10,13 +10,9 @@
 
 namespace boost {
 
-inline void throw_exception(std::exception const& e)
-{
-    std::puts(e.what());
-    std::puts("\n");
-}
+void throw_exception(std::exception const& e) noexcept;
 
-} // namespace boost
+}
 
 #define irt_check BOOST_LEAF_CHECK
 
@@ -28,11 +24,34 @@ using match2 = boost::leaf::match<T, value...>;
 template<class T>
 using result = boost::leaf::result<T>;
 
-using status2 = result<void>;
+using status = result<void>;
 
-using error_handler = void(void);
+using error_handler = void(void) noexcept;
 
 inline error_handler* on_error_callback = nullptr;
+
+struct e_file_name {
+    std::string value;
+};
+
+struct e_ulong_id {
+    long unsigned int value;
+};
+
+struct e_2_ulong_id {
+    long unsigned int value[2];
+};
+
+struct e_3_ulong_id {
+    long unsigned int value[3];
+};
+
+/**
+ * @brief A function to use with the @c on_error_callback to stop the
+ * application using a * breakpoint (@c __debugbreak(), @c __builtin_trap(),
+ * etc.) when a @c new_error function is called.
+ */
+void on_error_breakpoint(void) noexcept;
 
 /**
  * @brief a readability function for returning successful results;
@@ -49,11 +68,11 @@ inline error_handler* on_error_callback = nullptr;
  *
  * @return status - that is always successful
  */
-inline status2 success()
+inline status success()
 {
     // Default initialize the status object using the brace initialization,
     // which will set the status to the default "success" state.
-    status2 successful_status{};
+    status successful_status{};
     return successful_status;
 }
 
@@ -71,44 +90,17 @@ template<class TryBlock, class... H>
 }
 
 template<class... Item>
+[[nodiscard]] constexpr auto on_error(Item&&... p_item)
+{
+    return boost::leaf::on_error(std::forward<Item>(p_item)...);
+}
+
+template<class... Item>
 [[nodiscard]] inline auto new_error(Item&&... p_item)
 {
     if (on_error_callback) {
         on_error_callback();
     }
-
-#if !defined(NDEBUG) && defined(IRRITATOR_ENABLE_DEBUG)
-#if (defined(__i386__) || defined(__x86_64__)) && defined(__GNUC__) &&         \
-  __GNUC__ >= 2
-    do {
-        __asm__ __volatile__("int $03");
-    } while (0);
-#elif (defined(_MSC_VER) || defined(__DMC__)) && defined(_M_IX86)
-    do {
-        __asm int 3h
-    } while (0);
-#elif defined(_MSC_VER)
-    do {
-        __debugbreak();
-    } while (0);
-#elif defined(__alpha__) && !defined(__osf__) && defined(__GNUC__) &&          \
-  __GNUC__ >= 2
-    do {
-        __asm__ __volatile__("bpt");
-    } while (0);
-#elif defined(__APPLE__)
-    do {
-        __builtin_trap();
-    } while (0);
-#else  /* !__i386__ && !__alpha__ */
-    do {
-        raise(SIGTRAP);
-    } while (0);
-#endif /* __i386__ */
-#else
-    do {
-    } while (0);
-#endif
 
     return boost::leaf::new_error(std::forward<Item>(p_item)...);
 }
