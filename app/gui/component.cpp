@@ -154,8 +154,9 @@ static status save_component_impl(modeling&             mod,
         p /= file.path.sv();
         p.replace_extension(".irt");
 
-        io_manager cache;
-        irt_check(component_save(mod, compo, cache, p.string().c_str()));
+        cache_rw      cache;
+        json_archiver j;
+        irt_check(j.component_save(mod, compo, cache, p.string().c_str()));
     } catch (...) {
         return new_error(old_status::io_not_enough_memory);
     }

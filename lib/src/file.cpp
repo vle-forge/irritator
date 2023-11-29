@@ -6,6 +6,7 @@
 
 #include <bit>
 
+#include <cerrno>
 #include <cstdio>
 #include <cstdlib>
 
@@ -47,12 +48,12 @@ static std::FILE* internal_fopen(const char* filename,
 #endif //  _WIN32
 }
 
-inline std::FILE* to_handle(void* f) noexcept
+inline static std::FILE* to_handle(void* f) noexcept
 {
     return reinterpret_cast<std::FILE*>(f);
 }
 
-inline void* to_void(std::FILE* f) noexcept
+inline static void* to_void(std::FILE* f) noexcept
 {
     return reinterpret_cast<void*>(f);
 }
@@ -337,14 +338,32 @@ bool write_to_file(File& f, const double value) noexcept
     }
 }
 
-file::file(const char* filename, const open_mode mode_) noexcept
-  : mode(mode_)
+auto file::make_file(const char* filename, const open_mode mode_) noexcept
+  -> result<file>
 {
-    file_handle = to_void(internal_fopen(filename,
-                                         mode == open_mode::read    ? "rb"
-                                         : mode == open_mode::write ? "wb"
-                                                                    : "ab"));
+    errno = 0;
+
+    auto       f      = internal_fopen(filename,
+                            mode_ == open_mode::read    ? "rb"
+                                       : mode_ == open_mode::write ? "wb"
+                                                                   : "ab");
+    const auto cerrno = errno;
+    if (f == nullptr) {
+        if (cerrno == EACCES)
+            return new_error(file::permission_error{});
+        if (cerrno == ENFILE)
+            return new_error(file::permission_error{});
+
+        return new_error(file::not_exist_error{});
+    }
+
+    return file{ to_void(f), mode_ };
 }
+
+file::file(void* handle, const open_mode m) noexcept
+  : file_handle(handle)
+  , mode(m)
+{}
 
 file::file(file&& other) noexcept
   : file_handle(other.file_handle)
@@ -371,10 +390,12 @@ file::~file() noexcept
         std::fclose(to_handle(file_handle));
 }
 
-void file::open(const char* filename, const open_mode mode) noexcept
+void file::open(const char* filename, const open_mode mode_) noexcept
 {
     if (file_handle)
         std::fclose(to_handle(file_handle));
+
+    mode = mode_;
 
     file_handle = to_void(internal_fopen(filename,
                                          mode == open_mode::read    ? "rb"
@@ -551,8 +572,7 @@ bool file::write(const void* buffer, i64 length) noexcept
 memory::memory(const i64 length, const open_mode /*mode*/) noexcept
   : data(static_cast<i32>(length), static_cast<i32>(length))
   , pos(0)
-{
-}
+{}
 
 memory::memory(memory&& other) noexcept
   : data(std::move(other.data))

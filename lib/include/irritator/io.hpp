@@ -16,98 +16,107 @@
 
 namespace irt {
 
-//! Control the json output stream (memory or file) pretty print.
-enum class json_pretty_print {
-    off,                    //! disable pretty print.
-    indent_2,               //! enable pretty print, use 2 spaces as indent.
-    indent_2_one_line_array //! idem but merge simple array in one line.
+class json_archiver
+{
+public:
+    struct json_read_file_error {};
+
+    struct json_parser_error {}; // With @c e_json error structure to get the
+                                 // internal error code and the offset.
+
+    //! Control the json output stream (memory or file) pretty print.
+    enum class print_option {
+        off,                    //! disable pretty print.
+        indent_2,               //! enable pretty print, use 2 spaces as indent.
+        indent_2_one_line_array //! idem but merge simple array in one line.
+    };
+
+    //! Load a simulation structure from a json file.
+    status simulation_load(simulation& sim, cache_rw& cache, file& io) noexcept;
+
+    //! Load a simulation structure from a json memory buffer. This function is
+    //! mainly used in unit-test to check i/o functions.
+    status simulation_load(simulation&     sim,
+                           cache_rw&       cache,
+                           std::span<char> in) noexcept;
+
+    //! Save a component structure into a json memory buffer. This function is
+    //! mainly used in unit-test to check i/o functions.
+    status simulation_save(
+      const simulation& sim,
+      cache_rw&         cache,
+      vector<char>&     out,
+      print_option      print_options = print_option::off) noexcept;
+
+    //! Save a component structure into a json file.
+    status simulation_save(
+      const simulation& sim,
+      cache_rw&         cache,
+      const char*       filename,
+      print_option      print_options = print_option::off) noexcept;
+
+    //! Load a component structure from a json file.
+    status component_load(modeling&  mod,
+                          component& compo,
+                          cache_rw&  cache,
+                          file&      io) noexcept;
+
+    //! Load a component structure from a json file.
+    status component_load(modeling&       mod,
+                          component&      compo,
+                          cache_rw&       cache,
+                          std::span<char> buffer) noexcept;
+
+    //! Save a component structure into a json file.
+    status component_save(
+      modeling&    mod,
+      component&   compo,
+      cache_rw&    cache,
+      const char*  filename,
+      print_option print_options = print_option::off) noexcept;
+
+    //! Save a component structure into a json file.
+    status component_save(
+      modeling&     mod,
+      component&    compo,
+      cache_rw&     cache,
+      vector<char>& out,
+      print_option  print_options = print_option::off) noexcept;
+
+    //! Load a project from a project json file.
+    status project_load(project&    pj,
+                        modeling&   mod,
+                        simulation& sim,
+                        cache_rw&   cache,
+                        file&       io) noexcept;
+
+    //! Load a project from a project json file.
+    status project_load(project&        pj,
+                        modeling&       mod,
+                        simulation&     sim,
+                        cache_rw&       cache,
+                        std::span<char> buffer) noexcept;
+
+    //! Save a project from the current modeling.
+    status project_save(
+      project&     pj,
+      modeling&    mod,
+      simulation&  sim,
+      cache_rw&    cache,
+      file&        f,
+      print_option print_options = print_option::off) noexcept;
+
+    //! Save a project from the current modeling.
+    status project_save(
+      project&      pj,
+      modeling&     mod,
+      simulation&   sim,
+      cache_rw&     cache,
+      vector<char>& buffer,
+      print_option  print_options = print_option::off) noexcept;
+
+private:
 };
-
-//! Load a simulation structure from a json file.
-status simulation_load(simulation& sim,
-                       io_manager& cache,
-                       const char* filename) noexcept;
-
-//! Load a simulation structure from a json memory buffer. This function is
-//! mainly used in unit-test to check i/o functions.
-status simulation_load(simulation&     sim,
-                       io_manager&     cache,
-                       std::span<char> in) noexcept;
-
-//! Save a component structure into a json memory buffer. This function is
-//! mainly used in unit-test to check i/o functions.
-status simulation_save(
-  const simulation& sim,
-  io_manager&       cache,
-  vector<char>&     out,
-  json_pretty_print print_options = json_pretty_print::off) noexcept;
-
-//! Save a component structure into a json file.
-status simulation_save(
-  const simulation& sim,
-  io_manager&       cache,
-  const char*       filename,
-  json_pretty_print print_options = json_pretty_print::off) noexcept;
-
-//! Load a component structure from a json file.
-status component_load(modeling&   mod,
-                      component&  compo,
-                      io_manager& cache,
-                      const char* filename) noexcept;
-
-//! Load a component structure from a json file.
-status component_load(modeling&       mod,
-                      component&      compo,
-                      io_manager&     cache,
-                      std::span<char> buffer) noexcept;
-
-//! Save a component structure into a json file.
-status component_save(
-  modeling&         mod,
-  component&        compo,
-  io_manager&       cache,
-  const char*       filename,
-  json_pretty_print print_options = json_pretty_print::off) noexcept;
-
-//! Save a component structure into a json file.
-status component_save(
-  modeling&         mod,
-  component&        compo,
-  io_manager&       cache,
-  vector<char>&     out,
-  json_pretty_print print_options = json_pretty_print::off) noexcept;
-
-//! Load a project from a project json file.
-status project_load(project&    pj,
-                    modeling&   mod,
-                    simulation& sim,
-                    io_manager& cache,
-                    const char* filename) noexcept;
-
-//! Load a project from a project json file.
-status project_load(project&        pj,
-                    modeling&       mod,
-                    simulation&     sim,
-                    io_manager&     cache,
-                    std::span<char> buffer) noexcept;
-
-//! Save a project from the current modeling.
-status project_save(
-  project&          pj,
-  modeling&         mod,
-  simulation&       sim,
-  io_manager&       cache,
-  const char*       filename,
-  json_pretty_print print_options = json_pretty_print::off) noexcept;
-
-//! Save a project from the current modeling.
-status project_save(
-  project&          pj,
-  modeling&         mod,
-  simulation&       sim,
-  io_manager&       cache,
-  vector<char>&     buffer,
-  json_pretty_print print_options = json_pretty_print::off) noexcept;
 
 class binary_archiver
 {
@@ -127,6 +136,8 @@ public:
 
     status simulation_load(simulation& sim, memory& io) noexcept;
 
+    //! @TODO Merge the binary_archiver::cache system with the modeling
+    //! cache_rw.
     struct cache {
         table<u32, model_id>              to_models;
         table<u32, hsm_id>                to_hsms;

@@ -9,25 +9,22 @@
 
 namespace irt {
 
-enum class seek_origin
-{
-    current,
-    end,
-    set
-};
+enum class seek_origin { current, end, set };
 
-enum class open_mode
-{
-    read,
-    write,
-    append
-};
+enum class open_mode { read, write, append };
 
 class file
 {
 public:
+    struct permission_error {};
+    struct not_exist_error {};
+    struct too_many_file_error {};
+
+    static result<file> make_file(const char*     filename,
+                                  const open_mode mode) noexcept;
+
     file() noexcept = default;
-    file(const char* filename, const open_mode mode) noexcept;
+
     ~file() noexcept;
 
     file(const file& other) noexcept            = delete;
@@ -59,7 +56,8 @@ public:
     bool read(double& value) noexcept;
 
     template<typename EnumType>
-    requires(std::is_enum_v<EnumType>) bool read(EnumType& value) noexcept
+        requires(std::is_enum_v<EnumType>)
+    bool read(EnumType& value) noexcept
     {
         auto integer = ordinal(value);
 
@@ -85,7 +83,8 @@ public:
     bool write(const double value) noexcept;
 
     template<typename EnumType>
-    requires(std::is_enum_v<EnumType>) bool write(const EnumType value) noexcept
+        requires(std::is_enum_v<EnumType>)
+    bool write(const EnumType value) noexcept
     {
         return write(ordinal(value));
     }
@@ -109,6 +108,8 @@ public:
     open_mode get_mode() const noexcept;
 
 private:
+    file(void* handle, const open_mode mode) noexcept;
+
     void*     file_handle = nullptr;
     open_mode mode        = open_mode::read;
 };
@@ -146,7 +147,8 @@ public:
     bool read(double& value) noexcept;
 
     template<typename EnumType>
-    requires(std::is_enum_v<EnumType>) bool read(EnumType& value) noexcept
+        requires(std::is_enum_v<EnumType>)
+    bool read(EnumType& value) noexcept
     {
         auto integer = ordinal(value);
 
@@ -172,7 +174,8 @@ public:
     bool write(const double value) noexcept;
 
     template<typename EnumType>
-    requires(std::is_enum_v<EnumType>) bool write(const EnumType value) noexcept
+        requires(std::is_enum_v<EnumType>)
+    bool write(const EnumType value) noexcept
     {
         return write(ordinal(value));
     }

@@ -78,8 +78,7 @@ auto modeling::get_or_add_y_index(component&       compo,
 
 modeling::modeling() noexcept
   : log_entries{ 16 }
-{
-}
+{}
 
 status modeling::init(modeling_initializer& p) noexcept
 {
@@ -280,52 +279,54 @@ static void prepare_component_loading(modeling& mod) noexcept
 
 static status load_component(modeling& mod, component& compo) noexcept
 {
+    auto* reg  = mod.registred_paths.try_to_get(compo.reg_path);
+    auto* dir  = mod.dir_paths.try_to_get(compo.dir);
+    auto* file = mod.file_paths.try_to_get(compo.file);
+
+    if (!(reg && dir && file))
+        return new_error(modeling::component_path_error{},
+                         e_ulong_id{ ordinal(mod.components.get_id(compo)) });
+
     try {
-        auto* reg  = mod.registred_paths.try_to_get(compo.reg_path);
-        auto* dir  = mod.dir_paths.try_to_get(compo.dir);
-        auto* file = mod.file_paths.try_to_get(compo.file);
+        std::filesystem::path p{ reg->path.sv() };
+        p /= dir->path.sv();
+        p /= file->path.sv();
 
-        if (reg && dir && file) {
-            std::filesystem::path file_path = reg->path.u8sv();
-            file_path /= dir->path.u8sv();
-            file_path /= file->path.u8sv();
+        std::string str{ p.string() };
 
-            bool read_description = false;
-
-            io_manager cache; // TODO move into modeling or parameter
-            auto       ret =
-              component_load(mod, compo, cache, file_path.string().c_str());
-
-            if (ret) {
-                read_description = true;
-                compo.state      = component_status::unmodified;
-            } else {
+        {
+            auto f = file::make_file(str.c_str(), open_mode::read);
+            if (!f) {
                 compo.state = component_status::unreadable;
-                log_warning(mod,
-                            log_level::error,
-                            "Fail to load component {}",
-                            file_path.string());
+                return new_error(modeling::component_file_error{},
+                                 e_file_name{ str });
+            }
 
+            json_archiver j;
+            cache_rw      cache; // TODO move into modeling or parameter
+
+            if (auto ret = j.component_load(mod, compo, cache, *f); !ret) {
+                compo.state = component_status::unreadable;
                 return ret.error();
             }
 
-            if (read_description) {
-                std::filesystem::path desc_file(file_path);
-                desc_file.replace_extension(".desc");
+            compo.state = component_status::unmodified;
+        }
 
-                if (std::ifstream ifs{ desc_file }; ifs) {
-                    auto* desc = mod.descriptions.try_to_get(compo.desc);
-                    if (!desc) {
-                        auto& d    = mod.descriptions.alloc();
-                        desc       = &d;
-                        compo.desc = mod.descriptions.get_id(d);
-                    }
+        p.replace_extension(".desc");
+        str = p.string();
 
-                    if (!ifs.read(desc->data.begin(), desc->data.capacity())) {
-                        mod.descriptions.free(*desc);
-                        compo.desc = undefined<description_id>();
-                    }
-                }
+        if (auto f = file::make_file(str.c_str(), open_mode::read); f) {
+            auto* desc = mod.descriptions.try_to_get(compo.desc);
+            if (!desc) {
+                auto& d    = mod.descriptions.alloc();
+                desc       = &d;
+                compo.desc = mod.descriptions.get_id(d);
+            }
+
+            if (!f->read(desc->data.data(), desc->data.capacity())) {
+                mod.descriptions.free(*desc);
+                compo.desc = undefined<description_id>();
             }
         }
     } catch (const std::bad_alloc& /*e*/) {
@@ -1052,9 +1053,10 @@ status modeling::save(component& c) noexcept
         p.replace_extension(".irt");
 
         std::error_code ec;
-        io_manager      cache;
+        json_archiver   j;
+        cache_rw        cache;
 
-        if (auto ret = component_save(*this, c, cache, p.string().c_str());
+        if (auto ret = j.component_save(*this, c, cache, p.string().c_str());
             !ret)
             return ret.error();
     }

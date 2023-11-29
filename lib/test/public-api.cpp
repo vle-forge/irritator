@@ -1478,7 +1478,7 @@ int main()
 
     "input-output"_test = [] {
         irt::vector<char> out;
-        irt::io_manager   cache;
+        irt::cache_rw     cache;
 
         {
             irt::simulation sim;
@@ -1546,11 +1546,12 @@ int main()
             sim.alloc<irt::logical_invert>();
             sim.alloc<irt::hsm_wrapper>();
 
-            expect(!!irt::simulation_save(
+            irt::json_archiver j;
+            expect(!!j.simulation_save(
               sim,
               cache,
               out,
-              irt::json_pretty_print::indent_2_one_line_array));
+              irt::json_archiver::print_option::indent_2_one_line_array));
 
             expect(out.size() > 0);
         }
@@ -1573,7 +1574,9 @@ int main()
             expect(!!sim.init(64lu, 32lu));
 
             auto in = std::span(out.data(), out.size());
-            expect(!!irt::simulation_load(sim, cache, in));
+
+            irt::json_archiver j;
+            expect(!!j.simulation_load(sim, cache, in));
             expect(sim.models.size() == 60);
         }
     };
@@ -3399,25 +3402,29 @@ int main()
         file_path /= "irritator.txt";
 
         {
-            irt::file f(file_path.string().c_str(), irt::open_mode::write);
-            assert(f.length() == 0);
+            auto f = irt::file::make_file(file_path.string().c_str(),
+                                          irt::open_mode::write);
+            expect(!!f);
+            expect(f->length() == 0);
 
             irt::u8  a = 0xfe;
             irt::u16 b = 0xfedc;
             irt::u32 c = 0xfedcba98;
             irt::u64 d = 0xfedcba9876543210;
 
-            f.write(a);
-            f.write(b);
-            f.write(c);
-            f.write(d);
+            f->write(a);
+            f->write(b);
+            f->write(c);
+            f->write(d);
 
-            assert(f.tell() == 15);
+            expect(f->tell() == 15);
         }
 
         {
-            irt::file f(file_path.string().c_str(), irt::open_mode::read);
-            assert(f.length() == 15);
+            auto f = irt::file::make_file(file_path.string().c_str(),
+                                          irt::open_mode::read);
+            expect(!!f);
+            expect(f->length() == 15);
 
             irt::u8  a   = 0xfe;
             irt::u16 b   = 0xfedc;
@@ -3428,21 +3435,21 @@ int main()
             irt::u32 c_w = 0;
             irt::u64 d_w = 0;
 
-            f.read(a_w);
-            f.read(b_w);
-            f.read(c_w);
-            f.read(d_w);
+            f->read(a_w);
+            f->read(b_w);
+            f->read(c_w);
+            f->read(d_w);
 
-            assert(a == a_w);
-            assert(b == b_w);
-            assert(c == c_w);
-            assert(d == d_w);
+            expect(a == a_w);
+            expect(b == b_w);
+            expect(c == c_w);
+            expect(d == d_w);
 
-            assert(f.tell() == 15);
+            expect(f->tell() == 15);
 
-            f.rewind();
+            f->rewind();
 
-            assert(f.tell() == 0);
+            expect(f->tell() == 0);
         }
 
         std::filesystem::remove(file_path, ec);

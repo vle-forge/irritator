@@ -4191,7 +4191,7 @@ struct reader {
         error = error_id::none;
     }
 
-    io_manager* m_cache = nullptr;
+    cache_rw*   m_cache = nullptr;
     modeling*   m_mod   = nullptr;
     simulation* m_sim   = nullptr;
     project*    m_pj    = nullptr;
@@ -4215,17 +4215,17 @@ struct reader {
 
     error_id error = error_id::none;
 
-    reader(io_manager& cache_, modeling& mod_) noexcept
+    reader(cache_rw& cache_, modeling& mod_) noexcept
       : m_cache(&cache_)
       , m_mod(&mod_)
     {}
 
-    reader(io_manager& cache_, simulation& mod_) noexcept
+    reader(cache_rw& cache_, simulation& mod_) noexcept
       : m_cache(&cache_)
       , m_sim(&mod_)
     {}
 
-    reader(io_manager& cache_,
+    reader(cache_rw&   cache_,
            modeling&   mod_,
            simulation& sim_,
            project&    pj_) noexcept
@@ -4291,7 +4291,7 @@ struct reader {
         return *m_pj;
     }
 
-    io_manager& cache() const noexcept
+    cache_rw& cache() const noexcept
     {
         irt_assert(m_cache);
         return *m_cache;
@@ -4310,88 +4310,31 @@ struct reader {
     }
 };
 
-// Helper functions to read, parse files.
-
-static bool copy_filename_to(const char*            filename,
-                             std::filesystem::path& dst) noexcept
+static status read_file_to_buffer(cache_rw& cache, file& f) noexcept
 {
-    try {
-        dst = std::filesystem::path(filename);
-        return true;
-    } catch (...) {
-        return false;
-    }
-}
+    irt_assert(f.is_open());
+    irt_assert(f.get_mode() == open_mode::read);
 
-static bool file_exists(const std::filesystem::path& path) noexcept
-{
-    std::error_code ec;
-    return std::filesystem::is_regular_file(path, ec);
-}
+    const auto len = f.length();
 
-static bool file_size(const std::filesystem::path& path, u64& len) noexcept
-{
-    std::error_code ec;
-    if (auto size = std::filesystem::file_size(path, ec); !ec) {
-        if (is_numeric_castable<u64>(size)) {
-            len = size;
-            return true;
-        }
-    }
+    cache.buffer.resize(len);
 
-    return false;
-}
+    if (!f.read(cache.buffer.data(), len))
+        return new_error(json_archiver::json_read_file_error{});
 
-static bool file_open(const std::filesystem::path& path,
-                      std::ifstream&               ifs) noexcept
-{
-    ifs.open(path);
-    return ifs.is_open() && ifs.good();
-}
-
-static bool buffer_fill(std::ifstream& ifs, vector<char>& vec) noexcept
-{
-    return ifs.read(vec.data(), vec.size()).good();
-}
-
-static status read_file_to_buffer(io_manager& cache,
-                                  const char* filename) noexcept
-{
-    std::filesystem::path path;
-    std::ifstream         ifs;
-    u64                   size = 0;
-
-    bool ret = copy_filename_to(filename, path) && file_exists(path) &&
-               file_size(path, size) && buffer_resive(size, cache.buffer) &&
-               file_open(path, ifs) && buffer_fill(ifs, cache.buffer);
-
-    if (ret)
-        return success();
-
-    return new_error(old_status::io_filesystem_error);
+    return success();
 }
 
 static status parse_json_data(const std::span<char>& buffer,
-                              const char*            filename,
                               rapidjson::Document&   doc) noexcept
 {
     doc.Parse(buffer.data(), buffer.size());
 
-    if (doc.HasParseError()) {
-        if (filename)
-            debug_logi(2,
-                       "Fail to parse {}. Error `{}' at offset {}\n",
-                       filename,
-                       rapidjson::GetParseError_En(doc.GetParseError()),
-                       doc.GetErrorOffset());
-        else
-            debug_logi(2,
-                       "Fail to parse buffer. Error `{}' at offset {}\n",
-                       rapidjson::GetParseError_En(doc.GetParseError()),
-                       doc.GetErrorOffset());
-
-        return new_error(old_status::io_filesystem_error);
-    }
+    if (doc.HasParseError())
+        return new_error(
+          json_archiver::json_parser_error{},
+          e_json{ doc.GetErrorOffset(),
+                  rapidjson::GetParseError_En(doc.GetParseError()) });
 
     return success();
 }
@@ -5151,7 +5094,7 @@ status write(Writer&                                             writer,
     return success();
 }
 
-void io_manager::clear() noexcept
+void cache_rw::clear() noexcept
 {
     buffer.clear();
     stack.clear();
@@ -5164,7 +5107,7 @@ void io_manager::clear() noexcept
     sim_hsms_mapping.data.clear();
 }
 
-void io_manager::destroy() noexcept
+void cache_rw::destroy() noexcept
 {
     buffer.destroy();
     stack.destroy();
@@ -5179,7 +5122,7 @@ void io_manager::destroy() noexcept
 
 static status parse_json_component(modeling&                  mod,
                                    component&                 compo,
-                                   io_manager&                cache,
+                                   cache_rw&                  cache,
                                    const rapidjson::Document& doc) noexcept
 {
     reader r{ cache, mod };
@@ -5224,17 +5167,17 @@ static status parse_json_component(modeling&                  mod,
     return success();
 }
 
-static status parse_component(modeling&   mod,
-                              component&  compo,
-                              io_manager& cache,
-                              const char* filename) noexcept
+static status parse_component(modeling&  mod,
+                              component& compo,
+                              cache_rw&  cache,
+                              file&      f) noexcept
 {
     rapidjson::Document doc;
 
-    irt_check(read_file_to_buffer(cache, filename));
+    irt_check(read_file_to_buffer(cache, f));
 
     irt_check(parse_json_data(
-      std::span(cache.buffer.data(), cache.buffer.size()), filename, doc));
+      std::span(cache.buffer.data(), cache.buffer.size()), doc));
     irt_check(parse_json_component(mod, compo, cache, doc));
 
     return success();
@@ -5242,35 +5185,35 @@ static status parse_component(modeling&   mod,
 
 static status parse_component(modeling&       mod,
                               component&      compo,
-                              io_manager&     cache,
+                              cache_rw&       cache,
                               std::span<char> buffer) noexcept
 {
     rapidjson::Document doc;
 
-    irt_check(parse_json_data(buffer, nullptr, doc));
+    irt_check(parse_json_data(buffer, doc));
     irt_check(parse_json_component(mod, compo, cache, doc));
 
     return success();
 }
 
-status component_load(modeling&   mod,
-                      component&  compo,
-                      io_manager& cache,
-                      const char* filename) noexcept
+status json_archiver::component_load(modeling&  mod,
+                                     component& compo,
+                                     cache_rw&  cache,
+                                     file&      f) noexcept
 {
-    return parse_component(mod, compo, cache, filename);
+    return parse_component(mod, compo, cache, f);
 }
 
-status component_load(modeling&       mod,
-                      component&      compo,
-                      io_manager&     cache,
-                      std::span<char> buffer) noexcept
+status json_archiver::component_load(modeling&       mod,
+                                     component&      compo,
+                                     cache_rw&       cache,
+                                     std::span<char> buffer) noexcept
 {
     return parse_component(mod, compo, cache, buffer);
 }
 
 template<typename Writer>
-static void write_constant_sources(io_manager& /*cache*/,
+static void write_constant_sources(cache_rw& /*cache*/,
                                    const external_source& srcs,
                                    Writer&                w) noexcept
 {
@@ -5296,7 +5239,7 @@ static void write_constant_sources(io_manager& /*cache*/,
 }
 
 template<typename Writer>
-static void write_binary_file_sources(io_manager& /*cache*/,
+static void write_binary_file_sources(cache_rw& /*cache*/,
                                       const external_source& srcs,
                                       Writer&                w) noexcept
 {
@@ -5319,7 +5262,7 @@ static void write_binary_file_sources(io_manager& /*cache*/,
 }
 
 template<typename Writer>
-static void write_text_file_sources(io_manager& /*cache*/,
+static void write_text_file_sources(cache_rw& /*cache*/,
                                     const external_source& srcs,
                                     Writer&                w) noexcept
 {
@@ -5340,7 +5283,7 @@ static void write_text_file_sources(io_manager& /*cache*/,
 }
 
 template<typename Writer>
-static void write_random_sources(io_manager& /*cache*/,
+static void write_random_sources(cache_rw& /*cache*/,
                                  const external_source& srcs,
                                  Writer&                w) noexcept
 {
@@ -5635,7 +5578,7 @@ static status write_child(const modeling& mod,
 
 template<typename Writer>
 static status write_generic_component_children(
-  io_manager& /*cache*/,
+  cache_rw& /*cache*/,
   const modeling&          mod,
   const generic_component& simple_compo,
   Writer&                  w) noexcept
@@ -5658,7 +5601,7 @@ static status write_generic_component_children(
 }
 
 template<typename Writer>
-static status write_component_ports(io_manager& /*cache*/,
+static status write_component_ports(cache_rw& /*cache*/,
                                     const modeling&  mod,
                                     const component& compo,
                                     Writer&          w) noexcept
@@ -5892,7 +5835,7 @@ bool write_internal_connection(modeling&        mod,
 }
 
 template<typename Writer>
-static status write_generic_component_connections(io_manager& /*cache*/,
+static status write_generic_component_connections(cache_rw& /*cache*/,
                                                   modeling&          mod,
                                                   generic_component& compo,
                                                   Writer&            w) noexcept
@@ -5919,7 +5862,7 @@ static status write_generic_component_connections(io_manager& /*cache*/,
 }
 
 template<typename Writer>
-static status write_generic_component(io_manager&        cache,
+static status write_generic_component(cache_rw&          cache,
                                       modeling&          mod,
                                       generic_component& s_compo,
                                       Writer&            w) noexcept
@@ -5934,7 +5877,7 @@ static status write_generic_component(io_manager&        cache,
 }
 
 template<typename Writer>
-static status write_grid_component(io_manager& /*cache*/,
+static status write_grid_component(cache_rw& /*cache*/,
                                    const modeling&       mod,
                                    const grid_component& grid,
                                    Writer&               w) noexcept
@@ -6012,7 +5955,7 @@ static status write_graph_component_param(
 }
 
 template<typename Writer>
-static status write_graph_component(io_manager& /*cache*/,
+static status write_graph_component(cache_rw& /*cache*/,
                                     const modeling&        mod,
                                     const graph_component& graph,
                                     Writer&                w) noexcept
@@ -6087,7 +6030,7 @@ static status write_hsm_component(const hierarchical_state_machine& hsm,
     return success();
 }
 template<typename Writer>
-static void write_internal_component(io_manager& /*cache*/,
+static void write_internal_component(cache_rw& /*cache*/,
                                      const modeling& /* mod */,
                                      const internal_component id,
                                      Writer&                  w) noexcept
@@ -6097,10 +6040,10 @@ static void write_internal_component(io_manager& /*cache*/,
 }
 
 template<typename Writer>
-static status do_component_save(Writer&     w,
-                                modeling&   mod,
-                                component&  compo,
-                                io_manager& cache) noexcept
+static status do_component_save(Writer&    w,
+                                modeling&  mod,
+                                component& compo,
+                                cache_rw&  cache) noexcept
 {
     w.StartObject();
 
@@ -6176,30 +6119,29 @@ static status do_component_save(Writer&     w,
     return success();
 }
 
-status component_save(modeling&         mod,
-                      component&        compo,
-                      io_manager&       cache,
-                      const char*       filename,
-                      json_pretty_print print_options) noexcept
+status json_archiver::component_save(modeling&                   mod,
+                                     component&                  compo,
+                                     cache_rw&                   cache,
+                                     const char*                 filename,
+                                     json_archiver::print_option print) noexcept
 {
-    file f{ filename, open_mode::write };
+    auto f = file::make_file(filename, open_mode::write);
+    if (!f)
+        return f.error();
 
-    if (!f.is_open())
-        return new_error(old_status::io_filesystem_error);
-
-    FILE* fp = reinterpret_cast<FILE*>(f.get_handle());
+    FILE* fp = reinterpret_cast<FILE*>(f->get_handle());
     cache.clear();
     cache.buffer.resize(4096);
 
     rapidjson::FileWriteStream os(fp, cache.buffer.data(), cache.buffer.size());
     rapidjson::PrettyWriter<rapidjson::FileWriteStream> w(os);
 
-    switch (print_options) {
-    case json_pretty_print::indent_2:
+    switch (print) {
+    case json_archiver::print_option::indent_2:
         w.SetIndent(' ', 2);
         return do_component_save(w, mod, compo, cache);
 
-    case json_pretty_print::indent_2_one_line_array:
+    case json_archiver::print_option::indent_2_one_line_array:
         w.SetIndent(' ', 2);
         w.SetFormatOptions(rapidjson::kFormatSingleLineArray);
         return do_component_save(w, mod, compo, cache);
@@ -6213,24 +6155,24 @@ status component_save(modeling&         mod,
     return success();
 }
 
-status component_save(modeling&         mod,
-                      component&        compo,
-                      io_manager&       cache,
-                      vector<char>&     out,
-                      json_pretty_print print_options) noexcept
+status json_archiver::component_save(modeling&                   mod,
+                                     component&                  compo,
+                                     cache_rw&                   cache,
+                                     vector<char>&               out,
+                                     json_archiver::print_option print) noexcept
 {
     rapidjson::StringBuffer buffer;
     buffer.Reserve(4096u);
 
-    switch (print_options) {
-    case json_pretty_print::indent_2: {
+    switch (print) {
+    case json_archiver::print_option::indent_2: {
         rapidjson::PrettyWriter<rapidjson::StringBuffer> w(buffer);
         w.SetIndent(' ', 2);
         if (auto ret = do_component_save(w, mod, compo, cache); !ret)
             return ret.error();
     } break;
 
-    case json_pretty_print::indent_2_one_line_array: {
+    case json_archiver::print_option::indent_2_one_line_array: {
         rapidjson::PrettyWriter<rapidjson::StringBuffer> w(buffer);
         w.SetIndent(' ', 2);
         w.SetFormatOptions(rapidjson::kFormatSingleLineArray);
@@ -6347,7 +6289,7 @@ static void write_simulation_connections(const simulation& sim,
 template<typename Writer>
 status do_simulation_save(Writer&           w,
                           const simulation& sim,
-                          io_manager&       cache) noexcept
+                          cache_rw&         cache) noexcept
 {
     w.StartObject();
 
@@ -6366,16 +6308,16 @@ status do_simulation_save(Writer&           w,
     return success();
 }
 
-status simulation_save(const simulation& sim,
-                       io_manager&       cache,
-                       const char*       filename,
-                       json_pretty_print print_options) noexcept
+status json_archiver::simulation_save(const simulation& sim,
+                                      cache_rw&         cache,
+                                      const char*       filename,
+                                      print_option      print_options) noexcept
 {
-    file f{ filename, open_mode::write };
-    if (!f.is_open())
-        return new_error(old_status::io_filesystem_error);
+    auto f = file::make_file(filename, open_mode::write);
+    if (!f)
+        return f.error();
 
-    FILE* fp = reinterpret_cast<FILE*>(f.get_handle());
+    FILE* fp = reinterpret_cast<FILE*>(f->get_handle());
     cache.clear();
     cache.buffer.resize(4096);
 
@@ -6383,11 +6325,11 @@ status simulation_save(const simulation& sim,
     rapidjson::PrettyWriter<rapidjson::FileWriteStream> w(os);
 
     switch (print_options) {
-    case json_pretty_print::indent_2:
+    case print_option::indent_2:
         w.SetIndent(' ', 2);
         return do_simulation_save(w, sim, cache);
 
-    case json_pretty_print::indent_2_one_line_array:
+    case print_option::indent_2_one_line_array:
         w.SetIndent(' ', 2);
         w.SetFormatOptions(rapidjson::kFormatSingleLineArray);
         return do_simulation_save(w, sim, cache);
@@ -6397,16 +6339,16 @@ status simulation_save(const simulation& sim,
     }
 }
 
-status simulation_save(const simulation& sim,
-                       io_manager&       cache,
-                       vector<char>&     out,
-                       json_pretty_print print_options) noexcept
+status json_archiver::simulation_save(const simulation& sim,
+                                      cache_rw&         cache,
+                                      vector<char>&     out,
+                                      print_option      print_options) noexcept
 {
     rapidjson::StringBuffer buffer;
     buffer.Reserve(4096u);
 
     switch (print_options) {
-    case json_pretty_print::indent_2: {
+    case print_option::indent_2: {
         rapidjson::PrettyWriter<rapidjson::StringBuffer> w(buffer);
         w.SetIndent(' ', 2);
         if (auto ret = do_simulation_save(w, sim, cache); !ret)
@@ -6414,7 +6356,7 @@ status simulation_save(const simulation& sim,
         break;
     }
 
-    case json_pretty_print::indent_2_one_line_array: {
+    case print_option::indent_2_one_line_array: {
         rapidjson::PrettyWriter<rapidjson::StringBuffer> w(buffer);
         w.SetIndent(' ', 2);
         w.SetFormatOptions(rapidjson::kFormatSingleLineArray);
@@ -6440,7 +6382,7 @@ status simulation_save(const simulation& sim,
 }
 
 static status parse_json_simulation(simulation&                sim,
-                                    io_manager&                cache,
+                                    cache_rw&                  cache,
                                     const rapidjson::Document& doc) noexcept
 {
     sim.clear();
@@ -6462,14 +6404,14 @@ static status parse_json_simulation(simulation&                sim,
 }
 
 static status parse_simulation(simulation& sim,
-                               io_manager& cache,
-                               const char* filename) noexcept
+                               cache_rw&   cache,
+                               file&       f) noexcept
 {
     rapidjson::Document doc;
 
-    irt_check(read_file_to_buffer(cache, filename));
+    irt_check(read_file_to_buffer(cache, f));
     irt_check(parse_json_data(
-      std::span(cache.buffer.data(), cache.buffer.size()), filename, doc));
+      std::span(cache.buffer.data(), cache.buffer.size()), doc));
 
     irt_check(parse_json_simulation(sim, cache, doc));
 
@@ -6477,27 +6419,27 @@ static status parse_simulation(simulation& sim,
 }
 
 static status parse_simulation(simulation&     sim,
-                               io_manager&     cache,
+                               cache_rw&       cache,
                                std::span<char> buffer) noexcept
 {
     rapidjson::Document doc;
 
-    irt_check(parse_json_data(buffer, nullptr, doc));
+    irt_check(parse_json_data(buffer, doc));
     irt_check(parse_json_simulation(sim, cache, doc));
 
     return success();
 }
 
-status simulation_load(simulation& sim,
-                       io_manager& cache,
-                       const char* filename) noexcept
+status json_archiver::simulation_load(simulation& sim,
+                                      cache_rw&   cache,
+                                      file&       f) noexcept
 {
-    return parse_simulation(sim, cache, filename);
+    return parse_simulation(sim, cache, f);
 }
 
-status simulation_load(simulation&     sim,
-                       io_manager&     cache,
-                       std::span<char> buffer) noexcept
+status json_archiver::simulation_load(simulation&     sim,
+                                      cache_rw&       cache,
+                                      std::span<char> buffer) noexcept
 {
     return parse_simulation(sim, cache, buffer);
 }
@@ -6511,7 +6453,7 @@ status simulation_load(simulation&     sim,
 static status parse_json_project(project&                   pj,
                                  modeling&                  mod,
                                  simulation&                sim,
-                                 io_manager&                cache,
+                                 cache_rw&                  cache,
                                  const rapidjson::Document& doc) noexcept
 {
     pj.clear();
@@ -6532,50 +6474,50 @@ static status parse_json_project(project&                   pj,
     return new_error(old_status::io_filesystem_error);
 }
 
-status parse_project(project&    pj,
-                     modeling&   mod,
-                     simulation& sim,
-                     io_manager& cache,
-                     const char* filename) noexcept
+static status parse_project(project&    pj,
+                            modeling&   mod,
+                            simulation& sim,
+                            cache_rw&   cache,
+                            file&       f) noexcept
 {
     rapidjson::Document doc;
 
-    irt_check(read_file_to_buffer(cache, filename));
+    irt_check(read_file_to_buffer(cache, f));
     irt_check(parse_json_data(
-      std::span(cache.buffer.data(), cache.buffer.size()), filename, doc));
+      std::span(cache.buffer.data(), cache.buffer.size()), doc));
     irt_check(parse_json_project(pj, mod, sim, cache, doc));
 
     return success();
 }
 
-status parse_project(project&        pj,
-                     modeling&       mod,
-                     simulation&     sim,
-                     io_manager&     cache,
-                     std::span<char> buffer) noexcept
+static status parse_project(project&        pj,
+                            modeling&       mod,
+                            simulation&     sim,
+                            cache_rw&       cache,
+                            std::span<char> buffer) noexcept
 {
     rapidjson::Document doc;
 
-    irt_check(parse_json_data(buffer, nullptr, doc));
+    irt_check(parse_json_data(buffer, doc));
     irt_check(parse_json_project(pj, mod, sim, cache, doc));
 
     return success();
 }
 
-status project_load(project&    pj,
-                    modeling&   mod,
-                    simulation& sim,
-                    io_manager& cache,
-                    const char* filename) noexcept
+status json_archiver::project_load(project&    pj,
+                                   modeling&   mod,
+                                   simulation& sim,
+                                   cache_rw&   cache,
+                                   file&       f) noexcept
 {
-    return parse_project(pj, mod, sim, cache, filename);
+    return parse_project(pj, mod, sim, cache, f);
 }
 
-status project_load(project&        pj,
-                    modeling&       mod,
-                    simulation&     sim,
-                    io_manager&     cache,
-                    std::span<char> buffer) noexcept
+status json_archiver::project_load(project&        pj,
+                                   modeling&       mod,
+                                   simulation&     sim,
+                                   cache_rw&       cache,
+                                   std::span<char> buffer) noexcept
 {
     return parse_project(pj, mod, sim, cache, buffer);
 }
@@ -6783,7 +6725,7 @@ static status do_project_save(Writer&    w,
                               project&   pj,
                               modeling&  mod,
                               component& compo,
-                              io_manager& /* cache */) noexcept
+                              cache_rw& /* cache */) noexcept
 {
     auto* reg = mod.registred_paths.try_to_get(compo.reg_path);
     if (!reg)
@@ -6814,13 +6756,15 @@ static status do_project_save(Writer&    w,
     return success();
 }
 
-status project_save(project&  pj,
-                    modeling& mod,
-                    simulation& /* sim */,
-                    io_manager&       cache,
-                    const char*       filename,
-                    json_pretty_print print_options) noexcept
+status json_archiver::project_save(project&  pj,
+                                   modeling& mod,
+                                   simulation& /* sim */,
+                                   cache_rw&    cache,
+                                   file&        io,
+                                   print_option print_options) noexcept
 {
+    irt_assert(io.is_open());
+
     auto* compo  = mod.components.try_to_get(pj.head());
     auto* parent = pj.tn_head();
 
@@ -6828,10 +6772,6 @@ status project_save(project&  pj,
         return new_error(project::error::empty_project);
 
     irt_assert(mod.components.get_id(compo) == parent->id);
-
-    file f{ filename, open_mode::write };
-    if (!f.is_open())
-        return new_error(project::error::file_error);
 
     auto* reg = mod.registred_paths.try_to_get(compo->reg_path);
     if (!reg)
@@ -6845,7 +6785,7 @@ status project_save(project&  pj,
     if (!file)
         return new_error(project::error::file_access_error);
 
-    auto* fp = reinterpret_cast<FILE*>(f.get_handle());
+    auto* fp = reinterpret_cast<FILE*>(io.get_handle());
     cache.clear();
     cache.buffer.resize(4096);
 
@@ -6853,12 +6793,12 @@ status project_save(project&  pj,
     rapidjson::PrettyWriter<rapidjson::FileWriteStream> w(os);
 
     switch (print_options) {
-    case json_pretty_print::indent_2:
+    case print_option::indent_2:
         w.SetIndent(' ', 2);
         irt_check(do_project_save(w, pj, mod, *compo, cache));
         break;
 
-    case json_pretty_print::indent_2_one_line_array:
+    case print_option::indent_2_one_line_array:
         w.SetIndent(' ', 2);
         w.SetFormatOptions(rapidjson::kFormatSingleLineArray);
         irt_check(do_project_save(w, pj, mod, *compo, cache));
@@ -6872,12 +6812,12 @@ status project_save(project&  pj,
     return success();
 }
 
-status project_save(project&  pj,
-                    modeling& mod,
-                    simulation& /* sim */,
-                    io_manager&       cache,
-                    vector<char>&     out,
-                    json_pretty_print print_options) noexcept
+status json_archiver::project_save(project&  pj,
+                                   modeling& mod,
+                                   simulation& /* sim */,
+                                   cache_rw&     cache,
+                                   vector<char>& out,
+                                   print_option  print_options) noexcept
 {
     auto* compo  = mod.components.try_to_get(pj.head());
     auto* parent = pj.tn_head();
@@ -6891,13 +6831,13 @@ status project_save(project&  pj,
     buffer.Reserve(4096u);
 
     switch (print_options) {
-    case json_pretty_print::indent_2: {
+    case print_option::indent_2: {
         rapidjson::PrettyWriter<rapidjson::StringBuffer> w(buffer);
         w.SetIndent(' ', 2);
         irt_check(do_project_save(w, pj, mod, *compo, cache));
     } break;
 
-    case json_pretty_print::indent_2_one_line_array: {
+    case print_option::indent_2_one_line_array: {
         rapidjson::PrettyWriter<rapidjson::StringBuffer> w(buffer);
         w.SetIndent(' ', 2);
         w.SetFormatOptions(rapidjson::kFormatSingleLineArray);

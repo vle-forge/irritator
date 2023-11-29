@@ -68,15 +68,9 @@ enum class grid_editor_data_id : u32;
 enum class graph_editor_data_id : u32;
 enum class generic_editor_data_id : u32;
 
-enum class task_status
-{
-    not_started,
-    started,
-    finished
-};
+enum class task_status { not_started, started, finished };
 
-enum class simulation_status
-{
+enum class simulation_status {
     not_started,
     initializing,
     initialized,
@@ -90,19 +84,13 @@ enum class simulation_status
     debugged,
 };
 
-enum class simulation_plot_type
-{
-    none,
-    plotlines,
-    plotscatters
-};
+enum class simulation_plot_type { none, plotlines, plotscatters };
 
 void show_menu_external_sources(external_source& srcs,
                                 const char*      title,
                                 source&          src) noexcept;
 
-struct notification
-{
+struct notification {
     static inline constexpr int title_length   = 127;
     static inline constexpr int message_length = 510;
 
@@ -253,8 +241,7 @@ public:
 
 /// Use to display a grid_observation_system into ImGui widget. An instance of
 /// this class is available in @c application::simulation_editor::grid_obs.
-struct grid_observation_widget
-{
+struct grid_observation_widget {
     /// Display the @c grid_observation_system into ImPlot::PlotHeatmap plot.
     void show(grid_simulation_observer& grid) noexcept;
 };
@@ -276,15 +263,13 @@ inline ImPlotPoint ring_buffer_getter(int idx, void* data)
     return ImPlotPoint{ (*ring)[index].x, (*ring)[index].y };
 };
 
-struct plot_copy
-{
+struct plot_copy {
     small_string<16u>        name;
     ring_buffer<observation> linear_outputs;
     simulation_plot_type     plot_type = simulation_plot_type::none;
 };
 
-struct plot_copy_widget
-{
+struct plot_copy_widget {
     /** Display all plot_copy data into a ImPlot widget. */
     void show(const char* name) noexcept;
 
@@ -303,8 +288,7 @@ void task_simulation_model_del(void* param) noexcept;
 void task_simulation_back(void* param) noexcept;
 void task_simulation_advance(void* param) noexcept;
 
-struct gui_task
-{
+struct gui_task {
     u64          param_1 = 0;
     u64          param_2 = 0;
     void*        param_3 = nullptr;
@@ -312,8 +296,7 @@ struct gui_task
     task_status  state   = task_status::not_started;
 };
 
-struct simulation_task
-{
+struct simulation_task {
     u64          param_1 = 0;
     u64          param_2 = 0;
     u64          param_3 = 0;
@@ -321,8 +304,7 @@ struct simulation_task
     task_status  state   = task_status::not_started;
 };
 
-struct output_editor
-{
+struct output_editor {
     constexpr static inline const char* name = "Output";
 
     output_editor() noexcept;
@@ -346,21 +328,9 @@ public:
     constexpr static inline auto max_number_of_state =
       hierarchical_state_machine::max_number_of_state;
 
-    enum class state
-    {
-        show,
-        ok,
-        cancel,
-        hide
-    };
+    enum class state { show, ok, cancel, hide };
 
-    enum class test_status
-    {
-        none,
-        being_processed,
-        done,
-        failed
-    };
+    enum class test_status { none, being_processed, done, failed };
 
     hsm_editor() noexcept;
     ~hsm_editor() noexcept;
@@ -457,8 +427,7 @@ private:
     component_id m_id = undefined<component_id>();
 };
 
-struct generic_component_editor_data
-{
+struct generic_component_editor_data {
     generic_component_editor_data(const component_id id_) noexcept;
     ~generic_component_editor_data() noexcept;
 
@@ -488,8 +457,7 @@ private:
     component_id m_id = undefined<component_id>();
 };
 
-struct grid_simulation_editor
-{
+struct grid_simulation_editor {
     ImVec2            show_position{ 0.f, 0.f };
     ImVec2            disp{ 1000.f, 1000.f };
     float             scale           = 10.f;
@@ -519,8 +487,7 @@ struct grid_simulation_editor
                            grid_component& grid) noexcept;
 };
 
-struct graph_simulation_editor
-{
+struct graph_simulation_editor {
     ImVec2             show_position{ 0.f, 0.f };
     ImVec2             disp{ 1000.f, 1000.f };
     float              scale           = 10.f;
@@ -550,8 +517,7 @@ struct graph_simulation_editor
                            graph_component& graph) noexcept;
 };
 
-struct grid_editor_dialog
-{
+struct grid_editor_dialog {
     constexpr static inline const char* name = "Grid generator";
 
     grid_editor_dialog() noexcept;
@@ -567,8 +533,7 @@ struct grid_editor_dialog
     void show() noexcept;
 };
 
-struct graph_editor_dialog
-{
+struct graph_editor_dialog {
     constexpr static inline const char* name = "Graph generator";
 
     graph_editor_dialog() noexcept;
@@ -584,15 +549,10 @@ struct graph_editor_dialog
     void show() noexcept;
 };
 
-struct simulation_editor
-{
+struct simulation_editor {
     constexpr static inline const char* name = "Simulation editor";
 
-    enum class visualization_mode
-    {
-        flat,
-        tree
-    };
+    enum class visualization_mode { flat, tree };
 
     //! 0.1s between each run thread task.
     static constexpr i64 thread_frame_duration = 100000;
@@ -679,8 +639,7 @@ struct simulation_editor
     int              automatic_layout_iteration = 0;
     ImVector<ImVec2> displacements;
 
-    struct model_to_move
-    {
+    struct model_to_move {
         model_id id;
         ImVec2   position;
     };
@@ -688,8 +647,7 @@ struct simulation_editor
     thread_safe_ring_buffer<model_to_move, 8> models_to_move;
 };
 
-struct data_window
-{
+struct data_window {
     constexpr static inline const char* name = "Data";
 
     data_window() noexcept;
@@ -712,8 +670,7 @@ struct data_window
     bool is_open          = true;
 };
 
-struct component_editor
-{
+struct component_editor {
     constexpr static inline const char* name = "Component editor";
 
     void show() noexcept;
@@ -732,8 +689,7 @@ private:
     component_id m_request_to_open = undefined<component_id>();
 };
 
-struct library_window
-{
+struct library_window {
     constexpr static inline const char* name = "Library";
 
     library_window() noexcept = default;
@@ -787,8 +743,7 @@ private:
     child_id     m_selected_child     = undefined<child_id>();
 };
 
-struct settings_window
-{
+struct settings_window {
     constexpr static inline const char* name = "Settings";
 
     settings_window() noexcept = default;
@@ -819,8 +774,7 @@ struct settings_window
     bool is_open = false;
 };
 
-struct task_window
-{
+struct task_window {
     constexpr static inline const char* name = "Tasks";
 
     task_window() noexcept = default;
@@ -831,8 +785,7 @@ struct task_window
     bool is_open = false;
 };
 
-struct memory_window
-{
+struct memory_window {
     constexpr static inline const char* name = "Memory usage";
 
     memory_window() noexcept = default;
@@ -933,8 +886,7 @@ private:
                                    model_id&     mdl_id) noexcept;
 };
 
-struct application
-{
+struct application {
     application() noexcept;
     ~application() noexcept;
 
@@ -982,7 +934,7 @@ struct application
 
     modeling_initializer mod_init;
 
-    io_manager cache;
+    cache_rw cache;
 
     notification_manager notifications;
 

@@ -34,16 +34,21 @@ struct e_file_name {
     std::string value;
 };
 
+struct e_json {
+    long long unsigned int offset;
+    std::string_view       error_code;
+};
+
 struct e_ulong_id {
-    long unsigned int value;
+    long long unsigned int value;
 };
 
 struct e_2_ulong_id {
-    long unsigned int value[2];
+    long long unsigned int value[2];
 };
 
 struct e_3_ulong_id {
-    long unsigned int value[3];
+    long long unsigned int value[3];
 };
 
 /**

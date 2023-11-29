@@ -743,6 +743,8 @@ public:
     constexpr std::string_view   sv() const noexcept;
     constexpr std::u8string_view u8sv() const noexcept;
     constexpr const char*        c_str() const noexcept;
+    constexpr char*              data() noexcept;
+    constexpr const char*        data() const noexcept;
 
     constexpr iterator       begin() noexcept;
     constexpr iterator       end() noexcept;
@@ -6492,10 +6494,11 @@ struct dynamic_queue {
         sigma = time_domain<time>::infinity;
         fifo  = static_cast<u64>(-1);
 
-        if (stop_on_error)
+        if (stop_on_error) {
             irt_check(initialize_source(sim, default_source_ta));
-        else
+        } else {
             (void)initialize_source(sim, default_source_ta);
+        }
 
         return success();
     }
@@ -6610,10 +6613,11 @@ private:
 public:
     status initialize(simulation& sim) noexcept
     {
-        if (stop_on_error)
+        if (stop_on_error) {
             irt_check(initialize_source(sim, default_source_ta));
-        else
+        } else {
             (void)initialize_source(sim, default_source_ta);
+        }
 
         sigma = time_domain<time>::infinity;
         fifo  = static_cast<u64>(-1);
@@ -9869,6 +9873,17 @@ small_string<length>::operator[](std::integral auto index) const noexcept
 
 template<int length>
 inline constexpr const char* small_string<length>::c_str() const noexcept
+{
+    return m_buffer;
+}
+
+template<int length>
+inline constexpr char* small_string<length>::data() noexcept
+{
+    return m_buffer;
+}
+template<int length>
+inline constexpr const char* small_string<length>::data() const noexcept
 {
     return m_buffer;
 }

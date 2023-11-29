@@ -26,13 +26,7 @@ constexpr ImGuiWindowFlags notification_flags =
   ImGuiWindowFlags_NoInputs | ImGuiWindowFlags_NoNav |
   ImGuiWindowFlags_NoFocusOnAppearing;
 
-enum class notification_state
-{
-    fadein,
-    wait,
-    fadeout,
-    expired
-};
+enum class notification_state { fadein, wait, fadeout, expired };
 
 static inline const ImVec4 notification_text_color[] = {
     { 0.46f, 0.59f, 0.78f, 1.f }, { 0.46f, 0.59f, 0.78f, 1.f },
@@ -110,19 +104,27 @@ static float get_fade_percent(const notification& n) noexcept
 notification::notification() noexcept
   : creation_time(get_tick_count_in_milliseconds())
   , level(log_level::info)
-{
-}
+{}
 
 notification::notification(log_level level_) noexcept
   : creation_time(get_tick_count_in_milliseconds())
   , level(level_)
-{
-}
+{}
 
 notification_manager::notification_manager() noexcept
   : r_buffer(notification_number)
 {
-    data.init(notification_number);
+    auto nb = notification_number;
+
+    for (;;) {
+        if (auto ret = data.init(nb); ret)
+            break;
+
+        nb = nb / 2;
+
+        if (nb == 0)
+            break;
+    }
 }
 
 notification& notification_manager::alloc() noexcept

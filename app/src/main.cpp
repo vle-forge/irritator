@@ -13,16 +13,9 @@
 #include <cstdio>
 #include <string_view>
 
-enum action_type
-{
-    action_nothing,
-    action_help,
-    action_run,
-    action_version
-};
+enum action_type { action_nothing, action_help, action_run, action_version };
 
-enum status_type
-{
+enum status_type {
     status_success,
     status_unknown_action,
     status_missing_run_arguments,
@@ -32,8 +25,7 @@ enum status_type
     status_bad_messages_argument
 };
 
-struct main_action
-{
+struct main_action {
     main_action(action_type      type_,
                 std::string_view short_string_,
                 std::string_view long_string_,
@@ -75,8 +67,7 @@ void run_simulation(irt::real   begin,
                     int         messages,
                     const char* file_name) noexcept;
 
-struct main_parameters
-{
+struct main_parameters {
     irt::real   begin    = irt::zero;
     irt::real   duration = irt::one;
     int         models   = 2048;
@@ -135,8 +126,7 @@ main_action::main_action(action_type      type_,
   , short_string(short_string_)
   , long_string(long_string_)
   , argument(argument_)
-{
-}
+{}
 
 bool main_action::operator<(const std::string_view other) const noexcept
 {
@@ -274,13 +264,13 @@ void run_simulation(irt::real   begin,
           irt::modeling             mod;
           irt::simulation           sim;
           irt::external_source      srcs;
-          irt::io_manager           cache;
+          irt::cache_rw             cache;
 
           irt_check(pj.init(init));
           irt_check(mod.init(init));
           irt_check(sim.init(models, messages));
           irt_check(srcs.init(64u));
-          irt_check(irt::project_load(pj, mod, sim, cache, file_name));
+          irt_check(pj.load(mod, sim, cache, file_name));
 
           irt::time       t   = begin;
           const irt::time end = begin + duration;

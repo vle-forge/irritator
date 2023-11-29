@@ -56,28 +56,21 @@ using unique_id_path = small_vector<u64, max_component_stack_size>;
 ///    const auto rel_path = project.build_relative_path(tn, mdl);
 ///    ...
 ///    const auto [tn_id, mdl_id] = project.get_model(rel_path);
-struct relative_id_path
-{
+struct relative_id_path {
     tree_node_id   tn;
     unique_id_path ids;
 };
 
-enum class child_type : i8
-{
-    model,
-    component
-};
+enum class child_type : i8 { model, component };
 
-enum class description_status
-{
+enum class description_status {
     unread,
     read_only,
     modified,
     unmodified,
 };
 
-enum class internal_component
-{
+enum class internal_component {
     qss1_izhikevich,
     qss1_lif,
     qss1_lotka_volterra,
@@ -101,8 +94,7 @@ enum class internal_component
 constexpr int internal_component_count =
   ordinal(internal_component::qss3_van_der_pol) + 1;
 
-enum class component_type
-{
+enum class component_type {
     none,     ///< The component does not reference any container.
     internal, ///< The component reference a c++ code.
     simple,   ///< A classic component-model graph coupling.
@@ -111,8 +103,7 @@ enum class component_type
     hsm       ///< HSM component
 };
 
-enum class component_status
-{
+enum class component_status {
     unread,     ///< The component is not read (It is referenced by another
                 ///< component).
     read_only,  ///< The component file is in read-only.
@@ -121,14 +112,9 @@ enum class component_status
     unreadable  ///< When an error occurred during load-component.
 };
 
-enum class modeling_status
-{
-    modified,
-    unmodified
-};
+enum class modeling_status { modified, unmodified };
 
-enum class observable_type
-{
+enum class observable_type {
     none,
     file,
     plot,
@@ -143,7 +129,7 @@ struct child;
 struct generic_component;
 struct modeling;
 struct description;
-struct io_manager;
+struct cache_rw;
 struct tree_node;
 struct variable_observer;
 struct grid_modeling_observer;
@@ -154,8 +140,7 @@ struct graph_modeling_observer;
 /// - @c string_buffer is used when reading string.
 /// - @c stack is used when parsing project file.
 /// - other variable are used to link file identifier with new identifier.
-struct io_manager
-{
+struct cache_rw {
     vector<char> buffer;
     vector<i32>  stack;
 
@@ -183,28 +168,24 @@ struct io_manager
 /// @c file_path but with the extension ".txt".
 ///
 /// @note  The size of the buffer is static for now
-struct description
-{
+struct description {
     description_str    data;
     description_status status = description_status::unread;
 };
 
-enum class child_flags : u32
-{
+enum class child_flags : u32 {
     none         = 0b0000,
     configurable = 0b0001,
     observable   = 0b0010,
     both         = 0b0011,
 };
 
-struct child
-{
+struct child {
     child() noexcept;
     child(dynamics_type type) noexcept;
     child(component_id component) noexcept;
 
-    union
-    {
+    union {
         dynamics_type mdl_type;
         component_id  compo_id;
     } id;
@@ -219,14 +200,12 @@ struct child
     std::bitset<4> flags{ ordinal(child_flags::none) };
 };
 
-struct child_position
-{
+struct child_position {
     float x = 0.f;
     float y = 0.f;
 };
 
-struct connection
-{
+struct connection {
     connection(child_id src, port_id p_src, child_id dst, port_id p_dst);
     connection(child_id src, port_id p_src, child_id dst, int p_dst);
     connection(child_id src, int p_src, child_id dst, port_id p_dst);
@@ -238,46 +217,35 @@ struct connection
     connection(child_id src, port_id p_src, port_id p_dst);
     connection(child_id src, int p_src, port_id p_dst);
 
-    enum class connection_type : i8
-    {
-        internal,
-        input,
-        output
-    };
+    enum class connection_type : i8 { internal, input, output };
 
-    union port
-    {
+    union port {
         port(const port_id compo_) noexcept
           : compo(compo_)
-        {
-        }
+        {}
 
         port(const int model_) noexcept
           : model(model_)
-        {
-        }
+        {}
 
         port_id compo;
         int     model;
     };
 
-    struct internal_t
-    {
+    struct internal_t {
         child_id src;
         child_id dst;
         port     index_src;
         port     index_dst;
     };
 
-    struct input_t
-    {
+    struct input_t {
         child_id dst;
         port_id  index;
         port     index_dst;
     };
 
-    struct output_t
-    {
+    struct output_t {
         child_id src;
         port_id  index;
         port     index_src;
@@ -285,8 +253,7 @@ struct connection
 
     connection_type type;
 
-    union
-    {
+    union {
         internal_t internal;
         input_t    input;
         output_t   output;
@@ -300,13 +267,11 @@ struct connection
 /// hierarchical_state_machine is copied into the simulation HSM data array. The
 /// parameter @c a and @c b are store into the @c children_parameters of the @c
 /// generic_component.
-struct hsm_component
-{
+struct hsm_component {
     hierarchical_state_machine machine;
 };
 
-struct generic_component
-{
+struct generic_component {
     vector<child_id>      children;
     vector<connection_id> connections;
 
@@ -318,30 +283,21 @@ struct generic_component
     u64 make_next_unique_id() const noexcept { return next_unique_id++; }
 };
 
-struct grid_component
-{
+struct grid_component {
     static inline constexpr i32 row_max    = 1024;
     static inline constexpr i32 column_max = 1024;
 
     i32 row    = 1;
     i32 column = 1;
 
-    enum class options : i8
-    {
-        none = 0,
-        row_cylinder,
-        column_cylinder,
-        torus
-    };
+    enum class options : i8 { none = 0, row_cylinder, column_cylinder, torus };
 
-    enum class type : i8
-    {
+    enum class type : i8 {
         number, ///< Only one port for all neighbor.
         name    ///< One, two, three or four ports according to neighbor.
     };
 
-    enum class neighborhood : i8
-    {
+    enum class neighborhood : i8 {
         four,
         eight,
     };
@@ -415,37 +371,27 @@ struct grid_component
 /// - small_world: consists of a ring graph (where each vertex is connected to
 ///   its k nearest neighbors). Edges in the graph are randomly rewired to
 ///   different vertices with a probability p.
-struct graph_component
-{
+struct graph_component {
     static inline constexpr i32 children_max = 4096;
 
-    enum class graph_type
-    {
-        dot_file,
-        scale_free,
-        small_world
-    };
+    enum class graph_type { dot_file, scale_free, small_world };
 
-    enum class connection_type : i8
-    {
+    enum class connection_type : i8 {
         number, ///< Only one port for all neighbor.
         name    ///< One, two, three or four ports according to neighbor.
     };
 
-    struct dot_file_param
-    {
+    struct dot_file_param {
         dir_path_id  dir  = undefined<dir_path_id>();
         file_path_id file = undefined<file_path_id>();
     };
 
-    struct scale_free_param
-    {
+    struct scale_free_param {
         double alpha = 2.5;
         double beta  = 1.e3;
     };
 
-    struct small_world_param
-    {
+    struct small_world_param {
         double probability = 3e-2;
         i32    k           = 6;
     };
@@ -479,22 +425,19 @@ struct graph_component
 using color           = u32;
 using component_color = std::array<float, 4>;
 
-struct port
-{
+struct port {
     port() noexcept = default;
 
     port(const std::string_view name_, const component_id parent_) noexcept
       : name{ name_ }
       , parent{ parent_ }
-    {
-    }
+    {}
 
     port_str     name;
     component_id parent;
 };
 
-struct component
-{
+struct component {
     static inline constexpr int port_number = 8;
 
     component() noexcept = default;
@@ -510,8 +453,7 @@ struct component
     file_path_id      file     = file_path_id{ 0 };
     name_str          name;
 
-    union id
-    {
+    union id {
         internal_component   internal_id;
         generic_component_id generic_id;
         grid_component_id    grid_id;
@@ -523,10 +465,8 @@ struct component
     component_status state = component_status::unread;
 };
 
-struct registred_path
-{
-    enum class state
-    {
+struct registred_path {
+    enum class state {
         none,
         read,
         unread,
@@ -544,10 +484,8 @@ struct registred_path
     vector<dir_path_id> children;
 };
 
-struct dir_path
-{
-    enum class state
-    {
+struct dir_path {
+    enum class state {
         none,
         read,
         unread,
@@ -563,8 +501,7 @@ struct dir_path
     vector<file_path_id> children;
 };
 
-struct file_path
-{
+struct file_path {
     /// use to store a file name in utf8.
     file_path_str path;
 
@@ -572,8 +509,7 @@ struct file_path
     component_id component{ 0 };
 };
 
-struct modeling_initializer
-{
+struct modeling_initializer {
     i32 model_capacity              = 1024 * 1024;
     i32 tree_capacity               = 1024;
     i32 parameter_capacity          = 128 * 128;
@@ -653,8 +589,7 @@ public:
     grid_modeling_observer_id id = undefined<grid_modeling_observer_id>();
 };
 
-struct tree_node
-{
+struct tree_node {
     tree_node(component_id id_, u64 unique_id_) noexcept;
 
     /// Intrusive hierarchy to the children, sibling and parent @c tree_node.
@@ -725,8 +660,7 @@ struct tree_node
         return 0;
     }
 
-    union node
-    {
+    union node {
         node() noexcept = default;
         node(tree_node* tn_) noexcept;
         node(model* mdl_) noexcept;
@@ -741,8 +675,7 @@ struct tree_node
     table<child_id, node> child_to_node;
 };
 
-struct parameter
-{
+struct parameter {
     std::array<real, 4> reals;
     std::array<i64, 4>  integers;
 
@@ -755,8 +688,7 @@ struct parameter
     void clear() noexcept;
 };
 
-struct grid_modeling_observer
-{
+struct grid_modeling_observer {
     name_str name;
 
     tree_node_id parent_id; ///< @c tree_node identifier ancestor of the model
@@ -770,8 +702,7 @@ struct grid_modeling_observer
     i32   color_map = 0;
 };
 
-struct graph_modeling_observer
-{
+struct graph_modeling_observer {
     name_str name;
 
     tree_node_id parent_id; ///< @c tree_node identifier ancestor of the model.
@@ -780,8 +711,7 @@ struct graph_modeling_observer
     tree_node_id tn_id;     //< @c tree_node identifier parent of the model.
     model_id     mdl_id;    //< @c model to observe.
 };
-struct variable_observer
-{
+struct variable_observer {
     name_str name;
 
     tree_node_id tn_id;  //< @c tree_node identifier parent of the model.
@@ -789,15 +719,13 @@ struct variable_observer
 
     color default_color;
 
-    enum class type_options
-    {
+    enum class type_options {
         line,
         dash,
     } type = type_options::line;
 };
 
-struct global_parameter
-{
+struct global_parameter {
     name_str name;
 
     tree_node_id tn_id;  //< @c tree_node identifier parent of the model.
@@ -806,16 +734,13 @@ struct global_parameter
     parameter param;
 };
 
-struct log_entry
-{
+struct log_entry {
     log_str   buffer;
     log_level level;
 };
 
-struct modeling
-{
-    enum error
-    {
+struct modeling {
+    enum error {
         not_enough_memory,
         unknown_type_constant,
         unknown_source_type,
@@ -828,6 +753,14 @@ struct modeling
         directory_access_error,
         file_access_error,
     };
+
+    //! Component registered, directory of file paths are undefined. A @c
+    //! e_ulong_id with component_id can be add.
+    struct component_path_error {};
+
+    //!< When access to a component file failed. A @c e_file_name object can be
+    //!< add.
+    struct component_file_error {};
 
     data_array<description, description_id>             descriptions;
     data_array<generic_component, generic_component_id> generic_components;
@@ -1015,8 +948,7 @@ struct modeling
 class project
 {
 public:
-    enum error
-    {
+    enum error {
         not_enough_memory,
         unknown_source,
         impossible_connection,
@@ -1042,12 +974,12 @@ public:
 
     status load(modeling&   mod,
                 simulation& sim,
-                io_manager& cache,
+                cache_rw&   cache,
                 const char* filename) noexcept;
 
     status save(modeling&   mod,
                 simulation& sim,
-                io_manager& cache,
+                cache_rw&   cache,
                 const char* filename) noexcept;
 
     /// Assign a new @c component head. The previously allocated tree_node
@@ -1092,8 +1024,7 @@ public:
     /// Used to cache memory allocation when user import a model into
     /// simulation. The memory cached can be reused using clear but memory
     /// cached can be completely free using the @c destroy_cache function.
-    struct cache
-    {
+    struct cache {
         vector<tree_node*>             stack;
         vector<std::pair<model*, int>> inputs;
         vector<std::pair<model*, int>> outputs;
@@ -1245,36 +1176,30 @@ inline connection::connection(child_id src, int p_src, port_id p_dst)
 inline child::child() noexcept
   : id{ .mdl_type = dynamics_type::constant }
   , type{ child_type::model }
-{
-}
+{}
 
 inline child::child(dynamics_type type) noexcept
   : id{ .mdl_type = type }
   , type{ child_type::model }
-{
-}
+{}
 
 inline child::child(component_id component) noexcept
   : id{ .compo_id = component }
   , type{ child_type::component }
-{
-}
+{}
 
 inline tree_node::tree_node(component_id id_, u64 unique_id_) noexcept
   : id(id_)
   , unique_id(unique_id_)
-{
-}
+{}
 
 inline tree_node::node::node(tree_node* tn_) noexcept
   : tn(tn_)
-{
-}
+{}
 
 inline tree_node::node::node(model* mdl_) noexcept
   : mdl(mdl_)
-{
-}
+{}
 
 /*
    Project part

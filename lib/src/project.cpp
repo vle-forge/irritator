@@ -17,8 +17,7 @@
 
 namespace irt {
 
-struct simulation_copy
-{
+struct simulation_copy {
     simulation_copy(project::cache&                      cache_,
                     modeling&                            mod_,
                     simulation&                          sim_,
@@ -27,8 +26,7 @@ struct simulation_copy
       , mod(mod_)
       , sim(sim_)
       , tree_nodes(tree_nodes_)
-    {
-    }
+    {}
 
     project::cache& cache;
     modeling&       mod;
@@ -1243,18 +1241,28 @@ void project::clean_simulation() noexcept
 
 status project::load(modeling&   mod,
                      simulation& sim,
-                     io_manager& cache,
+                     cache_rw&   cache,
                      const char* filename) noexcept
 {
-    return project_load(*this, mod, sim, cache, filename);
+    if (auto file = file::make_file(filename, open_mode::read); !file) {
+        return file.error();
+    } else {
+        json_archiver j;
+        return j.project_load(*this, mod, sim, cache, *file);
+    }
 }
 
 status project::save(modeling&   mod,
                      simulation& sim,
-                     io_manager& cache,
+                     cache_rw&   cache,
                      const char* filename) noexcept
 {
-    return project_save(*this, mod, sim, cache, filename);
+    if (auto file = file::make_file(filename, open_mode::write); !file) {
+        return file.error();
+    } else {
+        json_archiver j;
+        return j.project_save(*this, mod, sim, cache, *file);
+    }
 }
 
 static void project_build_unique_id_path(const u64       model_unique_id,
