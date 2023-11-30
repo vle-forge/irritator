@@ -469,12 +469,6 @@ static bool buffer_reserve(std::integral auto len, vector<T>& vec) noexcept
     return true;
 }
 
-static bool buffer_resive(u64 len, vector<char>& vec) noexcept
-{
-    vec.resize(len);
-    return true;
-}
-
 struct reader {
     template<typename Function, typename... Args>
     bool for_each_array(const rapidjson::Value& array,

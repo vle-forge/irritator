@@ -4,16 +4,6 @@
 
 #include <irritator/error.hpp>
 
-namespace boost {
-
-void throw_exception(std::exception const& e) noexcept
-{
-    std::puts(e.what());
-    std::puts("\n");
-}
-
-} // namespace boost
-
 namespace irt {
 
 void on_error_breakpoint(void) noexcept
