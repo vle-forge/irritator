@@ -395,8 +395,7 @@ grid_component_editor_data::grid_component_editor_data(
   const grid_component_id grid_id_) noexcept
   : grid_id(grid_id_)
   , m_id(id_)
-{
-}
+{}
 
 void grid_component_editor_data::clear() noexcept
 {
@@ -440,8 +439,7 @@ void grid_component_editor_data::show(component_editor& ed) noexcept
 
 void grid_component_editor_data::show_selected_nodes(
   component_editor& /*ed*/) noexcept
-{
-}
+{}
 
 grid_editor_dialog::grid_editor_dialog() noexcept
 {
@@ -461,7 +459,11 @@ void grid_editor_dialog::save() noexcept
 {
     irt_assert(app && compo);
 
-    app->mod.copy(grid, *compo);
+    if (auto ret = app->mod.copy(grid, *compo); !ret) {
+        auto& n = app->notifications.alloc();
+        n.title = "Fail to save grid";
+        app->notifications.enable(n);
+    }
 }
 
 void grid_editor_dialog::show() noexcept
