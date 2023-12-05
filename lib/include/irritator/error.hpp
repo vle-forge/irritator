@@ -15,7 +15,7 @@
 namespace irt {
 
 template<typename T, T... value>
-using match2 = boost::leaf::match<T, value...>;
+using match = boost::leaf::match<T, value...>;
 
 template<class T>
 using result = boost::leaf::result<T>;
