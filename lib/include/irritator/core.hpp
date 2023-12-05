@@ -399,13 +399,13 @@ enum class log_level {
  ****************************************************************************/
 
 template<typename T, typename... Args>
-constexpr bool match(const T& s, Args... args) noexcept
+constexpr bool any_equal(const T& s, Args... args) noexcept
 {
     return ((s == args) || ... || false);
 }
 
 template<class T, class... Rest>
-constexpr bool are_all_same() noexcept
+constexpr bool all_same_type() noexcept
 {
     return (std::is_same_v<T, Rest> && ...);
 }
@@ -7137,12 +7137,12 @@ inline bool is_ports_compatible(const dynamics_type mdl_src,
               static_cast<int>(integrator::port_name::port_quanta))
             return false;
 
-        if (match(mdl_dst,
-                  dynamics_type::logical_and_2,
-                  dynamics_type::logical_and_3,
-                  dynamics_type::logical_or_2,
-                  dynamics_type::logical_or_3,
-                  dynamics_type::logical_invert))
+        if (any_equal(mdl_dst,
+                      dynamics_type::logical_and_2,
+                      dynamics_type::logical_and_3,
+                      dynamics_type::logical_or_2,
+                      dynamics_type::logical_or_3,
+                      dynamics_type::logical_invert))
             return false;
         return true;
 
@@ -7154,41 +7154,41 @@ inline bool is_ports_compatible(const dynamics_type mdl_src,
     case dynamics_type::qss3_cross:
     case dynamics_type::qss1_cross:
         if (o_port_index == 2) {
-            return match(mdl_dst,
-                         dynamics_type::counter,
-                         dynamics_type::logical_and_2,
-                         dynamics_type::logical_and_3,
-                         dynamics_type::logical_or_2,
-                         dynamics_type::logical_or_3,
-                         dynamics_type::logical_invert);
+            return any_equal(mdl_dst,
+                             dynamics_type::counter,
+                             dynamics_type::logical_and_2,
+                             dynamics_type::logical_and_3,
+                             dynamics_type::logical_or_2,
+                             dynamics_type::logical_or_3,
+                             dynamics_type::logical_invert);
         } else {
-            return !match(mdl_dst,
-                          dynamics_type::logical_and_2,
-                          dynamics_type::logical_and_3,
-                          dynamics_type::logical_or_2,
-                          dynamics_type::logical_or_3,
-                          dynamics_type::logical_invert);
+            return !any_equal(mdl_dst,
+                              dynamics_type::logical_and_2,
+                              dynamics_type::logical_and_3,
+                              dynamics_type::logical_or_2,
+                              dynamics_type::logical_or_3,
+                              dynamics_type::logical_invert);
         }
         return true;
 
     case dynamics_type::qss2_filter:
     case dynamics_type::qss3_filter:
     case dynamics_type::qss1_filter:
-        if (match(o_port_index, 1, 2)) {
-            return match(mdl_dst,
-                         dynamics_type::counter,
-                         dynamics_type::logical_and_2,
-                         dynamics_type::logical_and_3,
-                         dynamics_type::logical_or_2,
-                         dynamics_type::logical_or_3,
-                         dynamics_type::logical_invert);
+        if (any_equal(o_port_index, 1, 2)) {
+            return any_equal(mdl_dst,
+                             dynamics_type::counter,
+                             dynamics_type::logical_and_2,
+                             dynamics_type::logical_and_3,
+                             dynamics_type::logical_or_2,
+                             dynamics_type::logical_or_3,
+                             dynamics_type::logical_invert);
         } else {
-            return !match(mdl_dst,
-                          dynamics_type::logical_and_2,
-                          dynamics_type::logical_and_3,
-                          dynamics_type::logical_or_2,
-                          dynamics_type::logical_or_3,
-                          dynamics_type::logical_invert);
+            return !any_equal(mdl_dst,
+                              dynamics_type::logical_and_2,
+                              dynamics_type::logical_and_3,
+                              dynamics_type::logical_or_2,
+                              dynamics_type::logical_or_3,
+                              dynamics_type::logical_invert);
         }
         return true;
 
@@ -7197,13 +7197,13 @@ inline bool is_ports_compatible(const dynamics_type mdl_src,
     case dynamics_type::logical_or_2:
     case dynamics_type::logical_or_3:
     case dynamics_type::logical_invert:
-        if (match(mdl_dst,
-                  dynamics_type::counter,
-                  dynamics_type::logical_and_2,
-                  dynamics_type::logical_and_3,
-                  dynamics_type::logical_or_2,
-                  dynamics_type::logical_or_3,
-                  dynamics_type::logical_invert))
+        if (any_equal(mdl_dst,
+                      dynamics_type::counter,
+                      dynamics_type::logical_and_2,
+                      dynamics_type::logical_and_3,
+                      dynamics_type::logical_or_2,
+                      dynamics_type::logical_or_3,
+                      dynamics_type::logical_invert))
             return true;
     }
 

@@ -849,28 +849,28 @@ void simulation_editor::show() noexcept
       ImGuiTableFlags_Borders | ImGuiTableFlags_Resizable |
       ImGuiTableFlags_Reorderable;
 
-    const bool can_be_initialized = !match(simulation_state,
-                                           simulation_status::not_started,
-                                           simulation_status::finished,
-                                           simulation_status::initialized,
-                                           simulation_status::not_started);
+    const bool can_be_initialized = !any_equal(simulation_state,
+                                               simulation_status::not_started,
+                                               simulation_status::finished,
+                                               simulation_status::initialized,
+                                               simulation_status::not_started);
 
     const bool can_be_started =
-      !match(simulation_state, simulation_status::initialized);
+      !any_equal(simulation_state, simulation_status::initialized);
 
-    const bool can_be_paused = !match(simulation_state,
-                                      simulation_status::running,
-                                      simulation_status::run_requiring,
-                                      simulation_status::paused);
+    const bool can_be_paused = !any_equal(simulation_state,
+                                          simulation_status::running,
+                                          simulation_status::run_requiring,
+                                          simulation_status::paused);
 
     const bool can_be_restarted =
-      !match(simulation_state, simulation_status::pause_forced);
+      !any_equal(simulation_state, simulation_status::pause_forced);
 
-    const bool can_be_stopped = !match(simulation_state,
-                                       simulation_status::running,
-                                       simulation_status::run_requiring,
-                                       simulation_status::paused,
-                                       simulation_status::pause_forced);
+    const bool can_be_stopped = !any_equal(simulation_state,
+                                           simulation_status::running,
+                                           simulation_status::run_requiring,
+                                           simulation_status::paused,
+                                           simulation_status::pause_forced);
 
     show_simulation_action_buttons(*this,
                                    can_be_initialized,

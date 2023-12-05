@@ -1036,9 +1036,9 @@ inline child_id project_window::selected_child() noexcept
 
 inline bool simulation_editor::can_edit() const noexcept
 {
-    if (match(simulation_state,
-              simulation_status::not_started,
-              simulation_status::finished))
+    if (any_equal(simulation_state,
+                  simulation_status::not_started,
+                  simulation_status::finished))
         return true;
 
     return allow_user_changes;

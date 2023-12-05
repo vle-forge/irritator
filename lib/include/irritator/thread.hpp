@@ -25,11 +25,7 @@ struct unordered_task_list;
 struct worker_stats;
 class task_manager;
 
-enum class main_task : i8
-{
-    simulation = 0,
-    gui
-};
+enum class main_task : i8 { simulation = 0, gui };
 
 static inline constexpr int  unordered_task_list_tasks_number = 256;
 static inline constexpr int  task_list_tasks_number           = 16;
@@ -118,8 +114,7 @@ using task_function = void (*)(void*) noexcept;
 //! – Independent stateless, no stalls, always completes
 //! – Task added to @c main_task_list
 //! – Task fully independent
-struct task
-{
+struct task {
     task_function function  = nullptr;
     void*         parameter = nullptr;
 };
@@ -130,16 +125,14 @@ struct task
 //! – Independent stateless, no stalls, always completes
 //! – Job added to @c temp_task_list
 //! – Task fully independent
-struct job
-{
+struct job {
     task_function    function  = nullptr;
     void*            parameter = nullptr;
     std::atomic_int* counter   = nullptr;
 };
 
 //! @brief Simple task list access by only one thread
-struct task_list
-{
+struct task_list {
     worker_stats&                                         stats;
     thread_safe_ring_buffer<task, task_list_tasks_number> tasks;
 
@@ -165,15 +158,8 @@ struct task_list
     void terminate() noexcept;
 };
 
-struct unordered_task_list
-{
-    enum class phase
-    {
-        add,
-        submit,
-        run,
-        stop
-    };
+struct unordered_task_list {
+    enum class phase { add, submit, run, stop };
 
     worker_stats&                                        stats;
     small_vector<task, unordered_task_list_tasks_number> tasks;
@@ -197,14 +183,8 @@ struct unordered_task_list
 };
 
 template<typename T>
-struct worker_base
-{
-    enum class phase
-    {
-        start,
-        run,
-        stop
-    };
+struct worker_base {
+    enum class phase { start, run, stop };
 
     worker_base() noexcept = default;
     ~worker_base() noexcept;
@@ -226,8 +206,7 @@ struct worker_base
     std::atomic_int phase = ordinal(phase::start);
 };
 
-struct worker_main : public worker_base<worker_main>
-{
+struct worker_main : public worker_base<worker_main> {
     worker_main() noexcept  = default;
     ~worker_main() noexcept = default;
     worker_main(worker_main&& other) noexcept;
@@ -237,8 +216,7 @@ struct worker_main : public worker_base<worker_main>
     task_list* tl = nullptr;
 };
 
-struct worker_generic : public worker_base<worker_generic>
-{
+struct worker_generic : public worker_base<worker_generic> {
     worker_generic() noexcept  = default;
     ~worker_generic() noexcept = default;
     worker_generic(worker_generic&& other) noexcept;
@@ -249,8 +227,7 @@ struct worker_generic : public worker_base<worker_generic>
     thread_safe_ring_buffer<job, 16> tasks;
 };
 
-struct worker_stats
-{
+struct worker_stats {
     u32 num_submitted_tasks = 0u;
     u32 num_executed_tasks  = 0u;
 
@@ -383,7 +360,7 @@ inline unordered_task_list::unordered_task_list(worker_stats& stats_) noexcept
 inline bool unordered_task_list::add(task_function function,
                                      void*         parameter) noexcept
 {
-    irt_assert(match(phase, ordinal(phase::add)));
+    irt_assert(any_equal(phase, ordinal(phase::add)));
     phase = ordinal(phase::add);
 
     if (tasks.full())
@@ -397,7 +374,7 @@ inline bool unordered_task_list::add(task_function function,
 
 inline void unordered_task_list::submit() noexcept
 {
-    irt_assert(match(phase, ordinal(phase::add)));
+    irt_assert(any_equal(phase, ordinal(phase::add)));
     phase = ordinal(phase::submit);
 
     current_task = 0;
@@ -427,7 +404,7 @@ inline void unordered_task_list::submit() noexcept
 
 inline void unordered_task_list::wait() noexcept
 {
-    irt_assert(match(phase, ordinal(phase::submit)));
+    irt_assert(any_equal(phase, ordinal(phase::submit)));
 
     do {
         for (auto* w : workers) {
@@ -490,7 +467,7 @@ inline worker_base<T>::~worker_base() noexcept
 template<typename T>
 inline void worker_base<T>::start() noexcept
 {
-    irt_assert(match(phase, ordinal(phase::start)));
+    irt_assert(any_equal(phase, ordinal(phase::start)));
 
     try {
         thread = std::thread{ &T::run, static_cast<T*>(this) };
@@ -541,8 +518,7 @@ inline void worker_main::run() noexcept
 
 inline worker_generic::worker_generic(worker_generic&& other) noexcept
   : worker_base{ std::move(other) }
-{
-}
+{}
 
 inline void worker_generic::run() noexcept
 {

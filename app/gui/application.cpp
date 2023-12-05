@@ -512,7 +512,7 @@ void application::show() noexcept
             n.level = w.level;
             n.title = w.buffer.sv();
 
-            if (match(w.level, log_level::info, log_level::debug))
+            if (any_equal(w.level, log_level::info, log_level::debug))
                 n.only_log = true;
 
             notifications.enable(n);

@@ -29,8 +29,7 @@ void show_dynamics_inputs(external_source& /*srcs*/, qss3_integrator& dyn)
 }
 
 void show_dynamics_inputs(external_source& /*srcs*/, qss1_multiplier& /*dyn*/)
-{
-}
+{}
 
 void show_dynamics_inputs(external_source& /*srcs*/, qss1_sum_2& /*dyn*/) {}
 
@@ -60,8 +59,7 @@ void show_dynamics_inputs(external_source& /*srcs*/, qss1_wsum_4& dyn)
 }
 
 void show_dynamics_inputs(external_source& /*srcs*/, qss2_multiplier& /*dyn*/)
-{
-}
+{}
 
 void show_dynamics_inputs(external_source& /*srcs*/, qss2_sum_2& /*dyn*/) {}
 
@@ -91,8 +89,7 @@ void show_dynamics_inputs(external_source& /*srcs*/, qss2_wsum_4& dyn)
 }
 
 void show_dynamics_inputs(external_source& /*srcs*/, qss3_multiplier& /*dyn*/)
-{
-}
+{}
 
 void show_dynamics_inputs(external_source& /*srcs*/, qss3_sum_2& /*dyn*/) {}
 
@@ -448,9 +445,9 @@ void show_dynamics_inputs(external_source& /*srcs*/, constant& dyn)
     if (ImGui::Combo("type", &i, type_names, length(type_names)))
         dyn.type = enum_cast<constant::init_type>(i);
 
-    if (match(dyn.type,
-              constant::init_type::incoming_component_n,
-              constant::init_type::outcoming_component_n)) {
+    if (any_equal(dyn.type,
+                  constant::init_type::incoming_component_n,
+                  constant::init_type::outcoming_component_n)) {
         ImGui::InputScalar("port", ImGuiDataType_U64, &dyn.port);
     }
 }

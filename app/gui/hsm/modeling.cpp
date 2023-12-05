@@ -9,8 +9,7 @@
 #include "irritator/core.hpp"
 #include "irritator/helpers.hpp"
 
-namespace irt
-{
+namespace irt {
 
 using hsm_t = hierarchical_state_machine;
 
@@ -752,7 +751,7 @@ void hsm_editor::show_panel() noexcept
     }
 
     ImGui::TextFormat("status: {}", test_status_string[ordinal(m_test)]);
-    ImGui::BeginDisabled(match(m_test, test_status::being_processed));
+    ImGui::BeginDisabled(any_equal(m_test, test_status::being_processed));
     if (ImGui::Button("test")) {
         auto& app = container_of(this, &application::hsm_ed);
         app.add_gui_task(task_hsm_test_start);
@@ -762,7 +761,7 @@ void hsm_editor::show_panel() noexcept
 
 bool hsm_editor::valid() noexcept
 {
-    if (match(
+    if (any_equal(
           m_test, test_status::none, test_status::done, test_status::failed)) {
         m_test = test_status::being_processed;
 

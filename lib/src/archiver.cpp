@@ -1362,7 +1362,7 @@ status binary_archiver::simulation_save(simulation& sim, file& f) noexcept
     if (f.is_open())
         return new_error(open_file_error{});
 
-    if (match(f.get_mode(), open_mode::write, open_mode::append))
+    if (any_equal(f.get_mode(), open_mode::write, open_mode::append))
         return new_error(write_file_error{});
 
     write_binary_simulation<file> writer{ f };
@@ -1391,7 +1391,7 @@ status binary_archiver::simulation_load(simulation& sim, file& f) noexcept
     if (f.is_open())
         return new_error(open_file_error{});
 
-    if (match(f.get_mode(), open_mode::write, open_mode::append))
+    if (any_equal(f.get_mode(), open_mode::write, open_mode::append))
         return new_error(write_file_error{});
 
     read_binary_simulation<file> reader{ f };

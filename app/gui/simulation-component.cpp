@@ -570,10 +570,10 @@ void simulation_editor::simulation_update_state() noexcept
 
 void simulation_editor::simulation_copy_modeling() noexcept
 {
-    bool state = match(simulation_state,
-                       simulation_status::initialized,
-                       simulation_status::not_started,
-                       simulation_status::finished);
+    bool state = any_equal(simulation_state,
+                           simulation_status::initialized,
+                           simulation_status::not_started,
+                           simulation_status::finished);
 
     irt_assert(state);
 
@@ -594,10 +594,10 @@ void simulation_editor::simulation_copy_modeling() noexcept
 
 void simulation_editor::simulation_init() noexcept
 {
-    bool state = match(simulation_state,
-                       simulation_status::initialized,
-                       simulation_status::not_started,
-                       simulation_status::finished);
+    bool state = any_equal(simulation_state,
+                           simulation_status::initialized,
+                           simulation_status::not_started,
+                           simulation_status::finished);
 
     irt_assert(state);
 
@@ -620,9 +620,9 @@ void simulation_editor::simulation_clear() noexcept
 
 void simulation_editor::simulation_start() noexcept
 {
-    bool state = match(simulation_state,
-                       simulation_status::initialized,
-                       simulation_status::pause_forced);
+    bool state = any_equal(simulation_state,
+                           simulation_status::initialized,
+                           simulation_status::pause_forced);
 
     irt_assert(state);
 
@@ -634,10 +634,10 @@ void simulation_editor::simulation_start() noexcept
 
 void simulation_editor::simulation_start_1() noexcept
 {
-    bool state = match(simulation_state,
-                       simulation_status::initialized,
-                       simulation_status::pause_forced,
-                       simulation_status::debugged);
+    bool state = any_equal(simulation_state,
+                           simulation_status::initialized,
+                           simulation_status::pause_forced,
+                           simulation_status::debugged);
 
     irt_assert(state);
 
@@ -651,7 +651,7 @@ void simulation_editor::simulation_start_1() noexcept
 
 void simulation_editor::simulation_pause() noexcept
 {
-    bool state = match(simulation_state, simulation_status::running);
+    bool state = any_equal(simulation_state, simulation_status::running);
 
     irt_assert(state);
 
@@ -663,7 +663,7 @@ void simulation_editor::simulation_pause() noexcept
 
 void simulation_editor::simulation_stop() noexcept
 {
-    bool state = match(
+    bool state = any_equal(
       simulation_state, simulation_status::running, simulation_status::paused);
 
     irt_assert(state);

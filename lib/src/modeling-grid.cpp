@@ -183,9 +183,9 @@ static void build_name_grid_connections_4(modeling&              mod,
     if (row_min != row) {
         const auto dst = ids[old_size + grid.pos(row_min, col)];
         connection_add(mod, cnts, src, p_4x4::south, dst, p_4x4::north);
-    } else if (match(grid.opts,
-                     grid_component::options::row_cylinder,
-                     grid_component::options::torus)) {
+    } else if (any_equal(grid.opts,
+                         grid_component::options::row_cylinder,
+                         grid_component::options::torus)) {
         const auto dst = ids[old_size + grid.pos(grid.row - 1, col)];
         connection_add(mod, cnts, src, p_4x4::south, dst, p_4x4::north);
     }
@@ -193,9 +193,9 @@ static void build_name_grid_connections_4(modeling&              mod,
     if (row_max != row) {
         const auto dst = ids[old_size + grid.pos(row_max, col)];
         connection_add(mod, cnts, src, p_4x4::north, dst, p_4x4::south);
-    } else if (match(grid.opts,
-                     grid_component::options::row_cylinder,
-                     grid_component::options::torus)) {
+    } else if (any_equal(grid.opts,
+                         grid_component::options::row_cylinder,
+                         grid_component::options::torus)) {
         const auto dst = ids[old_size + grid.pos(0, col)];
         connection_add(mod, cnts, src, p_4x4::north, dst, p_4x4::south);
     }
@@ -203,9 +203,9 @@ static void build_name_grid_connections_4(modeling&              mod,
     if (col_min != col) {
         const auto dst = ids[old_size + grid.pos(row, col_min)];
         connection_add(mod, cnts, src, p_4x4::east, dst, p_4x4::west);
-    } else if (match(grid.opts,
-                     grid_component::options::column_cylinder,
-                     grid_component::options::torus)) {
+    } else if (any_equal(grid.opts,
+                         grid_component::options::column_cylinder,
+                         grid_component::options::torus)) {
         const auto dst = ids[old_size + grid.pos(row, grid.column - 1)];
         connection_add(mod, cnts, src, p_4x4::east, dst, p_4x4::west);
     }
@@ -213,9 +213,9 @@ static void build_name_grid_connections_4(modeling&              mod,
     if (col_max != col) {
         const auto dst = ids[old_size + grid.pos(row, col_max)];
         connection_add(mod, cnts, src, p_4x4::west, dst, p_4x4::east);
-    } else if (match(grid.opts,
-                     grid_component::options::column_cylinder,
-                     grid_component::options::torus)) {
+    } else if (any_equal(grid.opts,
+                         grid_component::options::column_cylinder,
+                         grid_component::options::torus)) {
         const auto dst = ids[old_size + grid.pos(row, 0)];
         connection_add(mod, cnts, src, p_4x4::west, dst, p_4x4::east);
     }
@@ -238,9 +238,9 @@ static void build_simple_grid_connections_4(modeling&              mod,
     if (row_min != row) {
         const auto dst = ids[old_size + grid.pos(row_min, col)];
         connection_add(mod, cnts, src, p_in_out::out, dst, p_in_out::in);
-    } else if (match(grid.opts,
-                     grid_component::options::row_cylinder,
-                     grid_component::options::torus)) {
+    } else if (any_equal(grid.opts,
+                         grid_component::options::row_cylinder,
+                         grid_component::options::torus)) {
         const auto dst = ids[old_size + grid.pos(grid.row - 1, col)];
         connection_add(mod, cnts, src, p_in_out::out, dst, p_in_out::in);
     }
@@ -248,9 +248,9 @@ static void build_simple_grid_connections_4(modeling&              mod,
     if (row_max != row) {
         const auto dst = ids[old_size + grid.pos(row_max, col)];
         connection_add(mod, cnts, src, p_in_out::out, dst, p_in_out::in);
-    } else if (match(grid.opts,
-                     grid_component::options::row_cylinder,
-                     grid_component::options::torus)) {
+    } else if (any_equal(grid.opts,
+                         grid_component::options::row_cylinder,
+                         grid_component::options::torus)) {
         const auto dst = ids[old_size + grid.pos(0, col)];
         connection_add(mod, cnts, src, p_in_out::out, dst, p_in_out::in);
     }
@@ -258,9 +258,9 @@ static void build_simple_grid_connections_4(modeling&              mod,
     if (col_min != col) {
         const auto dst = ids[old_size + grid.pos(row, col_min)];
         connection_add(mod, cnts, src, p_in_out::out, dst, p_in_out::in);
-    } else if (match(grid.opts,
-                     grid_component::options::column_cylinder,
-                     grid_component::options::torus)) {
+    } else if (any_equal(grid.opts,
+                         grid_component::options::column_cylinder,
+                         grid_component::options::torus)) {
         const auto dst = ids[old_size + grid.pos(row, grid.column - 1)];
         connection_add(mod, cnts, src, p_in_out::out, dst, p_in_out::in);
     }
@@ -268,9 +268,9 @@ static void build_simple_grid_connections_4(modeling&              mod,
     if (col_max != col) {
         const auto dst = ids[old_size + grid.pos(row, col_max)];
         connection_add(mod, cnts, src, p_in_out::out, dst, p_in_out::in);
-    } else if (match(grid.opts,
-                     grid_component::options::column_cylinder,
-                     grid_component::options::torus)) {
+    } else if (any_equal(grid.opts,
+                         grid_component::options::column_cylinder,
+                         grid_component::options::torus)) {
         const auto dst = ids[old_size + grid.pos(row, 0)];
         connection_add(mod, cnts, src, p_in_out::out, dst, p_in_out::in);
     }
@@ -296,9 +296,9 @@ static void build_name_grid_connections_8(modeling&              mod,
         const auto dst = ids[old_size + grid.pos(row_min, col_min)];
         connection_add(
           mod, cnts, src, p_8x8::north_west, dst, p_8x8::south_east);
-    } else if (match(grid.opts,
-                     grid_component::options::row_cylinder,
-                     grid_component::options::torus)) {
+    } else if (any_equal(grid.opts,
+                         grid_component::options::row_cylinder,
+                         grid_component::options::torus)) {
         const auto dst = ids[old_size + grid.pos(grid.row - 1, col)];
         connection_add(
           mod, cnts, src, p_8x8::north_west, dst, p_8x8::south_east);
@@ -308,9 +308,9 @@ static void build_name_grid_connections_8(modeling&              mod,
         const auto dst = ids[old_size + grid.pos(row_max, col_min)];
         connection_add(
           mod, cnts, src, p_8x8::north_east, dst, p_8x8::south_west);
-    } else if (match(grid.opts,
-                     grid_component::options::row_cylinder,
-                     grid_component::options::torus)) {
+    } else if (any_equal(grid.opts,
+                         grid_component::options::row_cylinder,
+                         grid_component::options::torus)) {
         const auto dst = ids[old_size + grid.pos(grid.row - 1, col)];
         connection_add(
           mod, cnts, src, p_8x8::north_east, dst, p_8x8::south_west);
@@ -320,9 +320,9 @@ static void build_name_grid_connections_8(modeling&              mod,
         const auto dst = ids[old_size + grid.pos(row_min, col_max)];
         connection_add(
           mod, cnts, src, p_8x8::south_west, dst, p_8x8::north_east);
-    } else if (match(grid.opts,
-                     grid_component::options::column_cylinder,
-                     grid_component::options::torus)) {
+    } else if (any_equal(grid.opts,
+                         grid_component::options::column_cylinder,
+                         grid_component::options::torus)) {
         const auto dst = ids[old_size + grid.pos(row, grid.column - 1)];
         connection_add(
           mod, cnts, src, p_8x8::south_west, dst, p_8x8::north_east);
@@ -332,9 +332,9 @@ static void build_name_grid_connections_8(modeling&              mod,
         const auto dst = ids[old_size + grid.pos(row_max, col_max)];
         connection_add(
           mod, cnts, src, p_8x8::south_east, dst, p_8x8::north_west);
-    } else if (match(grid.opts,
-                     grid_component::options::column_cylinder,
-                     grid_component::options::torus)) {
+    } else if (any_equal(grid.opts,
+                         grid_component::options::column_cylinder,
+                         grid_component::options::torus)) {
         const auto dst = ids[old_size + grid.pos(row, grid.column - 1)];
         connection_add(
           mod, cnts, src, p_8x8::south_east, dst, p_8x8::north_west);
@@ -360,9 +360,9 @@ static void build_simple_grid_connections_8(modeling&              mod,
     if (row_min != row && col_min != col) {
         const auto dst = ids[old_size + grid.pos(row_min, col_min)];
         connection_add(mod, cnts, src, p_in_out::out, dst, p_in_out::in);
-    } else if (match(grid.opts,
-                     grid_component::options::column_cylinder,
-                     grid_component::options::torus)) {
+    } else if (any_equal(grid.opts,
+                         grid_component::options::column_cylinder,
+                         grid_component::options::torus)) {
         const auto dst = ids[old_size + grid.pos(row, grid.column - 1)];
         connection_add(mod, cnts, src, p_in_out::out, dst, p_in_out::in);
     }
@@ -370,9 +370,9 @@ static void build_simple_grid_connections_8(modeling&              mod,
     if (row_max != row && col_min != col) {
         const auto dst = ids[old_size + grid.pos(row_max, col_min)];
         connection_add(mod, cnts, src, p_in_out::out, dst, p_in_out::in);
-    } else if (match(grid.opts,
-                     grid_component::options::column_cylinder,
-                     grid_component::options::torus)) {
+    } else if (any_equal(grid.opts,
+                         grid_component::options::column_cylinder,
+                         grid_component::options::torus)) {
         const auto dst = ids[old_size + grid.pos(row, grid.column - 1)];
         connection_add(mod, cnts, src, p_in_out::out, dst, p_in_out::in);
     }
@@ -380,9 +380,9 @@ static void build_simple_grid_connections_8(modeling&              mod,
     if (row_min != row && col_max != col) {
         const auto dst = ids[old_size + grid.pos(row_min, col_max)];
         connection_add(mod, cnts, src, p_in_out::out, dst, p_in_out::in);
-    } else if (match(grid.opts,
-                     grid_component::options::column_cylinder,
-                     grid_component::options::torus)) {
+    } else if (any_equal(grid.opts,
+                         grid_component::options::column_cylinder,
+                         grid_component::options::torus)) {
         const auto dst = ids[old_size + grid.pos(row, grid.column - 1)];
         connection_add(mod, cnts, src, p_in_out::out, dst, p_in_out::in);
     }
@@ -390,9 +390,9 @@ static void build_simple_grid_connections_8(modeling&              mod,
     if (row_max != row && col_max != col) {
         const auto dst = ids[old_size + grid.pos(row_max, col_max)];
         connection_add(mod, cnts, src, p_in_out::out, dst, p_in_out::in);
-    } else if (match(grid.opts,
-                     grid_component::options::column_cylinder,
-                     grid_component::options::torus)) {
+    } else if (any_equal(grid.opts,
+                         grid_component::options::column_cylinder,
+                         grid_component::options::torus)) {
         const auto dst = ids[old_size + grid.pos(row, grid.column - 1)];
         connection_add(mod, cnts, src, p_in_out::out, dst, p_in_out::in);
     }
