@@ -176,7 +176,8 @@ static bool is_running_under_debugger() noexcept
 int main([[maybe_unused]] int argc, [[maybe_unused]] char* argv[])
 {
 #if defined(IRRITATOR_ENABLE_DEBUG)
-    irt::is_fatal_breakpoint = is_running_under_debugger();
+    if (is_running_under_debugger())
+        irt::on_error_callback = irt::on_error_breakpoint;
 #endif
 
     // Setup window

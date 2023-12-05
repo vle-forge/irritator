@@ -46,62 +46,6 @@
 #define irt_assert(_expr) assert(_expr)
 #endif
 
-namespace irt {
-
-#if defined(IRRITATOR_ENABLE_DEBUG)
-inline volatile bool is_fatal_breakpoint = false;
-#else
-constexpr static inline bool is_fatal_breakpoint = false;
-#endif
-
-} // namespace irt
-
-#ifndef NDEBUG
-#if (defined(__i386__) || defined(__x86_64__)) && defined(__GNUC__) &&         \
-  __GNUC__ >= 2
-#define irt_breakpoint()                                                       \
-    do {                                                                       \
-        if (::irt::is_fatal_breakpoint)                                        \
-            __asm__ __volatile__("int $03");                                   \
-    } while (0)
-#elif (defined(_MSC_VER) || defined(__DMC__)) && defined(_M_IX86)
-#define irt_breakpoint()                                                       \
-    do {                                                                       \
-        if (::irt::is_fatal_breakpoint)                                        \
-            __asm int 3h                                                       \
-    } while (0)
-#elif defined(_MSC_VER)
-#define irt_breakpoint()                                                       \
-    do {                                                                       \
-        if (::irt::is_fatal_breakpoint)                                        \
-            __debugbreak();                                                    \
-    } while (0)
-#elif defined(__alpha__) && !defined(__osf__) && defined(__GNUC__) &&          \
-  __GNUC__ >= 2
-#define irt_breakpoint()                                                       \
-    do {                                                                       \
-        if (::irt::is_fatal_breakpoint)                                        \
-            __asm__ __volatile__("bpt");                                       \
-    } while (0)
-#elif defined(__APPLE__)
-#define irt_breakpoint()                                                       \
-    do {                                                                       \
-        if (::irt::is_fatal_breakpoint)                                        \
-            __builtin_trap();                                                  \
-    } while (0)
-#else /* !__i386__ && !__alpha__ */
-#define irt_breakpoint()                                                       \
-    do {                                                                       \
-        if (::irt::is_fatal_breakpoint)                                        \
-            raise(SIGTRAP);                                                    \
-    } while (0)
-#endif /* __i386__ */
-#else
-#define irt_breakpoint()                                                       \
-    do {                                                                       \
-    } while (0)
-#endif
-
 #if defined(__GNUC__)
 #define irt_unreachable() __builtin_unreachable();
 #elif defined(_MSC_VER)
@@ -128,7 +72,7 @@ using f64 = double;
 #ifndef IRRITATOR_REAL_TYPE_F32
 using real = f64;
 #else
-using real                                       = f32;
+using real = f32;
 #endif //  IRRITATOR_REAL_TYPE
 
 //! @brief An helper function to initialize floating point number and disable

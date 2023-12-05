@@ -32,8 +32,7 @@
 #pragma comment(lib, "dxguid.lib")
 #endif
 
-struct FrameContext
-{
+struct FrameContext {
     ID3D12CommandAllocator* CommandAllocator;
     UINT64                  FenceValue;
 };
@@ -196,7 +195,8 @@ auto GetSystemFontFile() noexcept -> std::optional<std::filesystem::path>
 int main(int, char**)
 {
 #if defined(IRRITATOR_ENABLE_DEBUG)
-    irt::is_fatal_breakpoint = is_running_under_debugger();
+    if (is_running_under_debugger())
+        irt::on_error_callback = irt::on_error_breakpoint;
 #endif
 
     // Create application window

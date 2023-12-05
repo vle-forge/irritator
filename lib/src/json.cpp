@@ -459,7 +459,9 @@ static_assert(std::cmp_equal(std::size(error_id_names),
 #define report_json_error(error_id__)                                          \
     do {                                                                       \
         error = error_id__;                                                    \
-        irt_breakpoint();                                                      \
+        if (on_error_callback) {                                               \
+            on_error_callback();                                               \
+        }                                                                      \
         return false;                                                          \
     } while (0)
 

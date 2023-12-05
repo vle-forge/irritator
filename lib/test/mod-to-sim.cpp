@@ -31,7 +31,7 @@ static bool get_temp_registred_path(irt::small_string<length>& str) noexcept
 int main()
 {
 #if defined(IRRITATOR_ENABLE_DEBUG)
-    irt::is_fatal_breakpoint = false;
+    irt::on_error_callback = irt::on_error_breakpoint;
 #endif
 
     using namespace boost::ut;

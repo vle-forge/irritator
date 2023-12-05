@@ -611,7 +611,7 @@ static void show_graph(component_editor&              ed,
                     break;
 
                 case component_type::hsm:
-                    irt_breakpoint(); // @TODO to enable
+                    irt::breakpoint();
                     break;
                 }
             }
