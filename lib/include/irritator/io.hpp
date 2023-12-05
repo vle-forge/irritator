@@ -442,8 +442,6 @@ static constexpr inline const char* status_string_names[] = {
     "vector not enough memory",
     "data array init capacity error",
     "data array not enough memory",
-    "source unknown",
-    "source empty",
     "model connect output port unknown",
     "model connect already exist",
     "model connect bad dynamics",

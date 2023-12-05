@@ -30,6 +30,15 @@ struct e_file_name {
     std::string value;
 };
 
+struct e_memory {
+    long long unsigned int value;
+};
+
+struct e_allocator {
+    long long unsigned int needed;
+    long long unsigned int capacity;
+};
+
 struct e_json {
     long long unsigned int offset;
     std::string_view       error_code;

@@ -411,8 +411,6 @@ enum class old_status {
     vector_not_enough_memory,
     data_array_init_capacity_error,
     data_array_not_enough_memory,
-    source_unknown,
-    source_empty,
     model_connect_output_port_unknown,
     model_connect_already_exist,
     model_connect_bad_dynamics,
@@ -2372,7 +2370,7 @@ private:
     }
 };
 
-struct simulation;
+class simulation;
 
 /*****************************************************************************
  *
@@ -2385,7 +2383,7 @@ static constexpr int default_max_client_number  = 32;
 
 using chunk_type = std::array<double, external_source_chunk_size>;
 
-struct source;
+class source;
 
 enum class distribution_type {
     bernouilli,
@@ -2537,7 +2535,9 @@ enum class random_source_id : u64;
 //!
 //! @details A @c source references a external source (file, PRNG, etc.). Model
 //! auses the source to get data external to the simulation.
-struct source {
+class source
+{
+public:
     enum class source_type : i16 {
         none,
         binary_file, /* Best solution to reproductible simulation. Each client
@@ -2575,18 +2575,22 @@ struct source {
         std::fill_n(chunk_id.data(), chunk_id.size(), 0);
     }
 
-    //! Try to get next double in the buffer.
-    //!
-    //! @param value stores the new double read from the buffer.
-    //! @return true if success, false otherwise.
-    bool next(double& value) noexcept
+    //! Check if the source is empty and required a filling.
+    bool is_empty() const noexcept
     {
-        if (std::cmp_greater_equal(index, buffer.size()))
-            return false;
+        return std::cmp_greater_equal(index, buffer.size());
+    }
 
-        value = buffer[static_cast<sz>(index)];
-        index++;
-        return true;
+    //! Get the next double in the buffer. Abort if the buffer is empty. Use the
+    //! @c is_empty() function first.
+    //!
+    //! @return true if success, false otherwise.
+    double next() noexcept
+    {
+        irt_assert(!is_empty());
+
+        const auto old_index = index++;
+        return buffer[static_cast<sz>(old_index)];
     }
 };
 
@@ -7579,7 +7583,18 @@ inline void copy(const model& src, model& dst) noexcept
     });
 }
 
-struct simulation {
+class simulation
+{
+public:
+    struct memory_error {};         //<! e_memory with capacity needed.
+    struct message_full_error {};   //<! Add a @c e_allocator.
+    struct node_full_error {};      //<! Add a @c e_allocator.
+    struct record_full_error {};    //<! Add a @c e_allocator.
+    struct dated_message_error {};  //<! Add a @c e_allocator.
+    struct model_full_error {};     //<! Add a @c e_allocator.
+    struct hsms_full_error {};      //<! Add a @c e_allocator.
+    struct observers_full_error {}; //<! Add a @c e_allocator.
+
     block_allocator<list_view_node<message>>       message_alloc;
     block_allocator<list_view_node<node>>          node_alloc;
     block_allocator<list_view_node<record>>        record_alloc;
@@ -7807,51 +7822,6 @@ public:
 
     status run(time& t) noexcept;
 
-    // status run(time& t) noexcept
-    // {
-    //     if (sched.empty()) {
-    //         t = time_domain<time>::infinity;
-    //         return success();
-    //     }
-
-    //     if (t = sched.tn(); time_domain<time>::is_infinity(t))
-    //         return success();
-
-    //     immediate_models.clear();
-    //     sched.pop(immediate_models);
-
-    //     emitting_output_ports.clear();
-    //     for (const auto id : immediate_models)
-    //         if (auto* mdl = models.try_to_get(id); mdl)
-    //             irt_check(make_transition(*mdl, t));
-
-    //     for (int i = 0, e = length(emitting_output_ports); i != e; ++i) {
-    //         auto* mdl =
-    //         models.try_to_get(emitting_output_ports[i].model); if (!mdl)
-    //             continue
-
-    //         sched.update(*mdl, t);
-
-    //         irt_return_if_fail(can_alloc_message(*this, 1),
-    //                            status::simulation_not_enough_message);
-
-    //         auto  port = emitting_output_ports[i].port;
-    //         auto& msg  = emitting_output_ports[i].msg;
-
-    //         dispatch(
-    //           *mdl, [this, port, &msg]<typename Dynamics>(Dynamics& dyn)
-    //           {
-    //               if constexpr (is_detected_v<has_input_port_t,
-    //               Dynamics>) {
-    //                   auto list = append_message(*this, dyn.x[port]);
-    //                   list.push_back(msg);
-    //               }
-    //           });
-    //     }
-
-    //     return success();
-    // }
-
     template<typename Dynamics>
     status make_initialize(model& mdl, Dynamics& dyn, time t) noexcept
     {
@@ -7874,9 +7844,10 @@ public:
 
     status make_initialize(model& mdl, time t) noexcept
     {
-        return dispatch(mdl, [this, &mdl, t]<typename Dynamics>(Dynamics& dyn) {
-            return this->make_initialize(mdl, dyn, t);
-        });
+        return dispatch(
+          mdl, [this, &mdl, t]<typename Dynamics>(Dynamics& dyn) -> status {
+              return this->make_initialize(mdl, dyn, t);
+          });
     }
 
     template<typename Dynamics>
@@ -7981,14 +7952,10 @@ inline status initialize_source(simulation& sim, source& src) noexcept
 
 inline status update_source(simulation& sim, source& src, double& val) noexcept
 {
-    if (src.next(val))
-        return success();
+    if (src.is_empty())
+        irt_check(sim.srcs.dispatch(src, source::operation_type::update));
 
-    irt_check(sim.srcs.dispatch(src, source::operation_type::update));
-
-    if (!src.next(val))
-        return new_error(old_status::source_empty);
-
+    val = src.next();
     return success();
 }
 
