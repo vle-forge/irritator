@@ -10,8 +10,7 @@ hierarchical_state_machine::hierarchical_state_machine(
   const hierarchical_state_machine& other) noexcept
   : states(other.states)
   , top_state(other.top_state)
-{
-}
+{}
 
 hierarchical_state_machine& hierarchical_state_machine::operator=(
   const hierarchical_state_machine& other) noexcept
@@ -51,7 +50,7 @@ status hierarchical_state_machine::start(execution& exec) noexcept
         return success();
 
     if (top_state == invalid_state_id)
-        return new_error(old_status::model_hsm_bad_top_state);
+        return new_error(top_state_error{});
 
     exec.current_state = top_state;
     exec.next_state    = invalid_state_id;
@@ -100,7 +99,7 @@ result<bool> hierarchical_state_machine::dispatch(const event_type event,
 status hierarchical_state_machine::on_enter_sub_state(execution& exec) noexcept
 {
     if (exec.next_state == invalid_state_id)
-        return new_error(old_status::model_hsm_bad_next_state);
+        return new_error(next_state_error{});
 
     small_vector<state_id, max_number_of_state> entry_path;
     for (state_id sid = exec.next_state; sid != exec.current_state;) {
@@ -110,7 +109,7 @@ status hierarchical_state_machine::on_enter_sub_state(execution& exec) noexcept
         sid = state.super_id;
 
         if (sid == invalid_state_id)
-            return new_error(old_status::model_hsm_bad_next_state);
+            return new_error(next_state_error{});
     }
 
     while (!entry_path.empty()) {
@@ -168,7 +167,7 @@ status hierarchical_state_machine::set_state(state_id id,
 {
     if (super_id == invalid_state_id) {
         if (top_state != invalid_state_id)
-            return new_error(old_status::model_hsm_bad_top_state);
+            return new_error(top_state_error{});
         top_state = id;
     }
 
@@ -177,7 +176,7 @@ status hierarchical_state_machine::set_state(state_id id,
 
     if (!((super_id == invalid_state_id ||
            states[super_id].sub_id != invalid_state_id)))
-        return new_error(old_status::model_hsm_bad_top_state);
+        return new_error(top_state_error{});
 
     return success();
 }

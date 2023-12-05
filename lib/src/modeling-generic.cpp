@@ -305,13 +305,13 @@ status modeling::connect_input(generic_component& parent,
                                connection::port   p_c) noexcept
 {
     if (!connections.can_alloc())
-        return new_error(old_status::simulation_not_enough_connection);
+        return new_error(connection_error{}, container_full_error{});
 
     if (check_connection_already_exists(
           *this,
           parent,
           connection::input_t{ children.get_id(c), ports.get_id(x), p_c }))
-        return new_error(old_status::model_connect_already_exist);
+        return new_error(connection_error{}, already_exist_error{});
 
     const auto c_id = children.get_id(c);
     const auto x_id = ports.get_id(x);
@@ -337,13 +337,13 @@ status modeling::connect_output(generic_component& parent,
                                 port&              y) noexcept
 {
     if (!connections.can_alloc())
-        return new_error(old_status::simulation_not_enough_connection);
+        return new_error(connection_error{}, container_full_error{});
 
     if (check_connection_already_exists(
           *this,
           parent,
           connection::output_t{ children.get_id(c), ports.get_id(y), p_c }))
-        return new_error(old_status::model_connect_already_exist);
+        return new_error(connection_error{}, already_exist_error{});
 
     const auto c_id = children.get_id(c);
     const auto y_id = ports.get_id(y);
@@ -370,14 +370,14 @@ status modeling::connect(generic_component& parent,
                          connection::port   x) noexcept
 {
     if (!connections.can_alloc())
-        return new_error(old_status::simulation_not_enough_connection);
+        return new_error(connection_error{}, container_full_error{});
 
     if (check_connection_already_exists(
           *this,
           parent,
           connection::internal_t{
             children.get_id(src), children.get_id(dst), y, x }))
-        return new_error(old_status::model_connect_already_exist);
+        return new_error(connection_error{}, already_exist_error{});
 
     const auto src_id = children.get_id(src);
     const auto dst_id = children.get_id(dst);

@@ -155,7 +155,7 @@ status add_lotka_volterra(modeling&          mod,
     static_assert(1 <= QssLevel && QssLevel <= 3, "Only for Qss1, 2 and 3");
 
     if (!mod.children.can_alloc(5))
-        return new_error(old_status::simulation_not_enough_model);
+        return new_error(modeling::children_error{}, container_full_error{});
 
     auto integrator_a =
       alloc<abstract_integrator<QssLevel>>(mod, com, "X", child_flags::both);
@@ -197,7 +197,7 @@ status add_lif(modeling& mod, component& dst, generic_component& com) noexcept
     static_assert(1 <= QssLevel && QssLevel <= 3, "Only for Qss1, 2 and 3");
 
     if (!mod.children.can_alloc(5))
-        return new_error(old_status::simulation_not_enough_model);
+        return new_error(modeling::children_error{}, container_full_error{});
 
     constexpr irt::real tau = 10.0_r;
     constexpr irt::real Vt  = 1.0_r;
@@ -240,7 +240,7 @@ status add_izhikevich(modeling&          mod,
 {
     using namespace irt::literals;
     if (!mod.children.can_alloc(12))
-        return new_error(old_status::simulation_not_enough_model);
+        return new_error(modeling::children_error{}, container_full_error{});
 
     auto cst     = alloc<constant>(mod, com);
     auto cst2    = alloc<constant>(mod, com);
@@ -320,7 +320,7 @@ status add_van_der_pol(modeling&          mod,
 {
     using namespace irt::literals;
     if (!mod.children.can_alloc(5))
-        return new_error(old_status::simulation_not_enough_model);
+        return new_error(modeling::children_error{}, container_full_error{});
 
     auto sum      = alloc<abstract_wsum<QssLevel, 3>>(mod, com);
     auto product1 = alloc<abstract_multiplier<QssLevel>>(mod, com);
@@ -359,7 +359,7 @@ status add_negative_lif(modeling&          mod,
 {
     using namespace irt::literals;
     if (!mod.children.can_alloc(5))
-        return new_error(old_status::simulation_not_enough_model);
+        return new_error(modeling::children_error{}, container_full_error{});
 
     auto sum = alloc<abstract_wsum<QssLevel, 2>>(mod, com);
     auto integrator =
@@ -397,7 +397,7 @@ status add_seirs(modeling& mod, component& dst, generic_component& com) noexcept
 {
     using namespace irt::literals;
     if (!mod.children.can_alloc(17))
-        return new_error(old_status::simulation_not_enough_model);
+        return new_error(modeling::children_error{}, container_full_error{});
 
     auto dS =
       alloc<abstract_integrator<QssLevel>>(mod, com, "dS", child_flags::both);

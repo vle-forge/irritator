@@ -2,6 +2,7 @@
 // Version 1.0. (See accompanying file LICENSE_1_0.txt or copy at
 // http://www.boost.org/LICENSE_1_0.txt)
 
+#include "irritator/error.hpp"
 #include <irritator/core.hpp>
 #include <irritator/format.hpp>
 #include <irritator/io.hpp>
@@ -19,22 +20,11 @@
 
 namespace irt {
 
-enum class p_in_out
-{
-    in = 0,
-    out
-};
+enum class p_in_out { in = 0, out };
 
-enum class p_4x4
-{
-    north = 0,
-    south,
-    west,
-    east
-};
+enum class p_4x4 { north = 0, south, west, east };
 
-enum class p_8x8
-{
+enum class p_8x8 {
     north = 0,
     south,
     west,
@@ -548,7 +538,7 @@ static status build_grid(grid_simulation_observer& grid_system,
     const auto* to = pj.tree_nodes.try_to_get(grid_obs.tn_id);
 
     if (!to)
-        return new_error(old_status::unknown_dynamics);
+        return new_error(project::part::grid_observers, unknown_error{});
 
     const auto relative_path =
       pj.build_relative_path(grid_parent, *to, grid_obs.mdl_id);

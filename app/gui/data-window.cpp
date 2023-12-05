@@ -241,8 +241,7 @@ static void task_try_init_source(void* param) noexcept
 
 data_window::data_window() noexcept
   : context{ ImPlot::CreateContext() }
-{
-}
+{}
 
 data_window::~data_window() noexcept
 {
@@ -429,10 +428,10 @@ void data_window::show() noexcept
                       return success();
                   },
 
-                  [&](const old_status s) noexcept -> void {
+                  [&](const external_source::part s) noexcept -> void {
                       auto& n = app.notifications.alloc();
                       n.title = "Fail to initialize source";
-                      format(n.message, "Error: {}", status_string(s));
+                      format(n.message, "Error: {}", ordinal(s));
                       app.notifications.enable(n);
                   },
 
@@ -455,10 +454,10 @@ void data_window::show() noexcept
                       return success();
                   },
 
-                  [&](const old_status s) noexcept -> void {
+                  [&](const external_source::part s) noexcept -> void {
                       auto& n = app.notifications.alloc();
                       n.title = "Fail to initialize source";
-                      format(n.message, "Error: {}", status_string(s));
+                      format(n.message, "Error: {}", ordinal(s));
                       app.notifications.enable(n);
                   },
 
@@ -481,10 +480,10 @@ void data_window::show() noexcept
                       return success();
                   },
 
-                  [&](const old_status s) noexcept -> void {
+                  [&](const external_source::part s) noexcept -> void {
                       auto& n = app.notifications.alloc();
                       n.title = "Fail to initialize source";
-                      format(n.message, "Error: {}", status_string(s));
+                      format(n.message, "Error: {}", ordinal(s));
                       app.notifications.enable(n);
                   },
 
@@ -510,10 +509,10 @@ void data_window::show() noexcept
                       return success();
                   },
 
-                  [&](const old_status s) noexcept -> void {
+                  [&](const external_source::part s) noexcept -> void {
                       auto& n = app.notifications.alloc();
                       n.title = "Fail to initialize source";
-                      format(n.message, "Error: {}", status_string(s));
+                      format(n.message, "Error: {}", ordinal(s));
                       app.notifications.enable(n);
                   },
 

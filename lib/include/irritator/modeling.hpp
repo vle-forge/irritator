@@ -127,7 +127,7 @@ class project;
 struct connection;
 struct child;
 struct generic_component;
-struct modeling;
+class modeling;
 struct description;
 struct cache_rw;
 struct tree_node;
@@ -739,7 +739,16 @@ struct log_entry {
     log_level level;
 };
 
-struct modeling {
+class modeling
+{
+public:
+    struct connection_error {};
+    struct children_error {};
+
+    enum class part {
+
+    };
+
     enum error {
         not_enough_memory,
         unknown_type_constant,
@@ -948,6 +957,16 @@ struct modeling {
 class project
 {
 public:
+    //! Used to report which part of the @c project have a problem with the @c
+    //! new_error function.
+    enum class part {
+        tree_nodes,
+        variable_observers,
+        grid_observers,
+        graph_observers,
+        global_parameters
+    };
+
     enum error {
         not_enough_memory,
         unknown_source,

@@ -33,8 +33,7 @@
 #include <fstream>
 #include <string>
 
-namespace irt
-{
+namespace irt {
 
 const char* observable_type_names[] = {
     "none", "file", "plot", "graph", "grid",
@@ -680,13 +679,14 @@ static status copy_port(simulation&                      sim,
     while (it != et) {
         if (auto* found = mapping.get(it->model); found) {
             if (!sim.can_connect(1u))
-                return new_error(old_status::simulation_not_enough_connection);
+                return new_error(simulation::part::messages,
+                                 container_full_error{});
             dst_list.emplace_back(*found, it->port_index);
         } else {
             if (model* mdl = sim.models.try_to_get(it->model); mdl) {
                 if (!sim.can_connect(1u))
-                    return new_error(
-                      old_status::simulation_not_enough_connection);
+                    return new_error(simulation::part::messages,
+                                     container_full_error{});
 
                 dst_list.emplace_back(it->model, it->port_index);
             }
@@ -711,7 +711,7 @@ static status copy(simulation_editor& ed, const ImVector<int>& nodes) noexcept
             continue;
 
         if (!app.sim.can_alloc(1))
-            return new_error(old_status::simulation_not_enough_model);
+            return new_error(simulation::part::models, container_full_error{});
 
         auto& dst_mdl    = app.sim.clone(*src_mdl);
         auto  src_mdl_id = app.sim.models.get_id(src_mdl);
@@ -1169,10 +1169,10 @@ void try_create_connection(application& app) noexcept
           return success();
       },
 
-      [&app](const old_status s) noexcept -> void {
+      [&app](const simulation::part s) noexcept -> void {
           auto& notif = app.notifications.alloc(log_level::warning);
           notif.title = "Fail to create connection";
-          format(notif.message, "Error: {}", status_string(s));
+          format(notif.message, "Error: {}", ordinal(s));
           app.notifications.enable(notif);
       },
 

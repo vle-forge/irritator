@@ -8,6 +8,7 @@
 #include "dialog.hpp"
 #include "editor.hpp"
 #include "internal.hpp"
+#include "irritator/error.hpp"
 
 namespace irt {
 
@@ -144,12 +145,11 @@ static status save_component_impl(modeling&             mod,
 
         if (!std::filesystem::exists(p, ec)) {
             if (!std::filesystem::create_directory(p, ec)) {
-                return new_error(
-                  old_status::io_filesystem_make_directory_error);
+                return new_error(filesystem_error{}, e_file_name{ p.string() });
             }
         } else {
             if (!std::filesystem::is_directory(p, ec)) {
-                return new_error(old_status::io_filesystem_not_directory_error);
+                return new_error(filesystem_error{}, e_file_name{ p.string() });
             }
         }
 
@@ -160,7 +160,7 @@ static status save_component_impl(modeling&             mod,
         json_archiver j;
         irt_check(j.component_save(mod, compo, cache, p.string().c_str()));
     } catch (...) {
-        return new_error(old_status::io_not_enough_memory);
+        return new_error(filesystem_error{});
     }
 
     return success();
@@ -205,12 +205,11 @@ static status save_component_description_impl(const registred_path& reg_dir,
 
         if (!std::filesystem::exists(p, ec)) {
             if (!std::filesystem::create_directory(p, ec)) {
-                return new_error(
-                  old_status::io_filesystem_make_directory_error);
+                return new_error(filesystem_error{}, e_file_name{ p.string() });
             }
         } else {
             if (!std::filesystem::is_directory(p, ec)) {
-                return new_error(old_status::io_filesystem_not_directory_error);
+                return new_error(filesystem_error{}, e_file_name{ p.string() });
             }
         }
 
@@ -221,10 +220,10 @@ static status save_component_description_impl(const registred_path& reg_dir,
         if (ofs.is_open()) {
             ofs.write(desc.data.c_str(), desc.data.size());
         } else {
-            return new_error(old_status::io_filesystem_error);
+            return new_error(filesystem_error{});
         }
     } catch (...) {
-        return new_error(old_status::io_not_enough_memory);
+        return new_error(filesystem_error{});
     }
 
     return success();

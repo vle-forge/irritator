@@ -1141,7 +1141,7 @@ int main()
         expect(array.next_key() == 1);
         expect(array.is_free_list_empty());
 
-        expect(!!array.init(3));
+        expect(!!array.resize(3));
 
         {
             auto& d1 = array.alloc(1.f);

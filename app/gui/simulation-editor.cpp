@@ -982,12 +982,12 @@ void task_simulation_model_add(void* param) noexcept
           return success();
       },
 
-      [&](const old_status s) noexcept -> void {
+      [&](const simulation::part s) noexcept -> void {
           sim.deallocate(mdl_id);
 
           auto& n = task->app->notifications.alloc(log_level::error);
           n.title = "Fail to initialize model";
-          format(n.message, "Error: {}", status_string(s));
+          format(n.message, "Error: {}", ordinal(s));
           task->app->notifications.enable(n);
           task->state = task_status::finished;
       },

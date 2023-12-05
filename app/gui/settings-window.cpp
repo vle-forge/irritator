@@ -2,6 +2,8 @@
 // Version 1.0. (See accompanying file LICENSE_1_0.txt or copy at
 // http://www.boost.org/LICENSE_1_0.txt)
 
+#include <irritator/archiver.hpp>
+
 #include "application.hpp"
 #include "internal.hpp"
 
@@ -105,10 +107,17 @@ void settings_window::show() noexcept
                       return success();
                   },
 
-                  [&app](const old_status s) noexcept -> void {
+                  [&app](const json_archiver::part s) noexcept -> void {
                       auto& n = app.notifications.alloc();
                       n.title = "Refresh components from directory failed";
-                      format(n.message, "Error: {}", status_string(s));
+                      format(n.message, "Error: {}", ordinal(s));
+                      app.notifications.enable(n);
+                  },
+
+                  [&app](const modeling::part s) noexcept -> void {
+                      auto& n = app.notifications.alloc();
+                      n.title = "Refresh components from directory failed";
+                      format(n.message, "Error: {}", ordinal(s));
                       app.notifications.enable(n);
                   },
 

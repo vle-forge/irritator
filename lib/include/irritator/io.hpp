@@ -16,9 +16,6 @@
 
 namespace irt {
 
-//! Return the description string for each status.
-const char* status_string(const old_status s) noexcept;
-
 static inline constexpr const std::string_view log_level_names[] = {
     "emergency", "alert",  "critical", "error",
     "warning",   "notice", "info",     "debug",
@@ -430,53 +427,11 @@ static constexpr const char** get_output_port_names(
 }
 
 static constexpr inline const char* status_string_names[] = {
-    "unknown dynamics",
-    "block allocator bad capacity",
-    "block allocator not enough memory",
-    "head allocator bad capacity",
-    "head allocator not enough memory",
-    "simulation not enough model",
-    "simulation not enough message",
-    "simulation not enough connection",
-    "vector init capacity error",
-    "vector not enough memory",
-    "data array init capacity error",
-    "data array not enough memory",
-    "model connect output port unknown",
-    "model connect already exist",
-    "model connect bad dynamics",
-    "model queue bad ta",
-    "model queue full",
-    "model dynamic queue source is null",
-    "model dynamic queue full",
-    "model priority queue source is null",
-    "model priority queue full",
-    "model integrator dq error",
-    "model integrator X error",
-    "model integrator internal error",
-    "model integrator output error",
-    "model integrator running without x dot",
-    "model integrator ta with bad x dot",
-    "model quantifier bad quantum parameter",
-    "model quantifier bad archive length parameter",
-    "model quantifier shifting value neg",
-    "model quantifier shifting value less 1",
-    "model time func bad init message",
-    "model hsm bad top state",
-    "model hsm bad next state",
-    "model filter threshold condition not satisfied",
     "io not enough memory",
     "io filesystem error",
     "io filesystem make directory error",
     "io filesystem not directory error"
 };
-
-inline const char* status_string(const old_status s) noexcept
-{
-    static_assert(std::size(status_string_names) == status_size());
-
-    return status_string_names[ordinal(s)];
-}
 
 static inline const char* external_source_type_string[] = { "binary_file",
                                                             "constant",

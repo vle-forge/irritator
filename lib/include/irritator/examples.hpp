@@ -28,7 +28,7 @@ status example_qss_lotka_volterra(simulation& sim, F f) noexcept
     static_assert(1 <= QssLevel && QssLevel <= 3, "Only for Qss1, 2 and 3");
 
     if (!(sim.can_alloc(5) && sim.can_connect(8)))
-        return new_error(old_status::simulation_not_enough_model);
+        return new_error(simulation::part::models, container_full_error{});
 
     auto& integrator_a      = sim.alloc<abstract_integrator<QssLevel>>();
     integrator_a.default_X  = 18.0_r;
@@ -74,7 +74,7 @@ status example_qss_lif(simulation& sim, F f) noexcept
     static_assert(1 <= QssLevel && QssLevel <= 3, "Only for Qss1, 2 and 3");
 
     if (!(sim.can_alloc(5) && sim.can_connect(7)))
-        return new_error(old_status::simulation_not_enough_model);
+        return new_error(simulation::part::models, container_full_error{});
 
     constexpr irt::real tau = 10.0_r;
     constexpr irt::real Vt  = 1.0_r;
@@ -123,7 +123,7 @@ status example_qss_izhikevich(simulation& sim, F f) noexcept
     static_assert(1 <= QssLevel && QssLevel <= 3, "Only for Qss1, 2 and 3");
 
     if (!(sim.can_alloc(12) && sim.can_connect(22)))
-        return new_error(old_status::simulation_not_enough_model);
+        return new_error(simulation::part::models, container_full_error{});
 
     auto& cst          = sim.alloc<constant>();
     auto& cst2         = sim.alloc<constant>();
@@ -221,7 +221,7 @@ status example_qss_van_der_pol(simulation& sim, F f) noexcept
     static_assert(1 <= QssLevel && QssLevel <= 3, "Only for Qss1, 2 and 3");
 
     if (!(sim.can_alloc(5) && sim.can_connect(9)))
-        return new_error(old_status::simulation_not_enough_model);
+        return new_error(simulation::part::models, container_full_error{});
 
     auto& sum          = sim.alloc<abstract_wsum<QssLevel, 3>>();
     auto& product1     = sim.alloc<abstract_multiplier<QssLevel>>();
@@ -267,7 +267,7 @@ status example_qss_negative_lif(simulation& sim, F f) noexcept
     static_assert(1 <= QssLevel && QssLevel <= 3, "Only for Qss1, 2 and 3");
 
     if (!(sim.can_alloc(5) && sim.can_connect(7)))
-        return new_error(old_status::simulation_not_enough_model);
+        return new_error(simulation::part::models, container_full_error{});
 
     auto& sum        = sim.alloc<abstract_wsum<QssLevel, 2>>();
     auto& integrator = sim.alloc<abstract_integrator<QssLevel>>();

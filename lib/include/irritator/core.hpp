@@ -398,55 +398,6 @@ enum class log_level {
  *
  ****************************************************************************/
 
-enum class old_status {
-    unknown_dynamics,
-    block_allocator_bad_capacity,
-    block_allocator_not_enough_memory,
-    head_allocator_bad_capacity,
-    head_allocator_not_enough_memory,
-    simulation_not_enough_model,
-    simulation_not_enough_message,
-    simulation_not_enough_connection,
-    vector_init_capacity_error,
-    vector_not_enough_memory,
-    data_array_init_capacity_error,
-    data_array_not_enough_memory,
-    model_connect_output_port_unknown,
-    model_connect_already_exist,
-    model_connect_bad_dynamics,
-    model_queue_bad_ta,
-    model_queue_full,
-    model_dynamic_queue_source_is_null,
-    model_dynamic_queue_full,
-    model_priority_queue_source_is_null,
-    model_priority_queue_full,
-    model_integrator_dq_error,
-    model_integrator_X_error,
-    model_integrator_internal_error,
-    model_integrator_output_error,
-    model_integrator_running_without_x_dot,
-    model_integrator_ta_with_bad_x_dot,
-    model_quantifier_bad_quantum_parameter,
-    model_quantifier_bad_archive_length_parameter,
-    model_quantifier_shifting_value_neg,
-    model_quantifier_shifting_value_less_1,
-    model_time_func_bad_init_message,
-    model_hsm_bad_top_state,
-    model_hsm_bad_next_state,
-    model_filter_threshold_condition_not_satisfied,
-
-    io_not_enough_memory,
-    io_filesystem_error,
-    io_filesystem_make_directory_error,
-    io_filesystem_not_directory_error,
-};
-
-constexpr unsigned status_size() noexcept
-{
-    const auto id = ordinal(old_status::io_filesystem_not_directory_error);
-    return static_cast<unsigned>(id + 1);
-}
-
 template<typename T, typename... Args>
 constexpr bool match(const T& s, Args... args) noexcept
 {
@@ -1050,6 +1001,9 @@ template<typename T>
 class block_allocator
 {
 public:
+    //! Report an error during allocation. Add a @c e_memory data.
+    struct memory_error {};
+
     using value_type = T;
 
     static_assert(std::is_trivially_destructible_v<T>,
@@ -1112,12 +1066,9 @@ public:
 
     status init(std::integral auto new_capacity) noexcept
     {
-        if (std::cmp_less_equal(new_capacity, 0))
-            return new_error(old_status::block_allocator_bad_capacity);
-
-        if (std::cmp_greater_equal(
-              new_capacity, std::numeric_limits<decltype(m_capacity)>::max()))
-            return new_error(old_status::block_allocator_bad_capacity);
+        irt_assert(!std::cmp_less_equal(new_capacity, 0));
+        irt_assert(!std::cmp_greater_equal(
+          new_capacity, std::numeric_limits<decltype(m_capacity)>::max()));
 
         if (std::cmp_not_equal(new_capacity, m_capacity)) {
             if (m_blocks)
@@ -1126,7 +1077,12 @@ public:
             const auto new_size = static_cast<sz>(new_capacity) * sizeof(block);
             m_blocks            = static_cast<block*>(g_alloc_fn(new_size));
             if (m_blocks == nullptr)
-                return new_error(old_status::block_allocator_not_enough_memory);
+                return new_error(
+                  memory_error{},
+                  e_memory{
+                    .capacity = static_cast<long long unsigned int>(m_capacity),
+                    .request =
+                      static_cast<long long unsigned int>(new_capacity) });
         }
 
         m_size      = 0;
@@ -2131,12 +2087,9 @@ public:
 
     status init(std::integral auto new_capacity) noexcept
     {
-        if (std::cmp_equal(new_capacity, 0))
-            return new_error(old_status::head_allocator_bad_capacity);
-
-        if (std::cmp_greater(new_capacity,
-                             std::numeric_limits<decltype(capacity)>::max()))
-            return new_error(old_status::head_allocator_bad_capacity);
+        irt_assert(std::cmp_greater(new_capacity, 0));
+        irt_assert(std::cmp_less(
+          new_capacity, std::numeric_limits<decltype(capacity)>::max()));
 
         if (std::cmp_not_equal(new_capacity, capacity)) {
             if (nodes)
@@ -2145,7 +2098,11 @@ public:
             nodes = static_cast<node*>(
               g_alloc_fn(static_cast<sz>(new_capacity) * sizeof(node)));
             if (nodes == nullptr)
-                return new_error(old_status::head_allocator_not_enough_memory);
+                return new_error(memory_error{},
+                                 e_memory{ static_cast<long long unsigned int>(
+                                             capacity * sizeof(node)),
+                                           static_cast<long long unsigned int>(
+                                             new_capacity * sizeof(node)) });
         }
 
         m_size    = 0;
@@ -2597,11 +2554,12 @@ public:
 class external_source
 {
 public:
-    struct constant_source_error {};
-    struct binary_file_source_error {};
-    struct text_file_source_error {};
-    struct random_source_error {};
-    struct unknown_source_error {}; //<! Adds a e_ulong_id with the id value.
+    enum class part {
+        constant_source,
+        binary_file_source,
+        text_file_source,
+        random_source,
+    };
 
     data_array<constant_source, constant_source_id>       constant_sources;
     data_array<binary_file_source, binary_file_source_id> binary_file_sources;
@@ -2612,17 +2570,16 @@ public:
 
     status init(std::integral auto size) noexcept
     {
-        if (!is_numeric_castable<u32>(size))
-            return new_error(old_status::data_array_init_capacity_error);
+        irt_assert(std::cmp_greater(size, 0));
 
         if (auto ret = constant_sources.init(size); !ret)
-            return ret.error();
+            return ret.load(part::constant_source);
         if (auto ret = binary_file_sources.init(size); !ret)
-            return ret.error();
+            return ret.load(part::binary_file_source);
         if (auto ret = text_file_sources.init(size); !ret)
-            return ret.error();
+            return ret.load(part::text_file_source);
         if (auto ret = random_sources.init(size); !ret)
-            return ret.error();
+            return ret.load(part::random_source);
 
         return success();
     }
@@ -2645,7 +2602,7 @@ public:
     //! An example of error handlers to catch all error from the external source
     //! class and friend (@c binary_file_source, @c text_file_source, @c
     //! random_source and @c constant_source).
-    constexpr auto make_error_handlers() const noexcept;
+    // constexpr auto make_error_handlers() const noexcept;
 };
 
 //! To be used in model declaration to initialize a source instance according
@@ -3092,6 +3049,9 @@ struct integrator {
         return success();
     }
 
+    struct integrator_running_without_x_dot_error {};
+    struct integrator_ta_with_bad_x_dot {};
+
     observation_message observation(time t, time /*e*/) const noexcept
     {
         return { t, last_output_value };
@@ -3101,8 +3061,7 @@ struct integrator {
     {
         if (st == state::running) {
             if (std::cmp_equal(-1, archive))
-                return new_error(
-                  old_status::model_integrator_running_without_x_dot);
+                return new_error(integrator_running_without_x_dot_error{});
 
             auto       lst                = get_archive(sim, archive);
             const auto current_derivative = lst.back().x_dot;
@@ -3114,16 +3073,14 @@ struct integrator {
 
             if (current_derivative > 0) {
                 if ((up_threshold - current_value) < 0)
-                    return new_error(
-                      old_status::model_integrator_ta_with_bad_x_dot);
+                    return new_error(integrator_ta_with_bad_x_dot{});
 
                 sigma = (up_threshold - current_value) / current_derivative;
                 return success();
             }
 
             if ((down_threshold - current_value) > 0)
-                return new_error(
-                  old_status::model_integrator_ta_with_bad_x_dot);
+                return new_error(integrator_ta_with_bad_x_dot{});
 
             sigma = (down_threshold - current_value) / current_derivative;
             return success();
@@ -3199,6 +3156,9 @@ struct abstract_integrator<1> {
 
     enum port_name { port_x_dot, port_reset };
 
+    struct X_error {};
+    struct dQ_error {};
+
     abstract_integrator() = default;
 
     abstract_integrator(const abstract_integrator& other) noexcept
@@ -3213,10 +3173,10 @@ struct abstract_integrator<1> {
     status initialize(simulation& /*sim*/) noexcept
     {
         if (!std::isfinite(default_X))
-            return new_error(old_status::model_integrator_X_error);
+            return new_error(X_error{});
 
         if (!(std::isfinite(default_dQ) && default_dQ > zero))
-            return new_error(old_status::model_integrator_X_error);
+            return new_error(dQ_error{});
 
         X = default_X;
         q = std::floor(X / default_dQ) * default_dQ;
@@ -3319,6 +3279,9 @@ struct abstract_integrator<2> {
 
     enum port_name { port_x_dot, port_reset };
 
+    struct X_error {};
+    struct dQ_error {};
+
     abstract_integrator() = default;
 
     abstract_integrator(const abstract_integrator& other) noexcept
@@ -3335,10 +3298,10 @@ struct abstract_integrator<2> {
     status initialize(simulation& /*sim*/) noexcept
     {
         if (!std::isfinite(default_X))
-            return new_error(old_status::model_integrator_X_error);
+            return new_error(X_error{});
 
         if (!std::isfinite(default_dQ) && default_dQ > zero)
-            return new_error(old_status::model_integrator_X_error);
+            return new_error(dQ_error{});
 
         X = default_X;
 
@@ -3478,6 +3441,9 @@ struct abstract_integrator<3> {
 
     enum port_name { port_x_dot, port_reset };
 
+    struct X_error {};
+    struct dQ_error {};
+
     abstract_integrator() = default;
 
     abstract_integrator(const abstract_integrator& other) noexcept
@@ -3496,10 +3462,10 @@ struct abstract_integrator<3> {
     status initialize(simulation& /*sim*/) noexcept
     {
         if (!std::isfinite(default_X))
-            return new_error(old_status::model_integrator_X_error);
+            return new_error(X_error{});
 
         if (!(std::isfinite(default_dQ) && default_dQ > zero))
-            return new_error(old_status::model_integrator_X_error);
+            return new_error(dQ_error{});
 
         X     = default_X;
         u     = zero;
@@ -4533,6 +4499,11 @@ struct quantifier {
     state       m_state            = state::init;
     adapt_state m_adapt_state      = adapt_state::possible;
 
+    struct quantum_error {};
+    struct archive_length_error {};
+    struct shifting_value_neg {};
+    struct shifting_value_less_1 {};
+
     quantifier() noexcept = default;
 
     quantifier(const quantifier& other) noexcept
@@ -4568,12 +4539,10 @@ struct quantifier {
         m_state            = state::init;
 
         if (m_step_size <= 0)
-            return new_error(
-              old_status::model_quantifier_bad_quantum_parameter);
+            return new_error(quantum_error{});
 
         if (m_past_length <= 2)
-            return new_error(
-              old_status::model_quantifier_bad_archive_length_parameter);
+            return new_error(archive_length_error{});
 
         sigma = time_domain<time>::infinity;
 
@@ -4625,12 +4594,10 @@ struct quantifier {
                 shifting_factor = shift_quanta(sim);
 
                 if (shifting_factor < 0)
-                    return new_error(
-                      old_status::model_quantifier_shifting_value_neg);
+                    return new_error(shifting_value_neg{});
 
                 if (shifting_factor > 1)
-                    return new_error(
-                      old_status::model_quantifier_shifting_value_less_1);
+                    return new_error(shifting_value_less_1{});
 
                 if ((0 != shifting_factor) && (1 != shifting_factor)) {
                     update_thresholds(shifting_factor,
@@ -5288,6 +5255,8 @@ struct abstract_filter {
     bool reach_lower_threshold = false;
     bool reach_upper_threshold = false;
 
+    struct threshold_condition_error {};
+
     abstract_filter() noexcept = default;
 
     abstract_filter(const abstract_filter& other) noexcept
@@ -5305,8 +5274,7 @@ struct abstract_filter {
     status initialize(simulation& /*sim*/) noexcept
     {
         if (default_lower_threshold >= default_upper_threshold)
-            return new_error(
-              old_status::model_filter_threshold_condition_not_satisfied);
+            return new_error(threshold_condition_error{});
 
         lower_threshold       = default_lower_threshold;
         upper_threshold       = default_upper_threshold;
@@ -5493,6 +5461,8 @@ struct filter {
     real         upper_threshold;
     irt::message inValue;
 
+    struct threshold_condition_error {};
+
     filter() noexcept
     {
         default_lower_threshold = -0.5;
@@ -5507,8 +5477,7 @@ struct filter {
         upper_threshold = default_upper_threshold;
 
         if (default_lower_threshold >= default_upper_threshold)
-            return new_error(
-              old_status::model_filter_threshold_condition_not_satisfied);
+            return new_error(threshold_condition_error{});
 
         return success();
     }
@@ -5718,6 +5687,9 @@ public:
     static const u8 invalid_state_id    = 255;
 
     enum class event_type : u8 { enter = 0, exit, input_changed };
+
+    struct top_state_error {};
+    struct next_state_error {};
 
     constexpr static int event_type_count     = 3;
     constexpr static int variable_count       = 8;
@@ -6406,6 +6378,8 @@ struct queue {
 
     real default_ta = one;
 
+    struct ta_error {};
+
     queue() noexcept = default;
 
     queue(const queue& other) noexcept
@@ -6417,7 +6391,7 @@ struct queue {
     status initialize(simulation& /*sim*/) noexcept
     {
         if (default_ta <= 0)
-            return new_error(old_status::model_queue_bad_ta);
+            return new_error(ta_error{});
 
         sigma = time_domain<time>::infinity;
         fifo  = static_cast<u64>(-1);
@@ -6431,31 +6405,7 @@ struct queue {
         return success();
     }
 
-    status transition(simulation& sim, time t, time /*e*/, time /*r*/) noexcept
-    {
-        auto list = append_dated_message(sim, fifo);
-        while (!list.empty() && list.front().data[0] <= t)
-            list.pop_front();
-
-        auto span = get_message(sim, x[0]);
-        for (const auto& msg : span) {
-            if (!can_alloc_dated_message(sim, 1))
-                return new_error(old_status::model_queue_full);
-
-            list.emplace_back(
-              irt::real(t + default_ta), msg[0], msg[1], msg[2]);
-        }
-
-        if (!list.empty()) {
-            sigma = list.front()[0] - t;
-            sigma = sigma <= time_domain<time>::zero ? time_domain<time>::zero
-                                                     : sigma;
-        } else {
-            sigma = time_domain<time>::infinity;
-        }
-
-        return success();
-    }
+    status transition(simulation& sim, time t, time /*e*/, time /*r*/) noexcept;
 
     status lambda(simulation& sim) noexcept
     {
@@ -6515,39 +6465,7 @@ struct dynamic_queue {
         return success();
     }
 
-    status transition(simulation& sim, time t, time /*e*/, time /*r*/) noexcept
-    {
-        auto list = append_dated_message(sim, fifo);
-        while (!list.empty() && list.front().data[0] <= t)
-            list.pop_front();
-
-        auto span = get_message(sim, x[0]);
-        for (const auto& msg : span) {
-            if (!can_alloc_dated_message(sim, 1))
-                return new_error(old_status::model_dynamic_queue_full);
-
-            real ta = zero;
-            if (stop_on_error) {
-                irt_check(update_source(sim, default_source_ta, ta));
-                list.emplace_back(
-                  t + static_cast<real>(ta), msg[0], msg[1], msg[2]);
-            } else {
-                if (auto ret = update_source(sim, default_source_ta, ta); !ret)
-                    list.emplace_back(
-                      t + static_cast<real>(ta), msg[0], msg[1], msg[2]);
-            }
-        }
-
-        if (!list.empty()) {
-            sigma = list.front().data[0] - t;
-            sigma = sigma <= time_domain<time>::zero ? time_domain<time>::zero
-                                                     : sigma;
-        } else {
-            sigma = time_domain<time>::infinity;
-        }
-
-        return success();
-    }
+    status transition(simulation& sim, time t, time /*e*/, time /*r*/) noexcept;
 
     status lambda(simulation& sim) noexcept
     {
@@ -6590,29 +6508,7 @@ struct priority_queue {
 private:
     status try_to_insert(simulation&    sim,
                          const time     t,
-                         const message& msg) noexcept
-    {
-        if (!can_alloc_dated_message(sim, 1))
-            return new_error(old_status::model_priority_queue_source_is_null);
-
-        auto list = append_dated_message(sim, fifo);
-        if (list.empty() || list.begin()->data[0] > t) {
-            list.emplace_front(irt::real(t), msg[0], msg[1], msg[2]);
-        } else {
-            auto it  = list.begin();
-            auto end = list.end();
-            ++it;
-
-            for (; it != end; ++it) {
-                if (it->data[0] > t) {
-                    list.emplace(it, irt::real(t), msg[0], msg[1], msg[2]);
-                    return success();
-                }
-            }
-        }
-
-        return success();
-    }
+                         const message& msg) noexcept;
 
 public:
     status initialize(simulation& sim) noexcept
@@ -6637,45 +6533,7 @@ public:
         return success();
     }
 
-    status transition(simulation& sim, time t, time /*e*/, time /*r*/) noexcept
-    {
-        auto list = append_dated_message(sim, fifo);
-        while (!list.empty() && list.front().data[0] <= t)
-            list.pop_front();
-
-        auto span = get_message(sim, x[0]);
-        for (const auto& msg : span) {
-            real value = zero;
-
-            if (stop_on_error) {
-                irt_check(update_source(sim, default_source_ta, value));
-
-                if (auto ret =
-                      try_to_insert(sim, static_cast<real>(value) + t, msg);
-                    !ret)
-                    return new_error(old_status::model_priority_queue_full);
-            } else {
-                if (auto ret = update_source(sim, default_source_ta, value);
-                    !ret) {
-                    if (auto ret =
-                          try_to_insert(sim, static_cast<real>(value) + t, msg);
-                        !ret)
-                        return new_error(old_status::model_priority_queue_full);
-                }
-            }
-        }
-
-        if (!list.empty()) {
-            sigma = list.front()[0] - t;
-            sigma = sigma <= time_domain<time>::zero ? time_domain<time>::zero
-                                                     : sigma;
-        } else {
-            sigma = time_domain<time>::infinity;
-        }
-
-        return success();
-    }
-
+    status transition(simulation& sim, time t, time /*e*/, time /*r*/) noexcept;
     status lambda(simulation& sim) noexcept
     {
         if (fifo == static_cast<u64>(-1))
@@ -7206,64 +7064,13 @@ constexpr model& get_model(Dynamics& d) noexcept
     return *(model*)((char*)__mptr - offsetof(model, dyn));
 }
 
-inline result<input_port> get_input_port(model& src, int port_src) noexcept
-{
-    return dispatch(
-      src, [&]<typename Dynamics>(Dynamics& dyn) -> result<input_port> {
-          if constexpr (has_input_port<Dynamics>) {
-              if (port_src >= 0 && port_src < length(dyn.x)) {
-                  return dyn.x[port_src];
-              }
-          }
+inline result<input_port> get_input_port(model& src, int port_src) noexcept;
 
-          return new_error(old_status::model_connect_output_port_unknown);
-      });
-}
-
-inline status get_input_port(model& src, int port_src, input_port*& p) noexcept
-{
-    return dispatch(
-      src, [port_src, &p]<typename Dynamics>(Dynamics& dyn) -> status {
-          if constexpr (has_input_port<Dynamics>) {
-              if (port_src >= 0 && port_src < length(dyn.x)) {
-                  p = &dyn.x[port_src];
-                  return success();
-              }
-          }
-
-          return new_error(old_status::model_connect_output_port_unknown);
-      });
-}
-
-inline result<output_port> get_output_port(model& dst, int port_dst) noexcept
-{
-    return dispatch(
-      dst, [&]<typename Dynamics>(Dynamics& dyn) -> result<output_port> {
-          if constexpr (has_output_port<Dynamics>) {
-              if (port_dst >= 0 && port_dst < length(dyn.y))
-                  return dyn.y[port_dst];
-          }
-
-          return new_error(old_status::model_connect_output_port_unknown);
-      });
-}
-
-inline status get_output_port(model&        dst,
-                              int           port_dst,
-                              output_port*& p) noexcept
-{
-    return dispatch(
-      dst, [port_dst, &p]<typename Dynamics>(Dynamics& dyn) -> status {
-          if constexpr (has_output_port<Dynamics>) {
-              if (port_dst >= 0 && port_dst < length(dyn.y)) {
-                  p = &dyn.y[port_dst];
-                  return success();
-              }
-          }
-
-          return new_error(old_status::model_connect_output_port_unknown);
-      });
-}
+inline status get_input_port(model& src, int port_src, input_port*& p) noexcept;
+inline result<output_port> get_output_port(model& dst, int port_dst) noexcept;
+inline status              get_output_port(model&        dst,
+                                           int           port_dst,
+                                           output_port*& p) noexcept;
 
 inline bool is_ports_compatible(const dynamics_type mdl_src,
                                 const int           o_port_index,
@@ -7406,72 +7213,23 @@ inline bool is_ports_compatible(const dynamics_type mdl_src,
 inline bool is_ports_compatible(const model& mdl_src,
                                 const int    o_port_index,
                                 const model& mdl_dst,
-                                const int    i_port_index) noexcept
-{
-    if (&mdl_src == &mdl_dst)
-        return false;
-
-    return is_ports_compatible(
-      mdl_src.type, o_port_index, mdl_dst.type, i_port_index);
-}
+                                const int    i_port_index) noexcept;
 
 inline status global_connect(simulation& sim,
                              model&      src,
                              int         port_src,
                              model_id    dst,
-                             int         port_dst) noexcept
-{
-    return dispatch(
-      src,
-      [&sim, port_src, dst, port_dst]<typename Dynamics>(
-        Dynamics& dyn) -> status {
-          if constexpr (has_output_port<Dynamics>) {
-              auto list = append_node(sim, dyn.y[static_cast<u8>(port_src)]);
-              for (const auto& elem : list) {
-                  if (elem.model == dst && elem.port_index == port_dst)
-                      return new_error(old_status::model_connect_already_exist);
-              }
-
-              if (!can_alloc_node(sim, 1))
-                  return new_error(
-                    old_status::simulation_not_enough_connection);
-
-              list.emplace_back(dst, static_cast<i8>(port_dst));
-
-              return success();
-          }
-
-          irt_unreachable();
-      });
-}
+                             int         port_dst) noexcept;
 
 inline status global_disconnect(simulation& sim,
                                 model&      src,
                                 int         port_src,
                                 model_id    dst,
-                                int         port_dst) noexcept
-{
-    return dispatch(
-      src,
-      [&sim, port_src, dst, port_dst]<typename Dynamics>(
-        Dynamics& dyn) -> status {
-          if constexpr (has_output_port<Dynamics>) {
-              auto list = append_node(sim, dyn.y[port_src]);
-              for (auto it = list.begin(), end = list.end(); it != end; ++it) {
-                  if (it->model == dst && it->port_index == port_dst) {
-                      it = list.erase(it);
-                      return success();
-                  }
-              }
-          }
-
-          irt_unreachable();
-      });
-}
+                                int         port_dst) noexcept;
 
 /*****************************************************************************
  *
- * scheduller
+ * scheduler
  *
  ****************************************************************************/
 
@@ -7485,12 +7243,7 @@ public:
 
     status init(std::integral auto new_capacity) noexcept
     {
-        if (std::cmp_less_equal(new_capacity, 0))
-            return new_error(old_status::head_allocator_bad_capacity);
-
-        irt_check(m_heap.init(new_capacity));
-
-        return success();
+        return m_heap.init(new_capacity);
     }
 
     void clear() { m_heap.clear(); }
@@ -7586,14 +7339,19 @@ inline void copy(const model& src, model& dst) noexcept
 class simulation
 {
 public:
-    struct memory_error {};         //<! e_memory with capacity needed.
-    struct message_full_error {};   //<! Add a @c e_allocator.
-    struct node_full_error {};      //<! Add a @c e_allocator.
-    struct record_full_error {};    //<! Add a @c e_allocator.
-    struct dated_message_error {};  //<! Add a @c e_allocator.
-    struct model_full_error {};     //<! Add a @c e_allocator.
-    struct hsms_full_error {};      //<! Add a @c e_allocator.
-    struct observers_full_error {}; //<! Add a @c e_allocator.
+    //! Used to report which part of the @c project have a problem with the @c
+    //! new_error function.
+    enum class part {
+        messages,
+        nodes,
+        records,
+        dated_messages,
+        models,
+        hsms,
+        observers,
+        scheduler,
+        external_sources
+    };
 
     block_allocator<list_view_node<message>>       message_alloc;
     block_allocator<list_view_node<node>>          node_alloc;
@@ -7609,54 +7367,14 @@ public:
     external_source srcs;
     scheduller      sched;
 
-    //! @brief Use initialize, generate or finalize data from a source.
-    //!
-    //! See the @c external_source class for an implementation.
-
-    model_id get_id(const model& mdl) const { return models.get_id(mdl); }
+    model_id get_id(const model& mdl) const;
 
     template<typename Dynamics>
-    model_id get_id(const Dynamics& dyn) const
-    {
-        return models.get_id(get_model(dyn));
-    }
+    model_id get_id(const Dynamics& dyn) const;
 
 public:
     status init(std::integral auto model_capacity,
-                std::integral auto messages_capacity)
-    {
-        constexpr size_t ten = 10u;
-
-        if (std::cmp_greater(0, model_capacity))
-            return new_error(old_status::simulation_not_enough_model);
-
-        if (std::cmp_greater(0, messages_capacity))
-            return new_error(old_status::simulation_not_enough_model);
-
-        size_t max_hsms = (model_capacity / 10) <= 0
-                            ? 1u
-                            : static_cast<unsigned>(model_capacity) / 10u;
-
-        size_t max_srcs = (model_capacity / 10) <= 10
-                            ? 10u
-                            : static_cast<unsigned>(model_capacity) / 10u;
-
-        irt_check(message_alloc.init(messages_capacity));
-        irt_check(node_alloc.init(model_capacity * ten));
-        irt_check(record_alloc.init(model_capacity * ten));
-        irt_check(dated_message_alloc.init(model_capacity));
-        irt_check(models.init(model_capacity));
-        irt_check(hsms.init(max_hsms));
-        irt_check(observers.init(model_capacity));
-        irt_check(sched.init(model_capacity));
-        irt_check(srcs.init(max_srcs));
-
-        emitting_output_ports.reserve(model_capacity);
-        immediate_models.reserve(model_capacity);
-        immediate_observers.reserve(model_capacity);
-
-        return success();
-    }
+                std::integral auto messages_capacity);
 
     bool can_alloc(std::integral auto place) const noexcept;
     bool can_alloc(dynamics_type type, std::integral auto place) const noexcept;
@@ -7666,30 +7384,11 @@ public:
 
     //! @brief cleanup simulation object
     //!
-    //! Clean scheduller and input/output port from message.
-    void clean() noexcept
-    {
-        sched.clear();
-
-        message_alloc.reset();
-        record_alloc.reset();
-        dated_message_alloc.reset();
-
-        emitting_output_ports.clear();
-        immediate_models.clear();
-        immediate_observers.clear();
-    }
+    //! Clean scheduler and input/output port from message.
+    void clean() noexcept;
 
     //! @brief cleanup simulation and destroy all models and connections
-    void clear() noexcept
-    {
-        clean();
-
-        node_alloc.reset();
-
-        models.clear();
-        observers.clear();
-    }
+    void clear() noexcept;
 
     //! @brief This function allocates dynamics and models.
     template<typename Dynamics>
@@ -7701,219 +7400,47 @@ public:
     //! @brief This function allocates dynamics and models.
     model& alloc(dynamics_type type) noexcept;
 
-    void observe(model& mdl, observer& obs) noexcept
-    {
-        mdl.obs_id = observers.get_id(obs);
-        obs.model  = models.get_id(mdl);
-        obs.type   = mdl.type;
-    }
+    void observe(model& mdl, observer& obs) noexcept;
 
-    void unobserve(model& mdl) noexcept
-    {
-        if (auto* obs = observers.try_to_get(mdl.obs_id); obs) {
-            obs->model = undefined<model_id>();
-            mdl.obs_id = undefined<observer_id>();
-            observers.free(*obs);
-        }
+    void unobserve(model& mdl) noexcept;
 
-        mdl.obs_id = undefined<observer_id>();
-    }
-
-    void deallocate(model_id id) noexcept
-    {
-        auto* mdl = models.try_to_get(id);
-        irt_assert(mdl);
-
-        unobserve(*mdl);
-
-        dispatch(*mdl, [this]<typename Dynamics>(Dynamics& dyn) {
-            this->do_deallocate<Dynamics>(dyn);
-        });
-
-        sched.erase(*mdl);
-        models.free(*mdl);
-    }
+    void deallocate(model_id id) noexcept;
 
     template<typename Dynamics>
-    void do_deallocate(Dynamics& dyn) noexcept
-    {
-        if constexpr (has_output_port<Dynamics>) {
-            for (auto& elem : dyn.y)
-                append_node(*this, elem).clear();
-        }
+    void do_deallocate(Dynamics& dyn) noexcept;
 
-        if constexpr (has_input_port<Dynamics>) {
-            for (auto& elem : dyn.x)
-                append_message(*this, elem).clear();
-        }
+    bool can_connect(int number) const noexcept;
 
-        if constexpr (std::is_same_v<Dynamics, hsm_wrapper>) {
-            if (auto* machine = hsms.try_to_get(dyn.id); machine)
-                hsms.free(dyn.id);
-        }
-
-        std::destroy_at(&dyn);
-    }
-
-    bool can_connect(int number) const noexcept
-    {
-        return can_alloc_node(*this, number);
-    }
-
-    status connect(model& src, int port_src, model& dst, int port_dst) noexcept
-    {
-        if (!is_ports_compatible(src, port_src, dst, port_dst))
-            return new_error(old_status::model_connect_bad_dynamics);
-
-        const auto dst_id = get_id(dst);
-
-        return global_connect(*this, src, port_src, dst_id, port_dst);
-    }
+    status connect(model& src, int port_src, model& dst, int port_dst) noexcept;
 
     template<typename DynamicsSrc, typename DynamicsDst>
     status connect(DynamicsSrc& src,
                    int          port_src,
                    DynamicsDst& dst,
-                   int          port_dst) noexcept
-    {
-        model&   src_model    = get_model(src);
-        model&   dst_model    = get_model(dst);
-        model_id model_dst_id = get_id(dst);
-
-        if (!is_ports_compatible(src_model, port_src, dst_model, port_dst))
-            return new_error(old_status::model_connect_bad_dynamics);
-
-        return global_connect(
-          *this, src_model, port_src, model_dst_id, port_dst);
-    }
+                   int          port_dst) noexcept;
 
     status disconnect(model& src,
                       int    port_src,
                       model& dst,
-                      int    port_dst) noexcept
-    {
-        return global_disconnect(*this, src, port_src, get_id(dst), port_dst);
-    }
+                      int    port_dst) noexcept;
 
-    status initialize(time t) noexcept
-    {
-        clean();
+    status initialize(time t) noexcept;
 
-        irt::model* mdl = nullptr;
-        while (models.next(mdl))
-            irt_check(make_initialize(*mdl, t));
-
-        irt::observer* obs = nullptr;
-        while (observers.next(obs)) {
-            obs->reset();
-
-            if (auto* mdl = models.try_to_get(obs->model); mdl) {
-                dispatch(*mdl,
-                         [mdl, &obs, t]<typename Dynamics>(Dynamics& dyn) {
-                             if constexpr (has_observation_function<Dynamics>) {
-                                 obs->update(dyn.observation(t, t - mdl->tl));
-                             }
-                         });
-            }
-        }
-
-        return success();
-    }
-
+    //!
     status run(time& t) noexcept;
 
     template<typename Dynamics>
-    status make_initialize(model& mdl, Dynamics& dyn, time t) noexcept
-    {
-        if constexpr (has_input_port<Dynamics>) {
-            for (int i = 0, e = length(dyn.x); i != e; ++i)
-                dyn.x[i] = static_cast<u64>(-1);
-        }
+    status make_initialize(model& mdl, Dynamics& dyn, time t) noexcept;
 
-        if constexpr (has_initialize_function<Dynamics>)
-            irt_check(dyn.initialize(*this));
-
-        mdl.tl     = t;
-        mdl.tn     = t + dyn.sigma;
-        mdl.handle = nullptr;
-
-        sched.insert(mdl, models.get_id(mdl), mdl.tn);
-
-        return success();
-    }
-
-    status make_initialize(model& mdl, time t) noexcept
-    {
-        return dispatch(
-          mdl, [this, &mdl, t]<typename Dynamics>(Dynamics& dyn) -> status {
-              return this->make_initialize(mdl, dyn, t);
-          });
-    }
+    status make_initialize(model& mdl, time t) noexcept;
 
     template<typename Dynamics>
-    status make_transition(model& mdl, Dynamics& dyn, time t) noexcept
-    {
-        if constexpr (has_observation_function<Dynamics>) {
-            if (mdl.obs_id != undefined<observer_id>()) {
-                if (auto* obs = observers.try_to_get(mdl.obs_id); obs) {
-                    obs->update(dyn.observation(t, t - mdl.tl));
+    status make_transition(model& mdl, Dynamics& dyn, time t) noexcept;
 
-                    if (obs->full())
-                        immediate_observers.emplace_back(mdl.obs_id);
-                }
-            } else {
-                mdl.obs_id = static_cast<observer_id>(0);
-            }
-        }
-
-        if (mdl.tn == mdl.handle->tn) {
-            if constexpr (has_lambda_function<Dynamics>)
-                if constexpr (has_output_port<Dynamics>)
-                    irt_check(dyn.lambda(*this));
-        }
-
-        if constexpr (has_transition_function<Dynamics>)
-            irt_check(dyn.transition(*this, t, t - mdl.tl, mdl.tn - t));
-
-        if constexpr (has_input_port<Dynamics>) {
-            for (auto& elem : dyn.x)
-                append_message(*this, elem).clear();
-        }
-
-        irt_assert(mdl.tn >= t);
-
-        mdl.tl = t;
-        mdl.tn = t + dyn.sigma;
-        if (dyn.sigma != 0 && mdl.tn == t)
-            mdl.tn = std::nextafter(t, t + irt::one);
-
-        sched.reintegrate(mdl, mdl.tn);
-
-        return success();
-    }
-
-    status make_transition(model& mdl, time t) noexcept
-    {
-        return dispatch(mdl, [this, &mdl, t]<typename Dynamics>(Dynamics& dyn) {
-            return this->make_transition(mdl, dyn, t);
-        });
-    }
+    status make_transition(model& mdl, time t) noexcept;
 
     template<typename Dynamics>
-    status make_finalize(Dynamics& dyn, observer* obs, time t) noexcept
-    {
-        if constexpr (has_observation_function<Dynamics>) {
-            if (obs) {
-                obs->update(dyn.observation(t, t - get_model(dyn).tl));
-            }
-        }
-
-        if constexpr (has_finalize_function<Dynamics>) {
-            irt_check(dyn.finalize(*this));
-        }
-
-        return success();
-    }
+    status make_finalize(Dynamics& dyn, observer* obs, time t) noexcept;
 
     /**
      * @brief Finalize and cleanup simulation objects.
@@ -7925,24 +7452,7 @@ public:
      *
      * This function must be call at the end of the simulation.
      */
-    status finalize(time t) noexcept
-    {
-        model* mdl = nullptr;
-        while (models.next(mdl)) {
-            observer* obs = nullptr;
-            if (is_defined(mdl->obs_id))
-                obs = observers.try_to_get(mdl->obs_id);
-
-            auto ret =
-              dispatch(*mdl, [this, obs, t]<typename Dynamics>(Dynamics& dyn) {
-                  return this->make_finalize(dyn, obs, t);
-              });
-
-            irt_check(ret);
-        }
-
-        return success();
-    }
+    status finalize(time t) noexcept;
 };
 
 inline status initialize_source(simulation& sim, source& src) noexcept
@@ -8089,13 +7599,20 @@ data_array<T, Identifier>::~data_array() noexcept
 template<typename T, typename Identifier>
 status data_array<T, Identifier>::init(std::integral auto capacity) noexcept
 {
-    if (std::cmp_greater_equal(capacity,
-                               std::numeric_limits<index_type>::max()))
-        return new_error(old_status::data_array_init_capacity_error);
+    if (std::cmp_equal(capacity, 0)) {
+        clear();
+        return success();
+    }
+
+    if (!std::cmp_greater(capacity, 0) ||
+        !std::cmp_less(capacity, std::numeric_limits<index_type>::max()))
+        return new_error(argument_error{});
 
     auto* buffer = g_alloc_fn(static_cast<sz>(capacity) * sizeof(item));
     if (!buffer)
-        return new_error(old_status::data_array_not_enough_memory);
+        return new_error(memory_error{},
+                         e_memory{ static_cast<sz>(m_capacity * sizeof(item)),
+                                   static_cast<sz>(capacity * sizeof(item)) });
 
     clear();
 
@@ -8117,7 +7634,9 @@ status data_array<T, Identifier>::resize(std::integral auto capacity) noexcept
 
     auto* buffer = g_alloc_fn(static_cast<sz>(capacity) * sizeof(item));
     if (!buffer)
-        return new_error(old_status::data_array_not_enough_memory);
+        return new_error(memory_error{},
+                         e_memory{ static_cast<sz>(m_capacity * sizeof(item)),
+                                   static_cast<sz>(capacity * sizeof(item)) });
 
     auto* new_items = reinterpret_cast<item*>(buffer);
     std::copy_n(m_items, static_cast<sz>(m_max_used), new_items);
@@ -10034,7 +9553,8 @@ inline status send_message(simulation&  sim,
             it = list.erase(it);
         } else {
             if (!sim.emitting_output_ports.can_alloc(1))
-                return new_error(old_status::simulation_not_enough_message);
+                return new_error(simulation::part::messages,
+                                 container_full_error{});
 
             auto& output_message  = sim.emitting_output_ports.emplace_back();
             output_message.msg[0] = r1;
@@ -10050,6 +9570,10 @@ inline status send_message(simulation&  sim,
     return success();
 }
 
+//! Get an @c hierarchical_state_machine from the ID.
+//!
+//! @return @c success() or a new error @c simulation::hsms_error{} @c
+//! unknown_error{} and e_ulong_id{ ordinal(id).
 inline status get_hierarchical_state_machine(simulation&                  sim,
                                              hierarchical_state_machine*& hsm,
                                              const hsm_id id) noexcept
@@ -10057,7 +9581,321 @@ inline status get_hierarchical_state_machine(simulation&                  sim,
     if (hsm = sim.hsms.try_to_get(id); hsm)
         return success();
 
-    return new_error(old_status::unknown_dynamics); // @TODO new message
+    return new_error(
+      simulation::part::hsms, unknown_error{}, e_ulong_id{ ordinal(id) });
+}
+
+/////////////////////////////////////////////////////////////
+///
+///
+
+inline model_id simulation::get_id(const model& mdl) const
+{
+    return models.get_id(mdl);
+}
+
+template<typename Dynamics>
+model_id simulation::get_id(const Dynamics& dyn) const
+{
+    return models.get_id(get_model(dyn));
+}
+
+inline status simulation::init(std::integral auto model_capacity,
+                               std::integral auto messages_capacity)
+{
+    irt_assert(!std::cmp_greater(0, model_capacity));
+    irt_assert(!std::cmp_greater(0, messages_capacity));
+
+    constexpr size_t ten = 10u;
+
+    size_t max_hsms = (model_capacity / 10) <= 0
+                        ? 1u
+                        : static_cast<unsigned>(model_capacity) / 10u;
+
+    size_t max_srcs = (model_capacity / 10) <= 10
+                        ? 10u
+                        : static_cast<unsigned>(model_capacity) / 10u;
+
+    if (auto ret = message_alloc.init(messages_capacity); !ret)
+        return ret.load(simulation::part::messages);
+    if (auto ret = node_alloc.init(model_capacity * ten); !ret)
+        return ret.load(simulation::part::nodes);
+    if (auto ret = record_alloc.init(model_capacity * ten); !ret)
+        return ret.load(simulation::part::records);
+    if (auto ret = dated_message_alloc.init(model_capacity); !ret)
+        return ret.load(simulation::part::dated_messages);
+    if (auto ret = models.init(model_capacity); !ret)
+        return ret.load(simulation::part::models);
+    if (auto ret = hsms.init(max_hsms); !ret)
+        return ret.load(simulation::part::hsms);
+    if (auto ret = observers.init(model_capacity); !ret)
+        return ret.load(simulation::part::observers);
+    if (auto ret = sched.init(model_capacity); !ret)
+        return ret.load(simulation::part::scheduler);
+    if (auto ret = srcs.init(max_srcs); !ret)
+        return ret.load(simulation::part::external_sources);
+
+    emitting_output_ports.reserve(model_capacity);
+    immediate_models.reserve(model_capacity);
+    immediate_observers.reserve(model_capacity);
+
+    return success();
+}
+
+inline void simulation::clean() noexcept
+{
+    sched.clear();
+
+    message_alloc.reset();
+    record_alloc.reset();
+    dated_message_alloc.reset();
+
+    emitting_output_ports.clear();
+    immediate_models.clear();
+    immediate_observers.clear();
+}
+
+//! @brief cleanup simulation and destroy all models and connections
+inline void simulation::clear() noexcept
+{
+    clean();
+
+    node_alloc.reset();
+
+    models.clear();
+    observers.clear();
+}
+
+inline void simulation::observe(model& mdl, observer& obs) noexcept
+{
+    mdl.obs_id = observers.get_id(obs);
+    obs.model  = models.get_id(mdl);
+    obs.type   = mdl.type;
+}
+
+inline void simulation::unobserve(model& mdl) noexcept
+{
+    if (auto* obs = observers.try_to_get(mdl.obs_id); obs) {
+        obs->model = undefined<model_id>();
+        mdl.obs_id = undefined<observer_id>();
+        observers.free(*obs);
+    }
+
+    mdl.obs_id = undefined<observer_id>();
+}
+
+inline void simulation::deallocate(model_id id) noexcept
+{
+    auto* mdl = models.try_to_get(id);
+    irt_assert(mdl);
+
+    unobserve(*mdl);
+
+    dispatch(*mdl, [this]<typename Dynamics>(Dynamics& dyn) {
+        this->do_deallocate<Dynamics>(dyn);
+    });
+
+    sched.erase(*mdl);
+    models.free(*mdl);
+}
+
+template<typename Dynamics>
+void simulation::do_deallocate(Dynamics& dyn) noexcept
+{
+    if constexpr (has_output_port<Dynamics>) {
+        for (auto& elem : dyn.y)
+            append_node(*this, elem).clear();
+    }
+
+    if constexpr (has_input_port<Dynamics>) {
+        for (auto& elem : dyn.x)
+            append_message(*this, elem).clear();
+    }
+
+    if constexpr (std::is_same_v<Dynamics, hsm_wrapper>) {
+        if (auto* machine = hsms.try_to_get(dyn.id); machine)
+            hsms.free(dyn.id);
+    }
+
+    std::destroy_at(&dyn);
+}
+
+inline bool simulation::can_connect(int number) const noexcept
+{
+    return can_alloc_node(*this, number);
+}
+
+inline status simulation::connect(model& src,
+                                  int    port_src,
+                                  model& dst,
+                                  int    port_dst) noexcept
+{
+    if (!is_ports_compatible(src, port_src, dst, port_dst))
+        return new_error(simulation::part::nodes, incompatibility_error{});
+
+    const auto dst_id = get_id(dst);
+
+    return global_connect(*this, src, port_src, dst_id, port_dst);
+}
+
+template<typename DynamicsSrc, typename DynamicsDst>
+status simulation::connect(DynamicsSrc& src,
+                           int          port_src,
+                           DynamicsDst& dst,
+                           int          port_dst) noexcept
+{
+    model&   src_model    = get_model(src);
+    model&   dst_model    = get_model(dst);
+    model_id model_dst_id = get_id(dst);
+
+    if (!is_ports_compatible(src_model, port_src, dst_model, port_dst))
+        return new_error(simulation::part::nodes, incompatibility_error{});
+
+    return global_connect(*this, src_model, port_src, model_dst_id, port_dst);
+}
+
+inline status simulation::disconnect(model& src,
+                                     int    port_src,
+                                     model& dst,
+                                     int    port_dst) noexcept
+{
+    return global_disconnect(*this, src, port_src, get_id(dst), port_dst);
+}
+
+inline status simulation::initialize(time t) noexcept
+{
+    clean();
+
+    irt::model* mdl = nullptr;
+    while (models.next(mdl))
+        irt_check(make_initialize(*mdl, t));
+
+    irt::observer* obs = nullptr;
+    while (observers.next(obs)) {
+        obs->reset();
+
+        if (auto* mdl = models.try_to_get(obs->model); mdl) {
+            dispatch(*mdl, [mdl, &obs, t]<typename Dynamics>(Dynamics& dyn) {
+                if constexpr (has_observation_function<Dynamics>) {
+                    obs->update(dyn.observation(t, t - mdl->tl));
+                }
+            });
+        }
+    }
+
+    return success();
+}
+
+template<typename Dynamics>
+status simulation::make_initialize(model& mdl, Dynamics& dyn, time t) noexcept
+{
+    if constexpr (has_input_port<Dynamics>) {
+        for (int i = 0, e = length(dyn.x); i != e; ++i)
+            dyn.x[i] = static_cast<u64>(-1);
+    }
+
+    if constexpr (has_initialize_function<Dynamics>)
+        irt_check(dyn.initialize(*this));
+
+    mdl.tl     = t;
+    mdl.tn     = t + dyn.sigma;
+    mdl.handle = nullptr;
+
+    sched.insert(mdl, models.get_id(mdl), mdl.tn);
+
+    return success();
+}
+
+inline status simulation::make_initialize(model& mdl, time t) noexcept
+{
+    return dispatch(
+      mdl, [this, &mdl, t]<typename Dynamics>(Dynamics& dyn) -> status {
+          return this->make_initialize(mdl, dyn, t);
+      });
+}
+
+template<typename Dynamics>
+status simulation::make_transition(model& mdl, Dynamics& dyn, time t) noexcept
+{
+    if constexpr (has_observation_function<Dynamics>) {
+        if (mdl.obs_id != undefined<observer_id>()) {
+            if (auto* obs = observers.try_to_get(mdl.obs_id); obs) {
+                obs->update(dyn.observation(t, t - mdl.tl));
+
+                if (obs->full())
+                    immediate_observers.emplace_back(mdl.obs_id);
+            }
+        } else {
+            mdl.obs_id = static_cast<observer_id>(0);
+        }
+    }
+
+    if (mdl.tn == mdl.handle->tn) {
+        if constexpr (has_lambda_function<Dynamics>)
+            if constexpr (has_output_port<Dynamics>)
+                irt_check(dyn.lambda(*this));
+    }
+
+    if constexpr (has_transition_function<Dynamics>)
+        irt_check(dyn.transition(*this, t, t - mdl.tl, mdl.tn - t));
+
+    if constexpr (has_input_port<Dynamics>) {
+        for (auto& elem : dyn.x)
+            append_message(*this, elem).clear();
+    }
+
+    irt_assert(mdl.tn >= t);
+
+    mdl.tl = t;
+    mdl.tn = t + dyn.sigma;
+    if (dyn.sigma != 0 && mdl.tn == t)
+        mdl.tn = std::nextafter(t, t + irt::one);
+
+    sched.reintegrate(mdl, mdl.tn);
+
+    return success();
+}
+
+inline status simulation::make_transition(model& mdl, time t) noexcept
+{
+    return dispatch(mdl, [this, &mdl, t]<typename Dynamics>(Dynamics& dyn) {
+        return this->make_transition(mdl, dyn, t);
+    });
+}
+
+template<typename Dynamics>
+status simulation::make_finalize(Dynamics& dyn, observer* obs, time t) noexcept
+{
+    if constexpr (has_observation_function<Dynamics>) {
+        if (obs) {
+            obs->update(dyn.observation(t, t - get_model(dyn).tl));
+        }
+    }
+
+    if constexpr (has_finalize_function<Dynamics>) {
+        irt_check(dyn.finalize(*this));
+    }
+
+    return success();
+}
+
+inline status simulation::finalize(time t) noexcept
+{
+    model* mdl = nullptr;
+    while (models.next(mdl)) {
+        observer* obs = nullptr;
+        if (is_defined(mdl->obs_id))
+            obs = observers.try_to_get(mdl->obs_id);
+
+        auto ret =
+          dispatch(*mdl, [this, obs, t]<typename Dynamics>(Dynamics& dyn) {
+              return this->make_finalize(dyn, obs, t);
+          });
+
+        irt_check(ret);
+    }
+
+    return success();
 }
 
 inline status simulation::run(time& t) noexcept
@@ -10088,7 +9926,8 @@ inline status simulation::run(time& t) noexcept
         sched.update(*mdl, t);
 
         if (!can_alloc_message(*this, 1))
-            return new_error(old_status::simulation_not_enough_message);
+            return new_error(simulation::part::messages,
+                             container_full_error{});
 
         auto  port = emitting_output_ports[i].port;
         auto& msg  = emitting_output_ports[i].msg;
@@ -10315,6 +10154,272 @@ inline model& simulation::alloc(dynamics_type type) noexcept
     });
 
     return mdl;
+}
+
+inline bool is_ports_compatible(const model& mdl_src,
+                                const int    o_port_index,
+                                const model& mdl_dst,
+                                const int    i_port_index) noexcept
+{
+    if (&mdl_src == &mdl_dst)
+        return false;
+
+    return is_ports_compatible(
+      mdl_src.type, o_port_index, mdl_dst.type, i_port_index);
+}
+
+inline status global_connect(simulation& sim,
+                             model&      src,
+                             int         port_src,
+                             model_id    dst,
+                             int         port_dst) noexcept
+{
+    return dispatch(
+      src,
+      [&sim, port_src, dst, port_dst]<typename Dynamics>(
+        Dynamics& dyn) -> status {
+          if constexpr (has_output_port<Dynamics>) {
+              auto list = append_node(sim, dyn.y[static_cast<u8>(port_src)]);
+              for (const auto& elem : list) {
+                  if (elem.model == dst && elem.port_index == port_dst)
+                      return new_error(simulation::part::nodes,
+                                       already_exist_error{});
+              }
+
+              if (!can_alloc_node(sim, 1))
+                  return new_error(simulation::part::nodes,
+                                   container_full_error{});
+
+              list.emplace_back(dst, static_cast<i8>(port_dst));
+
+              return success();
+          }
+
+          irt_unreachable();
+      });
+}
+
+inline status global_disconnect(simulation& sim,
+                                model&      src,
+                                int         port_src,
+                                model_id    dst,
+                                int         port_dst) noexcept
+{
+    return dispatch(
+      src,
+      [&sim, port_src, dst, port_dst]<typename Dynamics>(
+        Dynamics& dyn) -> status {
+          if constexpr (has_output_port<Dynamics>) {
+              auto list = append_node(sim, dyn.y[port_src]);
+              for (auto it = list.begin(), end = list.end(); it != end; ++it) {
+                  if (it->model == dst && it->port_index == port_dst) {
+                      it = list.erase(it);
+                      return success();
+                  }
+              }
+          }
+
+          irt_unreachable();
+      });
+}
+
+inline result<input_port> get_input_port(model& src, int port_src) noexcept
+{
+    return dispatch(
+      src, [&]<typename Dynamics>(Dynamics& dyn) -> result<input_port> {
+          if constexpr (has_input_port<Dynamics>) {
+              if (port_src >= 0 && port_src < length(dyn.x)) {
+                  return dyn.x[port_src];
+              }
+          }
+
+          return new_error(simulation::part::nodes, unknown_error{});
+      });
+}
+
+inline status get_input_port(model& src, int port_src, input_port*& p) noexcept
+{
+    return dispatch(
+      src, [port_src, &p]<typename Dynamics>(Dynamics& dyn) -> status {
+          if constexpr (has_input_port<Dynamics>) {
+              if (port_src >= 0 && port_src < length(dyn.x)) {
+                  p = &dyn.x[port_src];
+                  return success();
+              }
+          }
+
+          return new_error(simulation::part::nodes, unknown_error{});
+      });
+}
+
+inline result<output_port> get_output_port(model& dst, int port_dst) noexcept
+{
+    return dispatch(
+      dst, [&]<typename Dynamics>(Dynamics& dyn) -> result<output_port> {
+          if constexpr (has_output_port<Dynamics>) {
+              if (port_dst >= 0 && port_dst < length(dyn.y))
+                  return dyn.y[port_dst];
+          }
+
+          return new_error(simulation::part::nodes, unknown_error{});
+      });
+}
+
+inline status get_output_port(model&        dst,
+                              int           port_dst,
+                              output_port*& p) noexcept
+{
+    return dispatch(
+      dst, [port_dst, &p]<typename Dynamics>(Dynamics& dyn) -> status {
+          if constexpr (has_output_port<Dynamics>) {
+              if (port_dst >= 0 && port_dst < length(dyn.y)) {
+                  p = &dyn.y[port_dst];
+                  return success();
+              }
+          }
+
+          return new_error(simulation::part::nodes, unknown_error{});
+      });
+}
+
+/////////////////////////////////////////////////////////////////////
+///
+/// Model implementation
+
+inline status queue::transition(simulation& sim,
+                                time        t,
+                                time /*e*/,
+                                time /*r*/) noexcept
+{
+    auto list = append_dated_message(sim, fifo);
+    while (!list.empty() && list.front().data[0] <= t)
+        list.pop_front();
+
+    auto span = get_message(sim, x[0]);
+    for (const auto& msg : span) {
+        if (!can_alloc_dated_message(sim, 1))
+            return new_error(simulation::part::dated_messages,
+                             container_full_error{});
+
+        list.emplace_back(irt::real(t + default_ta), msg[0], msg[1], msg[2]);
+    }
+
+    if (!list.empty()) {
+        sigma = list.front()[0] - t;
+        sigma =
+          sigma <= time_domain<time>::zero ? time_domain<time>::zero : sigma;
+    } else {
+        sigma = time_domain<time>::infinity;
+    }
+
+    return success();
+}
+
+inline status dynamic_queue::transition(simulation& sim,
+                                        time        t,
+                                        time /*e*/,
+                                        time /*r*/) noexcept
+{
+    auto list = append_dated_message(sim, fifo);
+    while (!list.empty() && list.front().data[0] <= t)
+        list.pop_front();
+
+    auto span = get_message(sim, x[0]);
+    for (const auto& msg : span) {
+        if (!can_alloc_dated_message(sim, 1))
+            return new_error(simulation::part::dated_messages,
+                             container_full_error{});
+        real ta = zero;
+        if (stop_on_error) {
+            irt_check(update_source(sim, default_source_ta, ta));
+            list.emplace_back(
+              t + static_cast<real>(ta), msg[0], msg[1], msg[2]);
+        } else {
+            if (auto ret = update_source(sim, default_source_ta, ta); !ret)
+                list.emplace_back(
+                  t + static_cast<real>(ta), msg[0], msg[1], msg[2]);
+        }
+    }
+
+    if (!list.empty()) {
+        sigma = list.front().data[0] - t;
+        sigma =
+          sigma <= time_domain<time>::zero ? time_domain<time>::zero : sigma;
+    } else {
+        sigma = time_domain<time>::infinity;
+    }
+
+    return success();
+}
+
+inline status priority_queue::try_to_insert(simulation&    sim,
+                                            const time     t,
+                                            const message& msg) noexcept
+{
+    if (!can_alloc_dated_message(sim, 1))
+        return new_error(simulation::part::dated_messages,
+                         container_full_error{});
+
+    auto list = append_dated_message(sim, fifo);
+    if (list.empty() || list.begin()->data[0] > t) {
+        list.emplace_front(irt::real(t), msg[0], msg[1], msg[2]);
+    } else {
+        auto it  = list.begin();
+        auto end = list.end();
+        ++it;
+
+        for (; it != end; ++it) {
+            if (it->data[0] > t) {
+                list.emplace(it, irt::real(t), msg[0], msg[1], msg[2]);
+                return success();
+            }
+        }
+    }
+
+    return success();
+}
+
+inline status priority_queue::transition(simulation& sim,
+                                         time        t,
+                                         time /*e*/,
+                                         time /*r*/) noexcept
+{
+    auto list = append_dated_message(sim, fifo);
+    while (!list.empty() && list.front().data[0] <= t)
+        list.pop_front();
+
+    auto span = get_message(sim, x[0]);
+    for (const auto& msg : span) {
+        real value = zero;
+
+        if (stop_on_error) {
+            irt_check(update_source(sim, default_source_ta, value));
+
+            if (auto ret =
+                  try_to_insert(sim, static_cast<real>(value) + t, msg);
+                !ret)
+                return new_error(simulation::part::dated_messages,
+                                 container_full_error{});
+        } else {
+            if (auto ret = update_source(sim, default_source_ta, value); !ret) {
+                if (auto ret =
+                      try_to_insert(sim, static_cast<real>(value) + t, msg);
+                    !ret)
+                    return new_error(simulation::part::dated_messages,
+                                     container_full_error{});
+            }
+        }
+    }
+
+    if (!list.empty()) {
+        sigma = list.front()[0] - t;
+        sigma =
+          sigma <= time_domain<time>::zero ? time_domain<time>::zero : sigma;
+    } else {
+        sigma = time_domain<time>::infinity;
+    }
+
+    return success();
 }
 
 } // namespace irt

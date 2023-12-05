@@ -26,12 +26,40 @@ using error_handler = void(void) noexcept;
 
 inline error_handler* on_error_callback = nullptr;
 
+//! Common error to report that container (@c data_array, @c vector or @c
+//! list) are full and need a @c resize() or a @c free().
+struct container_full_error {};
+
+//! Common error to report an object already exists in the container.
+struct already_exist_error {};
+
+//! Common error to report an incompatibility between objects for example when
+//! trying to connect two models boolean and continue.
+struct incompatibility_error {};
+
+//! Common error to report an object is unknown for examples an undefined or
+//! an already delete identifier from a @c data_array.
+struct unknown_error {};
+
+//! Memory error to report a error during the allocation process. Often add a
+//! e_memory structure to report memory request.
+struct memory_error {};
+
+//! Report an error in the argument pass to a function. Must be rarely used,
+//! prefer @c irt_assert to @c std::abort the application and fix the source
+//! code.
+struct argument_error {};
+
+//! Report an error in the @c std::filesystem library.
+struct filesystem_error {};
+
 struct e_file_name {
     std::string value;
 };
 
 struct e_memory {
-    long long unsigned int value;
+    long long unsigned int capacity; //!< Current capacity in bytes.
+    long long unsigned int request;  //!< Requested capacity in bytes.
 };
 
 struct e_allocator {

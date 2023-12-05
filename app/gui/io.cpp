@@ -5,6 +5,7 @@
 #include "application.hpp"
 #include "dialog.hpp"
 #include "internal.hpp"
+#include "irritator/archiver.hpp"
 
 #include <irritator/file.hpp>
 #include <irritator/io.hpp>
@@ -494,25 +495,30 @@ struct settings_parser {
         return write_settings_file(writer);
     }
 
-    bool load_settings() noexcept
+    status load_settings() noexcept
     {
         std::u8string filename;
         file          f;
 
-        return get_settings_filename(filename) &&
-               open_settings_file(filename, f, open_mode::read) &&
-               read_settings_file(filename, f) &&
-               build_notification_load_success();
+        if (!(get_settings_filename(filename) &&
+              open_settings_file(filename, f, open_mode::read) &&
+              read_settings_file(filename, f)))
+            return new_error(json_archiver::part::settings_parser);
+
+        return success();
     }
 
-    bool save_settings() noexcept
+    status save_settings() noexcept
     {
         std::u8string filename;
         file          f;
 
-        return get_settings_filename(filename) &&
-               open_settings_file(filename, f, open_mode::write) &&
-               write_settings_file(f) && build_notification_save_success();
+        if (!(get_settings_filename(filename) &&
+              open_settings_file(filename, f, open_mode::write) &&
+              write_settings_file(f)))
+            return new_error(json_archiver::part::settings_parser);
+
+        return success();
     }
 };
 
@@ -520,20 +526,14 @@ status application::load_settings() noexcept
 {
     settings_parser parser(*this);
 
-    if (parser.load_settings())
-        return success();
-
-    return new_error(old_status::io_filesystem_error);
+    return parser.load_settings();
 }
 
 status application::save_settings() noexcept
 {
     settings_parser parser(*this);
 
-    if (parser.save_settings())
-        return success();
-
-    return new_error(old_status::io_filesystem_error);
+    return parser.save_settings();
 }
 
 } // irt

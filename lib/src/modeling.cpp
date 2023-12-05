@@ -331,9 +331,9 @@ static status load_component(modeling& mod, component& compo) noexcept
             }
         }
     } catch (const std::bad_alloc& /*e*/) {
-        return new_error(old_status::io_not_enough_memory);
+        return new_error(filesystem_error{});
     } catch (...) {
-        return new_error(old_status::io_filesystem_error);
+        return new_error(filesystem_error{});
     }
 
     return success();

@@ -122,11 +122,15 @@ static void simulation_copy(component_editor&  ed,
           sim_ed.simulation_state = simulation_status::initialized;
           return success();
       },
-      [&](const old_status s) noexcept -> void {
+      [&](const project::part s) noexcept -> void {
           sim_ed.simulation_state = simulation_status::not_started;
-          make_copy_error_msg(
-            ed, "Error {} in simulation copy", status_string(s));
+          make_copy_error_msg(ed, "Error {} in project copy", ordinal(s));
       },
+      [&](const simulation::part s) noexcept -> void {
+          sim_ed.simulation_state = simulation_status::not_started;
+          make_copy_error_msg(ed, "Error {} in simulation copy", ordinal(s));
+      },
+
       [&]() noexcept -> void {
           sim_ed.simulation_state = simulation_status::not_started;
           make_copy_error_msg(ed, "Unknown error");
@@ -159,9 +163,9 @@ static void simulation_init(component_editor&  ed,
           return success();
       },
 
-      [&](const old_status s) noexcept -> void {
+      [&](const simulation::part s) noexcept -> void {
           sim_ed.simulation_state = simulation_status::not_started;
-          make_copy_error_msg(ed, "Error: {}", status_string(s));
+          make_copy_error_msg(ed, "Error in simulation: {}", ordinal(s));
 
           // make_init_error_msg(
           //   ed, "Fail to initalize external sources: {}",
@@ -517,12 +521,11 @@ static void task_enable_or_disable_debug(void* param) noexcept
           return success();
       },
 
-      [&](const old_status s) noexcept -> void {
+      [&](const simulation::part s) noexcept -> void {
           auto& n = g_task->app->notifications.alloc(log_level::error);
           n.title = "Debug mode failed to initialize";
-          format(n.message,
-                 "Fail to initialize the debug mode: {}",
-                 status_string(s));
+          format(
+            n.message, "Fail to initialize the debug mode: {}", ordinal(s));
           g_task->app->notifications.enable(n);
           g_task->app->simulation_ed.simulation_state =
             simulation_status::not_started;

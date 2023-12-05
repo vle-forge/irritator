@@ -9,6 +9,7 @@
 #include "application.hpp"
 #include "dialog.hpp"
 #include "internal.hpp"
+#include "irritator/archiver.hpp"
 #include "irritator/modeling.hpp"
 
 #include <imgui.h>
@@ -279,10 +280,10 @@ static void application_show_menu(application& app) noexcept
                       return success();
                   },
 
-                  [&app](const old_status s) noexcept -> void {
+                  [&app](const json_archiver::part s) noexcept -> void {
                       auto& n = app.notifications.alloc();
                       n.title = "Fail to load settings";
-                      format(n.message, "Error: {}", status_string(s));
+                      format(n.message, "Error: {}", ordinal(s));
                       app.notifications.enable(n);
                   },
 
@@ -301,10 +302,10 @@ static void application_show_menu(application& app) noexcept
                       return success();
                   },
 
-                  [&app](const old_status s) noexcept -> void {
+                  [&app](const json_archiver::part s) noexcept -> void {
                       auto& n = app.notifications.alloc();
                       n.title = "Fail to save settings";
-                      format(n.message, "Error: {}", status_string(s));
+                      format(n.message, "Error: {}", ordinal(s));
                       app.notifications.enable(n);
                   },
 
@@ -830,10 +831,10 @@ void task_simulation_back(void* param) noexcept
               return success();
           },
 
-          [&g_task](const old_status s) noexcept -> void {
+          [&g_task](const simulation::part s) noexcept -> void {
               auto& n = g_task->app->notifications.alloc(log_level::error);
               n.title = "Fail to back the simulation";
-              format(n.message, "Advance message: {}", status_string(s));
+              format(n.message, "Advance message: {}", ordinal(s));
               g_task->app->notifications.enable(n);
           },
 
@@ -862,10 +863,10 @@ void task_simulation_advance(void* param) noexcept
               return success();
           },
 
-          [&g_task](const old_status s) noexcept -> void {
+          [&g_task](const simulation::part s) noexcept -> void {
               auto& n = g_task->app->notifications.alloc(log_level::error);
               n.title = "Fail to advance the simulation";
-              format(n.message, "Advance message: {}", status_string(s));
+              format(n.message, "Advance message: {}", ordinal(s));
               g_task->app->notifications.enable(n);
           },
 

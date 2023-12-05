@@ -14,10 +14,14 @@ namespace irt {
 class json_archiver
 {
 public:
-    struct json_read_file_error {};
-
-    struct json_parser_error {}; // With @c e_json error structure to get the
-                                 // internal error code and the offset.
+    enum class part {
+        read_file_error,
+        json_format_error, //<! Add a e_json with offset and error code.
+        simulation_parser,
+        component_parser,
+        project_parser,
+        settings_parser
+    };
 
     //! Control the json output stream (memory or file) pretty print.
     enum class print_option {

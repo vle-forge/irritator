@@ -287,10 +287,16 @@ void run_simulation(irt::real   begin,
           return irt::success();
       },
 
-      [](const irt::old_status s) noexcept -> void {
-          fmt::print(stderr,
-                     "Fail to initialize run simulation: {}\n",
-                     status_string(s));
+      [](const irt::project::part s) noexcept -> void {
+          fmt::print(stderr, "Fail to initialize project: {}\n", ordinal(s));
+      },
+
+      [](const irt::modeling::part s) noexcept -> void {
+          fmt::print(stderr, "Fail to initialize modeling: {}\n", ordinal(s));
+      },
+
+      [](const irt::simulation::part s) noexcept -> void {
+          fmt::print(stderr, "Fail to initialize simulation: {}\n", ordinal(s));
       },
 
       []() noexcept -> void { fmt::print(stderr, "Unknown error\n"); });

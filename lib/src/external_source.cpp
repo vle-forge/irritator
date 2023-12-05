@@ -27,8 +27,7 @@
 #pragma GCC diagnostic pop
 #endif
 
-namespace irt
-{
+namespace irt {
 
 constant_source::constant_source(const constant_source& other) noexcept
   : name(other.name)
@@ -77,8 +76,7 @@ binary_file_source::binary_file_source(const binary_file_source& other) noexcept
 
 status binary_file_source::init() noexcept
 {
-    auto _ = on_error(external_source::binary_file_source_error{},
-                      e_file_name{ file_path.string() });
+    auto _ = on_error(e_file_name{ file_path.string() });
 
     next_client = 0;
     next_offset = 0;
@@ -152,8 +150,7 @@ static status binary_file_source_fill_buffer(binary_file_source& ext,
 
 status binary_file_source::init(source& src) noexcept
 {
-    auto _ = on_error(external_source::binary_file_source_error{},
-                      e_file_name{ file_path.string() });
+    auto _ = on_error(e_file_name{ file_path.string() });
 
     src.buffer      = std::span(buffers[next_client]);
     src.index       = 0;
@@ -172,8 +169,7 @@ status binary_file_source::init(source& src) noexcept
 
 status binary_file_source::update(source& src) noexcept
 {
-    auto _ = on_error(external_source::binary_file_source_error{},
-                      e_file_name{ file_path.string() });
+    auto _ = on_error(e_file_name{ file_path.string() });
 
     const auto distance = external_source_chunk_size * max_clients;
     const auto next     = src.chunk_id[1] + distance;
@@ -210,8 +206,7 @@ text_file_source::text_file_source(const text_file_source& other) noexcept
 
 status text_file_source::init() noexcept
 {
-    auto _ = on_error(external_source::text_file_source_error{},
-                      e_file_name{ file_path.string() });
+    auto _ = on_error(e_file_name{ file_path.string() });
 
     if (ifs.is_open())
         ifs.close();
@@ -237,8 +232,7 @@ static status text_file_source_fill_buffer(text_file_source& ext,
 
 status text_file_source::init(source& src) noexcept
 {
-    auto _ = on_error(external_source::text_file_source_error{},
-                      e_file_name{ file_path.string() });
+    auto _ = on_error(e_file_name{ file_path.string() });
 
     src.buffer = std::span(buffer);
     src.index  = 0;
@@ -261,8 +255,7 @@ void text_file_source::finalize() noexcept
 
 status text_file_source::update(source& src) noexcept
 {
-    auto _ = on_error(external_source::text_file_source_error{},
-                      e_file_name{ file_path.string() });
+    auto _ = on_error(e_file_name{ file_path.string() });
 
     src.index = 0;
 
@@ -278,8 +271,7 @@ status text_file_source::update(source& src) noexcept
 
 status text_file_source::restore(source& src) noexcept
 {
-    auto _     = on_error(external_source::text_file_source_error{},
-                      e_file_name{ file_path.string() });
+    auto _     = on_error(e_file_name{ file_path.string() });
     src.buffer = std::span(buffer);
 
     if (offset != src.chunk_id[0]) {
@@ -659,9 +651,8 @@ status external_source::dispatch(source&                      src,
         if (auto* bin_src = binary_file_sources.try_to_get(src_id); bin_src)
             return external_source_dispatch(*bin_src, src, op);
 
-        return new_error(binary_file_source_error{},
-                         unknown_source_error{},
-                         e_ulong_id{ src.id });
+        return new_error(
+          part::binary_file_source, unknown_error{}, e_ulong_id{ src.id });
     } break;
 
     case source::source_type::constant: {
@@ -669,9 +660,8 @@ status external_source::dispatch(source&                      src,
         if (auto* cst_src = constant_sources.try_to_get(src_id); cst_src)
             return external_source_dispatch(*cst_src, src, op);
 
-        return new_error(constant_source_error{},
-                         unknown_source_error{},
-                         e_ulong_id{ src.id });
+        return new_error(
+          part::constant_source, unknown_error{}, e_ulong_id{ src.id });
     } break;
 
     case source::source_type::random: {
@@ -680,7 +670,7 @@ status external_source::dispatch(source&                      src,
             return external_source_dispatch(*rnd_src, src, op);
 
         return new_error(
-          random_source_error{}, unknown_source_error{}, e_ulong_id{ src.id });
+          part::random_source, unknown_error{}, e_ulong_id{ src.id });
     } break;
 
     case source::source_type::text_file: {
@@ -688,9 +678,8 @@ status external_source::dispatch(source&                      src,
         if (auto* txt_src = text_file_sources.try_to_get(src_id); txt_src)
             return external_source_dispatch(*txt_src, src, op);
 
-        return new_error(text_file_source_error{},
-                         unknown_source_error{},
-                         e_ulong_id{ src.id });
+        return new_error(
+          part::text_file_source, unknown_error{}, e_ulong_id{ src.id });
     } break;
     }
 
@@ -703,40 +692,6 @@ void external_source::clear() noexcept
     binary_file_sources.clear();
     text_file_sources.clear();
     random_sources.clear();
-}
-
-constexpr auto external_source::make_error_handlers() const noexcept
-{
-    return std::make_tuple([](external_source::constant_source_error&,
-                              external_source::unknown_source_error&,
-                              const e_ulong_id) {},
-                           [](external_source::binary_file_source_error&,
-                              external_source::unknown_source_error&,
-                              const e_ulong_id) {},
-                           [](external_source::text_file_source_error&,
-                              external_source::unknown_source_error&,
-                              const e_ulong_id) {},
-                           [](external_source::random_source_error&,
-                              external_source::unknown_source_error&,
-                              const e_ulong_id) {},
-                           [](external_source::binary_file_source_error&,
-                              binary_file_source::access_file_error&,
-                              const e_file_name&) {},
-                           [](external_source::binary_file_source_error&,
-                              binary_file_source::too_small_file_error&,
-                              const e_file_name&) {},
-                           [](external_source::binary_file_source_error&,
-                              binary_file_source::open_file_error&,
-                              const e_file_name&) {},
-                           [](external_source::binary_file_source_error&,
-                              binary_file_source::eof_file_error&,
-                              const e_file_name&) {},
-                           [](external_source::text_file_source_error&,
-                              text_file_source::open_file_error&,
-                              const e_file_name&) {},
-                           [](external_source::text_file_source_error&,
-                              text_file_source::eof_file_error&,
-                              const e_file_name&) {});
 }
 
 } // namespace irt

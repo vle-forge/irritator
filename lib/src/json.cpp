@@ -4315,7 +4315,7 @@ static status read_file_to_buffer(cache_rw& cache, file& f) noexcept
     cache.buffer.resize(len);
 
     if (!f.read(cache.buffer.data(), len))
-        return new_error(json_archiver::json_read_file_error{});
+        return new_error(json_archiver::part::read_file_error);
 
     return success();
 }
@@ -4327,7 +4327,7 @@ static status parse_json_data(const std::span<char>& buffer,
 
     if (doc.HasParseError())
         return new_error(
-          json_archiver::json_parser_error{},
+          json_archiver::part::json_format_error,
           e_json{ doc.GetErrorOffset(),
                   rapidjson::GetParseError_En(doc.GetParseError()) });
 
@@ -6395,7 +6395,7 @@ static status parse_json_simulation(simulation&                sim,
                    static_cast<int>(i),
                    stack_id_names[ordinal(r.stack[i])]);
 
-    return new_error(old_status::io_filesystem_error);
+    return new_error(json_archiver::part::simulation_parser);
 }
 
 static status parse_simulation(simulation& sim,
@@ -6466,7 +6466,7 @@ static status parse_json_project(project&                   pj,
                    static_cast<int>(i),
                    stack_id_names[ordinal(r.stack[i])]);
 
-    return new_error(old_status::io_filesystem_error);
+    return new_error(json_archiver::part::project_parser);
 }
 
 static status parse_project(project&    pj,
