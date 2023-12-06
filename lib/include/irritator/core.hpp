@@ -7356,6 +7356,10 @@ public:
     bool can_connect(int number) const noexcept;
 
     status connect(model& src, int port_src, model& dst, int port_dst) noexcept;
+    bool   can_connect(const model& src,
+                       int          port_src,
+                       const model& dst,
+                       int          port_dst) const noexcept;
 
     template<typename DynamicsSrc, typename DynamicsDst>
     status connect(DynamicsSrc& src,
@@ -9680,6 +9684,27 @@ inline status simulation::connect(model& src,
     const auto dst_id = get_id(dst);
 
     return global_connect(*this, src, port_src, dst_id, port_dst);
+}
+
+inline bool simulation::can_connect(const model& src,
+                                    int          port_src,
+                                    const model& dst,
+                                    int          port_dst) const noexcept
+{
+    return dispatch(src, [&]<typename Dynamics>(Dynamics& dyn) -> bool {
+        if constexpr (has_output_port<Dynamics>) {
+            auto list = get_node(*this, dyn.y[static_cast<u8>(port_src)]);
+
+            for (const auto& elem : list)
+                if (elem.model == models.get_id(dst) &&
+                    elem.port_index == port_dst)
+                    return false;
+
+            return true;
+        }
+
+        return false;
+    });
 }
 
 template<typename DynamicsSrc, typename DynamicsDst>

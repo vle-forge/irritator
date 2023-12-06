@@ -82,11 +82,12 @@ int main()
         expect(neq(m1, nullptr));
         auto* m2 = sim.models.try_to_get(1);
         expect(neq(m2, nullptr));
+        expect(sim.can_connect(1));
 
         if (m1->type == irt::dynamics_type::counter) {
-            expect(!sim.connect(*m2, 0, *m1, 0));
+            expect(!sim.can_connect(*m2, 0, *m1, 0));
         } else {
-            expect(!sim.connect(*m1, 0, *m2, 0));
+            expect(!sim.can_connect(*m1, 0, *m2, 0));
         }
     };
 
@@ -189,9 +190,9 @@ int main()
         expect(neq(m2, nullptr));
 
         if (m1->type == irt::dynamics_type::counter) {
-            expect(!sim.connect(*m2, 0, *m1, 0));
+            expect(!sim.can_connect(*m2, 0, *m1, 0));
         } else {
-            expect(!sim.connect(*m1, 0, *m2, 0));
+            expect(!sim.can_connect(*m1, 0, *m2, 0));
         }
     };
 
