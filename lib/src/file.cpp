@@ -22,6 +22,10 @@
 #else
 #include <windows.h>
 #endif
+#else
+#include <sys/stat.h>
+#include <sys/types.h>
+#include <unistd.h>
 #endif
 
 namespace irt {
@@ -358,6 +362,24 @@ auto file::make_file(const char* filename, const open_mode mode_) noexcept
     }
 
     return file{ to_void(f), mode_ };
+}
+
+bool file::exists(const char* filename) noexcept
+{
+#if defined(_WIN32)
+    const auto filname_sz =
+      ::MultiByteToWideChar(CP_UTF8, 0, filename, -1, nullptr, 0);
+    vector<wchar_t> buf;
+    buf.resize(filname_sz);
+    ::MultiByteToWideChar(
+      CP_UTF8, 0, filename, -1, (wchar_t*)&buf[0], filname_sz);
+
+    return ::GetFileAttributesW((const wchar_t*)&buf[0]) !=
+           INVALID_FILE_ATTRIBUTES;
+#else
+    struct ::stat buffer;
+    return ::stat(filename, &buffer) == 0;
+#endif
 }
 
 file::file(void* handle, const open_mode m) noexcept

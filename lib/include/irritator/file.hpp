@@ -22,6 +22,7 @@ public:
 
     static result<file> make_file(const char*     filename,
                                   const open_mode mode) noexcept;
+    static bool         exists(const char* filename) noexcept;
 
     file() noexcept = default;
 

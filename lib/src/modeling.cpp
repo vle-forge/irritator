@@ -317,17 +317,19 @@ static status load_component(modeling& mod, component& compo) noexcept
         p.replace_extension(".desc");
         str = p.string();
 
-        if (auto f = file::make_file(str.c_str(), open_mode::read); f) {
-            auto* desc = mod.descriptions.try_to_get(compo.desc);
-            if (!desc) {
-                auto& d    = mod.descriptions.alloc();
-                desc       = &d;
-                compo.desc = mod.descriptions.get_id(d);
-            }
+        if (file::exists(str.c_str())) {
+            if (auto f = file::make_file(str.c_str(), open_mode::read); f) {
+                auto* desc = mod.descriptions.try_to_get(compo.desc);
+                if (!desc) {
+                    auto& d    = mod.descriptions.alloc();
+                    desc       = &d;
+                    compo.desc = mod.descriptions.get_id(d);
+                }
 
-            if (!f->read(desc->data.data(), desc->data.capacity())) {
-                mod.descriptions.free(*desc);
-                compo.desc = undefined<description_id>();
+                if (!f->read(desc->data.data(), desc->data.capacity())) {
+                    mod.descriptions.free(*desc);
+                    compo.desc = undefined<description_id>();
+                }
             }
         }
     } catch (const std::bad_alloc& /*e*/) {
