@@ -5560,7 +5560,7 @@ static status write_child(const modeling& mod,
             std::construct_at<Dynamics>(&dyn);
         });
 
-        irt_check(mod.children_parameters[ch_index].copy_to(mdl));
+        mod.children_parameters[ch_index].copy_to(mdl);
 
         w.Key("type");
         w.String(dynamics_type_names[ordinal(ch.id.mdl_type)]);

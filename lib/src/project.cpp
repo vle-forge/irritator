@@ -345,7 +345,7 @@ static status make_tree_leaf(simulation_copy& sc,
               for (int i = 0, e = length(dyn.y); i != e; ++i)
                   dyn.y[i] = static_cast<u64>(-1);
 
-          irt_check(sc.mod.children_parameters[ch_idx].copy_to(new_mdl));
+          sc.mod.children_parameters[ch_idx].copy_to(new_mdl);
 
           if constexpr (std::is_same_v<Dynamics, hsm_wrapper>) {
               const auto child_index = get_index(ch_id);

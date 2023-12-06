@@ -679,12 +679,13 @@ struct parameter {
     std::array<real, 4> reals;
     std::array<i64, 4>  integers;
 
-    /// Copy data from the vectors of this parameter to the simulation model.
-    status copy_to(model& mdl) const noexcept;
+    //! Copy data from the vectors to the simulation model.
+    void copy_to(model& mdl) const noexcept;
 
-    /// Copy data from model to the vectors of this parameter.
+    //! Copy data from model to the vectors of this parameter.
     void copy_from(const model& mdl) noexcept;
 
+    //! Assign @c 0 to vector.
     void clear() noexcept;
 };
 
