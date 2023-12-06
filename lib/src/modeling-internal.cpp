@@ -479,7 +479,7 @@ status add_seirs(modeling& mod, component& dst, generic_component& com) noexcept
 status modeling::copy(internal_component src, component& dst) noexcept
 {
     if (!generic_components.can_alloc())
-        return new_error(modeling::error::not_enough_memory);
+        return new_error(part::generic_components, container_full_error{});
 
     auto& s_compo     = generic_components.alloc();
     auto  s_compo_id  = generic_components.get_id(s_compo);

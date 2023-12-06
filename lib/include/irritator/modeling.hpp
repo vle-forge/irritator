@@ -747,30 +747,20 @@ public:
     struct children_error {};
 
     enum class part {
-
+        descriptions,
+        generic_components,
+        grid_components,
+        graph_components,
+        hsm_components,
+        ports,
+        components,
+        registred_paths,
+        dir_paths,
+        file_paths,
+        hsms,
+        children,
+        connections
     };
-
-    enum error {
-        not_enough_memory,
-        unknown_type_constant,
-        unknown_source_type,
-
-        too_many_file_open,
-        too_many_description_open,
-        too_many_directory_open,
-
-        registred_path_access_error,
-        directory_access_error,
-        file_access_error,
-    };
-
-    //! Component registered, directory of file paths are undefined. A @c
-    //! e_ulong_id with component_id can be add.
-    struct component_path_error {};
-
-    //!< When access to a component file failed. A @c e_file_name object can be
-    //!< add.
-    struct component_file_error {};
 
     data_array<description, description_id>             descriptions;
     data_array<generic_component, generic_component_id> generic_components;

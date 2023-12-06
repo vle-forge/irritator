@@ -52,6 +52,10 @@ struct incompatibility_error {};
 //! an already delete identifier from a @c data_array.
 struct unknown_error {};
 
+//! Common error to report an object is not completely defined for example a @c
+//! component with bad @c registered_id, @c dir_path_id or @c file_path_id.
+struct undefined_error {};
+
 //! Memory error to report a error during the allocation process. Often add a
 //! e_memory structure to report memory request.
 struct memory_error {};

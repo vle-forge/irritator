@@ -285,7 +285,8 @@ static status load_component(modeling& mod, component& compo) noexcept
     auto* file = mod.file_paths.try_to_get(compo.file);
 
     if (!(reg && dir && file))
-        return new_error(modeling::component_path_error{},
+        return new_error(modeling::part::components,
+                         undefined_error{},
                          e_ulong_id{ ordinal(mod.components.get_id(compo)) });
 
     try {
@@ -299,7 +300,8 @@ static status load_component(modeling& mod, component& compo) noexcept
             auto f = file::make_file(str.c_str(), open_mode::read);
             if (!f) {
                 compo.state = component_status::unreadable;
-                return new_error(modeling::component_file_error{},
+                return new_error(modeling::part::components,
+                                 filesystem_error{},
                                  e_file_name{ str });
             }
 
@@ -344,7 +346,7 @@ static status load_component(modeling& mod, component& compo) noexcept
 status modeling::fill_internal_components() noexcept
 {
     if (!components.can_alloc(internal_component_count))
-        return new_error(modeling::error::too_many_file_open);
+        return new_error(part::components, container_full_error{});
 
     for (int i = 0, e = internal_component_count; i < e; ++i) {
         auto& compo          = components.alloc();
@@ -954,7 +956,8 @@ status modeling::copy(const component& src, component& dst) noexcept
               generic_components.try_to_get(src.id.generic_id);
             s_src) {
             if (!generic_components.can_alloc())
-                return new_error(modeling::error::not_enough_memory);
+                return new_error(part::generic_components,
+                                 container_full_error{});
 
             auto& s_dst       = generic_components.alloc();
             auto  s_dst_id    = generic_components.get_id(s_dst);
@@ -969,7 +972,7 @@ status modeling::copy(const component& src, component& dst) noexcept
     case component_type::grid:
         if (const auto* s = grid_components.try_to_get(src.id.grid_id); s) {
             if (!generic_components.can_alloc())
-                return new_error(modeling::error::not_enough_memory);
+                return new_error(part::grid_components, container_full_error{});
 
             auto& d        = grid_components.alloc();
             auto  d_id     = grid_components.get_id(d);
@@ -982,7 +985,8 @@ status modeling::copy(const component& src, component& dst) noexcept
     case component_type::graph:
         if (const auto* s = graph_components.try_to_get(src.id.graph_id); s) {
             if (!generic_components.can_alloc())
-                return new_error(modeling::error::not_enough_memory);
+                return new_error(part::graph_components,
+                                 container_full_error{});
 
             auto& d         = graph_components.alloc();
             auto  d_id      = graph_components.get_id(d);
@@ -995,7 +999,7 @@ status modeling::copy(const component& src, component& dst) noexcept
     case component_type::hsm:
         if (const auto* s = hsm_components.try_to_get(src.id.hsm_id); s) {
             if (!generic_components.can_alloc())
-                return new_error(modeling::error::not_enough_memory);
+                return new_error(part::hsms, container_full_error{});
 
             auto& d       = hsm_components.alloc(*s);
             auto  d_id    = hsm_components.get_id(d);
@@ -1037,17 +1041,14 @@ void modeling::free(registred_path& reg_dir) noexcept
 
 status modeling::save(component& c) noexcept
 {
-    auto* reg = registred_paths.try_to_get(c.reg_path);
-    if (!reg)
-        return new_error(modeling::error::registred_path_access_error);
-
-    auto* dir = dir_paths.try_to_get(c.dir);
-    if (!dir)
-        return new_error(modeling::error::directory_access_error);
-
+    auto* reg  = registred_paths.try_to_get(c.reg_path);
+    auto* dir  = dir_paths.try_to_get(c.dir);
     auto* file = file_paths.try_to_get(c.file);
-    if (!file)
-        return new_error(modeling::error::file_access_error);
+
+    if (!(reg && dir && file))
+        return new_error(part::components,
+                         undefined_error{},
+                         e_ulong_id{ ordinal(components.get_id(c)) });
 
     {
         std::filesystem::path p{ reg->path.sv() };
