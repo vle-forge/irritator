@@ -4,6 +4,7 @@
 
 #include <irritator/archiver.hpp>
 #include <irritator/core.hpp>
+#include <irritator/error.hpp>
 #include <irritator/format.hpp>
 #include <irritator/io.hpp>
 #include <irritator/modeling.hpp>
@@ -13,6 +14,7 @@
 #include <boost/ut.hpp>
 
 #include <fmt/format.h>
+#include <utility>
 
 template<int length>
 static bool get_temp_registred_path(irt::small_string<length>& str) noexcept
@@ -429,7 +431,10 @@ int main()
             reg.path  = temp_path;
 
             mod.create_directories(reg);
+
+            auto old_cb = std::exchange(irt::on_error_callback, nullptr);
             expect(!!mod.fill_components());
+            std::exchange(irt::on_error_callback, old_cb);
 
             irt::json_archiver j;
             expect(!!j.project_load(
@@ -504,7 +509,9 @@ int main()
             get_temp_registred_path(reg.path);
             mod.create_directories(reg);
 
-            expect(!!mod.fill_components(reg));
+            auto old_cb = std::exchange(irt::on_error_callback, nullptr);
+            expect(!!mod.fill_components());
+            std::exchange(irt::on_error_callback, old_cb);
             expect(mod.components.ssize() >= irt::internal_component_count);
         }
     };
