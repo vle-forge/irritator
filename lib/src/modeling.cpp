@@ -271,10 +271,18 @@ static void prepare_component_loading(modeling&       mod,
 
 static void prepare_component_loading(modeling& mod) noexcept
 {
-    for (auto reg_dir_id : mod.component_repertories) {
-        auto& reg_dir = mod.registred_paths.get(reg_dir_id);
+    int i = 0;
+    while (i < mod.component_repertories.ssize()) {
+        const auto id      = mod.component_repertories[i];
+        auto*      reg_dir = mod.registred_paths.try_to_get(id);
 
-        prepare_component_loading(mod, reg_dir);
+        if (reg_dir) {
+            prepare_component_loading(mod, *reg_dir);
+            ++i;
+        } else {
+            auto it = mod.component_repertories.begin() + i;
+            mod.component_repertories.erase(it);
+        }
     }
 }
 
