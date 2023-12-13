@@ -128,6 +128,7 @@ static void prepare_component_loading(modeling&             mod,
 
         std::error_code ec;
         if (fs::exists(desc_file, ec)) {
+            debug_logi(6, "found description file {}\n", desc_file.string());
             if (mod.descriptions.can_alloc()) {
                 auto& desc  = mod.descriptions.alloc();
                 desc.status = description_status::unread;
@@ -156,6 +157,8 @@ static void prepare_component_loading(modeling&             mod,
 
         while (it != et) {
             if (it->is_regular_file() && it->path().extension() == ".irt") {
+                debug_logi(6, "found file {}\n", it->path().string());
+
                 if (mod.file_paths.can_alloc() && mod.components.can_alloc()) {
                     auto  u8str = it->path().filename().u8string();
                     auto* cstr  = reinterpret_cast<const char*>(u8str.c_str());
@@ -216,6 +219,9 @@ static void prepare_component_loading(modeling&              mod,
                         dir.status   = dir_path::state::unread;
                         dir.parent   = mod.registred_paths.get_id(reg_dir);
 
+                        debug_logi(
+                          4, "lookup in subdirectory {}\n", it->path().string());
+
                         reg_dir.children.emplace_back(dir_id);
                         prepare_component_loading(
                           mod, reg_dir, dir, it->path());
@@ -249,6 +255,8 @@ static void prepare_component_loading(modeling&       mod,
     namespace fs = std::filesystem;
 
     try {
+        debug_logi(2, "lookup in registered path {}\n", reg_dir.path.sv());
+
         fs::path        p(reg_dir.path.c_str());
         std::error_code ec;
 
@@ -256,6 +264,7 @@ static void prepare_component_loading(modeling&       mod,
             prepare_component_loading(mod, reg_dir, p);
             reg_dir.status = registred_path::state::read;
         } else {
+            debug_logi(4, "registered path does not exists");
             reg_dir.status = registred_path::state::error;
 
             log_warning(mod,
