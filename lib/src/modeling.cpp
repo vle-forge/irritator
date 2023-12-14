@@ -219,8 +219,9 @@ static void prepare_component_loading(modeling&              mod,
                         dir.status   = dir_path::state::unread;
                         dir.parent   = mod.registred_paths.get_id(reg_dir);
 
-                        debug_logi(
-                          4, "lookup in subdirectory {}\n", it->path().string());
+                        debug_logi(4,
+                                   "lookup in subdirectory {}\n",
+                                   it->path().string());
 
                         reg_dir.children.emplace_back(dir_id);
                         prepare_component_loading(
@@ -379,10 +380,24 @@ status modeling::fill_components() noexcept
     prepare_component_loading(*this);
     bool have_unread_component = components.size() > 0u;
 
+    for_each_data(components, [&](auto& compo) -> void {
+        debug_logi(2,
+                   "Component type {} id {} name {} location: {} {} {}\n",
+                   component_type_names[ordinal(compo.type)],
+                   ordinal(components.get_id(compo)),
+                   compo.name.sv(),
+                   ordinal(compo.reg_path),
+                   ordinal(compo.dir),
+                   ordinal(compo.file));
+    });
+
     while (have_unread_component) {
         have_unread_component = false;
 
         for_each_data(components, [&](auto& compo) {
+            if (compo.type == component_type::internal)
+                return;
+
             if (auto ret = load_component(*this, compo); !ret) {
                 if (compo.state == component_status::unread) {
                     log_warning(*this,
