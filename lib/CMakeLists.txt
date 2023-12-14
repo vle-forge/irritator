@@ -118,6 +118,7 @@ function(irritator_add_test test_name)
   add_test(${test_name} ${test_name})
 endfunction()
 
+irritator_add_test(test-container test/containers.cpp)
 irritator_add_test(test-api test/public-api.cpp)
 irritator_add_test(test-mod-to-sim test/mod-to-sim.cpp)
 irritator_add_test(test-thread test/threading.cpp)
