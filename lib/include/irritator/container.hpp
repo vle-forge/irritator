@@ -8,6 +8,7 @@
 #include <memory>
 #include <memory_resource>
 #include <type_traits>
+#include <utility>
 
 #include <cassert>
 
@@ -86,6 +87,46 @@ public:
     {
         m_mem->deallocate(p, n * sizeof(T), alignof(T));
     }
+
+private:
+    std::pmr::memory_resource* m_mem{};
+};
+
+class debug_allocator
+{
+public:
+    using size_type                              = std::size_t;
+    using difference_type                        = std::ptrdiff_t;
+    using propagate_on_container_move_assignment = std::true_type;
+
+    debug_allocator() noexcept = default;
+
+    debug_allocator(std::pmr::memory_resource* mem) noexcept
+      : m_mem(mem)
+    {}
+
+    template<typename T>
+    T* allocate(size_type n) noexcept
+    {
+        m_total_allocated += n * sizeof(T);
+        m_number_allocation++;
+
+        return reinterpret_cast<T*>(m_mem->allocate(n * sizeof(T), alignof(T)));
+    }
+
+    template<typename T>
+    void deallocate(T* p, size_type n) noexcept
+    {
+        m_total_deallocated += n * sizeof(T);
+        m_number_deallocation++;
+
+        m_mem->deallocate(p, n * sizeof(T), alignof(T));
+    }
+
+    std::size_t m_total_allocated;
+    std::size_t m_total_deallocated;
+    std::size_t m_number_allocation;
+    std::size_t m_number_deallocation;
 
 private:
     std::pmr::memory_resource* m_mem{};
