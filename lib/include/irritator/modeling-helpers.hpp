@@ -206,10 +206,10 @@ void for_each_model(simulation& sim, tree_node& tn, Function&& f) noexcept
 }
 
 template<typename Function>
-void if_tree_node_is_grid_do(project&     pj,
+auto if_tree_node_is_grid_do(project&     pj,
                              modeling&    mod,
                              tree_node_id tn_id,
-                             Function&&   f)
+                             Function&&   f) noexcept -> status
 {
     tree_node*      grid_tn{};
     component*      compo{};
@@ -220,18 +220,20 @@ void if_tree_node_is_grid_do(project&     pj,
             if (compo->type == component_type::grid) {
                 if (g_compo = mod.grid_components.try_to_get(compo->id.grid_id);
                     g_compo) {
-                    f(*grid_tn, *compo, *g_compo);
+                    return f(*grid_tn, *compo, *g_compo);
                 }
             }
         }
     }
+
+    return success();
 }
 
 template<typename Function>
-void if_tree_node_is_graph_do(project&     pj,
+auto if_tree_node_is_graph_do(project&     pj,
                               modeling&    mod,
                               tree_node_id tn_id,
-                              Function&&   f)
+                              Function&&   f) noexcept -> status
 {
     tree_node*       graph_tn{};
     component*       compo{};
@@ -243,11 +245,13 @@ void if_tree_node_is_graph_do(project&     pj,
                 if (g_compo =
                       mod.graph_components.try_to_get(compo->id.graph_id);
                     g_compo) {
-                    f(*graph_tn, *compo, *g_compo);
+                    return f(*graph_tn, *compo, *g_compo);
                 }
             }
         }
     }
+
+    return success();
 }
 
 } // namespace irt

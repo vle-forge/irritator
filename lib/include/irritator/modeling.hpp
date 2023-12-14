@@ -126,7 +126,7 @@ class project;
 
 struct connection;
 struct child;
-struct generic_component;
+class generic_component;
 class modeling;
 struct description;
 struct cache_rw;
@@ -271,7 +271,9 @@ struct hsm_component {
     hierarchical_state_machine machine;
 };
 
-struct generic_component {
+class generic_component
+{
+public:
     vector<child_id>      children;
     vector<connection_id> connections;
 
@@ -712,6 +714,7 @@ struct graph_modeling_observer {
     tree_node_id tn_id;     //< @c tree_node identifier parent of the model.
     model_id     mdl_id;    //< @c model to observe.
 };
+
 struct variable_observer {
     name_str name;
 
