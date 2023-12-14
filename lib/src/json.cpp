@@ -483,7 +483,7 @@ struct reader {
 
         rapidjson::SizeType i = 0, e = array.GetArray().Size();
         for (; i != e; ++i) {
-            debug_log("for-array: {}/{}\n", i, e);
+            debug_logi(stack.ssize(), "for-array: {}/{}\n", i, e);
 
             if (!f(i, array.GetArray()[i], args...))
                 return false;
@@ -511,17 +511,19 @@ struct reader {
                                             it->name.GetStringLength() });
 
             if (x == std::end(names)) {
-                debug_log("for-member: unknown element {}\n",
-                          std::string_view{ it->name.GetString(),
-                                            it->name.GetStringLength() });
+                debug_logi(stack.ssize(),
+                           "for-member: unknown element {}\n",
+                           std::string_view{ it->name.GetString(),
+                                             it->name.GetStringLength() });
 
                 report_json_error(error_id::unknown_element);
             }
 
             if (!fn(std::distance(std::begin(names), x), it->value)) {
-                debug_log("for-member: element {} return false\n",
-                          std::string_view{ it->name.GetString(),
-                                            it->name.GetStringLength() });
+                debug_logi(stack.ssize(),
+                           "for-member: element {} return false\n",
+                           std::string_view{ it->name.GetString(),
+                                             it->name.GetStringLength() });
                 return false;
             }
 
@@ -541,7 +543,7 @@ struct reader {
 
         for (auto it = val.MemberBegin(), et = val.MemberEnd(); it != et;
              ++it) {
-            debug_log("for-member: {}\n", it->name.GetString());
+            debug_logi(stack.ssize(), "for-member: {}\n", it->name.GetString());
             if (!f(it->name.GetString(), it->value, args...))
                 return false;
         }
