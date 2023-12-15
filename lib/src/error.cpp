@@ -76,8 +76,7 @@ void on_error_breakpoint() noexcept
     } while (0);
 #else  /* !__i386__ && !__alpha__ */
     do {
-        raise(SIGTRAP);
-    } while (0);
+        raise(SIGTR);
 #endif /* __i386__ */
 #else
     do {

@@ -167,8 +167,8 @@ int main()
     };
 
     "vector<T>-default_allocator"_test = [] {
-        std::array<std::byte, 256>          buffer;
-        std::pmr::monotonic_buffer_resource mbr{ buffer.data(), buffer.size() };
+        std::array<std::byte, 256>        buffer;
+        irt::fixed_linear_memory_resource mbr{ buffer.data(), buffer.size() };
 
         irt::vector<int, irt::mr_allocator> v(&mbr, 8);
         expect(v.empty());
@@ -629,6 +629,66 @@ int main()
 
     "ring-buffer-front-back-access"_test = [] {
         irt::ring_buffer<int> ring(4);
+
+        expect(ring.push_head(0) == true);
+        expect(ring.push_head(-1) == true);
+        expect(ring.push_head(-2) == true);
+        expect(ring.push_head(-3) == false);
+        expect(ring.push_head(-4) == false);
+
+        ring.pop_tail();
+
+        expect(ring.ssize() == 2);
+        expect(ring.front() == -2);
+        expect(ring.back() == -1);
+
+        expect(ring.push_tail(1) == true);
+
+        expect(ring.front() == -2);
+        expect(ring.back() == 1);
+    };
+
+    "small-ring-buffer"_test = [] {
+        irt::small_ring_buffer<int, 10> ring;
+
+        for (int i = 0; i < 9; ++i) {
+            auto is_success = ring.emplace_enqueue(i);
+            expect(is_success == true);
+        }
+
+        {
+            auto is_success = ring.emplace_enqueue(9);
+            expect(is_success == false);
+        }
+
+        expect(ring.data()[0] == 0);
+        expect(ring.data()[1] == 1);
+        expect(ring.data()[2] == 2);
+        expect(ring.data()[3] == 3);
+        expect(ring.data()[4] == 4);
+        expect(ring.data()[5] == 5);
+        expect(ring.data()[6] == 6);
+        expect(ring.data()[7] == 7);
+        expect(ring.data()[8] == 8);
+        expect(ring.data()[0] == 0);
+
+        for (int i = 10; i < 15; ++i)
+            ring.force_emplace_enqueue(i);
+
+        expect(ring.data()[0] == 11);
+        expect(ring.data()[1] == 12);
+        expect(ring.data()[2] == 13);
+        expect(ring.data()[3] == 14);
+        expect(ring.data()[4] == 4);
+        expect(ring.data()[5] == 5);
+        expect(ring.data()[6] == 6);
+        expect(ring.data()[7] == 7);
+        expect(ring.data()[8] == 8);
+        expect(ring.data()[9] == 10);
+    };
+
+    "small-ring-buffer-front-back-access"_test = [] {
+        irt::small_ring_buffer<int, 4> ring;
 
         expect(ring.push_head(0) == true);
         expect(ring.push_head(-1) == true);
