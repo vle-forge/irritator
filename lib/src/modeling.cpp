@@ -83,20 +83,33 @@ modeling::modeling() noexcept
 
 status modeling::init(modeling_initializer& p) noexcept
 {
-    irt_check(descriptions.init(p.description_capacity));
-    irt_check(ports.init(p.model_capacity));
-    irt_check(components.init(p.component_capacity));
-    irt_check(grid_components.init(p.component_capacity));
-    irt_check(graph_components.init(p.component_capacity));
-    irt_check(generic_components.init(p.component_capacity));
-    irt_check(hsm_components.init(p.component_capacity));
-    irt_check(dir_paths.init(p.dir_path_capacity));
-    irt_check(file_paths.init(p.file_path_capacity));
-    irt_check(registred_paths.init(p.dir_path_capacity));
+    if (!(descriptions.reserve(p.description_capacity)))
+        return new_error(modeling::part::descriptions);
+    if (!(ports.reserve(p.model_capacity)))
+        return new_error(modeling::part::ports);
+    if (!(components.reserve(p.component_capacity)))
+        return new_error(modeling::part::components);
+    if (!(grid_components.reserve(p.component_capacity)))
+        return new_error(modeling::part::grid_components);
+    if (!(graph_components.reserve(p.component_capacity)))
+        return new_error(modeling::part::graph_components);
+    if (!(generic_components.reserve(p.component_capacity)))
+        return new_error(modeling::part::generic_components);
+    if (!(hsm_components.reserve(p.component_capacity)))
+        return new_error(modeling::part::hsm_components);
+    if (!(dir_paths.reserve(p.dir_path_capacity)))
+        return new_error(modeling::part::dir_paths);
+    if (!(file_paths.reserve(p.file_path_capacity)))
+        return new_error(modeling::part::file_paths);
+    if (!(registred_paths.reserve(p.dir_path_capacity)))
+        return new_error(modeling::part::registred_paths);
 
-    irt_check(hsms.init(p.component_capacity));
-    irt_check(children.init(p.children_capacity));
-    irt_check(connections.init(p.connection_capacity));
+    if (!(hsms.reserve(p.component_capacity)))
+        return new_error(modeling::part::hsms);
+    if (!(children.reserve(p.children_capacity)))
+        return new_error(modeling::part::children);
+    if (!(connections.reserve(p.connection_capacity)))
+        return new_error(modeling::part::connections);
 
     children_positions.resize(children.capacity());
     children_names.resize(children.capacity());

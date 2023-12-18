@@ -601,30 +601,30 @@ int main()
             expect(is_success == false);
         }
 
-        expect(ring.buffer[0] == 0);
-        expect(ring.buffer[1] == 1);
-        expect(ring.buffer[2] == 2);
-        expect(ring.buffer[3] == 3);
-        expect(ring.buffer[4] == 4);
-        expect(ring.buffer[5] == 5);
-        expect(ring.buffer[6] == 6);
-        expect(ring.buffer[7] == 7);
-        expect(ring.buffer[8] == 8);
-        expect(ring.buffer[0] == 0);
+        expect(ring.data()[0] == 0);
+        expect(ring.data()[1] == 1);
+        expect(ring.data()[2] == 2);
+        expect(ring.data()[3] == 3);
+        expect(ring.data()[4] == 4);
+        expect(ring.data()[5] == 5);
+        expect(ring.data()[6] == 6);
+        expect(ring.data()[7] == 7);
+        expect(ring.data()[8] == 8);
+        expect(ring.data()[0] == 0);
 
         for (int i = 10; i < 15; ++i)
             ring.force_emplace_enqueue(i);
 
-        expect(ring.buffer[0] == 11);
-        expect(ring.buffer[1] == 12);
-        expect(ring.buffer[2] == 13);
-        expect(ring.buffer[3] == 14);
-        expect(ring.buffer[4] == 4);
-        expect(ring.buffer[5] == 5);
-        expect(ring.buffer[6] == 6);
-        expect(ring.buffer[7] == 7);
-        expect(ring.buffer[8] == 8);
-        expect(ring.buffer[9] == 10);
+        expect(ring.data()[0] == 11);
+        expect(ring.data()[1] == 12);
+        expect(ring.data()[2] == 13);
+        expect(ring.data()[3] == 14);
+        expect(ring.data()[4] == 4);
+        expect(ring.data()[5] == 5);
+        expect(ring.data()[6] == 6);
+        expect(ring.data()[7] == 7);
+        expect(ring.data()[8] == 8);
+        expect(ring.data()[9] == 10);
     };
 
     "ring-buffer-front-back-access"_test = [] {
@@ -841,5 +841,50 @@ int main()
         expect(array.is_free_list_empty());
 
         expect(check_data_array_loop(array));
+    };
+
+    "vector_view"_test = [] {
+        struct pos {
+            int model;
+            int port;
+        };
+
+        std::array<std::byte, 512>    memory;
+        irt::freelist_memory_resource mem{ memory.data(), memory.size() };
+
+        pos*         data     = nullptr;
+        std::int32_t size     = 0;
+        std::int32_t capacity = 0;
+
+        for (int i = 0; i < 10; ++i) {
+            irt::vector_view<pos, irt::mr_allocator> view{
+                &mem, data, size, capacity
+            };
+
+            view.emplace_back(123, 1);
+            view.emplace_back(456, 2);
+            view.emplace_back(789, 3);
+
+            expect(eq(view[0].model, 123));
+            expect(eq(view[0].port, 1));
+            expect(eq(view[1].model, 456));
+            expect(eq(view[1].port, 2));
+            expect(eq(view[2].model, 789));
+            expect(eq(view[2].port, 3));
+
+            expect(neq(view.data(), nullptr));
+            expect(eq(view.size(), 3));
+            expect(eq(view.capacity(), 8));
+
+            view.clear();
+            expect(neq(view.data(), nullptr));
+            expect(eq(view.size(), 0));
+            expect(eq(view.capacity(), 8));
+
+            view.destroy();
+            expect(eq(view.data(), nullptr));
+            expect(eq(view.size(), 0));
+            expect(eq(view.capacity(), 0));
+        }
     };
 }

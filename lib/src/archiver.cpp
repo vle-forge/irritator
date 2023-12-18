@@ -1198,12 +1198,18 @@ static status do_deserialize(Dearchiver&             arc,
         sim.models.clear();
         sim.hsms.clear();
 
-        irt_check(sim.srcs.constant_sources.init(constant_external_source));
-        irt_check(sim.srcs.binary_file_sources.init(binary_external_source));
-        irt_check(sim.srcs.text_file_sources.init(text_external_source));
-        irt_check(sim.srcs.random_sources.init(random_external_source));
-        irt_check(sim.models.init(models));
-        irt_check(sim.hsms.init(hsms));
+        if (!sim.srcs.constant_sources.reserve(constant_external_source))
+            return new_error(binary_archiver::not_enough_memory{});
+        if (!sim.srcs.binary_file_sources.reserve(binary_external_source))
+            return new_error(binary_archiver::not_enough_memory{});
+        if (!sim.srcs.text_file_sources.reserve(text_external_source))
+            return new_error(binary_archiver::not_enough_memory{});
+        if (!sim.srcs.random_sources.reserve(random_external_source))
+            return new_error(binary_archiver::not_enough_memory{});
+        if (!sim.models.reserve(models))
+            return new_error(binary_archiver::not_enough_memory{});
+        if (!sim.hsms.reserve(hsms))
+            return new_error(binary_archiver::not_enough_memory{});
 
         if (!sim.srcs.constant_sources.can_alloc(constant_external_source))
             return new_error(binary_archiver::not_enough_memory{});

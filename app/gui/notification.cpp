@@ -117,7 +117,7 @@ notification_manager::notification_manager() noexcept
     auto nb = notification_number;
 
     for (;;) {
-        if (auto ret = data.init(nb); ret)
+        if (data.reserve(nb))
             break;
 
         nb = nb / 2;

@@ -989,30 +989,30 @@ int main()
             expect(is_success == false);
         }
 
-        expect(ring.buffer[0] == 0);
-        expect(ring.buffer[1] == 1);
-        expect(ring.buffer[2] == 2);
-        expect(ring.buffer[3] == 3);
-        expect(ring.buffer[4] == 4);
-        expect(ring.buffer[5] == 5);
-        expect(ring.buffer[6] == 6);
-        expect(ring.buffer[7] == 7);
-        expect(ring.buffer[8] == 8);
-        expect(ring.buffer[0] == 0);
+        expect(ring.data()[0] == 0);
+        expect(ring.data()[1] == 1);
+        expect(ring.data()[2] == 2);
+        expect(ring.data()[3] == 3);
+        expect(ring.data()[4] == 4);
+        expect(ring.data()[5] == 5);
+        expect(ring.data()[6] == 6);
+        expect(ring.data()[7] == 7);
+        expect(ring.data()[8] == 8);
+        expect(ring.data()[0] == 0);
 
         for (int i = 10; i < 15; ++i)
             ring.force_emplace_enqueue(i);
 
-        expect(ring.buffer[0] == 11);
-        expect(ring.buffer[1] == 12);
-        expect(ring.buffer[2] == 13);
-        expect(ring.buffer[3] == 14);
-        expect(ring.buffer[4] == 4);
-        expect(ring.buffer[5] == 5);
-        expect(ring.buffer[6] == 6);
-        expect(ring.buffer[7] == 7);
-        expect(ring.buffer[8] == 8);
-        expect(ring.buffer[9] == 10);
+        expect(ring.data()[0] == 11);
+        expect(ring.data()[1] == 12);
+        expect(ring.data()[2] == 13);
+        expect(ring.data()[3] == 14);
+        expect(ring.data()[4] == 4);
+        expect(ring.data()[5] == 5);
+        expect(ring.data()[6] == 6);
+        expect(ring.data()[7] == 7);
+        expect(ring.data()[8] == 8);
+        expect(ring.data()[9] == 10);
     };
 
     "ring-buffer-front-back-access"_test = [] {
@@ -1075,14 +1075,9 @@ int main()
               sizeof(irt::data_array<position, position64_id>::index_type),
               sizeof(irt::data_array<position, position64_id>::identifier_type),
               sizeof(irt::data_array<position, position64_id>::value_type));
-
-            auto old = std::exchange(irt::on_error_callback, nullptr);
-            irt::on_error_callback = nullptr;
-            expect(!small_array.init(0x10000));
-            std::exchange(irt::on_error_callback, old);
         }
 
-        expect(!!small_array.init(3));
+        expect(!!small_array.reserve(3));
         expect(small_array.max_size() == 0);
         expect(small_array.max_used() == 0);
         expect(small_array.capacity() == 3);
@@ -1095,7 +1090,7 @@ int main()
         expect(array.next_key() == 1);
         expect(array.is_free_list_empty());
 
-        expect(!!array.init(3));
+        expect(!!array.reserve(3));
 
         expect(array.max_size() == 0);
         expect(array.max_used() == 0);
@@ -1141,7 +1136,7 @@ int main()
         expect(array.next_key() == 1);
         expect(array.is_free_list_empty());
 
-        expect(!!array.resize(3));
+        expect(!!array.reserve(3));
 
         {
             auto& d1 = array.alloc(1.f);
@@ -1461,18 +1456,13 @@ int main()
         irt::dispatch(mdl,
                       []([[maybe_unused]] auto& dyns) { std::cout << "ok"; });
 
-        auto ret =
-          irt::dispatch(mdl, []([[maybe_unused]] const auto& dyns) -> int {
-              std::cout << "ok";
-              return 1;
-          });
+        auto ret = irt::dispatch(
+          mdl, []([[maybe_unused]] const auto& dyns) -> int { return 1; });
 
         expect(ret == 1);
 
-        auto ret_2 = irt::dispatch(mdl, []([[maybe_unused]] const auto& dyns) {
-            std::cout << "ok";
-            return 579.0;
-        });
+        auto ret_2 = irt::dispatch(
+          mdl, []([[maybe_unused]] const auto& dyns) { return 579.0; });
 
         expect(eq(ret_2, 579.0));
     };

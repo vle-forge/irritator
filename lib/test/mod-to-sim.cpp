@@ -451,9 +451,9 @@ int main()
             expect(!!mod.init(mod_init));
             irt::component_id ids[irt::internal_component_count];
 
-            expect(!!mod.registred_paths.init(8));
-            expect(!!mod.dir_paths.init(32));
-            expect(!!mod.file_paths.init(256));
+            expect(mod.registred_paths.reserve(8));
+            expect(mod.dir_paths.reserve(32));
+            expect(mod.file_paths.reserve(256));
 
             expect(mod.components.can_alloc(irt::internal_component_count));
 
@@ -499,9 +499,9 @@ int main()
 
             expect(!!mod.init(mod_init));
 
-            expect(!!mod.registred_paths.init(8));
-            expect(!!mod.dir_paths.init(32));
-            expect(!!mod.file_paths.init(256));
+            expect(mod.registred_paths.reserve(8));
+            expect(mod.dir_paths.reserve(32));
+            expect(mod.file_paths.reserve(256));
 
             expect(mod.components.can_alloc(irt::internal_component_count));
 

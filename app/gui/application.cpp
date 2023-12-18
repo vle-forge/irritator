@@ -23,9 +23,9 @@ application::application() noexcept
     settings_wnd.update();
     settings_wnd.apply_default_style();
 
-    if (auto ret = sim_tasks.init(simulation_task_number); !ret)
+    if (!sim_tasks.reserve(simulation_task_number))
         log_w(*this, log_level::error, "Tasks Initialization failed");
-    if (auto ret = gui_tasks.init(simulation_task_number); !ret)
+    if (!gui_tasks.reserve(simulation_task_number))
         log_w(*this, log_level::error, "Tasks Initialization failed");
 
     log_w(*this, log_level::info, "GUI Irritator start\n");
@@ -152,7 +152,7 @@ bool application::init() noexcept
     // simulation_ed.plot_obs.clear();
     // simulation_ed.grid_obs.resize(pj.grid_observers.size());
 
-    if (auto ret = simulation_ed.copy_obs.init(16); !ret) {
+    if (!simulation_ed.copy_obs.reserve(16)) {
         log_w(*this,
               log_level::error,
               "Fail to initialize copy simulation observation\n");
@@ -171,21 +171,21 @@ bool application::init() noexcept
               "Fail to fill internal component list: {}\n");
     }
 
-    if (auto ret = graphs.init(32); !ret) {
+    if (!graphs.reserve(32)) {
         log_w(*this,
               log_level::error,
               "Fail to initialize graph component editors:\n");
         return false;
     }
 
-    if (auto ret = grids.init(32); !ret) {
+    if (!grids.reserve(32)) {
         log_w(*this,
               log_level::error,
               "Fail to initialize grid component editors:\n");
         return false;
     }
 
-    if (auto ret = generics.init(32); !ret) {
+    if (!generics.reserve(32)) {
         log_w(*this,
               log_level::error,
               "Fail to initialize generic component editors:\n");

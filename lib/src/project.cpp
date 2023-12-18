@@ -1021,13 +1021,17 @@ static status simulation_copy_sources(project::cache& cache,
 {
     sim.srcs.clear();
 
-    irt_check(
-      sim.srcs.constant_sources.init(mod.srcs.constant_sources.capacity()));
-    irt_check(sim.srcs.binary_file_sources.init(
-      mod.srcs.binary_file_sources.capacity()));
-    irt_check(
-      sim.srcs.text_file_sources.init(mod.srcs.text_file_sources.capacity()));
-    irt_check(sim.srcs.random_sources.init(mod.srcs.random_sources.capacity()));
+    if (!sim.srcs.constant_sources.reserve(
+          mod.srcs.constant_sources.capacity()))
+        return new_error(external_source::part::constant_source);
+    if (!sim.srcs.binary_file_sources.reserve(
+          mod.srcs.binary_file_sources.capacity()))
+        return new_error(external_source::part::binary_file_source);
+    if (!sim.srcs.text_file_sources.reserve(
+          mod.srcs.text_file_sources.capacity()))
+        return new_error(external_source::part::text_file_source);
+    if (!sim.srcs.random_sources.reserve(mod.srcs.random_sources.capacity()))
+        return new_error(external_source::part::random_source);
 
     {
         constant_source* src = nullptr;
@@ -1149,10 +1153,14 @@ static status make_tree_from(simulation_copy&                     sc,
 
 status project::init(const modeling_initializer& init) noexcept
 {
-    irt_check(tree_nodes.init(init.tree_capacity));
-    irt_check(variable_observers.init(init.tree_capacity));
-    irt_check(grid_observers.init(init.tree_capacity));
-    irt_check(global_parameters.init(init.tree_capacity));
+    if (!tree_nodes.reserve(init.tree_capacity))
+        return new_error(project::part::tree_nodes);
+    if (!variable_observers.reserve(init.tree_capacity))
+        return new_error(project::part::variable_observers);
+    if (!grid_observers.reserve(init.tree_capacity))
+        return new_error(project::part::grid_observers);
+    if (!global_parameters.reserve(init.tree_capacity))
+        return new_error(project::part::global_parameters);
 
     grid_observation_systems.resize(init.tree_capacity);
 

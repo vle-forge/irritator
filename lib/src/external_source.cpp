@@ -10,6 +10,7 @@
 #include <fstream>
 #include <iomanip>
 #include <random>
+#include <utility>
 
 #ifndef R123_USE_CXX11
 #define R123_USE_CXX11 1
@@ -35,6 +36,18 @@ constant_source::constant_source(const constant_source& other) noexcept
 {
     std::copy_n(
       std::data(other.buffer), std::size(other.buffer), std::data(buffer));
+}
+
+constant_source& constant_source::operator=(
+  const constant_source& other) noexcept
+{
+    if (this != &other) {
+        name   = other.name;
+        buffer = other.buffer;
+        length = other.length;
+    }
+
+    return *this;
 }
 
 status constant_source::init() noexcept { return success(); }
@@ -73,6 +86,29 @@ binary_file_source::binary_file_source(const binary_file_source& other) noexcept
   , next_client(other.next_client)
   , next_offset(other.next_offset)
 {}
+
+binary_file_source& binary_file_source::operator=(
+  const binary_file_source& other) noexcept
+{
+    if (this != &other) {
+        binary_file_source tmp{ other };
+        swap(tmp);
+    }
+
+    return *this;
+}
+
+void binary_file_source::swap(binary_file_source& other) noexcept
+{
+    std::swap(name, other.name);
+    std::swap(buffers, other.buffers);
+    std::swap(offsets, other.offsets);
+    std::swap(max_clients, other.max_clients);
+    std::swap(max_reals, other.max_reals);
+    std::swap(file_path, other.file_path);
+    std::swap(next_client, other.next_client);
+    std::swap(next_offset, other.next_offset);
+}
 
 status binary_file_source::init() noexcept
 {
@@ -204,6 +240,14 @@ text_file_source::text_file_source(const text_file_source& other) noexcept
   , file_path(other.file_path)
 {}
 
+void text_file_source::swap(text_file_source& other) noexcept
+{
+    std::swap(name, other.name);
+    std::swap(buffer, other.buffer);
+    std::swap(offset, other.offset);
+    std::swap(file_path, other.file_path);
+}
+
 status text_file_source::init() noexcept
 {
     auto _ = on_error(e_file_name{ file_path.string() });
@@ -228,6 +272,17 @@ static status text_file_source_fill_buffer(text_file_source& ext,
             return new_error(text_file_source::eof_file_error{});
 
     return success();
+}
+
+text_file_source& text_file_source::operator=(
+  const text_file_source& other) noexcept
+{
+    if (this != &other) {
+        text_file_source tmp{ other };
+        swap(tmp);
+    }
+
+    return *this;
 }
 
 status text_file_source::init(source& src) noexcept
@@ -417,6 +472,76 @@ random_source::random_source(const random_source& other) noexcept
   , t32(other.t32)
   , k32(other.k32)
 {}
+
+random_source& random_source::operator=(random_source&& other) noexcept
+{
+    if (this != &other) {
+        name          = other.name;
+        buffers       = std::move(other.buffers);
+        counters      = std::move(other.counters);
+        max_clients   = other.max_clients;
+        start_counter = other.start_counter;
+        next_client   = other.next_client;
+        ctr           = other.ctr;
+        key           = other.key;
+        distribution  = other.distribution;
+        a             = other.a;
+        b             = other.b;
+        p             = other.p;
+        mean          = other.mean;
+        lambda        = other.lambda;
+        alpha         = other.alpha;
+        beta          = other.beta;
+        stddev        = other.stddev;
+        m             = other.m;
+        s             = other.s;
+        n             = other.n;
+        a32           = other.a32;
+        b32           = other.b32;
+        t32           = other.t32;
+        k32           = other.k32;
+    }
+
+    return *this;
+}
+
+random_source& random_source::operator=(const random_source& other) noexcept
+{
+    if (this != &other) {
+        random_source copy{ other };
+        swap(copy);
+    }
+
+    return *this;
+}
+
+void random_source::swap(random_source& other) noexcept
+{
+    std::swap(name, other.name);
+    std::swap(buffers, other.buffers);
+    std::swap(counters, other.counters);
+    std::swap(max_clients, other.max_clients);
+    std::swap(start_counter, other.start_counter);
+    std::swap(next_client, other.next_client);
+    std::swap(ctr, other.ctr);
+    std::swap(key, other.key);
+    std::swap(distribution, other.distribution);
+    std::swap(a, other.a);
+    std::swap(b, other.b);
+    std::swap(p, other.p);
+    std::swap(mean, other.mean);
+    std::swap(lambda, other.lambda);
+    std::swap(alpha, other.alpha);
+    std::swap(beta, other.beta);
+    std::swap(stddev, other.stddev);
+    std::swap(m, other.m);
+    std::swap(s, other.s);
+    std::swap(n, other.n);
+    std::swap(a32, other.a32);
+    std::swap(b32, other.b32);
+    std::swap(t32, other.t32);
+    std::swap(k32, other.k32);
+}
 
 status random_source::init() noexcept
 {

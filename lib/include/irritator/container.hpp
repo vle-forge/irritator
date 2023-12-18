@@ -5,13 +5,19 @@
 #ifndef ORG_VLEPROJECT_IRRITATOR_CONTAINER_2023
 #define ORG_VLEPROJECT_IRRITATOR_CONTAINER_2023
 
+#include <concepts>
+#include <iterator>
+#include <limits>
 #include <memory>
 #include <memory_resource>
+#include <string>
 #include <type_traits>
 #include <utility>
 
 #include <cassert>
+#include <cstddef>
 #include <cstdint>
+#include <cstdlib>
 #include <cstring>
 
 namespace irt {
@@ -199,18 +205,22 @@ using error_not_enough_memory_handler =
 
 inline error_not_enough_memory_handler* on_error_not_enough_memory = nullptr;
 
-//! Thread unsafe allocator: allocation are linear, no de-allocation.
+//! A non-thread-safe allocator: allocation are linear, no de-allocation.
 //!
-//! The main idea is to keep a pointer at the first memory address of your
-//! memory chunk and move it every time an allocation is done. In this memory
-//! resource, the internal fragmentation is kept to a minimum because all
-//! elements are sequentially (spatial locality) inserted and the only
-//! fragmentation between them is the alignment.
-//! Due to its simplicity, this allocator doesn't allow specific positions of
-//! memory to be freed. Usually, all memory is freed together.
+//! This is a non-thread-safe, fast, special-purpose resource that gets
+//! memory  from a preallocated buffer, but doesn’t release it with
+//! deallocation. It can only grow. The main idea is to keep a pointer at the
+//! first memory address of your memory chunk and move it every time an
+//! allocation is done. In this memory resource, the internal fragmentation is
+//! kept to a minimum because all elements are sequentially (spatial locality)
+//! inserted and the only fragmentation between them is the alignment. Due to
+//! its simplicity, this allocator doesn't allow specific positions of memory to
+//! be freed. Usually, all memory is freed together.
 class fixed_linear_memory_resource : public std::pmr::memory_resource
 {
 public:
+    static constexpr bool is_relocatable = false;
+
     fixed_linear_memory_resource(void* data, std::size_t size) noexcept
       : m_start{ data }
       , m_total_size{ size }
@@ -252,13 +262,15 @@ public:
 
     void reset() noexcept { m_offset = { 0 }; }
 
+    void* head() noexcept { return m_start; }
+
 private:
     void*       m_start{};
     std::size_t m_total_size{};
     std::size_t m_offset{};
 };
 
-//! Thread unsafe allocator: node specific memory resource.
+//! A non-thread-safe allocator: node specific memory resource.
 //!
 //! This pool allocator splits the big memory chunk in smaller chunks of the
 //! same size and keeps track of which of them are free. When an allocation is
@@ -267,6 +279,9 @@ private:
 //! super fast and the fragmentation is still very low.
 class pool_memory_resource : public std::pmr::memory_resource
 {
+public:
+    static constexpr bool is_relocatable = false;
+
 private:
     template<class T>
     struct list {
@@ -336,6 +351,11 @@ public:
         m_free_list.push(reinterpret_cast<node*>(p));
     }
 
+    bool do_is_equal(const memory_resource& other) const noexcept override
+    {
+        return this == &other;
+    }
+
     void reset() noexcept
     {
         const std::size_t n = m_total_size / m_chunk_size;
@@ -345,371 +365,228 @@ public:
             m_free_list.push(reinterpret_cast<node*>(address));
         }
     }
+
+    void* head() noexcept { return m_start_ptr; }
 };
 
-//! Thread unsafe allocator: 5 size-node specific memory resource.
-//!
-//! This pool allocator splits the big memory chunk in smaller chunks of the
-//! same size and keeps track of which of them are free. When an allocation is
-//! requested it returns the free chunk size. When a freed is done, it just
-//! stores it to be used in the next allocation. This way, allocations work
-//! super fast and the fragmentation is still very low.
-class multi_pool_memory_resource : public std::pmr::memory_resource
+inline std::uintptr_t to_uint(const void* address) noexcept
 {
-private:
-    template<class T>
-    struct list {
-        struct node {
-            T     data;
-            node* next;
-        };
+    return reinterpret_cast<std::uintptr_t>(address);
+}
 
-        node* head = {};
+inline void* align_forward(void* address, std::uintptr_t alignment) noexcept
+{
+    return reinterpret_cast<void*>((to_uint(address) + (alignment - 1)) &
+                                   (~(alignment - 1)));
+}
 
-        list() noexcept = default;
+inline const void* align_forward(const void*    address,
+                                 std::uintptr_t alignment) noexcept
+{
+    return reinterpret_cast<const void*>((to_uint(address) + (alignment - 1)) &
+                                         (~(alignment - 1)));
+}
 
-        void push(node* new_node) noexcept
-        {
-            new_node->next = head;
-            head           = new_node;
-        }
+inline std::uintptr_t align_forward_adjustment(
+  const void*    address,
+  std::uintptr_t alignment) noexcept
+{
+    const auto adjustment = alignment - (to_uint(address) & (alignment - 1));
 
-        node* pop() noexcept
-        {
-            node* top = head;
-            head      = head->next;
-            return top;
-        }
-    };
+    return adjustment == alignment ? 0u : adjustment;
+}
 
-    struct header {};
+template<typename T>
+inline std::uintptr_t align_forward_adjustment_with_header(
+  const void*    address,
+  std::uintptr_t alignment) noexcept
+{
+    if (alignof(T) > alignment)
+        alignment = alignof(T);
 
-    using node = list<header>::node;
+    const auto adjustment =
+      sizeof(T) +
+      align_forward_adjustment(
+        reinterpret_cast<void*>(to_uint(address) + sizeof(T)), alignment);
 
-    list<header>   m_free_lists[5]{};
-    std::uintptr_t m_start_pos[5]{};
-    std::size_t    m_total_sizes[5]{};
-    std::size_t    m_chunk_size{};
+    return adjustment;
+}
 
-public:
-    multi_pool_memory_resource(void*       data,
-                               std::size_t size,
-                               std::size_t chunk_size) noexcept
-      : m_chunk_size{ chunk_size }
-    {
-        assert(chunk_size >= std::alignment_of_v<std::max_align_t>);
-        assert(size % 1024u == 0);
-        assert(size % chunk_size == 0);
-
-        const auto start      = reinterpret_cast<std::uintptr_t>(data);
-        const auto total_size = size * chunk_size;
-
-        m_start_pos[0] = start;
-        m_start_pos[1] = m_start_pos[0] + total_size / 5;
-        m_start_pos[2] = m_start_pos[1] + total_size / 5;
-        m_start_pos[3] = m_start_pos[2] + total_size / 5;
-        m_start_pos[4] = m_start_pos[3] + total_size / 5;
-    }
-
-    void* do_allocate(size_t bytes, size_t /*alignment*/) override
-    {
-        assert(bytes % m_chunk_size == 0);
-        assert(bytes / m_chunk_size < 5);
-
-        const auto id = bytes / m_chunk_size;
-
-        node* free_position = m_free_lists[id].pop();
-
-        if (free_position == nullptr) {
-            if (on_error_not_enough_memory)
-                on_error_not_enough_memory(*this);
-
-            std::abort();
-        }
-
-        return reinterpret_cast<void*>(free_position);
-    }
-
-    void do_deallocate(void* p, size_t bytes, size_t /*alignment*/) override
-    {
-        assert(bytes % m_chunk_size == 0);
-        assert(bytes / m_chunk_size < 5);
-
-        const auto id = bytes / m_chunk_size;
-
-        m_free_lists[id].push(reinterpret_cast<node*>(p));
-    }
-
-    void reset() noexcept
-    {
-        for (std::size_t id = 0; id < 5u; ++id) {
-            const std::size_t n = m_total_sizes[id] / (m_chunk_size * id);
-            for (std::size_t i = 0; i < n; ++i) {
-                auto address = m_start_pos[id] + i * id * m_chunk_size;
-                m_free_lists[id].push(reinterpret_cast<node*>(address));
-            }
-        }
-    }
-};
-
-//! Thread unsafe allocator: a general purpose allocator.
+//! A non-thread-safe allocator: a general purpose allocator.
 //!
-//! This memory resource doesn't impose any restriction. It allows allocations
-//! and deallocations to be done in any order. For this reason, its performance
-//! is not as good as its predecessors.
+//! This memory resource doesn't impose any restriction. It allows
+//! allocations and deallocations to be done in any order. For this reason,
+//! its performance is not as good as its predecessors.
 class freelist_memory_resource : public std::pmr::memory_resource
 {
-private:
-    template<class T>
-    struct list {
-        struct node {
-            T     data;
-            node* next;
-        };
-
-        node* head{};
-
-        list() noexcept = default;
-
-        void insert(node* previous_node, node* new_node) noexcept
-        {
-            if (previous_node == nullptr) {
-                if (head != nullptr) {
-                    new_node->next = head;
-                } else {
-                    new_node->next = nullptr;
-                }
-                head = new_node;
-            } else {
-                if (previous_node->next == nullptr) {
-                    previous_node->next = new_node;
-                    new_node->next      = nullptr;
-                } else {
-                    new_node->next      = previous_node->next;
-                    previous_node->next = new_node;
-                }
-            }
-        }
-
-        void remove(node* previous_node, node* delete_node) noexcept
-        {
-            if (previous_node == nullptr) {
-                if (delete_node->next == nullptr) {
-                    head = nullptr;
-                } else {
-                    head = delete_node->next;
-                }
-            } else {
-                previous_node->next = delete_node->next;
-            }
-        }
-    };
+public:
+    static constexpr bool is_relocatable = false;
 
 private:
-    enum class search_policy { find_first, find_best };
-
-    struct header {
-        std::size_t block_size;
+    struct AllocationHeader {
+        std::size_t  size;
+        std::uint8_t adjustment;
     };
 
-    struct allocation_header {
-        std::size_t block_size;
-        char        padding;
+    struct FreeBlock {
+        std::size_t size;
+        FreeBlock*  next;
     };
 
-    using node = typename list<header>::node;
-
-    void*         m_start_ptr{};
-    std::size_t   m_total_size{};
-    list<header>  m_free_list;
-    search_policy m_policy = search_policy::find_first;
+    FreeBlock* m_free_blocks;
 
 public:
-    freelist_memory_resource(void*               data,
-                             std::size_t         size,
-                             const search_policy policy) noexcept
-      : m_start_ptr{ data }
-      , m_total_size{ size }
-      , m_policy{ policy }
-    {}
-
-    void* do_allocate(size_t bytes, size_t alignment) override
+    freelist_memory_resource(void* data, std::size_t size) noexcept
+      : m_free_blocks{ reinterpret_cast<FreeBlock*>(data) }
     {
-        const auto allocation_header_size =
-          sizeof(freelist_memory_resource::allocation_header);
+        m_free_blocks->size = size;
+        m_free_blocks->next = nullptr;
+    }
 
-        assert(bytes >= sizeof(node));
-        assert(alignment >= std::alignment_of_v<std::max_align_t>);
+    void* do_allocate(size_t size, size_t alignment) noexcept override
+    {
+        assert(size != 0);
+        assert(alignment != 0);
 
-        std::size_t padding{};
-        node*       affected_node{};
-        node*       previous_node{};
+        FreeBlock* prev_free_block = nullptr;
+        FreeBlock* free_block      = m_free_blocks;
 
-        find(bytes, alignment, padding, previous_node, affected_node);
-        if (affected_node == nullptr) {
-            if (on_error_not_enough_memory)
-                on_error_not_enough_memory(*this);
+        FreeBlock*   best_fit_prev       = nullptr;
+        FreeBlock*   best_fit            = nullptr;
+        std::uint8_t best_fit_adjustment = 0;
+        std::size_t  best_fit_total_size = 0;
 
-            std::abort();
+        // Find best fit
+        while (free_block != nullptr) {
+            auto adjustment =
+              align_forward_adjustment_with_header<AllocationHeader>(
+                free_block, static_cast<std::uint8_t>(alignment));
+
+            std::size_t total_size = size + adjustment;
+
+            // If its an exact match use this free block
+            if (free_block->size == total_size) {
+                best_fit_prev       = prev_free_block;
+                best_fit            = free_block;
+                best_fit_adjustment = static_cast<std::uint8_t>(adjustment);
+                best_fit_total_size = total_size;
+                break;
+            }
+
+            // If its a better fit switch
+            if (free_block->size > total_size &&
+                (best_fit == nullptr || free_block->size < best_fit->size)) {
+                best_fit_prev       = prev_free_block;
+                best_fit            = free_block;
+                best_fit_adjustment = static_cast<std::uint8_t>(adjustment);
+                best_fit_total_size = total_size;
+            }
+
+            prev_free_block = free_block;
+            free_block      = free_block->next;
         }
 
-        const auto alignment_padding = padding - allocation_header_size;
-        const auto required_size     = bytes + padding;
-        const auto rest = affected_node->data.block_size - required_size;
+        if (best_fit == nullptr)
+            return nullptr;
 
-        if (rest > 0) {
-            node* new_free_node = reinterpret_cast<node*>(
-              reinterpret_cast<std::uintptr_t>(affected_node) + required_size);
-            new_free_node->data.block_size = rest;
-            m_free_list.insert(affected_node, new_free_node);
+        // If allocations in the remaining memory will be impossible
+        if (best_fit->size - best_fit_total_size <= sizeof(AllocationHeader)) {
+            // Increase allocation size instead of creating a new FreeBlock
+            best_fit_total_size = best_fit->size;
+
+            if (best_fit_prev != nullptr)
+                best_fit_prev->next = best_fit->next;
+            else
+                m_free_blocks = best_fit->next;
+        } else {
+            // Prevent new block from overwriting best fit block info
+            assert(best_fit_total_size > sizeof(FreeBlock));
+
+            // Else create a new FreeBlock containing remaining memory
+            FreeBlock* new_block = reinterpret_cast<FreeBlock*>(
+              reinterpret_cast<std::uintptr_t>(best_fit) + best_fit_total_size);
+            new_block->size = best_fit->size - best_fit_total_size;
+            new_block->next = best_fit->next;
+
+            if (best_fit_prev != nullptr)
+                best_fit_prev->next = new_block;
+            else
+                m_free_blocks = new_block;
         }
 
-        m_free_list.remove(previous_node, affected_node);
+        std::uintptr_t aligned_address =
+          reinterpret_cast<std::uintptr_t>(best_fit) + best_fit_adjustment;
 
-        const auto header_address =
-          reinterpret_cast<std::uintptr_t>(affected_node) + alignment_padding;
-        const auto dataAddress = header_address + allocation_header_size;
+        AllocationHeader* header = reinterpret_cast<AllocationHeader*>(
+          aligned_address - sizeof(AllocationHeader));
+        header->size       = best_fit_total_size;
+        header->adjustment = best_fit_adjustment;
 
-        reinterpret_cast<allocation_header*>(header_address)->block_size =
-          required_size;
+        assert(align_forward_adjustment(
+                 header, std::alignment_of_v<AllocationHeader*>) ==
+               0);
 
-        reinterpret_cast<allocation_header*>(header_address)->padding =
-          static_cast<char>(alignment_padding);
+        assert(align_forward_adjustment(
+                 reinterpret_cast<void*>(aligned_address), alignment) == 0);
 
-        return (void*)dataAddress;
+        return reinterpret_cast<void*>(aligned_address);
     }
 
     void do_deallocate(void* p, size_t /*bytes*/, size_t /*alignment*/) override
     {
-        const auto current_address = reinterpret_cast<std::uintptr_t>(p);
-        const auto header_address = current_address - sizeof(allocation_header);
-        const auto* allocationHeader =
-          reinterpret_cast<allocation_header*>(header_address);
+        assert(p);
 
-        node* freeNode = reinterpret_cast<node*>(header_address);
-        freeNode->data.block_size =
-          allocationHeader->block_size + allocationHeader->padding;
-        freeNode->next = nullptr;
+        AllocationHeader* header = reinterpret_cast<AllocationHeader*>(
+          reinterpret_cast<std::uintptr_t>(p) - sizeof(AllocationHeader));
 
-        node* it      = m_free_list.head;
-        node* it_prev = nullptr;
+        std::uintptr_t block_start =
+          reinterpret_cast<std::uintptr_t>(p) - header->adjustment;
+        size_t         block_size = header->size;
+        std::uintptr_t block_end  = block_start + block_size;
 
-        while (it != nullptr) {
-            if (p < it) {
-                m_free_list.insert(it_prev, freeNode);
-                break;
-            }
+        FreeBlock* prev_free_block = nullptr;
+        FreeBlock* free_block      = m_free_blocks;
 
-            it_prev = it;
-            it      = it->next;
-        }
-
-        merge(it_prev, freeNode);
-    }
-
-    void reset() noexcept
-    {
-        node* first            = reinterpret_cast<node*>(m_start_ptr);
-        first->data.block_size = m_total_size;
-        first->next            = nullptr;
-        m_free_list.head       = nullptr;
-
-        m_free_list.insert(nullptr, first);
-    }
-
-private:
-    void merge(node* previous_node, node* free_node) noexcept
-    {
-        if (free_node->next != nullptr &&
-            reinterpret_cast<std::uintptr_t>(free_node) +
-                free_node->data.block_size ==
-              reinterpret_cast<std::uintptr_t>(free_node->next)) {
-            free_node->data.block_size += free_node->next->data.block_size;
-            m_free_list.remove(free_node, free_node->next);
-        }
-
-        if (previous_node != nullptr &&
-            reinterpret_cast<std::uintptr_t>(previous_node) +
-                previous_node->data.block_size ==
-              reinterpret_cast<std::uintptr_t>(free_node)) {
-            previous_node->data.block_size += free_node->data.block_size;
-            m_free_list.remove(previous_node, free_node);
-        }
-    }
-
-    void find(const std::size_t size,
-              const std::size_t alignment,
-              std::size_t&      padding,
-              node*&            previous_node,
-              node*&            found_node) noexcept
-    {
-        switch (m_policy) {
-        case search_policy::find_first:
-            find_first(size, alignment, padding, previous_node, found_node);
-            break;
-        case search_policy::find_best:
-            find_best(size, alignment, padding, previous_node, found_node);
-            break;
-        }
-    }
-
-    void find_first(const std::size_t size,
-                    const std::size_t alignment,
-                    std::size_t&      padding,
-                    node*&            previous_node,
-                    node*&            found_node) const noexcept
-    {
-        node* it      = m_free_list.head;
-        node* it_prev = nullptr;
-
-        while (it != nullptr) {
-            padding = calculate_padding_with_header(
-              (std::size_t)it,
-              alignment,
-              sizeof(freelist_memory_resource::allocation_header));
-
-            const std::size_t required_space = size + padding;
-            if (it->data.block_size >= required_space)
+        while (free_block != nullptr) {
+            if ((std::uintptr_t)free_block >= block_end)
                 break;
 
-            it_prev = it;
-            it      = it->next;
+            prev_free_block = free_block;
+            free_block      = free_block->next;
         }
 
-        previous_node = it_prev;
-        found_node    = it;
+        if (prev_free_block == nullptr) {
+            prev_free_block       = (FreeBlock*)block_start;
+            prev_free_block->size = block_size;
+            prev_free_block->next = m_free_blocks;
+            m_free_blocks         = prev_free_block;
+        } else if ((std::uintptr_t)prev_free_block + prev_free_block->size ==
+                   block_start) {
+            prev_free_block->size += block_size;
+        } else {
+            FreeBlock* temp = (FreeBlock*)block_start;
+            temp->size      = block_size;
+            temp->next      = prev_free_block->next;
+
+            prev_free_block->next = temp;
+            prev_free_block       = temp;
+        }
+
+        if ((std::uintptr_t)prev_free_block + prev_free_block->size ==
+            (std::uintptr_t)prev_free_block->next) {
+            prev_free_block->size += prev_free_block->next->size;
+            prev_free_block->next = prev_free_block->next->next;
+        }
     }
 
-    void find_best(const std::size_t size,
-                   const std::size_t alignment,
-                   std::size_t&      padding,
-                   node*&            previous_node,
-                   node*&            found_node) const noexcept
+    bool do_is_equal(const memory_resource& other) const noexcept override
     {
-        std::size_t smallestDiff = std::numeric_limits<std::size_t>::max();
-        node*       best_block   = nullptr;
-        node*       it           = m_free_list.head;
-        node*       it_prev      = nullptr;
-
-        while (it != nullptr) {
-            padding = calculate_padding_with_header(
-              reinterpret_cast<std::uintptr_t>(it),
-              alignment,
-              sizeof(freelist_memory_resource::allocation_header));
-
-            const auto required_space = size + padding;
-            if (it->data.block_size >= required_space &&
-                (it->data.block_size - required_space < smallestDiff)) {
-                best_block = it;
-            }
-
-            it_prev = it;
-            it      = it->next;
-        }
-
-        previous_node = it_prev;
-        found_node    = best_block;
+        return this == &other;
     }
+
+    void reset() noexcept {}
+
+    void* head() noexcept { return m_free_blocks; }
 };
 
 ////////////////////////////////////////////////////////////////////////
@@ -834,6 +711,123 @@ private:
     int compute_new_capacity(int new_capacity) const;
 };
 
+//! @brief A no-owning vector like class with dynamic allocation.
+//! The main difference with the @c vector<T,A> class are:
+//! - the pointer, size and capacity are external elements.
+//! - the destructor does nothing with elements.
+//! This @c vector_view<T,A> must be used with a no rellocatable @c allocator
+//! and @c memory_resource.
+//! @tparam T Any type (trivial or not).
+//! @tparam A An allocator
+template<typename T, typename A = default_allocator>
+class vector_view
+{
+public:
+    using value_type      = T;
+    using size_type       = std::uint32_t;
+    using index_type      = std::make_signed_t<size_type>;
+    using iterator        = T*;
+    using const_iterator  = const T*;
+    using reference       = T&;
+    using const_reference = const T&;
+    using pointer         = T*;
+    using const_pointer   = const T*;
+    using allocator_type  = A;
+    using this_container  = vector_view<T, A>;
+
+private:
+    static_assert(std::is_nothrow_destructible_v<T> ||
+                  std::is_trivially_destructible_v<T>);
+
+    [[no_unique_address]] allocator_type m_alloc;
+
+    T*&         m_data;
+    index_type& m_size;
+    index_type& m_capacity;
+
+public:
+    constexpr vector_view(T*&         data,
+                          index_type& size,
+                          index_type& capacity) noexcept
+        requires(std::is_empty_v<A>);
+
+    constexpr vector_view(std::pmr::memory_resource* mem,
+                          T*&                        data,
+                          index_type&                size,
+                          index_type&                capacity) noexcept
+        requires(!std::is_empty_v<A>);
+
+    //! Nothing to do in destructor for a @c vector_view.
+    ~vector_view() noexcept = default;
+
+    constexpr vector_view(const vector_view& other) noexcept;
+    constexpr vector_view& operator=(const vector_view& other) noexcept;
+    constexpr vector_view(vector_view&& other) noexcept;
+    constexpr vector_view& operator=(vector_view&& other) noexcept;
+
+    bool resize(std::integral auto size) noexcept;
+    bool reserve(std::integral auto new_capacity) noexcept;
+
+    constexpr void clear() noexcept;   // clear all elements (size = 0 after).
+    constexpr void destroy() noexcept; // clear and delete buffer.
+
+    constexpr T*       data() noexcept;
+    constexpr const T* data() const noexcept;
+
+    constexpr reference       front() noexcept;
+    constexpr const_reference front() const noexcept;
+    constexpr reference       back() noexcept;
+    constexpr const_reference back() const noexcept;
+
+    constexpr reference       operator[](std::integral auto index) noexcept;
+    constexpr const_reference operator[](
+      std::integral auto index) const noexcept;
+
+    constexpr iterator       begin() noexcept;
+    constexpr const_iterator begin() const noexcept;
+    constexpr iterator       end() noexcept;
+    constexpr const_iterator end() const noexcept;
+
+    constexpr bool     can_alloc(std::integral auto number = 1) const noexcept;
+    constexpr unsigned size() const noexcept;
+    constexpr int      ssize() const noexcept;
+    constexpr int      capacity() const noexcept;
+    constexpr bool     empty() const noexcept;
+    constexpr bool     full() const noexcept;
+
+    template<typename... Args>
+    constexpr reference emplace_back(Args&&... args) noexcept;
+
+    constexpr int find(const T& t) const noexcept;
+
+    constexpr void pop_back() noexcept;
+    constexpr void swap_pop_back(std::integral auto index) noexcept;
+
+    constexpr void erase(iterator it) noexcept;
+    constexpr void erase(iterator begin, iterator end) noexcept;
+
+    constexpr int  index_from_ptr(const T* data) const noexcept;
+    constexpr bool is_iterator_valid(const_iterator it) const noexcept;
+
+private:
+    int compute_new_capacity(int new_capacity) const;
+};
+
+// template<typename T>
+// constexpr auto make_span(const T* buffer, std::uint64_t access) noexcept
+// {
+//     const auto start = static_cast<std::uint32_t>((access >> 32) &
+//     0xffffffff); const auto s_c   = static_cast<std::uint32_t>(access &
+//     0xffffffff); const auto s     = static_cast<std::uint16_t>((s_c >>
+//     16) & 0xffff); const auto c     = static_cast<std::uint16_t>(s_c &
+//     0xffff);
+
+//     const auto absolute = reinterpret_cast<std::uintptr_t>(buffer) +
+//     start; const auto ptr      = reinterpret_cast<const T*>(absolute);
+
+//     return std::make_span(ptr, s);
+// }
+
 template<typename Identifier>
 constexpr auto get_index(Identifier id) noexcept
 {
@@ -943,14 +937,29 @@ private:
 public:
     static constexpr index_type none = std::numeric_limits<index_type>::max();
 
-    data_array(std::integral auto capacity) noexcept
+    constexpr data_array() noexcept = default;
+
+    constexpr data_array(std::pmr::memory_resource* mem) noexcept
+        requires(!std::is_empty_v<A>);
+
+    constexpr data_array(std::integral auto capacity) noexcept
         requires(std::is_empty_v<A>);
 
-    ~data_array() noexcept;
-
-    data_array(std::pmr::memory_resource* mem,
-               std::integral auto         capacity) noexcept
+    constexpr data_array(std::pmr::memory_resource* mem,
+                         std::integral auto         capacity) noexcept
         requires(!std::is_empty_v<A>);
+
+    constexpr ~data_array() noexcept;
+
+    //! @brief Reserve more memory than current capacity.
+    //!
+    //! @param capacity The new capacity. Do nothing if this @c capacity
+    //! parameter is less or equal than the current @c capacity().
+    //! @return @c true if the function call succedded, @c false otherwise.
+    //! @attention  If the @c reserve() succedded a reallocation takes
+    //! place, in which case all iterators (including the end() iterator)
+    //! and all references to the elements are invalidated.
+    bool reserve(std::integral auto capacity) noexcept;
 
     //! @brief Destroy all items in the data_array but keep memory
     //!  allocation.
@@ -1161,15 +1170,12 @@ public:
                    std::is_nothrow_move_constructible_v<
                      T>)&&std::is_nothrow_destructible_v<T>);
 
-public:
-    T* buffer = nullptr;
-
 private:
+    T*                                   buffer = nullptr;
     [[no_unique_address]] allocator_type m_alloc;
-
-    index_type m_head     = 0;
-    index_type m_tail     = 0;
-    index_type m_capacity = 0;
+    index_type                           m_head     = 0;
+    index_type                           m_tail     = 0;
+    index_type                           m_capacity = 0;
 
     constexpr index_type advance(index_type position) const noexcept;
     constexpr index_type back(index_type position) const noexcept;
@@ -1194,93 +1200,30 @@ public:
 
         template<typename Container>
         iterator_base(Container* ring_, index_type i_) noexcept
-            requires(!std::is_const_v<Container> && !is_const)
-          : ring(ring_)
-          , i(i_)
-        {}
+            requires(!std::is_const_v<Container> && !is_const);
 
         template<typename Container>
         iterator_base(Container* ring_, index_type i_) noexcept
-            requires(std::is_const_v<Container> && is_const)
-          : ring(ring_)
-          , i(i_)
-        {}
+            requires(std::is_const_v<Container> && is_const);
 
     public:
         container_type* buffer() noexcept { return ring; }
         index_type      index() noexcept { return i; }
 
         iterator_base() noexcept = default;
+        iterator_base(const iterator_base& other) noexcept;
+        iterator_base& operator=(const iterator_base& other) noexcept;
 
-        iterator_base(const iterator_base& other) noexcept
-          : ring(other.ring)
-          , i(other.i)
-        {}
+        reference operator*() const noexcept;
+        pointer   operator->() const noexcept;
 
-        iterator_base& operator=(const iterator_base& other) noexcept
-        {
-            if (this != &other) {
-                ring = other.ring;
-                i    = other.i;
-            }
-
-            return *this;
-        }
-
-        reference operator*() const noexcept { return ring->buffer[i]; }
-        pointer   operator->() const noexcept { return &ring->buffer[i]; }
-
-        iterator_base& operator++() noexcept
-        {
-            if (ring) {
-                i = ring->advance(i);
-
-                if (i == ring->m_tail)
-                    reset();
-            }
-
-            return *this;
-        }
-
-        iterator_base operator++(int) noexcept
-        {
-            iterator_base orig(*this);
-            ++(*this);
-
-            return orig;
-        }
-
-        iterator_base& operator--() noexcept
-        {
-            if (ring) {
-                i = ring->back(i);
-
-                if (i == ring->m_tail)
-                    reset();
-            }
-
-            return *this;
-        }
-
-        iterator_base operator--(int) noexcept
-        {
-            iterator_base orig(*this);
-            --(*orig);
-
-            return orig;
-        }
-
+        iterator_base& operator++() noexcept;
+        iterator_base  operator++(int) noexcept;
+        iterator_base& operator--() noexcept;
+        iterator_base  operator--(int) noexcept;
         template<bool R>
-        bool operator==(const iterator_base<R>& other) const
-        {
-            return other.ring == ring && other.i == i;
-        }
-
-        void reset() noexcept
-        {
-            ring = nullptr;
-            i    = 0;
-        }
+        bool operator==(const iterator_base<R>& other) const;
+        void reset() noexcept;
     };
 
     using iterator       = iterator_base<false>;
@@ -1697,7 +1640,15 @@ data_array<T, Identifier, A>::get_index(Identifier id) noexcept
 }
 
 template<typename T, typename Identifier, typename A>
-data_array<T, Identifier, A>::data_array(std::integral auto capacity) noexcept
+constexpr data_array<T, Identifier, A>::data_array(
+  std::pmr::memory_resource* mem) noexcept
+    requires(!std::is_empty_v<A>)
+  : m_alloc{ mem }
+{}
+
+template<typename T, typename Identifier, typename A>
+constexpr data_array<T, Identifier, A>::data_array(
+  std::integral auto capacity) noexcept
     requires(std::is_empty_v<A>)
 {
     assert(std::cmp_greater(capacity, 0));
@@ -1712,8 +1663,9 @@ data_array<T, Identifier, A>::data_array(std::integral auto capacity) noexcept
 }
 
 template<typename T, typename Identifier, typename A>
-data_array<T, Identifier, A>::data_array(std::pmr::memory_resource* mem,
-                                         std::integral auto capacity) noexcept
+constexpr data_array<T, Identifier, A>::data_array(
+  std::pmr::memory_resource* mem,
+  std::integral auto         capacity) noexcept
     requires(!std::is_empty_v<A>)
   : m_alloc(mem)
 {
@@ -1729,12 +1681,61 @@ data_array<T, Identifier, A>::data_array(std::pmr::memory_resource* mem,
 }
 
 template<typename T, typename Identifier, typename A>
-data_array<T, Identifier, A>::~data_array() noexcept
+constexpr data_array<T, Identifier, A>::~data_array() noexcept
 {
     clear();
 
     if (m_items)
         m_alloc.deallocate(m_items, m_capacity);
+}
+
+template<typename T, typename Identifier, typename A>
+bool data_array<T, Identifier, A>::reserve(std::integral auto capacity) noexcept
+{
+    static_assert(std::is_move_assignable_v<T> or std::is_copy_assignable_v<T>);
+    assert(std::cmp_less(capacity, std::numeric_limits<index_type>::max()));
+
+    if (std::cmp_equal(capacity, 0) or
+        std::cmp_less_equal(capacity, m_capacity))
+        return true;
+
+    item* new_buffer = m_alloc.template allocate<item>(capacity);
+    if (new_buffer == nullptr)
+        return false;
+
+    if constexpr (std::is_move_assignable_v<T>) {
+        for (index_type i = 0; i != m_max_used; ++i) {
+            if (is_valid(m_items[i].id)) {
+                new_buffer[i].item = std::move(m_items[i].item);
+                new_buffer[i].id   = m_items[i].id;
+            } else {
+                std::copy_n(reinterpret_cast<std::byte*>(&m_items[i]),
+                            sizeof(item),
+                            reinterpret_cast<std::byte*>(&new_buffer[i]));
+            }
+        }
+    }
+
+    if constexpr (std::is_copy_assignable_v<T>) {
+        for (index_type i = 0; i != m_max_used; ++i) {
+            if (is_valid(m_items[i].id)) {
+                new_buffer[i].item = m_items[i].item;
+                new_buffer[i].id   = m_items[i].id;
+            } else {
+                std::copy_n(reinterpret_cast<std::byte*>(&m_items[i]),
+                            sizeof(item),
+                            reinterpret_cast<std::byte*>(&new_buffer[i]));
+            }
+        }
+    }
+
+    if (m_items)
+        m_alloc.template deallocate<item>(m_items, m_capacity);
+
+    m_items    = new_buffer;
+    m_capacity = static_cast<index_type>(capacity);
+
+    return true;
 }
 
 template<typename T, typename Identifier, typename A>
@@ -2062,8 +2063,10 @@ data_array<T, Identifier, A>::end() const noexcept
     return const_iterator(this, identifier_type{});
 }
 
+//
 // implementation
 // vector<T, A>
+//
 
 template<typename T, typename A>
 constexpr vector<T, A>::vector() noexcept
@@ -2082,9 +2085,14 @@ constexpr bool vector<T, A>::make(std::integral auto capacity) noexcept
     assert(std::cmp_less(sizeof(T) * capacity,
                          std::numeric_limits<index_type>::max()));
 
-    m_data     = m_alloc.template allocate<T>(capacity);
-    m_capacity = capacity;
-    m_size     = 0;
+    if (std::cmp_greater(capacity, 0)) {
+        m_data = m_alloc.template allocate<T>(capacity);
+
+        if (m_data) {
+            m_size     = static_cast<index_type>(0);
+            m_capacity = static_cast<index_type>(capacity);
+        }
+    }
 
     return m_data != nullptr;
 }
@@ -2095,25 +2103,24 @@ constexpr bool vector<T, A>::make(std::integral auto capacity,
 {
     assert(std::cmp_greater(capacity, 0));
     assert(std::cmp_greater_equal(size, 0));
-    assert(std::cmp_greater_equal(size, capacity));
+    assert(std::cmp_greater_equal(capacity, size));
     assert(std::cmp_less(sizeof(T) * capacity,
                          std::numeric_limits<index_type>::max()));
-    assert(
-      std::cmp_less(sizeof(T) * size, std::numeric_limits<index_type>::max()));
 
     static_assert(std::is_constructible_v<T>,
                   "T must be nothrow or trivially default constructible");
 
-    capacity = std::max(capacity, size);
+    if (make(capacity)) {
+        if (std::cmp_greater_equal(size, capacity)) {
+            m_size     = static_cast<index_type>(capacity);
+            m_capacity = static_cast<index_type>(capacity);
+        } else {
+            m_size     = static_cast<index_type>(size);
+            m_capacity = static_cast<index_type>(capacity);
+        }
 
-    if (capacity > 0) {
-        m_data = m_alloc.template allocate<T>(capacity);
-
-        std::uninitialized_value_construct_n(m_data, size);
+        std::uninitialized_value_construct_n(m_data, m_size);
         // std::uninitialized_default_construct_n(m_data, size);
-
-        m_capacity = capacity;
-        m_size     = size;
     }
 
     return m_data != nullptr;
@@ -2126,24 +2133,24 @@ constexpr bool vector<T, A>::make(std::integral auto capacity,
 {
     assert(std::cmp_greater(capacity, 0));
     assert(std::cmp_greater_equal(size, 0));
-    assert(std::cmp_greater_equal(size, capacity));
+    assert(std::cmp_greater_equal(capacity, size));
     assert(std::cmp_less(sizeof(T) * capacity,
                          std::numeric_limits<index_type>::max()));
-    assert(
-      std::cmp_less(sizeof(T) * size, std::numeric_limits<index_type>::max()));
 
     static_assert(std::is_copy_constructible_v<T>,
                   "T must be nothrow or trivially default constructible");
 
-    capacity = std::max(capacity, size);
+    if (make(capacity)) {
+        if (std::cmp_greater_equal(size, capacity)) {
+            m_size     = static_cast<index_type>(capacity);
+            m_capacity = static_cast<index_type>(capacity);
+        } else {
+            m_size     = static_cast<index_type>(size);
+            m_capacity = static_cast<index_type>(capacity);
+        }
 
-    if (capacity > 0) {
-        m_data = m_alloc.template allocate<T>(capacity);
-
-        std::uninitialized_fill_n(m_data, size, default_value);
-
-        m_capacity = capacity;
-        m_size     = size;
+        std::uninitialized_fill_n(m_data, m_size, default_value);
+        // std::uninitialized_default_construct_n(m_data, size);
     }
 
     return m_data != nullptr;
@@ -2212,39 +2219,44 @@ inline constexpr vector<T, A>::vector(const vector<T, A>& other) noexcept
   , m_size(0)
   , m_capacity(0)
 {
-    operator=(other);
+    reserve(other.m_capacity);
+
+    std::uninitialized_copy_n(other.m_data, other.m_size, m_data);
+    m_size     = other.m_size;
+    m_capacity = other.m_capacity;
 }
 
 template<typename T, typename A>
 inline constexpr vector<T, A>& vector<T, A>::operator=(
   const vector& other) noexcept
 {
-    clear();
+    if (this != &other) {
+        clear();
+        reserve(other.m_capacity);
+        std::uninitialized_copy_n(other.m_data, other.m_size, m_data);
+        m_size     = other.m_size;
+        m_capacity = other.m_capacity;
+    }
 
-    resize(other.m_size);
-    std::copy_n(other.m_data, other.m_size, m_data);
     return *this;
 }
 
 template<typename T, typename A>
 inline constexpr vector<T, A>::vector(vector&& other) noexcept
-  : m_data(other.m_data)
-  , m_size(other.m_size)
-  , m_capacity(other.m_capacity)
-{
-    other.m_data     = nullptr;
-    other.m_size     = 0;
-    other.m_capacity = 0;
-}
+  : m_data(std::exchange(other.m_data, nullptr))
+  , m_size(std::exchange(other.m_size, 0))
+  , m_capacity(std::exchange(other.m_capacity, 0))
+{}
 
 template<typename T, typename A>
 inline constexpr vector<T, A>& vector<T, A>::operator=(vector&& other) noexcept
 {
-    destroy();
-
-    m_data     = std::exchange(other.m_data, nullptr);
-    m_size     = std::exchange(other.m_size, 0);
-    m_capacity = std::exchange(other.m_capacity, 0);
+    if (this != &other) {
+        destroy();
+        m_data     = std::exchange(other.m_data, nullptr);
+        m_size     = std::exchange(other.m_size, 0);
+        m_capacity = std::exchange(other.m_capacity, 0);
+    }
 
     return *this;
 }
@@ -2254,7 +2266,8 @@ inline void vector<T, A>::destroy() noexcept
 {
     clear();
 
-    m_alloc.template deallocate<T>(m_data, m_capacity);
+    if (m_data)
+        m_alloc.template deallocate<T>(m_data, m_capacity);
 
     m_data     = nullptr;
     m_size     = 0;
@@ -2285,19 +2298,17 @@ bool vector<T, A>::resize(std::integral auto size) noexcept
                   "T must be default or trivially default constructible to use "
                   "resize() function");
 
-    assert(
-      std::cmp_less(size, std::numeric_limits<decltype(m_capacity)>::max()));
+    assert(std::cmp_less(size, std::numeric_limits<index_type>::max()));
 
     if (std::cmp_greater(size, m_capacity)) {
-        if (!reserve(
-              compute_new_capacity(static_cast<decltype(m_capacity)>(size))))
+        if (!reserve(compute_new_capacity(static_cast<index_type>(size))))
             return false;
     }
 
     std::uninitialized_value_construct_n(data() + m_size, size - m_size);
     // std::uninitialized_default_construct_n(data() + m_size, size);
 
-    m_size = static_cast<decltype(m_size)>(size);
+    m_size = static_cast<index_type>(size);
 
     return true;
 }
@@ -2305,8 +2316,7 @@ bool vector<T, A>::resize(std::integral auto size) noexcept
 template<typename T, typename A>
 bool vector<T, A>::reserve(std::integral auto new_capacity) noexcept
 {
-    assert(std::cmp_less(new_capacity,
-                         std::numeric_limits<decltype(m_capacity)>::max()));
+    assert(std::cmp_less(new_capacity, std::numeric_limits<index_type>::max()));
 
     if (std::cmp_greater(new_capacity, m_capacity)) {
         T* new_data = m_alloc.template allocate<T>(new_capacity);
@@ -2318,10 +2328,11 @@ bool vector<T, A>::reserve(std::integral auto new_capacity) noexcept
         else
             std::uninitialized_copy_n(data(), m_size, new_data);
 
-        m_alloc.template deallocate<T>(m_data, m_capacity);
+        if (m_data)
+            m_alloc.template deallocate<T>(m_data, m_capacity);
 
         m_data     = new_data;
-        m_capacity = static_cast<decltype(m_capacity)>(new_capacity);
+        m_capacity = static_cast<index_type>(new_capacity);
     }
 
     return true;
@@ -2595,8 +2606,413 @@ int vector<T, A>::compute_new_capacity(int size) const
     return new_capacity > size ? new_capacity : size;
 }
 
+// template<typename T, typename A>
+// class vector_view;
+
+template<typename T, typename A>
+constexpr vector_view<T, A>::vector_view(T*&         data,
+                                         index_type& size,
+                                         index_type& capacity) noexcept
+    requires(std::is_empty_v<A>)
+  : m_data{ data }
+  , m_size{ size }
+  , m_capacity{ capacity }
+{}
+
+template<typename T, typename A>
+constexpr vector_view<T, A>::vector_view(std::pmr::memory_resource* mem,
+                                         T*&                        data,
+                                         index_type&                size,
+                                         index_type& capacity) noexcept
+    requires(!std::is_empty_v<A>)
+  : m_alloc{ mem }
+  , m_data{ data }
+  , m_size{ size }
+  , m_capacity{ capacity }
+{}
+
+template<typename T, typename A>
+constexpr vector_view<T, A>& vector_view<T, A>::operator=(
+  const vector_view& other) noexcept
+{
+    if (this != &other) {
+        clear();
+        reserve(other.m_capacity);
+        std::uninitialized_copy_n(other.m_data, other.m_size, m_data);
+        m_size     = other.m_size;
+        m_capacity = other.m_capacity;
+    }
+
+    return *this;
+}
+
+template<typename T, typename A>
+constexpr vector_view<T, A>::vector_view(vector_view&& other) noexcept
+  : m_data(std::exchange(other.m_data, nullptr))
+  , m_size(std::exchange(other.m_size, 0))
+  , m_capacity(std::exchange(other.m_capacity, 0))
+{}
+
+template<typename T, typename A>
+constexpr vector_view<T, A>& vector_view<T, A>::operator=(
+  vector_view&& other) noexcept
+{
+    if (this != &other) {
+        destroy();
+        m_data     = std::exchange(other.m_data, nullptr);
+        m_size     = std::exchange(other.m_size, 0);
+        m_capacity = std::exchange(other.m_capacity, 0);
+    }
+
+    return *this;
+}
+
+template<typename T, typename A>
+constexpr void vector_view<T, A>::destroy() noexcept
+{
+    clear();
+
+    if (m_data)
+        m_alloc.template deallocate<T>(m_data, m_capacity);
+
+    m_data     = nullptr;
+    m_size     = 0;
+    m_capacity = 0;
+}
+
+template<typename T, typename A>
+inline constexpr void vector_view<T, A>::clear() noexcept
+{
+    std::destroy_n(data(), m_size);
+
+    m_size = 0;
+}
+
+template<typename T, typename A>
+bool vector_view<T, A>::resize(std::integral auto size) noexcept
+{
+    static_assert(std::is_default_constructible_v<T> ||
+                    std::is_trivially_default_constructible_v<T>,
+                  "T must be default or trivially default constructible to use "
+                  "resize() function");
+
+    assert(std::cmp_less(size, std::numeric_limits<index_type>::max()));
+
+    if (std::cmp_greater(size, m_capacity)) {
+        if (!reserve(compute_new_capacity(static_cast<index_type>(size))))
+            return false;
+    }
+
+    std::uninitialized_value_construct_n(data() + m_size, size - m_size);
+    // std::uninitialized_default_construct_n(data() + m_size, size);
+
+    m_size = static_cast<index_type>(size);
+
+    return true;
+}
+
+template<typename T, typename A>
+bool vector_view<T, A>::reserve(std::integral auto new_capacity) noexcept
+{
+    assert(std::cmp_less(new_capacity, std::numeric_limits<index_type>::max()));
+
+    if (std::cmp_greater(new_capacity, m_capacity)) {
+        T* new_data = m_alloc.template allocate<T>(new_capacity);
+        if (!new_data)
+            return false;
+
+        if constexpr (std::is_move_constructible_v<T>)
+            std::uninitialized_move_n(data(), m_size, new_data);
+        else
+            std::uninitialized_copy_n(data(), m_size, new_data);
+
+        if (m_data)
+            m_alloc.template deallocate<T>(m_data, m_capacity);
+
+        m_data     = new_data;
+        m_capacity = static_cast<index_type>(new_capacity);
+    }
+
+    return true;
+}
+
+template<typename T, typename A>
+inline constexpr T* vector_view<T, A>::data() noexcept
+{
+    return m_data;
+}
+
+template<typename T, typename A>
+inline constexpr const T* vector_view<T, A>::data() const noexcept
+{
+    return m_data;
+}
+
+template<typename T, typename A>
+inline constexpr typename vector_view<T, A>::reference
+vector_view<T, A>::front() noexcept
+{
+    assert(m_size > 0);
+    return m_data[0];
+}
+
+template<typename T, typename A>
+inline constexpr typename vector_view<T, A>::const_reference
+vector_view<T, A>::front() const noexcept
+{
+    assert(m_size > 0);
+    return m_data[0];
+}
+
+template<typename T, typename A>
+inline constexpr typename vector_view<T, A>::reference
+vector_view<T, A>::back() noexcept
+{
+    assert(m_size > 0);
+    return m_data[m_size - 1];
+}
+
+template<typename T, typename A>
+inline constexpr typename vector_view<T, A>::const_reference
+vector_view<T, A>::back() const noexcept
+{
+    assert(m_size > 0);
+    return m_data[m_size - 1];
+}
+
+template<typename T, typename A>
+inline constexpr typename vector_view<T, A>::reference
+vector_view<T, A>::operator[](std::integral auto index) noexcept
+{
+    assert(std::cmp_greater_equal(index, 0));
+    assert(std::cmp_less(index, m_size));
+
+    return data()[index];
+}
+
+template<typename T, typename A>
+inline constexpr typename vector_view<T, A>::const_reference
+vector_view<T, A>::operator[](std::integral auto index) const noexcept
+{
+    assert(std::cmp_greater_equal(index, 0));
+    assert(std::cmp_less(index, m_size));
+
+    return data()[index];
+}
+
+template<typename T, typename A>
+inline constexpr typename vector_view<T, A>::iterator
+vector_view<T, A>::begin() noexcept
+{
+    return data();
+}
+
+template<typename T, typename A>
+inline constexpr typename vector_view<T, A>::const_iterator
+vector_view<T, A>::begin() const noexcept
+{
+    return data();
+}
+
+template<typename T, typename A>
+inline constexpr typename vector_view<T, A>::iterator
+vector_view<T, A>::end() noexcept
+{
+    return data() + m_size;
+}
+
+template<typename T, typename A>
+inline constexpr typename vector_view<T, A>::const_iterator
+vector_view<T, A>::end() const noexcept
+{
+    return data() + m_size;
+}
+
+template<typename T, typename A>
+inline constexpr unsigned vector_view<T, A>::size() const noexcept
+{
+    return static_cast<unsigned>(m_size);
+}
+
+template<typename T, typename A>
+inline constexpr int vector_view<T, A>::ssize() const noexcept
+{
+    return m_size;
+}
+
+template<typename T, typename A>
+inline constexpr int vector_view<T, A>::capacity() const noexcept
+{
+    return static_cast<int>(m_capacity);
+}
+
+template<typename T, typename A>
+inline constexpr bool vector_view<T, A>::empty() const noexcept
+{
+    return m_size == 0;
+}
+
+template<typename T, typename A>
+inline constexpr bool vector_view<T, A>::full() const noexcept
+{
+    return m_size >= m_capacity;
+}
+
+template<typename T, typename A>
+inline constexpr bool vector_view<T, A>::can_alloc(
+  std::integral auto number) const noexcept
+{
+    return std::cmp_greater_equal(m_capacity - m_size, number);
+}
+
+template<typename T, typename A>
+inline constexpr int vector_view<T, A>::find(const T& t) const noexcept
+{
+    for (auto i = 0, e = ssize(); i != e; ++i)
+        if (m_data[i] == t)
+            return i;
+
+    return m_size;
+}
+
+template<typename T, typename A>
+template<typename... Args>
+inline constexpr typename vector_view<T, A>::reference
+vector_view<T, A>::emplace_back(Args&&... args) noexcept
+{
+    static_assert(std::is_trivially_constructible_v<T, Args...> ||
+                    std::is_nothrow_constructible_v<T, Args...>,
+                  "T must but trivially or nothrow constructible from this "
+                  "argument(s)");
+
+    if (m_size >= m_capacity)
+        reserve(compute_new_capacity(m_size + 1));
+
+    std::construct_at(data() + m_size, std::forward<Args>(args)...);
+
+    ++m_size;
+
+    return data()[m_size - 1];
+}
+
+template<typename T, typename A>
+inline constexpr void vector_view<T, A>::pop_back() noexcept
+{
+    static_assert(std::is_nothrow_destructible_v<T> ||
+                    std::is_trivially_destructible_v<T>,
+                  "T must be nothrow or trivially destructible to use "
+                  "pop_back() function");
+
+    assert(m_size);
+
+    if (m_size) {
+        std::destroy_at(data() + m_size - 1);
+        --m_size;
+    }
+}
+
+template<typename T, typename A>
+inline constexpr void vector_view<T, A>::swap_pop_back(
+  std::integral auto index) noexcept
+{
+    assert(std::cmp_less(index, m_size));
+
+    if (std::cmp_equal(index, m_size - 1)) {
+        pop_back();
+    } else {
+        auto to_delete = data() + index;
+        auto last      = data() + m_size - 1;
+
+        std::destroy_at(to_delete);
+
+        if constexpr (std::is_move_constructible_v<T>) {
+            std::uninitialized_move_n(last, 1, to_delete);
+        } else {
+            std::uninitialized_copy_n(last, 1, to_delete);
+            std::destroy_at(last);
+        }
+
+        --m_size;
+    }
+}
+
+template<typename T, typename A>
+inline constexpr void vector_view<T, A>::erase(iterator it) noexcept
+{
+    assert(it >= data() && it < data() + m_size);
+
+    if (it == end())
+        return;
+
+    std::destroy_at(it);
+
+    auto last = data() + m_size - 1;
+
+    if (auto next = it + 1; next != end()) {
+        if constexpr (std::is_move_constructible_v<T>) {
+            std::uninitialized_move(next, end(), it);
+        } else {
+            std::uninitialized_copy(next, end(), it);
+            std::destroy_at(last);
+        }
+    }
+
+    --m_size;
+}
+
+template<typename T, typename A>
+inline constexpr void vector_view<T, A>::erase(iterator first,
+                                               iterator last) noexcept
+{
+    assert(first >= data() && first < data() + m_size && last > first &&
+           last <= data() + m_size);
+
+    std::destroy(first, last);
+    const ptrdiff_t count = last - first;
+
+    if (count > 0) {
+        if constexpr (std::is_move_constructible_v<T>) {
+            std::uninitialized_move(last, end(), first);
+        } else {
+            std::uninitialized_copy(last, end(), first);
+            std::destroy(last + count, end());
+        }
+    }
+
+    m_size -= static_cast<int>(count);
+}
+
+template<typename T, typename A>
+inline constexpr int vector_view<T, A>::index_from_ptr(
+  const T* data) const noexcept
+{
+    assert(is_iterator_valid(const_iterator(data)));
+
+    const auto off = data - m_data;
+
+    assert(0 <= off && off < INT32_MAX);
+
+    return static_cast<int>(off);
+}
+
+template<typename T, typename A>
+inline constexpr bool vector_view<T, A>::is_iterator_valid(
+  const_iterator it) const noexcept
+{
+    return it >= m_data && it < m_data + m_size;
+}
+
+template<typename T, typename A>
+int vector_view<T, A>::compute_new_capacity(int size) const
+{
+    int new_capacity = m_capacity ? (m_capacity + m_capacity / 2) : 8;
+    return new_capacity > size ? new_capacity : size;
+}
+
+//
 // template<typename T, size_type length>
 // class small_vector;
+//
 
 template<typename T, int length>
 constexpr small_vector<T, length>::small_vector() noexcept
@@ -3165,6 +3581,135 @@ inline constexpr bool small_string<length>::operator<(
 ////////////////////////////////////////////////////////////////////////
 
 template<class T, typename A>
+template<bool is_const>
+template<typename Container>
+ring_buffer<T, A>::iterator_base<is_const>::iterator_base(
+  Container* ring_,
+  index_type i_) noexcept
+    requires(!std::is_const_v<Container> && !is_const)
+  : ring(ring_)
+  , i(i_)
+{}
+
+template<class T, typename A>
+template<bool is_const>
+template<typename Container>
+ring_buffer<T, A>::iterator_base<is_const>::iterator_base(
+  Container* ring_,
+  index_type i_) noexcept
+    requires(std::is_const_v<Container> && is_const)
+  : ring(ring_)
+  , i(i_)
+{}
+
+template<class T, typename A>
+template<bool is_const>
+ring_buffer<T, A>::iterator_base<is_const>::iterator_base(
+  const iterator_base& other) noexcept
+  : ring(other.ring)
+  , i(other.i)
+{}
+
+template<class T, typename A>
+template<bool is_const>
+ring_buffer<T, A>::template iterator_base<is_const>&
+ring_buffer<T, A>::iterator_base<is_const>::operator=(
+  const iterator_base& other) noexcept
+{
+    if (this != &other) {
+        ring = other.ring;
+        i    = other.i;
+    }
+
+    return *this;
+}
+
+template<class T, typename A>
+template<bool is_const>
+typename ring_buffer<T, A>::template iterator_base<is_const>::reference
+ring_buffer<T, A>::iterator_base<is_const>::operator*() const noexcept
+{
+    return ring->buffer[i];
+}
+
+template<class T, typename A>
+template<bool is_const>
+typename ring_buffer<T, A>::template iterator_base<is_const>::pointer
+ring_buffer<T, A>::iterator_base<is_const>::operator->() const noexcept
+{
+    return &ring->buffer[i];
+}
+
+template<class T, typename A>
+template<bool is_const>
+ring_buffer<T, A>::template iterator_base<is_const>&
+ring_buffer<T, A>::iterator_base<is_const>::operator++() noexcept
+{
+    if (ring) {
+        i = ring->advance(i);
+
+        if (i == ring->m_tail)
+            reset();
+    }
+
+    return *this;
+}
+
+template<class T, typename A>
+template<bool is_const>
+ring_buffer<T, A>::template iterator_base<is_const>
+ring_buffer<T, A>::iterator_base<is_const>::operator++(int) noexcept
+{
+    iterator_base orig(*this);
+    ++(*this);
+
+    return orig;
+}
+
+template<class T, typename A>
+template<bool is_const>
+ring_buffer<T, A>::template iterator_base<is_const>&
+ring_buffer<T, A>::iterator_base<is_const>::operator--() noexcept
+{
+    if (ring) {
+        i = ring->back(i);
+
+        if (i == ring->m_tail)
+            reset();
+    }
+
+    return *this;
+}
+
+template<class T, typename A>
+template<bool is_const>
+ring_buffer<T, A>::template iterator_base<is_const>
+ring_buffer<T, A>::iterator_base<is_const>::operator--(int) noexcept
+{
+    iterator_base orig(*this);
+    --(*orig);
+
+    return orig;
+}
+
+template<class T, typename A>
+template<bool is_const>
+template<bool R>
+bool ring_buffer<T, A>::iterator_base<is_const>::operator==(
+  const iterator_base<R>& other) const
+{
+    return other.ring == ring && other.i == i;
+}
+
+template<class T, typename A>
+template<bool is_const>
+void ring_buffer<T, A>::iterator_base<is_const>::reset() noexcept
+{
+    ring = nullptr;
+    i    = 0;
+}
+
+template<class T, typename A>
 constexpr typename ring_buffer<T, A>::index_type ring_buffer<T, A>::advance(
   index_type position) const noexcept
 {
@@ -3211,7 +3756,8 @@ constexpr ring_buffer<T, A>::ring_buffer(const ring_buffer& rhs) noexcept
         clear();
 
         if (m_capacity != rhs.m_capacity) {
-            m_alloc.template deallocate<T>(buffer, m_capacity);
+            if (buffer)
+                m_alloc.template deallocate<T>(buffer, m_capacity);
 
             if (rhs.m_capacity) {
                 buffer     = m_alloc.template allocate<T>(rhs.m_capacity);
@@ -3232,10 +3778,11 @@ constexpr ring_buffer<T, A>& ring_buffer<T, A>::operator=(
         clear();
 
         if (m_capacity != rhs.m_capacity) {
-            m_alloc.template deallocate<T>(buffer, m_capacity);
+            if (buffer)
+                m_alloc.template deallocate<T>(buffer, m_capacity);
 
             if (rhs.m_capacity > 0) {
-                buffer     = m_alloc.template allocate(rhs.m_capacity);
+                buffer     = m_alloc.template allocate<T>(rhs.m_capacity);
                 m_capacity = rhs.m_capacity;
             }
         }
@@ -3313,15 +3860,15 @@ template<class T, typename A>
 constexpr void ring_buffer<T, A>::destroy() noexcept
 {
     clear();
-    m_alloc.template deallocate<T>(buffer, m_capacity);
+    if (buffer)
+        m_alloc.template deallocate<T>(buffer, m_capacity);
     buffer = nullptr;
 }
 
 template<class T, typename A>
 constexpr void ring_buffer<T, A>::reserve(std::integral auto capacity) noexcept
 {
-    assert(std::cmp_less(capacity,
-                         std::numeric_limits<decltype(m_capacity)>::max()));
+    assert(std::cmp_less(capacity, std::numeric_limits<index_type>::max()));
 
     if (m_capacity < capacity) {
         ring_buffer<T, A> tmp(capacity);
@@ -4125,8 +4672,7 @@ small_ring_buffer<T, length>::iterator_base<is_const>::iterator_base(
 
 template<class T, int length>
 template<bool is_const>
-small_ring_buffer<T, length>::template iterator_base<
-  is_const>::template iterator_base<is_const>&
+small_ring_buffer<T, length>::template iterator_base<is_const>&
 small_ring_buffer<T, length>::iterator_base<is_const>::operator=(
   const iterator_base& other) noexcept
 {
@@ -4159,8 +4705,7 @@ small_ring_buffer<T, length>::iterator_base<is_const>::operator->()
 
 template<class T, int length>
 template<bool is_const>
-small_ring_buffer<T, length>::template iterator_base<
-  is_const>::template iterator_base<is_const>&
+small_ring_buffer<T, length>::template iterator_base<is_const>&
 small_ring_buffer<T, length>::iterator_base<is_const>::operator++() noexcept
 {
     if (ring) {
@@ -4175,8 +4720,7 @@ small_ring_buffer<T, length>::iterator_base<is_const>::operator++() noexcept
 
 template<class T, int length>
 template<bool is_const>
-small_ring_buffer<T, length>::template iterator_base<
-  is_const>::template iterator_base<is_const>
+small_ring_buffer<T, length>::template iterator_base<is_const>
 small_ring_buffer<T, length>::iterator_base<is_const>::operator++(int) noexcept
 {
     iterator_base orig(*this);
@@ -4187,8 +4731,7 @@ small_ring_buffer<T, length>::iterator_base<is_const>::operator++(int) noexcept
 
 template<class T, int length>
 template<bool is_const>
-small_ring_buffer<T, length>::template iterator_base<
-  is_const>::template iterator_base<is_const>&
+small_ring_buffer<T, length>::template iterator_base<is_const>&
 small_ring_buffer<T, length>::iterator_base<is_const>::operator--() noexcept
 {
     if (ring) {
@@ -4203,8 +4746,7 @@ small_ring_buffer<T, length>::iterator_base<is_const>::operator--() noexcept
 
 template<class T, int length>
 template<bool is_const>
-small_ring_buffer<T, length>::template iterator_base<
-  is_const>::template iterator_base<is_const>
+small_ring_buffer<T, length>::template iterator_base<is_const>
 small_ring_buffer<T, length>::iterator_base<is_const>::operator--(int) noexcept
 {
     iterator_base orig(*this);
