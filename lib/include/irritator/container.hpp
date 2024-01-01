@@ -262,6 +262,25 @@ public:
 
     void reset() noexcept { m_offset = { 0 }; }
 
+    //! Check if the resource can allocate @c bytes with @c alignment.
+    //!
+    //! @attention Use this function before using @c do_allocate to be sure
+    //!     the @c memory_resource can allocate enough memory bcause @c
+    //!     do_allocate will use @c std::abort or @c std::terminate to stop
+    //!     the application.
+    bool can_alloc(std::size_t bytes, std::size_t alignment) noexcept
+    {
+        std::size_t padding = 0;
+
+        const auto current_address =
+          reinterpret_cast<std::uintptr_t>(m_start) + m_offset;
+
+        if (alignment != 0 && m_offset % alignment != 0)
+            padding = calculate_padding(current_address, alignment);
+
+        return m_offset + padding + bytes <= m_total_size;
+    }
+
     void* head() noexcept { return m_start; }
 
 private:
@@ -311,11 +330,13 @@ private:
     struct header {};
 
     using node = list<header>::node;
+
     list<header> m_free_list;
 
-    void*       m_start_ptr  = nullptr;
-    std::size_t m_total_size = {};
-    std::size_t m_chunk_size = {};
+    void*       m_start_ptr       = nullptr;
+    std::size_t m_total_size      = {};
+    std::size_t m_chunk_size      = {};
+    std::size_t m_total_allocated = {};
 
 public:
     pool_memory_resource(void*       data,
@@ -324,9 +345,12 @@ public:
       : m_start_ptr{ data }
       , m_total_size{ size }
       , m_chunk_size{ chunk_size }
+      , m_total_allocated{ 0 }
     {
         assert(chunk_size >= std::alignment_of_v<std::max_align_t>);
         assert(size % chunk_size == 0);
+
+        reset();
     }
 
     void* do_allocate(size_t bytes, size_t /*alignment*/) override
@@ -335,6 +359,7 @@ public:
                "Allocation size must be equal to chunk size");
 
         node* free_position = m_free_list.pop();
+        m_total_allocated += m_chunk_size;
 
         if (free_position == nullptr) {
             if (on_error_not_enough_memory)
@@ -348,6 +373,7 @@ public:
 
     void do_deallocate(void* p, size_t /*bytes*/, size_t /*alignment*/) override
     {
+        m_total_allocated -= m_chunk_size;
         m_free_list.push(reinterpret_cast<node*>(p));
     }
 
@@ -358,12 +384,26 @@ public:
 
     void reset() noexcept
     {
-        const std::size_t n = m_total_size / m_chunk_size;
-        for (std::size_t i = 0; i < n; ++i) {
-            auto address =
-              reinterpret_cast<std::uintptr_t>(m_start_ptr) + i * m_chunk_size;
+        const auto start = reinterpret_cast<std::uintptr_t>(m_start_ptr);
+
+        for (auto n = m_total_size / m_chunk_size; n > 0; --n) {
+            auto address = start + ((n - 1) * m_chunk_size);
             m_free_list.push(reinterpret_cast<node*>(address));
         }
+    }
+
+    //! Check if the resource can allocate @c bytes with @c alignment.
+    //!
+    //! @attention Use this function before using @c do_allocate to be sure
+    //!     the @c memory_resource can allocate enough memory bcause @c
+    //!     do_allocate will use @c std::abort or @c std::terminate to stop
+    //!     the application.
+    bool can_alloc(std::size_t bytes, std::size_t /*alignment*/) noexcept
+    {
+        assert((bytes % m_chunk_size) == 0 &&
+               "Allocation size must be equal to chunk size");
+
+        return (m_total_size - m_total_allocated) > bytes;
     }
 
     void* head() noexcept { return m_start_ptr; }
@@ -523,8 +563,7 @@ public:
         header->adjustment = best_fit_adjustment;
 
         assert(align_forward_adjustment(
-                 header, std::alignment_of_v<AllocationHeader*>) ==
-               0);
+                 header, std::alignment_of_v<AllocationHeader*>) == 0);
 
         assert(align_forward_adjustment(
                  reinterpret_cast<void*>(aligned_address), alignment) == 0);
@@ -758,7 +797,7 @@ public:
         requires(!std::is_empty_v<A>);
 
     //! Nothing to do in destructor for a @c vector_view.
-    ~vector_view() noexcept = default;
+    constexpr ~vector_view() noexcept = default;
 
     constexpr vector_view(const vector_view& other) noexcept;
     constexpr vector_view& operator=(const vector_view& other) noexcept;
@@ -768,8 +807,18 @@ public:
     bool resize(std::integral auto size) noexcept;
     bool reserve(std::integral auto new_capacity) noexcept;
 
-    constexpr void clear() noexcept;   // clear all elements (size = 0 after).
-    constexpr void destroy() noexcept; // clear and delete buffer.
+    //! Clear the buffer (@c size() = 0 after).
+    //!
+    //! Call the destructor for each element of the  buffer and resize the
+    //! buffer.
+    constexpr void clear() noexcept;
+
+    //! Clear and request to free tge buffer (@c size() = @c capacity() = 0
+    //! after).
+    //!
+    //! Call the destructor for each element of the  buffer and resize the
+    //! buffer.
+    constexpr void destroy() noexcept;
 
     constexpr T*       data() noexcept;
     constexpr const T* data() const noexcept;
@@ -810,23 +859,11 @@ public:
     constexpr bool is_iterator_valid(const_iterator it) const noexcept;
 
 private:
-    int compute_new_capacity(int new_capacity) const;
+    //! Compute a new capacity from the requested size.
+    //!
+    //! @return The new capacity is greater or equal to size.
+    index_type compute_new_capacity(index_type size) const;
 };
-
-// template<typename T>
-// constexpr auto make_span(const T* buffer, std::uint64_t access) noexcept
-// {
-//     const auto start = static_cast<std::uint32_t>((access >> 32) &
-//     0xffffffff); const auto s_c   = static_cast<std::uint32_t>(access &
-//     0xffffffff); const auto s     = static_cast<std::uint16_t>((s_c >>
-//     16) & 0xffff); const auto c     = static_cast<std::uint16_t>(s_c &
-//     0xffff);
-
-//     const auto absolute = reinterpret_cast<std::uintptr_t>(buffer) +
-//     start; const auto ptr      = reinterpret_cast<const T*>(absolute);
-
-//     return std::make_span(ptr, s);
-// }
 
 template<typename Identifier>
 constexpr auto get_index(Identifier id) noexcept
@@ -2606,8 +2643,10 @@ int vector<T, A>::compute_new_capacity(int size) const
     return new_capacity > size ? new_capacity : size;
 }
 
+//
 // template<typename T, typename A>
 // class vector_view;
+//
 
 template<typename T, typename A>
 constexpr vector_view<T, A>::vector_view(T*&         data,
@@ -2712,25 +2751,32 @@ bool vector_view<T, A>::resize(std::integral auto size) noexcept
 }
 
 template<typename T, typename A>
-bool vector_view<T, A>::reserve(std::integral auto new_capacity) noexcept
+bool vector_view<T, A>::reserve(std::integral auto capacity) noexcept
 {
-    assert(std::cmp_less(new_capacity, std::numeric_limits<index_type>::max()));
+    assert(std::cmp_less(capacity, std::numeric_limits<index_type>::max()));
 
-    if (std::cmp_greater(new_capacity, m_capacity)) {
-        T* new_data = m_alloc.template allocate<T>(new_capacity);
+    if (std::cmp_greater(capacity, m_capacity)) {
+        const auto new_size     = m_size;
+        const auto new_capacity = static_cast<index_type>(capacity);
+        T*         new_data     = m_alloc.template allocate<T>(capacity);
+
         if (!new_data)
             return false;
 
-        if constexpr (std::is_move_constructible_v<T>)
-            std::uninitialized_move_n(data(), m_size, new_data);
-        else
-            std::uninitialized_copy_n(data(), m_size, new_data);
+        if (m_size) {
+            if constexpr (std::is_move_constructible_v<T>) {
+                std::uninitialized_move_n(data(), m_size, new_data);
+                m_size = 0;
+            } else {
+                std::uninitialized_copy_n(data(), m_size, new_data);
+                clear();
+            }
+        }
 
-        if (m_data)
-            m_alloc.template deallocate<T>(m_data, m_capacity);
-
+        destroy();
         m_data     = new_data;
-        m_capacity = static_cast<index_type>(new_capacity);
+        m_size     = new_size;
+        m_capacity = new_capacity;
     }
 
     return true;
@@ -2898,11 +2944,6 @@ vector_view<T, A>::emplace_back(Args&&... args) noexcept
 template<typename T, typename A>
 inline constexpr void vector_view<T, A>::pop_back() noexcept
 {
-    static_assert(std::is_nothrow_destructible_v<T> ||
-                    std::is_trivially_destructible_v<T>,
-                  "T must be nothrow or trivially destructible to use "
-                  "pop_back() function");
-
     assert(m_size);
 
     if (m_size) {
@@ -3003,10 +3044,18 @@ inline constexpr bool vector_view<T, A>::is_iterator_valid(
 }
 
 template<typename T, typename A>
-int vector_view<T, A>::compute_new_capacity(int size) const
+vector_view<T, A>::index_type vector_view<T, A>::compute_new_capacity(
+  vector_view<T, A>::index_type size) const
 {
-    int new_capacity = m_capacity ? (m_capacity + m_capacity / 2) : 8;
-    return new_capacity > size ? new_capacity : size;
+    assert(size > m_capacity);
+
+    if (size < m_capacity)
+        return m_capacity;
+
+    if (size + 1 == m_capacity)
+        return m_capacity * 2;
+
+    return size;
 }
 
 //

@@ -6,7 +6,98 @@
 
 #include <boost/ut.hpp>
 
+#include <limits>
 #include <numeric>
+
+struct only_copy_ctor {
+    only_copy_ctor(int a_) noexcept
+      : a{ a_ }
+    {}
+    only_copy_ctor(only_copy_ctor&&) noexcept      = default;
+    only_copy_ctor(const only_copy_ctor&) noexcept = delete;
+
+    only_copy_ctor& operator=(const only_copy_ctor&) noexcept = delete;
+    only_copy_ctor& operator=(only_copy_ctor&&) noexcept      = delete;
+
+private:
+    int a;
+};
+
+struct only_move_ctor {
+    only_move_ctor(int a_) noexcept
+      : a{ a_ }
+    {}
+    only_move_ctor(only_move_ctor&&) noexcept = default;
+
+    only_move_ctor(const only_move_ctor&) noexcept            = delete;
+    only_move_ctor& operator=(const only_move_ctor&) noexcept = delete;
+    only_move_ctor& operator=(only_move_ctor&&) noexcept      = delete;
+
+private:
+    int a;
+};
+
+struct count_ctor_assign {
+    count_ctor_assign(int a_) noexcept
+      : a{ a_ }
+    {
+        count_ctor++;
+    }
+
+    count_ctor_assign(count_ctor_assign&& other) noexcept
+      : a{ std::exchange(other.a, 0) }
+    {
+        count_move_ctor++;
+    }
+
+    count_ctor_assign(const count_ctor_assign& other) noexcept
+    {
+        a = other.a;
+        count_copy_ctor++;
+    }
+
+    count_ctor_assign& operator=(const count_ctor_assign& other) noexcept
+    {
+        if (this != &other) {
+            a = other.a;
+            count_copy_assign++;
+        }
+        return *this;
+    }
+
+    count_ctor_assign& operator=(count_ctor_assign&& other) noexcept
+    {
+        if (this != &other) {
+            a = other.a;
+            count_move_assign++;
+        }
+        return *this;
+    }
+
+    ~count_ctor_assign() noexcept { count_dtor++; }
+
+    int value() const noexcept { return a; }
+
+    static void reset() noexcept
+    {
+        count_ctor        = 0;
+        count_move_ctor   = 0;
+        count_copy_ctor   = 0;
+        count_move_assign = 0;
+        count_copy_assign = 0;
+        count_dtor        = 0;
+    }
+
+    static inline int count_ctor;
+    static inline int count_move_ctor;
+    static inline int count_copy_ctor;
+    static inline int count_move_assign;
+    static inline int count_copy_assign;
+    static inline int count_dtor;
+
+private:
+    int a;
+};
 
 struct struct_with_static_member {
     static int i;
@@ -48,6 +139,49 @@ static bool check_data_array_loop(const Data& d) noexcept
     }
 
     return true;
+}
+
+template<typename T>
+constexpr auto compress(T*           main_start,
+                        T*           begin,
+                        std::int32_t size,
+                        std::int32_t capacity) noexcept -> std::uint64_t
+{
+    constexpr auto mem = reinterpret_cast<std::uintptr_t>(main_start);
+    constexpr auto beg = reinterpret_cast<std::uintptr_t>(begin);
+    constexpr auto dif = beg - mem;
+
+    assert(0 <= dif && dif < UINT32_MAX);
+    assert(0 <= size && size < UINT16_MAX);
+    assert(0 <= capacity && capacity < UINT16_MAX);
+
+    constexpr auto left  = static_cast<std::uint64_t>(dif);
+    constexpr auto mid   = static_cast<std::uint64_t>(size);
+    constexpr auto right = static_cast<std::uint64_t>(capacity);
+
+    return (left << 32) | (mid << 16) | right;
+}
+
+template<typename T>
+struct vector_view_access {
+    T*           begin    = nullptr;
+    std::int32_t size     = 0;
+    std::int32_t capacity = 0;
+};
+
+template<typename T>
+constexpr auto decompress(T* main_start, std::uint64_t id) noexcept
+  -> vector_view_access<T>
+{
+    constexpr auto left  = id >> 32;
+    constexpr auto mid   = (id >> 16) & 0xffff;
+    constexpr auto right = id & 0xffff;
+
+    constexpr auto* begin    = main_start + left;
+    constexpr auto  size     = static_cast<std::int32_t>(mid);
+    constexpr auto  capacity = static_cast<std::int32_t>(right);
+
+    return { begin, size, capacity };
 }
 
 int main()
@@ -874,12 +1008,61 @@ int main()
 
             expect(neq(view.data(), nullptr));
             expect(eq(view.size(), 3));
-            expect(eq(view.capacity(), 8));
+            expect(ge(view.capacity(), 3));
 
             view.clear();
             expect(neq(view.data(), nullptr));
             expect(eq(view.size(), 0));
-            expect(eq(view.capacity(), 8));
+            expect(ge(view.capacity(), 3));
+
+            view.destroy();
+            expect(eq(view.data(), nullptr));
+            expect(eq(view.size(), 0));
+            expect(eq(view.capacity(), 0));
+        }
+    };
+
+    "vector_view_count"_test = [] {
+        std::array<std::byte, 512>    memory;
+        irt::freelist_memory_resource mem{ memory.data(), memory.size() };
+
+        count_ctor_assign* data     = nullptr;
+        std::int32_t       size     = 0;
+        std::int32_t       capacity = 0;
+
+        count_ctor_assign::reset();
+        expect(eq(count_ctor_assign::count_ctor, 0));
+        expect(eq(count_ctor_assign::count_move_ctor, 0));
+        expect(eq(count_ctor_assign::count_copy_ctor, 0));
+        expect(eq(count_ctor_assign::count_move_assign, 0));
+        expect(eq(count_ctor_assign::count_copy_assign, 0));
+        expect(eq(count_ctor_assign::count_dtor, 0));
+
+        for (int i = 0; i < 10; ++i) {
+            irt::vector_view<count_ctor_assign, irt::mr_allocator> view{
+                &mem, data, size, capacity
+            };
+
+            view.emplace_back(1);
+            view.emplace_back(2);
+            view.emplace_back(3);
+
+            expect(eq(count_ctor_assign::count_ctor, (i + 1) * 3));
+
+            expect(eq(view[0].value(), 1));
+            expect(eq(view[1].value(), 2));
+            expect(eq(view[2].value(), 3));
+
+            expect(neq(view.data(), nullptr));
+            expect(eq(view.size(), 3));
+            expect(ge(view.capacity(), 3));
+
+            view.clear();
+            expect(eq(count_ctor_assign::count_dtor, (i + 1) * 3));
+
+            expect(neq(view.data(), nullptr));
+            expect(eq(view.size(), 0));
+            expect(ge(view.capacity(), 3));
 
             view.destroy();
             expect(eq(view.data(), nullptr));
