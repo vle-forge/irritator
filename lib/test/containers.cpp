@@ -983,7 +983,7 @@ int main()
             int port;
         };
 
-        std::array<std::byte, 512>    memory;
+        std::array<std::byte, 1024>    memory;
         irt::freelist_memory_resource mem{ memory.data(), memory.size() };
 
         pos*         data     = nullptr;

@@ -221,7 +221,7 @@ class fixed_linear_memory_resource : public std::pmr::memory_resource
 public:
     static constexpr bool is_relocatable = false;
 
-    fixed_linear_memory_resource(void* data, std::size_t size) noexcept
+    fixed_linear_memory_resource(std::byte* data, std::size_t size) noexcept
       : m_start{ data }
       , m_total_size{ size }
     {}
@@ -284,7 +284,7 @@ public:
     void* head() noexcept { return m_start; }
 
 private:
-    void*       m_start{};
+    std::byte*  m_start{};
     std::size_t m_total_size{};
     std::size_t m_offset{};
 };
@@ -409,49 +409,6 @@ public:
     void* head() noexcept { return m_start_ptr; }
 };
 
-inline std::uintptr_t to_uint(const void* address) noexcept
-{
-    return reinterpret_cast<std::uintptr_t>(address);
-}
-
-inline void* align_forward(void* address, std::uintptr_t alignment) noexcept
-{
-    return reinterpret_cast<void*>((to_uint(address) + (alignment - 1)) &
-                                   (~(alignment - 1)));
-}
-
-inline const void* align_forward(const void*    address,
-                                 std::uintptr_t alignment) noexcept
-{
-    return reinterpret_cast<const void*>((to_uint(address) + (alignment - 1)) &
-                                         (~(alignment - 1)));
-}
-
-inline std::uintptr_t align_forward_adjustment(
-  const void*    address,
-  std::uintptr_t alignment) noexcept
-{
-    const auto adjustment = alignment - (to_uint(address) & (alignment - 1));
-
-    return adjustment == alignment ? 0u : adjustment;
-}
-
-template<typename T>
-inline std::uintptr_t align_forward_adjustment_with_header(
-  const void*    address,
-  std::uintptr_t alignment) noexcept
-{
-    if (alignof(T) > alignment)
-        alignment = alignof(T);
-
-    const auto adjustment =
-      sizeof(T) +
-      align_forward_adjustment(
-        reinterpret_cast<void*>(to_uint(address) + sizeof(T)), alignment);
-
-    return adjustment;
-}
-
 //! A non-thread-safe allocator: a general purpose allocator.
 //!
 //! This memory resource doesn't impose any restriction. It allows
@@ -462,160 +419,166 @@ class freelist_memory_resource : public std::pmr::memory_resource
 public:
     static constexpr bool is_relocatable = false;
 
+    enum class find_policy { find_first, find_best };
+
 private:
+    struct FreeHeader {
+        std::size_t block_size;
+    };
+
     struct AllocationHeader {
-        std::size_t  size;
-        std::uint8_t adjustment;
+        std::size_t  block_size;
+        std::uint8_t padding;
     };
 
-    struct FreeBlock {
-        std::size_t size;
-        FreeBlock*  next;
+    template<class T>
+    class list
+    {
+    public:
+        struct node {
+            T     data;
+            node* next;
+        };
+
+        node* head = nullptr;
+
+        list() noexcept = default;
+
+        void insert(node* previous, node* new_node) noexcept
+        {
+            if (previous == nullptr) {
+                if (head != nullptr) {
+                    new_node->next = head;
+                } else {
+                    new_node->next = nullptr;
+                }
+                head = new_node;
+            } else {
+                if (previous->next == nullptr) {
+                    previous->next = new_node;
+                    new_node->next = nullptr;
+                } else {
+                    new_node->next = previous->next;
+                    previous->next = new_node;
+                }
+            }
+        }
+
+        void remove(node* previous, node* to_delete) noexcept
+        {
+            if (previous == nullptr) {
+                if (to_delete->next == nullptr) {
+                    head = nullptr;
+                } else {
+                    head = to_delete->next;
+                }
+            } else {
+                previous->next = to_delete->next;
+            }
+        }
     };
 
-    FreeBlock* m_free_blocks;
+    using node = list<FreeHeader>::node;
+
+    static constexpr auto allocation_header_size = sizeof(AllocationHeader);
+    static constexpr auto free_header_size       = sizeof(FreeHeader);
+
+    list<FreeHeader> m_freeList;
+    void*            m_start_ptr;
+    std::size_t      m_total_size;
+    std::size_t      m_used;
+    std::size_t      m_peak;
+    find_policy      m_find_policy;
+
+    struct find_t {
+        node*       previous  = nullptr;
+        node*       allocated = nullptr;
+        std::size_t padding   = 0u;
+    };
 
 public:
     freelist_memory_resource(void* data, std::size_t size) noexcept
-      : m_free_blocks{ reinterpret_cast<FreeBlock*>(data) }
+      : m_start_ptr{ data }
+      , m_total_size{ size }
+      , m_used{ 0 }
+      , m_peak{ 0 }
+      , m_find_policy{ find_policy::find_first }
     {
-        m_free_blocks->size = size;
-        m_free_blocks->next = nullptr;
+        reset();
     }
 
     void* do_allocate(size_t size, size_t alignment) noexcept override
     {
-        assert(size != 0);
-        assert(alignment != 0);
+        // assert("Allocation size must be bigger" && size >= sizeof(Node));
+        // assert("Alignment must be 8 at least" && alignment >= 8);
 
-        FreeBlock* prev_free_block = nullptr;
-        FreeBlock* free_block      = m_free_blocks;
+        auto found = find_policy::find_first == m_find_policy
+                       ? find_first(size, alignment)
+                       : find_best(size, alignment);
 
-        FreeBlock*   best_fit_prev       = nullptr;
-        FreeBlock*   best_fit            = nullptr;
-        std::uint8_t best_fit_adjustment = 0;
-        std::size_t  best_fit_total_size = 0;
+        if (found.allocated == nullptr) {
+            if (on_error_not_enough_memory)
+                on_error_not_enough_memory(*this);
 
-        // Find best fit
-        while (free_block != nullptr) {
-            auto adjustment =
-              align_forward_adjustment_with_header<AllocationHeader>(
-                free_block, static_cast<std::uint8_t>(alignment));
-
-            std::size_t total_size = size + adjustment;
-
-            // If its an exact match use this free block
-            if (free_block->size == total_size) {
-                best_fit_prev       = prev_free_block;
-                best_fit            = free_block;
-                best_fit_adjustment = static_cast<std::uint8_t>(adjustment);
-                best_fit_total_size = total_size;
-                break;
-            }
-
-            // If its a better fit switch
-            if (free_block->size > total_size &&
-                (best_fit == nullptr || free_block->size < best_fit->size)) {
-                best_fit_prev       = prev_free_block;
-                best_fit            = free_block;
-                best_fit_adjustment = static_cast<std::uint8_t>(adjustment);
-                best_fit_total_size = total_size;
-            }
-
-            prev_free_block = free_block;
-            free_block      = free_block->next;
+            std::abort();
         }
 
-        if (best_fit == nullptr)
-            return nullptr;
+        const auto alignmentPadding = found.padding - allocation_header_size;
+        const auto requiredSize     = size + found.padding;
+        const auto rest = found.allocated->data.block_size - requiredSize;
 
-        // If allocations in the remaining memory will be impossible
-        if (best_fit->size - best_fit_total_size <= sizeof(AllocationHeader)) {
-            // Increase allocation size instead of creating a new FreeBlock
-            best_fit_total_size = best_fit->size;
-
-            if (best_fit_prev != nullptr)
-                best_fit_prev->next = best_fit->next;
-            else
-                m_free_blocks = best_fit->next;
-        } else {
-            // Prevent new block from overwriting best fit block info
-            assert(best_fit_total_size > sizeof(FreeBlock));
-
-            // Else create a new FreeBlock containing remaining memory
-            FreeBlock* new_block = reinterpret_cast<FreeBlock*>(
-              reinterpret_cast<std::uintptr_t>(best_fit) + best_fit_total_size);
-            new_block->size = best_fit->size - best_fit_total_size;
-            new_block->next = best_fit->next;
-
-            if (best_fit_prev != nullptr)
-                best_fit_prev->next = new_block;
-            else
-                m_free_blocks = new_block;
+        if (rest > 0) {
+            node* newFreeNode =
+              (node*)((std::size_t)found.allocated + requiredSize);
+            newFreeNode->data.block_size = rest;
+            m_freeList.insert(found.allocated, newFreeNode);
         }
 
-        std::uintptr_t aligned_address =
-          reinterpret_cast<std::uintptr_t>(best_fit) + best_fit_adjustment;
+        m_freeList.remove(found.previous, found.allocated);
 
-        AllocationHeader* header = reinterpret_cast<AllocationHeader*>(
-          aligned_address - sizeof(AllocationHeader));
-        header->size       = best_fit_total_size;
-        header->adjustment = best_fit_adjustment;
+        const std::size_t headerAddress =
+          (std::size_t)found.allocated + alignmentPadding;
+        const std::size_t dataAddress = headerAddress + allocation_header_size;
+        ((freelist_memory_resource::AllocationHeader*)headerAddress)
+          ->block_size = requiredSize;
+        ((freelist_memory_resource::AllocationHeader*)headerAddress)->padding =
+          static_cast<std::uint8_t>(alignmentPadding);
 
-        assert(align_forward_adjustment(
-                 header, std::alignment_of_v<AllocationHeader*>) == 0);
+        m_used += requiredSize;
+        m_peak = std::max(m_peak, m_used);
 
-        assert(align_forward_adjustment(
-                 reinterpret_cast<void*>(aligned_address), alignment) == 0);
-
-        return reinterpret_cast<void*>(aligned_address);
+        return (void*)dataAddress;
     }
 
-    void do_deallocate(void* p, size_t /*bytes*/, size_t /*alignment*/) override
+    void do_deallocate(void* ptr,
+                       size_t /*bytes*/,
+                       size_t /*alignment*/) override
     {
-        assert(p);
+        const auto currentAddress = (std::size_t)ptr;
+        const auto headerAddress  = currentAddress - allocation_header_size;
 
-        AllocationHeader* header = reinterpret_cast<AllocationHeader*>(
-          reinterpret_cast<std::uintptr_t>(p) - sizeof(AllocationHeader));
+        const freelist_memory_resource::AllocationHeader* allocationHeader{ (
+          freelist_memory_resource::AllocationHeader*)headerAddress };
 
-        std::uintptr_t block_start =
-          reinterpret_cast<std::uintptr_t>(p) - header->adjustment;
-        size_t         block_size = header->size;
-        std::uintptr_t block_end  = block_start + block_size;
+        node* freeNode = (node*)(headerAddress);
+        freeNode->data.block_size =
+          allocationHeader->block_size + allocationHeader->padding;
+        freeNode->next = nullptr;
 
-        FreeBlock* prev_free_block = nullptr;
-        FreeBlock* free_block      = m_free_blocks;
-
-        while (free_block != nullptr) {
-            if ((std::uintptr_t)free_block >= block_end)
+        node* it   = m_freeList.head;
+        node* prev = nullptr;
+        while (it != nullptr) {
+            if (ptr < it) {
+                m_freeList.insert(prev, freeNode);
                 break;
-
-            prev_free_block = free_block;
-            free_block      = free_block->next;
+            }
+            prev = it;
+            it   = it->next;
         }
 
-        if (prev_free_block == nullptr) {
-            prev_free_block       = (FreeBlock*)block_start;
-            prev_free_block->size = block_size;
-            prev_free_block->next = m_free_blocks;
-            m_free_blocks         = prev_free_block;
-        } else if ((std::uintptr_t)prev_free_block + prev_free_block->size ==
-                   block_start) {
-            prev_free_block->size += block_size;
-        } else {
-            FreeBlock* temp = (FreeBlock*)block_start;
-            temp->size      = block_size;
-            temp->next      = prev_free_block->next;
+        m_used -= freeNode->data.block_size;
 
-            prev_free_block->next = temp;
-            prev_free_block       = temp;
-        }
-
-        if ((std::uintptr_t)prev_free_block + prev_free_block->size ==
-            (std::uintptr_t)prev_free_block->next) {
-            prev_free_block->size += prev_free_block->next->size;
-            prev_free_block->next = prev_free_block->next->next;
-        }
+        merge(prev, freeNode);
     }
 
     bool do_is_equal(const memory_resource& other) const noexcept override
@@ -623,9 +586,85 @@ public:
         return this == &other;
     }
 
-    void reset() noexcept {}
+    void merge(node* previous, node* free_node) noexcept
+    {
+        if (free_node->next != nullptr &&
+            (std::size_t)free_node + free_node->data.block_size ==
+              (std::size_t)free_node->next) {
+            free_node->data.block_size += free_node->next->data.block_size;
+            m_freeList.remove(free_node, free_node->next);
+        }
 
-    void* head() noexcept { return m_free_blocks; }
+        if (previous != nullptr &&
+            (std::size_t)previous + previous->data.block_size ==
+              (std::size_t)free_node) {
+            previous->data.block_size += free_node->data.block_size;
+            m_freeList.remove(previous, free_node);
+        }
+    }
+
+    auto find_best(const std::size_t size,
+                   const std::size_t alignment) const noexcept -> find_t
+    {
+        node*       best         = nullptr;
+        node*       it           = m_freeList.head;
+        node*       prev         = nullptr;
+        std::size_t best_padding = 0;
+        std::size_t diff         = std::numeric_limits<std::size_t>::max();
+
+        while (it != nullptr) {
+            const auto padding = calculate_padding_with_header(
+              (std::size_t)it, alignment, allocation_header_size);
+
+            const std::size_t required = size + padding;
+            if (it->data.block_size >= required &&
+                (it->data.block_size - required < diff)) {
+                best         = it;
+                best_padding = padding;
+                diff         = it->data.block_size - required;
+            }
+
+            prev = it;
+            it   = it->next;
+        }
+
+        return { prev, best, best_padding };
+    }
+
+    auto find_first(const std::size_t size,
+                    const std::size_t alignment) const noexcept -> find_t
+    {
+        node*       it      = m_freeList.head;
+        node*       prev    = nullptr;
+        std::size_t padding = 0;
+
+        while (it != nullptr) {
+            padding = calculate_padding_with_header(
+              (std::size_t)it, alignment, allocation_header_size);
+
+            const std::size_t requiredSpace = size + padding;
+            if (it->data.block_size >= requiredSpace)
+                break;
+
+            prev = it;
+            it   = it->next;
+        }
+
+        return { prev, it, padding };
+    }
+
+    void reset() noexcept
+    {
+        m_used = 0u;
+        m_peak = 0u;
+
+        node* first            = reinterpret_cast<node*>(m_start_ptr);
+        first->data.block_size = m_total_size;
+        first->next            = nullptr;
+
+        m_freeList.head = nullptr;
+        m_freeList.insert(nullptr, first);
+    }
 };
 
 ////////////////////////////////////////////////////////////////////////
@@ -754,8 +793,8 @@ private:
 //! The main difference with the @c vector<T,A> class are:
 //! - the pointer, size and capacity are external elements.
 //! - the destructor does nothing with elements.
-//! This @c vector_view<T,A> must be used with a no rellocatable @c allocator
-//! and @c memory_resource.
+//! This @c vector_view<T,A> must be used with a no rellocatable @c
+//! allocator and @c memory_resource.
 //! @tparam T Any type (trivial or not).
 //! @tparam A An allocator
 template<typename T, typename A = default_allocator>
