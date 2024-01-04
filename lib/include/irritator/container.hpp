@@ -14,13 +14,59 @@
 #include <type_traits>
 #include <utility>
 
-#include <cassert>
 #include <cstddef>
 #include <cstdint>
-#include <cstdlib>
-#include <cstring>
 
 namespace irt {
+
+namespace container {
+
+#ifdef IRRITATOR_ENABLE_DEBUG
+static constexpr bool enable_ensure_container = true;
+#else
+static constexpr bool enable_ensure_container = false;
+#endif
+
+//! @brief A c++ function to replace assert macro controlled via constexpr
+//! boolean variable.
+//!
+//! Call @c quick_exit if the assertion fail. This function is disabled if the
+//! boolean @c variables::enable_ensure_container is false.
+//!
+//! @tparam T The type of the assertion to test.
+//! @param assertion The instance of the assertion to test.
+template<typename T>
+    requires(container::enable_ensure_container == true)
+inline constexpr void ensure(T&& assertion) noexcept
+{
+    if (!static_cast<bool>(assertion))
+        std::quick_exit(EXIT_FAILURE);
+}
+
+//! @brief A c++ function to replace assert macro controlled via constexpr
+//! boolean variable.
+//!
+//! This function is disabled if the boolean @c
+//! variables::enable_ensure_container is false.
+//!
+//! @tparam T The type of the assertion to test.
+//! @param assertion The instance of the assertion to test.
+template<typename T>
+    requires(container::enable_ensure_container == false)
+#if defined __has_attribute
+#if __has_attribute(always_inline)
+inline __attribute__((always_inline))
+#endif
+#elif defined(_MSC_VER)
+__forceinline
+#else
+inline
+#endif
+constexpr void
+ensure([[maybe_unused]] T&& assertion) noexcept
+{}
+
+} // namespace variables
 
 ////////////////////////////////////////////////////////////////////////
 //                                                                    //
@@ -164,8 +210,8 @@ private:
 //                                                                    //
 ////////////////////////////////////////////////////////////////////////
 
-inline auto calculate_padding(const std::uintptr_t address,
-                              const std::size_t    alignment) noexcept
+inline constexpr auto calculate_padding(const std::uintptr_t address,
+                                        const std::size_t    alignment) noexcept
   -> std::size_t
 {
     const auto multiplier      = (address / alignment) + 1u;
@@ -175,13 +221,13 @@ inline auto calculate_padding(const std::uintptr_t address,
     return static_cast<std::size_t>(padding);
 }
 
-inline auto calculate_padding_with_header(
+inline constexpr auto calculate_padding_with_header(
   const std::uintptr_t address,
   const std::size_t    alignment,
   const std::size_t    header_size) noexcept -> std::size_t
 {
-    std::size_t padding      = calculate_padding(address, alignment);
-    std::size_t needed_space = header_size;
+    auto padding      = calculate_padding(address, alignment);
+    auto needed_space = header_size;
 
     if (padding < needed_space) {
         needed_space -= padding;
@@ -224,9 +270,12 @@ public:
     fixed_linear_memory_resource(std::byte* data, std::size_t size) noexcept
       : m_start{ data }
       , m_total_size{ size }
-    {}
+    {
+        container::ensure(m_start);
+        container::ensure(m_total_size);
+    }
 
-    void* do_allocate(size_t bytes, size_t alignment) override
+    void* do_allocate(size_t bytes, size_t alignment) override final
     {
         std::size_t padding = 0;
 
@@ -240,7 +289,7 @@ public:
             if (on_error_not_enough_memory)
                 on_error_not_enough_memory(*this);
 
-            std::abort();
+            std::quick_exit(EXIT_FAILURE);
         }
 
         m_offset += padding;
@@ -252,21 +301,22 @@ public:
 
     void do_deallocate(void* /*p*/,
                        size_t /*bytes*/,
-                       size_t /*alignment*/) override
+                       size_t /*alignment*/) override final
     {}
 
-    bool do_is_equal(const memory_resource& other) const noexcept override
+    bool do_is_equal(const memory_resource& other) const noexcept override final
     {
         return this == &other;
     }
 
+    //! @brief To reuse the same resource manager without (de)akk
     void reset() noexcept { m_offset = { 0 }; }
 
     //! Check if the resource can allocate @c bytes with @c alignment.
     //!
     //! @attention Use this function before using @c do_allocate to be sure
     //!     the @c memory_resource can allocate enough memory bcause @c
-    //!     do_allocate will use @c std::abort or @c std::terminate to stop
+    //!     do_allocate will use @c std::quick_exit or @c std::terminate to stop
     //!     the application.
     bool can_alloc(std::size_t bytes, std::size_t alignment) noexcept
     {
@@ -347,16 +397,16 @@ public:
       , m_chunk_size{ chunk_size }
       , m_total_allocated{ 0 }
     {
-        assert(chunk_size >= std::alignment_of_v<std::max_align_t>);
-        assert(size % chunk_size == 0);
+        container::ensure(chunk_size >= std::alignment_of_v<std::max_align_t>);
+        container::ensure(size % chunk_size == 0);
 
         reset();
     }
 
     void* do_allocate(size_t bytes, size_t /*alignment*/) override
     {
-        assert(bytes == m_chunk_size &&
-               "Allocation size must be equal to chunk size");
+        container::ensure(bytes == m_chunk_size &&
+                          "Allocation size must be equal to chunk size");
 
         node* free_position = m_free_list.pop();
         m_total_allocated += m_chunk_size;
@@ -365,7 +415,7 @@ public:
             if (on_error_not_enough_memory)
                 on_error_not_enough_memory(*this);
 
-            std::abort();
+            std::quick_exit(EXIT_FAILURE);
         }
 
         return reinterpret_cast<void*>(free_position);
@@ -396,12 +446,12 @@ public:
     //!
     //! @attention Use this function before using @c do_allocate to be sure
     //!     the @c memory_resource can allocate enough memory bcause @c
-    //!     do_allocate will use @c std::abort or @c std::terminate to stop
+    //!     do_allocate will use @c std::quick_exit or @c std::terminate to stop
     //!     the application.
     bool can_alloc(std::size_t bytes, std::size_t /*alignment*/) noexcept
     {
-        assert((bytes % m_chunk_size) == 0 &&
-               "Allocation size must be equal to chunk size");
+        container::ensure((bytes % m_chunk_size) == 0 &&
+                          "Allocation size must be equal to chunk size");
 
         return (m_total_size - m_total_allocated) > bytes;
     }
@@ -509,8 +559,9 @@ public:
 
     void* do_allocate(size_t size, size_t alignment) noexcept override
     {
-        // assert("Allocation size must be bigger" && size >= sizeof(Node));
-        // assert("Alignment must be 8 at least" && alignment >= 8);
+        // container::ensure("Allocation size must be bigger" && size >=
+        // sizeof(Node)); container::ensure("Alignment must be 8 at least" &&
+        // alignment >= 8);
 
         auto found = find_policy::find_first == m_find_policy
                        ? find_first(size, alignment)
@@ -520,7 +571,7 @@ public:
             if (on_error_not_enough_memory)
                 on_error_not_enough_memory(*this);
 
-            std::abort();
+            std::quick_exit(EXIT_FAILURE);
         }
 
         const auto alignmentPadding = found.padding - allocation_header_size;
@@ -1727,8 +1778,9 @@ constexpr data_array<T, Identifier, A>::data_array(
   std::integral auto capacity) noexcept
     requires(std::is_empty_v<A>)
 {
-    assert(std::cmp_greater(capacity, 0));
-    assert(std::cmp_less(capacity, std::numeric_limits<index_type>::max()));
+    container::ensure(std::cmp_greater(capacity, 0));
+    container::ensure(
+      std::cmp_less(capacity, std::numeric_limits<index_type>::max()));
 
     m_items     = m_alloc.template allocate<item>(capacity);
     m_max_size  = 0;
@@ -1745,8 +1797,9 @@ constexpr data_array<T, Identifier, A>::data_array(
     requires(!std::is_empty_v<A>)
   : m_alloc(mem)
 {
-    assert(std::cmp_greater(capacity, 0));
-    assert(std::cmp_less(capacity, std::numeric_limits<index_type>::max()));
+    container::ensure(std::cmp_greater(capacity, 0));
+    container::ensure(
+      std::cmp_less(capacity, std::numeric_limits<index_type>::max()));
 
     m_items     = m_alloc.template allocate<item>(capacity);
     m_max_size  = 0;
@@ -1769,7 +1822,8 @@ template<typename T, typename Identifier, typename A>
 bool data_array<T, Identifier, A>::reserve(std::integral auto capacity) noexcept
 {
     static_assert(std::is_move_assignable_v<T> or std::is_copy_assignable_v<T>);
-    assert(std::cmp_less(capacity, std::numeric_limits<index_type>::max()));
+    container::ensure(
+      std::cmp_less(capacity, std::numeric_limits<index_type>::max()));
 
     if (std::cmp_equal(capacity, 0) or
         std::cmp_less_equal(capacity, m_capacity))
@@ -1841,7 +1895,8 @@ template<typename... Args>
 typename data_array<T, Identifier, A>::value_type&
 data_array<T, Identifier, A>::alloc(Args&&... args) noexcept
 {
-    assert(can_alloc(1) && "check alloc() with full() before using use.");
+    container::ensure(can_alloc(1) &&
+                      "check alloc() with full() before using use.");
 
     index_type new_index;
 
@@ -1901,9 +1956,9 @@ void data_array<T, Identifier, A>::free(T& t) noexcept
     auto id    = get_id(t);
     auto index = get_index(id);
 
-    assert(&m_items[index] == static_cast<void*>(&t));
-    assert(m_items[index].id == id);
-    assert(is_valid(id));
+    container::ensure(&m_items[index] == static_cast<void*>(&t));
+    container::ensure(m_items[index].id == id);
+    container::ensure(is_valid(id));
 
     std::destroy_at(&m_items[index].item);
 
@@ -1931,7 +1986,7 @@ void data_array<T, Identifier, A>::free(Identifier id) noexcept
 template<typename T, typename Identifier, typename A>
 Identifier data_array<T, Identifier, A>::get_id(const T* t) const noexcept
 {
-    assert(t != nullptr);
+    container::ensure(t != nullptr);
 
     auto* ptr = reinterpret_cast<const item*>(t);
     return ptr->id;
@@ -1973,8 +2028,8 @@ template<typename T, typename Identifier, typename A>
 T* data_array<T, Identifier, A>::try_to_get(
   std::integral auto index) const noexcept
 {
-    assert(std::cmp_greater_equal(index, 0));
-    assert(std::cmp_less(index, m_max_used));
+    container::ensure(std::cmp_greater_equal(index, 0));
+    container::ensure(std::cmp_less(index, m_max_used));
 
     if (is_valid(m_items[index].id))
         return &m_items[index].item;
@@ -2157,9 +2212,9 @@ constexpr vector<T, A>::vector(std::pmr::memory_resource* mem) noexcept
 template<typename T, typename A>
 constexpr bool vector<T, A>::make(std::integral auto capacity) noexcept
 {
-    assert(std::cmp_greater(capacity, 0));
-    assert(std::cmp_less(sizeof(T) * capacity,
-                         std::numeric_limits<index_type>::max()));
+    container::ensure(std::cmp_greater(capacity, 0));
+    container::ensure(std::cmp_less(sizeof(T) * capacity,
+                                    std::numeric_limits<index_type>::max()));
 
     if (std::cmp_greater(capacity, 0)) {
         m_data = m_alloc.template allocate<T>(capacity);
@@ -2177,11 +2232,11 @@ template<typename T, typename A>
 constexpr bool vector<T, A>::make(std::integral auto capacity,
                                   std::integral auto size) noexcept
 {
-    assert(std::cmp_greater(capacity, 0));
-    assert(std::cmp_greater_equal(size, 0));
-    assert(std::cmp_greater_equal(capacity, size));
-    assert(std::cmp_less(sizeof(T) * capacity,
-                         std::numeric_limits<index_type>::max()));
+    container::ensure(std::cmp_greater(capacity, 0));
+    container::ensure(std::cmp_greater_equal(size, 0));
+    container::ensure(std::cmp_greater_equal(capacity, size));
+    container::ensure(std::cmp_less(sizeof(T) * capacity,
+                                    std::numeric_limits<index_type>::max()));
 
     static_assert(std::is_constructible_v<T>,
                   "T must be nothrow or trivially default constructible");
@@ -2207,11 +2262,11 @@ constexpr bool vector<T, A>::make(std::integral auto capacity,
                                   std::integral auto size,
                                   const T&           default_value) noexcept
 {
-    assert(std::cmp_greater(capacity, 0));
-    assert(std::cmp_greater_equal(size, 0));
-    assert(std::cmp_greater_equal(capacity, size));
-    assert(std::cmp_less(sizeof(T) * capacity,
-                         std::numeric_limits<index_type>::max()));
+    container::ensure(std::cmp_greater(capacity, 0));
+    container::ensure(std::cmp_greater_equal(size, 0));
+    container::ensure(std::cmp_greater_equal(capacity, size));
+    container::ensure(std::cmp_less(sizeof(T) * capacity,
+                                    std::numeric_limits<index_type>::max()));
 
     static_assert(std::is_copy_constructible_v<T>,
                   "T must be nothrow or trivially default constructible");
@@ -2374,7 +2429,8 @@ bool vector<T, A>::resize(std::integral auto size) noexcept
                   "T must be default or trivially default constructible to use "
                   "resize() function");
 
-    assert(std::cmp_less(size, std::numeric_limits<index_type>::max()));
+    container::ensure(
+      std::cmp_less(size, std::numeric_limits<index_type>::max()));
 
     if (std::cmp_greater(size, m_capacity)) {
         if (!reserve(compute_new_capacity(static_cast<index_type>(size))))
@@ -2392,7 +2448,8 @@ bool vector<T, A>::resize(std::integral auto size) noexcept
 template<typename T, typename A>
 bool vector<T, A>::reserve(std::integral auto new_capacity) noexcept
 {
-    assert(std::cmp_less(new_capacity, std::numeric_limits<index_type>::max()));
+    container::ensure(
+      std::cmp_less(new_capacity, std::numeric_limits<index_type>::max()));
 
     if (std::cmp_greater(new_capacity, m_capacity)) {
         T* new_data = m_alloc.template allocate<T>(new_capacity);
@@ -2429,7 +2486,7 @@ inline constexpr const T* vector<T, A>::data() const noexcept
 template<typename T, typename A>
 inline constexpr typename vector<T, A>::reference vector<T, A>::front() noexcept
 {
-    assert(m_size > 0);
+    container::ensure(m_size > 0);
     return m_data[0];
 }
 
@@ -2437,14 +2494,14 @@ template<typename T, typename A>
 inline constexpr typename vector<T, A>::const_reference vector<T, A>::front()
   const noexcept
 {
-    assert(m_size > 0);
+    container::ensure(m_size > 0);
     return m_data[0];
 }
 
 template<typename T, typename A>
 inline constexpr typename vector<T, A>::reference vector<T, A>::back() noexcept
 {
-    assert(m_size > 0);
+    container::ensure(m_size > 0);
     return m_data[m_size - 1];
 }
 
@@ -2452,7 +2509,7 @@ template<typename T, typename A>
 inline constexpr typename vector<T, A>::const_reference vector<T, A>::back()
   const noexcept
 {
-    assert(m_size > 0);
+    container::ensure(m_size > 0);
     return m_data[m_size - 1];
 }
 
@@ -2460,8 +2517,8 @@ template<typename T, typename A>
 inline constexpr typename vector<T, A>::reference vector<T, A>::operator[](
   std::integral auto index) noexcept
 {
-    assert(std::cmp_greater_equal(index, 0));
-    assert(std::cmp_less(index, m_size));
+    container::ensure(std::cmp_greater_equal(index, 0));
+    container::ensure(std::cmp_less(index, m_size));
 
     return data()[index];
 }
@@ -2470,8 +2527,8 @@ template<typename T, typename A>
 inline constexpr typename vector<T, A>::const_reference
 vector<T, A>::operator[](std::integral auto index) const noexcept
 {
-    assert(std::cmp_greater_equal(index, 0));
-    assert(std::cmp_less(index, m_size));
+    container::ensure(std::cmp_greater_equal(index, 0));
+    container::ensure(std::cmp_less(index, m_size));
 
     return data()[index];
 }
@@ -2577,7 +2634,7 @@ inline constexpr void vector<T, A>::pop_back() noexcept
                   "T must be nothrow or trivially destructible to use "
                   "pop_back() function");
 
-    assert(m_size);
+    container::ensure(m_size);
 
     if (m_size) {
         std::destroy_at(data() + m_size - 1);
@@ -2589,7 +2646,7 @@ template<typename T, typename A>
 inline constexpr void vector<T, A>::swap_pop_back(
   std::integral auto index) noexcept
 {
-    assert(std::cmp_less(index, m_size));
+    container::ensure(std::cmp_less(index, m_size));
 
     if (std::cmp_equal(index, m_size - 1)) {
         pop_back();
@@ -2613,7 +2670,7 @@ inline constexpr void vector<T, A>::swap_pop_back(
 template<typename T, typename A>
 inline constexpr void vector<T, A>::erase(iterator it) noexcept
 {
-    assert(it >= data() && it < data() + m_size);
+    container::ensure(it >= data() && it < data() + m_size);
 
     if (it == end())
         return;
@@ -2638,8 +2695,8 @@ template<typename T, typename A>
 inline constexpr void vector<T, A>::erase(iterator first,
                                           iterator last) noexcept
 {
-    assert(first >= data() && first < data() + m_size && last > first &&
-           last <= data() + m_size);
+    container::ensure(first >= data() && first < data() + m_size &&
+                      last > first && last <= data() + m_size);
 
     std::destroy(first, last);
     const ptrdiff_t count = last - first;
@@ -2659,11 +2716,11 @@ inline constexpr void vector<T, A>::erase(iterator first,
 template<typename T, typename A>
 inline constexpr int vector<T, A>::index_from_ptr(const T* data) const noexcept
 {
-    assert(is_iterator_valid(const_iterator(data)));
+    container::ensure(is_iterator_valid(const_iterator(data)));
 
     const auto off = data - m_data;
 
-    assert(0 <= off && off < INT32_MAX);
+    container::ensure(0 <= off && off < INT32_MAX);
 
     return static_cast<int>(off);
 }
@@ -2774,7 +2831,8 @@ bool vector_view<T, A>::resize(std::integral auto size) noexcept
                   "T must be default or trivially default constructible to use "
                   "resize() function");
 
-    assert(std::cmp_less(size, std::numeric_limits<index_type>::max()));
+    container::ensure(
+      std::cmp_less(size, std::numeric_limits<index_type>::max()));
 
     if (std::cmp_greater(size, m_capacity)) {
         if (!reserve(compute_new_capacity(static_cast<index_type>(size))))
@@ -2792,7 +2850,8 @@ bool vector_view<T, A>::resize(std::integral auto size) noexcept
 template<typename T, typename A>
 bool vector_view<T, A>::reserve(std::integral auto capacity) noexcept
 {
-    assert(std::cmp_less(capacity, std::numeric_limits<index_type>::max()));
+    container::ensure(
+      std::cmp_less(capacity, std::numeric_limits<index_type>::max()));
 
     if (std::cmp_greater(capacity, m_capacity)) {
         const auto new_size     = m_size;
@@ -2837,7 +2896,7 @@ template<typename T, typename A>
 inline constexpr typename vector_view<T, A>::reference
 vector_view<T, A>::front() noexcept
 {
-    assert(m_size > 0);
+    container::ensure(m_size > 0);
     return m_data[0];
 }
 
@@ -2845,7 +2904,7 @@ template<typename T, typename A>
 inline constexpr typename vector_view<T, A>::const_reference
 vector_view<T, A>::front() const noexcept
 {
-    assert(m_size > 0);
+    container::ensure(m_size > 0);
     return m_data[0];
 }
 
@@ -2853,7 +2912,7 @@ template<typename T, typename A>
 inline constexpr typename vector_view<T, A>::reference
 vector_view<T, A>::back() noexcept
 {
-    assert(m_size > 0);
+    container::ensure(m_size > 0);
     return m_data[m_size - 1];
 }
 
@@ -2861,7 +2920,7 @@ template<typename T, typename A>
 inline constexpr typename vector_view<T, A>::const_reference
 vector_view<T, A>::back() const noexcept
 {
-    assert(m_size > 0);
+    container::ensure(m_size > 0);
     return m_data[m_size - 1];
 }
 
@@ -2869,8 +2928,8 @@ template<typename T, typename A>
 inline constexpr typename vector_view<T, A>::reference
 vector_view<T, A>::operator[](std::integral auto index) noexcept
 {
-    assert(std::cmp_greater_equal(index, 0));
-    assert(std::cmp_less(index, m_size));
+    container::ensure(std::cmp_greater_equal(index, 0));
+    container::ensure(std::cmp_less(index, m_size));
 
     return data()[index];
 }
@@ -2879,8 +2938,8 @@ template<typename T, typename A>
 inline constexpr typename vector_view<T, A>::const_reference
 vector_view<T, A>::operator[](std::integral auto index) const noexcept
 {
-    assert(std::cmp_greater_equal(index, 0));
-    assert(std::cmp_less(index, m_size));
+    container::ensure(std::cmp_greater_equal(index, 0));
+    container::ensure(std::cmp_less(index, m_size));
 
     return data()[index];
 }
@@ -2983,7 +3042,7 @@ vector_view<T, A>::emplace_back(Args&&... args) noexcept
 template<typename T, typename A>
 inline constexpr void vector_view<T, A>::pop_back() noexcept
 {
-    assert(m_size);
+    container::ensure(m_size);
 
     if (m_size) {
         std::destroy_at(data() + m_size - 1);
@@ -2995,7 +3054,7 @@ template<typename T, typename A>
 inline constexpr void vector_view<T, A>::swap_pop_back(
   std::integral auto index) noexcept
 {
-    assert(std::cmp_less(index, m_size));
+    container::ensure(std::cmp_less(index, m_size));
 
     if (std::cmp_equal(index, m_size - 1)) {
         pop_back();
@@ -3019,7 +3078,7 @@ inline constexpr void vector_view<T, A>::swap_pop_back(
 template<typename T, typename A>
 inline constexpr void vector_view<T, A>::erase(iterator it) noexcept
 {
-    assert(it >= data() && it < data() + m_size);
+    container::ensure(it >= data() && it < data() + m_size);
 
     if (it == end())
         return;
@@ -3044,8 +3103,8 @@ template<typename T, typename A>
 inline constexpr void vector_view<T, A>::erase(iterator first,
                                                iterator last) noexcept
 {
-    assert(first >= data() && first < data() + m_size && last > first &&
-           last <= data() + m_size);
+    container::ensure(first >= data() && first < data() + m_size &&
+                      last > first && last <= data() + m_size);
 
     std::destroy(first, last);
     const ptrdiff_t count = last - first;
@@ -3066,11 +3125,11 @@ template<typename T, typename A>
 inline constexpr int vector_view<T, A>::index_from_ptr(
   const T* data) const noexcept
 {
-    assert(is_iterator_valid(const_iterator(data)));
+    container::ensure(is_iterator_valid(const_iterator(data)));
 
     const auto off = data - m_data;
 
-    assert(0 <= off && off < INT32_MAX);
+    container::ensure(0 <= off && off < INT32_MAX);
 
     return static_cast<int>(off);
 }
@@ -3086,7 +3145,7 @@ template<typename T, typename A>
 vector_view<T, A>::index_type vector_view<T, A>::compute_new_capacity(
   vector_view<T, A>::index_type size) const
 {
-    assert(size > m_capacity);
+    container::ensure(size > m_capacity);
 
     if (size < m_capacity)
         return m_capacity;
@@ -3168,8 +3227,8 @@ constexpr void small_vector<T, length>::resize(
                   "T must be nothrow default constructible to use "
                   "init() function");
 
-    assert(std::cmp_greater_equal(default_size, 0) &&
-           std::cmp_less(default_size, length));
+    container::ensure(std::cmp_greater_equal(default_size, 0) &&
+                      std::cmp_less(default_size, length));
 
     if (!std::cmp_greater_equal(default_size, 0))
         default_size = 0;
@@ -3204,7 +3263,7 @@ template<typename T, int length>
 constexpr typename small_vector<T, length>::reference
 small_vector<T, length>::front() noexcept
 {
-    assert(m_size > 0);
+    container::ensure(m_size > 0);
     return data()[0];
 }
 
@@ -3212,7 +3271,7 @@ template<typename T, int length>
 constexpr typename small_vector<T, length>::const_reference
 small_vector<T, length>::front() const noexcept
 {
-    assert(m_size > 0);
+    container::ensure(m_size > 0);
     return data()[0];
 }
 
@@ -3220,7 +3279,7 @@ template<typename T, int length>
 constexpr typename small_vector<T, length>::reference
 small_vector<T, length>::back() noexcept
 {
-    assert(m_size > 0);
+    container::ensure(m_size > 0);
     return data()[m_size - 1];
 }
 
@@ -3228,7 +3287,7 @@ template<typename T, int length>
 constexpr typename small_vector<T, length>::const_reference
 small_vector<T, length>::back() const noexcept
 {
-    assert(m_size > 0);
+    container::ensure(m_size > 0);
     return data()[m_size - 1];
 }
 
@@ -3236,8 +3295,8 @@ template<typename T, int length>
 constexpr typename small_vector<T, length>::reference
 small_vector<T, length>::operator[](std::integral auto index) noexcept
 {
-    assert(std::cmp_greater_equal(index, 0));
-    assert(std::cmp_less(index, m_size));
+    container::ensure(std::cmp_greater_equal(index, 0));
+    container::ensure(std::cmp_less(index, m_size));
 
     return data()[index];
 }
@@ -3246,8 +3305,8 @@ template<typename T, int length>
 constexpr typename small_vector<T, length>::const_reference
 small_vector<T, length>::operator[](std::integral auto index) const noexcept
 {
-    assert(std::cmp_greater_equal(index, 0));
-    assert(std::cmp_less(index, m_size));
+    container::ensure(std::cmp_greater_equal(index, 0));
+    container::ensure(std::cmp_less(index, m_size));
 
     return data()[index];
 }
@@ -3335,7 +3394,8 @@ small_vector<T, length>::emplace_back(Args&&... args) noexcept
                   "T must but trivially constructible from this "
                   "argument(s)");
 
-    assert(can_alloc(1) && "check alloc() with full() before using use.");
+    container::ensure(can_alloc(1) &&
+                      "check alloc() with full() before using use.");
 
     std::construct_at(&(data()[m_size]), std::forward<Args>(args)...);
     ++m_size;
@@ -3360,7 +3420,8 @@ template<typename T, int length>
 constexpr void small_vector<T, length>::swap_pop_back(
   std::integral auto index) noexcept
 {
-    assert(std::cmp_greater_equal(index, 0) && std::cmp_less(index, m_size));
+    container::ensure(std::cmp_greater_equal(index, 0) &&
+                      std::cmp_less(index, m_size));
 
     const auto new_index = static_cast<size_type>(index);
 
@@ -3546,7 +3607,7 @@ template<int length>
 inline constexpr typename small_string<length>::reference
 small_string<length>::operator[](std::integral auto index) noexcept
 {
-    assert(std::cmp_less(index, length));
+    container::ensure(std::cmp_less(index, length));
 
     return m_buffer[index];
 }
@@ -3555,7 +3616,7 @@ template<int length>
 inline constexpr typename small_string<length>::const_reference
 small_string<length>::operator[](std::integral auto index) const noexcept
 {
-    assert(std::cmp_less(index, m_size));
+    container::ensure(std::cmp_less(index, m_size));
 
     return m_buffer[index];
 }
@@ -3956,7 +4017,8 @@ constexpr void ring_buffer<T, A>::destroy() noexcept
 template<class T, typename A>
 constexpr void ring_buffer<T, A>::reserve(std::integral auto capacity) noexcept
 {
-    assert(std::cmp_less(capacity, std::numeric_limits<index_type>::max()));
+    container::ensure(
+      std::cmp_less(capacity, std::numeric_limits<index_type>::max()));
 
     if (m_capacity < capacity) {
         ring_buffer<T, A> tmp(capacity);
@@ -4043,7 +4105,7 @@ constexpr void ring_buffer<T, A>::pop_tail() noexcept
 template<class T, typename A>
 constexpr void ring_buffer<T, A>::erase_after(iterator this_it) noexcept
 {
-    assert(this_it.ring != nullptr);
+    container::ensure(this_it.ring != nullptr);
 
     if (this_it == tail())
         return;
@@ -4055,7 +4117,7 @@ constexpr void ring_buffer<T, A>::erase_after(iterator this_it) noexcept
 template<class T, typename A>
 constexpr void ring_buffer<T, A>::erase_before(iterator this_it) noexcept
 {
-    assert(this_it.ring != nullptr);
+    container::ensure(this_it.ring != nullptr);
 
     if (this_it == head())
         return;
@@ -4190,8 +4252,8 @@ constexpr const T* ring_buffer<T, A>::data() const noexcept
 template<class T, typename A>
 constexpr T& ring_buffer<T, A>::operator[](std::integral auto index) noexcept
 {
-    assert(std::cmp_greater_equal(index, 0));
-    assert(std::cmp_less(index, m_capacity));
+    container::ensure(std::cmp_greater_equal(index, 0));
+    container::ensure(std::cmp_less(index, m_capacity));
 
     return buffer[index];
 }
@@ -4200,8 +4262,8 @@ template<class T, typename A>
 constexpr const T& ring_buffer<T, A>::operator[](
   std::integral auto index) const noexcept
 {
-    assert(std::cmp_greater_equal(index, 0));
-    assert(std::cmp_less(index, m_capacity));
+    container::ensure(std::cmp_greater_equal(index, 0));
+    container::ensure(std::cmp_less(index, m_capacity));
 
     return buffer[index];
 }
@@ -4209,7 +4271,7 @@ constexpr const T& ring_buffer<T, A>::operator[](
 template<class T, typename A>
 constexpr T& ring_buffer<T, A>::front() noexcept
 {
-    assert(!empty());
+    container::ensure(!empty());
 
     return buffer[m_head];
 }
@@ -4217,7 +4279,7 @@ constexpr T& ring_buffer<T, A>::front() noexcept
 template<class T, typename A>
 constexpr const T& ring_buffer<T, A>::front() const noexcept
 {
-    assert(!empty());
+    container::ensure(!empty());
 
     return buffer[m_head];
 }
@@ -4225,7 +4287,7 @@ constexpr const T& ring_buffer<T, A>::front() const noexcept
 template<class T, typename A>
 constexpr T& ring_buffer<T, A>::back() noexcept
 {
-    assert(!empty());
+    container::ensure(!empty());
 
     return buffer[back(m_tail)];
 }
@@ -4233,7 +4295,7 @@ constexpr T& ring_buffer<T, A>::back() noexcept
 template<class T, typename A>
 constexpr const T& ring_buffer<T, A>::back() const noexcept
 {
-    assert(!empty());
+    container::ensure(!empty());
 
     return buffer[back(m_tail)];
 }
@@ -4467,7 +4529,7 @@ template<class T, int length>
 constexpr void small_ring_buffer<T, length>::erase_after(
   iterator this_it) noexcept
 {
-    assert(this_it.ring != nullptr);
+    container::ensure(this_it.ring != nullptr);
 
     if (this_it == tail())
         return;
@@ -4480,7 +4542,7 @@ template<class T, int length>
 constexpr void small_ring_buffer<T, length>::erase_before(
   iterator this_it) noexcept
 {
-    assert(this_it.ring != nullptr);
+    container::ensure(this_it.ring != nullptr);
 
     if (this_it == head())
         return;
@@ -4620,8 +4682,8 @@ template<class T, int length>
 constexpr T& small_ring_buffer<T, length>::operator[](
   std::integral auto index) noexcept
 {
-    assert(std::cmp_greater_equal(index, 0));
-    assert(std::cmp_less(index, length));
+    container::ensure(std::cmp_greater_equal(index, 0));
+    container::ensure(std::cmp_less(index, length));
 
     return data()[index];
 }
@@ -4630,8 +4692,8 @@ template<class T, int length>
 constexpr const T& small_ring_buffer<T, length>::operator[](
   std::integral auto index) const noexcept
 {
-    assert(std::cmp_greater_equal(index, 0));
-    assert(std::cmp_less(index, length));
+    container::ensure(std::cmp_greater_equal(index, 0));
+    container::ensure(std::cmp_less(index, length));
 
     return data()[index];
 }
@@ -4639,7 +4701,7 @@ constexpr const T& small_ring_buffer<T, length>::operator[](
 template<class T, int length>
 constexpr T& small_ring_buffer<T, length>::front() noexcept
 {
-    assert(!empty());
+    container::ensure(!empty());
 
     return data()[m_head];
 }
@@ -4647,7 +4709,7 @@ constexpr T& small_ring_buffer<T, length>::front() noexcept
 template<class T, int length>
 constexpr const T& small_ring_buffer<T, length>::front() const noexcept
 {
-    assert(!empty());
+    container::ensure(!empty());
 
     return data()[m_head];
 }
@@ -4655,7 +4717,7 @@ constexpr const T& small_ring_buffer<T, length>::front() const noexcept
 template<class T, int length>
 constexpr T& small_ring_buffer<T, length>::back() noexcept
 {
-    assert(!empty());
+    container::ensure(!empty());
 
     return data()[back(m_tail)];
 }
@@ -4663,7 +4725,7 @@ constexpr T& small_ring_buffer<T, length>::back() noexcept
 template<class T, int length>
 constexpr const T& small_ring_buffer<T, length>::back() const noexcept
 {
-    assert(!empty());
+    container::ensure(!empty());
 
     return data()[back(m_tail)];
 }
@@ -4709,7 +4771,7 @@ constexpr typename small_ring_buffer<T, length>::index_type
 small_ring_buffer<T, length>::index_from_begin(
   std::integral auto idx) const noexcept
 {
-    assert(is_numeric_castable<index_type>(idx));
+    container::ensure(is_numeric_castable<index_type>(idx));
 
     return (m_head + static_cast<index_type>(idx)) % length;
 }

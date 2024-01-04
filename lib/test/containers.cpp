@@ -6,7 +6,6 @@
 
 #include <boost/ut.hpp>
 
-#include <limits>
 #include <numeric>
 
 struct only_copy_ctor {
@@ -151,9 +150,9 @@ constexpr auto compress(T*           main_start,
     constexpr auto beg = reinterpret_cast<std::uintptr_t>(begin);
     constexpr auto dif = beg - mem;
 
-    assert(0 <= dif && dif < UINT32_MAX);
-    assert(0 <= size && size < UINT16_MAX);
-    assert(0 <= capacity && capacity < UINT16_MAX);
+    irt::container::ensure(0 <= dif && dif < UINT32_MAX);
+    irt::container::ensure(0 <= size && size < UINT16_MAX);
+    irt::container::ensure(0 <= capacity && capacity < UINT16_MAX);
 
     constexpr auto left  = static_cast<std::uint64_t>(dif);
     constexpr auto mid   = static_cast<std::uint64_t>(size);
@@ -983,7 +982,7 @@ int main()
             int port;
         };
 
-        std::array<std::byte, 1024>    memory;
+        std::array<std::byte, 1024>   memory;
         irt::freelist_memory_resource mem{ memory.data(), memory.size() };
 
         pos*         data     = nullptr;
