@@ -1,4 +1,4 @@
-// Copyright (c) 2020 INRA Distributed under the Boost Software License,
+// Copyright (c) 2024 INRA Distributed under the Boost Software License,
 // Version 1.0. (See accompanying file LICENSE_1_0.txt or copy at
 // http://www.boost.org/LICENSE_1_0.txt)
 
@@ -141,46 +141,73 @@ static bool check_data_array_loop(const Data& d) noexcept
 }
 
 template<typename T>
-constexpr auto compress(T*           main_start,
-                        T*           begin,
-                        std::int32_t size,
-                        std::int32_t capacity) noexcept -> std::uint64_t
+class scoped_vector_view
 {
-    constexpr auto mem = reinterpret_cast<std::uintptr_t>(main_start);
-    constexpr auto beg = reinterpret_cast<std::uintptr_t>(begin);
-    constexpr auto dif = beg - mem;
+public:
+    scoped_vector_view(irt::freelist_memory_resource& mem,
+                       std::uint64_t&                 access) noexcept;
 
-    irt::container::ensure(0 <= dif && dif < UINT32_MAX);
-    irt::container::ensure(0 <= size && size < UINT16_MAX);
-    irt::container::ensure(0 <= capacity && capacity < UINT16_MAX);
+    ~scoped_vector_view() noexcept;
 
-    constexpr auto left  = static_cast<std::uint64_t>(dif);
-    auto           mid   = static_cast<std::uint64_t>(size);
-    auto           right = static_cast<std::uint64_t>(capacity);
+    auto vec() noexcept;
 
-    return (left << 32) | (mid << 16) | right;
-}
+private:
+    irt::freelist_memory_resource& m_mem;
+    std::uint64_t&                 m_access;
 
-template<typename T>
-struct vector_view_access {
-    T*           begin    = nullptr;
-    std::int32_t size     = 0;
-    std::int32_t capacity = 0;
+    T*           m_vec_start{};
+    std::int32_t m_vec_size{};
+    std::int32_t m_vec_capacity{};
 };
 
 template<typename T>
-constexpr auto decompress(T* main_start, const std::uint64_t id) noexcept
-  -> vector_view_access<T>
+scoped_vector_view<T>::scoped_vector_view(irt::freelist_memory_resource& mem,
+                                          std::uint64_t& access) noexcept
+  : m_mem{ mem }
+  , m_access{ access }
 {
-    const auto left  = id >> 32;
-    const auto mid   = (id >> 16) & 0xffff;
-    const auto right = id & 0xffff;
+    const auto left  = access >> 32;
+    const auto mid   = (access >> 16) & 0xffff;
+    const auto right = access & 0xffff;
 
-    auto*      begin    = main_start + left;
-    const auto size     = static_cast<std::int32_t>(mid);
-    const auto capacity = static_cast<std::int32_t>(right);
+    m_vec_capacity = static_cast<std::int32_t>(right);
+    m_vec_size     = static_cast<std::int32_t>(mid);
 
-    return { begin, size, capacity };
+    if (m_vec_capacity)
+        m_vec_start = reinterpret_cast<T*>(m_mem.head() + left);
+}
+
+template<typename T>
+scoped_vector_view<T>::~scoped_vector_view() noexcept
+{
+    if (m_vec_capacity) {
+        auto       mem = reinterpret_cast<std::uintptr_t>(m_mem.head());
+        auto       beg = reinterpret_cast<std::uintptr_t>(m_vec_start);
+        const auto dif = beg - mem;
+
+        irt::container::ensure(dif < std::numeric_limits<std::uint32_t>::max());
+        irt::container::ensure(0 <= m_vec_size &&
+                               m_vec_size <
+                                 std::numeric_limits<std::uint16_t>::max());
+        irt::container::ensure(0 <= m_vec_capacity &&
+                               m_vec_capacity <
+                                 std::numeric_limits<std::uint16_t>::max());
+
+        const auto left  = static_cast<std::uint64_t>(dif);
+        auto       mid   = static_cast<std::uint64_t>(m_vec_size);
+        auto       right = static_cast<std::uint64_t>(m_vec_capacity);
+
+        m_access = (left << 32) | (mid << 16) | right;
+    } else {
+        m_access = 0;
+    }
+}
+
+template<typename T>
+auto scoped_vector_view<T>::vec() noexcept
+{
+    return irt::vector_view<T, irt::mr_allocator>(
+      &m_mem, m_vec_start, m_vec_size, m_vec_capacity);
 }
 
 int main()
@@ -1067,6 +1094,67 @@ int main()
             expect(eq(view.data(), nullptr));
             expect(eq(view.size(), 0u));
             expect(eq(view.capacity(), 0));
+        }
+    };
+
+    "scoped_vector_view_count"_test = [] {
+        std::array<std::byte, 512>    memory;
+        irt::freelist_memory_resource mem{ memory.data(), memory.size() };
+
+        count_ctor_assign::reset();
+        expect(eq(count_ctor_assign::count_ctor, 0));
+        expect(eq(count_ctor_assign::count_move_ctor, 0));
+        expect(eq(count_ctor_assign::count_copy_ctor, 0));
+        expect(eq(count_ctor_assign::count_move_assign, 0));
+        expect(eq(count_ctor_assign::count_copy_assign, 0));
+        expect(eq(count_ctor_assign::count_dtor, 0));
+
+        for (int i = 0; i < 10; ++i) {
+            std::uint64_t                         access = 0u;
+            scoped_vector_view<count_ctor_assign> svv{ mem, access };
+
+            {
+                auto vec = svv.vec();
+
+                vec.emplace_back(1);
+                vec.emplace_back(2);
+                vec.emplace_back(3);
+            }
+
+            expect(eq(count_ctor_assign::count_ctor, (i + 1) * 3));
+
+            {
+                auto vec = svv.vec();
+                expect(eq(vec[0].value(), 1));
+                expect(eq(vec[1].value(), 2));
+                expect(eq(vec[2].value(), 3));
+
+                expect(neq(vec.data(), nullptr));
+                expect(eq(vec.size(), 3u));
+                expect(ge(vec.capacity(), 3));
+            }
+
+            {
+                auto vec = svv.vec();
+
+                vec.clear();
+                expect(eq(count_ctor_assign::count_dtor, (i + 1) * 3));
+
+                expect(neq(vec.data(), nullptr));
+                expect(eq(vec.size(), 0u));
+                expect(ge(vec.capacity(), 3));
+            }
+
+            {
+                auto vec = svv.vec();
+
+                vec.destroy();
+                expect(eq(vec.data(), nullptr));
+                expect(eq(vec.size(), 0u));
+                expect(eq(vec.capacity(), 0));
+            }
+
+            expect(!access);
         }
     };
 }

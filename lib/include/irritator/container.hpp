@@ -328,7 +328,7 @@ public:
         return m_offset + padding + bytes <= m_total_size;
     }
 
-    void* head() noexcept { return m_start; }
+    constexpr std::byte* head() noexcept { return m_start; }
 
 private:
     std::byte*  m_start{};
@@ -380,7 +380,7 @@ private:
 
     list<header> m_free_list;
 
-    void*       m_start_ptr       = nullptr;
+    std::byte*  m_start_ptr       = nullptr;
     std::size_t m_total_size      = {};
     std::size_t m_chunk_size      = {};
     std::size_t m_total_allocated = {};
@@ -389,7 +389,7 @@ public:
     pool_memory_resource(void*       data,
                          std::size_t size,
                          std::size_t chunk_size) noexcept
-      : m_start_ptr{ data }
+      : m_start_ptr{ reinterpret_cast<std::byte*>(data) }
       , m_total_size{ size }
       , m_chunk_size{ chunk_size }
       , m_total_allocated{ 0 }
@@ -453,7 +453,7 @@ public:
         return (m_total_size - m_total_allocated) > bytes;
     }
 
-    void* head() noexcept { return m_start_ptr; }
+    constexpr std::byte* head() noexcept { return m_start_ptr; }
 };
 
 //! A non-thread-safe allocator: a general purpose allocator.
@@ -531,7 +531,7 @@ private:
     static constexpr auto free_header_size       = sizeof(FreeHeader);
 
     list<FreeHeader> m_freeList;
-    void*            m_start_ptr;
+    std::byte*       m_start_ptr;
     std::size_t      m_total_size;
     std::size_t      m_used;
     std::size_t      m_peak;
@@ -545,7 +545,7 @@ private:
 
 public:
     freelist_memory_resource(void* data, std::size_t size) noexcept
-      : m_start_ptr{ data }
+      : m_start_ptr{ reinterpret_cast<std::byte*>(data) }
       , m_total_size{ size }
       , m_used{ 0 }
       , m_peak{ 0 }
@@ -634,6 +634,9 @@ public:
         return this == &other;
     }
 
+    constexpr std::byte* head() noexcept { return m_start_ptr; }
+
+private:
     void merge(node* previous, node* free_node) noexcept
     {
         if (free_node->next != nullptr &&
