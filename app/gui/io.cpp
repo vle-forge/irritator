@@ -249,7 +249,7 @@ struct settings_handler {
             bool            found   = false;
             registred_path* reg_dir = nullptr;
             while (app.mod.registred_paths.next(reg_dir)) {
-                if (reg_dir->path == current.path) {
+                if (reg_dir->path.sv() == current.path.sv()) {
                     found = true;
                     break;
                 }

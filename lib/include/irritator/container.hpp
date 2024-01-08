@@ -14,9 +14,6 @@
 #include <type_traits>
 #include <utility>
 
-#include <cstddef>
-#include <cstdint>
-
 namespace irt {
 
 namespace container {
@@ -1488,10 +1485,12 @@ public:
     constexpr const_iterator begin() const noexcept;
     constexpr const_iterator end() const noexcept;
 
-    constexpr bool operator==(const small_string& rhs) const noexcept;
-    constexpr bool operator!=(const small_string& rhs) const noexcept;
-    constexpr bool operator>(const small_string& rhs) const noexcept;
-    constexpr bool operator<(const small_string& rhs) const noexcept;
+    constexpr auto operator<=>(const small_string& rhs) const noexcept;
+
+    constexpr bool operator==(const std::string_view rhs) const noexcept;
+    constexpr bool operator!=(const std::string_view rhs) const noexcept;
+    constexpr bool operator>(const std::string_view rhs) const noexcept;
+    constexpr bool operator<(const std::string_view rhs) const noexcept;
     constexpr bool operator==(const char* rhs) const noexcept;
     constexpr bool operator!=(const char* rhs) const noexcept;
     constexpr bool operator>(const char* rhs) const noexcept;
@@ -1839,9 +1838,10 @@ bool data_array<T, Identifier, A>::reserve(std::integral auto capacity) noexcept
                 new_buffer[i].item = std::move(m_items[i].item);
                 new_buffer[i].id   = m_items[i].id;
             } else {
-                std::copy_n(reinterpret_cast<std::byte*>(&m_items[i]),
-                            sizeof(item),
-                            reinterpret_cast<std::byte*>(&new_buffer[i]));
+                std::uninitialized_copy_n(
+                  reinterpret_cast<std::byte*>(&m_items[i]),
+                  sizeof(item),
+                  reinterpret_cast<std::byte*>(&new_buffer[i]));
             }
         }
     }
@@ -1852,9 +1852,10 @@ bool data_array<T, Identifier, A>::reserve(std::integral auto capacity) noexcept
                 new_buffer[i].item = m_items[i].item;
                 new_buffer[i].id   = m_items[i].id;
             } else {
-                std::copy_n(reinterpret_cast<std::byte*>(&m_items[i]),
-                            sizeof(item),
-                            reinterpret_cast<std::byte*>(&new_buffer[i]));
+                std::uninitialized_copy_n(
+                  reinterpret_cast<std::byte*>(&m_items[i]),
+                  sizeof(item),
+                  reinterpret_cast<std::byte*>(&new_buffer[i]));
             }
         }
     }
@@ -3457,7 +3458,7 @@ template<int length>
 inline constexpr small_string<length>::small_string(
   const small_string<length>& str) noexcept
 {
-    std::copy_n(str.m_buffer, str.m_size, m_buffer);
+    std::uninitialized_copy_n(str.m_buffer, str.m_size, m_buffer);
     m_buffer[str.m_size] = '\0';
     m_size               = str.m_size;
 }
@@ -3466,7 +3467,7 @@ template<int length>
 inline constexpr small_string<length>::small_string(
   small_string<length>&& str) noexcept
 {
-    std::copy_n(str.m_buffer, str.m_size, m_buffer);
+    std::uninitialized_copy_n(str.m_buffer, str.m_size, m_buffer);
     m_buffer[str.m_size] = '\0';
     m_size               = str.m_size;
     str.clear();
@@ -3477,7 +3478,7 @@ inline constexpr small_string<length>& small_string<length>::operator=(
   const small_string<length>& str) noexcept
 {
     if (&str != this) {
-        std::copy_n(str.m_buffer, str.m_size, m_buffer);
+        std::uninitialized_copy_n(str.m_buffer, str.m_size, m_buffer);
         m_buffer[str.m_size] = '\0';
         m_size               = str.m_size;
     }
@@ -3490,7 +3491,7 @@ inline constexpr small_string<length>& small_string<length>::operator=(
   small_string<length>&& str) noexcept
 {
     if (&str != this) {
-        std::copy_n(str.m_buffer, str.m_size, m_buffer);
+        std::uninitialized_copy_n(str.m_buffer, str.m_size, m_buffer);
         m_buffer[str.m_size] = '\0';
         m_size               = str.m_size;
     }
@@ -3502,11 +3503,9 @@ template<int length>
 inline constexpr small_string<length>& small_string<length>::operator=(
   const char* str) noexcept
 {
-    if (m_buffer != str) {
-        std::strncpy(m_buffer, str, length - 1);
-        m_buffer[length - 1] = '\0';
-        m_size               = static_cast<std::uint8_t>(std::strlen(m_buffer));
-    }
+    if (m_buffer != str)
+        assign(std::string_view{ str });
+
     return *this;
 }
 
@@ -3522,9 +3521,7 @@ inline constexpr small_string<length>& small_string<length>::operator=(
 template<int length>
 inline constexpr small_string<length>::small_string(const char* str) noexcept
 {
-    std::strncpy(m_buffer, str, length - 1);
-    m_buffer[length - 1] = '\0';
-    m_size               = static_cast<std::uint8_t>(std::strlen(m_buffer));
+    assign(std::string_view{ str });
 }
 
 template<int length>
@@ -3580,7 +3577,7 @@ inline constexpr void small_string<length>::assign(
                ? static_cast<size_type>(str.size())
                : static_cast<size_type>(length - 1);
 
-    std::copy_n(str.data(), m_size, &m_buffer[0]);
+    std::uninitialized_copy_n(str.data(), m_size, &m_buffer[0]);
     m_buffer[m_size] = '\0';
 }
 
@@ -3667,59 +3664,66 @@ small_string<length>::end() const noexcept
 }
 
 template<int length>
-inline constexpr bool small_string<length>::operator==(
-  const small_string<length>& rhs) const noexcept
+inline constexpr auto small_string<length>::operator<=>(
+  const small_string& rhs) const noexcept
 {
-    return std::strncmp(m_buffer, rhs.m_buffer, length) == 0;
-}
-
-template<int length>
-inline constexpr bool small_string<length>::operator!=(
-  const small_string<length>& rhs) const noexcept
-{
-    return std::strncmp(m_buffer, rhs.m_buffer, length) != 0;
-}
-
-template<int length>
-inline constexpr bool small_string<length>::operator>(
-  const small_string<length>& rhs) const noexcept
-{
-    return std::strncmp(m_buffer, rhs.m_buffer, length) > 0;
-}
-
-template<int length>
-inline constexpr bool small_string<length>::operator<(
-  const small_string<length>& rhs) const noexcept
-{
-    return std::strncmp(m_buffer, rhs.m_buffer, length) < 0;
+    return sv() <=> rhs.sv();
 }
 
 template<int length>
 inline constexpr bool small_string<length>::operator==(
+  const std::string_view rhs) const noexcept
+{
+    return sv() == rhs;
+}
+
+template<int length>
+inline constexpr bool small_string<length>::operator!=(
+  const std::string_view rhs) const noexcept
+{
+    return sv() != rhs;
+}
+
+template<int length>
+inline constexpr bool small_string<length>::operator>(
+  const std::string_view rhs) const noexcept
+{
+    return sv() > rhs;
+}
+
+template<int length>
+inline constexpr bool small_string<length>::operator<(
+  const std::string_view rhs) const noexcept
+{
+    return sv() < rhs;
+}
+
+template<int length>
+inline constexpr bool small_string<length>::operator==(
   const char* rhs) const noexcept
 {
-    return std::strncmp(m_buffer, rhs, length) == 0;
+    return sv() == std::string_view{ rhs };
 }
 
 template<int length>
 inline constexpr bool small_string<length>::operator!=(
   const char* rhs) const noexcept
 {
-    return std::strncmp(m_buffer, rhs, length) != 0;
+    return sv() != std::string_view{ rhs };
 }
 
 template<int length>
 inline constexpr bool small_string<length>::operator>(
   const char* rhs) const noexcept
 {
-    return std::strncmp(m_buffer, rhs, length) > 0;
+    return sv() > std::string_view{ rhs };
 }
 
 template<int length>
 inline constexpr bool small_string<length>::operator<(
   const char* rhs) const noexcept
 {
-    return std::strncmp(m_buffer, rhs, length) < 0;
+    return sv() < std::string_view{ rhs };
 }
 
 ////////////////////////////////////////////////////////////////////////

@@ -155,8 +155,8 @@ constexpr auto compress(T*           main_start,
     irt::container::ensure(0 <= capacity && capacity < UINT16_MAX);
 
     constexpr auto left  = static_cast<std::uint64_t>(dif);
-    constexpr auto mid   = static_cast<std::uint64_t>(size);
-    constexpr auto right = static_cast<std::uint64_t>(capacity);
+    auto           mid   = static_cast<std::uint64_t>(size);
+    auto           right = static_cast<std::uint64_t>(capacity);
 
     return (left << 32) | (mid << 16) | right;
 }
@@ -169,16 +169,16 @@ struct vector_view_access {
 };
 
 template<typename T>
-constexpr auto decompress(T* main_start, std::uint64_t id) noexcept
+constexpr auto decompress(T* main_start, const std::uint64_t id) noexcept
   -> vector_view_access<T>
 {
-    constexpr auto left  = id >> 32;
-    constexpr auto mid   = (id >> 16) & 0xffff;
-    constexpr auto right = id & 0xffff;
+    const auto left  = id >> 32;
+    const auto mid   = (id >> 16) & 0xffff;
+    const auto right = id & 0xffff;
 
-    constexpr auto* begin    = main_start + left;
-    constexpr auto  size     = static_cast<std::int32_t>(mid);
-    constexpr auto  capacity = static_cast<std::int32_t>(right);
+    auto*      begin    = main_start + left;
+    const auto size     = static_cast<std::int32_t>(mid);
+    const auto capacity = static_cast<std::int32_t>(right);
 
     return { begin, size, capacity };
 }
@@ -1006,17 +1006,17 @@ int main()
             expect(eq(view[2].port, 3));
 
             expect(neq(view.data(), nullptr));
-            expect(eq(view.size(), 3));
+            expect(eq(view.size(), 3u));
             expect(ge(view.capacity(), 3));
 
             view.clear();
             expect(neq(view.data(), nullptr));
-            expect(eq(view.size(), 0));
+            expect(eq(view.size(), 0u));
             expect(ge(view.capacity(), 3));
 
             view.destroy();
             expect(eq(view.data(), nullptr));
-            expect(eq(view.size(), 0));
+            expect(eq(view.size(), 0u));
             expect(eq(view.capacity(), 0));
         }
     };
@@ -1053,19 +1053,19 @@ int main()
             expect(eq(view[2].value(), 3));
 
             expect(neq(view.data(), nullptr));
-            expect(eq(view.size(), 3));
+            expect(eq(view.size(), 3u));
             expect(ge(view.capacity(), 3));
 
             view.clear();
             expect(eq(count_ctor_assign::count_dtor, (i + 1) * 3));
 
             expect(neq(view.data(), nullptr));
-            expect(eq(view.size(), 0));
+            expect(eq(view.size(), 0u));
             expect(ge(view.capacity(), 3));
 
             view.destroy();
             expect(eq(view.data(), nullptr));
-            expect(eq(view.size(), 0));
+            expect(eq(view.size(), 0u));
             expect(eq(view.capacity(), 0));
         }
     };
