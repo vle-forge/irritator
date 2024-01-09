@@ -207,6 +207,15 @@ private:
 //                                                                    //
 ////////////////////////////////////////////////////////////////////////
 
+//! @brief An handler type when a @c std::pmr::memory resource fail to allocate
+//! memory.
+//!
+//! @param mr Reference @c the std::pmr::memory_resource that fail.
+using error_not_enough_memory_handler =
+  void(std::pmr::memory_resource& mr) noexcept;
+
+inline error_not_enough_memory_handler* on_error_not_enough_memory = nullptr;
+
 inline constexpr auto calculate_padding(const std::uintptr_t address,
                                         const std::size_t    alignment) noexcept
   -> std::size_t
@@ -239,15 +248,6 @@ inline constexpr auto calculate_padding_with_header(
     return padding;
 }
 
-//! @brief An handler type when a @c std::pmr::memory resource fail to allocate
-//! memory.
-//!
-//! @param mr Reference @c the std::pmr::memory_resource that fail.
-using error_not_enough_memory_handler =
-  void(std::pmr::memory_resource& mr) noexcept;
-
-inline error_not_enough_memory_handler* on_error_not_enough_memory = nullptr;
-
 //! A non-thread-safe allocator: allocation are linear, no de-allocation.
 //!
 //! This is a non-thread-safe, fast, special-purpose resource that gets
@@ -263,6 +263,8 @@ class fixed_linear_memory_resource : public std::pmr::memory_resource
 {
 public:
     static constexpr bool is_relocatable = false;
+
+    fixed_linear_memory_resource() noexcept = default;
 
     fixed_linear_memory_resource(std::byte* data, std::size_t size) noexcept
       : m_start{ data }
@@ -306,8 +308,27 @@ public:
         return this == &other;
     }
 
-    //! @brief To reuse the same resource manager without (de)akk
+    //! @brief Reset the use of the chunk of memory.
     void reset() noexcept { m_offset = { 0 }; }
+
+    //! @brief Assign a chunk of memory.
+    //!
+    //! @attention Use this function only when no chunk of memory are allocated
+    //! (ie the default constructor was called).
+    //! @param data The new buffer. Must be not null.
+    //! @param size The size of the buffer. Must be not null.
+    void reset(std::byte* data, std::size_t size) noexcept
+    {
+        container::ensure(data != nullptr);
+        container::ensure(size != 0u);
+        container::ensure(m_start == nullptr);
+        container::ensure(m_total_size == 0u);
+
+        m_start      = data;
+        m_total_size = size;
+
+        reset();
+    }
 
     //! Check if the resource can allocate @c bytes with @c alignment.
     //!
@@ -386,10 +407,12 @@ private:
     std::size_t m_total_allocated = {};
 
 public:
-    pool_memory_resource(void*       data,
+    pool_memory_resource() noexcept = default;
+
+    pool_memory_resource(std::byte*  data,
                          std::size_t size,
                          std::size_t chunk_size) noexcept
-      : m_start_ptr{ reinterpret_cast<std::byte*>(data) }
+      : m_start_ptr{ data }
       , m_total_size{ size }
       , m_chunk_size{ chunk_size }
       , m_total_allocated{ 0 }
@@ -429,6 +452,7 @@ public:
         return this == &other;
     }
 
+    //! @brief Reset the use of the chunk of memory.
     void reset() noexcept
     {
         const auto start = reinterpret_cast<std::uintptr_t>(m_start_ptr);
@@ -437,6 +461,31 @@ public:
             auto address = start + ((n - 1) * m_chunk_size);
             m_free_list.push(reinterpret_cast<node*>(address));
         }
+    }
+
+    //! @brief Assign a chunk of memory.
+    //!
+    //! @attention Use this function only when no chunk of memory are allocated
+    //! (ie the default constructor was called).
+    //! @param data The new buffer. Must be not null.
+    //! @param size The size of the buffer. Must be not null.
+    //! @param chunk_size The size of the chun
+    void reset(std::byte*  data,
+               std::size_t size,
+               std::size_t chunk_size) noexcept
+    {
+        container::ensure(m_start_ptr == nullptr);
+        container::ensure(m_total_size == 0u);
+        container::ensure(data);
+        container::ensure(chunk_size >= std::alignment_of_v<std::max_align_t>);
+        container::ensure(size % chunk_size == 0);
+
+        m_start_ptr       = data;
+        m_total_size      = size;
+        m_chunk_size      = chunk_size;
+        m_total_allocated = 0;
+
+        reset();
     }
 
     //! Check if the resource can allocate @c bytes with @c alignment.
@@ -544,8 +593,10 @@ private:
     };
 
 public:
-    freelist_memory_resource(void* data, std::size_t size) noexcept
-      : m_start_ptr{ reinterpret_cast<std::byte*>(data) }
+    freelist_memory_resource() noexcept = default;
+
+    freelist_memory_resource(std::byte* data, std::size_t size) noexcept
+      : m_start_ptr{ data }
       , m_total_size{ size }
       , m_used{ 0 }
       , m_peak{ 0 }
@@ -634,6 +685,42 @@ public:
         return this == &other;
     }
 
+    //! @brief Reset the use of the chunk of memory.
+    void reset() noexcept
+    {
+        m_used = 0u;
+        m_peak = 0u;
+
+        node* first            = reinterpret_cast<node*>(m_start_ptr);
+        first->data.block_size = m_total_size;
+        first->next            = nullptr;
+
+        m_freeList.head = nullptr;
+        m_freeList.insert(nullptr, first);
+    }
+
+    //! @brief Assign a chunk of memory.
+    //!
+    //! @attention Use this function only when no chunk of memory are allocated
+    //! (ie the default constructor was called).
+    //! @param data The new buffer. Must be not null.
+    //! @param size The size of the buffer. Must be not null.
+    void reset(std::byte* data, std::size_t size) noexcept
+    {
+        container::ensure(data != nullptr);
+        container::ensure(size != 0u);
+        container::ensure(m_start_ptr == nullptr);
+        container::ensure(m_total_size == 0u);
+
+        m_start_ptr   = data;
+        m_total_size  = size;
+        m_used        = 0;
+        m_peak        = 0;
+        m_find_policy = find_policy::find_first;
+
+        reset();
+    }
+
     constexpr std::byte* head() noexcept { return m_start_ptr; }
 
 private:
@@ -702,19 +789,6 @@ private:
         }
 
         return { prev, it, padding };
-    }
-
-    void reset() noexcept
-    {
-        m_used = 0u;
-        m_peak = 0u;
-
-        node* first            = reinterpret_cast<node*>(m_start_ptr);
-        first->data.block_size = m_total_size;
-        first->next            = nullptr;
-
-        m_freeList.head = nullptr;
-        m_freeList.insert(nullptr, first);
     }
 };
 
