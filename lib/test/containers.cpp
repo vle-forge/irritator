@@ -140,76 +140,6 @@ static bool check_data_array_loop(const Data& d) noexcept
     return true;
 }
 
-template<typename T>
-class scoped_vector_view
-{
-public:
-    scoped_vector_view(irt::freelist_memory_resource& mem,
-                       std::uint64_t&                 access) noexcept;
-
-    ~scoped_vector_view() noexcept;
-
-    auto vec() noexcept;
-
-private:
-    irt::freelist_memory_resource& m_mem;
-    std::uint64_t&                 m_access;
-
-    T*           m_vec_start{};
-    std::int32_t m_vec_size{};
-    std::int32_t m_vec_capacity{};
-};
-
-template<typename T>
-scoped_vector_view<T>::scoped_vector_view(irt::freelist_memory_resource& mem,
-                                          std::uint64_t& access) noexcept
-  : m_mem{ mem }
-  , m_access{ access }
-{
-    const auto left  = access >> 32;
-    const auto mid   = (access >> 16) & 0xffff;
-    const auto right = access & 0xffff;
-
-    m_vec_capacity = static_cast<std::int32_t>(right);
-    m_vec_size     = static_cast<std::int32_t>(mid);
-
-    if (m_vec_capacity)
-        m_vec_start = reinterpret_cast<T*>(m_mem.head() + left);
-}
-
-template<typename T>
-scoped_vector_view<T>::~scoped_vector_view() noexcept
-{
-    if (m_vec_capacity) {
-        auto       mem = reinterpret_cast<std::uintptr_t>(m_mem.head());
-        auto       beg = reinterpret_cast<std::uintptr_t>(m_vec_start);
-        const auto dif = beg - mem;
-
-        irt::container::ensure(dif < std::numeric_limits<std::uint32_t>::max());
-        irt::container::ensure(0 <= m_vec_size &&
-                               m_vec_size <
-                                 std::numeric_limits<std::uint16_t>::max());
-        irt::container::ensure(0 <= m_vec_capacity &&
-                               m_vec_capacity <
-                                 std::numeric_limits<std::uint16_t>::max());
-
-        const auto left  = static_cast<std::uint64_t>(dif);
-        auto       mid   = static_cast<std::uint64_t>(m_vec_size);
-        auto       right = static_cast<std::uint64_t>(m_vec_capacity);
-
-        m_access = (left << 32) | (mid << 16) | right;
-    } else {
-        m_access = 0;
-    }
-}
-
-template<typename T>
-auto scoped_vector_view<T>::vec() noexcept
-{
-    return irt::vector_view<T, irt::mr_allocator>(
-      &m_mem, m_vec_start, m_vec_size, m_vec_capacity);
-}
-
 int main()
 {
     using namespace boost::ut;
@@ -268,6 +198,27 @@ int main()
         expect(v2[3] == 3);
         expect(v2[4] == 4);
         expect(v2[5] == 5);
+
+        v2.erase(v2.begin());
+        expect(eq(v2.ssize(), 5));
+        expect(v2[0] == 1);
+        expect(v2[1] == 2);
+        expect(v2[2] == 3);
+        expect(v2[3] == 4);
+        expect(v2[4] == 5);
+
+        v2.erase(v2.begin() + 4);
+        expect(eq(v2.ssize(), 4));
+        expect(v2[0] == 1);
+        expect(v2[1] == 2);
+        expect(v2[2] == 3);
+        expect(v2[3] == 4);
+
+        v2.erase(v2.begin() + 2);
+        expect(eq(v2.ssize(), 3));
+        expect(v2[0] == 1);
+        expect(v2[1] == 2);
+        expect(v2[2] == 4);
     };
 
     "vector<T>-default_allocator"_test = [] {
@@ -787,6 +738,70 @@ int main()
         expect(ring.data()[9] == 10);
     };
 
+    "ring-buffer-head"_test = [] {
+        irt::ring_buffer<int> ring{ 10 };
+
+        for (int i = 0; i < 9; ++i) {
+            auto is_success = ring.emplace_tail(i);
+            expect(is_success == true);
+        }
+
+        {
+            auto is_success = ring.emplace_tail(9);
+            expect(is_success == false);
+        }
+
+        expect(eq(*ring.head(), 0));
+        expect(eq(*ring.tail(), 8));
+
+        expect(ring.data()[0] == 0);
+        expect(ring.data()[1] == 1);
+        expect(ring.data()[2] == 2);
+        expect(ring.data()[3] == 3);
+        expect(ring.data()[4] == 4);
+        expect(ring.data()[5] == 5);
+        expect(ring.data()[6] == 6);
+        expect(ring.data()[7] == 7);
+        expect(ring.data()[8] == 8);
+        expect(ring.data()[9] == 0);
+
+        for (int i = 10; i < 15; ++i) {
+            ring.pop_head();
+            ring.emplace_tail(i);
+        }
+
+        expect(eq(*ring.head(), 5));
+        expect(eq(*ring.tail(), 14));
+
+        auto it = ring.head();
+        expect(eq(*it++, 5));
+        expect(eq(*it++, 6));
+        expect(eq(*it++, 7));
+        expect(eq(*it++, 8));
+        expect(eq(*it++, 10));
+        expect(eq(*it++, 11));
+        expect(eq(*it++, 12));
+        expect(eq(*it++, 13));
+        expect(eq(*it++, 14));
+
+        {
+            auto h = ring.head();
+
+            for (auto it = ring.begin(), et = ring.end(); it != et; ++it, ++h)
+                expect(eq(*it, *h));
+        }
+
+        expect(ring.data()[0] == 11);
+        expect(ring.data()[1] == 12);
+        expect(ring.data()[2] == 13);
+        expect(ring.data()[3] == 14);
+        expect(ring.data()[4] == 4);
+        expect(ring.data()[5] == 5);
+        expect(ring.data()[6] == 6);
+        expect(ring.data()[7] == 7);
+        expect(ring.data()[8] == 8);
+        expect(ring.data()[9] == 10);
+    };
     "ring-buffer-front-back-access"_test = [] {
         irt::ring_buffer<int> ring(4);
 
@@ -1001,160 +1016,5 @@ int main()
         expect(array.is_free_list_empty());
 
         expect(check_data_array_loop(array));
-    };
-
-    "vector_view"_test = [] {
-        struct pos {
-            int model;
-            int port;
-        };
-
-        std::array<std::byte, 1024>   memory;
-        irt::freelist_memory_resource mem{ memory.data(), memory.size() };
-
-        pos*         data     = nullptr;
-        std::int32_t size     = 0;
-        std::int32_t capacity = 0;
-
-        for (int i = 0; i < 10; ++i) {
-            irt::vector_view<pos, irt::mr_allocator> view{
-                &mem, data, size, capacity
-            };
-
-            view.emplace_back(123, 1);
-            view.emplace_back(456, 2);
-            view.emplace_back(789, 3);
-
-            expect(eq(view[0].model, 123));
-            expect(eq(view[0].port, 1));
-            expect(eq(view[1].model, 456));
-            expect(eq(view[1].port, 2));
-            expect(eq(view[2].model, 789));
-            expect(eq(view[2].port, 3));
-
-            expect(neq(view.data(), nullptr));
-            expect(eq(view.size(), 3u));
-            expect(ge(view.capacity(), 3));
-
-            view.clear();
-            expect(neq(view.data(), nullptr));
-            expect(eq(view.size(), 0u));
-            expect(ge(view.capacity(), 3));
-
-            view.destroy();
-            expect(eq(view.data(), nullptr));
-            expect(eq(view.size(), 0u));
-            expect(eq(view.capacity(), 0));
-        }
-    };
-
-    "vector_view_count"_test = [] {
-        std::array<std::byte, 512>    memory;
-        irt::freelist_memory_resource mem{ memory.data(), memory.size() };
-
-        count_ctor_assign* data     = nullptr;
-        std::int32_t       size     = 0;
-        std::int32_t       capacity = 0;
-
-        count_ctor_assign::reset();
-        expect(eq(count_ctor_assign::count_ctor, 0));
-        expect(eq(count_ctor_assign::count_move_ctor, 0));
-        expect(eq(count_ctor_assign::count_copy_ctor, 0));
-        expect(eq(count_ctor_assign::count_move_assign, 0));
-        expect(eq(count_ctor_assign::count_copy_assign, 0));
-        expect(eq(count_ctor_assign::count_dtor, 0));
-
-        for (int i = 0; i < 10; ++i) {
-            irt::vector_view<count_ctor_assign, irt::mr_allocator> view{
-                &mem, data, size, capacity
-            };
-
-            view.emplace_back(1);
-            view.emplace_back(2);
-            view.emplace_back(3);
-
-            expect(eq(count_ctor_assign::count_ctor, (i + 1) * 3));
-
-            expect(eq(view[0].value(), 1));
-            expect(eq(view[1].value(), 2));
-            expect(eq(view[2].value(), 3));
-
-            expect(neq(view.data(), nullptr));
-            expect(eq(view.size(), 3u));
-            expect(ge(view.capacity(), 3));
-
-            view.clear();
-            expect(eq(count_ctor_assign::count_dtor, (i + 1) * 3));
-
-            expect(neq(view.data(), nullptr));
-            expect(eq(view.size(), 0u));
-            expect(ge(view.capacity(), 3));
-
-            view.destroy();
-            expect(eq(view.data(), nullptr));
-            expect(eq(view.size(), 0u));
-            expect(eq(view.capacity(), 0));
-        }
-    };
-
-    "scoped_vector_view_count"_test = [] {
-        std::array<std::byte, 512>    memory;
-        irt::freelist_memory_resource mem{ memory.data(), memory.size() };
-
-        count_ctor_assign::reset();
-        expect(eq(count_ctor_assign::count_ctor, 0));
-        expect(eq(count_ctor_assign::count_move_ctor, 0));
-        expect(eq(count_ctor_assign::count_copy_ctor, 0));
-        expect(eq(count_ctor_assign::count_move_assign, 0));
-        expect(eq(count_ctor_assign::count_copy_assign, 0));
-        expect(eq(count_ctor_assign::count_dtor, 0));
-
-        for (int i = 0; i < 10; ++i) {
-            std::uint64_t                         access = 0u;
-            scoped_vector_view<count_ctor_assign> svv{ mem, access };
-
-            {
-                auto vec = svv.vec();
-
-                vec.emplace_back(1);
-                vec.emplace_back(2);
-                vec.emplace_back(3);
-            }
-
-            expect(eq(count_ctor_assign::count_ctor, (i + 1) * 3));
-
-            {
-                auto vec = svv.vec();
-                expect(eq(vec[0].value(), 1));
-                expect(eq(vec[1].value(), 2));
-                expect(eq(vec[2].value(), 3));
-
-                expect(neq(vec.data(), nullptr));
-                expect(eq(vec.size(), 3u));
-                expect(ge(vec.capacity(), 3));
-            }
-
-            {
-                auto vec = svv.vec();
-
-                vec.clear();
-                expect(eq(count_ctor_assign::count_dtor, (i + 1) * 3));
-
-                expect(neq(vec.data(), nullptr));
-                expect(eq(vec.size(), 0u));
-                expect(ge(vec.capacity(), 3));
-            }
-
-            {
-                auto vec = svv.vec();
-
-                vec.destroy();
-                expect(eq(vec.data(), nullptr));
-                expect(eq(vec.size(), 0u));
-                expect(eq(vec.capacity(), 0));
-            }
-
-            expect(!access);
-        }
     };
 }

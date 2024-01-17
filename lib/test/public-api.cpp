@@ -419,8 +419,8 @@ int main()
         fmt::print("accumulator {}\n", sizeof(irt::accumulator_2));
         fmt::print("hsm_wrapper {}\n", sizeof(irt::hsm_wrapper));
         fmt::print("model {}\n", sizeof(irt::model));
-        fmt::print("input_port {}\n", sizeof(irt::input_port));
-        fmt::print("output_port {}\n", sizeof(irt::output_port));
+        fmt::print("message {}\n", sizeof(irt::message));
+        fmt::print("node {}\n", sizeof(irt::node));
         fmt::print("dynamic number: {}\n", irt::dynamics_type_size());
         fmt::print("max dynamic size: {}\n", irt::max_size_in_bytes());
         fmt::print("model size: {}\n", sizeof(irt::model));
@@ -811,110 +811,6 @@ int main()
         f4 = t1;
         expect(f4 == "okok123");
         expect(f4.ssize() == 7);
-    };
-
-    "list"_test = [] {
-        irt::block_allocator<irt::list_view_node<int>> allocator;
-        expect(!!allocator.init(32));
-
-        irt::u64       id = static_cast<irt::u64>(-1);
-        irt::list_view lst(allocator, id);
-
-        lst.emplace_front(5);
-        lst.emplace_front(4);
-        lst.emplace_front(3);
-        lst.emplace_front(2);
-        lst.emplace_front(1);
-
-        {
-            int i = 1;
-            for (auto it = lst.begin(); it != lst.end(); ++it)
-                expect(*it == i++);
-        }
-
-        lst.pop_front();
-
-        {
-            int i = 2;
-            for (auto it = lst.begin(); it != lst.end(); ++it)
-                expect(*it == i++);
-        }
-    };
-
-    "double_list"_test = [] {
-        irt::block_allocator<irt::list_view_node<int>> allocator;
-        expect(!!allocator.init(32));
-
-        irt::u64       id = static_cast<irt::u64>(-1);
-        irt::list_view lst(allocator, id);
-
-        expect(lst.empty());
-        expect(lst.begin() == lst.end());
-
-        lst.emplace_front(0);
-        expect(lst.begin() == --lst.end());
-        expect(++lst.begin() == lst.end());
-
-        lst.clear();
-        expect(lst.empty());
-        expect(lst.begin() == lst.end());
-
-        lst.emplace_front(5);
-        lst.emplace_front(4);
-        lst.emplace_front(3);
-        lst.emplace_front(2);
-        lst.emplace_front(1);
-        lst.emplace_back(6);
-        lst.emplace_back(7);
-        lst.emplace_back(8);
-
-        {
-            int i = 1;
-            for (auto it = lst.begin(); it != lst.end(); ++it)
-                expect(*it == i++);
-        }
-
-        lst.pop_front();
-
-        {
-            int i = 2;
-            for (auto it = lst.begin(); it != lst.end(); ++it)
-                expect(*it == i++);
-        }
-
-        {
-            auto it = lst.begin();
-            expect(*it == 2);
-
-            --it;
-            expect(it == lst.end());
-
-            --it;
-            expect(it == --lst.end());
-        }
-
-        {
-            auto it = lst.end();
-            expect(it == lst.end());
-
-            --it;
-            expect(*it == 8);
-
-            --it;
-            expect(*it == 7);
-        }
-
-        lst.emplace(lst.begin(), 10);
-        expect(*lst.begin() == 10);
-
-        {
-            auto it = lst.begin();
-            ++it;
-
-            it = lst.emplace(it, 11);
-            expect(*it == 11);
-            expect(*lst.begin() == 10);
-        }
     };
 
     "vector"_test = [] {
@@ -1594,10 +1490,11 @@ int main()
         expect(!!sim.initialize(t));
 
         do {
+            fmt::print("time: {}\n", t);
             expect(!!sim.run(t));
         } while (!irt::time_domain<irt::time>::is_infinity(t));
 
-        expect(cnt.number == static_cast<irt::i64>(2));
+        expect(eq(cnt.number, static_cast<irt::i64>(2)));
     };
 
     "cross_simulation"_test = [] {

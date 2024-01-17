@@ -401,34 +401,37 @@ static void show_dynamics_values(simulation& /*sim*/, const counter& dyn)
 
 static void show_dynamics_values(simulation& sim, const queue& dyn)
 {
-    if (dyn.fifo == u64(-1)) {
+    auto* ar = sim.dated_messages.try_to_get(dyn.fifo);
+
+    if (not ar) {
         ImGui::TextFormat("empty");
     } else {
-        auto list = get_dated_message(sim, dyn.fifo);
-        ImGui::TextFormat("next ta {}", list.front().data[0]);
-        ImGui::TextFormat("next value {}", list.front().data[1]);
+        ImGui::TextFormat("next ta {}", ar->front().data[0]);
+        ImGui::TextFormat("next value {}", ar->front().data[1]);
     }
 }
 
 static void show_dynamics_values(simulation& sim, const dynamic_queue& dyn)
 {
-    if (dyn.fifo == u64(-1)) {
+    auto* ar = sim.dated_messages.try_to_get(dyn.fifo);
+
+    if (not ar) {
         ImGui::TextFormat("empty");
     } else {
-        auto list = get_dated_message(sim, dyn.fifo);
-        ImGui::TextFormat("next ta {}", list.front().data[0]);
-        ImGui::TextFormat("next value {}", list.front().data[1]);
+        ImGui::TextFormat("next ta {}", ar->front().data[0]);
+        ImGui::TextFormat("next value {}", ar->front().data[1]);
     }
 }
 
 static void show_dynamics_values(simulation& sim, const priority_queue& dyn)
 {
-    if (dyn.fifo == u64(-1)) {
+    auto* ar = sim.dated_messages.try_to_get(dyn.fifo);
+
+    if (not ar) {
         ImGui::TextFormat("empty");
     } else {
-        auto list = get_dated_message(sim, dyn.fifo);
-        ImGui::TextFormat("next ta {}", list.front().data[0]);
-        ImGui::TextFormat("next value {}", list.front().data[1]);
+        ImGui::TextFormat("next ta {}", ar->front().data[0]);
+        ImGui::TextFormat("next value {}", ar->front().data[1]);
     }
 }
 
@@ -662,33 +665,33 @@ static void add_popup_menuitem(simulation_editor& ed,
 
 static status copy_port(simulation&                      sim,
                         const table<model_id, model_id>& mapping,
-                        output_port&                     src,
-                        output_port&                     dst) noexcept
+                        node_id&                         src,
+                        node_id&                         dst) noexcept
 {
-    if (src == static_cast<u64>(-1)) {
+    if (is_undefined(src)) {
         dst = src;
         return success();
     }
 
-    auto src_list = get_node(sim, src);
-    auto dst_list = append_node(sim, dst);
+    auto* src_list = sim.nodes.try_to_get(src);
+    auto* dst_list = sim.nodes.try_to_get(dst);
 
-    auto it = src_list.begin();
-    auto et = src_list.end();
+    auto it = src_list->begin();
+    auto et = src_list->end();
 
     while (it != et) {
         if (auto* found = mapping.get(it->model); found) {
             if (!sim.can_connect(1u))
                 return new_error(simulation::part::messages,
                                  container_full_error{});
-            dst_list.emplace_back(*found, it->port_index);
+            dst_list->emplace_back(*found, it->port_index);
         } else {
             if (model* mdl = sim.models.try_to_get(it->model); mdl) {
                 if (!sim.can_connect(1u))
                     return new_error(simulation::part::messages,
                                      container_full_error{});
 
-                dst_list.emplace_back(it->model, it->port_index);
+                dst_list->emplace_back(it->model, it->port_index);
             }
         }
 
@@ -775,20 +778,23 @@ static int show_connection(simulation_editor& ed, model& mdl, int connection_id)
               auto& app = container_of(&ed, &application::simulation_ed);
 
               for (int i = 0, e = length(dyn.y); i != e; ++i) {
-                  auto list = append_node(app.sim, dyn.y[i]);
-                  auto it   = list.begin();
-                  auto et   = list.end();
+                  if (auto* list = app.sim.nodes.try_to_get(dyn.y[i]); list) {
+                      auto it = list->begin();
+                      auto et = list->end();
 
-                  while (it != et) {
-                      if (auto* mdl_dst = app.sim.models.try_to_get(it->model);
-                          mdl_dst) {
-                          int out = make_output_node_id(app.sim.get_id(dyn), i);
-                          int in =
-                            make_input_node_id(it->model, it->port_index);
-                          ImNodes::Link(connection_id++, out, in);
-                          ++it;
-                      } else {
-                          it = list.erase(it);
+                      while (it != et) {
+                          if (auto* mdl_dst =
+                                app.sim.models.try_to_get(it->model);
+                              mdl_dst) {
+                              int out =
+                                make_output_node_id(app.sim.get_id(dyn), i);
+                              int in =
+                                make_input_node_id(it->model, it->port_index);
+                              ImNodes::Link(connection_id++, out, in);
+                              ++it;
+                          } else {
+                              it = list->erase(it);
+                          }
                       }
                   }
               }
@@ -839,11 +845,11 @@ static void compute_connection_distance(const model&       mdl,
             auto& app = container_of(&ed, &application::simulation_ed);
 
             for (const auto elem : dyn.y) {
-                auto list = get_node(app.sim, elem);
-
-                for (auto& dst : list)
-                    compute_connection_distance(
-                      app.sim.get_id(mdl), dst.model, ed, k);
+                if (auto* lst = app.sim.nodes.try_to_get(elem); lst) {
+                    for (auto& dst : *lst)
+                        compute_connection_distance(
+                          app.sim.get_id(mdl), dst.model, ed, k);
+                }
             }
         }
     });
@@ -1276,29 +1282,31 @@ void show_simulation_editor(application& app) noexcept
                           int       j = 0;
 
                           while (j < e && link_id_to_delete != -1) {
-                              auto list = append_node(app.sim, dyn.y[j]);
-                              auto it   = list.begin();
-                              auto et   = list.end();
+                              auto* list = app.sim.nodes.try_to_get(dyn.y[j]);
+                              if (list) {
+                                  auto it = list->begin();
+                                  auto et = list->end();
 
-                              while (it != et && link_id_to_delete != -1) {
-                                  if (current_link_id == link_id_to_delete) {
+                                  while (it != et && link_id_to_delete != -1) {
+                                      if (current_link_id ==
+                                          link_id_to_delete) {
 
-                                      it = list.erase(it);
+                                          it = list->erase(it);
 
-                                      ++i;
+                                          ++i;
 
-                                      if (i != selected_links_size)
-                                          link_id_to_delete =
-                                            selected_links_ptr[i];
-                                      else
-                                          link_id_to_delete = -1;
-                                  } else {
-                                      ++it;
+                                          if (i != selected_links_size)
+                                              link_id_to_delete =
+                                                selected_links_ptr[i];
+                                          else
+                                              link_id_to_delete = -1;
+                                      } else {
+                                          ++it;
+                                      }
+
+                                      ++current_link_id;
                                   }
-
-                                  ++current_link_id;
                               }
-
                               ++j;
                           }
                       }

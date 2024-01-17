@@ -37,7 +37,7 @@ template<typename T>
 inline constexpr void ensure(T&& assertion) noexcept
 {
     if (!static_cast<bool>(assertion))
-        std::quick_exit(EXIT_FAILURE);
+        std::abort();
 }
 
 //! @brief A c++ function to replace assert macro controlled via constexpr
@@ -288,7 +288,7 @@ public:
             if (on_error_not_enough_memory)
                 on_error_not_enough_memory(*this);
 
-            std::quick_exit(EXIT_FAILURE);
+            std::abort();
         }
 
         m_offset += padding;
@@ -435,7 +435,7 @@ public:
             if (on_error_not_enough_memory)
                 on_error_not_enough_memory(*this);
 
-            std::quick_exit(EXIT_FAILURE);
+            std::abort();
         }
 
         return reinterpret_cast<void*>(free_position);
@@ -580,11 +580,11 @@ private:
     static constexpr auto free_header_size       = sizeof(FreeHeader);
 
     list<FreeHeader> m_freeList;
-    std::byte*       m_start_ptr;
-    std::size_t      m_total_size;
-    std::size_t      m_used;
-    std::size_t      m_peak;
-    find_policy      m_find_policy;
+    std::byte*       m_start_ptr   = nullptr;
+    std::size_t      m_total_size  = 0;
+    std::size_t      m_used        = 0;
+    std::size_t      m_peak        = 0;
+    find_policy      m_find_policy = find_policy::find_first;
 
     struct find_t {
         node*       previous  = nullptr;
@@ -598,9 +598,6 @@ public:
     freelist_memory_resource(std::byte* data, std::size_t size) noexcept
       : m_start_ptr{ data }
       , m_total_size{ size }
-      , m_used{ 0 }
-      , m_peak{ 0 }
-      , m_find_policy{ find_policy::find_first }
     {
         reset();
     }
@@ -619,7 +616,7 @@ public:
             if (on_error_not_enough_memory)
                 on_error_not_enough_memory(*this);
 
-            std::quick_exit(EXIT_FAILURE);
+            std::abort();
         }
 
         const auto alignmentPadding = found.padding - allocation_header_size;
@@ -892,13 +889,15 @@ public:
     template<typename... Args>
     constexpr reference emplace_back(Args&&... args) noexcept;
 
+    constexpr reference push_back(const T& args) noexcept;
+
     constexpr int find(const T& t) const noexcept;
 
     constexpr void pop_back() noexcept;
     constexpr void swap_pop_back(std::integral auto index) noexcept;
 
-    constexpr void erase(iterator it) noexcept;
-    constexpr void erase(iterator begin, iterator end) noexcept;
+    constexpr iterator erase(iterator it) noexcept;
+    constexpr iterator erase(iterator begin, iterator end) noexcept;
 
     constexpr int  index_from_ptr(const T* data) const noexcept;
     constexpr bool is_iterator_valid(const_iterator it) const noexcept;
@@ -912,121 +911,6 @@ private:
                         const T&           default_value) noexcept;
 
     int compute_new_capacity(int new_capacity) const;
-};
-
-//! @brief A no-owning vector like class with dynamic allocation.
-//! The main difference with the @c vector<T,A> class are:
-//! - the pointer, size and capacity are external elements.
-//! - the destructor does nothing with elements.
-//! This @c vector_view<T,A> must be used with a no rellocatable @c
-//! allocator and @c memory_resource.
-//! @tparam T Any type (trivial or not).
-//! @tparam A An allocator
-template<typename T, typename A = default_allocator>
-class vector_view
-{
-public:
-    using value_type      = T;
-    using size_type       = std::uint32_t;
-    using index_type      = std::make_signed_t<size_type>;
-    using iterator        = T*;
-    using const_iterator  = const T*;
-    using reference       = T&;
-    using const_reference = const T&;
-    using pointer         = T*;
-    using const_pointer   = const T*;
-    using allocator_type  = A;
-    using this_container  = vector_view<T, A>;
-
-private:
-    static_assert(std::is_nothrow_destructible_v<T> ||
-                  std::is_trivially_destructible_v<T>);
-
-    [[no_unique_address]] allocator_type m_alloc;
-
-    T*&         m_data;
-    index_type& m_size;
-    index_type& m_capacity;
-
-public:
-    constexpr vector_view(T*&         data,
-                          index_type& size,
-                          index_type& capacity) noexcept
-        requires(std::is_empty_v<A>);
-
-    constexpr vector_view(std::pmr::memory_resource* mem,
-                          T*&                        data,
-                          index_type&                size,
-                          index_type&                capacity) noexcept
-        requires(!std::is_empty_v<A>);
-
-    //! Nothing to do in destructor for a @c vector_view.
-    constexpr ~vector_view() noexcept = default;
-
-    constexpr vector_view(const vector_view& other) noexcept;
-    constexpr vector_view& operator=(const vector_view& other) noexcept;
-    constexpr vector_view(vector_view&& other) noexcept;
-    constexpr vector_view& operator=(vector_view&& other) noexcept;
-
-    bool resize(std::integral auto size) noexcept;
-    bool reserve(std::integral auto new_capacity) noexcept;
-
-    //! Clear the buffer (@c size() = 0 after).
-    //!
-    //! Call the destructor for each element of the  buffer and resize the
-    //! buffer.
-    constexpr void clear() noexcept;
-
-    //! Clear and request to free tge buffer (@c size() = @c capacity() = 0
-    //! after).
-    //!
-    //! Call the destructor for each element of the  buffer and resize the
-    //! buffer.
-    constexpr void destroy() noexcept;
-
-    constexpr T*       data() noexcept;
-    constexpr const T* data() const noexcept;
-
-    constexpr reference       front() noexcept;
-    constexpr const_reference front() const noexcept;
-    constexpr reference       back() noexcept;
-    constexpr const_reference back() const noexcept;
-
-    constexpr reference       operator[](std::integral auto index) noexcept;
-    constexpr const_reference operator[](
-      std::integral auto index) const noexcept;
-
-    constexpr iterator       begin() noexcept;
-    constexpr const_iterator begin() const noexcept;
-    constexpr iterator       end() noexcept;
-    constexpr const_iterator end() const noexcept;
-
-    constexpr bool     can_alloc(std::integral auto number = 1) const noexcept;
-    constexpr unsigned size() const noexcept;
-    constexpr int      ssize() const noexcept;
-    constexpr int      capacity() const noexcept;
-    constexpr bool     empty() const noexcept;
-    constexpr bool     full() const noexcept;
-
-    template<typename... Args>
-    constexpr reference emplace_back(Args&&... args) noexcept;
-
-    constexpr int find(const T& t) const noexcept;
-
-    constexpr void pop_back() noexcept;
-    constexpr void swap_pop_back(std::integral auto index) noexcept;
-
-    constexpr void erase(iterator it) noexcept;
-    constexpr void erase(iterator begin, iterator end) noexcept;
-
-    constexpr int  index_from_ptr(const T* data) const noexcept;
-    constexpr bool is_iterator_valid(const_iterator it) const noexcept;
-
-private:
-    //! Compute a new capacity from the requested size.
-    //!
-    //! @return The new capacity is greater or equal to size.
-    index_type compute_new_capacity(index_type size) const;
 };
 
 template<typename Identifier>
@@ -1103,7 +987,7 @@ public:
 
     using identifier_type = Identifier;
     using value_type      = T;
-    using this_container  = data_array<T, Identifier>;
+    using this_container  = data_array<T, Identifier, A>;
     using allocator_type  = A;
 
 private:
@@ -1451,6 +1335,9 @@ public:
     constexpr void destroy() noexcept;
     constexpr void reserve(std::integral auto capacity) noexcept;
 
+    template<typename Compare>
+    constexpr void sort(Compare fn) noexcept;
+
     template<typename... Args>
     constexpr bool emplace_head(Args&&... args) noexcept;
     template<typename... Args>
@@ -1639,8 +1526,13 @@ public:
 
     template<typename... Args>
     constexpr reference emplace_back(Args&&... args) noexcept;
-    constexpr void      pop_back() noexcept;
-    constexpr void      swap_pop_back(std::integral auto index) noexcept;
+    constexpr reference push_back(const T& arg) noexcept;
+
+    constexpr void pop_back() noexcept;
+    constexpr void swap_pop_back(std::integral auto index) noexcept;
+
+    constexpr iterator erase(std::integral auto index) noexcept;
+    constexpr iterator erase(iterator to_del) noexcept;
 };
 
 //! @brief A ring-buffer based on a fixed size container. m_head point to
@@ -1952,7 +1844,9 @@ void data_array<T, Identifier, A>::clear() noexcept
     if constexpr (!std::is_trivially_destructible_v<T>) {
         for (index_type i = 0; i != m_max_used; ++i) {
             if (is_valid(m_items[i].id)) {
-                std::destroy_at(&m_items[i].item);
+                if constexpr (not std::is_trivially_destructible_v<T>) {
+                    std::destroy_at(&m_items[i].item);
+                }
                 m_items[i].id = static_cast<identifier_type>(0);
             }
         }
@@ -2705,6 +2599,20 @@ inline constexpr typename vector<T, A>::reference vector<T, A>::emplace_back(
 }
 
 template<typename T, typename A>
+inline constexpr typename vector<T, A>::reference vector<T, A>::push_back(
+  const T& arg) noexcept
+{
+    if (m_size >= m_capacity)
+        reserve(compute_new_capacity(m_size + 1));
+
+    std::construct_at(data() + m_size, arg);
+
+    ++m_size;
+
+    return data()[m_size - 1];
+}
+
+template<typename T, typename A>
 inline constexpr void vector<T, A>::pop_back() noexcept
 {
     static_assert(std::is_nothrow_destructible_v<T> ||
@@ -2746,13 +2654,15 @@ inline constexpr void vector<T, A>::swap_pop_back(
 }
 
 template<typename T, typename A>
-inline constexpr void vector<T, A>::erase(iterator it) noexcept
+inline constexpr typename vector<T, A>::iterator vector<T, A>::erase(
+  iterator it) noexcept
 {
     container::ensure(it >= data() && it < data() + m_size);
 
     if (it == end())
-        return;
+        return end();
 
+    iterator prev = it == begin() ? end() : it - 1;
     std::destroy_at(it);
 
     auto last = data() + m_size - 1;
@@ -2767,15 +2677,19 @@ inline constexpr void vector<T, A>::erase(iterator it) noexcept
     }
 
     --m_size;
+
+    return prev;
 }
 
 template<typename T, typename A>
-inline constexpr void vector<T, A>::erase(iterator first,
-                                          iterator last) noexcept
+inline constexpr typename vector<T, A>::iterator vector<T, A>::erase(
+  iterator first,
+  iterator last) noexcept
 {
     container::ensure(first >= data() && first < data() + m_size &&
                       last > first && last <= data() + m_size);
 
+    iterator prev = first == begin() ? end() : first - 1;
     std::destroy(first, last);
     const ptrdiff_t count = last - first;
 
@@ -2789,6 +2703,8 @@ inline constexpr void vector<T, A>::erase(iterator first,
     }
 
     m_size -= static_cast<int>(count);
+
+    return prev;
 }
 
 template<typename T, typename A>
@@ -2815,423 +2731,6 @@ int vector<T, A>::compute_new_capacity(int size) const
 {
     int new_capacity = m_capacity ? (m_capacity + m_capacity / 2) : 8;
     return new_capacity > size ? new_capacity : size;
-}
-
-//
-// template<typename T, typename A>
-// class vector_view;
-//
-
-template<typename T, typename A>
-constexpr vector_view<T, A>::vector_view(T*&         data,
-                                         index_type& size,
-                                         index_type& capacity) noexcept
-    requires(std::is_empty_v<A>)
-  : m_data{ data }
-  , m_size{ size }
-  , m_capacity{ capacity }
-{}
-
-template<typename T, typename A>
-constexpr vector_view<T, A>::vector_view(std::pmr::memory_resource* mem,
-                                         T*&                        data,
-                                         index_type&                size,
-                                         index_type& capacity) noexcept
-    requires(!std::is_empty_v<A>)
-  : m_alloc{ mem }
-  , m_data{ data }
-  , m_size{ size }
-  , m_capacity{ capacity }
-{}
-
-template<typename T, typename A>
-constexpr vector_view<T, A>& vector_view<T, A>::operator=(
-  const vector_view& other) noexcept
-{
-    if (this != &other) {
-        clear();
-        reserve(other.m_capacity);
-        std::uninitialized_copy_n(other.m_data, other.m_size, m_data);
-        m_size     = other.m_size;
-        m_capacity = other.m_capacity;
-    }
-
-    return *this;
-}
-
-template<typename T, typename A>
-constexpr vector_view<T, A>::vector_view(vector_view&& other) noexcept
-  : m_data(std::exchange(other.m_data, nullptr))
-  , m_size(std::exchange(other.m_size, 0))
-  , m_capacity(std::exchange(other.m_capacity, 0))
-{}
-
-template<typename T, typename A>
-constexpr vector_view<T, A>& vector_view<T, A>::operator=(
-  vector_view&& other) noexcept
-{
-    if (this != &other) {
-        destroy();
-        m_data     = std::exchange(other.m_data, nullptr);
-        m_size     = std::exchange(other.m_size, 0);
-        m_capacity = std::exchange(other.m_capacity, 0);
-    }
-
-    return *this;
-}
-
-template<typename T, typename A>
-constexpr void vector_view<T, A>::destroy() noexcept
-{
-    clear();
-
-    if (m_data)
-        m_alloc.template deallocate<T>(m_data, m_capacity);
-
-    m_data     = nullptr;
-    m_size     = 0;
-    m_capacity = 0;
-}
-
-template<typename T, typename A>
-inline constexpr void vector_view<T, A>::clear() noexcept
-{
-    std::destroy_n(data(), m_size);
-
-    m_size = 0;
-}
-
-template<typename T, typename A>
-bool vector_view<T, A>::resize(std::integral auto size) noexcept
-{
-    static_assert(std::is_default_constructible_v<T> ||
-                    std::is_trivially_default_constructible_v<T>,
-                  "T must be default or trivially default constructible to use "
-                  "resize() function");
-
-    container::ensure(
-      std::cmp_less(size, std::numeric_limits<index_type>::max()));
-
-    if (std::cmp_greater(size, m_capacity)) {
-        if (!reserve(compute_new_capacity(static_cast<index_type>(size))))
-            return false;
-    }
-
-    std::uninitialized_value_construct_n(data() + m_size, size - m_size);
-    // std::uninitialized_default_construct_n(data() + m_size, size);
-
-    m_size = static_cast<index_type>(size);
-
-    return true;
-}
-
-template<typename T, typename A>
-bool vector_view<T, A>::reserve(std::integral auto capacity) noexcept
-{
-    container::ensure(
-      std::cmp_less(capacity, std::numeric_limits<index_type>::max()));
-
-    if (std::cmp_greater(capacity, m_capacity)) {
-        const auto new_size     = m_size;
-        const auto new_capacity = static_cast<index_type>(capacity);
-        T*         new_data     = m_alloc.template allocate<T>(capacity);
-
-        if (!new_data)
-            return false;
-
-        if (m_size) {
-            if constexpr (std::is_move_constructible_v<T>) {
-                std::uninitialized_move_n(data(), m_size, new_data);
-                m_size = 0;
-            } else {
-                std::uninitialized_copy_n(data(), m_size, new_data);
-                clear();
-            }
-        }
-
-        destroy();
-        m_data     = new_data;
-        m_size     = new_size;
-        m_capacity = new_capacity;
-    }
-
-    return true;
-}
-
-template<typename T, typename A>
-inline constexpr T* vector_view<T, A>::data() noexcept
-{
-    return m_data;
-}
-
-template<typename T, typename A>
-inline constexpr const T* vector_view<T, A>::data() const noexcept
-{
-    return m_data;
-}
-
-template<typename T, typename A>
-inline constexpr typename vector_view<T, A>::reference
-vector_view<T, A>::front() noexcept
-{
-    container::ensure(m_size > 0);
-    return m_data[0];
-}
-
-template<typename T, typename A>
-inline constexpr typename vector_view<T, A>::const_reference
-vector_view<T, A>::front() const noexcept
-{
-    container::ensure(m_size > 0);
-    return m_data[0];
-}
-
-template<typename T, typename A>
-inline constexpr typename vector_view<T, A>::reference
-vector_view<T, A>::back() noexcept
-{
-    container::ensure(m_size > 0);
-    return m_data[m_size - 1];
-}
-
-template<typename T, typename A>
-inline constexpr typename vector_view<T, A>::const_reference
-vector_view<T, A>::back() const noexcept
-{
-    container::ensure(m_size > 0);
-    return m_data[m_size - 1];
-}
-
-template<typename T, typename A>
-inline constexpr typename vector_view<T, A>::reference
-vector_view<T, A>::operator[](std::integral auto index) noexcept
-{
-    container::ensure(std::cmp_greater_equal(index, 0));
-    container::ensure(std::cmp_less(index, m_size));
-
-    return data()[index];
-}
-
-template<typename T, typename A>
-inline constexpr typename vector_view<T, A>::const_reference
-vector_view<T, A>::operator[](std::integral auto index) const noexcept
-{
-    container::ensure(std::cmp_greater_equal(index, 0));
-    container::ensure(std::cmp_less(index, m_size));
-
-    return data()[index];
-}
-
-template<typename T, typename A>
-inline constexpr typename vector_view<T, A>::iterator
-vector_view<T, A>::begin() noexcept
-{
-    return data();
-}
-
-template<typename T, typename A>
-inline constexpr typename vector_view<T, A>::const_iterator
-vector_view<T, A>::begin() const noexcept
-{
-    return data();
-}
-
-template<typename T, typename A>
-inline constexpr typename vector_view<T, A>::iterator
-vector_view<T, A>::end() noexcept
-{
-    return data() + m_size;
-}
-
-template<typename T, typename A>
-inline constexpr typename vector_view<T, A>::const_iterator
-vector_view<T, A>::end() const noexcept
-{
-    return data() + m_size;
-}
-
-template<typename T, typename A>
-inline constexpr unsigned vector_view<T, A>::size() const noexcept
-{
-    return static_cast<unsigned>(m_size);
-}
-
-template<typename T, typename A>
-inline constexpr int vector_view<T, A>::ssize() const noexcept
-{
-    return m_size;
-}
-
-template<typename T, typename A>
-inline constexpr int vector_view<T, A>::capacity() const noexcept
-{
-    return static_cast<int>(m_capacity);
-}
-
-template<typename T, typename A>
-inline constexpr bool vector_view<T, A>::empty() const noexcept
-{
-    return m_size == 0;
-}
-
-template<typename T, typename A>
-inline constexpr bool vector_view<T, A>::full() const noexcept
-{
-    return m_size >= m_capacity;
-}
-
-template<typename T, typename A>
-inline constexpr bool vector_view<T, A>::can_alloc(
-  std::integral auto number) const noexcept
-{
-    return std::cmp_greater_equal(m_capacity - m_size, number);
-}
-
-template<typename T, typename A>
-inline constexpr int vector_view<T, A>::find(const T& t) const noexcept
-{
-    for (auto i = 0, e = ssize(); i != e; ++i)
-        if (m_data[i] == t)
-            return i;
-
-    return m_size;
-}
-
-template<typename T, typename A>
-template<typename... Args>
-inline constexpr typename vector_view<T, A>::reference
-vector_view<T, A>::emplace_back(Args&&... args) noexcept
-{
-    static_assert(std::is_trivially_constructible_v<T, Args...> ||
-                    std::is_nothrow_constructible_v<T, Args...>,
-                  "T must but trivially or nothrow constructible from this "
-                  "argument(s)");
-
-    if (m_size >= m_capacity)
-        reserve(compute_new_capacity(m_size + 1));
-
-    std::construct_at(data() + m_size, std::forward<Args>(args)...);
-
-    ++m_size;
-
-    return data()[m_size - 1];
-}
-
-template<typename T, typename A>
-inline constexpr void vector_view<T, A>::pop_back() noexcept
-{
-    container::ensure(m_size);
-
-    if (m_size) {
-        std::destroy_at(data() + m_size - 1);
-        --m_size;
-    }
-}
-
-template<typename T, typename A>
-inline constexpr void vector_view<T, A>::swap_pop_back(
-  std::integral auto index) noexcept
-{
-    container::ensure(std::cmp_less(index, m_size));
-
-    if (std::cmp_equal(index, m_size - 1)) {
-        pop_back();
-    } else {
-        auto to_delete = data() + index;
-        auto last      = data() + m_size - 1;
-
-        std::destroy_at(to_delete);
-
-        if constexpr (std::is_move_constructible_v<T>) {
-            std::uninitialized_move_n(last, 1, to_delete);
-        } else {
-            std::uninitialized_copy_n(last, 1, to_delete);
-            std::destroy_at(last);
-        }
-
-        --m_size;
-    }
-}
-
-template<typename T, typename A>
-inline constexpr void vector_view<T, A>::erase(iterator it) noexcept
-{
-    container::ensure(it >= data() && it < data() + m_size);
-
-    if (it == end())
-        return;
-
-    std::destroy_at(it);
-
-    auto last = data() + m_size - 1;
-
-    if (auto next = it + 1; next != end()) {
-        if constexpr (std::is_move_constructible_v<T>) {
-            std::uninitialized_move(next, end(), it);
-        } else {
-            std::uninitialized_copy(next, end(), it);
-            std::destroy_at(last);
-        }
-    }
-
-    --m_size;
-}
-
-template<typename T, typename A>
-inline constexpr void vector_view<T, A>::erase(iterator first,
-                                               iterator last) noexcept
-{
-    container::ensure(first >= data() && first < data() + m_size &&
-                      last > first && last <= data() + m_size);
-
-    std::destroy(first, last);
-    const ptrdiff_t count = last - first;
-
-    if (count > 0) {
-        if constexpr (std::is_move_constructible_v<T>) {
-            std::uninitialized_move(last, end(), first);
-        } else {
-            std::uninitialized_copy(last, end(), first);
-            std::destroy(last + count, end());
-        }
-    }
-
-    m_size -= static_cast<int>(count);
-}
-
-template<typename T, typename A>
-inline constexpr int vector_view<T, A>::index_from_ptr(
-  const T* data) const noexcept
-{
-    container::ensure(is_iterator_valid(const_iterator(data)));
-
-    const auto off = data - m_data;
-
-    container::ensure(0 <= off && off < INT32_MAX);
-
-    return static_cast<int>(off);
-}
-
-template<typename T, typename A>
-inline constexpr bool vector_view<T, A>::is_iterator_valid(
-  const_iterator it) const noexcept
-{
-    return it >= m_data && it < m_data + m_size;
-}
-
-template<typename T, typename A>
-vector_view<T, A>::index_type vector_view<T, A>::compute_new_capacity(
-  vector_view<T, A>::index_type size) const
-{
-    container::ensure(size > m_capacity);
-
-    if (size < m_capacity)
-        return m_capacity;
-
-    if (size + 1 == m_capacity)
-        return m_capacity * 2;
-
-    return size;
 }
 
 //
@@ -3482,6 +2981,19 @@ small_vector<T, length>::emplace_back(Args&&... args) noexcept
 }
 
 template<typename T, int length>
+constexpr typename small_vector<T, length>::reference
+small_vector<T, length>::push_back(const T& arg) noexcept
+{
+    container::ensure(can_alloc(1) &&
+                      "check alloc() with full() before using use.");
+
+    std::construct_at(&(data()[m_size]), arg);
+    ++m_size;
+
+    return data()[m_size - 1];
+}
+
+template<typename T, int length>
 constexpr void small_vector<T, length>::pop_back() noexcept
 {
     static_assert(std::is_nothrow_destructible_v<T>,
@@ -3520,6 +3032,59 @@ constexpr void small_vector<T, length>::swap_pop_back(
 
         --m_size;
     }
+}
+
+template<typename T, int length>
+constexpr typename small_vector<T, length>::iterator
+small_vector<T, length>::erase(std::integral auto index) noexcept
+{
+    container::ensure(std::cmp_greater_equal(index, 0) &&
+                      std::cmp_less(index, m_size));
+
+    if (m_size) {
+        if (index != m_size - 1) {
+            auto dst = begin() + index;
+            auto src = begin() + index + 1;
+
+            if constexpr (std::is_move_assignable_v<T>) {
+                std::move(src, end(), dst);
+                --m_size;
+            } else if constexpr (std::is_copy_assignable_v<T>) {
+                std::copy(src, end(), dst);
+                pop_back();
+            }
+
+            return begin() + index;
+        }
+    }
+
+    return end();
+}
+
+template<typename T, int length>
+constexpr typename small_vector<T, length>::iterator
+small_vector<T, length>::erase(iterator to_del) noexcept
+{
+    container::ensure(begin() <= to_del and to_del < begin() + m_size);
+
+    if (m_size) {
+        if (to_del != end()) {
+            auto dst = to_del;
+            auto src = to_del + 1;
+
+            if constexpr (std::is_move_assignable_v<T>) {
+                std::move(src, end(), dst);
+                --m_size;
+            } else if constexpr (std::is_copy_assignable_v<T>) {
+                std::copy(src, end(), dst);
+                pop_back();
+            }
+
+            return to_del;
+        }
+    }
+
+    return end();
 }
 
 // template<size_t length = 8>
@@ -3917,7 +3482,7 @@ ring_buffer<T, A>::template iterator_base<is_const>
 ring_buffer<T, A>::iterator_base<is_const>::operator--(int) noexcept
 {
     iterator_base orig(*this);
-    --(*orig);
+    --(*this);
 
     return orig;
 }
@@ -3963,6 +3528,13 @@ constexpr bool ring_buffer<T, A>::make(std::integral auto capacity) noexcept
 
     return buffer != nullptr;
 }
+
+template<class T, typename A>
+constexpr ring_buffer<T, A>::ring_buffer(
+  std::pmr::memory_resource* mem) noexcept
+    requires(!std::is_empty_v<A>)
+  : m_alloc(mem)
+{}
 
 template<class T, typename A>
 constexpr ring_buffer<T, A>::ring_buffer(std::pmr::memory_resource* mem,
@@ -4112,6 +3684,28 @@ constexpr void ring_buffer<T, A>::reserve(std::integral auto capacity) noexcept
                 tmp.push_tail(*it);
 
         swap(tmp);
+    }
+}
+
+template<class T, typename A>
+template<typename Compare>
+constexpr void ring_buffer<T, A>::sort(Compare fn) noexcept
+{
+    if (ssize() < 2)
+        return;
+
+    auto next = begin(), et = end();
+    auto it = next++;
+
+    for (; it != et; ++it) {
+        next = it;
+
+        for (; next != et; ++next) {
+            if (fn(*next, *it)) {
+                using std::swap;
+                swap(*next, *it);
+            }
+        }
     }
 }
 
@@ -4500,7 +4094,7 @@ constexpr small_ring_buffer<T, length>& small_ring_buffer<T, length>::operator=(
     if (this != &rhs) {
         clear();
 
-        std::uninitialized_move_n(rhs.data(), rhs.m_size, data());
+        std::uninitialized_move_n(rhs.data(), rhs.size(), data());
 
         m_head = std::exchange(rhs.m_head, 0);
         m_tail = std::exchange(rhs.m_tail, 0);
@@ -4922,7 +4516,7 @@ typename small_ring_buffer<T,
 small_ring_buffer<T, length>::iterator_base<is_const>::operator*()
   const noexcept
 {
-    return ring->buffer[i];
+    return ring->data()[i];
 }
 
 template<class T, int length>
@@ -4931,7 +4525,7 @@ typename small_ring_buffer<T, length>::template iterator_base<is_const>::pointer
 small_ring_buffer<T, length>::iterator_base<is_const>::operator->()
   const noexcept
 {
-    return &ring->buffer[i];
+    return &ring->data()[i];
 }
 
 template<class T, int length>
@@ -4981,7 +4575,7 @@ small_ring_buffer<T, length>::template iterator_base<is_const>
 small_ring_buffer<T, length>::iterator_base<is_const>::operator--(int) noexcept
 {
     iterator_base orig(*this);
-    --(*orig);
+    --(*this);
 
     return orig;
 }

@@ -279,7 +279,7 @@ void hierarchical_state_machine::affect_action(const state_action& action,
     case action_type::output:
         irt_assert(port >= 0 && port <= 3);
         exec.outputs.emplace_back(hierarchical_state_machine::output_message{
-          .port = port, .value = action.parameter });
+          .value = action.parameter, .port = port });
         break;
     case action_type::affect:
         irt_assert(var_1 && var_2);

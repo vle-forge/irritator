@@ -2082,11 +2082,11 @@ struct reader {
 
             if constexpr (has_input_port<Dynamics>)
                 for (int i = 0, e = length(dyn.x); i != e; ++i)
-                    dyn.x[i] = static_cast<u64>(-1);
+                    dyn.x[i] = undefined<message_id>();
 
             if constexpr (has_output_port<Dynamics>)
                 for (int i = 0, e = length(dyn.y); i != e; ++i)
-                    dyn.y[i] = static_cast<u64>(-1);
+                    dyn.y[i] = undefined<node_id>();
         });
 
         return read_child_model_dynamics(val, c, mdl);
@@ -3552,11 +3552,11 @@ struct reader {
 
                     if constexpr (has_input_port<Dynamics>)
                         for (int i = 0, e = length(dyn.x); i != e; ++i)
-                            dyn.x[i] = static_cast<u64>(-1);
+                            dyn.x[i] = undefined<message_id>();
 
                     if constexpr (has_output_port<Dynamics>)
                         for (int i = 0, e = length(dyn.y); i != e; ++i)
-                            dyn.y[i] = static_cast<u64>(-1);
+                            dyn.y[i] = undefined<node_id>();
 
                     if constexpr (std::is_same_v<Dynamics, hsm_wrapper>) {
                         return read_simulation_dynamics(value, dyn);
@@ -3724,8 +3724,8 @@ struct reader {
         if (!mdl_dst)
             report_json_error(error_id::simulation_connect_dst_unknown);
 
-        output_port* out = nullptr;
-        input_port*  in  = nullptr;
+        node_id*    out = nullptr;
+        message_id* in  = nullptr;
 
         if (auto ret = get_output_port(*mdl_src, port_src, out); !ret)
             report_json_error(error_id::simulation_connect_src_port_unknown);
@@ -6261,20 +6261,21 @@ static void write_simulation_connections(const simulation& sim,
         dispatch(*mdl, [&sim, &mdl, &w]<typename Dynamics>(Dynamics& dyn) {
             if constexpr (has_output_port<Dynamics>) {
                 for (auto i = 0, e = length(dyn.y); i != e; ++i) {
-                    auto list = get_node(sim, dyn.y[i]);
-                    for (const auto& cnt : list) {
-                        auto* dst = sim.models.try_to_get(cnt.model);
-                        if (dst) {
-                            w.StartObject();
-                            w.Key("source");
-                            w.Uint64(ordinal(sim.models.get_id(*mdl)));
-                            w.Key("port-source");
-                            w.Uint64(static_cast<u64>(i));
-                            w.Key("destination");
-                            w.Uint64(ordinal(cnt.model));
-                            w.Key("port-destination");
-                            w.Uint64(static_cast<u64>(cnt.port_index));
-                            w.EndObject();
+                    if (auto* lst = sim.nodes.try_to_get(dyn.y[i]); lst) {
+                        for (const auto& cnt : *lst) {
+                            auto* dst = sim.models.try_to_get(cnt.model);
+                            if (dst) {
+                                w.StartObject();
+                                w.Key("source");
+                                w.Uint64(ordinal(sim.models.get_id(*mdl)));
+                                w.Key("port-source");
+                                w.Uint64(static_cast<u64>(i));
+                                w.Key("destination");
+                                w.Uint64(ordinal(cnt.model));
+                                w.Key("port-destination");
+                                w.Uint64(static_cast<u64>(cnt.port_index));
+                                w.EndObject();
+                            }
                         }
                     }
                 }

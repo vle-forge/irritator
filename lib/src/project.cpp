@@ -339,11 +339,11 @@ static status make_tree_leaf(simulation_copy& sc,
 
           if constexpr (has_input_port<Dynamics>)
               for (int i = 0, e = length(dyn.x); i != e; ++i)
-                  dyn.x[i] = static_cast<u64>(-1);
+                  dyn.x[i] = undefined<message_id>();
 
           if constexpr (has_output_port<Dynamics>)
               for (int i = 0, e = length(dyn.y); i != e; ++i)
-                  dyn.y[i] = static_cast<u64>(-1);
+                  dyn.y[i] = undefined<node_id>();
 
           sc.mod.children_parameters[ch_idx].copy_to(new_mdl);
 

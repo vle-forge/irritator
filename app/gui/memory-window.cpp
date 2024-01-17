@@ -54,12 +54,11 @@ void memory_window::show() noexcept
         ImGui::TextFormat("immediate_observers: {}",
                           app.sim.immediate_observers.size());
 
-        ImGui::TextFormat("message_alloc: {}", app.sim.message_alloc.size());
-        ImGui::TextFormat("node: {}", app.sim.node_alloc.size());
-        ImGui::TextFormat("record: {}", app.sim.record_alloc.size());
-
+        ImGui::TextFormat("message_alloc: {}", app.sim.messages.size());
+        ImGui::TextFormat("node: {}", app.sim.nodes.size());
+        ImGui::TextFormat("record: {}", app.sim.records.size());
         ImGui::TextFormat("dated_message_alloc: {}",
-                          app.sim.dated_message_alloc.size());
+                          app.sim.dated_messages.size());
         ImGui::TextFormat("emitting_output_ports: {}",
                           app.sim.emitting_output_ports.size());
 

@@ -449,7 +449,6 @@ static void do_serialize_dynamics(const Archiver /*s*/,
     io(dyn.default_adapt_state);
     io(dyn.default_zero_init_offset);
     io(dyn.archive);
-    io(dyn.archive_length);
     io(dyn.m_upthreshold);
     io(dyn.m_downthreshold);
     io(dyn.m_offset);
@@ -592,7 +591,7 @@ static void do_serialize_dynamics(const Archiver /*s*/,
     io(dyn.default_upper_threshold);
     io(dyn.lower_threshold);
     io(dyn.upper_threshold);
-    io(dyn.inValue.data);
+    io(std::span(dyn.inValue.data.data(), dyn.inValue.data.size()));
 }
 
 template<typename Archiver, typename IO>
@@ -1131,21 +1130,22 @@ static status do_serialize(const Archiver arc, simulation& sim, IO& io) noexcept
                     const auto out_id = sim.models.get_id(mdl);
 
                     for (const auto elem : dyn.y) {
-                        auto list = get_node(sim, elem);
-                        for (const auto& cnt : list) {
-                            auto* dst = sim.models.try_to_get(cnt.model);
-                            if (dst) {
-                                auto out = get_index(out_id);
-                                auto in  = get_index(cnt.model);
+                        if (auto* lst = sim.nodes.try_to_get(elem); lst) {
+                            for (const auto& cnt : *lst) {
+                                auto* dst = sim.models.try_to_get(cnt.model);
+                                if (dst) {
+                                    auto out = get_index(out_id);
+                                    auto in  = get_index(cnt.model);
 
-                                io(out);
-                                io(i);
-                                io(in);
-                                io(cnt.port_index);
+                                    io(out);
+                                    io(i);
+                                    io(in);
+                                    io(cnt.port_index);
+                                }
                             }
-                        }
 
-                        ++i;
+                            ++i;
+                        }
                     }
                 }
             });
@@ -1190,6 +1190,8 @@ static status do_deserialize(Dearchiver&             arc,
             return new_error(binary_archiver::file_format_error{});
         if (!io.success)
             return new_error(binary_archiver::file_format_error{});
+
+        irt_check(sim.init(models, hsms));
 
         sim.srcs.constant_sources.clear();
         sim.srcs.binary_file_sources.clear();
@@ -1349,8 +1351,8 @@ static status do_deserialize(Dearchiver&             arc,
         if (!mdl_dst)
             return new_error(binary_archiver::unknown_model_error{});
 
-        output_port* pout = nullptr;
-        input_port*  pin  = nullptr;
+        node_id*    pout = nullptr;
+        message_id* pin  = nullptr;
 
         if (auto ret = get_output_port(*mdl_src, port_out, pout); !ret)
             return new_error(binary_archiver::unknown_model_port_error{});

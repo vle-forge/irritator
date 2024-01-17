@@ -14,6 +14,7 @@
 #include <functional>
 #include <limits>
 #include <memory>
+#include <memory_resource>
 #include <span>
 #include <string_view>
 #include <type_traits>
@@ -57,6 +58,55 @@
 
 namespace irt {
 
+namespace sim {
+
+#ifdef IRRITATOR_ENABLE_DEBUG
+static constexpr bool enable_ensure_simulation = true;
+#else
+static constexpr bool enable_ensure_simulation = false;
+#endif
+
+//! @brief A c++ function to replace assert macro controlled via constexpr
+//! boolean variable.
+//!
+//! Call @c quick_exit if the assertion fail. This function is disabled if
+//! the boolean @c variables::enable_ensure_simulation is false.
+//!
+//! @tparam T The type of the assertion to test.
+//! @param assertion The instance of the assertion to test.
+template<typename T>
+    requires(sim::enable_ensure_simulation == true)
+inline constexpr void ensure(T&& assertion) noexcept
+{
+    if (!static_cast<bool>(assertion))
+        std::abort();
+}
+
+//! @brief A c++ function to replace assert macro controlled via constexpr
+//! boolean variable.
+//!
+//! This function is disabled if the boolean @c
+//! variables::enable_ensure_simulation is false.
+//!
+//! @tparam T The type of the assertion to test.
+//! @param assertion The instance of the assertion to test.
+template<typename T>
+    requires(sim::enable_ensure_simulation == false)
+#if defined __has_attribute
+#if __has_attribute(always_inline)
+inline __attribute__((always_inline))
+#endif
+#elif defined(_MSC_VER)
+__forceinline
+#else
+inline
+#endif
+constexpr void
+ensure([[maybe_unused]] T&& assertion) noexcept
+{}
+
+} // namespace sim
+
 using i8  = int8_t;
 using i16 = int16_t;
 using i32 = int32_t;
@@ -76,8 +126,8 @@ using real = f64;
 using real = f32;
 #endif //  IRRITATOR_REAL_TYPE
 
-//! @brief An helper function to initialize floating point number and disable
-//! warnings the IRRITATOR_REAL_TYPE_F64 is defined.
+//! @brief An helper function to initialize floating point number and
+//! disable warnings the IRRITATOR_REAL_TYPE_F64 is defined.
 //!
 //! @param v The floating point number to convert to float, double or long
 //! double.
@@ -89,8 +139,8 @@ inline constexpr real to_real(long double v) noexcept
 
 namespace literals {
 
-//! @brief An helper literal function to initialize floating point number and
-//! disable warnings the IRRITATOR_REAL_TYPE_F64 is defined.
+//! @brief An helper literal function to initialize floating point number
+//! and disable warnings the IRRITATOR_REAL_TYPE_F64 is defined.
 //!
 //! @param v The floating point number to convert to float, double or long
 //! double.
@@ -180,7 +230,7 @@ inline constexpr u32 unpack_doubleword_right(u64 doubleword) noexcept
 template<typename Integer>
 constexpr typename std::make_unsigned<Integer>::type to_unsigned(Integer value)
 {
-    irt_assert(value >= 0);
+    sim::ensure(value >= 0);
     return static_cast<typename std::make_unsigned<Integer>::type>(value);
 }
 
@@ -281,7 +331,7 @@ template<typename Target, typename Source>
 constexpr inline Target numeric_cast(Source arg) noexcept
 {
     bool is_castable = is_numeric_castable<Target, Source>(arg);
-    irt_assert(is_castable);
+    sim::ensure(is_castable);
 
     return static_cast<Target>(arg);
 }
@@ -301,7 +351,8 @@ constexpr Iterator binary_find(Iterator begin, Iterator end, const T& value)
 //!
 //! Binary search function which returns an iterator to the result or end if
 //! not found using the lower_bound standard function. Compare functor must
-//! use interoperable *begin type as first argument and T as second argument.
+//! use interoperable *begin type as first argument and T as second
+//! argument.
 //! @code
 //! struct my_int { int x };
 //! vector<my_int> buffer;
@@ -443,15 +494,15 @@ using small_storage_size_t = std::conditional_t<
 
 //! @brief A small array of reals.
 //!
-//! This class in mainly used to store message and observation in the simulation
-//! kernel.
+//! This class in mainly used to store message and observation in the
+//! simulation kernel.
 template<int length>
 struct fixed_real_array {
     using value_type = real;
 
     static_assert(length >= 1, "fixed_real_array length must be >= 1");
 
-    real data[length]{};
+    std::array<real, length> data;
 
     constexpr unsigned size() const noexcept
     {
@@ -464,39 +515,37 @@ struct fixed_real_array {
 
     constexpr int ssize() const noexcept { return static_cast<int>(size()); }
 
-    constexpr fixed_real_array() noexcept                            = default;
-    constexpr ~fixed_real_array() noexcept                           = default;
-    constexpr fixed_real_array(const fixed_real_array& rhs) noexcept = default;
-    constexpr fixed_real_array(fixed_real_array&& rhs) noexcept      = default;
+    constexpr fixed_real_array() noexcept
+    {
+        std::fill_n(data.data(), data.size(), 0.0);
+    }
 
-    constexpr fixed_real_array& operator=(
-      const fixed_real_array& rhs) noexcept = default;
+    constexpr fixed_real_array(const fixed_real_array& rhs) noexcept
+    {
+        std::copy_n(rhs.data.data(), rhs.data.size(), data.data());
+    }
+
+    constexpr fixed_real_array& operator=(const fixed_real_array& rhs) noexcept
+    {
+        if (this != &rhs) {
+            std::copy_n(rhs.data.data(), rhs.data.size(), data.data());
+        }
+
+        return *this;
+    }
+
+    constexpr fixed_real_array(fixed_real_array&& rhs) noexcept = delete;
     constexpr fixed_real_array& operator=(fixed_real_array&& rhs) noexcept =
-      default;
+      delete;
 
     template<typename... Args>
-    constexpr fixed_real_array(Args&&... args) noexcept
-      : data{ std::forward<Args>(args)... }
-    {
-        auto size = sizeof...(args);
-        for (; size < length; ++size)
-            data[size] = zero;
-    }
-
-    template<typename U,
-             typename = std::enable_if_t<std::is_convertible_v<U, irt::real>>>
-    constexpr fixed_real_array(std::initializer_list<U> ilist) noexcept
-    {
-        irt_assert(ilist.size() <= length);
-
-        int index = 0;
-        for (const U& element : ilist) {
-            data[index++] = element;
-        }
-    }
+    constexpr fixed_real_array(Args... args) noexcept
+      : data{ args... }
+    {}
 
     constexpr real operator[](std::integral auto i) const noexcept
     {
+
         return data[i];
     }
 
@@ -506,739 +555,434 @@ struct fixed_real_array {
     }
 
     constexpr void reset() noexcept { std::fill_n(data, length, zero); }
+
+    void swap(fixed_real_array& other) noexcept
+    {
+        for (std::size_t i = 0; i != length; ++i)
+            std::swap(other.data[i], data[i]);
+    }
 };
+
+template<int length>
+constexpr inline void swap(fixed_real_array<length>& left,
+                           fixed_real_array<length>& right) noexcept
+{
+    left.swap(right);
+}
 
 using message             = fixed_real_array<3>;
 using dated_message       = fixed_real_array<4>;
 using observation_message = fixed_real_array<5>;
 
+struct model;
+class simulation;
+class hierarchical_state_machine;
+class source;
+
+enum class hsm_id : u64;
+enum class model_id : u64;
+enum class dynamics_id : u64;
+enum class message_id : u64;
+enum class observer_id : u64;
+enum class record_id : u64;
+enum class node_id : u64;
+enum class message_id : u64;
+enum class dated_message_id : u64;
+enum class constant_source_id : u64;
+enum class binary_file_source_id : u64;
+enum class text_file_source_id : u64;
+enum class random_source_id : u64;
+
 /*****************************************************************************
  *
- * Flat list
+ * @c source and @c source_id are data from files or random generators.
  *
  ****************************************************************************/
 
-template<typename T>
-class block_allocator
+static constexpr int external_source_chunk_size = 512;
+static constexpr int default_max_client_number  = 32;
+
+using chunk_type = std::array<double, external_source_chunk_size>;
+
+enum class distribution_type {
+    bernouilli,
+    binomial,
+    cauchy,
+    chi_squared,
+    exponential,
+    exterme_value,
+    fisher_f,
+    gamma,
+    geometric,
+    lognormal,
+    negative_binomial,
+    normal,
+    poisson,
+    student_t,
+    uniform_int,
+    uniform_real,
+    weibull,
+};
+
+//! Use a buffer with a set of double real to produce external data. This
+//! external source can be shared between @c undefined number of  @c source.
+class constant_source
 {
 public:
-    //! Report an error during allocation. Add a @c e_memory data.
-    struct memory_error {};
+    small_string<23> name;
+    chunk_type       buffer;
+    u32              length = 0u;
 
-    using value_type = T;
+    constant_source() noexcept = default;
+    constant_source(const constant_source& src) noexcept;
+    constant_source(constant_source&& src) noexcept = delete;
+    constant_source& operator=(const constant_source& src) noexcept;
+    constant_source& operator=(constant_source&& src) noexcept = delete;
 
-    static_assert(std::is_trivially_destructible_v<T>,
-                  "T must be trivially destructible");
+    status init() noexcept;
+    status init(source& src) noexcept;
+    status update(source& src) noexcept;
+    status restore(source& src) noexcept;
+    status finalize(source& src) noexcept;
+};
 
-    union block {
-        block*                                                     next;
-        typename std::aligned_storage<sizeof(T), alignof(T)>::type storage;
+//! Use a file with a set of double real in binary mode (little endian) to
+//! produce external data. This external source can be shared between @c
+//! max_clients sources. Each client read a @c external_source_chunk_size
+//! real of the set.
+//!
+//! source::chunk_id[0] is used to store the client identifier.
+//! source::chunk_id[1] is used to store the current position in the file.
+class binary_file_source
+{
+public:
+    struct access_file_error {};    //<! Add an e_file_name
+    struct too_small_file_error {}; //<! Add an e_file_name
+    struct open_file_error {};      //<! Add an e_file_name
+    struct eof_file_error {};       //<! Add an e_file_name
+
+    small_string<23>   name;
+    vector<chunk_type> buffers; // buffer, size is defined by max_clients
+    vector<u64>        offsets; // offset, size is defined by max_clients
+    u32                max_clients = 1; // number of source max (must be >= 1).
+    u64                max_reals   = 0; // number of real in the file.
+
+    std::filesystem::path file_path;
+    std::ifstream         ifs;
+    u32                   next_client = 0;
+    u64                   next_offset = 0;
+
+    binary_file_source() noexcept = default;
+    binary_file_source(const binary_file_source& other) noexcept;
+    binary_file_source& operator=(const binary_file_source& other) noexcept;
+
+    void swap(binary_file_source& other) noexcept;
+
+    status init() noexcept;
+    void   finalize() noexcept;
+    status init(source& src) noexcept;
+    status update(source& src) noexcept;
+    status restore(source& src) noexcept;
+    status finalize(source& src) noexcept;
+};
+
+//! Use a file with a set of double real in ascii text file to produce
+//! external data. This external source can not be shared between @c source.
+//!
+//! source::chunk_id[0] is used to store the current position in the file to
+//! simplify restore operation.
+class text_file_source
+{
+public:
+    struct open_file_error {}; //<! Add an e_file_name
+    struct eof_file_error {};  //<! Add an e_file_name
+
+    small_string<23> name;
+    chunk_type       buffer;
+    u64              offset;
+
+    std::filesystem::path file_path;
+    std::ifstream         ifs;
+
+    text_file_source() noexcept = default;
+    text_file_source(const text_file_source& other) noexcept;
+    text_file_source& operator=(const text_file_source& other) noexcept;
+
+    void swap(text_file_source& other) noexcept;
+
+    status init() noexcept;
+    void   finalize() noexcept;
+    status init(source& src) noexcept;
+    status update(source& src) noexcept;
+    status restore(source& src) noexcept;
+    status finalize(source& src) noexcept;
+};
+
+//! Use a prng to produce set of double real. This external source can be
+//! shared between @c max_clients sources. Each client read a @c
+//! external_source_chunk_size real of the set.
+//!
+//! The source::chunk_id[0-5] array is used to store the prng state.
+class random_source
+{
+public:
+    using counter_type = std::array<u64, 4>;
+    using key_type     = std::array<u64, 4>;
+    using result_type  = std::array<u64, 4>;
+
+    small_string<23>           name;
+    vector<chunk_type>         buffers;
+    vector<std::array<u64, 4>> counters;
+    u32          max_clients   = 1; // number of source max (must be >= 1).
+    u32          start_counter = 0; // provided by @c external_source class.
+    u32          next_client   = 0;
+    counter_type ctr;
+    key_type     key; // provided by @c external_source class.
+
+    distribution_type distribution = distribution_type::uniform_int;
+    double a = 0, b = 1, p, mean, lambda, alpha, beta, stddev, m, s, n;
+    int    a32, b32, t32, k32;
+
+    random_source() noexcept = default;
+    random_source(const random_source& other) noexcept;
+    random_source(random_source&& other) noexcept;
+    random_source& operator=(const random_source& other) noexcept;
+    random_source& operator=(random_source&& other) noexcept;
+
+    void swap(random_source& other) noexcept;
+
+    status init() noexcept;
+    void   finalize() noexcept;
+    status init(source& src) noexcept;
+    status update(source& src) noexcept;
+    status restore(source& src) noexcept;
+    status finalize(source& src) noexcept;
+};
+
+//! @brief Reference external source from a model.
+//!
+//! @details A @c source references a external source (file, PRNG, etc.).
+//! Model auses the source to get data external to the simulation.
+class source
+{
+public:
+    enum class source_type : i16 {
+        none,
+        binary_file, /* Best solution to reproductible simulation. Each
+                        client take a part of the stream (substream). */
+        constant,    /* Just an easy source to use mode. */
+        random,      /* How to retrieve old position in debug mode? */
+        text_file    /* How to retreive old position in debug mode? */
     };
 
-private:
-    block* m_blocks{ nullptr };    // contains all preallocated blocks
-    block* m_free_head{ nullptr }; // a free list
-    i32    m_size{ 0 };            // number of active elements allocated
-    i32    m_max_size{ 0 }; // number of elements allocated (with free_head)
-    i32    m_capacity{ 0 }; // capacity of the allocator
-
-public:
-    block_allocator() noexcept = default;
-
-    block_allocator(const block_allocator&)            = delete;
-    block_allocator& operator=(const block_allocator&) = delete;
-
-    block_allocator(block_allocator&& rhs) noexcept
-      : m_blocks{ rhs.m_blocks }
-      , m_free_head{ rhs.m_free_head }
-      , m_size{ rhs.m_size }
-      , m_max_size{ rhs.m_max_size }
-      , m_capacity{ rhs.m_capacity }
-    {
-        rhs.m_blocks    = nullptr;
-        rhs.m_free_head = nullptr;
-        rhs.m_size      = 0;
-        rhs.m_max_size  = 0;
-        rhs.m_capacity  = 0;
-    }
-
-    block_allocator& operator=(block_allocator&& rhs) noexcept
-    {
-        if (this != &rhs) {
-            m_blocks        = rhs.m_blocks;
-            m_free_head     = rhs.m_free_head;
-            m_size          = rhs.m_size;
-            m_max_size      = rhs.m_max_size;
-            m_capacity      = rhs.m_capacity;
-            rhs.m_blocks    = nullptr;
-            rhs.m_free_head = nullptr;
-            rhs.m_size      = 0;
-            rhs.m_max_size  = 0;
-            rhs.m_capacity  = 0;
-        }
-        return *this;
-    }
-
-    ~block_allocator() noexcept
-    {
-        if (m_blocks)
-            g_free_fn(m_blocks);
-    }
-
-    status init(std::integral auto new_capacity) noexcept
-    {
-        irt_assert(!std::cmp_less_equal(new_capacity, 0));
-        irt_assert(!std::cmp_greater_equal(
-          new_capacity, std::numeric_limits<decltype(m_capacity)>::max()));
-
-        if (std::cmp_not_equal(new_capacity, m_capacity)) {
-            if (m_blocks)
-                g_free_fn(m_blocks);
-
-            const auto new_size = static_cast<sz>(new_capacity) * sizeof(block);
-            m_blocks            = static_cast<block*>(g_alloc_fn(new_size));
-            if (m_blocks == nullptr)
-                return new_error(
-                  memory_error{},
-                  e_memory{
-                    .capacity = static_cast<long long unsigned int>(m_capacity),
-                    .request =
-                      static_cast<long long unsigned int>(new_capacity) });
-        }
-
-        m_size      = 0;
-        m_max_size  = 0;
-        m_capacity  = static_cast<decltype(m_capacity)>(new_capacity);
-        m_free_head = nullptr;
-
-        return success();
-    }
-
-    status copy_to(block_allocator& dst) const noexcept
-    {
-        dst.reset();
-        dst.m_size      = m_size;
-        dst.m_max_size  = m_max_size;
-        dst.m_capacity  = m_max_size;
-        dst.m_free_head = nullptr;
-
-        std::uninitialized_copy_n(m_blocks, m_max_size, dst.m_blocks);
-
-        if (m_free_head) {
-            dst.m_free_head = &m_blocks[m_free_head - m_blocks];
-
-            const auto* src_free_list = m_free_head->next;
-            auto*       dst_free_list = dst.m_free_head;
-            dst_free_list->next       = nullptr;
-
-            while (src_free_list) {
-                const auto ptr_diff = src_free_list - m_blocks;
-                dst_free_list->next = &dst.m_blocks[ptr_diff];
-
-                src_free_list = src_free_list->next;
-                dst_free_list = dst_free_list->next;
-            }
-
-            dst_free_list->next = nullptr;
-        }
-
-        return success();
-    }
-
-    void swap(block_allocator& rhs) noexcept
-    {
-        std::swap(m_blocks, rhs.m_blocks);
-        std::swap(m_free_head, rhs.m_free_head);
-        std::swap(m_size, rhs.m_size);
-        std::swap(m_max_size, rhs.m_max_size);
-        std::swap(m_capacity, rhs.m_capacity);
-    }
-
-    void reset() noexcept
-    {
-        if (m_capacity > 0) {
-            m_size      = 0;
-            m_max_size  = 0;
-            m_free_head = nullptr;
-        }
-    }
-
-    T* alloc() noexcept
-    {
-        block* new_block = nullptr;
-
-        if (m_free_head != nullptr) {
-            new_block   = m_free_head;
-            m_free_head = m_free_head->next;
-        } else {
-            irt_assert(m_max_size < m_capacity);
-            new_block = reinterpret_cast<block*>(&m_blocks[m_max_size++]);
-        }
-
-        ++m_size;
-
-        return reinterpret_cast<T*>(new_block);
-    }
-
-    u32 index(const T* ptr) const noexcept
-    {
-        irt_assert(ptr - reinterpret_cast<T*>(m_blocks) > 0);
-        auto ptrdiff = ptr - reinterpret_cast<T*>(m_blocks);
-        return static_cast<u32>(ptrdiff);
-    }
-
-    u32 alloc_index() noexcept
-    {
-        block* new_block = nullptr;
-
-        if (m_free_head != nullptr) {
-            new_block   = m_free_head;
-            m_free_head = m_free_head->next;
-        } else {
-            irt_assert(m_max_size < m_capacity);
-            new_block = reinterpret_cast<block*>(&m_blocks[m_max_size++]);
-        }
-
-        ++m_size;
-
-        irt_assert(new_block - m_blocks >= 0);
-        return static_cast<u32>(new_block - m_blocks);
-    }
-
-    bool can_alloc() noexcept
-    {
-        return m_free_head != nullptr || m_max_size < m_capacity;
-    }
-
-    void free(T* n) noexcept
-    {
-        irt_assert(n);
-
-        block* ptr = reinterpret_cast<block*>(n);
-
-        ptr->next   = m_free_head;
-        m_free_head = ptr;
-
-        --m_size;
-
-        if (m_size == 0) {         // A special part: if it no longer exists
-            m_max_size  = 0;       // we reset the free list and the number
-            m_free_head = nullptr; // of elements allocated.
-        }
-    }
-
-    void free(std::integral auto index) noexcept
-    {
-        irt_assert(std::cmp_greater_equal(index, 0));
-        irt_assert(std::cmp_less_equal(index, m_max_size));
-
-        auto* to_free = reinterpret_cast<T*>(&(m_blocks[index]));
-        free(to_free);
-    }
-
-    bool can_alloc(std::integral auto number) const noexcept
-    {
-        return std::cmp_less(static_cast<decltype(m_size)>(number) + m_size,
-                             m_capacity);
-    }
-
-    value_type& operator[](std::integral auto index) noexcept
-    {
-        irt_assert(std::cmp_greater_equal(index, 0));
-        irt_assert(std::cmp_less_equal(index, m_max_size));
-
-        return *reinterpret_cast<T*>(&(m_blocks[index]));
-    }
-
-    const value_type& operator[](std::integral auto index) const noexcept
-    {
-        irt_assert(std::cmp_greater_equal(index, 0));
-        irt_assert(std::cmp_less_equal(index, m_max_size));
-
-        return *reinterpret_cast<T*>(&(m_blocks[index]));
-    }
-
-    unsigned size() const noexcept { return static_cast<unsigned>(m_size); }
-    int      ssize() const noexcept { return m_size; }
-    int      max_size() const noexcept { return m_max_size; }
-    int      capacity() const noexcept { return m_capacity; }
-};
-
-template<typename T>
-struct list_view_node {
-    using value_type = T;
-
-    static_assert(std::is_trivially_destructible_v<T>,
-                  "T must be trivially destructible");
-
-    T   value;
-    u32 prev;
-    u32 next;
-};
-
-template<typename T>
-class list_view;
-
-template<typename T>
-class list_view_const;
-
-template<typename ContainerType, typename T>
-class list_view_iterator_impl
-{
-public:
-    using iterator_category = std::bidirectional_iterator_tag;
-    using difference_type   = std::ptrdiff_t;
-    using value             = T;
-    using pointer           = T*;
-    using reference         = T&;
-    using container_type    = ContainerType;
-
-    template<typename X>
-    friend class list_view;
-
-    template<typename X>
-    friend class list_view_const;
-
-private:
-    container_type& lst;
-    u32             id;
-
-public:
-    list_view_iterator_impl(container_type& lst_, u32 id_) noexcept
-      : lst(lst_)
-      , id(id_)
-    {}
-
-    list_view_iterator_impl(const list_view_iterator_impl& other) noexcept
-      : lst(other.lst)
-      , id(other.id)
-    {}
-
-    list_view_iterator_impl& operator=(
-      const list_view_iterator_impl& other) noexcept
-    {
-        list_view_iterator_impl tmp(other);
-
-        irt_assert(&tmp.lst == &lst);
-        std::swap(tmp.id, id);
-
-        return *this;
-    }
-
-    reference operator*() const { return lst.m_allocator[id].value; }
-
-    pointer operator->() { return &lst.m_allocator[id].value; }
-
-    list_view_iterator_impl& operator++()
-    {
-        if (id == static_cast<u32>(-1)) {
-            id = unpack_doubleword_left(lst.m_list);
-        } else {
-            id = lst.m_allocator[id].next;
-        }
-
-        return *this;
-    }
-
-    list_view_iterator_impl operator++(int)
-    {
-        list_view_iterator_impl tmp = *this;
-        if (id == static_cast<u32>(-1)) {
-            id = unpack_doubleword_left(lst.m_list);
-        } else {
-            id = lst.m_allocator[id].next;
-        }
-        return tmp;
-    }
-
-    list_view_iterator_impl& operator--()
-    {
-        if (id == static_cast<u32>(-1)) {
-            id = unpack_doubleword_right(lst.m_list);
-        } else {
-            id = lst.m_allocator[id].prev;
-        }
-        return *this;
-    }
-
-    list_view_iterator_impl operator--(int)
-    {
-        list_view_iterator_impl tmp = *this;
-        if (id == static_cast<u32>(-1)) {
-            id = unpack_doubleword_right(lst.m_list);
-        } else {
-            id = lst.m_allocator[id].prev;
-        }
-        return tmp;
-    }
-
-    friend bool operator==(const list_view_iterator_impl& a,
-                           const list_view_iterator_impl& b)
-    {
-        return &a.lst == &b.lst && a.id == b.id;
-    }
-
-    friend bool operator!=(const list_view_iterator_impl& a,
-                           const list_view_iterator_impl& b)
-    {
-        return &a.lst != &b.lst || a.id != b.id;
-    }
-};
-
-template<typename T>
-class list_view
-{
-public:
-    using node_type       = list_view_node<T>;
-    using allocator_type  = block_allocator<node_type>;
-    using value_type      = T;
-    using reference       = T&;
-    using const_reference = const T&;
-    using pointer         = T*;
-    using this_type       = list_view<T>;
-    using iterator        = list_view_iterator_impl<this_type, T>;
-    using const_iterator  = list_view_iterator_impl<this_type, const T>;
-
-    // friend class list_view_iterator_impl<this_type, T>;
-    template<typename X, typename Y>
-    friend class list_view_iterator_impl;
-
-private:
-    allocator_type& m_allocator;
-    u64&            m_list;
-
-public:
-    list_view(allocator_type& allocator, u64& id) noexcept
-      : m_allocator(allocator)
-      , m_list(id)
-    {}
-
-    ~list_view() noexcept = default;
-
+    static inline constexpr int source_type_count = 5;
+
+    enum class operation_type {
+        initialize, // Use to initialize the buffer at simulation init step.
+        update,     // Use to update the buffer when all values are read.
+        restore,    // Use to restore the buffer when debug mode activated.
+        finalize    // Use to clear the buffer at simulation finalize step.
+    };
+
+    std::span<double> buffer;
+    u64               id   = 0;
+    source_type       type = source_type::none;
+    i16 index = 0; // The index of the next double to read in current chunk.
+    std::array<u64, 4> chunk_id; // Current chunk. Use when restore is apply.
+
+    //! Call to reset the position in the current chunk.
+    void reset() noexcept { index = 0u; }
+
+    //! Clear the source (buffer and external source access)
     void clear() noexcept
     {
-        u32 begin = unpack_doubleword_left(m_list);
-        while (begin != static_cast<u32>(-1)) {
-            auto to_delete = begin;
-            begin          = m_allocator[begin].next;
-            m_allocator.free(to_delete);
-        }
-
-        m_list = static_cast<u64>(-1);
+        buffer = std::span<double>();
+        id     = 0u;
+        type   = source_type::none;
+        index  = 0;
+        std::fill_n(chunk_id.data(), chunk_id.size(), 0);
     }
 
-    bool empty() const noexcept { return m_list == static_cast<u64>(-1); }
-
-    iterator begin() noexcept
+    //! Check if the source is empty and required a filling.
+    bool is_empty() const noexcept
     {
-        return iterator(*this, unpack_doubleword_left(m_list));
+        return std::cmp_greater_equal(index, buffer.size());
     }
 
-    iterator end() noexcept { return iterator(*this, static_cast<u32>(-1)); }
-
-    const_iterator begin() const noexcept
-    {
-        return const_iterator(*this, unpack_doubleword_left(m_list));
-    }
-
-    const_iterator end() const noexcept
-    {
-        return const_iterator(*this, static_cast<u32>(-1));
-    }
-
-    reference front() noexcept
-    {
-        irt_assert(!empty());
-
-        return m_allocator[unpack_doubleword_left(m_list)].value;
-    }
-
-    const_reference front() const noexcept
-    {
-        irt_assert(!empty());
-
-        return m_allocator[unpack_doubleword_left(m_list)].value;
-    }
-
-    reference back() noexcept
-    {
-        irt_assert(!empty());
-
-        return m_allocator[unpack_doubleword_right(m_list)].value;
-    }
-
-    const_reference back() const noexcept
-    {
-        irt_assert(!empty());
-
-        return m_allocator[unpack_doubleword_right(m_list)].value;
-    }
-
-    //! @brief Inserts a new element into the container directly before pos.
-    template<typename... Args>
-    iterator emplace(iterator pos, Args&&... args) noexcept
-    {
-        if (pos.id == static_cast<u32>(-1))
-            return emplace_back(std::forward<Args>(args)...);
-
-        if (m_allocator[pos.id].prev == static_cast<u32>(-1))
-            return emplace_front(std::forward<Args>(args)...);
-
-        u32 new_node = m_allocator.alloc_index();
-        std::construct_at(&m_allocator[new_node].value,
-                          std::forward<Args>(args)...);
-
-        m_allocator[new_node].prev = pos.id;
-        m_allocator[new_node].next = m_allocator[pos.id].next;
-        m_allocator[pos.id].next   = new_node;
-
-        return iterator(*this, new_node);
-    }
-
-    //! @brief Erases the specified elements from the container.
+    //! Get the next double in the buffer. Abort if the buffer is empty. Use
+    //! the
+    //! @c is_empty() function first.
     //!
-    //! If pos refers to the last element, then the end() iterator is returned.
-    //! If last==end() prior to removal, then the updated end() iterator is
-    //! returned. If [first, last) is an empty range, then last is returned.
-    //!
-    //! @return iIterator following the last removed element.
-    iterator erase(iterator pos) noexcept
+    //! @return true if success, false otherwise.
+    double next() noexcept
     {
-        if (pos.id == static_cast<u32>(-1))
-            return end();
+        sim::ensure(!is_empty());
 
-        if (m_allocator[pos.id].prev == static_cast<u32>(-1)) {
-            pop_front();
-            return begin();
-        }
-
-        if (m_allocator[pos.id].next == static_cast<u32>(-1)) {
-            pop_back();
-            return end();
-        }
-
-        auto prev = m_allocator[pos.id].prev;
-        auto next = m_allocator[pos.id].next;
-
-        m_allocator[prev].next = next;
-        m_allocator[next].prev = prev;
-
-        std::destroy_at(&m_allocator[pos.id].value);
-
-        m_allocator.free(pos.id);
-
-        return iterator(*this, next);
-    }
-
-    template<typename... Args>
-    iterator emplace_front(Args&&... args) noexcept
-    {
-        irt_assert(m_allocator.can_alloc());
-
-        u32 new_node = m_allocator.alloc_index();
-        std::construct_at(&m_allocator[new_node].value,
-                          std::forward<Args>(args)...);
-
-        u32 first, last;
-        unpack_doubleword(m_list, &first, &last);
-
-        if (m_list == static_cast<u64>(-1)) {
-            m_allocator[new_node].prev = static_cast<u32>(-1);
-            m_allocator[new_node].next = static_cast<u32>(-1);
-            first                      = new_node;
-            last                       = new_node;
-        } else {
-            m_allocator[new_node].prev = static_cast<u32>(-1);
-            m_allocator[new_node].next = first;
-            m_allocator[first].prev    = new_node;
-            first                      = new_node;
-        }
-
-        m_list = make_doubleword(first, last);
-
-        return iterator(*this, new_node);
-    }
-
-    template<typename... Args>
-    iterator emplace_back(Args&&... args) noexcept
-    {
-        irt_assert(m_allocator.can_alloc());
-
-        u32 new_node = m_allocator.alloc_index();
-        std::construct_at(&m_allocator[new_node].value,
-                          std::forward<Args>(args)...);
-
-        u32 first, last;
-        unpack_doubleword(m_list, &first, &last);
-
-        if (m_list == static_cast<u64>(-1)) {
-            m_allocator[new_node].prev = static_cast<u32>(-1);
-            m_allocator[new_node].next = static_cast<u32>(-1);
-            first                      = new_node;
-            last                       = new_node;
-        } else {
-            m_allocator[new_node].next = static_cast<u32>(-1);
-            m_allocator[new_node].prev = last;
-            m_allocator[last].next     = new_node;
-            last                       = new_node;
-        }
-
-        m_list = make_doubleword(first, last);
-
-        return iterator(*this, new_node);
-    }
-
-    iterator push_back(const T& t) noexcept
-    {
-        irt_assert(m_allocator.can_alloc());
-
-        u32 new_node = m_allocator.alloc_index();
-        std::construct_at(&m_allocator[new_node].value, t);
-
-        u32 first, last;
-        unpack_doubleword(m_list, &first, &last);
-
-        if (m_list == static_cast<u64>(-1)) {
-            m_allocator[new_node].prev = static_cast<u32>(-1);
-            m_allocator[new_node].next = static_cast<u32>(-1);
-            first                      = new_node;
-            last                       = new_node;
-        } else {
-            m_allocator[new_node].next = static_cast<u32>(-1);
-            m_allocator[new_node].prev = last;
-            m_allocator[last].next     = new_node;
-            last                       = new_node;
-        }
-
-        m_list = make_doubleword(first, last);
-
-        return iterator(*this, new_node);
-    }
-
-    void pop_front() noexcept
-    {
-        if (m_list == static_cast<u64>(-1))
-            return;
-
-        u32 begin, end;
-        unpack_doubleword(m_list, &begin, &end);
-
-        u32 to_delete = begin;
-        begin         = m_allocator[to_delete].next;
-
-        if (begin == static_cast<u32>(-1))
-            end = static_cast<u32>(-1);
-        else
-            m_allocator[begin].prev = static_cast<u32>(-1);
-
-        std::destroy_at(&m_allocator[to_delete].value);
-
-        m_allocator.free(to_delete);
-        m_list = make_doubleword(begin, end);
-    }
-
-    void pop_back() noexcept
-    {
-        if (m_list == static_cast<u64>(-1))
-            return;
-
-        u32 begin, end;
-        unpack_doubleword(m_list, &begin, &end);
-
-        u32 to_delete = end;
-        end           = m_allocator[to_delete].prev;
-
-        if (end == static_cast<u32>(-1))
-            begin = static_cast<u32>(-1);
-        else
-            m_allocator[end].next = static_cast<u32>(-1);
-
-        std::destroy_at(&m_allocator[to_delete].value);
-
-        m_allocator.free(to_delete);
-        m_list = make_doubleword(begin, end);
+        const auto old_index = index++;
+        return buffer[static_cast<sz>(old_index)];
     }
 };
 
-template<typename T>
-class list_view_const
+class external_source
 {
 public:
-    using node_type       = list_view_node<T>;
-    using allocator_type  = block_allocator<node_type>;
-    using value_type      = T;
-    using reference       = T&;
-    using const_reference = const T&;
-    using pointer         = T*;
-    using this_type       = list_view_const<T>;
-    using iterator        = list_view_iterator_impl<this_type, T>;
-    using const_iterator  = list_view_iterator_impl<this_type, const T>;
+    enum class part {
+        constant_source,
+        binary_file_source,
+        text_file_source,
+        random_source,
+    };
 
-    template<typename X, typename Y>
-    friend class list_view_iterator_impl;
+    data_array<constant_source, constant_source_id>       constant_sources;
+    data_array<binary_file_source, binary_file_source_id> binary_file_sources;
+    data_array<text_file_source, text_file_source_id>     text_file_sources;
+    data_array<random_source, random_source_id>           random_sources;
 
-private:
-    const allocator_type& m_allocator;
-    const u64             m_list;
+    u64 seed[2] = { 0xdeadbeef12345678U, 0xdeadbeef12345678U };
 
-public:
-    list_view_const(const allocator_type& allocator, const u64 id) noexcept
-      : m_allocator(allocator)
-      , m_list(id)
-    {}
-
-    ~list_view_const() noexcept = default;
-
-    bool empty() const noexcept { return m_list == static_cast<u64>(-1); }
-
-    const_iterator begin() noexcept
+    status init(std::integral auto size) noexcept
     {
-        return const_iterator(*this, unpack_doubleword_left(m_list));
+        if (std::cmp_equal(size, 0))
+            return success();
+
+        if (!constant_sources.reserve(size))
+            return new_error(
+              external_source::part::constant_source,
+              e_memory{ .capacity = 0,
+                        .request  = static_cast<unsigned long>(size) });
+
+        if (!binary_file_sources.reserve(size))
+            return new_error(
+              external_source::part::binary_file_source,
+              e_memory{ .capacity = 0,
+                        .request  = static_cast<unsigned long>(size) });
+
+        if (!text_file_sources.reserve(size))
+            return new_error(
+              external_source::part::text_file_source,
+              e_memory{ .capacity = 0,
+                        .request  = static_cast<unsigned long>(size) });
+
+        if (!random_sources.reserve(size))
+            return new_error(
+              external_source::part::random_source,
+              e_memory{ .capacity = 0,
+                        .request  = static_cast<unsigned long>(size) });
+
+        return success();
     }
 
-    const_iterator end() noexcept
-    {
-        return const_iterator(*this, static_cast<u32>(-1));
-    }
+    //! Call the @c init function for all sources (@c constant_source, @c
+    //! binary_file_source etc.).
+    status prepare() noexcept;
 
-    const_iterator begin() const noexcept
-    {
-        return const_iterator(*this, unpack_doubleword_left(m_list));
-    }
+    //! Call the @c finalize function for all sources (@c constant_source,
+    //! @c binary_file_source etc.). Usefull to close opened files.
+    void finalize() noexcept;
 
-    const_iterator end() const noexcept
-    {
-        return const_iterator(*this, static_cast<u32>(-1));
-    }
+    status import_from(const external_source& srcs);
 
-    const_reference front() noexcept
-    {
-        irt_assert(!empty());
+    status dispatch(source& src, const source::operation_type op) noexcept;
 
-        return m_allocator[unpack_doubleword_left(m_list)].value;
-    }
+    //! Call the @c data_array<T, Id>::clear() function for all sources.
+    void clear() noexcept;
 
-    const_reference front() const noexcept
-    {
-        irt_assert(!empty());
-
-        return m_allocator[unpack_doubleword_left(m_list)].value;
-    }
-
-    const_reference back() noexcept
-    {
-        irt_assert(!empty());
-
-        return m_allocator[unpack_doubleword_right(m_list)].value;
-    }
-
-    const_reference back() const noexcept
-    {
-        irt_assert(!empty());
-
-        return m_allocator[unpack_doubleword_right(m_list)].value;
-    }
+    //! An example of error handlers to catch all error from the external
+    //! source class and friend (@c binary_file_source, @c text_file_source,
+    //! @c random_source and @c constant_source).
+    // constexpr auto make_error_handlers() const noexcept;
 };
+
+//! To be used in model declaration to initialize a source instance
+//! according to the type of the external source.
+inline status initialize_source(simulation& sim, source& src) noexcept;
+
+//! To be used in model declaration to get a new real from a source instance
+//! according to the type of the external source.
+inline status update_source(simulation& sim, source& src, double& val) noexcept;
+
+//! To be used in model declaration to finalize and clear a source instance
+//! according to the type of the external source.
+inline status finalize_source(simulation& sim, source& src) noexcept;
+
+/*****************************************************************************
+ *
+ * DEVS Model / Simulation entities
+ *
+ ****************************************************************************/
+
+enum class dynamics_type : i32 {
+    qss1_integrator,
+    qss1_multiplier,
+    qss1_cross,
+    qss1_filter,
+    qss1_power,
+    qss1_square,
+    qss1_sum_2,
+    qss1_sum_3,
+    qss1_sum_4,
+    qss1_wsum_2,
+    qss1_wsum_3,
+    qss1_wsum_4,
+    qss2_integrator,
+    qss2_multiplier,
+    qss2_cross,
+    qss2_filter,
+    qss2_power,
+    qss2_square,
+    qss2_sum_2,
+    qss2_sum_3,
+    qss2_sum_4,
+    qss2_wsum_2,
+    qss2_wsum_3,
+    qss2_wsum_4,
+    qss3_integrator,
+    qss3_multiplier,
+    qss3_cross,
+    qss3_filter,
+    qss3_power,
+    qss3_square,
+    qss3_sum_2,
+    qss3_sum_3,
+    qss3_sum_4,
+    qss3_wsum_2,
+    qss3_wsum_3,
+    qss3_wsum_4,
+    integrator,
+    quantifier,
+    adder_2,
+    adder_3,
+    adder_4,
+    mult_2,
+    mult_3,
+    mult_4,
+    counter,
+    queue,
+    dynamic_queue,
+    priority_queue,
+    generator,
+    constant,
+    cross,
+    time_func,
+    accumulator_2,
+    filter,
+    logical_and_2,
+    logical_and_3,
+    logical_or_2,
+    logical_or_3,
+    logical_invert,
+    hsm_wrapper
+};
+
+constexpr i8 dynamics_type_last() noexcept
+{
+    return static_cast<i8>(dynamics_type::hsm_wrapper);
+}
+
+constexpr sz dynamics_type_size() noexcept
+{
+    return static_cast<sz>(dynamics_type_last() + 1);
+}
 
 /*****************************************************************************
  *
@@ -1246,21 +990,80 @@ public:
  *
  ****************************************************************************/
 
-enum class model_id : u64;
-enum class dynamics_id : u64;
-enum class message_id : u64;
-enum class observer_id : u64;
-
 struct record {
     record() noexcept = default;
 
-    record(real x_dot_, time date_) noexcept
+    record(const real x_dot_, const time date_) noexcept
       : x_dot{ x_dot_ }
       , date{ date_ }
     {}
 
     real x_dot{ 0 };
     time date{ time_domain<time>::infinity };
+};
+
+struct observation {
+    observation() noexcept = default;
+    observation(const real x_, const real y_) noexcept
+      : x{ x_ }
+      , y{ y_ }
+    {}
+
+    real x{};
+    real y{};
+};
+
+struct observer {
+    using value_type = observation;
+
+    static constexpr u8 flags_none              = 0;
+    static constexpr u8 flags_data_available    = 1 << 0;
+    static constexpr u8 flags_buffer_full       = 1 << 1;
+    static constexpr u8 flags_data_lost         = 1 << 2;
+    static constexpr u8 flags_use_linear_buffer = 1 << 3;
+
+    observer(std::string_view name_,
+             u64              user_id_   = 0,
+             i32              user_type_ = 0) noexcept;
+
+    void reset() noexcept;
+    void clear() noexcept;
+    void update(observation_message msg) noexcept;
+    bool full() const noexcept;
+    void push_back(const observation& vec) noexcept;
+
+    ring_buffer<observation_message> buffer;
+    ring_buffer<observation>         linearized_buffer;
+
+    model_id              model     = undefined<model_id>();
+    u64                   user_id   = 0;
+    i32                   user_type = 0;
+    dynamics_type         type      = dynamics_type::qss1_integrator;
+    std::pair<real, real> limits;
+
+    small_string<14> name;
+    u8               flags;
+};
+
+struct node {
+    node() = default;
+
+    node(const model_id model_, const i8 port_index_) noexcept
+      : model(model_)
+      , port_index(port_index_)
+    {}
+
+    model_id model      = undefined<model_id>();
+    i8       port_index = 0;
+};
+
+struct output_message {
+    output_message() noexcept  = default;
+    ~output_message() noexcept = default;
+
+    message  msg;
+    model_id model = undefined<model_id>();
+    i8       port  = 0;
 };
 
 //! @brief Pairing heap implementation.
@@ -1303,8 +1106,8 @@ public:
 
     status init(std::integral auto new_capacity) noexcept
     {
-        irt_assert(std::cmp_greater(new_capacity, 0));
-        irt_assert(std::cmp_less(
+        sim::ensure(std::cmp_greater(new_capacity, 0));
+        sim::ensure(std::cmp_less(
           new_capacity, std::numeric_limits<decltype(capacity)>::max()));
 
         if (std::cmp_not_equal(new_capacity, capacity)) {
@@ -1362,7 +1165,7 @@ public:
 
     void destroy(handle elem) noexcept
     {
-        irt_assert(elem);
+        sim::ensure(elem);
 
         if (m_size == 0) {
             clear();
@@ -1392,14 +1195,14 @@ public:
 
     void remove(handle elem) noexcept
     {
-        irt_assert(elem);
+        sim::ensure(elem);
 
         if (elem == root) {
             pop();
             return;
         }
 
-        irt_assert(m_size > 0);
+        sim::ensure(m_size > 0);
 
         m_size--;
         detach_subheap(elem);
@@ -1412,7 +1215,7 @@ public:
 
     handle pop() noexcept
     {
-        irt_assert(m_size > 0);
+        sim::ensure(m_size > 0);
 
         m_size--;
 
@@ -1543,503 +1346,177 @@ private:
     }
 };
 
-class simulation;
-
 /*****************************************************************************
  *
- * @c source and @c source_id are data from files or random generators.
+ * scheduler
  *
  ****************************************************************************/
 
-static constexpr int external_source_chunk_size = 512;
-static constexpr int default_max_client_number  = 32;
+class scheduller
+{
+private:
+    heap m_heap;
 
-using chunk_type = std::array<double, external_source_chunk_size>;
+public:
+    scheduller() = default;
 
-class source;
+    status init(std::integral auto new_capacity) noexcept;
 
-enum class distribution_type {
-    bernouilli,
-    binomial,
-    cauchy,
-    chi_squared,
-    exponential,
-    exterme_value,
-    fisher_f,
-    gamma,
-    geometric,
-    lognormal,
-    negative_binomial,
-    normal,
-    poisson,
-    student_t,
-    uniform_int,
-    uniform_real,
-    weibull,
+    void clear() noexcept;
+
+    void insert(model& mdl, model_id id, time tn) noexcept;
+
+    void reintegrate(model& mdl, time tn) noexcept;
+
+    void erase(model& mdl) noexcept;
+
+    void update(model& mdl, time tn) noexcept;
+
+    void pop(vector<model_id, mr_allocator>& out) noexcept;
+
+    time tn() const noexcept;
+
+    bool empty() const noexcept;
+
+    unsigned size() const noexcept;
+    int      ssize() const noexcept;
 };
 
-//! Use a buffer with a set of double real to produce external data. This
-//! external source can be shared between @c undefined number of  @c source.
-class constant_source
+class simulation
 {
 public:
-    small_string<23> name;
-    chunk_type       buffer;
-    u32              length = 0u;
-
-    constant_source() noexcept = default;
-    constant_source(const constant_source& src) noexcept;
-    constant_source(constant_source&& src) noexcept = delete;
-    constant_source& operator=(const constant_source& src) noexcept;
-    constant_source& operator=(constant_source&& src) noexcept = delete;
-
-    status init() noexcept;
-    status init(source& src) noexcept;
-    status update(source& src) noexcept;
-    status restore(source& src) noexcept;
-    status finalize(source& src) noexcept;
-};
-
-//! Use a file with a set of double real in binary mode (little endian) to
-//! produce external data. This external source can be shared between @c
-//! max_clients sources. Each client read a @c external_source_chunk_size real
-//! of the set.
-//!
-//! source::chunk_id[0] is used to store the client identifier.
-//! source::chunk_id[1] is used to store the current position in the file.
-class binary_file_source
-{
-public:
-    struct access_file_error {};    //<! Add an e_file_name
-    struct too_small_file_error {}; //<! Add an e_file_name
-    struct open_file_error {};      //<! Add an e_file_name
-    struct eof_file_error {};       //<! Add an e_file_name
-
-    small_string<23>   name;
-    vector<chunk_type> buffers; // buffer, size is defined by max_clients
-    vector<u64>        offsets; // offset, size is defined by max_clients
-    u32                max_clients = 1; // number of source max (must be >= 1).
-    u64                max_reals   = 0; // number of real in the file.
-
-    std::filesystem::path file_path;
-    std::ifstream         ifs;
-    u32                   next_client = 0;
-    u64                   next_offset = 0;
-
-    binary_file_source() noexcept = default;
-    binary_file_source(const binary_file_source& other) noexcept;
-    binary_file_source& operator=(const binary_file_source& other) noexcept;
-
-    void swap(binary_file_source& other) noexcept;
-
-    status init() noexcept;
-    void   finalize() noexcept;
-    status init(source& src) noexcept;
-    status update(source& src) noexcept;
-    status restore(source& src) noexcept;
-    status finalize(source& src) noexcept;
-};
-
-//! Use a file with a set of double real in ascii text file to produce
-//! external data. This external source can not be shared between @c source.
-//!
-//! source::chunk_id[0] is used to store the current position in the file to
-//! simplify restore operation.
-class text_file_source
-{
-public:
-    struct open_file_error {}; //<! Add an e_file_name
-    struct eof_file_error {};  //<! Add an e_file_name
-
-    small_string<23> name;
-    chunk_type       buffer;
-    u64              offset;
-
-    std::filesystem::path file_path;
-    std::ifstream         ifs;
-
-    text_file_source() noexcept = default;
-    text_file_source(const text_file_source& other) noexcept;
-    text_file_source& operator=(const text_file_source& other) noexcept;
-
-    void swap(text_file_source& other) noexcept;
-
-    status init() noexcept;
-    void   finalize() noexcept;
-    status init(source& src) noexcept;
-    status update(source& src) noexcept;
-    status restore(source& src) noexcept;
-    status finalize(source& src) noexcept;
-};
-
-//! Use a prng to produce set of double real. This external source can be
-//! shared between @c max_clients sources. Each client read a @c
-//! external_source_chunk_size real of the set.
-//!
-//! The source::chunk_id[0-5] array is used to store the prng state.
-class random_source
-{
-public:
-    using counter_type = std::array<u64, 4>;
-    using key_type     = std::array<u64, 4>;
-    using result_type  = std::array<u64, 4>;
-
-    small_string<23>           name;
-    vector<chunk_type>         buffers;
-    vector<std::array<u64, 4>> counters;
-    u32          max_clients   = 1; // number of source max (must be >= 1).
-    u32          start_counter = 0; // provided by @c external_source class.
-    u32          next_client   = 0;
-    counter_type ctr;
-    key_type     key; // provided by @c external_source class.
-
-    distribution_type distribution = distribution_type::uniform_int;
-    double a = 0, b = 1, p, mean, lambda, alpha, beta, stddev, m, s, n;
-    int    a32, b32, t32, k32;
-
-    random_source() noexcept = default;
-    random_source(const random_source& other) noexcept;
-    random_source(random_source&& other) noexcept;
-    random_source& operator=(const random_source& other) noexcept;
-    random_source& operator=(random_source&& other) noexcept;
-
-    void swap(random_source& other) noexcept;
-
-    status init() noexcept;
-    void   finalize() noexcept;
-    status init(source& src) noexcept;
-    status update(source& src) noexcept;
-    status restore(source& src) noexcept;
-    status finalize(source& src) noexcept;
-};
-
-enum class constant_source_id : u64;
-enum class binary_file_source_id : u64;
-enum class text_file_source_id : u64;
-enum class random_source_id : u64;
-
-//! @brief Reference external source from a model.
-//!
-//! @details A @c source references a external source (file, PRNG, etc.). Model
-//! auses the source to get data external to the simulation.
-class source
-{
-public:
-    enum class source_type : i16 {
-        none,
-        binary_file, /* Best solution to reproductible simulation. Each client
-                        take a part of the stream (substream). */
-        constant,    /* Just an easy source to use mode. */
-        random,      /* How to retrieve old position in debug mode? */
-        text_file    /* How to retreive old position in debug mode? */
-    };
-
-    static inline constexpr int source_type_count = 5;
-
-    enum class operation_type {
-        initialize, // Use to initialize the buffer at simulation init step.
-        update,     // Use to update the buffer when all values are read.
-        restore,    // Use to restore the buffer when debug mode activated.
-        finalize    // Use to clear the buffer at simulation finalize step.
-    };
-
-    std::span<double> buffer;
-    u64               id   = 0;
-    source_type       type = source_type::none;
-    i16 index = 0; // The index of the next double to read in current chunk.
-    std::array<u64, 4> chunk_id; // Current chunk. Use when restore is apply.
-
-    //! Call to reset the position in the current chunk.
-    void reset() noexcept { index = 0u; }
-
-    //! Clear the source (buffer and external source access)
-    void clear() noexcept
-    {
-        buffer = std::span<double>();
-        id     = 0u;
-        type   = source_type::none;
-        index  = 0;
-        std::fill_n(chunk_id.data(), chunk_id.size(), 0);
-    }
-
-    //! Check if the source is empty and required a filling.
-    bool is_empty() const noexcept
-    {
-        return std::cmp_greater_equal(index, buffer.size());
-    }
-
-    //! Get the next double in the buffer. Abort if the buffer is empty. Use the
-    //! @c is_empty() function first.
-    //!
-    //! @return true if success, false otherwise.
-    double next() noexcept
-    {
-        irt_assert(!is_empty());
-
-        const auto old_index = index++;
-        return buffer[static_cast<sz>(old_index)];
-    }
-};
-
-class external_source
-{
-public:
+    //! Used to report which part of the @c project have a problem with the
+    //! @c new_error function.
     enum class part {
-        constant_source,
-        binary_file_source,
-        text_file_source,
-        random_source,
+        messages,
+        nodes,
+        records,
+        dated_messages,
+        models,
+        hsms,
+        observers,
+        scheduler,
+        external_sources
     };
 
-    data_array<constant_source, constant_source_id>       constant_sources;
-    data_array<binary_file_source, binary_file_source_id> binary_file_sources;
-    data_array<text_file_source, text_file_source_id>     text_file_sources;
-    data_array<random_source, random_source_id>           random_sources;
+    std::pmr::memory_resource* global = std::pmr::get_default_resource();
+    freelist_memory_resource   shared;
+    freelist_memory_resource   records_alloc;
+    freelist_memory_resource   dated_messages_alloc;
 
-    u64 seed[2] = { 0xdeadbeef12345678U, 0xdeadbeef12345678U };
+    vector<output_message, mr_allocator> emitting_output_ports;
+    vector<model_id, mr_allocator>       immediate_models;
+    vector<observer_id, mr_allocator>    immediate_observers;
 
-    status init(std::integral auto size) noexcept
-    {
-        if (std::cmp_equal(size, 0))
-            return success();
+    data_array<model, model_id, mr_allocator>                      models;
+    data_array<hierarchical_state_machine, hsm_id, mr_allocator>   hsms;
+    data_array<observer, observer_id, mr_allocator>                observers;
+    data_array<small_vector<node, 8>, node_id, mr_allocator>       nodes;
+    data_array<small_vector<message, 8>, message_id, mr_allocator> messages;
 
-        if (!constant_sources.reserve(size))
-            return new_error(
-              external_source::part::constant_source,
-              e_memory{ .capacity = 0,
-                        .request  = static_cast<unsigned long>(size) });
+    data_array<small_ring_buffer<record, 8>, record_id, mr_allocator> records;
+    data_array<ring_buffer<dated_message, mr_allocator>,
+               dated_message_id,
+               mr_allocator>
+      dated_messages;
 
-        if (!binary_file_sources.reserve(size))
-            return new_error(
-              external_source::part::binary_file_source,
-              e_memory{ .capacity = 0,
-                        .request  = static_cast<unsigned long>(size) });
+    external_source srcs;
+    scheduller      sched;
 
-        if (!text_file_sources.reserve(size))
-            return new_error(
-              external_source::part::text_file_source,
-              e_memory{ .capacity = 0,
-                        .request  = static_cast<unsigned long>(size) });
+    model_id get_id(const model& mdl) const;
 
-        if (!random_sources.reserve(size))
-            return new_error(
-              external_source::part::random_source,
-              e_memory{ .capacity = 0,
-                        .request  = static_cast<unsigned long>(size) });
+    template<typename Dynamics>
+    model_id get_id(const Dynamics& dyn) const;
 
-        return success();
-    }
+public:
+    simulation() noexcept;
+    simulation(std::pmr::memory_resource* mr) noexcept;
 
-    //! Call the @c init function for all sources (@c constant_source, @c
-    //! binary_file_source etc.).
-    status prepare() noexcept;
+    status init(std::integral auto model_capacity,
+                std::integral auto messages_capacity);
 
-    //! Call the @c finalize function for all sources (@c constant_source, @c
-    //! binary_file_source etc.). Usefull to close opened files.
-    void finalize() noexcept;
+    bool can_alloc(std::integral auto place) const noexcept;
+    bool can_alloc(dynamics_type type, std::integral auto place) const noexcept;
 
-    status import_from(const external_source& srcs);
+    template<typename Dynamics>
+    bool can_alloc_dynamics(std::integral auto place) const noexcept;
 
-    status dispatch(source& src, const source::operation_type op) noexcept;
+    //! @brief cleanup simulation object
+    //!
+    //! Clean scheduler and input/output port from message.
+    void clean() noexcept;
 
-    //! Call the @c data_array<T, Id>::clear() function for all sources.
+    //! @brief cleanup simulation and destroy all models and connections
     void clear() noexcept;
 
-    //! An example of error handlers to catch all error from the external source
-    //! class and friend (@c binary_file_source, @c text_file_source, @c
-    //! random_source and @c constant_source).
-    // constexpr auto make_error_handlers() const noexcept;
+    //! @brief This function allocates dynamics and models.
+    template<typename Dynamics>
+    Dynamics& alloc() noexcept;
+
+    //! @brief This function allocates dynamics and models.
+    model& clone(const model& mdl) noexcept;
+
+    //! @brief This function allocates dynamics and models.
+    model& alloc(dynamics_type type) noexcept;
+
+    void observe(model& mdl, observer& obs) noexcept;
+
+    void unobserve(model& mdl) noexcept;
+
+    void deallocate(model_id id) noexcept;
+
+    template<typename Dynamics>
+    void do_deallocate(Dynamics& dyn) noexcept;
+
+    bool can_connect(int number) const noexcept;
+
+    status connect(model& src, int port_src, model& dst, int port_dst) noexcept;
+    bool   can_connect(const model& src,
+                       int          port_src,
+                       const model& dst,
+                       int          port_dst) const noexcept;
+
+    template<typename DynamicsSrc, typename DynamicsDst>
+    status connect(DynamicsSrc& src,
+                   int          port_src,
+                   DynamicsDst& dst,
+                   int          port_dst) noexcept;
+
+    status disconnect(model& src,
+                      int    port_src,
+                      model& dst,
+                      int    port_dst) noexcept;
+
+    status initialize(time t) noexcept;
+
+    //!
+    status run(time& t) noexcept;
+
+    template<typename Dynamics>
+    status make_initialize(model& mdl, Dynamics& dyn, time t) noexcept;
+
+    status make_initialize(model& mdl, time t) noexcept;
+
+    template<typename Dynamics>
+    status make_transition(model& mdl, Dynamics& dyn, time t) noexcept;
+
+    status make_transition(model& mdl, time t) noexcept;
+
+    template<typename Dynamics>
+    status make_finalize(Dynamics& dyn, observer* obs, time t) noexcept;
+
+    /**
+     * @brief Finalize and cleanup simulation objects.
+     *
+     * Clean:
+     * - the scheduller nodes
+     * - all input/output remaining messages
+     * - call the observers' callback to finalize observation
+     *
+     * This function must be call at the end of the simulation.
+     */
+    status finalize(time t) noexcept;
 };
-
-//! To be used in model declaration to initialize a source instance according
-//! to the type of the external source.
-inline status initialize_source(simulation& sim, source& src) noexcept;
-
-//! To be used in model declaration to get a new real from a source instance
-//! according to the type of the external source.
-inline status update_source(simulation& sim, source& src, double& val) noexcept;
-
-//! To be used in model declaration to finalize and clear a source instance
-//! according to the type of the external source.
-inline status finalize_source(simulation& sim, source& src) noexcept;
-
-/*****************************************************************************
- *
- * DEVS Model / Simulation entities
- *
- ****************************************************************************/
-
-enum class dynamics_type : i32 {
-    qss1_integrator,
-    qss1_multiplier,
-    qss1_cross,
-    qss1_filter,
-    qss1_power,
-    qss1_square,
-    qss1_sum_2,
-    qss1_sum_3,
-    qss1_sum_4,
-    qss1_wsum_2,
-    qss1_wsum_3,
-    qss1_wsum_4,
-    qss2_integrator,
-    qss2_multiplier,
-    qss2_cross,
-    qss2_filter,
-    qss2_power,
-    qss2_square,
-    qss2_sum_2,
-    qss2_sum_3,
-    qss2_sum_4,
-    qss2_wsum_2,
-    qss2_wsum_3,
-    qss2_wsum_4,
-    qss3_integrator,
-    qss3_multiplier,
-    qss3_cross,
-    qss3_filter,
-    qss3_power,
-    qss3_square,
-    qss3_sum_2,
-    qss3_sum_3,
-    qss3_sum_4,
-    qss3_wsum_2,
-    qss3_wsum_3,
-    qss3_wsum_4,
-    integrator,
-    quantifier,
-    adder_2,
-    adder_3,
-    adder_4,
-    mult_2,
-    mult_3,
-    mult_4,
-    counter,
-    queue,
-    dynamic_queue,
-    priority_queue,
-    generator,
-    constant,
-    cross,
-    time_func,
-    accumulator_2,
-    filter,
-    logical_and_2,
-    logical_and_3,
-    logical_or_2,
-    logical_or_3,
-    logical_invert,
-    hsm_wrapper
-};
-
-constexpr i8 dynamics_type_last() noexcept
-{
-    return static_cast<i8>(dynamics_type::hsm_wrapper);
-}
-
-constexpr sz dynamics_type_size() noexcept
-{
-    return static_cast<sz>(dynamics_type_last() + 1);
-}
-
-struct observation {
-    observation() noexcept = default;
-    observation(const real x_, const real y_) noexcept
-      : x{ x_ }
-      , y{ y_ }
-    {}
-
-    real x{};
-    real y{};
-};
-
-struct observer {
-    using value_type = observation;
-
-    static constexpr u8 flags_none              = 0;
-    static constexpr u8 flags_data_available    = 1 << 0;
-    static constexpr u8 flags_buffer_full       = 1 << 1;
-    static constexpr u8 flags_data_lost         = 1 << 2;
-    static constexpr u8 flags_use_linear_buffer = 1 << 3;
-
-    observer(std::string_view name_,
-             u64              user_id_   = 0,
-             i32              user_type_ = 0) noexcept;
-
-    void reset() noexcept;
-    void clear() noexcept;
-    void update(observation_message msg) noexcept;
-    bool full() const noexcept;
-    void push_back(const observation& vec) noexcept;
-
-    ring_buffer<observation_message> buffer;
-    ring_buffer<observation>         linearized_buffer;
-
-    model_id              model     = undefined<model_id>();
-    u64                   user_id   = 0;
-    i32                   user_type = 0;
-    dynamics_type         type      = dynamics_type::qss1_integrator;
-    std::pair<real, real> limits;
-
-    small_string<14> name;
-    u8               flags;
-};
-
-struct node {
-    node() = default;
-
-    node(const model_id model_, const i8 port_index_) noexcept
-      : model(model_)
-      , port_index(port_index_)
-    {}
-
-    model_id model      = undefined<model_id>();
-    i8       port_index = 0;
-};
-
-struct output_message {
-    output_message() noexcept  = default;
-    ~output_message() noexcept = default;
-
-    message  msg;
-    model_id model = undefined<model_id>();
-    i8       port  = 0;
-};
-
-using output_port = u64;
-using input_port  = u64;
-
-inline bool have_message(const u64 port) noexcept
-{
-    return port != static_cast<u64>(-1);
-}
-
-bool can_alloc_message(const simulation& sim, int alloc_number) noexcept;
-bool can_alloc_node(const simulation& sim, int alloc_number) noexcept;
-bool can_alloc_dated_message(const simulation& sim, int alloc_number) noexcept;
-
-list_view<message> append_message(simulation& sim, input_port& port) noexcept;
-list_view_const<message> get_message(const simulation& sim,
-                                     const input_port  port) noexcept;
-
-list_view<node>       append_node(simulation& sim, output_port& port) noexcept;
-list_view_const<node> get_node(const simulation& sim,
-                               const output_port port) noexcept;
-
-list_view<record>       append_archive(simulation& sim, u64& id) noexcept;
-list_view_const<record> get_archive(const simulation& sim,
-                                    const u64         id) noexcept;
-
-list_view<dated_message>       append_dated_message(simulation& sim,
-                                                    u64&        id) noexcept;
-list_view_const<dated_message> get_dated_message(const simulation& sim,
-                                                 const u64         id) noexcept;
-
-status send_message(simulation&  sim,
-                    output_port& p,
-                    real         r1,
-                    real         r2 = zero,
-                    real         r3 = zero) noexcept;
 
 /////////////////////////////////////////////////////////////////////////////
 //
@@ -2127,10 +1604,16 @@ constexpr observation_message qss_observation(real X,
              mu / two + pu * e };
 }
 
+inline status send_message(simulation& sim,
+                           node_id&    output_port,
+                           real        r1,
+                           real        r2 = 0.0,
+                           real        r3 = 0.0) noexcept;
+
 struct integrator {
-    input_port  x[3];
-    output_port y[1];
-    time        sigma = time_domain<time>::zero;
+    message_id x[3];
+    node_id    y[1];
+    time       sigma = time_domain<time>::zero;
 
     enum port_name { port_quanta, port_x_dot, port_reset };
 
@@ -2142,9 +1625,9 @@ struct integrator {
         running
     };
 
-    real default_current_value = 0.0;
-    real default_reset_value   = 0.0;
-    u64  archive               = static_cast<u64>(-1);
+    real      default_current_value = 0.0;
+    real      default_reset_value   = 0.0;
+    record_id archive               = undefined<record_id>();
 
     real  current_value     = 0.0;
     real  reset_value       = 0.0;
@@ -2155,12 +1638,12 @@ struct integrator {
     bool  reset             = false;
     state st                = state::init;
 
-    integrator() = default;
+    integrator() noexcept = default;
 
     integrator(const integrator& other) noexcept
       : default_current_value(other.default_current_value)
       , default_reset_value(other.default_reset_value)
-      , archive(static_cast<u64>(-1))
+      , archive(undefined<record_id>())
       , current_value(other.current_value)
       , reset_value(other.reset_value)
       , up_threshold(other.up_threshold)
@@ -2181,7 +1664,7 @@ struct integrator {
         expected_value    = 0.0;
         reset             = false;
         st                = state::init;
-        archive           = static_cast<u64>(-1);
+        archive           = undefined<record_id>();
         sigma             = time_domain<time>::zero;
 
         return success();
@@ -2189,55 +1672,65 @@ struct integrator {
 
     status finalize(simulation& sim) noexcept
     {
-        append_archive(sim, archive).clear();
+        if (auto* ar = sim.records.try_to_get(archive); ar) {
+            ar->clear();
+            sim.records.free(*ar);
+        }
+
+        archive = undefined<record_id>();
 
         return success();
     }
 
-    status external(simulation& sim, time t) noexcept
+    void external_quanta(const std::span<message> quantas) noexcept
     {
-        if (have_message(x[port_quanta])) {
-            auto lst = get_message(sim, x[port_quanta]);
-            for (const auto& msg : lst) {
-                up_threshold   = msg.data[0];
-                down_threshold = msg.data[1];
+        sim::ensure(not quantas.empty());
 
-                if (st == state::wait_for_quanta)
-                    st = state::running;
+        for (const auto& msg : quantas) {
+            up_threshold   = msg.data[0];
+            down_threshold = msg.data[1];
 
-                if (st == state::wait_for_both)
-                    st = state::wait_for_x_dot;
-            }
+            if (st == state::wait_for_quanta)
+                st = state::running;
+
+            if (st == state::wait_for_both)
+                st = state::wait_for_x_dot;
+        }
+    }
+
+    void external_x_dot(simulation&              sim,
+                        time                     t,
+                        const std::span<message> x_dots) noexcept
+    {
+        sim::ensure(not x_dots.empty());
+
+        auto* ar = sim.records.try_to_get(archive);
+
+        if (!ar) {
+            auto& new_ar = sim.records.alloc();
+            archive      = sim.records.get_id(new_ar);
+            ar           = &new_ar;
         }
 
-        if (have_message(x[port_x_dot])) {
-            auto lst          = get_message(sim, x[port_x_dot]);
-            auto archive_list = append_archive(sim, archive);
-            for (const auto& msg : lst) {
-                archive_list.emplace_back(msg.data[0], t);
+        for (const auto& msg : x_dots) {
+            ar->emplace_tail(msg.data[0], t);
 
-                if (st == state::wait_for_x_dot)
-                    st = state::running;
+            if (st == state::wait_for_x_dot)
+                st = state::running;
 
-                if (st == state::wait_for_both)
-                    st = state::wait_for_quanta;
-            }
+            if (st == state::wait_for_both)
+                st = state::wait_for_quanta;
         }
+    }
 
-        if (have_message(x[port_reset])) {
-            auto lst = get_message(sim, x[port_reset]);
-            for (const auto& msg : lst) {
-                reset_value = msg.data[0];
-                reset       = true;
-            }
+    void external_reset(const std::span<message> resets) noexcept
+    {
+        sim::ensure(not resets.empty());
+
+        for (const auto& msg : resets) {
+            reset_value = msg.data[0];
+            reset       = true;
         }
-
-        if (st == state::running) {
-            current_value  = compute_current_value(sim, t);
-            expected_value = compute_expected_value(sim);
-        }
-
-        return success();
     }
 
     status internal(simulation& sim, time t) noexcept
@@ -2245,11 +1738,17 @@ struct integrator {
         switch (st) {
         case state::running: {
             last_output_value = expected_value;
-            auto lst          = append_archive(sim, archive);
 
-            const real last_derivative_value = lst.back().x_dot;
-            lst.clear();
-            lst.emplace_back(last_derivative_value, t);
+            auto* ar = sim.records.try_to_get(archive);
+            if (!ar) {
+                auto& new_ar = sim.records.alloc();
+                archive      = sim.records.get_id(new_ar);
+                ar           = &new_ar;
+            }
+
+            const real last_derivative_value = ar->tail()->x_dot;
+            ar->clear();
+            ar->emplace_tail(last_derivative_value, t);
             current_value = expected_value;
             st            = state::wait_for_quanta;
             return success();
@@ -2265,8 +1764,13 @@ struct integrator {
 
     status transition(simulation& sim, time t, time /*e*/, time r) noexcept
     {
-        if (!have_message(x[port_quanta]) && !have_message(x[port_x_dot]) &&
-            !have_message(x[port_reset])) {
+        auto* quantas = sim.messages.try_to_get(x[port_quanta]);
+        auto* x_dots  = sim.messages.try_to_get(x[port_x_dot]);
+        auto* resets  = sim.messages.try_to_get(x[port_reset]);
+
+        if ((not quantas or quantas->empty()) and
+            (not x_dots or x_dots->empty()) and
+            (not resets or resets->empty())) {
             if (auto ret = internal(sim, t); !ret)
                 return ret.error();
         } else {
@@ -2274,8 +1778,20 @@ struct integrator {
                 if (auto ret = internal(sim, t); !ret)
                     return ret.error();
 
-            if (auto ret = external(sim, t); !ret)
-                return ret.error();
+            if (quantas and not quantas->empty())
+                external_quanta(std::span(quantas->data(), quantas->size()));
+
+            if (x_dots and not x_dots->empty())
+                external_x_dot(
+                  sim, t, std::span(x_dots->data(), x_dots->size()));
+
+            if (resets and not resets->empty())
+                external_reset(std::span(resets->data(), resets->size()));
+
+            if (st == state::running) {
+                current_value  = compute_current_value(sim, t);
+                expected_value = compute_expected_value(sim);
+            }
         }
 
         return ta(sim);
@@ -2306,11 +1822,11 @@ struct integrator {
     status ta(simulation& sim) noexcept
     {
         if (st == state::running) {
-            if (std::cmp_equal(-1, archive))
+            auto* lst = sim.records.try_to_get(archive);
+            if (not lst)
                 return new_error(integrator_running_without_x_dot_error{});
 
-            auto       lst                = get_archive(sim, archive);
-            const auto current_derivative = lst.back().x_dot;
+            const auto current_derivative = lst->tail()->x_dot;
 
             if (current_derivative == time_domain<time>::zero) {
                 sigma = time_domain<time>::infinity;
@@ -2339,14 +1855,14 @@ struct integrator {
 
     real compute_current_value(simulation& sim, time t) noexcept
     {
-        if (std::cmp_equal(-1, archive))
+        auto* lst = sim.records.try_to_get(archive);
+        if (not lst or lst->empty())
             return reset ? reset_value : last_output_value;
 
-        auto lst  = get_archive(sim, archive);
         auto val  = reset ? reset_value : last_output_value;
-        auto end  = lst.end();
-        auto it   = lst.begin();
-        auto next = lst.begin();
+        auto end  = lst->tail();
+        auto it   = lst->head();
+        auto next = lst->head();
 
         if (next != end)
             ++next;
@@ -2354,7 +1870,9 @@ struct integrator {
         for (; next != end; it = next++)
             val += (next->date - it->date) * it->x_dot;
 
-        val += (t - lst.back().date) * lst.back().x_dot;
+        val += (next->date - it->date) * it->x_dot;
+
+        val += (t - lst->tail()->date) * lst->tail()->x_dot;
 
         if (up_threshold < val) {
             return up_threshold;
@@ -2363,18 +1881,22 @@ struct integrator {
         } else {
             return val;
         }
+
+        return reset ? reset_value : last_output_value;
     }
 
     real compute_expected_value(simulation& sim) noexcept
     {
-        auto       lst                = get_archive(sim, archive);
-        const auto current_derivative = lst.back().x_dot;
+        if (auto* lst = sim.records.try_to_get(archive);
+            lst and not lst->empty()) {
+            const auto current_derivative = lst->tail()->x_dot;
 
-        if (current_derivative == 0)
-            return current_value;
+            if (current_derivative == 0)
+                return current_value;
 
-        if (current_derivative > 0)
-            return up_threshold;
+            if (current_derivative > 0)
+                return up_threshold;
+        }
 
         return down_threshold;
     }
@@ -2391,14 +1913,14 @@ struct abstract_integrator;
 
 template<>
 struct abstract_integrator<1> {
-    input_port  x[2];
-    output_port y[1];
-    real        default_X  = zero;
-    real        default_dQ = irt::real(0.01);
-    real        X;
-    real        q;
-    real        u;
-    time        sigma = time_domain<time>::zero;
+    message_id x[2];
+    node_id    y[1];
+    real       default_X  = zero;
+    real       default_dQ = irt::real(0.01);
+    real       X;
+    real       q;
+    real       u;
+    time       sigma = time_domain<time>::zero;
 
     enum port_name { port_x_dot, port_reset };
 
@@ -2433,13 +1955,10 @@ struct abstract_integrator<1> {
         return success();
     }
 
-    status external(simulation& sim, const time e) noexcept
+    status external(const time e, const message& msg) noexcept
     {
-        auto lst     = get_message(sim, x[port_x_dot]);
-        auto value_x = lst.front()[0];
-
         X += e * u;
-        u = value_x;
+        u = msg[0];
 
         if (sigma != zero) {
             if (u == zero)
@@ -2453,12 +1972,9 @@ struct abstract_integrator<1> {
         return success();
     }
 
-    status reset(simulation& sim) noexcept
+    status reset(const message& msg) noexcept
     {
-        auto  lst   = get_message(sim, x[port_reset]);
-        auto& value = lst.front();
-
-        X     = value[0];
+        X     = msg[0];
         q     = X;
         sigma = time_domain<time>::zero;
         return success();
@@ -2477,15 +1993,19 @@ struct abstract_integrator<1> {
 
     status transition(simulation& sim, time /*t*/, time e, time /*r*/) noexcept
     {
-        if (!have_message(x[port_x_dot]) && !have_message(x[port_reset])) {
+        auto* lst_x_dot = sim.messages.try_to_get(x[port_x_dot]);
+        auto* lst_reset = sim.messages.try_to_get(x[port_reset]);
+
+        if ((not lst_x_dot or lst_x_dot->empty()) and
+            (not lst_reset or lst_reset->empty())) {
             if (auto ret = internal(); !ret)
                 return ret.error();
         } else {
-            if (have_message(x[port_reset])) {
-                if (auto ret = reset(sim); !ret)
+            if (lst_reset and not lst_reset->empty()) {
+                if (auto ret = reset(lst_reset->front()); !ret)
                     return ret.error();
-            } else {
-                if (auto ret = external(sim, e); !ret)
+            } else if (lst_x_dot and not lst_x_dot->empty()) {
+                if (auto ret = external(e, lst_x_dot->front()); !ret)
                     return ret.error();
             }
         }
@@ -2512,16 +2032,16 @@ struct abstract_integrator<1> {
 
 template<>
 struct abstract_integrator<2> {
-    input_port  x[2];
-    output_port y[1];
-    real        default_X  = zero;
-    real        default_dQ = irt::real(0.01);
-    real        X;
-    real        u;
-    real        mu;
-    real        q;
-    real        mq;
-    time        sigma = time_domain<time>::zero;
+    message_id x[2];
+    node_id    y[1];
+    real       default_X  = zero;
+    real       default_dQ = irt::real(0.01);
+    real       X;
+    real       u;
+    real       mu;
+    real       q;
+    real       mq;
+    time       sigma = time_domain<time>::zero;
 
     enum port_name { port_x_dot, port_reset };
 
@@ -2561,11 +2081,10 @@ struct abstract_integrator<2> {
         return success();
     }
 
-    status external(simulation& sim, const time e) noexcept
+    status external(const time e, const message& msg) noexcept
     {
-        auto       lst         = get_message(sim, x[port_x_dot]);
-        const real value_x     = lst.front()[0];
-        const real value_slope = lst.front()[1];
+        const real value_x     = msg[0];
+        const real value_slope = msg[1];
 
         X += (u * e) + (mu / two) * (e * e);
         u  = value_x;
@@ -2629,28 +2148,30 @@ struct abstract_integrator<2> {
         return success();
     }
 
-    status reset(simulation& sim) noexcept
+    status reset(const message& msg) noexcept
     {
-        auto lst         = get_message(sim, x[port_reset]);
-        auto value_reset = lst.front()[0];
-
-        X     = value_reset;
+        X     = msg[0];
         q     = X;
         sigma = time_domain<time>::zero;
+
         return success();
     }
 
     status transition(simulation& sim, time /*t*/, time e, time /*r*/) noexcept
     {
-        if (!have_message(x[port_x_dot]) && !have_message(x[port_reset])) {
+        auto* lst_x_dot = sim.messages.try_to_get(x[port_x_dot]);
+        auto* lst_reset = sim.messages.try_to_get(x[port_reset]);
+
+        if ((not lst_x_dot or lst_x_dot->empty()) and
+            (not lst_reset or lst_reset->empty())) {
             if (auto ret = internal(); !ret)
                 return ret.error();
         } else {
-            if (have_message(x[port_reset])) {
-                if (auto ret = reset(sim); !ret)
+            if (lst_reset and not lst_reset->empty()) {
+                if (auto ret = reset(lst_reset->front()); !ret)
                     return ret.error();
-            } else {
-                if (auto ret = external(sim, e); !ret)
+            } else if (lst_x_dot and not lst_x_dot->empty()) {
+                if (auto ret = external(e, lst_x_dot->front()); !ret)
                     return ret.error();
             }
         }
@@ -2672,18 +2193,18 @@ struct abstract_integrator<2> {
 
 template<>
 struct abstract_integrator<3> {
-    input_port  x[2];
-    output_port y[1];
-    real        default_X  = zero;
-    real        default_dQ = irt::real(0.01);
-    real        X;
-    real        u;
-    real        mu;
-    real        pu;
-    real        q;
-    real        mq;
-    real        pq;
-    time        sigma = time_domain<time>::zero;
+    message_id x[2];
+    node_id    y[1];
+    real       default_X  = zero;
+    real       default_dQ = irt::real(0.01);
+    real       X;
+    real       u;
+    real       mu;
+    real       pu;
+    real       q;
+    real       mq;
+    real       pq;
+    time       sigma = time_domain<time>::zero;
 
     enum port_name { port_x_dot, port_reset };
 
@@ -2725,13 +2246,11 @@ struct abstract_integrator<3> {
         return success();
     }
 
-    status external(simulation& sim, const time e) noexcept
+    status external(const time e, const message& msg) noexcept
     {
-        auto       lst              = get_message(sim, x[port_x_dot]);
-        auto&      value            = lst.front();
-        const real value_x          = value[0];
-        const real value_slope      = value[1];
-        const real value_derivative = value[2];
+        const real value_x          = msg[0];
+        const real value_slope      = msg[1];
+        const real value_derivative = msg[2];
 
 #if irt_have_numbers == 1
         constexpr real pi_div_3 = std::numbers::pi_v<real> / three;
@@ -2969,11 +2488,9 @@ struct abstract_integrator<3> {
         return success();
     }
 
-    status reset(simulation& sim) noexcept
+    status reset(const message& msg) noexcept
     {
-        auto span = get_message(sim, x[port_reset]);
-
-        X     = span.front()[0];
+        X     = msg[0];
         q     = X;
         sigma = time_domain<time>::zero;
 
@@ -2982,15 +2499,19 @@ struct abstract_integrator<3> {
 
     status transition(simulation& sim, time /*t*/, time e, time /*r*/) noexcept
     {
-        if (!have_message(x[port_x_dot]) && !have_message(x[port_reset])) {
+        auto* lst_x_dot = sim.messages.try_to_get(x[port_x_dot]);
+        auto* lst_reset = sim.messages.try_to_get(x[port_reset]);
+
+        if ((not lst_x_dot or lst_x_dot->empty()) and
+            (not lst_reset or lst_reset->empty())) {
             if (auto ret = internal(); !ret)
                 return ret.error();
         } else {
-            if (have_message(x[port_reset])) {
-                if (auto ret = reset(sim); !ret)
+            if (lst_reset and not lst_reset->empty()) {
+                if (auto ret = reset(lst_reset->front()); !ret)
                     return ret.error();
-            } else {
-                if (auto ret = external(sim, e); !ret)
+            } else if (lst_x_dot and not lst_x_dot->empty()) {
+                if (auto ret = external(e, lst_x_dot->front()); !ret)
                     return ret.error();
             }
         }
@@ -3022,9 +2543,9 @@ template<int QssLevel>
 struct abstract_power {
     static_assert(1 <= QssLevel && QssLevel <= 3, "Only for Qss1, 2 and 3");
 
-    input_port  x[1];
-    output_port y[1];
-    time        sigma;
+    message_id x[1];
+    node_id    y[1];
+    time       sigma;
 
     real value[QssLevel];
     real default_n;
@@ -3075,11 +2596,11 @@ struct abstract_power {
                       time /*e*/,
                       time /*r*/) noexcept
     {
-        sigma = time_domain<time>::infinity;
+        sigma     = time_domain<time>::infinity;
+        auto* lst = sim.messages.try_to_get(x[0]);
 
-        if (have_message(x[0])) {
-            auto  list = get_message(sim, x[0]);
-            auto& msg  = list.front();
+        if (lst and not lst->empty()) {
+            const auto& msg = lst->front();
 
             if constexpr (QssLevel == 1) {
                 value[0] = msg[0];
@@ -3137,9 +2658,9 @@ template<int QssLevel>
 struct abstract_square {
     static_assert(1 <= QssLevel && QssLevel <= 3, "Only for Qss1, 2 and 3");
 
-    input_port  x[1];
-    output_port y[1];
-    time        sigma;
+    message_id x[1];
+    node_id    y[1];
+    time       sigma;
 
     real value[QssLevel];
 
@@ -3183,11 +2704,11 @@ struct abstract_square {
                       time /*e*/,
                       time /*r*/) noexcept
     {
-        sigma = time_domain<time>::infinity;
+        sigma     = time_domain<time>::infinity;
+        auto* lst = sim.messages.try_to_get(x[0]);
 
-        if (have_message(x[0])) {
-            auto  lst = get_message(sim, x[0]);
-            auto& msg = lst.front();
+        if (lst and not lst->empty()) {
+            const auto& msg = lst->front();
 
             if constexpr (QssLevel == 1) {
                 value[0] = msg[0];
@@ -3238,9 +2759,9 @@ struct abstract_sum {
     static_assert(1 <= QssLevel && QssLevel <= 3, "Only for Qss1, 2 and 3");
     static_assert(PortNumber > 1, "sum model need at least two input port");
 
-    input_port  x[PortNumber];
-    output_port y[1];
-    time        sigma;
+    message_id x[PortNumber];
+    node_id    y[1];
+    time       sigma;
 
     real values[QssLevel * PortNumber];
 
@@ -3308,21 +2829,23 @@ struct abstract_sum {
 
         if constexpr (QssLevel == 1) {
             for (size_t i = 0; i != PortNumber; ++i) {
-                auto span = get_message(sim, x[i]);
-                for (const auto& msg : span) {
-                    values[i] = msg[0];
-                    message   = true;
+                if (auto* lst = sim.messages.try_to_get(x[i]); lst) {
+                    for (const auto& msg : *lst) {
+                        values[i] = msg[0];
+                        message   = true;
+                    }
                 }
             }
         }
 
         if constexpr (QssLevel == 2) {
             for (size_t i = 0; i != PortNumber; ++i) {
-                if (!have_message(x[i])) {
+                auto* lst = sim.messages.try_to_get(x[i]);
+
+                if (!lst or lst->empty()) {
                     values[i] += values[i + PortNumber] * e;
                 } else {
-                    auto span = get_message(sim, x[i]);
-                    for (const auto& msg : span) {
+                    for (const auto& msg : *lst) {
                         values[i]              = msg[0];
                         values[i + PortNumber] = msg[1];
                         message                = true;
@@ -3333,14 +2856,15 @@ struct abstract_sum {
 
         if constexpr (QssLevel == 3) {
             for (size_t i = 0; i != PortNumber; ++i) {
-                if (!have_message(x[i])) {
+                auto* lst = sim.messages.try_to_get(x[i]);
+
+                if (!lst or lst->empty()) {
                     values[i] += values[i + PortNumber] * e +
                                  values[i + PortNumber + PortNumber] * e * e;
                     values[i + PortNumber] +=
                       2 * values[i + PortNumber + PortNumber] * e;
                 } else {
-                    auto span = get_message(sim, x[i]);
-                    for (const auto& msg : span) {
+                    for (const auto& msg : *lst) {
                         values[i]                           = msg[0];
                         values[i + PortNumber]              = msg[1];
                         values[i + PortNumber + PortNumber] = msg[2];
@@ -3406,9 +2930,9 @@ struct abstract_wsum {
     static_assert(1 <= QssLevel && QssLevel <= 3, "Only for Qss1, 2 and 3");
     static_assert(PortNumber > 1, "sum model need at least two input port");
 
-    input_port  x[PortNumber];
-    output_port y[1];
-    time        sigma;
+    message_id x[PortNumber];
+    node_id    y[1];
+    time       sigma;
 
     real default_input_coeffs[PortNumber] = { 0 };
     real values[QssLevel * PortNumber];
@@ -3481,24 +3005,28 @@ struct abstract_wsum {
 
         if constexpr (QssLevel == 1) {
             for (size_t i = 0; i != PortNumber; ++i) {
-                auto span = get_message(sim, x[i]);
-                for (const auto& msg : span) {
-                    values[i] = msg[0];
-                    message   = true;
+                if (auto* lst = sim.messages.try_to_get(x[i]); lst) {
+                    if (not lst->empty()) {
+                        for (const auto& msg : *lst) {
+                            values[i] = msg[0];
+                            message   = true;
+                        }
+                    }
                 }
             }
         }
 
         if constexpr (QssLevel == 2) {
             for (size_t i = 0; i != PortNumber; ++i) {
-                if (!have_message(x[i])) {
-                    values[i] += values[i + PortNumber] * e;
-                } else {
-                    auto span = get_message(sim, x[i]);
-                    for (const auto& msg : span) {
-                        values[i]              = msg[0];
-                        values[i + PortNumber] = msg[1];
-                        message                = true;
+                if (auto* lst = sim.messages.try_to_get(x[i]); lst) {
+                    if (lst->empty()) {
+                        values[i] += values[i + PortNumber] * e;
+                    } else {
+                        for (const auto& msg : *lst) {
+                            values[i]              = msg[0];
+                            values[i + PortNumber] = msg[1];
+                            message                = true;
+                        }
                     }
                 }
             }
@@ -3506,18 +3034,20 @@ struct abstract_wsum {
 
         if constexpr (QssLevel == 3) {
             for (size_t i = 0; i != PortNumber; ++i) {
-                if (!have_message(x[i])) {
-                    values[i] += values[i + PortNumber] * e +
-                                 values[i + PortNumber + PortNumber] * e * e;
-                    values[i + PortNumber] +=
-                      2 * values[i + PortNumber + PortNumber] * e;
-                } else {
-                    auto span = get_message(sim, x[i]);
-                    for (const auto& msg : span) {
-                        values[i]                           = msg[0];
-                        values[i + PortNumber]              = msg[1];
-                        values[i + PortNumber + PortNumber] = msg[2];
-                        message                             = true;
+                if (auto* lst = sim.messages.try_to_get(x[i]); lst) {
+                    if (lst->empty()) {
+                        values[i] +=
+                          values[i + PortNumber] * e +
+                          values[i + PortNumber + PortNumber] * e * e;
+                        values[i + PortNumber] +=
+                          2 * values[i + PortNumber + PortNumber] * e;
+                    } else {
+                        for (const auto& msg : *lst) {
+                            values[i]                           = msg[0];
+                            values[i + PortNumber]              = msg[1];
+                            values[i + PortNumber + PortNumber] = msg[2];
+                            message                             = true;
+                        }
                     }
                 }
             }
@@ -3582,9 +3112,9 @@ template<int QssLevel>
 struct abstract_multiplier {
     static_assert(1 <= QssLevel && QssLevel <= 3, "Only for Qss1, 2 and 3");
 
-    input_port  x[2];
-    output_port y[1];
-    time        sigma;
+    message_id x[2];
+    node_id    y[1];
+    time       sigma;
 
     real values[QssLevel * 2];
 
@@ -3636,13 +3166,17 @@ struct abstract_multiplier {
                       [[maybe_unused]] time e,
                       time /*r*/) noexcept
     {
-        bool message_port_0 = have_message(x[0]);
-        bool message_port_1 = have_message(x[1]);
-        sigma               = time_domain<time>::infinity;
-        auto span_0         = get_message(sim, x[0]);
-        auto span_1         = get_message(sim, x[1]);
+        auto* lst_0 = sim.messages.try_to_get(x[0]);
+        auto* lst_1 = sim.messages.try_to_get(x[1]);
 
-        for (const auto& msg : span_0) {
+        if (!lst_0 or !lst_1)
+            return success();
+
+        bool message_port_0 = not lst_0->empty();
+        bool message_port_1 = not lst_1->empty();
+        sigma               = time_domain<time>::infinity;
+
+        for (const auto& msg : *lst_0) {
             sigma     = time_domain<time>::zero;
             values[0] = msg[0];
 
@@ -3653,7 +3187,7 @@ struct abstract_multiplier {
                 values[2 + 2 + 0] = msg[2];
         }
 
-        for (const auto& msg : span_1) {
+        for (const auto& msg : *lst_1) {
             sigma     = time_domain<time>::zero;
             values[1] = msg[0];
 
@@ -3718,9 +3252,9 @@ using qss2_multiplier = abstract_multiplier<2>;
 using qss3_multiplier = abstract_multiplier<3>;
 
 struct quantifier {
-    input_port  x[1];
-    output_port y[1];
-    time        sigma = time_domain<time>::infinity;
+    message_id x[1];
+    node_id    y[1];
+    time       sigma = time_domain<time>::infinity;
 
     enum class state { init, idle, response };
 
@@ -3732,8 +3266,7 @@ struct quantifier {
     int         default_past_length      = 3;
     adapt_state default_adapt_state      = adapt_state::possible;
     bool        default_zero_init_offset = false;
-    u64         archive                  = static_cast<u64>(-1);
-    int         archive_length           = 0;
+    record_id   archive                  = undefined<record_id>();
 
     real        m_upthreshold      = zero;
     real        m_downthreshold    = zero;
@@ -3757,8 +3290,7 @@ struct quantifier {
       , default_past_length(other.default_past_length)
       , default_adapt_state(other.default_adapt_state)
       , default_zero_init_offset(other.default_zero_init_offset)
-      , archive(static_cast<u64>(-1))
-      , archive_length(0)
+      , archive(undefined<record_id>())
       , m_upthreshold(other.m_upthreshold)
       , m_downthreshold(other.m_downthreshold)
       , m_offset(other.m_offset)
@@ -3780,8 +3312,7 @@ struct quantifier {
         m_downthreshold    = zero;
         m_offset           = zero;
         m_step_number      = 0;
-        archive            = static_cast<u64>(-1);
-        archive_length     = 0;
+        archive            = undefined<record_id>();
         m_state            = state::init;
 
         if (m_step_size <= 0)
@@ -3797,20 +3328,25 @@ struct quantifier {
 
     status finalize(simulation& sim) noexcept
     {
-        append_archive(sim, archive).clear();
+        if (auto* ar = sim.records.try_to_get(archive); ar) {
+            ar->clear();
+            sim.records.free(*ar);
+        }
+
+        archive = undefined<record_id>();
+
         return success();
     }
 
-    status external(simulation& sim, time t) noexcept
+    status external(simulation& sim, time t, std::span<message> msg) noexcept
     {
         real val = 0.0, shifting_factor = 0.0;
 
         {
-            auto span = get_message(sim, x[0]);
-            real sum  = zero;
-            real nb   = zero;
+            real sum = zero;
+            real nb  = zero;
 
-            for (const auto& elem : span) {
+            for (const auto& elem : msg) {
                 sum += elem[0];
                 ++nb;
             }
@@ -3833,11 +3369,19 @@ struct quantifier {
             case adapt_state::impossible:
                 update_thresholds();
                 break;
-            case adapt_state::possible:
-                store_change(
-                  sim, val >= m_upthreshold ? m_step_size : -m_step_size, t);
 
-                shifting_factor = shift_quanta(sim);
+            case adapt_state::possible: {
+                auto* ar = sim.records.try_to_get(archive);
+                if (!ar) {
+                    auto& new_ar = sim.records.alloc();
+                    ar           = &new_ar;
+                    archive      = sim.records.get_id(new_ar);
+                }
+
+                store_change(
+                  *ar, val >= m_upthreshold ? m_step_size : -m_step_size, t);
+
+                shifting_factor = shift_quanta(*ar);
 
                 if (shifting_factor < 0)
                     return new_error(shifting_value_neg{});
@@ -3853,7 +3397,8 @@ struct quantifier {
                 } else {
                     update_thresholds();
                 }
-                break;
+            } break;
+
             case adapt_state::done:
                 init_step_number_and_offset(val);
                 m_adapt_state = adapt_state::possible;
@@ -3876,7 +3421,9 @@ struct quantifier {
 
     status transition(simulation& sim, time t, time /*e*/, time r) noexcept
     {
-        if (!have_message(x[0])) {
+        auto* x0s = sim.messages.try_to_get(x[0]);
+
+        if (not x0s or x0s->empty()) {
             if (auto ret = internal(); !ret)
                 return ret.error();
         } else {
@@ -3884,7 +3431,9 @@ struct quantifier {
                 if (auto ret = internal(); !ret)
                     return ret.error();
 
-            if (auto ret = external(sim, t); !ret)
+            if (auto ret =
+                  external(sim, t, std::span(x0s->data(), x0s->size()));
+                !ret)
                 return ret.error();
         }
 
@@ -3953,24 +3502,23 @@ private:
         }
     }
 
-    real shift_quanta(simulation& sim)
+    real shift_quanta(small_ring_buffer<record, 8>& ar) noexcept
     {
-        auto lst    = append_archive(sim, archive);
         real factor = 0.0;
 
-        if (oscillating(sim, m_past_length - 1) &&
-            ((lst.back().date - lst.front().date) != 0)) {
+        if (oscillating(ar, m_past_length - 1) &&
+            ((ar.tail()->date - ar.head()->date) != 0)) {
             real acc = 0.0;
             real local_estim;
             real cnt = 0;
 
-            auto it_2 = lst.begin();
+            auto it_2 = ar.head();
             auto it_0 = it_2++;
             auto it_1 = it_2++;
 
-            for (int i = 0; i < archive_length - 2; ++i) {
+            for (int i = 0; i < ar.ssize() - 2; ++i) {
                 if ((it_2->date - it_0->date) != 0) {
-                    if ((lst.back().x_dot * it_1->x_dot) > zero) {
+                    if ((ar.tail()->x_dot * it_1->x_dot) > zero) {
                         local_estim = 1 - (it_1->date - it_0->date) /
                                             (it_2->date - it_0->date);
                     } else {
@@ -3985,35 +3533,39 @@ private:
 
             acc    = acc / cnt;
             factor = acc;
-            lst.clear();
-            archive_length = 0;
+            ar.clear();
         }
 
         return factor;
     }
 
-    void store_change(simulation& sim, real val, time t) noexcept
+    void store_change(small_ring_buffer<record, 8>& ar,
+                      real                          val,
+                      time                          t) noexcept
     {
-        auto lst = append_archive(sim, archive);
-        lst.emplace_back(val, t);
-        archive_length++;
+        ar.emplace_tail(val, t);
 
-        while (archive_length > m_past_length) {
-            lst.pop_front();
-            archive_length--;
-        }
+        while (ar.ssize() > m_past_length)
+            ar.pop_head();
     }
 
-    bool oscillating(simulation& sim, const int range) noexcept
+    bool oscillating(small_ring_buffer<record, 8>& ar, const int range) noexcept
     {
-        if ((range + 1) > archive_length)
+        if ((range + 1) > ar.ssize())
             return false;
 
-        auto      lst   = get_archive(sim, archive);
-        const int limit = archive_length - range;
-        auto      it    = lst.end();
-        --it;
-        auto next = it--;
+        // const int limit = ar.ssize() - range;
+        // auto      it    = ar.end();
+        // --it;
+        // auto next = it--;
+        //
+        // for (int i = 0; i < limit; ++i, next = it--)
+        //     if (it->x_dot * next->x_dot > 0)
+        //         return false;
+
+        const auto limit = ar.ssize() - range;
+        auto       it    = ar.tail();
+        auto       next  = it--;
 
         for (int i = 0; i < limit; ++i, next = it--)
             if (it->x_dot * next->x_dot > 0)
@@ -4022,13 +3574,12 @@ private:
         return true;
     }
 
-    bool monotonous(simulation& sim, const int range) noexcept
+    bool monotonous(small_ring_buffer<record, 8>& ar, const int range) noexcept
     {
-        if ((range + 1) > archive_length)
+        if ((range + 1) > ar.ssize())
             return false;
 
-        auto lst  = get_archive(sim, archive);
-        auto it   = lst.begin();
+        auto it   = ar.head();
         auto prev = it++;
 
         for (int i = 0; i < range; ++i, prev = it++)
@@ -4043,9 +3594,9 @@ template<int PortNumber>
 struct adder {
     static_assert(PortNumber > 1, "adder model need at least two input port");
 
-    input_port  x[PortNumber];
-    output_port y[1];
-    time        sigma;
+    message_id x[PortNumber];
+    node_id    y[1];
+    time       sigma;
 
     real default_values[PortNumber];
     real default_input_coeffs[PortNumber];
@@ -4103,19 +3654,19 @@ struct adder {
                       time /*e*/,
                       time /*r*/) noexcept
     {
-        bool have_message = false;
+        bool is_defined = false;
 
         for (size_t i = 0; i != PortNumber; ++i) {
-            auto span = get_message(sim, x[i]);
-            for (const auto& msg : span) {
-                values[i] = msg[0];
-
-                have_message = true;
+            if (auto* lst = sim.messages.try_to_get(x[i]); lst) {
+                for (const auto& msg : *lst) {
+                    values[i]  = msg[0];
+                    is_defined = true;
+                }
             }
         }
 
         sigma =
-          have_message ? time_domain<time>::zero : time_domain<time>::infinity;
+          is_defined ? time_domain<time>::zero : time_domain<time>::infinity;
 
         return success();
     }
@@ -4135,9 +3686,9 @@ template<int PortNumber>
 struct mult {
     static_assert(PortNumber > 1, "mult model need at least two input port");
 
-    input_port  x[PortNumber];
-    output_port y[1];
-    time        sigma;
+    message_id x[PortNumber];
+    node_id    y[1];
+    time       sigma;
 
     real default_values[PortNumber];
     real default_input_coeffs[PortNumber];
@@ -4192,17 +3743,18 @@ struct mult {
                       time /*e*/,
                       time /*r*/) noexcept
     {
-        bool have_message = false;
+        bool is_defined = false;
         for (size_t i = 0; i != PortNumber; ++i) {
-            auto span = get_message(sim, x[i]);
-            for (const auto& msg : span) {
-                values[i]    = msg[0];
-                have_message = true;
+            if (auto* lst = sim.messages.try_to_get(x[i]); lst) {
+                for (const auto& msg : *lst) {
+                    values[i]  = msg[0];
+                    is_defined = true;
+                }
             }
         }
 
         sigma =
-          have_message ? time_domain<time>::zero : time_domain<time>::infinity;
+          is_defined ? time_domain<time>::zero : time_domain<time>::infinity;
 
         return success();
     }
@@ -4219,7 +3771,7 @@ struct mult {
 };
 
 struct counter {
-    input_port x[1];
+    message_id x[1];
     time       sigma;
     i64        number;
 
@@ -4243,12 +3795,8 @@ struct counter {
                       time /*e*/,
                       time /*r*/) noexcept
     {
-        auto list = get_message(sim, x[0]);
-        auto it   = list.begin();
-        auto end  = list.end();
-
-        for (; it != end; ++it)
-            ++number;
+        if (auto* lst = sim.messages.try_to_get(x[0]); lst)
+            number += lst->ssize();
 
         return success();
     }
@@ -4260,9 +3808,9 @@ struct counter {
 };
 
 struct generator {
-    output_port y[1];
-    time        sigma;
-    real        value;
+    node_id y[1];
+    time    sigma;
+    real    value;
 
     real   default_offset = 0.0;
     source default_source_ta;
@@ -4346,14 +3894,15 @@ struct generator {
 };
 
 struct constant {
-    output_port y[1];
-    time        sigma;
+    node_id y[1];
+    time    sigma;
 
     real default_value  = 0.0;
     time default_offset = time_domain<time>::zero;
 
     enum class init_type : i8 {
-        // A constant value initialized at startup of the simulation. Use the @c
+        // A constant value initialized at startup of the simulation. Use
+        // the @c
         // default_value.
         constant,
 
@@ -4368,13 +3917,15 @@ struct constant {
         outcoming_component_all,
 
         // The number of incoming connections on the nth input port of the
-        // component. Use the @c port attribute to specify the identifier of the
+        // component. Use the @c port attribute to specify the identifier of
+        // the
         // port. The @c default_value is filled via the component to
         // simulation algorithm. Otherwise, the default value is unmodified.
         incoming_component_n,
 
         // The number of incoming connections on the nth output ports of the
-        // component. Use the @c port attribute to specify the identifier of the
+        // component. Use the @c port attribute to specify the identifier of
+        // the
         // port. The @c default_value is filled via the component to
         // simulation algorithm. Otherwise, the default value is unmodified.
         outcoming_component_n,
@@ -4489,8 +4040,8 @@ inline time compute_wake_up(real threshold,
 
 template<int QssLevel>
 struct abstract_filter {
-    input_port  x[1];
-    output_port y[3];
+    message_id x[1];
+    node_id    y[3];
 
     time sigma;
     real default_lower_threshold = -std::numeric_limits<real>::infinity();
@@ -4535,7 +4086,9 @@ struct abstract_filter {
 
     status transition(simulation& sim, time /*t*/, time e, time /*r*/) noexcept
     {
-        if (!have_message(x[0])) {
+        auto* lst = sim.messages.try_to_get(x[0]);
+
+        if (not lst or lst->empty()) {
             if constexpr (QssLevel == 2)
                 value[0] += value[1] * e;
             if constexpr (QssLevel == 3) {
@@ -4543,8 +4096,7 @@ struct abstract_filter {
                 value[1] += two * value[2] * e;
             }
         } else {
-            auto span = get_message(sim, x[0]);
-            for (const auto& msg : span) {
+            for (const auto& msg : *lst) {
                 value[0] = msg[0];
                 if constexpr (QssLevel >= 2)
                     value[1] = msg[1];
@@ -4696,9 +4248,9 @@ using qss2_filter = abstract_filter<2>;
 using qss3_filter = abstract_filter<3>;
 
 struct filter {
-    input_port  x[1];
-    output_port y[1];
-    time        sigma;
+    message_id x[1];
+    node_id    y[1];
+    time       sigma;
 
     real default_lower_threshold;
     real default_upper_threshold;
@@ -4735,22 +4287,26 @@ struct filter {
 
     status transition(simulation& sim, time, time, time) noexcept
     {
-        // @TODO fix transition: take ino account Qss1, Qss2 and Qss3 messages
+        // @TODO fix transition: take ino account Qss1, Qss2 and Qss3
+        // messages
         //  to build a correct sigma.
 
         sigma = time_domain<time>::infinity;
 
-        auto span = get_message(sim, x[0]);
-        for (const auto& msg : span) {
-            if (msg[0] > lower_threshold && msg[0] < upper_threshold) {
-                inValue[0] = msg[0];
-            } else if (msg[1] < lower_threshold && msg[1] < upper_threshold) {
-                inValue[0] = msg[1];
-            } else {
-                inValue[0] = msg[2];
-            }
+        auto* lst = sim.messages.try_to_get(x[0]);
+        if (lst and not lst->empty()) {
+            for (const auto& msg : *lst) {
+                if (msg[0] > lower_threshold && msg[0] < upper_threshold) {
+                    inValue[0] = msg[0];
+                } else if (msg[1] < lower_threshold &&
+                           msg[1] < upper_threshold) {
+                    inValue[0] = msg[1];
+                } else {
+                    inValue[0] = msg[2];
+                }
 
-            sigma = time_domain<time>::zero;
+                sigma = time_domain<time>::zero;
+            }
         }
 
         return success();
@@ -4782,9 +4338,9 @@ struct abstract_or_check {
 
 template<typename AbstractLogicalTester, int PortNumber>
 struct abstract_logical {
-    input_port  x[PortNumber];
-    output_port y[1];
-    time        sigma = time_domain<time>::infinity;
+    message_id x[PortNumber];
+    node_id    y[1];
+    time       sigma = time_domain<time>::infinity;
 
     bool default_values[PortNumber];
     bool values[PortNumber];
@@ -4821,11 +4377,9 @@ struct abstract_logical {
         const bool old_is_value = is_valid;
 
         for (int i = 0; i < PortNumber; ++i) {
-            if (have_message(x[i])) {
-                auto lst = get_message(sim, x[i]);
-                auto msg = lst.front();
-
-                if (msg[0] != zero) {
+            if (auto* lst = sim.messages.try_to_get(x[i]);
+                lst and not lst->empty()) {
+                if (lst->front()[0] != zero) {
                     if (values[i] == false) {
                         values[i] = true;
                     }
@@ -4863,9 +4417,9 @@ using logical_or_2  = abstract_logical<abstract_or_check, 2>;
 using logical_or_3  = abstract_logical<abstract_or_check, 3>;
 
 struct logical_invert {
-    input_port  x[1];
-    output_port y[1];
-    time        sigma;
+    message_id x[1];
+    node_id    y[1];
+    time       sigma;
 
     bool default_value = false;
     bool value;
@@ -4892,11 +4446,11 @@ struct logical_invert {
 
     status transition(simulation& sim, time, time, time) noexcept
     {
-        bool value_changed = false;
+        auto  value_changed = false;
+        auto* lst           = sim.messages.try_to_get(x[0]);
 
-        if (have_message(x[0])) {
-            const auto  lst = get_message(sim, x[0]);
-            const auto& msg = lst.front();
+        if (lst and not lst->empty()) {
+            const auto& msg = lst->front();
 
             if ((msg[0] != zero && !value) || (msg[0] == zero && value))
                 value_changed = true;
@@ -4920,10 +4474,11 @@ struct logical_invert {
  * 1. You can not call Transition from HSM::event_type::enter and
  * HSM::event_type::exit! These event are provided to execute your
  * construction/destruction. Use custom events for that.
- * 2. You are not allowed to dispatch an event from within an event dispatch.
- * You should queue events if you want such behavior. This restriction is
- * imposed only to prevent the user from creating extremely complicated to trace
- * state machines (which is what we are trying to avoid).
+ * 2. You are not allowed to dispatch an event from within an event
+ * dispatch. You should queue events if you want such behavior. This
+ * restriction is imposed only to prevent the user from creating extremely
+ * complicated to trace state machines (which is what we are trying to
+ * avoid).
  */
 class hierarchical_state_machine
 {
@@ -4995,10 +4550,9 @@ public:
         a_less_equal_b,
     };
 
-    //! Action available when state is processed during enter, exit or condition
-    //! event.
-    //! \note Only on action (value set/unset, devs output, etc.) by
-    //! action. To perform more action, use several states.
+    //! Action available when state is processed during enter, exit or
+    //! condition event. \note Only on action (value set/unset, devs output,
+    //! etc.) by action. To perform more action, use several states.
     struct state_action {
         i32         parameter = 0;
         variable    var1      = variable::none;
@@ -5009,10 +4563,10 @@ public:
     };
 
     //! \note
-    //! 1. \c value_condition stores the bit for input value corresponding to
-    //! the user request to satisfy the condition. \c value_mask stores the bit
-    //! useful in value_condition. If value_mask equal \c 0x0 then, the
-    //! condition is always true. If \c value_mask equals \c 0xff the \c
+    //! 1. \c value_condition stores the bit for input value corresponding
+    //! to the user request to satisfy the condition. \c value_mask stores
+    //! the bit useful in value_condition. If value_mask equal \c 0x0 then,
+    //! the condition is always true. If \c value_mask equals \c 0xff the \c
     //! value_condition bit are mandatory.
     //! 2. \c condition_state_action stores transition or action conditions.
     //! Condition can use input port state or condition on integer a or b.
@@ -5044,8 +4598,8 @@ public:
     };
 
     struct output_message {
-        u8  port{};
         i32 value{};
+        u8  port{};
     };
 
     struct execution {
@@ -5090,8 +4644,8 @@ public:
     }
 
     /// Dispatches an event.
-    /// @return return true if the event was processed, otherwise false. If the
-    /// automata is badly defined, return an modeling error.
+    /// @return return true if the event was processed, otherwise false. If
+    /// the automata is badly defined, return an modeling error.
     result<bool> dispatch(const event_type e, execution& exec) noexcept;
 
     /// Return true if the state machine is currently dispatching an event.
@@ -5101,14 +4655,12 @@ public:
     /// Enter / Exit events in the state handler.
     void transition(state_id target, execution& exec) noexcept;
 
-    /// Set a handler for a state ID. This function will overwrite the current
-    /// state handler.
-    /// \param id state id from 0 to max_number_of_state
-    /// \param super_id id of the super state, if invalid_state_id this is a top
-    /// state. Only one state can be a top state.
-    /// \param sub_id if !=
-    /// invalid_state_id this sub state (child state) will be entered after the
-    /// state Enter event is executed.
+    /// Set a handler for a state ID. This function will overwrite the
+    /// current state handler. \param id state id from 0 to
+    /// max_number_of_state \param super_id id of the super state, if
+    /// invalid_state_id this is a top state. Only one state can be a top
+    /// state. \param sub_id if != invalid_state_id this sub state (child
+    /// state) will be entered after the state Enter event is executed.
     status set_state(state_id id,
                      state_id super_id = invalid_state_id,
                      state_id sub_id   = invalid_state_id) noexcept;
@@ -5131,8 +4683,6 @@ public:
     state_id                               top_state = invalid_state_id;
 };
 
-enum class hsm_id : u64;
-
 status get_hierarchical_state_machine(simulation&                  sim,
                                       hierarchical_state_machine*& hsm,
                                       hsm_id                       id) noexcept;
@@ -5141,8 +4691,8 @@ struct hsm_wrapper {
     using hsm      = hierarchical_state_machine;
     using state_id = hsm::state_id;
 
-    input_port  x[4];
-    output_port y[4];
+    message_id x[4];
+    node_id    y[4];
 
     hsm_id         id;
     u64            compo_id;
@@ -5160,7 +4710,7 @@ struct hsm_wrapper {
 
 template<int PortNumber>
 struct accumulator {
-    input_port x[2 * PortNumber];
+    message_id x[2 * PortNumber];
     time       sigma;
     real       number;
     real       numbers[PortNumber];
@@ -5190,16 +4740,16 @@ struct accumulator {
                       time /*r*/) noexcept
     {
         for (sz i = 0; i != PortNumber; ++i) {
-            if (have_message(x[i + PortNumber])) {
-                auto list  = get_message(sim, x[i + PortNumber]);
-                numbers[i] = list.front()[0];
+            if (auto* lst = sim.messages.try_to_get(x[i + PortNumber]);
+                lst and not lst->empty()) {
+                numbers[i] = lst->front()[0];
             }
         }
 
         for (sz i = 0; i != PortNumber; ++i) {
-            if (have_message(x[i])) {
-                auto list = get_message(sim, x[i]);
-                if (list.front()[0] != zero)
+            if (auto* lst = sim.messages.try_to_get(x[i]);
+                lst and not lst->empty()) {
+                if (lst->front()[0] != zero)
                     number += numbers[i];
             }
         }
@@ -5209,9 +4759,9 @@ struct accumulator {
 };
 
 struct cross {
-    input_port  x[4];
-    output_port y[2];
-    time        sigma;
+    message_id x[4];
+    node_id    y[2];
+    time       sigma;
 
     real default_threshold = zero;
 
@@ -5261,36 +4811,45 @@ struct cross {
                       time /*e*/,
                       time /*r*/) noexcept
     {
-        bool have_message       = false;
-        bool have_message_value = false;
-        event                   = zero;
 
-        auto span_thresholds = get_message(sim, x[port_threshold]);
-        for (auto& elem : span_thresholds) {
-            threshold    = elem[0];
-            have_message = true;
+        bool is_defined       = false;
+        bool is_defined_value = false;
+        event                 = zero;
+
+        if (auto* span_thresholds = sim.messages.try_to_get(x[port_threshold]);
+            span_thresholds) {
+            for (auto& elem : *span_thresholds) {
+                threshold  = elem[0];
+                is_defined = true;
+            }
         }
 
-        auto span_value = get_message(sim, x[port_value]);
-        for (auto& elem : span_value) {
-            value              = elem[0];
-            have_message_value = true;
-            have_message       = true;
+        if (auto* span_value = sim.messages.try_to_get(x[port_value]);
+            span_value) {
+            for (auto& elem : *span_value) {
+                value            = elem[0];
+                is_defined_value = true;
+                is_defined       = true;
+            }
         }
 
-        auto span_if_value = get_message(sim, x[port_if_value]);
-        for (auto& elem : span_if_value) {
-            if_value     = elem[0];
-            have_message = true;
+        if (auto* span_if_value = sim.messages.try_to_get(x[port_if_value]);
+            span_if_value) {
+            for (auto& elem : *span_if_value) {
+                if_value   = elem[0];
+                is_defined = true;
+            }
         }
 
-        auto span_else_value = get_message(sim, x[port_else_value]);
-        for (auto& elem : span_else_value) {
-            else_value   = elem[0];
-            have_message = true;
+        if (auto* span_else_value = sim.messages.try_to_get(x[port_else_value]);
+            span_else_value) {
+            for (auto& elem : *span_else_value) {
+                else_value = elem[0];
+                is_defined = true;
+            }
         }
 
-        if (have_message_value) {
+        if (is_defined_value) {
             event = zero;
             if (value >= threshold) {
                 else_value = if_value;
@@ -5301,7 +4860,7 @@ struct cross {
         result = else_value;
 
         sigma =
-          have_message ? time_domain<time>::zero : time_domain<time>::infinity;
+          is_defined ? time_domain<time>::zero : time_domain<time>::infinity;
 
         return success();
     }
@@ -5324,9 +4883,9 @@ template<int QssLevel>
 struct abstract_cross {
     static_assert(1 <= QssLevel && QssLevel <= 3, "Only for Qss1, 2 and 3");
 
-    input_port  x[4];
-    output_port y[3];
-    time        sigma;
+    message_id x[4];
+    node_id    y[3];
+    time       sigma;
 
     real default_threshold = zero;
     bool default_detect_up = true;
@@ -5388,13 +4947,14 @@ struct abstract_cross {
     {
         const auto old_else_value = else_value[0];
 
-        if (have_message(x[port_threshold])) {
-            auto span = get_message(sim, x[port_threshold]);
-            for (const auto& msg : span)
-                threshold = msg[0];
+        if (is_defined(x[port_threshold])) {
+            if (auto* lst = sim.messages.try_to_get(x[port_threshold]); lst) {
+                for (const auto& msg : *lst)
+                    threshold = msg[0];
+            }
         }
 
-        if (!have_message(x[port_if_value])) {
+        if (!is_defined(x[port_if_value])) {
             if constexpr (QssLevel == 2)
                 if_value[0] += if_value[1] * e;
             if constexpr (QssLevel == 3) {
@@ -5402,17 +4962,18 @@ struct abstract_cross {
                 if_value[1] += two * if_value[2] * e;
             }
         } else {
-            auto span = get_message(sim, x[port_if_value]);
-            for (const auto& msg : span) {
-                if_value[0] = msg[0];
-                if constexpr (QssLevel >= 2)
-                    if_value[1] = msg[1];
-                if constexpr (QssLevel == 3)
-                    if_value[2] = msg[2];
+            if (auto* lst = sim.messages.try_to_get(x[port_if_value]); lst) {
+                for (const auto& msg : *lst) {
+                    if_value[0] = msg[0];
+                    if constexpr (QssLevel >= 2)
+                        if_value[1] = msg[1];
+                    if constexpr (QssLevel == 3)
+                        if_value[2] = msg[2];
+                }
             }
         }
 
-        if (!have_message(x[port_else_value])) {
+        if (!is_defined(x[port_else_value])) {
             if constexpr (QssLevel == 2)
                 else_value[0] += else_value[1] * e;
             if constexpr (QssLevel == 3) {
@@ -5420,17 +4981,18 @@ struct abstract_cross {
                 else_value[1] += two * else_value[2] * e;
             }
         } else {
-            auto span = get_message(sim, x[port_else_value]);
-            for (const auto& msg : span) {
-                else_value[0] = msg[0];
-                if constexpr (QssLevel >= 2)
-                    else_value[1] = msg[1];
-                if constexpr (QssLevel == 3)
-                    else_value[2] = msg[2];
+            if (auto* lst = sim.messages.try_to_get(x[port_else_value]); lst) {
+                for (const auto& msg : *lst) {
+                    else_value[0] = msg[0];
+                    if constexpr (QssLevel >= 2)
+                        else_value[1] = msg[1];
+                    if constexpr (QssLevel == 3)
+                        else_value[2] = msg[2];
+                }
             }
         }
 
-        if (!have_message(x[port_value])) {
+        if (!is_defined(x[port_value])) {
             if constexpr (QssLevel == 2)
                 value[0] += value[1] * e;
             if constexpr (QssLevel == 3) {
@@ -5438,13 +5000,14 @@ struct abstract_cross {
                 value[1] += two * value[2] * e;
             }
         } else {
-            auto span = get_message(sim, x[port_value]);
-            for (const auto& msg : span) {
-                value[0] = msg[0];
-                if constexpr (QssLevel >= 2)
-                    value[1] = msg[1];
-                if constexpr (QssLevel == 3)
-                    value[2] = msg[2];
+            if (auto* lst = sim.messages.try_to_get(x[port_value]); lst) {
+                for (const auto& msg : *lst) {
+                    value[0] = msg[0];
+                    if constexpr (QssLevel >= 2)
+                        value[1] = msg[1];
+                    if constexpr (QssLevel == 3)
+                        value[2] = msg[2];
+                }
             }
         }
 
@@ -5558,8 +5121,8 @@ inline real square_time_function(real t) noexcept { return t * t; }
 inline real time_function(real t) noexcept { return t; }
 
 struct time_func {
-    output_port y[1];
-    time        sigma;
+    node_id y[1];
+    time    sigma;
 
     real default_sigma      = to_real(0.01L);
     real (*default_f)(real) = &time_function;
@@ -5616,11 +5179,11 @@ using mult_4 = mult<4>;
 using accumulator_2 = accumulator<2>;
 
 struct queue {
-    input_port  x[1];
-    output_port y[1];
-    time        sigma;
+    message_id x[1];
+    node_id    y[1];
+    time       sigma;
 
-    u64 fifo = static_cast<u64>(-1);
+    dated_message_id fifo = undefined<dated_message_id>();
 
     real default_ta = one;
 
@@ -5630,7 +5193,7 @@ struct queue {
 
     queue(const queue& other) noexcept
       : sigma(other.sigma)
-      , fifo(static_cast<u64>(-1))
+      , fifo(undefined<dated_message_id>())
       , default_ta(other.default_ta)
     {}
 
@@ -5640,14 +5203,19 @@ struct queue {
             return new_error(ta_error{});
 
         sigma = time_domain<time>::infinity;
-        fifo  = static_cast<u64>(-1);
+        fifo  = undefined<dated_message_id>();
 
         return success();
     }
 
     status finalize(simulation& sim) noexcept
     {
-        append_dated_message(sim, fifo).clear();
+        if (auto* ar = sim.dated_messages.try_to_get(fifo); ar) {
+            ar->clear();
+            sim.dated_messages.free(*ar);
+            fifo = undefined<dated_message_id>();
+        }
+
         return success();
     }
 
@@ -5655,27 +5223,24 @@ struct queue {
 
     status lambda(simulation& sim) noexcept
     {
-        if (fifo == static_cast<u64>(-1))
-            return success();
+        if (auto* ar = sim.dated_messages.try_to_get(fifo); ar) {
+            const auto t = ar->head()->data[0];
 
-        auto       list = append_dated_message(sim, fifo);
-        auto       it   = list.begin();
-        auto       end  = list.end();
-        const auto t    = it->data[0];
-
-        for (; it != end && it->data[0] <= t; ++it)
-            irt_check(
-              send_message(sim, y[0], it->data[1], it->data[2], it->data[3]));
+            for (auto& elem : *ar)
+                if (elem.data[0] <= t)
+                    irt_check(send_message(
+                      sim, y[0], elem.data[1], elem.data[2], elem.data[3]));
+        }
 
         return success();
     }
 };
 
 struct dynamic_queue {
-    input_port  x[1];
-    output_port y[1];
-    time        sigma;
-    u64         fifo = static_cast<u64>(-1);
+    message_id       x[1];
+    node_id          y[1];
+    time             sigma;
+    dated_message_id fifo = undefined<dated_message_id>();
 
     source default_source_ta;
     bool   stop_on_error = false;
@@ -5684,7 +5249,7 @@ struct dynamic_queue {
 
     dynamic_queue(const dynamic_queue& other) noexcept
       : sigma(other.sigma)
-      , fifo(static_cast<u64>(-1))
+      , fifo(undefined<dated_message_id>())
       , default_source_ta(other.default_source_ta)
       , stop_on_error(other.stop_on_error)
     {}
@@ -5692,7 +5257,7 @@ struct dynamic_queue {
     status initialize(simulation& sim) noexcept
     {
         sigma = time_domain<time>::infinity;
-        fifo  = static_cast<u64>(-1);
+        fifo  = undefined<dated_message_id>();
 
         if (stop_on_error) {
             irt_check(initialize_source(sim, default_source_ta));
@@ -5705,7 +5270,12 @@ struct dynamic_queue {
 
     status finalize(simulation& sim) noexcept
     {
-        append_dated_message(sim, fifo).clear();
+        if (auto* ar = sim.dated_messages.try_to_get(fifo); ar) {
+            ar->clear();
+            sim.dated_messages.free(*ar);
+            fifo = undefined<dated_message_id>();
+        }
+
         irt_check(finalize_source(sim, default_source_ta));
 
         return success();
@@ -5715,28 +5285,26 @@ struct dynamic_queue {
 
     status lambda(simulation& sim) noexcept
     {
-        if (fifo == static_cast<u64>(-1))
-            return success();
+        if (auto* ar = sim.dated_messages.try_to_get(fifo); ar) {
+            auto       it  = ar->begin();
+            auto       end = ar->end();
+            const auto t   = it->data[0];
 
-        auto       list = append_dated_message(sim, fifo);
-        auto       it   = list.begin();
-        auto       end  = list.end();
-        const auto t    = it->data[0];
-
-        for (; it != end && it->data[0] <= t; ++it)
-            irt_check(
-              send_message(sim, y[0], it->data[1], it->data[2], it->data[3]));
+            for (; it != end && it->data[0] <= t; ++it)
+                irt_check(send_message(
+                  sim, y[0], it->data[1], it->data[2], it->data[3]));
+        }
 
         return success();
     }
 };
 
 struct priority_queue {
-    input_port  x[1];
-    output_port y[1];
-    time        sigma;
-    u64         fifo       = static_cast<u64>(-1);
-    real        default_ta = 1.0;
+    message_id       x[1];
+    node_id          y[1];
+    time             sigma;
+    dated_message_id fifo       = undefined<dated_message_id>();
+    real             default_ta = 1.0;
 
     source default_source_ta;
     bool   stop_on_error = false;
@@ -5745,7 +5313,7 @@ struct priority_queue {
 
     priority_queue(const priority_queue& other) noexcept
       : sigma(other.sigma)
-      , fifo(static_cast<u64>(-1))
+      , fifo(undefined<dated_message_id>())
       , default_ta(other.default_ta)
       , default_source_ta(other.default_source_ta)
       , stop_on_error(other.stop_on_error)
@@ -5766,33 +5334,37 @@ public:
         }
 
         sigma = time_domain<time>::infinity;
-        fifo  = static_cast<u64>(-1);
+        fifo  = undefined<dated_message_id>();
 
         return success();
     }
 
     status finalize(simulation& sim) noexcept
     {
-        append_dated_message(sim, fifo).clear();
+        if (auto* ar = sim.dated_messages.try_to_get(fifo); ar) {
+            ar->clear();
+            sim.dated_messages.free(*ar);
+            fifo = undefined<dated_message_id>();
+        }
+
         irt_check(finalize_source(sim, default_source_ta));
 
         return success();
     }
 
     status transition(simulation& sim, time t, time /*e*/, time /*r*/) noexcept;
+
     status lambda(simulation& sim) noexcept
     {
-        if (fifo == static_cast<u64>(-1))
-            return success();
+        if (auto* ar = sim.dated_messages.try_to_get(fifo); ar) {
+            auto       it  = ar->begin();
+            auto       end = ar->end();
+            const auto t   = it->data[0];
 
-        auto       list = get_dated_message(sim, fifo);
-        auto       it   = list.begin();
-        auto       end  = list.end();
-        const auto t    = it->data[0];
-
-        for (; it != end && it->data[0] <= t; ++it)
-            irt_check(
-              send_message(sim, y[0], it->data[1], it->data[2], it->data[3]));
+            for (; it != end && it->data[0] <= t; ++it)
+                irt_check(send_message(
+                  sim, y[0], it->data[1], it->data[2], it->data[3]));
+        }
 
         return success();
     }
@@ -6283,7 +5855,7 @@ constexpr auto dispatch(model& mdl, Function&& f) noexcept
 template<typename Dynamics>
 Dynamics& get_dyn(model& mdl) noexcept
 {
-    irt_assert(dynamics_typeof<Dynamics>() == mdl.type);
+    sim::ensure(dynamics_typeof<Dynamics>() == mdl.type);
 
     return *reinterpret_cast<Dynamics*>(&mdl.dyn);
 }
@@ -6291,7 +5863,7 @@ Dynamics& get_dyn(model& mdl) noexcept
 template<typename Dynamics>
 const Dynamics& get_dyn(const model& mdl) noexcept
 {
-    irt_assert(dynamics_typeof<Dynamics>() == mdl.type);
+    sim::ensure(dynamics_typeof<Dynamics>() == mdl.type);
 
     return *reinterpret_cast<const Dynamics*>(&mdl.dyn);
 }
@@ -6310,13 +5882,11 @@ constexpr model& get_model(Dynamics& d) noexcept
     return *(model*)((char*)__mptr - offsetof(model, dyn));
 }
 
-inline result<input_port> get_input_port(model& src, int port_src) noexcept;
+inline result<message_id> get_input_port(model& src, int port_src) noexcept;
 
-inline status get_input_port(model& src, int port_src, input_port*& p) noexcept;
-inline result<output_port> get_output_port(model& dst, int port_dst) noexcept;
-inline status              get_output_port(model&        dst,
-                                           int           port_dst,
-                                           output_port*& p) noexcept;
+inline status get_input_port(model& src, int port_src, message_id*& p) noexcept;
+inline result<node_id> get_output_port(model& dst, int port_dst) noexcept;
+inline status get_output_port(model& dst, int port_dst, node_id*& p) noexcept;
 
 inline bool is_ports_compatible(const dynamics_type mdl_src,
                                 const int           o_port_index,
@@ -6475,90 +6045,6 @@ inline status global_disconnect(simulation& sim,
 
 /*****************************************************************************
  *
- * scheduler
- *
- ****************************************************************************/
-
-class scheduller
-{
-private:
-    heap m_heap;
-
-public:
-    scheduller() = default;
-
-    status init(std::integral auto new_capacity) noexcept
-    {
-        return m_heap.init(new_capacity);
-    }
-
-    void clear() { m_heap.clear(); }
-
-    //! @brief Insert a newly model into the scheduller.
-    void insert(model& mdl, model_id id, time tn) noexcept
-    {
-        irt_assert(mdl.handle == nullptr);
-
-        mdl.handle = m_heap.insert(tn, id);
-    }
-
-    //! @brief Reintegrate or reinsert an old popped model into the
-    //! scheduller.
-    void reintegrate(model& mdl, time tn) noexcept
-    {
-        irt_assert(mdl.handle != nullptr);
-
-        mdl.handle->tn = tn;
-
-        m_heap.insert(mdl.handle);
-    }
-
-    void erase(model& mdl) noexcept
-    {
-        if (mdl.handle) {
-            m_heap.remove(mdl.handle);
-            m_heap.destroy(mdl.handle);
-            mdl.handle = nullptr;
-        }
-    }
-
-    void update(model& mdl, time tn) noexcept
-    {
-        irt_assert(mdl.handle != nullptr);
-
-        mdl.handle->tn = tn;
-
-        irt_assert(tn <= mdl.tn);
-
-        if (tn < mdl.tn)
-            m_heap.decrease(mdl.handle);
-        else if (tn > mdl.tn)
-            m_heap.increase(mdl.handle);
-    }
-
-    void pop(vector<model_id>& out) noexcept;
-
-    // void pop(vector<model_id>& out) noexcept
-    // {
-    //     time t = tn();
-
-    //     out.clear();
-    //     out.emplace_back(m_heap.pop()->id);
-
-    //     while (!m_heap.empty() && t == tn())
-    //         out.emplace_back(m_heap.pop()->id);
-    // }
-
-    time tn() const noexcept { return m_heap.top()->tn; }
-
-    bool empty() const noexcept { return m_heap.empty(); }
-
-    unsigned size() const noexcept { return m_heap.size(); }
-    int      ssize() const noexcept { return static_cast<int>(m_heap.size()); }
-};
-
-/*****************************************************************************
- *
  * simulation
  *
  ****************************************************************************/
@@ -6574,136 +6060,13 @@ inline void copy(const model& src, model& dst) noexcept
 
         if constexpr (has_input_port<Dynamics>)
             for (int i = 0, e = length(dst_dyn.x); i != e; ++i)
-                dst_dyn.x[i] = static_cast<u64>(-1);
+                dst_dyn.x[i] = undefined<message_id>();
 
         if constexpr (has_output_port<Dynamics>)
             for (int i = 0, e = length(dst_dyn.y); i != e; ++i)
-                dst_dyn.y[i] = static_cast<u64>(-1);
+                dst_dyn.y[i] = undefined<node_id>();
     });
 }
-
-class simulation
-{
-public:
-    //! Used to report which part of the @c project have a problem with the @c
-    //! new_error function.
-    enum class part {
-        messages,
-        nodes,
-        records,
-        dated_messages,
-        models,
-        hsms,
-        observers,
-        scheduler,
-        external_sources
-    };
-
-    block_allocator<list_view_node<message>>       message_alloc;
-    block_allocator<list_view_node<node>>          node_alloc;
-    block_allocator<list_view_node<record>>        record_alloc;
-    block_allocator<list_view_node<dated_message>> dated_message_alloc;
-    vector<output_message>                         emitting_output_ports;
-    vector<model_id>                               immediate_models;
-    vector<observer_id>                            immediate_observers;
-    data_array<model, model_id>                    models;
-    data_array<hierarchical_state_machine, hsm_id> hsms;
-    data_array<observer, observer_id>              observers;
-
-    external_source srcs;
-    scheduller      sched;
-
-    model_id get_id(const model& mdl) const;
-
-    template<typename Dynamics>
-    model_id get_id(const Dynamics& dyn) const;
-
-public:
-    status init(std::integral auto model_capacity,
-                std::integral auto messages_capacity);
-
-    bool can_alloc(std::integral auto place) const noexcept;
-    bool can_alloc(dynamics_type type, std::integral auto place) const noexcept;
-
-    template<typename Dynamics>
-    bool can_alloc_dynamics(std::integral auto place) const noexcept;
-
-    //! @brief cleanup simulation object
-    //!
-    //! Clean scheduler and input/output port from message.
-    void clean() noexcept;
-
-    //! @brief cleanup simulation and destroy all models and connections
-    void clear() noexcept;
-
-    //! @brief This function allocates dynamics and models.
-    template<typename Dynamics>
-    Dynamics& alloc() noexcept;
-
-    //! @brief This function allocates dynamics and models.
-    model& clone(const model& mdl) noexcept;
-
-    //! @brief This function allocates dynamics and models.
-    model& alloc(dynamics_type type) noexcept;
-
-    void observe(model& mdl, observer& obs) noexcept;
-
-    void unobserve(model& mdl) noexcept;
-
-    void deallocate(model_id id) noexcept;
-
-    template<typename Dynamics>
-    void do_deallocate(Dynamics& dyn) noexcept;
-
-    bool can_connect(int number) const noexcept;
-
-    status connect(model& src, int port_src, model& dst, int port_dst) noexcept;
-    bool   can_connect(const model& src,
-                       int          port_src,
-                       const model& dst,
-                       int          port_dst) const noexcept;
-
-    template<typename DynamicsSrc, typename DynamicsDst>
-    status connect(DynamicsSrc& src,
-                   int          port_src,
-                   DynamicsDst& dst,
-                   int          port_dst) noexcept;
-
-    status disconnect(model& src,
-                      int    port_src,
-                      model& dst,
-                      int    port_dst) noexcept;
-
-    status initialize(time t) noexcept;
-
-    //!
-    status run(time& t) noexcept;
-
-    template<typename Dynamics>
-    status make_initialize(model& mdl, Dynamics& dyn, time t) noexcept;
-
-    status make_initialize(model& mdl, time t) noexcept;
-
-    template<typename Dynamics>
-    status make_transition(model& mdl, Dynamics& dyn, time t) noexcept;
-
-    status make_transition(model& mdl, time t) noexcept;
-
-    template<typename Dynamics>
-    status make_finalize(Dynamics& dyn, observer* obs, time t) noexcept;
-
-    /**
-     * @brief Finalize and cleanup simulation objects.
-     *
-     * Clean:
-     * - the scheduller nodes
-     * - all input/output remaining messages
-     * - call the observers' callback to finalize observation
-     *
-     * This function must be call at the end of the simulation.
-     */
-    status finalize(time t) noexcept;
-};
 
 inline status initialize_source(simulation& sim, source& src) noexcept
 {
@@ -6722,68 +6085,6 @@ inline status update_source(simulation& sim, source& src, double& val) noexcept
 inline status finalize_source(simulation& sim, source& src) noexcept
 {
     return sim.srcs.dispatch(src, source::operation_type::finalize);
-}
-
-inline bool can_alloc_message(const simulation& sim, int alloc_number) noexcept
-{
-    return sim.message_alloc.can_alloc(alloc_number);
-}
-
-inline list_view<message> append_message(simulation& sim,
-                                         input_port& port) noexcept
-{
-    return list_view<message>(sim.message_alloc, port);
-}
-
-inline list_view_const<message> get_message(const simulation& sim,
-                                            const input_port  port) noexcept
-{
-    return list_view_const<message>(sim.message_alloc, port);
-}
-
-inline list_view<node> append_node(simulation& sim, output_port& port) noexcept
-{
-    return list_view<node>(sim.node_alloc, port);
-}
-
-inline list_view_const<node> get_node(const simulation& sim,
-                                      const output_port port) noexcept
-{
-    return list_view_const<node>(sim.node_alloc, port);
-}
-
-inline list_view_const<record> get_archive(const simulation& sim,
-                                           const u64         id) noexcept
-{
-    return list_view_const<record>(sim.record_alloc, id);
-}
-
-inline list_view<record> append_archive(simulation& sim, u64& id) noexcept
-{
-    return list_view<record>(sim.record_alloc, id);
-}
-
-inline bool can_alloc_node(const simulation& sim, int alloc_number) noexcept
-{
-    return sim.node_alloc.can_alloc(alloc_number);
-}
-
-inline bool can_alloc_dated_message(const simulation& sim,
-                                    int               alloc_number) noexcept
-{
-    return sim.dated_message_alloc.can_alloc(alloc_number);
-}
-
-inline list_view<dated_message> append_dated_message(simulation& sim,
-                                                     u64&        id) noexcept
-{
-    return list_view<dated_message>(sim.dated_message_alloc, id);
-}
-
-inline list_view_const<dated_message> get_dated_message(const simulation& sim,
-                                                        const u64 id) noexcept
-{
-    return list_view_const<dated_message>(sim.dated_message_alloc, id);
 }
 
 //! observer
@@ -6854,7 +6155,7 @@ inline bool observer::full() const noexcept
 
 //! scheduller
 
-inline void scheduller::pop(vector<model_id>& out) noexcept
+inline void scheduller::pop(vector<model_id, mr_allocator>& out) noexcept
 {
     time t = tn();
 
@@ -6865,33 +6166,34 @@ inline void scheduller::pop(vector<model_id>& out) noexcept
         out.emplace_back(m_heap.pop()->id);
 }
 
-inline status send_message(simulation&  sim,
-                           output_port& p,
-                           real         r1,
-                           real         r2,
-                           real         r3) noexcept
+inline status send_message(simulation& sim,
+                           node_id&    output_port,
+                           real        r1,
+                           real        r2,
+                           real        r3) noexcept
 {
-    auto list = append_node(sim, p);
-    auto it   = list.begin();
-    auto end  = list.end();
+    if (auto* lst = sim.nodes.try_to_get(output_port); lst) {
+        auto it  = lst->begin();
+        auto end = lst->end();
 
-    while (it != end) {
-        auto* mdl = sim.models.try_to_get(it->model);
-        if (!mdl) {
-            it = list.erase(it);
-        } else {
-            if (!sim.emitting_output_ports.can_alloc(1))
-                return new_error(simulation::part::messages,
-                                 container_full_error{});
+        while (it != end) {
+            auto* mdl = sim.models.try_to_get(it->model);
+            if (!mdl) {
+                it = lst->erase(it);
+            } else {
+                if (!sim.emitting_output_ports.can_alloc(1))
+                    return new_error(simulation::part::messages,
+                                     container_full_error{});
 
-            auto& output_message  = sim.emitting_output_ports.emplace_back();
-            output_message.msg[0] = r1;
-            output_message.msg[1] = r2;
-            output_message.msg[2] = r3;
-            output_message.model  = it->model;
-            output_message.port   = it->port_index;
+                auto& output_message = sim.emitting_output_ports.emplace_back();
+                output_message.msg[0] = r1;
+                output_message.msg[1] = r2;
+                output_message.msg[2] = r3;
+                output_message.model  = it->model;
+                output_message.port   = it->port_index;
 
-            ++it;
+                ++it;
+            }
         }
     }
 
@@ -6917,6 +6219,81 @@ inline status get_hierarchical_state_machine(simulation&                  sim,
 ///
 ///
 
+inline status scheduller::init(std::integral auto new_capacity) noexcept
+{
+    return m_heap.init(new_capacity);
+}
+
+inline void scheduller::clear() noexcept { m_heap.clear(); }
+
+inline void scheduller::insert(model& mdl, model_id id, time tn) noexcept
+{
+    sim::ensure(mdl.handle == nullptr);
+
+    mdl.handle = m_heap.insert(tn, id);
+}
+
+inline void scheduller::reintegrate(model& mdl, time tn) noexcept
+{
+    sim::ensure(mdl.handle != nullptr);
+
+    mdl.handle->tn = tn;
+
+    m_heap.insert(mdl.handle);
+}
+
+inline void scheduller::erase(model& mdl) noexcept
+{
+    if (mdl.handle) {
+        m_heap.remove(mdl.handle);
+        m_heap.destroy(mdl.handle);
+        mdl.handle = nullptr;
+    }
+}
+
+inline void scheduller::update(model& mdl, time tn) noexcept
+{
+    sim::ensure(mdl.handle != nullptr);
+
+    mdl.handle->tn = tn;
+
+    sim::ensure(tn <= mdl.tn);
+
+    if (tn < mdl.tn)
+        m_heap.decrease(mdl.handle);
+    else if (tn > mdl.tn)
+        m_heap.increase(mdl.handle);
+}
+
+inline time scheduller::tn() const noexcept { return m_heap.top()->tn; }
+
+inline bool scheduller::empty() const noexcept { return m_heap.empty(); }
+
+inline unsigned scheduller::size() const noexcept { return m_heap.size(); }
+
+inline int scheduller::ssize() const noexcept
+{
+    return static_cast<int>(m_heap.size());
+}
+
+inline simulation::simulation() noexcept
+  : simulation::simulation(std::pmr::get_default_resource())
+{}
+
+inline simulation::simulation(std::pmr::memory_resource* mem) noexcept
+  : global(mem)
+  , emitting_output_ports(&shared)
+  , immediate_models(&shared)
+  , immediate_observers(&shared)
+  , models(&shared)
+  , hsms(&shared)
+  , observers(&shared)
+  , nodes(&shared)
+  , messages(&shared)
+  , records(&shared)
+  , dated_messages(&shared)
+{}
+
 inline model_id simulation::get_id(const model& mdl) const
 {
     return models.get_id(mdl);
@@ -6931,10 +6308,20 @@ model_id simulation::get_id(const Dynamics& dyn) const
 inline status simulation::init(std::integral auto model_capacity,
                                std::integral auto messages_capacity)
 {
-    irt_assert(!std::cmp_greater(0, model_capacity));
-    irt_assert(!std::cmp_greater(0, messages_capacity));
+    sim::ensure(!std::cmp_greater(0, model_capacity));
+    sim::ensure(!std::cmp_greater(0, messages_capacity));
 
-    constexpr size_t ten = 10u;
+    std::size_t global_memory = model_capacity * 256 * sizeof(model);
+    std::size_t record_mem    = model_capacity * sizeof(record) * 10;
+    std::size_t dated_mem     = model_capacity * sizeof(record) * 10;
+
+    shared.reset(reinterpret_cast<std::byte*>(global->allocate(global_memory)),
+                 global_memory);
+
+    records_alloc.reset(
+      reinterpret_cast<std::byte*>(shared.allocate(record_mem)), record_mem);
+    dated_messages_alloc.reset(
+      reinterpret_cast<std::byte*>(shared.allocate(dated_mem)), dated_mem);
 
     size_t max_hsms = (model_capacity / 10) <= 0
                         ? 1u
@@ -6944,20 +6331,19 @@ inline status simulation::init(std::integral auto model_capacity,
                         ? 10u
                         : static_cast<unsigned>(model_capacity) / 10u;
 
-    if (auto ret = message_alloc.init(messages_capacity); !ret)
-        return ret.load(simulation::part::messages);
-    if (auto ret = node_alloc.init(model_capacity * ten); !ret)
-        return ret.load(simulation::part::nodes);
-    if (auto ret = record_alloc.init(model_capacity * ten); !ret)
-        return ret.load(simulation::part::records);
-    if (auto ret = dated_message_alloc.init(model_capacity); !ret)
-        return ret.load(simulation::part::dated_messages);
-
     if (!models.reserve(model_capacity))
         return new_error(simulation::part::models);
     if (!hsms.reserve(max_hsms))
         return new_error(simulation::part::hsms);
     if (!observers.reserve(model_capacity))
+        return new_error(simulation::part::observers);
+    if (!records.reserve(model_capacity))
+        return new_error(simulation::part::observers);
+    if (!nodes.reserve(model_capacity))
+        return new_error(simulation::part::observers);
+    if (!messages.reserve(model_capacity))
+        return new_error(simulation::part::observers);
+    if (!dated_messages.reserve(model_capacity))
         return new_error(simulation::part::observers);
 
     if (!sched.init(model_capacity))
@@ -6977,9 +6363,9 @@ inline void simulation::clean() noexcept
 {
     sched.clear();
 
-    message_alloc.reset();
-    record_alloc.reset();
-    dated_message_alloc.reset();
+    messages.clear();
+    records.clear();
+    dated_messages.clear();
 
     emitting_output_ports.clear();
     immediate_models.clear();
@@ -6991,8 +6377,7 @@ inline void simulation::clear() noexcept
 {
     clean();
 
-    node_alloc.reset();
-
+    nodes.clear();
     models.clear();
     observers.clear();
 }
@@ -7018,7 +6403,7 @@ inline void simulation::unobserve(model& mdl) noexcept
 inline void simulation::deallocate(model_id id) noexcept
 {
     auto* mdl = models.try_to_get(id);
-    irt_assert(mdl);
+    sim::ensure(mdl);
 
     unobserve(*mdl);
 
@@ -7034,13 +6419,17 @@ template<typename Dynamics>
 void simulation::do_deallocate(Dynamics& dyn) noexcept
 {
     if constexpr (has_output_port<Dynamics>) {
-        for (auto& elem : dyn.y)
-            append_node(*this, elem).clear();
+        for (auto& elem : dyn.y) {
+            nodes.free(elem);
+            elem = undefined<node_id>();
+        }
     }
 
     if constexpr (has_input_port<Dynamics>) {
-        for (auto& elem : dyn.x)
-            append_message(*this, elem).clear();
+        for (auto& elem : dyn.x) {
+            messages.free(elem);
+            elem = undefined<message_id>();
+        }
     }
 
     if constexpr (std::is_same_v<Dynamics, hsm_wrapper>) {
@@ -7053,7 +6442,7 @@ void simulation::do_deallocate(Dynamics& dyn) noexcept
 
 inline bool simulation::can_connect(int number) const noexcept
 {
-    return can_alloc_node(*this, number);
+    return nodes.can_alloc(number);
 }
 
 inline status simulation::connect(model& src,
@@ -7076,12 +6465,12 @@ inline bool simulation::can_connect(const model& src,
 {
     return dispatch(src, [&]<typename Dynamics>(Dynamics& dyn) -> bool {
         if constexpr (has_output_port<Dynamics>) {
-            auto list = get_node(*this, dyn.y[static_cast<u8>(port_src)]);
-
-            for (const auto& elem : list)
-                if (elem.model == models.get_id(dst) &&
-                    elem.port_index == port_dst)
-                    return false;
+            if (auto* lst = nodes.try_to_get(dyn.y[port_src]); lst) {
+                for (const auto& elem : *lst)
+                    if (elem.model == models.get_id(dst) &&
+                        elem.port_index == port_dst)
+                        return false;
+            }
 
             return true;
         }
@@ -7142,8 +6531,10 @@ template<typename Dynamics>
 status simulation::make_initialize(model& mdl, Dynamics& dyn, time t) noexcept
 {
     if constexpr (has_input_port<Dynamics>) {
-        for (int i = 0, e = length(dyn.x); i != e; ++i)
-            dyn.x[i] = static_cast<u64>(-1);
+        for (int i = 0, e = length(dyn.x); i != e; ++i) {
+            if (not messages.try_to_get(dyn.x[i]))
+                dyn.x[i] = undefined<message_id>();
+        }
     }
 
     if constexpr (has_initialize_function<Dynamics>)
@@ -7192,11 +6583,13 @@ status simulation::make_transition(model& mdl, Dynamics& dyn, time t) noexcept
         irt_check(dyn.transition(*this, t, t - mdl.tl, mdl.tn - t));
 
     if constexpr (has_input_port<Dynamics>) {
-        for (auto& elem : dyn.x)
-            append_message(*this, elem).clear();
+        for (auto& elem : dyn.x) {
+            if (auto* lst = messages.try_to_get(elem); lst)
+                lst->clear();
+        }
     }
 
-    irt_assert(mdl.tn >= t);
+    sim::ensure(mdl.tn >= t);
 
     mdl.tl = t;
     mdl.tn = t + dyn.sigma;
@@ -7277,7 +6670,7 @@ inline status simulation::run(time& t) noexcept
 
         sched.update(*mdl, t);
 
-        if (!can_alloc_message(*this, 1))
+        if (!messages.can_alloc(1))
             return new_error(simulation::part::messages,
                              container_full_error{});
 
@@ -7286,8 +6679,15 @@ inline status simulation::run(time& t) noexcept
 
         dispatch(*mdl, [this, port, &msg]<typename Dynamics>(Dynamics& dyn) {
             if constexpr (has_input_port<Dynamics>) {
-                auto list = append_message(*this, dyn.x[port]);
-                list.push_back(msg);
+                auto* list = messages.try_to_get(dyn.x[port]);
+
+                if (not list) {
+                    auto& msg   = messages.alloc();
+                    dyn.x[port] = messages.get_id(msg);
+                    list        = &msg;
+                }
+
+                list->emplace_back(msg[0], msg[1], msg[2]);
             }
         });
     }
@@ -7332,7 +6732,7 @@ inline status hsm_wrapper::transition(simulation& sim,
     const auto old_values_state = exec.values;
 
     for (int i = 0, e = length(x); i != e; ++i) {
-        if (have_message(x[i]))
+        if (is_defined(x[i]))
             exec.values |= static_cast<u8>(1u << i);
 
         // notice for clear a bit if negative value ? or 0 value ?
@@ -7378,7 +6778,7 @@ inline status hsm_wrapper::lambda(simulation& sim) noexcept
             const u8  port  = exec.outputs[i].port;
             const i32 value = exec.outputs[i].value;
 
-            irt_assert(port >= 0 && port < exec.outputs.size());
+            sim::ensure(port < exec.outputs.size());
 
             irt_check(send_message(sim, y[port], to_real(value)));
         }
@@ -7414,7 +6814,7 @@ inline bool simulation::can_alloc_dynamics(
 template<typename Dynamics>
 Dynamics& simulation::alloc() noexcept
 {
-    irt_assert(!models.full());
+    sim::ensure(!models.full());
 
     auto& mdl  = models.alloc();
     mdl.type   = dynamics_typeof<Dynamics>();
@@ -7425,11 +6825,11 @@ Dynamics& simulation::alloc() noexcept
 
     if constexpr (has_input_port<Dynamics>)
         for (int i = 0, e = length(dyn.x); i != e; ++i)
-            dyn.x[i] = static_cast<u64>(-1);
+            dyn.x[i] = undefined<message_id>();
 
     if constexpr (has_output_port<Dynamics>)
         for (int i = 0, e = length(dyn.y); i != e; ++i)
-            dyn.y[i] = static_cast<u64>(-1);
+            dyn.y[i] = undefined<node_id>();
 
     if constexpr (std::is_same_v<Dynamics, hsm_wrapper>) {
         auto& hsm = hsms.alloc();
@@ -7444,7 +6844,7 @@ Dynamics& simulation::alloc() noexcept
 inline model& simulation::clone(const model& mdl) noexcept
 {
     /* Use can_alloc before using this function. */
-    irt_assert(!models.full());
+    sim::ensure(!models.full());
 
     auto& new_mdl  = models.alloc();
     new_mdl.type   = mdl.type;
@@ -7456,11 +6856,11 @@ inline model& simulation::clone(const model& mdl) noexcept
 
         if constexpr (has_input_port<Dynamics>)
             for (int i = 0, e = length(dyn.x); i != e; ++i)
-                dyn.x[i] = static_cast<u64>(-1);
+                dyn.x[i] = undefined<message_id>();
 
         if constexpr (has_output_port<Dynamics>)
             for (int i = 0, e = length(dyn.y); i != e; ++i)
-                dyn.y[i] = static_cast<u64>(-1);
+                dyn.y[i] = undefined<node_id>();
 
         if constexpr (std::is_same_v<Dynamics, hsm_wrapper>) {
             if (auto* hsm_src = hsms.try_to_get(src_dyn.id); hsm_src) {
@@ -7481,7 +6881,7 @@ inline model& simulation::clone(const model& mdl) noexcept
 //! @brief This function allocates dynamics and models.
 inline model& simulation::alloc(dynamics_type type) noexcept
 {
-    irt_assert(!models.full());
+    sim::ensure(!models.full());
 
     auto& mdl  = models.alloc();
     mdl.type   = type;
@@ -7492,11 +6892,11 @@ inline model& simulation::alloc(dynamics_type type) noexcept
 
         if constexpr (has_input_port<Dynamics>)
             for (int i = 0, e = length(dyn.x); i != e; ++i)
-                dyn.x[i] = static_cast<u64>(-1);
+                dyn.x[i] = undefined<message_id>();
 
         if constexpr (has_output_port<Dynamics>)
             for (int i = 0, e = length(dyn.y); i != e; ++i)
-                dyn.y[i] = static_cast<u64>(-1);
+                dyn.y[i] = undefined<node_id>();
 
         if constexpr (std::is_same_v<Dynamics, hsm_wrapper>) {
             auto& hsm = hsms.alloc();
@@ -7526,29 +6926,36 @@ inline status global_connect(simulation& sim,
                              model_id    dst,
                              int         port_dst) noexcept
 {
-    return dispatch(
-      src,
-      [&sim, port_src, dst, port_dst]<typename Dynamics>(
-        Dynamics& dyn) -> status {
-          if constexpr (has_output_port<Dynamics>) {
-              auto list = append_node(sim, dyn.y[static_cast<u8>(port_src)]);
-              for (const auto& elem : list) {
-                  if (elem.model == dst && elem.port_index == port_dst)
-                      return new_error(simulation::part::nodes,
-                                       already_exist_error{});
-              }
+    return dispatch(src,
+                    [&sim, port_src, dst, port_dst]<typename Dynamics>(
+                      Dynamics& dyn) -> status {
+                        if constexpr (has_output_port<Dynamics>) {
+                            auto* list = sim.nodes.try_to_get(dyn.y[port_src]);
 
-              if (!can_alloc_node(sim, 1))
-                  return new_error(simulation::part::nodes,
-                                   container_full_error{});
+                            if (not list) {
+                                auto& new_node  = sim.nodes.alloc();
+                                dyn.y[port_src] = sim.nodes.get_id(new_node);
+                                list            = &new_node;
+                            }
 
-              list.emplace_back(dst, static_cast<i8>(port_dst));
+                            for (const auto& elem : *list) {
+                                if (elem.model == dst &&
+                                    elem.port_index == port_dst)
+                                    return new_error(simulation::part::nodes,
+                                                     already_exist_error{});
+                            }
 
-              return success();
-          }
+                            if (not list->can_alloc(1))
+                                return new_error(simulation::part::nodes,
+                                                 container_full_error{});
 
-          irt_unreachable();
-      });
+                            list->emplace_back(dst, static_cast<i8>(port_dst));
+
+                            return success();
+                        }
+
+                        irt_unreachable();
+                    });
 }
 
 inline status global_disconnect(simulation& sim,
@@ -7562,11 +6969,13 @@ inline status global_disconnect(simulation& sim,
       [&sim, port_src, dst, port_dst]<typename Dynamics>(
         Dynamics& dyn) -> status {
           if constexpr (has_output_port<Dynamics>) {
-              auto list = append_node(sim, dyn.y[port_src]);
-              for (auto it = list.begin(), end = list.end(); it != end; ++it) {
-                  if (it->model == dst && it->port_index == port_dst) {
-                      it = list.erase(it);
-                      return success();
+              if (auto* list = sim.nodes.try_to_get(dyn.y[port_src]); list) {
+                  for (auto it = list->begin(), end = list->end(); it != end;
+                       ++it) {
+                      if (it->model == dst && it->port_index == port_dst) {
+                          it = list->erase(it);
+                          return success();
+                      }
                   }
               }
           }
@@ -7575,10 +6984,10 @@ inline status global_disconnect(simulation& sim,
       });
 }
 
-inline result<input_port> get_input_port(model& src, int port_src) noexcept
+inline result<message_id> get_input_port(model& src, int port_src) noexcept
 {
     return dispatch(
-      src, [&]<typename Dynamics>(Dynamics& dyn) -> result<input_port> {
+      src, [&]<typename Dynamics>(Dynamics& dyn) -> result<message_id> {
           if constexpr (has_input_port<Dynamics>) {
               if (port_src >= 0 && port_src < length(dyn.x)) {
                   return dyn.x[port_src];
@@ -7589,7 +6998,7 @@ inline result<input_port> get_input_port(model& src, int port_src) noexcept
       });
 }
 
-inline status get_input_port(model& src, int port_src, input_port*& p) noexcept
+inline status get_input_port(model& src, int port_src, message_id*& p) noexcept
 {
     return dispatch(
       src, [port_src, &p]<typename Dynamics>(Dynamics& dyn) -> status {
@@ -7604,10 +7013,10 @@ inline status get_input_port(model& src, int port_src, input_port*& p) noexcept
       });
 }
 
-inline result<output_port> get_output_port(model& dst, int port_dst) noexcept
+inline result<node_id> get_output_port(model& dst, int port_dst) noexcept
 {
     return dispatch(
-      dst, [&]<typename Dynamics>(Dynamics& dyn) -> result<output_port> {
+      dst, [&]<typename Dynamics>(Dynamics& dyn) -> result<node_id> {
           if constexpr (has_output_port<Dynamics>) {
               if (port_dst >= 0 && port_dst < length(dyn.y))
                   return dyn.y[port_dst];
@@ -7617,9 +7026,7 @@ inline result<output_port> get_output_port(model& dst, int port_dst) noexcept
       });
 }
 
-inline status get_output_port(model&        dst,
-                              int           port_dst,
-                              output_port*& p) noexcept
+inline status get_output_port(model& dst, int port_dst, node_id*& p) noexcept
 {
     return dispatch(
       dst, [port_dst, &p]<typename Dynamics>(Dynamics& dyn) -> status {
@@ -7643,23 +7050,29 @@ inline status queue::transition(simulation& sim,
                                 time /*e*/,
                                 time /*r*/) noexcept
 {
-    auto list = append_dated_message(sim, fifo);
-    while (!list.empty() && list.front().data[0] <= t)
-        list.pop_front();
+    if (auto* ar = sim.dated_messages.try_to_get(fifo); ar) {
+        while (!ar->empty() and ar->tail()->data[0] <= t)
+            ar->pop_tail();
 
-    auto span = get_message(sim, x[0]);
-    for (const auto& msg : span) {
-        if (!can_alloc_dated_message(sim, 1))
-            return new_error(simulation::part::dated_messages,
-                             container_full_error{});
+        auto* lst = sim.messages.try_to_get(x[0]);
+        if (lst) {
+            for (const auto& msg : *lst) {
+                if (!sim.dated_messages.can_alloc(1))
+                    return new_error(simulation::part::dated_messages,
+                                     container_full_error{});
 
-        list.emplace_back(irt::real(t + default_ta), msg[0], msg[1], msg[2]);
-    }
+                ar->emplace_head(
+                  irt::real(t + default_ta), msg[0], msg[1], msg[2]);
+            }
+        }
 
-    if (!list.empty()) {
-        sigma = list.front()[0] - t;
-        sigma =
-          sigma <= time_domain<time>::zero ? time_domain<time>::zero : sigma;
+        if (lst and not !lst->empty()) {
+            sigma = lst->front()[0] - t;
+            sigma = sigma <= time_domain<time>::zero ? time_domain<time>::zero
+                                                     : sigma;
+        } else {
+            sigma = time_domain<time>::infinity;
+        }
     } else {
         sigma = time_domain<time>::infinity;
     }
@@ -7672,31 +7085,38 @@ inline status dynamic_queue::transition(simulation& sim,
                                         time /*e*/,
                                         time /*r*/) noexcept
 {
-    auto list = append_dated_message(sim, fifo);
-    while (!list.empty() && list.front().data[0] <= t)
-        list.pop_front();
+    if (auto* ar = sim.dated_messages.try_to_get(fifo); ar) {
+        while (not ar->empty() and ar->tail()->data[0] <= t)
+            ar->pop_tail();
 
-    auto span = get_message(sim, x[0]);
-    for (const auto& msg : span) {
-        if (!can_alloc_dated_message(sim, 1))
-            return new_error(simulation::part::dated_messages,
-                             container_full_error{});
-        real ta = zero;
-        if (stop_on_error) {
-            irt_check(update_source(sim, default_source_ta, ta));
-            list.emplace_back(
-              t + static_cast<real>(ta), msg[0], msg[1], msg[2]);
-        } else {
-            if (auto ret = update_source(sim, default_source_ta, ta); !ret)
-                list.emplace_back(
-                  t + static_cast<real>(ta), msg[0], msg[1], msg[2]);
+        auto* lst = sim.messages.try_to_get(x[0]);
+
+        if (lst) {
+            for (const auto& msg : *lst) {
+                if (!sim.dated_messages.can_alloc(1))
+                    return new_error(simulation::part::dated_messages,
+                                     container_full_error{});
+                real ta = zero;
+                if (stop_on_error) {
+                    irt_check(update_source(sim, default_source_ta, ta));
+                    ar->emplace_head(
+                      t + static_cast<real>(ta), msg[0], msg[1], msg[2]);
+                } else {
+                    if (auto ret = update_source(sim, default_source_ta, ta);
+                        !ret)
+                        ar->emplace_head(
+                          t + static_cast<real>(ta), msg[0], msg[1], msg[2]);
+                }
+            }
         }
-    }
 
-    if (!list.empty()) {
-        sigma = list.front().data[0] - t;
-        sigma =
-          sigma <= time_domain<time>::zero ? time_domain<time>::zero : sigma;
+        if (lst and not lst->empty()) {
+            sigma = lst->front().data[0] - t;
+            sigma = sigma <= time_domain<time>::zero ? time_domain<time>::zero
+                                                     : sigma;
+        } else {
+            sigma = time_domain<time>::infinity;
+        }
     } else {
         sigma = time_domain<time>::infinity;
     }
@@ -7708,24 +7128,15 @@ inline status priority_queue::try_to_insert(simulation&    sim,
                                             const time     t,
                                             const message& msg) noexcept
 {
-    if (!can_alloc_dated_message(sim, 1))
+    if (not sim.dated_messages.can_alloc(1))
         return new_error(simulation::part::dated_messages,
                          container_full_error{});
 
-    auto list = append_dated_message(sim, fifo);
-    if (list.empty() || list.begin()->data[0] > t) {
-        list.emplace_front(irt::real(t), msg[0], msg[1], msg[2]);
-    } else {
-        auto it  = list.begin();
-        auto end = list.end();
-        ++it;
-
-        for (; it != end; ++it) {
-            if (it->data[0] > t) {
-                list.emplace(it, irt::real(t), msg[0], msg[1], msg[2]);
-                return success();
-            }
-        }
+    if (auto* ar = sim.dated_messages.try_to_get(fifo); ar) {
+        ar->emplace_head(irt::real(t), msg[0], msg[1], msg[2]);
+        ar->sort([](auto& l, auto& r) noexcept -> bool {
+            return l.data[0] < r.data[0];
+        });
     }
 
     return success();
@@ -7736,37 +7147,44 @@ inline status priority_queue::transition(simulation& sim,
                                          time /*e*/,
                                          time /*r*/) noexcept
 {
-    auto list = append_dated_message(sim, fifo);
-    while (!list.empty() && list.front().data[0] <= t)
-        list.pop_front();
+    if (auto* ar = sim.dated_messages.try_to_get(fifo); ar) {
+        while (not ar->empty() and ar->tail()->data[0] <= t)
+            ar->pop_tail();
 
-    auto span = get_message(sim, x[0]);
-    for (const auto& msg : span) {
-        real value = zero;
+        auto* lst = sim.messages.try_to_get(x[0]);
 
-        if (stop_on_error) {
-            irt_check(update_source(sim, default_source_ta, value));
+        if (lst) {
+            for (const auto& msg : *lst) {
+                real value = zero;
 
-            if (auto ret =
-                  try_to_insert(sim, static_cast<real>(value) + t, msg);
-                !ret)
-                return new_error(simulation::part::dated_messages,
-                                 container_full_error{});
-        } else {
-            if (auto ret = update_source(sim, default_source_ta, value); !ret) {
-                if (auto ret =
-                      try_to_insert(sim, static_cast<real>(value) + t, msg);
-                    !ret)
-                    return new_error(simulation::part::dated_messages,
-                                     container_full_error{});
+                if (stop_on_error) {
+                    irt_check(update_source(sim, default_source_ta, value));
+
+                    if (auto ret =
+                          try_to_insert(sim, static_cast<real>(value) + t, msg);
+                        !ret)
+                        return new_error(simulation::part::dated_messages,
+                                         container_full_error{});
+                } else {
+                    if (auto ret = update_source(sim, default_source_ta, value);
+                        !ret) {
+                        if (auto ret = try_to_insert(
+                              sim, static_cast<real>(value) + t, msg);
+                            !ret)
+                            return new_error(simulation::part::dated_messages,
+                                             container_full_error{});
+                    }
+                }
             }
         }
-    }
 
-    if (!list.empty()) {
-        sigma = list.front()[0] - t;
-        sigma =
-          sigma <= time_domain<time>::zero ? time_domain<time>::zero : sigma;
+        if (lst and not lst->empty()) {
+            sigma = lst->front()[0] - t;
+            sigma = sigma <= time_domain<time>::zero ? time_domain<time>::zero
+                                                     : sigma;
+        } else {
+            sigma = time_domain<time>::infinity;
+        }
     } else {
         sigma = time_domain<time>::infinity;
     }

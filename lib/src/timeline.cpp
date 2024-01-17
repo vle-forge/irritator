@@ -153,7 +153,7 @@ static status build_initial_simulation_point(timeline&   tl,
 {
     if (!tl.can_alloc(timeline_point_type::simulation,
                       static_cast<i32>(sim.models.max_used()),
-                      static_cast<i32>(sim.message_alloc.max_size())))
+                      static_cast<i32>(sim.messages.max_size())))
         return new_error(simulation::part::models, container_full_error{});
 
     auto& sim_pt = tl.alloc_simulation_point();
@@ -161,10 +161,10 @@ static status build_initial_simulation_point(timeline&   tl,
     sim_pt.models.reserve(sim.models.max_size());
     sim_pt.model_ids.reserve(sim.models.max_size());
 
-    if (sim.message_alloc.max_size() > 0) {
-        irt_check(sim_pt.message_alloc.init(sim.message_alloc.max_size()));
-        irt_check(sim.message_alloc.copy_to(sim_pt.message_alloc));
-    }
+    // if (sim.messages.max_size() > 0) {
+    //     irt_check(sim_pt.messages.init(sim.messages.max_size()));
+    //     irt_check(sim.message_alloc.copy_to(sim_pt.message_alloc));
+    // }
 
     model* mdl = nullptr;
     while (sim.models.next(mdl)) {
@@ -181,25 +181,25 @@ static status build_initial_simulation_point(timeline&   tl,
     return success();
 }
 
-static status build_simulation_point(timeline&               tl,
-                                     simulation&             sim,
-                                     const vector<model_id>& imm,
-                                     time                    t) noexcept
+static status build_simulation_point(timeline&                             tl,
+                                     simulation&                           sim,
+                                     const vector<model_id, mr_allocator>& imm,
+                                     time t) noexcept
 {
-    if (!tl.can_alloc(timeline_point_type::simulation,
-                      imm.ssize(),
-                      static_cast<i32>(sim.message_alloc.max_size())))
-        return new_error(simulation::part::messages, container_full_error{});
+    // if (!tl.can_alloc(timeline_point_type::simulation,
+    //                   imm.ssize(),
+    //                   static_cast<i32>(sim.message_alloc.max_size())))
+    //     return new_error(simulation::part::messages, container_full_error{});
 
     auto& sim_pt = tl.alloc_simulation_point();
     sim_pt.t     = t;
     sim_pt.models.reserve(imm.ssize());
     sim_pt.model_ids.reserve(imm.ssize());
 
-    if (sim.message_alloc.max_size() > 0) {
-        irt_check(sim_pt.message_alloc.init(sim.message_alloc.max_size()));
-        irt_check(sim.message_alloc.copy_to(sim_pt.message_alloc));
-    }
+    // if (sim.message_alloc.max_size() > 0) {
+    //     irt_check(sim_pt.message_alloc.init(sim.message_alloc.max_size()));
+    //     irt_check(sim.message_alloc.copy_to(sim_pt.message_alloc));
+    // }
 
     for (auto mdl_id : sim.immediate_models) {
         if (auto* mdl = sim.models.try_to_get(mdl_id); mdl) {
@@ -230,8 +230,8 @@ status initialize(timeline& tl, simulation& sim, time t) noexcept
 
 static status apply(simulation& sim, simulation_point& sim_pt) noexcept
 {
-    sim.message_alloc.reset();
-    sim_pt.message_alloc.swap(sim.message_alloc);
+    // sim.message_alloc.reset();
+    // sim_pt.message_alloc.swap(sim.message_alloc);
 
     for (i32 i = 0, e = sim_pt.models.ssize(); i != e; ++i) {
         auto* sim_model = sim.models.try_to_get(sim_pt.model_ids[i]);
@@ -453,7 +453,7 @@ status run(timeline& tl, simulation& sim, time& t) noexcept
 
         sim.sched.update(*mdl, t);
 
-        if (!can_alloc_message(sim, 1))
+        if (!sim.messages.can_alloc(1))
             return new_error(simulation::part::messages,
                              container_full_error{});
 
@@ -462,8 +462,14 @@ status run(timeline& tl, simulation& sim, time& t) noexcept
 
         dispatch(*mdl, [&sim, port, &msg]<typename Dynamics>(Dynamics& dyn) {
             if constexpr (has_input_port<Dynamics>) {
-                auto list = append_message(sim, dyn.x[port]);
-                list.push_back(msg);
+                auto* lst = sim.messages.try_to_get(dyn.x[port]);
+                if (not lst) {
+                    auto& new_lst = sim.messages.alloc();
+                    lst           = &new_lst;
+                    dyn.x[port]   = sim.messages.get_id(new_lst);
+                }
+
+                lst->push_back(msg);
             }
         });
     }

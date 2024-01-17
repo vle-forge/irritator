@@ -28,7 +28,7 @@ struct simulation_point
 
     vector<model>                            models;
     vector<model_id>                         model_ids;
-    block_allocator<list_view_node<message>> message_alloc;
+    vector<message> message_alloc;
 };
 
 struct model_point
