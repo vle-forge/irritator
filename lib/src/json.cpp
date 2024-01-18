@@ -3696,7 +3696,7 @@ struct reader {
                  val,
                  [&](const auto /* i */, const auto& value) noexcept -> bool {
                      auto& mdl  = sim().models.alloc();
-                     mdl.handle = nullptr;
+                     mdl.handle = invalid_heap_handle;
 
                      return read_simulation_model(value, mdl);
                  });

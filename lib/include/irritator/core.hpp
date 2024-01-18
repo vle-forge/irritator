@@ -417,29 +417,6 @@ almost_equal(T x, T y, int ulp)
 
 /*****************************************************************************
  *
- * Allocator
- *
- ****************************************************************************/
-
-using global_alloc_function_type = void*(size_t size) noexcept;
-using global_free_function_type  = void(void* ptr) noexcept;
-
-static inline void* malloc_wrapper(size_t size) noexcept
-{
-    return std::malloc(size);
-}
-
-static inline void free_wrapper(void* ptr) noexcept
-{
-    if (ptr)
-        std::free(ptr);
-}
-
-static inline global_alloc_function_type* g_alloc_fn{ malloc_wrapper };
-static inline global_free_function_type*  g_free_fn{ free_wrapper };
-
-/*****************************************************************************
- *
  * Definition of Time
  *
  * TODO:
@@ -1066,6 +1043,8 @@ struct output_message {
     i8       port  = 0;
 };
 
+static inline constexpr u32 invalid_heap_handle = 0xffffffff;
+
 //! @brief Pairing heap implementation.
 //!
 //! A pairing heap is a type of heap data structure with relatively simple
@@ -1074,276 +1053,83 @@ struct output_message {
 //! in 1986.
 //!
 //! https://en.wikipedia.org/wiki/Pairing_heap
+template<typename A = default_allocator>
 class heap
 {
-private:
+public:
+    using this_container = heap<A>;
+    using allocator_type = A;
+    using index_type     = u32;
+
     struct node {
         time     tn;
         model_id id;
 
-        node* prev;
-        node* next;
-        node* child;
+        u32 prev;
+        u32 next;
+        u32 child;
     };
 
+private:
+    node* nodes{ nullptr };
     u32   m_size{ 0 };
     u32   max_size{ 0 };
     u32   capacity{ 0 };
-    node* root{ nullptr };
-    node* nodes{ nullptr };
-    node* free_list{ nullptr };
+    u32   free_list{ invalid_heap_handle };
+    u32   root{ invalid_heap_handle };
+
+    [[no_unique_address]] allocator_type m_alloc;
 
 public:
-    using handle = node*;
+    using handle = u32;
 
-    heap() = default;
+    constexpr heap() noexcept = default;
 
-    ~heap() noexcept
-    {
-        if (nodes)
-            g_free_fn(nodes);
-    }
+    constexpr heap(std::pmr::memory_resource* mem) noexcept
+        requires(!std::is_empty_v<A>);
 
-    status init(std::integral auto new_capacity) noexcept
-    {
-        sim::ensure(std::cmp_greater(new_capacity, 0));
-        sim::ensure(std::cmp_less(
-          new_capacity, std::numeric_limits<decltype(capacity)>::max()));
+    constexpr ~heap() noexcept;
 
-        if (std::cmp_not_equal(new_capacity, capacity)) {
-            if (nodes)
-                g_free_fn(nodes);
+    //! clear then destroy buffer.
+    constexpr void destroy() noexcept;
 
-            nodes = static_cast<node*>(
-              g_alloc_fn(static_cast<sz>(new_capacity) * sizeof(node)));
-            if (nodes == nullptr)
-                return new_error(memory_error{},
-                                 e_memory{ static_cast<long long unsigned int>(
-                                             capacity * sizeof(node)),
-                                           static_cast<long long unsigned int>(
-                                             new_capacity * sizeof(node)) });
-        }
+    //! Clear the buffer.
+    constexpr void clear() noexcept;
 
-        m_size    = 0;
-        max_size  = 0;
-        capacity  = static_cast<decltype(capacity)>(new_capacity);
-        root      = nullptr;
-        free_list = nullptr;
+    //! Call @c destroy() then allocate the new_capacity.
+    constexpr bool reserve(std::integral auto new_capacity) noexcept;
 
-        return success();
-    }
+    constexpr handle insert(time tn, model_id id) noexcept;
 
-    void clear()
-    {
-        m_size    = 0;
-        max_size  = 0;
-        root      = nullptr;
-        free_list = nullptr;
-    }
+    constexpr void   destroy(handle elem) noexcept;
+    constexpr void   insert(handle elem) noexcept;
+    constexpr void   reintegrate(time tn, handle elem) noexcept;
+    constexpr void   remove(handle elem) noexcept;
+    constexpr handle pop() noexcept;
+    constexpr void   decrease(time tn, handle elem) noexcept;
+    constexpr void   increase(time tn, handle elem) noexcept;
 
-    handle insert(time tn, model_id id) noexcept
-    {
-        node* new_node;
+    constexpr time tn(handle elem) noexcept;
 
-        if (free_list) {
-            new_node  = free_list;
-            free_list = free_list->next;
-        } else {
-            new_node = &nodes[max_size++];
-        }
+    constexpr unsigned size() const noexcept;
+    constexpr int      ssize() const noexcept;
 
-        new_node->tn    = tn;
-        new_node->id    = id;
-        new_node->prev  = nullptr;
-        new_node->next  = nullptr;
-        new_node->child = nullptr;
+    constexpr bool full() const noexcept;
+    constexpr bool empty() const noexcept;
 
-        insert(new_node);
+    constexpr handle top() const noexcept;
 
-        return new_node;
-    }
+    constexpr void merge(heap& src) noexcept;
 
-    void destroy(handle elem) noexcept
-    {
-        sim::ensure(elem);
-
-        if (m_size == 0) {
-            clear();
-        } else {
-            elem->prev  = nullptr;
-            elem->child = nullptr;
-            elem->id    = static_cast<model_id>(0);
-
-            elem->next = free_list;
-            free_list  = elem;
-        }
-    }
-
-    void insert(handle elem) noexcept
-    {
-        elem->prev  = nullptr;
-        elem->next  = nullptr;
-        elem->child = nullptr;
-
-        ++m_size;
-
-        if (root == nullptr)
-            root = elem;
-        else
-            root = merge(elem, root);
-    }
-
-    void remove(handle elem) noexcept
-    {
-        sim::ensure(elem);
-
-        if (elem == root) {
-            pop();
-            return;
-        }
-
-        sim::ensure(m_size > 0);
-
-        m_size--;
-        detach_subheap(elem);
-
-        if (elem->prev) { /* Not use pop() before. Use in interactive code */
-            elem = merge_subheaps(elem);
-            root = merge(root, elem);
-        }
-    }
-
-    handle pop() noexcept
-    {
-        sim::ensure(m_size > 0);
-
-        m_size--;
-
-        auto* top = root;
-
-        if (top->child == nullptr)
-            root = nullptr;
-        else
-            root = merge_subheaps(top);
-
-        top->child = top->next = top->prev = nullptr;
-
-        return top;
-    }
-
-    void decrease(handle elem) noexcept
-    {
-        if (elem->prev == nullptr)
-            return;
-
-        detach_subheap(elem);
-        root = merge(root, elem);
-    }
-
-    void increase(handle elem) noexcept
-    {
-        remove(elem);
-        insert(elem);
-    }
-
-    unsigned size() const noexcept { return static_cast<unsigned>(m_size); }
-    int      ssize() const noexcept { return static_cast<int>(m_size); }
-
-    bool full() const noexcept { return m_size == capacity; }
-    bool empty() const noexcept { return root == nullptr; }
-
-    handle top() const noexcept { return root; }
-
-    void merge(heap& src) noexcept
-    {
-        if (this == &src)
-            return;
-
-        if (root == nullptr) {
-            root = src.root;
-            return;
-        }
-
-        root = merge(root, src.root);
-        m_size += src.m_size;
-    }
+    constexpr const node& operator[](handle h) const noexcept;
+    constexpr node&       operator[](handle h) noexcept;
 
 private:
-    static node* merge(node* a, node* b) noexcept
-    {
-        if (a->tn < b->tn) {
-            if (a->child != nullptr)
-                a->child->prev = b;
-
-            if (b->next != nullptr)
-                b->next->prev = a;
-
-            a->next  = b->next;
-            b->next  = a->child;
-            a->child = b;
-            b->prev  = a;
-
-            return a;
-        }
-
-        if (b->child != nullptr)
-            b->child->prev = a;
-
-        if (a->prev != nullptr && a->prev->child != a)
-            a->prev->next = b;
-
-        b->prev  = a->prev;
-        a->prev  = b;
-        a->next  = b->child;
-        b->child = a;
-
-        return b;
-    }
-
-    static node* merge_right(node* a) noexcept
-    {
-        node* b{ nullptr };
-
-        for (; a != nullptr; a = b->next) {
-            if ((b = a->next) == nullptr)
-                return a;
-
-            b = merge(a, b);
-        }
-
-        return b;
-    }
-
-    static node* merge_left(node* a) noexcept
-    {
-        node* b = a->prev;
-        for (; b != nullptr; b = a->prev)
-            a = merge(b, a);
-
-        return a;
-    }
-
-    static node* merge_subheaps(node* a) noexcept
-    {
-        a->child->prev = nullptr;
-
-        node* e = merge_right(a->child);
-        return merge_left(e);
-    }
-
-    void detach_subheap(node* elem) noexcept
-    {
-        if (elem->prev->child == elem)
-            elem->prev->child = elem->next;
-        else
-            elem->prev->next = elem->next;
-
-        if (elem->next != nullptr)
-            elem->next->prev = elem->prev;
-
-        elem->prev = nullptr;
-        elem->next = nullptr;
-    }
+    constexpr handle merge(handle a, handle b) noexcept;
+    constexpr handle merge_right(handle a) noexcept;
+    constexpr handle merge_left(handle a) noexcept;
+    constexpr handle merge_subheaps(handle a) noexcept;
+    constexpr void   detach_subheap(handle elem) noexcept;
 };
 
 /*****************************************************************************
@@ -1352,15 +1138,25 @@ private:
  *
  ****************************************************************************/
 
+template<typename A = default_allocator>
 class scheduller
 {
+public:
+    using this_container = heap<A>;
+    using allocator_type = A;
+
 private:
-    heap m_heap;
+    heap<A> m_heap;
 
 public:
-    scheduller() = default;
+    using handle = u32;
 
-    status init(std::integral auto new_capacity) noexcept;
+    constexpr scheduller() = default;
+
+    constexpr scheduller(std::pmr::memory_resource* mem) noexcept
+        requires(!std::is_empty_v<A>);
+
+    bool reserve(std::integral auto new_capacity) noexcept;
 
     void clear() noexcept;
 
@@ -1374,7 +1170,11 @@ public:
 
     void pop(vector<model_id, mr_allocator>& out) noexcept;
 
+    //! Returns the top event @c time-next in the heap.
     time tn() const noexcept;
+
+    //! Returns the @c time-next event for handle.
+    time tn(handle h) const noexcept;
 
     bool empty() const noexcept;
 
@@ -1403,6 +1203,7 @@ public:
     freelist_memory_resource   shared;
     freelist_memory_resource   records_alloc;
     freelist_memory_resource   dated_messages_alloc;
+    freelist_memory_resource   nodes_alloc;
 
     vector<output_message, mr_allocator> emitting_output_ports;
     vector<model_id, mr_allocator>       immediate_models;
@@ -1411,7 +1212,7 @@ public:
     data_array<model, model_id, mr_allocator>                      models;
     data_array<hierarchical_state_machine, hsm_id, mr_allocator>   hsms;
     data_array<observer, observer_id, mr_allocator>                observers;
-    data_array<small_vector<node, 8>, node_id, mr_allocator>       nodes;
+    data_array<vector<node, mr_allocator>, node_id, mr_allocator>  nodes;
     data_array<small_vector<message, 8>, message_id, mr_allocator> messages;
 
     data_array<small_ring_buffer<record, 8>, record_id, mr_allocator> records;
@@ -1420,8 +1221,8 @@ public:
                mr_allocator>
       dated_messages;
 
-    external_source srcs;
-    scheduller      sched;
+    external_source          srcs;
+    scheduller<mr_allocator> sched;
 
     model_id get_id(const model& mdl) const;
 
@@ -5443,9 +5244,9 @@ constexpr sz max_size_in_bytes() noexcept
 }
 
 struct model {
-    real         tl     = 0.0;
-    real         tn     = time_domain<time>::infinity;
-    heap::handle handle = nullptr;
+    real tl     = 0.0;
+    real tn     = time_domain<time>::infinity;
+    u32  handle = invalid_heap_handle;
 
     observer_id   obs_id = observer_id{ 0 };
     dynamics_type type;
@@ -6052,7 +5853,7 @@ inline status global_disconnect(simulation& sim,
 inline void copy(const model& src, model& dst) noexcept
 {
     dst.type   = src.type;
-    dst.handle = nullptr;
+    dst.handle = invalid_heap_handle;
 
     dispatch(dst, [&src]<typename Dynamics>(Dynamics& dst_dyn) -> void {
         const auto& src_dyn = get_dyn<Dynamics>(src);
@@ -6153,19 +5954,6 @@ inline bool observer::full() const noexcept
     return flags & flags_buffer_full;
 }
 
-//! scheduller
-
-inline void scheduller::pop(vector<model_id, mr_allocator>& out) noexcept
-{
-    time t = tn();
-
-    out.clear();
-    out.emplace_back(m_heap.pop()->id);
-
-    while (!m_heap.empty() && t == tn())
-        out.emplace_back(m_heap.pop()->id);
-}
-
 inline status send_message(simulation& sim,
                            node_id&    output_port,
                            real        r1,
@@ -6215,66 +6003,451 @@ inline status get_hierarchical_state_machine(simulation&                  sim,
       simulation::part::hsms, unknown_error{}, e_ulong_id{ ordinal(id) });
 }
 
-/////////////////////////////////////////////////////////////
-///
-///
+//
+// template<typename A>
+// heap<A>
+//
 
-inline status scheduller::init(std::integral auto new_capacity) noexcept
+template<typename A>
+constexpr heap<A>::heap(std::pmr::memory_resource* mem) noexcept
+    requires(!std::is_empty_v<A>)
+  : m_alloc{ mem }
+{}
+
+template<typename A>
+constexpr heap<A>::~heap() noexcept
 {
-    return m_heap.init(new_capacity);
+    destroy();
 }
 
-inline void scheduller::clear() noexcept { m_heap.clear(); }
-
-inline void scheduller::insert(model& mdl, model_id id, time tn) noexcept
+template<typename A>
+constexpr void heap<A>::destroy() noexcept
 {
-    sim::ensure(mdl.handle == nullptr);
+    if (nodes)
+        m_alloc.template deallocate<node>(nodes, capacity);
+
+    nodes     = nullptr;
+    m_size    = 0;
+    max_size  = 0;
+    capacity  = 0;
+    free_list = invalid_heap_handle;
+    root      = invalid_heap_handle;
+}
+
+template<typename A>
+constexpr void heap<A>::clear() noexcept
+{
+    m_size    = 0;
+    max_size  = 0;
+    free_list = invalid_heap_handle;
+    root      = invalid_heap_handle;
+}
+
+template<typename A>
+constexpr bool heap<A>::reserve(std::integral auto new_capacity) noexcept
+{
+    container::ensure(
+      std::cmp_less(new_capacity, std::numeric_limits<index_type>::max()));
+
+    if (std::cmp_less_equal(new_capacity, capacity))
+        return true;
+
+    auto* new_data = m_alloc.template allocate<node>(new_capacity);
+    if (!new_data)
+        return false;
+
+    std::uninitialized_copy_n(nodes, max_size, new_data);
+    if (nodes)
+        m_alloc.template deallocate<node>(nodes, capacity);
+
+    nodes    = new_data;
+    capacity = static_cast<index_type>(new_capacity);
+
+    return true;
+}
+
+template<typename A>
+constexpr typename heap<A>::handle heap<A>::insert(time     tn,
+                                                   model_id id) noexcept
+{
+    u32 new_node;
+
+    if (free_list != invalid_heap_handle) {
+        new_node  = free_list;
+        free_list = nodes[free_list].next;
+    } else {
+        new_node = max_size++;
+    }
+
+    nodes[new_node].tn    = tn;
+    nodes[new_node].id    = id;
+    nodes[new_node].prev  = invalid_heap_handle;
+    nodes[new_node].next  = invalid_heap_handle;
+    nodes[new_node].child = invalid_heap_handle;
+
+    insert(new_node);
+
+    return new_node;
+}
+
+template<typename A>
+constexpr void heap<A>::destroy(handle elem) noexcept
+{
+    sim::ensure(elem != invalid_heap_handle);
+
+    if (m_size == 0) {
+        clear();
+    } else {
+        nodes[elem].prev  = invalid_heap_handle;
+        nodes[elem].child = invalid_heap_handle;
+        nodes[elem].id    = static_cast<model_id>(0);
+        nodes[elem].next  = free_list;
+
+        free_list = elem;
+    }
+}
+
+template<typename A>
+constexpr void heap<A>::reintegrate(time tn, handle elem) noexcept
+{
+    sim::ensure(elem != invalid_heap_handle);
+
+    nodes[elem].tn = tn;
+
+    insert(elem);
+}
+
+template<typename A>
+constexpr void heap<A>::insert(handle elem) noexcept
+{
+    nodes[elem].prev  = invalid_heap_handle;
+    nodes[elem].next  = invalid_heap_handle;
+    nodes[elem].child = invalid_heap_handle;
+
+    ++m_size;
+
+    if (root == invalid_heap_handle)
+        root = elem;
+    else
+        root = merge(elem, root);
+}
+
+template<typename A>
+constexpr void heap<A>::remove(handle elem) noexcept
+{
+    sim::ensure(elem != invalid_heap_handle);
+
+    if (elem == root) {
+        pop();
+        return;
+    }
+
+    sim::ensure(m_size > 0);
+
+    m_size--;
+    detach_subheap(elem);
+
+    if (nodes[elem].prev) { /* Not use pop() before. Use in interactive code */
+        elem = merge_subheaps(elem);
+        root = merge(root, elem);
+    }
+}
+
+template<typename A>
+constexpr typename heap<A>::handle heap<A>::pop() noexcept
+{
+    sim::ensure(m_size > 0);
+
+    m_size--;
+
+    auto top = root;
+
+    if (nodes[top].child == invalid_heap_handle)
+        root = invalid_heap_handle;
+    else
+        root = merge_subheaps(top);
+
+    nodes[top].child = invalid_heap_handle;
+    nodes[top].next  = invalid_heap_handle;
+    nodes[top].prev  = invalid_heap_handle;
+
+    return top;
+}
+
+template<typename A>
+constexpr void heap<A>::decrease(time tn, handle elem) noexcept
+{
+    nodes[elem].tn = tn;
+
+    if (nodes[elem].prev == invalid_heap_handle)
+        return;
+
+    detach_subheap(elem);
+    root = merge(root, elem);
+}
+
+template<typename A>
+constexpr void heap<A>::increase(time tn, handle elem) noexcept
+{
+    nodes[elem].tn = tn;
+
+    remove(elem);
+    insert(elem);
+}
+
+template<typename A>
+constexpr time heap<A>::tn(handle elem) noexcept
+{
+    return nodes[elem].tn;
+}
+
+template<typename A>
+constexpr unsigned heap<A>::size() const noexcept
+{
+    return static_cast<unsigned>(m_size);
+}
+
+template<typename A>
+constexpr int heap<A>::ssize() const noexcept
+{
+    return static_cast<int>(m_size);
+}
+
+template<typename A>
+constexpr bool heap<A>::full() const noexcept
+{
+    return m_size == capacity;
+}
+
+template<typename A>
+constexpr bool heap<A>::empty() const noexcept
+{
+    return root == invalid_heap_handle;
+}
+
+template<typename A>
+constexpr typename heap<A>::handle heap<A>::top() const noexcept
+{
+    return root;
+}
+
+template<typename A>
+constexpr void heap<A>::merge(heap& src) noexcept
+{
+    if (this == &src)
+        return;
+
+    if (root == invalid_heap_handle) {
+        root = src.root;
+        return;
+    }
+
+    root = merge(root, src.root);
+    m_size += src.m_size;
+}
+
+template<typename A>
+constexpr const typename heap<A>::node& heap<A>::operator[](
+  handle h) const noexcept
+{
+    return nodes[h];
+}
+
+template<typename A>
+constexpr typename heap<A>::node& heap<A>::operator[](handle h) noexcept
+{
+    return nodes[h];
+}
+
+template<typename A>
+constexpr typename heap<A>::handle heap<A>::merge(handle a, handle b) noexcept
+{
+    if (nodes[a].tn < nodes[b].tn) {
+        if (nodes[a].child != invalid_heap_handle)
+            nodes[nodes[a].child].prev = b;
+
+        if (nodes[b].next != invalid_heap_handle)
+            nodes[nodes[b].next].prev = a;
+
+        nodes[a].next  = nodes[b].next;
+        nodes[b].next  = nodes[a].child;
+        nodes[a].child = b;
+        nodes[b].prev  = a;
+
+        return a;
+    }
+
+    if (nodes[b].child != invalid_heap_handle)
+        nodes[nodes[b].child].prev = a;
+
+    if (nodes[a].prev != invalid_heap_handle && nodes[nodes[a].prev].child != a)
+        nodes[nodes[a].prev].next = b;
+
+    nodes[b].prev  = nodes[a].prev;
+    nodes[a].prev  = b;
+    nodes[a].next  = nodes[b].child;
+    nodes[b].child = a;
+
+    return b;
+}
+
+template<typename A>
+constexpr typename heap<A>::handle heap<A>::merge_right(handle a) noexcept
+{
+    u32 b = invalid_heap_handle;
+
+    for (; a != invalid_heap_handle; a = nodes[b].next) {
+        if ((b = nodes[a].next) == invalid_heap_handle)
+            return a;
+
+        b = merge(a, b);
+    }
+
+    return b;
+}
+
+template<typename A>
+constexpr typename heap<A>::handle heap<A>::merge_left(handle a) noexcept
+{
+    u32 b = nodes[a].prev;
+
+    for (; b != invalid_heap_handle; b = nodes[a].prev)
+        a = merge(b, a);
+
+    return a;
+}
+
+template<typename A>
+constexpr typename heap<A>::handle heap<A>::merge_subheaps(handle a) noexcept
+{
+    nodes[nodes[a].child].prev = invalid_heap_handle;
+
+    const u32 e = merge_right(nodes[a].child);
+
+    return merge_left(e);
+}
+
+template<typename A>
+constexpr void heap<A>::detach_subheap(handle elem) noexcept
+{
+    if (nodes[nodes[elem].prev].child == elem)
+        nodes[nodes[elem].prev].child = nodes[elem].next;
+    else
+        nodes[nodes[elem].prev].next = nodes[elem].next;
+
+    if (nodes[elem].next != invalid_heap_handle)
+        nodes[nodes[elem].next].prev = nodes[elem].prev;
+
+    nodes[elem].prev = invalid_heap_handle;
+    nodes[elem].next = invalid_heap_handle;
+}
+
+//
+// template<typename A>
+// scheduller<A>
+//
+
+template<typename A>
+constexpr scheduller<A>::scheduller(std::pmr::memory_resource* mem) noexcept
+    requires(!std::is_empty_v<A>)
+  : m_heap{ mem }
+{}
+
+template<typename A>
+inline bool scheduller<A>::reserve(std::integral auto new_capacity) noexcept
+{
+    return m_heap.reserve(new_capacity);
+}
+
+template<typename A>
+inline void scheduller<A>::clear() noexcept
+{
+    m_heap.clear();
+}
+
+template<typename A>
+inline void scheduller<A>::insert(model& mdl, model_id id, time tn) noexcept
+{
+    sim::ensure(mdl.handle == invalid_heap_handle);
 
     mdl.handle = m_heap.insert(tn, id);
 }
 
-inline void scheduller::reintegrate(model& mdl, time tn) noexcept
+template<typename A>
+inline void scheduller<A>::reintegrate(model& mdl, time tn) noexcept
 {
-    sim::ensure(mdl.handle != nullptr);
+    sim::ensure(mdl.handle != invalid_heap_handle);
 
-    mdl.handle->tn = tn;
-
-    m_heap.insert(mdl.handle);
+    m_heap.reintegrate(tn, mdl.handle);
 }
 
-inline void scheduller::erase(model& mdl) noexcept
+template<typename A>
+inline void scheduller<A>::erase(model& mdl) noexcept
 {
     if (mdl.handle) {
         m_heap.remove(mdl.handle);
         m_heap.destroy(mdl.handle);
-        mdl.handle = nullptr;
+        mdl.handle = invalid_heap_handle;
     }
 }
 
-inline void scheduller::update(model& mdl, time tn) noexcept
+template<typename A>
+inline void scheduller<A>::update(model& mdl, time tn) noexcept
 {
-    sim::ensure(mdl.handle != nullptr);
-
-    mdl.handle->tn = tn;
-
+    sim::ensure(mdl.handle != invalid_heap_handle);
     sim::ensure(tn <= mdl.tn);
 
     if (tn < mdl.tn)
-        m_heap.decrease(mdl.handle);
+        m_heap.decrease(tn, mdl.handle);
     else if (tn > mdl.tn)
-        m_heap.increase(mdl.handle);
+        m_heap.increase(tn, mdl.handle);
 }
 
-inline time scheduller::tn() const noexcept { return m_heap.top()->tn; }
+template<typename A>
+inline void scheduller<A>::pop(vector<model_id, mr_allocator>& out) noexcept
+{
+    time t = tn();
 
-inline bool scheduller::empty() const noexcept { return m_heap.empty(); }
+    out.clear();
+    out.emplace_back(m_heap[m_heap.pop()].id);
 
-inline unsigned scheduller::size() const noexcept { return m_heap.size(); }
+    while (!m_heap.empty() && t == tn())
+        out.emplace_back(m_heap[m_heap.pop()].id);
+}
 
-inline int scheduller::ssize() const noexcept
+template<typename A>
+inline time scheduller<A>::tn() const noexcept
+{
+    return m_heap[m_heap.top()].tn;
+}
+
+template<typename A>
+inline time scheduller<A>::tn(handle h) const noexcept
+{
+    return m_heap[h].tn;
+}
+
+template<typename A>
+inline bool scheduller<A>::empty() const noexcept
+{
+    return m_heap.empty();
+}
+
+template<typename A>
+inline unsigned scheduller<A>::size() const noexcept
+{
+    return m_heap.size();
+}
+
+template<typename A>
+inline int scheduller<A>::ssize() const noexcept
 {
     return static_cast<int>(m_heap.size());
 }
+
+//
+// simulation
+//
 
 inline simulation::simulation() noexcept
   : simulation::simulation(std::pmr::get_default_resource())
@@ -6292,6 +6465,7 @@ inline simulation::simulation(std::pmr::memory_resource* mem) noexcept
   , messages(&shared)
   , records(&shared)
   , dated_messages(&shared)
+  , sched{ &shared }
 {}
 
 inline model_id simulation::get_id(const model& mdl) const
@@ -6312,12 +6486,15 @@ inline status simulation::init(std::integral auto model_capacity,
     sim::ensure(!std::cmp_greater(0, messages_capacity));
 
     std::size_t global_memory = model_capacity * 256 * sizeof(model);
+    std::size_t node_mem      = model_capacity * sizeof(nodes) * 8;
     std::size_t record_mem    = model_capacity * sizeof(record) * 10;
     std::size_t dated_mem     = model_capacity * sizeof(record) * 10;
 
     shared.reset(reinterpret_cast<std::byte*>(global->allocate(global_memory)),
                  global_memory);
 
+    nodes_alloc.reset(reinterpret_cast<std::byte*>(shared.allocate(node_mem)),
+                      node_mem);
     records_alloc.reset(
       reinterpret_cast<std::byte*>(shared.allocate(record_mem)), record_mem);
     dated_messages_alloc.reset(
@@ -6345,8 +6522,7 @@ inline status simulation::init(std::integral auto model_capacity,
         return new_error(simulation::part::observers);
     if (!dated_messages.reserve(model_capacity))
         return new_error(simulation::part::observers);
-
-    if (!sched.init(model_capacity))
+    if (!sched.reserve(model_capacity))
         return new_error(simulation::part::scheduler);
 
     if (auto ret = srcs.init(max_srcs); !ret)
@@ -6542,7 +6718,7 @@ status simulation::make_initialize(model& mdl, Dynamics& dyn, time t) noexcept
 
     mdl.tl     = t;
     mdl.tn     = t + dyn.sigma;
-    mdl.handle = nullptr;
+    mdl.handle = invalid_heap_handle;
 
     sched.insert(mdl, models.get_id(mdl), mdl.tn);
 
@@ -6573,7 +6749,7 @@ status simulation::make_transition(model& mdl, Dynamics& dyn, time t) noexcept
         }
     }
 
-    if (mdl.tn == mdl.handle->tn) {
+    if (mdl.tn == sched.tn(mdl.handle)) {
         if constexpr (has_lambda_function<Dynamics>)
             if constexpr (has_output_port<Dynamics>)
                 irt_check(dyn.lambda(*this));
@@ -6818,7 +6994,7 @@ Dynamics& simulation::alloc() noexcept
 
     auto& mdl  = models.alloc();
     mdl.type   = dynamics_typeof<Dynamics>();
-    mdl.handle = nullptr;
+    mdl.handle = invalid_heap_handle;
 
     std::construct_at(reinterpret_cast<Dynamics*>(&mdl.dyn));
     auto& dyn = get_dyn<Dynamics>(mdl);
@@ -6848,7 +7024,7 @@ inline model& simulation::clone(const model& mdl) noexcept
 
     auto& new_mdl  = models.alloc();
     new_mdl.type   = mdl.type;
-    new_mdl.handle = nullptr;
+    new_mdl.handle = invalid_heap_handle;
 
     dispatch(new_mdl, [this, &mdl]<typename Dynamics>(Dynamics& dyn) -> void {
         const auto& src_dyn = get_dyn<Dynamics>(mdl);
@@ -6885,7 +7061,7 @@ inline model& simulation::alloc(dynamics_type type) noexcept
 
     auto& mdl  = models.alloc();
     mdl.type   = type;
-    mdl.handle = nullptr;
+    mdl.handle = invalid_heap_handle;
 
     dispatch(mdl, [this]<typename Dynamics>(Dynamics& dyn) -> void {
         std::construct_at(&dyn);
@@ -6926,36 +7102,36 @@ inline status global_connect(simulation& sim,
                              model_id    dst,
                              int         port_dst) noexcept
 {
-    return dispatch(src,
-                    [&sim, port_src, dst, port_dst]<typename Dynamics>(
-                      Dynamics& dyn) -> status {
-                        if constexpr (has_output_port<Dynamics>) {
-                            auto* list = sim.nodes.try_to_get(dyn.y[port_src]);
+    return dispatch(
+      src,
+      [&sim, port_src, dst, port_dst]<typename Dynamics>(
+        Dynamics& dyn) -> status {
+          if constexpr (has_output_port<Dynamics>) {
+              auto* list = sim.nodes.try_to_get(dyn.y[port_src]);
 
-                            if (not list) {
-                                auto& new_node  = sim.nodes.alloc();
-                                dyn.y[port_src] = sim.nodes.get_id(new_node);
-                                list            = &new_node;
-                            }
+              if (not list) {
+                  auto& new_node  = sim.nodes.alloc(&sim.nodes_alloc, 4);
+                  dyn.y[port_src] = sim.nodes.get_id(new_node);
+                  list            = &new_node;
+              }
 
-                            for (const auto& elem : *list) {
-                                if (elem.model == dst &&
-                                    elem.port_index == port_dst)
-                                    return new_error(simulation::part::nodes,
-                                                     already_exist_error{});
-                            }
+              for (const auto& elem : *list) {
+                  if (elem.model == dst && elem.port_index == port_dst)
+                      return new_error(simulation::part::nodes,
+                                       already_exist_error{});
+              }
 
-                            if (not list->can_alloc(1))
-                                return new_error(simulation::part::nodes,
-                                                 container_full_error{});
+              // if (not list->can_alloc(1))
+              //     return new_error(simulation::part::nodes,
+              //                      container_full_error{});
 
-                            list->emplace_back(dst, static_cast<i8>(port_dst));
+              list->emplace_back(dst, static_cast<i8>(port_dst));
 
-                            return success();
-                        }
+              return success();
+          }
 
-                        irt_unreachable();
-                    });
+          irt_unreachable();
+      });
 }
 
 inline status global_disconnect(simulation& sim,

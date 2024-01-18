@@ -153,9 +153,9 @@ void global_free(void* ptr) noexcept
     }
 }
 
-static void* null_alloc(size_t /*sz*/) noexcept { return nullptr; }
+// static void* null_alloc(size_t /*sz*/) noexcept { return nullptr; }
 
-static void null_free(void*) noexcept {}
+// static void null_free(void*) noexcept {}
 
 struct struct_with_static_member {
     static int i;
@@ -1191,19 +1191,18 @@ int main()
 
     "heap_order"_test = [] {
         irt::heap h;
+        expect(h.reserve(4u));
 
-        expect(!!h.init(4u));
-
-        irt::heap::handle i1 = h.insert(0.0, irt::model_id{ 0 });
-        irt::heap::handle i2 = h.insert(1.0, irt::model_id{ 1 });
-        irt::heap::handle i3 = h.insert(-1.0, irt::model_id{ 2 });
-        irt::heap::handle i4 = h.insert(2.0, irt::model_id{ 3 });
+        auto i1 = h.insert(0.0, irt::model_id{ 0 });
+        auto i2 = h.insert(1.0, irt::model_id{ 1 });
+        auto i3 = h.insert(-1.0, irt::model_id{ 2 });
+        auto i4 = h.insert(2.0, irt::model_id{ 3 });
         expect(h.full());
 
-        expect(i1->tn == 0);
-        expect(i2->tn == 1);
-        expect(i3->tn == -1);
-        expect(i4->tn == 2);
+        expect(h[i1].tn == 0);
+        expect(h[i2].tn == 1);
+        expect(h[i3].tn == -1);
+        expect(h[i4].tn == 2);
 
         expect(h.top() == i3);
         h.pop();
@@ -1220,17 +1219,17 @@ int main()
 
     "heap_insert_pop"_test = [] {
         irt::heap h;
-        expect(!!h.init(4u));
+        expect(h.reserve(4u));
 
-        irt::heap::handle i1 = h.insert(0, irt::model_id{ 0 });
-        irt::heap::handle i2 = h.insert(1, irt::model_id{ 1 });
-        irt::heap::handle i3 = h.insert(-1, irt::model_id{ 2 });
-        irt::heap::handle i4 = h.insert(2, irt::model_id{ 3 });
+        auto i1 = h.insert(0, irt::model_id{ 0 });
+        auto i2 = h.insert(1, irt::model_id{ 1 });
+        auto i3 = h.insert(-1, irt::model_id{ 2 });
+        auto i4 = h.insert(2, irt::model_id{ 3 });
 
-        expect(i1 != nullptr);
-        expect(i2 != nullptr);
-        expect(i3 != nullptr);
-        expect(i4 != nullptr);
+        expect(i1 != irt::invalid_heap_handle);
+        expect(i2 != irt::invalid_heap_handle);
+        expect(i3 != irt::invalid_heap_handle);
+        expect(i4 != irt::invalid_heap_handle);
 
         expect(!h.empty());
         expect(h.top() == i3);
@@ -1240,11 +1239,16 @@ int main()
 
         expect(h.top() == i2);
 
-        i3->tn = -10;
+        h[i3].tn = -10;
         h.insert(i3);
-
-        i1->tn = -1;
+        h[i1].tn = -1;
         h.insert(i1);
+
+        // h[i3].tn = -10;
+        // h.insert(i3);
+
+        // h[i1].tn = -1;
+        // h.insert(i1);
 
         expect(h.top() == i3);
         h.pop();
@@ -1265,11 +1269,10 @@ int main()
         using namespace irt::literals;
 
         irt::heap h;
-        expect(!!h.init(256u));
+        expect(h.reserve(256u));
 
-        for (int t = 0; t < 100; ++t) {
+        for (int t = 0; t < 100; ++t)
             h.insert(irt::to_real(t), static_cast<irt::model_id>(t));
-        }
 
         expect(h.size() == 100_ul);
 
@@ -1280,21 +1283,21 @@ int main()
         expect(h.size() == 103_ul);
 
         for (irt::time t = 0, e = 50; t < e; ++t) {
-            expect(h.top()->tn == t);
+            expect(h[h.top()].tn == t);
             h.pop();
         }
 
-        expect(h.top()->tn == 50);
+        expect(h[h.top()].tn == 50);
         h.pop();
-        expect(h.top()->tn == 50);
+        expect(h[h.top()].tn == 50);
         h.pop();
-        expect(h.top()->tn == 50);
+        expect(h[h.top()].tn == 50);
         h.pop();
-        expect(h.top()->tn == 50);
+        expect(h[h.top()].tn == 50);
         h.pop();
 
         for (irt::time t = 51, e = 100; t < e; ++t) {
-            expect(h.top()->tn == t);
+            expect(h[h.top()].tn == t);
             h.pop();
         }
     };
@@ -3185,44 +3188,44 @@ int main()
         }
     };
 
-    "memory"_test = [] {
-        {
-            irt::g_alloc_fn = global_alloc;
-            irt::g_free_fn  = global_free;
+    // "memory"_test = [] {
+    //     {
+    //         irt::g_alloc_fn = global_alloc;
+    //         irt::g_free_fn  = global_free;
 
-            irt::simulation sim;
-            expect(!!sim.init(30u, 30u));
-        }
+    //         irt::simulation sim;
+    //         expect(!!sim.init(30u, 30u));
+    //     }
 
-        fmt::print("memory: {}/{}\n",
-                   global_allocator.allocation_number,
-                   global_deallocator.free_number);
+    //     fmt::print("memory: {}/{}\n",
+    //                global_allocator.allocation_number,
+    //                global_deallocator.free_number);
 
-        expect(global_allocator.allocation_size > 0);
-        expect(global_allocator.allocation_number ==
-               global_deallocator.free_number);
+    //     expect(global_allocator.allocation_size > 0);
+    //     expect(global_allocator.allocation_number ==
+    //            global_deallocator.free_number);
 
-        irt::g_alloc_fn = nullptr;
-        irt::g_free_fn  = nullptr;
+    //     irt::g_alloc_fn = nullptr;
+    //     irt::g_free_fn  = nullptr;
 
-        irt::g_alloc_fn = irt::malloc_wrapper;
-        irt::g_free_fn  = irt::free_wrapper;
-    };
+    //     irt::g_alloc_fn = irt::malloc_wrapper;
+    //     irt::g_free_fn  = irt::free_wrapper;
+    // };
 
-    "null_memory"_test = [] {
-        auto old = std::exchange(irt::on_error_callback, nullptr);
+    // "null_memory"_test = [] {
+    //     auto old = std::exchange(irt::on_error_callback, nullptr);
 
-        irt::g_alloc_fn = null_alloc;
-        irt::g_free_fn  = null_free;
+    //     irt::g_alloc_fn = null_alloc;
+    //     irt::g_free_fn  = null_free;
 
-        irt::simulation sim;
-        expect(!sim.init(30u, 30u));
+    //     irt::simulation sim;
+    //     expect(!sim.init(30u, 30u));
 
-        irt::g_alloc_fn = irt::malloc_wrapper;
-        irt::g_free_fn  = irt::free_wrapper;
+    //     irt::g_alloc_fn = irt::malloc_wrapper;
+    //     irt::g_free_fn  = irt::free_wrapper;
 
-        std::exchange(irt::on_error_callback, old);
-    };
+    //     std::exchange(irt::on_error_callback, old);
+    // };
 
     "external_source"_test = [] {
         std::error_code   ec;

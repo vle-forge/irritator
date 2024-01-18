@@ -331,7 +331,7 @@ static status make_tree_leaf(simulation_copy& sc,
     auto       new_mdl_id = sc.sim.models.get_id(new_mdl);
 
     new_mdl.type   = mdl_type;
-    new_mdl.handle = nullptr;
+    new_mdl.handle = invalid_heap_handle;
 
     auto ret =
       dispatch(new_mdl, [&]<typename Dynamics>(Dynamics& dyn) -> status {

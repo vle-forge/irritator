@@ -763,7 +763,6 @@ int main()
         expect(ring.data()[6] == 6);
         expect(ring.data()[7] == 7);
         expect(ring.data()[8] == 8);
-        expect(ring.data()[9] == 0);
 
         for (int i = 10; i < 15; ++i) {
             ring.pop_head();

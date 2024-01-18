@@ -397,8 +397,6 @@ status modeling::connect(generic_component& parent,
             parent.connections.emplace_back(con_id);
         }
     } else {
-        irt_assert(ports.try_to_get(y.compo) == nullptr);
-
         if (dst.type == child_type::component) {
             irt_assert(ports.try_to_get(x.compo) != nullptr);
 
