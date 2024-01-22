@@ -66,8 +66,7 @@ static void dot_graph_save(const irt::simulation& /*sim*/, std::FILE* /*os*/)
     // fmt::print(os, "}}\n");
 }
 
-struct neuron
-{
+struct neuron {
     irt::model_id sum;
     irt::model_id prod;
     irt::model_id integrator;
@@ -77,8 +76,7 @@ struct neuron
     irt::model_id constant_cross;
 };
 
-struct synapse
-{
+struct synapse {
     irt::model_id sum_pre;
     irt::model_id prod_pre;
     irt::model_id integrator_pre;
@@ -157,8 +155,8 @@ struct neuron make_neuron(irt::simulation* sim) noexcept
 }
 
 struct synapse make_synapse(irt::simulation* sim,
-                            long unsigned int source,
-                            long unsigned int target,
+                            long unsigned int /* source */,
+                            long unsigned int /* target */,
                             irt::model& presynaptic_model,
                             int         presynaptic_port,
                             irt::model& postsynaptic_model,
@@ -236,7 +234,8 @@ struct synapse make_synapse(irt::simulation* sim,
     expect(!!sim->connect(const_syn, 0, sum_pre, 1));
     expect(!!sim->connect(sum_pre, 0, cross_pre, 1));
     expect(!!sim->connect(
-      presynaptic_model, presynaptic_port, irt::get_model(cross_pre), 0)) << fatal;
+      presynaptic_model, presynaptic_port, irt::get_model(cross_pre), 0))
+      << fatal;
 
     expect(!!sim->connect(quant_post, 0, int_post, 0));
     expect(!!sim->connect(mult_post, 0, int_post, 1));
@@ -312,8 +311,6 @@ int main()
         std::vector<struct synapse> synapses;
         for (long unsigned int i = 0; i < N; i++) {
             for (long unsigned int j = 0; j < N; j++) {
-                fmt::print("{} {}\n", i, j);
-
                 struct synapse synapse_model =
                   make_synapse(&sim,
                                i,

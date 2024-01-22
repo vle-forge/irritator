@@ -281,7 +281,7 @@ int main()
         std::array<std::byte, 256>        buffer;
         irt::fixed_linear_memory_resource mbr{ buffer.data(), buffer.size() };
 
-        irt::vector<int, irt::mr_allocator> v(&mbr, 8);
+        irt::vector<int, irt::fixed_allocator> v(&mbr, 8);
         expect(v.empty());
         expect(v.capacity() == 8);
         v.emplace_back(0);
@@ -325,7 +325,7 @@ int main()
         expect(v[4] == 4);
         expect(v[5] == 5);
 
-        irt::vector<int, irt::mr_allocator> v2(&mbr, 8);
+        irt::vector<int, irt::fixed_allocator> v2(&mbr, 8);
         v2 = v;
         v2[0] *= 2;
         expect(v2[0] == 14);

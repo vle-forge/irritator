@@ -183,7 +183,7 @@ static status build_initial_simulation_point(timeline&   tl,
 
 static status build_simulation_point(timeline&                             tl,
                                      simulation&                           sim,
-                                     const vector<model_id, mr_allocator>& imm,
+                                     const vector<model_id, freelist_allocator>& imm,
                                      time t) noexcept
 {
     // if (!tl.can_alloc(timeline_point_type::simulation,

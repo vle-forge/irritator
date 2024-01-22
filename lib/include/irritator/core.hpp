@@ -101,8 +101,7 @@ __forceinline
 #else
 inline
 #endif
-constexpr void
-ensure([[maybe_unused]] T&& assertion) noexcept
+constexpr void ensure([[maybe_unused]] T&& assertion) noexcept
 {}
 
 } // namespace sim
@@ -1057,9 +1056,10 @@ template<typename A = default_allocator>
 class heap
 {
 public:
-    using this_container = heap<A>;
-    using allocator_type = A;
-    using index_type     = u32;
+    using this_container  = heap<A>;
+    using allocator_type  = A;
+    using memory_resource = typename A::memory_resource;
+    using index_type      = u32;
 
     struct node {
         time     tn;
@@ -1085,7 +1085,7 @@ public:
 
     constexpr heap() noexcept = default;
 
-    constexpr heap(std::pmr::memory_resource* mem) noexcept
+    constexpr heap(memory_resource* mem) noexcept
         requires(!std::is_empty_v<A>);
 
     constexpr ~heap() noexcept;
@@ -1142,8 +1142,9 @@ template<typename A = default_allocator>
 class scheduller
 {
 public:
-    using this_container = heap<A>;
-    using allocator_type = A;
+    using this_container  = heap<A>;
+    using allocator_type  = A;
+    using memory_resource = typename A::memory_resource;
 
 private:
     heap<A> m_heap;
@@ -1153,7 +1154,7 @@ public:
 
     constexpr scheduller() = default;
 
-    constexpr scheduller(std::pmr::memory_resource* mem) noexcept
+    constexpr scheduller(memory_resource* mem) noexcept
         requires(!std::is_empty_v<A>);
 
     bool reserve(std::integral auto new_capacity) noexcept;
@@ -1168,7 +1169,7 @@ public:
 
     void update(model& mdl, time tn) noexcept;
 
-    void pop(vector<model_id, mr_allocator>& out) noexcept;
+    void pop(vector<model_id, freelist_allocator>& out) noexcept;
 
     //! Returns the top event @c time-next in the heap.
     time tn() const noexcept;
@@ -1205,24 +1206,27 @@ public:
     freelist_memory_resource   dated_messages_alloc;
     freelist_memory_resource   nodes_alloc;
 
-    vector<output_message, mr_allocator> emitting_output_ports;
-    vector<model_id, mr_allocator>       immediate_models;
-    vector<observer_id, mr_allocator>    immediate_observers;
+    vector<output_message, freelist_allocator> emitting_output_ports;
+    vector<model_id, freelist_allocator>       immediate_models;
+    vector<observer_id, freelist_allocator>    immediate_observers;
 
-    data_array<model, model_id, mr_allocator>                      models;
-    data_array<hierarchical_state_machine, hsm_id, mr_allocator>   hsms;
-    data_array<observer, observer_id, mr_allocator>                observers;
-    data_array<vector<node, mr_allocator>, node_id, mr_allocator>  nodes;
-    data_array<small_vector<message, 8>, message_id, mr_allocator> messages;
+    data_array<model, model_id, freelist_allocator>                    models;
+    data_array<hierarchical_state_machine, hsm_id, freelist_allocator> hsms;
+    data_array<observer, observer_id, freelist_allocator> observers;
+    data_array<vector<node, freelist_allocator>, node_id, freelist_allocator>
+      nodes;
+    data_array<small_vector<message, 8>, message_id, freelist_allocator>
+      messages;
 
-    data_array<small_ring_buffer<record, 8>, record_id, mr_allocator> records;
-    data_array<ring_buffer<dated_message, mr_allocator>,
+    data_array<small_ring_buffer<record, 8>, record_id, freelist_allocator>
+      records;
+    data_array<ring_buffer<dated_message, freelist_allocator>,
                dated_message_id,
-               mr_allocator>
+               freelist_allocator>
       dated_messages;
 
-    external_source          srcs;
-    scheduller<mr_allocator> sched;
+    external_source                srcs;
+    scheduller<freelist_allocator> sched;
 
     model_id get_id(const model& mdl) const;
 
@@ -1327,53 +1331,54 @@ public:
 
 template<typename T>
 concept has_lambda_function = requires(T t, simulation& sim) {
-    {
-        t.lambda(sim)
-    } -> std::convertible_to<status>;
-};
+                                  {
+                                      t.lambda(sim)
+                                      } -> std::convertible_to<status>;
+                              };
 
 template<typename T>
 concept has_transition_function =
   requires(T t, simulation& sim, time s, time e, time r) {
       {
           t.transition(sim, s, e, r)
-      } -> std::convertible_to<status>;
+          } -> std::convertible_to<status>;
   };
 
 template<typename T>
-concept has_observation_function = requires(T t, time s, time e) {
-    {
-        t.observation(s, e)
-    } -> std::convertible_to<observation_message>;
-};
+concept has_observation_function =
+  requires(T t, time s, time e) {
+      {
+          t.observation(s, e)
+          } -> std::convertible_to<observation_message>;
+  };
 
 template<typename T>
 concept has_initialize_function = requires(T t, simulation& sim) {
-    {
-        t.initialize(sim)
-    } -> std::convertible_to<status>;
-};
+                                      {
+                                          t.initialize(sim)
+                                          } -> std::convertible_to<status>;
+                                  };
 
 template<typename T>
 concept has_finalize_function = requires(T t, simulation& sim) {
-    {
-        t.finalize(sim)
-    } -> std::convertible_to<status>;
-};
+                                    {
+                                        t.finalize(sim)
+                                        } -> std::convertible_to<status>;
+                                };
 
 template<typename T>
 concept has_input_port = requires(T t) {
-    {
-        t.x
-    };
-};
+                             {
+                                 t.x
+                             };
+                         };
 
 template<typename T>
 concept has_output_port = requires(T t) {
-    {
-        t.y
-    };
-};
+                              {
+                                  t.y
+                              };
+                          };
 
 constexpr observation_message qss_observation(real X,
                                               real u,
@@ -6009,7 +6014,7 @@ inline status get_hierarchical_state_machine(simulation&                  sim,
 //
 
 template<typename A>
-constexpr heap<A>::heap(std::pmr::memory_resource* mem) noexcept
+constexpr heap<A>::heap(memory_resource* mem) noexcept
     requires(!std::is_empty_v<A>)
   : m_alloc{ mem }
 {}
@@ -6348,7 +6353,7 @@ constexpr void heap<A>::detach_subheap(handle elem) noexcept
 //
 
 template<typename A>
-constexpr scheduller<A>::scheduller(std::pmr::memory_resource* mem) noexcept
+constexpr scheduller<A>::scheduller(memory_resource* mem) noexcept
     requires(!std::is_empty_v<A>)
   : m_heap{ mem }
 {}
@@ -6404,7 +6409,8 @@ inline void scheduller<A>::update(model& mdl, time tn) noexcept
 }
 
 template<typename A>
-inline void scheduller<A>::pop(vector<model_id, mr_allocator>& out) noexcept
+inline void scheduller<A>::pop(
+  vector<model_id, freelist_allocator>& out) noexcept
 {
     time t = tn();
 
@@ -6493,12 +6499,15 @@ inline status simulation::init(std::integral auto model_capacity,
     shared.reset(reinterpret_cast<std::byte*>(global->allocate(global_memory)),
                  global_memory);
 
-    nodes_alloc.reset(reinterpret_cast<std::byte*>(shared.allocate(node_mem)),
+    nodes_alloc.reset(reinterpret_cast<std::byte*>(
+                        shared.allocate(node_mem, alignof(std::max_align_t))),
                       node_mem);
-    records_alloc.reset(
-      reinterpret_cast<std::byte*>(shared.allocate(record_mem)), record_mem);
-    dated_messages_alloc.reset(
-      reinterpret_cast<std::byte*>(shared.allocate(dated_mem)), dated_mem);
+    records_alloc.reset(reinterpret_cast<std::byte*>(shared.allocate(
+                          record_mem, alignof(std::max_align_t))),
+                        record_mem);
+    dated_messages_alloc.reset(reinterpret_cast<std::byte*>(shared.allocate(
+                                 dated_mem, alignof(std::max_align_t))),
+                               dated_mem);
 
     size_t max_hsms = (model_capacity / 10) <= 0
                         ? 1u

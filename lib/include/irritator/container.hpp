@@ -59,8 +59,7 @@ __forceinline
 #else
 inline
 #endif
-constexpr void
-ensure([[maybe_unused]] T&& assertion) noexcept
+constexpr void ensure([[maybe_unused]] T&& assertion) noexcept
 {}
 
 } // namespace variables
@@ -96,109 +95,82 @@ using small_storage_size_t = std::conditional_t<
 //                                                                    //
 ////////////////////////////////////////////////////////////////////////
 
-//! @brief Use the @c std::pmr::get_default_resource to (de)allocate memory.
+//! @brief A wrapper to the @c std::aligned_alloc and @c std::free cstdlib
+//! function to (de)allocate memory.
 //!
 //! This allocator is @c std::is_empty and use the default memory resource. Use
 //! this allocator in container to ensure allocator does not have size.
 class default_allocator
 {
 public:
-    using size_type                              = std::size_t;
-    using difference_type                        = std::ptrdiff_t;
-    using propagate_on_container_move_assignment = std::true_type;
+    using size_type       = std::size_t;
+    using difference_type = std::ptrdiff_t;
+    using memory_resource = void;
 
     template<typename T>
     T* allocate(size_type n) noexcept
     {
-        return reinterpret_cast<T*>(std::pmr::get_default_resource()->allocate(
-          n * sizeof(T), alignof(T)));
+        const auto byte_count = sizeof(T) * n;
+        container::ensure(byte_count % alignof(T) == 0);
+
+        using aligned_alloc_fn = void* (*)(std::size_t, std::size_t) noexcept;
+        aligned_alloc_fn call =
+          reinterpret_cast<aligned_alloc_fn>(std::aligned_alloc);
+
+        auto* first = call(alignof(T), byte_count);
+        if (not first)
+            std::abort();
+
+        return reinterpret_cast<T*>(first);
     }
 
     template<typename T>
-    void deallocate(T* p, size_type n) noexcept
+    void deallocate(T* p, size_type /* n */) noexcept
     {
-        std::pmr::get_default_resource()->deallocate(
-          p, n * sizeof(T), alignof(T));
+        if (p)
+            std::free(p);
     }
 };
 
-//! @brief Use a @c std::pmr::memory_resource in member to (de)allocate memory.
+//! @brief Use a @c irt::memory_resource in member to (de)allocate memory.
 //!
-//! Use this allocator and a subclass to @c std::pmr::memory_resource to
-//! (de)allocate memory in container.
+//! Use this allocator and a @c irt::memory_resource to (de)allocate memory in
+//! container.
+template<typename MR>
 class mr_allocator
 {
 public:
-    using size_type                              = std::size_t;
-    using difference_type                        = std::ptrdiff_t;
-    using propagate_on_container_move_assignment = std::true_type;
+    using memory_resource = MR;
+    using size_type       = std::size_t;
+    using difference_type = std::ptrdiff_t;
 
+private:
+    memory_resource* m_mr;
+
+public:
     mr_allocator() noexcept = default;
 
-    mr_allocator(std::pmr::memory_resource* mem) noexcept
-      : m_mem(mem)
+    mr_allocator(memory_resource* mr) noexcept
+      : m_mr(mr)
     {}
 
     template<typename T>
     T* allocate(size_type n) noexcept
     {
-        return reinterpret_cast<T*>(m_mem->allocate(n * sizeof(T), alignof(T)));
+        return static_cast<T*>(m_mr->allocate(sizeof(T) * n, alignof(T)));
     }
 
     template<typename T>
     void deallocate(T* p, size_type n) noexcept
     {
-        m_mem->deallocate(p, n * sizeof(T), alignof(T));
-    }
-
-private:
-    std::pmr::memory_resource* m_mem{};
-};
-
-//! @brief Same allocator than @c mr_allocator and store debug variables.
-//!
-//! Use this allocator and a subclass to @c std::pmr::memory_resource to
-//! (de)allocate memory in container. The total amount of memory (de)allocated
-//! in bytes are stored in member variable and also the number of
-//! (de)allocation.
-class debug_allocator
-{
-public:
-    using size_type                              = std::size_t;
-    using difference_type                        = std::ptrdiff_t;
-    using propagate_on_container_move_assignment = std::true_type;
-
-    debug_allocator() noexcept = default;
-
-    debug_allocator(std::pmr::memory_resource* mem) noexcept
-      : m_mem(mem)
-    {}
-
-    template<typename T>
-    T* allocate(size_type n) noexcept
-    {
-        m_total_allocated += n * sizeof(T);
-        m_number_allocation++;
-
-        return reinterpret_cast<T*>(m_mem->allocate(n * sizeof(T), alignof(T)));
+        m_mr->deallocate(p, sizeof(T) * n, alignof(T));
     }
 
     template<typename T>
-    void deallocate(T* p, size_type n) noexcept
+    bool can_alloc(std::size_t element_count) const noexcept
     {
-        m_total_deallocated += n * sizeof(T);
-        m_number_deallocation++;
-
-        m_mem->deallocate(p, n * sizeof(T), alignof(T));
+        return m_mr->can_alloc(sizeof(T) * element_count, alignof(T));
     }
-
-    std::size_t m_total_allocated{};
-    std::size_t m_total_deallocated{};
-    std::size_t m_number_allocation{};
-    std::size_t m_number_deallocation{};
-
-private:
-    std::pmr::memory_resource* m_mem{};
 };
 
 ////////////////////////////////////////////////////////////////////////
@@ -206,15 +178,6 @@ private:
 // Memory resource: linear, stack, stack-list........................ //
 //                                                                    //
 ////////////////////////////////////////////////////////////////////////
-
-//! @brief An handler type when a @c std::pmr::memory resource fail to allocate
-//! memory.
-//!
-//! @param mr Reference @c the std::pmr::memory_resource that fail.
-using error_not_enough_memory_handler =
-  void(std::pmr::memory_resource& mr) noexcept;
-
-inline error_not_enough_memory_handler* on_error_not_enough_memory = nullptr;
 
 inline constexpr auto calculate_padding(const std::uintptr_t address,
                                         const std::size_t    alignment) noexcept
@@ -259,57 +222,22 @@ inline constexpr auto calculate_padding_with_header(
 //! inserted and the only fragmentation between them is the alignment. Due to
 //! its simplicity, this allocator doesn't allow specific positions of memory to
 //! be freed. Usually, all memory is freed together.
-class fixed_linear_memory_resource : public std::pmr::memory_resource
+class fixed_linear_memory_resource
 {
 public:
     static constexpr bool is_relocatable = false;
 
     fixed_linear_memory_resource() noexcept = default;
+    fixed_linear_memory_resource(std::byte* data, std::size_t size) noexcept;
 
-    fixed_linear_memory_resource(std::byte* data, std::size_t size) noexcept
-      : m_start{ data }
-      , m_total_size{ size }
-    {
-        container::ensure(m_start);
-        container::ensure(m_total_size);
-    }
-
-    void* do_allocate(size_t bytes, size_t alignment) override final
-    {
-        std::size_t padding = 0;
-
-        const auto current_address =
-          reinterpret_cast<std::uintptr_t>(m_start) + m_offset;
-
-        if (alignment != 0 && m_offset % alignment != 0)
-            padding = calculate_padding(current_address, alignment);
-
-        if (m_offset + padding + bytes > m_total_size) {
-            if (on_error_not_enough_memory)
-                on_error_not_enough_memory(*this);
-
-            std::abort();
-        }
-
-        m_offset += padding;
-        const auto next_address = current_address + padding;
-        m_offset += bytes;
-
-        return reinterpret_cast<void*>(next_address);
-    }
-
-    void do_deallocate(void* /*p*/,
-                       size_t /*bytes*/,
-                       size_t /*alignment*/) override final
+    void* allocate(size_t bytes, size_t alignment) noexcept;
+    void  deallocate(void* /*p*/,
+                     size_t /*bytes*/,
+                     size_t /*alignment*/) noexcept
     {}
 
-    bool do_is_equal(const memory_resource& other) const noexcept override final
-    {
-        return this == &other;
-    }
-
     //! @brief Reset the use of the chunk of memory.
-    void reset() noexcept { m_offset = { 0 }; }
+    void reset() noexcept;
 
     //! @brief Assign a chunk of memory.
     //!
@@ -317,18 +245,7 @@ public:
     //! (ie the default constructor was called).
     //! @param data The new buffer. Must be not null.
     //! @param size The size of the buffer. Must be not null.
-    void reset(std::byte* data, std::size_t size) noexcept
-    {
-        container::ensure(data != nullptr);
-        container::ensure(size != 0u);
-        container::ensure(m_start == nullptr);
-        container::ensure(m_total_size == 0u);
-
-        m_start      = data;
-        m_total_size = size;
-
-        reset();
-    }
+    void reset(std::byte* data, std::size_t size) noexcept;
 
     //! Check if the resource can allocate @c bytes with @c alignment.
     //!
@@ -336,20 +253,9 @@ public:
     //!     the @c memory_resource can allocate enough memory bcause @c
     //!     do_allocate will use @c std::quick_exit or @c std::terminate to stop
     //!     the application.
-    bool can_alloc(std::size_t bytes, std::size_t alignment) noexcept
-    {
-        std::size_t padding = 0;
+    bool can_alloc(std::size_t bytes, std::size_t alignment) noexcept;
 
-        const auto current_address =
-          reinterpret_cast<std::uintptr_t>(m_start) + m_offset;
-
-        if (alignment != 0 && m_offset % alignment != 0)
-            padding = calculate_padding(current_address, alignment);
-
-        return m_offset + padding + bytes <= m_total_size;
-    }
-
-    constexpr std::byte* head() noexcept { return m_start; }
+    std::byte* head() noexcept { return m_start; }
 
 private:
     std::byte*  m_start{};
@@ -364,11 +270,8 @@ private:
 //! requested it returns the free chunk size. When a freed is done, it just
 //! stores it to be used in the next allocation. This way, allocations work
 //! super fast and the fragmentation is still very low.
-class pool_memory_resource : public std::pmr::memory_resource
+class pool_memory_resource
 {
-public:
-    static constexpr bool is_relocatable = false;
-
 private:
     template<class T>
     struct list {
@@ -411,57 +314,14 @@ public:
 
     pool_memory_resource(std::byte*  data,
                          std::size_t size,
-                         std::size_t chunk_size) noexcept
-      : m_start_ptr{ data }
-      , m_total_size{ size }
-      , m_chunk_size{ chunk_size }
-      , m_total_allocated{ 0 }
-    {
-        container::ensure(chunk_size >= std::alignment_of_v<std::max_align_t>);
-        container::ensure(size % chunk_size == 0);
+                         std::size_t chunk_size) noexcept;
 
-        reset();
-    }
+    void* allocate(size_t bytes, size_t /*alignment*/) noexcept;
 
-    void* do_allocate(size_t bytes, size_t /*alignment*/) override
-    {
-        container::ensure(bytes == m_chunk_size &&
-                          "Allocation size must be equal to chunk size");
-
-        node* free_position = m_free_list.pop();
-        m_total_allocated += m_chunk_size;
-
-        if (free_position == nullptr) {
-            if (on_error_not_enough_memory)
-                on_error_not_enough_memory(*this);
-
-            std::abort();
-        }
-
-        return reinterpret_cast<void*>(free_position);
-    }
-
-    void do_deallocate(void* p, size_t /*bytes*/, size_t /*alignment*/) override
-    {
-        m_total_allocated -= m_chunk_size;
-        m_free_list.push(reinterpret_cast<node*>(p));
-    }
-
-    bool do_is_equal(const memory_resource& other) const noexcept override
-    {
-        return this == &other;
-    }
+    void deallocate(void* p, size_t /*bytes*/, size_t /*alignment*/) noexcept;
 
     //! @brief Reset the use of the chunk of memory.
-    void reset() noexcept
-    {
-        const auto start = reinterpret_cast<std::uintptr_t>(m_start_ptr);
-
-        for (auto n = m_total_size / m_chunk_size; n > 0; --n) {
-            auto address = start + ((n - 1) * m_chunk_size);
-            m_free_list.push(reinterpret_cast<node*>(address));
-        }
-    }
+    void reset() noexcept;
 
     //! @brief Assign a chunk of memory.
     //!
@@ -472,21 +332,7 @@ public:
     //! @param chunk_size The size of the chun
     void reset(std::byte*  data,
                std::size_t size,
-               std::size_t chunk_size) noexcept
-    {
-        container::ensure(m_start_ptr == nullptr);
-        container::ensure(m_total_size == 0u);
-        container::ensure(data);
-        container::ensure(chunk_size >= std::alignment_of_v<std::max_align_t>);
-        container::ensure(size % chunk_size == 0);
-
-        m_start_ptr       = data;
-        m_total_size      = size;
-        m_chunk_size      = chunk_size;
-        m_total_allocated = 0;
-
-        reset();
-    }
+               std::size_t chunk_size) noexcept;
 
     //! Check if the resource can allocate @c bytes with @c alignment.
     //!
@@ -494,15 +340,9 @@ public:
     //!     the @c memory_resource can allocate enough memory bcause @c
     //!     do_allocate will use @c std::quick_exit or @c std::terminate to stop
     //!     the application.
-    bool can_alloc(std::size_t bytes, std::size_t /*alignment*/) noexcept
-    {
-        container::ensure((bytes % m_chunk_size) == 0 &&
-                          "Allocation size must be equal to chunk size");
+    bool can_alloc(std::size_t bytes, std::size_t /*alignment*/) noexcept;
 
-        return (m_total_size - m_total_allocated) > bytes;
-    }
-
-    constexpr std::byte* head() noexcept { return m_start_ptr; }
+    constexpr std::byte* head() noexcept;
 };
 
 //! A non-thread-safe allocator: a general purpose allocator.
@@ -510,11 +350,9 @@ public:
 //! This memory resource doesn't impose any restriction. It allows
 //! allocations and deallocations to be done in any order. For this reason,
 //! its performance is not as good as its predecessors.
-class freelist_memory_resource : public std::pmr::memory_resource
+class freelist_memory_resource
 {
 public:
-    static constexpr bool is_relocatable = false;
-
     enum class find_policy { find_first, find_best };
 
 private:
@@ -595,106 +433,14 @@ private:
 public:
     freelist_memory_resource() noexcept = default;
 
-    freelist_memory_resource(std::byte* data, std::size_t size) noexcept
-      : m_start_ptr{ data }
-      , m_total_size{ size }
-    {
-        reset();
-    }
+    freelist_memory_resource(std::byte* data, std::size_t size) noexcept;
 
-    void* do_allocate(size_t size, size_t alignment) noexcept override
-    {
-        // container::ensure("Allocation size must be bigger" && size >=
-        // sizeof(Node)); container::ensure("Alignment must be 8 at least" &&
-        // alignment >= 8);
+    void* allocate(size_t size, size_t alignment) noexcept;
 
-        auto found = find_policy::find_first == m_find_policy
-                       ? find_first(size, alignment)
-                       : find_best(size, alignment);
-
-        if (found.allocated == nullptr) {
-            if (on_error_not_enough_memory)
-                on_error_not_enough_memory(*this);
-
-            std::abort();
-        }
-
-        const auto alignmentPadding = found.padding - allocation_header_size;
-        const auto requiredSize     = size + found.padding;
-        const auto rest = found.allocated->data.block_size - requiredSize;
-
-        if (rest > 0) {
-            node* newFreeNode =
-              (node*)((std::size_t)found.allocated + requiredSize);
-            newFreeNode->data.block_size = rest;
-            m_freeList.insert(found.allocated, newFreeNode);
-        }
-
-        m_freeList.remove(found.previous, found.allocated);
-
-        const std::size_t headerAddress =
-          (std::size_t)found.allocated + alignmentPadding;
-        const std::size_t dataAddress = headerAddress + allocation_header_size;
-        ((freelist_memory_resource::AllocationHeader*)headerAddress)
-          ->block_size = requiredSize;
-        ((freelist_memory_resource::AllocationHeader*)headerAddress)->padding =
-          static_cast<std::uint8_t>(alignmentPadding);
-
-        m_used += requiredSize;
-        m_peak = std::max(m_peak, m_used);
-
-        return (void*)dataAddress;
-    }
-
-    void do_deallocate(void* ptr,
-                       size_t /*bytes*/,
-                       size_t /*alignment*/) override
-    {
-        const auto currentAddress = (std::size_t)ptr;
-        const auto headerAddress  = currentAddress - allocation_header_size;
-
-        const freelist_memory_resource::AllocationHeader* allocationHeader{ (
-          freelist_memory_resource::AllocationHeader*)headerAddress };
-
-        node* freeNode = (node*)(headerAddress);
-        freeNode->data.block_size =
-          allocationHeader->block_size + allocationHeader->padding;
-        freeNode->next = nullptr;
-
-        node* it   = m_freeList.head;
-        node* prev = nullptr;
-        while (it != nullptr) {
-            if (ptr < it) {
-                m_freeList.insert(prev, freeNode);
-                break;
-            }
-            prev = it;
-            it   = it->next;
-        }
-
-        m_used -= freeNode->data.block_size;
-
-        merge(prev, freeNode);
-    }
-
-    bool do_is_equal(const memory_resource& other) const noexcept override
-    {
-        return this == &other;
-    }
+    void deallocate(void* ptr, size_t /*bytes*/, size_t /*alignment*/) noexcept;
 
     //! @brief Reset the use of the chunk of memory.
-    void reset() noexcept
-    {
-        m_used = 0u;
-        m_peak = 0u;
-
-        node* first            = reinterpret_cast<node*>(m_start_ptr);
-        first->data.block_size = m_total_size;
-        first->next            = nullptr;
-
-        m_freeList.head = nullptr;
-        m_freeList.insert(nullptr, first);
-    }
+    void reset() noexcept;
 
     //! @brief Assign a chunk of memory.
     //!
@@ -702,92 +448,23 @@ public:
     //! (ie the default constructor was called).
     //! @param data The new buffer. Must be not null.
     //! @param size The size of the buffer. Must be not null.
-    void reset(std::byte* data, std::size_t size) noexcept
-    {
-        container::ensure(data != nullptr);
-        container::ensure(size != 0u);
-        container::ensure(m_start_ptr == nullptr);
-        container::ensure(m_total_size == 0u);
-
-        m_start_ptr   = data;
-        m_total_size  = size;
-        m_used        = 0;
-        m_peak        = 0;
-        m_find_policy = find_policy::find_first;
-
-        reset();
-    }
+    void reset(std::byte* data, std::size_t size) noexcept;
 
     constexpr std::byte* head() noexcept { return m_start_ptr; }
 
 private:
-    void merge(node* previous, node* free_node) noexcept
-    {
-        if (free_node->next != nullptr &&
-            (std::size_t)free_node + free_node->data.block_size ==
-              (std::size_t)free_node->next) {
-            free_node->data.block_size += free_node->next->data.block_size;
-            m_freeList.remove(free_node, free_node->next);
-        }
-
-        if (previous != nullptr &&
-            (std::size_t)previous + previous->data.block_size ==
-              (std::size_t)free_node) {
-            previous->data.block_size += free_node->data.block_size;
-            m_freeList.remove(previous, free_node);
-        }
-    }
+    void merge(node* previous, node* free_node) noexcept;
 
     auto find_best(const std::size_t size,
-                   const std::size_t alignment) const noexcept -> find_t
-    {
-        node*       best         = nullptr;
-        node*       it           = m_freeList.head;
-        node*       prev         = nullptr;
-        std::size_t best_padding = 0;
-        std::size_t diff         = std::numeric_limits<std::size_t>::max();
-
-        while (it != nullptr) {
-            const auto padding = calculate_padding_with_header(
-              (std::size_t)it, alignment, allocation_header_size);
-
-            const std::size_t required = size + padding;
-            if (it->data.block_size >= required &&
-                (it->data.block_size - required < diff)) {
-                best         = it;
-                best_padding = padding;
-                diff         = it->data.block_size - required;
-            }
-
-            prev = it;
-            it   = it->next;
-        }
-
-        return { prev, best, best_padding };
-    }
+                   const std::size_t alignment) const noexcept -> find_t;
 
     auto find_first(const std::size_t size,
-                    const std::size_t alignment) const noexcept -> find_t
-    {
-        node*       it      = m_freeList.head;
-        node*       prev    = nullptr;
-        std::size_t padding = 0;
-
-        while (it != nullptr) {
-            padding = calculate_padding_with_header(
-              (std::size_t)it, alignment, allocation_header_size);
-
-            const std::size_t requiredSpace = size + padding;
-            if (it->data.block_size >= requiredSpace)
-                break;
-
-            prev = it;
-            it   = it->next;
-        }
-
-        return { prev, it, padding };
-    }
+                    const std::size_t alignment) const noexcept -> find_t;
 };
+
+using freelist_allocator = mr_allocator<freelist_memory_resource>;
+using pool_allocator     = mr_allocator<pool_memory_resource>;
+using fixed_allocator    = mr_allocator<fixed_linear_memory_resource>;
 
 ////////////////////////////////////////////////////////////////////////
 //                                                                    //
@@ -811,6 +488,7 @@ public:
     using pointer         = T*;
     using const_pointer   = const T*;
     using allocator_type  = A;
+    using memory_resource = typename A::memory_resource;
     using this_container  = vector<T, A>;
 
 private:
@@ -832,18 +510,18 @@ public:
            std::integral auto size,
            const T&           default_value) noexcept;
 
-    constexpr vector(std::pmr::memory_resource* mem) noexcept
+    constexpr vector(memory_resource* mem) noexcept
         requires(!std::is_empty_v<A>);
-    vector(std::pmr::memory_resource* mem, std::integral auto capacity) noexcept
+    vector(memory_resource* mem, std::integral auto capacity) noexcept
         requires(!std::is_empty_v<A>);
-    vector(std::pmr::memory_resource* mem,
-           std::integral auto         capacity,
-           std::integral auto         size) noexcept
+    vector(memory_resource*   mem,
+           std::integral auto capacity,
+           std::integral auto size) noexcept
         requires(!std::is_empty_v<A>);
-    vector(std::pmr::memory_resource* mem,
-           std::integral auto         capacity,
-           std::integral auto         size,
-           const T&                   default_value) noexcept
+    vector(memory_resource*   mem,
+           std::integral auto capacity,
+           std::integral auto size,
+           const T&           default_value) noexcept
         requires(!std::is_empty_v<A>);
 
     ~vector() noexcept;
@@ -989,6 +667,7 @@ public:
     using value_type      = T;
     using this_container  = data_array<T, Identifier, A>;
     using allocator_type  = A;
+    using memory_resource = typename A::memory_resource;
 
 private:
     struct item {
@@ -1024,14 +703,14 @@ public:
 
     constexpr data_array() noexcept = default;
 
-    constexpr data_array(std::pmr::memory_resource* mem) noexcept
+    constexpr data_array(memory_resource* mem) noexcept
         requires(!std::is_empty_v<A>);
 
     constexpr data_array(std::integral auto capacity) noexcept
         requires(std::is_empty_v<A>);
 
-    constexpr data_array(std::pmr::memory_resource* mem,
-                         std::integral auto         capacity) noexcept
+    constexpr data_array(memory_resource*   mem,
+                         std::integral auto capacity) noexcept
         requires(!std::is_empty_v<A>);
 
     constexpr ~data_array() noexcept;
@@ -1250,6 +929,7 @@ public:
     using const_pointer   = const T*;
     using this_container  = ring_buffer<T, A>;
     using allocator_type  = A;
+    using memory_resource = typename A::memory_resource;
 
     static_assert((std::is_nothrow_constructible_v<T> ||
                    std::is_nothrow_move_constructible_v<
@@ -1316,11 +996,11 @@ public:
 
     constexpr ring_buffer() noexcept = default;
     constexpr ring_buffer(std::integral auto capacity) noexcept;
-    constexpr ring_buffer(std::pmr::memory_resource* mem) noexcept
+    constexpr ring_buffer(memory_resource* mem) noexcept
         requires(!std::is_empty_v<A>);
 
-    constexpr ring_buffer(std::pmr::memory_resource* mem,
-                          std::integral auto         capacity) noexcept
+    constexpr ring_buffer(memory_resource*   mem,
+                          std::integral auto capacity) noexcept
         requires(!std::is_empty_v<A>);
 
     constexpr ~ring_buffer() noexcept;
@@ -1736,7 +1416,7 @@ data_array<T, Identifier, A>::get_index(Identifier id) noexcept
 
 template<typename T, typename Identifier, typename A>
 constexpr data_array<T, Identifier, A>::data_array(
-  std::pmr::memory_resource* mem) noexcept
+  memory_resource* mem) noexcept
     requires(!std::is_empty_v<A>)
   : m_alloc{ mem }
 {}
@@ -1760,8 +1440,8 @@ constexpr data_array<T, Identifier, A>::data_array(
 
 template<typename T, typename Identifier, typename A>
 constexpr data_array<T, Identifier, A>::data_array(
-  std::pmr::memory_resource* mem,
-  std::integral auto         capacity) noexcept
+  memory_resource*   mem,
+  std::integral auto capacity) noexcept
     requires(!std::is_empty_v<A>)
   : m_alloc(mem)
 {
@@ -2176,7 +1856,7 @@ constexpr vector<T, A>::vector() noexcept
 {}
 
 template<typename T, typename A>
-constexpr vector<T, A>::vector(std::pmr::memory_resource* mem) noexcept
+constexpr vector<T, A>::vector(memory_resource* mem) noexcept
     requires(!std::is_empty_v<A>)
   : m_alloc(mem)
 {}
@@ -2281,8 +1961,8 @@ inline vector<T, A>::vector(std::integral auto capacity,
 }
 
 template<typename T, typename A>
-inline vector<T, A>::vector(std::pmr::memory_resource* mem,
-                            std::integral auto         capacity) noexcept
+inline vector<T, A>::vector(memory_resource*   mem,
+                            std::integral auto capacity) noexcept
     requires(!std::is_empty_v<A>)
   : m_alloc(mem)
 {
@@ -2290,9 +1970,9 @@ inline vector<T, A>::vector(std::pmr::memory_resource* mem,
 }
 
 template<typename T, typename A>
-inline vector<T, A>::vector(std::pmr::memory_resource* mem,
-                            std::integral auto         capacity,
-                            std::integral auto         size) noexcept
+inline vector<T, A>::vector(memory_resource*   mem,
+                            std::integral auto capacity,
+                            std::integral auto size) noexcept
     requires(!std::is_empty_v<A>)
   : m_alloc(mem)
 {
@@ -2300,10 +1980,10 @@ inline vector<T, A>::vector(std::pmr::memory_resource* mem,
 }
 
 template<typename T, typename A>
-inline vector<T, A>::vector(std::pmr::memory_resource* mem,
-                            std::integral auto         capacity,
-                            std::integral auto         size,
-                            const T&                   default_value) noexcept
+inline vector<T, A>::vector(memory_resource*   mem,
+                            std::integral auto capacity,
+                            std::integral auto size,
+                            const T&           default_value) noexcept
     requires(!std::is_empty_v<A>)
   : m_alloc(mem)
 {
@@ -3530,14 +3210,13 @@ constexpr bool ring_buffer<T, A>::make(std::integral auto capacity) noexcept
 }
 
 template<class T, typename A>
-constexpr ring_buffer<T, A>::ring_buffer(
-  std::pmr::memory_resource* mem) noexcept
+constexpr ring_buffer<T, A>::ring_buffer(memory_resource* mem) noexcept
     requires(!std::is_empty_v<A>)
   : m_alloc(mem)
 {}
 
 template<class T, typename A>
-constexpr ring_buffer<T, A>::ring_buffer(std::pmr::memory_resource* mem,
+constexpr ring_buffer<T, A>::ring_buffer(memory_resource*   mem,
                                          std::integral auto capacity) noexcept
     requires(!std::is_empty_v<A>)
   : m_alloc(mem)

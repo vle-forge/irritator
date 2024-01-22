@@ -10,6 +10,7 @@ add_executable(app src/main.cpp
     ${PROJECT_SOURCE_DIR}/../lib/src/io.cpp
     ${PROJECT_SOURCE_DIR}/../lib/src/json.cpp
     ${PROJECT_SOURCE_DIR}/../lib/src/file.cpp
+    ${PROJECT_SOURCE_DIR}/../lib/src/memory-resource.cpp
     ${PROJECT_SOURCE_DIR}/../lib/src/modeling.cpp
     ${PROJECT_SOURCE_DIR}/../lib/src/modeling-generic.cpp
     ${PROJECT_SOURCE_DIR}/../lib/src/modeling-graph.cpp
