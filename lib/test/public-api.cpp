@@ -432,66 +432,77 @@ int main()
         static_assert(irt::has_transition_function<irt::constant> == true);
         static_assert(irt::has_input_port<irt::constant> == false);
         static_assert(irt::has_output_port<irt::constant> == true);
+        static_assert(irt::has_observation_function<irt::constant> == true);
 
         static_assert(irt::has_initialize_function<irt::counter> == true);
         static_assert(irt::has_lambda_function<irt::counter> == false);
         static_assert(irt::has_transition_function<irt::counter> == true);
         static_assert(irt::has_input_port<irt::counter> == true);
         static_assert(irt::has_output_port<irt::counter> == false);
+        static_assert(irt::has_observation_function<irt::counter> == true);
 
         static_assert(irt::has_initialize_function<irt::generator> == true);
         static_assert(irt::has_lambda_function<irt::generator> == true);
         static_assert(irt::has_transition_function<irt::generator> == true);
         static_assert(irt::has_input_port<irt::generator> == false);
         static_assert(irt::has_output_port<irt::generator> == true);
+        static_assert(irt::has_observation_function<irt::generator> == true);
 
         static_assert(irt::has_initialize_function<irt::adder_2> == true);
         static_assert(irt::has_lambda_function<irt::adder_2> == true);
         static_assert(irt::has_transition_function<irt::adder_2> == true);
         static_assert(irt::has_input_port<irt::adder_2> == true);
         static_assert(irt::has_output_port<irt::adder_2> == true);
+        static_assert(irt::has_observation_function<irt::adder_2> == true);
 
         static_assert(irt::has_initialize_function<irt::adder_3> == true);
         static_assert(irt::has_lambda_function<irt::adder_3> == true);
         static_assert(irt::has_transition_function<irt::adder_3> == true);
         static_assert(irt::has_input_port<irt::adder_3> == true);
         static_assert(irt::has_output_port<irt::adder_3> == true);
+        static_assert(irt::has_observation_function<irt::adder_3> == true);
 
         static_assert(irt::has_initialize_function<irt::adder_4> == true);
         static_assert(irt::has_lambda_function<irt::adder_4> == true);
         static_assert(irt::has_transition_function<irt::adder_4> == true);
         static_assert(irt::has_input_port<irt::adder_4> == true);
         static_assert(irt::has_output_port<irt::adder_4> == true);
+        static_assert(irt::has_observation_function<irt::adder_4> == true);
 
         static_assert(irt::has_initialize_function<irt::mult_2> == true);
         static_assert(irt::has_lambda_function<irt::mult_2> == true);
         static_assert(irt::has_transition_function<irt::mult_2> == true);
         static_assert(irt::has_input_port<irt::mult_2> == true);
         static_assert(irt::has_output_port<irt::mult_2> == true);
+        static_assert(irt::has_observation_function<irt::mult_2> == true);
 
         static_assert(irt::has_initialize_function<irt::mult_3> == true);
         static_assert(irt::has_lambda_function<irt::mult_3> == true);
         static_assert(irt::has_transition_function<irt::mult_3> == true);
         static_assert(irt::has_input_port<irt::mult_3> == true);
         static_assert(irt::has_output_port<irt::mult_3> == true);
+        static_assert(irt::has_observation_function<irt::mult_3> == true);
 
         static_assert(irt::has_initialize_function<irt::mult_4> == true);
         static_assert(irt::has_lambda_function<irt::mult_4> == true);
         static_assert(irt::has_transition_function<irt::mult_4> == true);
         static_assert(irt::has_input_port<irt::mult_4> == true);
         static_assert(irt::has_output_port<irt::mult_4> == true);
+        static_assert(irt::has_observation_function<irt::mult_4> == true);
 
         static_assert(irt::has_initialize_function<irt::integrator> == true);
         static_assert(irt::has_lambda_function<irt::integrator> == true);
         static_assert(irt::has_transition_function<irt::integrator> == true);
         static_assert(irt::has_input_port<irt::integrator> == true);
         static_assert(irt::has_output_port<irt::integrator> == true);
+        static_assert(irt::has_observation_function<irt::integrator> == true);
 
         static_assert(irt::has_initialize_function<irt::quantifier> == true);
         static_assert(irt::has_lambda_function<irt::quantifier> == true);
         static_assert(irt::has_transition_function<irt::quantifier> == true);
         static_assert(irt::has_input_port<irt::quantifier> == true);
         static_assert(irt::has_output_port<irt::quantifier> == true);
+        static_assert(irt::has_observation_function<irt::quantifier> == true);
     };
 
     "time"_test = [] {

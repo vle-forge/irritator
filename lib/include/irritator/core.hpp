@@ -101,7 +101,8 @@ __forceinline
 #else
 inline
 #endif
-constexpr void ensure([[maybe_unused]] T&& assertion) noexcept
+constexpr void
+ensure([[maybe_unused]] T&& assertion) noexcept
 {}
 
 } // namespace sim
@@ -1331,54 +1332,53 @@ public:
 
 template<typename T>
 concept has_lambda_function = requires(T t, simulation& sim) {
-                                  {
-                                      t.lambda(sim)
-                                      } -> std::convertible_to<status>;
-                              };
+    {
+        t.lambda(sim)
+    } -> std::same_as<status>;
+};
 
 template<typename T>
 concept has_transition_function =
   requires(T t, simulation& sim, time s, time e, time r) {
       {
           t.transition(sim, s, e, r)
-          } -> std::convertible_to<status>;
+      } -> std::same_as<status>;
   };
 
 template<typename T>
-concept has_observation_function =
-  requires(T t, time s, time e) {
-      {
-          t.observation(s, e)
-          } -> std::convertible_to<observation_message>;
-  };
+concept has_observation_function = requires(T t, time s, time e) {
+    {
+        t.observation(s, e)
+    } -> std::same_as<observation_message>;
+};
 
 template<typename T>
 concept has_initialize_function = requires(T t, simulation& sim) {
-                                      {
-                                          t.initialize(sim)
-                                          } -> std::convertible_to<status>;
-                                  };
+    {
+        t.initialize(sim)
+    } -> std::same_as<status>;
+};
 
 template<typename T>
 concept has_finalize_function = requires(T t, simulation& sim) {
-                                    {
-                                        t.finalize(sim)
-                                        } -> std::convertible_to<status>;
-                                };
+    {
+        t.finalize(sim)
+    } -> std::same_as<status>;
+};
 
 template<typename T>
 concept has_input_port = requires(T t) {
-                             {
-                                 t.x
-                             };
-                         };
+    {
+        t.x
+    };
+};
 
 template<typename T>
 concept has_output_port = requires(T t) {
-                              {
-                                  t.y
-                              };
-                          };
+    {
+        t.y
+    };
+};
 
 constexpr observation_message qss_observation(real X,
                                               real u,
