@@ -14,6 +14,10 @@
 #include <type_traits>
 #include <utility>
 
+#ifdef _WIN32
+#include <malloc.h>
+#endif
+
 namespace irt {
 
 namespace container {
@@ -59,7 +63,8 @@ __forceinline
 #else
 inline
 #endif
-constexpr void ensure([[maybe_unused]] T&& assertion) noexcept
+constexpr void
+ensure([[maybe_unused]] T&& assertion) noexcept
 {}
 
 } // namespace variables
@@ -114,10 +119,16 @@ public:
         container::ensure(byte_count % alignof(T) == 0);
 
         using aligned_alloc_fn = void* (*)(std::size_t, std::size_t) noexcept;
+
+#ifdef _WIN32
+        aligned_alloc_fn call =
+          reinterpret_cast<aligned_alloc_fn>(_aligned_malloc);
+#else
         aligned_alloc_fn call =
           reinterpret_cast<aligned_alloc_fn>(std::aligned_alloc);
+#endif
 
-        auto* first = call(alignof(T), byte_count);
+        auto* first = call(byte_count, alignof(T));
         if (not first)
             std::abort();
 
@@ -127,8 +138,13 @@ public:
     template<typename T>
     void deallocate(T* p, size_type /* n */) noexcept
     {
+#ifdef _WIN32
+        if (p)
+            _aligned_free(p);
+#else
         if (p)
             std::free(p);
+#endif
     }
 };
 
