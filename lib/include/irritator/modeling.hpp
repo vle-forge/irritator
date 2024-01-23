@@ -678,7 +678,7 @@ struct tree_node {
 };
 
 struct parameter {
-    std::array<real, 4> reals;
+    std::array<real, 8> reals;
     std::array<i64, 4>  integers;
 
     //! Copy data from the vectors to the simulation model.

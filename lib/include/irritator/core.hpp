@@ -561,7 +561,6 @@ enum class model_id : u64;
 enum class dynamics_id : u64;
 enum class message_id : u64;
 enum class observer_id : u64;
-enum class record_id : u64;
 enum class node_id : u64;
 enum class message_id : u64;
 enum class dated_message_id : u64;
@@ -925,24 +924,14 @@ enum class dynamics_type : i32 {
     qss3_wsum_2,
     qss3_wsum_3,
     qss3_wsum_4,
-    integrator,
-    quantifier,
-    adder_2,
-    adder_3,
-    adder_4,
-    mult_2,
-    mult_3,
-    mult_4,
     counter,
     queue,
     dynamic_queue,
     priority_queue,
     generator,
     constant,
-    cross,
     time_func,
     accumulator_2,
-    filter,
     logical_and_2,
     logical_and_3,
     logical_or_2,
@@ -966,18 +955,6 @@ constexpr sz dynamics_type_size() noexcept
  * data-array
  *
  ****************************************************************************/
-
-struct record {
-    record() noexcept = default;
-
-    record(const real x_dot_, const time date_) noexcept
-      : x_dot{ x_dot_ }
-      , date{ date_ }
-    {}
-
-    real x_dot{ 0 };
-    time date{ time_domain<time>::infinity };
-};
 
 struct observation {
     observation() noexcept = default;
@@ -1192,7 +1169,6 @@ public:
     enum class part {
         messages,
         nodes,
-        records,
         dated_messages,
         models,
         hsms,
@@ -1203,7 +1179,6 @@ public:
 
     std::pmr::memory_resource* global = std::pmr::get_default_resource();
     freelist_memory_resource   shared;
-    freelist_memory_resource   records_alloc;
     freelist_memory_resource   dated_messages_alloc;
     freelist_memory_resource   nodes_alloc;
 
@@ -1219,8 +1194,6 @@ public:
     data_array<small_vector<message, 8>, message_id, freelist_allocator>
       messages;
 
-    data_array<small_ring_buffer<record, 8>, record_id, freelist_allocator>
-      records;
     data_array<ring_buffer<dated_message, freelist_allocator>,
                dated_message_id,
                freelist_allocator>
@@ -1415,298 +1388,6 @@ inline status send_message(simulation& sim,
                            real        r1,
                            real        r2 = 0.0,
                            real        r3 = 0.0) noexcept;
-
-struct integrator {
-    message_id x[3];
-    node_id    y[1];
-    time       sigma = time_domain<time>::zero;
-
-    enum port_name { port_quanta, port_x_dot, port_reset };
-
-    enum class state {
-        init,
-        wait_for_quanta,
-        wait_for_x_dot,
-        wait_for_both,
-        running
-    };
-
-    real      default_current_value = 0.0;
-    real      default_reset_value   = 0.0;
-    record_id archive               = undefined<record_id>();
-
-    real  current_value     = 0.0;
-    real  reset_value       = 0.0;
-    real  up_threshold      = 0.0;
-    real  down_threshold    = 0.0;
-    real  last_output_value = 0.0;
-    real  expected_value    = 0.0;
-    bool  reset             = false;
-    state st                = state::init;
-
-    integrator() noexcept = default;
-
-    integrator(const integrator& other) noexcept
-      : default_current_value(other.default_current_value)
-      , default_reset_value(other.default_reset_value)
-      , archive(undefined<record_id>())
-      , current_value(other.current_value)
-      , reset_value(other.reset_value)
-      , up_threshold(other.up_threshold)
-      , down_threshold(other.down_threshold)
-      , last_output_value(other.last_output_value)
-      , expected_value(other.expected_value)
-      , reset(other.reset)
-      , st(other.st)
-    {}
-
-    status initialize(simulation& /*sim*/) noexcept
-    {
-        current_value     = default_current_value;
-        reset_value       = default_reset_value;
-        up_threshold      = 0.0;
-        down_threshold    = 0.0;
-        last_output_value = 0.0;
-        expected_value    = 0.0;
-        reset             = false;
-        st                = state::init;
-        archive           = undefined<record_id>();
-        sigma             = time_domain<time>::zero;
-
-        return success();
-    }
-
-    status finalize(simulation& sim) noexcept
-    {
-        if (auto* ar = sim.records.try_to_get(archive); ar) {
-            ar->clear();
-            sim.records.free(*ar);
-        }
-
-        archive = undefined<record_id>();
-
-        return success();
-    }
-
-    void external_quanta(const std::span<message> quantas) noexcept
-    {
-        sim::ensure(not quantas.empty());
-
-        for (const auto& msg : quantas) {
-            up_threshold   = msg.data[0];
-            down_threshold = msg.data[1];
-
-            if (st == state::wait_for_quanta)
-                st = state::running;
-
-            if (st == state::wait_for_both)
-                st = state::wait_for_x_dot;
-        }
-    }
-
-    void external_x_dot(simulation&              sim,
-                        time                     t,
-                        const std::span<message> x_dots) noexcept
-    {
-        sim::ensure(not x_dots.empty());
-
-        auto* ar = sim.records.try_to_get(archive);
-
-        if (!ar) {
-            auto& new_ar = sim.records.alloc();
-            archive      = sim.records.get_id(new_ar);
-            ar           = &new_ar;
-        }
-
-        for (const auto& msg : x_dots) {
-            ar->emplace_tail(msg.data[0], t);
-
-            if (st == state::wait_for_x_dot)
-                st = state::running;
-
-            if (st == state::wait_for_both)
-                st = state::wait_for_quanta;
-        }
-    }
-
-    void external_reset(const std::span<message> resets) noexcept
-    {
-        sim::ensure(not resets.empty());
-
-        for (const auto& msg : resets) {
-            reset_value = msg.data[0];
-            reset       = true;
-        }
-    }
-
-    status internal(simulation& sim, time t) noexcept
-    {
-        switch (st) {
-        case state::running: {
-            last_output_value = expected_value;
-
-            auto* ar = sim.records.try_to_get(archive);
-            if (!ar) {
-                auto& new_ar = sim.records.alloc();
-                archive      = sim.records.get_id(new_ar);
-                ar           = &new_ar;
-            }
-
-            const real last_derivative_value = ar->tail()->x_dot;
-            ar->clear();
-            ar->emplace_tail(last_derivative_value, t);
-            current_value = expected_value;
-            st            = state::wait_for_quanta;
-            return success();
-        }
-        case state::init:
-            st                = state::wait_for_both;
-            last_output_value = current_value;
-            return success();
-        default:
-            irt_unreachable();
-        }
-    }
-
-    status transition(simulation& sim, time t, time /*e*/, time r) noexcept
-    {
-        auto* quantas = sim.messages.try_to_get(x[port_quanta]);
-        auto* x_dots  = sim.messages.try_to_get(x[port_x_dot]);
-        auto* resets  = sim.messages.try_to_get(x[port_reset]);
-
-        if ((not quantas or quantas->empty()) and
-            (not x_dots or x_dots->empty()) and
-            (not resets or resets->empty())) {
-            if (auto ret = internal(sim, t); !ret)
-                return ret.error();
-        } else {
-            if (time_domain<time>::is_zero(r))
-                if (auto ret = internal(sim, t); !ret)
-                    return ret.error();
-
-            if (quantas and not quantas->empty())
-                external_quanta(std::span(quantas->data(), quantas->size()));
-
-            if (x_dots and not x_dots->empty())
-                external_x_dot(
-                  sim, t, std::span(x_dots->data(), x_dots->size()));
-
-            if (resets and not resets->empty())
-                external_reset(std::span(resets->data(), resets->size()));
-
-            if (st == state::running) {
-                current_value  = compute_current_value(sim, t);
-                expected_value = compute_expected_value(sim);
-            }
-        }
-
-        return ta(sim);
-    }
-
-    status lambda(simulation& sim) noexcept
-    {
-        switch (st) {
-        case state::running:
-            return send_message(sim, y[0], expected_value);
-        case state::init:
-            return send_message(sim, y[0], current_value);
-        default:
-            irt_unreachable();
-        }
-
-        return success();
-    }
-
-    struct integrator_running_without_x_dot_error {};
-    struct integrator_ta_with_bad_x_dot {};
-
-    observation_message observation(time t, time /*e*/) const noexcept
-    {
-        return { t, last_output_value };
-    }
-
-    status ta(simulation& sim) noexcept
-    {
-        if (st == state::running) {
-            auto* lst = sim.records.try_to_get(archive);
-            if (not lst)
-                return new_error(integrator_running_without_x_dot_error{});
-
-            const auto current_derivative = lst->tail()->x_dot;
-
-            if (current_derivative == time_domain<time>::zero) {
-                sigma = time_domain<time>::infinity;
-                return success();
-            }
-
-            if (current_derivative > 0) {
-                if ((up_threshold - current_value) < 0)
-                    return new_error(integrator_ta_with_bad_x_dot{});
-
-                sigma = (up_threshold - current_value) / current_derivative;
-                return success();
-            }
-
-            if ((down_threshold - current_value) > 0)
-                return new_error(integrator_ta_with_bad_x_dot{});
-
-            sigma = (down_threshold - current_value) / current_derivative;
-            return success();
-        }
-
-        sigma = time_domain<time>::infinity;
-
-        return success();
-    }
-
-    real compute_current_value(simulation& sim, time t) noexcept
-    {
-        auto* lst = sim.records.try_to_get(archive);
-        if (not lst or lst->empty())
-            return reset ? reset_value : last_output_value;
-
-        auto val  = reset ? reset_value : last_output_value;
-        auto end  = lst->tail();
-        auto it   = lst->head();
-        auto next = lst->head();
-
-        if (next != end)
-            ++next;
-
-        for (; next != end; it = next++)
-            val += (next->date - it->date) * it->x_dot;
-
-        val += (next->date - it->date) * it->x_dot;
-
-        val += (t - lst->tail()->date) * lst->tail()->x_dot;
-
-        if (up_threshold < val) {
-            return up_threshold;
-        } else if (down_threshold > val) {
-            return down_threshold;
-        } else {
-            return val;
-        }
-
-        return reset ? reset_value : last_output_value;
-    }
-
-    real compute_expected_value(simulation& sim) noexcept
-    {
-        if (auto* lst = sim.records.try_to_get(archive);
-            lst and not lst->empty()) {
-            const auto current_derivative = lst->tail()->x_dot;
-
-            if (current_derivative == 0)
-                return current_value;
-
-            if (current_derivative > 0)
-                return up_threshold;
-        }
-
-        return down_threshold;
-    }
-};
 
 /*****************************************************************************
  *
@@ -2569,19 +2250,31 @@ struct abstract_sum {
     node_id    y[1];
     time       sigma;
 
-    real values[QssLevel * PortNumber];
+    real default_values[PortNumber]    = { 0 };
+    real values[QssLevel * PortNumber] = { 0 };
 
     abstract_sum() noexcept = default;
 
     abstract_sum(const abstract_sum& other) noexcept
       : sigma(other.sigma)
     {
-        std::copy_n(other.values, QssLevel * PortNumber, values);
+        std::copy_n(other.default_values,
+                    std::size(other.default_values),
+                    default_values);
+
+        std::copy_n(other.values, std::size(other.values), values);
     }
 
     status initialize(simulation& /*sim*/) noexcept
     {
-        std::fill_n(values, QssLevel * PortNumber, zero);
+        std::copy_n(default_values, std::size(default_values), values);
+
+        if constexpr (QssLevel >= 2) {
+            std::fill_n(values + std::size(default_values),
+                        std::size(values) - std::size(default_values),
+                        zero);
+        }
+
         sigma = time_domain<time>::infinity;
 
         return success();
@@ -2740,22 +2433,36 @@ struct abstract_wsum {
     node_id    y[1];
     time       sigma;
 
+    real default_values[PortNumber]       = { 0 };
     real default_input_coeffs[PortNumber] = { 0 };
-    real values[QssLevel * PortNumber];
+    real values[QssLevel * PortNumber]    = { 0 };
 
     abstract_wsum() noexcept = default;
 
     abstract_wsum(const abstract_wsum& other) noexcept
       : sigma(other.sigma)
     {
-        std::copy_n(
-          other.default_input_coeffs, PortNumber, default_input_coeffs);
-        std::copy_n(other.values, QssLevel * PortNumber, values);
+        std::copy_n(other.default_values,
+                    std::size(other.default_values),
+                    default_values);
+
+        std::copy_n(other.default_input_coeffs,
+                    std::size(other.default_input_coeffs),
+                    default_input_coeffs);
+
+        std::copy_n(other.values, std::size(other.values), values);
     }
 
     status initialize(simulation& /*sim*/) noexcept
     {
-        std::fill_n(values, QssLevel * PortNumber, zero);
+        std::copy_n(default_values, std::size(default_values), values);
+
+        if constexpr (QssLevel >= 2) {
+            std::fill_n(values + std::size(default_values),
+                        std::size(values) - std::size(default_values),
+                        zero);
+        }
+
         sigma = time_domain<time>::infinity;
 
         return success();
@@ -3056,525 +2763,6 @@ struct abstract_multiplier {
 using qss1_multiplier = abstract_multiplier<1>;
 using qss2_multiplier = abstract_multiplier<2>;
 using qss3_multiplier = abstract_multiplier<3>;
-
-struct quantifier {
-    message_id x[1];
-    node_id    y[1];
-    time       sigma = time_domain<time>::infinity;
-
-    enum class state { init, idle, response };
-
-    enum class adapt_state { impossible, possible, done };
-
-    enum class direction { up, down };
-
-    real        default_step_size        = real(0.001);
-    int         default_past_length      = 3;
-    adapt_state default_adapt_state      = adapt_state::possible;
-    bool        default_zero_init_offset = false;
-    record_id   archive                  = undefined<record_id>();
-
-    real        m_upthreshold      = zero;
-    real        m_downthreshold    = zero;
-    real        m_offset           = zero;
-    real        m_step_size        = zero;
-    int         m_step_number      = 0;
-    int         m_past_length      = 0;
-    bool        m_zero_init_offset = false;
-    state       m_state            = state::init;
-    adapt_state m_adapt_state      = adapt_state::possible;
-
-    struct quantum_error {};
-    struct archive_length_error {};
-    struct shifting_value_neg {};
-    struct shifting_value_less_1 {};
-
-    quantifier() noexcept = default;
-
-    quantifier(const quantifier& other) noexcept
-      : default_step_size(other.default_step_size)
-      , default_past_length(other.default_past_length)
-      , default_adapt_state(other.default_adapt_state)
-      , default_zero_init_offset(other.default_zero_init_offset)
-      , archive(undefined<record_id>())
-      , m_upthreshold(other.m_upthreshold)
-      , m_downthreshold(other.m_downthreshold)
-      , m_offset(other.m_offset)
-      , m_step_size(other.m_step_size)
-      , m_step_number(other.m_step_number)
-      , m_past_length(other.m_past_length)
-      , m_zero_init_offset(other.m_zero_init_offset)
-      , m_state(other.m_state)
-      , m_adapt_state(other.m_adapt_state)
-    {}
-
-    status initialize(simulation& /*sim*/) noexcept
-    {
-        m_step_size        = default_step_size;
-        m_past_length      = default_past_length;
-        m_zero_init_offset = default_zero_init_offset;
-        m_adapt_state      = default_adapt_state;
-        m_upthreshold      = zero;
-        m_downthreshold    = zero;
-        m_offset           = zero;
-        m_step_number      = 0;
-        archive            = undefined<record_id>();
-        m_state            = state::init;
-
-        if (m_step_size <= 0)
-            return new_error(quantum_error{});
-
-        if (m_past_length <= 2)
-            return new_error(archive_length_error{});
-
-        sigma = time_domain<time>::infinity;
-
-        return success();
-    }
-
-    status finalize(simulation& sim) noexcept
-    {
-        if (auto* ar = sim.records.try_to_get(archive); ar) {
-            ar->clear();
-            sim.records.free(*ar);
-        }
-
-        archive = undefined<record_id>();
-
-        return success();
-    }
-
-    status external(simulation& sim, time t, std::span<message> msg) noexcept
-    {
-        real val = 0.0, shifting_factor = 0.0;
-
-        {
-            real sum = zero;
-            real nb  = zero;
-
-            for (const auto& elem : msg) {
-                sum += elem[0];
-                ++nb;
-            }
-
-            val = sum / nb;
-        }
-
-        if (m_state == state::init) {
-            init_step_number_and_offset(val);
-            update_thresholds();
-            m_state = state::response;
-            return success();
-        }
-
-        while ((val >= m_upthreshold) || (val <= m_downthreshold)) {
-            m_step_number =
-              val >= m_upthreshold ? m_step_number + 1 : m_step_number - 1;
-
-            switch (m_adapt_state) {
-            case adapt_state::impossible:
-                update_thresholds();
-                break;
-
-            case adapt_state::possible: {
-                auto* ar = sim.records.try_to_get(archive);
-                if (!ar) {
-                    auto& new_ar = sim.records.alloc();
-                    ar           = &new_ar;
-                    archive      = sim.records.get_id(new_ar);
-                }
-
-                store_change(
-                  *ar, val >= m_upthreshold ? m_step_size : -m_step_size, t);
-
-                shifting_factor = shift_quanta(*ar);
-
-                if (shifting_factor < 0)
-                    return new_error(shifting_value_neg{});
-
-                if (shifting_factor > 1)
-                    return new_error(shifting_value_less_1{});
-
-                if ((0 != shifting_factor) && (1 != shifting_factor)) {
-                    update_thresholds(shifting_factor,
-                                      val >= m_upthreshold ? direction::down
-                                                           : direction::up);
-                    m_adapt_state = adapt_state::done;
-                } else {
-                    update_thresholds();
-                }
-            } break;
-
-            case adapt_state::done:
-                init_step_number_and_offset(val);
-                m_adapt_state = adapt_state::possible;
-                update_thresholds();
-                break;
-            }
-        }
-
-        m_state = state::response;
-        return success();
-    }
-
-    status internal() noexcept
-    {
-        if (m_state == state::response)
-            m_state = state::idle;
-
-        return success();
-    }
-
-    status transition(simulation& sim, time t, time /*e*/, time r) noexcept
-    {
-        auto* x0s = sim.messages.try_to_get(x[0]);
-
-        if (not x0s or x0s->empty()) {
-            if (auto ret = internal(); !ret)
-                return ret.error();
-        } else {
-            if (time_domain<time>::is_zero(r))
-                if (auto ret = internal(); !ret)
-                    return ret.error();
-
-            if (auto ret =
-                  external(sim, t, std::span(x0s->data(), x0s->size()));
-                !ret)
-                return ret.error();
-        }
-
-        return ta();
-    }
-
-    status lambda(simulation& sim) noexcept
-    {
-        return send_message(sim, y[0], m_upthreshold, m_downthreshold);
-    }
-
-    observation_message observation(time t, time /*e*/) const noexcept
-    {
-        return { t, m_upthreshold, m_downthreshold };
-    }
-
-private:
-    status ta() noexcept
-    {
-        sigma = m_state == state::response ? time_domain<time>::zero
-                                           : time_domain<time>::infinity;
-
-        return success();
-    }
-
-    void update_thresholds() noexcept
-    {
-        const auto step_number = static_cast<real>(m_step_number);
-
-        m_upthreshold   = m_offset + m_step_size * (step_number + one);
-        m_downthreshold = m_offset + m_step_size * (step_number - one);
-    }
-
-    void update_thresholds(real factor) noexcept
-    {
-        const auto step_number = static_cast<real>(m_step_number);
-
-        m_upthreshold = m_offset + m_step_size * (step_number + (one - factor));
-        m_downthreshold =
-          m_offset + m_step_size * (step_number - (one - factor));
-    }
-
-    void update_thresholds(real factor, direction d) noexcept
-    {
-        const auto step_number = static_cast<real>(m_step_number);
-
-        if (d == direction::up) {
-            m_upthreshold =
-              m_offset + m_step_size * (step_number + (one - factor));
-            m_downthreshold = m_offset + m_step_size * (step_number - one);
-        } else {
-            m_upthreshold = m_offset + m_step_size * (step_number + one);
-            m_downthreshold =
-              m_offset + m_step_size * (step_number - (one - factor));
-        }
-    }
-
-    void init_step_number_and_offset(real value) noexcept
-    {
-        m_step_number = static_cast<int>(std::floor(value / m_step_size));
-
-        if (m_zero_init_offset) {
-            m_offset = 0.0;
-        } else {
-            m_offset = value - static_cast<real>(m_step_number) * m_step_size;
-        }
-    }
-
-    real shift_quanta(small_ring_buffer<record, 8>& ar) noexcept
-    {
-        real factor = 0.0;
-
-        if (oscillating(ar, m_past_length - 1) &&
-            ((ar.tail()->date - ar.head()->date) != 0)) {
-            real acc = 0.0;
-            real local_estim;
-            real cnt = 0;
-
-            auto it_2 = ar.head();
-            auto it_0 = it_2++;
-            auto it_1 = it_2++;
-
-            for (int i = 0; i < ar.ssize() - 2; ++i) {
-                if ((it_2->date - it_0->date) != 0) {
-                    if ((ar.tail()->x_dot * it_1->x_dot) > zero) {
-                        local_estim = 1 - (it_1->date - it_0->date) /
-                                            (it_2->date - it_0->date);
-                    } else {
-                        local_estim =
-                          (it_1->date - it_0->date) / (it_2->date - it_0->date);
-                    }
-
-                    acc += local_estim;
-                    cnt += one;
-                }
-            }
-
-            acc    = acc / cnt;
-            factor = acc;
-            ar.clear();
-        }
-
-        return factor;
-    }
-
-    void store_change(small_ring_buffer<record, 8>& ar,
-                      real                          val,
-                      time                          t) noexcept
-    {
-        ar.emplace_tail(val, t);
-
-        while (ar.ssize() > m_past_length)
-            ar.pop_head();
-    }
-
-    bool oscillating(small_ring_buffer<record, 8>& ar, const int range) noexcept
-    {
-        if ((range + 1) > ar.ssize())
-            return false;
-
-        // const int limit = ar.ssize() - range;
-        // auto      it    = ar.end();
-        // --it;
-        // auto next = it--;
-        //
-        // for (int i = 0; i < limit; ++i, next = it--)
-        //     if (it->x_dot * next->x_dot > 0)
-        //         return false;
-
-        const auto limit = ar.ssize() - range;
-        auto       it    = ar.tail();
-        auto       next  = it--;
-
-        for (int i = 0; i < limit; ++i, next = it--)
-            if (it->x_dot * next->x_dot > 0)
-                return false;
-
-        return true;
-    }
-
-    bool monotonous(small_ring_buffer<record, 8>& ar, const int range) noexcept
-    {
-        if ((range + 1) > ar.ssize())
-            return false;
-
-        auto it   = ar.head();
-        auto prev = it++;
-
-        for (int i = 0; i < range; ++i, prev = it++)
-            if ((prev->x_dot * it->x_dot) < 0)
-                return false;
-
-        return true;
-    }
-};
-
-template<int PortNumber>
-struct adder {
-    static_assert(PortNumber > 1, "adder model need at least two input port");
-
-    message_id x[PortNumber];
-    node_id    y[1];
-    time       sigma;
-
-    real default_values[PortNumber];
-    real default_input_coeffs[PortNumber];
-
-    real values[PortNumber];
-    real input_coeffs[PortNumber];
-
-    adder() noexcept
-    {
-        constexpr auto div = one / static_cast<real>(PortNumber);
-
-        std::fill_n(std::begin(default_values), PortNumber, div);
-        std::fill_n(std::begin(default_input_coeffs), PortNumber, zero);
-    }
-
-    adder(const adder& other) noexcept
-      : sigma(other.sigma)
-    {
-        std::copy_n(other.default_values,
-                    std::size(other.default_values),
-                    default_values);
-        std::copy_n(other.default_input_coeffs,
-                    std::size(other.default_input_coeffs),
-                    default_input_coeffs);
-        std::copy_n(other.values, std::size(other.values), values);
-        std::copy_n(
-          other.input_coeffs, std::size(other.input_coeffs), input_coeffs);
-    }
-
-    status initialize(simulation& /*sim*/) noexcept
-    {
-        std::copy_n(std::begin(default_values), PortNumber, std::begin(values));
-
-        std::copy_n(std::begin(default_input_coeffs),
-                    PortNumber,
-                    std::begin(input_coeffs));
-
-        sigma = time_domain<time>::infinity;
-
-        return success();
-    }
-
-    status lambda(simulation& sim) noexcept
-    {
-        real to_send = zero;
-
-        for (size_t i = 0; i != PortNumber; ++i)
-            to_send += input_coeffs[i] * values[i];
-
-        return send_message(sim, y[0], to_send);
-    }
-
-    status transition(simulation& sim,
-                      time /*t*/,
-                      time /*e*/,
-                      time /*r*/) noexcept
-    {
-        bool is_defined = false;
-
-        for (size_t i = 0; i != PortNumber; ++i) {
-            if (auto* lst = sim.messages.try_to_get(x[i]); lst) {
-                for (const auto& msg : *lst) {
-                    values[i]  = msg[0];
-                    is_defined = true;
-                }
-            }
-        }
-
-        sigma =
-          is_defined ? time_domain<time>::zero : time_domain<time>::infinity;
-
-        return success();
-    }
-
-    observation_message observation(time t, time /*e*/) const noexcept
-    {
-        real ret = zero;
-
-        for (size_t i = 0; i != PortNumber; ++i)
-            ret += input_coeffs[i] * values[i];
-
-        return { t, ret };
-    }
-};
-
-template<int PortNumber>
-struct mult {
-    static_assert(PortNumber > 1, "mult model need at least two input port");
-
-    message_id x[PortNumber];
-    node_id    y[1];
-    time       sigma;
-
-    real default_values[PortNumber];
-    real default_input_coeffs[PortNumber];
-
-    real values[PortNumber];
-    real input_coeffs[PortNumber];
-
-    mult() noexcept
-    {
-        std::fill_n(std::begin(default_values), PortNumber, one);
-        std::fill_n(std::begin(default_input_coeffs), PortNumber, zero);
-    }
-
-    mult(const mult& other) noexcept
-    {
-        std::copy_n(other.default_values,
-                    std::size(other.default_values),
-                    default_values);
-        std::copy_n(other.default_input_coeffs,
-                    std::size(other.default_input_coeffs),
-                    default_input_coeffs);
-        std::copy_n(other.values, std::size(other.values), values);
-        std::copy_n(
-          other.input_coeffs, std::size(other.input_coeffs), input_coeffs);
-    }
-
-    status initialize(simulation& /*sim*/) noexcept
-    {
-        std::copy_n(std::begin(default_values), PortNumber, std::begin(values));
-
-        std::copy_n(std::begin(default_input_coeffs),
-                    PortNumber,
-                    std::begin(input_coeffs));
-
-        sigma = time_domain<time>::infinity;
-
-        return success();
-    }
-
-    status lambda(simulation& sim) noexcept
-    {
-        real to_send = 1.0;
-
-        for (size_t i = 0; i != PortNumber; ++i)
-            to_send *= std::pow(values[i], input_coeffs[i]);
-
-        return send_message(sim, y[0], to_send);
-    }
-
-    status transition(simulation& sim,
-                      time /*t*/,
-                      time /*e*/,
-                      time /*r*/) noexcept
-    {
-        bool is_defined = false;
-        for (size_t i = 0; i != PortNumber; ++i) {
-            if (auto* lst = sim.messages.try_to_get(x[i]); lst) {
-                for (const auto& msg : *lst) {
-                    values[i]  = msg[0];
-                    is_defined = true;
-                }
-            }
-        }
-
-        sigma =
-          is_defined ? time_domain<time>::zero : time_domain<time>::infinity;
-
-        return success();
-    }
-
-    observation_message observation(time t, time /*e*/) const noexcept
-    {
-        real ret = 1.0;
-
-        for (size_t i = 0; i != PortNumber; ++i)
-            ret *= std::pow(values[i], input_coeffs[i]);
-
-        return { t, ret };
-    }
-};
 
 struct counter {
     message_id x[1];
@@ -4053,77 +3241,6 @@ using qss1_filter = abstract_filter<1>;
 using qss2_filter = abstract_filter<2>;
 using qss3_filter = abstract_filter<3>;
 
-struct filter {
-    message_id x[1];
-    node_id    y[1];
-    time       sigma;
-
-    real default_lower_threshold;
-    real default_upper_threshold;
-
-    real         lower_threshold;
-    real         upper_threshold;
-    irt::message inValue;
-
-    struct threshold_condition_error {};
-
-    filter() noexcept
-    {
-        default_lower_threshold = -0.5;
-        default_upper_threshold = 0.5;
-        sigma                   = time_domain<time>::infinity;
-    }
-
-    status initialize() noexcept
-    {
-        sigma           = time_domain<time>::infinity;
-        lower_threshold = default_lower_threshold;
-        upper_threshold = default_upper_threshold;
-
-        if (default_lower_threshold >= default_upper_threshold)
-            return new_error(threshold_condition_error{});
-
-        return success();
-    }
-
-    status lambda(simulation& sim) noexcept
-    {
-        return send_message(sim, y[0], inValue[0]);
-    }
-
-    status transition(simulation& sim, time, time, time) noexcept
-    {
-        // @TODO fix transition: take ino account Qss1, Qss2 and Qss3
-        // messages
-        //  to build a correct sigma.
-
-        sigma = time_domain<time>::infinity;
-
-        auto* lst = sim.messages.try_to_get(x[0]);
-        if (lst and not lst->empty()) {
-            for (const auto& msg : *lst) {
-                if (msg[0] > lower_threshold && msg[0] < upper_threshold) {
-                    inValue[0] = msg[0];
-                } else if (msg[1] < lower_threshold &&
-                           msg[1] < upper_threshold) {
-                    inValue[0] = msg[1];
-                } else {
-                    inValue[0] = msg[2];
-                }
-
-                sigma = time_domain<time>::zero;
-            }
-        }
-
-        return success();
-    }
-
-    observation_message observation(time t, time /*e*/) const noexcept
-    {
-        return { t, inValue[0] };
-    }
-};
-
 struct abstract_and_check {
     template<typename Iterator>
     bool operator()(Iterator begin, Iterator end) const noexcept
@@ -4564,127 +3681,6 @@ struct accumulator {
     }
 };
 
-struct cross {
-    message_id x[4];
-    node_id    y[2];
-    time       sigma;
-
-    real default_threshold = zero;
-
-    real threshold;
-    real value;
-    real if_value;
-    real else_value;
-    real result;
-    real event;
-
-    cross() noexcept = default;
-
-    cross(const cross& other) noexcept
-      : sigma(other.sigma)
-      , default_threshold(other.default_threshold)
-      , threshold(other.threshold)
-      , value(other.value)
-      , if_value(other.if_value)
-      , else_value(other.else_value)
-      , result(other.result)
-      , event(other.event)
-    {}
-
-    enum port_name {
-        port_value,
-        port_if_value,
-        port_else_value,
-        port_threshold
-    };
-
-    status initialize(simulation& /*sim*/) noexcept
-    {
-        threshold  = default_threshold;
-        value      = threshold - one;
-        if_value   = zero;
-        else_value = zero;
-        result     = zero;
-        event      = zero;
-
-        sigma = time_domain<time>::zero;
-
-        return success();
-    }
-
-    status transition(simulation& sim,
-                      time /*t*/,
-                      time /*e*/,
-                      time /*r*/) noexcept
-    {
-
-        bool is_defined       = false;
-        bool is_defined_value = false;
-        event                 = zero;
-
-        if (auto* span_thresholds = sim.messages.try_to_get(x[port_threshold]);
-            span_thresholds) {
-            for (auto& elem : *span_thresholds) {
-                threshold  = elem[0];
-                is_defined = true;
-            }
-        }
-
-        if (auto* span_value = sim.messages.try_to_get(x[port_value]);
-            span_value) {
-            for (auto& elem : *span_value) {
-                value            = elem[0];
-                is_defined_value = true;
-                is_defined       = true;
-            }
-        }
-
-        if (auto* span_if_value = sim.messages.try_to_get(x[port_if_value]);
-            span_if_value) {
-            for (auto& elem : *span_if_value) {
-                if_value   = elem[0];
-                is_defined = true;
-            }
-        }
-
-        if (auto* span_else_value = sim.messages.try_to_get(x[port_else_value]);
-            span_else_value) {
-            for (auto& elem : *span_else_value) {
-                else_value = elem[0];
-                is_defined = true;
-            }
-        }
-
-        if (is_defined_value) {
-            event = zero;
-            if (value >= threshold) {
-                else_value = if_value;
-                event      = one;
-            }
-        }
-
-        result = else_value;
-
-        sigma =
-          is_defined ? time_domain<time>::zero : time_domain<time>::infinity;
-
-        return success();
-    }
-
-    status lambda(simulation& sim) noexcept
-    {
-        irt_check(send_message(sim, y[0], result));
-        irt_check(send_message(sim, y[1], event));
-
-        return success();
-    }
-
-    observation_message observation(time t, time /*e*/) const noexcept
-    {
-        return { t, value, if_value, else_value };
-    }
-};
-
 template<int QssLevel>
 struct abstract_cross {
     static_assert(1 <= QssLevel && QssLevel <= 3, "Only for Qss1, 2 and 3");
@@ -4974,14 +3970,6 @@ struct time_func {
     }
 };
 
-using adder_2 = adder<2>;
-using adder_3 = adder<3>;
-using adder_4 = adder<4>;
-
-using mult_2 = mult<2>;
-using mult_3 = mult<3>;
-using mult_4 = mult<4>;
-
 using accumulator_2 = accumulator<2>;
 
 struct queue {
@@ -5222,24 +4210,14 @@ constexpr sz max_size_in_bytes() noexcept
                sizeof(qss3_wsum_2),
                sizeof(qss3_wsum_3),
                sizeof(qss3_wsum_4),
-               sizeof(integrator),
-               sizeof(quantifier),
-               sizeof(adder_2),
-               sizeof(adder_3),
-               sizeof(adder_4),
-               sizeof(mult_2),
-               sizeof(mult_3),
-               sizeof(mult_4),
                sizeof(counter),
                sizeof(queue),
                sizeof(dynamic_queue),
                sizeof(priority_queue),
                sizeof(generator),
                sizeof(constant),
-               sizeof(cross),
                sizeof(time_func),
                sizeof(accumulator_2),
-               sizeof(filter),
                sizeof(logical_and_2),
                sizeof(logical_and_3),
                sizeof(logical_or_2),
@@ -5336,24 +4314,10 @@ static constexpr dynamics_type dynamics_typeof() noexcept
         return dynamics_type::qss3_wsum_3;
     if constexpr (std::is_same_v<Dynamics, qss3_wsum_4>)
         return dynamics_type::qss3_wsum_4;
-    if constexpr (std::is_same_v<Dynamics, integrator>)
-        return dynamics_type::integrator;
-    if constexpr (std::is_same_v<Dynamics, quantifier>)
-        return dynamics_type::quantifier;
-    if constexpr (std::is_same_v<Dynamics, adder_2>)
-        return dynamics_type::adder_2;
-    if constexpr (std::is_same_v<Dynamics, adder_3>)
-        return dynamics_type::adder_3;
-    if constexpr (std::is_same_v<Dynamics, adder_4>)
-        return dynamics_type::adder_4;
-    if constexpr (std::is_same_v<Dynamics, mult_2>)
-        return dynamics_type::mult_2;
-    if constexpr (std::is_same_v<Dynamics, mult_3>)
-        return dynamics_type::mult_3;
-    if constexpr (std::is_same_v<Dynamics, mult_4>)
-        return dynamics_type::mult_4;
+
     if constexpr (std::is_same_v<Dynamics, counter>)
         return dynamics_type::counter;
+
     if constexpr (std::is_same_v<Dynamics, queue>)
         return dynamics_type::queue;
     if constexpr (std::is_same_v<Dynamics, dynamic_queue>)
@@ -5364,14 +4328,11 @@ static constexpr dynamics_type dynamics_typeof() noexcept
         return dynamics_type::generator;
     if constexpr (std::is_same_v<Dynamics, constant>)
         return dynamics_type::constant;
-    if constexpr (std::is_same_v<Dynamics, cross>)
-        return dynamics_type::cross;
+
     if constexpr (std::is_same_v<Dynamics, time_func>)
         return dynamics_type::time_func;
     if constexpr (std::is_same_v<Dynamics, accumulator_2>)
         return dynamics_type::accumulator_2;
-    if constexpr (std::is_same_v<Dynamics, filter>)
-        return dynamics_type::filter;
 
     if constexpr (std::is_same_v<Dynamics, logical_and_2>)
         return dynamics_type::logical_and_2;
@@ -5469,22 +4430,6 @@ constexpr auto dispatch(const model& mdl, Function&& f) noexcept
     case dynamics_type::qss3_wsum_4:
         return f(*reinterpret_cast<const qss3_wsum_4*>(&mdl.dyn));
 
-    case dynamics_type::integrator:
-        return f(*reinterpret_cast<const integrator*>(&mdl.dyn));
-    case dynamics_type::quantifier:
-        return f(*reinterpret_cast<const quantifier*>(&mdl.dyn));
-    case dynamics_type::adder_2:
-        return f(*reinterpret_cast<const adder_2*>(&mdl.dyn));
-    case dynamics_type::adder_3:
-        return f(*reinterpret_cast<const adder_3*>(&mdl.dyn));
-    case dynamics_type::adder_4:
-        return f(*reinterpret_cast<const adder_4*>(&mdl.dyn));
-    case dynamics_type::mult_2:
-        return f(*reinterpret_cast<const mult_2*>(&mdl.dyn));
-    case dynamics_type::mult_3:
-        return f(*reinterpret_cast<const mult_3*>(&mdl.dyn));
-    case dynamics_type::mult_4:
-        return f(*reinterpret_cast<const mult_4*>(&mdl.dyn));
     case dynamics_type::counter:
         return f(*reinterpret_cast<const counter*>(&mdl.dyn));
     case dynamics_type::queue:
@@ -5497,14 +4442,10 @@ constexpr auto dispatch(const model& mdl, Function&& f) noexcept
         return f(*reinterpret_cast<const generator*>(&mdl.dyn));
     case dynamics_type::constant:
         return f(*reinterpret_cast<const constant*>(&mdl.dyn));
-    case dynamics_type::cross:
-        return f(*reinterpret_cast<const cross*>(&mdl.dyn));
     case dynamics_type::accumulator_2:
         return f(*reinterpret_cast<const accumulator_2*>(&mdl.dyn));
     case dynamics_type::time_func:
         return f(*reinterpret_cast<const time_func*>(&mdl.dyn));
-    case dynamics_type::filter:
-        return f(*reinterpret_cast<const filter*>(&mdl.dyn));
 
     case dynamics_type::logical_and_2:
         return f(*reinterpret_cast<const logical_and_2*>(&mdl.dyn));
@@ -5603,22 +4544,6 @@ constexpr auto dispatch(model& mdl, Function&& f) noexcept
     case dynamics_type::qss3_wsum_4:
         return f(*reinterpret_cast<qss3_wsum_4*>(&mdl.dyn));
 
-    case dynamics_type::integrator:
-        return f(*reinterpret_cast<integrator*>(&mdl.dyn));
-    case dynamics_type::quantifier:
-        return f(*reinterpret_cast<quantifier*>(&mdl.dyn));
-    case dynamics_type::adder_2:
-        return f(*reinterpret_cast<adder_2*>(&mdl.dyn));
-    case dynamics_type::adder_3:
-        return f(*reinterpret_cast<adder_3*>(&mdl.dyn));
-    case dynamics_type::adder_4:
-        return f(*reinterpret_cast<adder_4*>(&mdl.dyn));
-    case dynamics_type::mult_2:
-        return f(*reinterpret_cast<mult_2*>(&mdl.dyn));
-    case dynamics_type::mult_3:
-        return f(*reinterpret_cast<mult_3*>(&mdl.dyn));
-    case dynamics_type::mult_4:
-        return f(*reinterpret_cast<mult_4*>(&mdl.dyn));
     case dynamics_type::counter:
         return f(*reinterpret_cast<counter*>(&mdl.dyn));
     case dynamics_type::queue:
@@ -5631,14 +4556,10 @@ constexpr auto dispatch(model& mdl, Function&& f) noexcept
         return f(*reinterpret_cast<generator*>(&mdl.dyn));
     case dynamics_type::constant:
         return f(*reinterpret_cast<constant*>(&mdl.dyn));
-    case dynamics_type::cross:
-        return f(*reinterpret_cast<cross*>(&mdl.dyn));
     case dynamics_type::accumulator_2:
         return f(*reinterpret_cast<accumulator_2*>(&mdl.dyn));
     case dynamics_type::time_func:
         return f(*reinterpret_cast<time_func*>(&mdl.dyn));
-    case dynamics_type::filter:
-        return f(*reinterpret_cast<filter*>(&mdl.dyn));
 
     case dynamics_type::logical_and_2:
         return f(*reinterpret_cast<logical_and_2*>(&mdl.dyn));
@@ -5697,17 +4618,9 @@ inline status get_output_port(model& dst, int port_dst, node_id*& p) noexcept;
 inline bool is_ports_compatible(const dynamics_type mdl_src,
                                 const int           o_port_index,
                                 const dynamics_type mdl_dst,
-                                const int           i_port_index) noexcept
+                                const int /*i_port_index*/) noexcept
 {
     switch (mdl_src) {
-    case dynamics_type::quantifier:
-        if (mdl_dst == dynamics_type::integrator &&
-            i_port_index ==
-              static_cast<int>(integrator::port_name::port_quanta))
-            return true;
-
-        return false;
-
     case dynamics_type::qss1_integrator:
     case dynamics_type::qss1_multiplier:
     case dynamics_type::qss1_power:
@@ -5738,27 +4651,14 @@ inline bool is_ports_compatible(const dynamics_type mdl_src,
     case dynamics_type::qss3_wsum_2:
     case dynamics_type::qss3_wsum_3:
     case dynamics_type::qss3_wsum_4:
-    case dynamics_type::integrator:
-    case dynamics_type::adder_2:
-    case dynamics_type::adder_3:
-    case dynamics_type::adder_4:
-    case dynamics_type::mult_2:
-    case dynamics_type::mult_3:
-    case dynamics_type::mult_4:
     case dynamics_type::counter:
     case dynamics_type::queue:
     case dynamics_type::dynamic_queue:
     case dynamics_type::priority_queue:
     case dynamics_type::generator:
     case dynamics_type::time_func:
-    case dynamics_type::filter:
     case dynamics_type::hsm_wrapper:
     case dynamics_type::accumulator_2:
-        if (mdl_dst == dynamics_type::integrator &&
-            i_port_index ==
-              static_cast<int>(integrator::port_name::port_quanta))
-            return false;
-
         if (any_equal(mdl_dst,
                       dynamics_type::logical_and_2,
                       dynamics_type::logical_and_3,
@@ -5771,7 +4671,6 @@ inline bool is_ports_compatible(const dynamics_type mdl_src,
     case dynamics_type::constant:
         return true;
 
-    case dynamics_type::cross:
     case dynamics_type::qss2_cross:
     case dynamics_type::qss3_cross:
     case dynamics_type::qss1_cross:
@@ -6469,7 +5368,6 @@ inline simulation::simulation(std::pmr::memory_resource* mem) noexcept
   , observers(&shared)
   , nodes(&shared)
   , messages(&shared)
-  , records(&shared)
   , dated_messages(&shared)
   , sched{ &shared }
 {}
@@ -6493,8 +5391,7 @@ inline status simulation::init(std::integral auto model_capacity,
 
     std::size_t global_memory = model_capacity * 256 * sizeof(model);
     std::size_t node_mem      = model_capacity * sizeof(nodes) * 8;
-    std::size_t record_mem    = model_capacity * sizeof(record) * 10;
-    std::size_t dated_mem     = model_capacity * sizeof(record) * 10;
+    std::size_t dated_mem     = model_capacity * sizeof(dated_messages) * 10;
 
     shared.reset(reinterpret_cast<std::byte*>(global->allocate(global_memory)),
                  global_memory);
@@ -6502,9 +5399,6 @@ inline status simulation::init(std::integral auto model_capacity,
     nodes_alloc.reset(reinterpret_cast<std::byte*>(
                         shared.allocate(node_mem, alignof(std::max_align_t))),
                       node_mem);
-    records_alloc.reset(reinterpret_cast<std::byte*>(shared.allocate(
-                          record_mem, alignof(std::max_align_t))),
-                        record_mem);
     dated_messages_alloc.reset(reinterpret_cast<std::byte*>(shared.allocate(
                                  dated_mem, alignof(std::max_align_t))),
                                dated_mem);
@@ -6522,8 +5416,6 @@ inline status simulation::init(std::integral auto model_capacity,
     if (!hsms.reserve(max_hsms))
         return new_error(simulation::part::hsms);
     if (!observers.reserve(model_capacity))
-        return new_error(simulation::part::observers);
-    if (!records.reserve(model_capacity))
         return new_error(simulation::part::observers);
     if (!nodes.reserve(model_capacity))
         return new_error(simulation::part::observers);
@@ -6549,7 +5441,6 @@ inline void simulation::clean() noexcept
     sched.clear();
 
     messages.clear();
-    records.clear();
     dated_messages.clear();
 
     emitting_output_ports.clear();

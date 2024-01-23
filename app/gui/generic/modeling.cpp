@@ -855,28 +855,6 @@ static void show_popup_menuitem(component_editor&              ed,
             ImGui::EndMenu();
         }
 
-        if (ImGui::BeginMenu("AQSS (experimental)")) {
-            add_popup_menuitem(
-              ed, data, parent, s_parent, dynamics_type::integrator, click_pos);
-            add_popup_menuitem(
-              ed, data, parent, s_parent, dynamics_type::quantifier, click_pos);
-            add_popup_menuitem(
-              ed, data, parent, s_parent, dynamics_type::adder_2, click_pos);
-            add_popup_menuitem(
-              ed, data, parent, s_parent, dynamics_type::adder_3, click_pos);
-            add_popup_menuitem(
-              ed, data, parent, s_parent, dynamics_type::adder_4, click_pos);
-            add_popup_menuitem(
-              ed, data, parent, s_parent, dynamics_type::mult_2, click_pos);
-            add_popup_menuitem(
-              ed, data, parent, s_parent, dynamics_type::mult_3, click_pos);
-            add_popup_menuitem(
-              ed, data, parent, s_parent, dynamics_type::mult_4, click_pos);
-            add_popup_menuitem(
-              ed, data, parent, s_parent, dynamics_type::cross, click_pos);
-            ImGui::EndMenu();
-        }
-
         if (ImGui::BeginMenu("Logical")) {
             add_popup_menuitem(ed,
                                data,
@@ -927,8 +905,6 @@ static void show_popup_menuitem(component_editor&              ed,
           ed, data, parent, s_parent, dynamics_type::time_func, click_pos);
         add_popup_menuitem(
           ed, data, parent, s_parent, dynamics_type::accumulator_2, click_pos);
-        add_popup_menuitem(
-          ed, data, parent, s_parent, dynamics_type::filter, click_pos);
         add_popup_menuitem(
           ed, data, parent, s_parent, dynamics_type::hsm_wrapper, click_pos);
 

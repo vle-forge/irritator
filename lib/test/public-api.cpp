@@ -31,7 +31,7 @@ struct file_output {
     std::FILE*            os = nullptr;
     irt::observer&        obs;
     irt::interpolate_type type        = irt::interpolate_type::none;
-    irt::real             time_step   = 1e-3;
+    irt::real             time_step   = 1e-1;
     bool                  interpolate = true;
 
     file_output(irt::observer& obs_, const char* filename) noexcept
@@ -400,21 +400,12 @@ int main()
         fmt::print("qss3_wsum_2 {}\n", sizeof(irt::qss3_wsum_2));
         fmt::print("qss3_wsum_3 {}\n", sizeof(irt::qss3_wsum_3));
         fmt::print("qss3_wsum_4 {}\n", sizeof(irt::qss3_wsum_4));
-        fmt::print("integrator {}\n", sizeof(irt::integrator));
-        fmt::print("quantifier {}\n", sizeof(irt::quantifier));
-        fmt::print("adder_2 {}\n", sizeof(irt::adder_2));
-        fmt::print("adder_3 {}\n", sizeof(irt::adder_3));
-        fmt::print("adder_4 {}\n", sizeof(irt::adder_4));
-        fmt::print("mult_2 {}\n", sizeof(irt::mult_2));
-        fmt::print("mult_3 {}\n", sizeof(irt::mult_3));
-        fmt::print("mult_4 {}\n", sizeof(irt::mult_4));
         fmt::print("counter {}\n", sizeof(irt::counter));
         fmt::print("queue {}\n", sizeof(irt::queue));
         fmt::print("dynamic_queue {}\n", sizeof(irt::dynamic_queue));
         fmt::print("priority_queue {}\n", sizeof(irt::priority_queue));
         fmt::print("generator {}\n", sizeof(irt::generator));
         fmt::print("constant {}\n", sizeof(irt::constant));
-        fmt::print("cross {}\n", sizeof(irt::cross));
         fmt::print("time_func {}\n", sizeof(irt::time_func));
         fmt::print("accumulator {}\n", sizeof(irt::accumulator_2));
         fmt::print("hsm_wrapper {}\n", sizeof(irt::hsm_wrapper));
@@ -448,61 +439,57 @@ int main()
         static_assert(irt::has_output_port<irt::generator> == true);
         static_assert(irt::has_observation_function<irt::generator> == true);
 
-        static_assert(irt::has_initialize_function<irt::adder_2> == true);
-        static_assert(irt::has_lambda_function<irt::adder_2> == true);
-        static_assert(irt::has_transition_function<irt::adder_2> == true);
-        static_assert(irt::has_input_port<irt::adder_2> == true);
-        static_assert(irt::has_output_port<irt::adder_2> == true);
-        static_assert(irt::has_observation_function<irt::adder_2> == true);
+        static_assert(irt::has_initialize_function<irt::qss1_sum_2> == true);
+        static_assert(irt::has_lambda_function<irt::qss1_sum_2> == true);
+        static_assert(irt::has_transition_function<irt::qss1_sum_2> == true);
+        static_assert(irt::has_input_port<irt::qss1_sum_2> == true);
+        static_assert(irt::has_output_port<irt::qss1_sum_2> == true);
+        static_assert(irt::has_observation_function<irt::qss1_sum_2> == true);
 
-        static_assert(irt::has_initialize_function<irt::adder_3> == true);
-        static_assert(irt::has_lambda_function<irt::adder_3> == true);
-        static_assert(irt::has_transition_function<irt::adder_3> == true);
-        static_assert(irt::has_input_port<irt::adder_3> == true);
-        static_assert(irt::has_output_port<irt::adder_3> == true);
-        static_assert(irt::has_observation_function<irt::adder_3> == true);
+        static_assert(irt::has_initialize_function<irt::qss1_sum_3> == true);
+        static_assert(irt::has_lambda_function<irt::qss1_sum_3> == true);
+        static_assert(irt::has_transition_function<irt::qss1_sum_3> == true);
+        static_assert(irt::has_input_port<irt::qss1_sum_3> == true);
+        static_assert(irt::has_output_port<irt::qss1_sum_3> == true);
+        static_assert(irt::has_observation_function<irt::qss1_sum_3> == true);
 
-        static_assert(irt::has_initialize_function<irt::adder_4> == true);
-        static_assert(irt::has_lambda_function<irt::adder_4> == true);
-        static_assert(irt::has_transition_function<irt::adder_4> == true);
-        static_assert(irt::has_input_port<irt::adder_4> == true);
-        static_assert(irt::has_output_port<irt::adder_4> == true);
-        static_assert(irt::has_observation_function<irt::adder_4> == true);
+        static_assert(irt::has_initialize_function<irt::qss1_sum_4> == true);
+        static_assert(irt::has_lambda_function<irt::qss1_sum_4> == true);
+        static_assert(irt::has_transition_function<irt::qss1_sum_4> == true);
+        static_assert(irt::has_input_port<irt::qss1_sum_4> == true);
+        static_assert(irt::has_output_port<irt::qss1_sum_4> == true);
+        static_assert(irt::has_observation_function<irt::qss1_sum_4> == true);
 
-        static_assert(irt::has_initialize_function<irt::mult_2> == true);
-        static_assert(irt::has_lambda_function<irt::mult_2> == true);
-        static_assert(irt::has_transition_function<irt::mult_2> == true);
-        static_assert(irt::has_input_port<irt::mult_2> == true);
-        static_assert(irt::has_output_port<irt::mult_2> == true);
-        static_assert(irt::has_observation_function<irt::mult_2> == true);
+        static_assert(irt::has_initialize_function<irt::qss1_wsum_2> == true);
+        static_assert(irt::has_lambda_function<irt::qss1_wsum_2> == true);
+        static_assert(irt::has_transition_function<irt::qss1_wsum_2> == true);
+        static_assert(irt::has_input_port<irt::qss1_wsum_2> == true);
+        static_assert(irt::has_output_port<irt::qss1_wsum_2> == true);
+        static_assert(irt::has_observation_function<irt::qss1_wsum_2> == true);
 
-        static_assert(irt::has_initialize_function<irt::mult_3> == true);
-        static_assert(irt::has_lambda_function<irt::mult_3> == true);
-        static_assert(irt::has_transition_function<irt::mult_3> == true);
-        static_assert(irt::has_input_port<irt::mult_3> == true);
-        static_assert(irt::has_output_port<irt::mult_3> == true);
-        static_assert(irt::has_observation_function<irt::mult_3> == true);
+        static_assert(irt::has_initialize_function<irt::qss1_wsum_3> == true);
+        static_assert(irt::has_lambda_function<irt::qss1_wsum_3> == true);
+        static_assert(irt::has_transition_function<irt::qss1_wsum_3> == true);
+        static_assert(irt::has_input_port<irt::qss1_wsum_3> == true);
+        static_assert(irt::has_output_port<irt::qss1_wsum_3> == true);
+        static_assert(irt::has_observation_function<irt::qss1_wsum_3> == true);
 
-        static_assert(irt::has_initialize_function<irt::mult_4> == true);
-        static_assert(irt::has_lambda_function<irt::mult_4> == true);
-        static_assert(irt::has_transition_function<irt::mult_4> == true);
-        static_assert(irt::has_input_port<irt::mult_4> == true);
-        static_assert(irt::has_output_port<irt::mult_4> == true);
-        static_assert(irt::has_observation_function<irt::mult_4> == true);
+        static_assert(irt::has_initialize_function<irt::qss1_wsum_4> == true);
+        static_assert(irt::has_lambda_function<irt::qss1_wsum_4> == true);
+        static_assert(irt::has_transition_function<irt::qss1_wsum_4> == true);
+        static_assert(irt::has_input_port<irt::qss1_wsum_4> == true);
+        static_assert(irt::has_output_port<irt::qss1_wsum_4> == true);
+        static_assert(irt::has_observation_function<irt::qss1_wsum_4> == true);
 
-        static_assert(irt::has_initialize_function<irt::integrator> == true);
-        static_assert(irt::has_lambda_function<irt::integrator> == true);
-        static_assert(irt::has_transition_function<irt::integrator> == true);
-        static_assert(irt::has_input_port<irt::integrator> == true);
-        static_assert(irt::has_output_port<irt::integrator> == true);
-        static_assert(irt::has_observation_function<irt::integrator> == true);
-
-        static_assert(irt::has_initialize_function<irt::quantifier> == true);
-        static_assert(irt::has_lambda_function<irt::quantifier> == true);
-        static_assert(irt::has_transition_function<irt::quantifier> == true);
-        static_assert(irt::has_input_port<irt::quantifier> == true);
-        static_assert(irt::has_output_port<irt::quantifier> == true);
-        static_assert(irt::has_observation_function<irt::quantifier> == true);
+        static_assert(irt::has_initialize_function<irt::qss1_integrator> ==
+                      true);
+        static_assert(irt::has_lambda_function<irt::qss1_integrator> == true);
+        static_assert(irt::has_transition_function<irt::qss1_integrator> ==
+                      true);
+        static_assert(irt::has_input_port<irt::qss1_integrator> == true);
+        static_assert(irt::has_output_port<irt::qss1_integrator> == true);
+        static_assert(irt::has_observation_function<irt::qss1_integrator> ==
+                      true);
     };
 
     "time"_test = [] {
@@ -1422,24 +1409,14 @@ int main()
             sim.alloc<irt::qss3_wsum_2>();
             sim.alloc<irt::qss3_wsum_3>();
             sim.alloc<irt::qss3_wsum_4>();
-            sim.alloc<irt::integrator>();
-            sim.alloc<irt::quantifier>();
-            sim.alloc<irt::adder_2>();
-            sim.alloc<irt::adder_3>();
-            sim.alloc<irt::adder_4>();
-            sim.alloc<irt::mult_2>();
-            sim.alloc<irt::mult_3>();
-            sim.alloc<irt::mult_4>();
             sim.alloc<irt::counter>();
             sim.alloc<irt::queue>();
             sim.alloc<irt::dynamic_queue>();
             sim.alloc<irt::priority_queue>();
             sim.alloc<irt::generator>();
             sim.alloc<irt::constant>();
-            sim.alloc<irt::cross>();
             sim.alloc<irt::time_func>();
             sim.alloc<irt::accumulator_2>();
-            sim.alloc<irt::filter>();
             sim.alloc<irt::logical_and_2>();
             sim.alloc<irt::logical_and_3>();
             sim.alloc<irt::logical_or_2>();
@@ -1478,7 +1455,7 @@ int main()
 
             irt::json_archiver j;
             expect(!!j.simulation_load(sim, cache, in));
-            expect(sim.models.size() == 60);
+            expect(eq(sim.models.size(), 50u));
         }
     };
 
@@ -1519,7 +1496,7 @@ int main()
         expect(sim.can_alloc(3));
 
         auto& cnt    = sim.alloc<irt::counter>();
-        auto& cross1 = sim.alloc<irt::cross>();
+        auto& cross1 = sim.alloc<irt::qss1_cross>();
         auto& c1     = sim.alloc<irt::constant>();
 
         c1.default_value         = 3.0;
@@ -1537,7 +1514,7 @@ int main()
             expect(!!sim.run(t));
         } while (!irt::time_domain<irt::time>::is_infinity(t));
 
-        expect(cnt.number == static_cast<irt::i64>(2));
+        expect(eq(cnt.number, static_cast<decltype(cnt.number)>(1)));
     };
 
     "hsm_automata"_test = [] {
@@ -1758,219 +1735,6 @@ int main()
                      irt::real{ 1.0 }));
     };
 
-    "lotka_volterra_simulation"_test = [] {
-        fmt::print("lotka_volterra_simulation\n");
-        irt::simulation sim;
-
-        expect(!!sim.init(32lu, 512lu));
-        expect(sim.can_alloc(8));
-
-        auto& sum_a        = sim.alloc<irt::adder_2>();
-        auto& sum_b        = sim.alloc<irt::adder_2>();
-        auto& product      = sim.alloc<irt::mult_2>();
-        auto& integrator_a = sim.alloc<irt::integrator>();
-        auto& integrator_b = sim.alloc<irt::integrator>();
-        auto& quantifier_a = sim.alloc<irt::quantifier>();
-        auto& quantifier_b = sim.alloc<irt::quantifier>();
-
-        integrator_a.default_current_value = 18;
-
-        quantifier_a.default_adapt_state =
-          irt::quantifier::adapt_state::possible;
-        quantifier_a.default_zero_init_offset = true;
-        quantifier_a.default_step_size        = irt::to_real(0.01);
-        quantifier_a.default_past_length      = 3;
-
-        integrator_b.default_current_value = 7;
-
-        quantifier_b.default_adapt_state =
-          irt::quantifier::adapt_state::possible;
-        quantifier_b.default_zero_init_offset = true;
-        quantifier_b.default_step_size        = irt::to_real(0.01);
-        quantifier_b.default_past_length      = 3;
-
-        product.default_input_coeffs[0] = irt::real(1.0);
-        product.default_input_coeffs[1] = irt::real(1.0);
-        sum_a.default_input_coeffs[0]   = irt::real(2.0);
-        sum_a.default_input_coeffs[1]   = irt::real(-0.4);
-        sum_b.default_input_coeffs[0]   = irt::real(-1.0);
-        sum_b.default_input_coeffs[1]   = irt::real(0.1);
-
-        expect((sim.models.size() == 7_ul) >> fatal);
-
-        expect(!!sim.connect(sum_a, 0, integrator_a, 1));
-        expect(!!sim.connect(sum_b, 0, integrator_b, 1));
-
-        expect(!!sim.connect(integrator_a, 0, sum_a, 0));
-        expect(!!sim.connect(integrator_b, 0, sum_b, 0));
-
-        expect(!!sim.connect(integrator_a, 0, product, 0));
-        expect(!!sim.connect(integrator_b, 0, product, 1));
-
-        expect(!!sim.connect(product, 0, sum_a, 1));
-        expect(!!sim.connect(product, 0, sum_b, 1));
-
-        expect(!!sim.connect(quantifier_a, 0, integrator_a, 0));
-        expect(!!sim.connect(quantifier_b, 0, integrator_b, 0));
-        expect(!!sim.connect(integrator_a, 0, quantifier_a, 0));
-        expect(!!sim.connect(integrator_b, 0, quantifier_b, 0));
-
-        auto&       obs_a = sim.observers.alloc("A", 0, 0);
-        auto&       obs_b = sim.observers.alloc("B", 0, 0);
-        file_output fo_a(obs_a, "lotka-volterra_a.csv");
-        file_output fo_b(obs_b, "lotka-volterra_b.csv");
-
-        expect(fo_a.os != nullptr);
-        expect(fo_b.os != nullptr);
-
-        sim.observe(irt::get_model(integrator_a), obs_a);
-        sim.observe(irt::get_model(integrator_b), obs_b);
-
-        irt::time t = 0;
-
-        expect(!!sim.initialize(t));
-        expect((sim.sched.size() == 7_ul) >> fatal);
-
-        do {
-            auto st = sim.run(t);
-            expect(!!st);
-
-            fo_a.write();
-            fo_b.write();
-        } while (t < irt::real(15));
-
-        fo_a.flush();
-        fo_b.flush();
-    };
-
-    "izhikevitch_simulation"_test = [] {
-        fmt::print("izhikevitch_simulation\n");
-        irt::simulation sim;
-
-        expect(!!sim.init(64lu, 256lu));
-        expect(sim.models.can_alloc(14));
-
-        auto& constant     = sim.alloc<irt::constant>();
-        auto& constant2    = sim.alloc<irt::constant>();
-        auto& constant3    = sim.alloc<irt::constant>();
-        auto& sum_a        = sim.alloc<irt::adder_2>();
-        auto& sum_b        = sim.alloc<irt::adder_2>();
-        auto& sum_c        = sim.alloc<irt::adder_4>();
-        auto& sum_d        = sim.alloc<irt::adder_2>();
-        auto& product      = sim.alloc<irt::mult_2>();
-        auto& integrator_a = sim.alloc<irt::integrator>();
-        auto& integrator_b = sim.alloc<irt::integrator>();
-        auto& quantifier_a = sim.alloc<irt::quantifier>();
-        auto& quantifier_b = sim.alloc<irt::quantifier>();
-        auto& cross        = sim.alloc<irt::cross>();
-        auto& cross2       = sim.alloc<irt::cross>();
-
-        irt::real a  = irt::real(0.2);
-        irt::real b  = irt::real(2.0);
-        irt::real c  = irt::real(-56.0);
-        irt::real d  = irt::real(-16.0);
-        irt::real I  = irt::real(-99.0);
-        irt::real vt = irt::real(30.0);
-
-        constant.default_value  = irt::real(1.0);
-        constant2.default_value = c;
-        constant3.default_value = I;
-
-        cross.default_threshold  = vt;
-        cross2.default_threshold = vt;
-
-        integrator_a.default_current_value = irt::real(0.0);
-
-        quantifier_a.default_adapt_state =
-          irt::quantifier::adapt_state::possible;
-        quantifier_a.default_zero_init_offset = true;
-        quantifier_a.default_step_size        = irt::real(0.01);
-        quantifier_a.default_past_length      = 3;
-
-        integrator_b.default_current_value = irt::real(0.0);
-
-        quantifier_b.default_adapt_state =
-          irt::quantifier::adapt_state::possible;
-        quantifier_b.default_zero_init_offset = true;
-        quantifier_b.default_step_size        = irt::real(0.01);
-        quantifier_b.default_past_length      = 3;
-
-        product.default_input_coeffs[0] = 1.0;
-        product.default_input_coeffs[1] = 1.0;
-
-        sum_a.default_input_coeffs[0] = irt::real(1.0);
-        sum_a.default_input_coeffs[1] = irt::real(-1.0);
-        sum_b.default_input_coeffs[0] = irt::real(-a);
-        sum_b.default_input_coeffs[1] = irt::real(a * b);
-        sum_c.default_input_coeffs[0] = irt::real(0.04);
-        sum_c.default_input_coeffs[1] = irt::real(5.0);
-        sum_c.default_input_coeffs[2] = irt::real(140.0);
-        sum_c.default_input_coeffs[3] = irt::real(1.0);
-        sum_d.default_input_coeffs[0] = irt::real(1.0);
-        sum_d.default_input_coeffs[1] = irt::real(d);
-
-        expect((sim.models.size() == 14_ul) >> fatal);
-
-        expect(!!sim.connect(integrator_a, 0, cross, 0));
-        expect(!!sim.connect(constant2, 0, cross, 1));
-        expect(!!sim.connect(integrator_a, 0, cross, 2));
-
-        expect(!!sim.connect(cross, 0, quantifier_a, 0));
-        expect(!!sim.connect(cross, 0, product, 0));
-        expect(!!sim.connect(cross, 0, product, 1));
-        expect(!!sim.connect(product, 0, sum_c, 0));
-        expect(!!sim.connect(cross, 0, sum_c, 1));
-        expect(!!sim.connect(cross, 0, sum_b, 1));
-
-        expect(!!sim.connect(constant, 0, sum_c, 2));
-        expect(!!sim.connect(constant3, 0, sum_c, 3));
-
-        expect(!!sim.connect(sum_c, 0, sum_a, 0));
-        expect(!!sim.connect(cross2, 0, sum_a, 1));
-        expect(!!sim.connect(sum_a, 0, integrator_a, 1));
-        expect(!!sim.connect(cross, 0, integrator_a, 2));
-        expect(!!sim.connect(quantifier_a, 0, integrator_a, 0));
-
-        expect(!!sim.connect(cross2, 0, quantifier_b, 0));
-        expect(!!sim.connect(cross2, 0, sum_b, 0));
-        expect(!!sim.connect(quantifier_b, 0, integrator_b, 0));
-        expect(!!sim.connect(sum_b, 0, integrator_b, 1));
-
-        expect(!!sim.connect(cross2, 0, integrator_b, 2));
-        expect(!!sim.connect(integrator_a, 0, cross2, 0));
-        expect(!!sim.connect(integrator_b, 0, cross2, 2));
-        expect(!!sim.connect(sum_d, 0, cross2, 1));
-        expect(!!sim.connect(integrator_b, 0, sum_d, 0));
-        expect(!!sim.connect(constant, 0, sum_d, 1));
-
-        auto&       obs_a = sim.observers.alloc("A", 0, 0);
-        file_output fo_a(obs_a, "izhikevitch_a.csv");
-        expect(fo_a.os != nullptr);
-
-        auto&       obs_b = sim.observers.alloc("B", 0, 0);
-        file_output fo_b(obs_b, "izhikevitch_b.csv");
-        expect(fo_b.os != nullptr);
-
-        sim.observe(irt::get_model(integrator_a), obs_a);
-        sim.observe(irt::get_model(integrator_b), obs_b);
-
-        irt::time t = irt::real(0);
-
-        expect(!!sim.initialize(t));
-        expect((sim.sched.size() == 14_ul) >> fatal);
-
-        do {
-            irt::status st = sim.run(t);
-            expect(!!st);
-
-            fo_a.write();
-            fo_b.write();
-        } while (t < irt::real(120));
-
-        fo_a.flush();
-        fo_b.flush();
-    };
-
     "lotka_volterra_simulation_qss1"_test = [] {
         fmt::print("lotka_volterra_simulation_qss1\n");
         irt::simulation sim;
@@ -2099,73 +1863,6 @@ int main()
 
         fo_a.flush();
         fo_b.flush();
-    };
-
-    "lif_simulation_qss"_test = [] {
-        fmt::print("lif_simulation_qss\n");
-        irt::simulation sim;
-
-        expect(!!sim.init(32lu, 512lu));
-        expect(sim.can_alloc(6));
-
-        auto& sum            = sim.alloc<irt::adder_2>();
-        auto& quantifier     = sim.alloc<irt::quantifier>();
-        auto& integrator     = sim.alloc<irt::integrator>();
-        auto& I              = sim.alloc<irt::time_func>();
-        auto& constant_cross = sim.alloc<irt::constant>();
-        auto& cross          = sim.alloc<irt::cross>();
-
-        irt::real tau = irt::real(10.0);
-        irt::real Vt  = irt::real(1.0);
-        irt::real V0  = irt::real(10.0);
-        irt::real Vr  = irt::real(-V0);
-
-        sum.default_input_coeffs[0] = irt::real(-1) / tau;
-        sum.default_input_coeffs[1] = V0 / tau;
-
-        constant_cross.default_value = Vr;
-
-        integrator.default_current_value = irt::real(0);
-
-        quantifier.default_adapt_state = irt::quantifier::adapt_state::possible;
-        quantifier.default_zero_init_offset = true;
-        quantifier.default_step_size        = irt::real(0.1);
-        quantifier.default_past_length      = 3;
-
-        I.default_f             = &irt::sin_time_function;
-        I.default_sigma         = quantifier.default_step_size;
-        cross.default_threshold = Vt;
-
-        expect((sim.models.size() == 6_ul) >> fatal);
-
-        expect(!!sim.connect(quantifier, 0, integrator, 0));
-        expect(!!sim.connect(sum, 0, integrator, 1));
-        expect(!!sim.connect(cross, 0, integrator, 2));
-        expect(!!sim.connect(cross, 0, quantifier, 0));
-        expect(!!sim.connect(cross, 0, sum, 0));
-        expect(!!sim.connect(integrator, 0, cross, 0));
-        expect(!!sim.connect(integrator, 0, cross, 2));
-        expect(!!sim.connect(constant_cross, 0, cross, 1));
-        expect(!!sim.connect(I, 0, sum, 1));
-
-        auto&       obs_a = sim.observers.alloc("A", 0, 0);
-        file_output fo_a(obs_a, "lif-qss.csv");
-        expect(fo_a.os != nullptr);
-
-        sim.observe(irt::get_model(integrator), obs_a);
-
-        irt::time t(0);
-
-        expect(!!sim.initialize(t));
-        expect((sim.sched.size() == 6_ul) >> fatal);
-
-        do {
-            auto st = sim.run(t);
-            expect(!!st);
-            fo_a.write();
-        } while (t < irt::time(100));
-
-        fo_a.flush();
     };
 
     "lif_simulation_qss1"_test = [] {
@@ -2754,91 +2451,6 @@ int main()
             fo_a.write();
             fo_b.write();
         } while (t < irt::time(140));
-
-        fo_a.flush();
-        fo_b.flush();
-    };
-
-    "van_der_pol_simulation"_test = [] {
-        fmt::print("van_der_pol_simulation\n");
-        irt::simulation sim;
-
-        expect(!!sim.init(32lu, 512lu));
-        expect(sim.can_alloc(6));
-
-        auto& sum          = sim.alloc<irt::adder_3>();
-        auto& product      = sim.alloc<irt::mult_3>();
-        auto& integrator_a = sim.alloc<irt::integrator>();
-        auto& integrator_b = sim.alloc<irt::integrator>();
-        auto& quantifier_a = sim.alloc<irt::quantifier>();
-        auto& quantifier_b = sim.alloc<irt::quantifier>();
-
-        integrator_a.default_current_value = irt::real(0);
-
-        quantifier_a.default_adapt_state =
-          irt::quantifier::adapt_state::possible;
-        quantifier_a.default_zero_init_offset = true;
-        quantifier_a.default_step_size        = irt::real(0.01);
-        quantifier_a.default_past_length      = 3;
-
-        integrator_b.default_current_value = irt::real(10.0);
-
-        quantifier_b.default_adapt_state =
-          irt::quantifier::adapt_state::possible;
-        quantifier_b.default_zero_init_offset = true;
-        quantifier_b.default_step_size        = irt::real(0.01);
-        quantifier_b.default_past_length      = 3;
-
-        product.default_input_coeffs[0] = irt::real(1);
-        product.default_input_coeffs[1] = irt::real(1);
-        product.default_input_coeffs[2] = irt::real(1);
-
-        irt::real mu(4.0);
-        sum.default_input_coeffs[0] = mu;
-        sum.default_input_coeffs[1] = -mu;
-        sum.default_input_coeffs[2] = irt::real(-1.0);
-
-        expect((sim.models.size() == 6_ul) >> fatal);
-
-        expect(!!sim.connect(integrator_b, 0, integrator_a, 1));
-        expect(!!sim.connect(sum, 0, integrator_b, 1));
-
-        expect(!!sim.connect(integrator_b, 0, sum, 0));
-        expect(!!sim.connect(product, 0, sum, 1));
-        expect(!!sim.connect(integrator_a, 0, sum, 2));
-
-        expect(!!sim.connect(integrator_b, 0, product, 0));
-        expect(!!sim.connect(integrator_a, 0, product, 1));
-        expect(!!sim.connect(integrator_a, 0, product, 2));
-
-        expect(!!sim.connect(quantifier_a, 0, integrator_a, 0));
-        expect(!!sim.connect(quantifier_b, 0, integrator_b, 0));
-        expect(!!sim.connect(integrator_a, 0, quantifier_a, 0));
-        expect(!!sim.connect(integrator_b, 0, quantifier_b, 0));
-
-        auto&       obs_a = sim.observers.alloc("A", 0, 0);
-        file_output fo_a(obs_a, "van_der_pol_a.csv");
-        expect(fo_a.os != nullptr);
-
-        auto&       obs_b = sim.observers.alloc("B", 0, 0);
-        file_output fo_b(obs_b, "van_der_pol_b.csv");
-        expect(fo_b.os != nullptr);
-
-        sim.observe(irt::get_model(integrator_a), obs_a);
-        sim.observe(irt::get_model(integrator_b), obs_b);
-
-        irt::time t(0);
-
-        expect(!!sim.initialize(t));
-        expect((sim.sched.size() == 6_ul) >> fatal);
-
-        do {
-            auto st = sim.run(t);
-            expect(!!st);
-
-            fo_a.write();
-            fo_b.write();
-        } while (t < irt::time(150));
 
         fo_a.flush();
         fo_b.flush();

@@ -9,14 +9,12 @@ namespace irt {
 auto get_internal_component_type(std::string_view name) noexcept
   -> std::optional<internal_component>
 {
-    struct string_to_type
-    {
+    struct string_to_type {
         constexpr string_to_type(const std::string_view   n,
                                  const internal_component t) noexcept
           : name(n)
           , type(t)
-        {
-        }
+        {}
 
         std::string_view   name;
         internal_component type;
@@ -60,14 +58,12 @@ auto get_internal_component_type(std::string_view name) noexcept
 auto get_component_type(std::string_view name) noexcept
   -> std::optional<component_type>
 {
-    struct string_to_type
-    {
+    struct string_to_type {
         constexpr string_to_type(const std::string_view n,
                                  const component_type   t) noexcept
           : name(n)
           , type(t)
-        {
-        }
+        {}
 
         std::string_view name;
         component_type   type;
@@ -98,14 +94,12 @@ auto get_component_type(std::string_view name) noexcept
 auto get_dynamics_type(std::string_view dynamics_name) noexcept
   -> std::optional<dynamics_type>
 {
-    struct string_to_type
-    {
+    struct string_to_type {
         constexpr string_to_type(const std::string_view n,
                                  const dynamics_type    t) noexcept
           : name(n)
           , type(t)
-        {
-        }
+        {}
 
         std::string_view name;
         dynamics_type    type;
@@ -113,25 +107,16 @@ auto get_dynamics_type(std::string_view dynamics_name) noexcept
 
     static constexpr string_to_type table[] = {
         { "accumulator_2", dynamics_type::accumulator_2 },
-        { "adder_2", dynamics_type::adder_2 },
-        { "adder_3", dynamics_type::adder_3 },
-        { "adder_4", dynamics_type::adder_4 },
         { "constant", dynamics_type::constant },
         { "counter", dynamics_type::counter },
-        { "cross", dynamics_type::cross },
         { "dynamic_queue", dynamics_type::dynamic_queue },
-        { "filter", dynamics_type::filter },
         { "generator", dynamics_type::generator },
         { "hsm_wrapper", dynamics_type::hsm_wrapper },
-        { "integrator", dynamics_type::integrator },
         { "logical_and_2", dynamics_type::logical_and_2 },
         { "logical_and_3", dynamics_type::logical_and_3 },
         { "logical_invert", dynamics_type::logical_invert },
         { "logical_or_2", dynamics_type::logical_or_2 },
         { "logical_or_3", dynamics_type::logical_or_3 },
-        { "mult_2", dynamics_type::mult_2 },
-        { "mult_3", dynamics_type::mult_3 },
-        { "mult_4", dynamics_type::mult_4 },
         { "priority_queue", dynamics_type::priority_queue },
         { "qss1_cross", dynamics_type::qss1_cross },
         { "qss1_filter", dynamics_type::qss1_filter },
@@ -169,7 +154,6 @@ auto get_dynamics_type(std::string_view dynamics_name) noexcept
         { "qss3_wsum_2", dynamics_type::qss3_wsum_2 },
         { "qss3_wsum_3", dynamics_type::qss3_wsum_3 },
         { "qss3_wsum_4", dynamics_type::qss3_wsum_4 },
-        { "quantifier", dynamics_type::quantifier },
         { "queue", dynamics_type::queue },
         { "time_func", dynamics_type::time_func }
     };
@@ -193,14 +177,12 @@ auto get_dynamics_type(std::string_view dynamics_name) noexcept
 auto get_distribution_type(std::string_view name) noexcept
   -> std::optional<distribution_type>
 {
-    struct string_to_type
-    {
+    struct string_to_type {
         constexpr string_to_type(const std::string_view  n,
                                  const distribution_type t) noexcept
           : name(n)
           , type(t)
-        {
-        }
+        {}
 
         std::string_view  name;
         distribution_type type;

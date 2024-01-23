@@ -31,20 +31,42 @@ void show_dynamics_inputs(external_source& /*srcs*/, qss3_integrator& dyn)
 void show_dynamics_inputs(external_source& /*srcs*/, qss1_multiplier& /*dyn*/)
 {}
 
-void show_dynamics_inputs(external_source& /*srcs*/, qss1_sum_2& /*dyn*/) {}
+void show_dynamics_inputs(external_source& /*srcs*/, qss1_sum_2& dyn)
+{
+    ImGui::InputReal("value-0", &dyn.default_values[0]);
+    ImGui::InputReal("value-1", &dyn.default_values[1]);
+}
 
-void show_dynamics_inputs(external_source& /*srcs*/, qss1_sum_3& /*dyn*/) {}
+void show_dynamics_inputs(external_source& /*srcs*/, qss1_sum_3& dyn)
+{
+    ImGui::InputReal("value-0", &dyn.default_values[0]);
+    ImGui::InputReal("value-1", &dyn.default_values[1]);
+    ImGui::InputReal("value-2", &dyn.default_values[2]);
+}
 
-void show_dynamics_inputs(external_source& /*srcs*/, qss1_sum_4& /*dyn*/) {}
+void show_dynamics_inputs(external_source& /*srcs*/, qss1_sum_4& dyn)
+{
+    ImGui::InputReal("value-0", &dyn.default_values[0]);
+    ImGui::InputReal("value-1", &dyn.default_values[1]);
+    ImGui::InputReal("value-2", &dyn.default_values[2]);
+    ImGui::InputReal("value-3", &dyn.default_values[3]);
+}
 
 void show_dynamics_inputs(external_source& /*srcs*/, qss1_wsum_2& dyn)
 {
+    ImGui::InputReal("value-0", &dyn.default_values[0]);
+    ImGui::InputReal("value-1", &dyn.default_values[1]);
+
     ImGui::InputReal("coeff-0", &dyn.default_input_coeffs[0]);
     ImGui::InputReal("coeff-1", &dyn.default_input_coeffs[1]);
 }
 
 void show_dynamics_inputs(external_source& /*srcs*/, qss1_wsum_3& dyn)
 {
+    ImGui::InputReal("value-0", &dyn.default_values[0]);
+    ImGui::InputReal("value-1", &dyn.default_values[1]);
+    ImGui::InputReal("value-2", &dyn.default_values[2]);
+
     ImGui::InputReal("coeff-0", &dyn.default_input_coeffs[0]);
     ImGui::InputReal("coeff-1", &dyn.default_input_coeffs[1]);
     ImGui::InputReal("coeff-2", &dyn.default_input_coeffs[2]);
@@ -52,6 +74,11 @@ void show_dynamics_inputs(external_source& /*srcs*/, qss1_wsum_3& dyn)
 
 void show_dynamics_inputs(external_source& /*srcs*/, qss1_wsum_4& dyn)
 {
+    ImGui::InputReal("value-0", &dyn.default_values[0]);
+    ImGui::InputReal("value-1", &dyn.default_values[1]);
+    ImGui::InputReal("value-2", &dyn.default_values[2]);
+    ImGui::InputReal("value-3", &dyn.default_values[3]);
+
     ImGui::InputReal("coeff-0", &dyn.default_input_coeffs[0]);
     ImGui::InputReal("coeff-1", &dyn.default_input_coeffs[1]);
     ImGui::InputReal("coeff-2", &dyn.default_input_coeffs[2]);
@@ -61,20 +88,42 @@ void show_dynamics_inputs(external_source& /*srcs*/, qss1_wsum_4& dyn)
 void show_dynamics_inputs(external_source& /*srcs*/, qss2_multiplier& /*dyn*/)
 {}
 
-void show_dynamics_inputs(external_source& /*srcs*/, qss2_sum_2& /*dyn*/) {}
+void show_dynamics_inputs(external_source& /*srcs*/, qss2_sum_2& dyn)
+{
+    ImGui::InputReal("value-0", &dyn.default_values[0]);
+    ImGui::InputReal("value-1", &dyn.default_values[1]);
+}
 
-void show_dynamics_inputs(external_source& /*srcs*/, qss2_sum_3& /*dyn*/) {}
+void show_dynamics_inputs(external_source& /*srcs*/, qss2_sum_3& dyn)
+{
+    ImGui::InputReal("value-0", &dyn.default_values[0]);
+    ImGui::InputReal("value-1", &dyn.default_values[1]);
+    ImGui::InputReal("value-2", &dyn.default_values[2]);
+}
 
-void show_dynamics_inputs(external_source& /*srcs*/, qss2_sum_4& /*dyn*/) {}
+void show_dynamics_inputs(external_source& /*srcs*/, qss2_sum_4& dyn)
+{
+    ImGui::InputReal("value-0", &dyn.default_values[0]);
+    ImGui::InputReal("value-1", &dyn.default_values[1]);
+    ImGui::InputReal("value-2", &dyn.default_values[2]);
+    ImGui::InputReal("value-3", &dyn.default_values[3]);
+}
 
 void show_dynamics_inputs(external_source& /*srcs*/, qss2_wsum_2& dyn)
 {
+    ImGui::InputReal("value-0", &dyn.default_values[0]);
+    ImGui::InputReal("value-1", &dyn.default_values[1]);
+
     ImGui::InputReal("coeff-0", &dyn.default_input_coeffs[0]);
     ImGui::InputReal("coeff-1", &dyn.default_input_coeffs[1]);
 }
 
 void show_dynamics_inputs(external_source& /*srcs*/, qss2_wsum_3& dyn)
 {
+    ImGui::InputReal("value-0", &dyn.default_values[0]);
+    ImGui::InputReal("value-1", &dyn.default_values[1]);
+    ImGui::InputReal("value-2", &dyn.default_values[2]);
+
     ImGui::InputReal("coeff-0", &dyn.default_input_coeffs[0]);
     ImGui::InputReal("coeff-1", &dyn.default_input_coeffs[1]);
     ImGui::InputReal("coeff-2", &dyn.default_input_coeffs[2]);
@@ -82,6 +131,11 @@ void show_dynamics_inputs(external_source& /*srcs*/, qss2_wsum_3& dyn)
 
 void show_dynamics_inputs(external_source& /*srcs*/, qss2_wsum_4& dyn)
 {
+    ImGui::InputReal("value-0", &dyn.default_values[0]);
+    ImGui::InputReal("value-1", &dyn.default_values[1]);
+    ImGui::InputReal("value-2", &dyn.default_values[2]);
+    ImGui::InputReal("value-3", &dyn.default_values[3]);
+
     ImGui::InputReal("coeff-0", &dyn.default_input_coeffs[0]);
     ImGui::InputReal("coeff-1", &dyn.default_input_coeffs[1]);
     ImGui::InputReal("coeff-2", &dyn.default_input_coeffs[2]);
@@ -91,20 +145,42 @@ void show_dynamics_inputs(external_source& /*srcs*/, qss2_wsum_4& dyn)
 void show_dynamics_inputs(external_source& /*srcs*/, qss3_multiplier& /*dyn*/)
 {}
 
-void show_dynamics_inputs(external_source& /*srcs*/, qss3_sum_2& /*dyn*/) {}
+void show_dynamics_inputs(external_source& /*srcs*/, qss3_sum_2& dyn)
+{
+    ImGui::InputReal("value-0", &dyn.default_values[0]);
+    ImGui::InputReal("value-1", &dyn.default_values[1]);
+}
 
-void show_dynamics_inputs(external_source& /*srcs*/, qss3_sum_3& /*dyn*/) {}
+void show_dynamics_inputs(external_source& /*srcs*/, qss3_sum_3& dyn)
+{
+    ImGui::InputReal("value-0", &dyn.default_values[0]);
+    ImGui::InputReal("value-1", &dyn.default_values[1]);
+    ImGui::InputReal("value-2", &dyn.default_values[2]);
+}
 
-void show_dynamics_inputs(external_source& /*srcs*/, qss3_sum_4& /*dyn*/) {}
+void show_dynamics_inputs(external_source& /*srcs*/, qss3_sum_4& dyn)
+{
+    ImGui::InputReal("value-0", &dyn.default_values[0]);
+    ImGui::InputReal("value-1", &dyn.default_values[1]);
+    ImGui::InputReal("value-2", &dyn.default_values[2]);
+    ImGui::InputReal("value-3", &dyn.default_values[3]);
+}
 
 void show_dynamics_inputs(external_source& /*srcs*/, qss3_wsum_2& dyn)
 {
+    ImGui::InputReal("value-0", &dyn.default_values[0]);
+    ImGui::InputReal("value-1", &dyn.default_values[1]);
+
     ImGui::InputReal("coeff-0", &dyn.default_input_coeffs[0]);
     ImGui::InputReal("coeff-1", &dyn.default_input_coeffs[1]);
 }
 
 void show_dynamics_inputs(external_source& /*srcs*/, qss3_wsum_3& dyn)
 {
+    ImGui::InputReal("value-0", &dyn.default_values[0]);
+    ImGui::InputReal("value-1", &dyn.default_values[1]);
+    ImGui::InputReal("value-2", &dyn.default_values[2]);
+
     ImGui::InputReal("coeff-0", &dyn.default_input_coeffs[0]);
     ImGui::InputReal("coeff-1", &dyn.default_input_coeffs[1]);
     ImGui::InputReal("coeff-2", &dyn.default_input_coeffs[2]);
@@ -112,60 +188,11 @@ void show_dynamics_inputs(external_source& /*srcs*/, qss3_wsum_3& dyn)
 
 void show_dynamics_inputs(external_source& /*srcs*/, qss3_wsum_4& dyn)
 {
-    ImGui::InputReal("coeff-0", &dyn.default_input_coeffs[0]);
-    ImGui::InputReal("coeff-1", &dyn.default_input_coeffs[1]);
-    ImGui::InputReal("coeff-2", &dyn.default_input_coeffs[2]);
-    ImGui::InputReal("coeff-3", &dyn.default_input_coeffs[3]);
-}
+    ImGui::InputReal("value-0", &dyn.default_values[0]);
+    ImGui::InputReal("value-1", &dyn.default_values[1]);
+    ImGui::InputReal("value-2", &dyn.default_values[2]);
+    ImGui::InputReal("value-3", &dyn.default_values[3]);
 
-void show_dynamics_inputs(external_source& /*srcs*/, integrator& dyn)
-{
-    ImGui::InputReal("value", &dyn.default_current_value);
-    ImGui::InputReal("reset", &dyn.default_reset_value);
-}
-
-void show_dynamics_inputs(external_source& /*srcs*/, quantifier& dyn)
-{
-    ImGui::InputReal("quantum", &dyn.default_step_size);
-    ImGui::SliderInt("archive length", &dyn.default_past_length, 3, 100);
-}
-
-void show_dynamics_inputs(external_source& /*srcs*/, adder_2& dyn)
-{
-    ImGui::InputReal("coeff-0", &dyn.default_input_coeffs[0]);
-    ImGui::InputReal("coeff-1", &dyn.default_input_coeffs[1]);
-}
-
-void show_dynamics_inputs(external_source& /*srcs*/, adder_3& dyn)
-{
-    ImGui::InputReal("coeff-0", &dyn.default_input_coeffs[0]);
-    ImGui::InputReal("coeff-1", &dyn.default_input_coeffs[1]);
-    ImGui::InputReal("coeff-2", &dyn.default_input_coeffs[2]);
-}
-
-void show_dynamics_inputs(external_source& /*srcs*/, adder_4& dyn)
-{
-    ImGui::InputReal("coeff-0", &dyn.default_input_coeffs[0]);
-    ImGui::InputReal("coeff-1", &dyn.default_input_coeffs[1]);
-    ImGui::InputReal("coeff-2", &dyn.default_input_coeffs[2]);
-    ImGui::InputReal("coeff-2", &dyn.default_input_coeffs[3]);
-}
-
-void show_dynamics_inputs(external_source& /*srcs*/, mult_2& dyn)
-{
-    ImGui::InputReal("coeff-0", &dyn.default_input_coeffs[0]);
-    ImGui::InputReal("coeff-1", &dyn.default_input_coeffs[1]);
-}
-
-void show_dynamics_inputs(external_source& /*srcs*/, mult_3& dyn)
-{
-    ImGui::InputReal("coeff-0", &dyn.default_input_coeffs[0]);
-    ImGui::InputReal("coeff-1", &dyn.default_input_coeffs[1]);
-    ImGui::InputReal("coeff-2", &dyn.default_input_coeffs[2]);
-}
-
-void show_dynamics_inputs(external_source& /*srcs*/, mult_4& dyn)
-{
     ImGui::InputReal("coeff-0", &dyn.default_input_coeffs[0]);
     ImGui::InputReal("coeff-1", &dyn.default_input_coeffs[1]);
     ImGui::InputReal("coeff-2", &dyn.default_input_coeffs[2]);
@@ -509,18 +536,7 @@ void show_dynamics_inputs(external_source& /*srcs*/, qss2_square& /*dyn*/) {}
 
 void show_dynamics_inputs(external_source& /*srcs*/, qss3_square& /*dyn*/) {}
 
-void show_dynamics_inputs(external_source& /*srcs*/, cross& dyn)
-{
-    ImGui::InputReal("threshold", &dyn.default_threshold);
-}
-
 void show_dynamics_inputs(external_source& /*srcs*/, accumulator_2& /*dyn*/) {}
-
-void show_dynamics_inputs(external_source& /*srcs*/, filter& dyn)
-{
-    ImGui::InputReal("lower threshold", &dyn.default_lower_threshold);
-    ImGui::InputReal("upper threshold", &dyn.default_upper_threshold);
-}
 
 void show_dynamics_inputs(external_source& /*srcs*/, logical_and_2& dyn)
 {
@@ -802,85 +818,6 @@ static bool show_parameter_editor(application& /*app*/,
 }
 
 static bool show_parameter_editor(application& /*app*/,
-                                  integrator& /*dyn*/,
-                                  parameter& p) noexcept
-{
-    return ImGui::InputReal("value", &p.reals[0]) ||
-           ImGui::InputReal("reset", &p.reals[1]);
-}
-
-static bool show_parameter_editor(application& /*app*/,
-                                  quantifier& /*dyn*/,
-                                  parameter& p) noexcept
-{
-    bool is_changed = ImGui::InputReal("quantum", &p.reals[0]);
-    int  value      = static_cast<int>(p.integers[0]);
-    value           = std::clamp(value, 3, 100);
-
-    if (ImGui::InputInt("archive length", &value)) {
-        value         = std::clamp(value, 3, 100);
-        p.integers[0] = value;
-        is_changed    = true;
-    }
-
-    return is_changed;
-}
-
-static bool show_parameter_editor(application& /*app*/,
-                                  adder_2& /*dyn*/,
-                                  parameter& p) noexcept
-{
-    return ImGui::InputReal("coeff-0", &p.reals[0]) ||
-           ImGui::InputReal("coeff-1", &p.reals[1]);
-}
-
-static bool show_parameter_editor(application& /*app*/,
-                                  adder_3& /*dyn*/,
-                                  parameter& p) noexcept
-{
-    return ImGui::InputReal("coeff-0", &p.reals[0]) ||
-           ImGui::InputReal("coeff-1", &p.reals[1]) ||
-           ImGui::InputReal("coeff-2", &p.reals[2]);
-}
-
-static bool show_parameter_editor(application& /*app*/,
-                                  adder_4& /*dyn*/,
-                                  parameter& p) noexcept
-{
-    return ImGui::InputReal("coeff-0", &p.reals[0]) ||
-           ImGui::InputReal("coeff-1", &p.reals[1]) ||
-           ImGui::InputReal("coeff-2", &p.reals[2]) ||
-           ImGui::InputReal("coeff-3", &p.reals[3]);
-}
-
-static bool show_parameter_editor(application& /*app*/,
-                                  mult_2& /*dyn*/,
-                                  parameter& p) noexcept
-{
-    return ImGui::InputReal("coeff-0", &p.reals[0]) ||
-           ImGui::InputReal("coeff-1", &p.reals[1]);
-}
-
-static bool show_parameter_editor(application& /*app*/,
-                                  mult_3& /*dyn*/,
-                                  parameter& p) noexcept
-{
-    return ImGui::InputReal("coeff-0", &p.reals[0]) ||
-           ImGui::InputReal("coeff-1", &p.reals[1]) ||
-           ImGui::InputReal("coeff-2", &p.reals[2]);
-}
-
-static bool show_parameter_editor(application& /*app*/,
-                                  mult_4& /*dyn*/,
-                                  parameter& p) noexcept
-{
-    return ImGui::InputReal("coeff-0", &p.reals[0]) ||
-           ImGui::InputReal("coeff-1", &p.reals[1]) ||
-           ImGui::InputReal("coeff-2", &p.reals[2]) ||
-           ImGui::InputReal("coeff-3", &p.reals[3]);
-}
-
-static bool show_parameter_editor(application& /*app*/,
                                   counter& /*dyn*/,
                                   parameter& /*p*/) noexcept
 {
@@ -1114,25 +1051,10 @@ static bool show_parameter_editor(application& /*app*/,
 }
 
 static bool show_parameter_editor(application& /*app*/,
-                                  cross& /*dyn*/,
-                                  parameter& p) noexcept
-{
-    return ImGui::InputReal("threshold", &p.reals[0]);
-}
-
-static bool show_parameter_editor(application& /*app*/,
                                   accumulator_2& /*dyn*/,
                                   parameter& /*p*/) noexcept
 {
     return false;
-}
-
-static bool show_parameter_editor(application& /*app*/,
-                                  filter& /*dyn*/,
-                                  parameter& p) noexcept
-{
-    return ImGui::InputReal("lower threshold", &p.reals[0]) ||
-           ImGui::InputReal("upper threshold", &p.reals[1]);
 }
 
 static bool show_parameter_editor(application& /*app*/,
@@ -1493,97 +1415,6 @@ bool show_parameter(dynamics_qss3_wsum_4_tag,
     return b1 or b2 or b3 or b4;
 }
 
-bool show_parameter(dynamics_integrator_tag,
-                    application& /*app*/,
-                    parameter& p) noexcept
-{
-    const auto b1 = ImGui::InputReal("value", &p.reals[0]);
-    const auto b2 = ImGui::InputReal("reset", &p.reals[1]);
-
-    return b1 or b2;
-}
-
-bool show_parameter(dynamics_quantifier_tag,
-                    application& /*app*/,
-                    parameter& p) noexcept
-{
-    const auto b1 = ImGui::InputReal("quantum", &p.reals[0]);
-
-    auto       i  = static_cast<int>(p.integers[0]);
-    const auto b2 = ImGui::SliderInt("archive length", &i, 3, 100);
-
-    if (b2)
-        p.integers[0] = static_cast<i64>(i);
-
-    return b1 or b2;
-}
-
-bool show_parameter(dynamics_adder_2_tag,
-                    application& /*app*/,
-                    parameter& p) noexcept
-{
-    const auto b1 = ImGui::InputReal("coeff-0", &p.reals[0]);
-    const auto b2 = ImGui::InputReal("coeff-1", &p.reals[1]);
-
-    return b1 or b2;
-}
-
-bool show_parameter(dynamics_adder_3_tag,
-                    application& /*app*/,
-                    parameter& p) noexcept
-{
-    const auto b1 = ImGui::InputReal("coeff-0", &p.reals[0]);
-    const auto b2 = ImGui::InputReal("coeff-1", &p.reals[1]);
-    const auto b3 = ImGui::InputReal("coeff-2", &p.reals[2]);
-
-    return b1 or b2 or b3;
-}
-
-bool show_parameter(dynamics_adder_4_tag,
-                    application& /*app*/,
-                    parameter& p) noexcept
-{
-    const auto b1 = ImGui::InputReal("coeff-0", &p.reals[0]);
-    const auto b2 = ImGui::InputReal("coeff-1", &p.reals[1]);
-    const auto b3 = ImGui::InputReal("coeff-2", &p.reals[2]);
-    const auto b4 = ImGui::InputReal("coeff-3", &p.reals[3]);
-
-    return b1 or b2 or b3 or b4;
-}
-
-bool show_parameter(dynamics_mult_2_tag,
-                    application& /*app*/,
-                    parameter& p) noexcept
-{
-    const auto b1 = ImGui::InputReal("coeff-0", &p.reals[0]);
-    const auto b2 = ImGui::InputReal("coeff-1", &p.reals[1]);
-
-    return b1 or b2;
-}
-
-bool show_parameter(dynamics_mult_3_tag,
-                    application& /*app*/,
-                    parameter& p) noexcept
-{
-    const auto b1 = ImGui::InputReal("coeff-0", &p.reals[0]);
-    const auto b2 = ImGui::InputReal("coeff-1", &p.reals[1]);
-    const auto b3 = ImGui::InputReal("coeff-2", &p.reals[2]);
-
-    return b1 or b2 or b3;
-}
-
-bool show_parameter(dynamics_mult_4_tag,
-                    application& /*app*/,
-                    parameter& p) noexcept
-{
-    const auto b1 = ImGui::InputReal("coeff-0", &p.reals[0]);
-    const auto b2 = ImGui::InputReal("coeff-1", &p.reals[1]);
-    const auto b3 = ImGui::InputReal("coeff-2", &p.reals[2]);
-    const auto b4 = ImGui::InputReal("coeff-3", &p.reals[3]);
-
-    return b1 or b2 or b3 or b4;
-}
-
 bool show_parameter(dynamics_counter_tag,
                     application& /*app*/,
                     parameter& /*p*/) noexcept
@@ -1826,13 +1657,6 @@ bool show_parameter(dynamics_qss3_square_tag,
     return false;
 }
 
-bool show_parameter(dynamics_cross_tag,
-                    application& /*app*/,
-                    parameter& p) noexcept
-{
-    return ImGui::InputReal("threshold", &p.reals[0]);
-}
-
 bool show_parameter(dynamics_accumulator_2_tag,
                     application& /*app*/,
                     parameter& /*p*/) noexcept
@@ -1860,16 +1684,6 @@ bool show_parameter(dynamics_time_func_tag,
     ImGui::PopItemWidth();
 
     return is_changed;
-}
-
-bool show_parameter(dynamics_filter_tag,
-                    application& /*app*/,
-                    parameter& p) noexcept
-{
-    const auto a = ImGui::InputReal("lower threshold", &p.reals[0]);
-    const auto b = ImGui::InputReal("upper threshold", &p.reals[1]);
-
-    return a or b;
 }
 
 bool show_parameter(dynamics_logical_and_2_tag,
@@ -2326,80 +2140,6 @@ auto get_dynamics_input_names(dynamics_qss3_wsum_4_tag) noexcept
     return std::span{ names.data(), names.size() };
 }
 
-auto get_dynamics_input_names(dynamics_integrator_tag) noexcept
-  -> std::span<const std::string_view>
-{
-    static const std::array<std::string_view, 3> names = { "quanta",
-                                                           "x-dot",
-                                                           "reset" };
-
-    return std::span{ names.data(), names.size() };
-}
-
-auto get_dynamics_input_names(dynamics_quantifier_tag) noexcept
-  -> std::span<const std::string_view>
-{
-    static const std::array<std::string_view, 1> names = { "in" };
-
-    return std::span{ names.data(), names.size() };
-}
-
-auto get_dynamics_input_names(dynamics_adder_2_tag) noexcept
-  -> std::span<const std::string_view>
-{
-    static const std::array<std::string_view, 2> names = { "in-1", "in-2" };
-
-    return std::span{ names.data(), names.size() };
-}
-
-auto get_dynamics_input_names(dynamics_adder_3_tag) noexcept
-  -> std::span<const std::string_view>
-{
-    static const std::array<std::string_view, 3> names = { "in-1",
-                                                           "in-2",
-                                                           "in-3" };
-
-    return std::span{ names.data(), names.size() };
-}
-
-auto get_dynamics_input_names(dynamics_adder_4_tag) noexcept
-  -> std::span<const std::string_view>
-{
-    static const std::array<std::string_view, 4> names = {
-        "in-1", "in-2", "in-3", "in-4"
-    };
-
-    return std::span{ names.data(), names.size() };
-}
-
-auto get_dynamics_input_names(dynamics_mult_2_tag) noexcept
-  -> std::span<const std::string_view>
-{
-    static const std::array<std::string_view, 2> names = { "in-1", "in-2" };
-
-    return std::span{ names.data(), names.size() };
-}
-
-auto get_dynamics_input_names(dynamics_mult_3_tag) noexcept
-  -> std::span<const std::string_view>
-{
-    static const std::array<std::string_view, 3> names = { "in-1",
-                                                           "in-2",
-                                                           "in-3" };
-
-    return std::span{ names.data(), names.size() };
-}
-
-auto get_dynamics_input_names(dynamics_mult_4_tag) noexcept
-  -> std::span<const std::string_view>
-{
-    static const std::array<std::string_view, 4> names = {
-        "in-1", "in-2", "in-3", "in-4"
-    };
-
-    return std::span{ names.data(), names.size() };
-}
-
 auto get_dynamics_input_names(dynamics_counter_tag) noexcept
   -> std::span<const std::string_view>
 {
@@ -2444,16 +2184,6 @@ auto get_dynamics_input_names(dynamics_constant_tag) noexcept
     return std::span<const std::string_view>{};
 }
 
-auto get_dynamics_input_names(dynamics_cross_tag) noexcept
-  -> std::span<const std::string_view>
-{
-    static const std::array<std::string_view, 4> names = {
-        "value", "if", "else", "threshold"
-    };
-
-    return std::span{ names.data(), names.size() };
-}
-
 auto get_dynamics_input_names(dynamics_accumulator_2_tag) noexcept
   -> std::span<const std::string_view>
 {
@@ -2468,14 +2198,6 @@ auto get_dynamics_input_names(dynamics_time_func_tag) noexcept
   -> std::span<const std::string_view>
 {
     return std::span<const std::string_view>{};
-}
-
-auto get_dynamics_input_names(dynamics_filter_tag) noexcept
-  -> std::span<const std::string_view>
-{
-    static const std::array<std::string_view, 1> names = { "in" };
-
-    return std::span{ names.data(), names.size() };
 }
 
 auto get_dynamics_input_names(dynamics_logical_and_2_tag) noexcept
@@ -2834,70 +2556,6 @@ auto get_dynamics_output_names(dynamics_qss3_wsum_4_tag) noexcept
     return std::span{ names.data(), names.size() };
 }
 
-auto get_dynamics_output_names(dynamics_integrator_tag) noexcept
-  -> std::span<const std::string_view>
-{
-    static const std::array<std::string_view, 1> names = { "out" };
-
-    return std::span{ names.data(), names.size() };
-}
-
-auto get_dynamics_output_names(dynamics_quantifier_tag) noexcept
-  -> std::span<const std::string_view>
-{
-    static const std::array<std::string_view, 1> names = { "out" };
-
-    return std::span{ names.data(), names.size() };
-}
-
-auto get_dynamics_output_names(dynamics_adder_2_tag) noexcept
-  -> std::span<const std::string_view>
-{
-    static const std::array<std::string_view, 1> names = { "out" };
-
-    return std::span{ names.data(), names.size() };
-}
-
-auto get_dynamics_output_names(dynamics_adder_3_tag) noexcept
-  -> std::span<const std::string_view>
-{
-    static const std::array<std::string_view, 1> names = { "out" };
-
-    return std::span{ names.data(), names.size() };
-}
-
-auto get_dynamics_output_names(dynamics_adder_4_tag) noexcept
-  -> std::span<const std::string_view>
-{
-    static const std::array<std::string_view, 1> names = { "out" };
-
-    return std::span{ names.data(), names.size() };
-}
-
-auto get_dynamics_output_names(dynamics_mult_2_tag) noexcept
-  -> std::span<const std::string_view>
-{
-    static const std::array<std::string_view, 1> names = { "out" };
-
-    return std::span{ names.data(), names.size() };
-}
-
-auto get_dynamics_output_names(dynamics_mult_3_tag) noexcept
-  -> std::span<const std::string_view>
-{
-    static const std::array<std::string_view, 1> names = { "out" };
-
-    return std::span{ names.data(), names.size() };
-}
-
-auto get_dynamics_output_names(dynamics_mult_4_tag) noexcept
-  -> std::span<const std::string_view>
-{
-    static const std::array<std::string_view, 1> names = { "out" };
-
-    return std::span{ names.data(), names.size() };
-}
-
 auto get_dynamics_output_names(dynamics_counter_tag) noexcept
   -> std::span<const std::string_view>
 {
@@ -2944,16 +2602,6 @@ auto get_dynamics_output_names(dynamics_constant_tag) noexcept
     return std::span{ names.data(), names.size() };
 }
 
-auto get_dynamics_output_names(dynamics_cross_tag) noexcept
-  -> std::span<const std::string_view>
-{
-    static const std::array<std::string_view, 3> names = { "if-value",
-                                                           "else-value",
-                                                           "event" };
-
-    return std::span{ names.data(), names.size() };
-}
-
 auto get_dynamics_output_names(dynamics_accumulator_2_tag) noexcept
   -> std::span<const std::string_view>
 {
@@ -2964,16 +2612,6 @@ auto get_dynamics_output_names(dynamics_time_func_tag) noexcept
   -> std::span<const std::string_view>
 {
     static const std::array<std::string_view, 1> names = { "out" };
-
-    return std::span{ names.data(), names.size() };
-}
-
-auto get_dynamics_output_names(dynamics_filter_tag) noexcept
-  -> std::span<const std::string_view>
-{
-    static const std::array<std::string_view, 3> names = { "value",
-                                                           "up",
-                                                           "down" };
 
     return std::span{ names.data(), names.size() };
 }

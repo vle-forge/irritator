@@ -123,12 +123,13 @@ public:
 #ifdef _WIN32
         aligned_alloc_fn call =
           reinterpret_cast<aligned_alloc_fn>(_aligned_malloc);
+        auto* first = call(byte_count, alignof(T));
 #else
         aligned_alloc_fn call =
           reinterpret_cast<aligned_alloc_fn>(std::aligned_alloc);
+        auto* first = call(alignof(T), byte_count);
 #endif
 
-        auto* first = call(byte_count, alignof(T));
         if (not first)
             std::abort();
 

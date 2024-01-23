@@ -10,8 +10,7 @@
 namespace irt {
 
 //! How to use @c observation_message and interpolate functions.
-enum class interpolate_type
-{
+enum class interpolate_type {
     none,
     qss1,
     qss2,
@@ -60,16 +59,6 @@ constexpr inline auto get_interpolate_type(const dynamics_type type) noexcept
     case dynamics_type::qss3_wsum_3:
     case dynamics_type::qss3_wsum_4:
         return interpolate_type::qss3;
-
-    case dynamics_type::integrator:
-    case dynamics_type::quantifier:
-    case dynamics_type::adder_2:
-    case dynamics_type::adder_3:
-    case dynamics_type::adder_4:
-    case dynamics_type::mult_2:
-    case dynamics_type::mult_3:
-    case dynamics_type::mult_4:
-        return interpolate_type::qss1;
 
     default:
         return interpolate_type::none;

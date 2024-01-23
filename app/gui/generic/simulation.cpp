@@ -341,59 +341,6 @@ static void show_dynamics_values(simulation& /*sim*/, const qss3_wsum_4& dyn)
     ImGui::TextFormat("{} {}", dyn.values[3], dyn.values[7]);
 }
 
-static void show_dynamics_values(simulation& /*sim*/, const integrator& dyn)
-{
-    ImGui::TextFormat("value {}", dyn.current_value);
-}
-
-static void show_dynamics_values(simulation& /*sim*/, const quantifier& dyn)
-{
-    ImGui::TextFormat("up threshold {}", dyn.m_upthreshold);
-    ImGui::TextFormat("down threshold {}", dyn.m_downthreshold);
-}
-
-static void show_dynamics_values(simulation& /*sim*/, const adder_2& dyn)
-{
-    ImGui::TextFormat("{} * {}", dyn.values[0], dyn.input_coeffs[0]);
-    ImGui::TextFormat("{} * {}", dyn.values[1], dyn.input_coeffs[1]);
-}
-
-static void show_dynamics_values(simulation& /*sim*/, const adder_3& dyn)
-{
-    ImGui::TextFormat("{} * {}", dyn.values[0], dyn.input_coeffs[0]);
-    ImGui::TextFormat("{} * {}", dyn.values[1], dyn.input_coeffs[1]);
-    ImGui::TextFormat("{} * {}", dyn.values[2], dyn.input_coeffs[2]);
-}
-
-static void show_dynamics_values(simulation& /*sim*/, const adder_4& dyn)
-{
-    ImGui::TextFormat("{} * {}", dyn.values[0], dyn.input_coeffs[0]);
-    ImGui::TextFormat("{} * {}", dyn.values[1], dyn.input_coeffs[1]);
-    ImGui::TextFormat("{} * {}", dyn.values[2], dyn.input_coeffs[2]);
-    ImGui::TextFormat("{} * {}", dyn.values[3], dyn.input_coeffs[3]);
-}
-
-static void show_dynamics_values(simulation& /*sim*/, const mult_2& dyn)
-{
-    ImGui::TextFormat("{} * {}", dyn.values[0], dyn.input_coeffs[0]);
-    ImGui::TextFormat("{} * {}", dyn.values[1], dyn.input_coeffs[1]);
-}
-
-static void show_dynamics_values(simulation& /*sim*/, const mult_3& dyn)
-{
-    ImGui::TextFormat("{} * {}", dyn.values[0], dyn.input_coeffs[0]);
-    ImGui::TextFormat("{} * {}", dyn.values[1], dyn.input_coeffs[1]);
-    ImGui::TextFormat("{} * {}", dyn.values[2], dyn.input_coeffs[2]);
-}
-
-static void show_dynamics_values(simulation& /*sim*/, const mult_4& dyn)
-{
-    ImGui::TextFormat("{} * {}", dyn.values[0], dyn.input_coeffs[0]);
-    ImGui::TextFormat("{} * {}", dyn.values[1], dyn.input_coeffs[1]);
-    ImGui::TextFormat("{} * {}", dyn.values[2], dyn.input_coeffs[2]);
-    ImGui::TextFormat("{} * {}", dyn.values[3], dyn.input_coeffs[3]);
-}
-
 static void show_dynamics_values(simulation& /*sim*/, const counter& dyn)
 {
     ImGui::TextFormat("number {}", dyn.number);
@@ -515,24 +462,11 @@ static void show_dynamics_values(simulation& /*sim*/, const qss3_square& dyn)
     ImGui::TextFormat("{} {} {}", dyn.value[0], dyn.value[1], dyn.value[2]);
 }
 
-static void show_dynamics_values(simulation& /*sim*/, const cross& dyn)
-{
-    ImGui::TextFormat("threshold: {}", dyn.threshold);
-    ImGui::TextFormat("value: {}", dyn.value);
-    ImGui::TextFormat("if-value: {}", dyn.if_value);
-    ImGui::TextFormat("else-value: {}", dyn.else_value);
-}
-
 static void show_dynamics_values(simulation& /*sim*/, const accumulator_2& dyn)
 {
     ImGui::TextFormat("number {}", dyn.number);
     ImGui::TextFormat("- 0: {}", dyn.numbers[0]);
     ImGui::TextFormat("- 1: {}", dyn.numbers[1]);
-}
-
-static void show_dynamics_values(simulation& /*sim*/, const filter& dyn)
-{
-    ImGui::TextFormat("value {}", dyn.inValue[0]);
 }
 
 static void show_dynamics_values(simulation& /*sim*/, const time_func& dyn)
@@ -1072,32 +1006,6 @@ static void show_simulation_graph_editor_edit_menu(application& app,
             ImGui::EndMenu();
         }
 
-        if (ImGui::BeginMenu("AQSS (experimental)")) {
-            add_popup_menuitem(app.simulation_ed,
-                               can_edit,
-                               dynamics_type::integrator,
-                               click_pos);
-            add_popup_menuitem(app.simulation_ed,
-                               can_edit,
-                               dynamics_type::quantifier,
-                               click_pos);
-            add_popup_menuitem(
-              app.simulation_ed, can_edit, dynamics_type::adder_2, click_pos);
-            add_popup_menuitem(
-              app.simulation_ed, can_edit, dynamics_type::adder_3, click_pos);
-            add_popup_menuitem(
-              app.simulation_ed, can_edit, dynamics_type::adder_4, click_pos);
-            add_popup_menuitem(
-              app.simulation_ed, can_edit, dynamics_type::mult_2, click_pos);
-            add_popup_menuitem(
-              app.simulation_ed, can_edit, dynamics_type::mult_3, click_pos);
-            add_popup_menuitem(
-              app.simulation_ed, can_edit, dynamics_type::mult_4, click_pos);
-            add_popup_menuitem(
-              app.simulation_ed, can_edit, dynamics_type::cross, click_pos);
-            ImGui::EndMenu();
-        }
-
         if (ImGui::BeginMenu("Logical")) {
             add_popup_menuitem(app.simulation_ed,
                                can_edit,
@@ -1140,8 +1048,6 @@ static void show_simulation_graph_editor_edit_menu(application& app,
           app.simulation_ed, can_edit, dynamics_type::time_func, click_pos);
         add_popup_menuitem(
           app.simulation_ed, can_edit, dynamics_type::accumulator_2, click_pos);
-        add_popup_menuitem(
-          app.simulation_ed, can_edit, dynamics_type::filter, click_pos);
         add_popup_menuitem(
           app.simulation_ed, can_edit, dynamics_type::hsm_wrapper, click_pos);
 

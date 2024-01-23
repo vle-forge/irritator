@@ -38,14 +38,6 @@ void show_dynamics_inputs(external_source& srcs, qss3_sum_4& dyn);
 void show_dynamics_inputs(external_source& srcs, qss3_wsum_2& dyn);
 void show_dynamics_inputs(external_source& srcs, qss3_wsum_3& dyn);
 void show_dynamics_inputs(external_source& srcs, qss3_wsum_4& dyn);
-void show_dynamics_inputs(external_source& srcs, integrator& dyn);
-void show_dynamics_inputs(external_source& srcs, quantifier& dyn);
-void show_dynamics_inputs(external_source& srcs, adder_2& dyn);
-void show_dynamics_inputs(external_source& srcs, adder_3& dyn);
-void show_dynamics_inputs(external_source& srcs, adder_4& dyn);
-void show_dynamics_inputs(external_source& srcs, mult_2& dyn);
-void show_dynamics_inputs(external_source& srcs, mult_3& dyn);
-void show_dynamics_inputs(external_source& srcs, mult_4& dyn);
 void show_dynamics_inputs(external_source& srcs, counter& dyn);
 void show_dynamics_inputs(external_source& srcs, queue& dyn);
 void show_dynamics_inputs(external_source& srcs, dynamic_queue& dyn);
@@ -64,9 +56,7 @@ void show_dynamics_inputs(external_source& srcs, qss3_power& dyn);
 void show_dynamics_inputs(external_source& srcs, qss1_square& dyn);
 void show_dynamics_inputs(external_source& srcs, qss2_square& dyn);
 void show_dynamics_inputs(external_source& srcs, qss3_square& dyn);
-void show_dynamics_inputs(external_source& srcs, cross& dyn);
 void show_dynamics_inputs(external_source& srcs, accumulator_2& dyn);
-void show_dynamics_inputs(external_source& srcs, filter& dyn);
 void show_dynamics_inputs(external_source& srcs, logical_and_2& dyn);
 void show_dynamics_inputs(external_source& srcs, logical_or_2& dyn);
 void show_dynamics_inputs(external_source& srcs, logical_and_3& dyn);
@@ -100,126 +90,56 @@ bool show_external_sources_combo(external_source&     srcs,
                                  u64&                 src_id,
                                  source::source_type& src_type) noexcept;
 
-struct dynamics_qss1_integrator_tag
-{};
-struct dynamics_qss1_multiplier_tag
-{};
-struct dynamics_qss1_cross_tag
-{};
-struct dynamics_qss1_filter_tag
-{};
-struct dynamics_qss1_power_tag
-{};
-struct dynamics_qss1_square_tag
-{};
-struct dynamics_qss1_sum_2_tag
-{};
-struct dynamics_qss1_sum_3_tag
-{};
-struct dynamics_qss1_sum_4_tag
-{};
-struct dynamics_qss1_wsum_2_tag
-{};
-struct dynamics_qss1_wsum_3_tag
-{};
-struct dynamics_qss1_wsum_4_tag
-{};
-struct dynamics_qss2_integrator_tag
-{};
-struct dynamics_qss2_multiplier_tag
-{};
-struct dynamics_qss2_cross_tag
-{};
-struct dynamics_qss2_filter_tag
-{};
-struct dynamics_qss2_power_tag
-{};
-struct dynamics_qss2_square_tag
-{};
-struct dynamics_qss2_sum_2_tag
-{};
-struct dynamics_qss2_sum_3_tag
-{};
-struct dynamics_qss2_sum_4_tag
-{};
-struct dynamics_qss2_wsum_2_tag
-{};
-struct dynamics_qss2_wsum_3_tag
-{};
-struct dynamics_qss2_wsum_4_tag
-{};
-struct dynamics_qss3_integrator_tag
-{};
-struct dynamics_qss3_multiplier_tag
-{};
-struct dynamics_qss3_cross_tag
-{};
-struct dynamics_qss3_filter_tag
-{};
-struct dynamics_qss3_power_tag
-{};
-struct dynamics_qss3_square_tag
-{};
-struct dynamics_qss3_sum_2_tag
-{};
-struct dynamics_qss3_sum_3_tag
-{};
-struct dynamics_qss3_sum_4_tag
-{};
-struct dynamics_qss3_wsum_2_tag
-{};
-struct dynamics_qss3_wsum_3_tag
-{};
-struct dynamics_qss3_wsum_4_tag
-{};
-struct dynamics_integrator_tag
-{};
-struct dynamics_quantifier_tag
-{};
-struct dynamics_adder_2_tag
-{};
-struct dynamics_adder_3_tag
-{};
-struct dynamics_adder_4_tag
-{};
-struct dynamics_mult_2_tag
-{};
-struct dynamics_mult_3_tag
-{};
-struct dynamics_mult_4_tag
-{};
-struct dynamics_counter_tag
-{};
-struct dynamics_queue_tag
-{};
-struct dynamics_dynamic_queue_tag
-{};
-struct dynamics_priority_queue_tag
-{};
-struct dynamics_generator_tag
-{};
-struct dynamics_constant_tag
-{};
-struct dynamics_cross_tag
-{};
-struct dynamics_accumulator_2_tag
-{};
-struct dynamics_time_func_tag
-{};
-struct dynamics_filter_tag
-{};
-struct dynamics_logical_and_2_tag
-{};
-struct dynamics_logical_and_3_tag
-{};
-struct dynamics_logical_or_2_tag
-{};
-struct dynamics_logical_or_3_tag
-{};
-struct dynamics_logical_invert_tag
-{};
-struct dynamics_hsm_wrapper_tag
-{};
+struct dynamics_qss1_integrator_tag {};
+struct dynamics_qss1_multiplier_tag {};
+struct dynamics_qss1_cross_tag {};
+struct dynamics_qss1_filter_tag {};
+struct dynamics_qss1_power_tag {};
+struct dynamics_qss1_square_tag {};
+struct dynamics_qss1_sum_2_tag {};
+struct dynamics_qss1_sum_3_tag {};
+struct dynamics_qss1_sum_4_tag {};
+struct dynamics_qss1_wsum_2_tag {};
+struct dynamics_qss1_wsum_3_tag {};
+struct dynamics_qss1_wsum_4_tag {};
+struct dynamics_qss2_integrator_tag {};
+struct dynamics_qss2_multiplier_tag {};
+struct dynamics_qss2_cross_tag {};
+struct dynamics_qss2_filter_tag {};
+struct dynamics_qss2_power_tag {};
+struct dynamics_qss2_square_tag {};
+struct dynamics_qss2_sum_2_tag {};
+struct dynamics_qss2_sum_3_tag {};
+struct dynamics_qss2_sum_4_tag {};
+struct dynamics_qss2_wsum_2_tag {};
+struct dynamics_qss2_wsum_3_tag {};
+struct dynamics_qss2_wsum_4_tag {};
+struct dynamics_qss3_integrator_tag {};
+struct dynamics_qss3_multiplier_tag {};
+struct dynamics_qss3_cross_tag {};
+struct dynamics_qss3_filter_tag {};
+struct dynamics_qss3_power_tag {};
+struct dynamics_qss3_square_tag {};
+struct dynamics_qss3_sum_2_tag {};
+struct dynamics_qss3_sum_3_tag {};
+struct dynamics_qss3_sum_4_tag {};
+struct dynamics_qss3_wsum_2_tag {};
+struct dynamics_qss3_wsum_3_tag {};
+struct dynamics_qss3_wsum_4_tag {};
+struct dynamics_counter_tag {};
+struct dynamics_queue_tag {};
+struct dynamics_dynamic_queue_tag {};
+struct dynamics_priority_queue_tag {};
+struct dynamics_generator_tag {};
+struct dynamics_constant_tag {};
+struct dynamics_accumulator_2_tag {};
+struct dynamics_time_func_tag {};
+struct dynamics_logical_and_2_tag {};
+struct dynamics_logical_and_3_tag {};
+struct dynamics_logical_or_2_tag {};
+struct dynamics_logical_or_3_tag {};
+struct dynamics_logical_invert_tag {};
+struct dynamics_hsm_wrapper_tag {};
 
 template<typename Function, typename... Args>
 constexpr auto dispatcher(const dynamics_type type,
@@ -299,22 +219,6 @@ constexpr auto dispatcher(const dynamics_type type,
         return f(dynamics_qss3_wsum_3_tag{}, std::forward<Args>(args)...);
     case dynamics_type::qss3_wsum_4:
         return f(dynamics_qss3_wsum_4_tag{}, std::forward<Args>(args)...);
-    case dynamics_type::integrator:
-        return f(dynamics_integrator_tag{}, std::forward<Args>(args)...);
-    case dynamics_type::quantifier:
-        return f(dynamics_quantifier_tag{}, std::forward<Args>(args)...);
-    case dynamics_type::adder_2:
-        return f(dynamics_adder_2_tag{}, std::forward<Args>(args)...);
-    case dynamics_type::adder_3:
-        return f(dynamics_adder_3_tag{}, std::forward<Args>(args)...);
-    case dynamics_type::adder_4:
-        return f(dynamics_adder_4_tag{}, std::forward<Args>(args)...);
-    case dynamics_type::mult_2:
-        return f(dynamics_mult_2_tag{}, std::forward<Args>(args)...);
-    case dynamics_type::mult_3:
-        return f(dynamics_mult_3_tag{}, std::forward<Args>(args)...);
-    case dynamics_type::mult_4:
-        return f(dynamics_mult_4_tag{}, std::forward<Args>(args)...);
     case dynamics_type::counter:
         return f(dynamics_counter_tag{}, std::forward<Args>(args)...);
     case dynamics_type::queue:
@@ -327,14 +231,10 @@ constexpr auto dispatcher(const dynamics_type type,
         return f(dynamics_generator_tag{}, std::forward<Args>(args)...);
     case dynamics_type::constant:
         return f(dynamics_constant_tag{}, std::forward<Args>(args)...);
-    case dynamics_type::cross:
-        return f(dynamics_cross_tag{}, std::forward<Args>(args)...);
     case dynamics_type::accumulator_2:
         return f(dynamics_accumulator_2_tag{}, std::forward<Args>(args)...);
     case dynamics_type::time_func:
         return f(dynamics_time_func_tag{}, std::forward<Args>(args)...);
-    case dynamics_type::filter:
-        return f(dynamics_filter_tag{}, std::forward<Args>(args)...);
     case dynamics_type::logical_and_2:
         return f(dynamics_logical_and_2_tag{}, std::forward<Args>(args)...);
     case dynamics_type::logical_and_3:
@@ -427,22 +327,6 @@ constexpr auto dispatcher(Function&& f, Args&&... args) noexcept
         return f(dynamics_qss3_wsum_3_tag{}, std::forward<Args>(args)...);
     if constexpr (std::is_same_v<Dynamics, qss3_wsum_4>)
         return f(dynamics_qss3_wsum_4_tag{}, std::forward<Args>(args)...);
-    if constexpr (std::is_same_v<Dynamics, integrator>)
-        return f(dynamics_integrator_tag{}, std::forward<Args>(args)...);
-    if constexpr (std::is_same_v<Dynamics, quantifier>)
-        return f(dynamics_quantifier_tag{}, std::forward<Args>(args)...);
-    if constexpr (std::is_same_v<Dynamics, adder_2>)
-        return f(dynamics_adder_2_tag{}, std::forward<Args>(args)...);
-    if constexpr (std::is_same_v<Dynamics, adder_3>)
-        return f(dynamics_adder_3_tag{}, std::forward<Args>(args)...);
-    if constexpr (std::is_same_v<Dynamics, adder_4>)
-        return f(dynamics_adder_4_tag{}, std::forward<Args>(args)...);
-    if constexpr (std::is_same_v<Dynamics, mult_2>)
-        return f(dynamics_mult_2_tag{}, std::forward<Args>(args)...);
-    if constexpr (std::is_same_v<Dynamics, mult_3>)
-        return f(dynamics_mult_3_tag{}, std::forward<Args>(args)...);
-    if constexpr (std::is_same_v<Dynamics, mult_4>)
-        return f(dynamics_mult_4_tag{}, std::forward<Args>(args)...);
     if constexpr (std::is_same_v<Dynamics, counter>)
         return f(dynamics_counter_tag{}, std::forward<Args>(args)...);
     if constexpr (std::is_same_v<Dynamics, queue>)
@@ -455,14 +339,10 @@ constexpr auto dispatcher(Function&& f, Args&&... args) noexcept
         return f(dynamics_generator_tag{}, std::forward<Args>(args)...);
     if constexpr (std::is_same_v<Dynamics, constant>)
         return f(dynamics_constant_tag{}, std::forward<Args>(args)...);
-    if constexpr (std::is_same_v<Dynamics, cross>)
-        return f(dynamics_cross_tag{}, std::forward<Args>(args)...);
     if constexpr (std::is_same_v<Dynamics, accumulator_2>)
         return f(dynamics_accumulator_2_tag{}, std::forward<Args>(args)...);
     if constexpr (std::is_same_v<Dynamics, time_func>)
         return f(dynamics_time_func_tag{}, std::forward<Args>(args)...);
-    if constexpr (std::is_same_v<Dynamics, filter>)
-        return f(dynamics_filter_tag{}, std::forward<Args>(args)...);
     if constexpr (std::is_same_v<Dynamics, logical_and_2>)
         return f(dynamics_logical_and_2_tag{}, std::forward<Args>(args)...);
     if constexpr (std::is_same_v<Dynamics, logical_and_3>)
@@ -587,30 +467,6 @@ auto show_parameter(dynamics_qss3_wsum_3_tag,
 auto show_parameter(dynamics_qss3_wsum_4_tag,
                     application& app,
                     parameter&   p) noexcept -> bool;
-auto show_parameter(dynamics_integrator_tag,
-                    application& app,
-                    parameter&   p) noexcept -> bool;
-auto show_parameter(dynamics_quantifier_tag,
-                    application& app,
-                    parameter&   p) noexcept -> bool;
-auto show_parameter(dynamics_adder_2_tag,
-                    application& app,
-                    parameter&   p) noexcept -> bool;
-auto show_parameter(dynamics_adder_3_tag,
-                    application& app,
-                    parameter&   p) noexcept -> bool;
-auto show_parameter(dynamics_adder_4_tag,
-                    application& app,
-                    parameter&   p) noexcept -> bool;
-auto show_parameter(dynamics_mult_2_tag,
-                    application& app,
-                    parameter&   p) noexcept -> bool;
-auto show_parameter(dynamics_mult_3_tag,
-                    application& app,
-                    parameter&   p) noexcept -> bool;
-auto show_parameter(dynamics_mult_4_tag,
-                    application& app,
-                    parameter&   p) noexcept -> bool;
 auto show_parameter(dynamics_counter_tag,
                     application& app,
                     parameter&   p) noexcept -> bool;
@@ -628,15 +484,10 @@ auto show_parameter(dynamics_generator_tag,
 auto show_parameter(dynamics_constant_tag,
                     application& app,
                     parameter&   p) noexcept -> bool;
-auto show_parameter(dynamics_cross_tag, application& app, parameter& p) noexcept
-  -> bool;
 auto show_parameter(dynamics_accumulator_2_tag,
                     application& app,
                     parameter&   p) noexcept -> bool;
 auto show_parameter(dynamics_time_func_tag,
-                    application& app,
-                    parameter&   p) noexcept -> bool;
-auto show_parameter(dynamics_filter_tag,
                     application& app,
                     parameter&   p) noexcept -> bool;
 auto show_parameter(dynamics_logical_and_2_tag,
@@ -730,22 +581,6 @@ auto get_dynamics_input_names(dynamics_qss3_wsum_3_tag) noexcept
   -> std::span<const std::string_view>;
 auto get_dynamics_input_names(dynamics_qss3_wsum_4_tag) noexcept
   -> std::span<const std::string_view>;
-auto get_dynamics_input_names(dynamics_integrator_tag) noexcept
-  -> std::span<const std::string_view>;
-auto get_dynamics_input_names(dynamics_quantifier_tag) noexcept
-  -> std::span<const std::string_view>;
-auto get_dynamics_input_names(dynamics_adder_2_tag) noexcept
-  -> std::span<const std::string_view>;
-auto get_dynamics_input_names(dynamics_adder_3_tag) noexcept
-  -> std::span<const std::string_view>;
-auto get_dynamics_input_names(dynamics_adder_4_tag) noexcept
-  -> std::span<const std::string_view>;
-auto get_dynamics_input_names(dynamics_mult_2_tag) noexcept
-  -> std::span<const std::string_view>;
-auto get_dynamics_input_names(dynamics_mult_3_tag) noexcept
-  -> std::span<const std::string_view>;
-auto get_dynamics_input_names(dynamics_mult_4_tag) noexcept
-  -> std::span<const std::string_view>;
 auto get_dynamics_input_names(dynamics_counter_tag) noexcept
   -> std::span<const std::string_view>;
 auto get_dynamics_input_names(dynamics_queue_tag) noexcept
@@ -758,13 +593,9 @@ auto get_dynamics_input_names(dynamics_generator_tag) noexcept
   -> std::span<const std::string_view>;
 auto get_dynamics_input_names(dynamics_constant_tag) noexcept
   -> std::span<const std::string_view>;
-auto get_dynamics_input_names(dynamics_cross_tag) noexcept
-  -> std::span<const std::string_view>;
 auto get_dynamics_input_names(dynamics_accumulator_2_tag) noexcept
   -> std::span<const std::string_view>;
 auto get_dynamics_input_names(dynamics_time_func_tag) noexcept
-  -> std::span<const std::string_view>;
-auto get_dynamics_input_names(dynamics_filter_tag) noexcept
   -> std::span<const std::string_view>;
 auto get_dynamics_input_names(dynamics_logical_and_2_tag) noexcept
   -> std::span<const std::string_view>;
@@ -851,22 +682,6 @@ auto get_dynamics_output_names(dynamics_qss3_wsum_3_tag) noexcept
   -> std::span<const std::string_view>;
 auto get_dynamics_output_names(dynamics_qss3_wsum_4_tag) noexcept
   -> std::span<const std::string_view>;
-auto get_dynamics_output_names(dynamics_integrator_tag) noexcept
-  -> std::span<const std::string_view>;
-auto get_dynamics_output_names(dynamics_quantifier_tag) noexcept
-  -> std::span<const std::string_view>;
-auto get_dynamics_output_names(dynamics_adder_2_tag) noexcept
-  -> std::span<const std::string_view>;
-auto get_dynamics_output_names(dynamics_adder_3_tag) noexcept
-  -> std::span<const std::string_view>;
-auto get_dynamics_output_names(dynamics_adder_4_tag) noexcept
-  -> std::span<const std::string_view>;
-auto get_dynamics_output_names(dynamics_mult_2_tag) noexcept
-  -> std::span<const std::string_view>;
-auto get_dynamics_output_names(dynamics_mult_3_tag) noexcept
-  -> std::span<const std::string_view>;
-auto get_dynamics_output_names(dynamics_mult_4_tag) noexcept
-  -> std::span<const std::string_view>;
 auto get_dynamics_output_names(dynamics_counter_tag) noexcept
   -> std::span<const std::string_view>;
 auto get_dynamics_output_names(dynamics_queue_tag) noexcept
@@ -879,13 +694,9 @@ auto get_dynamics_output_names(dynamics_generator_tag) noexcept
   -> std::span<const std::string_view>;
 auto get_dynamics_output_names(dynamics_constant_tag) noexcept
   -> std::span<const std::string_view>;
-auto get_dynamics_output_names(dynamics_cross_tag) noexcept
-  -> std::span<const std::string_view>;
 auto get_dynamics_output_names(dynamics_accumulator_2_tag) noexcept
   -> std::span<const std::string_view>;
 auto get_dynamics_output_names(dynamics_time_func_tag) noexcept
-  -> std::span<const std::string_view>;
-auto get_dynamics_output_names(dynamics_filter_tag) noexcept
   -> std::span<const std::string_view>;
 auto get_dynamics_output_names(dynamics_logical_and_2_tag) noexcept
   -> std::span<const std::string_view>;

@@ -122,25 +122,6 @@ using read_binary_simulation =
 
 template<typename Archiver, typename IO>
 static void do_serialize_dynamics(const Archiver /*s*/,
-                                  IO&         io,
-                                  integrator& dyn) noexcept
-{
-    io(dyn.sigma);
-    io(dyn.default_current_value);
-    io(dyn.default_reset_value);
-    io(dyn.archive);
-    io(dyn.current_value);
-    io(dyn.reset_value);
-    io(dyn.up_threshold);
-    io(dyn.down_threshold);
-    io(dyn.last_output_value);
-    io(dyn.expected_value);
-    io(dyn.reset);
-    io(dyn.st);
-}
-
-template<typename Archiver, typename IO>
-static void do_serialize_dynamics(const Archiver /*s*/,
                                   IO&              io,
                                   qss1_integrator& dyn) noexcept
 {
@@ -248,6 +229,7 @@ static void do_serialize_dynamics(const Archiver /*s*/,
 {
     io(dyn.sigma);
     io(dyn.values);
+    io(dyn.default_values);
 }
 
 template<typename Archiver, typename IO>
@@ -257,6 +239,7 @@ static void do_serialize_dynamics(const Archiver /*s*/,
 {
     io(dyn.sigma);
     io(dyn.values);
+    io(dyn.default_values);
 }
 
 template<typename Archiver, typename IO>
@@ -266,6 +249,7 @@ static void do_serialize_dynamics(const Archiver /*s*/,
 {
     io(dyn.sigma);
     io(dyn.values);
+    io(dyn.default_values);
 }
 
 template<typename Archiver, typename IO>
@@ -275,6 +259,7 @@ static void do_serialize_dynamics(const Archiver /*s*/,
 {
     io(dyn.sigma);
     io(dyn.values);
+    io(dyn.default_values);
 }
 
 template<typename Archiver, typename IO>
@@ -284,6 +269,7 @@ static void do_serialize_dynamics(const Archiver /*s*/,
 {
     io(dyn.sigma);
     io(dyn.values);
+    io(dyn.default_values);
 }
 
 template<typename Archiver, typename IO>
@@ -293,6 +279,7 @@ static void do_serialize_dynamics(const Archiver /*s*/,
 {
     io(dyn.sigma);
     io(dyn.values);
+    io(dyn.default_values);
 }
 
 template<typename Archiver, typename IO>
@@ -302,6 +289,7 @@ static void do_serialize_dynamics(const Archiver /*s*/,
 {
     io(dyn.sigma);
     io(dyn.values);
+    io(dyn.default_values);
 }
 
 template<typename Archiver, typename IO>
@@ -311,6 +299,7 @@ static void do_serialize_dynamics(const Archiver /*s*/,
 {
     io(dyn.sigma);
     io(dyn.values);
+    io(dyn.default_values);
 }
 
 template<typename Archiver, typename IO>
@@ -320,6 +309,7 @@ static void do_serialize_dynamics(const Archiver /*s*/,
 {
     io(dyn.sigma);
     io(dyn.values);
+    io(dyn.default_values);
 }
 
 template<typename Archiver, typename IO>
@@ -328,8 +318,9 @@ static void do_serialize_dynamics(const Archiver /*s*/,
                                   qss1_wsum_2& dyn) noexcept
 {
     io(dyn.sigma);
-    io(dyn.default_input_coeffs);
     io(dyn.values);
+    io(dyn.default_input_coeffs);
+    io(dyn.default_values);
 }
 
 template<typename Archiver, typename IO>
@@ -338,8 +329,9 @@ static void do_serialize_dynamics(const Archiver /*s*/,
                                   qss1_wsum_3& dyn) noexcept
 {
     io(dyn.sigma);
-    io(dyn.default_input_coeffs);
     io(dyn.values);
+    io(dyn.default_input_coeffs);
+    io(dyn.default_values);
 }
 
 template<typename Archiver, typename IO>
@@ -348,8 +340,9 @@ static void do_serialize_dynamics(const Archiver /*s*/,
                                   qss1_wsum_4& dyn) noexcept
 {
     io(dyn.sigma);
-    io(dyn.default_input_coeffs);
     io(dyn.values);
+    io(dyn.default_input_coeffs);
+    io(dyn.default_values);
 }
 
 template<typename Archiver, typename IO>
@@ -358,8 +351,9 @@ static void do_serialize_dynamics(const Archiver /*s*/,
                                   qss2_wsum_2& dyn) noexcept
 {
     io(dyn.sigma);
-    io(dyn.default_input_coeffs);
     io(dyn.values);
+    io(dyn.default_input_coeffs);
+    io(dyn.default_values);
 }
 
 template<typename Archiver, typename IO>
@@ -368,8 +362,9 @@ static void do_serialize_dynamics(const Archiver /*s*/,
                                   qss2_wsum_3& dyn) noexcept
 {
     io(dyn.sigma);
-    io(dyn.default_input_coeffs);
     io(dyn.values);
+    io(dyn.default_input_coeffs);
+    io(dyn.default_values);
 }
 
 template<typename Archiver, typename IO>
@@ -378,8 +373,9 @@ static void do_serialize_dynamics(const Archiver /*s*/,
                                   qss2_wsum_4& dyn) noexcept
 {
     io(dyn.sigma);
-    io(dyn.default_input_coeffs);
     io(dyn.values);
+    io(dyn.default_input_coeffs);
+    io(dyn.default_values);
 }
 
 template<typename Archiver, typename IO>
@@ -388,8 +384,9 @@ static void do_serialize_dynamics(const Archiver /*s*/,
                                   qss3_wsum_2& dyn) noexcept
 {
     io(dyn.sigma);
-    io(dyn.default_input_coeffs);
     io(dyn.values);
+    io(dyn.default_input_coeffs);
+    io(dyn.default_values);
 }
 
 template<typename Archiver, typename IO>
@@ -398,8 +395,9 @@ static void do_serialize_dynamics(const Archiver /*s*/,
                                   qss3_wsum_3& dyn) noexcept
 {
     io(dyn.sigma);
-    io(dyn.default_input_coeffs);
     io(dyn.values);
+    io(dyn.default_input_coeffs);
+    io(dyn.default_values);
 }
 
 template<typename Archiver, typename IO>
@@ -408,8 +406,9 @@ static void do_serialize_dynamics(const Archiver /*s*/,
                                   qss3_wsum_4& dyn) noexcept
 {
     io(dyn.sigma);
-    io(dyn.default_input_coeffs);
     io(dyn.values);
+    io(dyn.default_input_coeffs);
+    io(dyn.default_values);
 }
 
 template<typename Archiver, typename IO>
@@ -437,99 +436,6 @@ static void do_serialize_dynamics(const Archiver /*s*/,
 {
     io(dyn.sigma);
     io(dyn.values);
-}
-
-template<typename Archiver, typename IO>
-static void do_serialize_dynamics(const Archiver /*s*/,
-                                  IO&         io,
-                                  quantifier& dyn) noexcept
-{
-    io(dyn.default_step_size);
-    io(dyn.default_past_length);
-    io(dyn.default_adapt_state);
-    io(dyn.default_zero_init_offset);
-    io(dyn.archive);
-    io(dyn.m_upthreshold);
-    io(dyn.m_downthreshold);
-    io(dyn.m_offset);
-    io(dyn.m_step_size);
-    io(dyn.m_step_number);
-    io(dyn.m_past_length);
-    io(dyn.m_zero_init_offset);
-    io(dyn.m_state);
-    io(dyn.m_adapt_state);
-}
-
-template<typename Archiver, typename IO>
-static void do_serialize_dynamics(const Archiver /*s*/,
-                                  IO&      io,
-                                  adder_2& dyn) noexcept
-{
-    io(dyn.sigma);
-    io(dyn.default_values);
-    io(dyn.default_input_coeffs);
-    io(dyn.values);
-    io(dyn.input_coeffs);
-}
-
-template<typename Archiver, typename IO>
-static void do_serialize_dynamics(const Archiver /*s*/,
-                                  IO&      io,
-                                  adder_3& dyn) noexcept
-{
-    io(dyn.sigma);
-    io(dyn.default_values);
-    io(dyn.default_input_coeffs);
-    io(dyn.values);
-    io(dyn.input_coeffs);
-}
-
-template<typename Archiver, typename IO>
-static void do_serialize_dynamics(const Archiver /*s*/,
-                                  IO&      io,
-                                  adder_4& dyn) noexcept
-{
-    io(dyn.sigma);
-    io(dyn.default_values);
-    io(dyn.default_input_coeffs);
-    io(dyn.values);
-    io(dyn.input_coeffs);
-}
-
-template<typename Archiver, typename IO>
-static void do_serialize_dynamics(const Archiver /*s*/,
-                                  IO&     io,
-                                  mult_2& dyn) noexcept
-{
-    io(dyn.sigma);
-    io(dyn.default_values);
-    io(dyn.default_input_coeffs);
-    io(dyn.values);
-    io(dyn.input_coeffs);
-}
-
-template<typename Archiver, typename IO>
-static void do_serialize_dynamics(const Archiver /*s*/,
-                                  IO&     io,
-                                  mult_3& dyn) noexcept
-{
-    io(dyn.sigma);
-    io(dyn.default_values);
-    io(dyn.default_input_coeffs);
-    io(dyn.values);
-    io(dyn.input_coeffs);
-}
-
-template<typename Archiver, typename IO>
-static void do_serialize_dynamics(const Archiver /*s*/,
-                                  IO&     io,
-                                  mult_4& dyn) noexcept
-{
-    io(dyn.sigma);
-    io(dyn.default_values);
-    io(dyn.default_input_coeffs);
-    io(dyn.values);
-    io(dyn.input_coeffs);
 }
 
 template<typename Archiver, typename IO>
@@ -579,19 +485,6 @@ static void do_serialize_dynamics(const Archiver /*s*/,
     io(dyn.default_value);
     io(dyn.default_offset);
     io(dyn.value);
-}
-
-template<typename Archiver, typename IO>
-static void do_serialize_dynamics(const Archiver /*s*/,
-                                  IO&     io,
-                                  filter& dyn) noexcept
-{
-    io(dyn.sigma);
-    io(dyn.default_lower_threshold);
-    io(dyn.default_upper_threshold);
-    io(dyn.lower_threshold);
-    io(dyn.upper_threshold);
-    io(std::span(dyn.inValue.data.data(), dyn.inValue.data.size()));
 }
 
 template<typename Archiver, typename IO>
@@ -699,21 +592,6 @@ static void do_serialize_dynamics(const Archiver /*s*/,
     io(dyn.sigma);
     io(dyn.number);
     io(dyn.numbers);
-}
-
-template<typename Archiver, typename IO>
-static void do_serialize_dynamics(const Archiver /*s*/,
-                                  IO&    io,
-                                  cross& dyn) noexcept
-{
-    io(dyn.sigma);
-    io(dyn.default_threshold);
-    io(dyn.threshold);
-    io(dyn.value);
-    io(dyn.if_value);
-    io(dyn.else_value);
-    io(dyn.result);
-    io(dyn.event);
 }
 
 template<typename Archiver, typename IO>

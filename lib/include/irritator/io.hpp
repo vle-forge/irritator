@@ -55,21 +55,19 @@ auto get_internal_component_type(std::string_view name) noexcept
   -> std::optional<internal_component>;
 
 static constexpr inline const char* dynamics_type_names[] = {
-    "qss1_integrator", "qss1_multiplier", "qss1_cross",     "qss1_filter",
-    "qss1_power",      "qss1_square",     "qss1_sum_2",     "qss1_sum_3",
-    "qss1_sum_4",      "qss1_wsum_2",     "qss1_wsum_3",    "qss1_wsum_4",
-    "qss2_integrator", "qss2_multiplier", "qss2_cross",     "qss2_filter",
-    "qss2_power",      "qss2_square",     "qss2_sum_2",     "qss2_sum_3",
-    "qss2_sum_4",      "qss2_wsum_2",     "qss2_wsum_3",    "qss2_wsum_4",
-    "qss3_integrator", "qss3_multiplier", "qss3_cross",     "qss3_filter",
-    "qss3_power",      "qss3_square",     "qss3_sum_2",     "qss3_sum_3",
-    "qss3_sum_4",      "qss3_wsum_2",     "qss3_wsum_3",    "qss3_wsum_4",
-    "integrator",      "quantifier",      "adder_2",        "adder_3",
-    "adder_4",         "mult_2",          "mult_3",         "mult_4",
-    "counter",         "queue",           "dynamic_queue",  "priority_queue",
-    "generator",       "constant",        "cross",          "time_func",
-    "accumulator_2",   "filter",          "logical_and_2",  "logical_and_3",
-    "logical_or_2",    "logical_or_3",    "logical_invert", "hsm_wrapper",
+    "qss1_integrator", "qss1_multiplier", "qss1_cross",    "qss1_filter",
+    "qss1_power",      "qss1_square",     "qss1_sum_2",    "qss1_sum_3",
+    "qss1_sum_4",      "qss1_wsum_2",     "qss1_wsum_3",   "qss1_wsum_4",
+    "qss2_integrator", "qss2_multiplier", "qss2_cross",    "qss2_filter",
+    "qss2_power",      "qss2_square",     "qss2_sum_2",    "qss2_sum_3",
+    "qss2_sum_4",      "qss2_wsum_2",     "qss2_wsum_3",   "qss2_wsum_4",
+    "qss3_integrator", "qss3_multiplier", "qss3_cross",    "qss3_filter",
+    "qss3_power",      "qss3_square",     "qss3_sum_2",    "qss3_sum_3",
+    "qss3_sum_4",      "qss3_wsum_2",     "qss3_wsum_3",   "qss3_wsum_4",
+    "counter",         "queue",           "dynamic_queue", "priority_queue",
+    "generator",       "constant",        "time_func",     "accumulator_2",
+    "logical_and_2",   "logical_and_3",   "logical_or_2",  "logical_or_3",
+    "logical_invert",  "hsm_wrapper",
 };
 
 //! Try to get the dymamics type from a string. If the string is unknown,
@@ -80,15 +78,12 @@ auto get_dynamics_type(std::string_view dynamics_name) noexcept
 static_assert(std::size(dynamics_type_names) ==
               static_cast<sz>(dynamics_type_size()));
 
-static inline const char* str_empty[]                 = { "" };
-static inline const char* str_integrator[]            = { "x-dot", "reset" };
-static inline const char* str_adaptative_integrator[] = { "quanta",
-                                                          "x-dot",
-                                                          "reset" };
-static inline const char* str_in_1[]                  = { "in" };
-static inline const char* str_in_2[]                  = { "in-1", "in-2" };
-static inline const char* str_in_3[] = { "in-1", "in-2", "in-3" };
-static inline const char* str_in_4[] = { "in-1", "in-2", "in-3", "in-4" };
+static inline const char* str_empty[]      = { "" };
+static inline const char* str_integrator[] = { "x-dot", "reset" };
+static inline const char* str_in_1[]       = { "in" };
+static inline const char* str_in_2[]       = { "in-1", "in-2" };
+static inline const char* str_in_3[]       = { "in-1", "in-2", "in-3" };
+static inline const char* str_in_4[]       = { "in-1", "in-2", "in-3", "in-4" };
 static inline const char* str_value_if_else[] = { "value",
                                                   "if",
                                                   "else",
@@ -112,8 +107,6 @@ static constexpr const char** get_input_port_names() noexcept
                   std::is_same_v<Dynamics, qss3_multiplier> ||
                   std::is_same_v<Dynamics, qss3_sum_2> ||
                   std::is_same_v<Dynamics, qss3_wsum_2> ||
-                  std::is_same_v<Dynamics, adder_2> ||
-                  std::is_same_v<Dynamics, mult_2> ||
                   std::is_same_v<Dynamics, logical_and_2> ||
                   std::is_same_v<Dynamics, logical_or_2>)
         return str_in_2;
@@ -124,8 +117,6 @@ static constexpr const char** get_input_port_names() noexcept
                   std::is_same_v<Dynamics, qss2_wsum_3> ||
                   std::is_same_v<Dynamics, qss3_sum_3> ||
                   std::is_same_v<Dynamics, qss3_wsum_3> ||
-                  std::is_same_v<Dynamics, adder_3> ||
-                  std::is_same_v<Dynamics, mult_3> ||
                   std::is_same_v<Dynamics, logical_and_3> ||
                   std::is_same_v<Dynamics, logical_or_3>)
         return str_in_3;
@@ -136,17 +127,10 @@ static constexpr const char** get_input_port_names() noexcept
                   std::is_same_v<Dynamics, qss2_wsum_4> ||
                   std::is_same_v<Dynamics, qss3_sum_4> ||
                   std::is_same_v<Dynamics, qss3_wsum_4> ||
-                  std::is_same_v<Dynamics, adder_4> ||
-                  std::is_same_v<Dynamics, mult_4> ||
                   std::is_same_v<Dynamics, hsm_wrapper>)
         return str_in_4;
 
-    if constexpr (std::is_same_v<Dynamics, integrator>)
-        return str_adaptative_integrator;
-
-    if constexpr (std::is_same_v<Dynamics, quantifier> ||
-                  std::is_same_v<Dynamics, counter> ||
-                  std::is_same_v<Dynamics, filter> ||
+    if constexpr (std::is_same_v<Dynamics, counter> ||
                   std::is_same_v<Dynamics, queue> ||
                   std::is_same_v<Dynamics, dynamic_queue> ||
                   std::is_same_v<Dynamics, priority_queue> ||
@@ -169,8 +153,7 @@ static constexpr const char** get_input_port_names() noexcept
 
     if constexpr (std::is_same_v<Dynamics, qss1_cross> ||
                   std::is_same_v<Dynamics, qss2_cross> ||
-                  std::is_same_v<Dynamics, qss3_cross> ||
-                  std::is_same_v<Dynamics, cross>)
+                  std::is_same_v<Dynamics, qss3_cross>)
         return str_value_if_else;
 
     if constexpr (std::is_same_v<Dynamics, accumulator_2>)
@@ -197,8 +180,6 @@ static constexpr const char** get_input_port_names(
     case dynamics_type::qss3_multiplier:
     case dynamics_type::qss3_sum_2:
     case dynamics_type::qss3_wsum_2:
-    case dynamics_type::adder_2:
-    case dynamics_type::mult_2:
     case dynamics_type::logical_and_2:
     case dynamics_type::logical_or_2:
         return str_in_2;
@@ -209,8 +190,6 @@ static constexpr const char** get_input_port_names(
     case dynamics_type::qss2_wsum_3:
     case dynamics_type::qss3_sum_3:
     case dynamics_type::qss3_wsum_3:
-    case dynamics_type::adder_3:
-    case dynamics_type::mult_3:
     case dynamics_type::logical_and_3:
     case dynamics_type::logical_or_3:
         return str_in_3;
@@ -221,17 +200,10 @@ static constexpr const char** get_input_port_names(
     case dynamics_type::qss2_wsum_4:
     case dynamics_type::qss3_sum_4:
     case dynamics_type::qss3_wsum_4:
-    case dynamics_type::adder_4:
-    case dynamics_type::mult_4:
     case dynamics_type::hsm_wrapper:
         return str_in_4;
 
-    case dynamics_type::integrator:
-        return str_adaptative_integrator;
-
-    case dynamics_type::quantifier:
     case dynamics_type::counter:
-    case dynamics_type::filter:
     case dynamics_type::queue:
     case dynamics_type::dynamic_queue:
     case dynamics_type::priority_queue:
@@ -255,7 +227,6 @@ static constexpr const char** get_input_port_names(
     case dynamics_type::qss1_cross:
     case dynamics_type::qss2_cross:
     case dynamics_type::qss3_cross:
-    case dynamics_type::cross:
         return str_value_if_else;
 
     case dynamics_type::accumulator_2:
@@ -305,14 +276,6 @@ static constexpr const char** get_output_port_names() noexcept
                   std::is_same_v<Dynamics, qss3_wsum_2> ||
                   std::is_same_v<Dynamics, qss3_wsum_3> ||
                   std::is_same_v<Dynamics, qss3_wsum_4> ||
-                  std::is_same_v<Dynamics, integrator> ||
-                  std::is_same_v<Dynamics, quantifier> ||
-                  std::is_same_v<Dynamics, adder_2> ||
-                  std::is_same_v<Dynamics, adder_3> ||
-                  std::is_same_v<Dynamics, adder_4> ||
-                  std::is_same_v<Dynamics, mult_2> ||
-                  std::is_same_v<Dynamics, mult_3> ||
-                  std::is_same_v<Dynamics, mult_4> ||
                   std::is_same_v<Dynamics, counter> ||
                   std::is_same_v<Dynamics, queue> ||
                   std::is_same_v<Dynamics, dynamic_queue> ||
@@ -320,7 +283,6 @@ static constexpr const char** get_output_port_names() noexcept
                   std::is_same_v<Dynamics, generator> ||
                   std::is_same_v<Dynamics, constant> ||
                   std::is_same_v<Dynamics, time_func> ||
-                  std::is_same_v<Dynamics, filter> ||
                   std::is_same_v<Dynamics, logical_and_2> ||
                   std::is_same_v<Dynamics, logical_and_3> ||
                   std::is_same_v<Dynamics, logical_or_2> ||
@@ -333,8 +295,7 @@ static constexpr const char** get_output_port_names() noexcept
                   std::is_same_v<Dynamics, qss3_filter>)
         return str_out_filter;
 
-    if constexpr (std::is_same_v<Dynamics, cross> ||
-                  std::is_same_v<Dynamics, qss1_cross> ||
+    if constexpr (std::is_same_v<Dynamics, qss1_cross> ||
                   std::is_same_v<Dynamics, qss2_cross> ||
                   std::is_same_v<Dynamics, qss3_cross>)
         return str_out_cross;
@@ -382,14 +343,6 @@ static constexpr const char** get_output_port_names(
     case dynamics_type::qss3_wsum_2:
     case dynamics_type::qss3_wsum_3:
     case dynamics_type::qss3_wsum_4:
-    case dynamics_type::integrator:
-    case dynamics_type::quantifier:
-    case dynamics_type::adder_2:
-    case dynamics_type::adder_3:
-    case dynamics_type::adder_4:
-    case dynamics_type::mult_2:
-    case dynamics_type::mult_3:
-    case dynamics_type::mult_4:
     case dynamics_type::counter:
     case dynamics_type::queue:
     case dynamics_type::dynamic_queue:
@@ -397,7 +350,6 @@ static constexpr const char** get_output_port_names(
     case dynamics_type::generator:
     case dynamics_type::constant:
     case dynamics_type::time_func:
-    case dynamics_type::filter:
     case dynamics_type::logical_and_2:
     case dynamics_type::logical_or_2:
     case dynamics_type::logical_and_3:
@@ -408,7 +360,6 @@ static constexpr const char** get_output_port_names(
     case dynamics_type::hsm_wrapper:
         return str_out_4;
 
-    case dynamics_type::cross:
     case dynamics_type::qss1_cross:
     case dynamics_type::qss2_cross:
     case dynamics_type::qss3_cross:

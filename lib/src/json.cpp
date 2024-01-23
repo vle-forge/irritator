@@ -88,14 +88,6 @@ enum class stack_id {
     dynamics_qss_wsum_2,
     dynamics_qss_wsum_3,
     dynamics_qss_wsum_4,
-    dynamics_integrator,
-    dynamics_quantifier,
-    dynamics_adder_2,
-    dynamics_adder_3,
-    dynamics_adder_4,
-    dynamics_mult_2,
-    dynamics_mult_3,
-    dynamics_mult_4,
     dynamics_counter,
     dynamics_queue,
     dynamics_dynamic_queue,
@@ -106,10 +98,8 @@ enum class stack_id {
     dynamics_qss_filter,
     dynamics_qss_power,
     dynamics_qss_square,
-    dynamics_cross,
     dynamics_accumulator_2,
     dynamics_time_func,
-    dynamics_filter,
     dynamics_logical_and_2,
     dynamics_logical_or_2,
     dynamics_logical_and_3,
@@ -217,14 +207,6 @@ static inline constexpr std::string_view stack_id_names[] = {
     "dynamics_qss_wsum_2",
     "dynamics_qss_wsum_3",
     "dynamics_qss_wsum_4",
-    "dynamics_integrator",
-    "dynamics_quantifier",
-    "dynamics_adder_2",
-    "dynamics_adder_3",
-    "dynamics_adder_4",
-    "dynamics_mult_2",
-    "dynamics_mult_3",
-    "dynamics_mult_4",
     "dynamics_counter",
     "dynamics_queue",
     "dynamics_dynamic_queue",
@@ -235,10 +217,8 @@ static inline constexpr std::string_view stack_id_names[] = {
     "dynamics_qss_filter",
     "dynamics_qss_power",
     "dynamics_qss_square",
-    "dynamics_cross",
     "dynamics_accumulator_2",
     "dynamics_time_func",
-    "dynamics_filter",
     "dynamics_logical_and_2",
     "dynamics_logical_or_2",
     "dynamics_logical_and_3",
@@ -680,20 +660,6 @@ struct reader {
         return true;
     }
 
-    bool copy_to(quantifier::adapt_state& dst) noexcept
-    {
-        if (temp_string == "possible"sv)
-            dst = quantifier::adapt_state::possible;
-        else if (temp_string == "impossible"sv)
-            dst = quantifier::adapt_state::impossible;
-        else if (temp_string == "done"sv)
-            dst = quantifier::adapt_state::done;
-        else
-            report_json_error(error_id::missing_quantifier_adapt_state);
-
-        return true;
-    }
-
     bool copy_to(distribution_type& dst) noexcept
     {
         if (auto dist_opt = get_distribution_type(temp_string);
@@ -1109,14 +1075,77 @@ struct reader {
         return true;
     }
 
-    template<int QssLevel, int PortNumber>
-    bool read_dynamics(
-      const rapidjson::Value& /*val*/,
-      const abstract_sum<QssLevel, PortNumber>& /*dyn*/) noexcept
+    template<int QssLevel>
+    bool read_dynamics(const rapidjson::Value&    val,
+                       abstract_sum<QssLevel, 2>& dyn) noexcept
     {
         auto_stack a(this, stack_id::dynamics_qss_sum);
 
-        return true;
+        static constexpr std::string_view n[] = { "value-0", "value-1" };
+
+        return for_members(
+          val, n, [&](const auto idx, const auto& value) noexcept -> bool {
+              switch (idx) {
+              case 0:
+                  return read_real(value, dyn.default_values[0]);
+              case 1:
+                  return read_real(value, dyn.default_values[1]);
+              default:
+                  report_json_error(error_id::unknown_element);
+              }
+          });
+    }
+
+    template<int QssLevel>
+    bool read_dynamics(const rapidjson::Value&    val,
+                       abstract_sum<QssLevel, 3>& dyn) noexcept
+    {
+        auto_stack a(this, stack_id::dynamics_qss_sum);
+
+        static constexpr std::string_view n[] = { "value-0",
+                                                  "value-1",
+                                                  "value-2" };
+
+        return for_members(
+          val, n, [&](const auto idx, const auto& value) noexcept -> bool {
+              switch (idx) {
+              case 0:
+                  return read_real(value, dyn.default_values[0]);
+              case 1:
+                  return read_real(value, dyn.default_values[1]);
+              case 2:
+                  return read_real(value, dyn.default_values[2]);
+              default:
+                  report_json_error(error_id::unknown_element);
+              }
+          });
+    }
+
+    template<int QssLevel>
+    bool read_dynamics(const rapidjson::Value&    val,
+                       abstract_sum<QssLevel, 4>& dyn) noexcept
+    {
+        auto_stack a(this, stack_id::dynamics_qss_sum);
+
+        static constexpr std::string_view n[] = {
+            "value-0", "value-1", "value-2", "value-3"
+        };
+
+        return for_members(
+          val, n, [&](const auto idx, const auto& value) noexcept -> bool {
+              switch (idx) {
+              case 0:
+                  return read_real(value, dyn.default_values[0]);
+              case 1:
+                  return read_real(value, dyn.default_values[1]);
+              case 2:
+                  return read_real(value, dyn.default_values[2]);
+              case 3:
+                  return read_real(value, dyn.default_values[3]);
+              default:
+                  report_json_error(error_id::unknown_element);
+              }
+          });
     }
 
     template<int QssLevel>
@@ -1125,7 +1154,9 @@ struct reader {
     {
         auto_stack a(this, stack_id::dynamics_qss_wsum_2);
 
-        static constexpr std::string_view n[] = { "coeff-0", "coeff-1" };
+        static constexpr std::string_view n[] = {
+            "coeff-0", "coeff-1", "value-0", "value-1"
+        };
 
         return for_members(
           val, n, [&](const auto idx, const auto& value) noexcept -> bool {
@@ -1134,6 +1165,10 @@ struct reader {
                   return read_real(value, dyn.default_input_coeffs[0]);
               case 1:
                   return read_real(value, dyn.default_input_coeffs[1]);
+              case 2:
+                  return read_real(value, dyn.default_values[0]);
+              case 3:
+                  return read_real(value, dyn.default_values[1]);
               default:
                   report_json_error(error_id::unknown_element);
               }
@@ -1146,19 +1181,28 @@ struct reader {
     {
         auto_stack a(this, stack_id::dynamics_qss_wsum_3);
 
-        return for_each_member(
-          val, [&](const auto name, const auto& val) noexcept -> bool {
-              if ("coeff-0"sv == name)
-                  return read_temp_real(val) &&
-                         copy_to(dyn.default_input_coeffs[0]);
-              if ("coeff-1"sv == name)
-                  return read_temp_real(val) &&
-                         copy_to(dyn.default_input_coeffs[1]);
-              if ("coeff-2"sv == name)
-                  return read_temp_real(val) &&
-                         copy_to(dyn.default_input_coeffs[2]);
+        static constexpr std::string_view n[] = { "coeff-0", "coeff-1",
+                                                  "coeff-2", "value-0",
+                                                  "value-1", "value-2" };
 
-              report_json_error(error_id::unknown_element);
+        return for_members(
+          val, n, [&](const auto idx, const auto& value) noexcept -> bool {
+              switch (idx) {
+              case 0:
+                  return read_real(value, dyn.default_input_coeffs[0]);
+              case 1:
+                  return read_real(value, dyn.default_input_coeffs[1]);
+              case 2:
+                  return read_real(value, dyn.default_input_coeffs[2]);
+              case 3:
+                  return read_real(value, dyn.default_values[0]);
+              case 4:
+                  return read_real(value, dyn.default_values[1]);
+              case 5:
+                  return read_real(value, dyn.default_values[2]);
+              default:
+                  report_json_error(error_id::unknown_element);
+              }
           });
     }
 
@@ -1168,236 +1212,33 @@ struct reader {
     {
         auto_stack a(this, stack_id::dynamics_qss_wsum_4);
 
-        return for_each_member(
-          val, [&](const auto name, const auto& val) noexcept -> bool {
-              if ("coeff-0"sv == name)
-                  return read_temp_real(val) &&
-                         copy_to(dyn.default_input_coeffs[0]);
-              if ("coeff-1"sv == name)
-                  return read_temp_real(val) &&
-                         copy_to(dyn.default_input_coeffs[1]);
-              if ("coeff-2"sv == name)
-                  return read_temp_real(val) &&
-                         copy_to(dyn.default_input_coeffs[2]);
-              if ("coeff-3"sv == name)
-                  return read_temp_real(val) &&
-                         copy_to(dyn.default_input_coeffs[3]);
+        static constexpr std::string_view n[] = { "coeff-0", "coeff-1",
+                                                  "coeff-2", "coeff-3",
+                                                  "value-0", "value-1",
+                                                  "value-2", "value-3" };
 
-              report_json_error(error_id::unknown_element);
-          });
-    }
-
-    bool read_dynamics(const rapidjson::Value& val, integrator& dyn) noexcept
-    {
-        auto_stack a(this, stack_id::dynamics_integrator);
-
-        return for_each_member(
-          val, [&](const auto name, const auto& val) noexcept -> bool {
-              if ("value"sv == name)
-                  return read_temp_real(val) and
-                         copy_to(dyn.default_current_value);
-              if ("reset"sv == name)
-                  return read_temp_real(val) and
-                         copy_to(dyn.default_reset_value);
-
-              report_json_error(error_id::unknown_element);
-          });
-    }
-
-    bool read_dynamics(const rapidjson::Value& val, quantifier& dyn) noexcept
-    {
-        auto_stack a(this, stack_id::dynamics_quantifier);
-
-        return for_each_member(
-          val, [&](const auto name, const auto& value) noexcept -> bool {
-              if ("adapt-state"sv == name)
-                  return read_temp_string(value) &&
-                         copy_to(dyn.default_adapt_state);
-              if ("step-size"sv == name)
-                  return read_temp_real(value) &&
-                         copy_to(dyn.default_step_size);
-              if ("past-length"sv == name)
-                  return read_temp_integer(value) &&
-                         copy_to(dyn.default_past_length);
-              if ("zero-init-offset"sv == name)
-                  return read_temp_bool(value) &&
-                         copy_to(dyn.default_zero_init_offset);
-
-              report_json_error(error_id::unknown_element);
-          });
-    }
-
-    bool read_dynamics(const rapidjson::Value& val, adder_2& dyn) noexcept
-    {
-        auto_stack a(this, stack_id::dynamics_adder_2);
-
-        return for_each_member(
-          val, [&](const auto name, const auto& value) noexcept -> bool {
-              if ("value-0"sv == name)
-                  return read_temp_real(value) &&
-                         copy_to(dyn.default_values[0]);
-              if ("value-1"sv == name)
-                  return read_temp_real(value) &&
-                         copy_to(dyn.default_values[1]);
-              if ("coeff-0"sv == name)
-                  return read_temp_real(value) &&
-                         copy_to(dyn.default_input_coeffs[0]);
-              if ("coeff-1"sv == name)
-                  return read_temp_real(value) &&
-                         copy_to(dyn.default_input_coeffs[1]);
-
-              report_json_error(error_id::unknown_element);
-          });
-    }
-
-    bool read_dynamics(const rapidjson::Value& val, adder_3& dyn) noexcept
-    {
-        auto_stack a(this, stack_id::dynamics_adder_3);
-
-        return for_each_member(
-          val, [&](const auto name, const auto& value) noexcept -> bool {
-              if ("value-0"sv == name)
-                  return read_temp_real(value) &&
-                         copy_to(dyn.default_values[0]);
-              if ("value-1"sv == name)
-                  return read_temp_real(value) &&
-                         copy_to(dyn.default_values[1]);
-              if ("value-2"sv == name)
-                  return read_temp_real(value) &&
-                         copy_to(dyn.default_values[2]);
-              if ("coeff-0"sv == name)
-                  return read_temp_real(value) &&
-                         copy_to(dyn.default_input_coeffs[0]);
-              if ("coeff-1"sv == name)
-                  return read_temp_real(value) &&
-                         copy_to(dyn.default_input_coeffs[1]);
-              if ("coeff-2"sv == name)
-                  return read_temp_real(value) &&
-                         copy_to(dyn.default_input_coeffs[2]);
-
-              report_json_error(error_id::unknown_element);
-          });
-    }
-
-    bool read_dynamics(const rapidjson::Value& val, adder_4& dyn) noexcept
-    {
-        auto_stack a(this, stack_id::dynamics_adder_4);
-
-        return for_each_member(
-          val, [&](const auto name, const auto& value) noexcept -> bool {
-              if ("value-0"sv == name)
-                  return read_temp_real(value) &&
-                         copy_to(dyn.default_values[0]);
-              if ("value-1"sv == name)
-                  return read_temp_real(value) &&
-                         copy_to(dyn.default_values[1]);
-              if ("value-2"sv == name)
-                  return read_temp_real(value) &&
-                         copy_to(dyn.default_values[2]);
-              if ("value-3"sv == name)
-                  return read_temp_real(value) &&
-                         copy_to(dyn.default_values[3]);
-              if ("coeff-0"sv == name)
-                  return read_temp_real(value) &&
-                         copy_to(dyn.default_input_coeffs[0]);
-              if ("coeff-1"sv == name)
-                  return read_temp_real(value) &&
-                         copy_to(dyn.default_input_coeffs[1]);
-              if ("coeff-2"sv == name)
-                  return read_temp_real(value) &&
-                         copy_to(dyn.default_input_coeffs[2]);
-              if ("coeff-3"sv == name)
-                  return read_temp_real(value) &&
-                         copy_to(dyn.default_input_coeffs[3]);
-
-              report_json_error(error_id::unknown_element);
-          });
-    }
-
-    bool read_dynamics(const rapidjson::Value& val, mult_2& dyn) noexcept
-    {
-        auto_stack a(this, stack_id::dynamics_mult_2);
-
-        return for_each_member(
-          val, [&](const auto name, const auto& value) noexcept -> bool {
-              if ("value-0"sv == name)
-                  return read_temp_real(value) &&
-                         copy_to(dyn.default_values[0]);
-              if ("value-1"sv == name)
-                  return read_temp_real(value) &&
-                         copy_to(dyn.default_values[1]);
-              if ("coeff-0"sv == name)
-                  return read_temp_real(value) &&
-                         copy_to(dyn.default_input_coeffs[0]);
-              if ("coeff-1"sv == name)
-                  return read_temp_real(value) &&
-                         copy_to(dyn.default_input_coeffs[1]);
-
-              report_json_error(error_id::unknown_element);
-          });
-    }
-
-    bool read_dynamics(const rapidjson::Value& val, mult_3& dyn) noexcept
-    {
-        auto_stack a(this, stack_id::dynamics_mult_3);
-
-        return for_each_member(
-          val, [&](const auto name, const auto& value) noexcept -> bool {
-              if ("value-0"sv == name)
-                  return read_temp_real(value) &&
-                         copy_to(dyn.default_values[0]);
-              if ("value-1"sv == name)
-                  return read_temp_real(value) &&
-                         copy_to(dyn.default_values[1]);
-              if ("value-2"sv == name)
-                  return read_temp_real(value) &&
-                         copy_to(dyn.default_values[2]);
-              if ("coeff-0"sv == name)
-                  return read_temp_real(value) &&
-                         copy_to(dyn.default_input_coeffs[0]);
-              if ("coeff-1"sv == name)
-                  return read_temp_real(value) &&
-                         copy_to(dyn.default_input_coeffs[1]);
-              if ("coeff-2"sv == name)
-                  return read_temp_real(value) &&
-                         copy_to(dyn.default_input_coeffs[2]);
-
-              report_json_error(error_id::unknown_element);
-          });
-    }
-
-    bool read_dynamics(const rapidjson::Value& val, mult_4& dyn) noexcept
-    {
-        auto_stack a(this, stack_id::dynamics_mult_4);
-
-        return for_each_member(
-          val, [&](const auto name, const auto& value) noexcept -> bool {
-              if ("value-0"sv == name)
-                  return read_temp_real(value) &&
-                         copy_to(dyn.default_values[0]);
-              if ("value-1"sv == name)
-                  return read_temp_real(value) &&
-                         copy_to(dyn.default_values[1]);
-              if ("value-2"sv == name)
-                  return read_temp_real(value) &&
-                         copy_to(dyn.default_values[2]);
-              if ("value-3"sv == name)
-                  return read_temp_real(value) &&
-                         copy_to(dyn.default_values[3]);
-              if ("coeff-0"sv == name)
-                  return read_temp_real(value) &&
-                         copy_to(dyn.default_input_coeffs[0]);
-              if ("coeff-1"sv == name)
-                  return read_temp_real(value) &&
-                         copy_to(dyn.default_input_coeffs[1]);
-              if ("coeff-2"sv == name)
-                  return read_temp_real(value) &&
-                         copy_to(dyn.default_input_coeffs[2]);
-              if ("coeff-3"sv == name)
-                  return read_temp_real(value) &&
-                         copy_to(dyn.default_input_coeffs[3]);
-
-              report_json_error(error_id::unknown_element);
+        return for_members(
+          val, n, [&](const auto idx, const auto& value) noexcept -> bool {
+              switch (idx) {
+              case 0:
+                  return read_real(value, dyn.default_input_coeffs[0]);
+              case 1:
+                  return read_real(value, dyn.default_input_coeffs[1]);
+              case 2:
+                  return read_real(value, dyn.default_input_coeffs[2]);
+              case 3:
+                  return read_real(value, dyn.default_input_coeffs[3]);
+              case 4:
+                  return read_real(value, dyn.default_values[0]);
+              case 5:
+                  return read_real(value, dyn.default_values[1]);
+              case 6:
+                  return read_real(value, dyn.default_values[2]);
+              case 7:
+                  return read_real(value, dyn.default_values[3]);
+              default:
+                  report_json_error(error_id::unknown_element);
+              }
           });
     }
 
@@ -1588,20 +1429,6 @@ struct reader {
         return true;
     }
 
-    bool read_dynamics(const rapidjson::Value& val, cross& dyn) noexcept
-    {
-        auto_stack a(this, stack_id::dynamics_cross);
-
-        return for_each_member(
-          val, [&](const auto name, const auto& value) noexcept -> bool {
-              if ("threshold"sv == name)
-                  return read_temp_real(value) &&
-                         copy_to(dyn.default_threshold);
-
-              report_json_error(error_id::unknown_element);
-          });
-    }
-
     bool read_dynamics(const rapidjson::Value& /*val*/,
                        accumulator_2& /*dyn*/) noexcept
     {
@@ -1618,23 +1445,6 @@ struct reader {
           val, [&](const auto name, const auto& value) noexcept -> bool {
               if ("function"sv == name)
                   return read_temp_string(value) && copy_to(dyn.default_f);
-
-              report_json_error(error_id::unknown_element);
-          });
-    }
-
-    bool read_dynamics(const rapidjson::Value& val, filter& dyn) noexcept
-    {
-        auto_stack a(this, stack_id::dynamics_filter);
-
-        return for_each_member(
-          val, [&](const auto name, const auto& value) noexcept -> bool {
-              if ("lower-threshold"sv == name)
-                  return read_temp_real(value) &&
-                         copy_to(dyn.default_lower_threshold);
-              if ("upper-threshold"sv == name)
-                  return read_temp_real(value) &&
-                         copy_to(dyn.default_upper_threshold);
 
               report_json_error(error_id::unknown_element);
           });
@@ -3865,7 +3675,7 @@ struct reader {
     }
 
     bool read_real_parameter(const rapidjson::Value& val,
-                             std::array<real, 4>&    reals) noexcept
+                             std::array<real, 8>&    reals) noexcept
     {
         auto_stack s(this, stack_id::project_real_parameter);
 
@@ -4362,12 +4172,54 @@ status write(Writer& writer,
     return success();
 }
 
-template<typename Writer, int QssLevel, int PortNumber>
-status write(Writer& writer,
-             const abstract_sum<QssLevel, PortNumber>& /*dyn*/) noexcept
+template<typename Writer>
+status write(Writer& writer, const qss1_sum_2& dyn) noexcept
 {
     writer.StartObject();
+
+    writer.Key("value-0");
+    writer.Double(dyn.default_values[0]);
+    writer.Key("value-1");
+    writer.Double(dyn.default_values[1]);
+
     writer.EndObject();
+
+    return success();
+}
+
+template<typename Writer>
+status write(Writer& writer, const qss1_sum_3& dyn) noexcept
+{
+    writer.StartObject();
+
+    writer.Key("value-0");
+    writer.Double(dyn.default_values[0]);
+    writer.Key("value-1");
+    writer.Double(dyn.default_values[1]);
+    writer.Key("value-2");
+    writer.Double(dyn.default_values[2]);
+
+    writer.EndObject();
+
+    return success();
+}
+
+template<typename Writer>
+status write(Writer& writer, const qss1_sum_4& dyn) noexcept
+{
+    writer.StartObject();
+
+    writer.Key("value-0");
+    writer.Double(dyn.default_values[0]);
+    writer.Key("value-1");
+    writer.Double(dyn.default_values[1]);
+    writer.Key("value-2");
+    writer.Double(dyn.default_values[2]);
+    writer.Key("value-3");
+    writer.Double(dyn.default_values[3]);
+
+    writer.EndObject();
+
     return success();
 }
 
@@ -4375,11 +4227,19 @@ template<typename Writer>
 status write(Writer& writer, const qss1_wsum_2& dyn) noexcept
 {
     writer.StartObject();
+
+    writer.Key("value-0");
+    writer.Double(dyn.default_values[0]);
+    writer.Key("value-1");
+    writer.Double(dyn.default_values[1]);
+
     writer.Key("coeff-0");
     writer.Double(dyn.default_input_coeffs[0]);
     writer.Key("coeff-1");
     writer.Double(dyn.default_input_coeffs[1]);
+
     writer.EndObject();
+
     return success();
 }
 
@@ -4387,13 +4247,23 @@ template<typename Writer>
 status write(Writer& writer, const qss1_wsum_3& dyn) noexcept
 {
     writer.StartObject();
+
+    writer.Key("value-0");
+    writer.Double(dyn.default_values[0]);
+    writer.Key("value-1");
+    writer.Double(dyn.default_values[1]);
+    writer.Key("value-2");
+    writer.Double(dyn.default_values[2]);
+
     writer.Key("coeff-0");
     writer.Double(dyn.default_input_coeffs[0]);
     writer.Key("coeff-1");
     writer.Double(dyn.default_input_coeffs[1]);
     writer.Key("coeff-2");
     writer.Double(dyn.default_input_coeffs[2]);
+
     writer.EndObject();
+
     return success();
 }
 
@@ -4401,6 +4271,16 @@ template<typename Writer>
 status write(Writer& writer, const qss1_wsum_4& dyn) noexcept
 {
     writer.StartObject();
+
+    writer.Key("value-0");
+    writer.Double(dyn.default_values[0]);
+    writer.Key("value-1");
+    writer.Double(dyn.default_values[1]);
+    writer.Key("value-2");
+    writer.Double(dyn.default_values[2]);
+    writer.Key("value-3");
+    writer.Double(dyn.default_values[3]);
+
     writer.Key("coeff-0");
     writer.Double(dyn.default_input_coeffs[0]);
     writer.Key("coeff-1");
@@ -4409,31 +4289,59 @@ status write(Writer& writer, const qss1_wsum_4& dyn) noexcept
     writer.Double(dyn.default_input_coeffs[2]);
     writer.Key("coeff-3");
     writer.Double(dyn.default_input_coeffs[3]);
+
     writer.EndObject();
     return success();
 }
 
 template<typename Writer>
-status write(Writer& writer, const qss2_sum_2& /*dyn*/) noexcept
+status write(Writer& writer, const qss2_sum_2& dyn) noexcept
 {
     writer.StartObject();
+
+    writer.Key("value-0");
+    writer.Double(dyn.default_values[0]);
+    writer.Key("value-1");
+    writer.Double(dyn.default_values[1]);
+
     writer.EndObject();
+
     return success();
 }
 
 template<typename Writer>
-status write(Writer& writer, const qss2_sum_3& /*dyn*/) noexcept
+status write(Writer& writer, const qss2_sum_3& dyn) noexcept
 {
     writer.StartObject();
+
+    writer.Key("value-0");
+    writer.Double(dyn.default_values[0]);
+    writer.Key("value-1");
+    writer.Double(dyn.default_values[1]);
+    writer.Key("value-2");
+    writer.Double(dyn.default_values[2]);
+
     writer.EndObject();
+
     return success();
 }
 
 template<typename Writer>
-status write(Writer& writer, const qss2_sum_4& /*dyn*/) noexcept
+status write(Writer& writer, const qss2_sum_4& dyn) noexcept
 {
     writer.StartObject();
+
+    writer.Key("value-0");
+    writer.Double(dyn.default_values[0]);
+    writer.Key("value-1");
+    writer.Double(dyn.default_values[1]);
+    writer.Key("value-2");
+    writer.Double(dyn.default_values[2]);
+    writer.Key("value-3");
+    writer.Double(dyn.default_values[3]);
+
     writer.EndObject();
+
     return success();
 }
 
@@ -4480,26 +4388,53 @@ status write(Writer& writer, const qss2_wsum_4& dyn) noexcept
 }
 
 template<typename Writer>
-status write(Writer& writer, const qss3_sum_2& /*dyn*/) noexcept
+status write(Writer& writer, const qss3_sum_2& dyn) noexcept
 {
     writer.StartObject();
+
+    writer.Key("value-0");
+    writer.Double(dyn.default_values[0]);
+    writer.Key("value-1");
+    writer.Double(dyn.default_values[1]);
+
     writer.EndObject();
+
     return success();
 }
 
 template<typename Writer>
-status write(Writer& writer, const qss3_sum_3& /*dyn*/) noexcept
+status write(Writer& writer, const qss3_sum_3& dyn) noexcept
 {
     writer.StartObject();
+
+    writer.Key("value-0");
+    writer.Double(dyn.default_values[0]);
+    writer.Key("value-1");
+    writer.Double(dyn.default_values[1]);
+    writer.Key("value-2");
+    writer.Double(dyn.default_values[2]);
+
     writer.EndObject();
+
     return success();
 }
 
 template<typename Writer>
-status write(Writer& writer, const qss3_sum_4& /*dyn*/) noexcept
+status write(Writer& writer, const qss3_sum_4& dyn) noexcept
 {
     writer.StartObject();
+
+    writer.Key("value-0");
+    writer.Double(dyn.default_values[0]);
+    writer.Key("value-1");
+    writer.Double(dyn.default_values[1]);
+    writer.Key("value-2");
+    writer.Double(dyn.default_values[2]);
+    writer.Key("value-3");
+    writer.Double(dyn.default_values[3]);
+
     writer.EndObject();
+
     return success();
 }
 
@@ -4507,11 +4442,19 @@ template<typename Writer>
 status write(Writer& writer, const qss3_wsum_2& dyn) noexcept
 {
     writer.StartObject();
+
+    writer.Key("value-0");
+    writer.Double(dyn.default_values[0]);
+    writer.Key("value-1");
+    writer.Double(dyn.default_values[1]);
+
     writer.Key("coeff-0");
     writer.Double(dyn.default_input_coeffs[0]);
     writer.Key("coeff-1");
     writer.Double(dyn.default_input_coeffs[1]);
+
     writer.EndObject();
+
     return success();
 }
 
@@ -4519,13 +4462,23 @@ template<typename Writer>
 status write(Writer& writer, const qss3_wsum_3& dyn) noexcept
 {
     writer.StartObject();
+
+    writer.Key("value-0");
+    writer.Double(dyn.default_values[0]);
+    writer.Key("value-1");
+    writer.Double(dyn.default_values[1]);
+    writer.Key("value-2");
+    writer.Double(dyn.default_values[2]);
+
     writer.Key("coeff-0");
     writer.Double(dyn.default_input_coeffs[0]);
     writer.Key("coeff-1");
     writer.Double(dyn.default_input_coeffs[1]);
     writer.Key("coeff-2");
     writer.Double(dyn.default_input_coeffs[2]);
+
     writer.EndObject();
+
     return success();
 }
 
@@ -4533,91 +4486,7 @@ template<typename Writer>
 status write(Writer& writer, const qss3_wsum_4& dyn) noexcept
 {
     writer.StartObject();
-    writer.Key("coeff-0");
-    writer.Double(dyn.default_input_coeffs[0]);
-    writer.Key("coeff-1");
-    writer.Double(dyn.default_input_coeffs[1]);
-    writer.Key("coeff-2");
-    writer.Double(dyn.default_input_coeffs[2]);
-    writer.Key("coeff-3");
-    writer.Double(dyn.default_input_coeffs[3]);
-    writer.EndObject();
-    return success();
-}
 
-template<typename Writer>
-status write(Writer& writer, const integrator& dyn) noexcept
-{
-    writer.StartObject();
-    writer.Key("value");
-    writer.Double(dyn.default_current_value);
-    writer.Key("reset");
-    writer.Double(dyn.default_reset_value);
-    writer.EndObject();
-    return success();
-}
-
-template<typename Writer>
-status write(Writer& writer, const quantifier& dyn) noexcept
-{
-    writer.StartObject();
-    writer.Key("step-size");
-    writer.Double(dyn.default_step_size);
-    writer.Key("past-length");
-    writer.Int(dyn.default_past_length);
-    writer.Key("adapt-state");
-    writer.String((dyn.default_adapt_state == quantifier::adapt_state::possible)
-                    ? "possible"
-                  : dyn.default_adapt_state ==
-                      quantifier::adapt_state::impossible
-                    ? "impossibe"
-                    : "done");
-    writer.Key("zero-init-offset");
-    writer.Bool(dyn.default_zero_init_offset);
-    writer.EndObject();
-    return success();
-}
-
-template<typename Writer>
-status write(Writer& writer, const adder_2& dyn) noexcept
-{
-    writer.StartObject();
-    writer.Key("value-0");
-    writer.Double(dyn.default_values[0]);
-    writer.Key("value-1");
-    writer.Double(dyn.default_values[1]);
-    writer.Key("coeff-0");
-    writer.Double(dyn.default_input_coeffs[0]);
-    writer.Key("coeff-1");
-    writer.Double(dyn.default_input_coeffs[1]);
-    writer.EndObject();
-    return success();
-}
-
-template<typename Writer>
-status write(Writer& writer, const adder_3& dyn) noexcept
-{
-    writer.StartObject();
-    writer.Key("value-0");
-    writer.Double(dyn.default_values[0]);
-    writer.Key("value-1");
-    writer.Double(dyn.default_values[1]);
-    writer.Key("value-2");
-    writer.Double(dyn.default_values[2]);
-    writer.Key("coeff-0");
-    writer.Double(dyn.default_input_coeffs[0]);
-    writer.Key("coeff-1");
-    writer.Double(dyn.default_input_coeffs[1]);
-    writer.Key("coeff-2");
-    writer.Double(dyn.default_input_coeffs[2]);
-    writer.EndObject();
-    return success();
-}
-
-template<typename Writer>
-status write(Writer& writer, const adder_4& dyn) noexcept
-{
-    writer.StartObject();
     writer.Key("value-0");
     writer.Double(dyn.default_values[0]);
     writer.Key("value-1");
@@ -4626,6 +4495,7 @@ status write(Writer& writer, const adder_4& dyn) noexcept
     writer.Double(dyn.default_values[2]);
     writer.Key("value-3");
     writer.Double(dyn.default_values[3]);
+
     writer.Key("coeff-0");
     writer.Double(dyn.default_input_coeffs[0]);
     writer.Key("coeff-1");
@@ -4634,66 +4504,7 @@ status write(Writer& writer, const adder_4& dyn) noexcept
     writer.Double(dyn.default_input_coeffs[2]);
     writer.Key("coeff-3");
     writer.Double(dyn.default_input_coeffs[3]);
-    writer.EndObject();
-    return success();
-}
 
-template<typename Writer>
-status write(Writer& writer, const mult_2& dyn) noexcept
-{
-    writer.StartObject();
-    writer.Key("value-0");
-    writer.Double(dyn.default_values[0]);
-    writer.Key("value-1");
-    writer.Double(dyn.default_values[1]);
-    writer.Key("coeff-0");
-    writer.Double(dyn.default_values[0]);
-    writer.Key("coeff-1");
-    writer.Double(dyn.default_values[1]);
-    writer.EndObject();
-    return success();
-}
-
-template<typename Writer>
-status write(Writer& writer, const mult_3& dyn) noexcept
-{
-    writer.StartObject();
-    writer.Key("value-0");
-    writer.Double(dyn.default_values[0]);
-    writer.Key("value-1");
-    writer.Double(dyn.default_values[1]);
-    writer.Key("value-2");
-    writer.Double(dyn.default_values[2]);
-    writer.Key("coeff-0");
-    writer.Double(dyn.default_values[0]);
-    writer.Key("coeff-1");
-    writer.Double(dyn.default_values[1]);
-    writer.Key("coeff-2");
-    writer.Double(dyn.default_values[2]);
-    writer.EndObject();
-    return success();
-}
-
-template<typename Writer>
-status write(Writer& writer, const mult_4& dyn) noexcept
-{
-    writer.StartObject();
-    writer.Key("value-0");
-    writer.Double(dyn.default_values[0]);
-    writer.Key("value-1");
-    writer.Double(dyn.default_values[1]);
-    writer.Key("value-2");
-    writer.Double(dyn.default_values[2]);
-    writer.Key("value-3");
-    writer.Double(dyn.default_values[3]);
-    writer.Key("coeff-0");
-    writer.Double(dyn.default_values[0]);
-    writer.Key("coeff-1");
-    writer.Double(dyn.default_values[1]);
-    writer.Key("coeff-2");
-    writer.Double(dyn.default_values[2]);
-    writer.Key("coeff-3");
-    writer.Double(dyn.default_values[3]);
     writer.EndObject();
     return success();
 }
@@ -4923,16 +4734,6 @@ status write(Writer& writer, const abstract_square<QssLevel>& /*dyn*/) noexcept
     return success();
 }
 
-template<typename Writer>
-status write(Writer& writer, const cross& dyn) noexcept
-{
-    writer.StartObject();
-    writer.Key("threshold");
-    writer.Double(dyn.default_threshold);
-    writer.EndObject();
-    return success();
-}
-
 template<typename Writer, int PortNumber>
 status write(Writer& writer, const accumulator<PortNumber>& /*dyn*/) noexcept
 {
@@ -4949,18 +4750,6 @@ status write(Writer& writer, const time_func& dyn) noexcept
     writer.String(dyn.default_f == &time_function          ? "time"
                   : dyn.default_f == &square_time_function ? "square"
                                                            : "sin");
-    writer.EndObject();
-    return success();
-}
-
-template<typename Writer>
-status write(Writer& writer, const filter& dyn) noexcept
-{
-    writer.StartObject();
-    writer.Key("lower-threshold");
-    writer.Double(dyn.default_lower_threshold);
-    writer.Key("upper-threshold");
-    writer.Double(dyn.default_upper_threshold);
     writer.EndObject();
     return success();
 }

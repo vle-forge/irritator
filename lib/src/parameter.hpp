@@ -14,8 +14,7 @@
 namespace irt {
 
 template<int QssLevel>
-struct abstract_integrator_parameters
-{
+struct abstract_integrator_parameters {
     real X;
     real dQ;
 
@@ -31,8 +30,7 @@ using qss2_integrator_parameters = abstract_integrator_parameters<2>;
 using qss3_integrator_parameters = abstract_integrator_parameters<3>;
 
 template<int QssLevel>
-struct abstract_power_parameters
-{
+struct abstract_power_parameters {
     real n;
 
     void correct() noexcept { n = std::isnormal(n) ? n : 1.0; }
@@ -43,16 +41,14 @@ using qss2_power_parameters = abstract_power_parameters<2>;
 using qss3_power_parameters = abstract_power_parameters<3>;
 
 template<int QssLevel>
-struct abstract_square_parameters
-{};
+struct abstract_square_parameters {};
 
 using qss1_square_parameters = abstract_square_parameters<1>;
 using qss2_square_parameters = abstract_square_parameters<2>;
 using qss3_square_parameters = abstract_square_parameters<3>;
 
 template<int QssLevel, int PortNumber>
-struct abstract_sum_parameters
-{};
+struct abstract_sum_parameters {};
 
 using qss1_sum_2_parameters = abstract_sum_parameters<1, 2>;
 using qss2_sum_2_parameters = abstract_sum_parameters<2, 2>;
@@ -65,8 +61,7 @@ using qss2_sum_4_parameters = abstract_sum_parameters<2, 4>;
 using qss3_sum_4_parameters = abstract_sum_parameters<3, 4>;
 
 template<int QssLevel, int PortNumber>
-struct abstract_wsum_parameters
-{
+struct abstract_wsum_parameters {
     real coeffs[PortNumber];
 };
 
@@ -81,16 +76,14 @@ using qss2_wsum_4_parameters = abstract_wsum_parameters<2, 4>;
 using qss3_wsum_4_parameters = abstract_wsum_parameters<3, 4>;
 
 template<int QssLevel>
-struct abstract_multiplier_parameters
-{};
+struct abstract_multiplier_parameters {};
 
 using qss1_multiplier_parameters = abstract_multiplier_parameters<1>;
 using qss2_multiplier_parameters = abstract_multiplier_parameters<2>;
 using qss3_multiplier_parameters = abstract_multiplier_parameters<3>;
 
 template<int QssLevel>
-struct abstract_filter_parameters
-{
+struct abstract_filter_parameters {
     real lower_threshold = -std::numeric_limits<real>::infinity();
     real upper_threshold = +std::numeric_limits<real>::infinity();
 
@@ -114,8 +107,7 @@ using qss2_filter_parameters = abstract_filter_parameters<2>;
 using qss3_filter_parameters = abstract_filter_parameters<3>;
 
 template<int QssLevel>
-struct abstract_cross_parameters
-{
+struct abstract_cross_parameters {
     real threshold = zero;
     bool detect_up = true;
 
@@ -129,74 +121,7 @@ using qss1_cross_parameters = abstract_cross_parameters<1>;
 using qss2_cross_parameters = abstract_cross_parameters<2>;
 using qss3_cross_parameters = abstract_cross_parameters<3>;
 
-struct aqss_integrator_parameters
-{
-    real value = 0.0;
-    real reset = 0.0;
-
-    void correct() noexcept
-    {
-        value = std::isfinite(value) ? value : 0.0;
-        reset = std::isfinite(reset) ? reset : 0.0;
-    }
-};
-
-struct aqss_quantifier_parameters
-{
-    real                    step_size   = real(0.001);
-    i32                     past_length = 3;
-    quantifier::adapt_state adapt_state = quantifier::adapt_state::possible;
-    bool                    zero_init_offset = false;
-
-    void correct() noexcept
-    {
-        step_size   = step_size > 0 ? step_size : 0.001;
-        past_length = past_length > 1 ? past_length : 3;
-    }
-};
-
-template<int PortNumber>
-struct aqss_adder_parameters
-{
-    real values[PortNumber];
-    real coeffs[PortNumber];
-
-    void correct() noexcept
-    {
-        for (auto& v : values)
-            v = std::isfinite(v) ? v : 0.0;
-
-        for (auto& c : coeffs)
-            c = std::isfinite(c) ? c : 1.0;
-    }
-};
-
-using aqss_adder_2_parameters = aqss_adder_parameters<2>;
-using aqss_adder_3_parameters = aqss_adder_parameters<3>;
-using aqss_adder_4_parameters = aqss_adder_parameters<4>;
-
-template<int PortNumber>
-struct aqss_mult_parameters
-{
-    real values[PortNumber];
-    real coeffs[PortNumber];
-
-    void correct() noexcept
-    {
-        for (auto& v : values)
-            v = std::isfinite(v) ? v : 0.0;
-
-        for (auto& c : coeffs)
-            c = std::isfinite(c) ? c : 1.0;
-    }
-};
-
-using aqss_mult_2_parameters = aqss_mult_parameters<2>;
-using aqss_mult_3_parameters = aqss_mult_parameters<3>;
-using aqss_mult_4_parameters = aqss_mult_parameters<4>;
-
-struct aqss_filter_parameters
-{
+struct aqss_filter_parameters {
     real lower_threshold = -std::numeric_limits<real>::infinity();
     real upper_threshold = +std::numeric_limits<real>::infinity();
 
@@ -215,8 +140,7 @@ struct aqss_filter_parameters
     }
 };
 
-struct aqss_cross_parameters
-{
+struct aqss_cross_parameters {
     real threshold = 0.0;
 
     void correct() noexcept
@@ -226,8 +150,7 @@ struct aqss_cross_parameters
 };
 
 template<typename AbstractLogicalTester, int PortNumber>
-struct abstract_logical_parameters
-{
+struct abstract_logical_parameters {
     bool default_values[PortNumber];
 };
 
@@ -240,19 +163,16 @@ using logical_or_2_parameters =
 using logical_or_3_parameters =
   abstract_logical_parameters<abstract_or_check, 3>;
 
-struct logical_invert_parameters
-{
+struct logical_invert_parameters {
     bool value = false;
 };
 
 template<int PortNumber>
-struct accumulator_parameters
-{};
+struct accumulator_parameters {};
 
 using accumulator_2_parameters = accumulator_parameters<2>;
 
-struct time_func_parameters
-{
+struct time_func_parameters {
     real offset = 0.0;
     i32  f      = 0;
 
@@ -263,11 +183,9 @@ struct time_func_parameters
     }
 };
 
-struct counter_parameters
-{};
+struct counter_parameters {};
 
-struct generator_parameters
-{
+struct generator_parameters {
     real   offset = 0.0;
     source source_ta;
     source source_value;
@@ -276,21 +194,18 @@ struct generator_parameters
     void correct() noexcept { offset = std::isfinite(offset) ? offset : 0.0; }
 };
 
-struct queue_parameters
-{
+struct queue_parameters {
     real ta = 1.0;
 
     void correct() noexcept { ta = ta > 0 ? ta : 1.0; }
 };
 
-struct dynamic_queue_parameters
-{
+struct dynamic_queue_parameters {
     source source_ta;
     bool   stop_on_error = false;
 };
 
-struct priority_queue_parameters
-{
+struct priority_queue_parameters {
     real   ta = 1.0;
     source source_ta;
     bool   stop_on_error = false;
@@ -298,8 +213,7 @@ struct priority_queue_parameters
     void correct() noexcept { ta = ta > 0 ? ta : 1.0; }
 };
 
-struct constant_parameters
-{
+struct constant_parameters {
     real value  = 0.0;
     real offset = 0.0;
 
@@ -310,15 +224,13 @@ struct constant_parameters
     }
 };
 
-struct hsm_wapper_parameters
-{
+struct hsm_wapper_parameters {
     i32 a  = 0;
     i32 b  = 0;
     u64 id = 0u;
 };
 
-enum class generator_parameter_indices
-{
+enum class generator_parameter_indices {
     stop_on_error = 0,
     ta_id,
     ta_type,
@@ -326,60 +238,36 @@ enum class generator_parameter_indices
     value_type
 };
 
-enum class abstract_wsum_parameter_indices
-{
+enum class abstract_wsum_parameter_indices {
     coeffs_0,
     coeffs_1,
     coeffs_2,
     coeffs_3,
 };
 
-enum class abstract_cross_parameter_indices
-{
+enum class abstract_cross_parameter_indices {
     threshold,
     detect_up,
 };
 
-enum class abstract_filter_parameter_indices
-{
+enum class abstract_filter_parameter_indices {
     lower_threshold,
     upper_threshold,
 };
 
-enum class abstract_power_parameter_indices
-{
+enum class abstract_power_parameter_indices {
     n,
 };
 
-enum class abstract_logical_parameter_indices
-{
-    value_0,
-    value_1,
-    value_2
-};
+enum class abstract_logical_parameter_indices { value_0, value_1, value_2 };
 
-enum class hsm_wrapper_parameter_indices
-{
-    a,
-    b
-};
+enum class hsm_wrapper_parameter_indices { a, b };
 
-enum class time_func_parameter_indices
-{
-    f
-};
+enum class time_func_parameter_indices { f };
 
-enum class dynamic_queue_parameter_indices
-{
-    ta_id = 1,
-    ta_type
-};
+enum class dynamic_queue_parameter_indices { ta_id = 1, ta_type };
 
-enum class priority_queue_parameter_indices
-{
-    ta_id = 1,
-    ta_type
-};
+enum class priority_queue_parameter_indices { ta_id = 1, ta_type };
 
 // union parameter_type
 // {

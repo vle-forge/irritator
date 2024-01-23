@@ -12,112 +12,12 @@
 
 namespace irt {
 
-static void model_init(const parameter& param, integrator& dyn) noexcept
-{
-    dyn.default_current_value = param.reals[0];
-    dyn.default_reset_value   = param.reals[1];
-}
-
-static void parameter_init(parameter& param, const integrator& dyn) noexcept
-{
-    param.reals[0] = dyn.default_current_value;
-    param.reals[1] = dyn.default_reset_value;
-}
-
-static void model_init(const parameter& param, quantifier& dyn) noexcept
-{
-    dyn.default_step_size   = param.reals[0];
-    dyn.default_past_length = static_cast<int>(param.integers[0]);
-}
-
-static void parameter_init(parameter& param, const quantifier& dyn) noexcept
-{
-    param.reals[0]    = dyn.default_step_size;
-    param.integers[1] = dyn.default_past_length;
-}
-
 template<int QssLevel>
 static void model_init(const parameter&               param,
                        abstract_integrator<QssLevel>& dyn) noexcept
 {
     dyn.default_X  = param.reals[0];
     dyn.default_dQ = param.reals[1];
-}
-
-template<int PortNumber>
-static void model_init(const parameter& param, adder<PortNumber>& dyn) noexcept
-{
-    dyn.default_input_coeffs[0] = param.reals[0];
-    dyn.default_input_coeffs[1] = param.reals[1];
-
-    if constexpr (PortNumber > 2)
-        dyn.default_input_coeffs[2] = param.reals[2];
-
-    if constexpr (PortNumber > 3)
-        dyn.default_input_coeffs[3] = param.reals[3];
-}
-
-template<int PortNumber>
-static void parameter_init(parameter&               param,
-                           const adder<PortNumber>& dyn) noexcept
-{
-    param.reals[0] = dyn.default_input_coeffs[0];
-    param.reals[1] = dyn.default_input_coeffs[1];
-
-    if constexpr (PortNumber > 2)
-        param.reals[2] = dyn.default_input_coeffs[2];
-
-    if constexpr (PortNumber > 3)
-        param.reals[3] = dyn.default_input_coeffs[3];
-}
-
-template<int PortNumber>
-static void model_init(const parameter& param, mult<PortNumber>& dyn) noexcept
-{
-    dyn.default_input_coeffs[0] = param.reals[0];
-    dyn.default_input_coeffs[1] = param.reals[1];
-
-    if constexpr (PortNumber > 2)
-        dyn.default_input_coeffs[2] = param.reals[2];
-
-    if constexpr (PortNumber > 3)
-        dyn.default_input_coeffs[3] = param.reals[3];
-}
-
-template<int PortNumber>
-static void parameter_init(parameter&              param,
-                           const mult<PortNumber>& dyn) noexcept
-{
-    param.reals[0] = dyn.default_input_coeffs[0];
-    param.reals[1] = dyn.default_input_coeffs[1];
-
-    if constexpr (PortNumber > 2)
-        param.reals[2] = dyn.default_input_coeffs[2];
-
-    if constexpr (PortNumber > 3)
-        param.reals[3] = dyn.default_input_coeffs[3];
-}
-
-static void model_init(const parameter& param, cross& dyn) noexcept
-{
-    dyn.default_threshold = param.reals[0];
-}
-
-static void parameter_init(parameter& param, const cross& dyn) noexcept
-{
-    param.reals[0] = dyn.default_threshold;
-}
-
-static void model_init(const parameter& param, filter& dyn) noexcept
-{
-    dyn.default_lower_threshold = param.reals[0];
-    dyn.default_upper_threshold = param.reals[1];
-}
-
-static void parameter_init(parameter& param, const filter& dyn) noexcept
-{
-    param.reals[0] = dyn.default_lower_threshold;
-    param.reals[1] = dyn.default_upper_threshold;
 }
 
 static void model_init(const parameter& /*param*/, counter& /*dyn*/) noexcept {}
@@ -249,29 +149,118 @@ static void parameter_init(
   const abstract_multiplier<QssLevel>& /*dyn*/) noexcept
 {}
 
-template<int QssLevel, int PortNumber>
-static void model_init(const parameter& /*param*/,
-                       abstract_sum<QssLevel, PortNumber>& /*dyn*/) noexcept
-{}
-
-template<int QssLevel, int PortNumber>
-static void parameter_init(
-  parameter& /*param*/,
-  const abstract_sum<QssLevel, PortNumber>& /*dyn*/) noexcept
-{}
-
-template<int QssLevel, int PortNumber>
-static void model_init(const parameter&                     param,
-                       abstract_wsum<QssLevel, PortNumber>& dyn) noexcept
+template<int QssLevel>
+static void model_init(const parameter&           param,
+                       abstract_sum<QssLevel, 2>& dyn) noexcept
 {
-    dyn.default_input_coeffs[0] = param.reals[0];
-    dyn.default_input_coeffs[1] = param.reals[1];
+    dyn.default_values[0] = param.reals[0];
+    dyn.default_values[1] = param.reals[1];
+}
 
-    if constexpr (PortNumber > 2)
-        dyn.default_input_coeffs[2] = param.reals[2];
+template<int QssLevel>
+static void parameter_init(parameter&                       param,
+                           const abstract_sum<QssLevel, 2>& dyn) noexcept
+{
+    param.reals[0] = dyn.default_values[0];
+    param.reals[1] = dyn.default_values[1];
+}
 
-    if constexpr (PortNumber > 3)
-        dyn.default_input_coeffs[3] = param.reals[3];
+template<int QssLevel>
+static void model_init(const parameter&           param,
+                       abstract_sum<QssLevel, 3>& dyn) noexcept
+{
+    dyn.default_values[0] = param.reals[0];
+    dyn.default_values[1] = param.reals[1];
+    dyn.default_values[2] = param.reals[2];
+}
+
+template<int QssLevel>
+static void parameter_init(parameter&                       param,
+                           const abstract_sum<QssLevel, 3>& dyn) noexcept
+{
+    param.reals[0] = dyn.default_values[0];
+    param.reals[1] = dyn.default_values[1];
+    param.reals[2] = dyn.default_values[2];
+}
+template<int QssLevel>
+static void model_init(const parameter&           param,
+                       abstract_sum<QssLevel, 4>& dyn) noexcept
+{
+    dyn.default_values[0] = param.reals[0];
+    dyn.default_values[1] = param.reals[1];
+    dyn.default_values[2] = param.reals[2];
+    dyn.default_values[3] = param.reals[3];
+}
+
+template<int QssLevel>
+static void parameter_init(parameter&                       param,
+                           const abstract_sum<QssLevel, 4>& dyn) noexcept
+{
+    param.reals[0] = dyn.default_values[0];
+    param.reals[1] = dyn.default_values[1];
+    param.reals[2] = dyn.default_values[2];
+    param.reals[3] = dyn.default_values[3];
+}
+
+template<int QssLevel>
+static void model_init(const parameter&            param,
+                       abstract_wsum<QssLevel, 2>& dyn) noexcept
+{
+    dyn.default_values[0] = param.reals[0];
+    dyn.default_values[1] = param.reals[1];
+
+    dyn.default_input_coeffs[0] = param.reals[3];
+    dyn.default_input_coeffs[1] = param.reals[4];
+}
+
+template<int QssLevel>
+static void parameter_init(parameter&                        param,
+                           const abstract_wsum<QssLevel, 2>& dyn) noexcept
+{
+    param.reals[0] = dyn.default_values[0];
+    param.reals[1] = dyn.default_values[1];
+
+    param.reals[3] = dyn.default_input_coeffs[0];
+    param.reals[4] = dyn.default_input_coeffs[1];
+}
+template<int QssLevel>
+static void model_init(const parameter&            param,
+                       abstract_wsum<QssLevel, 3>& dyn) noexcept
+{
+    dyn.default_values[0] = param.reals[0];
+    dyn.default_values[1] = param.reals[1];
+    dyn.default_values[2] = param.reals[2];
+
+    dyn.default_input_coeffs[0] = param.reals[3];
+    dyn.default_input_coeffs[1] = param.reals[4];
+    dyn.default_input_coeffs[2] = param.reals[5];
+}
+
+template<int QssLevel>
+static void parameter_init(parameter&                        param,
+                           const abstract_wsum<QssLevel, 3>& dyn) noexcept
+{
+    param.reals[0] = dyn.default_values[0];
+    param.reals[1] = dyn.default_values[1];
+    param.reals[2] = dyn.default_values[2];
+
+    param.reals[3] = dyn.default_input_coeffs[0];
+    param.reals[4] = dyn.default_input_coeffs[1];
+    param.reals[5] = dyn.default_input_coeffs[2];
+}
+template<int QssLevel>
+static void model_init(const parameter&            param,
+                       abstract_wsum<QssLevel, 4>& dyn) noexcept
+{
+    dyn.default_values[0] = param.reals[0];
+    dyn.default_values[1] = param.reals[1];
+    dyn.default_values[2] = param.reals[2];
+    dyn.default_values[3] = param.reals[3];
+
+    dyn.default_input_coeffs[0] = param.reals[4];
+    dyn.default_input_coeffs[1] = param.reals[5];
+    dyn.default_input_coeffs[2] = param.reals[6];
+    dyn.default_input_coeffs[3] = param.reals[7];
 }
 
 template<int QssLevel, int PortNumber>
@@ -279,14 +268,15 @@ static void parameter_init(
   parameter&                                 param,
   const abstract_wsum<QssLevel, PortNumber>& dyn) noexcept
 {
-    param.reals[0] = dyn.default_input_coeffs[0];
-    param.reals[1] = dyn.default_input_coeffs[1];
+    param.reals[0] = dyn.default_values[0];
+    param.reals[1] = dyn.default_values[1];
+    param.reals[2] = dyn.default_values[2];
+    param.reals[3] = dyn.default_values[3];
 
-    if constexpr (PortNumber > 2)
-        param.reals[2] = dyn.default_input_coeffs[2];
-
-    if constexpr (PortNumber > 3)
-        param.reals[3] = dyn.default_input_coeffs[3];
+    param.reals[4] = dyn.default_input_coeffs[0];
+    param.reals[5] = dyn.default_input_coeffs[1];
+    param.reals[6] = dyn.default_input_coeffs[2];
+    param.reals[7] = dyn.default_input_coeffs[2];
 }
 
 template<int QssLevel>
