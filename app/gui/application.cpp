@@ -62,19 +62,19 @@ bool application::init() noexcept
         return false;
     }
 
-    if (auto ret = load_settings(); !ret) {
-        log_w(*this,
-              log_level::alert,
-              "Fail to read settings files. Default parameters used\n");
+    //if (auto ret = load_settings(); !ret) {
+    //    log_w(*this,
+    //          log_level::alert,
+    //          "Fail to read settings files. Default parameters used\n");
 
-        mod_init = modeling_initializer{};
+    //    mod_init = modeling_initializer{};
 
-        if (auto ret = save_settings(); !ret) {
-            log_w(*this,
-                  log_level::alert,
-                  "Fail to save settings files. Default parameters used\n");
-        }
-    }
+    //    if (auto ret = save_settings(); !ret) {
+    //        log_w(*this,
+    //              log_level::alert,
+    //              "Fail to save settings files. Default parameters used\n");
+    //    }
+    //}
 
     if (mod.registred_paths.size() == 0) {
         attempt_all(
