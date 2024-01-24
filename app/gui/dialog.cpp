@@ -147,19 +147,24 @@ result<std::filesystem::path> get_executable_directory() noexcept
 result<std::filesystem::path> get_executable_directory() noexcept
 {
     std::wstring filepath;
+    DWORD        len   = MAX_PATH;
+    DWORD        error = ERROR_SUCCESS;
 
-    auto size = ::GetModuleFileNameW(NULL, &filepath[0], 0u);
+    filepath.resize(len, '\0');
 
-    while (std::cmp_greater(size, filepath.size())) {
-        filepath.resize(size, '\0');
-        size = ::GetModuleFileNameW(
-          NULL, &filepath[0], static_cast<DWORD>(filepath.size()));
+    for (int i = 1; i < 16; ++i) {
+        auto size = ::GetModuleFileNameW(nullptr, filepath.data(), len);
+        if (size == 0) {
+            error = ::GetLastError();
+            len *= 2;
+            filepath.resize(len);
+        } else {
+            filepath.resize(static_cast<std::size_t>(size));
+            return std::filesystem::path{ filepath };
+        }
     }
 
-    if (!size)
-        return new_error(fs_error::executable_access_fail);
-
-    return std::filesystem::path{ filepath };
+    return new_error(fs_error::executable_access_fail, error);
 }
 #endif
 
@@ -431,8 +436,7 @@ void     show_drives(const std::filesystem::path& /*current*/,
                      const uint32_t /*drives*/,
                      bool* /*path_click*/,
                      std::filesystem::path* /*next*/) noexcept
-{
-}
+{}
 #endif
 
 static void show_path(const std::filesystem::path& current,
