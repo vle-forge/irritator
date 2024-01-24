@@ -346,6 +346,11 @@ static bool show_local_simulation_plot_observers_table(application& app,
               "Not enough variable observers memory available (default: {})",
               app.pj.variable_observers.capacity());
 
+        ImGui::BeginChild("c-show-plot",
+                          ImVec2(ImGui::GetContentRegionAvail().x, 260.f),
+                          ImGuiChildFlags_None,
+                          ImGuiWindowFlags_HorizontalScrollbar);
+
         if (ImGui::BeginTable("Observation table", 4)) {
             ImGui::TableSetupColumn("enable");
             ImGui::TableSetupColumn("unique id");
@@ -415,6 +420,8 @@ static bool show_local_simulation_plot_observers_table(application& app,
 
             ImGui::EndTable();
         }
+
+        ImGui::EndChild();
     }
 
     return is_modified > 0;
@@ -442,6 +449,11 @@ static bool show_local_simulation_settings(application& app,
     int is_modified = 0;
 
     if (ImGui::CollapsingHeader("Parameters", ImGuiTreeNodeFlags_DefaultOpen)) {
+        ImGui::BeginChild("c-p",
+                          ImVec2(ImGui::GetContentRegionAvail().x, 260.f),
+                          ImGuiChildFlags_None,
+                          ImGuiWindowFlags_HorizontalScrollbar);
+
         if (ImGui::BeginTable("Parameter table", 4)) {
             ImGui::TableSetupColumn("enable");
             ImGui::TableSetupColumn("unique id");
@@ -513,6 +525,8 @@ static bool show_local_simulation_settings(application& app,
 
             ImGui::EndTable();
         }
+
+        ImGui::EndChild();
     }
 
     return is_modified > 0;
@@ -589,7 +603,7 @@ static void show_local_variable_plot(variable_observer& var_obs,
 
 static void show_local_variables_plot(application& app, tree_node& tn) noexcept
 {
-    if (ImPlot::BeginPlot("variables", ImVec2(-1, -1))) {
+    if (ImPlot::BeginPlot("variables", ImVec2(-1, 200))) {
         ImPlot::PushStyleVar(ImPlotStyleVar_LineWeight, 1.f);
         ImPlot::PushStyleVar(ImPlotStyleVar_MarkerSize, 1.f);
 
@@ -637,6 +651,11 @@ static bool show_simulation_grid_observers(application& app) noexcept
 {
     auto to_delete   = undefined<grid_modeling_observer_id>();
     bool is_modified = false;
+
+    ImGui::BeginChild("c-show-grid",
+                      ImVec2(ImGui::GetContentRegionAvail().x, 260.f),
+                      ImGuiChildFlags_None,
+                      ImGuiWindowFlags_HorizontalScrollbar);
 
     if (ImGui::BeginTable("Grid observers", 5)) {
         ImGui::TableSetupColumn("id");
@@ -686,6 +705,8 @@ static bool show_simulation_grid_observers(application& app) noexcept
         ImGui::EndTable();
     }
 
+    ImGui::EndChild();
+
     if (is_defined(to_delete)) {
         app.pj.grid_observers.free(to_delete);
         is_modified = true;
@@ -698,6 +719,11 @@ static bool show_simulation_graph_observers(application& app) noexcept
 {
     auto to_delete   = undefined<graph_modeling_observer_id>();
     bool is_modified = false;
+
+    ImGui::BeginChild("c-show-graph",
+                      ImVec2(ImGui::GetContentRegionAvail().x, 260.f),
+                      ImGuiChildFlags_None,
+                      ImGuiWindowFlags_HorizontalScrollbar);
 
     if (ImGui::BeginTable("Graph observers", 5)) {
         ImGui::TableSetupColumn("id");
@@ -745,6 +771,8 @@ static bool show_simulation_graph_observers(application& app) noexcept
         ImGui::EndTable();
     }
 
+    ImGui::EndChild();
+
     if (is_defined(to_delete)) {
         app.pj.graph_observers.free(to_delete);
         is_modified = true;
@@ -757,6 +785,11 @@ static bool show_simulation_variable_observers(application& app) noexcept
 {
     auto to_delete   = undefined<variable_observer_id>();
     bool is_modified = false;
+
+    ImGui::BeginChild("c-show-plot",
+                      ImVec2(ImGui::GetContentRegionAvail().x, 260.f),
+                      ImGuiChildFlags_None,
+                      ImGuiWindowFlags_HorizontalScrollbar);
 
     if (ImGui::BeginTable("Plot observers", 5)) {
         ImGui::TableSetupColumn("id");
@@ -803,6 +836,8 @@ static bool show_simulation_variable_observers(application& app) noexcept
 
         ImGui::EndTable();
     }
+
+    ImGui::EndChild();
 
     if (is_defined(to_delete)) {
         app.pj.variable_observers.free(to_delete);
