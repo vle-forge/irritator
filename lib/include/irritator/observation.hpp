@@ -64,7 +64,7 @@ constexpr inline auto get_interpolate_type(const dynamics_type type) noexcept
         return interpolate_type::none;
     }
 
-    irt_unreachable();
+    unreachable();
 }
 
 template<int QssLevel>

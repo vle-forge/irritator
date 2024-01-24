@@ -360,7 +360,7 @@ status advance(timeline& tl, simulation& sim, time& t) noexcept
         return advance(sim, t, tl.sim_points[bag.index]);
     }
 
-    irt_unreachable();
+    unreachable();
 }
 
 static status back(simulation& sim, time& t, connection_point& cnt_pt) noexcept
@@ -423,7 +423,7 @@ status back(timeline& tl, simulation& sim, time& t) noexcept
         return back(sim, t, tl.sim_points[bag.index]);
     }
 
-    irt_unreachable();
+    unreachable();
 }
 
 status run(timeline& tl, simulation& sim, time& t) noexcept

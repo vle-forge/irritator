@@ -179,7 +179,7 @@ static void open_component(application& app, component_id id) noexcept
             break;
 
         default:
-            irt_unreachable();
+            unreachable();
         }
 
         app.component_ed.request_to_open(id);

@@ -5,7 +5,6 @@
 #ifndef ORG_VLEPROJECT_IRRITATOR_2020
 #define ORG_VLEPROJECT_IRRITATOR_2020
 
-#include <algorithm>
 #include <array>
 #include <concepts>
 #include <cstddef>
@@ -48,15 +47,19 @@
 #define irt_assert(_expr) assert(_expr)
 #endif
 
-#if defined(__GNUC__)
-#define irt_unreachable() __builtin_unreachable();
-#elif defined(_MSC_VER)
-#define irt_unreachable() __assume(0)
-#else
-#define irt_unreachable()
-#endif
-
 namespace irt {
+
+[[noreturn]] inline void unreachable() noexcept
+{
+    // Uses compiler specific extensions if possible.
+    // Even if no extension is used, undefined behavior is still raised by
+    // an empty function body and the noreturn attribute.
+#if defined(_MSC_VER) && !defined(__clang__) // MSVC
+    __assume(false);
+#else // GCC, Clang
+    __builtin_unreachable();
+#endif
+}
 
 namespace sim {
 
@@ -92,17 +95,8 @@ inline constexpr void ensure(T&& assertion) noexcept
 //! @param assertion The instance of the assertion to test.
 template<typename T>
     requires(sim::enable_ensure_simulation == false)
-#if defined __has_attribute
-#if __has_attribute(always_inline)
-inline __attribute__((always_inline))
-#endif
-#elif defined(_MSC_VER)
-__forceinline
-#else
-inline
-#endif
-constexpr void
-ensure([[maybe_unused]] T&& assertion) noexcept
+[[gnu::always_inline]] [[msvc::forceinline]] constexpr void ensure(
+  [[maybe_unused]] T&& assertion) noexcept
 {}
 
 } // namespace sim
@@ -123,7 +117,7 @@ using f64 = double;
 #ifndef IRRITATOR_REAL_TYPE_F32
 using real = f64;
 #else
-using real = f32;
+using real                                     = f32;
 #endif //  IRRITATOR_REAL_TYPE
 
 //! @brief An helper function to initialize floating point number and
@@ -4348,7 +4342,7 @@ static constexpr dynamics_type dynamics_typeof() noexcept
     if constexpr (std::is_same_v<Dynamics, hsm_wrapper>)
         return dynamics_type::hsm_wrapper;
 
-    irt_unreachable();
+    unreachable();
 }
 
 template<typename Function>
@@ -4462,7 +4456,7 @@ constexpr auto dispatch(const model& mdl, Function&& f) noexcept
         return f(*reinterpret_cast<const hsm_wrapper*>(&mdl.dyn));
     }
 
-    irt_unreachable();
+    unreachable();
 }
 
 template<typename Function>
@@ -4576,7 +4570,7 @@ constexpr auto dispatch(model& mdl, Function&& f) noexcept
         return f(*reinterpret_cast<hsm_wrapper*>(&mdl.dyn));
     }
 
-    irt_unreachable();
+    unreachable();
 }
 
 template<typename Dynamics>
@@ -6030,7 +6024,7 @@ inline status global_connect(simulation& sim,
               return success();
           }
 
-          irt_unreachable();
+          unreachable();
       });
 }
 
@@ -6056,7 +6050,7 @@ inline status global_disconnect(simulation& sim,
               }
           }
 
-          irt_unreachable();
+          unreachable();
       });
 }
 

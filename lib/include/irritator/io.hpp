@@ -159,7 +159,7 @@ static constexpr const char** get_input_port_names() noexcept
     if constexpr (std::is_same_v<Dynamics, accumulator_2>)
         return str_in_2_nb_2;
 
-    irt_unreachable();
+    unreachable();
 }
 
 static constexpr const char** get_input_port_names(
@@ -233,7 +233,7 @@ static constexpr const char** get_input_port_names(
         return str_in_2_nb_2;
     }
 
-    irt_unreachable();
+    unreachable();
 }
 
 static inline const char* str_out_1[] = { "out" };
@@ -306,7 +306,7 @@ static constexpr const char** get_output_port_names() noexcept
     if constexpr (std::is_same_v<Dynamics, accumulator_2>)
         return str_empty;
 
-    irt_unreachable();
+    unreachable();
 }
 
 static constexpr const char** get_output_port_names(
@@ -374,7 +374,7 @@ static constexpr const char** get_output_port_names(
         return str_empty;
     }
 
-    irt_unreachable();
+    unreachable();
 }
 
 static constexpr inline const char* status_string_names[] = {

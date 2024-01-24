@@ -761,7 +761,7 @@ static status external_source_dispatch(Source&                s,
         return s.finalize(src);
     }
 
-    irt_unreachable();
+    unreachable();
 }
 
 status external_source::dispatch(source&                      src,
@@ -808,7 +808,7 @@ status external_source::dispatch(source&                      src,
     } break;
     }
 
-    irt_unreachable();
+    unreachable();
 }
 
 void external_source::clear() noexcept

@@ -54,17 +54,8 @@ inline constexpr void ensure(T&& assertion) noexcept
 //! @param assertion The instance of the assertion to test.
 template<typename T>
     requires(container::enable_ensure_container == false)
-#if defined __has_attribute
-#if __has_attribute(always_inline)
-inline __attribute__((always_inline))
-#endif
-#elif defined(_MSC_VER)
-__forceinline
-#else
-inline
-#endif
-constexpr void
-ensure([[maybe_unused]] T&& assertion) noexcept
+[[gnu::always_inline]] [[msvc::forceinline]] constexpr void ensure(
+  [[maybe_unused]] T&& assertion) noexcept
 {}
 
 } // namespace variables

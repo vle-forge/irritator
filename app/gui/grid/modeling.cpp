@@ -185,7 +185,7 @@ static bool assign_name(modeling&       mod,
             return new_number_4(mod, compo);
         }
 
-        irt_unreachable();
+        unreachable();
         break;
 
     case grid_component::neighborhood::eight:
@@ -197,11 +197,11 @@ static bool assign_name(modeling&       mod,
             return new_number_8(mod, compo);
         }
 
-        irt_unreachable();
+        unreachable();
         break;
     }
 
-    irt_unreachable();
+    unreachable();
 }
 
 void show_default_component_widgets(application& app, grid_component& grid)

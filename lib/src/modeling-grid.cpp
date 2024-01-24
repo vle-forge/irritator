@@ -435,7 +435,7 @@ static auto build_grid_connections(modeling&              mod,
             break;
 
         default:
-            irt_unreachable();
+            unreachable();
         };
     } else {
         switch (grid.neighbors) {
@@ -466,7 +466,7 @@ static auto build_grid_connections(modeling&              mod,
             break;
 
         default:
-            irt_unreachable();
+            unreachable();
         }
     }
 

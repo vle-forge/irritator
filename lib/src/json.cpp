@@ -2562,7 +2562,7 @@ struct reader {
               });
         }
 
-        irt_unreachable();
+        unreachable();
     }
 
     bool cache_random_mapping_add(u64 id_in_file, random_source_id id) noexcept
@@ -2723,7 +2723,7 @@ struct reader {
                 out = std::make_optional(p_id);
                 return true;
             } else {
-                irt_unreachable();
+                unreachable();
             }
         }
 
@@ -2763,7 +2763,7 @@ struct reader {
                 out = std::make_optional(p_id);
                 return true;
             } else {
-                irt_unreachable();
+                unreachable();
             }
         }
 
@@ -2967,7 +2967,7 @@ struct reader {
             return read_input_connection(val, compo, gen);
         }
 
-        irt_unreachable();
+        unreachable();
     }
 
     bool read_connections(const rapidjson::Value& val,
@@ -5276,7 +5276,7 @@ static status write_child_component(const modeling&    mod,
         case component_type::hsm:
             return write_child_component_path(mod, *compo, w);
         }
-        irt_unreachable();
+        unreachable();
 
     } else {
         w.Key("component-type");
@@ -5465,7 +5465,7 @@ bool dispatch_connection_type(modeling&   mod,
         return false;
     }
 
-    irt_unreachable();
+    unreachable();
 }
 
 template<typename InternalF, typename InputF, typename OutputF>
@@ -5739,7 +5739,7 @@ static status write_graph_component_param(
 
     static_assert(std::variant_size_v<graph_component::random_graph_param> ==
                   3);
-    irt_unreachable();
+    unreachable();
 }
 
 template<typename Writer>
@@ -5938,7 +5938,7 @@ status json_archiver::component_save(modeling&                   mod,
         return do_component_save(w, mod, compo, cache);
     }
 
-    irt_unreachable();
+    unreachable();
 
     return success();
 }

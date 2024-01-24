@@ -66,7 +66,7 @@ void plot_observation_widget::show(application& app) noexcept
                         break;
 
                     default:
-                        irt_unreachable();
+                        unreachable();
                     }
                 }
             }

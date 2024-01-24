@@ -525,7 +525,7 @@ status modeling::copy(internal_component src, component& dst) noexcept
         return add_van_der_pol<3>(*this, dst, s_compo);
     }
 
-    irt_unreachable();
+    unreachable();
 
     return success();
 }

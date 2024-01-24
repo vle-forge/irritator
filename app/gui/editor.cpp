@@ -311,7 +311,7 @@ bool show_external_sources_combo(external_source&     srcs,
         }
     } break;
     default:
-        irt_unreachable();
+        unreachable();
     }
 
     if (ImGui::BeginCombo(title, label.c_str())) {

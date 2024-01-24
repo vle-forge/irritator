@@ -241,7 +241,7 @@ bool hierarchical_state_machine::handle(const state_id   state,
         break;
     }
 
-    irt_unreachable();
+    unreachable();
 }
 
 void hierarchical_state_machine::affect_action(const state_action& action,
@@ -327,7 +327,7 @@ void hierarchical_state_machine::affect_action(const state_action& action,
         break;
 
     default:
-        irt_unreachable();
+        unreachable();
     }
 }
 
@@ -378,7 +378,7 @@ bool hierarchical_state_machine::condition_action::check(u8  port_values,
         return a <= b;
     }
 
-    irt_unreachable();
+    unreachable();
 
     return false;
 }

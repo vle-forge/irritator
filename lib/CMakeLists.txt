@@ -33,10 +33,10 @@ target_compile_options(libirritator INTERFACE
         -pipe -march=native
         $<$<CONFIG:Debug>:-O0 -g -Wall -Wextra>>
     $<$<AND:$<CXX_COMPILER_ID:MSVC>,$<VERSION_LESS_EQUAL:${MSVC_TOOLSET_VERSION},142>>:
-        /EHsc /bigobj /Zc:__cplusplus /std:c++latest
+        /EHsc /bigobj /Zc:__cplusplus /wd5030 /std:c++latest
         $<$<CONFIG:Debug>:/Od /W3 /Zi>>
     $<$<AND:$<CXX_COMPILER_ID:MSVC>,$<VERSION_GREATER:${MSVC_TOOLSET_VERSION},142>>:
-        /EHsc /bigobj /Zc:__cplusplus /std:c++20
+        /EHsc /bigobj /Zc:__cplusplus /wd5030 /std:c++20
         $<$<CONFIG:Debug>:/Od /W3 /Zi>>)
 
 include(CMakePackageConfigHelpers)
@@ -87,10 +87,10 @@ function(irritator_add_test test_name)
         -pipe -march=native
         $<$<CONFIG:Debug>:-O0 -g -Wall -Wextra>>
     $<$<AND:$<CXX_COMPILER_ID:MSVC>,$<VERSION_LESS_EQUAL:${MSVC_TOOLSET_VERSION},142>>:
-        /EHsc /bigobj /Zc:__cplusplus /std:c++latest
+        /EHsc /bigobj /Zc:__cplusplus /wd5030 /std:c++latest
         $<$<CONFIG:Debug>:/Od /W3 /Zi>>
     $<$<AND:$<CXX_COMPILER_ID:MSVC>,$<VERSION_GREATER:${MSVC_TOOLSET_VERSION},142>>:
-        /EHsc /bigobj /Zc:__cplusplus /std:c++20
+        /EHsc /bigobj /Zc:__cplusplus /wd5030 /std:c++20
         $<$<CONFIG:Debug>:/Od /W3 /Zi>>)
 
   target_compile_definitions(${test_name}

@@ -98,7 +98,7 @@ static float get_fade_percent(const notification& n) noexcept
         return 1.f;
     }
 
-    irt_unreachable();
+    unreachable();
 }
 
 notification::notification() noexcept

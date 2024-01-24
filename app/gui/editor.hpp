@@ -249,7 +249,7 @@ constexpr auto dispatcher(const dynamics_type type,
         return f(dynamics_hsm_wrapper_tag{}, std::forward<Args>(args)...);
     }
 
-    irt_unreachable();
+    unreachable();
 }
 
 template<typename Dynamics, typename Function, typename... Args>
@@ -356,7 +356,7 @@ constexpr auto dispatcher(Function&& f, Args&&... args) noexcept
     if constexpr (std::is_same_v<Dynamics, hsm_wrapper>)
         return f(dynamics_hsm_wrapper_tag{}, std::forward<Args>(args)...);
 
-    irt_unreachable();
+    unreachable();
 }
 
 auto show_parameter(dynamics_qss1_integrator_tag,

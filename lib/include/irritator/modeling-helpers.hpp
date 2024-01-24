@@ -141,7 +141,7 @@ void for_each_child(modeling& mod, component& compo, Function&& f) noexcept
         break;
 
     default:
-        irt_unreachable();
+        unreachable();
     }
 }
 
@@ -200,7 +200,7 @@ void for_each_model(simulation& sim, tree_node& tn, Function&& f) noexcept
         } break;
 
         default:
-            irt_unreachable();
+            unreachable();
         }
     }
 }

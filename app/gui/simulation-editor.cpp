@@ -554,7 +554,7 @@ static bool show_local_simulation_specific_observers(application& app,
               return true;
 
           default:
-              irt_unreachable();
+              unreachable();
           }
 
           return false;
@@ -582,7 +582,7 @@ static void show_local_variable_plot(variable_observer& var_obs,
             break;
 
         default:
-            irt_unreachable();
+            unreachable();
         }
     }
 }

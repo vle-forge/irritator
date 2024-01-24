@@ -139,7 +139,7 @@ bool get_connections(const modeling&                 mod,
         return false;
     }
 
-    irt_unreachable();
+    unreachable();
 }
 
 static bool count_inputs_connections(const modeling&                       mod,
@@ -1485,7 +1485,7 @@ auto project::get_model_path(const unique_id_path& path) const noexcept
         return project_get_model_path(*this, path);
     }
 
-    irt_unreachable();
+    unreachable();
 }
 
 static auto project_get_first_tn_id_from(const project&   pj,
