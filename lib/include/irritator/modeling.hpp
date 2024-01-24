@@ -512,20 +512,20 @@ struct file_path {
 };
 
 struct modeling_initializer {
-    i32 model_capacity              = 1024 * 1024;
-    i32 tree_capacity               = 1024;
-    i32 parameter_capacity          = 128 * 128;
+    i32 model_capacity              = 32768;
+    i32 tree_capacity               = 256;
+    i32 parameter_capacity          = 4096;
     i32 description_capacity        = 128;
-    i32 component_capacity          = 1024;
+    i32 component_capacity          = 512;
     i32 dir_path_capacity           = 32;
     i32 file_path_capacity          = 512;
-    i32 children_capacity           = 1024 * 1024;
-    i32 connection_capacity         = 1024 * 256;
-    i32 port_capacity               = 4096;
-    i32 constant_source_capacity    = 16;
-    i32 binary_file_source_capacity = 16;
-    i32 text_file_source_capacity   = 16;
-    i32 random_source_capacity      = 16;
+    i32 children_capacity           = 8192;
+    i32 connection_capacity         = 16384;
+    i32 port_capacity               = 32768;
+    i32 constant_source_capacity    = 32;
+    i32 binary_file_source_capacity = 32;
+    i32 text_file_source_capacity   = 32;
+    i32 random_source_capacity      = 32;
 
     u64 random_generator_seed = 1234567890;
 
