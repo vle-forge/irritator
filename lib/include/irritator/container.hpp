@@ -5,6 +5,8 @@
 #ifndef ORG_VLEPROJECT_IRRITATOR_CONTAINER_2023
 #define ORG_VLEPROJECT_IRRITATOR_CONTAINER_2023
 
+#include <irritator/macros.hpp>
+
 #include <concepts>
 #include <iterator>
 #include <limits>
@@ -14,51 +16,7 @@
 #include <type_traits>
 #include <utility>
 
-#ifdef _WIN32
-#include <malloc.h>
-#endif
-
 namespace irt {
-
-namespace container {
-
-#ifdef IRRITATOR_ENABLE_DEBUG
-static constexpr bool enable_ensure_container = true;
-#else
-static constexpr bool enable_ensure_container = false;
-#endif
-
-//! @brief A c++ function to replace assert macro controlled via constexpr
-//! boolean variable.
-//!
-//! Call @c quick_exit if the assertion fail. This function is disabled if the
-//! boolean @c variables::enable_ensure_container is false.
-//!
-//! @tparam T The type of the assertion to test.
-//! @param assertion The instance of the assertion to test.
-template<typename T>
-    requires(container::enable_ensure_container == true)
-inline constexpr void ensure(T&& assertion) noexcept
-{
-    if (!static_cast<bool>(assertion))
-        std::abort();
-}
-
-//! @brief A c++ function to replace assert macro controlled via constexpr
-//! boolean variable.
-//!
-//! This function is disabled if the boolean @c
-//! variables::enable_ensure_container is false.
-//!
-//! @tparam T The type of the assertion to test.
-//! @param assertion The instance of the assertion to test.
-template<typename T>
-    requires(container::enable_ensure_container == false)
-[[gnu::always_inline]] [[msvc::forceinline]] constexpr void ensure(
-  [[maybe_unused]] T&& assertion) noexcept
-{}
-
-} // namespace variables
 
 ////////////////////////////////////////////////////////////////////////
 //                                                                    //
@@ -107,7 +65,7 @@ public:
     T* allocate(size_type n) noexcept
     {
         const auto byte_count = sizeof(T) * n;
-        container::ensure(byte_count % alignof(T) == 0);
+        debug::ensure(byte_count % alignof(T) == 0);
 
         using aligned_alloc_fn = void* (*)(std::size_t, std::size_t) noexcept;
 
@@ -1434,8 +1392,8 @@ constexpr data_array<T, Identifier, A>::data_array(
   std::integral auto capacity) noexcept
     requires(std::is_empty_v<A>)
 {
-    container::ensure(std::cmp_greater(capacity, 0));
-    container::ensure(
+    debug::ensure(std::cmp_greater(capacity, 0));
+    debug::ensure(
       std::cmp_less(capacity, std::numeric_limits<index_type>::max()));
 
     m_items     = m_alloc.template allocate<item>(capacity);
@@ -1453,8 +1411,8 @@ constexpr data_array<T, Identifier, A>::data_array(
     requires(!std::is_empty_v<A>)
   : m_alloc(mem)
 {
-    container::ensure(std::cmp_greater(capacity, 0));
-    container::ensure(
+    debug::ensure(std::cmp_greater(capacity, 0));
+    debug::ensure(
       std::cmp_less(capacity, std::numeric_limits<index_type>::max()));
 
     m_items     = m_alloc.template allocate<item>(capacity);
@@ -1478,7 +1436,7 @@ template<typename T, typename Identifier, typename A>
 bool data_array<T, Identifier, A>::reserve(std::integral auto capacity) noexcept
 {
     static_assert(std::is_move_assignable_v<T> or std::is_copy_assignable_v<T>);
-    container::ensure(
+    debug::ensure(
       std::cmp_less(capacity, std::numeric_limits<index_type>::max()));
 
     if (std::cmp_equal(capacity, 0) or
@@ -1555,8 +1513,8 @@ template<typename... Args>
 typename data_array<T, Identifier, A>::value_type&
 data_array<T, Identifier, A>::alloc(Args&&... args) noexcept
 {
-    container::ensure(can_alloc(1) &&
-                      "check alloc() with full() before using use.");
+    debug::ensure(can_alloc(1) &&
+                  "check alloc() with full() before using use.");
 
     index_type new_index;
 
@@ -1616,9 +1574,9 @@ void data_array<T, Identifier, A>::free(T& t) noexcept
     auto id    = get_id(t);
     auto index = get_index(id);
 
-    container::ensure(&m_items[index] == static_cast<void*>(&t));
-    container::ensure(m_items[index].id == id);
-    container::ensure(is_valid(id));
+    debug::ensure(&m_items[index] == static_cast<void*>(&t));
+    debug::ensure(m_items[index].id == id);
+    debug::ensure(is_valid(id));
 
     std::destroy_at(&m_items[index].item);
 
@@ -1646,7 +1604,7 @@ void data_array<T, Identifier, A>::free(Identifier id) noexcept
 template<typename T, typename Identifier, typename A>
 Identifier data_array<T, Identifier, A>::get_id(const T* t) const noexcept
 {
-    container::ensure(t != nullptr);
+    debug::ensure(t != nullptr);
 
     auto* ptr = reinterpret_cast<const item*>(t);
     return ptr->id;
@@ -1688,8 +1646,8 @@ template<typename T, typename Identifier, typename A>
 T* data_array<T, Identifier, A>::try_to_get(
   std::integral auto index) const noexcept
 {
-    container::ensure(std::cmp_greater_equal(index, 0));
-    container::ensure(std::cmp_less(index, m_max_used));
+    debug::ensure(std::cmp_greater_equal(index, 0));
+    debug::ensure(std::cmp_less(index, m_max_used));
 
     if (is_valid(m_items[index].id))
         return &m_items[index].item;
@@ -1872,9 +1830,9 @@ constexpr vector<T, A>::vector(memory_resource* mem) noexcept
 template<typename T, typename A>
 constexpr bool vector<T, A>::make(std::integral auto capacity) noexcept
 {
-    container::ensure(std::cmp_greater(capacity, 0));
-    container::ensure(std::cmp_less(sizeof(T) * capacity,
-                                    std::numeric_limits<index_type>::max()));
+    debug::ensure(std::cmp_greater(capacity, 0));
+    debug::ensure(std::cmp_less(sizeof(T) * capacity,
+                                std::numeric_limits<index_type>::max()));
 
     if (std::cmp_greater(capacity, 0)) {
         m_data = m_alloc.template allocate<T>(capacity);
@@ -1892,11 +1850,11 @@ template<typename T, typename A>
 constexpr bool vector<T, A>::make(std::integral auto capacity,
                                   std::integral auto size) noexcept
 {
-    container::ensure(std::cmp_greater(capacity, 0));
-    container::ensure(std::cmp_greater_equal(size, 0));
-    container::ensure(std::cmp_greater_equal(capacity, size));
-    container::ensure(std::cmp_less(sizeof(T) * capacity,
-                                    std::numeric_limits<index_type>::max()));
+    debug::ensure(std::cmp_greater(capacity, 0));
+    debug::ensure(std::cmp_greater_equal(size, 0));
+    debug::ensure(std::cmp_greater_equal(capacity, size));
+    debug::ensure(std::cmp_less(sizeof(T) * capacity,
+                                std::numeric_limits<index_type>::max()));
 
     static_assert(std::is_constructible_v<T>,
                   "T must be nothrow or trivially default constructible");
@@ -1922,11 +1880,11 @@ constexpr bool vector<T, A>::make(std::integral auto capacity,
                                   std::integral auto size,
                                   const T&           default_value) noexcept
 {
-    container::ensure(std::cmp_greater(capacity, 0));
-    container::ensure(std::cmp_greater_equal(size, 0));
-    container::ensure(std::cmp_greater_equal(capacity, size));
-    container::ensure(std::cmp_less(sizeof(T) * capacity,
-                                    std::numeric_limits<index_type>::max()));
+    debug::ensure(std::cmp_greater(capacity, 0));
+    debug::ensure(std::cmp_greater_equal(size, 0));
+    debug::ensure(std::cmp_greater_equal(capacity, size));
+    debug::ensure(std::cmp_less(sizeof(T) * capacity,
+                                std::numeric_limits<index_type>::max()));
 
     static_assert(std::is_copy_constructible_v<T>,
                   "T must be nothrow or trivially default constructible");
@@ -2089,8 +2047,7 @@ bool vector<T, A>::resize(std::integral auto size) noexcept
                   "T must be default or trivially default constructible to use "
                   "resize() function");
 
-    container::ensure(
-      std::cmp_less(size, std::numeric_limits<index_type>::max()));
+    debug::ensure(std::cmp_less(size, std::numeric_limits<index_type>::max()));
 
     if (std::cmp_greater(size, m_capacity)) {
         if (!reserve(compute_new_capacity(static_cast<index_type>(size))))
@@ -2108,7 +2065,7 @@ bool vector<T, A>::resize(std::integral auto size) noexcept
 template<typename T, typename A>
 bool vector<T, A>::reserve(std::integral auto new_capacity) noexcept
 {
-    container::ensure(
+    debug::ensure(
       std::cmp_less(new_capacity, std::numeric_limits<index_type>::max()));
 
     if (std::cmp_greater(new_capacity, m_capacity)) {
@@ -2146,7 +2103,7 @@ inline constexpr const T* vector<T, A>::data() const noexcept
 template<typename T, typename A>
 inline constexpr typename vector<T, A>::reference vector<T, A>::front() noexcept
 {
-    container::ensure(m_size > 0);
+    debug::ensure(m_size > 0);
     return m_data[0];
 }
 
@@ -2154,14 +2111,14 @@ template<typename T, typename A>
 inline constexpr typename vector<T, A>::const_reference vector<T, A>::front()
   const noexcept
 {
-    container::ensure(m_size > 0);
+    debug::ensure(m_size > 0);
     return m_data[0];
 }
 
 template<typename T, typename A>
 inline constexpr typename vector<T, A>::reference vector<T, A>::back() noexcept
 {
-    container::ensure(m_size > 0);
+    debug::ensure(m_size > 0);
     return m_data[m_size - 1];
 }
 
@@ -2169,7 +2126,7 @@ template<typename T, typename A>
 inline constexpr typename vector<T, A>::const_reference vector<T, A>::back()
   const noexcept
 {
-    container::ensure(m_size > 0);
+    debug::ensure(m_size > 0);
     return m_data[m_size - 1];
 }
 
@@ -2177,8 +2134,8 @@ template<typename T, typename A>
 inline constexpr typename vector<T, A>::reference vector<T, A>::operator[](
   std::integral auto index) noexcept
 {
-    container::ensure(std::cmp_greater_equal(index, 0));
-    container::ensure(std::cmp_less(index, m_size));
+    debug::ensure(std::cmp_greater_equal(index, 0));
+    debug::ensure(std::cmp_less(index, m_size));
 
     return data()[index];
 }
@@ -2187,8 +2144,8 @@ template<typename T, typename A>
 inline constexpr typename vector<T, A>::const_reference
 vector<T, A>::operator[](std::integral auto index) const noexcept
 {
-    container::ensure(std::cmp_greater_equal(index, 0));
-    container::ensure(std::cmp_less(index, m_size));
+    debug::ensure(std::cmp_greater_equal(index, 0));
+    debug::ensure(std::cmp_less(index, m_size));
 
     return data()[index];
 }
@@ -2308,7 +2265,7 @@ inline constexpr void vector<T, A>::pop_back() noexcept
                   "T must be nothrow or trivially destructible to use "
                   "pop_back() function");
 
-    container::ensure(m_size);
+    debug::ensure(m_size);
 
     if (m_size) {
         std::destroy_at(data() + m_size - 1);
@@ -2320,7 +2277,7 @@ template<typename T, typename A>
 inline constexpr void vector<T, A>::swap_pop_back(
   std::integral auto index) noexcept
 {
-    container::ensure(std::cmp_less(index, m_size));
+    debug::ensure(std::cmp_less(index, m_size));
 
     if (std::cmp_equal(index, m_size - 1)) {
         pop_back();
@@ -2345,7 +2302,7 @@ template<typename T, typename A>
 inline constexpr typename vector<T, A>::iterator vector<T, A>::erase(
   iterator it) noexcept
 {
-    container::ensure(it >= data() && it < data() + m_size);
+    debug::ensure(it >= data() && it < data() + m_size);
 
     if (it == end())
         return end();
@@ -2374,8 +2331,8 @@ inline constexpr typename vector<T, A>::iterator vector<T, A>::erase(
   iterator first,
   iterator last) noexcept
 {
-    container::ensure(first >= data() && first < data() + m_size &&
-                      last > first && last <= data() + m_size);
+    debug::ensure(first >= data() && first < data() + m_size && last > first &&
+                  last <= data() + m_size);
 
     iterator prev = first == begin() ? end() : first - 1;
     std::destroy(first, last);
@@ -2398,11 +2355,11 @@ inline constexpr typename vector<T, A>::iterator vector<T, A>::erase(
 template<typename T, typename A>
 inline constexpr int vector<T, A>::index_from_ptr(const T* data) const noexcept
 {
-    container::ensure(is_iterator_valid(const_iterator(data)));
+    debug::ensure(is_iterator_valid(const_iterator(data)));
 
     const auto off = data - m_data;
 
-    container::ensure(0 <= off && off < INT32_MAX);
+    debug::ensure(0 <= off && off < INT32_MAX);
 
     return static_cast<int>(off);
 }
@@ -2492,8 +2449,8 @@ constexpr void small_vector<T, length>::resize(
                   "T must be nothrow default constructible to use "
                   "init() function");
 
-    container::ensure(std::cmp_greater_equal(default_size, 0) &&
-                      std::cmp_less(default_size, length));
+    debug::ensure(std::cmp_greater_equal(default_size, 0) &&
+                  std::cmp_less(default_size, length));
 
     if (!std::cmp_greater_equal(default_size, 0))
         default_size = 0;
@@ -2528,7 +2485,7 @@ template<typename T, int length>
 constexpr typename small_vector<T, length>::reference
 small_vector<T, length>::front() noexcept
 {
-    container::ensure(m_size > 0);
+    debug::ensure(m_size > 0);
     return data()[0];
 }
 
@@ -2536,7 +2493,7 @@ template<typename T, int length>
 constexpr typename small_vector<T, length>::const_reference
 small_vector<T, length>::front() const noexcept
 {
-    container::ensure(m_size > 0);
+    debug::ensure(m_size > 0);
     return data()[0];
 }
 
@@ -2544,7 +2501,7 @@ template<typename T, int length>
 constexpr typename small_vector<T, length>::reference
 small_vector<T, length>::back() noexcept
 {
-    container::ensure(m_size > 0);
+    debug::ensure(m_size > 0);
     return data()[m_size - 1];
 }
 
@@ -2552,7 +2509,7 @@ template<typename T, int length>
 constexpr typename small_vector<T, length>::const_reference
 small_vector<T, length>::back() const noexcept
 {
-    container::ensure(m_size > 0);
+    debug::ensure(m_size > 0);
     return data()[m_size - 1];
 }
 
@@ -2560,8 +2517,8 @@ template<typename T, int length>
 constexpr typename small_vector<T, length>::reference
 small_vector<T, length>::operator[](std::integral auto index) noexcept
 {
-    container::ensure(std::cmp_greater_equal(index, 0));
-    container::ensure(std::cmp_less(index, m_size));
+    debug::ensure(std::cmp_greater_equal(index, 0));
+    debug::ensure(std::cmp_less(index, m_size));
 
     return data()[index];
 }
@@ -2570,8 +2527,8 @@ template<typename T, int length>
 constexpr typename small_vector<T, length>::const_reference
 small_vector<T, length>::operator[](std::integral auto index) const noexcept
 {
-    container::ensure(std::cmp_greater_equal(index, 0));
-    container::ensure(std::cmp_less(index, m_size));
+    debug::ensure(std::cmp_greater_equal(index, 0));
+    debug::ensure(std::cmp_less(index, m_size));
 
     return data()[index];
 }
@@ -2659,8 +2616,8 @@ small_vector<T, length>::emplace_back(Args&&... args) noexcept
                   "T must but trivially constructible from this "
                   "argument(s)");
 
-    container::ensure(can_alloc(1) &&
-                      "check alloc() with full() before using use.");
+    debug::ensure(can_alloc(1) &&
+                  "check alloc() with full() before using use.");
 
     std::construct_at(&(data()[m_size]), std::forward<Args>(args)...);
     ++m_size;
@@ -2672,8 +2629,8 @@ template<typename T, int length>
 constexpr typename small_vector<T, length>::reference
 small_vector<T, length>::push_back(const T& arg) noexcept
 {
-    container::ensure(can_alloc(1) &&
-                      "check alloc() with full() before using use.");
+    debug::ensure(can_alloc(1) &&
+                  "check alloc() with full() before using use.");
 
     std::construct_at(&(data()[m_size]), arg);
     ++m_size;
@@ -2698,8 +2655,8 @@ template<typename T, int length>
 constexpr void small_vector<T, length>::swap_pop_back(
   std::integral auto index) noexcept
 {
-    container::ensure(std::cmp_greater_equal(index, 0) &&
-                      std::cmp_less(index, m_size));
+    debug::ensure(std::cmp_greater_equal(index, 0) &&
+                  std::cmp_less(index, m_size));
 
     const auto new_index = static_cast<size_type>(index);
 
@@ -2726,8 +2683,8 @@ template<typename T, int length>
 constexpr typename small_vector<T, length>::iterator
 small_vector<T, length>::erase(std::integral auto index) noexcept
 {
-    container::ensure(std::cmp_greater_equal(index, 0) &&
-                      std::cmp_less(index, m_size));
+    debug::ensure(std::cmp_greater_equal(index, 0) &&
+                  std::cmp_less(index, m_size));
 
     if (m_size) {
         if (index != m_size - 1) {
@@ -2753,7 +2710,7 @@ template<typename T, int length>
 constexpr typename small_vector<T, length>::iterator
 small_vector<T, length>::erase(iterator to_del) noexcept
 {
-    container::ensure(begin() <= to_del and to_del < begin() + m_size);
+    debug::ensure(begin() <= to_del and to_del < begin() + m_size);
 
     if (m_size) {
         if (to_del != end()) {
@@ -2934,7 +2891,7 @@ template<int length>
 inline constexpr typename small_string<length>::reference
 small_string<length>::operator[](std::integral auto index) noexcept
 {
-    container::ensure(std::cmp_less(index, length));
+    debug::ensure(std::cmp_less(index, length));
 
     return m_buffer[index];
 }
@@ -2943,7 +2900,7 @@ template<int length>
 inline constexpr typename small_string<length>::const_reference
 small_string<length>::operator[](std::integral auto index) const noexcept
 {
-    container::ensure(std::cmp_less(index, m_size));
+    debug::ensure(std::cmp_less(index, m_size));
 
     return m_buffer[index];
 }
@@ -3357,7 +3314,7 @@ constexpr void ring_buffer<T, A>::destroy() noexcept
 template<class T, typename A>
 constexpr void ring_buffer<T, A>::reserve(std::integral auto capacity) noexcept
 {
-    container::ensure(
+    debug::ensure(
       std::cmp_less(capacity, std::numeric_limits<index_type>::max()));
 
     if (m_capacity < capacity) {
@@ -3467,7 +3424,7 @@ constexpr void ring_buffer<T, A>::pop_tail() noexcept
 template<class T, typename A>
 constexpr void ring_buffer<T, A>::erase_after(iterator this_it) noexcept
 {
-    container::ensure(this_it.ring != nullptr);
+    debug::ensure(this_it.ring != nullptr);
 
     if (this_it == tail())
         return;
@@ -3479,7 +3436,7 @@ constexpr void ring_buffer<T, A>::erase_after(iterator this_it) noexcept
 template<class T, typename A>
 constexpr void ring_buffer<T, A>::erase_before(iterator this_it) noexcept
 {
-    container::ensure(this_it.ring != nullptr);
+    debug::ensure(this_it.ring != nullptr);
 
     if (this_it == head())
         return;
@@ -3614,8 +3571,8 @@ constexpr const T* ring_buffer<T, A>::data() const noexcept
 template<class T, typename A>
 constexpr T& ring_buffer<T, A>::operator[](std::integral auto index) noexcept
 {
-    container::ensure(std::cmp_greater_equal(index, 0));
-    container::ensure(std::cmp_less(index, m_capacity));
+    debug::ensure(std::cmp_greater_equal(index, 0));
+    debug::ensure(std::cmp_less(index, m_capacity));
 
     return buffer[index];
 }
@@ -3624,8 +3581,8 @@ template<class T, typename A>
 constexpr const T& ring_buffer<T, A>::operator[](
   std::integral auto index) const noexcept
 {
-    container::ensure(std::cmp_greater_equal(index, 0));
-    container::ensure(std::cmp_less(index, m_capacity));
+    debug::ensure(std::cmp_greater_equal(index, 0));
+    debug::ensure(std::cmp_less(index, m_capacity));
 
     return buffer[index];
 }
@@ -3633,7 +3590,7 @@ constexpr const T& ring_buffer<T, A>::operator[](
 template<class T, typename A>
 constexpr T& ring_buffer<T, A>::front() noexcept
 {
-    container::ensure(!empty());
+    debug::ensure(!empty());
 
     return buffer[m_head];
 }
@@ -3641,7 +3598,7 @@ constexpr T& ring_buffer<T, A>::front() noexcept
 template<class T, typename A>
 constexpr const T& ring_buffer<T, A>::front() const noexcept
 {
-    container::ensure(!empty());
+    debug::ensure(!empty());
 
     return buffer[m_head];
 }
@@ -3649,7 +3606,7 @@ constexpr const T& ring_buffer<T, A>::front() const noexcept
 template<class T, typename A>
 constexpr T& ring_buffer<T, A>::back() noexcept
 {
-    container::ensure(!empty());
+    debug::ensure(!empty());
 
     return buffer[back(m_tail)];
 }
@@ -3657,7 +3614,7 @@ constexpr T& ring_buffer<T, A>::back() noexcept
 template<class T, typename A>
 constexpr const T& ring_buffer<T, A>::back() const noexcept
 {
-    container::ensure(!empty());
+    debug::ensure(!empty());
 
     return buffer[back(m_tail)];
 }
@@ -3891,7 +3848,7 @@ template<class T, int length>
 constexpr void small_ring_buffer<T, length>::erase_after(
   iterator this_it) noexcept
 {
-    container::ensure(this_it.ring != nullptr);
+    debug::ensure(this_it.ring != nullptr);
 
     if (this_it == tail())
         return;
@@ -3904,7 +3861,7 @@ template<class T, int length>
 constexpr void small_ring_buffer<T, length>::erase_before(
   iterator this_it) noexcept
 {
-    container::ensure(this_it.ring != nullptr);
+    debug::ensure(this_it.ring != nullptr);
 
     if (this_it == head())
         return;
@@ -4044,8 +4001,8 @@ template<class T, int length>
 constexpr T& small_ring_buffer<T, length>::operator[](
   std::integral auto index) noexcept
 {
-    container::ensure(std::cmp_greater_equal(index, 0));
-    container::ensure(std::cmp_less(index, length));
+    debug::ensure(std::cmp_greater_equal(index, 0));
+    debug::ensure(std::cmp_less(index, length));
 
     return data()[index];
 }
@@ -4054,8 +4011,8 @@ template<class T, int length>
 constexpr const T& small_ring_buffer<T, length>::operator[](
   std::integral auto index) const noexcept
 {
-    container::ensure(std::cmp_greater_equal(index, 0));
-    container::ensure(std::cmp_less(index, length));
+    debug::ensure(std::cmp_greater_equal(index, 0));
+    debug::ensure(std::cmp_less(index, length));
 
     return data()[index];
 }
@@ -4063,7 +4020,7 @@ constexpr const T& small_ring_buffer<T, length>::operator[](
 template<class T, int length>
 constexpr T& small_ring_buffer<T, length>::front() noexcept
 {
-    container::ensure(!empty());
+    debug::ensure(!empty());
 
     return data()[m_head];
 }
@@ -4071,7 +4028,7 @@ constexpr T& small_ring_buffer<T, length>::front() noexcept
 template<class T, int length>
 constexpr const T& small_ring_buffer<T, length>::front() const noexcept
 {
-    container::ensure(!empty());
+    debug::ensure(!empty());
 
     return data()[m_head];
 }
@@ -4079,7 +4036,7 @@ constexpr const T& small_ring_buffer<T, length>::front() const noexcept
 template<class T, int length>
 constexpr T& small_ring_buffer<T, length>::back() noexcept
 {
-    container::ensure(!empty());
+    debug::ensure(!empty());
 
     return data()[back(m_tail)];
 }
@@ -4087,7 +4044,7 @@ constexpr T& small_ring_buffer<T, length>::back() noexcept
 template<class T, int length>
 constexpr const T& small_ring_buffer<T, length>::back() const noexcept
 {
-    container::ensure(!empty());
+    debug::ensure(!empty());
 
     return data()[back(m_tail)];
 }
@@ -4133,7 +4090,7 @@ constexpr typename small_ring_buffer<T, length>::index_type
 small_ring_buffer<T, length>::index_from_begin(
   std::integral auto idx) const noexcept
 {
-    container::ensure(is_numeric_castable<index_type>(idx));
+    debug::ensure(is_numeric_castable<index_type>(idx));
 
     return (m_head + static_cast<index_type>(idx)) % length;
 }

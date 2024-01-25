@@ -5,6 +5,8 @@
 #ifndef ORG_VLEPROJECT_IRRITATOR_2023_ERROR_HPP
 #define ORG_VLEPROJECT_IRRITATOR_2023_ERROR_HPP
 
+#include <irritator/macros.hpp>
+
 #include <string_view>
 
 #define BOOST_LEAF_EMBEDDED

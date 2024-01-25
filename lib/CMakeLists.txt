@@ -12,6 +12,7 @@ set(public_irritator_header
     ${CMAKE_CURRENT_SOURCE_DIR}/include/irritator/format.hpp
     ${CMAKE_CURRENT_SOURCE_DIR}/include/irritator/helpers.hpp
     ${CMAKE_CURRENT_SOURCE_DIR}/include/irritator/io.hpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/include/irritator/macros.hpp
     ${CMAKE_CURRENT_SOURCE_DIR}/include/irritator/modeling-helpers.hpp
     ${CMAKE_CURRENT_SOURCE_DIR}/include/irritator/modeling.hpp
     ${CMAKE_CURRENT_SOURCE_DIR}/include/irritator/observation.hpp

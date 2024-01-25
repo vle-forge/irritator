@@ -12,8 +12,8 @@ fixed_linear_memory_resource::fixed_linear_memory_resource(
   : m_start{ data }
   , m_total_size{ size }
 {
-    container::ensure(m_start);
-    container::ensure(m_total_size);
+    debug::ensure(m_start);
+    debug::ensure(m_total_size);
 }
 
 void* fixed_linear_memory_resource::allocate(size_t bytes,
@@ -43,10 +43,10 @@ void fixed_linear_memory_resource::reset() noexcept { m_offset = { 0 }; }
 void fixed_linear_memory_resource::reset(std::byte*  data,
                                          std::size_t size) noexcept
 {
-    container::ensure(data != nullptr);
-    container::ensure(size != 0u);
-    container::ensure(m_start == nullptr);
-    container::ensure(m_total_size == 0u);
+    debug::ensure(data != nullptr);
+    debug::ensure(size != 0u);
+    debug::ensure(m_start == nullptr);
+    debug::ensure(m_total_size == 0u);
 
     m_start      = data;
     m_total_size = size;
@@ -76,8 +76,8 @@ pool_memory_resource::pool_memory_resource(std::byte*  data,
   , m_chunk_size{ chunk_size }
   , m_total_allocated{ 0 }
 {
-    container::ensure(chunk_size >= std::alignment_of_v<std::max_align_t>);
-    container::ensure(size % chunk_size == 0);
+    debug::ensure(chunk_size >= std::alignment_of_v<std::max_align_t>);
+    debug::ensure(size % chunk_size == 0);
 
     reset();
 }
@@ -85,8 +85,8 @@ pool_memory_resource::pool_memory_resource(std::byte*  data,
 void* pool_memory_resource::allocate(size_t bytes,
                                      size_t /*alignment*/) noexcept
 {
-    container::ensure(bytes == m_chunk_size &&
-                      "Allocation size must be equal to chunk size");
+    debug::ensure(bytes == m_chunk_size &&
+                  "Allocation size must be equal to chunk size");
 
     node* free_position = m_free_list.pop();
     m_total_allocated += m_chunk_size;
@@ -119,11 +119,11 @@ void pool_memory_resource::reset(std::byte*  data,
                                  std::size_t size,
                                  std::size_t chunk_size) noexcept
 {
-    container::ensure(m_start_ptr == nullptr);
-    container::ensure(m_total_size == 0u);
-    container::ensure(data);
-    container::ensure(chunk_size >= std::alignment_of_v<std::max_align_t>);
-    container::ensure(size % chunk_size == 0);
+    debug::ensure(m_start_ptr == nullptr);
+    debug::ensure(m_total_size == 0u);
+    debug::ensure(data);
+    debug::ensure(chunk_size >= std::alignment_of_v<std::max_align_t>);
+    debug::ensure(size % chunk_size == 0);
 
     m_start_ptr       = data;
     m_total_size      = size;
@@ -136,8 +136,8 @@ void pool_memory_resource::reset(std::byte*  data,
 bool pool_memory_resource::can_alloc(std::size_t bytes,
                                      std::size_t /*alignment*/) noexcept
 {
-    container::ensure((bytes % m_chunk_size) == 0 &&
-                      "Allocation size must be equal to chunk size");
+    debug::ensure((bytes % m_chunk_size) == 0 &&
+                  "Allocation size must be equal to chunk size");
 
     return (m_total_size - m_total_allocated) > bytes;
 }
@@ -152,8 +152,8 @@ freelist_memory_resource::freelist_memory_resource(std::byte*  data,
 
 void* freelist_memory_resource::allocate(size_t size, size_t alignment) noexcept
 {
-    // container::ensure("Allocation size must be bigger" && size >=
-    // sizeof(Node)); container::ensure("Alignment must be 8 at least" &&
+    // debug::ensure("Allocation size must be bigger" && size >=
+    // sizeof(Node)); debug::ensure("Alignment must be 8 at least" &&
     // alignment >= 8);
 
     auto found = find_policy::find_first == m_find_policy
@@ -236,10 +236,10 @@ void freelist_memory_resource::reset() noexcept
 
 void freelist_memory_resource::reset(std::byte* data, std::size_t size) noexcept
 {
-    container::ensure(data != nullptr);
-    container::ensure(size != 0u);
-    container::ensure(m_start_ptr == nullptr);
-    container::ensure(m_total_size == 0u);
+    debug::ensure(data != nullptr);
+    debug::ensure(size != 0u);
+    debug::ensure(m_start_ptr == nullptr);
+    debug::ensure(m_total_size == 0u);
 
     m_start_ptr   = data;
     m_total_size  = size;

@@ -5,6 +5,11 @@
 #ifndef ORG_VLEPROJECT_IRRITATOR_2020
 #define ORG_VLEPROJECT_IRRITATOR_2020
 
+#include <irritator/macros.hpp>
+
+#include <irritator/container.hpp>
+#include <irritator/error.hpp>
+
 #include <array>
 #include <concepts>
 #include <cstddef>
@@ -18,9 +23,6 @@
 #include <string_view>
 #include <type_traits>
 #include <utility>
-
-#include <irritator/container.hpp>
-#include <irritator/error.hpp>
 
 #ifdef __has_include
 #if __has_include(<numbers>)
@@ -36,70 +38,7 @@
 #include <cstdint>
 #include <cstring>
 
-/*****************************************************************************
- *
- * Helper macros
- *
- ****************************************************************************/
-
-#ifndef irt_assert
-#include <cassert>
-#define irt_assert(_expr) assert(_expr)
-#endif
-
 namespace irt {
-
-[[noreturn]] inline void unreachable() noexcept
-{
-    // Uses compiler specific extensions if possible.
-    // Even if no extension is used, undefined behavior is still raised by
-    // an empty function body and the noreturn attribute.
-#if defined(_MSC_VER) && !defined(__clang__) // MSVC
-    __assume(false);
-#else // GCC, Clang
-    __builtin_unreachable();
-#endif
-}
-
-namespace sim {
-
-#ifdef IRRITATOR_ENABLE_DEBUG
-static constexpr bool enable_ensure_simulation = true;
-#else
-static constexpr bool enable_ensure_simulation = false;
-#endif
-
-//! @brief A c++ function to replace assert macro controlled via constexpr
-//! boolean variable.
-//!
-//! Call @c quick_exit if the assertion fail. This function is disabled if
-//! the boolean @c variables::enable_ensure_simulation is false.
-//!
-//! @tparam T The type of the assertion to test.
-//! @param assertion The instance of the assertion to test.
-template<typename T>
-    requires(sim::enable_ensure_simulation == true)
-inline constexpr void ensure(T&& assertion) noexcept
-{
-    if (!static_cast<bool>(assertion))
-        std::abort();
-}
-
-//! @brief A c++ function to replace assert macro controlled via constexpr
-//! boolean variable.
-//!
-//! This function is disabled if the boolean @c
-//! variables::enable_ensure_simulation is false.
-//!
-//! @tparam T The type of the assertion to test.
-//! @param assertion The instance of the assertion to test.
-template<typename T>
-    requires(sim::enable_ensure_simulation == false)
-[[gnu::always_inline]] [[msvc::forceinline]] constexpr void ensure(
-  [[maybe_unused]] T&& assertion) noexcept
-{}
-
-} // namespace sim
 
 using i8  = int8_t;
 using i16 = int16_t;
@@ -113,12 +52,6 @@ using sz  = size_t;
 using ssz = ptrdiff_t;
 using f32 = float;
 using f64 = double;
-
-#ifndef IRRITATOR_REAL_TYPE_F32
-using real = f64;
-#else
-using real                                     = f32;
-#endif //  IRRITATOR_REAL_TYPE
 
 //! @brief An helper function to initialize floating point number and
 //! disable warnings the IRRITATOR_REAL_TYPE_F64 is defined.
@@ -224,7 +157,7 @@ inline constexpr u32 unpack_doubleword_right(u64 doubleword) noexcept
 template<typename Integer>
 constexpr typename std::make_unsigned<Integer>::type to_unsigned(Integer value)
 {
-    sim::ensure(value >= 0);
+    debug::ensure(value >= 0);
     return static_cast<typename std::make_unsigned<Integer>::type>(value);
 }
 
@@ -325,7 +258,7 @@ template<typename Target, typename Source>
 constexpr inline Target numeric_cast(Source arg) noexcept
 {
     bool is_castable = is_numeric_castable<Target, Source>(arg);
-    sim::ensure(is_castable);
+    debug::ensure(is_castable);
 
     return static_cast<Target>(arg);
 }
@@ -786,7 +719,7 @@ public:
     //! @return true if success, false otherwise.
     double next() noexcept
     {
-        sim::ensure(!is_empty());
+        debug::ensure(!is_empty());
 
         const auto old_index = index++;
         return buffer[static_cast<sz>(old_index)];
@@ -1299,53 +1232,54 @@ public:
 
 template<typename T>
 concept has_lambda_function = requires(T t, simulation& sim) {
-    {
-        t.lambda(sim)
-    } -> std::same_as<status>;
-};
+                                  {
+                                      t.lambda(sim)
+                                      } -> std::same_as<status>;
+                              };
 
 template<typename T>
 concept has_transition_function =
   requires(T t, simulation& sim, time s, time e, time r) {
       {
           t.transition(sim, s, e, r)
-      } -> std::same_as<status>;
+          } -> std::same_as<status>;
   };
 
 template<typename T>
-concept has_observation_function = requires(T t, time s, time e) {
-    {
-        t.observation(s, e)
-    } -> std::same_as<observation_message>;
-};
+concept has_observation_function =
+  requires(T t, time s, time e) {
+      {
+          t.observation(s, e)
+          } -> std::same_as<observation_message>;
+  };
 
 template<typename T>
 concept has_initialize_function = requires(T t, simulation& sim) {
-    {
-        t.initialize(sim)
-    } -> std::same_as<status>;
-};
+                                      {
+                                          t.initialize(sim)
+                                          } -> std::same_as<status>;
+                                  };
 
 template<typename T>
 concept has_finalize_function = requires(T t, simulation& sim) {
-    {
-        t.finalize(sim)
-    } -> std::same_as<status>;
-};
+                                    {
+                                        t.finalize(sim)
+                                        } -> std::same_as<status>;
+                                };
 
 template<typename T>
 concept has_input_port = requires(T t) {
-    {
-        t.x
-    };
-};
+                             {
+                                 t.x
+                             };
+                         };
 
 template<typename T>
 concept has_output_port = requires(T t) {
-    {
-        t.y
-    };
-};
+                              {
+                                  t.y
+                              };
+                          };
 
 constexpr observation_message qss_observation(real X,
                                               real u,
@@ -4576,7 +4510,7 @@ constexpr auto dispatch(model& mdl, Function&& f) noexcept
 template<typename Dynamics>
 Dynamics& get_dyn(model& mdl) noexcept
 {
-    sim::ensure(dynamics_typeof<Dynamics>() == mdl.type);
+    debug::ensure(dynamics_typeof<Dynamics>() == mdl.type);
 
     return *reinterpret_cast<Dynamics*>(&mdl.dyn);
 }
@@ -4584,7 +4518,7 @@ Dynamics& get_dyn(model& mdl) noexcept
 template<typename Dynamics>
 const Dynamics& get_dyn(const model& mdl) noexcept
 {
-    sim::ensure(dynamics_typeof<Dynamics>() == mdl.type);
+    debug::ensure(dynamics_typeof<Dynamics>() == mdl.type);
 
     return *reinterpret_cast<const Dynamics*>(&mdl.dyn);
 }
@@ -4944,7 +4878,7 @@ constexpr void heap<A>::clear() noexcept
 template<typename A>
 constexpr bool heap<A>::reserve(std::integral auto new_capacity) noexcept
 {
-    container::ensure(
+    debug::ensure(
       std::cmp_less(new_capacity, std::numeric_limits<index_type>::max()));
 
     if (std::cmp_less_equal(new_capacity, capacity))
@@ -4991,7 +4925,7 @@ constexpr typename heap<A>::handle heap<A>::insert(time     tn,
 template<typename A>
 constexpr void heap<A>::destroy(handle elem) noexcept
 {
-    sim::ensure(elem != invalid_heap_handle);
+    debug::ensure(elem != invalid_heap_handle);
 
     if (m_size == 0) {
         clear();
@@ -5008,7 +4942,7 @@ constexpr void heap<A>::destroy(handle elem) noexcept
 template<typename A>
 constexpr void heap<A>::reintegrate(time tn, handle elem) noexcept
 {
-    sim::ensure(elem != invalid_heap_handle);
+    debug::ensure(elem != invalid_heap_handle);
 
     nodes[elem].tn = tn;
 
@@ -5033,14 +4967,14 @@ constexpr void heap<A>::insert(handle elem) noexcept
 template<typename A>
 constexpr void heap<A>::remove(handle elem) noexcept
 {
-    sim::ensure(elem != invalid_heap_handle);
+    debug::ensure(elem != invalid_heap_handle);
 
     if (elem == root) {
         pop();
         return;
     }
 
-    sim::ensure(m_size > 0);
+    debug::ensure(m_size > 0);
 
     m_size--;
     detach_subheap(elem);
@@ -5054,7 +4988,7 @@ constexpr void heap<A>::remove(handle elem) noexcept
 template<typename A>
 constexpr typename heap<A>::handle heap<A>::pop() noexcept
 {
-    sim::ensure(m_size > 0);
+    debug::ensure(m_size > 0);
 
     m_size--;
 
@@ -5266,7 +5200,7 @@ inline void scheduller<A>::clear() noexcept
 template<typename A>
 inline void scheduller<A>::insert(model& mdl, model_id id, time tn) noexcept
 {
-    sim::ensure(mdl.handle == invalid_heap_handle);
+    debug::ensure(mdl.handle == invalid_heap_handle);
 
     mdl.handle = m_heap.insert(tn, id);
 }
@@ -5274,7 +5208,7 @@ inline void scheduller<A>::insert(model& mdl, model_id id, time tn) noexcept
 template<typename A>
 inline void scheduller<A>::reintegrate(model& mdl, time tn) noexcept
 {
-    sim::ensure(mdl.handle != invalid_heap_handle);
+    debug::ensure(mdl.handle != invalid_heap_handle);
 
     m_heap.reintegrate(tn, mdl.handle);
 }
@@ -5292,8 +5226,8 @@ inline void scheduller<A>::erase(model& mdl) noexcept
 template<typename A>
 inline void scheduller<A>::update(model& mdl, time tn) noexcept
 {
-    sim::ensure(mdl.handle != invalid_heap_handle);
-    sim::ensure(tn <= mdl.tn);
+    debug::ensure(mdl.handle != invalid_heap_handle);
+    debug::ensure(tn <= mdl.tn);
 
     if (tn < mdl.tn)
         m_heap.decrease(tn, mdl.handle);
@@ -5380,8 +5314,8 @@ model_id simulation::get_id(const Dynamics& dyn) const
 inline status simulation::init(std::integral auto model_capacity,
                                std::integral auto messages_capacity)
 {
-    sim::ensure(!std::cmp_greater(0, model_capacity));
-    sim::ensure(!std::cmp_greater(0, messages_capacity));
+    debug::ensure(!std::cmp_greater(0, model_capacity));
+    debug::ensure(!std::cmp_greater(0, messages_capacity));
 
     std::size_t global_memory = model_capacity * 256 * sizeof(model);
     std::size_t node_mem      = model_capacity * sizeof(nodes) * 8;
@@ -5473,7 +5407,7 @@ inline void simulation::unobserve(model& mdl) noexcept
 inline void simulation::deallocate(model_id id) noexcept
 {
     auto* mdl = models.try_to_get(id);
-    sim::ensure(mdl);
+    debug::ensure(mdl);
 
     unobserve(*mdl);
 
@@ -5659,7 +5593,7 @@ status simulation::make_transition(model& mdl, Dynamics& dyn, time t) noexcept
         }
     }
 
-    sim::ensure(mdl.tn >= t);
+    debug::ensure(mdl.tn >= t);
 
     mdl.tl = t;
     mdl.tn = t + dyn.sigma;
@@ -5848,7 +5782,7 @@ inline status hsm_wrapper::lambda(simulation& sim) noexcept
             const u8  port  = exec.outputs[i].port;
             const i32 value = exec.outputs[i].value;
 
-            sim::ensure(port < exec.outputs.size());
+            debug::ensure(port < exec.outputs.size());
 
             irt_check(send_message(sim, y[port], to_real(value)));
         }
@@ -5884,7 +5818,7 @@ inline bool simulation::can_alloc_dynamics(
 template<typename Dynamics>
 Dynamics& simulation::alloc() noexcept
 {
-    sim::ensure(!models.full());
+    debug::ensure(!models.full());
 
     auto& mdl  = models.alloc();
     mdl.type   = dynamics_typeof<Dynamics>();
@@ -5914,7 +5848,7 @@ Dynamics& simulation::alloc() noexcept
 inline model& simulation::clone(const model& mdl) noexcept
 {
     /* Use can_alloc before using this function. */
-    sim::ensure(!models.full());
+    debug::ensure(!models.full());
 
     auto& new_mdl  = models.alloc();
     new_mdl.type   = mdl.type;
@@ -5951,7 +5885,7 @@ inline model& simulation::clone(const model& mdl) noexcept
 //! @brief This function allocates dynamics and models.
 inline model& simulation::alloc(dynamics_type type) noexcept
 {
-    sim::ensure(!models.full());
+    debug::ensure(!models.full());
 
     auto& mdl  = models.alloc();
     mdl.type   = type;
