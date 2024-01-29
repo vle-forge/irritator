@@ -27,4 +27,4 @@ jobs:
 
     - name: Test
       working-directory: ${{github.workspace}}/build
-      run: ctest -C ${{matrix.BUILD_TYPE}} --rerun-failed --output-on-failure
+      run: ctest -VV -C ${{matrix.BUILD_TYPE}} --rerun-failed --output-on-failure
