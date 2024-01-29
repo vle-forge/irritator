@@ -6,6 +6,39 @@
 
 namespace irt {
 
+void* malloc_memory_resource::do_allocate(std::size_t bytes,
+                                          std::size_t alignment) noexcept
+{
+    debug::ensure((bytes % alignment) == 0);
+
+    using fn = void* (*)(std::size_t, std::size_t) noexcept;
+
+#ifdef _WIN32
+    fn    call  = reinterpret_cast<fn>(::_aligned_malloc);
+    auto* first = call(bytes, alignment);
+#else
+    fn    call  = reinterpret_cast<fn>(std::aligned_alloc);
+    auto* first = call(alignment, bytes);
+#endif
+
+    if (not first)
+        std::abort();
+
+    return first;
+}
+
+void malloc_memory_resource::do_deallocate(void*       pointer,
+                                           std::size_t bytes) noexcept
+{
+#ifdef _WIN32
+    if (pointer)
+        ::_aligned_free(pointer);
+#else
+    if (pointer)
+        std::free(pointer);
+#endif
+}
+
 fixed_linear_memory_resource::fixed_linear_memory_resource(
   std::byte*  data,
   std::size_t size) noexcept

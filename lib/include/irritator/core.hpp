@@ -18,7 +18,6 @@
 #include <functional>
 #include <limits>
 #include <memory>
-#include <memory_resource>
 #include <span>
 #include <string_view>
 #include <type_traits>
@@ -963,7 +962,7 @@ class heap
 public:
     using this_container  = heap<A>;
     using allocator_type  = A;
-    using memory_resource = typename A::memory_resource;
+    using memory_resource = typename A::memory_resource_t;
     using index_type      = u32;
 
     struct node {
@@ -1049,7 +1048,7 @@ class scheduller
 public:
     using this_container  = heap<A>;
     using allocator_type  = A;
-    using memory_resource = typename A::memory_resource;
+    using memory_resource = typename A::memory_resource_t;
 
 private:
     heap<A> m_heap;
@@ -1104,10 +1103,10 @@ public:
         external_sources
     };
 
-    std::pmr::memory_resource* global = std::pmr::get_default_resource();
-    freelist_memory_resource   shared;
-    freelist_memory_resource   dated_messages_alloc;
-    freelist_memory_resource   nodes_alloc;
+    memory_resource*         global = nullptr;
+    freelist_memory_resource shared;
+    freelist_memory_resource dated_messages_alloc;
+    freelist_memory_resource nodes_alloc;
 
     vector<output_message, freelist_allocator> emitting_output_ports;
     vector<model_id, freelist_allocator>       immediate_models;
@@ -1136,7 +1135,7 @@ public:
 
 public:
     simulation() noexcept;
-    simulation(std::pmr::memory_resource* mr) noexcept;
+    simulation(memory_resource* mr) noexcept;
 
     status init(std::integral auto model_capacity,
                 std::integral auto messages_capacity);
@@ -1232,54 +1231,53 @@ public:
 
 template<typename T>
 concept has_lambda_function = requires(T t, simulation& sim) {
-                                  {
-                                      t.lambda(sim)
-                                      } -> std::same_as<status>;
-                              };
+    {
+        t.lambda(sim)
+    } -> std::same_as<status>;
+};
 
 template<typename T>
 concept has_transition_function =
   requires(T t, simulation& sim, time s, time e, time r) {
       {
           t.transition(sim, s, e, r)
-          } -> std::same_as<status>;
+      } -> std::same_as<status>;
   };
 
 template<typename T>
-concept has_observation_function =
-  requires(T t, time s, time e) {
-      {
-          t.observation(s, e)
-          } -> std::same_as<observation_message>;
-  };
+concept has_observation_function = requires(T t, time s, time e) {
+    {
+        t.observation(s, e)
+    } -> std::same_as<observation_message>;
+};
 
 template<typename T>
 concept has_initialize_function = requires(T t, simulation& sim) {
-                                      {
-                                          t.initialize(sim)
-                                          } -> std::same_as<status>;
-                                  };
+    {
+        t.initialize(sim)
+    } -> std::same_as<status>;
+};
 
 template<typename T>
 concept has_finalize_function = requires(T t, simulation& sim) {
-                                    {
-                                        t.finalize(sim)
-                                        } -> std::same_as<status>;
-                                };
+    {
+        t.finalize(sim)
+    } -> std::same_as<status>;
+};
 
 template<typename T>
 concept has_input_port = requires(T t) {
-                             {
-                                 t.x
-                             };
-                         };
+    {
+        t.x
+    };
+};
 
 template<typename T>
 concept has_output_port = requires(T t) {
-                              {
-                                  t.y
-                              };
-                          };
+    {
+        t.y
+    };
+};
 
 constexpr observation_message qss_observation(real X,
                                               real u,
@@ -5283,10 +5281,10 @@ inline int scheduller<A>::ssize() const noexcept
 //
 
 inline simulation::simulation() noexcept
-  : simulation::simulation(std::pmr::get_default_resource())
+  : simulation::simulation(get_malloc_memory_resource())
 {}
 
-inline simulation::simulation(std::pmr::memory_resource* mem) noexcept
+inline simulation::simulation(memory_resource* mem) noexcept
   : global(mem)
   , emitting_output_ports(&shared)
   , immediate_models(&shared)

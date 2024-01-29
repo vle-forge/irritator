@@ -11,10 +11,11 @@
 #include <iterator>
 #include <limits>
 #include <memory>
-#include <memory_resource>
 #include <string>
 #include <type_traits>
 #include <utility>
+
+#include <cstddef>
 
 namespace irt {
 
@@ -49,6 +50,55 @@ using small_storage_size_t = std::conditional_t<
 //                                                                    //
 ////////////////////////////////////////////////////////////////////////
 
+class memory_resource
+{
+public:
+    memory_resource() noexcept          = default;
+    virtual ~memory_resource() noexcept = default;
+
+    [[gnu::malloc]] void* allocate(
+      std::size_t bytes,
+      std::size_t alignment = alignof(std::max_align_t)) noexcept
+    {
+        debug::ensure(bytes > 0);
+        debug::ensure(bytes % alignment == 0);
+
+        return do_allocate(bytes, alignment);
+    }
+
+    void deallocate(void* pointer, std::size_t bytes) noexcept
+    {
+        debug::ensure(bytes > 0u);
+
+        if (pointer)
+            do_deallocate(pointer, bytes);
+    }
+
+protected:
+    virtual void* do_allocate(std::size_t bytes,
+                              std::size_t alignment) noexcept              = 0;
+    virtual void  do_deallocate(void* pointer, std::size_t bytes) noexcept = 0;
+};
+
+class malloc_memory_resource final : public memory_resource
+{
+public:
+    malloc_memory_resource() noexcept  = default;
+    ~malloc_memory_resource() noexcept = default;
+
+protected:
+    void* do_allocate(std::size_t bytes,
+                      std::size_t alignment) noexcept override;
+    void  do_deallocate(void* pointer, std::size_t bytes) noexcept override;
+};
+
+inline malloc_memory_resource* get_malloc_memory_resource() noexcept
+{
+    static malloc_memory_resource mem;
+
+    return &mem;
+}
+
 //! @brief A wrapper to the @c std::aligned_alloc and @c std::free cstdlib
 //! function to (de)allocate memory.
 //!
@@ -57,66 +107,52 @@ using small_storage_size_t = std::conditional_t<
 class default_allocator
 {
 public:
-    using size_type       = std::size_t;
-    using difference_type = std::ptrdiff_t;
-    using memory_resource = void;
+    using size_type         = std::size_t;
+    using difference_type   = std::ptrdiff_t;
+    using memory_resource_t = void;
 
     template<typename T>
     T* allocate(size_type n) noexcept
     {
-        const auto byte_count = sizeof(T) * n;
-        debug::ensure(byte_count % alignof(T) == 0);
+        const auto bytes     = sizeof(T) * n;
+        const auto alignment = alignof(T);
 
-        using aligned_alloc_fn = void* (*)(std::size_t, std::size_t) noexcept;
+        debug::ensure(bytes > 0);
+        debug::ensure((bytes % alignment) == 0);
 
-#ifdef _WIN32
-        aligned_alloc_fn call =
-          reinterpret_cast<aligned_alloc_fn>(_aligned_malloc);
-        auto* first = call(byte_count, alignof(T));
-#else
-        aligned_alloc_fn call =
-          reinterpret_cast<aligned_alloc_fn>(std::aligned_alloc);
-        auto* first = call(alignof(T), byte_count);
-#endif
-
-        if (not first)
-            std::abort();
-
-        return reinterpret_cast<T*>(first);
+        return reinterpret_cast<T*>(
+          get_malloc_memory_resource()->allocate(bytes, alignment));
     }
 
     template<typename T>
-    void deallocate(T* p, size_type /* n */) noexcept
+    void deallocate(T* p, size_type n) noexcept
     {
-#ifdef _WIN32
-        if (p)
-            _aligned_free(p);
-#else
-        if (p)
-            std::free(p);
-#endif
+        debug::ensure(p);
+        debug::ensure(n > 0);
+
+        get_malloc_memory_resource()->deallocate(p, n);
     }
 };
 
 //! @brief Use a @c irt::memory_resource in member to (de)allocate memory.
 //!
-//! Use this allocator and a @c irt::memory_resource to (de)allocate memory in
+//! Use this allocator and a @c irt::memory_resource_t to (de)allocate memory in
 //! container.
 template<typename MR>
 class mr_allocator
 {
 public:
-    using memory_resource = MR;
-    using size_type       = std::size_t;
-    using difference_type = std::ptrdiff_t;
+    using memory_resource_t = MR;
+    using size_type         = std::size_t;
+    using difference_type   = std::ptrdiff_t;
 
 private:
-    memory_resource* m_mr;
+    memory_resource_t* m_mr;
 
 public:
     mr_allocator() noexcept = default;
 
-    mr_allocator(memory_resource* mr) noexcept
+    mr_allocator(memory_resource_t* mr) noexcept
       : m_mr(mr)
     {}
 
@@ -444,18 +480,18 @@ template<typename T, typename A = default_allocator>
 class vector
 {
 public:
-    using value_type      = T;
-    using size_type       = std::uint32_t;
-    using index_type      = std::make_signed_t<size_type>;
-    using iterator        = T*;
-    using const_iterator  = const T*;
-    using reference       = T&;
-    using const_reference = const T&;
-    using pointer         = T*;
-    using const_pointer   = const T*;
-    using allocator_type  = A;
-    using memory_resource = typename A::memory_resource;
-    using this_container  = vector<T, A>;
+    using value_type        = T;
+    using size_type         = std::uint32_t;
+    using index_type        = std::make_signed_t<size_type>;
+    using iterator          = T*;
+    using const_iterator    = const T*;
+    using reference         = T&;
+    using const_reference   = const T&;
+    using pointer           = T*;
+    using const_pointer     = const T*;
+    using allocator_type    = A;
+    using memory_resource_t = typename A::memory_resource_t;
+    using this_container    = vector<T, A>;
 
 private:
     static_assert(std::is_nothrow_destructible_v<T> ||
@@ -476,15 +512,15 @@ public:
            std::integral auto size,
            const T&           default_value) noexcept;
 
-    constexpr vector(memory_resource* mem) noexcept
+    constexpr vector(memory_resource_t* mem) noexcept
         requires(!std::is_empty_v<A>);
-    vector(memory_resource* mem, std::integral auto capacity) noexcept
+    vector(memory_resource_t* mem, std::integral auto capacity) noexcept
         requires(!std::is_empty_v<A>);
-    vector(memory_resource*   mem,
+    vector(memory_resource_t* mem,
            std::integral auto capacity,
            std::integral auto size) noexcept
         requires(!std::is_empty_v<A>);
-    vector(memory_resource*   mem,
+    vector(memory_resource_t* mem,
            std::integral auto capacity,
            std::integral auto size,
            const T&           default_value) noexcept
@@ -629,11 +665,11 @@ public:
                          std::uint16_t,
                          std::uint32_t>;
 
-    using identifier_type = Identifier;
-    using value_type      = T;
-    using this_container  = data_array<T, Identifier, A>;
-    using allocator_type  = A;
-    using memory_resource = typename A::memory_resource;
+    using identifier_type   = Identifier;
+    using value_type        = T;
+    using this_container    = data_array<T, Identifier, A>;
+    using allocator_type    = A;
+    using memory_resource_t = typename A::memory_resource_t;
 
 private:
     struct item {
@@ -669,13 +705,13 @@ public:
 
     constexpr data_array() noexcept = default;
 
-    constexpr data_array(memory_resource* mem) noexcept
+    constexpr data_array(memory_resource_t* mem) noexcept
         requires(!std::is_empty_v<A>);
 
     constexpr data_array(std::integral auto capacity) noexcept
         requires(std::is_empty_v<A>);
 
-    constexpr data_array(memory_resource*   mem,
+    constexpr data_array(memory_resource_t* mem,
                          std::integral auto capacity) noexcept
         requires(!std::is_empty_v<A>);
 
@@ -886,16 +922,16 @@ template<typename T, typename A = default_allocator>
 class ring_buffer
 {
 public:
-    using value_type      = T;
-    using size_type       = std::uint32_t;
-    using index_type      = std::make_signed_t<size_type>;
-    using reference       = T&;
-    using const_reference = const T&;
-    using pointer         = T*;
-    using const_pointer   = const T*;
-    using this_container  = ring_buffer<T, A>;
-    using allocator_type  = A;
-    using memory_resource = typename A::memory_resource;
+    using value_type        = T;
+    using size_type         = std::uint32_t;
+    using index_type        = std::make_signed_t<size_type>;
+    using reference         = T&;
+    using const_reference   = const T&;
+    using pointer           = T*;
+    using const_pointer     = const T*;
+    using this_container    = ring_buffer<T, A>;
+    using allocator_type    = A;
+    using memory_resource_t = typename A::memory_resource_t;
 
     static_assert((std::is_nothrow_constructible_v<T> ||
                    std::is_nothrow_move_constructible_v<
@@ -962,10 +998,10 @@ public:
 
     constexpr ring_buffer() noexcept = default;
     constexpr ring_buffer(std::integral auto capacity) noexcept;
-    constexpr ring_buffer(memory_resource* mem) noexcept
+    constexpr ring_buffer(memory_resource_t* mem) noexcept
         requires(!std::is_empty_v<A>);
 
-    constexpr ring_buffer(memory_resource*   mem,
+    constexpr ring_buffer(memory_resource_t* mem,
                           std::integral auto capacity) noexcept
         requires(!std::is_empty_v<A>);
 
@@ -1382,7 +1418,7 @@ data_array<T, Identifier, A>::get_index(Identifier id) noexcept
 
 template<typename T, typename Identifier, typename A>
 constexpr data_array<T, Identifier, A>::data_array(
-  memory_resource* mem) noexcept
+  memory_resource_t* mem) noexcept
     requires(!std::is_empty_v<A>)
   : m_alloc{ mem }
 {}
@@ -1406,7 +1442,7 @@ constexpr data_array<T, Identifier, A>::data_array(
 
 template<typename T, typename Identifier, typename A>
 constexpr data_array<T, Identifier, A>::data_array(
-  memory_resource*   mem,
+  memory_resource_t* mem,
   std::integral auto capacity) noexcept
     requires(!std::is_empty_v<A>)
   : m_alloc(mem)
@@ -1822,7 +1858,7 @@ constexpr vector<T, A>::vector() noexcept
 {}
 
 template<typename T, typename A>
-constexpr vector<T, A>::vector(memory_resource* mem) noexcept
+constexpr vector<T, A>::vector(memory_resource_t* mem) noexcept
     requires(!std::is_empty_v<A>)
   : m_alloc(mem)
 {}
@@ -1927,7 +1963,7 @@ inline vector<T, A>::vector(std::integral auto capacity,
 }
 
 template<typename T, typename A>
-inline vector<T, A>::vector(memory_resource*   mem,
+inline vector<T, A>::vector(memory_resource_t* mem,
                             std::integral auto capacity) noexcept
     requires(!std::is_empty_v<A>)
   : m_alloc(mem)
@@ -1936,7 +1972,7 @@ inline vector<T, A>::vector(memory_resource*   mem,
 }
 
 template<typename T, typename A>
-inline vector<T, A>::vector(memory_resource*   mem,
+inline vector<T, A>::vector(memory_resource_t* mem,
                             std::integral auto capacity,
                             std::integral auto size) noexcept
     requires(!std::is_empty_v<A>)
@@ -1946,7 +1982,7 @@ inline vector<T, A>::vector(memory_resource*   mem,
 }
 
 template<typename T, typename A>
-inline vector<T, A>::vector(memory_resource*   mem,
+inline vector<T, A>::vector(memory_resource_t* mem,
                             std::integral auto capacity,
                             std::integral auto size,
                             const T&           default_value) noexcept
@@ -3175,13 +3211,13 @@ constexpr bool ring_buffer<T, A>::make(std::integral auto capacity) noexcept
 }
 
 template<class T, typename A>
-constexpr ring_buffer<T, A>::ring_buffer(memory_resource* mem) noexcept
+constexpr ring_buffer<T, A>::ring_buffer(memory_resource_t* mem) noexcept
     requires(!std::is_empty_v<A>)
   : m_alloc(mem)
 {}
 
 template<class T, typename A>
-constexpr ring_buffer<T, A>::ring_buffer(memory_resource*   mem,
+constexpr ring_buffer<T, A>::ring_buffer(memory_resource_t* mem,
                                          std::integral auto capacity) noexcept
     requires(!std::is_empty_v<A>)
   : m_alloc(mem)
