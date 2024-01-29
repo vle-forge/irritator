@@ -7,6 +7,7 @@
 
 #include <irritator/macros.hpp>
 
+#include <memory>
 #include <string_view>
 
 #define BOOST_LEAF_EMBEDDED
@@ -71,7 +72,16 @@ struct argument_error {};
 struct filesystem_error {};
 
 struct e_file_name {
-    std::string value;
+    e_file_name() noexcept = default;
+
+    e_file_name(std::string_view str) noexcept
+    {
+        const auto len = str.size() > sizeof value ? sizeof value : str.size();
+
+        std::uninitialized_copy_n(str.data(), len, value);
+    }
+
+    char value[64];
 };
 
 struct e_memory {
@@ -85,8 +95,18 @@ struct e_allocator {
 };
 
 struct e_json {
+    e_json() noexcept = default;
+
+    e_json(long long unsigned int offset_, std::string_view str) noexcept
+    {
+        const auto len =
+          str.size() > sizeof error_code ? sizeof error_code : str.size();
+
+        std::uninitialized_copy_n(str.data(), len, error_code);
+    }
+
     long long unsigned int offset;
-    std::string_view       error_code;
+    char                   error_code[24];
 };
 
 struct e_ulong_id {

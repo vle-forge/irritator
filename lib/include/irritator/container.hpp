@@ -3088,7 +3088,7 @@ ring_buffer<T, A>::iterator_base<is_const>::iterator_base(
 
 template<class T, typename A>
 template<bool is_const>
-ring_buffer<T, A>::template iterator_base<is_const>&
+typename ring_buffer<T, A>::template iterator_base<is_const>&
 ring_buffer<T, A>::iterator_base<is_const>::operator=(
   const iterator_base& other) noexcept
 {
@@ -3118,7 +3118,7 @@ ring_buffer<T, A>::iterator_base<is_const>::operator->() const noexcept
 
 template<class T, typename A>
 template<bool is_const>
-ring_buffer<T, A>::template iterator_base<is_const>&
+typename ring_buffer<T, A>::template iterator_base<is_const>&
 ring_buffer<T, A>::iterator_base<is_const>::operator++() noexcept
 {
     if (ring) {
@@ -3133,7 +3133,7 @@ ring_buffer<T, A>::iterator_base<is_const>::operator++() noexcept
 
 template<class T, typename A>
 template<bool is_const>
-ring_buffer<T, A>::template iterator_base<is_const>
+typename ring_buffer<T, A>::template iterator_base<is_const>
 ring_buffer<T, A>::iterator_base<is_const>::operator++(int) noexcept
 {
     iterator_base orig(*this);
@@ -3144,7 +3144,7 @@ ring_buffer<T, A>::iterator_base<is_const>::operator++(int) noexcept
 
 template<class T, typename A>
 template<bool is_const>
-ring_buffer<T, A>::template iterator_base<is_const>&
+typename ring_buffer<T, A>::template iterator_base<is_const>&
 ring_buffer<T, A>::iterator_base<is_const>::operator--() noexcept
 {
     if (ring) {
@@ -3159,7 +3159,7 @@ ring_buffer<T, A>::iterator_base<is_const>::operator--() noexcept
 
 template<class T, typename A>
 template<bool is_const>
-ring_buffer<T, A>::template iterator_base<is_const>
+typename ring_buffer<T, A>::template iterator_base<is_const>
 ring_buffer<T, A>::iterator_base<is_const>::operator--(int) noexcept
 {
     iterator_base orig(*this);
@@ -4177,7 +4177,7 @@ small_ring_buffer<T, length>::iterator_base<is_const>::iterator_base(
 
 template<class T, int length>
 template<bool is_const>
-small_ring_buffer<T, length>::template iterator_base<is_const>&
+typename small_ring_buffer<T, length>::template iterator_base<is_const>&
 small_ring_buffer<T, length>::iterator_base<is_const>::operator=(
   const iterator_base& other) noexcept
 {
@@ -4210,7 +4210,7 @@ small_ring_buffer<T, length>::iterator_base<is_const>::operator->()
 
 template<class T, int length>
 template<bool is_const>
-small_ring_buffer<T, length>::template iterator_base<is_const>&
+typename small_ring_buffer<T, length>::template iterator_base<is_const>&
 small_ring_buffer<T, length>::iterator_base<is_const>::operator++() noexcept
 {
     if (ring) {
@@ -4225,7 +4225,7 @@ small_ring_buffer<T, length>::iterator_base<is_const>::operator++() noexcept
 
 template<class T, int length>
 template<bool is_const>
-small_ring_buffer<T, length>::template iterator_base<is_const>
+typename small_ring_buffer<T, length>::template iterator_base<is_const>
 small_ring_buffer<T, length>::iterator_base<is_const>::operator++(int) noexcept
 {
     iterator_base orig(*this);
@@ -4236,7 +4236,7 @@ small_ring_buffer<T, length>::iterator_base<is_const>::operator++(int) noexcept
 
 template<class T, int length>
 template<bool is_const>
-small_ring_buffer<T, length>::template iterator_base<is_const>&
+typename small_ring_buffer<T, length>::template iterator_base<is_const>&
 small_ring_buffer<T, length>::iterator_base<is_const>::operator--() noexcept
 {
     if (ring) {
@@ -4251,7 +4251,7 @@ small_ring_buffer<T, length>::iterator_base<is_const>::operator--() noexcept
 
 template<class T, int length>
 template<bool is_const>
-small_ring_buffer<T, length>::template iterator_base<is_const>
+typename small_ring_buffer<T, length>::template iterator_base<is_const>
 small_ring_buffer<T, length>::iterator_base<is_const>::operator--(int) noexcept
 {
     iterator_base orig(*this);

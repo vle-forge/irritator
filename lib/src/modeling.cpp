@@ -978,7 +978,8 @@ child& modeling::alloc(generic_component& parent, dynamics_type type) noexcept
 
     children_names[index].clear();
     children_parameters[index].clear();
-    children_positions[index] = child_position(0.f, 0.f);
+    children_positions[index].x = 0.f;
+    children_positions[index].y = 0.f;
 
     return child;
 }
