@@ -4,31 +4,92 @@
 
 #include <irritator/container.hpp>
 
+#include <errno.h>
+
 namespace irt {
+
+constexpr inline bool is_alignment(std::size_t value) noexcept
+{
+    return (value > 0) && ((value & (value - 1)) == 0);
+}
+
+#if defined(_MSC_VER)
+void* malloc_memory_resource_allocate_win32(std::size_t bytes,
+                                            std::size_t alignment) noexcept
+{
+    debug::ensure(is_alignment(alignment));
+    debug::ensure((bytes % alignment) == 0);
+
+    using fn = void* (*)(std::size_t, std::size_t) noexcept;
+    fn call  = reinterpret_cast<fn>(::_aligned_malloc);
+
+    return call(bytes, alignment);
+}
+#elif defined(__APPLE__)
+void* malloc_memory_resource_allocate_apple(std::size_t bytes,
+                                            std::size_t alignment) noexcept
+{
+    alignment = alignment < sizeof(void*) ? sizeof(void*) : alignment;
+
+    debug::ensure(is_alignment(alignment));
+
+    void* p;
+    if (auto ret = ::posix_memalign(&p, alignment, bytes); ret != 0) {
+        p = nullptr;
+
+        if (ret == EINVAL)
+            std::fprintf(stderr,
+                         "The value of the alignment parameter is not a power "
+                         "of two or a multiple of sizeof(void *).\n");
+        if (ret == ENOMEM)
+            std::fprintf(stderr,
+                         "There is insufficient memory available with the "
+                         "requested alignment.\n");
+    }
+
+    return p;
+}
+#else
+void* malloc_memory_resource_allocate_posix(std::size_t bytes,
+                                            std::size_t alignment) noexcept
+{
+    debug::ensure(is_alignment(alignment));
+    debug::ensure((bytes % alignment) == 0);
+
+    using fn = void* (*)(std::size_t, std::size_t) noexcept;
+    fn call  = reinterpret_cast<fn>(std::aligned_alloc);
+
+    return call(alignment, bytes);
+}
+#endif
 
 void* malloc_memory_resource::do_allocate(std::size_t bytes,
                                           std::size_t alignment) noexcept
 {
-    debug::ensure((bytes % alignment) == 0);
-
-    using fn = void* (*)(std::size_t, std::size_t) noexcept;
-
-#ifdef _WIN32
-    fn    call  = reinterpret_cast<fn>(::_aligned_malloc);
-    auto* first = call(bytes, alignment);
+#if defined(_MSC_VER)
+    auto* p = malloc_memory_resource_allocate_win32(bytes, alignment);
+#elif defined(__APPLE__)
+    auto* p = malloc_memory_resource_allocate_apple(bytes, alignment);
 #else
-    fn    call  = reinterpret_cast<fn>(std::aligned_alloc);
-    auto* first = call(alignment, bytes);
+    auto* p = malloc_memory_resource_allocate_posix(bytes, alignment);
 #endif
 
-    if (not first)
+    if (not p) {
+#if defined(IRRITATOR_ENABLE_DEBUG)
+        std::fprintf(
+          stderr,
+          "Irritator shutdown: Unable to allocate memory %zu alignment %zu\n",
+          bytes,
+          alignment);
+#endif
         std::abort();
+    }
 
-    return first;
+    return p;
 }
 
-void malloc_memory_resource::do_deallocate(void*       pointer,
-                                           std::size_t bytes) noexcept
+void malloc_memory_resource::do_deallocate(void* pointer,
+                                           std::size_t /* bytes */) noexcept
 {
 #ifdef _WIN32
     if (pointer)

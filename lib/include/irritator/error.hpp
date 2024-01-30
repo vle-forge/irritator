@@ -98,6 +98,7 @@ struct e_json {
     e_json() noexcept = default;
 
     e_json(long long unsigned int offset_, std::string_view str) noexcept
+        : offset(offset_)
     {
         const auto len =
           str.size() > sizeof error_code ? sizeof error_code : str.size();
