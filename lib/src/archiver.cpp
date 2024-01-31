@@ -1069,7 +1069,7 @@ static status do_deserialize(Dearchiver&             arc,
         if (!io.success)
             return new_error(binary_archiver::file_format_error{});
 
-        irt_check(sim.init(models, hsms));
+        sim.clean();
 
         sim.srcs.constant_sources.clear();
         sim.srcs.binary_file_sources.clear();

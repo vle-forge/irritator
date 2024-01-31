@@ -66,20 +66,30 @@ public:
         return do_allocate(bytes, alignment);
     }
 
-    void deallocate(void* pointer, std::size_t bytes) noexcept
+    void deallocate(void*       pointer,
+                    std::size_t bytes,
+                    std::size_t alignment = alignof(std::max_align_t)) noexcept
     {
         debug::ensure(bytes > 0u);
 
         if (pointer)
-            do_deallocate(pointer, bytes);
+            do_deallocate(pointer, bytes, alignment);
     }
 
 protected:
     virtual void* do_allocate(std::size_t bytes,
-                              std::size_t alignment) noexcept              = 0;
-    virtual void  do_deallocate(void* pointer, std::size_t bytes) noexcept = 0;
+                              std::size_t alignment) noexcept = 0;
+
+    virtual void do_deallocate(void*       pointer,
+                               std::size_t bytes,
+                               std::size_t alignment) noexcept = 0;
 };
 
+//! A dynamic heap `memory_resource` using `std::aligned_alloc` or
+//! `std::align_memory` to allocate aligned memory .
+//!
+//! @note `malloc_memory_resource` is the default `memory_resource` provides by
+//! the global function `get_malloc_memory_resource()`.
 class malloc_memory_resource final : public memory_resource
 {
 public:
@@ -89,7 +99,96 @@ public:
 protected:
     void* do_allocate(std::size_t bytes,
                       std::size_t alignment) noexcept override;
-    void  do_deallocate(void* pointer, std::size_t bytes) noexcept override;
+
+    void do_deallocate(void*       pointer,
+                       std::size_t bytes,
+                       std::size_t alignment) noexcept override;
+};
+
+//! A stack `memory_resource` using an `std::array` to store aligned memory.
+//!
+//! @note `static_memory_resource` mainly used in unit tests.
+template<size_t Bytes>
+class static_memory_resource final : public memory_resource
+{
+private:
+    alignas(std::max_align_t) std::array<std::byte, Bytes> buffer;
+    std::size_t position{};
+
+public:
+    static_memory_resource() noexcept = default;
+
+    ~static_memory_resource() noexcept = default;
+
+    std::size_t capacity() const noexcept { return buffer.size(); }
+
+    void reset() noexcept { position = 0; }
+
+protected:
+    void* do_allocate(std::size_t bytes,
+                      std::size_t alignment) noexcept override
+    {
+#if defined(IRRITATOR_ENABLE_DEBUG)
+        std::fprintf(stderr,
+                     "static_memory_resource<%zu>::need-allocate [%zu %zu]\n",
+                     Bytes,
+                     bytes,
+                     alignment);
+#endif
+
+        debug::ensure(bytes > 0);
+        debug::ensure((bytes % alignment) == 0);
+
+        if (Bytes < (position + bytes)) {
+#if defined(IRRITATOR_ENABLE_DEBUG)
+            std::fprintf(stderr,
+                         "Irritator shutdown: Unable to allocate memory %zu "
+                         "alignment %zu\n",
+                         bytes,
+                         alignment);
+#endif
+            std::abort();
+        }
+
+        const auto old_position = position;
+        position += bytes;
+        auto* p = static_cast<void*>(buffer.data() + old_position);
+
+#if defined(IRRITATOR_ENABLE_DEBUG)
+        std::fprintf(stderr,
+                     "static_memory_resource<%zu>::allocate [%p %zu %zu]\n",
+                     Bytes,
+                     p,
+                     bytes,
+                     alignment);
+#endif
+
+        return p;
+    }
+
+    void do_deallocate([[maybe_unused]] void*       pointer,
+                       [[maybe_unused]] std::size_t bytes,
+                       [[maybe_unused]] std::size_t alignment) noexcept override
+    {
+#if defined(IRRITATOR_ENABLE_DEBUG)
+        std::fprintf(
+          stderr,
+          "static_memory_resource<%zu>::do_deallocate [%p %zu %zu]\n",
+          Bytes,
+          pointer,
+          bytes,
+          alignment);
+#endif
+
+        [[maybe_unused]] const auto pos =
+          reinterpret_cast<std::uintptr_t>(pointer);
+        [[maybe_unused]] const auto first =
+          reinterpret_cast<std::uintptr_t>(buffer.data());
+        [[maybe_unused]] const auto last = reinterpret_cast<std::uintptr_t>(
+          std::data(buffer) + std::size(buffer));
+
+        debug::ensure(first <= pos and pos <= last);
+    }
 };
 
 inline malloc_memory_resource* get_malloc_memory_resource() noexcept
@@ -168,6 +267,22 @@ public:
         m_mr->deallocate(p, sizeof(T) * n, alignof(T));
     }
 
+    std::byte* allocate_bytes(
+      size_type bytes,
+      size_type alignment = alignof(std::max_align_t)) noexcept
+    {
+        return static_cast<std::byte*>(
+          m_mr->allocate(sizeof(std::byte) * bytes, alignment));
+    }
+
+    void deallocate_bytes(
+      std::byte* pointer,
+      size_type  bytes,
+      size_type  alignment = alignof(std::max_align_t)) noexcept
+    {
+        m_mr->deallocate(pointer, bytes, alignment);
+    }
+
     template<typename T>
     bool can_alloc(std::size_t element_count) const noexcept
     {
@@ -180,6 +295,36 @@ public:
 // Memory resource: linear, stack, stack-list........................ //
 //                                                                    //
 ////////////////////////////////////////////////////////////////////////
+
+//! Return the smallest closest value of `v` divisible by `alignment`.
+//!
+//! ~~~{.cpp}
+//! assert(make_divisible_to(123, 16) == 112);
+//! assert(make_divisible_to(17, 16) == 16);
+//! assert(make_divisible_to(161, 16) == 160);
+//! assert(make_divisible_to(7, 16) == 0);
+//! assert(make_divisible_to(15, 16) == 0);
+//! assert(make_divisible_to(123, 8) == 120);
+//! assert(make_divisible_to(17, 8) == 16);
+//! assert(make_divisible_to(161, 8) == 160);
+//! assert(make_divisible_to(7, 8) == 0);
+//! assert(make_divisible_to(15, 8) == 8);
+//! ~~~
+inline constexpr auto make_divisible_to(
+  const std::integral auto v,
+  const std::size_t        alignment = alignof(std::max_align_t)) noexcept
+  -> decltype(v)
+{
+    using return_type = decltype(v);
+
+    if constexpr (std::is_signed_v<return_type>)
+        return static_cast<return_type>(
+          static_cast<std::intptr_t>(v) &
+          static_cast<std::intptr_t>(~(alignment - 1)));
+    else
+        return static_cast<return_type>(static_cast<std::size_t>(v) &
+                                        ~(alignment - 1));
+}
 
 inline constexpr auto calculate_padding(const std::uintptr_t address,
                                         const std::size_t    alignment) noexcept
@@ -452,7 +597,17 @@ public:
     //! @param size The size of the buffer. Must be not null.
     void reset(std::byte* data, std::size_t size) noexcept;
 
-    constexpr std::byte* head() noexcept { return m_start_ptr; }
+    //! Get the pointer to the allocated memory provided in `constructor` or in
+    //! `reset` functions.
+    //!
+    //! @return Can return `nullptr` or a valid pointer.
+    constexpr std::byte* head() const noexcept { return m_start_ptr; }
+
+    //! Get the size of the allocated memory provided in `constructor` or in
+    //! `reset` functions.
+    //!
+    //! @return Can return `0` or a valid size.
+    constexpr std::size_t capacity() const noexcept { return m_total_size; }
 
 private:
     void merge(node* previous, node* free_node) noexcept;
@@ -677,6 +832,9 @@ private:
         Identifier id;
     };
 
+public:
+    using internal_value_type = item;
+
     item* m_items = nullptr; // items array
 
     [[no_unique_address]] allocator_type m_alloc;
@@ -733,6 +891,12 @@ public:
     //! @details Run the destructor if @c T is not trivial on outstanding
     //!  items and re-initialize the size.
     void clear() noexcept;
+
+    //! @brief Destroy all items in the data_array and release memory.
+    //!
+    //! @details Run the destructor if @c T is not trivial on outstanding
+    //!  items and re-initialize the size.
+    void destroy() noexcept;
 
     //! @brief Alloc a new element.
     //!
@@ -1545,6 +1709,18 @@ void data_array<T, Identifier, A>::clear() noexcept
 }
 
 template<typename T, typename Identifier, typename A>
+void data_array<T, Identifier, A>::destroy() noexcept
+{
+    clear();
+
+    if (m_items)
+        m_alloc.deallocate(m_items, m_capacity);
+
+    m_items    = nullptr;
+    m_capacity = 0;
+}
+
+template<typename T, typename Identifier, typename A>
 template<typename... Args>
 typename data_array<T, Identifier, A>::value_type&
 data_array<T, Identifier, A>::alloc(Args&&... args) noexcept
@@ -1769,10 +1945,7 @@ template<typename T, typename Identifier, typename A>
 constexpr bool data_array<T, Identifier, A>::can_alloc(
   std::integral auto nb) const noexcept
 {
-    const std::uint64_t capacity = m_capacity;
-    const std::uint64_t max_size = m_max_size;
-
-    return std::cmp_greater_equal(capacity - max_size, nb);
+    return std::cmp_greater_equal(m_capacity - m_max_size, nb);
 }
 
 template<typename T, typename Identifier, typename A>

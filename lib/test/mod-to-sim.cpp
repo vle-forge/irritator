@@ -42,11 +42,10 @@ int main()
         irt::modeling_initializer mod_init;
         irt::modeling             mod;
         irt::project              pj;
-        irt::simulation           sim;
+        irt::simulation           sim(1024*1024*8);
 
         expect(!!mod.init(mod_init));
         expect(!!pj.init(mod_init));
-        expect(!!sim.init(256, 4096));
 
         auto& c1    = mod.alloc_generic_component();
         auto& s1    = mod.generic_components.get(c1.id.generic_id);
@@ -97,11 +96,10 @@ int main()
         irt::modeling_initializer mod_init;
         irt::modeling             mod;
         irt::project              pj;
-        irt::simulation           sim;
+        irt::simulation           sim(1024 * 1024 * 8);
 
         expect(!!mod.init(mod_init));
         expect(!!pj.init(mod_init));
-        expect(!!sim.init(256, 4096));
 
         auto& c1 = mod.alloc_generic_component();
         auto& s1 = mod.generic_components.get(c1.id.generic_id);
@@ -134,11 +132,10 @@ int main()
         irt::modeling_initializer mod_init;
         irt::modeling             mod;
         irt::project              pj;
-        irt::simulation           sim;
+        irt::simulation           sim(1024 * 1024 * 8);
 
         expect(!!mod.init(mod_init));
         expect(!!pj.init(mod_init));
-        expect(!!sim.init(256, 4096));
 
         auto& c1    = mod.alloc_generic_component();
         auto& s1    = mod.generic_components.get(c1.id.generic_id);
@@ -202,11 +199,10 @@ int main()
         irt::modeling_initializer mod_init;
         irt::modeling             mod;
         irt::project              pj;
-        irt::simulation           sim;
+        irt::simulation           sim(1024 * 1024 * 8);
 
         expect(!!mod.init(mod_init));
         expect(!!pj.init(mod_init));
-        expect(!!sim.init(256, 4096));
 
         auto& c = mod.alloc_generic_component();
         auto& s = mod.generic_components.get(c.id.generic_id);
@@ -229,11 +225,10 @@ int main()
         irt::modeling_initializer mod_init;
         irt::modeling             mod;
         irt::project              pj;
-        irt::simulation           sim;
+        irt::simulation           sim(1024 * 1024 * 8);
 
         expect(!!mod.init(mod_init));
         expect(!!pj.init(mod_init));
-        expect(!!sim.init(256, 4096));
 
         auto& c = mod.alloc_generic_component();
         auto& s = mod.generic_components.get(c.id.generic_id);
@@ -256,11 +251,10 @@ int main()
         irt::modeling_initializer mod_init;
         irt::modeling             mod;
         irt::project              pj;
-        irt::simulation           sim;
+        irt::simulation           sim(1024 * 1024 * 8);
 
         expect(!!mod.init(mod_init));
         expect(!!pj.init(mod_init));
-        expect(!!sim.init(256, 4096));
 
         auto& c = mod.alloc_generic_component();
         auto& s = mod.generic_components.get(c.id.generic_id);
@@ -282,11 +276,10 @@ int main()
         irt::modeling_initializer mod_init;
         irt::modeling             mod;
         irt::project              pj;
-        irt::simulation           sim;
+        irt::simulation           sim(1024 * 1024 * 8);
 
         expect(!!mod.init(mod_init));
         expect(!!pj.init(mod_init));
-        expect(!!sim.init(256, 4096));
 
         auto& c = mod.alloc_generic_component();
         auto& s = mod.generic_components.get(c.id.generic_id);
@@ -320,11 +313,10 @@ int main()
             irt::modeling_initializer mod_init;
             irt::modeling             mod;
             irt::project              pj;
-            irt::simulation           sim;
+            irt::simulation           sim(1024 * 1024 * 8);
 
             expect(!!mod.init(mod_init));
             expect(!!pj.init(mod_init));
-            expect(!!sim.init(256, 4096));
 
             auto& c1    = mod.alloc_generic_component();
             auto& s1    = mod.generic_components.get(c1.id.generic_id);
@@ -421,11 +413,10 @@ int main()
             irt::modeling_initializer mod_init;
             irt::modeling             mod;
             irt::project              pj;
-            irt::simulation           sim;
+            irt::simulation           sim(1024 * 1024 * 8);
 
             expect(!!mod.init(mod_init));
             expect(!!pj.init(mod_init));
-            expect(!!sim.init(256, 4096));
 
             auto& reg = mod.alloc_registred("temp", 0);
             reg.path  = temp_path;
@@ -524,11 +515,10 @@ int main()
             irt::modeling_initializer mod_init;
             irt::modeling             mod;
             irt::project              pj;
-            irt::simulation           sim;
+            irt::simulation           sim(1024 * 1024 * 8);
 
             expect(!!mod.init(mod_init));
             expect(!!pj.init(mod_init));
-            expect(!!sim.init(256, 4096));
 
             auto& c1    = mod.alloc_generic_component();
             auto& s1    = mod.generic_components.get(c1.id.generic_id);
@@ -614,11 +604,10 @@ int main()
             irt::modeling_initializer mod_init;
             irt::modeling             mod;
             irt::project              pj;
-            irt::simulation           sim;
+            irt::simulation           sim(1024 * 1024 * 8);
 
             expect(!!mod.init(mod_init));
             expect(!!pj.init(mod_init));
-            expect(!!sim.init(256, 4096));
 
             auto& c1    = mod.alloc_generic_component();
             auto& s1    = mod.generic_components.get(c1.id.generic_id);
@@ -703,11 +692,10 @@ int main()
             irt::modeling_initializer mod_init;
             irt::modeling             mod;
             irt::project              pj;
-            irt::simulation           sim;
+            irt::simulation           sim(1024 * 1024 * 8);
 
             expect(!!mod.init(mod_init));
             expect(!!pj.init(mod_init));
-            expect(!!sim.init(256, 4096));
 
             auto& c1    = mod.alloc_generic_component();
             auto& s1    = mod.generic_components.get(c1.id.generic_id);

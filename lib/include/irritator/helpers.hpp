@@ -13,8 +13,7 @@
 namespace irt {
 
 template<typename T>
-struct limiter
-{
+struct limiter {
     T lower;
     T upper;
 
@@ -32,8 +31,7 @@ struct limiter
 };
 
 template<typename T, T Lower, T Upper>
-struct static_limiter
-{
+struct static_limiter {
     static_assert(Lower < Upper);
 
     constexpr bool is_valid(const T value) const noexcept
@@ -42,13 +40,12 @@ struct static_limiter
     }
 };
 
+
 template<typename>
-struct is_result : std::false_type
-{};
+struct is_result : std::false_type {};
 
 template<typename T>
-struct is_result<::boost::leaf::result<T>> : std::true_type
-{};
+struct is_result<::boost::leaf::result<T>> : std::true_type {};
 
 //! @brief Apply the function @c f for all elements of the @c data_array.
 template<typename Data, typename Function>

@@ -735,44 +735,16 @@ public:
         random_source,
     };
 
-    data_array<constant_source, constant_source_id>       constant_sources;
-    data_array<binary_file_source, binary_file_source_id> binary_file_sources;
-    data_array<text_file_source, text_file_source_id>     text_file_sources;
-    data_array<random_source, random_source_id>           random_sources;
+    data_array<constant_source, constant_source_id, freelist_allocator>
+      constant_sources;
+    data_array<binary_file_source, binary_file_source_id, freelist_allocator>
+      binary_file_sources;
+    data_array<text_file_source, text_file_source_id, freelist_allocator>
+      text_file_sources;
+    data_array<random_source, random_source_id, freelist_allocator>
+      random_sources;
 
     u64 seed[2] = { 0xdeadbeef12345678U, 0xdeadbeef12345678U };
-
-    status init(std::integral auto size) noexcept
-    {
-        if (std::cmp_equal(size, 0))
-            return success();
-
-        if (!constant_sources.reserve(size))
-            return new_error(
-              external_source::part::constant_source,
-              e_memory{ .capacity = 0,
-                        .request  = static_cast<unsigned long>(size) });
-
-        if (!binary_file_sources.reserve(size))
-            return new_error(
-              external_source::part::binary_file_source,
-              e_memory{ .capacity = 0,
-                        .request  = static_cast<unsigned long>(size) });
-
-        if (!text_file_sources.reserve(size))
-            return new_error(
-              external_source::part::text_file_source,
-              e_memory{ .capacity = 0,
-                        .request  = static_cast<unsigned long>(size) });
-
-        if (!random_sources.reserve(size))
-            return new_error(
-              external_source::part::random_source,
-              e_memory{ .capacity = 0,
-                        .request  = static_cast<unsigned long>(size) });
-
-        return success();
-    }
 
     //! Call the @c init function for all sources (@c constant_source, @c
     //! binary_file_source etc.).
@@ -789,10 +761,51 @@ public:
     //! Call the @c data_array<T, Id>::clear() function for all sources.
     void clear() noexcept;
 
+    //! Call `clear()` and release memory.
+    void destroy() noexcept;
+
     //! An example of error handlers to catch all error from the external
     //! source class and friend (@c binary_file_source, @c text_file_source,
     //! @c random_source and @c constant_source).
     // constexpr auto make_error_handlers() const noexcept;
+};
+
+//! Assign a value constrained by the template parameters.
+//!
+//! @code
+//! static int v = 0;
+//! if (ImGui::InputInt("test", &v)) {
+//!     f(v);
+//! }
+//!
+//! void f(constrained_value<int, 0, 100> v)
+//! {
+//!     assert(0 <= *v && *v <= 100);
+//! }
+//! @endcode
+template<typename T = int, T Lower = 0, T Upper = 100>
+class constrained_value
+{
+public:
+    using value_type = T;
+
+private:
+    static_assert(std::is_trivial_v<T>,
+                  "T must be a trivial type in ratio_parameter");
+    static_assert(Lower < Upper);
+
+    T m_value;
+
+public:
+    constexpr constrained_value(const T value_) noexcept
+      : m_value(value_ < Lower   ? Lower
+                : value_ < Upper ? value_
+                                 : Upper)
+    {}
+
+    constexpr explicit operator T() const noexcept { return m_value; }
+    constexpr value_type operator*() const noexcept { return m_value; }
+    constexpr value_type value() const noexcept { return m_value; }
 };
 
 //! To be used in model declaration to initialize a source instance
@@ -1054,7 +1067,8 @@ private:
     heap<A> m_heap;
 
 public:
-    using handle = u32;
+    using internal_value_type = heap<A>;
+    using handle              = u32;
 
     constexpr scheduller() = default;
 
@@ -1064,6 +1078,8 @@ public:
     bool reserve(std::integral auto new_capacity) noexcept;
 
     void clear() noexcept;
+
+    void destroy() noexcept;
 
     void insert(model& mdl, model_id id, time tn) noexcept;
 
@@ -1087,6 +1103,77 @@ public:
     int      ssize() const noexcept;
 };
 
+//! Helps to calculate the sizes of the `vectors` and `data_array` from a
+//! number of bytes. Compute for each `source` the same number and adjust
+//! the `max_client` variables for both random and binary source.
+struct external_source_memory_requirement {
+    int constant_nb            = 4;
+    int text_file_nb           = 4;
+    int binary_file_nb         = 4;
+    int random_nb              = 4;
+    int binary_file_max_client = 8;
+    int random_max_client      = 8;
+
+    //! Assign a default size for each external source subobject.
+    constexpr external_source_memory_requirement() noexcept = default;
+
+    //! Compute the size of each source.
+    //!
+    //! @param bytes The numbers of bytes availables.
+    //! @param source_client_ratio A integer in the range `[0..100]` defines
+    //! the ratio between `source` and `max_client` variables. `50` mean 50%
+    //! sources and 50% max_clients, `0` means no source, `100` means no
+    //! max-client.
+    constexpr external_source_memory_requirement(
+      const std::size_t                   bytes,
+      const constrained_value<int, 5, 95> source_client_ratio) noexcept;
+
+    constexpr bool valid() const;
+
+    constexpr size_t in_bytes() const noexcept;
+};
+
+//! Helps to calculate the sizes of the `vectors` and `data_array` from a
+//! number of bytes.
+struct simulation_memory_requirement {
+    std::size_t connections_b     = 0;
+    std::size_t dated_messages_b  = 0;
+    std::size_t external_source_b = 0;
+    std::size_t simulation_b      = 0;
+
+    int model_nb = 32;
+    int hsms_nb  = 4;
+
+    external_source_memory_requirement srcs;
+
+    //! Assign a default size for each simulation subobject.
+    constexpr simulation_memory_requirement() noexcept = default;
+
+    //! Compute the size of each sub-objects.
+    //!
+    //! @param bytes The numbers of bytes availables.
+    //! @param external_source Percentage of memory to use in external
+    //! source.
+    //! @param hsms_ratio Percentage of hsms model vs model number.
+    //! @param source_client_ratio
+    //! @param connections Percentage of simulation memory dedicated to
+    //! connections.
+    //! @param dated_messages Percentage of siulation memory dedicated to fifo,
+    //! lifo history.
+    constexpr simulation_memory_requirement(
+      const std::size_t                   bytes,
+      const constrained_value<int, 5, 90> connections     = 5,
+      const constrained_value<int, 0, 50> dated_messages  = 5,
+      const constrained_value<int, 0, 90> hsms            = 10,
+      const constrained_value<int, 1, 90> external_source = 10,
+      const constrained_value<int, 1, 95> source_client   = 50) noexcept;
+
+    constexpr bool valid() const noexcept;
+
+    //! Compute an estimate to store a model in simulation memory.
+    constexpr static size_t estimate_model() noexcept;
+};
+
 class simulation
 {
 public:
@@ -1103,10 +1190,12 @@ public:
         external_sources
     };
 
-    memory_resource*         global = nullptr;
+    mr_allocator<memory_resource> m_alloc;
+
     freelist_memory_resource shared;
-    freelist_memory_resource dated_messages_alloc;
     freelist_memory_resource nodes_alloc;
+    freelist_memory_resource dated_messages_alloc;
+    freelist_memory_resource external_source_alloc;
 
     vector<output_message, freelist_allocator> emitting_output_ports;
     vector<model_id, freelist_allocator>       immediate_models;
@@ -1125,8 +1214,9 @@ public:
                freelist_allocator>
       dated_messages;
 
-    external_source                srcs;
     scheduller<freelist_allocator> sched;
+
+    external_source srcs;
 
     model_id get_id(const model& mdl) const;
 
@@ -1134,11 +1224,21 @@ public:
     model_id get_id(const Dynamics& dyn) const;
 
 public:
-    simulation() noexcept;
-    simulation(memory_resource* mr) noexcept;
+    //! Use the default malloc memory resource to allocate all memory need
+    //! by sub-containers.
+    simulation(const simulation_memory_requirement& init =
+                 simulation_memory_requirement()) noexcept;
 
-    status init(std::integral auto model_capacity,
-                std::integral auto messages_capacity);
+    //! Use the memory resource to allocate all memory need by
+    //! sub-containers. This constructor alloc to allocate in heap or in
+    //! stack for example.
+    //!
+    //! @param mem Must be no-null.
+    simulation(memory_resource*                     mem,
+               const simulation_memory_requirement& init =
+                 simulation_memory_requirement()) noexcept;
+
+    ~simulation() noexcept;
 
     bool can_alloc(std::integral auto place) const noexcept;
     bool can_alloc(dynamics_type type, std::integral auto place) const noexcept;
@@ -5196,6 +5296,12 @@ inline void scheduller<A>::clear() noexcept
 }
 
 template<typename A>
+inline void scheduller<A>::destroy() noexcept
+{
+    m_heap.destroy();
+}
+
+template<typename A>
 inline void scheduller<A>::insert(model& mdl, model_id id, time tn) noexcept
 {
     debug::ensure(mdl.handle == invalid_heap_handle);
@@ -5280,12 +5386,15 @@ inline int scheduller<A>::ssize() const noexcept
 // simulation
 //
 
-inline simulation::simulation() noexcept
-  : simulation::simulation(get_malloc_memory_resource())
+inline simulation::simulation(
+  const simulation_memory_requirement& init) noexcept
+  : simulation::simulation(get_malloc_memory_resource(), init)
 {}
 
-inline simulation::simulation(memory_resource* mem) noexcept
-  : global(mem)
+inline simulation::simulation(
+  memory_resource*                     mem,
+  const simulation_memory_requirement& init) noexcept
+  : m_alloc(mem)
   , emitting_output_ports(&shared)
   , immediate_models(&shared)
   , immediate_observers(&shared)
@@ -5295,8 +5404,79 @@ inline simulation::simulation(memory_resource* mem) noexcept
   , nodes(&shared)
   , messages(&shared)
   , dated_messages(&shared)
-  , sched{ &shared }
-{}
+  , sched(&shared)
+  , srcs{ .constant_sources{ &external_source_alloc },
+          .binary_file_sources{ &external_source_alloc },
+          .text_file_sources{ &external_source_alloc },
+          .random_sources{ &external_source_alloc } }
+{
+    debug::ensure(mem);
+    debug::ensure(init.valid());
+
+    shared.reset(m_alloc.allocate_bytes(init.simulation_b), init.simulation_b);
+    nodes_alloc.reset(m_alloc.allocate_bytes(init.connections_b),
+                      init.connections_b);
+    dated_messages_alloc.reset(m_alloc.allocate_bytes(init.dated_messages_b),
+                               init.dated_messages_b);
+    external_source_alloc.reset(m_alloc.allocate_bytes(init.external_source_b),
+                                init.external_source_b);
+
+    if (init.model_nb > 0) {
+        models.reserve(init.model_nb);
+        observers.reserve(init.model_nb);
+        nodes.reserve(init.model_nb * 4); // Max 4 output port by models
+        messages.reserve(init.model_nb);
+        dated_messages.reserve(init.model_nb);
+
+        emitting_output_ports.reserve(init.model_nb);
+        immediate_models.reserve(init.model_nb);
+        immediate_observers.reserve(init.model_nb);
+
+        sched.reserve(init.model_nb);
+    }
+
+    if (init.hsms_nb > 0)
+        hsms.reserve(init.hsms_nb);
+
+    if (init.srcs.constant_nb > 0)
+        srcs.constant_sources.reserve(init.srcs.constant_nb);
+
+    if (init.srcs.binary_file_nb > 0)
+        srcs.binary_file_sources.reserve(init.srcs.binary_file_nb);
+
+    if (init.srcs.text_file_nb > 0)
+        srcs.text_file_sources.reserve(init.srcs.text_file_nb);
+
+    if (init.srcs.random_nb > 0)
+        srcs.random_sources.reserve(init.srcs.random_nb);
+}
+
+inline simulation::~simulation() noexcept
+{
+    models.destroy();
+    observers.destroy();
+    nodes.destroy();
+    messages.destroy();
+    dated_messages.destroy();
+    emitting_output_ports.destroy();
+    immediate_models.destroy();
+    immediate_observers.destroy();
+    sched.destroy();
+    hsms.destroy();
+    srcs.destroy();
+
+    shared.reset();
+    nodes_alloc.reset();
+    dated_messages_alloc.reset();
+    external_source_alloc.reset();
+
+    m_alloc.deallocate_bytes(shared.head(), shared.capacity());
+    m_alloc.deallocate_bytes(nodes_alloc.head(), nodes_alloc.capacity());
+    m_alloc.deallocate_bytes(dated_messages_alloc.head(),
+                             dated_messages_alloc.capacity());
+    m_alloc.deallocate_bytes(external_source_alloc.head(),
+                             external_source_alloc.capacity());
+}
 
 inline model_id simulation::get_id(const model& mdl) const
 {
@@ -5307,59 +5487,6 @@ template<typename Dynamics>
 model_id simulation::get_id(const Dynamics& dyn) const
 {
     return models.get_id(get_model(dyn));
-}
-
-inline status simulation::init(std::integral auto model_capacity,
-                               std::integral auto messages_capacity)
-{
-    debug::ensure(!std::cmp_greater(0, model_capacity));
-    debug::ensure(!std::cmp_greater(0, messages_capacity));
-
-    std::size_t global_memory = model_capacity * 256 * sizeof(model);
-    std::size_t node_mem      = model_capacity * sizeof(nodes) * 8;
-    std::size_t dated_mem     = model_capacity * sizeof(dated_messages) * 10;
-
-    shared.reset(reinterpret_cast<std::byte*>(global->allocate(global_memory)),
-                 global_memory);
-
-    nodes_alloc.reset(reinterpret_cast<std::byte*>(
-                        shared.allocate(node_mem, alignof(std::max_align_t))),
-                      node_mem);
-    dated_messages_alloc.reset(reinterpret_cast<std::byte*>(shared.allocate(
-                                 dated_mem, alignof(std::max_align_t))),
-                               dated_mem);
-
-    size_t max_hsms = (model_capacity / 10) <= 0
-                        ? 1u
-                        : static_cast<unsigned>(model_capacity) / 10u;
-
-    size_t max_srcs = (model_capacity / 10) <= 10
-                        ? 10u
-                        : static_cast<unsigned>(model_capacity) / 10u;
-
-    if (!models.reserve(model_capacity))
-        return new_error(simulation::part::models);
-    if (!hsms.reserve(max_hsms))
-        return new_error(simulation::part::hsms);
-    if (!observers.reserve(model_capacity))
-        return new_error(simulation::part::observers);
-    if (!nodes.reserve(model_capacity))
-        return new_error(simulation::part::observers);
-    if (!messages.reserve(model_capacity))
-        return new_error(simulation::part::observers);
-    if (!dated_messages.reserve(model_capacity))
-        return new_error(simulation::part::observers);
-    if (!sched.reserve(model_capacity))
-        return new_error(simulation::part::scheduler);
-
-    if (auto ret = srcs.init(max_srcs); !ret)
-        return ret.load(simulation::part::external_sources);
-
-    emitting_output_ports.reserve(model_capacity);
-    immediate_models.reserve(model_capacity);
-    immediate_observers.reserve(model_capacity);
-
-    return success();
 }
 
 inline void simulation::clean() noexcept
@@ -6192,6 +6319,119 @@ inline status priority_queue::transition(simulation& sim,
     }
 
     return success();
+}
+
+// simulation memory requirement
+
+inline constexpr simulation_memory_requirement::simulation_memory_requirement(
+  const std::size_t                   bytes,
+  const constrained_value<int, 5, 90> connections,
+  const constrained_value<int, 0, 50> dated_messages,
+  const constrained_value<int, 0, 90> hsms_model,
+  const constrained_value<int, 1, 90> external_source,
+  const constrained_value<int, 1, 95> source_client) noexcept
+{
+    constexpr size_t alg = alignof(std::max_align_t);
+
+    connections_b     = make_divisible_to(bytes * *connections / 100, alg);
+    dated_messages_b  = make_divisible_to(bytes * *dated_messages / 100, alg);
+    external_source_b = make_divisible_to(bytes * *external_source / 100, alg);
+    simulation_b      = make_divisible_to(
+      bytes - (connections_b + dated_messages_b + external_source_b), alg);
+
+    debug::ensure(connections_b + dated_messages_b + external_source_b < bytes);
+    debug::ensure(simulation_b > 0);
+    debug::ensure(connections_b + dated_messages_b + external_source_b +
+                    simulation_b <=
+                  bytes);
+
+    const auto model_size   = estimate_model();
+    const auto max_model_nb = static_cast<int>(simulation_b / model_size);
+
+    hsms_nb  = max_model_nb * *hsms_model / 100;
+    model_nb = max_model_nb - hsms_nb;
+    srcs =
+      external_source_memory_requirement(external_source_b, *source_client);
+}
+
+inline constexpr bool simulation_memory_requirement::valid() const noexcept
+{
+    return model_nb > 0 and hsms_nb >= 0 and srcs.valid();
+}
+
+inline constexpr size_t simulation_memory_requirement::estimate_model() noexcept
+{
+    return sizeof(output_message) + sizeof(model_id) + sizeof(observer_id) +
+           sizeof(data_array<model, model_id, freelist_allocator>::
+                    internal_value_type) +
+           sizeof(data_array<observer, observer_id, freelist_allocator>::
+                    internal_value_type) +
+           sizeof(data_array<vector<node, freelist_allocator>,
+                             node_id,
+                             freelist_allocator>::internal_value_type) +
+           sizeof(node) * 8 +
+           sizeof(data_array<small_vector<message, 8>,
+                             message_id,
+                             freelist_allocator>::internal_value_type) *
+             8 +
+           sizeof(data_array<ring_buffer<dated_message, freelist_allocator>,
+                             dated_message_id,
+                             freelist_allocator>::internal_value_type) +
+           sizeof(heap<mr_allocator<freelist_memory_resource>>::node);
+}
+
+inline constexpr external_source_memory_requirement::
+  external_source_memory_requirement(
+    const std::size_t                   bytes,
+    const constrained_value<int, 5, 95> source_client_ratio) noexcept
+{
+    const auto srcs = make_divisible_to(bytes * *source_client_ratio / 100);
+    const auto max_client = make_divisible_to(bytes - srcs);
+    const auto block_size = sizeof(chunk_type);
+    const auto client     = static_cast<int>((max_client / 2) / block_size);
+
+    const auto sources = static_cast<int>(srcs / block_size);
+    const auto source  = sources / 4;
+
+    constant_nb            = source;
+    text_file_nb           = source;
+    binary_file_nb         = source;
+    random_nb              = source;
+    binary_file_max_client = client;
+    random_max_client      = client;
+}
+
+inline constexpr bool external_source_memory_requirement::valid() const
+{
+    return constant_nb >= 0 and text_file_nb >= 0 and binary_file_nb >= 0 and
+           random_nb >= 0 and binary_file_max_client >= 0 and
+           random_max_client >= 0;
+}
+
+inline constexpr size_t external_source_memory_requirement::in_bytes()
+  const noexcept
+{
+    return sizeof(data_array<constant_source,
+                             constant_source_id,
+                             freelist_allocator>::internal_value_type) *
+             constant_nb +
+
+           sizeof(data_array<binary_file_source,
+                             binary_file_source_id,
+                             freelist_allocator>::internal_value_type) *
+             text_file_nb +
+
+           (sizeof(data_array<text_file_source,
+                              text_file_source_id,
+                              freelist_allocator>::internal_value_type) +
+            (sizeof(chunk_type) + sizeof(u64)) * binary_file_max_client) *
+             binary_file_nb +
+
+           (sizeof(data_array<random_source,
+                              random_source_id,
+                              freelist_allocator>::internal_value_type) +
+            (sizeof(chunk_type) + sizeof(u64) * 4) * random_max_client) *
+             random_nb;
 }
 
 } // namespace irt

@@ -248,8 +248,8 @@ void show_version() noexcept
 
 void run_simulation(irt::real   begin,
                     irt::real   duration,
-                    int         models,
-                    int         messages,
+                    int         /* models */,
+                    int         /* messages */,
                     const char* file_name) noexcept
 {
     fmt::print("Run simulation from `{}' to `{}' for file {}\n",
@@ -268,8 +268,6 @@ void run_simulation(irt::real   begin,
 
           irt_check(pj.init(init));
           irt_check(mod.init(init));
-          irt_check(sim.init(models, messages));
-          irt_check(srcs.init(64u));
           irt_check(pj.load(mod, sim, cache, file_name));
 
           irt::time       t   = begin;

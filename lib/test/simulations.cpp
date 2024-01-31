@@ -182,10 +182,8 @@ int main()
     using namespace boost::ut;
 
     "song_1_simulation"_test = [] {
-        irt::simulation sim;
+        irt::simulation sim(1024 * 1024 * 8);
         const auto      N = 4u;
-
-        expect(!!sim.init(10000lu, 10000lu));
 
         expect(sim.can_alloc(N + 2u * N * N + 2u * N * N + 4u * N * N + N +
                              2u * N * N));

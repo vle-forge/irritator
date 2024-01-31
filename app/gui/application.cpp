@@ -18,7 +18,8 @@
 namespace irt {
 
 application::application() noexcept
-  : task_mgr{}
+  : sim(simulation_memory_requirement(1024 * 1024 * 8, 10, 10, 5))
+  , task_mgr{}
 {
     settings_wnd.update();
     settings_wnd.apply_default_style();
@@ -62,10 +63,10 @@ bool application::init() noexcept
         return false;
     }
 
-    //if (auto ret = load_settings(); !ret) {
-    //    log_w(*this,
-    //          log_level::alert,
-    //          "Fail to read settings files. Default parameters used\n");
+    // if (auto ret = load_settings(); !ret) {
+    //     log_w(*this,
+    //           log_level::alert,
+    //           "Fail to read settings files. Default parameters used\n");
 
     //    mod_init = modeling_initializer{};
 
@@ -138,14 +139,14 @@ bool application::init() noexcept
         log_w(*this, log_level::error, "Fail to save settings files.\n");
     }
 
-    if (auto ret =
-          sim.init(mod_init.model_capacity, mod_init.model_capacity * 256);
-        !ret) {
-        log_w(*this,
-              log_level::error,
-              "Fail to initialize simulation components\n");
-        return false;
-    }
+    // if (auto ret =
+    //       sim.init(mod_init.model_capacity, mod_init.model_capacity * 256);
+    //     !ret) {
+    //     log_w(*this,
+    //           log_level::error,
+    //           "Fail to initialize simulation components\n");
+    //     return false;
+    // }
 
     simulation_ed.displacements.resize(mod_init.model_capacity);
     // @TODO Maybe clear or reinit pj.grid_obs_system and pj.graph_obs_system ?
@@ -159,11 +160,11 @@ bool application::init() noexcept
         return false;
     }
 
-    if (auto ret = mod.srcs.init(50); !ret) {
-        log_w(
-          *this, log_level::error, "Fail to initialize external sources:\n");
-        return false;
-    }
+    // if (auto ret = mod.srcs.init(50); !ret) {
+    //     log_w(
+    //       *this, log_level::error, "Fail to initialize external sources:\n");
+    //     return false;
+    // }
 
     if (auto ret = mod.fill_internal_components(); !ret) {
         log_w(*this,

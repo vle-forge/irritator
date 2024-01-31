@@ -6,6 +6,10 @@
 
 #include <errno.h>
 
+#if defined(_MSC_VER)
+#include <malloc.h>
+#endif
+
 namespace irt {
 
 constexpr inline bool is_alignment(std::size_t value) noexcept
@@ -66,6 +70,13 @@ void* malloc_memory_resource_allocate_posix(std::size_t bytes,
 void* malloc_memory_resource::do_allocate(std::size_t bytes,
                                           std::size_t alignment) noexcept
 {
+#if defined(IRRITATOR_ENABLE_DEBUG)
+    std::fprintf(stderr,
+                 "malloc_memory_resource::need-allocate [%zu %zu]\n",
+                 bytes,
+                 alignment);
+#endif
+
 #if defined(_MSC_VER)
     auto* p = malloc_memory_resource_allocate_win32(bytes, alignment);
 #elif defined(__APPLE__)
@@ -85,13 +96,31 @@ void* malloc_memory_resource::do_allocate(std::size_t bytes,
         std::abort();
     }
 
+#if defined(IRRITATOR_ENABLE_DEBUG)
+    std::fprintf(stderr,
+                 "malloc_memory_resource::allocate [%p %zu %zu]\n",
+                 p,
+                 bytes,
+                 alignment);
+#endif
+
     return p;
 }
 
-void malloc_memory_resource::do_deallocate(void* pointer,
-                                           std::size_t /* bytes */) noexcept
+void malloc_memory_resource::do_deallocate(
+  void*                        pointer,
+  [[maybe_unused]] std::size_t bytes,
+  [[maybe_unused]] std::size_t alignment) noexcept
 {
-#ifdef _WIN32
+#if defined(IRRITATOR_ENABLE_DEBUG)
+    std::fprintf(stderr,
+                 "malloc_memory_resource::do_deallocate [%p %zu %zu]\n",
+                 pointer,
+                 bytes,
+                 alignment);
+#endif
+
+#if defined(_WIN32)
     if (pointer)
         ::_aligned_free(pointer);
 #else

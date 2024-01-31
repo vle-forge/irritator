@@ -819,4 +819,12 @@ void external_source::clear() noexcept
     random_sources.clear();
 }
 
+void external_source::destroy() noexcept
+{
+    constant_sources.destroy();
+    binary_file_sources.destroy();
+    text_file_sources.destroy();
+    random_sources.destroy();
+}
+
 } // namespace irt

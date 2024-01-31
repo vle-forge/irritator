@@ -144,6 +144,20 @@ int main()
 {
     using namespace boost::ut;
 
+    "make-divisible"_test = [] {
+        expect(eq(irt::make_divisible_to(123u, 16u), 112u));
+        expect(eq(irt::make_divisible_to(17l, 16u), 16l));
+        expect(eq(irt::make_divisible_to(161llu, 16u), 160llu));
+        expect(eq(irt::make_divisible_to(7, 16u), 0));
+        expect(eq(irt::make_divisible_to(15, 16u), 0));
+
+        expect(eq(irt::make_divisible_to(123u, 8u), 120u));
+        expect(eq(irt::make_divisible_to(17l, 8u), 16l));
+        expect(eq(irt::make_divisible_to(161llu, 8u), 160llu));
+        expect(eq(irt::make_divisible_to(7, 8u), 0));
+        expect(eq(irt::make_divisible_to(15, 8u), 8));
+    };
+
     "small-vector<T>"_test = [] {
         irt::small_vector<int, 8> v;
         expect(v.empty());
