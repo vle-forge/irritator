@@ -63,7 +63,7 @@ static bool show_row_column_widgets(grid_component& grid) noexcept
     return is_changed;
 }
 
-static void show_type_widgets(grid_component& grid) noexcept
+static void show_grid_component_options(grid_component& grid) noexcept
 {
     int selected_options = ordinal(grid.opts);
     if (ImGui::Combo(
@@ -204,29 +204,49 @@ static bool assign_name(modeling&       mod,
     unreachable();
 }
 
-void show_default_component_widgets(application& app, grid_component& grid)
+static void show_grid_editor_options(application&                app,
+                                     grid_component_editor_data& ed,
+                                     grid_component&             grid) noexcept
 {
     auto id = get_default_component_id(grid);
-    if (app.component_sel.combobox("Default component", &id)) {
-        std::fill_n(grid.children.data(), grid.children.ssize(), id);
+
+    {
+        auto updated = app.component_sel.combobox("Default component", &id);
+        ImGui::SameLine();
+        HelpMarker(
+          "Reset the content of the grid with the selected component.");
+
+        if (updated)
+            std::fill_n(grid.children.data(), grid.children.ssize(), id);
+    }
+
+    {
+        app.component_sel.combobox("Paint component", &ed.selected_id);
+        ImGui::SameLine();
+        HelpMarker("Select a component in the list and draw the grid using the "
+                   "left button of your mouse.");
     }
 
     ImGui::BeginDisabled(!(app.mod.components.can_alloc(1) &&
                            app.mod.generic_components.can_alloc(1)));
 
-    if (ImGui::Button("+ generic")) {
+    ImGui::TextUnformatted("Create input/outputs ports compatible "
+                           "component:");
+
+    ImGui::SameLine();
+    if (app.mod.generic_components.can_alloc() && ImGui::Button("+ generic")) {
         auto& compo = app.mod.alloc_generic_component();
         assign_name(app.mod, grid, compo);
     }
 
     ImGui::SameLine();
-    if (ImGui::Button("+ grid")) {
+    if (app.mod.grid_components.can_alloc() && ImGui::Button("+ grid")) {
         auto& compo = app.mod.alloc_grid_component();
         assign_name(app.mod, grid, compo);
     }
 
     ImGui::SameLine();
-    if (ImGui::Button("+ graph")) {
+    if (app.mod.graph_components.can_alloc() && ImGui::Button("+ graph")) {
         auto& compo = app.mod.alloc_graph_component();
         assign_name(app.mod, grid, compo);
     }
@@ -234,160 +254,112 @@ void show_default_component_widgets(application& app, grid_component& grid)
     ImGui::EndDisabled();
 }
 
-/**
- * @brief Retrieves the selected @c component_id.
- * @details If the selection have several different @c component_id then the
- * function return @c std::nullopt otherwise, returns the @c component_id or @c
- * undefined<component_id>() if element is empty.
- *
- * @return The unique @c component_id or @c undefined<component_id>() if
- * selection is multiple.
- */
-// static auto get_selected_id(const vector<component_id>& ids,
-//                             const vector<bool>&         selected) noexcept
-//   -> std::optional<component_id>
-// {
-//     irt_assert(ids.size() == selected.size());
-
-//     auto found      = undefined<component_id>();
-//     auto have_value = false;
-
-//     for (sz i = 0, e = ids.size(); i != e; ++i) {
-//         if (selected[i]) {
-//             if (have_value) {
-//                 if (found != ids[i])
-//                     return std::nullopt;
-//             } else {
-//                 found      = ids[i];
-//                 have_value = true;
-//             }
-//         }
-//     }
-
-//     return std::make_optional(found);
-// }
-
-// static void assign_selection(const vector<bool>&   selected,
-//                              vector<component_id>& ids,
-//                              component_id          value) noexcept
-// {
-//     irt_assert(ids.size() == selected.size());
-
-//     for (sz i = 0, e = ids.size(); i != e; ++i)
-//         if (selected[i])
-//             ids[i] = value;
-// }
-
-static void show_selection(application&                app,
-                           grid_component_editor_data& ed,
-                           grid_component&             grid) noexcept
-{
-    if (ImGui::CollapsingHeader("Components", ImGuiTreeNodeFlags_DefaultOpen))
-        app.component_sel.combobox("component paint", &ed.selected_id);
-
-    if (ImGui::CollapsingHeader("Selected", ImGuiTreeNodeFlags_DefaultOpen)) {
-        for (int row = 0; row < grid.row; ++row) {
-            for (int col = 0; col < grid.column; ++col) {
-                if (ed.selected[grid.pos(row, col)]) {
-                    ImGui::Text("%d %d", row, col);
-                }
-            }
-        }
-    }
-}
-
 static void show_grid(application&                app,
                       grid_component_editor_data& ed,
                       grid_component&             data) noexcept
 {
-    static const float item_width  = 100.0f;
-    static const float item_height = 100.0f;
 
-    static float zoom         = 1.0f;
-    static float new_zoom     = 1.0f;
-    static bool  zoom_changed = false;
+    static ImVec2 scrolling(0.0f, 0.0f);
+    static int    v[2] = { 50, 50 };
 
-    ImGui::BeginChild("Editor",
-                      ImVec2(0.f, 0.f),
-                      false,
-                      ImGuiWindowFlags_NoScrollWithMouse |
-                        ImGuiWindowFlags_AlwaysVerticalScrollbar |
-                        ImGuiWindowFlags_AlwaysHorizontalScrollbar);
+    float item_width  = v[0];
+    float item_height = v[1];
 
-    if (zoom_changed) {
-        zoom         = new_zoom;
-        zoom_changed = false;
-    } else {
-        if (ImGui::IsWindowHovered()) {
-            const float zoom_step = 2.0f;
-
-            auto& io = ImGui::GetIO();
-            if (io.MouseWheel > 0.0f) {
-                new_zoom     = zoom * zoom_step * io.MouseWheel;
-                zoom_changed = true;
-            } else if (io.MouseWheel < 0.0f) {
-                new_zoom     = zoom / (zoom_step * -io.MouseWheel);
-                zoom_changed = true;
-            }
-        }
-
-        if (zoom_changed) {
-            auto mouse_position_on_window =
-              ImGui::GetMousePos() - ImGui::GetWindowPos();
-
-            auto mouse_position_on_list =
-              (ImVec2(ImGui::GetScrollX(), ImGui::GetScrollY()) +
-               mouse_position_on_window) /
-              (data.row * zoom);
-
-            {
-                auto origin = ImGui::GetCursorScreenPos();
-                ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing,
-                                    ImVec2(0.0f, 0.0f));
-                ImGui::Dummy(
-                  ImVec2(data.row * ImFloor(item_width * new_zoom),
-                         data.column * ImFloor(item_height * new_zoom)));
-                ImGui::PopStyleVar();
-                ImGui::SetCursorScreenPos(origin);
-            }
-
-            auto new_mouse_position_on_list =
-              mouse_position_on_list * (item_height * new_zoom);
-            auto new_scroll =
-              new_mouse_position_on_list - mouse_position_on_window;
-
-            ImGui::SetScrollX(new_scroll.x);
-            ImGui::SetScrollY(new_scroll.y);
-        }
+    if (ImGui::InputInt2("Column and row size", v)) {
+        item_width  = static_cast<float>(v[0] < 5     ? v[0]     = 5
+                                         : v[0] > 100 ? v[0] = 100
+                                                      : v[0]);
+        item_height = static_cast<float>(v[1] < 5     ? v[1]     = 5
+                                         : v[1] > 100 ? v[1] = 100
+                                                      : v[1]);
     }
 
-    ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, ImVec2(0.0f, 0.0f));
+    ImVec2 canvas_p0 = ImGui::GetCursorScreenPos();
+    ImVec2 canvas_sz = ImGui::GetContentRegionAvail();
+
+    if (canvas_sz.x < 50.0f)
+        canvas_sz.x = 50.0f;
+    if (canvas_sz.y < 50.0f)
+        canvas_sz.y = 50.0f;
+
+    ImVec2 canvas_p1 =
+      ImVec2(canvas_p0.x + canvas_sz.x, canvas_p0.y + canvas_sz.y);
+
+    ImGuiIO&    io        = ImGui::GetIO();
+    ImDrawList* draw_list = ImGui::GetWindowDrawList();
+
+    draw_list->AddRect(canvas_p0, canvas_p1, IM_COL32(255, 255, 255, 255));
+
+    ImGui::InvisibleButton("Canvas",
+                           canvas_sz,
+                           ImGuiButtonFlags_MouseButtonLeft |
+                             ImGuiButtonFlags_MouseButtonRight);
+
+    const bool is_hovered = ImGui::IsItemHovered();
+    const bool is_active  = ImGui::IsItemActive();
+
+    const ImVec2 origin(canvas_p0.x + scrolling.x, canvas_p0.y + scrolling.y);
+    const ImVec2 mouse_pos_in_canvas(io.MousePos.x - origin.x,
+                                     io.MousePos.y - origin.y);
+
+    const float mouse_threshold_for_pan = -1.f;
+    if (is_active && ImGui::IsMouseDragging(ImGuiMouseButton_Right,
+                                            mouse_threshold_for_pan)) {
+        scrolling.x += io.MouseDelta.x;
+        scrolling.y += io.MouseDelta.y;
+    }
+
+    ImVec2 drag_delta = ImGui::GetMouseDragDelta(ImGuiMouseButton_Right);
+    if (drag_delta.x == 0.0f && drag_delta.y == 0.0f)
+        ImGui::OpenPopupOnItemClick("Canvas-Context",
+                                    ImGuiPopupFlags_MouseButtonRight);
+    if (ImGui::BeginPopup("Canvas-Context")) {
+        ImGui::MenuItem("Connect to grid input port");
+        // Loop over component.x_names
+
+        ImGui::MenuItem("Connect to grid output port");
+        // Loop over component.y_names
+
+        ImGui::EndPopup();
+    }
+
+    draw_list->PushClipRect(canvas_p0, canvas_p1, true);
+    const float GRID_STEP = 64.0f;
+
+    for (float x = fmodf(scrolling.x, GRID_STEP); x < canvas_sz.x;
+         x += GRID_STEP)
+        draw_list->AddLine(ImVec2(canvas_p0.x + x, canvas_p0.y),
+                           ImVec2(canvas_p0.x + x, canvas_p1.y),
+                           IM_COL32(200, 200, 200, 40));
+
+    for (float y = fmodf(scrolling.y, GRID_STEP); y < canvas_sz.y;
+         y += GRID_STEP)
+        draw_list->AddLine(ImVec2(canvas_p0.x, canvas_p0.y + y),
+                           ImVec2(canvas_p1.x, canvas_p0.y + y),
+                           IM_COL32(200, 200, 200, 40));
 
     for (int row = 0; row < data.row; ++row) {
         for (int col = 0; col < data.column; ++col) {
-            ImGui::SetCursorPos(
-              ImFloor(ImVec2(item_width, item_height) * zoom) *
-              ImVec2(static_cast<float>(row), static_cast<float>(col)));
+            ImVec2 p_min(origin.x + col * item_width,
+                         origin.y + row * item_height);
+            ImVec2 p_max(origin.x + ((col + 1) * item_width) - 3,
+                         origin.y + ((row + 1) * item_height) - 3);
 
-            ImGui::PushStyleColor(ImGuiCol_Button,
-                                  to_ImVec4(app.mod.component_colors[get_index(
-                                    data.children[data.pos(row, col)])]));
-
-            small_string<32> x;
-            format(x, "{}x{}", row, col);
-
-            if (ImGui::Button(x.c_str(),
-                              ImVec2(ImFloor(item_width * zoom),
-                                     ImFloor(item_height * zoom)))) {
+            if (p_min.x <= io.MousePos.x && io.MousePos.x < p_max.x &&
+                p_min.y <= io.MousePos.y && io.MousePos.y < p_max.y &&
+                ImGui::IsMouseReleased(0)) {
                 data.children[data.pos(row, col)] = ed.selected_id;
             }
 
-            ImGui::PopStyleColor();
+            draw_list->AddRectFilled(
+              p_min,
+              p_max,
+              to_ImU32(app.mod.component_colors[get_index(
+                data.children[data.pos(row, col)])]));
         }
     }
 
-    ImGui::PopStyleVar();
-    ImGui::EndChild();
+    draw_list->PopClipRect();
 }
 
 grid_component_editor_data::grid_component_editor_data(
@@ -424,17 +396,10 @@ void grid_component_editor_data::show(component_editor& ed) noexcept
         std::fill_n(selected.data(), selected.size(), false);
     }
 
-    show_type_widgets(*grid);
-    show_default_component_widgets(app, *grid);
+    show_grid_component_options(*grid);
+    show_grid_editor_options(app, *this, *grid);
 
-    if (ImGui::BeginTable("##array", 2)) {
-        ImGui::TableNextColumn();
-        show_grid(app, *this, *grid);
-        ImGui::TableNextColumn();
-        show_selection(app, *this, *grid);
-
-        ImGui::EndTable();
-    }
+    show_grid(app, *this, *grid);
 }
 
 void grid_component_editor_data::show_selected_nodes(
@@ -486,9 +451,9 @@ void grid_editor_dialog::show() noexcept
         if (show_row_column_widgets(grid))
             grid.resize(grid.row, grid.column, get_default_component_id(grid));
 
-        show_type_widgets(grid);
-        show_default_component_widgets(
-          container_of(this, &application::grid_dlg), grid);
+        show_grid_component_options(grid);
+        // show_grid_editor_options(
+        //   container_of(this, &application::grid_dlg), *this, grid);
         ImGui::EndChild();
 
         if (ImGui::Button("Ok", button_size)) {

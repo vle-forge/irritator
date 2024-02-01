@@ -522,4 +522,49 @@ status modeling::copy(grid_component& grid, generic_component& s) noexcept
     return build_grid_children_and_connections(grid, s.children, s.connections);
 }
 
+bool grid_component::exist_input_connection(const port_id x,
+                                            const i32     row,
+                                            const i32     col,
+                                            const port_id id) const noexcept
+{
+    for (int i = 0, e = input_connections.ssize(); i != e; ++i)
+        if (x == input_connections[i].x and row == input_connections[i].row and
+            col == input_connections[i].col and id == input_connections[i].id)
+            return true;
+
+    return false;
+}
+
+bool grid_component::exist_output_connection(const port_id y,
+                                             const i32     row,
+                                             const i32     col,
+                                             const port_id id) const noexcept
+{
+    for (int i = 0, e = output_connections.ssize(); i != e; ++i)
+        if (y == output_connections[i].y and
+            row == output_connections[i].row and
+            col == output_connections[i].col and id == output_connections[i].id)
+            return true;
+
+    return false;
+}
+
+void grid_component::add_input_connection(const port_id x,
+                                          const i32     row,
+                                          const i32     col,
+                                          const port_id id) noexcept
+{
+    if (not exist_input_connection(x, row, col, id))
+        input_connections.emplace_back(x, row, col, id);
+}
+
+void grid_component::add_output_connection(const port_id y,
+                                           const i32     row,
+                                           const i32     col,
+                                           const port_id id) noexcept
+{
+    if (not exist_output_connection(y, row, col, id))
+        output_connections.emplace_back(y, row, col, id);
+}
+
 } // namespace irt

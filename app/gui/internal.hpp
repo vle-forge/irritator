@@ -44,6 +44,26 @@ inline const float* to_float_ptr(const std::array<float, 4>& array) noexcept
     return &array[0];
 }
 
+constexpr inline float saturate(const float v) noexcept
+{
+    return v < 0.0f ? 0.0f : v > 1.0f ? 1.0f : v;
+}
+
+constexpr inline u8 float_to_u8_sat(const float v) noexcept
+{
+    return static_cast<u8>(saturate(v) * 255.0f + 0.5f);
+}
+
+constexpr ImU32 to_ImU32(const std::array<float, 4>& in) noexcept
+{
+    ImU32 out = float_to_u8_sat(in[0]) << IM_COL32_R_SHIFT;
+    out |= float_to_u8_sat(in[1]) << IM_COL32_G_SHIFT;
+    out |= float_to_u8_sat(in[2]) << IM_COL32_B_SHIFT;
+    out |= float_to_u8_sat(in[3]) << IM_COL32_A_SHIFT;
+
+    return out;
+}
+
 //! Helper to display a little (?) mark which shows a tooltip when hovered.
 //! In your own code you may want to display an actual icon if you are using
 //! a merged icon fonts (see docs/FONTS.md)

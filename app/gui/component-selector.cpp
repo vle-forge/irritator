@@ -87,9 +87,9 @@ void component_selector::update() noexcept
     ids.clear();
     names.clear();
 
-    files     = 0;
-    internals = 0;
-    unsaved   = 0;
+    files = 0;
+    // internals = 0;
+    unsaved = 0;
 
     ids.emplace_back(undefined<component_id>());
     cs_make_selected_name(names.emplace_back());
@@ -111,17 +111,17 @@ void component_selector::update() noexcept
 
     files = ids.size();
 
-    for_each_data(mod.components, [&](auto& compo) noexcept {
-        if (compo.type == component_type::internal) {
-            ids.emplace_back(mod.components.get_id(compo));
-            auto& str = names.emplace_back();
+    // for_each_data(mod.components, [&](auto& compo) noexcept {
+    //     if (compo.type == component_type::internal) {
+    //         ids.emplace_back(mod.components.get_id(compo));
+    //         auto& str = names.emplace_back();
 
-            cs_make_selected_name(
-              internal_component_names[ordinal(compo.id.internal_id)], str);
-        }
-    });
+    //         cs_make_selected_name(
+    //           internal_component_names[ordinal(compo.id.internal_id)], str);
+    //     }
+    // });
 
-    internals = ids.size();
+    // internals = ids.size();
 
     for_each_data(mod.components, [&](auto& compo) noexcept {
         if (compo.type != component_type::internal &&
@@ -240,18 +240,18 @@ bool component_selector::menu(const char*   label,
             ImGui::EndMenu();
         }
 
-        if (ImGui::BeginMenu("Internal components")) {
-            for (int i = files, e = internals; i < e; ++i) {
-                if (ImGui::MenuItem(names[i].c_str())) {
-                    ret           = true;
-                    *new_selected = ids[i];
-                }
-            }
-            ImGui::EndMenu();
-        }
+        // if (ImGui::BeginMenu("Internal components")) {
+        //     for (int i = files, e = internals; i < e; ++i) {
+        //         if (ImGui::MenuItem(names[i].c_str())) {
+        //             ret           = true;
+        //             *new_selected = ids[i];
+        //         }
+        //     }
+        //     ImGui::EndMenu();
+        // }
 
         if (ImGui::BeginMenu("Unsaved components")) {
-            for (int i = internals, e = unsaved; i < e; ++i) {
+            for (int i = files, e = unsaved; i < e; ++i) {
                 if (ImGui::MenuItem(names[i].c_str())) {
                     ret           = true;
                     *new_selected = ids[i];

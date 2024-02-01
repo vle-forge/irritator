@@ -274,8 +274,32 @@ struct hsm_component {
 class generic_component
 {
 public:
+    struct internal_connection {
+        child_id src;
+        u64      p_src;
+        child_id dst;
+        u64      p_dst;
+    };
+
+    struct input_connection {
+        port_id  x; // The port_id in this component.
+        child_id dst;
+        u64      port;
+    };
+
+    struct output_connection {
+        port_id  y; // The port_id in this component.
+        child_id src;
+        u64      port;
+    };
+
     vector<child_id>      children;
     vector<connection_id> connections;
+
+    // vector<child_id>          children;
+    // vector<connection_id>     connections;
+    vector<input_connection>  input_connections;
+    vector<output_connection> output_connections;
 
     /// Use to affect @c child::unique_id when the component is saved. The value
     /// 0 means unique_id is undefined. Mutable variable to allow function @c
@@ -354,7 +378,45 @@ struct grid_component {
         return make_doubleword(static_cast<u32>(row), static_cast<u32>(col));
     }
 
-    vector<component_id> children;
+    struct input_connection {
+        port_id x;   // The port_id in this component.
+        i32     row; // The row in children vector.
+        i32     col; // The col in children vector.
+        port_id id;  // The port_id of the @c children[idx].
+    };
+
+    struct output_connection {
+        port_id y;   // The port_id in this component.
+        i32     row; // The row in children vector.
+        i32     col; // The col in children vector.
+        port_id id;  // The port_id of the @c children[idx].
+    };
+
+    vector<component_id>      children;
+    vector<input_connection>  input_connections;
+    vector<output_connection> output_connections;
+
+    bool exist_input_connection(const port_id x,
+                                const i32     row,
+                                const i32     col,
+                                const port_id id) const noexcept;
+
+    bool exist_output_connection(const port_id y,
+                                 const i32     row,
+                                 const i32     col,
+                                 const port_id id) const noexcept;
+
+    /** Tries to add this input connection if it does not already exist. */
+    void add_input_connection(const port_id x,
+                              const i32     row,
+                              const i32     col,
+                              const port_id id) noexcept;
+
+    /** Tries to add this output connection if it does not already exist. */
+    void add_output_connection(const port_id y,
+                               const i32     row,
+                               const i32     col,
+                               const port_id id) noexcept;
 
     vector<child_id>      cache;
     vector<connection_id> cache_connections;
@@ -413,10 +475,25 @@ struct graph_component {
         return static_cast<u64>(pos_);
     }
 
-    vector<component_id> children;
-    random_graph_param   param = scale_free_param{};
-    std::array<u64, 4>   seed;
-    std::array<u64, 2>   key;
+    struct input_connection {
+        port_id x;   // The port_id in this component.
+        i32     idx; // The index in children vector.
+        port_id id;  // The port_id of the @c children[idx].
+    };
+
+    struct output_connection {
+        port_id y;   // The port_id in this component.
+        i32     idx; // The index in children vector.
+        port_id id;  // The port_id of the @c children[idx].
+    };
+
+    vector<component_id>      children;
+    vector<input_connection>  input_connections;
+    vector<output_connection> output_connections;
+
+    random_graph_param param = scale_free_param{};
+    std::array<u64, 4> seed;
+    std::array<u64, 2> key;
 
     vector<child_id>      cache;
     vector<connection_id> cache_connections;
