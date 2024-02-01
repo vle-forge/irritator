@@ -4124,12 +4124,12 @@ static status read_file_to_buffer(cache_rw& cache, file& f) noexcept
     irt_assert(f.is_open());
     irt_assert(f.get_mode() == open_mode::read);
 
-    const auto len = f.length();
+    if (const auto len = f.length(); len > 0) {
+        cache.buffer.resize(len);
 
-    cache.buffer.resize(len);
-
-    if (!f.read(cache.buffer.data(), len))
-        return new_error(json_archiver::part::read_file_error);
+        if (!f.read(cache.buffer.data(), len))
+            return new_error(json_archiver::part::read_file_error);
+    }
 
     return success();
 }
