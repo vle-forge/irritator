@@ -663,8 +663,7 @@ component& modeling::alloc_graph_component() noexcept
     new_compo.type  = component_type::graph;
     new_compo.state = component_status::modified;
 
-    auto& graph = graph_components.alloc();
-    graph.resize(20, undefined<component_id>());
+    auto& graph           = graph_components.alloc();
     new_compo.id.graph_id = graph_components.get_id(graph);
 
     return new_compo;
@@ -720,8 +719,8 @@ static bool fill_children(const modeling&       mod,
     case component_type::graph: {
         auto id = compo.id.graph_id;
         if (auto* g = mod.graph_components.try_to_get(id); g) {
-            for (const auto& ch : g->children)
-                if (fill_child(mod, ch, out, search))
+            for (const auto& vertex : g->children)
+                if (fill_child(mod, vertex.id, out, search))
                     return true;
         }
     } break;

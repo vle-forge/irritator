@@ -47,14 +47,16 @@ static bool show_row_column_widgets(grid_component& grid) noexcept
     bool is_changed = false;
 
     int row = grid.row;
-    if (ImGui::InputInt("row", &row)) {
+    if (ImGui::InputInt(
+          "row", &row, 1, 100, ImGuiInputTextFlags_EnterReturnsTrue)) {
         row        = std::clamp(row, 1, 256);
         is_changed = row != grid.row;
         grid.row   = row;
     }
 
     int column = grid.column;
-    if (ImGui::InputInt("column", &column)) {
+    if (ImGui::InputInt(
+          "column", &column, 1, 100, ImGuiInputTextFlags_EnterReturnsTrue)) {
         column      = std::clamp(column, 1, 256);
         is_changed  = is_changed || column != grid.column;
         grid.column = column;
@@ -255,23 +257,13 @@ static void show_grid_editor_options(application&                app,
 }
 
 static void show_grid(application&                app,
+                      component&                  compo,
                       grid_component_editor_data& ed,
                       grid_component&             data) noexcept
 {
-
-    static ImVec2 scrolling(0.0f, 0.0f);
-    static int    v[2] = { 50, 50 };
-
-    float item_width  = v[0];
-    float item_height = v[1];
-
-    if (ImGui::InputInt2("Column and row size", v)) {
-        item_width  = static_cast<float>(v[0] < 5     ? v[0]     = 5
-                                         : v[0] > 100 ? v[0] = 100
-                                                      : v[0]);
-        item_height = static_cast<float>(v[1] < 5     ? v[1]     = 5
-                                         : v[1] > 100 ? v[1] = 100
-                                                      : v[1]);
+    if (ImGui::InputFloat2("Zoom", ed.zoom)) {
+        ed.zoom[0] = ImClamp(ed.zoom[0], 0.1f, 10.f);
+        ed.zoom[1] = ImClamp(ed.zoom[1], 0.1f, 10.f);
     }
 
     ImVec2 canvas_p0 = ImGui::GetCursorScreenPos();
@@ -298,41 +290,119 @@ static void show_grid(application&                app,
     const bool is_hovered = ImGui::IsItemHovered();
     const bool is_active  = ImGui::IsItemActive();
 
-    const ImVec2 origin(canvas_p0.x + scrolling.x, canvas_p0.y + scrolling.y);
+    const ImVec2 origin(canvas_p0.x + ed.scrolling.x,
+                        canvas_p0.y + ed.scrolling.y);
     const ImVec2 mouse_pos_in_canvas(io.MousePos.x - origin.x,
                                      io.MousePos.y - origin.y);
 
     const float mouse_threshold_for_pan = -1.f;
     if (is_active && ImGui::IsMouseDragging(ImGuiMouseButton_Right,
                                             mouse_threshold_for_pan)) {
-        scrolling.x += io.MouseDelta.x;
-        scrolling.y += io.MouseDelta.y;
+        ed.scrolling.x += io.MouseDelta.x;
+        ed.scrolling.y += io.MouseDelta.y;
+    }
+
+    if (is_hovered and io.MouseWheel != 0.f) {
+        ed.zoom[0] = ed.zoom[0] + (io.MouseWheel * ed.zoom[0] * 0.1f);
+        ed.zoom[1] = ed.zoom[1] + (io.MouseWheel * ed.zoom[1] * 0.1f);
+        ed.zoom[0] = ImClamp(ed.zoom[0], 0.1f, 10.f);
+        ed.zoom[1] = ImClamp(ed.zoom[1], 0.1f, 10.f);
     }
 
     ImVec2 drag_delta = ImGui::GetMouseDragDelta(ImGuiMouseButton_Right);
-    if (drag_delta.x == 0.0f && drag_delta.y == 0.0f)
+
+    if (drag_delta.x == 0.0f && drag_delta.y == 0.0f and
+        ed.hovered_component == nullptr) {
+        ed.col =
+          static_cast<int>(ImFloor((io.MousePos.x - origin.x) / ed.zoom[0]));
+        ed.row =
+          static_cast<int>(ImFloor((io.MousePos.y - origin.y) / ed.zoom[1]));
+
+        if (0 <= ed.row and ed.row < data.row and 0 <= ed.col and
+            ed.col < data.column) {
+            ed.hovered_component = app.mod.components.try_to_get(
+              data.children[data.pos(ed.row, ed.col)]);
+        }
+    }
+
+    if (ed.hovered_component)
         ImGui::OpenPopupOnItemClick("Canvas-Context",
                                     ImGuiPopupFlags_MouseButtonRight);
-    if (ImGui::BeginPopup("Canvas-Context")) {
-        ImGui::MenuItem("Connect to grid input port");
-        // Loop over component.x_names
 
-        ImGui::MenuItem("Connect to grid output port");
-        // Loop over component.y_names
+    if (ImGui::BeginPopup("Canvas-Context")) {
+        if (ImGui::BeginMenu("Connect to grid input port")) {
+            for (auto s_id : ed.hovered_component->x_names) {
+                if (auto* s_port = app.mod.ports.try_to_get(s_id); s_port) {
+                    ImGui::PushID(s_port);
+
+                    for (auto id : compo.x_names) {
+                        if (auto* port = app.mod.ports.try_to_get(id); port) {
+                            ImGui::PushID(port);
+                            small_string<128> str;
+
+                            format(str,
+                                   "grid port {} to {}",
+                                   port->name.sv(),
+                                   s_port->name.sv());
+
+                            if (ImGui::MenuItem(str.c_str())) {
+                                data.add_input_connection(
+                                  id, ed.row, ed.col, s_id);
+                                ed.hovered_component = nullptr;
+                            }
+                            ImGui::PopID();
+                        }
+                    }
+                    ImGui::PopID();
+                }
+            }
+            ImGui::EndMenu();
+        }
+
+        if (ImGui::BeginMenu("Connect to grid output port")) {
+            for (auto s_id : ed.hovered_component->y_names) {
+                if (auto* s_port = app.mod.ports.try_to_get(s_id); s_port) {
+                    ImGui::PushID(s_port);
+
+                    for (auto id : compo.y_names) {
+                        if (auto* port = app.mod.ports.try_to_get(id); port) {
+                            ImGui::PushID(port);
+                            small_string<128> str;
+
+                            format(str,
+                                   "{} to grid port {}",
+                                   s_port->name.sv(),
+                                   port->name.sv());
+
+                            if (ImGui::MenuItem(str.c_str())) {
+                                data.add_output_connection(
+                                  id, ed.row, ed.col, s_id);
+                                ed.hovered_component = nullptr;
+                            }
+                            ImGui::PopID();
+                        }
+                    }
+                    ImGui::PopID();
+                }
+            }
+            ImGui::EndMenu();
+        }
 
         ImGui::EndPopup();
+    } else {
+        ed.hovered_component = nullptr;
     }
 
     draw_list->PushClipRect(canvas_p0, canvas_p1, true);
     const float GRID_STEP = 64.0f;
 
-    for (float x = fmodf(scrolling.x, GRID_STEP); x < canvas_sz.x;
+    for (float x = fmodf(ed.scrolling.x, GRID_STEP); x < canvas_sz.x;
          x += GRID_STEP)
         draw_list->AddLine(ImVec2(canvas_p0.x + x, canvas_p0.y),
                            ImVec2(canvas_p0.x + x, canvas_p1.y),
                            IM_COL32(200, 200, 200, 40));
 
-    for (float y = fmodf(scrolling.y, GRID_STEP); y < canvas_sz.y;
+    for (float y = fmodf(ed.scrolling.y, GRID_STEP); y < canvas_sz.y;
          y += GRID_STEP)
         draw_list->AddLine(ImVec2(canvas_p0.x, canvas_p0.y + y),
                            ImVec2(canvas_p1.x, canvas_p0.y + y),
@@ -340,10 +410,12 @@ static void show_grid(application&                app,
 
     for (int row = 0; row < data.row; ++row) {
         for (int col = 0; col < data.column; ++col) {
-            ImVec2 p_min(origin.x + col * item_width,
-                         origin.y + row * item_height);
-            ImVec2 p_max(origin.x + ((col + 1) * item_width) - 3,
-                         origin.y + ((row + 1) * item_height) - 3);
+            ImVec2 p_min(
+              origin.x + (col * (ed.distance.x + ed.size.x) * ed.zoom[0]),
+              origin.y + (row * (ed.distance.y + ed.size.y) * ed.zoom[1]));
+
+            ImVec2 p_max(p_min.x + ed.zoom[0] * ed.size.x,
+                         p_min.y + ed.zoom[1] * ed.size.y);
 
             if (p_min.x <= io.MousePos.x && io.MousePos.x < p_max.x &&
                 p_min.y <= io.MousePos.y && io.MousePos.y < p_max.y &&
@@ -371,8 +443,9 @@ grid_component_editor_data::grid_component_editor_data(
 
 void grid_component_editor_data::clear() noexcept
 {
-    selected.clear();
-    scale = 10.f;
+    zoom[0]           = 1.f;
+    zoom[1]           = 1.f;
+    hovered_component = nullptr;
 
     grid_id = undefined<grid_component_id>();
     m_id    = undefined<component_id>();
@@ -385,21 +458,14 @@ void grid_component_editor_data::show(component_editor& ed) noexcept
     auto* grid  = app.mod.grid_components.try_to_get(grid_id);
 
     irt_assert(compo && grid);
-    if (selected.capacity() == 0) {
-        selected.resize(grid->row * grid->column);
-        std::fill_n(selected.data(), selected.size(), false);
-    }
 
     if (show_row_column_widgets(*grid)) {
         grid->resize(grid->row, grid->column, get_default_component_id(*grid));
-        selected.resize(grid->row * grid->column);
-        std::fill_n(selected.data(), selected.size(), false);
     }
 
     show_grid_component_options(*grid);
     show_grid_editor_options(app, *this, *grid);
-
-    show_grid(app, *this, *grid);
+    show_grid(app, *compo, *this, *grid);
 }
 
 void grid_component_editor_data::show_selected_nodes(

@@ -44,7 +44,7 @@ bool show_local_observers(application& app,
         }
 
         std::optional<graph_modeling_observer_id> to_delete;
-        bool                             is_modified = false;
+        bool                                      is_modified = false;
 
         for_specified_data(
           app.pj.graph_observers,
@@ -106,18 +106,16 @@ bool graph_simulation_editor::show_settings(
     return true;
 }
 
-bool graph_simulation_editor::show_observations(
-  tree_node& /* tn */,
-  component& /*compo*/,
-  graph_component& /* graph */) noexcept
+bool graph_simulation_editor::show_observations(tree_node& /* tn */,
+                                                component& /*compo*/,
+                                                graph_component& graph) noexcept
 {
-    // auto* ed  = container_of(this, &simulation_editor::graph_sim);
-    // auto& app = container_of(ed, &application::simulation_ed);
-    //
-    // const auto graph_id = app.mod.graph_components.get_id(graph);
+    auto& ed  = container_of(this, &simulation_editor::graph_sim);
+    auto& app = container_of(&ed, &application::simulation_ed);
+
+    const auto graph_id = app.mod.graph_components.get_id(graph);
     // if (graph_id != current_id)
     //     graph_simulation_rebuild(*this, graph, graph_id);
-    //
     // return graph_simulation_show_observations(*app, *this, tn, graph);
 
     return true;

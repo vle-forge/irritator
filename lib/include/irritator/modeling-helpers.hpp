@@ -6,12 +6,54 @@
 #define ORG_VLEPROJECT_IRRITATOR_2023_MODELING_HELPERS_HPP
 
 #include <irritator/core.hpp>
+#include <irritator/file.hpp>
 #include <irritator/helpers.hpp>
 #include <irritator/modeling.hpp>
 
 #include <fmt/format.h>
 
 namespace irt {
+
+inline result<registred_path&> get_reg(modeling&         mod,
+                                       registred_path_id id) noexcept
+{
+    if (auto* reg = mod.registred_paths.try_to_get(id); reg)
+        return *reg;
+
+    return new_error(project::error::registred_path_access_error);
+}
+
+inline result<dir_path&> get_dir(modeling& mod, dir_path_id id) noexcept
+{
+    if (auto* dir = mod.dir_paths.try_to_get(id); dir)
+        return *dir;
+
+    return new_error(project::error::directory_access_error);
+}
+
+inline result<file_path&> get_file(modeling& mod, file_path_id id) noexcept
+{
+    if (auto* f = mod.file_paths.try_to_get(id); f)
+        return *f;
+
+    return new_error(project::error::file_access_error);
+}
+
+inline result<file> open_file(dir_path& dir_p, file_path& file_p) noexcept
+{
+    try {
+        std::filesystem::path p = dir_p.path.u8sv();
+        p /= file_p.path.u8sv();
+
+        std::u8string u8str = p.u8string();
+        const char*   cstr  = reinterpret_cast<const char*>(u8str.c_str());
+
+        return file::make_file(cstr, open_mode::read);
+    } catch (...) {
+    }
+
+    return new_error(project::error::file_open_error);
+}
 
 /// Checks the type of @c component pointed by the @c tree_node @c.
 ///

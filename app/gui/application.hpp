@@ -387,12 +387,15 @@ public:
     //! Get the underlying component_id.
     component_id get_id() const noexcept { return m_id; }
 
-    vector<bool> selected;
-    ImVec2       disp{ 1000.f, 1000.f };
-    float        scale = 10.f;
+    ImVec2     distance{ 5.f, 5.f };
+    ImVec2     size{ 30.f, 30.f };
+    ImVec2     scrolling{ 0.f, 0.f };
+    float      zoom[2]{ 1.f, 1.f };
+    component* hovered_component = nullptr;
+    int        row               = 0;
+    int        col               = 0;
 
-    bool         start_selection = false;
-    component_id selected_id     = undefined<component_id>();
+    component_id selected_id = undefined<component_id>();
 
     grid_component_id grid_id = undefined<grid_component_id>();
 
@@ -414,14 +417,26 @@ public:
     //! Get the underlying component_id.
     component_id get_id() const noexcept { return m_id; }
 
-    vector<bool> selected;
-    ImVec2       disp{ 1000.f, 1000.f };
-    float        scale = 10.f;
+    vector<ImVec2> positions;
+    vector<ImVec2> displacements;
 
-    bool         start_selection = false;
-    component_id selected_id     = undefined<component_id>();
+    vector<graph_component::vertex_id> selected_nodes;
+    vector<graph_component::edge_id>   selected_edges;
 
-    graph_component_id graph_id = undefined<graph_component_id>();
+    ImVec2 distance{ 50.f, 25.f };
+    ImVec2 size{ 30.f, 15.f };
+    ImVec2 scrolling{ 0.f, 0.f };
+    ImVec2 start_selection;
+    ImVec2 end_selection;
+
+    float zoom[2]{ 1.f, 1.f };
+    int   iteration        = 0;
+    int   iteration_limit  = 1000;
+    bool  automatic_layout = false;
+    bool  run_selection    = false;
+
+    component_id       selected_id = undefined<component_id>();
+    graph_component_id graph_id    = undefined<graph_component_id>();
 
 private:
     component_id m_id = undefined<component_id>();
@@ -501,9 +516,6 @@ struct graph_simulation_editor {
     model_id     selected_observation_model     = undefined<model_id>();
     tree_node*   selected_tn                    = nullptr;
 
-    std::optional<std::pair<int, int>> selected_position;
-
-    vector<bool>         selected;
     vector<component_id> children_class;
 
     void clear() noexcept;

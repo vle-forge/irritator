@@ -435,10 +435,50 @@ struct grid_component {
 /// - small_world: consists of a ring graph (where each vertex is connected to
 ///   its k nearest neighbors). Edges in the graph are randomly rewired to
 ///   different vertices with a probability p.
-struct graph_component {
+class graph_component
+{
+public:
     static inline constexpr i32 children_max = 4096;
 
+    enum class vertex_id : u32;
+    enum class edge_id : u32;
+
     enum class graph_type { dot_file, scale_free, small_world };
+
+    struct input_connection {
+        port_id   x;   // The port_id in this component.
+        vertex_id idx; // The index in children vector.
+        port_id   id;  // The port_id of the @c children[idx].
+    };
+
+    struct output_connection {
+        port_id   y;   // The port_id in this component.
+        vertex_id idx; // The index in children vector.
+        port_id   id;  // The port_id of the @c children[idx].
+    };
+
+    struct vertex {
+        vertex() noexcept = default;
+
+        vertex(component_id id_) noexcept
+          : id{ id_ }
+        {}
+
+        small_string<23> name;
+        component_id     id = undefined<component_id>();
+    };
+
+    struct edge {
+        edge() noexcept = default;
+
+        edge(const vertex_id src, const vertex_id dst) noexcept
+          : u{ src }
+          , v{ dst }
+        {}
+
+        vertex_id u = undefined<vertex_id>();
+        vertex_id v = undefined<vertex_id>();
+    };
 
     enum class connection_type : i8 {
         number, ///< Only one port for all neighbor.
@@ -463,37 +503,29 @@ struct graph_component {
     using random_graph_param =
       std::variant<dot_file_param, scale_free_param, small_world_param>;
 
-    void resize(const i32 children_size, const component_id id) noexcept
-    {
-        irt_assert(children_size > 0);
-        children.resize(children_size);
-        std::fill_n(children.data(), children.size(), id);
-    }
+    graph_component() noexcept;
+
+    //! Resize `children` vector and clear the `edges`, `input_connections` and
+    //! `output_connection`.
+    void resize(const i32 children_size, const component_id id) noexcept;
+
+    //! Update `edges` according to parameters.
+    void update() noexcept;
 
     constexpr u64 unique_id(int pos_) noexcept
     {
         return static_cast<u64>(pos_);
     }
 
-    struct input_connection {
-        port_id x;   // The port_id in this component.
-        i32     idx; // The index in children vector.
-        port_id id;  // The port_id of the @c children[idx].
-    };
+    data_array<vertex, vertex_id> children;
+    data_array<edge, edge_id>     edges;
 
-    struct output_connection {
-        port_id y;   // The port_id in this component.
-        i32     idx; // The index in children vector.
-        port_id id;  // The port_id of the @c children[idx].
-    };
-
-    vector<component_id>      children;
     vector<input_connection>  input_connections;
     vector<output_connection> output_connections;
 
     random_graph_param param = scale_free_param{};
-    std::array<u64, 4> seed;
-    std::array<u64, 2> key;
+    std::array<u64, 4> seed  = { 0u, 0u, 0u, 0u };
+    std::array<u64, 2> key   = { 0u, 0u };
 
     vector<child_id>      cache;
     vector<connection_id> cache_connections;

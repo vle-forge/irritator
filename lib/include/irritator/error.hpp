@@ -14,6 +14,7 @@
 #include <boost/leaf.hpp>
 
 #define irt_check BOOST_LEAF_CHECK
+#define irt_auto BOOST_LEAF_AUTO
 
 namespace irt {
 

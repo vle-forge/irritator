@@ -39,8 +39,7 @@
 
 namespace irt {
 
-struct local_rng
-{
+struct local_rng {
     using rng          = r123::Philox4x64;
     using counter_type = r123::Philox4x64::ctr_type;
     using key_type     = r123::Philox4x64::key_type;
@@ -64,7 +63,7 @@ struct local_rng
         return rdata[--last_elem];
     }
 
-    local_rng(const std::span<u64>& c0, const std::span<u64>& uk) noexcept
+    local_rng(std::span<const u64> c0, std::span<const u64> uk) noexcept
       : n(0)
       , last_elem(0)
     {
@@ -84,24 +83,25 @@ struct local_rng
 
     counter_type c;
     key_type     k;
-    counter_type rdata;
+    counter_type rdata{ 0u, 0u, 0u, 0u };
     u64          n;
     sz           last_elem;
 };
 
-static status build_graph_children(modeling&         mod,
-                                   graph_component&  graph,
-                                   vector<child_id>& ids,
-                                   i32               upper_limit,
-                                   i32               left_limit,
-                                   i32               space_x,
-                                   i32               space_y) noexcept
+static auto build_graph_children(modeling&        mod,
+                                 graph_component& graph,
+                                 i32              upper_limit,
+                                 i32              left_limit,
+                                 i32              space_x,
+                                 i32              space_y) noexcept
+  -> result<table<graph_component::vertex_id, child_id>>
 {
     if (!mod.children.can_alloc(graph.children.size()))
         return new_error(project::error::not_enough_memory);
 
-    const auto old_size = ids.ssize();
-    ids.reserve(graph.children.ssize() + old_size);
+    table<graph_component::vertex_id, child_id> tr;
+
+    tr.data.reserve(graph.children.ssize());
 
     const auto sq = std::sqrt(static_cast<float>(graph.children.size()));
     const auto gr = static_cast<i32>(sq);
@@ -109,13 +109,13 @@ static status build_graph_children(modeling&         mod,
     i32 x = 0;
     i32 y = 0;
 
-    for (int i = 0, e = graph.children.ssize(); i != e; ++i) {
+    for (const auto& vertex : graph.children) {
         child_id new_id = undefined<child_id>();
 
-        if (mod.components.try_to_get(graph.children[i])) {
-            auto& new_ch     = mod.children.alloc(graph.children[i]);
+        if (mod.components.try_to_get(vertex.id)) {
+            auto& new_ch     = mod.children.alloc(vertex.id);
             new_id           = mod.children.get_id(new_ch);
-            new_ch.unique_id = static_cast<u64>(i);
+            new_ch.unique_id = static_cast<u64>(graph.children.get_id(vertex));
 
             mod.children_positions[get_index(new_id)] = child_position{
                 .x = static_cast<float>(((space_x * x) + left_limit)),
@@ -128,28 +128,18 @@ static status build_graph_children(modeling&         mod,
             y++;
         }
 
-        ids.emplace_back(new_id);
+        tr.data.emplace_back(graph.children.get_id(vertex), new_id);
     }
 
-    return success();
+    tr.sort();
+
+    return tr;
 }
 
-static void connection_add(modeling&              mod,
-                           vector<connection_id>& cnts,
-                           child_id               src,
-                           port_id                port_src,
-                           child_id               dst,
-                           port_id                port_dst) noexcept
-{
-    auto& c    = mod.connections.alloc(src, port_src, dst, port_dst);
-    auto  c_id = mod.connections.get_id(c);
-    cnts.emplace_back(c_id);
-}
-
-static void in_out_connection_add(modeling&              mod,
-                                  vector<connection_id>& cnts,
-                                  child_id               src,
-                                  child_id               dst) noexcept
+static auto in_out_connection_add(modeling& mod,
+                                  child_id  src,
+                                  child_id  dst) noexcept
+  -> std::optional<connection_id>
 {
     port_id p_src = undefined<port_id>();
     port_id p_dst = undefined<port_id>();
@@ -162,14 +152,18 @@ static void in_out_connection_add(modeling&              mod,
         p_dst = mod.get_x_index(compo, "in");
     });
 
-    if (is_defined(p_src) && is_defined(p_dst))
-        connection_add(mod, cnts, src, p_src, dst, p_dst);
+    if (is_defined(p_src) && is_defined(p_dst)) {
+        auto& c = mod.connections.alloc(src, p_src, dst, p_dst);
+        return mod.connections.get_id(c);
+    }
+
+    return std::nullopt;
 }
 
-static void named_connection_add(modeling&              mod,
-                                 vector<connection_id>& cnts,
-                                 child_id               src,
-                                 child_id               dst) noexcept
+static auto named_connection_add(modeling& mod,
+                                 child_id  src,
+                                 child_id  dst) noexcept
+  -> std::optional<connection_id>
 {
     port_id p_src = undefined<port_id>();
     port_id p_dst = undefined<port_id>();
@@ -190,214 +184,228 @@ static void named_connection_add(modeling&              mod,
             });
       });
 
-    if (is_defined(p_src) && is_defined(p_dst))
-        connection_add(mod, cnts, src, p_src, dst, p_dst);
-}
-
-static status get_dir(modeling& mod, dir_path_id id, dir_path*& out) noexcept
-{
-    if (auto* dir = mod.dir_paths.try_to_get(id); dir) {
-        out = dir;
-        return success();
+    if (is_defined(p_src) && is_defined(p_dst)) {
+        auto& c = mod.connections.alloc(src, p_src, dst, p_dst);
+        return mod.connections.get_id(c);
     }
 
-    return new_error(project::error::directory_access_error);
+    return std::nullopt;
 }
 
-static status get_file(modeling& mod, file_path_id id, file_path*& out) noexcept
-{
-    if (auto* f = mod.file_paths.try_to_get(id); f) {
-        out = f;
-        return success();
-    }
-
-    return new_error(project::error::file_access_error);
-}
-
-static status open_file(dir_path& dir_p, file_path& file_p, file& out) noexcept
-{
-    try {
-        std::filesystem::path p = dir_p.path.u8sv();
-        p /= file_p.path.u8sv();
-
-        std::u8string u8str = p.u8string();
-        const char*   cstr  = reinterpret_cast<const char*>(u8str.c_str());
-
-        out.open(cstr, open_mode::read);
-        if (out.is_open())
-            return success();
-    } catch (...) {
-    }
-
-    return new_error(project::error::file_open_error);
-}
-
-static status read_dot_file(modeling& /* mod */,
-                            file& /* f */,
-                            graph_component& /* graph */,
-                            std::span<child_id> /* ids */,
-                            vector<connection_id>& /* cnts */) noexcept
+static status read_dot_file(modeling&        mod,
+                            file&            f,
+                            graph_component& graph) noexcept
 {
     return success();
 }
 
-static status build_dot_file_connections(
-  modeling&                              mod,
+static void build_dot_file_edges(
   graph_component&                       graph,
-  const graph_component::dot_file_param& params,
-  std::span<child_id>                    ids,
-  vector<connection_id>&                 cnts) noexcept
+  const graph_component::dot_file_param& params) noexcept
 {
-    dir_path*  dir_p  = nullptr;
-    file_path* file_p = nullptr;
-    file       f;
+    // irt_auto(dir, get_dir(mod, params.dir));
+    // irt_auto(file, get_file(mod, params.file));
+    // irt_auto(f, open_file(dir, file));
 
-    irt_check(get_dir(mod, params.dir, dir_p));
-    irt_check(get_file(mod, params.file, file_p));
-    irt_check(open_file(*dir_p, *file_p, f));
-    irt_check(read_dot_file(mod, f, graph, ids, cnts));
-
-    return success();
+    // return read_dot_file(mod, f, graph);
 }
 
-static status build_scale_free_connections(
-  modeling&                                mod,
+static void build_scale_free_edges(
   graph_component&                         graph,
-  const graph_component::scale_free_param& params,
-  std::span<child_id>                      ids,
-  vector<connection_id>&                   cnts) noexcept
+  const graph_component::scale_free_param& params) noexcept
 {
-    const unsigned n = graph.children.size();
-    irt_assert(n > 1);
+    using vertex = graph_component::vertex;
 
-    local_rng r(std::span<u64>(graph.seed), std::span<u64>(graph.key));
-    std::uniform_int_distribution<unsigned> d(0u, n - 1);
+    graph.edges.clear();
 
-    unsigned first{};
-    unsigned second{};
+    if (const unsigned n = graph.children.max_used(); n > 1) {
+        local_rng r(std::span<const u64>(graph.seed),
+                    std::span<const u64>(graph.key));
+        std::uniform_int_distribution<unsigned> d(0u, n - 1);
 
-    for (;;) {
-        unsigned xv = d(r);
-        unsigned degree =
-          (xv == 0 ? 0 : unsigned(params.beta * std::pow(xv, -params.alpha)));
+        vertex* first  = nullptr;
+        vertex* second = nullptr;
+        bool    stop   = false;
 
-        while (degree == 0) {
-            if (++first >= n)
-                return success();
+        graph.children.next(first);
 
-            xv = d(r);
-            degree =
+        while (not stop) {
+            unsigned xv = d(r);
+            unsigned degree =
               (xv == 0 ? 0
                        : unsigned(params.beta * std::pow(xv, -params.alpha)));
+
+            while (degree == 0) {
+                if (not graph.children.next(first)) {
+                    stop = true;
+                    break;
+                }
+
+                xv = d(r);
+                degree =
+                  (xv == 0
+                     ? 0
+                     : unsigned(params.beta * std::pow(xv, -params.alpha)));
+            }
+
+            if (stop)
+                break;
+
+            do {
+                second = graph.children.try_to_get(d(r));
+            } while (second == nullptr or first == second);
+            --degree;
+
+            if (not graph.edges.can_alloc()) {
+                graph.edges.reserve(graph.edges.capacity() * 2);
+
+                if (not graph.edges.can_alloc())
+                    return;
+            }
+
+            graph.edges.alloc(graph.children.get_id(first),
+                              graph.children.get_id(second));
         }
+    }
+}
+
+static void build_small_world_edges(
+  graph_component&                          graph,
+  const graph_component::small_world_param& params) noexcept
+{
+    using vertex = graph_component::vertex;
+
+    graph.edges.clear();
+
+    if (const auto n = graph.children.ssize(); n > 1) {
+        local_rng                          r(std::span<const u64>(graph.seed),
+                    std::span<const u64>(graph.key));
+        std::uniform_real_distribution<>   dr(0.0, 1.0);
+        std::uniform_int_distribution<int> di(0, n - 1);
+
+        int first  = 0;
+        int second = 1;
+        int source = 0;
+        int target = 1;
 
         do {
-            second = d(r);
-        } while (first == second);
-        --degree;
+            target = (target + 1) % n;
+            if (target == (source + params.k / 2 + 1) % n) {
+                ++source;
+                target = (source + 1) % n;
+            }
+            first = source;
 
-        if (!mod.connections.can_alloc())
-            return new_error(project::error::not_enough_memory);
+            double x = dr(r);
+            if (x < params.probability) {
+                auto lower = (source + n - params.k / 2) % n;
+                auto upper = (source + params.k / 2) % n;
+                do {
+                    second = di(r);
+                } while (
+                  (second >= lower && second <= upper) ||
+                  (upper < lower && (second >= lower || second <= upper)));
+            } else {
+                second = target;
+            }
 
-        if (graph.type == graph_component::connection_type::name)
-            named_connection_add(mod, cnts, ids[first], ids[second]);
-        else
-            in_out_connection_add(mod, cnts, ids[first], ids[second]);
+            irt_assert(first >= 0 && first < n);
+            irt_assert(second >= 0 && second < n);
+
+            vertex* vertex_first = nullptr;
+            {
+                int i = 0;
+                do {
+                    graph.children.next(vertex_first);
+                    ++i;
+                } while (i <= first);
+            }
+
+            vertex* vertex_second = nullptr;
+            {
+                int i = 0;
+                do {
+                    graph.children.next(vertex_second);
+                    ++i;
+                } while (i <= second);
+            }
+
+            if (not graph.edges.can_alloc()) {
+                graph.edges.reserve(graph.edges.capacity() * 2);
+
+                if (not graph.edges.can_alloc())
+                    return;
+            }
+
+            graph.edges.alloc(graph.children.get_id(vertex_first),
+                              graph.children.get_id(vertex_second));
+        } while (source + 1 < n);
     }
-
-    return success();
 }
 
-static status build_small_world_connections(
-  modeling&                                 mod,
-  graph_component&                          graph,
-  const graph_component::small_world_param& params,
-  std::span<child_id>                       ids,
-  vector<connection_id>&                    cnts) noexcept
+graph_component::graph_component() noexcept
+  : children{ 16 }
+  , edges{ 32 }
+{}
+
+void graph_component::update() noexcept
 {
-    const int n = graph.children.ssize();
-    irt_assert(n > 1);
-
-    local_rng r(std::span<u64>(graph.seed), std::span<u64>(graph.key));
-    std::uniform_real_distribution<>   dr(0.0, 1.0);
-    std::uniform_int_distribution<int> di(0, n - 1);
-
-    int first  = 0;
-    int second = 1;
-    int source = 0;
-    int target = 1;
-
-    do {
-        target = (target + 1) % n;
-        if (target == (source + params.k / 2 + 1) % n) {
-            ++source;
-            target = (source + 1) % n;
-        }
-        first = source;
-
-        double x = dr(r);
-        if (x < params.probability) {
-            auto lower = (source + n - params.k / 2) % n;
-            auto upper = (source + params.k / 2) % n;
-            do {
-                second = di(r);
-            } while ((second >= lower && second <= upper) ||
-                     (upper < lower && (second >= lower || second <= upper)));
-        } else {
-            second = target;
-        }
-
-        if (!mod.connections.can_alloc())
-            return new_error(project::error::not_enough_memory);
-
-        irt_assert(first >= 0 && first < n);
-        irt_assert(second >= 0 && second < n);
-
-        if (graph.type == graph_component::connection_type::name)
-            named_connection_add(mod,
-                                 cnts,
-                                 ids[static_cast<unsigned>(first)],
-                                 ids[static_cast<unsigned>(second)]);
-        else
-            in_out_connection_add(mod,
-                                  cnts,
-                                  ids[static_cast<unsigned>(first)],
-                                  ids[static_cast<unsigned>(second)]);
-    } while (source + 1 < n);
-
-    return success();
-}
-
-static status build_graph_connections(modeling&              mod,
-                                      graph_component&       graph,
-                                      std::span<child_id>    ids,
-                                      vector<connection_id>& cnts) noexcept
-{
-    switch (graph.param.index()) {
+    switch (param.index()) {
     case 0:
-        return build_dot_file_connections(
-          mod,
-          graph,
-          *std::get_if<graph_component::dot_file_param>(&graph.param),
-          ids,
-          cnts);
+        build_dot_file_edges(
+          *this, *std::get_if<graph_component::dot_file_param>(&param));
+        return;
     case 1:
-        return build_scale_free_connections(
-          mod,
-          graph,
-          *std::get_if<graph_component::scale_free_param>(&graph.param),
-          ids,
-          cnts);
+        build_scale_free_edges(
+          *this, *std::get_if<graph_component::scale_free_param>(&param));
+        return;
     case 2:
-        return build_small_world_connections(
-          mod,
-          graph,
-          *std::get_if<graph_component::small_world_param>(&graph.param),
-          ids,
-          cnts);
+        build_small_world_edges(
+          *this, *std::get_if<graph_component::small_world_param>(&param));
+        return;
     };
 
-    return success();
+    irt::unreachable();
+}
+
+void graph_component::resize(const i32          children_size,
+                             const component_id id) noexcept
+{
+    children.clear();
+    children.reserve(children_size);
+
+    for (int i = 0; i < children_size; ++i)
+        children.alloc(id);
+
+    edges.clear();
+    input_connections.clear();
+    output_connections.clear();
+}
+
+static auto build_graph_connections(
+  modeling&                                          mod,
+  graph_component&                                   graph,
+  const table<graph_component::vertex_id, child_id>& vertex) noexcept
+  -> vector<connection_id>
+{
+    vector<connection_id> ret;
+
+    for (const auto& edge : graph.edges) {
+        const auto v = vertex.get(edge.v);
+        const auto u = vertex.get(edge.u);
+
+        if (v and u) {
+            if (graph.type == graph_component::connection_type::name) {
+                if (auto cnt = named_connection_add(mod, *u, *v); cnt)
+                    ret.emplace_back(*cnt);
+            } else {
+                if (auto cnt = in_out_connection_add(mod, *u, *v); cnt)
+                    ret.emplace_back(*cnt);
+            }
+        }
+    }
+
+    return ret;
 }
 
 status modeling::build_graph_children_and_connections(
@@ -409,22 +417,18 @@ status modeling::build_graph_children_and_connections(
   i32                    space_x,
   i32                    space_y) noexcept
 {
-    // Use to compute graph access with existing children in ids
-    // vector.
-    const auto old_size = ids.ssize();
+    irt_auto(tr,
+             build_graph_children(
+               *this, graph, upper_limit, left_limit, space_x, space_y));
 
-    if (auto ret = build_graph_children(
-          *this, graph, ids, upper_limit, left_limit, space_x, space_y);
-        !ret)
-        return ret.error();
+    ids.reserve(ids.size() + tr.size());
+    for (auto i = 0, e = tr.data.ssize(); i != e; ++i)
+        ids.emplace_back(tr.data[i].value);
 
-    if (auto ret = build_graph_connections(
-          *this,
-          graph,
-          std::span<child_id>(ids.begin() + old_size, ids.end()),
-          cnts);
-        !ret)
-        return ret.error();
+    auto edges = build_graph_connections(*this, graph, tr);
+    cnts.reserve(cnts.size() + edges.size());
+    for (auto i = 0, e = edges.ssize(); i != e; ++i)
+        cnts.emplace_back(edges[i]);
 
     return success();
 }

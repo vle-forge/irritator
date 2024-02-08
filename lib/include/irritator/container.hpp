@@ -1659,9 +1659,7 @@ bool data_array<T, Identifier, A>::reserve(std::integral auto capacity) noexcept
                   reinterpret_cast<std::byte*>(&new_buffer[i]));
             }
         }
-    }
-
-    if constexpr (std::is_copy_assignable_v<T>) {
+    } else { // if constexpr (std::is_copy_assignable_v<T>)
         for (index_type i = 0; i != m_max_used; ++i) {
             if (is_valid(m_items[i].id)) {
                 new_buffer[i].item = m_items[i].item;

@@ -3031,6 +3031,22 @@ struct reader {
         return true;
     }
 
+    bool grid_children_add(
+      data_array<graph_component::vertex, graph_component::vertex_id>& out,
+      component_id c_id) noexcept
+    {
+        if (not out.can_alloc()) {
+            out.reserve(out.capacity() * 2);
+
+            if (not out.can_alloc())
+                return false;
+        }
+
+        out.alloc(c_id);
+
+        return true;
+    }
+
     bool read_grid_children(const rapidjson::Value& val,
                             grid_component&         compo) noexcept
     {
@@ -5756,7 +5772,7 @@ static status write_graph_component(cache_rw& /*cache*/,
     w.StartArray();
     for (auto& elem : graph.children) {
         w.StartObject();
-        if (auto ret = write_child_component(mod, elem, w); !ret)
+        if (auto ret = write_child_component(mod, elem.id, w); !ret)
             return ret.error();
         w.EndObject();
     }
