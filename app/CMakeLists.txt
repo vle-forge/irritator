@@ -3,6 +3,8 @@ project(irritator-cli VERSION 0.1.0.0 LANGUAGES CXX)
 
 add_executable(app src/main.cpp
     ${PROJECT_SOURCE_DIR}/../lib/src/archiver.cpp
+    ${PROJECT_SOURCE_DIR}/../lib/src/dot-parser.cpp
+    ${PROJECT_SOURCE_DIR}/../lib/src/dot-parser.hpp
     ${PROJECT_SOURCE_DIR}/../lib/src/error.cpp
     ${PROJECT_SOURCE_DIR}/../lib/src/external_source.cpp
     ${PROJECT_SOURCE_DIR}/../lib/src/grid-simulation-observer.cpp

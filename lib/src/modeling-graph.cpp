@@ -192,13 +192,6 @@ static auto named_connection_add(modeling& mod,
     return std::nullopt;
 }
 
-static status read_dot_file(modeling&        mod,
-                            file&            f,
-                            graph_component& graph) noexcept
-{
-    return success();
-}
-
 static void build_dot_file_edges(
   graph_component&                       graph,
   const graph_component::dot_file_param& params) noexcept

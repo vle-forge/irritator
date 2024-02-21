@@ -76,7 +76,7 @@ install(DIRECTORY include/irritator
   ${CMAKE_INSTALL_INCLUDEDIR}/irritator-${PROJECT_VERSION_MAJOR}.${PROJECT_VERSION_MINOR})
 
 function(irritator_add_test test_name)
-  add_executable(${test_name} ${ARGN} "src/archiver.cpp;src/error.cpp;src/external_source.cpp;src/file.cpp;src/grid-simulation-observer.cpp;src/hsm.cpp;src/io.cpp;src/json.cpp;src/memory-resource.cpp;src/modeling.cpp;src/modeling-generic.cpp;src/modeling-graph.cpp;src/modeling-grid.cpp;src/modeling-internal.cpp;src/parameter.cpp;src/project.cpp;src/timeline.cpp")
+  add_executable(${test_name} ${ARGN} "src/archiver.cpp;;src/dot-parser.hpp;src/dot-parser.cpp;src/error.cpp;src/external_source.cpp;src/file.cpp;src/grid-simulation-observer.cpp;src/hsm.cpp;src/io.cpp;src/json.cpp;src/memory-resource.cpp;src/modeling.cpp;src/modeling-generic.cpp;src/modeling-graph.cpp;src/modeling-grid.cpp;src/modeling-internal.cpp;src/parameter.cpp;src/project.cpp;src/timeline.cpp")
 
   set_target_properties(${test_name} PROPERTIES
     COMPILE_DEFINITIONS EXAMPLES_DIR=\"${CMAKE_CURRENT_SOURCE_DIR}/test\"
@@ -124,3 +124,4 @@ irritator_add_test(test-api test/public-api.cpp)
 irritator_add_test(test-mod-to-sim test/mod-to-sim.cpp)
 irritator_add_test(test-thread test/threading.cpp)
 irritator_add_test(test-simulations test/simulations.cpp)
+irritator_add_test(test-dot-parser test/dot-parser-test.cpp)
