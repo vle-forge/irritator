@@ -294,7 +294,7 @@ static bool check_data_array_loop(const Data& d) noexcept
 int main()
 {
 #if defined(IRRITATOR_ENABLE_DEBUG)
-    irt::on_error_callback = irt::on_error_breakpoint;
+    irt::on_error_callback = irt::debug::breakpoint;
 #endif
 
     using namespace boost::ut;
@@ -1461,7 +1461,7 @@ int main()
     };
 
     "constant_simulation"_test = [] {
-        irt::on_error_callback = irt::on_error_breakpoint;
+        irt::on_error_callback = irt::debug::breakpoint;
         fmt::print("constant_simulation\n");
         mem.reset();
         irt::simulation sim(&mem, mem.capacity());

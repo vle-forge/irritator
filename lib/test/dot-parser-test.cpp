@@ -10,6 +10,10 @@ int main()
 {
     using namespace boost::ut;
 
+#if defined(IRRITATOR_ENABLE_DEBUG)
+    irt::on_error_callback = irt::debug::breakpoint;
+#endif
+
     "small-and-simple-0"_test = [] {
         const std::string_view buf = R"(digraph D {
             A

@@ -196,7 +196,7 @@ int main(int, char**)
 {
 #if defined(IRRITATOR_ENABLE_DEBUG)
     if (is_running_under_debugger())
-        irt::on_error_callback = irt::on_error_breakpoint;
+        irt::on_error_callback = irt::debug::breakpoint;
 #endif
 
     // Create application window

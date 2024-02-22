@@ -33,7 +33,7 @@ static bool get_temp_registred_path(irt::small_string<length>& str) noexcept
 int main()
 {
 #if defined(IRRITATOR_ENABLE_DEBUG)
-    irt::on_error_callback = irt::on_error_breakpoint;
+    irt::on_error_callback = irt::debug::breakpoint;
 #endif
 
     using namespace boost::ut;
@@ -42,7 +42,7 @@ int main()
         irt::modeling_initializer mod_init;
         irt::modeling             mod;
         irt::project              pj;
-        irt::simulation           sim(1024*1024*8);
+        irt::simulation           sim(1024 * 1024 * 8);
 
         expect(!!mod.init(mod_init));
         expect(!!pj.init(mod_init));

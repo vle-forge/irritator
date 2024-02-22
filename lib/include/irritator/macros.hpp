@@ -5,8 +5,8 @@
 #ifndef ORG_VLEPROJECT_IRRITATOR_MACROS_2024
 #define ORG_VLEPROJECT_IRRITATOR_MACROS_2024
 
-#include <cstdlib>
 #include <cassert>
+#include <cstdlib>
 
 #ifndef irt_assert
 #define irt_assert(_expr) assert(_expr)
@@ -60,9 +60,15 @@ inline constexpr void ensure(T&& assertion) noexcept
 //! @param assertion The instance of the assertion to test.
 template<typename T>
     requires(::irt::debug::enable_ensure == false)
-irt_force_inline_attribute
-  constexpr void ensure([[maybe_unused]] T&& assertion) noexcept
+irt_force_inline_attribute constexpr void ensure(
+  [[maybe_unused]] T&& assertion) noexcept
 {}
+
+//! Add a breakpoint (@c __debugbreak(), @c __builtin_trap(), into the code if
+//! and only if @c NDEBUG is not defined and @c IRRITATOR_ENABLE_DEBUG is
+//! defined. This function can be use with the @c on_error_callback to stop the
+//! application when a @c new_error function is called.
+void breakpoint() noexcept;
 
 } // namespace debug
 

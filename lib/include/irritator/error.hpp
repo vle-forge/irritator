@@ -18,17 +18,6 @@
 
 namespace irt {
 
-//! Add a breakpoint (@c __debugbreak(), @c __builtin_trap(), into the code.
-//! This function is not removed with preprocessor variable @c NDEBUG or @c
-//! IRRITATOR_ENABLE_DEBUG.
-void breakpoint() noexcept;
-
-//! Add a breakpoint (@c __debugbreak(), @c __builtin_trap(), into the code if
-//! and only if @c NDEBUG is not defined and @c IRRITATOR_ENABLE_DEBUG is
-//! defined. This function can be use with the @c on_error_callback to stop the
-//! application when a @c new_error function is called.
-void on_error_breakpoint() noexcept;
-
 template<typename T, T... value>
 using match = boost::leaf::match<T, value...>;
 

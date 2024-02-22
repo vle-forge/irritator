@@ -177,7 +177,7 @@ int main([[maybe_unused]] int argc, [[maybe_unused]] char* argv[])
 {
 #if defined(IRRITATOR_ENABLE_DEBUG)
     if (is_running_under_debugger())
-        irt::on_error_callback = irt::on_error_breakpoint;
+        irt::on_error_callback = irt::debug::breakpoint;
 #endif
 
     // Setup window
@@ -198,7 +198,7 @@ int main([[maybe_unused]] int argc, [[maybe_unused]] char* argv[])
     glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 3);
     glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 2);
     glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE); // 3.2+ only
-    glfwWindowHint(GLFW_OPENGL_FORWARD_COMPAT, GL_TRUE);           // Required on Mac
+    glfwWindowHint(GLFW_OPENGL_FORWARD_COMPAT, GL_TRUE); // Required on Mac
 #else
     // GL 3.0 + GLSL 130
     const char* glsl_version = "#version 130";
