@@ -162,11 +162,11 @@ static std::pair<bool, int> show_size_widget(
     return std::make_pair(false, size);
 }
 
-constexpr inline static auto get_default_component_id(
-  const vector<component_id>& g) noexcept -> component_id
-{
-    return g.empty() ? undefined<component_id>() : g.front();
-}
+// constexpr inline static auto get_default_component_id(
+//   const vector<component_id>& g) noexcept -> component_id
+// {
+//     return g.empty() ? undefined<component_id>() : g.front();
+// }
 
 static bool show_random_graph_type(graph_component& graph) noexcept
 {
@@ -213,13 +213,106 @@ static bool show_random_graph_type(graph_component& graph) noexcept
     return is_changed;
 }
 
-static bool show_random_graph_params(graph_component& graph) noexcept
+void task_refresh_directory(void* param) noexcept
+{
+    auto* g_task  = reinterpret_cast<gui_task*>(param);
+    g_task->state = task_status::started;
+
+    auto  dir_id = enum_cast<dir_path_id>(g_task->param_1);
+    auto* dir    = g_task->app->mod.dir_paths.try_to_get(dir_id);
+    if (dir) {
+        dir->status = dir_path::state::read; // ~todo Add a lock
+        dir->refresh(g_task->app->mod);
+        dir->status = dir_path::state::read;
+    }
+
+    g_task->state = task_status::finished;
+};
+
+// void task_read_dot_file(void* param) noexcept
+// {
+//     auto* g_task  = reinterpret_cast<gui_task*>(param);
+//     g_task->state = task_status::started;
+
+//     [[maybe_unused]] auto graph_id =
+//       enum_cast<graph_component_id>(g_task->param_1);
+//     [[maybe_unused]] auto dir_id = enum_cast<dir_path_id>(g_task->param_2);
+//     //[[maybe_unused]] auto file_id =
+//     enum_cast<dir_path_id>(g_task->param_3);
+
+//     g_task->state = task_status::finished;
+// };
+
+static bool show_random_graph_params(modeling&        mod,
+                                     graph_component& graph) noexcept
 {
     bool is_changed = false;
 
     switch (graph.param.index()) {
-    case 0:
-        break;
+    case 0: {
+        auto* param =
+          std::get_if<graph_component::dot_file_param>(&graph.param);
+
+        auto* dir = mod.dir_paths.try_to_get(param->dir);
+        if (not dir) {
+            param->file = undefined<file_path_id>();
+            param->dir  = undefined<dir_path_id>();
+        }
+
+        auto* file = mod.file_paths.try_to_get(param->file);
+        if (not file)
+            param->file = undefined<file_path_id>();
+
+        {
+            const char* preview_value = dir ? dir->path.c_str() : "undefined";
+            if (ImGui::BeginCombo("dir", preview_value)) {
+
+                for (const auto& elem : mod.dir_paths) {
+                    const auto elem_id     = mod.dir_paths.get_id(elem);
+                    const auto is_selected = elem_id == param->dir;
+                    ImGui::SetNextItemAllowOverlap();
+                    if (ImGui::Selectable(elem.path.c_str(), is_selected)) {
+                        param->dir  = elem_id;
+                        param->file = undefined<file_path_id>();
+                        is_changed  = true;
+                    }
+
+                    ImGui::SameLine(ImGui::GetContentRegionAvail().x -
+                                    ImGui::GetStyle().ItemSpacing.x - 20.f);
+
+                    if (ImGui::SmallButton("R"))
+                        container_of(&mod, &application::mod)
+                          .add_gui_task(task_refresh_directory,
+                                        ordinal(elem_id));
+
+                    if (is_selected)
+                        ImGui::SetItemDefaultFocus();
+                }
+                ImGui::EndCombo();
+            }
+        }
+
+        if (dir) {
+            const char* preview_value = file ? file->path.c_str() : "undefined";
+            if (ImGui::BeginCombo("dot file", preview_value)) {
+                for (const auto elem_id : dir->children)
+                    if (const auto* f = mod.file_paths.try_to_get(elem_id);
+                        f and f->type == file_path::file_type::dot_file) {
+                        const auto is_selected = elem_id == param->file;
+
+                        if (ImGui::Selectable(f->path.c_str(), is_selected)) {
+                            param->file = elem_id;
+                            is_changed  = true;
+                        }
+
+                        if (is_selected)
+                            ImGui::SetItemDefaultFocus();
+                    }
+                ImGui::EndCombo();
+            }
+        }
+
+    } break;
 
     case 1: {
         auto* param =
@@ -270,7 +363,7 @@ static bool show_default_component_widgets(graph_component_editor_data& ed,
     if (show_random_graph_type(graph))
         is_changed = true;
 
-    if (show_random_graph_params(graph))
+    if (show_random_graph_params(app.mod, graph))
         is_changed = true;
 
     if (app.component_sel.combobox("Default component", &ed.selected_id)) {

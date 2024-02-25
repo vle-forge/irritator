@@ -155,6 +155,117 @@ static void prepare_component_loading(modeling&             mod,
     }
 }
 
+static auto detect_file_type(const std::filesystem::path& file) noexcept
+  -> file_path::file_type
+{
+    const auto ext = file.extension();
+
+    if (ext == ".irt")
+        return file_path::file_type::irt_file;
+
+    if (ext == ".dot")
+        return file_path::file_type::dot_file;
+
+    return file_path::file_type::undefined_file;
+}
+
+static void push_back(modeling&                    mod,
+                      dir_path&                    dir,
+                      const std::filesystem::path& file,
+                      file_path::file_type         type) noexcept
+{
+    const auto u8str         = file.u8string();
+    const auto cstr          = reinterpret_cast<const char*>(u8str.c_str());
+    const auto is_irt_or_dot = any_equal(
+      type, file_path::file_type::irt_file, file_path::file_type::dot_file);
+    auto* reg_dir = mod.registred_paths.try_to_get(dir.parent);
+
+    if (reg_dir != nullptr and is_irt_or_dot) {
+        debug_logi(6, "found file {}\n", cstr);
+
+        if (mod.file_paths.can_alloc()) {
+            auto& fp    = mod.file_paths.alloc();
+            auto  fp_id = mod.file_paths.get_id(fp);
+            fp.path     = cstr;
+            fp.parent   = mod.dir_paths.get_id(dir);
+            fp.type     = type;
+
+            dir.children.emplace_back(fp_id);
+
+            if (type == file_path::file_type::irt_file and
+                mod.components.can_alloc())
+                prepare_component_loading(mod, *reg_dir, dir, fp, file);
+        } else {
+            dir.d_flags.set(dir_path::dir_flags::too_many_file);
+        }
+    }
+}
+
+static void push_back_if_not_exists(modeling&                    mod,
+                                    dir_path&                    dir,
+                                    const std::filesystem::path& file,
+                                    file_path::file_type         type) noexcept
+{
+    const auto  u8str = file.u8string();
+    const auto* cstr  = reinterpret_cast<const char*>(u8str.c_str());
+
+    int i = 0;
+    while (i < dir.children.ssize()) {
+        if (auto* f = mod.file_paths.try_to_get(dir.children[i]); f) {
+            if (f->path.sv() == cstr)
+                return;
+
+            ++i;
+        } else {
+            dir.children.swap_pop_back(i);
+        }
+    }
+
+    push_back(mod, dir, file, type);
+}
+
+//    const auto  u8str = f.filename().u8string();
+
+void dir_path::refresh(modeling& mod) noexcept
+{
+    namespace fs = std::filesystem;
+
+    std::error_code ec;
+
+    if (auto* reg = mod.registred_paths.try_to_get(parent); reg) {
+        try {
+            fs::path dir{ reg->path.sv() };
+            dir /= path.sv();
+
+            if (fs::is_directory(dir, ec)) {
+                auto it = fs::directory_iterator{ dir, ec };
+                auto et = fs::directory_iterator{};
+
+                while (it != et) {
+                    if (it->is_regular_file()) {
+                        const auto type = detect_file_type(it->path());
+                        const auto is_irt_or_dot =
+                          any_equal(type,
+                                    file_path::file_type::irt_file,
+                                    file_path::file_type::dot_file);
+
+                        if (is_irt_or_dot) {
+                            push_back_if_not_exists(
+                              mod, *this, it->path(), type);
+                        }
+                    }
+
+                    it = it.increment(ec);
+                }
+            } else {
+                d_flags.set(dir_path::dir_flags::access_error);
+            }
+        } catch (const std::exception& /*e*/) {
+            d_flags.set(dir_path::dir_flags::access_error);
+        }
+    }
+}
+
 static void prepare_component_loading(modeling&             mod,
                                       registred_path&       reg_dir,
                                       dir_path&             dir,
@@ -164,29 +275,42 @@ static void prepare_component_loading(modeling&             mod,
 
     try {
         std::error_code ec;
-        auto            it            = fs::directory_iterator{ path, ec };
-        auto            et            = fs::directory_iterator{};
-        bool            too_many_file = false;
+
+        auto it            = fs::directory_iterator{ path, ec };
+        auto et            = fs::directory_iterator{};
+        bool too_many_file = false;
 
         while (it != et) {
-            if (it->is_regular_file() && it->path().extension() == ".irt") {
-                debug_logi(6, "found file {}\n", it->path().string());
+            if (it->is_regular_file()) {
+                const auto type = detect_file_type(it->path());
+                const auto is_irt_or_dot =
+                  any_equal(type,
+                            file_path::file_type::irt_file,
+                            file_path::file_type::dot_file);
 
-                if (mod.file_paths.can_alloc() && mod.components.can_alloc()) {
-                    auto  u8str = it->path().filename().u8string();
-                    auto* cstr  = reinterpret_cast<const char*>(u8str.c_str());
-                    auto& file  = mod.file_paths.alloc();
-                    auto  file_id = mod.file_paths.get_id(file);
-                    file.path     = cstr;
-                    file.parent   = mod.dir_paths.get_id(dir);
+                if (is_irt_or_dot) {
+                    debug_logi(6, "found file {}\n", it->path().string());
 
-                    dir.children.emplace_back(file_id);
+                    if (mod.file_paths.can_alloc() &&
+                        mod.components.can_alloc()) {
+                        auto  u8str = it->path().filename().u8string();
+                        auto* cstr =
+                          reinterpret_cast<const char*>(u8str.c_str());
+                        auto& file    = mod.file_paths.alloc();
+                        auto  file_id = mod.file_paths.get_id(file);
+                        file.path     = cstr;
+                        file.parent   = mod.dir_paths.get_id(dir);
+                        file.type     = type;
 
-                    prepare_component_loading(
-                      mod, reg_dir, dir, file, it->path());
-                } else {
-                    too_many_file = true;
-                    break;
+                        dir.children.emplace_back(file_id);
+
+                        if (type == file_path::file_type::irt_file)
+                            prepare_component_loading(
+                              mod, reg_dir, dir, file, it->path());
+                    } else {
+                        too_many_file = true;
+                        break;
+                    }
                 }
             }
 

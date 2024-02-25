@@ -603,21 +603,40 @@ struct dir_path {
         error,
     };
 
+    enum class dir_flags {
+        none          = 0,
+        too_many_file = 1,
+        access_error  = 2,
+        Count,
+    };
+
     /// use to store a directory name in utf8.
-    directory_path_str path;
-
-    state             status = state::unread;
-    registred_path_id parent{ 0 };
-
+    directory_path_str   path;
+    registred_path_id    parent{ 0 };
     vector<file_path_id> children;
+
+    state            status  = state::unread;
+    flags<dir_flags> d_flags = dir_flags::none;
+
+    /**
+     * Refresh the `children` vector with new file in the filesystem.
+     *
+     * Files that disappear from the filesystem are not remove from the vector
+     * but a flag is added in the `file_path` to indicate an absence of
+     * existence in the filesystem.
+     */
+    void refresh(modeling& mod) noexcept;
 };
 
 struct file_path {
+    enum class file_type { undefined_file, irt_file, dot_file };
+
     /// use to store a file name in utf8.
     file_path_str path;
 
     dir_path_id  parent{ 0 };
     component_id component{ 0 };
+    file_type    type{ file_type::undefined_file };
 };
 
 struct modeling_initializer {

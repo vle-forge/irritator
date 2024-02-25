@@ -20,10 +20,10 @@ private:
     using ios_base = std::ios_base;
 
 protected:
-    pos_type seekoff(off_type           off,
-                     ios_base::seekdir  dir,
-                     ios_base::openmode which = ios_base::in |
-                                                ios_base::out) override
+    pos_type seekoff(off_type                            off,
+                     ios_base::seekdir                   dir,
+                     [[maybe_unused]] ios_base::openmode which =
+                       ios_base::in | ios_base::out) override
     {
         if (dir == ios_base::cur)
             gbump(static_cast<int>(off));

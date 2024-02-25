@@ -10,6 +10,8 @@
 #include <irritator/modeling-helpers.hpp>
 #include <irritator/modeling.hpp>
 
+#include "dot-parser.hpp"
+
 #include <algorithm>
 #include <filesystem>
 #include <iterator>
@@ -193,14 +195,12 @@ static auto named_connection_add(modeling& mod,
 }
 
 static void build_dot_file_edges(
-  graph_component&                       graph,
-  const graph_component::dot_file_param& params) noexcept
+  graph_component& graph,
+  const graph_component::dot_file_param& /*params*/) noexcept
 {
-    // irt_auto(dir, get_dir(mod, params.dir));
-    // irt_auto(file, get_file(mod, params.file));
-    // irt_auto(f, open_file(dir, file));
-
-    // return read_dot_file(mod, f, graph);
+    if (auto ret = parse_dot_file(graph); not ret) {
+        debug_log("parse_dot_file error");
+    }
 }
 
 static void build_scale_free_edges(
