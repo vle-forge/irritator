@@ -596,18 +596,19 @@ struct registred_path {
 };
 
 struct dir_path {
-    enum class state {
-        none,
-        lock,
-        read,
-        unread,
-        error,
+    enum class state : u8 {
+        lock,   /**< `dir-path` is locked during I/O operation. Do not use this
+                   class in writing mode. */
+        read,   /**< underlying directory is read and the `children` vector is
+                   filled. */
+        unread, /**< underlying directory is not read. */
     };
 
-    enum class dir_flags {
+    enum class dir_flags : u8 {
         none          = 0,
-        too_many_file = 1,
-        access_error  = 2,
+        too_many_file = 1 << 0,
+        access_error  = 1 << 1,
+        read_only     = 1 << 2,
         Count,
     };
 
@@ -616,8 +617,8 @@ struct dir_path {
     registred_path_id    parent{ 0 };
     vector<file_path_id> children;
 
-    state            status  = state::unread;
-    flags<dir_flags> d_flags = dir_flags::none;
+    state               status = state::unread;
+    bitflags<dir_flags> flags  = dir_flags::none;
 
     /**
      * Refresh the `children` vector with new file in the filesystem.

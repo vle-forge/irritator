@@ -937,8 +937,8 @@ struct observer {
     dynamics_type         type      = dynamics_type::qss1_integrator;
     std::pair<real, real> limits;
 
-    small_string<14>      name;
-    flags<observer_flags> states;
+    small_string<14>         name;
+    bitflags<observer_flags> states;
 };
 
 struct node {
@@ -4858,7 +4858,7 @@ inline void observer::clear() noexcept
 
 inline void observer::update(observation_message msg) noexcept
 {
-    ::irt::flags<observer_flags> new_states(observer_flags::data_available);
+    bitflags<observer_flags> new_states(observer_flags::data_available);
     if (states[observer_flags::data_lost])
         new_states.set(observer_flags::data_lost);
 

@@ -198,7 +198,7 @@ static auto push_back_if_not_exists(modeling&                    mod,
         fp.type     = type;
         return fp_id;
     } else {
-        dir.d_flags.set(dir_path::dir_flags::too_many_file);
+        dir.flags.set(dir_path::dir_flags::too_many_file);
         return std::nullopt;
     }
 }
@@ -239,10 +239,10 @@ auto dir_path::refresh(modeling& mod) noexcept -> vector<file_path_id>
                     it = it.increment(ec);
                 }
             } else {
-                d_flags.set(dir_path::dir_flags::access_error);
+                flags.set(dir_path::dir_flags::access_error);
             }
         } catch (const std::exception& /*e*/) {
-            d_flags.set(dir_path::dir_flags::access_error);
+            flags.set(dir_path::dir_flags::access_error);
         }
     }
 

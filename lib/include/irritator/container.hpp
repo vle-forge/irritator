@@ -1531,7 +1531,7 @@ public:
 };
 
 template<typename EnumT>
-class flags
+class bitflags
 {
     static_assert(std::is_enum_v<EnumT>,
                   "irt::flags can only be used with enum types");
@@ -1541,15 +1541,15 @@ class flags
       typename std::underlying_type_t<value_type>>;
 
 public:
-    constexpr flags() noexcept = default;
-    constexpr flags(value_type e) noexcept;
+    constexpr bitflags() noexcept = default;
+    constexpr bitflags(value_type e) noexcept;
 
     template<typename... Args>
-    constexpr flags(Args... args) noexcept;
+    constexpr bitflags(Args... args) noexcept;
 
-    constexpr flags& set(value_type e, bool value = true) noexcept;
-    constexpr flags& reset(value_type e) noexcept;
-    constexpr flags& reset() noexcept;
+    constexpr bitflags& set(value_type e, bool value = true) noexcept;
+    constexpr bitflags& reset(value_type e) noexcept;
+    constexpr bitflags& reset() noexcept;
 
     bool all() const noexcept;
     bool any() const noexcept;
@@ -4486,84 +4486,85 @@ void small_ring_buffer<T, length>::iterator_base<is_const>::reset() noexcept
 }
 
 //
-// class flags<EnumT>
+// class bitflags<EnumT>
 //
 
 template<typename EnumT>
-constexpr flags<EnumT>::flags(value_type e) noexcept
+constexpr bitflags<EnumT>::bitflags(value_type e) noexcept
 {
     m_bits.set(underlying(e), true);
 }
 
 template<typename EnumT>
 template<typename... Args>
-constexpr flags<EnumT>::flags(Args... args) noexcept
+constexpr bitflags<EnumT>::bitflags(Args... args) noexcept
 {
     (set(args), ...);
 }
 
 template<typename EnumT>
-constexpr flags<EnumT>& flags<EnumT>::set(value_type e, bool value) noexcept
+constexpr bitflags<EnumT>& bitflags<EnumT>::set(value_type e,
+                                                bool       value) noexcept
 {
     m_bits.set(underlying(e), value);
     return *this;
 }
 
 template<typename EnumT>
-constexpr flags<EnumT>& flags<EnumT>::reset(value_type e) noexcept
+constexpr bitflags<EnumT>& bitflags<EnumT>::reset(value_type e) noexcept
 {
     set(e, false);
     return *this;
 }
 
 template<typename EnumT>
-constexpr flags<EnumT>& flags<EnumT>::reset() noexcept
+constexpr bitflags<EnumT>& bitflags<EnumT>::reset() noexcept
 {
     m_bits.reset();
     return *this;
 }
 
 template<typename EnumT>
-bool flags<EnumT>::all() const noexcept
+bool bitflags<EnumT>::all() const noexcept
 {
     return m_bits.all();
 }
 
 template<typename EnumT>
-bool flags<EnumT>::any() const noexcept
+bool bitflags<EnumT>::any() const noexcept
 {
     return m_bits.any();
 }
 
 template<typename EnumT>
-bool flags<EnumT>::none() const noexcept
+bool bitflags<EnumT>::none() const noexcept
 {
     return m_bits.none();
 }
 
 template<typename EnumT>
-constexpr std::size_t flags<EnumT>::size() const noexcept
+constexpr std::size_t bitflags<EnumT>::size() const noexcept
 {
     return m_bits.size();
 }
 
 template<typename EnumT>
-constexpr std::size_t flags<EnumT>::count() const noexcept
+constexpr std::size_t bitflags<EnumT>::count() const noexcept
 {
     return m_bits.count();
 }
 
 template<typename EnumT>
-constexpr bool flags<EnumT>::operator[](value_type e) const
+constexpr bool bitflags<EnumT>::operator[](value_type e) const
 {
     return m_bits[underlying(e)];
 }
 
 template<typename EnumT>
-constexpr typename flags<EnumT>::underlying_type flags<EnumT>::underlying(
+constexpr typename bitflags<EnumT>::underlying_type bitflags<EnumT>::underlying(
   value_type e) noexcept
 {
-    return static_cast<typename flags<EnumT>::underlying_type>(e);
+    return static_cast<typename bitflags<EnumT>::underlying_type>(e);
 }
 
 } // namespace irt
