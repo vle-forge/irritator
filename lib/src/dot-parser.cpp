@@ -351,13 +351,13 @@ public:
 
     bool empty() const noexcept { return buffer_ptr[0].empty(); }
 
-    std::string_view first() const noexcept { return buffer_ptr[0]; }
+    constexpr std::string_view first() const noexcept { return buffer_ptr[0]; }
 
-    std::string_view second() const noexcept { return buffer_ptr[1]; }
+    constexpr std::string_view second() const noexcept { return buffer_ptr[1]; }
 
-    std::string_view third() const noexcept { return buffer_ptr[2]; }
+    constexpr std::string_view third() const noexcept { return buffer_ptr[2]; }
 
-    std::string_view fourth() const noexcept { return buffer_ptr[3]; }
+    constexpr std::string_view fourth() const noexcept { return buffer_ptr[3]; }
 
 private:
     struct stream_token {

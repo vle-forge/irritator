@@ -169,42 +169,11 @@ static auto detect_file_type(const std::filesystem::path& file) noexcept
     return file_path::file_type::undefined_file;
 }
 
-static void push_back(modeling&                    mod,
-                      dir_path&                    dir,
-                      const std::filesystem::path& file,
-                      file_path::file_type         type) noexcept
-{
-    const auto u8str         = file.u8string();
-    const auto cstr          = reinterpret_cast<const char*>(u8str.c_str());
-    const auto is_irt_or_dot = any_equal(
-      type, file_path::file_type::irt_file, file_path::file_type::dot_file);
-    auto* reg_dir = mod.registred_paths.try_to_get(dir.parent);
-
-    if (reg_dir != nullptr and is_irt_or_dot) {
-        debug_logi(6, "found file {}\n", cstr);
-
-        if (mod.file_paths.can_alloc()) {
-            auto& fp    = mod.file_paths.alloc();
-            auto  fp_id = mod.file_paths.get_id(fp);
-            fp.path     = cstr;
-            fp.parent   = mod.dir_paths.get_id(dir);
-            fp.type     = type;
-
-            dir.children.emplace_back(fp_id);
-
-            if (type == file_path::file_type::irt_file and
-                mod.components.can_alloc())
-                prepare_component_loading(mod, *reg_dir, dir, fp, file);
-        } else {
-            dir.d_flags.set(dir_path::dir_flags::too_many_file);
-        }
-    }
-}
-
-static void push_back_if_not_exists(modeling&                    mod,
+static auto push_back_if_not_exists(modeling&                    mod,
                                     dir_path&                    dir,
                                     const std::filesystem::path& file,
                                     file_path::file_type         type) noexcept
+  -> std::optional<file_path_id>
 {
     const auto  u8str = file.u8string();
     const auto* cstr  = reinterpret_cast<const char*>(u8str.c_str());
@@ -213,7 +182,7 @@ static void push_back_if_not_exists(modeling&                    mod,
     while (i < dir.children.ssize()) {
         if (auto* f = mod.file_paths.try_to_get(dir.children[i]); f) {
             if (f->path.sv() == cstr)
-                return;
+                return std::nullopt;
 
             ++i;
         } else {
@@ -221,16 +190,25 @@ static void push_back_if_not_exists(modeling&                    mod,
         }
     }
 
-    push_back(mod, dir, file, type);
+    if (mod.file_paths.can_alloc()) {
+        auto& fp    = mod.file_paths.alloc();
+        auto  fp_id = mod.file_paths.get_id(fp);
+        fp.path     = cstr;
+        fp.parent   = mod.dir_paths.get_id(dir);
+        fp.type     = type;
+        return fp_id;
+    } else {
+        dir.d_flags.set(dir_path::dir_flags::too_many_file);
+        return std::nullopt;
+    }
 }
 
-//    const auto  u8str = f.filename().u8string();
-
-void dir_path::refresh(modeling& mod) noexcept
+auto dir_path::refresh(modeling& mod) noexcept -> vector<file_path_id>
 {
     namespace fs = std::filesystem;
 
-    std::error_code ec;
+    vector<file_path_id> ret;
+    std::error_code      ec;
 
     if (auto* reg = mod.registred_paths.try_to_get(parent); reg) {
         try {
@@ -250,8 +228,11 @@ void dir_path::refresh(modeling& mod) noexcept
                                     file_path::file_type::dot_file);
 
                         if (is_irt_or_dot) {
-                            push_back_if_not_exists(
+                            const auto id_opt = push_back_if_not_exists(
                               mod, *this, it->path(), type);
+
+                            if (id_opt)
+                                ret.emplace_back(*id_opt);
                         }
                     }
 
@@ -264,6 +245,8 @@ void dir_path::refresh(modeling& mod) noexcept
             d_flags.set(dir_path::dir_flags::access_error);
         }
     }
+
+    return ret;
 }
 
 static void prepare_component_loading(modeling&             mod,

@@ -220,10 +220,20 @@ void task_refresh_directory(void* param) noexcept
 
     auto  dir_id = enum_cast<dir_path_id>(g_task->param_1);
     auto* dir    = g_task->app->mod.dir_paths.try_to_get(dir_id);
-    if (dir) {
-        dir->status = dir_path::state::read; // ~todo Add a lock
-        dir->refresh(g_task->app->mod);
-        dir->status = dir_path::state::read;
+    if (dir and dir->status != dir_path::state::lock) {
+
+        {
+            std::scoped_lock lock(g_task->app->mod.dir_paths_mutex);
+            dir->status = dir_path::state::lock;
+        }
+
+        auto children = dir->refresh(g_task->app->mod);
+
+        {
+            std::scoped_lock lock(g_task->app->mod.dir_paths_mutex);
+            dir->children = std::move(children);
+            dir->status   = dir_path::state::read;
+        }
     }
 
     g_task->state = task_status::finished;
@@ -266,27 +276,42 @@ static bool show_random_graph_params(modeling&        mod,
         {
             const char* preview_value = dir ? dir->path.c_str() : "undefined";
             if (ImGui::BeginCombo("dir", preview_value)) {
-
                 for (const auto& elem : mod.dir_paths) {
                     const auto elem_id     = mod.dir_paths.get_id(elem);
                     const auto is_selected = elem_id == param->dir;
-                    ImGui::SetNextItemAllowOverlap();
-                    if (ImGui::Selectable(elem.path.c_str(), is_selected)) {
-                        param->dir  = elem_id;
-                        param->file = undefined<file_path_id>();
-                        is_changed  = true;
+                    const auto is_lock = dir_path::state::lock == dir->status;
+
+                    if (is_lock) {
+                        if (ImGui::Selectable(elem.path.c_str(), is_selected)) {
+                            param->dir  = elem_id;
+                            param->file = undefined<file_path_id>();
+                            is_changed  = true;
+                        }
+
+                        if (is_selected)
+                            ImGui::SetItemDefaultFocus();
+                    } else {
+                        ImGui::SetNextItemAllowOverlap();
+                        if (ImGui::Selectable(elem.path.c_str(), is_selected)) {
+                            param->dir  = elem_id;
+                            param->file = undefined<file_path_id>();
+                            is_changed  = true;
+                        }
+
+                        ImGui::SameLine(ImGui::GetContentRegionAvail().x -
+                                        ImGui::GetStyle().ItemSpacing.x - 20.f);
+
+                        ImGui::BeginDisabled(dir->status ==
+                                             dir_path::state::lock);
+                        if (ImGui::SmallButton("R"))
+                            container_of(&mod, &application::mod)
+                              .add_gui_task(task_refresh_directory,
+                                            ordinal(elem_id));
+                        ImGui::EndDisabled();
+
+                        if (is_selected)
+                            ImGui::SetItemDefaultFocus();
                     }
-
-                    ImGui::SameLine(ImGui::GetContentRegionAvail().x -
-                                    ImGui::GetStyle().ItemSpacing.x - 20.f);
-
-                    if (ImGui::SmallButton("R"))
-                        container_of(&mod, &application::mod)
-                          .add_gui_task(task_refresh_directory,
-                                        ordinal(elem_id));
-
-                    if (is_selected)
-                        ImGui::SetItemDefaultFocus();
                 }
                 ImGui::EndCombo();
             }
@@ -311,7 +336,6 @@ static bool show_random_graph_params(modeling&        mod,
                 ImGui::EndCombo();
             }
         }
-
     } break;
 
     case 1: {

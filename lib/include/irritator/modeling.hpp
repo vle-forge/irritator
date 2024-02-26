@@ -598,6 +598,7 @@ struct registred_path {
 struct dir_path {
     enum class state {
         none,
+        lock,
         read,
         unread,
         error,
@@ -625,7 +626,7 @@ struct dir_path {
      * but a flag is added in the `file_path` to indicate an absence of
      * existence in the filesystem.
      */
-    void refresh(modeling& mod) noexcept;
+    vector<file_path_id> refresh(modeling& mod) noexcept;
 };
 
 struct file_path {
@@ -914,6 +915,8 @@ public:
 
     vector<registred_path_id> component_repertories;
     external_source           srcs;
+
+    std::mutex dir_paths_mutex;
 
     modeling_status state = modeling_status::unmodified;
 
