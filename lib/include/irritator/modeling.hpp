@@ -61,7 +61,7 @@ struct relative_id_path {
     unique_id_path ids;
 };
 
-enum class child_type : i8 { model, component };
+enum class child_type : u8 { model, component };
 
 enum class description_status {
     unread,
@@ -173,11 +173,12 @@ struct description {
     description_status status = description_status::unread;
 };
 
-enum class child_flags : u32 {
-    none         = 0b0000,
-    configurable = 0b0001,
-    observable   = 0b0010,
-    both         = 0b0011,
+enum class child_flags : u8 {
+    none         = 0,
+    configurable = 1 << 0,
+    observable   = 1 << 1,
+    both         = 3,
+    Count
 };
 
 struct child {
@@ -196,8 +197,8 @@ struct child {
     /// vertex, @c generic-component stores a incremental integer.
     u64 unique_id = 0;
 
-    child_type     type = child_type::model;
-    std::bitset<4> flags{ ordinal(child_flags::none) };
+    child_type            type  = child_type::model;
+    bitflags<child_flags> flags = child_flags::none;
 };
 
 struct child_position {

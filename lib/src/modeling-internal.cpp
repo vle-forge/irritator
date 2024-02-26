@@ -21,7 +21,7 @@ static child_id alloc(modeling&              mod,
     const auto index = get_index(id);
 
     child.flags.reset();
-    child.flags |= std::bitset<4>(ordinal(param));
+    child.flags.set(param);
 
     mod.children_names[index] = name;
     mod.children_parameters[index].clear();

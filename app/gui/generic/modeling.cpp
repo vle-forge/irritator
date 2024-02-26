@@ -1287,8 +1287,8 @@ void generic_component_editor_data::show(component_editor& ed) noexcept
 
 static void update_unique_id(generic_component& gen, child& ch) noexcept
 {
-    bool configurable = ch.flags[ordinal(child_flags::configurable)];
-    bool observable   = ch.flags[ordinal(child_flags::observable)];
+    const auto configurable = ch.flags[child_flags::configurable];
+    const auto observable   = ch.flags[child_flags::observable];
 
     if (ch.unique_id == 0) {
         if (configurable || observable)
@@ -1332,31 +1332,16 @@ void generic_component_editor_data::show_selected_nodes(
                         app.mod.children_positions[selected_nodes[i]].y);
 
                       bool configurable =
-                        child->flags.test(ordinal(child_flags::configurable));
+                        child->flags[child_flags::configurable];
                       if (ImGui::Checkbox("configurable", &configurable)) {
-                          if (configurable)
-                              child->flags |= std::bitset<4>(
-                                ordinal(child_flags::configurable));
-                          else
-                              child->flags &=
-                                std::bitset<4>(
-                                  ordinal(child_flags::configurable))
-                                  .flip();
-
+                          child->flags.set(child_flags::configurable,
+                                           configurable);
                           is_modified = true;
                       }
 
-                      bool observable =
-                        child->flags.test(ordinal(child_flags::observable));
+                      bool observable = child->flags[child_flags::observable];
                       if (ImGui::Checkbox("observables", &observable)) {
-                          if (observable)
-                              child->flags |= std::bitset<4>(
-                                ordinal(child_flags::observable));
-                          else
-                              child->flags &=
-                                std::bitset<4>(ordinal(child_flags::observable))
-                                  .flip();
-
+                          child->flags.set(child_flags::observable, observable);
                           is_modified = true;
                       }
 
