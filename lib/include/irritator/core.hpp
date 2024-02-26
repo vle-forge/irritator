@@ -906,14 +906,17 @@ struct observation {
     real y{};
 };
 
+enum class observer_flags : u8 {
+    none              = 0,
+    data_available    = 1,
+    buffer_full       = 2,
+    data_lost         = 4,
+    use_linear_buffer = 8,
+    Count
+};
+
 struct observer {
     using value_type = observation;
-
-    static constexpr u8 flags_none              = 0;
-    static constexpr u8 flags_data_available    = 1 << 0;
-    static constexpr u8 flags_buffer_full       = 1 << 1;
-    static constexpr u8 flags_data_lost         = 1 << 2;
-    static constexpr u8 flags_use_linear_buffer = 1 << 3;
 
     observer(std::string_view name_,
              u64              user_id_   = 0,
@@ -934,8 +937,8 @@ struct observer {
     dynamics_type         type      = dynamics_type::qss1_integrator;
     std::pair<real, real> limits;
 
-    small_string<14> name;
-    u8               flags;
+    small_string<14>      name;
+    flags<observer_flags> states;
 };
 
 struct node {
@@ -4827,7 +4830,7 @@ inline observer::observer(std::string_view name_,
   , user_id{ user_id_ }
   , user_type{ user_type_ }
   , name{ name_ }
-  , flags{ flags_none }
+  , states{ observer_flags::none }
 {}
 
 inline void observer::reset() noexcept
@@ -4836,7 +4839,7 @@ inline void observer::reset() noexcept
     linearized_buffer.clear();
     limits = std::make_pair(-std::numeric_limits<real>::infinity(),
                             +std::numeric_limits<real>::infinity());
-    flags  = flags_none;
+    states.reset();
 }
 
 inline void observer::clear() noexcept
@@ -4846,22 +4849,27 @@ inline void observer::clear() noexcept
     limits = std::make_pair(-std::numeric_limits<real>::infinity(),
                             +std::numeric_limits<real>::infinity());
 
-    flags = (flags & flags_data_lost) ? flags_data_lost : flags_none;
+    const auto have_data_lost = states[observer_flags::data_lost];
+    states.reset();
+    if (have_data_lost)
+        states.set(observer_flags::data_lost);
 }
 
 inline void observer::update(observation_message msg) noexcept
 {
-    u8 new_flags = flags_data_available | (flags & flags_data_lost);
+    ::irt::flags<observer_flags> new_states(observer_flags::data_available);
+    if (states[observer_flags::data_lost])
+        new_states.set(observer_flags::data_lost);
 
-    if (flags & flags_buffer_full)
-        new_flags |= flags_data_lost;
+    if (states[observer_flags::buffer_full])
+        states.set(observer_flags::data_lost);
 
     if (!buffer.empty() && buffer.tail()->data[0] == msg[0])
         *(buffer.tail()) = msg;
     else
         buffer.force_enqueue(msg);
 
-    if (flags & flags_use_linear_buffer) {
+    if (states[observer_flags::use_linear_buffer]) {
         if (linearized_buffer.ssize() >= 1) {
             limits.first  = linearized_buffer.front().x;
             limits.second = linearized_buffer.back().y;
@@ -4869,9 +4877,9 @@ inline void observer::update(observation_message msg) noexcept
     }
 
     if (buffer.full())
-        new_flags |= flags_buffer_full;
+        new_states.set(observer_flags::buffer_full);
 
-    flags = new_flags;
+    states = new_states;
 }
 
 inline void observer::push_back(const observation& vec) noexcept
@@ -4881,7 +4889,7 @@ inline void observer::push_back(const observation& vec) noexcept
 
 inline bool observer::full() const noexcept
 {
-    return flags & flags_buffer_full;
+    return states[observer_flags::buffer_full];
 }
 
 inline status send_message(simulation& sim,
