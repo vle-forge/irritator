@@ -288,10 +288,16 @@ void task_simulation_model_del(void* param) noexcept;
 void task_simulation_back(void* param) noexcept;
 void task_simulation_advance(void* param) noexcept;
 
+void task_dir_path_refresh(void* param) noexcept;
+void task_dir_path_free(void* param) noexcept;
+// void task_reg_path_refresh(void* param) noexcept;
+void task_reg_path_free(void* param) noexcept;
+
 struct gui_task {
     u64          param_1 = 0;
     u64          param_2 = 0;
-    void*        param_3 = nullptr;
+    u64          param_3 = 0;
+    void*        param_4 = nullptr;
     application* app     = nullptr;
     task_status  state   = task_status::not_started;
 };
@@ -995,7 +1001,8 @@ struct application {
     void add_gui_task(task_function fn,
                       u64           param_1 = 0,
                       u64           param_2 = 0,
-                      void*         param_3 = 0) noexcept;
+                      u64           param_3 = 0,
+                      void*         param_4 = 0) noexcept;
 
     //! Helpers function to get a @c unordered_task_list. Wait until the task
     //! list is available.

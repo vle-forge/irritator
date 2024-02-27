@@ -578,20 +578,29 @@ struct component {
 };
 
 struct registred_path {
-    enum class state {
-        none,
-        read,
-        unread,
-        error,
+    enum class state : u8 {
+        lock,   /**< `dir-path` is locked during I/O operation. Do not use this
+                   class in writing mode. */
+        read,   /**< underlying directory is read and the `children` vector is
+                   filled. */
+        unread, /**< underlying directory is not read. */
+        error,  /**< an error occurred during the read. */
     };
 
-    /// Use to store a absolute path in utf8.
-    registred_path_str path;
+    enum class reg_flags : u8 {
+        none         = 0,
+        access_error = 1 << 1,
+        read_only    = 1 << 2,
+        Count,
+    };
 
-    name_str name;
+    registred_path_str path; /**< Stores an absolute path in utf8 format. */
+    name_str           name; /**< Stores a user name, the same name as in the
+                                configuration file. */
 
-    state status   = state::unread;
-    i8    priority = 0;
+    state               status   = state::unread;
+    bitflags<reg_flags> flags    = reg_flags::none;
+    i8                  priority = 0;
 
     vector<dir_path_id> children;
 };
@@ -603,6 +612,7 @@ struct dir_path {
         read,   /**< underlying directory is read and the `children` vector is
                    filled. */
         unread, /**< underlying directory is not read. */
+        error,  /**< an error occurred during the read. */
     };
 
     enum class dir_flags : u8 {
@@ -632,14 +642,29 @@ struct dir_path {
 };
 
 struct file_path {
+    enum class state : u8 {
+        lock,   /**< `file-path` is locked during I/O operation. Do not use this
+                   class in writing mode. */
+        read,   /**< underlying file is read. */
+        unread, /**< underlying file  is not read. */
+    };
+
+    enum class file_flags : u8 {
+        none         = 0,
+        access_error = 1 << 1,
+        read_only    = 1 << 2,
+        Count,
+    };
+
     enum class file_type { undefined_file, irt_file, dot_file };
 
-    /// use to store a file name in utf8.
-    file_path_str path;
+    file_path_str path; /**< stores the file name as utf8 string. */
+    dir_path_id   parent{ 0 };
+    component_id  component{ 0 };
 
-    dir_path_id  parent{ 0 };
-    component_id component{ 0 };
-    file_type    type{ file_type::undefined_file };
+    file_type            type{ file_type::undefined_file };
+    state                status = state::unread;
+    bitflags<file_flags> flags  = file_flags::none;
 };
 
 struct modeling_initializer {

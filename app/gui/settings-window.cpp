@@ -40,7 +40,7 @@ void settings_window::show() noexcept
     ImGui::Separator();
     ImGui::TextUnformatted("Dir paths");
 
-    static const char* dir_status[] = { "none", "read", "unread" };
+    static const char* dir_status[] = { "none", "read", "unread", "error" };
 
     auto& app = container_of(this, &application::settings_wnd);
 
@@ -132,8 +132,9 @@ void settings_window::show() noexcept
 
             ImGui::TableNextColumn();
             ImGui::PushItemWidth(60.f);
-            if (ImGui::Button("Delete"))
-                to_delete = dir;
+            if (dir->status != registred_path::state::lock)
+                if (ImGui::Button("Delete"))
+                    to_delete = dir;
             ImGui::PopItemWidth();
 
             ImGui::PopID();
@@ -149,7 +150,7 @@ void settings_window::show() noexcept
             ImGui::Button("Add directory")) {
             auto& dir    = app.mod.registred_paths.alloc();
             auto  id     = app.mod.registred_paths.get_id(dir);
-            dir.status   = registred_path::state::none;
+            dir.status   = registred_path::state::unread;
             dir.path     = "";
             dir.priority = 127;
             app.show_select_directory_dialog = true;

@@ -213,7 +213,7 @@ static bool show_random_graph_type(graph_component& graph) noexcept
     return is_changed;
 }
 
-void task_refresh_directory(void* param) noexcept
+void task_dir_path_refresh(void* param) noexcept
 {
     auto* g_task  = reinterpret_cast<gui_task*>(param);
     g_task->state = task_status::started;
@@ -234,6 +234,38 @@ void task_refresh_directory(void* param) noexcept
             dir->children = std::move(children);
             dir->status   = dir_path::state::read;
         }
+    }
+
+    g_task->state = task_status::finished;
+};
+
+void task_dir_path_free(void* param) noexcept
+{
+    auto* g_task  = reinterpret_cast<gui_task*>(param);
+    g_task->state = task_status::started;
+
+    auto  dir_id = enum_cast<dir_path_id>(g_task->param_1);
+    auto* dir    = g_task->app->mod.dir_paths.try_to_get(dir_id);
+    if (dir and dir->status != dir_path::state::lock) {
+        std::scoped_lock lock(g_task->app->mod.dir_paths_mutex);
+        dir->status = dir_path::state::lock;
+        g_task->app->mod.dir_paths.free(*dir);
+    }
+
+    g_task->state = task_status::finished;
+};
+
+void task_reg_path_free(void* param) noexcept
+{
+    auto* g_task  = reinterpret_cast<gui_task*>(param);
+    g_task->state = task_status::started;
+
+    auto  reg_id = enum_cast<registred_path_id>(g_task->param_1);
+    auto* reg    = g_task->app->mod.registred_paths.try_to_get(reg_id);
+    if (reg and reg->status != registred_path::state::lock) {
+        std::scoped_lock lock(g_task->app->mod.dir_paths_mutex);
+        reg->status = registred_path::state::lock;
+        g_task->app->mod.registred_paths.free(*reg);
     }
 
     g_task->state = task_status::finished;
@@ -305,7 +337,7 @@ static bool show_random_graph_params(modeling&        mod,
                                              dir_path::state::lock);
                         if (ImGui::SmallButton("R"))
                             container_of(&mod, &application::mod)
-                              .add_gui_task(task_refresh_directory,
+                              .add_gui_task(task_dir_path_refresh,
                                             ordinal(elem_id));
                         ImGui::EndDisabled();
 

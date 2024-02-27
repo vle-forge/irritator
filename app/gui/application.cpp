@@ -791,7 +791,8 @@ void application::add_simulation_task(task_function fn,
 void application::add_gui_task(task_function fn,
                                u64           param_1,
                                u64           param_2,
-                               void*         param_3) noexcept
+                               u64           param_3,
+                               void*         param_4) noexcept
 {
     irt_assert(fn);
 
@@ -803,6 +804,7 @@ void application::add_gui_task(task_function fn,
     task.param_1 = param_1;
     task.param_2 = param_2;
     task.param_3 = param_3;
+    task.param_4 = param_4;
 
     task_mgr.main_task_lists[ordinal(main_task::gui)].add(fn, &task);
     task_mgr.main_task_lists[ordinal(main_task::gui)].submit();
