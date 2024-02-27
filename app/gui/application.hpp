@@ -288,10 +288,17 @@ void task_simulation_model_del(void* param) noexcept;
 void task_simulation_back(void* param) noexcept;
 void task_simulation_advance(void* param) noexcept;
 
-void task_dir_path_refresh(void* param) noexcept;
-void task_dir_path_free(void* param) noexcept;
-// void task_reg_path_refresh(void* param) noexcept;
 void task_reg_path_free(void* param) noexcept;
+void task_dir_path_free(void* param) noexcept;
+void task_file_path_free(void* param) noexcept;
+
+void task_dir_path_refresh(void* param) noexcept;
+// void task_reg_path_refresh(void* param) noexcept;
+
+void start_task_file_path_free(application&      app,
+                               registred_path_id reg_id,
+                               dir_path_id       dir_id,
+                               file_path_id      file_id) noexcept;
 
 struct gui_task {
     u64          param_1 = 0;

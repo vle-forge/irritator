@@ -597,12 +597,11 @@ struct registred_path {
     registred_path_str path; /**< Stores an absolute path in utf8 format. */
     name_str           name; /**< Stores a user name, the same name as in the
                                 configuration file. */
+    vector<dir_path_id> children;
 
     state               status   = state::unread;
     bitflags<reg_flags> flags    = reg_flags::none;
     i8                  priority = 0;
-
-    vector<dir_path_id> children;
 };
 
 struct dir_path {

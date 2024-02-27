@@ -271,6 +271,40 @@ void task_reg_path_free(void* param) noexcept
     g_task->state = task_status::finished;
 };
 
+void task_file_path_free(void* param) noexcept
+{
+    auto* g_task  = reinterpret_cast<gui_task*>(param);
+    g_task->state = task_status::started;
+
+    auto reg_id  = enum_cast<registred_path_id>(g_task->param_1);
+    auto dir_id  = enum_cast<dir_path_id>(g_task->param_2);
+    auto file_id = enum_cast<file_path_id>(g_task->param_3);
+
+    std::scoped_lock lock(g_task->app->mod.dir_paths_mutex);
+
+    auto* reg  = g_task->app->mod.registred_paths.try_to_get(reg_id);
+    auto* dir  = g_task->app->mod.dir_paths.try_to_get(dir_id);
+    auto* file = g_task->app->mod.file_paths.try_to_get(file_id);
+
+    if (reg and dir and file) {
+        g_task->app->remove_file(*reg, *dir, *file);
+    }
+
+    g_task->state = task_status::finished;
+}
+
+void start_task_file_path_free(application&            app,
+                               const registred_path_id reg_id,
+                               const dir_path_id       dir_id,
+                               const file_path_id      file_id) noexcept
+{
+    app.add_gui_task(task_file_path_free,
+                     ordinal(reg_id),
+                     ordinal(dir_id),
+                     ordinal(file_id),
+                     nullptr);
+}
+
 // void task_read_dot_file(void* param) noexcept
 // {
 //     auto* g_task  = reinterpret_cast<gui_task*>(param);
