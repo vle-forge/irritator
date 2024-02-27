@@ -896,6 +896,96 @@ int main()
         expect(ring.back() == 1);
     };
 
+    "id_array_api"_test = [] {
+        enum class position32_id : std::uint32_t;
+
+        irt::id_array<position32_id> ids{ 4 };
+        irt::vector<float>           x{ 4, 4 };
+        irt::vector<float>           y{ 4, 4 };
+        irt::vector<float>           sum{ 4, 4 };
+
+        expect(eq(ids.size(), 0u));
+        expect(eq(ids.max_used(), 0));
+        expect(eq(ids.capacity(), 4));
+        expect(eq(ids.next_key(), 1));
+        expect(ids.is_free_list_empty());
+        expect(ids.can_alloc(1) == true);
+
+        auto id_1  = ids.alloc();
+        auto id_2  = ids.alloc();
+        auto id_3  = ids.alloc();
+        auto id_4  = ids.alloc();
+        auto idx_1 = irt::get_index(id_1);
+        auto idx_2 = irt::get_index(id_2);
+        auto idx_3 = irt::get_index(id_3);
+        auto idx_4 = irt::get_index(id_4);
+        expect(eq(idx_1, 0));
+        expect(eq(idx_2, 1));
+        expect(eq(idx_3, 2));
+        expect(eq(idx_4, 3));
+        expect(ids.can_alloc(1) == false);
+        x[idx_1] = 1.f;
+        y[idx_1] = 2.f;
+        x[idx_2] = 30.f;
+        y[idx_2] = 40.f;
+        x[idx_3] = 500.f;
+        y[idx_3] = 600.f;
+        x[idx_4] = 7000.f;
+        y[idx_4] = 8000.f;
+
+        auto do_clear = [](auto& vec) noexcept {
+            std::fill_n(vec.data(), vec.size(), 0.f);
+        };
+
+        auto do_sum = [&]() noexcept {
+            const position32_id* id = nullptr;
+            while (ids.next(id)) {
+                const auto idx = irt::get_index(*id);
+                sum[idx]       = x[idx] + y[idx];
+            }
+        };
+
+        do_clear(sum);
+        do_sum();
+
+        expect(eq(sum[idx_1], 3.f));
+        expect(eq(sum[idx_2], 70.f));
+        expect(eq(sum[idx_3], 1100.f));
+        expect(eq(sum[idx_4], 15000.f));
+
+        expect(eq(ids.size(), 4u));
+        expect(eq(ids.max_used(), 4));
+        expect(eq(ids.capacity(), 4));
+        expect(eq(ids.next_key(), 5));
+        expect(ids.is_free_list_empty());
+
+        ids.free(id_3);
+        ids.free(id_4);
+
+        expect(eq(ids.size(), 2u));
+        expect(eq(ids.max_used(), 4));
+        expect(eq(ids.capacity(), 4));
+        expect(eq(ids.next_key(), 5));
+        expect(not ids.is_free_list_empty());
+
+        do_clear(sum);
+        do_sum();
+
+        expect(eq(sum[idx_1], 3.f));
+        expect(eq(sum[idx_2], 70.f));
+        expect(eq(sum[idx_3], 0.f));
+        expect(eq(sum[idx_4], 0.f));
+
+        ids.clear();
+        expect(eq(ids.size(), 0u));
+        expect(eq(ids.max_used(), 0));
+        expect(eq(ids.capacity(), 4));
+        expect(eq(ids.next_key(), 5));
+        expect(ids.is_free_list_empty());
+
+        expect(ids.can_alloc(1) == true);
+    };
+
     "data_array_api"_test = [] {
         struct position {
             position() = default;
