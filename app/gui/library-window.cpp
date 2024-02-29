@@ -18,7 +18,7 @@ static void add_generic_component_data(application& app) noexcept
     auto  compo_id = app.mod.components.get_id(compo);
     app.generics.alloc(compo_id);
     app.component_ed.request_to_open(compo_id);
-    app.component_sel.update();
+    app.add_gui_task(task_component_selector_update);
 }
 
 static void add_grid_component_data(application& app) noexcept
@@ -27,7 +27,7 @@ static void add_grid_component_data(application& app) noexcept
     auto  compo_id = app.mod.components.get_id(compo);
     app.grids.alloc(compo_id, compo.id.grid_id);
     app.component_ed.request_to_open(compo_id);
-    app.component_sel.update();
+    app.add_gui_task(task_component_selector_update);
 }
 
 static void add_graph_component_data(application& app) noexcept
@@ -36,7 +36,7 @@ static void add_graph_component_data(application& app) noexcept
     auto  compo_id = app.mod.components.get_id(compo);
     app.graphs.alloc(compo_id, compo.id.graph_id);
     app.component_ed.request_to_open(compo_id);
-    app.component_sel.update();
+    app.add_gui_task(task_component_selector_update);
 }
 
 static void show_component_popup_menu(application& app, component& sel) noexcept
@@ -70,7 +70,7 @@ static void show_component_popup_menu(application& app, component& sel) noexcept
                         app.notifications.enable(n);
                     }
 
-                    app.component_sel.update();
+                    app.add_gui_task(task_component_selector_update);
                 } else {
                     auto& n = app.notifications.alloc();
                     n.level = log_level::error;
@@ -90,19 +90,12 @@ static void show_component_popup_menu(application& app, component& sel) noexcept
 
             if (auto* file = app.mod.file_paths.try_to_get(sel.file); file) {
                 if (ImGui::MenuItem("Delete file")) {
-                    auto& n = app.notifications.alloc();
-                    n.level = log_level::info;
-                    format(n.title = "Remove file `{}'", file->path.sv());
+                    app.add_gui_task(task_file_path_free,
+                                     ordinal(sel.reg_path),
+                                     ordinal(sel.dir),
+                                     ordinal(sel.file));
 
-                    auto* reg =
-                      app.mod.registred_paths.try_to_get(sel.reg_path);
-                    auto* dir = app.mod.dir_paths.try_to_get(sel.dir);
-
-                    if (reg && dir)
-                        app.mod.remove_file(*reg, *dir, *file);
-                    app.mod.free(sel);
-
-                    app.component_sel.update();
+                    app.add_gui_task(task_component_selector_update);
                 }
             }
         } else {
@@ -123,7 +116,7 @@ static void show_component_popup_menu(application& app, component& sel) noexcept
                         app.notifications.enable(n);
                     }
 
-                    app.component_sel.update();
+                    app.add_gui_task(task_component_selector_update);
                 } else {
                     auto& n = app.notifications.alloc();
                     n.level = log_level::error;
@@ -191,57 +184,63 @@ static void show_file_component(application& app,
                                 component&   c,
                                 tree_node*   head) noexcept
 {
-    const auto id       = app.mod.components.get_id(c);
-    const bool selected = head ? id == head->id : false;
-    const auto state    = c.state;
+    if (file.mutex.try_lock()) {
+        const auto id       = app.mod.components.get_id(c);
+        const bool selected = head ? id == head->id : false;
+        const auto state    = c.state;
 
-    small_string<254> buffer;
+        small_string<254> buffer;
 
-    ImGui::PushID(&c);
+        ImGui::PushID(&c);
 
-    if (ImGui::ColorEdit4("Color selection",
-                          to_float_ptr(app.mod.component_colors[get_index(id)]),
-                          ImGuiColorEditFlags_NoInputs |
-                            ImGuiColorEditFlags_NoLabel |
-                            ImGuiColorEditFlags_NoAlpha))
-        app.mod.component_colors[get_index(id)][3] = 1.f;
+        if (ImGui::ColorEdit4(
+              "Color selection",
+              to_float_ptr(app.mod.component_colors[get_index(id)]),
+              ImGuiColorEditFlags_NoInputs | ImGuiColorEditFlags_NoLabel |
+                ImGuiColorEditFlags_NoAlpha))
+            app.mod.component_colors[get_index(id)][3] = 1.f;
 
-    format(buffer, "{} ({})", c.name.sv(), file.path.sv());
+        format(buffer, "{} ({})", c.name.sv(), file.path.sv());
 
-    ImGui::SameLine(75.f);
-    if (ImGui::Selectable(buffer.c_str(), selected))
-        open_component(app, id);
-    ImGui::PopID();
+        ImGui::SameLine(75.f);
+        if (ImGui::Selectable(buffer.c_str(), selected))
+            open_component(app, id);
+        ImGui::PopID();
 
-    show_component_popup_menu(app, c);
+        show_component_popup_menu(app, c);
 
-    ImGui::PushStyleColor(ImGuiCol_Text,
-                          ImGui::GetStyle().Colors[ImGuiCol_TextDisabled]);
+        ImGui::PushStyleColor(ImGuiCol_Text,
+                              ImGui::GetStyle().Colors[ImGuiCol_TextDisabled]);
 
-    switch (state) {
-    case component_status::unread:
-        ImGui::SameLine();
-        ImGui::TextUnformatted(" (unread)");
-        break;
-    case component_status::read_only:
-        ImGui::SameLine();
-        ImGui::TextUnformatted(" (read-only)");
-        break;
-    case component_status::modified:
-        ImGui::SameLine();
-        ImGui::TextUnformatted(" (not-saved)");
-        break;
-    case component_status::unmodified:
-        ImGui::SameLine();
-        ImGui::TextUnformatted(" (modified)");
-        break;
-    case component_status::unreadable:
-        ImGui::SameLine();
-        ImGui::TextUnformatted(" (unreadable)");
-        break;
+        switch (state) {
+        case component_status::unread:
+            ImGui::SameLine();
+            ImGui::TextUnformatted(" (unread)");
+            break;
+        case component_status::read_only:
+            ImGui::SameLine();
+            ImGui::TextUnformatted(" (read-only)");
+            break;
+        case component_status::modified:
+            ImGui::SameLine();
+            ImGui::TextUnformatted(" (not-saved)");
+            break;
+        case component_status::unmodified:
+            ImGui::SameLine();
+            ImGui::TextUnformatted(" (modified)");
+            break;
+        case component_status::unreadable:
+            ImGui::SameLine();
+            ImGui::TextUnformatted(" (unreadable)");
+            break;
+        }
+
+        ImGui::PopStyleColor();
+
+        file.mutex.unlock();
+    } else {
+        ImGui::TextDisabled("file is being updated");
     }
-
-    ImGui::PopStyleColor();
 }
 
 static void show_internal_components(component_editor& ed) noexcept
@@ -298,15 +297,23 @@ static void show_dirpath_component(irt::component_editor& ed,
                                    dir_path&              dir,
                                    irt::tree_node*        head) noexcept
 {
-    auto& app = container_of(&ed, &application::component_ed);
+    if (dir.mutex.try_lock()) {
+        auto& app = container_of(&ed, &application::component_ed);
 
-    if (ImGui::TreeNodeEx(dir.path.c_str())) {
-        for_each_component(
-          app.mod, dir, [&](auto& /*dir*/, auto& file, auto& compo) noexcept {
-              show_file_component(app, file, compo, head);
-          });
+        if (ImGui::TreeNodeEx(dir.path.c_str())) {
+            for_each_component(
+              app.mod,
+              dir,
+              [&](auto& /*dir*/, auto& file, auto& compo) noexcept {
+                  show_file_component(app, file, compo, head);
+              });
 
-        ImGui::TreePop();
+            ImGui::TreePop();
+        }
+
+        dir.mutex.unlock();
+    } else {
+        ImGui::TextDisabled("The directory is being updated");
     }
 }
 
@@ -391,11 +398,6 @@ void library_window::show() noexcept
     auto* tree = app.pj.tn_head();
 
     show_component_library(app.component_ed, tree);
-
-    // @TODO hidden part. Need to be fix to enable configure/observation
-    // of project. ImGui::Separator(); show_input_output(*this);
-    // ImGui::Separator();
-    // show_selected_children(*this);
 
     ImGui::End();
 }

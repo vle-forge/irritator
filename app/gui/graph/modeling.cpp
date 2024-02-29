@@ -223,14 +223,14 @@ void task_dir_path_refresh(void* param) noexcept
     if (dir and dir->status != dir_path::state::lock) {
 
         {
-            std::scoped_lock lock(g_task->app->mod.dir_paths_mutex);
+            std::scoped_lock lock(dir->mutex);
             dir->status = dir_path::state::lock;
         }
 
         auto children = dir->refresh(g_task->app->mod);
 
         {
-            std::scoped_lock lock(g_task->app->mod.dir_paths_mutex);
+            std::scoped_lock lock(dir->mutex);
             dir->children = std::move(children);
             dir->status   = dir_path::state::read;
         }
@@ -247,7 +247,7 @@ void task_dir_path_free(void* param) noexcept
     auto  dir_id = enum_cast<dir_path_id>(g_task->param_1);
     auto* dir    = g_task->app->mod.dir_paths.try_to_get(dir_id);
     if (dir and dir->status != dir_path::state::lock) {
-        std::scoped_lock lock(g_task->app->mod.dir_paths_mutex);
+        std::scoped_lock lock(dir->mutex);
         dir->status = dir_path::state::lock;
         g_task->app->mod.dir_paths.free(*dir);
     }
@@ -263,7 +263,7 @@ void task_reg_path_free(void* param) noexcept
     auto  reg_id = enum_cast<registred_path_id>(g_task->param_1);
     auto* reg    = g_task->app->mod.registred_paths.try_to_get(reg_id);
     if (reg and reg->status != registred_path::state::lock) {
-        std::scoped_lock lock(g_task->app->mod.dir_paths_mutex);
+        std::scoped_lock lock(reg->mutex);
         reg->status = registred_path::state::lock;
         g_task->app->mod.registred_paths.free(*reg);
     }
@@ -280,29 +280,37 @@ void task_file_path_free(void* param) noexcept
     auto dir_id  = enum_cast<dir_path_id>(g_task->param_2);
     auto file_id = enum_cast<file_path_id>(g_task->param_3);
 
-    std::scoped_lock lock(g_task->app->mod.dir_paths_mutex);
+    auto& n = g_task->app->notifications.alloc(log_level::notice);
+    n.title = "Remove file";
 
-    auto* reg  = g_task->app->mod.registred_paths.try_to_get(reg_id);
-    auto* dir  = g_task->app->mod.dir_paths.try_to_get(dir_id);
-    auto* file = g_task->app->mod.file_paths.try_to_get(file_id);
+    {
+        auto* reg  = g_task->app->mod.registred_paths.try_to_get(reg_id);
+        auto* dir  = g_task->app->mod.dir_paths.try_to_get(dir_id);
+        auto* file = g_task->app->mod.file_paths.try_to_get(file_id);
 
-    if (reg and dir and file) {
-        g_task->app->remove_file(*reg, *dir, *file);
+        if (reg and dir and file) {
+            std::scoped_lock lock(dir->mutex);
+
+            format(n.message, "File `{}' removed", file->path.sv());
+            g_task->app->mod.remove_file(*reg, *dir, *file);
+        }
     }
 
+    g_task->app->notifications.enable(n);
     g_task->state = task_status::finished;
 }
 
-void start_task_file_path_free(application&            app,
-                               const registred_path_id reg_id,
-                               const dir_path_id       dir_id,
-                               const file_path_id      file_id) noexcept
+void task_component_selector_update(void* param) noexcept
 {
-    app.add_gui_task(task_file_path_free,
-                     ordinal(reg_id),
-                     ordinal(dir_id),
-                     ordinal(file_id),
-                     nullptr);
+    auto* g_task  = reinterpret_cast<gui_task*>(param);
+    g_task->state = task_status::started;
+
+    g_task->app->component_sel.update();
+
+    auto& n = g_task->app->notifications.alloc(log_level::notice);
+    n.title = "Components updated";
+    g_task->app->notifications.enable(n);
+    g_task->state = task_status::finished;
 }
 
 // void task_read_dot_file(void* param) noexcept

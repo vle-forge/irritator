@@ -295,10 +295,7 @@ void task_file_path_free(void* param) noexcept;
 void task_dir_path_refresh(void* param) noexcept;
 // void task_reg_path_refresh(void* param) noexcept;
 
-void start_task_file_path_free(application&      app,
-                               registred_path_id reg_id,
-                               dir_path_id       dir_id,
-                               file_path_id      file_id) noexcept;
+void task_component_selector_update(void* param) noexcept;
 
 struct gui_task {
     u64          param_1 = 0;
@@ -858,9 +855,10 @@ private:
     component_id      selected_id   = undefined<component_id>();
     small_string<254> selected_name = "undefined";
 
-    int files = 0; //! Number of component in registred directories
-    // int internals = 0; //! Number of internal component
+    int files   = 0; //! Number of component in registred directories
     int unsaved = 0; //! Number of unsaved component
+
+    spin_lock m_mutex;
 };
 
 class component_model_selector

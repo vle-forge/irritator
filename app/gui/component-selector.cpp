@@ -81,6 +81,8 @@ static void cs_select(modeling&          mod,
 
 void component_selector::update() noexcept
 {
+    std::scoped_lock lock(m_mutex);
+
     auto& app = container_of(this, &application::component_sel);
     auto& mod = app.mod;
 
@@ -111,18 +113,6 @@ void component_selector::update() noexcept
 
     files = ids.size();
 
-    // for_each_data(mod.components, [&](auto& compo) noexcept {
-    //     if (compo.type == component_type::internal) {
-    //         ids.emplace_back(mod.components.get_id(compo));
-    //         auto& str = names.emplace_back();
-
-    //         cs_make_selected_name(
-    //           internal_component_names[ordinal(compo.id.internal_id)], str);
-    //     }
-    // });
-
-    // internals = ids.size();
-
     for_each_data(mod.components, [&](auto& compo) noexcept {
         if (compo.type != component_type::internal &&
             mod.file_paths.try_to_get(compo.file) == nullptr) {
@@ -141,36 +131,40 @@ void component_selector::update() noexcept
 bool component_selector::combobox(const char*   label,
                                   component_id* new_selected) noexcept
 {
-    auto& mod = container_of(this, &application::component_sel).mod;
-
-    if (*new_selected != selected_id) {
-        auto& app   = container_of(this, &application::component_sel);
-        selected_id = *new_selected;
-
-        cs_select(app.mod, selected_id, selected_name);
-    }
-
     bool ret = false;
 
-    if (ImGui::BeginCombo(label, selected_name.c_str())) {
-        ImGui::ColorButton("Undefined color", to_ImVec4(black_color));
-        ImGui::SameLine(50.f);
-        if (ImGui::Selectable(names[0].c_str(), ids[0] == *new_selected)) {
-            *new_selected = ids[0];
-            ret           = true;
+    if (m_mutex.try_lock()) {
+        auto& mod = container_of(this, &application::component_sel).mod;
+
+        if (*new_selected != selected_id) {
+            auto& app   = container_of(this, &application::component_sel);
+            selected_id = *new_selected;
+            cs_select(app.mod, selected_id, selected_name);
         }
 
-        for (sz i = 1, e = ids.size(); i != e; ++i) {
-            ImGui::ColorButton(
-              "Component", to_ImVec4(mod.component_colors[get_index(ids[i])]));
+        if (ImGui::BeginCombo(label, selected_name.c_str())) {
+            ImGui::ColorButton("Undefined color", to_ImVec4(black_color));
             ImGui::SameLine(50.f);
-            if (ImGui::Selectable(names[i].c_str(), ids[i] == *new_selected)) {
-                *new_selected = ids[i];
+            if (ImGui::Selectable(names[0].c_str(), ids[0] == *new_selected)) {
+                *new_selected = ids[0];
                 ret           = true;
             }
-        }
 
-        ImGui::EndCombo();
+            for (sz i = 1, e = ids.size(); i != e; ++i) {
+                ImGui::ColorButton(
+                  "Component",
+                  to_ImVec4(mod.component_colors[get_index(ids[i])]));
+                ImGui::SameLine(50.f);
+                if (ImGui::Selectable(names[i].c_str(),
+                                      ids[i] == *new_selected)) {
+                    *new_selected = ids[i];
+                    ret           = true;
+                }
+            }
+
+            ImGui::EndCombo();
+        }
+        m_mutex.unlock();
     }
 
     return ret;
@@ -180,38 +174,42 @@ bool component_selector::combobox(const char*   label,
                                   component_id* new_selected,
                                   bool*         hyphen) noexcept
 {
-    auto& mod = container_of(this, &application::component_sel).mod;
-
     bool ret = false;
 
-    if (ImGui::BeginCombo(label, selected_name.c_str())) {
-        ImGui::ColorButton("Undefined color", to_ImVec4(black_color));
-        ImGui::SameLine(50.f);
-        if (ImGui::Selectable(names[0].c_str(),
-                              *hyphen == false && ids[0] == *new_selected)) {
-            *new_selected = ids[0];
-            *hyphen       = false;
-            ret           = true;
-        }
+    if (m_mutex.try_lock()) {
+        auto& mod = container_of(this, &application::component_sel).mod;
 
-        for (sz i = 1, e = ids.size(); i != e; ++i) {
-            ImGui::ColorButton(
-              "#color", to_ImVec4(mod.component_colors[get_index(ids[i])]));
+        if (ImGui::BeginCombo(label, selected_name.c_str())) {
+            ImGui::ColorButton("Undefined color", to_ImVec4(black_color));
             ImGui::SameLine(50.f);
-            if (ImGui::Selectable(names[i].c_str(),
+            if (ImGui::Selectable(names[0].c_str(),
                                   *hyphen == false &&
-                                    ids[i] == *new_selected)) {
-                *new_selected = ids[i];
+                                    ids[0] == *new_selected)) {
+                *new_selected = ids[0];
                 *hyphen       = false;
                 ret           = true;
             }
-        }
 
-        if (ImGui::Selectable("-", *hyphen == true)) {
-            ret = true;
-        }
+            for (sz i = 1, e = ids.size(); i != e; ++i) {
+                ImGui::ColorButton(
+                  "#color", to_ImVec4(mod.component_colors[get_index(ids[i])]));
+                ImGui::SameLine(50.f);
+                if (ImGui::Selectable(names[i].c_str(),
+                                      *hyphen == false &&
+                                        ids[i] == *new_selected)) {
+                    *new_selected = ids[i];
+                    *hyphen       = false;
+                    ret           = true;
+                }
+            }
 
-        ImGui::EndCombo();
+            if (ImGui::Selectable("-", *hyphen == true)) {
+                ret = true;
+            }
+
+            ImGui::EndCombo();
+        }
+        m_mutex.unlock();
     }
 
     return ret;
@@ -220,48 +218,40 @@ bool component_selector::combobox(const char*   label,
 bool component_selector::menu(const char*   label,
                               component_id* new_selected) noexcept
 {
-    if (*new_selected != selected_id) {
-        auto& app   = container_of(this, &application::component_sel);
-        selected_id = *new_selected;
-
-        cs_select(app.mod, selected_id, selected_name);
-    }
-
     bool ret = false;
 
-    if (ImGui::BeginMenu(label)) {
-        if (ImGui::BeginMenu("Files components")) {
-            for (int i = 0, e = files; i < e; ++i) {
-                if (ImGui::MenuItem(names[i].c_str())) {
-                    ret           = true;
-                    *new_selected = ids[i];
-                }
-            }
-            ImGui::EndMenu();
+    if (m_mutex.try_lock()) {
+        if (*new_selected != selected_id) {
+            auto& app   = container_of(this, &application::component_sel);
+            selected_id = *new_selected;
+            cs_select(app.mod, selected_id, selected_name);
         }
 
-        // if (ImGui::BeginMenu("Internal components")) {
-        //     for (int i = files, e = internals; i < e; ++i) {
-        //         if (ImGui::MenuItem(names[i].c_str())) {
-        //             ret           = true;
-        //             *new_selected = ids[i];
-        //         }
-        //     }
-        //     ImGui::EndMenu();
-        // }
-
-        if (ImGui::BeginMenu("Unsaved components")) {
-            for (int i = files, e = unsaved; i < e; ++i) {
-                if (ImGui::MenuItem(names[i].c_str())) {
-                    ret           = true;
-                    *new_selected = ids[i];
+        if (ImGui::BeginMenu(label)) {
+            if (ImGui::BeginMenu("Files components")) {
+                for (int i = 0, e = files; i < e; ++i) {
+                    if (ImGui::MenuItem(names[i].c_str())) {
+                        ret           = true;
+                        *new_selected = ids[i];
+                    }
                 }
+                ImGui::EndMenu();
+            }
+
+            if (ImGui::BeginMenu("Unsaved components")) {
+                for (int i = files, e = unsaved; i < e; ++i) {
+                    if (ImGui::MenuItem(names[i].c_str())) {
+                        ret           = true;
+                        *new_selected = ids[i];
+                    }
+                }
+
+                ImGui::EndMenu();
             }
 
             ImGui::EndMenu();
         }
-
-        ImGui::EndMenu();
+        m_mutex.unlock();
     }
 
     return ret;

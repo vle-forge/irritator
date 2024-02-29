@@ -8,6 +8,7 @@
 #include <irritator/core.hpp>
 #include <irritator/error.hpp>
 #include <irritator/ext.hpp>
+#include <irritator/thread.hpp>
 
 #include <bitset>
 #include <functional>
@@ -602,9 +603,12 @@ struct registred_path {
     state               status   = state::unread;
     bitflags<reg_flags> flags    = reg_flags::none;
     i8                  priority = 0;
+    spin_lock           mutex;
 };
 
-struct dir_path {
+class dir_path
+{
+public:
     enum class state : u8 {
         lock,   /**< `dir-path` is locked during I/O operation. Do not use this
                    class in writing mode. */
@@ -622,13 +626,13 @@ struct dir_path {
         Count,
     };
 
-    /// use to store a directory name in utf8.
-    directory_path_str   path;
+    directory_path_str   path; /**< stores a directory name in utf8. */
     registred_path_id    parent{ 0 };
     vector<file_path_id> children;
 
     state               status = state::unread;
     bitflags<dir_flags> flags  = dir_flags::none;
+    spin_lock           mutex;
 
     /**
      * Refresh the `children` vector with new file in the filesystem.
@@ -664,6 +668,7 @@ struct file_path {
     file_type            type{ file_type::undefined_file };
     state                status = state::unread;
     bitflags<file_flags> flags  = file_flags::none;
+    spin_lock            mutex;
 };
 
 struct modeling_initializer {
@@ -942,8 +947,6 @@ public:
     vector<registred_path_id> component_repertories;
     external_source           srcs;
 
-    std::mutex dir_paths_mutex;
-
     modeling_status state = modeling_status::unmodified;
 
     modeling() noexcept;
@@ -1103,6 +1106,10 @@ public:
     status save(component& c) noexcept; // will call clean(component&) first.
 
     ring_buffer<log_entry> log_entries;
+
+    spin_lock reg_paths_mutex;
+    spin_lock dir_paths_mutex;
+    spin_lock file_paths_mutex;
 };
 
 class project
