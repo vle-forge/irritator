@@ -7,6 +7,7 @@
 
 #include <irritator/macros.hpp>
 
+#include <algorithm>
 #include <bitset>
 #include <concepts>
 #include <iterator>
@@ -1440,8 +1441,10 @@ public:
 
     constexpr small_vector(const small_vector& other) noexcept;
     constexpr small_vector& operator=(const small_vector& other) noexcept;
-    constexpr small_vector(small_vector&& other) noexcept;
-    constexpr small_vector& operator=(small_vector&& other) noexcept;
+    constexpr small_vector(small_vector&& other) noexcept
+        requires(std::is_move_constructible_v<T>);
+    constexpr small_vector& operator=(small_vector&& other) noexcept
+        requires(std::is_move_assignable_v<T>);
 
     constexpr void resize(std::integral auto capacity) noexcept;
     constexpr void clear() noexcept;
@@ -2001,7 +2004,8 @@ constexpr data_array<T, Identifier, A>::~data_array() noexcept
 template<typename T, typename Identifier, typename A>
 bool data_array<T, Identifier, A>::reserve(std::integral auto capacity) noexcept
 {
-    static_assert(std::is_move_assignable_v<T> or std::is_copy_assignable_v<T>);
+    static_assert(std::is_move_constructible_v<T> or
+                  std::is_copy_constructible_v<T>);
     debug::ensure(
       std::cmp_less(capacity, std::numeric_limits<index_type>::max()));
 
@@ -2013,11 +2017,12 @@ bool data_array<T, Identifier, A>::reserve(std::integral auto capacity) noexcept
     if (new_buffer == nullptr)
         return false;
 
-    if constexpr (std::is_move_assignable_v<T>) {
+    if constexpr (std::is_move_constructible_v<T>) {
         for (index_type i = 0; i != m_max_used; ++i) {
             if (is_valid(m_items[i].id)) {
-                new_buffer[i].item = std::move(m_items[i].item);
-                new_buffer[i].id   = m_items[i].id;
+                std::construct_at(&new_buffer[i].item,
+                                  std::move(m_items[i].item));
+                new_buffer[i].id = m_items[i].id;
             } else {
                 std::uninitialized_copy_n(
                   reinterpret_cast<std::byte*>(&m_items[i]),
@@ -2025,11 +2030,11 @@ bool data_array<T, Identifier, A>::reserve(std::integral auto capacity) noexcept
                   reinterpret_cast<std::byte*>(&new_buffer[i]));
             }
         }
-    } else { // if constexpr (std::is_copy_assignable_v<T>)
+    } else {
         for (index_type i = 0; i != m_max_used; ++i) {
             if (is_valid(m_items[i].id)) {
-                new_buffer[i].item = m_items[i].item;
-                new_buffer[i].id   = m_items[i].id;
+                std::construct_at(&new_buffer[i].item, m_items[i].item);
+                new_buffer[i].id = m_items[i].id;
             } else {
                 std::uninitialized_copy_n(
                   reinterpret_cast<std::byte*>(&m_items[i]),
@@ -2974,6 +2979,7 @@ constexpr small_vector<T, length>::small_vector(
 template<typename T, int length>
 constexpr small_vector<T, length>::small_vector(
   small_vector<T, length>&& other) noexcept
+    requires(std::is_move_constructible_v<T>)
 {
     std::uninitialized_move_n(other.data(), other.m_size, data());
 
@@ -2991,8 +2997,22 @@ constexpr small_vector<T, length>& small_vector<T, length>::operator=(
   const small_vector<T, length>& other) noexcept
 {
     if (&other != this) {
-        std::destroy_n(data(), m_size);
-        std::uninitialized_copy_n(other.data(), other.m_size, data());
+        if constexpr (std::is_trivially_copyable_v<T>) {
+            std::copy_n(other.data(), other.size(), data());
+        } else {
+            if (m_size <= other.m_size) {
+                std::copy_n(other.data(), size(), data());
+                std::uninitialized_copy_n(other.data() + m_size,
+                                          other.m_size - m_size,
+                                          data() + m_size);
+            } else {
+                std::copy_n(other.data(), other.size(), data());
+                if (not std::is_trivially_destructible_v<T>) {
+                    std::destroy_n(data() + other.m_size,
+                                   m_size - other.m_size);
+                }
+            }
+        }
 
         m_size = other.m_size;
     }
@@ -3003,10 +3023,28 @@ constexpr small_vector<T, length>& small_vector<T, length>::operator=(
 template<typename T, int length>
 constexpr small_vector<T, length>& small_vector<T, length>::operator=(
   small_vector<T, length>&& other) noexcept
+    requires(std::is_move_assignable_v<T>)
 {
     if (&other != this) {
-        std::destroy_n(data(), m_size);
-        std::uninitialized_copy_n(other.data(), other.m_size, data());
+        if constexpr (std::is_trivially_copyable_v<T>) {
+            std::copy_n(
+              std::make_move_iterator(other.data()), other.size(), data());
+        } else {
+            if (m_size <= other.m_size) {
+                std::copy_n(
+                  std::make_move_iterator(other.begin()), size(), data());
+                std::uninitialized_move_n(other.data() + m_size,
+                                          other.m_size - m_size,
+                                          data() + m_size);
+            } else {
+                std::copy_n(
+                  std::make_move_iterator(other.begin()), other.size(), data());
+                if (not std::is_trivially_destructible_v<T>) {
+                    std::destroy_n(data() + other.m_size,
+                                   m_size - other.m_size);
+                }
+            }
+        }
 
         m_size = std::exchange(other.m_size, 0);
     }

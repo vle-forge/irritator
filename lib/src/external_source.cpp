@@ -473,38 +473,6 @@ random_source::random_source(const random_source& other) noexcept
   , k32(other.k32)
 {}
 
-random_source& random_source::operator=(random_source&& other) noexcept
-{
-    if (this != &other) {
-        name          = other.name;
-        buffers       = std::move(other.buffers);
-        counters      = std::move(other.counters);
-        max_clients   = other.max_clients;
-        start_counter = other.start_counter;
-        next_client   = other.next_client;
-        ctr           = other.ctr;
-        key           = other.key;
-        distribution  = other.distribution;
-        a             = other.a;
-        b             = other.b;
-        p             = other.p;
-        mean          = other.mean;
-        lambda        = other.lambda;
-        alpha         = other.alpha;
-        beta          = other.beta;
-        stddev        = other.stddev;
-        m             = other.m;
-        s             = other.s;
-        n             = other.n;
-        a32           = other.a32;
-        b32           = other.b32;
-        t32           = other.t32;
-        k32           = other.k32;
-    }
-
-    return *this;
-}
-
 random_source& random_source::operator=(const random_source& other) noexcept
 {
     if (this != &other) {

@@ -647,9 +647,9 @@ public:
 
     random_source() noexcept = default;
     random_source(const random_source& other) noexcept;
-    random_source(random_source&& other) noexcept;
+    random_source(random_source&& other) noexcept = delete;
     random_source& operator=(const random_source& other) noexcept;
-    random_source& operator=(random_source&& other) noexcept;
+    random_source& operator=(random_source&& other) noexcept = delete;
 
     void swap(random_source& other) noexcept;
 
