@@ -10,6 +10,7 @@
 
 #include <atomic>
 #include <chrono>
+#include <mutex>
 #include <thread>
 #include <type_traits>
 
@@ -60,39 +61,6 @@ public:
     bool try_lock() noexcept;
     void lock() noexcept;
     void unlock() noexcept;
-};
-
-//! A scoped locker for `spin_lock` or `spin_bad_lock`.
-template<typename T>
-class scoped_lock
-{
-    T& m_spin;
-
-public:
-    scoped_lock(T& spin_) noexcept;
-    ~scoped_lock() noexcept;
-};
-
-//! A scoped try-locker for `spin_lock` or `spin_bad_lock`.
-//!
-//!     {
-//!         scoped_trylock lock(m_spin_mutex);
-//!         if (lock.is_locked()) {
-//!             // use data.
-//!         }
-//!     } // Is lock is_locked then the m_spin_mutex is released otherwise to
-//!       // nothing.
-template<typename T>
-class scoped_trylock
-{
-    T&   m_spin;
-    bool m_locked;
-
-public:
-    scoped_trylock(T& spin_) noexcept;
-    ~scoped_trylock() noexcept;
-
-    bool is_locked() const noexcept;
 };
 
 template<typename T, int Size>
@@ -353,47 +321,6 @@ inline void spin_bad_lock::lock() noexcept
 inline void spin_bad_lock::unlock() noexcept
 {
     m_flag.clear(std::memory_order_release);
-}
-
-//
-// scoped_lock<T>
-//
-
-template<typename T>
-inline scoped_lock<T>::scoped_lock(T& spin_) noexcept
-  : m_spin(spin_)
-{
-    m_spin.lock();
-}
-
-template<typename T>
-inline scoped_lock<T>::~scoped_lock() noexcept
-{
-    m_spin.unlock();
-}
-
-//
-// scoped_trylock<T>
-//
-
-template<typename T>
-inline scoped_trylock<T>::scoped_trylock(T& spin_) noexcept
-  : m_spin(spin_)
-{
-    m_locked = m_spin.try_lock();
-}
-
-template<typename T>
-inline scoped_trylock<T>::~scoped_trylock() noexcept
-{
-    if (m_locked)
-        m_spin.unlock();
-}
-
-template<typename T>
-inline bool scoped_trylock<T>::is_locked() const noexcept
-{
-    return m_locked;
 }
 
 /*

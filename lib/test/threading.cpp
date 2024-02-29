@@ -32,7 +32,7 @@ int main()
         std::thread j1([&counter, &spin]() {
             for (int i = 0; i < 1000; ++i) {
                 {
-                    irt::scoped_lock lock{ spin };
+                    std::scoped_lock lock{ spin };
                     ++counter;
                 }
                 std::this_thread::yield();
@@ -42,7 +42,7 @@ int main()
         std::thread j2([&counter, &spin]() {
             for (int i = 0; i < 1000; ++i) {
                 {
-                    irt::scoped_lock lock{ spin };
+                    std::scoped_lock lock{ spin };
                     --counter;
                 }
                 std::this_thread::yield();
@@ -52,6 +52,36 @@ int main()
         j1.join();
         j2.join();
         expect(counter == 0);
+    };
+
+    "scoped-lock"_test = [] {
+        irt::spin_lock mutex_1;
+        irt::spin_lock mutex_2;
+
+        for (int i = 0; i < 100; ++i) {
+            int mult = 0;
+
+            std::thread j1([&mult, &mutex_1]() {
+                std::scoped_lock lock(mutex_1);
+                mult += 1;
+            });
+
+            std::thread j2([&mult, &mutex_2]() {
+                std::scoped_lock lock(mutex_2);
+                mult += 10;
+            });
+
+            std::thread j3([&mult, &mutex_1, &mutex_2]() {
+                std::scoped_lock lock(mutex_1, mutex_2);
+                mult += 100;
+            });
+
+            j1.join();
+            j2.join();
+            j3.join();
+
+            expect(eq(mult, 111));
+        }
     };
 
     // use-case-test: checks a classic use of task and task_list.
