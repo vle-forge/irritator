@@ -32,7 +32,7 @@ int main()
         std::thread j1([&counter, &spin]() {
             for (int i = 0; i < 1000; ++i) {
                 {
-                    irt::scoped_spin_lock lock{ spin };
+                    irt::scoped_lock lock{ spin };
                     ++counter;
                 }
                 std::this_thread::yield();
@@ -42,7 +42,7 @@ int main()
         std::thread j2([&counter, &spin]() {
             for (int i = 0; i < 1000; ++i) {
                 {
-                    irt::scoped_spin_lock lock{ spin };
+                    irt::scoped_lock lock{ spin };
                     --counter;
                 }
                 std::this_thread::yield();

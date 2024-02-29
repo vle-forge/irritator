@@ -33,24 +33,66 @@ static inline constexpr auto main_task_size                   = 2;
 static inline constexpr auto max_temp_worker                  = 8;
 static inline constexpr auto max_threads = main_task_size + max_temp_worker;
 
+//! A `spin-lock` based on `std::atomic_flag::wait` and
+//! `std::atomic_flag::notify_one` standard functions.
 class spin_lock
 {
-    std::atomic_flag flag;
+    std::atomic_flag m_flag = ATOMIC_FLAG_INIT;
 
 public:
-    spin_lock() noexcept;
+    spin_lock() noexcept  = default;
+    ~spin_lock() noexcept = default;
+
+    spin_lock(const spin_lock& other) noexcept;
+
+    void lock() noexcept;
+    bool try_lock() noexcept;
+    void unlock() noexcept;
+};
+
+//! A `spin-lock` only for test. Burst CPU until another thread unlock.
+class spin_bad_lock
+{
+    std::atomic_flag m_flag = ATOMIC_FLAG_INIT;
+
+public:
+    spin_bad_lock() noexcept;
     bool try_lock() noexcept;
     void lock() noexcept;
     void unlock() noexcept;
 };
 
-class scoped_spin_lock
+//! A scoped locker for `spin_lock` or `spin_bad_lock`.
+template<typename T>
+class scoped_lock
 {
-    spin_lock& spin;
+    T& m_spin;
 
 public:
-    scoped_spin_lock(spin_lock& spin_) noexcept;
-    ~scoped_spin_lock() noexcept;
+    scoped_lock(T& spin_) noexcept;
+    ~scoped_lock() noexcept;
+};
+
+//! A scoped try-locker for `spin_lock` or `spin_bad_lock`.
+//!
+//!     {
+//!         scoped_trylock lock(m_spin_mutex);
+//!         if (lock.is_locked()) {
+//!             // use data.
+//!         }
+//!     } // Is lock is_locked then the m_spin_mutex is released otherwise to
+//!       // nothing.
+template<typename T>
+class scoped_trylock
+{
+    T&   m_spin;
+    bool m_locked;
+
+public:
+    scoped_trylock(T& spin_) noexcept;
+    ~scoped_trylock() noexcept;
+
+    bool is_locked() const noexcept;
 };
 
 template<typename T, int Size>
@@ -268,31 +310,91 @@ public:
 //
 // spin_lock
 //
-inline spin_lock::spin_lock() noexcept { flag.clear(); }
+
+inline spin_lock::spin_lock(const spin_lock& /*other*/) noexcept
+  : spin_lock()
+{}
+
+inline void spin_lock::lock() noexcept
+{
+    while (!try_lock())
+        m_flag.wait(true, std::memory_order_relaxed);
+}
 
 inline bool spin_lock::try_lock() noexcept
 {
-    return !flag.test_and_set(std::memory_order_acquire);
+    return not m_flag.test_and_set(std::memory_order_acquire);
 }
-inline void spin_lock::lock() noexcept
+
+inline void spin_lock::unlock() noexcept
+{
+    m_flag.clear(std::memory_order_release);
+    m_flag.notify_one();
+}
+
+//
+// spin_bad_lock
+//
+
+inline spin_bad_lock::spin_bad_lock() noexcept { m_flag.clear(); }
+
+inline bool spin_bad_lock::try_lock() noexcept
+{
+    return !m_flag.test_and_set(std::memory_order_acquire);
+}
+
+inline void spin_bad_lock::lock() noexcept
 {
     for (size_t i = 0; !try_lock(); ++i)
         if (i % 100 == 0)
             std::this_thread::yield();
 }
 
-inline void spin_lock::unlock() noexcept
+inline void spin_bad_lock::unlock() noexcept
 {
-    flag.clear(std::memory_order_release);
+    m_flag.clear(std::memory_order_release);
 }
 
-inline scoped_spin_lock::scoped_spin_lock(spin_lock& spin_) noexcept
-  : spin(spin_)
+//
+// scoped_lock<T>
+//
+
+template<typename T>
+inline scoped_lock<T>::scoped_lock(T& spin_) noexcept
+  : m_spin(spin_)
 {
-    spin.lock();
+    m_spin.lock();
 }
 
-inline scoped_spin_lock::~scoped_spin_lock() noexcept { spin.unlock(); }
+template<typename T>
+inline scoped_lock<T>::~scoped_lock() noexcept
+{
+    m_spin.unlock();
+}
+
+//
+// scoped_trylock<T>
+//
+
+template<typename T>
+inline scoped_trylock<T>::scoped_trylock(T& spin_) noexcept
+  : m_spin(spin_)
+{
+    m_locked = m_spin.try_lock();
+}
+
+template<typename T>
+inline scoped_trylock<T>::~scoped_trylock() noexcept
+{
+    if (m_locked)
+        m_spin.unlock();
+}
+
+template<typename T>
+inline bool scoped_trylock<T>::is_locked() const noexcept
+{
+    return m_locked;
+}
 
 /*
     task_list
