@@ -131,7 +131,7 @@ notification& notification_manager::alloc() noexcept
 {
     for (;;) {
         {
-            std::lock_guard<std::mutex> lock{ mutex };
+            std::scoped_lock lock{ mutex };
 
             if (data.can_alloc())
                 return data.alloc();
@@ -153,7 +153,7 @@ void notification_manager::enable(const notification& n) noexcept
 {
     for (;;) {
         {
-            std::lock_guard<std::mutex> lock{ mutex };
+            std::scoped_lock lock{ mutex };
 
             if (!r_buffer.full()) {
                 const auto id = data.get_id(n);
@@ -174,76 +174,79 @@ void notification_manager::show() noexcept
     auto       height  = 0.f;
     auto       i       = 0;
 
-    std::lock_guard<std::mutex> lock{ mutex };
+    if (mutex.try_lock()) {
+        for (auto it = r_buffer.head(); it != r_buffer.end(); ++it) {
+            auto* notif = data.try_to_get(*it);
+            if (!notif) {
+                *it = undefined<notification_id>();
+                continue;
+            }
 
-    for (auto it = r_buffer.head(); it != r_buffer.end(); ++it) {
-        auto* notif = data.try_to_get(*it);
-        if (!notif) {
-            *it = undefined<notification_id>();
-            continue;
+            if (get_state(*notif) == notification_state::expired) {
+                auto& app = container_of(this, &application::notifications);
+                auto& msg = app.log_wnd.enqueue();
+
+                if (notif->message.empty())
+                    msg.assign(notif->title.sv());
+                else
+                    format(
+                      msg, "{}: {}", notif->title.sv(), notif->message.sv());
+
+                data.free(*it);
+                *it = undefined<notification_id>();
+                continue;
+            }
+
+            if (notif->only_log)
+                continue;
+
+            const auto opacity = get_fade_percent(*notif);
+            auto text_color    = notification_text_color[ordinal(notif->level)];
+            text_color.w       = opacity;
+
+            ImGui::SetNextWindowBgAlpha(opacity);
+            ImGui::SetNextWindowPos(
+              ImVec2(vp_size.x - notification_x_padding,
+                     vp_size.y - notification_y_padding - height),
+              ImGuiCond_Always,
+              ImVec2(1.0f, 1.0f));
+
+            ImGui::PushStyleColor(ImGuiCol_WindowBg,
+                                  notification_color[ordinal(notif->level)]);
+            small_string<16> name;
+            format(name, "##{}toast", i);
+            ImGui::Begin(name.c_str(), nullptr, notification_flags);
+            ImGui::PopStyleColor(1);
+
+            ImGui::PushTextWrapPos(vp_size.x / 3.f);
+            ImGui::PushStyleColor(ImGuiCol_Text, text_color);
+            ImGui::TextUnformatted(notification_prefix[ordinal(notif->level)]);
+            ImGui::SameLine();
+            ImGui::TextUnformatted(notif->title.c_str());
+            ImGui::PopStyleColor();
+
+            if (!notif->message.empty()) {
+                ImGui::SetCursorPosY(ImGui::GetCursorPosY() + 5.f);
+                ImGui::Separator();
+                ImGui::TextUnformatted(notif->message.c_str());
+            }
+
+            ImGui::PopTextWrapPos();
+            height += ImGui::GetWindowHeight() + notification_y_message_padding;
+
+            ImGui::End();
+
+            ++i;
         }
 
-        if (get_state(*notif) == notification_state::expired) {
-            auto& app = container_of(this, &application::notifications);
-            auto& msg = app.log_wnd.enqueue();
+        while (!r_buffer.empty() &&
+               r_buffer.front() == undefined<notification_id>())
+            r_buffer.dequeue();
 
-            if (notif->message.empty())
-                msg.assign(notif->title.sv());
-            else
-                format(msg, "{}: {}", notif->title.sv(), notif->message.sv());
+        ImGui::PopStyleVar();
 
-            data.free(*it);
-            *it = undefined<notification_id>();
-            continue;
-        }
-
-        if (notif->only_log)
-            continue;
-
-        const auto opacity    = get_fade_percent(*notif);
-        auto       text_color = notification_text_color[ordinal(notif->level)];
-        text_color.w          = opacity;
-
-        ImGui::SetNextWindowBgAlpha(opacity);
-        ImGui::SetNextWindowPos(
-          ImVec2(vp_size.x - notification_x_padding,
-                 vp_size.y - notification_y_padding - height),
-          ImGuiCond_Always,
-          ImVec2(1.0f, 1.0f));
-
-        ImGui::PushStyleColor(ImGuiCol_WindowBg,
-                              notification_color[ordinal(notif->level)]);
-        small_string<16> name;
-        format(name, "##{}toast", i);
-        ImGui::Begin(name.c_str(), nullptr, notification_flags);
-        ImGui::PopStyleColor(1);
-
-        ImGui::PushTextWrapPos(vp_size.x / 3.f);
-        ImGui::PushStyleColor(ImGuiCol_Text, text_color);
-        ImGui::TextUnformatted(notification_prefix[ordinal(notif->level)]);
-        ImGui::SameLine();
-        ImGui::TextUnformatted(notif->title.c_str());
-        ImGui::PopStyleColor();
-
-        if (!notif->message.empty()) {
-            ImGui::SetCursorPosY(ImGui::GetCursorPosY() + 5.f);
-            ImGui::Separator();
-            ImGui::TextUnformatted(notif->message.c_str());
-        }
-
-        ImGui::PopTextWrapPos();
-        height += ImGui::GetWindowHeight() + notification_y_message_padding;
-
-        ImGui::End();
-
-        ++i;
+        mutex.unlock();
     }
-
-    while (!r_buffer.empty() &&
-           r_buffer.front() == undefined<notification_id>())
-        r_buffer.dequeue();
-
-    ImGui::PopStyleVar();
 }
 
 } // namespace irt

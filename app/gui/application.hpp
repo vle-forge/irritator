@@ -135,7 +135,7 @@ public:
 private:
     data_array<notification, notification_id> data;
     ring_buffer<notification_id>              r_buffer;
-    std::mutex                                mutex;
+    spin_lock                                 mutex;
 };
 
 //! @brief Show notification into a classical window in botton.
