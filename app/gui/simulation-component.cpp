@@ -183,7 +183,7 @@ static void simulation_init(component_editor&  ed,
       });
 }
 
-static void task_simulation_clear(void* param) noexcept
+static void task_simulation_delete(void* param) noexcept
 {
     auto* g_task  = reinterpret_cast<simulation_task*>(param);
     g_task->state = task_status::started;
@@ -559,12 +559,18 @@ void simulation_editor::simulation_update_state() noexcept
         app.add_simulation_task(task_simulation_finish);
     }
 
-    simulation_editor::model_to_move new_position;
-    while (models_to_move.pop(new_position)) {
-        const auto index   = get_index(new_position.id);
-        const auto index_i = static_cast<int>(index);
+    if (mutex.try_lock()) {
+        auto       it = models_to_move.begin();
+        const auto et = models_to_move.end();
 
-        ImNodes::SetNodeScreenSpacePos(index_i, new_position.position);
+        for (; it != et; ++it) {
+            const auto index   = get_index(it->first);
+            const auto index_i = static_cast<int>(index);
+
+            ImNodes::SetNodeScreenSpacePos(index_i, it->second);
+        }
+
+        mutex.unlock();
     }
 }
 
@@ -587,6 +593,7 @@ void simulation_editor::simulation_copy_modeling() noexcept
             app.notifications.enable(notif);
         } else {
             app.simulation_ed.clear();
+            app.add_simulation_task(task_simulation_delete);
             app.add_simulation_task(task_simulation_copy);
         }
     }
@@ -607,7 +614,7 @@ void simulation_editor::simulation_init() noexcept
     }
 }
 
-void simulation_editor::simulation_clear() noexcept
+void simulation_editor::simulation_delete() noexcept
 {
     auto& app = container_of(this, &application::simulation_ed);
 
@@ -615,7 +622,7 @@ void simulation_editor::simulation_clear() noexcept
     // simulation_editor::simulation data.
     app.simulation_ed.display_graph = false;
 
-    app.add_simulation_task(task_simulation_clear);
+    app.add_simulation_task(task_simulation_delete);
 }
 
 void simulation_editor::simulation_start() noexcept

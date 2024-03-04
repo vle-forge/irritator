@@ -592,7 +592,7 @@ struct simulation_editor {
 
     void simulation_copy_modeling() noexcept;
     void simulation_init() noexcept;
-    void simulation_clear() noexcept;
+    void simulation_delete() noexcept;
     void simulation_start() noexcept;
     void simulation_start_1() noexcept;
     void simulation_pause() noexcept;
@@ -602,8 +602,7 @@ struct simulation_editor {
     void enable_or_disable_debug() noexcept;
 
     void remove_simulation_observation_from(model_id id) noexcept;
-    void add_simulation_observation_for(std::string_view name,
-                                        model_id         id) noexcept;
+    void add_simulation_observation_for(model_id id) noexcept;
 
     bool can_edit() const noexcept;
     bool can_display_graph_editor() const noexcept;
@@ -661,12 +660,12 @@ struct simulation_editor {
     int              automatic_layout_iteration = 0;
     ImVector<ImVec2> displacements;
 
-    struct model_to_move {
-        model_id id;
-        ImVec2   position;
-    };
+    small_ring_buffer<std::pair<model_id, ImVec2>, 8>
+      models_to_move; /**< Online simulation created models need to use ImNodes
+                         API to move into the canvas. */
 
-    thread_safe_ring_buffer<model_to_move, 8> models_to_move;
+    spin_lock mutex; /**< Sharing the simulation data from gui's tasks and gui's
+                        draw functions. */
 };
 
 struct data_window {

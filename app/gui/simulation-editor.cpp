@@ -2,7 +2,9 @@
 // Version 1.0. (See accompanying file LICENSE_1_0.txt or copy at
 // http://www.boost.org/LICENSE_1_0.txt)
 
+#include <mutex>
 #include <optional>
+#include <utility>
 
 #define IMGUI_DEFINE_MATH_OPERATORS
 #include <imgui.h>
@@ -57,57 +59,60 @@ simulation_editor::~simulation_editor() noexcept
     }
 }
 
+void task_simulation_unobserve(void* param) noexcept
+{
+    auto* task  = reinterpret_cast<simulation_task*>(param);
+    task->state = task_status::started;
+
+    {
+        std::scoped_lock _(task->app->simulation_ed.mutex);
+
+        if_data_exists_do(
+          task->app->sim.models,
+          enum_cast<model_id>(task->param_1),
+          [&](auto& mdl) noexcept -> void { task->app->sim.unobserve(mdl); });
+    }
+
+    task->state = task_status::finished;
+}
+
+void task_simulation_observe(void* param) noexcept
+{
+    auto* task  = reinterpret_cast<simulation_task*>(param);
+    task->state = task_status::started;
+
+    {
+        std::scoped_lock _(task->app->simulation_ed.mutex);
+
+        if_data_exists_do(
+          task->app->sim.models,
+          enum_cast<model_id>(task->param_1),
+          [&](auto& mdl) noexcept -> void {
+              if (task->app->sim.observers.can_alloc(1)) {
+                  auto& obs = task->app->sim.observers.alloc("new", 0, 0);
+                  task->app->sim.observe(mdl, obs);
+              } else {
+                  auto& n = task->app->notifications.alloc(log_level::error);
+                  n.title = "Too many observer in simulation";
+                  task->app->notifications.enable(n);
+              }
+          });
+    }
+
+    task->state = task_status::finished;
+}
+
 void simulation_editor::remove_simulation_observation_from(
   model_id mdl_id) noexcept
 {
-    auto& sim = container_of(this, &application::simulation_ed).sim;
-
-    if_data_exists_do(sim.models, mdl_id, [&](auto& mdl) noexcept -> void {
-        sim.unobserve(mdl);
-    });
+    auto& app = container_of(this, &application::simulation_ed);
+    app.add_simulation_task(task_simulation_unobserve, ordinal(mdl_id));
 }
 
-void simulation_editor::add_simulation_observation_for(std::string_view name,
-                                                       model_id mdl_id) noexcept
+void simulation_editor::add_simulation_observation_for(model_id mdl_id) noexcept
 {
     auto& app = container_of(this, &application::simulation_ed);
-
-    if_data_exists_do(app.sim.models, mdl_id, [&](auto& mdl) noexcept -> void {
-        if (app.sim.observers.can_alloc(1)) {
-            auto& obs = app.sim.observers.alloc(name, 0, 0);
-            app.sim.observe(mdl, obs);
-        } else {
-            auto& app = container_of(this, &application::simulation_ed);
-            auto& n   = app.notifications.alloc(log_level::error);
-            n.title   = "Too many observer in simulation";
-            app.notifications.enable(n);
-        }
-    });
-
-    // if (auto* mdl = app.sim.models.try_to_get(mdl_id); mdl) {
-    //     if (app.sim.observers.can_alloc(1) && sim_obs.can_alloc(1)) {
-    //         auto& sobs    = sim_obs.alloc(mdl_id, 32768);
-    //         auto  sobs_id = sim_obs.get_id(sobs);
-    //         sobs.name     = name;
-
-    //         auto& obs = app.sim.observers.alloc(name, ordinal(sobs_id), 0);
-    //         app.sim.observe(*mdl, obs);
-    //     } else {
-    //         if (!app.sim.observers.can_alloc(1)) {
-    //             auto& app = container_of(this, &application::simulation_ed);
-    //             auto& n   = app.notifications.alloc(log_level::error);
-    //             n.title   = "Too many observer in simulation";
-    //             app.notifications.enable(n);
-    //         }
-
-    //         if (!sim_obs.can_alloc(1)) {
-    //             auto& app = container_of(this, &application::simulation_ed);
-    //             auto& n   = app.notifications.alloc(log_level::error);
-    //             n.title   = "Too many simulation observation in simulation";
-    //             app.notifications.enable(n);
-    //         }
-    //     }
-    // }
+    app.add_simulation_task(task_simulation_observe, ordinal(mdl_id));
 }
 
 void simulation_editor::select(tree_node_id id) noexcept
@@ -136,8 +141,6 @@ void simulation_editor::unselect() noexcept
 
 void simulation_editor::clear() noexcept
 {
-    auto& app = container_of(this, &application::simulation_ed);
-
     unselect();
 
     force_pause           = false;
@@ -149,7 +152,6 @@ void simulation_editor::clear() noexcept
     real_time             = false;
     have_use_back_advance = false;
 
-    app.sim.clear();
     tl.reset();
 
     simulation_begin   = 0;
@@ -193,26 +195,25 @@ static void show_simulation_action_buttons(simulation_editor& ed,
 
     bool open = false;
 
-    open = ImGui::Button("clear", button);
+    open = ImGui::Button("delete", button);
     if (ImGui::IsItemHovered(ImGuiHoveredFlags_AllowWhenDisabled))
         ImGui::SetTooltip("Destroy all simulations and observations data.");
     if (open)
-        ed.simulation_clear();
+        ed.simulation_delete();
     ImGui::SameLine();
 
     ImGui::BeginDisabled(can_be_initialized);
-    open = ImGui::Button("copy", button);
+    open = ImGui::Button("import", button);
     if (ImGui::IsItemHovered(ImGuiHoveredFlags_AllowWhenDisabled))
-        ImGui::SetTooltip(
-          "Clear all simulations and observations datas and copy "
-          "components again.");
+        ImGui::SetTooltip("Clear all simulations and observations datas and "
+                          "import components.");
     if (open)
         ed.simulation_copy_modeling();
     ImGui::SameLine();
 
     open = ImGui::Button("init", button);
     if (ImGui::IsItemHovered(ImGuiHoveredFlags_AllowWhenDisabled))
-        ImGui::SetTooltip("Initialize simulation models.");
+        ImGui::SetTooltip("Initialize simulation models and data.");
     if (open)
         ed.simulation_init();
     ImGui::EndDisabled();
@@ -989,53 +990,59 @@ void task_simulation_model_add(void* param) noexcept
 
     auto& sim = task->app->sim;
 
-    if (!sim.can_alloc(1)) {
-        auto& n = task->app->notifications.alloc(log_level::error);
-        n.title = "To many model in simulation editor";
-        task->app->notifications.enable(n);
-        task->state = task_status::finished;
-        return;
+    {
+        std::scoped_lock lock{ task->app->simulation_ed.mutex };
+
+        if (!sim.can_alloc(1)) {
+            auto& n = task->app->notifications.alloc(log_level::error);
+            n.title = "To many model in simulation editor";
+            task->app->notifications.enable(n);
+            task->state = task_status::finished;
+            return;
+        }
     }
 
-    auto& mdl    = sim.alloc(enum_cast<dynamics_type>(task->param_1));
-    auto  mdl_id = sim.models.get_id(mdl);
+    {
+        std::scoped_lock lock{ task->app->simulation_ed.mutex };
 
-    attempt_all(
-      [&]() noexcept -> status {
-          irt_check(sim.make_initialize(
-            mdl, task->app->simulation_ed.simulation_current));
+        auto& mdl    = sim.alloc(enum_cast<dynamics_type>(task->param_1));
+        auto  mdl_id = sim.models.get_id(mdl);
 
-          const auto x = static_cast<float>(task->param_2);
-          const auto y = static_cast<float>(task->param_3);
+        attempt_all(
+          [&]() noexcept -> status {
+              irt_check(sim.make_initialize(
+                mdl, task->app->simulation_ed.simulation_current));
 
-          const ImVec2 pos{ x, y };
+              const ImVec2 pos{ static_cast<float>(task->param_2),
+                                static_cast<float>(task->param_3) };
 
-          task->app->simulation_ed.models_to_move.push(
-            simulation_editor::model_to_move{ .id = mdl_id, .position = pos });
-          task->state = task_status::finished;
+              task->app->simulation_ed.models_to_move.emplace_enqueue(mdl_id,
+                                                                      pos);
+              task->state = task_status::finished;
 
-          return success();
-      },
+              return success();
+          },
 
-      [&](const simulation::part s) noexcept -> void {
-          sim.deallocate(mdl_id);
+          [&](const simulation::part s) noexcept -> void {
+              sim.deallocate(mdl_id);
 
-          auto& n = task->app->notifications.alloc(log_level::error);
-          n.title = "Fail to initialize model";
-          format(n.message, "Error: {}", ordinal(s));
-          task->app->notifications.enable(n);
-          task->state = task_status::finished;
-      },
+              auto& n = task->app->notifications.alloc(log_level::error);
+              n.title = "Fail to initialize model";
+              format(n.message, "Error: {}", ordinal(s));
+              task->app->notifications.enable(n);
+              task->state = task_status::finished;
+          },
 
-      [&]() noexcept -> void {
-          sim.deallocate(mdl_id);
+          [&]() noexcept -> void {
+              sim.deallocate(mdl_id);
 
-          auto& n = task->app->notifications.alloc(log_level::error);
-          n.title = "Fail to initialize model";
-          format(n.message, "Unknown error");
-          task->app->notifications.enable(n);
-          task->state = task_status::finished;
-      });
+              auto& n = task->app->notifications.alloc(log_level::error);
+              n.title = "Fail to initialize model";
+              format(n.message, "Unknown error");
+              task->app->notifications.enable(n);
+              task->state = task_status::finished;
+          });
+    }
 }
 
 void task_simulation_model_del(void* param) noexcept
@@ -1043,9 +1050,13 @@ void task_simulation_model_del(void* param) noexcept
     auto* task  = reinterpret_cast<simulation_task*>(param);
     task->state = task_status::started;
 
-    auto& sim    = task->app->sim;
-    auto  mdl_id = enum_cast<model_id>(task->param_1);
-    sim.deallocate(mdl_id);
+    {
+        std::scoped_lock lock{ task->app->simulation_ed.mutex };
+
+        auto& sim    = task->app->sim;
+        auto  mdl_id = enum_cast<model_id>(task->param_1);
+        sim.deallocate(mdl_id);
+    }
 
     task->state = task_status::finished;
 }
