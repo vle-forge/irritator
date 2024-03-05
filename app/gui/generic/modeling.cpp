@@ -313,7 +313,7 @@ static void show(component_editor& ed,
                       dynamics_type_names[ordinal(c.id.mdl_type)]);
     ImNodes::EndNodeTitleBar();
 
-    auto changed = dispatcher(
+    [[maybe_unused]] auto changed = dispatcher(
       type,
       [](auto tag, auto& app, auto& p, auto id) noexcept -> bool {
           const auto X = get_dynamics_input_names(tag);
@@ -330,9 +330,6 @@ static void show(component_editor& ed,
       app,
       app.mod.children_parameters[index],
       id);
-
-    if (changed)
-        fmt::print("Send signal to component as updated\n");
 
     ImNodes::EndNode();
 

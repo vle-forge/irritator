@@ -1503,10 +1503,10 @@ bool show_parameter(dynamics_constant_tag,
                     parameter& p) noexcept
 {
     static const char* type_names[] = { "constant",
-                                        "incoming_component_all",
-                                        "outcoming_component_all",
-                                        "incoming_component_n",
-                                        "outcoming_component_n" };
+                                        "incoming component all",
+                                        "outcoming component all",
+                                        "incoming component n",
+                                        "outcoming component n" };
 
     bool is_changed = false;
     irt_assert(
@@ -1530,7 +1530,7 @@ bool show_parameter(dynamics_constant_tag,
     if (i == ordinal(constant::init_type::incoming_component_n) ||
         i == ordinal(constant::init_type::outcoming_component_n)) {
         int port = static_cast<int>(p.integers[1]);
-        if (ImGui::InputInt("port", &port)) {
+        if (ImGui::SliderInt("port", &port, 0, 32)) {
             p.integers[1] = static_cast<i64>(port);
             is_changed    = true;
         }
