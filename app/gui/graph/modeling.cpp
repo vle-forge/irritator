@@ -353,7 +353,9 @@ static bool show_random_graph_params(modeling&        mod,
                 for (const auto& elem : mod.dir_paths) {
                     const auto elem_id     = mod.dir_paths.get_id(elem);
                     const auto is_selected = elem_id == param->dir;
-                    const auto is_lock = dir_path::state::lock == dir->status;
+
+                    const auto is_lock =
+                      dir != nullptr and dir_path::state::lock == dir->status;
 
                     if (is_lock) {
                         if (ImGui::Selectable(elem.path.c_str(), is_selected)) {
@@ -375,8 +377,7 @@ static bool show_random_graph_params(modeling&        mod,
                         ImGui::SameLine(ImGui::GetContentRegionAvail().x -
                                         ImGui::GetStyle().ItemSpacing.x - 20.f);
 
-                        ImGui::BeginDisabled(dir->status ==
-                                             dir_path::state::lock);
+                        ImGui::BeginDisabled(is_lock);
                         if (ImGui::SmallButton("R"))
                             container_of(&mod, &application::mod)
                               .add_gui_task(task_dir_path_refresh,
