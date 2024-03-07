@@ -5,6 +5,7 @@
 #ifndef ORG_VLEPROJECT_IRRITATOR_CONTAINER_2023
 #define ORG_VLEPROJECT_IRRITATOR_CONTAINER_2023
 
+#include <functional>
 #include <irritator/macros.hpp>
 
 #include <algorithm>
@@ -977,15 +978,31 @@ public:
 
     constexpr ~data_array() noexcept;
 
-    //! @brief Reserve more memory than current capacity.
+    //! Try to reserve more memory than current capacity.
     //!
     //! @param capacity The new capacity. Do nothing if this @c capacity
     //! parameter is less or equal than the current @c capacity().
-    //! @return @c true if the function call succedded, @c false otherwise.
-    //! @attention  If the @c reserve() succedded a reallocation takes
+    //!
+    //! @attention  If the `reserve()` succedded a reallocation takes
     //! place, in which case all iterators (including the end() iterator)
     //! and all references to the elements are invalidated.
-    bool reserve(std::integral auto capacity) noexcept;
+    //!
+    //! @attention Use `can_alloc()` to be sure `reserve()` succeed.
+    void reserve(std::integral auto capacity) noexcept;
+
+    //! Try to grow the capacity of memory.
+    //!
+    //! - current capacity equals 0 then tries to reserve 8 elements.
+    //! - current capacity equals size then tries to reserve capacity * 2
+    //!   elements.
+    //! - else tries to reserve capacity * 3 / 2 elements.
+    //!
+    //! @attention  If the `grow()` succedded a reallocation takes
+    //! place, in which case all iterators (including the end() iterator)
+    //! and all references to the elements are invalidated.
+    //!
+    //! @attention Use `can_alloc()` to be sure `grow()` succeed.
+    void grow() noexcept;
 
     //! @brief Destroy all items in the data_array but keep memory
     //!  allocation.
@@ -1180,9 +1197,20 @@ public:
     constexpr bool       is_free_list_empty() const noexcept;
 };
 
-//! @brief A ring-buffer based on a fixed size container. m_head point to
+//! A ring-buffer based on a fixed size container. m_head point to
 //! the first element can be dequeue while m_tail point to the first
 //! constructible element in the ring.
+//!
+//!     --+----+----+----+----+----+--
+//!       |    |    |    |    |    |
+//!       |    |    |    |    |    |
+//!       |    |    |    |    |    |
+//!     --+----+----+----+----+----+--
+//!       head                tail
+//!
+//!       ----->              ----->
+//!       dequeue()           enqueue()
+//!
 //! @tparam T Any type (trivial or not).
 template<typename T, typename A = default_allocator>
 class ring_buffer
@@ -1485,9 +1513,20 @@ public:
     constexpr iterator erase(iterator to_del) noexcept;
 };
 
-//! @brief A ring-buffer based on a fixed size container. m_head point to
+//! A ring-buffer based on a fixed size container. m_head point to
 //! the first element can be dequeue while m_tail point to the first
 //! constructible element in the ring.
+//!
+//!     --+----+----+----+----+----+--
+//!       |    |    |    |    |    |
+//!       |    |    |    |    |    |
+//!       |    |    |    |    |    |
+//!     --+----+----+----+----+----+--
+//!       head                tail
+//!
+//!       ----->              ----->
+//!       dequeue()           enqueue()
+//!
 //! @tparam T Any type (trivial or not).
 template<typename T, int length>
 class small_ring_buffer
@@ -2002,22 +2041,27 @@ constexpr data_array<T, Identifier, A>::~data_array() noexcept
 }
 
 template<typename T, typename Identifier, typename A>
-bool data_array<T, Identifier, A>::reserve(std::integral auto capacity) noexcept
+void data_array<T, Identifier, A>::reserve(std::integral auto capacity) noexcept
 {
-    static_assert(std::is_move_constructible_v<T> or
+    static_assert(std::is_trivial_v<T> or std::is_move_constructible_v<T> or
                   std::is_copy_constructible_v<T>);
+
     debug::ensure(
       std::cmp_less(capacity, std::numeric_limits<index_type>::max()));
 
     if (std::cmp_equal(capacity, 0) or
         std::cmp_less_equal(capacity, m_capacity))
-        return true;
+        return;
 
     item* new_buffer = m_alloc.template allocate<item>(capacity);
     if (new_buffer == nullptr)
-        return false;
+        return;
 
-    if constexpr (std::is_move_constructible_v<T>) {
+    if constexpr (std::is_trivial_v<T>) {
+        std::uninitialized_copy_n(reinterpret_cast<std::byte*>(&m_items[0]),
+                                  sizeof(item) * m_max_used,
+                                  reinterpret_cast<std::byte*>(&new_buffer[0]));
+    } else if constexpr (std::is_move_constructible_v<T>) {
         for (index_type i = 0; i != m_max_used; ++i) {
             if (is_valid(m_items[i].id)) {
                 std::construct_at(&new_buffer[i].item,
@@ -2049,8 +2093,22 @@ bool data_array<T, Identifier, A>::reserve(std::integral auto capacity) noexcept
 
     m_items    = new_buffer;
     m_capacity = static_cast<index_type>(capacity);
+}
 
-    return true;
+template<typename T, typename Identifier, typename A>
+void data_array<T, Identifier, A>::grow() noexcept
+{
+    if (m_capacity <= 4) {
+        reserve(8);
+    } else {
+        const auto capacity =
+          m_max_size == m_capacity ? m_capacity * 2 : m_capacity * 3 / 2;
+
+        if (std::cmp_less(capacity, std::numeric_limits<index_type>::max()))
+            reserve(capacity);
+        else
+            reserve(std::numeric_limits<index_type>::max());
+    }
 }
 
 template<typename T, typename Identifier, typename A>

@@ -83,32 +83,56 @@ modeling::modeling() noexcept
 
 status modeling::init(modeling_initializer& p) noexcept
 {
-    if (!(descriptions.reserve(p.description_capacity)))
+    descriptions.reserve(p.description_capacity);
+    if (not descriptions.can_alloc())
         return new_error(modeling::part::descriptions);
-    if (!(ports.reserve(p.model_capacity)))
+
+    ports.reserve(p.model_capacity);
+    if (not ports.can_alloc())
         return new_error(modeling::part::ports);
-    if (!(components.reserve(p.component_capacity)))
+
+    components.reserve(p.component_capacity);
+    if (not components.can_alloc())
         return new_error(modeling::part::components);
-    if (!(grid_components.reserve(p.component_capacity)))
+
+    grid_components.reserve(p.component_capacity);
+    if (not grid_components.can_alloc())
         return new_error(modeling::part::grid_components);
-    if (!(graph_components.reserve(p.component_capacity)))
+
+    graph_components.reserve(p.component_capacity);
+    if (not graph_components.can_alloc())
         return new_error(modeling::part::graph_components);
-    if (!(generic_components.reserve(p.component_capacity)))
+
+    generic_components.reserve(p.component_capacity);
+    if (not generic_components.can_alloc())
         return new_error(modeling::part::generic_components);
-    if (!(hsm_components.reserve(p.component_capacity)))
+
+    hsm_components.reserve(p.component_capacity);
+    if (not hsm_components.can_alloc())
         return new_error(modeling::part::hsm_components);
-    if (!(dir_paths.reserve(p.dir_path_capacity)))
+
+    dir_paths.reserve(p.dir_path_capacity);
+    if (not dir_paths.can_alloc())
         return new_error(modeling::part::dir_paths);
-    if (!(file_paths.reserve(p.file_path_capacity)))
+
+    file_paths.reserve(p.file_path_capacity);
+    if (not file_paths.can_alloc())
         return new_error(modeling::part::file_paths);
-    if (!(registred_paths.reserve(p.dir_path_capacity)))
+
+    registred_paths.reserve(p.dir_path_capacity);
+    if (not registred_paths.can_alloc())
         return new_error(modeling::part::registred_paths);
 
-    if (!(hsms.reserve(p.component_capacity)))
+    hsms.reserve(p.component_capacity);
+    if (not hsms.can_alloc())
         return new_error(modeling::part::hsms);
-    if (!(children.reserve(p.children_capacity)))
+
+    children.reserve(p.children_capacity);
+    if (not children.can_alloc())
         return new_error(modeling::part::children);
-    if (!(connections.reserve(p.connection_capacity)))
+
+    connections.reserve(p.connection_capacity);
+    if (not connections.can_alloc())
         return new_error(modeling::part::connections);
 
     children_positions.resize(children.capacity());

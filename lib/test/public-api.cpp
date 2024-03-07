@@ -973,7 +973,8 @@ int main()
               sizeof(irt::data_array<position, position64_id>::value_type));
         }
 
-        expect(!!small_array.reserve(3));
+        small_array.reserve(3);
+        expect(small_array.can_alloc(3));
         expect(small_array.max_size() == 0);
         expect(small_array.max_used() == 0);
         expect(small_array.capacity() == 3);
@@ -986,7 +987,8 @@ int main()
         expect(array.next_key() == 1);
         expect(array.is_free_list_empty());
 
-        expect(!!array.reserve(3));
+        array.reserve(3);
+        expect(array.can_alloc(3));
 
         expect(array.max_size() == 0);
         expect(array.max_used() == 0);
@@ -1032,7 +1034,8 @@ int main()
         expect(array.next_key() == 1);
         expect(array.is_free_list_empty());
 
-        expect(!!array.reserve(3));
+        array.reserve(3);
+        expect(array.can_alloc(3));
 
         {
             auto& d1 = array.alloc(1.f);

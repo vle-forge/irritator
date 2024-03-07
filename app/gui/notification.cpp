@@ -114,17 +114,7 @@ notification::notification(log_level level_) noexcept
 notification_manager::notification_manager() noexcept
   : r_buffer(notification_number)
 {
-    auto nb = notification_number;
-
-    for (;;) {
-        if (data.reserve(nb))
-            break;
-
-        nb = nb / 2;
-
-        if (nb == 0)
-            break;
-    }
+    data.reserve(notification_number);
 }
 
 notification& notification_manager::alloc() noexcept

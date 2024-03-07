@@ -24,9 +24,10 @@ application::application() noexcept
     settings_wnd.update();
     settings_wnd.apply_default_style();
 
-    if (!sim_tasks.reserve(simulation_task_number))
-        log_w(*this, log_level::error, "Tasks Initialization failed");
-    if (!gui_tasks.reserve(simulation_task_number))
+    sim_tasks.reserve(simulation_task_number);
+    gui_tasks.reserve(simulation_task_number);
+
+    if (not sim_tasks.can_alloc() or not gui_tasks.can_alloc())
         log_w(*this, log_level::error, "Tasks Initialization failed");
 
     log_w(*this, log_level::info, "GUI Irritator start\n");
@@ -153,18 +154,7 @@ bool application::init() noexcept
     // simulation_ed.plot_obs.clear();
     // simulation_ed.grid_obs.resize(pj.grid_observers.size());
 
-    if (!simulation_ed.copy_obs.reserve(16)) {
-        log_w(*this,
-              log_level::error,
-              "Fail to initialize copy simulation observation\n");
-        return false;
-    }
-
-    // if (auto ret = mod.srcs.init(50); !ret) {
-    //     log_w(
-    //       *this, log_level::error, "Fail to initialize external sources:\n");
-    //     return false;
-    // }
+    simulation_ed.copy_obs.reserve(16);
 
     if (auto ret = mod.fill_internal_components(); !ret) {
         log_w(*this,
@@ -172,26 +162,9 @@ bool application::init() noexcept
               "Fail to fill internal component list: {}\n");
     }
 
-    if (!graphs.reserve(32)) {
-        log_w(*this,
-              log_level::error,
-              "Fail to initialize graph component editors:\n");
-        return false;
-    }
-
-    if (!grids.reserve(32)) {
-        log_w(*this,
-              log_level::error,
-              "Fail to initialize grid component editors:\n");
-        return false;
-    }
-
-    if (!generics.reserve(32)) {
-        log_w(*this,
-              log_level::error,
-              "Fail to initialize generic component editors:\n");
-        return false;
-    }
+    graphs.reserve(32);
+    grids.reserve(32);
+    generics.reserve(32);
 
     if (auto ret = mod.fill_components(); !ret)
         log_w(*this, log_level::error, "Fail to read all components\n");

@@ -450,7 +450,7 @@ static status make_tree_leaf(simulation_copy& sc,
     {
         irt_assert(unique_id != 0);
 
-        if (ch.flags[child_flags::configurable] and 
+        if (ch.flags[child_flags::configurable] and
             ch.flags[child_flags::observable])
             parent.nodes_v.data.emplace_back(unique_id, new_mdl_id);
     }
@@ -1019,16 +1019,21 @@ static status simulation_copy_sources(project::cache& cache,
 {
     sim.srcs.clear();
 
-    if (!sim.srcs.constant_sources.reserve(
-          mod.srcs.constant_sources.capacity()))
+    sim.srcs.constant_sources.reserve(mod.srcs.constant_sources.capacity());
+    if (not sim.srcs.constant_sources.can_alloc())
         return new_error(external_source::part::constant_source);
-    if (!sim.srcs.binary_file_sources.reserve(
-          mod.srcs.binary_file_sources.capacity()))
+
+    sim.srcs.binary_file_sources.reserve(
+      mod.srcs.binary_file_sources.capacity());
+    if (not sim.srcs.binary_file_sources.can_alloc())
         return new_error(external_source::part::binary_file_source);
-    if (!sim.srcs.text_file_sources.reserve(
-          mod.srcs.text_file_sources.capacity()))
+
+    sim.srcs.text_file_sources.reserve(mod.srcs.text_file_sources.capacity());
+    if (not sim.srcs.text_file_sources.can_alloc())
         return new_error(external_source::part::text_file_source);
-    if (!sim.srcs.random_sources.reserve(mod.srcs.random_sources.capacity()))
+
+    sim.srcs.random_sources.reserve(mod.srcs.random_sources.capacity());
+    if (not sim.srcs.random_sources.can_alloc())
         return new_error(external_source::part::random_source);
 
     {
@@ -1151,13 +1156,17 @@ static status make_tree_from(simulation_copy&                     sc,
 
 status project::init(const modeling_initializer& init) noexcept
 {
-    if (!tree_nodes.reserve(init.tree_capacity))
+    tree_nodes.reserve(init.tree_capacity);
+    if (not tree_nodes.can_alloc())
         return new_error(project::part::tree_nodes);
-    if (!variable_observers.reserve(init.tree_capacity))
+    variable_observers.reserve(init.tree_capacity);
+    if (not variable_observers.can_alloc())
         return new_error(project::part::variable_observers);
-    if (!grid_observers.reserve(init.tree_capacity))
+    grid_observers.reserve(init.tree_capacity);
+    if (not grid_observers.can_alloc())
         return new_error(project::part::grid_observers);
-    if (!global_parameters.reserve(init.tree_capacity))
+    global_parameters.reserve(init.tree_capacity);
+    if (not global_parameters.can_alloc())
         return new_error(project::part::global_parameters);
 
     grid_observation_systems.resize(init.tree_capacity);

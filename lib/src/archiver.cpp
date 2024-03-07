@@ -1078,31 +1078,18 @@ static status do_deserialize(Dearchiver&             arc,
         sim.models.clear();
         sim.hsms.clear();
 
-        if (!sim.srcs.constant_sources.reserve(constant_external_source))
-            return new_error(binary_archiver::not_enough_memory{});
-        if (!sim.srcs.binary_file_sources.reserve(binary_external_source))
-            return new_error(binary_archiver::not_enough_memory{});
-        if (!sim.srcs.text_file_sources.reserve(text_external_source))
-            return new_error(binary_archiver::not_enough_memory{});
-        if (!sim.srcs.random_sources.reserve(random_external_source))
-            return new_error(binary_archiver::not_enough_memory{});
-        if (!sim.models.reserve(models))
-            return new_error(binary_archiver::not_enough_memory{});
-        if (!sim.hsms.reserve(hsms))
-            return new_error(binary_archiver::not_enough_memory{});
+        sim.srcs.constant_sources.reserve(constant_external_source);
+        sim.srcs.binary_file_sources.reserve(binary_external_source);
+        sim.srcs.text_file_sources.reserve(text_external_source);
+        sim.srcs.random_sources.reserve(random_external_source);
+        sim.models.reserve(models);
+        sim.hsms.reserve(hsms);
 
-        if (!sim.srcs.constant_sources.can_alloc(constant_external_source))
-            return new_error(binary_archiver::not_enough_memory{});
-        if (!sim.srcs.binary_file_sources.can_alloc(binary_external_source))
-            return new_error(binary_archiver::not_enough_memory{});
-        if (!sim.srcs.text_file_sources.can_alloc(text_external_source))
-            return new_error(binary_archiver::not_enough_memory{});
-        if (!sim.srcs.random_sources.can_alloc(random_external_source))
-            return new_error(binary_archiver::not_enough_memory{});
-
-        if (!sim.models.can_alloc(models))
-            return new_error(binary_archiver::not_enough_memory{});
-        if (!sim.hsms.can_alloc(hsms))
+        if (not sim.srcs.constant_sources.can_alloc() or
+            not sim.srcs.binary_file_sources.can_alloc() or
+            not sim.srcs.text_file_sources.can_alloc() or
+            not sim.srcs.random_sources.can_alloc() or
+            not sim.models.can_alloc() or not sim.hsms.can_alloc())
             return new_error(binary_archiver::not_enough_memory{});
     }
 
