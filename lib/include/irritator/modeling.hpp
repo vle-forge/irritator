@@ -767,59 +767,47 @@ struct tree_node {
     /// project::set or @c project::rebuild functions.
     table<child_id, model_id> child_to_sim;
 
-    using node_v = std::variant<tree_node_id, model_id>;
-
-    table<u64, node_v> nodes_v;
+    table<u64, tree_node_id> unique_id_to_tree_node_id;
+    table<u64, model_id>     unique_id_to_model_id;
 
     vector<global_parameter_id>        parameters_ids;
     vector<variable_observer_id>       variable_observer_ids;
     vector<graph_modeling_observer_id> graph_observer_ids;
     vector<grid_modeling_observer_id>  grid_observer_ids;
 
-    auto get_model_id(const node_v v) const noexcept -> std::optional<model_id>
+    auto get_model_id(const u64 u_id) const noexcept -> std::optional<model_id>
     {
-        auto* ptr = std::get_if<model_id>(&v);
+        auto* ptr = unique_id_to_model_id.get(u_id);
+
         return ptr ? std::make_optional(*ptr) : std::nullopt;
     }
 
-    auto get_model_id(u64 unique_id) const noexcept -> std::optional<model_id>
-    {
-        auto* ptr = nodes_v.get(unique_id);
-        return ptr ? get_model_id(*ptr) : std::nullopt;
-    }
-
-    auto get_tree_node_id(const node_v v) const noexcept
+    auto get_tree_node_id(const u64 u_id) const noexcept
       -> std::optional<tree_node_id>
     {
-        auto* ptr = std::get_if<tree_node_id>(&v);
+        auto* ptr = unique_id_to_tree_node_id.get(u_id);
+
         return ptr ? std::make_optional(*ptr) : std::nullopt;
-    }
-
-    auto get_tree_node_id(u64 unique_id) const noexcept
-      -> std::optional<tree_node_id>
-    {
-        auto* ptr = nodes_v.get(unique_id);
-        return ptr ? get_tree_node_id(*ptr) : std::nullopt;
     }
 
     auto get_unique_id(const model_id mdl_id) const noexcept -> u64
     {
-        for (auto x : nodes_v.data)
-            if (auto* ptr = std::get_if<model_id>(&x.value);
-                ptr && *ptr == mdl_id)
-                return x.id;
+        auto it = std::find_if(
+          unique_id_to_model_id.data.begin(),
+          unique_id_to_model_id.data.end(),
+          [mdl_id](const auto& elem) noexcept { return elem.value == mdl_id; });
 
-        return 0;
+        return it == unique_id_to_model_id.data.end() ? 0u : it->id;
     }
 
     auto get_unique_id(const tree_node_id tn_id) const noexcept -> u64
     {
-        for (auto x : nodes_v.data)
-            if (auto* ptr = std::get_if<tree_node_id>(&x.value);
-                ptr && *ptr == tn_id)
-                return x.id;
+        auto it = std::find_if(
+          unique_id_to_tree_node_id.data.begin(),
+          unique_id_to_tree_node_id.data.end(),
+          [tn_id](const auto& elem) noexcept { return elem.value == tn_id; });
 
-        return 0;
+        return it == unique_id_to_tree_node_id.data.end() ? 0u : it->id;
     }
 
     union node {

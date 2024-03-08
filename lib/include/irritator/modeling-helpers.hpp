@@ -229,21 +229,11 @@ void if_child_is_model_do(modeling& mod, child_id id, Function&& f) noexcept
 template<typename Function>
 void for_each_model(simulation& sim, tree_node& tn, Function&& f) noexcept
 {
-    for (int i = 0, e = tn.nodes_v.data.ssize(); i < e; ++i) {
-        switch (tn.nodes_v.data[i].value.index()) {
-        case 0:
-            break;
-
-        case 1: {
-            auto& mdl_id = *std::get_if<model_id>(&tn.nodes_v.data[i].value);
-            if_data_exists_do(sim.models, mdl_id, [&](auto& mdl) {
-                f(sim, tn, tn.nodes_v.data[i].id, mdl);
-            });
-        } break;
-
-        default:
-            unreachable();
-        }
+    for (int i = 0, e = tn.unique_id_to_model_id.data.ssize(); i < e; ++i) {
+        if_data_exists_do(
+          sim.models, tn.unique_id_to_model_id.data[i].value, [&](auto& mdl) {
+              f(sim, tn, tn.unique_id_to_model_id.data[i].id, mdl);
+          });
     }
 }
 

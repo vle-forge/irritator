@@ -452,7 +452,8 @@ static status make_tree_leaf(simulation_copy& sc,
 
         if (ch.flags[child_flags::configurable] and
             ch.flags[child_flags::observable])
-            parent.nodes_v.data.emplace_back(unique_id, new_mdl_id);
+            parent.unique_id_to_model_id.data.emplace_back(unique_id,
+                                                           new_mdl_id);
     }
 
     return success();
@@ -491,7 +492,8 @@ static status make_tree_recursive(simulation_copy&   sc,
 
     new_tree.child_to_node.sort();
     new_tree.child_to_sim.sort();
-    new_tree.nodes_v.sort();
+    new_tree.unique_id_to_model_id.sort();
+    new_tree.unique_id_to_tree_node_id.sort();
 
     return success();
 }
@@ -526,7 +528,8 @@ static status make_tree_recursive(simulation_copy& sc,
 
     new_tree.child_to_node.sort();
     new_tree.child_to_sim.sort();
-    new_tree.nodes_v.sort();
+    new_tree.unique_id_to_model_id.sort();
+    new_tree.unique_id_to_tree_node_id.sort();
 
     return success();
 }
@@ -561,7 +564,8 @@ static status make_tree_recursive(simulation_copy& sc,
 
     new_tree.child_to_node.sort();
     new_tree.child_to_sim.sort();
-    new_tree.nodes_v.sort();
+    new_tree.unique_id_to_model_id.sort();
+    new_tree.unique_id_to_tree_node_id.sort();
 
     return success();
 }
@@ -1364,26 +1368,23 @@ auto project::get_model(const tree_node&        tn,
       path.ids.ssize() - 2; // Do not read the first child of the grid component
                             // tree node. Use tn instead.
 
-    for (int i = first; i >= 0; --i) {
-        const tree_node::node_v* ptr = from->nodes_v.get(path.ids[i]);
+    int i = first;
+    while (i >= 1) {
+        const auto* ptr = from->unique_id_to_tree_node_id.get(path.ids[i]);
 
-        if (!ptr)
-            break;
-
-        if (i != 0) {
-            const auto* tn_id = std::get_if<tree_node_id>(ptr);
-            if (!tn_id)
-                break;
-
-            ret_node_id = *tn_id;
-            from        = tree_nodes.try_to_get(*tn_id);
+        if (ptr) {
+            ret_node_id = *ptr;
+            from        = tree_nodes.try_to_get(*ptr);
+            --i;
         } else {
-            const auto* mdl_id = std::get_if<model_id>(ptr);
-            if (!mdl_id)
-                break;
-
-            ret_mdl_id = *mdl_id;
+            break;
         }
+    }
+
+    if (i == 0 and from != nullptr) {
+        const auto* mdl_id_ptr = from->unique_id_to_model_id.get(path.ids[0]);
+        if (mdl_id_ptr)
+            ret_mdl_id = *mdl_id_ptr;
     }
 
     return std::make_pair(ret_node_id, ret_mdl_id);
