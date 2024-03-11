@@ -9,21 +9,70 @@
 
 #include <boost/ut.hpp>
 
-void function_1(void* param) noexcept
+using heap_mr = irt::static_memory_resource<256 * 256 * 16>;
+
+static heap_mr mem;
+
+static void function_1(void* param) noexcept
 {
     auto* counter = reinterpret_cast<std::atomic_int*>(param);
     (*counter) += 1;
 }
 
-void function_100(void* param) noexcept
+static void function_100(void* param) noexcept
 {
     auto* counter = reinterpret_cast<std::atomic_int*>(param);
     (*counter) += 100;
 }
 
+using data_task = irt::small_function<4, void(void)>;
+enum class data_task_id : irt::u32;
+
 int main()
 {
     using namespace boost::ut;
+
+    "data-task-copy-capture"_test = [] {
+        irt::data_array<data_task, data_task_id, irt::mr_allocator<heap_mr>> d(
+          &mem, 32);
+
+        int a = 16;
+        int b = 32;
+
+        auto& first = d.alloc([a, b]() noexcept {
+            expect(eq(a, 16));
+            expect(eq(b, 32));
+        });
+
+        a *= 10;
+        b *= 10;
+
+        first();
+
+        expect(eq(a, 160));
+        expect(eq(b, 320));
+    };
+
+    "data-task-reference-capture"_test = [] {
+        irt::data_array<data_task, data_task_id, irt::mr_allocator<heap_mr>> d(
+          &mem, 32);
+
+        int a = 16;
+        int b = 32;
+
+        auto& first = d.alloc([&a, &b]() noexcept {
+            expect(eq(a, 160));
+            expect(eq(b, 320));
+        });
+
+        a *= 10;
+        b *= 10;
+
+        first();
+
+        expect(eq(a, 160));
+        expect(eq(b, 320));
+    };
 
     "spin-lock"_test = [] {
         int            counter = 0;
