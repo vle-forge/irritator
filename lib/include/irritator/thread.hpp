@@ -20,7 +20,6 @@ template<typename T>
 struct worker_base;
 struct worker_main;
 struct worker_generic;
-struct task;
 struct task_list;
 struct unordered_task_list;
 struct worker_stats;
@@ -71,7 +70,9 @@ public:
     static_assert(std::is_nothrow_destructible_v<T> ||
                   std::is_trivially_destructible_v<T>);
     static_assert(std::is_nothrow_copy_assignable_v<T> ||
-                  std::is_trivially_copy_assignable_v<T>);
+                  std::is_trivially_copy_assignable_v<T> ||
+                  std::is_nothrow_move_assignable_v<T> ||
+                  std::is_trivially_move_assignable_v<T>);
 
     constexpr thread_safe_ring_buffer() noexcept = default;
 
@@ -98,7 +99,12 @@ public:
         if (tail == m_head.load(std::memory_order_acquire))
             return false;
 
-        value = m_ring[tail];
+        else if constexpr (std::is_trivially_move_assignable_v<T> or
+                           std::is_nothrow_move_assignable_v<T>)
+            value = std::move(m_ring[tail]);
+        else
+            value = m_ring[tail];
+
         m_tail.store(next(tail), std::memory_order_release);
 
         return true;
@@ -117,28 +123,30 @@ private:
     std::atomic_int m_head, m_tail;
 };
 
-using task_function = void (*)(void*) noexcept;
+// Simplicity key to scalability
+// – Task has well defined input and output
+// – Independent stateless, no stalls, always completes
+// – Task added to @c main_task_list
+// – Task fully independent
+using task =
+  small_function<(sizeof(void*) * 2) + (sizeof(u64) * 4), void(void)>;
 
-//! Simplicity key to scalability
-//! – Task has well defined input and output
-//! – Independent stateless, no stalls, always completes
-//! – Task added to @c main_task_list
-//! – Task fully independent
-struct task {
-    task_function function  = nullptr;
-    void*         parameter = nullptr;
-};
-
-//! Simplicity key to scalability
-//! - Job build by task for large parallelisable task
-//! – Job has well defined input and output
-//! – Independent stateless, no stalls, always completes
-//! – Job added to @c temp_task_list
-//! – Task fully independent
+// Simplicity key to scalability
+// - Job build by task for large parallelisable task
+// – Job has well defined input and output
+// – Independent stateless, no stalls, always completes
+// – Job added to @c temp_task_list
+// – Task fully independent
 struct job {
-    task_function    function  = nullptr;
-    void*            parameter = nullptr;
-    std::atomic_int* counter   = nullptr;
+    job() noexcept = default;
+
+    job(const task& t, std::atomic_int* cnt) noexcept
+      : function(t)
+      , counter(cnt)
+    {}
+
+    task             function;
+    std::atomic_int* counter = nullptr;
 };
 
 //! @brief Simple task list access by only one thread
@@ -161,8 +169,9 @@ struct task_list {
     task_list& operator=(const task_list& other) = delete;
     task_list& operator=(task_list&& other)      = delete;
 
-    //! Add a task into @c tasks ring (can wait until ring buffer has a place).
-    void add(task_function function, void* parameter) noexcept;
+    // Add a task into @c tasks ring (can wait until ring buffer has a place).
+    template<typename Fn>
+    void add(Fn&& fn) noexcept;
     void submit() noexcept;
     void wait() noexcept;
     void terminate() noexcept;
@@ -186,7 +195,9 @@ struct unordered_task_list {
     unordered_task_list& operator=(const unordered_task_list& other) = delete;
     unordered_task_list& operator=(unordered_task_list&& other)      = delete;
 
-    bool add(task_function function, void* parameter) noexcept;
+    // Add a task into @c tasks ring (can wait until ring buffer has a place).
+    template<typename Fn>
+    bool add(Fn&& fn) noexcept;
     void submit() noexcept;
     void wait() noexcept;
     void terminate() noexcept;
@@ -339,9 +350,10 @@ inline task_list::task_list(task_list&& other) noexcept
     stats.start_time = std::chrono::steady_clock::now();
 }
 
-inline void task_list::add(task_function function, void* parameter) noexcept
+template<typename Fn>
+void task_list::add(Fn&& fn) noexcept
 {
-    while (!tasks.push(task{ .function = function, .parameter = parameter })) {
+    while (!tasks.push(task{ fn })) {
         wakeup.test_and_set();
         wakeup.notify_all();
 
@@ -386,8 +398,8 @@ inline unordered_task_list::unordered_task_list(worker_stats& stats_) noexcept
     stats.start_time = std::chrono::steady_clock::now();
 }
 
-inline bool unordered_task_list::add(task_function function,
-                                     void*         parameter) noexcept
+template<typename Fn>
+inline bool unordered_task_list::add(Fn&& fn) noexcept
 {
     irt_assert(any_equal(phase, ordinal(phase::add)));
     phase = ordinal(phase::add);
@@ -397,7 +409,7 @@ inline bool unordered_task_list::add(task_function function,
 
     ++stats.num_submitted_tasks;
 
-    tasks.emplace_back(task{ .function = function, .parameter = parameter });
+    tasks.emplace_back(task{ fn });
     return true;
 }
 
@@ -414,7 +426,7 @@ inline void unordered_task_list::submit() noexcept
             const int old_i = i;
 
             while (i < e) {
-                job j{ tasks[i].function, tasks[i].parameter, &current_task };
+                job j(tasks[i], &current_task);
 
                 if (w->tasks.push(j)) {
                     ++i;
@@ -533,7 +545,7 @@ inline void worker_main::run() noexcept
         for (;;) {
             if (tl->tasks.pop(t)) {
                 const auto start = std::chrono::steady_clock::now();
-                t.function(t.parameter);
+                t();
                 exec_time += std::chrono::steady_clock::now() - start;
                 ++tl->task_done;
             } else {
@@ -559,7 +571,7 @@ inline void worker_generic::run() noexcept
         for (;;) {
             if (tasks.pop(j)) {
                 const auto start = std::chrono::steady_clock::now();
-                j.function(j.parameter);
+                j.function();
                 exec_time += std::chrono::steady_clock::now() - start;
                 j.counter->fetch_add(1);
             } else {

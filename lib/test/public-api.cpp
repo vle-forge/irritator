@@ -300,23 +300,63 @@ int main()
     using namespace boost::ut;
 
     "small-function-1"_test = [] {
-        irt::small_function<3, double(double, double)> f1;
+        double o = 15.0, p = 2.0, uu = 10.0;
+
+        auto lambda_1 =
+          +[](double x, double y) noexcept -> double { return x + y; };
+
+        auto lambda_2 = [](double x, double z) noexcept -> double {
+            return x * z;
+        };
+
+        auto lambda_3 = [o, p, uu](double x, double z) noexcept -> double {
+            return o * p * uu + x + z;
+        };
+
+        auto lambda_4 = [&](double x, double z) noexcept -> double {
+            return o * p * uu + x + z;
+        };
+
+        {
+            irt::small_function<sizeof(lambda_1), double(double, double)> f1;
+
+            f1 = lambda_1;
+            expect(eq(f1(1.0, 2.0), 3.0));
+        }
+
+        {
+            irt::small_function<sizeof(lambda_2), double(double, double)> f1;
+
+            f1 = lambda_2;
+            expect(eq(f1(3.0, 2.0), 6.0));
+        }
+
+        {
+            irt::small_function<sizeof(lambda_3), double(double, double)> f1;
+
+            f1 = lambda_3;
+            expect(eq(f1(1.0, 1.0), o * p * uu + 2.0));
+        }
+
+        {
+            irt::small_function<sizeof(lambda_4), double(double, double)> f1;
+
+            f1 = lambda_4;
+            expect(eq(f1(2.0, 2.0), o * p * uu + 4.0));
+        }
+
+        irt::small_function<sizeof(double) * 3, double(double, double)> f1;
+
         f1 = +[](double x, double y) noexcept -> double { return x + y; };
         expect(eq(f1(1.0, 2.0), 3.0));
 
         f1 = [](double x, double z) noexcept -> double { return x * z; };
         expect(eq(f1(3.0, 2.0), 6.0));
 
-        double o = 15.0, p = 2.0, uu = 10.0;
         f1 = [o, p, uu](double x, double z) noexcept -> double {
             return o * p * uu + x + z;
         };
         expect(eq(f1(1.0, 1.0), o * p * uu + 2.0));
-
-        f1 = [&](double x, double z) noexcept -> double {
-            return o * p * uu + x + z;
-        };
-        expect(eq(f1(2.0, 2.0), o * p * uu + 4.0));
 
         auto array = std::make_unique<double[]>(100);
         f1         = [&array](double x, double y) noexcept -> double {

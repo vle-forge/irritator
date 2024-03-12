@@ -13,20 +13,13 @@ using heap_mr = irt::static_memory_resource<256 * 256 * 16>;
 
 static heap_mr mem;
 
-static void function_1(void* param) noexcept
-{
-    auto* counter = reinterpret_cast<std::atomic_int*>(param);
-    (*counter) += 1;
-}
+static void function_1(std::atomic_int& counter) noexcept { counter += 1; }
+static void function_100(std::atomic_int& counter) noexcept { counter += 100; }
 
-static void function_100(void* param) noexcept
-{
-    auto* counter = reinterpret_cast<std::atomic_int*>(param);
-    (*counter) += 100;
-}
-
-using data_task = irt::small_function<4, void(void)>;
+using data_task = irt::small_function<sizeof(int) * 2, void(void)>;
 enum class data_task_id : irt::u32;
+
+using data_task_ref = irt::small_function<sizeof(void*) * 2, void(void)>;
 
 int main()
 {
@@ -54,8 +47,8 @@ int main()
     };
 
     "data-task-reference-capture"_test = [] {
-        irt::data_array<data_task, data_task_id, irt::mr_allocator<heap_mr>> d(
-          &mem, 32);
+        irt::data_array<data_task_ref, data_task_id, irt::mr_allocator<heap_mr>>
+          d(&mem, 32);
 
         int a = 16;
         int b = 32;
@@ -142,10 +135,10 @@ int main()
         for (int i = 0; i < 100; ++i) {
             std::atomic_int counter = 0;
 
-            tm.main_task_lists[0].add(&function_1, &counter);
-            tm.main_task_lists[0].add(&function_100, &counter);
-            tm.main_task_lists[0].add(&function_1, &counter);
-            tm.main_task_lists[0].add(&function_100, &counter);
+            tm.main_task_lists[0].add([&counter]() { function_1(counter); });
+            tm.main_task_lists[0].add([&counter]() { function_100(counter); });
+            tm.main_task_lists[0].add([&counter]() { function_1(counter); });
+            tm.main_task_lists[0].add([&counter]() { function_100(counter); });
             tm.main_task_lists[0].submit();
             tm.main_task_lists[0].wait();
 
@@ -164,10 +157,10 @@ int main()
 
         std::atomic_int counter = 0;
         for (int i = 0; i < 100; ++i) {
-            tm.main_task_lists[0].add(&function_1, &counter);
-            tm.main_task_lists[0].add(&function_100, &counter);
-            tm.main_task_lists[0].add(&function_1, &counter);
-            tm.main_task_lists[0].add(&function_100, &counter);
+            tm.main_task_lists[0].add([&counter]() { function_1(counter); });
+            tm.main_task_lists[0].add([&counter]() { function_100(counter); });
+            tm.main_task_lists[0].add([&counter]() { function_1(counter); });
+            tm.main_task_lists[0].add([&counter]() { function_100(counter); });
             tm.main_task_lists[0].submit();
         }
         tm.main_task_lists[0].wait();
@@ -192,29 +185,37 @@ int main()
             std::atomic_int counter = 0;
 
             for (int i = 0; i < loop; ++i) {
-                tm.main_task_lists[0].add(&function_1, &counter);
-                tm.main_task_lists[0].add(&function_100, &counter);
+                tm.main_task_lists[0].add(
+                  [&counter]() { function_1(counter); });
+                tm.main_task_lists[0].add(
+                  [&counter]() { function_100(counter); });
             }
             tm.main_task_lists[0].submit();
             tm.main_task_lists[0].wait();
 
             for (int i = 0; i < loop; ++i) {
-                tm.main_task_lists[0].add(&function_1, &counter);
-                tm.main_task_lists[0].add(&function_100, &counter);
+                tm.main_task_lists[0].add(
+                  [&counter]() { function_1(counter); });
+                tm.main_task_lists[0].add(
+                  [&counter]() { function_100(counter); });
             }
             tm.main_task_lists[0].submit();
             tm.main_task_lists[0].wait();
 
             for (int i = 0; i < loop; ++i) {
-                tm.main_task_lists[0].add(&function_1, &counter);
-                tm.main_task_lists[0].add(&function_100, &counter);
+                tm.main_task_lists[0].add(
+                  [&counter]() { function_1(counter); });
+                tm.main_task_lists[0].add(
+                  [&counter]() { function_100(counter); });
             }
             tm.main_task_lists[0].submit();
             tm.main_task_lists[0].wait();
 
             for (int i = 0; i < loop; ++i) {
-                tm.main_task_lists[0].add(&function_1, &counter);
-                tm.main_task_lists[0].add(&function_100, &counter);
+                tm.main_task_lists[0].add(
+                  [&counter]() { function_1(counter); });
+                tm.main_task_lists[0].add(
+                  [&counter]() { function_100(counter); });
             }
             tm.main_task_lists[0].submit();
             tm.main_task_lists[0].wait();
@@ -234,14 +235,22 @@ int main()
             std::atomic_int counter_1 = 0;
             std::atomic_int counter_2 = 0;
 
-            tm.temp_task_lists[0].add(&function_1, &counter_1);
-            tm.temp_task_lists[0].add(&function_100, &counter_2);
-            tm.temp_task_lists[0].add(&function_1, &counter_1);
-            tm.temp_task_lists[0].add(&function_100, &counter_2);
-            tm.temp_task_lists[0].add(&function_1, &counter_1);
-            tm.temp_task_lists[0].add(&function_100, &counter_2);
-            tm.temp_task_lists[0].add(&function_1, &counter_1);
-            tm.temp_task_lists[0].add(&function_100, &counter_2);
+            tm.temp_task_lists[0].add(
+              [&counter_1]() { function_1(counter_1); });
+            tm.temp_task_lists[0].add(
+              [&counter_2]() { function_100(counter_2); });
+            tm.temp_task_lists[0].add(
+              [&counter_1]() { function_1(counter_1); });
+            tm.temp_task_lists[0].add(
+              [&counter_2]() { function_100(counter_2); });
+            tm.temp_task_lists[0].add(
+              [&counter_1]() { function_1(counter_1); });
+            tm.temp_task_lists[0].add(
+              [&counter_2]() { function_100(counter_2); });
+            tm.temp_task_lists[0].add(
+              [&counter_1]() { function_1(counter_1); });
+            tm.temp_task_lists[0].add(
+              [&counter_2]() { function_100(counter_2); });
             tm.temp_task_lists[0].submit();
             tm.temp_task_lists[0].wait();
             expect(counter_1 == 4);
@@ -260,32 +269,40 @@ int main()
             std::atomic_int counter = 0;
 
             for (int i = 0; i < 100; ++i) {
-                tm.temp_task_lists[0].add(&function_1, &counter);
-                tm.temp_task_lists[0].add(&function_100, &counter);
+                tm.temp_task_lists[0].add(
+                  [&counter]() { function_1(counter); });
+                tm.temp_task_lists[0].add(
+                  [&counter]() { function_100(counter); });
             }
             tm.temp_task_lists[0].submit();
             tm.temp_task_lists[0].wait();
             expect(counter == 101 * 100);
 
             for (int i = 0; i < 100; ++i) {
-                tm.temp_task_lists[0].add(&function_1, &counter);
-                tm.temp_task_lists[0].add(&function_100, &counter);
+                tm.temp_task_lists[0].add(
+                  [&counter]() { function_1(counter); });
+                tm.temp_task_lists[0].add(
+                  [&counter]() { function_100(counter); });
             }
             tm.temp_task_lists[0].submit();
             tm.temp_task_lists[0].wait();
             expect(counter == 101 * 100 * 2);
 
             for (int i = 0; i < 100; ++i) {
-                tm.temp_task_lists[0].add(&function_1, &counter);
-                tm.temp_task_lists[0].add(&function_100, &counter);
+                tm.temp_task_lists[0].add(
+                  [&counter]() { function_1(counter); });
+                tm.temp_task_lists[0].add(
+                  [&counter]() { function_100(counter); });
             }
             tm.temp_task_lists[0].submit();
             tm.temp_task_lists[0].wait();
             expect(counter == 101 * 100 * 3);
 
             for (int i = 0; i < 100; ++i) {
-                tm.temp_task_lists[0].add(&function_1, &counter);
-                tm.temp_task_lists[0].add(&function_100, &counter);
+                tm.temp_task_lists[0].add(
+                  [&counter]() { function_1(counter); });
+                tm.temp_task_lists[0].add(
+                  [&counter]() { function_100(counter); });
             }
             tm.temp_task_lists[0].submit();
             tm.temp_task_lists[0].wait();
@@ -310,23 +327,23 @@ int main()
             std::atomic_int counter = 0;
 
             for (int i = 0; i < 100; ++i) {
-                function_1(&counter);
-                function_100(&counter);
+                function_1(counter);
+                function_100(counter);
             }
 
             for (int i = 0; i < 100; ++i) {
-                function_1(&counter);
-                function_100(&counter);
+                function_1(counter);
+                function_100(counter);
             }
 
             for (int i = 0; i < 100; ++i) {
-                function_1(&counter);
-                function_100(&counter);
+                function_1(counter);
+                function_100(counter);
             }
 
             for (int i = 0; i < 100; ++i) {
-                function_1(&counter);
-                function_100(&counter);
+                function_1(counter);
+                function_100(counter);
             }
 
             expect(counter == 101 * 100 * 4);

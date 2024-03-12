@@ -16,11 +16,10 @@
 namespace irt {
 
 /// An efficient, type-erasing, onwning callable. This is intended for use as
-/// the type of a function parameter that is not used after the function in
-/// question returns.
+/// attribute in class or struct.
 ///
 /// This class owns the callable, so it is safe to store a small_function.
-/// @c tparam Size number of std::max_align_t to be used. Requires 1 at minimum.
+/// @c tparam Size number of bytes to be used. Requires 1 at minimum.
 template<size_t Size, typename Fn>
 class small_function;
 
@@ -33,41 +32,27 @@ public:
     small_function(const small_function& other) noexcept
     {
         if (other) {
-            other.manager(data, other.data, Operation::Clone);
+            other.manager(data.data(), other.data.data(), Operation::Clone);
             invoker = other.invoker;
             manager = other.manager;
         }
     }
 
-    small_function(small_function&& other) noexcept { other.swap(*this); }
-
-    template<class F>
-    small_function(F&& f) noexcept
-    {
-        using f_type = typename std::decay<F>::type;
-
-        static_assert(sizeof(f_type) <= sizeof(Storage), "storage too small");
-
-        new (&data) f_type(std::forward<F>(f));
-        invoker = &invoke<f_type>;
-        manager = &manage<f_type>;
-    }
-
-    ~small_function() noexcept
-    {
-        if (manager)
-            manager(&data, nullptr, Operation::Destroy);
-    }
-
     small_function& operator=(const small_function& other) noexcept
     {
-        small_function(other).swap(*this);
+        if (this != &other)
+            small_function(other).swap(*this);
+
         return *this;
     }
 
+    small_function(small_function&& other) noexcept { other.swap(*this); }
+
     small_function& operator=(small_function&& other) noexcept
     {
-        small_function(std::move(other)).swap(*this);
+        if (this != &other)
+            small_function(std::move(other)).swap(*this);
+
         return *this;
     }
 
@@ -82,6 +67,18 @@ public:
     }
 
     template<typename F>
+    small_function(F&& f) noexcept
+    {
+        using f_type = std::decay_t<F>;
+
+        static_assert(sizeof(f_type) <= Size, "storage too small");
+
+        new (data.data()) f_type(std::forward<f_type>(f));
+        invoker = &invoke<f_type>;
+        manager = &manage<f_type>;
+    }
+
+    template<typename F>
     small_function& operator=(F&& f) noexcept
     {
         small_function(std::forward<F>(f)).swap(*this);
@@ -89,10 +86,16 @@ public:
     }
 
     template<typename F>
-    small_function& operator=(std::reference_wrapper<F> f) noexcept
+    small_function& operator=(std::reference_wrapper<F> f)
     {
         small_function(f).swap(*this);
         return *this;
+    }
+
+    ~small_function() noexcept
+    {
+        if (manager)
+            manager(&data, nullptr, Operation::Destroy);
     }
 
     void swap(small_function& other) noexcept
@@ -111,15 +114,11 @@ public:
     }
 
 private:
-    enum class Operation
-    {
-        Clone,
-        Destroy
-    };
+    enum class Operation { Clone, Destroy };
 
-    using Invoker = Ret (*)(void*, Params&&...);
-    using Manager = void (*)(void*, void*, Operation);
-    using Storage = std::array<std::byte, sizeof(std::max_align_t) * Size>;
+    using Invoker = Ret  (*)(void*, Params&&...);
+    using Manager = void (*)(void*, const void*, Operation);
+    using Storage = std::array<std::byte, Size>;
 
     template<typename F>
     static Ret invoke(void* data, Params&&... args)
@@ -129,11 +128,11 @@ private:
     }
 
     template<typename F>
-    static void manage(void* dest, void* src, Operation op)
+    static void manage(void* dest, const void* src, Operation op)
     {
         switch (op) {
         case Operation::Clone:
-            new (dest) F(*static_cast<F*>(src));
+            new (dest) F(*reinterpret_cast<const F*>(src));
             break;
         case Operation::Destroy:
             static_cast<F*>(dest)->~F();
@@ -158,8 +157,8 @@ class function_ref;
 template<typename Ret, typename... Params>
 class function_ref<Ret(Params...)>
 {
-    Ret (*callback)(void* callable, Params... params) = nullptr;
-    void* callable                                    = nullptr;
+    Ret   (*callback)(void* callable, Params... params) = nullptr;
+    void* callable                                      = nullptr;
 
     template<typename Callable>
     static Ret callback_fn(void* callable, Params... params)
@@ -185,8 +184,7 @@ public:
                                            Ret>::value>* = nullptr)
       : callback(callback_fn<std::remove_reference_t<Callable>>)
       , callable(&callable)
-    {
-    }
+    {}
 
     Ret operator()(Params... params) const
     {
@@ -208,8 +206,7 @@ public:
       std::is_enum_v<Identifier> || std::is_integral_v<Identifier>,
       "Identifier must be a enumeration: enum class id : unsigned {};");
 
-    struct value_type
-    {
+    struct value_type {
         value_type() noexcept = default;
         value_type(Identifier id, const T& value) noexcept;
 
@@ -288,8 +285,7 @@ table<Identifier, T>::value_type::value_type(Identifier id_,
                                              const T&   value_) noexcept
   : id(id_)
   , value(value_)
-{
-}
+{}
 
 template<typename Identifier, typename T>
 constexpr void table<Identifier, T>::set(Identifier id, const T& value) noexcept
