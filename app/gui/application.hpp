@@ -279,41 +279,6 @@ struct plot_copy_widget {
     void show_plot_line(const plot_copy_id id) noexcept;
 };
 
-void task_save_component(void* param) noexcept;
-void task_save_description(void* param) noexcept;
-void task_load_project(void* param) noexcept;
-void task_save_project(void* param) noexcept;
-void task_simulation_model_add(void* param) noexcept;
-void task_simulation_model_del(void* param) noexcept;
-void task_simulation_back(void* param) noexcept;
-void task_simulation_advance(void* param) noexcept;
-
-void task_reg_path_free(void* param) noexcept;
-void task_dir_path_free(void* param) noexcept;
-void task_file_path_free(void* param) noexcept;
-
-void task_dir_path_refresh(void* param) noexcept;
-// void task_reg_path_refresh(void* param) noexcept;
-
-void task_component_selector_update(void* param) noexcept;
-
-struct gui_task {
-    u64          param_1 = 0;
-    u64          param_2 = 0;
-    u64          param_3 = 0;
-    void*        param_4 = nullptr;
-    application* app     = nullptr;
-    task_status  state   = task_status::not_started;
-};
-
-struct simulation_task {
-    u64          param_1 = 0;
-    u64          param_2 = 0;
-    u64          param_3 = 0;
-    application* app     = nullptr;
-    task_status  state   = task_status::not_started;
-};
-
 struct output_editor {
     constexpr static inline const char* name = "Output";
 
@@ -588,21 +553,29 @@ struct simulation_editor {
     void unselect() noexcept;
     void clear() noexcept;
 
-    void simulation_update_state() noexcept;
+    void start_simulation_update_state() noexcept;
 
-    void simulation_copy_modeling() noexcept;
-    void simulation_init() noexcept;
-    void simulation_delete() noexcept;
-    void simulation_start() noexcept;
-    void simulation_start_1() noexcept;
-    void simulation_pause() noexcept;
-    void simulation_stop() noexcept;
-    void simulation_advance() noexcept;
-    void simulation_back() noexcept;
-    void enable_or_disable_debug() noexcept;
+    void start_simulation_copy_modeling() noexcept;
+    void start_simulation_init() noexcept;
+    void start_simulation_delete() noexcept;
+    void start_simulation_start() noexcept;
+    void start_simulation_live_run() noexcept;
+    void start_simulation_static_run() noexcept;
+    void start_simulation_start_1() noexcept;
+    void start_simulation_pause() noexcept;
+    void start_simulation_stop() noexcept;
+    void start_simulation_finish() noexcept;
+    void start_simulation_advance() noexcept;
+    void start_simulation_back() noexcept;
+    void start_enable_or_disable_debug() noexcept;
 
-    void remove_simulation_observation_from(model_id id) noexcept;
-    void add_simulation_observation_for(model_id id) noexcept;
+    void start_simulation_model_add(const dynamics_type type,
+                                    const float         x,
+                                    const float         y) noexcept;
+    void start_simulation_model_del(const model_id id) noexcept;
+
+    void remove_simulation_observation_from(const model_id id) noexcept;
+    void add_simulation_observation_for(const model_id id) noexcept;
 
     bool can_edit() const noexcept;
     bool can_display_graph_editor() const noexcept;
@@ -940,9 +913,7 @@ struct application {
 
     registred_path_id select_dir_path = undefined<registred_path_id>();
 
-    data_array<simulation_task, simulation_task_id> sim_tasks;
-    data_array<gui_task, gui_task_id>               gui_tasks;
-    task_manager                                    task_mgr;
+    task_manager task_mgr;
 
     data_array<grid_component_editor_data, grid_editor_data_id>       grids;
     data_array<graph_component_editor_data, graph_editor_data_id>     graphs;
@@ -994,23 +965,29 @@ struct application {
     //! Helpers function to add a @c simulation_task into the @c
     //! main_task_lists[simulation]. Task is added at tail of the @c
     //! ring_buffer and ensure linear operation.
-    void add_simulation_task(task_function fn,
-                             u64           param_1 = 0,
-                             u64           param_2 = 0,
-                             u64           param_3 = 0) noexcept;
+    template<typename Fn>
+    void add_simulation_task(Fn&& fn) noexcept;
 
     //! Helpers function to add a @c simulation_task into the @c
     //! main_task_lists[gui]. Task is added at tail of the @c ring_buffer and
     //! ensure linear operation.
-    void add_gui_task(task_function fn,
-                      u64           param_1 = 0,
-                      u64           param_2 = 0,
-                      u64           param_3 = 0,
-                      void*         param_4 = 0) noexcept;
+    template<typename Fn>
+    void add_gui_task(Fn&& fn) noexcept;
 
     //! Helpers function to get a @c unordered_task_list. Wait until the task
     //! list is available.
     unordered_task_list& get_unordered_task_list(int idx) noexcept;
+
+    void start_save_project(const registred_path_id file) noexcept;
+    void start_init_source(const u64                 id,
+                           const source::source_type type) noexcept;
+    void start_hsm_test_start() noexcept;
+    void start_dir_path_refresh(const dir_path_id id) noexcept;
+    void start_dir_path_free(const dir_path_id id) noexcept;
+    void start_reg_path_free(const registred_path_id id) noexcept;
+    void start_file_remove(const registred_path_id r,
+                           const dir_path_id       d,
+                           const file_path_id      f) noexcept;
 };
 
 /// Display dialog box to choose a @c model in a hierarchy of a @c tree_node
@@ -1044,6 +1021,20 @@ void show_simulation_editor(application& app) noexcept;
 //! @brief Get the file path of the @c imgui.ini file saved in $HOME.
 //! @return A pointer to a newly allocated memory.
 char* get_imgui_filename() noexcept;
+
+template<typename Fn>
+void application::add_simulation_task(Fn&& fn) noexcept
+{
+    task_mgr.main_task_lists[ordinal(main_task::simulation)].add(fn);
+    task_mgr.main_task_lists[ordinal(main_task::simulation)].submit();
+}
+
+template<typename Fn>
+void application::add_gui_task(Fn&& fn) noexcept
+{
+    task_mgr.main_task_lists[ordinal(main_task::gui)].add(fn);
+    task_mgr.main_task_lists[ordinal(main_task::gui)].submit();
+}
 
 /* * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * */
 

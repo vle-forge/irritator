@@ -213,106 +213,6 @@ static bool show_random_graph_type(graph_component& graph) noexcept
     return is_changed;
 }
 
-void task_dir_path_refresh(void* param) noexcept
-{
-    auto* g_task  = reinterpret_cast<gui_task*>(param);
-    g_task->state = task_status::started;
-
-    auto  dir_id = enum_cast<dir_path_id>(g_task->param_1);
-    auto* dir    = g_task->app->mod.dir_paths.try_to_get(dir_id);
-    if (dir and dir->status != dir_path::state::lock) {
-
-        {
-            std::scoped_lock lock(dir->mutex);
-            dir->status = dir_path::state::lock;
-        }
-
-        auto children = dir->refresh(g_task->app->mod);
-
-        {
-            std::scoped_lock lock(dir->mutex);
-            dir->children = std::move(children);
-            dir->status   = dir_path::state::read;
-        }
-    }
-
-    g_task->state = task_status::finished;
-};
-
-void task_dir_path_free(void* param) noexcept
-{
-    auto* g_task  = reinterpret_cast<gui_task*>(param);
-    g_task->state = task_status::started;
-
-    auto  dir_id = enum_cast<dir_path_id>(g_task->param_1);
-    auto* dir    = g_task->app->mod.dir_paths.try_to_get(dir_id);
-    if (dir and dir->status != dir_path::state::lock) {
-        std::scoped_lock lock(dir->mutex);
-        dir->status = dir_path::state::lock;
-        g_task->app->mod.dir_paths.free(*dir);
-    }
-
-    g_task->state = task_status::finished;
-};
-
-void task_reg_path_free(void* param) noexcept
-{
-    auto* g_task  = reinterpret_cast<gui_task*>(param);
-    g_task->state = task_status::started;
-
-    auto  reg_id = enum_cast<registred_path_id>(g_task->param_1);
-    auto* reg    = g_task->app->mod.registred_paths.try_to_get(reg_id);
-    if (reg and reg->status != registred_path::state::lock) {
-        std::scoped_lock lock(reg->mutex);
-        reg->status = registred_path::state::lock;
-        g_task->app->mod.registred_paths.free(*reg);
-    }
-
-    g_task->state = task_status::finished;
-};
-
-void task_file_path_free(void* param) noexcept
-{
-    auto* g_task  = reinterpret_cast<gui_task*>(param);
-    g_task->state = task_status::started;
-
-    auto reg_id  = enum_cast<registred_path_id>(g_task->param_1);
-    auto dir_id  = enum_cast<dir_path_id>(g_task->param_2);
-    auto file_id = enum_cast<file_path_id>(g_task->param_3);
-
-    auto& n = g_task->app->notifications.alloc(log_level::notice);
-    n.title = "Remove file";
-
-    {
-        auto* reg  = g_task->app->mod.registred_paths.try_to_get(reg_id);
-        auto* dir  = g_task->app->mod.dir_paths.try_to_get(dir_id);
-        auto* file = g_task->app->mod.file_paths.try_to_get(file_id);
-
-        if (reg and dir and file) {
-            std::scoped_lock lock(dir->mutex);
-
-            format(n.message, "File `{}' removed", file->path.sv());
-            g_task->app->mod.remove_file(*reg, *dir, *file);
-        }
-    }
-
-    g_task->app->notifications.enable(n);
-    g_task->state = task_status::finished;
-}
-
-void task_component_selector_update(void* param) noexcept
-{
-    auto* g_task  = reinterpret_cast<gui_task*>(param);
-    g_task->state = task_status::started;
-
-    g_task->app->component_sel.update();
-
-    auto& n = g_task->app->notifications.alloc(log_level::notice);
-    n.title = "Components updated";
-    g_task->app->notifications.enable(n);
-    g_task->state = task_status::finished;
-}
-
 // void task_read_dot_file(void* param) noexcept
 // {
 //     auto* g_task  = reinterpret_cast<gui_task*>(param);
@@ -327,7 +227,8 @@ void task_component_selector_update(void* param) noexcept
 //     g_task->state = task_status::finished;
 // };
 
-static bool show_random_graph_params(modeling&        mod,
+static bool show_random_graph_params(application&     app,
+                                     modeling&        mod,
                                      graph_component& graph) noexcept
 {
     bool is_changed = false;
@@ -379,9 +280,7 @@ static bool show_random_graph_params(modeling&        mod,
 
                         ImGui::BeginDisabled(is_lock);
                         if (ImGui::SmallButton("R"))
-                            container_of(&mod, &application::mod)
-                              .add_gui_task(task_dir_path_refresh,
-                                            ordinal(elem_id));
+                            app.start_dir_path_refresh(elem_id);
                         ImGui::EndDisabled();
 
                         if (is_selected)
@@ -462,7 +361,7 @@ static bool show_default_component_widgets(graph_component_editor_data& ed,
     if (show_random_graph_type(graph))
         is_changed = true;
 
-    if (show_random_graph_params(app.mod, graph))
+    if (show_random_graph_params(app, app.mod, graph))
         is_changed = true;
 
     if (app.component_sel.combobox("Default component", &ed.selected_id)) {

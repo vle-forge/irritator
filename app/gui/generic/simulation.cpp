@@ -588,12 +588,7 @@ static void add_popup_menuitem(simulation_editor& ed,
                         nullptr,
                         nullptr,
                         enable_menu_item)) {
-        auto& app = container_of(&ed, &application::simulation_ed);
-
-        app.add_simulation_task(task_simulation_model_add,
-                                ordinal(type),
-                                static_cast<u64>(click_pos.x),
-                                static_cast<u64>(click_pos.y));
+        ed.start_simulation_model_add(type, click_pos.x, click_pos.y);
     }
 }
 
@@ -697,9 +692,7 @@ static void free_children(simulation_editor&   ed,
 
     for (int i = 0; i < tasks; ++i) {
         if (const auto* mdl = app.sim.models.try_to_get(nodes[i]); mdl) {
-            const auto mdl_id  = app.sim.models.get_id(mdl);
-            const auto mdl_idx = ordinal(mdl_id);
-            app.add_simulation_task(task_simulation_model_del, mdl_idx);
+            ed.start_simulation_model_del(app.sim.models.get_id(mdl));
         }
     }
 }

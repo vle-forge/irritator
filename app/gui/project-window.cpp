@@ -202,48 +202,4 @@ void project_window::load(const char* filename) noexcept
     }
 }
 
-// Tasks to load/save project file.
-
-void task_load_project(void* param) noexcept
-{
-    auto* g_task  = reinterpret_cast<simulation_task*>(param);
-    g_task->state = task_status::started;
-
-    auto  id   = enum_cast<registred_path_id>(g_task->param_1);
-    auto* file = g_task->app->mod.registred_paths.try_to_get(id);
-    if (file) {
-        auto ret = g_task->app->pj.load(g_task->app->mod,
-                                        g_task->app->sim,
-                                        g_task->app->cache,
-                                        file->path.c_str());
-        if (!ret)
-            debug_log("task_load_project fail\n");
-
-        g_task->app->mod.registred_paths.free(*file);
-    }
-
-    g_task->state = task_status::finished;
-}
-
-void task_save_project(void* param) noexcept
-{
-    auto* g_task  = reinterpret_cast<simulation_task*>(param);
-    g_task->state = task_status::started;
-
-    auto  id   = enum_cast<registred_path_id>(g_task->param_1);
-    auto* file = g_task->app->mod.registred_paths.try_to_get(id);
-    if (file) {
-        auto ret = g_task->app->pj.save(g_task->app->mod,
-                                        g_task->app->sim,
-                                        g_task->app->cache,
-                                        file->path.c_str());
-        if (!ret)
-            debug_log("task_save_project fail\n");
-
-        g_task->app->mod.registred_paths.free(*file);
-    }
-
-    g_task->state = task_status::finished;
-}
-
 } // namespace irt

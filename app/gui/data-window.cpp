@@ -183,32 +183,6 @@ static void show_random_distribution_input(random_source& src) noexcept
     }
 }
 
-static void try_init_source(data_window& data, source& src) noexcept
-{
-    auto& app = container_of(&data, &application::data_ed);
-
-    if (auto ret =
-          app.sim.srcs.dispatch(src, source::operation_type::initialize);
-        !ret) {
-        auto& n = app.notifications.alloc(log_level::error);
-        n.title = "Fail to initialize data";
-        app.notifications.enable(n);
-    } else {
-        data.plot.clear();
-
-        for (sz i = 0, e = src.buffer.size(); i != e; ++i)
-            data.plot.push_back(ImVec2{ static_cast<float>(i),
-                                        static_cast<float>(src.buffer[i]) });
-        data.plot_available = true;
-
-        if (auto ret = app.mod.srcs.prepare(); !ret) {
-            auto& n = app.notifications.alloc(log_level::error);
-            n.title = "Fail to prepare data";
-            app.notifications.enable(n);
-        }
-    }
-}
-
 static void task_try_finalize_source(application&        app,
                                      u64                 id,
                                      source::source_type type) noexcept
@@ -223,20 +197,6 @@ static void task_try_finalize_source(application&        app,
         n.title = "Fail to finalize data";
         app.notifications.enable(n);
     }
-}
-
-static void task_try_init_source(void* param) noexcept
-{
-    auto* g_task  = reinterpret_cast<simulation_task*>(param);
-    g_task->state = task_status::started;
-
-    source src;
-    src.id   = g_task->param_1;
-    src.type = enum_cast<source::source_type>(g_task->param_2);
-
-    try_init_source(g_task->app->data_ed, src);
-
-    g_task->state = task_status::finished;
 }
 
 data_window::data_window() noexcept
@@ -686,11 +646,10 @@ void data_window::show() noexcept
                 if (app.f_dialog.state == file_dialog::status::ok) {
                     binary_file_ptr->file_path = app.f_dialog.result;
 
-                    app.add_simulation_task(
-                      task_try_init_source,
+                    app.start_init_source(
                       ordinal(app.mod.srcs.binary_file_sources.get_id(
                         binary_file_ptr)),
-                      ordinal(source::source_type::binary_file));
+                      source::source_type::binary_file);
                 }
                 app.f_dialog.clear();
                 binary_file_ptr  = nullptr;
@@ -761,10 +720,8 @@ void data_window::show() noexcept
             type = source::source_type::constant;
         }
 
-        if (id && type != source::source_type::none) {
-            app.add_simulation_task(
-              task_try_init_source, id, static_cast<u64>(type));
-        }
+        if (id && type != source::source_type::none)
+            app.start_init_source(id, type);
     }
 
     const bool show_source =

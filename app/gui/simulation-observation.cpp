@@ -42,36 +42,30 @@ void simulation_observation::clear() noexcept
     for_each_data(sim.observers, [&](observer& obs) { obs.clear(); });
 }
 
-struct simulation_observation_job
-{
-    application* app = nullptr;
-    observer_id  id  = undefined<observer_id>();
-};
-
-/* This job retrieves observation data from observer to interpolate data a fill
-   simulation_observation structure.  */
-static void simulation_observation_job_update(void* param) noexcept
-{
-    auto* job = reinterpret_cast<simulation_observation_job*>(param);
-
-    if_data_exists_do(
-      job->app->sim.observers, job->id, [&](observer& obs) noexcept -> void {
-          while (obs.buffer.ssize() > 2)
-              write_interpolate_data(obs, job->app->sim_obs.time_step);
-      });
-}
-
-/* This job retrieves observation data from observer to interpolate data a fill
-   simulation_observation structure.  */
-static void simulation_observation_job_finish(void* param) noexcept
-{
-    auto* job = reinterpret_cast<simulation_observation_job*>(param);
-
-    if_data_exists_do(
-      job->app->sim.observers, job->id, [&](observer& obs) noexcept -> void {
-          flush_interpolate_data(obs, job->app->sim_obs.time_step);
-      });
-}
+///* This job retrieves observation data from observer to interpolate data a fill
+//   simulation_observation structure.  */
+//static void simulation_observation_job_update(void* param) noexcept
+//{
+//    auto* job = reinterpret_cast<simulation_observation_job*>(param);
+//
+//    if_data_exists_do(
+//      job->app->sim.observers, job->id, [&](observer& obs) noexcept -> void {
+//          while (obs.buffer.ssize() > 2)
+//              write_interpolate_data(obs, job->app->sim_obs.time_step);
+//      });
+//}
+//
+///* This job retrieves observation data from observer to interpolate data a fill
+//   simulation_observation structure.  */
+//static void simulation_observation_job_finish(void* param) noexcept
+//{
+//    auto* job = reinterpret_cast<simulation_observation_job*>(param);
+//
+//    if_data_exists_do(
+//      job->app->sim.observers, job->id, [&](observer& obs) noexcept -> void {
+//          flush_interpolate_data(obs, job->app->sim_obs.time_step);
+//      });
+//}
 
 /* This task performs output interpolation Internally, it uses the
    unordered_task_list to compute observations, one job by observers. If the
@@ -81,7 +75,6 @@ void simulation_observation::update() noexcept
     auto& app = container_of(this, &application::sim_obs);
 
     constexpr int              capacity = 255;
-    simulation_observation_job jobs[capacity];
 
     auto& task_list = app.get_unordered_task_list(0);
 
@@ -96,8 +89,15 @@ void simulation_observation::update() noexcept
                 auto obs_id = app.sim.observers.get_id(*obs);
                 app.sim.observers.next(obs);
 
-                jobs[i] = { .app = &app, .id = obs_id };
-                task_list.add(simulation_observation_job_update, &jobs[i]);
+                task_list.add([&app, obs_id]() noexcept {
+                    if_data_exists_do(app.sim.observers,
+                                      obs_id,
+                                      [&](observer& obs) noexcept -> void {
+                                          while (obs.buffer.ssize() > 2)
+                                              write_interpolate_data(
+                                                obs, app.sim_obs.time_step);
+                                      });
+                });
             }
 
             task_list.submit();
@@ -121,8 +121,15 @@ void simulation_observation::update() noexcept
             for (int i = 0; i != loop; ++i) {
                 auto obs_id = app.sim.immediate_observers[i + current];
 
-                jobs[i] = { .app = &app, .id = obs_id };
-                task_list.add(simulation_observation_job_update, &jobs[i]);
+                task_list.add([&app, obs_id]() noexcept {
+                    if_data_exists_do(app.sim.observers,
+                                      obs_id,
+                                      [&](observer& obs) noexcept -> void {
+                                          while (obs.buffer.ssize() > 2)
+                                              write_interpolate_data(
+                                                obs, app.sim_obs.time_step);
+                                      });
+                });
             }
 
             task_list.submit();

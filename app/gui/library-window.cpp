@@ -18,7 +18,8 @@ static void add_generic_component_data(application& app) noexcept
     auto  compo_id = app.mod.components.get_id(compo);
     app.generics.alloc(compo_id);
     app.component_ed.request_to_open(compo_id);
-    app.add_gui_task(task_component_selector_update);
+
+    app.add_gui_task([&app]() noexcept { app.component_sel.update(); });
 }
 
 static void add_grid_component_data(application& app) noexcept
@@ -27,7 +28,7 @@ static void add_grid_component_data(application& app) noexcept
     auto  compo_id = app.mod.components.get_id(compo);
     app.grids.alloc(compo_id, compo.id.grid_id);
     app.component_ed.request_to_open(compo_id);
-    app.add_gui_task(task_component_selector_update);
+    app.add_gui_task([&app]() noexcept { app.component_sel.update(); });
 }
 
 static void add_graph_component_data(application& app) noexcept
@@ -36,7 +37,8 @@ static void add_graph_component_data(application& app) noexcept
     auto  compo_id = app.mod.components.get_id(compo);
     app.graphs.alloc(compo_id, compo.id.graph_id);
     app.component_ed.request_to_open(compo_id);
-    app.add_gui_task(task_component_selector_update);
+
+    app.add_gui_task([&app]() noexcept { app.component_sel.update(); });
 }
 
 static void show_component_popup_menu(application& app, component& sel) noexcept
@@ -70,7 +72,8 @@ static void show_component_popup_menu(application& app, component& sel) noexcept
                         app.notifications.enable(n);
                     }
 
-                    app.add_gui_task(task_component_selector_update);
+                    app.add_gui_task(
+                      [&app]() noexcept { app.component_sel.update(); });
                 } else {
                     auto& n = app.notifications.alloc();
                     n.level = log_level::error;
@@ -90,12 +93,33 @@ static void show_component_popup_menu(application& app, component& sel) noexcept
 
             if (auto* file = app.mod.file_paths.try_to_get(sel.file); file) {
                 if (ImGui::MenuItem("Delete file")) {
-                    app.add_gui_task(task_file_path_free,
-                                     ordinal(sel.reg_path),
-                                     ordinal(sel.dir),
-                                     ordinal(sel.file));
+                    app.add_gui_task([&app,
+                                      r = sel.reg_path,
+                                      d = sel.dir,
+                                      f = sel.file]() noexcept {
+                        auto& n = app.notifications.alloc(log_level::notice);
+                        n.title = "Remove file";
 
-                    app.add_gui_task(task_component_selector_update);
+                        {
+                            auto* reg  = app.mod.registred_paths.try_to_get(r);
+                            auto* dir  = app.mod.dir_paths.try_to_get(d);
+                            auto* file = app.mod.file_paths.try_to_get(f);
+
+                            if (reg and dir and file) {
+                                std::scoped_lock lock(dir->mutex);
+
+                                format(n.message,
+                                       "File `{}' removed",
+                                       file->path.sv());
+                                app.mod.remove_file(*reg, *dir, *file);
+                            }
+                        }
+
+                        app.notifications.enable(n);
+                    });
+
+                    app.add_gui_task(
+                      [&app]() noexcept { app.component_sel.update(); });
                 }
             }
         } else {
@@ -116,7 +140,8 @@ static void show_component_popup_menu(application& app, component& sel) noexcept
                         app.notifications.enable(n);
                     }
 
-                    app.add_gui_task(task_component_selector_update);
+                    app.add_gui_task(
+                      [&app]() noexcept { app.component_sel.update(); });
                 } else {
                     auto& n = app.notifications.alloc();
                     n.level = log_level::error;

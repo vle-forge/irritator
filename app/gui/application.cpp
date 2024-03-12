@@ -24,23 +24,17 @@ application::application() noexcept
     settings_wnd.update();
     settings_wnd.apply_default_style();
 
-    sim_tasks.reserve(simulation_task_number);
-    gui_tasks.reserve(simulation_task_number);
-
-    if (not sim_tasks.can_alloc() or not gui_tasks.can_alloc())
-        log_w(*this, log_level::error, "Tasks Initialization failed");
-
-    log_w(*this, log_level::info, "GUI Irritator start\n");
+    log_w(*this, log_level::info, "Irritator start\n");
 
     log_w(*this,
           log_level::info,
-          "Start with {} main threads and {} generic workers\n",
+          "Starting with {} main threads and {} generic workers\n",
           task_mgr.main_workers.ssize(),
           task_mgr.temp_workers.ssize());
 
-    log_w(*this, log_level::info, "Initialization successfull");
-
     task_mgr.start();
+
+    log_w(*this, log_level::info, "Initialization successfull");
 }
 
 application::~application() noexcept
@@ -323,7 +317,28 @@ static void application_manage_menu_action(application& app) noexcept
                     auto  id   = app.mod.registred_paths.get_id(path);
                     path.path  = str;
 
-                    app.add_simulation_task(task_load_project, ordinal(id));
+                    app.add_simulation_task([&app, id]() noexcept {
+                        auto* file = app.mod.registred_paths.try_to_get(id);
+                        if (file) {
+                            attempt_all(
+                              [&]() -> status {
+                                  return app.pj.load(app.mod,
+                                                     app.sim,
+                                                     app.cache,
+                                                     file->path.c_str());
+                              },
+
+                              [&]() -> void {
+                                  app.mod.registred_paths.free(*file);
+
+                                  auto& n = app.notifications.alloc();
+                                  n.title = "Fail to load project";
+                                  format(n.message,
+                                         "Error loading file {}",
+                                         file->path.sv());
+                              });
+                        }
+                    });
                 }
             }
 
@@ -344,7 +359,7 @@ static void application_manage_menu_action(application& app) noexcept
                 auto  id   = app.mod.registred_paths.get_id(path);
                 path.path  = str;
 
-                app.add_simulation_task(task_save_project, ordinal(id));
+                app.start_save_project(id);
             }
         } else {
             app.menu_save_project_file    = false;
@@ -369,7 +384,7 @@ static void application_manage_menu_action(application& app) noexcept
                     auto  id   = app.mod.registred_paths.get_id(path);
                     path.path  = str;
 
-                    app.add_simulation_task(task_save_project, ordinal(id));
+                    app.start_save_project(id);
                 }
             }
 
@@ -384,7 +399,8 @@ static void application_manage_menu_action(application& app) noexcept
 
         // if (obs) {
         //     if (auto* mdl = app.sim.models.try_to_get(obs->model); mdl) {
-        //         if (auto* o = app.sim.observers.try_to_get(mdl->obs_id); o) {
+        //         if (auto* o = app.sim.observers.try_to_get(mdl->obs_id);
+        //         o) {
         //             const char* title = "Select raw file path to save";
         //             const std::u8string_view default_filename =
         //               u8"filename.txt";
@@ -393,7 +409,8 @@ static void application_manage_menu_action(application& app) noexcept
         //             ImGui::OpenPopup(title);
         //             if (app.f_dialog.show_save_file(
         //                   title, default_filename, filters)) {
-        //                 if (app.f_dialog.state == file_dialog::status::ok) {
+        //                 if (app.f_dialog.state ==
+        //                 file_dialog::status::ok) {
         //                     obs->file = app.f_dialog.result;
         //                     obs->write(*o, obs->file);
         //                 }
@@ -474,9 +491,6 @@ void application::show() noexcept
         ImGui::PushFont(ttf);
 #endif
 
-    cleanup_sim_or_gui_task(sim_tasks);
-    cleanup_sim_or_gui_task(gui_tasks);
-
     if (!mod.log_entries.empty()) {
         while (!mod.log_entries.empty()) {
             auto& w = mod.log_entries.front();
@@ -496,7 +510,7 @@ void application::show() noexcept
     application_show_menu(*this);
     application_manage_menu_action(*this);
 
-    simulation_ed.simulation_update_state();
+    simulation_ed.start_simulation_update_state();
 
     if (show_imgui_demo)
         ImGui::ShowDemoWindow(&show_imgui_demo);
@@ -741,48 +755,6 @@ bool show_select_model_box(const char*              button_label,
     return ret;
 }
 
-void application::add_simulation_task(task_function fn,
-                                      u64           param_1,
-                                      u64           param_2,
-                                      u64           param_3) noexcept
-{
-    irt_assert(fn);
-
-    while (!sim_tasks.can_alloc())
-        task_mgr.main_task_lists[ordinal(main_task::simulation)].wait();
-
-    auto& task   = sim_tasks.alloc();
-    task.app     = this;
-    task.param_1 = param_1;
-    task.param_2 = param_2;
-    task.param_3 = param_3;
-
-    task_mgr.main_task_lists[ordinal(main_task::simulation)].add(fn, &task);
-    task_mgr.main_task_lists[ordinal(main_task::simulation)].submit();
-}
-
-void application::add_gui_task(task_function fn,
-                               u64           param_1,
-                               u64           param_2,
-                               u64           param_3,
-                               void*         param_4) noexcept
-{
-    irt_assert(fn);
-
-    while (!gui_tasks.can_alloc())
-        task_mgr.main_task_lists[ordinal(main_task::gui)].wait();
-
-    auto& task   = gui_tasks.alloc();
-    task.app     = this;
-    task.param_1 = param_1;
-    task.param_2 = param_2;
-    task.param_3 = param_3;
-    task.param_4 = param_4;
-
-    task_mgr.main_task_lists[ordinal(main_task::gui)].add(fn, &task);
-    task_mgr.main_task_lists[ordinal(main_task::gui)].submit();
-}
-
 unordered_task_list& application::get_unordered_task_list(int idx) noexcept
 {
     idx = idx < 0 ? 0
@@ -793,68 +765,132 @@ unordered_task_list& application::get_unordered_task_list(int idx) noexcept
     return task_mgr.temp_task_lists[idx];
 }
 
-void task_simulation_back(void* param) noexcept
+void application::start_save_project(const registred_path_id id) noexcept
 {
-    auto* g_task  = reinterpret_cast<simulation_task*>(param);
-    g_task->state = task_status::started;
+    add_gui_task([&]() noexcept {
+        if (auto* file = mod.registred_paths.try_to_get(id); file) {
+            std::scoped_lock lock(file->mutex);
 
-    if (g_task->app->simulation_ed.tl.can_back()) {
-        attempt_all(
-          [&]() noexcept -> status {
-              irt_check(back(g_task->app->simulation_ed.tl,
-                             g_task->app->sim,
-                             g_task->app->simulation_ed.simulation_current));
-              return success();
-          },
+            auto& n = notifications.alloc();
+            n.title = "Save project";
 
-          [&g_task](const simulation::part s) noexcept -> void {
-              auto& n = g_task->app->notifications.alloc(log_level::error);
-              n.title = "Fail to back the simulation";
-              format(n.message, "Advance message: {}", ordinal(s));
-              g_task->app->notifications.enable(n);
-          },
+            attempt_all(
+              [&]() -> status {
+                  return pj.save(mod, sim, cache, file->path.c_str());
+              },
 
-          [&g_task]() noexcept -> void {
-              auto& n   = g_task->app->notifications.alloc(log_level::error);
-              n.title   = "Fail to back the simulation";
-              n.message = "Error: Unknown";
-              g_task->app->notifications.enable(n);
-          });
-    }
+              [&]() -> void {
+                  format(
+                    n.message, "Error writing file {}", file->path.c_str());
+              });
 
-    g_task->state = task_status::finished;
+            mod.registred_paths.free(*file);
+            notifications.enable(n);
+        }
+    });
 }
 
-void task_simulation_advance(void* param) noexcept
+void application::start_init_source(const u64                 id,
+                                    const source::source_type type) noexcept
 {
-    auto* g_task  = reinterpret_cast<simulation_task*>(param);
-    g_task->state = task_status::started;
+    add_gui_task([&]() noexcept {
+        source src;
+        src.id   = id;
+        src.type = type;
 
-    if (g_task->app->simulation_ed.tl.can_advance()) {
         attempt_all(
           [&]() noexcept -> status {
-              irt_check(advance(g_task->app->simulation_ed.tl,
-                                g_task->app->sim,
-                                g_task->app->simulation_ed.simulation_current));
-              return success();
+              irt_check(
+                sim.srcs.dispatch(src, source::operation_type::initialize));
+
+              data_ed.plot.clear();
+              for (sz i = 0, e = src.buffer.size(); i != e; ++i)
+                  data_ed.plot.push_back(ImVec2{
+                    static_cast<float>(i), static_cast<float>(src.buffer[i]) });
+              data_ed.plot_available = true;
+
+              return mod.srcs.prepare();
           },
 
-          [&g_task](const simulation::part s) noexcept -> void {
-              auto& n = g_task->app->notifications.alloc(log_level::error);
-              n.title = "Fail to advance the simulation";
-              format(n.message, "Advance message: {}", ordinal(s));
-              g_task->app->notifications.enable(n);
-          },
-
-          [&g_task]() noexcept -> void {
-              auto& n   = g_task->app->notifications.alloc(log_level::error);
-              n.title   = "Fail to advance the simulation";
-              n.message = "Error: Unknown";
-              g_task->app->notifications.enable(n);
+          [&]() -> void {
+              auto& n = notifications.alloc(log_level::error);
+              n.title = "Fail to initialize data";
+              notifications.enable(n);
           });
-    }
+    });
+}
 
-    g_task->state = task_status::finished;
+void application::start_hsm_test_start() noexcept
+{
+    add_gui_task([&]() noexcept {
+        if (not hsm_ed.valid()) {
+            auto& n = notifications.alloc(log_level::error);
+            n.title = "HSM badly define";
+            notifications.enable(n);
+        }
+    });
+}
+
+void application::start_dir_path_refresh(const dir_path_id id) noexcept
+{
+    add_gui_task([&]() noexcept {
+        auto* dir = mod.dir_paths.try_to_get(id);
+
+        if (dir and dir->status != dir_path::state::lock) {
+            std::scoped_lock lock(dir->mutex);
+            dir->status   = dir_path::state::lock;
+            auto children = dir->refresh(mod);
+            dir->children = std::move(children);
+            dir->status   = dir_path::state::read;
+        }
+    });
+}
+
+void application::start_dir_path_free(const dir_path_id id) noexcept
+{
+    add_gui_task([&]() noexcept {
+        auto* dir = mod.dir_paths.try_to_get(id);
+
+        if (dir and dir->status != dir_path::state::lock) {
+            std::scoped_lock lock(dir->mutex);
+            dir->status = dir_path::state::lock;
+            mod.dir_paths.free(*dir);
+        }
+    });
+}
+
+void application::start_reg_path_free(const registred_path_id id) noexcept
+{
+    add_gui_task([&]() noexcept {
+        auto* reg = mod.registred_paths.try_to_get(id);
+
+        if (reg and reg->status != registred_path::state::lock) {
+            std::scoped_lock lock(reg->mutex);
+            reg->status = registred_path::state::lock;
+            mod.registred_paths.free(*reg);
+        }
+    });
+};
+
+void application::start_file_remove(const registred_path_id r,
+                                    const dir_path_id       d,
+                                    const file_path_id      f) noexcept
+{
+    add_gui_task([&]() noexcept {
+        auto* reg  = mod.registred_paths.try_to_get(r);
+        auto* dir  = mod.dir_paths.try_to_get(d);
+        auto* file = mod.file_paths.try_to_get(f);
+
+        if (reg and dir and file) {
+            std::scoped_lock lock(dir->mutex);
+
+            auto& n = notifications.alloc();
+            n.title = "Start remove file";
+            format(n.message, "File `{}' removed", file->path.sv());
+            mod.remove_file(*reg, *dir, *file);
+            notifications.enable(n);
+        }
+    });
 }
 
 } // namespace irt

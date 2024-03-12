@@ -1091,7 +1091,7 @@ public:
                    child&             dst,
                    connection::port   x) noexcept;
 
-    status save(component& c) noexcept; // will call clean(component&) first.
+    status save(component& c) noexcept;
 
     ring_buffer<log_entry> log_entries;
 

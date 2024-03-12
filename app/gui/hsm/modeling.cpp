@@ -695,21 +695,6 @@ void hsm_editor::show_graph() noexcept
     }
 }
 
-static void task_hsm_test_start(void* param) noexcept
-{
-    auto* g_task  = reinterpret_cast<gui_task*>(param);
-    g_task->state = task_status::started;
-
-    auto ret = g_task->app->hsm_ed.valid();
-    if (!ret) {
-        auto& n = g_task->app->notifications.alloc(log_level::error);
-        n.title = "HSM badly define";
-        g_task->app->notifications.enable(n);
-    }
-
-    g_task->state = task_status::finished;
-}
-
 void hsm_editor::show_panel() noexcept
 {
     if (ImGui::CollapsingHeader("parameters", ImGuiTreeNodeFlags_DefaultOpen)) {
@@ -754,8 +739,9 @@ void hsm_editor::show_panel() noexcept
     ImGui::BeginDisabled(any_equal(m_test, test_status::being_processed));
     if (ImGui::Button("test")) {
         auto& app = container_of(this, &application::hsm_ed);
-        app.add_gui_task(task_hsm_test_start);
+        app.start_hsm_test_start();
     }
+
     ImGui::EndDisabled();
 }
 

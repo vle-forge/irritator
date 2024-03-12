@@ -199,9 +199,25 @@ static void show_file_access(application& app, component& compo) noexcept
 
             ImGui::BeginDisabled(!is_save_enabled);
             if (ImGui::Button("Save")) {
-                auto id = ordinal(app.mod.components.get_id(compo));
-                app.add_simulation_task(task_save_component, id);
-                app.add_simulation_task(task_save_description, id);
+                auto compo_id = ordinal(app.mod.components.get_id(compo));
+                app.add_simulation_task([&app, compo_id]() noexcept {
+                    if (auto* c = app.mod.components.try_to_get(compo_id); c) {
+                        attempt_all(
+                          [&]() noexcept -> status { return app.mod.save(*c); },
+
+                          [&](const irt::modeling::part s) noexcept -> void {
+                              auto& n = app.notifications.alloc();
+                              format(n.title, "Fail to save {}", c->name.sv());
+                              app.notifications.enable(n);
+                          },
+
+                          [&]() noexcept -> void {
+                              auto& n = app.notifications.alloc();
+                              n.title = "Unknown error";
+                              app.notifications.enable(n);
+                          });
+                    }
+                });
             }
             ImGui::EndDisabled();
         }
