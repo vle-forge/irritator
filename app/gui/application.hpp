@@ -979,6 +979,7 @@ struct application {
     unordered_task_list& get_unordered_task_list(int idx) noexcept;
 
     void start_save_project(const registred_path_id file) noexcept;
+    void start_save_component(const component_id id) noexcept;
     void start_init_source(const u64                 id,
                            const source::source_type type) noexcept;
     void start_hsm_test_start() noexcept;

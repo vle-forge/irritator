@@ -5911,6 +5911,8 @@ status json_archiver::component_save(modeling&                   mod,
                                      const char*                 filename,
                                      json_archiver::print_option print) noexcept
 {
+    fmt::print("json_archiver::component-save\n");
+
     auto f = file::make_file(filename, open_mode::write);
     if (!f)
         return f.error();

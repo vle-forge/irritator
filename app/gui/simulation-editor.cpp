@@ -827,99 +827,105 @@ void simulation_editor::show() noexcept
         return;
     }
 
-    constexpr ImGuiTableFlags flags =
-      ImGuiTableFlags_SizingFixedFit | ImGuiTableFlags_RowBg |
-      ImGuiTableFlags_Borders | ImGuiTableFlags_Resizable |
-      ImGuiTableFlags_Reorderable;
+    if (mutex.try_lock()) {
+        constexpr ImGuiTableFlags flags =
+          ImGuiTableFlags_SizingFixedFit | ImGuiTableFlags_RowBg |
+          ImGuiTableFlags_Borders | ImGuiTableFlags_Resizable |
+          ImGuiTableFlags_Reorderable;
 
-    const bool can_be_initialized = !any_equal(simulation_state,
-                                               simulation_status::not_started,
-                                               simulation_status::finished,
-                                               simulation_status::initialized,
-                                               simulation_status::not_started);
+        const bool can_be_initialized =
+          !any_equal(simulation_state,
+                     simulation_status::not_started,
+                     simulation_status::finished,
+                     simulation_status::initialized,
+                     simulation_status::not_started);
 
-    const bool can_be_started =
-      !any_equal(simulation_state, simulation_status::initialized);
+        const bool can_be_started =
+          !any_equal(simulation_state, simulation_status::initialized);
 
-    const bool can_be_paused = !any_equal(simulation_state,
-                                          simulation_status::running,
-                                          simulation_status::run_requiring,
-                                          simulation_status::paused);
+        const bool can_be_paused = !any_equal(simulation_state,
+                                              simulation_status::running,
+                                              simulation_status::run_requiring,
+                                              simulation_status::paused);
 
-    const bool can_be_restarted =
-      !any_equal(simulation_state, simulation_status::pause_forced);
+        const bool can_be_restarted =
+          !any_equal(simulation_state, simulation_status::pause_forced);
 
-    const bool can_be_stopped = !any_equal(simulation_state,
-                                           simulation_status::running,
-                                           simulation_status::run_requiring,
-                                           simulation_status::paused,
-                                           simulation_status::pause_forced);
+        const bool can_be_stopped = !any_equal(simulation_state,
+                                               simulation_status::running,
+                                               simulation_status::run_requiring,
+                                               simulation_status::paused,
+                                               simulation_status::pause_forced);
 
-    show_simulation_action_buttons(*this,
-                                   can_be_initialized,
-                                   can_be_started,
-                                   can_be_paused,
-                                   can_be_restarted,
-                                   can_be_stopped);
+        show_simulation_action_buttons(*this,
+                                       can_be_initialized,
+                                       can_be_started,
+                                       can_be_paused,
+                                       can_be_restarted,
+                                       can_be_stopped);
 
-    if (ImGui::BeginTable("##ed", 2, flags)) {
-        ImGui::TableSetupColumn(
-          "Hierarchy", ImGuiTableColumnFlags_WidthStretch, 0.2f);
-        ImGui::TableSetupColumn(
-          "Graph", ImGuiTableColumnFlags_WidthStretch, 0.8f);
+        if (ImGui::BeginTable("##ed", 2, flags)) {
+            ImGui::TableSetupColumn(
+              "Hierarchy", ImGuiTableColumnFlags_WidthStretch, 0.2f);
+            ImGui::TableSetupColumn(
+              "Graph", ImGuiTableColumnFlags_WidthStretch, 0.8f);
 
-        auto& app = container_of(this, &application::simulation_ed);
+            auto& app = container_of(this, &application::simulation_ed);
 
-        ImGui::TableNextRow();
-        ImGui::TableSetColumnIndex(0);
-        app.project_wnd.show();
+            ImGui::TableNextRow();
+            ImGui::TableSetColumnIndex(0);
+            app.project_wnd.show();
 
-        ImGui::TableSetColumnIndex(1);
-        if (ImGui::BeginChild("##s-c", ImVec2(0, 0), false)) {
-            if (ImGui::BeginTabBar("##SimulationTabBar")) {
-                if (ImGui::BeginTabItem("Parameters")) {
-                    show_main_simulation_settings(app);
+            ImGui::TableSetColumnIndex(1);
+            if (ImGui::BeginChild("##s-c", ImVec2(0, 0), false)) {
+                if (ImGui::BeginTabBar("##SimulationTabBar")) {
+                    if (ImGui::BeginTabItem("Parameters")) {
+                        show_main_simulation_settings(app);
 
-                    auto selected_tn = app.project_wnd.selected_tn();
-                    if (auto* selected = app.pj.node(selected_tn); selected)
-                        show_local_simulation_settings(app, *selected);
+                        auto selected_tn = app.project_wnd.selected_tn();
+                        if (auto* selected = app.pj.node(selected_tn); selected)
+                            show_local_simulation_settings(app, *selected);
 
-                    ImGui::EndTabItem();
-                }
-
-                if (ImGui::BeginTabItem("Observations")) {
-                    show_main_simulation_observers(app);
-
-                    auto selected_tn = app.project_wnd.selected_tn();
-                    if (auto* selected = app.pj.node(selected_tn); selected) {
-                        if (!component_is_grid_or_graph(app.mod, *selected))
-                            show_local_simulation_plot_observers_table(
-                              app, *selected);
-                        show_local_simulation_specific_observers(app,
-                                                                 *selected);
-
-                        if (!selected->variable_observer_ids.empty())
-                            show_local_variables_plot(app, *selected);
-
-                        if (!selected->grid_observer_ids.empty())
-                            show_local_grid(app, *selected);
+                        ImGui::EndTabItem();
                     }
 
-                    ImGui::EndTabItem();
-                }
+                    if (ImGui::BeginTabItem("Observations")) {
+                        show_main_simulation_observers(app);
 
-                if (ImGui::BeginTabItem("graph")) {
-                    if (app.simulation_ed.can_display_graph_editor())
-                        show_simulation_editor(app);
-                    ImGui::EndTabItem();
-                }
+                        auto selected_tn = app.project_wnd.selected_tn();
+                        if (auto* selected = app.pj.node(selected_tn);
+                            selected) {
+                            if (!component_is_grid_or_graph(app.mod, *selected))
+                                show_local_simulation_plot_observers_table(
+                                  app, *selected);
+                            show_local_simulation_specific_observers(app,
+                                                                     *selected);
 
-                ImGui::EndTabBar();
+                            if (!selected->variable_observer_ids.empty())
+                                show_local_variables_plot(app, *selected);
+
+                            if (!selected->grid_observer_ids.empty())
+                                show_local_grid(app, *selected);
+                        }
+
+                        ImGui::EndTabItem();
+                    }
+
+                    if (ImGui::BeginTabItem("graph")) {
+                        if (app.simulation_ed.can_display_graph_editor())
+                            show_simulation_editor(app);
+                        ImGui::EndTabItem();
+                    }
+
+                    ImGui::EndTabBar();
+                }
             }
-        }
-        ImGui::EndChild();
+            ImGui::EndChild();
 
-        ImGui::EndTable();
+            ImGui::EndTable();
+        }
+
+        mutex.unlock();
     }
 
     ImGui::End();

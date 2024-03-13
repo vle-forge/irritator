@@ -83,12 +83,50 @@ static void show_component_popup_menu(application& app, component& sel) noexcept
             }
 
             if (ImGui::MenuItem("Set as main project model")) {
-                if (auto ret = app.pj.set(app.mod, app.sim, sel); !ret) {
-                    auto& n = app.notifications.alloc();
-                    n.level = log_level::error;
-                    n.title = "Fail to build tree";
-                    app.notifications.enable(n);
-                }
+                const auto compo_id = app.mod.components.get_id(sel);
+
+                app.add_gui_task([&app, compo_id]() noexcept {
+                    std::scoped_lock lock{ app.simulation_ed.mutex };
+
+                    attempt_all(
+                      [&]() noexcept -> status {
+                          if (auto* c = app.mod.components.try_to_get(compo_id);
+                              c)
+                              return app.pj.set(app.mod, app.sim, *c);
+
+                          return success();
+                      },
+
+                      [&](project::part part, project::error error) noexcept {
+                          auto& n = app.notifications.alloc(log_level::error);
+                          n.title = "Project import error";
+                          format(n.message,
+                                 "Error in {} failed with error: {}",
+                                 to_string(part),
+                                 to_string(error));
+                      },
+
+                      [&](project::part part) noexcept {
+                          auto& n = app.notifications.alloc(log_level::error);
+                          n.title = "Project import error";
+                          format(n.message, "Error in {}", to_string(part));
+                      },
+
+                      [&](project::error error) noexcept {
+                          auto& n = app.notifications.alloc(log_level::error);
+                          n.title = "Project import error";
+                          format(n.message,
+                                 "Error: {}",
+                                 to_string(error));
+                      },
+
+                      [&]() noexcept {
+                          auto& n = app.notifications.alloc();
+                          n.level = log_level::error;
+                          n.title = "Fail to build tree";
+                          app.notifications.enable(n);
+                      });
+                });
             }
 
             if (auto* file = app.mod.file_paths.try_to_get(sel.file); file) {

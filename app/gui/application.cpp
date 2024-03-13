@@ -14,6 +14,7 @@
 
 #include <imgui.h>
 #include <imgui_internal.h>
+#include <mutex>
 
 namespace irt {
 
@@ -767,7 +768,9 @@ unordered_task_list& application::get_unordered_task_list(int idx) noexcept
 
 void application::start_save_project(const registred_path_id id) noexcept
 {
-    add_gui_task([&]() noexcept {
+    add_gui_task([&, id]() noexcept {
+        std::scoped_lock _(mod.reg_paths_mutex);
+
         if (auto* file = mod.registred_paths.try_to_get(id); file) {
             std::scoped_lock lock(file->mutex);
 
@@ -790,10 +793,42 @@ void application::start_save_project(const registred_path_id id) noexcept
     });
 }
 
+void application::start_save_component(const component_id id) noexcept
+{
+    add_gui_task([&, id]() noexcept {
+        if (auto* c = mod.components.try_to_get(id); c) {
+            auto& n = notifications.alloc();
+            n.title = "Component save";
+
+            attempt_all(
+              [&]() noexcept -> status {
+                  irt_check(mod.save(*c));
+                  format(n.message, "{} saved", c->name.sv());
+
+                  return success();
+              },
+
+              [&](const irt::modeling::part s) noexcept -> void {
+                  format(n.message,
+                         "Fail to save {} (part: {})",
+                         c->name.sv(),
+                         ordinal(s));
+              },
+
+              [&]() noexcept -> void {
+                  auto& n   = notifications.alloc();
+                  n.message = "Unknown error";
+              });
+
+            notifications.enable(n);
+        }
+    });
+}
+
 void application::start_init_source(const u64                 id,
                                     const source::source_type type) noexcept
 {
-    add_gui_task([&]() noexcept {
+    add_gui_task([&, id, type]() noexcept {
         source src;
         src.id   = id;
         src.type = type;
@@ -833,7 +868,7 @@ void application::start_hsm_test_start() noexcept
 
 void application::start_dir_path_refresh(const dir_path_id id) noexcept
 {
-    add_gui_task([&]() noexcept {
+    add_gui_task([&, id]() noexcept {
         auto* dir = mod.dir_paths.try_to_get(id);
 
         if (dir and dir->status != dir_path::state::lock) {
@@ -848,7 +883,7 @@ void application::start_dir_path_refresh(const dir_path_id id) noexcept
 
 void application::start_dir_path_free(const dir_path_id id) noexcept
 {
-    add_gui_task([&]() noexcept {
+    add_gui_task([&, id]() noexcept {
         auto* dir = mod.dir_paths.try_to_get(id);
 
         if (dir and dir->status != dir_path::state::lock) {
@@ -861,7 +896,7 @@ void application::start_dir_path_free(const dir_path_id id) noexcept
 
 void application::start_reg_path_free(const registred_path_id id) noexcept
 {
-    add_gui_task([&]() noexcept {
+    add_gui_task([&, id]() noexcept {
         auto* reg = mod.registred_paths.try_to_get(id);
 
         if (reg and reg->status != registred_path::state::lock) {
@@ -876,7 +911,7 @@ void application::start_file_remove(const registred_path_id r,
                                     const dir_path_id       d,
                                     const file_path_id      f) noexcept
 {
-    add_gui_task([&]() noexcept {
+    add_gui_task([&, r, d, f]() noexcept {
         auto* reg  = mod.registred_paths.try_to_get(r);
         auto* dir  = mod.dir_paths.try_to_get(d);
         auto* file = mod.file_paths.try_to_get(f);

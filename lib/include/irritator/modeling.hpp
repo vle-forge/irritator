@@ -178,7 +178,6 @@ enum class child_flags : u8 {
     none         = 0,
     configurable = 1 << 0,
     observable   = 1 << 1,
-    both         = 3,
     Count
 };
 
@@ -1256,6 +1255,9 @@ private:
 
     cache m_cache;
 };
+
+std::string_view to_string(const project::part p) noexcept;
+std::string_view to_string(const project::error e) noexcept;
 
 /* ------------------------------------------------------------------
    Child part

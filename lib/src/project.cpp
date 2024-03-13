@@ -1591,4 +1591,47 @@ auto project::tree_nodes_size() const noexcept -> std::pair<int, int>
     return std::make_pair(tree_nodes.ssize(), tree_nodes.capacity());
 }
 
+std::string_view to_string(const project::part p) noexcept
+{
+    using integer = std::underlying_type_t<project::part>;
+
+    static const std::string_view str[] = { "tree nodes",
+                                            "variable observers",
+                                            "grid observers",
+                                            "graph observers",
+                                            "global parameters" };
+
+    debug::ensure(std::cmp_less(static_cast<integer>(p), 5));
+
+    return str[static_cast<integer>(p)];
+};
+
+std::string_view to_string(const project::error e) noexcept
+{
+    using integer = std::underlying_type_t<project::error>;
+
+    static const std::string_view str[] = {
+        "not enough memory",
+        "unknown source",
+        "impossible connection",
+        "empty project",
+        "component empty",
+        "component type error",
+        "file error",
+        "file component type error",
+        "registred path access error",
+        "directory access error",
+        "file access error",
+        "file open error",
+        "file parameters error",
+        "file parameters access error",
+        "file parameters type error",
+        "file parameters init error",
+    };
+
+    debug::ensure(std::cmp_less(static_cast<integer>(e), 16));
+
+    return str[static_cast<integer>(e)];
+}
+
 } // namespace irt

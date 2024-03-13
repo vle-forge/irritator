@@ -11,7 +11,7 @@ template<typename Dynamics>
 static child_id alloc(modeling&              mod,
                       generic_component&     parent,
                       const std::string_view name  = {},
-                      child_flags            param = child_flags::none) noexcept
+                      bitflags<child_flags>  param = child_flags::none) noexcept
 {
     irt_assert(!mod.children.full());
     irt_assert(!mod.hsms.full());
@@ -20,8 +20,7 @@ static child_id alloc(modeling&              mod,
     const auto id    = mod.children.get_id(child);
     const auto index = get_index(id);
 
-    child.flags.reset();
-    child.flags.set(param);
+    child.flags = param;
 
     mod.children_names[index] = name;
     mod.children_parameters[index].clear();
@@ -157,22 +156,30 @@ status add_lotka_volterra(modeling&          mod,
     if (!mod.children.can_alloc(5))
         return new_error(modeling::children_error{}, container_full_error{});
 
-    auto integrator_a =
-      alloc<abstract_integrator<QssLevel>>(mod, com, "X", child_flags::both);
+    auto integrator_a = alloc<abstract_integrator<QssLevel>>(
+      mod,
+      com,
+      "X",
+      bitflags<child_flags>(child_flags::configurable,
+                            child_flags::observable));
     affect_abstract_integrator(mod, integrator_a, 18.0_r, 0.1_r);
 
-    auto integrator_b =
-      alloc<abstract_integrator<QssLevel>>(mod, com, "Y", child_flags::both);
+    auto integrator_b = alloc<abstract_integrator<QssLevel>>(
+      mod,
+      com,
+      "Y",
+      bitflags<child_flags>(child_flags::configurable,
+                            child_flags::observable));
     affect_abstract_integrator(mod, integrator_b, 7.0_r, 0.1_r);
 
     auto product = alloc<abstract_multiplier<QssLevel>>(mod, com);
 
     auto sum_a = alloc<abstract_wsum<QssLevel, 2>>(
-      mod, com, "X+XY", child_flags::configurable);
+      mod, com, "X+XY", bitflags<child_flags>(child_flags::configurable));
     affect_abstract_multiplier(mod, sum_a, 2.0_r, -0.4_r);
 
     auto sum_b = alloc<abstract_wsum<QssLevel, 2>>(
-      mod, com, "Y+XY", child_flags::configurable);
+      mod, com, "Y+XY", bitflags<child_flags>(child_flags::configurable));
     affect_abstract_multiplier(mod, sum_b, -1.0_r, 0.1_r);
 
     irt_check(connect(mod, com, sum_a, 0, integrator_a, 0));
@@ -213,8 +220,12 @@ status add_lif(modeling& mod, component& dst, generic_component& com) noexcept
     auto sum = alloc<abstract_wsum<QssLevel, 2>>(mod, com);
     affect_abstract_wsum(mod, sum, -irt::one / tau, V0 / tau);
 
-    auto integrator =
-      alloc<abstract_integrator<QssLevel>>(mod, com, "lif", child_flags::both);
+    auto integrator = alloc<abstract_integrator<QssLevel>>(
+      mod,
+      com,
+      "lif",
+      bitflags<child_flags>(child_flags::configurable,
+                            child_flags::observable));
     affect_abstract_integrator(mod, integrator, 0._r, 0.001_r);
 
     auto cross = alloc<abstract_cross<QssLevel>>(mod, com);
@@ -242,18 +253,26 @@ status add_izhikevich(modeling&          mod,
     if (!mod.children.can_alloc(12))
         return new_error(modeling::children_error{}, container_full_error{});
 
-    auto cst     = alloc<constant>(mod, com);
-    auto cst2    = alloc<constant>(mod, com);
-    auto cst3    = alloc<constant>(mod, com);
-    auto sum_a   = alloc<abstract_wsum<QssLevel, 2>>(mod, com);
-    auto sum_b   = alloc<abstract_wsum<QssLevel, 2>>(mod, com);
-    auto sum_c   = alloc<abstract_wsum<QssLevel, 4>>(mod, com);
-    auto sum_d   = alloc<abstract_wsum<QssLevel, 2>>(mod, com);
-    auto product = alloc<abstract_multiplier<QssLevel>>(mod, com);
-    auto integrator_a =
-      alloc<abstract_integrator<QssLevel>>(mod, com, "V", child_flags::both);
-    auto integrator_b =
-      alloc<abstract_integrator<QssLevel>>(mod, com, "U", child_flags::both);
+    auto cst          = alloc<constant>(mod, com);
+    auto cst2         = alloc<constant>(mod, com);
+    auto cst3         = alloc<constant>(mod, com);
+    auto sum_a        = alloc<abstract_wsum<QssLevel, 2>>(mod, com);
+    auto sum_b        = alloc<abstract_wsum<QssLevel, 2>>(mod, com);
+    auto sum_c        = alloc<abstract_wsum<QssLevel, 4>>(mod, com);
+    auto sum_d        = alloc<abstract_wsum<QssLevel, 2>>(mod, com);
+    auto product      = alloc<abstract_multiplier<QssLevel>>(mod, com);
+    auto integrator_a = alloc<abstract_integrator<QssLevel>>(
+      mod,
+      com,
+      "V",
+      bitflags<child_flags>(child_flags::configurable,
+                            child_flags::observable));
+    auto integrator_b = alloc<abstract_integrator<QssLevel>>(
+      mod,
+      com,
+      "U",
+      bitflags<child_flags>(child_flags::configurable,
+                            child_flags::observable));
     auto cross  = alloc<abstract_cross<QssLevel>>(mod, com);
     auto cross2 = alloc<abstract_cross<QssLevel>>(mod, com);
 
@@ -322,13 +341,21 @@ status add_van_der_pol(modeling&          mod,
     if (!mod.children.can_alloc(5))
         return new_error(modeling::children_error{}, container_full_error{});
 
-    auto sum      = alloc<abstract_wsum<QssLevel, 3>>(mod, com);
-    auto product1 = alloc<abstract_multiplier<QssLevel>>(mod, com);
-    auto product2 = alloc<abstract_multiplier<QssLevel>>(mod, com);
-    auto integrator_a =
-      alloc<abstract_integrator<QssLevel>>(mod, com, "X", child_flags::both);
-    auto integrator_b =
-      alloc<abstract_integrator<QssLevel>>(mod, com, "Y", child_flags::both);
+    auto sum          = alloc<abstract_wsum<QssLevel, 3>>(mod, com);
+    auto product1     = alloc<abstract_multiplier<QssLevel>>(mod, com);
+    auto product2     = alloc<abstract_multiplier<QssLevel>>(mod, com);
+    auto integrator_a = alloc<abstract_integrator<QssLevel>>(
+      mod,
+      com,
+      "X",
+      bitflags<child_flags>(child_flags::configurable,
+                            child_flags::observable));
+    auto integrator_b = alloc<abstract_integrator<QssLevel>>(
+      mod,
+      com,
+      "Y",
+      bitflags<child_flags>(child_flags::configurable,
+                            child_flags::observable));
 
     affect_abstract_integrator(mod, integrator_a, 0.0_r, 0.001_r);
     affect_abstract_integrator(mod, integrator_b, 10.0_r, 0.001_r);
@@ -361,9 +388,13 @@ status add_negative_lif(modeling&          mod,
     if (!mod.children.can_alloc(5))
         return new_error(modeling::children_error{}, container_full_error{});
 
-    auto sum = alloc<abstract_wsum<QssLevel, 2>>(mod, com);
-    auto integrator =
-      alloc<abstract_integrator<QssLevel>>(mod, com, "V", child_flags::both);
+    auto sum        = alloc<abstract_wsum<QssLevel, 2>>(mod, com);
+    auto integrator = alloc<abstract_integrator<QssLevel>>(
+      mod,
+      com,
+      "V",
+      bitflags<child_flags>(child_flags::configurable,
+                            child_flags::observable));
     auto cross     = alloc<abstract_cross<QssLevel>>(mod, com);
     auto cst       = alloc<constant>(mod, com);
     auto cst_cross = alloc<constant>(mod, com);
@@ -399,20 +430,36 @@ status add_seirs(modeling& mod, component& dst, generic_component& com) noexcept
     if (!mod.children.can_alloc(17))
         return new_error(modeling::children_error{}, container_full_error{});
 
-    auto dS =
-      alloc<abstract_integrator<QssLevel>>(mod, com, "dS", child_flags::both);
+    auto dS = alloc<abstract_integrator<QssLevel>>(
+      mod,
+      com,
+      "dS",
+      bitflags<child_flags>(child_flags::configurable,
+                            child_flags::observable));
     affect_abstract_integrator(mod, dS, 0.999_r, 0.0001_r);
 
-    auto dE =
-      alloc<abstract_integrator<QssLevel>>(mod, com, "dE", child_flags::both);
+    auto dE = alloc<abstract_integrator<QssLevel>>(
+      mod,
+      com,
+      "dE",
+      bitflags<child_flags>(child_flags::configurable,
+                            child_flags::observable));
     affect_abstract_integrator(mod, dE, 0.0_r, 0.0001_r);
 
-    auto dI =
-      alloc<abstract_integrator<QssLevel>>(mod, com, "dI", child_flags::both);
+    auto dI = alloc<abstract_integrator<QssLevel>>(
+      mod,
+      com,
+      "dI",
+      bitflags<child_flags>(child_flags::configurable,
+                            child_flags::observable));
     affect_abstract_integrator(mod, dI, 0.001_r, 0.0001_r);
 
-    auto dR =
-      alloc<abstract_integrator<QssLevel>>(mod, com, "dR", child_flags::both);
+    auto dR = alloc<abstract_integrator<QssLevel>>(
+      mod,
+      com,
+      "dR",
+      bitflags<child_flags>(child_flags::configurable,
+                            child_flags::observable));
     affect_abstract_integrator(mod, dR, 0.0_r, 0.0001_r);
 
     auto beta = alloc<constant>(mod, com, "beta");
