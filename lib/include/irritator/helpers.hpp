@@ -40,7 +40,6 @@ struct static_limiter {
     }
 };
 
-
 template<typename>
 struct is_result : std::false_type {};
 
@@ -140,12 +139,12 @@ void for_specified_data(Data& d, Vector& vec, Function&& f) noexcept
     static_assert(std::is_same_v<return_t, void>);
 
     if constexpr (std::is_const_v<Vector>) {
-        for (unsigned i = 0, e = vec.size(); i != e; ++i)
+        for (auto i = 0, e = vec.ssize(); i != e; ++i)
             if_data_exists_do(d, vec[i], f);
     } else {
-        unsigned i = 0;
+        auto i = 0;
 
-        while (i < vec.size()) {
+        while (i < vec.ssize()) {
             if (auto* ptr = d.try_to_get(vec[i]); ptr) {
                 f(*ptr);
                 ++i;
@@ -192,7 +191,9 @@ void remove_specified_data_if(Data& d, Vector& vec, Predicate&& pred) noexcept
     static_assert(std::is_const_v<Data> == false &&
                   std::is_const_v<Vector> == false);
 
-    for (unsigned i = 0; i < vec.size(); ++i) {
+    auto i = 0;
+
+    while (i < vec.ssize()) {
         if (auto* ptr = d.try_to_get(vec[i]); ptr) {
             if (pred(*ptr)) {
                 d.free(*ptr);
@@ -222,12 +223,14 @@ auto find_specified_data_if(Data& d, Vector& vec, Predicate&& pred) noexcept ->
     static_assert(std::is_const_v<Data> == false &&
                   std::is_const_v<Vector> == false);
 
-    for (unsigned i = 0; i < vec.size(); ++i) {
+    auto i = 0;
+
+    while (i < vec.ssize()) {
         if (auto* ptr = d.try_to_get(vec[i]); ptr) {
             if (pred(*ptr))
                 return ptr;
-
-            ++i;
+            else
+                ++i;
         } else {
             vec.swap_pop_back(i);
         }
