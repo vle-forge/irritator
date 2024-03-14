@@ -1,3 +1,6 @@
 build*/
 .vs/
 CMakeSettings.json
+.cache
+build
+compile_commands.json
