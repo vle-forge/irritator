@@ -130,8 +130,6 @@ static void show_simulation_action_buttons(simulation_editor& ed,
                                            bool can_be_restarted,
                                            bool can_be_stopped) noexcept
 {
-    auto& app = container_of(&ed, &application::simulation_ed);
-
     const auto item_x         = ImGui::GetStyle().ItemSpacing.x;
     const auto region_x       = ImGui::GetContentRegionAvail().x;
     const auto button_x       = (region_x - item_x) / 10.f;

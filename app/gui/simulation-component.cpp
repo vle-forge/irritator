@@ -379,8 +379,6 @@ void simulation_editor::start_simulation_live_run() noexcept
 
 void simulation_editor::start_simulation_update_state() noexcept
 {
-    auto& app = container_of(this, &application::simulation_ed);
-
     if (simulation_state == simulation_status::paused) {
         simulation_state = simulation_status::run_requiring;
         start_simulation_start();
