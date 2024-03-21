@@ -919,9 +919,7 @@ enum class observer_flags : u8 {
 struct observer {
     using value_type = observation;
 
-    observer(std::string_view name_,
-             u64              user_id_   = 0,
-             i32              user_type_ = 0) noexcept;
+    observer(std::string_view name_) noexcept;
 
     void reset() noexcept;
     void clear() noexcept;
@@ -933,9 +931,8 @@ struct observer {
     ring_buffer<observation>         linearized_buffer;
 
     model_id              model     = undefined<model_id>();
-    u64                   user_id   = 0;
-    i32                   user_type = 0;
     dynamics_type         type      = dynamics_type::qss1_integrator;
+    float                 time_step = 0.1f;
     std::pair<real, real> limits;
 
     small_string<14>         name;
@@ -4824,12 +4821,8 @@ inline status finalize_source(simulation& sim, source& src) noexcept
 
 //! observer
 
-inline observer::observer(std::string_view name_,
-                          u64              user_id_,
-                          i32              user_type_) noexcept
+inline observer::observer(std::string_view name_) noexcept
   : buffer{ 64 }
-  , user_id{ user_id_ }
-  , user_type{ user_type_ }
   , name{ name_ }
   , states{ observer_flags::none }
 {}
