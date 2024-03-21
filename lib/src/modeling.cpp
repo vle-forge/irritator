@@ -1217,14 +1217,11 @@ void modeling::free(registred_path& reg_dir) noexcept
 
 status modeling::save(component& c) noexcept
 {
-    fmt::print("modeling::save(component& c) noexcept\n");
-
     auto* reg  = registred_paths.try_to_get(c.reg_path);
     auto* dir  = dir_paths.try_to_get(c.dir);
     auto* file = file_paths.try_to_get(c.file);
 
     if (!(reg && dir && file)) {
-        fmt::print("reg dir or file null\n");
         return new_error(part::components,
                          undefined_error{},
                          e_ulong_id{ ordinal(components.get_id(c)) });
