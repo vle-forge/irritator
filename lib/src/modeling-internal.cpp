@@ -73,17 +73,6 @@ static void affect_abstract_integrator(modeling&      mod,
     mod.children_parameters[idx].reals[1] = dQ;
 }
 
-static void affect_abstract_multiplier(modeling&      mod,
-                                       const child_id id,
-                                       const real     coeff_0,
-                                       const real     coeff_1) noexcept
-{
-    const auto idx = get_index(id);
-
-    mod.children_parameters[idx].reals[0] = coeff_0;
-    mod.children_parameters[idx].reals[1] = coeff_1;
-}
-
 static void affect_abstract_wsum(modeling&      mod,
                                  const child_id id,
                                  const real     coeff_0,
