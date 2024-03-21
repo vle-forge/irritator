@@ -660,51 +660,66 @@ static bool show_parameter_editor(application& /*app*/,
 }
 
 static bool show_parameter_editor(application& /*app*/,
-                                  qss1_sum_2& /*dyn*/,
-                                  parameter& /*p*/) noexcept
+                                  qss1_sum_2& dyn,
+                                  parameter&  p) noexcept
 {
-    return false;
+    return ImGui::InputReal("value-1", &p.reals[0]) ||
+           ImGui::InputReal("value-2", &p.reals[1]);
 }
 
 static bool show_parameter_editor(application& /*app*/,
-                                  qss1_sum_3& /*dyn*/,
-                                  parameter& /*p*/) noexcept
+                                  qss1_sum_3& dyn,
+                                  parameter&  p) noexcept
 {
-    return false;
+    return ImGui::InputReal("value-1", &p.reals[0]) ||
+           ImGui::InputReal("value-2", &p.reals[1]) ||
+           ImGui::InputReal("value-3", &p.reals[2]);
 }
 
 static bool show_parameter_editor(application& /*app*/,
-                                  qss1_sum_4& /*dyn*/,
-                                  parameter& /*p*/) noexcept
+                                  qss1_sum_4& dyn,
+                                  parameter&  p) noexcept
 {
-    return false;
+    return ImGui::InputReal("value-1", &p.reals[0]) ||
+           ImGui::InputReal("value-2", &p.reals[1]) ||
+           ImGui::InputReal("value-3", &p.reals[2]) ||
+           ImGui::InputReal("value-4", &p.reals[3]);
 }
 
 static bool show_parameter_editor(application& /*app*/,
-                                  qss1_wsum_2& /*dyn*/,
-                                  parameter& p) noexcept
+                                  qss1_wsum_2& dyn,
+                                  parameter&   p) noexcept
 {
-    return ImGui::InputReal("coeff-0", &p.reals[0]) ||
-           ImGui::InputReal("coeff-1", &p.reals[1]);
+    return ImGui::InputReal("value-1", &p.reals[0]) ||
+           ImGui::InputReal("value-2", &p.reals[1]) ||
+           ImGui::InputReal("coeff-1", &p.reals[2]) ||
+           ImGui::InputReal("coeff-2", &p.reals[3]);
 }
 
 static bool show_parameter_editor(application& /*app*/,
                                   qss1_wsum_3& /*dyn*/,
                                   parameter& p) noexcept
 {
-    return ImGui::InputReal("coeff-0", &p.reals[0]) ||
-           ImGui::InputReal("coeff-1", &p.reals[1]) ||
-           ImGui::InputReal("coeff-2", &p.reals[2]);
+    return ImGui::InputReal("value-1", &p.reals[0]) ||
+           ImGui::InputReal("value-2", &p.reals[1]) ||
+           ImGui::InputReal("value-3", &p.reals[2]) ||
+           ImGui::InputReal("coeff-1", &p.reals[3]) ||
+           ImGui::InputReal("coeff-2", &p.reals[4]) ||
+           ImGui::InputReal("coeff-3", &p.reals[5]);
 }
 
 static bool show_parameter_editor(application& /*app*/,
                                   qss1_wsum_4& /*dyn*/,
                                   parameter& p) noexcept
 {
-    return ImGui::InputReal("coeff-0", &p.reals[0]) ||
-           ImGui::InputReal("coeff-1", &p.reals[1]) ||
-           ImGui::InputReal("coeff-2", &p.reals[2]) ||
-           ImGui::InputReal("coeff-3", &p.reals[3]);
+    return ImGui::InputReal("value-1", &p.reals[0]) ||
+           ImGui::InputReal("value-2", &p.reals[1]) ||
+           ImGui::InputReal("value-3", &p.reals[2]) ||
+           ImGui::InputReal("value-4", &p.reals[3]) ||
+           ImGui::InputReal("coeff-1", &p.reals[4]) ||
+           ImGui::InputReal("coeff-2", &p.reals[5]) ||
+           ImGui::InputReal("coeff-3", &p.reals[6]) ||
+           ImGui::InputReal("coeff-4", &p.reals[7]);
 }
 
 static bool show_parameter_editor(application& /*app*/,
@@ -739,27 +754,36 @@ static bool show_parameter_editor(application& /*app*/,
                                   qss2_wsum_2& /*dyn*/,
                                   parameter& p) noexcept
 {
-    return ImGui::InputReal("coeff-0", &p.reals[0]) ||
-           ImGui::InputReal("coeff-1", &p.reals[1]);
+    return ImGui::InputReal("value-1", &p.reals[0]) ||
+           ImGui::InputReal("value-2", &p.reals[1]) ||
+           ImGui::InputReal("coeff-1", &p.reals[2]) ||
+           ImGui::InputReal("coeff-2", &p.reals[3]);
 }
 
 static bool show_parameter_editor(application& /*app*/,
-                                  qss2_wsum_3& /*dyn*/,
+                                  qss2_wsum_3& dyn,
                                   parameter& p) noexcept
 {
-    return ImGui::InputReal("coeff-0", &p.reals[0]) ||
-           ImGui::InputReal("coeff-1", &p.reals[1]) ||
-           ImGui::InputReal("coeff-2", &p.reals[2]);
+    return ImGui::InputReal("value-1", &p.reals[0]) ||
+           ImGui::InputReal("value-2", &p.reals[1]) ||
+           ImGui::InputReal("value-3", &p.reals[2]) ||
+           ImGui::InputReal("coeff-1", &p.reals[3]) ||
+           ImGui::InputReal("coeff-2", &p.reals[4]) ||
+           ImGui::InputReal("coeff-3", &p.reals[5]);
 }
 
 static bool show_parameter_editor(application& /*app*/,
                                   qss2_wsum_4& /*dyn*/,
                                   parameter& p) noexcept
 {
-    return ImGui::InputReal("coeff-0", &p.reals[0]) ||
-           ImGui::InputReal("coeff-1", &p.reals[1]) ||
-           ImGui::InputReal("coeff-2", &p.reals[2]) ||
-           ImGui::InputReal("coeff-3", &p.reals[3]);
+    return ImGui::InputReal("value-1", &p.reals[0]) ||
+           ImGui::InputReal("value-2", &p.reals[1]) ||
+           ImGui::InputReal("value-3", &p.reals[2]) ||
+           ImGui::InputReal("value-4", &p.reals[3]) ||
+           ImGui::InputReal("coeff-1", &p.reals[4]) ||
+           ImGui::InputReal("coeff-2", &p.reals[5]) ||
+           ImGui::InputReal("coeff-3", &p.reals[6]) ||
+           ImGui::InputReal("coeff-4", &p.reals[7]);
 }
 
 static bool show_parameter_editor(application& /*app*/,
@@ -794,27 +818,36 @@ static bool show_parameter_editor(application& /*app*/,
                                   qss3_wsum_2& /*dyn*/,
                                   parameter& p) noexcept
 {
-    return ImGui::InputReal("coeff-0", &p.reals[0]) ||
-           ImGui::InputReal("coeff-1", &p.reals[1]);
+    return ImGui::InputReal("value-1", &p.reals[0]) ||
+           ImGui::InputReal("value-2", &p.reals[1]) ||
+           ImGui::InputReal("coeff-1", &p.reals[2]) ||
+           ImGui::InputReal("coeff-2", &p.reals[3]);
 }
 
 static bool show_parameter_editor(application& /*app*/,
                                   qss3_wsum_3& /*dyn*/,
                                   parameter& p) noexcept
 {
-    return ImGui::InputReal("coeff-0", &p.reals[0]) ||
-           ImGui::InputReal("coeff-1", &p.reals[1]) ||
-           ImGui::InputReal("coeff-2", &p.reals[2]);
+    return ImGui::InputReal("value-1", &p.reals[0]) ||
+           ImGui::InputReal("value-2", &p.reals[1]) ||
+           ImGui::InputReal("value-3", &p.reals[2]) ||
+           ImGui::InputReal("coeff-1", &p.reals[3]) ||
+           ImGui::InputReal("coeff-2", &p.reals[4]) ||
+           ImGui::InputReal("coeff-3", &p.reals[5]);
 }
 
 static bool show_parameter_editor(application& /*app*/,
                                   qss3_wsum_4& /*dyn*/,
                                   parameter& p) noexcept
 {
-    return ImGui::InputReal("coeff-0", &p.reals[0]) ||
-           ImGui::InputReal("coeff-1", &p.reals[1]) ||
-           ImGui::InputReal("coeff-2", &p.reals[2]) ||
-           ImGui::InputReal("coeff-3", &p.reals[3]);
+    return ImGui::InputReal("value-1", &p.reals[0]) ||
+           ImGui::InputReal("value-2", &p.reals[1]) ||
+           ImGui::InputReal("value-3", &p.reals[2]) ||
+           ImGui::InputReal("value-4", &p.reals[3]) ||
+           ImGui::InputReal("coeff-1", &p.reals[4]) ||
+           ImGui::InputReal("coeff-2", &p.reals[5]) ||
+           ImGui::InputReal("coeff-3", &p.reals[6]) ||
+           ImGui::InputReal("coeff-4", &p.reals[7]);
 }
 
 static bool show_parameter_editor(application& /*app*/,
@@ -1264,33 +1297,42 @@ bool show_parameter(dynamics_qss1_wsum_2_tag,
                     application& /*app*/,
                     parameter& p) noexcept
 {
-    const auto b1 = ImGui::InputReal("coeff-0", &p.reals[0]);
-    const auto b2 = ImGui::InputReal("coeff-1", &p.reals[1]);
+    auto ret = ImGui::InputReal("value-0", &p.reals[0]);
+    ret |= ImGui::InputReal("value-1", &p.reals[1]);
+    ret |= ImGui::InputReal("coeff-0", &p.reals[2]);
+    ret |= ImGui::InputReal("coeff-1", &p.reals[3]);
 
-    return b1 or b2;
+    return ret;
 }
 
 bool show_parameter(dynamics_qss1_wsum_3_tag,
                     application& /*app*/,
                     parameter& p) noexcept
 {
-    const auto b1 = ImGui::InputReal("coeff-0", &p.reals[0]);
-    const auto b2 = ImGui::InputReal("coeff-1", &p.reals[1]);
-    const auto b3 = ImGui::InputReal("coeff-2", &p.reals[2]);
+    auto ret = ImGui::InputReal("value-0", &p.reals[0]);
+    ret |= ImGui::InputReal("value-1", &p.reals[1]);
+    ret |= ImGui::InputReal("value-2", &p.reals[2]);
+    ret |= ImGui::InputReal("coeff-0", &p.reals[3]);
+    ret |= ImGui::InputReal("coeff-1", &p.reals[4]);
+    ret |= ImGui::InputReal("coeff-2", &p.reals[5]);
 
-    return b1 or b2 or b3;
+    return ret;
 }
 
 bool show_parameter(dynamics_qss1_wsum_4_tag,
                     application& /*app*/,
                     parameter& p) noexcept
 {
-    const auto b1 = ImGui::InputReal("coeff-0", &p.reals[0]);
-    const auto b2 = ImGui::InputReal("coeff-1", &p.reals[1]);
-    const auto b3 = ImGui::InputReal("coeff-2", &p.reals[2]);
-    const auto b4 = ImGui::InputReal("coeff-3", &p.reals[3]);
+    auto ret = ImGui::InputReal("value-0", &p.reals[0]);
+    ret |= ImGui::InputReal("value-1", &p.reals[1]);
+    ret |= ImGui::InputReal("value-2", &p.reals[2]);
+    ret |= ImGui::InputReal("value-3", &p.reals[3]);
+    ret |= ImGui::InputReal("coeff-0", &p.reals[4]);
+    ret |= ImGui::InputReal("coeff-1", &p.reals[5]);
+    ret |= ImGui::InputReal("coeff-2", &p.reals[6]);
+    ret |= ImGui::InputReal("coeff-3", &p.reals[7]);
 
-    return b1 or b2 or b3 or b4;
+    return ret;
 }
 
 bool show_parameter(dynamics_qss2_multiplier_tag,
@@ -1325,33 +1367,42 @@ bool show_parameter(dynamics_qss2_wsum_2_tag,
                     application& /* app*/,
                     parameter& p) noexcept
 {
-    const auto b1 = ImGui::InputReal("coeff-0", &p.reals[0]);
-    const auto b2 = ImGui::InputReal("coeff-1", &p.reals[1]);
+    auto ret = ImGui::InputReal("value-0", &p.reals[0]);
+    ret |= ImGui::InputReal("value-1", &p.reals[1]);
+    ret |= ImGui::InputReal("coeff-0", &p.reals[2]);
+    ret |= ImGui::InputReal("coeff-1", &p.reals[3]);
 
-    return b1 or b2;
+    return ret;
 }
 
 bool show_parameter(dynamics_qss2_wsum_3_tag,
                     application& /*app*/,
                     parameter& p) noexcept
 {
-    const auto b1 = ImGui::InputReal("coeff-0", &p.reals[0]);
-    const auto b2 = ImGui::InputReal("coeff-1", &p.reals[1]);
-    const auto b3 = ImGui::InputReal("coeff-2", &p.reals[2]);
+    auto ret = ImGui::InputReal("value-0", &p.reals[0]);
+    ret |= ImGui::InputReal("value-1", &p.reals[1]);
+    ret |= ImGui::InputReal("value-2", &p.reals[2]);
+    ret |= ImGui::InputReal("coeff-0", &p.reals[3]);
+    ret |= ImGui::InputReal("coeff-1", &p.reals[4]);
+    ret |= ImGui::InputReal("coeff-2", &p.reals[5]);
 
-    return b1 or b2 or b3;
+    return ret;
 }
 
 bool show_parameter(dynamics_qss2_wsum_4_tag,
                     application& /*app*/,
                     parameter& p) noexcept
 {
-    const auto b1 = ImGui::InputReal("coeff-0", &p.reals[0]);
-    const auto b2 = ImGui::InputReal("coeff-1", &p.reals[1]);
-    const auto b3 = ImGui::InputReal("coeff-2", &p.reals[2]);
-    const auto b4 = ImGui::InputReal("coeff-3", &p.reals[3]);
+    auto ret = ImGui::InputReal("value-0", &p.reals[0]);
+    ret |= ImGui::InputReal("value-1", &p.reals[1]);
+    ret |= ImGui::InputReal("value-2", &p.reals[2]);
+    ret |= ImGui::InputReal("value-3", &p.reals[3]);
+    ret |= ImGui::InputReal("coeff-0", &p.reals[4]);
+    ret |= ImGui::InputReal("coeff-1", &p.reals[5]);
+    ret |= ImGui::InputReal("coeff-2", &p.reals[6]);
+    ret |= ImGui::InputReal("coeff-3", &p.reals[7]);
 
-    return b1 or b2 or b3 or b4;
+    return ret;
 }
 
 bool show_parameter(dynamics_qss3_multiplier_tag,
@@ -1386,33 +1437,42 @@ bool show_parameter(dynamics_qss3_wsum_2_tag,
                     application& /* app*/,
                     parameter& p) noexcept
 {
-    const auto b1 = ImGui::InputReal("coeff-0", &p.reals[0]);
-    const auto b2 = ImGui::InputReal("coeff-1", &p.reals[1]);
+    auto ret = ImGui::InputReal("value-0", &p.reals[0]);
+    ret |= ImGui::InputReal("value-1", &p.reals[1]);
+    ret |= ImGui::InputReal("coeff-0", &p.reals[2]);
+    ret |= ImGui::InputReal("coeff-1", &p.reals[3]);
 
-    return b1 or b2;
+    return ret;
 }
 
 bool show_parameter(dynamics_qss3_wsum_3_tag,
                     application& /*app*/,
                     parameter& p) noexcept
 {
-    const auto b1 = ImGui::InputReal("coeff-0", &p.reals[0]);
-    const auto b2 = ImGui::InputReal("coeff-1", &p.reals[1]);
-    const auto b3 = ImGui::InputReal("coeff-2", &p.reals[2]);
+    auto ret = ImGui::InputReal("value-0", &p.reals[0]);
+    ret |= ImGui::InputReal("value-1", &p.reals[1]);
+    ret |= ImGui::InputReal("value-2", &p.reals[2]);
+    ret |= ImGui::InputReal("coeff-0", &p.reals[3]);
+    ret |= ImGui::InputReal("coeff-1", &p.reals[4]);
+    ret |= ImGui::InputReal("coeff-2", &p.reals[5]);
 
-    return b1 or b2 or b3;
+    return ret;
 }
 
 bool show_parameter(dynamics_qss3_wsum_4_tag,
                     application& /*app*/,
                     parameter& p) noexcept
 {
-    const auto b1 = ImGui::InputReal("coeff-0", &p.reals[0]);
-    const auto b2 = ImGui::InputReal("coeff-1", &p.reals[1]);
-    const auto b3 = ImGui::InputReal("coeff-2", &p.reals[2]);
-    const auto b4 = ImGui::InputReal("coeff-3", &p.reals[3]);
+    auto ret = ImGui::InputReal("value-0", &p.reals[0]);
+    ret |= ImGui::InputReal("value-1", &p.reals[1]);
+    ret |= ImGui::InputReal("value-2", &p.reals[2]);
+    ret |= ImGui::InputReal("value-3", &p.reals[3]);
+    ret |= ImGui::InputReal("coeff-0", &p.reals[4]);
+    ret |= ImGui::InputReal("coeff-1", &p.reals[5]);
+    ret |= ImGui::InputReal("coeff-2", &p.reals[6]);
+    ret |= ImGui::InputReal("coeff-3", &p.reals[7]);
 
-    return b1 or b2 or b3 or b4;
+    return ret;
 }
 
 bool show_parameter(dynamics_counter_tag,
