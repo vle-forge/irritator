@@ -3801,6 +3801,22 @@ struct reader {
           error_id::project_fail_convert_access_to_tn_model_ids);
     }
 
+    bool convert_to_tn_model_ids(const unique_id_path& path,
+                                 vector<tree_node_id>& parent_id,
+                                 vector<model_id>&     mdl_id) noexcept
+    {
+        auto_stack s(this, stack_id::project_convert_to_tn_model_ids);
+
+        if (auto ret_opt = pj().get_model_path(path); ret_opt.has_value()) {
+            parent_id.emplace_back(ret_opt->first);
+            mdl_id.emplace_back(ret_opt->second);
+            return true;
+        }
+
+        report_json_error(
+          error_id::project_fail_convert_access_to_tn_model_ids);
+    }
+
     bool convert_to_tn_id(const unique_id_path& path,
                           tree_node_id&         tn_id) noexcept
     {
@@ -4351,11 +4367,19 @@ template<typename Writer>
 status write(Writer& writer, const qss2_wsum_2& dyn) noexcept
 {
     writer.StartObject();
+
+    writer.Key("value-0");
+    writer.Double(dyn.default_values[0]);
+    writer.Key("value-1");
+    writer.Double(dyn.default_values[1]);
+
     writer.Key("coeff-0");
     writer.Double(dyn.default_input_coeffs[0]);
     writer.Key("coeff-1");
     writer.Double(dyn.default_input_coeffs[1]);
+
     writer.EndObject();
+
     return success();
 }
 
@@ -4363,13 +4387,23 @@ template<typename Writer>
 status write(Writer& writer, const qss2_wsum_3& dyn) noexcept
 {
     writer.StartObject();
+
+    writer.Key("value-0");
+    writer.Double(dyn.default_values[0]);
+    writer.Key("value-1");
+    writer.Double(dyn.default_values[1]);
+    writer.Key("value-2");
+    writer.Double(dyn.default_values[2]);
+
     writer.Key("coeff-0");
     writer.Double(dyn.default_input_coeffs[0]);
     writer.Key("coeff-1");
     writer.Double(dyn.default_input_coeffs[1]);
     writer.Key("coeff-2");
     writer.Double(dyn.default_input_coeffs[2]);
+
     writer.EndObject();
+
     return success();
 }
 
@@ -4377,6 +4411,16 @@ template<typename Writer>
 status write(Writer& writer, const qss2_wsum_4& dyn) noexcept
 {
     writer.StartObject();
+
+    writer.Key("value-0");
+    writer.Double(dyn.default_values[0]);
+    writer.Key("value-1");
+    writer.Double(dyn.default_values[1]);
+    writer.Key("value-2");
+    writer.Double(dyn.default_values[2]);
+    writer.Key("value-3");
+    writer.Double(dyn.default_values[3]);
+
     writer.Key("coeff-0");
     writer.Double(dyn.default_input_coeffs[0]);
     writer.Key("coeff-1");
@@ -4385,6 +4429,7 @@ status write(Writer& writer, const qss2_wsum_4& dyn) noexcept
     writer.Double(dyn.default_input_coeffs[2]);
     writer.Key("coeff-3");
     writer.Double(dyn.default_input_coeffs[3]);
+
     writer.EndObject();
     return success();
 }
@@ -6365,9 +6410,11 @@ static status do_project_save_plot_observations(Writer& w, project& pj) noexcept
         w.Key("name");
         w.String(plot.name.begin(), plot.name.size());
 
-        w.Key("access");
-        pj.build_unique_id_path(plot.tn_id, plot.mdl_id, path);
-        write_project_unique_id_path(w, path);
+        for (int i = 0, e = plot.tn_id.ssize(); i != e; ++i) {
+            w.Key("access");
+            pj.build_unique_id_path(plot.tn_id[i], plot.mdl_id[i], path);
+            write_project_unique_id_path(w, path);
+        }
 
         w.Key("color");
         write_color(w, color_white);

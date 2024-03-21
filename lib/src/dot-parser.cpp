@@ -266,22 +266,22 @@ static constexpr bool next_char_is_number(const int c) noexcept
     }
 }
 
-static constexpr bool next_is_number(const std::string_view str) noexcept
-{
-    const auto len = str.size();
+// static constexpr bool next_is_number(const std::string_view str) noexcept
+// {
+//     const auto len = str.size();
 
-    if (len == 0)
-        return false;
+//     if (len == 0)
+//         return false;
 
-    if (not starts_as_number(str[0]))
-        return false;
+//     if (not starts_as_number(str[0]))
+//         return false;
 
-    for (std::size_t i = 1; i < len; ++i)
-        if (not next_char_is_number(str[i]))
-            return false;
+//     for (std::size_t i = 1; i < len; ++i)
+//         if (not next_char_is_number(str[i]))
+//             return false;
 
-    return true;
-}
+//     return true;
+// }
 
 class stream_buffer
 {
