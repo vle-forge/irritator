@@ -703,7 +703,12 @@ public:
     void clear() noexcept;
     void update(simulation& sim) noexcept;
 
-    vector<observer_id>  observers;
+    vector<observer_id> observers;
+
+    static_limiter<i32, 8, 512>        raw_buffer_size        = 64;
+    static_limiter<i32, 1024, 65536>   linearized_buffer_size = 32768;
+    static_limiter<float, .0001f, .1f> time_step              = .01f;
+
     variable_observer_id id = undefined<variable_observer_id>();
 };
 
