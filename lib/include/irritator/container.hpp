@@ -1185,6 +1185,7 @@ public:
     constexpr iterator       end() noexcept;
     constexpr const_iterator end() const noexcept;
 
+    constexpr bool       empty() const noexcept;
     constexpr bool       full() const noexcept;
     constexpr unsigned   size() const noexcept;
     constexpr int        ssize() const noexcept;
@@ -2348,6 +2349,12 @@ bool data_array<T, Identifier, A>::next(const T*& t) const noexcept
     }
 
     return false;
+}
+
+template<typename T, typename Identifier, typename A>
+constexpr bool data_array<T, Identifier, A>::empty() const noexcept
+{
+    return m_max_size == 0;
 }
 
 template<typename T, typename Identifier, typename A>
