@@ -1185,53 +1185,27 @@ status project::set(modeling& mod, simulation& sim, component& compo) noexcept
     clean_simulation();
     mod.clean_simulation();
 
-    if (auto ret = make_component_cache(*this, mod); !ret)
-        return ret.error();
+    irt_check(make_component_cache(*this, mod));
 
     simulation_copy sc(m_cache, mod, sim, tree_nodes);
     tree_node_id    id = undefined<tree_node_id>();
 
-    if (auto ret = make_tree_from(sc, tree_nodes, compo, &id); !ret)
-        return ret.error();
+    irt_check(make_tree_from(sc, tree_nodes, compo, &id));
 
     m_head    = mod.components.get_id(compo);
     m_tn_head = id;
 
-    if (auto ret = simulation_copy_sources(m_cache, mod, sim); !ret)
-        return ret.error();
-    if (auto ret = simulation_copy_connections(sc, *tn_head()); !ret)
-        return ret.error();
+    irt_check(simulation_copy_sources(m_cache, mod, sim));
+    irt_check(simulation_copy_connections(sc, *tn_head()));
 
     return success();
 }
 
 status project::rebuild(modeling& mod, simulation& sim) noexcept
 {
-    clear();
-    clear_cache();
-    clean_simulation();
-    mod.clean_simulation();
+    auto* compo = mod.components.try_to_get(head());
 
-    if (auto ret = make_component_cache(*this, mod); !ret)
-        return ret.error();
-
-    if (auto* compo = mod.components.try_to_get(head()); compo) {
-        simulation_copy sc(m_cache, mod, sim, tree_nodes);
-        tree_node_id    id = undefined<tree_node_id>();
-
-        if (auto ret = make_tree_from(sc, tree_nodes, *compo, &id); !ret)
-            return ret.error();
-
-        m_head    = mod.components.get_id(*compo);
-        m_tn_head = id;
-
-        if (auto ret = simulation_copy_sources(m_cache, mod, sim); !ret)
-            return ret.error();
-        if (auto ret = simulation_copy_connections(sc, *tn_head()); !ret)
-            return ret.error();
-    }
-
-    return success();
+    return compo ? set(mod, sim, *compo) : success();
 }
 
 void project::clear() noexcept
