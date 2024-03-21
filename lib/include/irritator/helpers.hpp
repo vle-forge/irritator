@@ -5,6 +5,7 @@
 #ifndef ORG_VLEPROJECT_IRRITATOR_HELPERS_2023
 #define ORG_VLEPROJECT_IRRITATOR_HELPERS_2023
 
+#include <concepts>
 #include <irritator/core.hpp>
 #include <irritator/error.hpp>
 
@@ -31,9 +32,9 @@ struct limiter {
 };
 
 template<typename T, T Lower, T Upper>
+    requires std::integral<T>
 class static_limiter
 {
-    static_assert(std::is_arithmetic_v<T>);
     static_assert(Lower < Upper);
 
     T m_value;
@@ -51,6 +52,38 @@ public:
     void set(const T value) noexcept
     {
         m_value = std::clamp(value, Lower, Upper);
+    }
+
+    T value() const noexcept { return m_value; }
+    operator T() noexcept { return m_value; }
+    operator T() const noexcept { return m_value; }
+};
+
+template<typename T, int LowerNum, int LowerDenom, int UpperNum, int UpperDenom>
+    requires std::floating_point<T>
+class floating_point_limiter
+{
+    static inline constexpr T lower =
+      static_cast<T>(LowerNum) / static_cast<T>(LowerDenom);
+    static inline constexpr T upper =
+      static_cast<T>(UpperNum) / static_cast<T>(UpperDenom);
+    static_assert(lower < upper);
+
+    T m_value;
+
+public:
+    constexpr floating_point_limiter(const T value) noexcept
+      : m_value(std::clamp(value, lower, upper))
+    {}
+
+    static constexpr bool is_valid(const T value) noexcept
+    {
+        return lower <= value && value <= upper;
+    }
+
+    void set(const T value) noexcept
+    {
+        m_value = std::clamp(value, lower, upper);
     }
 
     T value() const noexcept { return m_value; }
