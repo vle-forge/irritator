@@ -603,8 +603,8 @@ static void show_select_model_box_recursive(
             for_each_model(
               app.sim,
               tn,
-              [&](auto& sim, auto& tn, u64 /*unique_id*/, auto& mdl) noexcept {
-                  const auto mdl_id = sim.models.get_id(mdl);
+              [&](u64 /*unique_id*/, auto& mdl) noexcept {
+                  const auto mdl_id = app.sim.models.get_id(mdl);
                   ImGui::PushID(get_index(mdl_id));
 
                   const auto current_tn_id = app.pj.node(tn);

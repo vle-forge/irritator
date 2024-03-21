@@ -297,72 +297,99 @@ static bool show_local_simulation_plot_observers_table(application& app,
                           ImGuiChildFlags_None,
                           ImGuiWindowFlags_HorizontalScrollbar);
 
-        if (ImGui::BeginTable("Observation table", 4)) {
+        if (ImGui::BeginTable("Observation table", 3)) {
             ImGui::TableSetupColumn("enable");
-            ImGui::TableSetupColumn("unique id");
             ImGui::TableSetupColumn("model type");
-            ImGui::TableSetupColumn("type");
+            ImGui::TableSetupColumn("plot name");
             ImGui::TableHeadersRow();
 
-            for_each_model(
-              app.sim,
-              tn,
-              [&](auto& sim,
-                  auto& /*tn*/,
-                  auto /*unique_id*/,
-                  auto& mdl) noexcept {
-                  const auto mdl_id = sim.get_id(mdl);
+            for_each_model(app.sim, tn, [&](auto uid, auto& mdl) noexcept {
+                const auto mdl_id  = app.sim.get_id(mdl);
+                const auto tn_id   = app.pj.tree_nodes.get_id(tn);
+                auto       current = undefined<variable_observer_id>();
+                auto       enable  = false;
 
-                  auto* current_selection = find_specified_data_if(
-                    app.pj.variable_observers,
-                    tn.variable_observer_ids,
-                    [&](auto& var_obs) { return var_obs.mdl_id == mdl_id; });
+                {
+                    auto* ptr = tn.variable_observer_ids.get(uid);
+                    if (ptr) {
+                        enable = app.pj.variable_observers.try_to_get(*ptr);
+                        if (enable)
+                            current = *ptr;
+                    }
+                }
 
-                  bool enable = current_selection != nullptr;
+                ImGui::PushID(static_cast<int>(get_index(mdl_id)));
 
-                  ImGui::PushID(static_cast<int>(get_index(mdl_id)));
+                ImGui::TableNextRow();
+                ImGui::TableNextColumn();
 
-                  ImGui::TableNextRow();
-                  ImGui::TableNextColumn();
+                if (can_add && ImGui::Checkbox("##enable", &enable)) {
+                    if (enable) {
+                        debug::ensure(is_undefined(current));
 
-                  if (can_add && ImGui::Checkbox("##enable", &enable)) {
-                      if (enable) {
-                          irt_assert(current_selection == nullptr);
-                          auto& gp    = app.pj.variable_observers.alloc();
-                          auto  gp_id = app.pj.variable_observers.get_id(gp);
-                          gp.tn_id    = app.pj.tree_nodes.get_id(tn);
-                          gp.mdl_id   = sim.models.get_id(mdl);
-                          gp.type     = variable_observer::type_options::line;
-                          format(gp.name, "{}", ordinal(gp_id));
+                        auto id_opt = get_first_variable_observer(app.pj);
+                        if (not id_opt.has_value()) {
+                            auto& n =
+                              app.notifications.alloc(log_level::warning);
+                            n.title = "Can not allocate more observers";
+                            app.notifications.enable(n);
+                        } else {
+                            auto  v_obs_id = *id_opt;
+                            auto* v_obs =
+                              app.pj.variable_observers.try_to_get(v_obs_id);
+                            if (v_obs) {
+                                v_obs->tn_id.emplace_back(
+                                  app.pj.tree_nodes.get_id(tn));
+                                v_obs->mdl_id.emplace_back(
+                                  app.sim.models.get_id(mdl));
+                                tn.variable_observer_ids.set(uid, v_obs_id);
+                                current = v_obs_id;
+                            } else {
+                                tn.variable_observer_ids.erase(uid);
+                            }
+                        }
+                    } else {
+                        auto* v_obs =
+                          app.pj.variable_observers.try_to_get(current);
+                        if (v_obs) {
+                            v_obs->erase(tn_id, mdl_id);
+                        } else {
+                            tn.variable_observer_ids.erase(uid);
+                        }
 
-                          tn.variable_observer_ids.emplace_back(gp_id);
-                          current_selection = &gp;
-                          irt_assert(current_selection != nullptr);
-                      } else {
-                          irt_assert(current_selection != nullptr);
-                          app.pj.variable_observers.free(*current_selection);
-                          current_selection = nullptr;
-                          enable            = false;
-                      }
-                  }
+                        tn.variable_observer_ids.erase(uid);
+                        enable = false;
+                    }
+                }
 
-                  ImGui::TableNextColumn();
-                  ImGui::TextFormat("{}", ordinal(mdl_id));
-                  ImGui::TableNextColumn();
-                  ImGui::TextUnformatted(
-                    dynamics_type_names[ordinal(mdl.type)]);
-                  ImGui::TableNextColumn();
+                ImGui::TableNextColumn();
+                ImGui::TextUnformatted(dynamics_type_names[ordinal(mdl.type)]);
+                ImGui::TableNextColumn();
 
-                  if (enable) {
-                      irt_assert(current_selection != nullptr);
-                      ImGui::TextUnformatted("line");
-                  } else {
-                      ImGui::TextUnformatted("-");
-                  }
-                  ImGui::TableNextColumn();
+                if (enable) {
+                    auto old_current = current;
+                    if (select_variable_observer(app.pj, current)) {
+                        if_data_exists_do(app.pj.variable_observers,
+                                          old_current,
+                                          [&](auto& v_obs) noexcept {
+                                              v_obs.erase(tn_id, mdl_id);
+                                          });
 
-                  ImGui::PopID();
-              });
+                        tn.variable_observer_ids.set(uid, current);
+                        if_data_exists_do(app.pj.variable_observers,
+                                          current,
+                                          [&](auto& v_obs) noexcept {
+                                              v_obs.push_back(tn_id, mdl_id);
+                                          });
+                    }
+                } else {
+                    ImGui::TextUnformatted("-");
+                }
+
+                ImGui::TableNextColumn();
+
+                ImGui::PopID();
+            });
 
             ImGui::EndTable();
         }
@@ -407,67 +434,52 @@ static bool show_local_simulation_settings(application& app,
             ImGui::TableSetupColumn("parameter");
             ImGui::TableHeadersRow();
 
-            for_each_model(
-              app.sim,
-              tn,
-              [&](auto& sim,
-                  auto& /*tn*/,
-                  auto /*unique_id*/,
-                  auto& mdl) noexcept {
-                  const auto mdl_id = sim.get_id(mdl);
+            for_each_model(app.sim, tn, [&](auto uid, auto& mdl) noexcept {
+                const auto mdl_id  = app.sim.get_id(mdl);
+                auto       current = get_global_parameter(tn, uid);
+                bool       enable  = is_defined(current);
 
-                  auto* current_selection = find_specified_data_if(
-                    app.pj.global_parameters,
-                    tn.parameters_ids,
-                    [&](auto& global_param) {
-                        return global_param.mdl_id == mdl_id;
-                    });
+                ImGui::PushID(static_cast<int>(get_index(mdl_id)));
 
-                  bool enable = current_selection != nullptr;
+                ImGui::TableNextRow();
+                ImGui::TableNextColumn();
 
-                  ImGui::PushID(static_cast<int>(get_index(mdl_id)));
+                if (ImGui::Checkbox("##enable", &enable)) {
+                    if (enable and app.pj.global_parameters.can_alloc()) {
+                        auto& gp    = app.pj.global_parameters.alloc();
+                        auto  gp_id = app.pj.global_parameters.get_id(gp);
+                        gp.mdl_id   = app.sim.models.get_id(mdl);
+                        gp.tn_id    = app.pj.tree_nodes.get_id(tn);
+                        gp.param.copy_from(mdl);
+                        format(gp.name, "{}", ordinal(gp_id));
 
-                  ImGui::TableNextRow();
-                  ImGui::TableNextColumn();
+                        tn.parameters_ids.set(uid, gp_id);
+                        current = gp_id;
+                    } else {
+                        app.pj.global_parameters.free(current);
+                        tn.parameters_ids.erase(uid);
+                        current = undefined<global_parameter_id>();
+                        enable  = false;
+                    }
+                }
 
-                  if (ImGui::Checkbox("##enable", &enable)) {
-                      if (enable) {
-                          irt_assert(current_selection == nullptr);
-                          auto& gp    = app.pj.global_parameters.alloc();
-                          auto  gp_id = app.pj.global_parameters.get_id(gp);
-                          gp.mdl_id   = sim.models.get_id(mdl);
-                          gp.tn_id    = app.pj.tree_nodes.get_id(tn);
-                          gp.param.copy_from(mdl);
-                          format(gp.name, "{}", ordinal(gp_id));
+                ImGui::TableNextColumn();
 
-                          tn.parameters_ids.emplace_back(gp_id);
-                          current_selection = &gp;
-                          irt_assert(current_selection != nullptr);
-                      } else {
-                          irt_assert(current_selection != nullptr);
-                          app.pj.global_parameters.free(*current_selection);
-                          current_selection = nullptr;
-                          enable            = false;
-                      }
-                  }
+                ImGui::TextFormat("{}", ordinal(mdl_id));
+                ImGui::TableNextColumn();
 
-                  ImGui::TableNextColumn();
+                ImGui::TextUnformatted(dynamics_type_names[ordinal(mdl.type)]);
+                ImGui::TableNextColumn();
 
-                  ImGui::TextFormat("{}", ordinal(mdl_id));
-                  ImGui::TableNextColumn();
+                if (enable) {
+                    auto* gp = app.pj.global_parameters.try_to_get(current);
+                    if (gp)
+                        show_parameter_editor(app, mdl, gp->param);
+                }
 
-                  ImGui::TextUnformatted(
-                    dynamics_type_names[ordinal(mdl.type)]);
-                  ImGui::TableNextColumn();
-
-                  if (enable) {
-                      irt_assert(current_selection != nullptr);
-                      show_parameter_editor(app, mdl, current_selection->param);
-                  }
-
-                  ImGui::TableNextColumn();
-                  ImGui::PopID();
-              });
+                ImGui::TableNextColumn();
+                ImGui::PopID();
+            });
 
             ImGui::EndTable();
         }

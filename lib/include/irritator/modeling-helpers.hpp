@@ -232,7 +232,7 @@ void for_each_model(simulation& sim, tree_node& tn, Function&& f) noexcept
     for (int i = 0, e = tn.unique_id_to_model_id.data.ssize(); i < e; ++i) {
         if_data_exists_do(
           sim.models, tn.unique_id_to_model_id.data[i].value, [&](auto& mdl) {
-              f(sim, tn, tn.unique_id_to_model_id.data[i].id, mdl);
+              f(tn.unique_id_to_model_id.data[i].id, mdl);
           });
     }
 }
