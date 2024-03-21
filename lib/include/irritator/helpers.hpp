@@ -31,13 +31,31 @@ struct limiter {
 };
 
 template<typename T, T Lower, T Upper>
-struct static_limiter {
+class static_limiter
+{
+    static_assert(std::is_arithmetic_v<T>);
     static_assert(Lower < Upper);
 
-    constexpr bool is_valid(const T value) const noexcept
+    T m_value;
+
+public:
+    constexpr static_limiter(const T value) noexcept
+      : m_value(std::clamp(value, Lower, Upper))
+    {}
+
+    static constexpr bool is_valid(const T value) noexcept
     {
         return Lower <= value && value <= Upper;
     }
+
+    void set(const T value) noexcept
+    {
+        m_value = std::clamp(value, Lower, Upper);
+    }
+
+    T value() const noexcept { return m_value; }
+    operator T() noexcept { return m_value; }
+    operator T() const noexcept { return m_value; }
 };
 
 template<typename>
