@@ -1,4 +1,5 @@
 // Copyright (c) 2023 INRA Distributed under the Boost Software License,
+// Copyright (c) 2023 INRA Distributed under the Boost Software License,
 // Version 1.0. (See accompanying file LICENSE_1_0.txt or copy at
 // http://www.boost.org/LICENSE_1_0.txt)
 
@@ -182,6 +183,7 @@ static void parameter_init(parameter&                       param,
     param.reals[1] = dyn.default_values[1];
     param.reals[2] = dyn.default_values[2];
 }
+
 template<int QssLevel>
 static void model_init(const parameter&           param,
                        abstract_sum<QssLevel, 4>& dyn) noexcept
@@ -206,11 +208,10 @@ template<int QssLevel>
 static void model_init(const parameter&            param,
                        abstract_wsum<QssLevel, 2>& dyn) noexcept
 {
-    dyn.default_values[0] = param.reals[0];
-    dyn.default_values[1] = param.reals[1];
-
-    dyn.default_input_coeffs[0] = param.reals[3];
-    dyn.default_input_coeffs[1] = param.reals[4];
+    dyn.default_values[0]       = param.reals[0];
+    dyn.default_values[1]       = param.reals[1];
+    dyn.default_input_coeffs[0] = param.reals[2];
+    dyn.default_input_coeffs[1] = param.reals[3];
 }
 
 template<int QssLevel>
@@ -219,18 +220,17 @@ static void parameter_init(parameter&                        param,
 {
     param.reals[0] = dyn.default_values[0];
     param.reals[1] = dyn.default_values[1];
-
-    param.reals[3] = dyn.default_input_coeffs[0];
-    param.reals[4] = dyn.default_input_coeffs[1];
+    param.reals[2] = dyn.default_input_coeffs[0];
+    param.reals[3] = dyn.default_input_coeffs[1];
 }
+
 template<int QssLevel>
 static void model_init(const parameter&            param,
                        abstract_wsum<QssLevel, 3>& dyn) noexcept
 {
-    dyn.default_values[0] = param.reals[0];
-    dyn.default_values[1] = param.reals[1];
-    dyn.default_values[2] = param.reals[2];
-
+    dyn.default_values[0]       = param.reals[0];
+    dyn.default_values[1]       = param.reals[1];
+    dyn.default_values[2]       = param.reals[2];
     dyn.default_input_coeffs[0] = param.reals[3];
     dyn.default_input_coeffs[1] = param.reals[4];
     dyn.default_input_coeffs[2] = param.reals[5];
@@ -243,20 +243,19 @@ static void parameter_init(parameter&                        param,
     param.reals[0] = dyn.default_values[0];
     param.reals[1] = dyn.default_values[1];
     param.reals[2] = dyn.default_values[2];
-
     param.reals[3] = dyn.default_input_coeffs[0];
     param.reals[4] = dyn.default_input_coeffs[1];
     param.reals[5] = dyn.default_input_coeffs[2];
 }
+
 template<int QssLevel>
 static void model_init(const parameter&            param,
                        abstract_wsum<QssLevel, 4>& dyn) noexcept
 {
-    dyn.default_values[0] = param.reals[0];
-    dyn.default_values[1] = param.reals[1];
-    dyn.default_values[2] = param.reals[2];
-    dyn.default_values[3] = param.reals[3];
-
+    dyn.default_values[0]       = param.reals[0];
+    dyn.default_values[1]       = param.reals[1];
+    dyn.default_values[2]       = param.reals[2];
+    dyn.default_values[3]       = param.reals[3];
     dyn.default_input_coeffs[0] = param.reals[4];
     dyn.default_input_coeffs[1] = param.reals[5];
     dyn.default_input_coeffs[2] = param.reals[6];
@@ -272,11 +271,10 @@ static void parameter_init(
     param.reals[1] = dyn.default_values[1];
     param.reals[2] = dyn.default_values[2];
     param.reals[3] = dyn.default_values[3];
-
     param.reals[4] = dyn.default_input_coeffs[0];
     param.reals[5] = dyn.default_input_coeffs[1];
     param.reals[6] = dyn.default_input_coeffs[2];
-    param.reals[7] = dyn.default_input_coeffs[2];
+    param.reals[7] = dyn.default_input_coeffs[3];
 }
 
 template<int QssLevel>
