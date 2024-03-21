@@ -25,7 +25,7 @@ set(gui_sources application.cpp application.hpp component.cpp
     ${PROJECT_SOURCE_DIR}/../../lib/src/dot-parser.hpp
     ${PROJECT_SOURCE_DIR}/../../lib/src/error.cpp
     ${PROJECT_SOURCE_DIR}/../../lib/src/external_source.cpp
-    ${PROJECT_SOURCE_DIR}/../../lib/src/grid-simulation-observer.cpp
+    ${PROJECT_SOURCE_DIR}/../../lib/src/grid-sim-obs.cpp
     ${PROJECT_SOURCE_DIR}/../../lib/src/hsm.cpp
     ${PROJECT_SOURCE_DIR}/../../lib/src/json.cpp
     ${PROJECT_SOURCE_DIR}/../../lib/src/io.cpp
@@ -39,6 +39,7 @@ set(gui_sources application.cpp application.hpp component.cpp
     ${PROJECT_SOURCE_DIR}/../../lib/src/parameter.cpp
     ${PROJECT_SOURCE_DIR}/../../lib/src/project.cpp
     ${PROJECT_SOURCE_DIR}/../../lib/src/timeline.cpp
+    ${PROJECT_SOURCE_DIR}/../../lib/src/var-sim-obs.cpp
     ${PROJECT_SOURCE_DIR}/../../external/imgui/imgui.cpp
     ${PROJECT_SOURCE_DIR}/../../external/imgui/imgui.h
     ${PROJECT_SOURCE_DIR}/../../external/imgui/imgui_demo.cpp
