@@ -731,6 +731,10 @@ void modeling::remove_file(registred_path& reg,
 
         std::error_code ec;
         std::filesystem::remove(p, ec);
+
+        if_data_exists_do(components,
+                          file.component,
+                          [&](auto& compo) noexcept { free(compo); });
     } catch (...) {
     }
 }
