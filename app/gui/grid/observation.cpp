@@ -12,9 +12,9 @@ namespace irt {
 
 void grid_observation_widget::show(grid_simulation_observer& grid) noexcept
 {
-    constexpr ImPlotAxisFlags axes_flags = ImPlotAxisFlags_Lock |
-                                           ImPlotAxisFlags_NoGridLines |
-                                           ImPlotAxisFlags_NoTickMarks;
+    // constexpr ImPlotAxisFlags axes_flags = ImPlotAxisFlags_Lock |
+    //                                        ImPlotAxisFlags_NoGridLines |
+    //                                        ImPlotAxisFlags_NoTickMarks;
 
     auto& sim_ed = container_of(this, &simulation_editor::grid_obs);
     auto& app    = container_of(&sim_ed, &application::simulation_ed);

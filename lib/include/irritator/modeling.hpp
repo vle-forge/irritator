@@ -5,6 +5,8 @@
 #ifndef ORG_VLEPROJECT_IRRITATOR_2021_MODELING_HPP
 #define ORG_VLEPROJECT_IRRITATOR_2021_MODELING_HPP
 
+#include "irritator/helpers.hpp"
+#include "irritator/macros.hpp"
 #include <irritator/core.hpp>
 #include <irritator/error.hpp>
 #include <irritator/ext.hpp>
@@ -691,6 +693,20 @@ struct modeling_initializer {
     bool is_fixed_window_placement = true;
 };
 
+class variable_simulation_observer
+{
+public:
+    status init(project&           pj,
+                simulation&        sim,
+                variable_observer& v_obs) noexcept;
+
+    void clear() noexcept;
+    void update(simulation& sim) noexcept;
+
+    vector<observer_id>  observers;
+    variable_observer_id id = undefined<variable_observer_id>();
+};
+
 //! A simulation structure to stores the matrix of @c observer_id identifier and
 //! a matrix of the last value from each observers.
 //!
@@ -769,8 +785,9 @@ struct tree_node {
     table<u64, tree_node_id> unique_id_to_tree_node_id;
     table<u64, model_id>     unique_id_to_model_id;
 
-    vector<global_parameter_id>        parameters_ids;
-    vector<variable_observer_id>       variable_observer_ids;
+    table<u64, global_parameter_id>  parameters_ids;
+    table<u64, variable_observer_id> variable_observer_ids;
+
     vector<graph_modeling_observer_id> graph_observer_ids;
     vector<grid_modeling_observer_id>  grid_observer_ids;
 
@@ -865,8 +882,46 @@ struct graph_modeling_observer {
 struct variable_observer {
     name_str name;
 
-    tree_node_id tn_id;  //< @c tree_node identifier parent of the model.
-    model_id     mdl_id; //< @c model to observe.
+    vector<tree_node_id> tn_id; //< @c tree_node identifier parent of the model.
+    vector<model_id>     mdl_id; //< @c model to observe.
+
+    // Removes from `tn_id` and `mdl_id` vectors the pair (tn, mdl).
+    void erase(const tree_node_id tn, const model_id mdl) noexcept
+    {
+        debug::ensure(tn_id.ssize() == mdl_id.ssize());
+
+        auto i = 0;
+
+        while (i < tn_id.ssize()) {
+            if (tn_id[i] == tn and mdl_id[i] == mdl) {
+                tn_id.swap_pop_back(i);
+                mdl_id.swap_pop_back(i);
+            } else {
+                ++i;
+            }
+        }
+    }
+
+    // Push into `tn_id` and `mdl_id` vectors the pair (tn, mdl) if the pair
+    // does not already exsits.
+    void push_back(const tree_node_id tn, const model_id mdl) noexcept
+    {
+        debug::ensure(tn_id.ssize() == mdl_id.ssize());
+
+        auto already = false;
+
+        for (auto i = 0, e = tn_id.ssize(); i != e; ++i) {
+            if (tn_id[i] == tn and mdl_id[i] == mdl) {
+                already = true;
+                break;
+            }
+        }
+
+        if (!already) {
+            tn_id.emplace_back(tn);
+            mdl_id.emplace_back(mdl);
+        }
+    }
 
     color default_color;
 
@@ -1244,7 +1299,8 @@ public:
     data_array<global_parameter, global_parameter_id> global_parameters;
 
     /** Use the index of the @c get_index<grid_observer_id>. */
-    vector<grid_simulation_observer> grid_observation_systems;
+    vector<grid_simulation_observer>     grid_observation_systems;
+    vector<variable_simulation_observer> variable_observation_systems;
 
     /** Use the index of the @c get_index<graph_observer_id>. */
     // vector<graph_observation_system> graph_observation_systems;

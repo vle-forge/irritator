@@ -119,16 +119,15 @@ notification_manager::notification_manager() noexcept
 
 notification& notification_manager::alloc() noexcept
 {
-    for (;;) {
-        {
-            std::scoped_lock lock{ mutex };
+    std::scoped_lock lock{ mutex };
 
-            if (data.can_alloc())
-                return data.alloc();
-        }
-
-        std::this_thread::yield();
+    if (r_buffer.full()) {
+        const auto front = r_buffer.front();
+        data.free(front);
+        r_buffer.dequeue();
     }
+
+    return data.alloc();
 }
 
 notification& notification_manager::alloc(log_level level) noexcept
@@ -141,19 +140,16 @@ notification& notification_manager::alloc(log_level level) noexcept
 
 void notification_manager::enable(const notification& n) noexcept
 {
-    for (;;) {
-        {
-            std::scoped_lock lock{ mutex };
+    std::scoped_lock lock{ mutex };
 
-            if (!r_buffer.full()) {
-                const auto id = data.get_id(n);
-                r_buffer.enqueue(id);
-                return;
-            }
-        }
-
-        std::this_thread::yield();
+    if (r_buffer.full()) {
+        const auto front = r_buffer.front();
+        data.free(front);
+        r_buffer.dequeue();
     }
+
+    const auto id = data.get_id(n);
+    r_buffer.enqueue(id);
 }
 
 void notification_manager::show() noexcept

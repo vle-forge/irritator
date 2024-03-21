@@ -225,18 +225,18 @@ public:
 
     std::filesystem::path file;
 
-    vector<observer_id>          observers;
-    vector<variable_observer_id> ids;
+    // vector<observer_id>          observers;
+    // vector<variable_observer_id> ids;
 
-    template<typename Function>
-    void for_each_observers(Function&& f) noexcept
-    {
-        irt_assert(observers.size() == ids.size());
+    // template<typename Function>
+    // void for_each_observers(Function&& f) noexcept
+    // {
+    //     irt_assert(observers.size() == ids.size());
 
-        for (int i = 0, e = observers.ssize(); i != e; ++i) {
-            f(observers[i], ids[i]);
-        }
-    }
+    //     for (int i = 0, e = observers.ssize(); i != e; ++i) {
+    //         f(observers[i], ids[i]);
+    //     }
+    // }
 };
 
 /// Use to display a grid_observation_system into ImGui widget. An instance of
@@ -558,6 +558,7 @@ struct simulation_editor {
     void start_simulation_copy_modeling() noexcept;
     void start_simulation_init() noexcept;
     void start_simulation_delete() noexcept;
+    void start_simulation_clear() noexcept;
     void start_simulation_start() noexcept;
     void start_simulation_live_run() noexcept;
     void start_simulation_static_run() noexcept;

@@ -68,7 +68,7 @@ void simulation_observation::update() noexcept
                                       obs_id,
                                       [&](observer& obs) noexcept -> void {
                                           while (obs.buffer.ssize() > 2)
-                                              write_interpolate_data(
+                                              flush_interpolate_data(
                                                 obs, app.sim_obs.time_step);
                                       });
                 });

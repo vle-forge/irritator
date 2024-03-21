@@ -3,63 +3,75 @@
 // http://www.boost.org/LICENSE_1_0.txt)
 
 #include "application.hpp"
-#include "internal.hpp"
+#include "irritator/macros.hpp"
+
+#include <irritator/format.hpp>
+#include <irritator/helpers.hpp>
 
 namespace irt {
 
-void plot_observation_widget::init(application& app) noexcept
+void plot_observation_widget::init(application& /*app*/) noexcept
 {
-    const auto len = app.pj.variable_observers.size();
-    clear();
+    // const auto len = app.pj.variable_observers.size();
+    // clear();
 
-    observers.reserve(len);
-    ids.reserve(len);
+    // observers.reserve(len);
+    // ids.reserve(len);
 
-    for_each_data(app.pj.variable_observers, [&](auto& var) noexcept {
-        const auto var_id = app.pj.variable_observers.get_id(var);
+    // for_each_data(app.pj.variable_observers, [&](auto& var) noexcept {
+    //     const auto var_id = app.pj.variable_observers.get_id(var);
 
-        if_data_exists_do(app.sim.models, var.mdl_id, [&](auto& mdl) noexcept {
-            auto& obs =
-              app.sim.observers.alloc(var.name.sv(), ordinal(var_id), 0);
-            app.sim.observe(mdl, obs);
+    //     if_data_exists_do(app.sim.models, var.mdl_id, [&](auto& mdl) noexcept
+    //     {
+    //         auto& obs =
+    //           app.sim.observers.alloc(var.name.sv(), ordinal(var_id), 0);
+    //         app.sim.observe(mdl, obs);
 
-            observers.emplace_back(mdl.obs_id);
-            ids.emplace_back(app.pj.variable_observers.get_id(var));
-        });
-    });
+    //         observers.emplace_back(mdl.obs_id);
+    //         ids.emplace_back(app.pj.variable_observers.get_id(var));
+    //     });
+    // });
 }
 
 void plot_observation_widget::clear() noexcept
 {
-    observers.clear();
-    ids.clear();
+    // observers.clear();
+    // ids.clear();
 }
 
 void plot_observation_widget::show(application& app) noexcept
 {
-    if (ImPlot::BeginPlot("variables", ImVec2(-1, -1))) {
-        ImPlot::PushStyleVar(ImPlotStyleVar_LineWeight, 1.f);
-        ImPlot::PushStyleVar(ImPlotStyleVar_MarkerSize, 1.f);
+    for (auto& v_obs : app.pj.variable_observers) {
+        const auto id  = app.pj.variable_observers.get_id(v_obs);
+        const auto idx = get_index(id);
+        auto&      sys = app.pj.variable_observation_systems[idx];
 
-        ImPlot::SetupAxes(
-          nullptr, nullptr, ImPlotAxisFlags_AutoFit, ImPlotAxisFlags_AutoFit);
+        small_string<32> name;
+        format(name, "{}##{}", v_obs.name.sv(), idx);
 
-        for (int i = 0, e = observers.ssize(); i != e; ++i) {
-            auto* obs = app.sim.observers.try_to_get(observers[i]);
-            auto* var = app.pj.variable_observers.try_to_get(ids[i]);
+        if (ImPlot::BeginPlot(name.c_str(), ImVec2(-1, -1))) {
+            ImPlot::PushStyleVar(ImPlotStyleVar_LineWeight, 1.f);
+            ImPlot::PushStyleVar(ImPlotStyleVar_MarkerSize, 1.f);
 
-            if (obs && var) {
+            ImPlot::SetupAxes(nullptr,
+                              nullptr,
+                              ImPlotAxisFlags_AutoFit,
+                              ImPlotAxisFlags_AutoFit);
+
+            for (int i = 0, e = sys.observers.ssize(); i != e; ++i) {
+                auto* obs = app.sim.observers.try_to_get(sys.observers[i]);
+
                 if (obs->linearized_buffer.size() > 0) {
-                    switch (var->type) {
+                    switch (v_obs.type) {
                     case variable_observer::type_options::line:
-                        ImPlot::PlotLineG(var->name.c_str(),
+                        ImPlot::PlotLineG(obs->name.c_str(),
                                           ring_buffer_getter,
                                           &obs->linearized_buffer,
                                           obs->linearized_buffer.ssize());
                         break;
 
                     case variable_observer::type_options::dash:
-                        ImPlot::PlotScatterG(var->name.c_str(),
+                        ImPlot::PlotScatterG(obs->name.c_str(),
                                              ring_buffer_getter,
                                              &obs->linearized_buffer,
                                              obs->linearized_buffer.ssize());
@@ -70,53 +82,54 @@ void plot_observation_widget::show(application& app) noexcept
                     }
                 }
             }
-        }
 
-        ImPlot::PopStyleVar(2);
-        ImPlot::EndPlot();
+            ImPlot::PopStyleVar(2);
+            ImPlot::EndPlot();
+        }
     }
 }
 
-static void plot_observation_widget_write(plot_observation_widget& plot_widget,
-                                          application&             app,
-                                          std::ofstream&           ofs) noexcept
+static void plot_observation_widget_write(
+  plot_observation_widget& /*plot_widget*/,
+  application& /*app*/,
+  std::ofstream& /*ofs*/) noexcept
 {
-    ofs.imbue(std::locale::classic());
+    // ofs.imbue(std::locale::classic());
 
-    bool first_column = true;
-    int  size         = std::numeric_limits<int>::max();
+    // bool first_column = true;
+    // int  size         = std::numeric_limits<int>::max();
 
-    for_specified_data(
-      app.sim.observers, plot_widget.observers, [&](auto& obs) noexcept {
-          if (first_column) {
-              ofs << "t," << obs.name.sv();
-              first_column = false;
-          } else {
-              ofs << "," << obs.name.sv();
-          }
+    // for_specified_data(
+    //   app.sim.observers, plot_widget.observers, [&](auto& obs) noexcept {
+    //       if (first_column) {
+    //           ofs << "t," << obs.name.sv();
+    //           first_column = false;
+    //       } else {
+    //           ofs << "," << obs.name.sv();
+    //       }
 
-          size = std::min(size, obs.linearized_buffer.ssize());
-      });
+    //       size = std::min(size, obs.linearized_buffer.ssize());
+    //   });
 
-    ofs << '\n';
+    // ofs << '\n';
 
-    for (int i = 0; i < size; ++i) {
-        first_column = true;
+    // for (int i = 0; i < size; ++i) {
+    //     first_column = true;
 
-        for_specified_data(
-          app.sim.observers, plot_widget.observers, [&](auto& obs) noexcept {
-              auto idx = obs.linearized_buffer.index_from_begin(i);
-              if (first_column) {
-                  ofs << obs.linearized_buffer[idx].x << ","
-                      << obs.linearized_buffer[idx].y;
-                  first_column = false;
-              } else {
-                  ofs << "," << obs.linearized_buffer[idx].y;
-              }
-          });
+    //     for_specified_data(
+    //       app.sim.observers, plot_widget.observers, [&](auto& obs) noexcept {
+    //           auto idx = obs.linearized_buffer.index_from_begin(i);
+    //           if (first_column) {
+    //               ofs << obs.linearized_buffer[idx].x << ","
+    //                   << obs.linearized_buffer[idx].y;
+    //               first_column = false;
+    //           } else {
+    //               ofs << "," << obs.linearized_buffer[idx].y;
+    //           }
+    //       });
 
-        ofs << '\n';
-    }
+    //     ofs << '\n';
+    // }
 }
 
 static void notification_fail_open_file(application&                 app,

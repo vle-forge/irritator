@@ -169,8 +169,6 @@ inline auto flush_raw_data(observer& obs) noexcept -> void
         auto head = obs.buffer.head();
         obs.linearized_buffer.emplace_tail(head->data[0], head->data[1]);
     }
-
-    obs.clear();
 }
 
 template<int QssLevel>

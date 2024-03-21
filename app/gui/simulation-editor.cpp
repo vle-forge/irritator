@@ -2,6 +2,7 @@
 // Version 1.0. (See accompanying file LICENSE_1_0.txt or copy at
 // http://www.boost.org/LICENSE_1_0.txt)
 
+#include "irritator/macros.hpp"
 #include <mutex>
 #include <optional>
 #include <utility>
@@ -139,7 +140,7 @@ static void show_simulation_action_buttons(simulation_editor& ed,
 
     bool open = false;
 
-    open = ImGui::Button("delete", button);
+    open = ImGui::Button("Clear", button);
     if (ImGui::IsItemHovered(ImGuiHoveredFlags_AllowWhenDisabled))
         ImGui::SetTooltip("Destroy all simulations and observations data.");
     if (open)
@@ -148,10 +149,10 @@ static void show_simulation_action_buttons(simulation_editor& ed,
     ImGui::SameLine();
 
     ImGui::BeginDisabled(can_be_initialized);
-    open = ImGui::Button("import", button);
+    open = ImGui::Button("Import", button);
     if (ImGui::IsItemHovered(ImGuiHoveredFlags_AllowWhenDisabled))
-        ImGui::SetTooltip("Clear all simulations and observations datas and "
-                          "import components.");
+        ImGui::SetTooltip("Destroy all simulations and observations data and "
+                          "reimport the components.");
     if (open)
         ed.start_simulation_copy_modeling();
     ImGui::SameLine();
@@ -215,6 +216,9 @@ static void show_simulation_action_buttons(simulation_editor& ed,
     if (ImGui::Button(">", small_button))
         ed.start_simulation_advance();
     ImGui::EndDisabled();
+
+    ImGui::TextFormat("Current time {:.6f}", ed.simulation_current);
+
     ImGui::SameLine();
 
     if (ed.tl.current_bag != ed.tl.points.end()) {
@@ -226,6 +230,12 @@ static void show_simulation_action_buttons(simulation_editor& ed,
 
     ImGui::EndDisabled();
 }
+
+static inline constexpr std::string_view simulation_status_names[] = {
+    "not_started", "initializing", "initialized",  "run_requiring",
+    "running",     "paused",       "pause_forced", "finish_requiring",
+    "finishing",   "finished",     "debugged",
+};
 
 static bool show_main_simulation_settings(application& app) noexcept
 {
@@ -267,13 +277,57 @@ static bool show_main_simulation_settings(application& app) noexcept
         is_modified +=
           ImGui::Checkbox("Real time", &app.simulation_ed.real_time);
 
-        ImGui::TextFormat("Simulation phase: {}",
-                          ordinal(app.simulation_ed.simulation_state));
+        ImGui::TextFormat(
+          "Simulation phase: {}",
+          simulation_status_names[ordinal(app.simulation_ed.simulation_state)]);
 
         ImGui::PopItemWidth();
     }
 
     return is_modified > 0;
+}
+
+static bool select_variable_observer(project&              pj,
+                                     variable_observer_id& current) noexcept
+{
+    small_string<32> preview;
+
+    auto* v_obs = pj.variable_observers.try_to_get(current);
+    if (v_obs)
+        preview = v_obs->name.sv();
+
+    bool ret = false;
+    if (ImGui::BeginCombo("Select group variable", preview.c_str())) {
+        for (auto& v_obs : pj.variable_observers) {
+            const auto id       = pj.variable_observers.get_id(v_obs);
+            const auto selected = id == current;
+
+            if (ImGui::Selectable(v_obs.name.c_str(), selected)) {
+                current = id;
+                ret     = true;
+            }
+        }
+
+        ImGui::EndCombo();
+    }
+
+    return ret;
+}
+
+static auto get_first_variable_observer(project& pj) noexcept
+  -> std::optional<variable_observer_id>
+{
+    if (not pj.variable_observers.empty())
+        return pj.variable_observers.get_id(*pj.variable_observers.begin());
+
+    if (pj.variable_observers.can_alloc()) {
+        auto& v_obs = pj.variable_observers.alloc();
+        v_obs.name  = "New";
+        v_obs.type  = variable_observer::type_options::line;
+        return pj.variable_observers.get_id(v_obs);
+    }
+
+    return std::nullopt;
 }
 
 static bool show_local_simulation_plot_observers_table(application& app,
@@ -416,6 +470,13 @@ static bool show_local_graph_observers(application&     app,
     return show_local_observers(app, tn, compo, graph);
 }
 
+static auto get_global_parameter(const auto& tn, const u64 uid) noexcept
+  -> global_parameter_id
+{
+    auto* ptr = tn.parameters_ids.get(uid);
+    return ptr ? *ptr : undefined<global_parameter_id>();
+}
+
 static bool show_local_simulation_settings(application& app,
                                            tree_node&   tn) noexcept
 {
@@ -535,26 +596,44 @@ static bool show_local_simulation_specific_observers(application& app,
 }
 
 static void show_local_variable_plot(variable_observer& var_obs,
-                                     observer&          sim_obs) noexcept
+                                     observer&          obs) noexcept
 {
-    if (sim_obs.linearized_buffer.size() > 0) {
+    if (obs.linearized_buffer.size() > 0) {
         switch (var_obs.type) {
         case variable_observer::type_options::line:
-            ImPlot::PlotLineG(var_obs.name.c_str(),
+            ImPlot::PlotLineG(obs.name.c_str(),
                               ring_buffer_getter,
-                              &sim_obs.linearized_buffer,
-                              sim_obs.linearized_buffer.ssize());
+                              &obs.linearized_buffer,
+                              obs.linearized_buffer.ssize());
             break;
 
         case variable_observer::type_options::dash:
-            ImPlot::PlotScatterG(var_obs.name.c_str(),
+            ImPlot::PlotScatterG(obs.name.c_str(),
                                  ring_buffer_getter,
-                                 &sim_obs.linearized_buffer,
-                                 sim_obs.linearized_buffer.ssize());
+                                 &obs.linearized_buffer,
+                                 obs.linearized_buffer.ssize());
             break;
 
         default:
             unreachable();
+        }
+    }
+}
+
+static void show_local_variables_plot(application&       app,
+                                      variable_observer& v_obs) noexcept
+{
+    auto i = 0;
+
+    while (i != v_obs.mdl_id.ssize()) {
+        if (auto* mdl = app.sim.models.try_to_get(v_obs.mdl_id[i]); mdl) {
+            if (auto* obs = app.sim.observers.try_to_get(mdl->obs_id); obs) {
+                show_local_variable_plot(v_obs, *obs);
+            }
+            ++i;
+        } else {
+            v_obs.tn_id.swap_pop_back(i);
+            v_obs.mdl_id.swap_pop_back(i);
         }
     }
 }
@@ -565,18 +644,20 @@ static void show_local_variables_plot(application& app, tree_node& tn) noexcept
         ImPlot::PushStyleVar(ImPlotStyleVar_LineWeight, 1.f);
         ImPlot::PushStyleVar(ImPlotStyleVar_MarkerSize, 1.f);
 
-        for_specified_data(
-          app.pj.variable_observers,
-          tn.variable_observer_ids,
-          [&](auto& var_obs) noexcept {
-              if_data_exists_do(
-                app.sim.models, var_obs.mdl_id, [&](auto& sim_mdl) {
-                    if_data_exists_do(
-                      app.sim.observers, sim_mdl.obs_id, [&](auto& sim_obs) {
-                          show_local_variable_plot(var_obs, sim_obs);
-                      });
-                });
-          });
+        auto i = 0;
+
+        while (i != tn.variable_observer_ids.data.ssize()) {
+            auto  v_obs_id = tn.variable_observer_ids.data[i].value;
+            auto* v_obs    = app.pj.variable_observers.try_to_get(v_obs_id);
+
+            if (v_obs) {
+                show_local_variables_plot(app, *v_obs);
+                ++i;
+            } else {
+                tn.variable_observer_ids.data.swap_pop_back(i);
+                tn.variable_observer_ids.sort();
+            }
+        }
 
         ImPlot::PopStyleVar(2);
         ImPlot::EndPlot();
@@ -775,7 +856,7 @@ static bool show_simulation_variable_observers(application& app) noexcept
 
             ImGui::TableNextColumn();
 
-            ImGui::TextFormat("{}", ordinal(variable.mdl_id));
+            ImGui::TextFormat("{}", variable.mdl_id.ssize());
 
             ImGui::TableNextColumn();
 
@@ -867,13 +948,6 @@ void simulation_editor::show() noexcept
                                                simulation_status::paused,
                                                simulation_status::pause_forced);
 
-        show_simulation_action_buttons(*this,
-                                       can_be_initialized,
-                                       can_be_started,
-                                       can_be_paused,
-                                       can_be_restarted,
-                                       can_be_stopped);
-
         if (ImGui::BeginTable("##ed", 2, flags)) {
             ImGui::TableSetupColumn(
               "Hierarchy", ImGuiTableColumnFlags_WidthStretch, 0.2f);
@@ -887,6 +961,13 @@ void simulation_editor::show() noexcept
             app.project_wnd.show();
 
             ImGui::TableSetColumnIndex(1);
+            show_simulation_action_buttons(*this,
+                                           can_be_initialized,
+                                           can_be_started,
+                                           can_be_paused,
+                                           can_be_restarted,
+                                           can_be_stopped);
+
             if (ImGui::BeginChild("##s-c", ImVec2(0, 0), false)) {
                 if (ImGui::BeginTabBar("##SimulationTabBar")) {
                     if (ImGui::BeginTabItem("Parameters")) {
@@ -911,7 +992,7 @@ void simulation_editor::show() noexcept
                             show_local_simulation_specific_observers(app,
                                                                      *selected);
 
-                            if (!selected->variable_observer_ids.empty())
+                            if (!selected->variable_observer_ids.data.empty())
                                 show_local_variables_plot(app, *selected);
 
                             if (!selected->grid_observer_ids.empty())
@@ -922,8 +1003,8 @@ void simulation_editor::show() noexcept
                     }
 
                     if (ImGui::BeginTabItem("graph")) {
-                        if (app.simulation_ed.can_display_graph_editor())
-                            show_simulation_editor(app);
+                        // if (app.simulation_ed.can_display_graph_editor())
+                        show_simulation_editor(app);
                         ImGui::EndTabItem();
                     }
 

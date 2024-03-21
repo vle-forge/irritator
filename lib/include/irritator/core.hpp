@@ -5,6 +5,7 @@
 #ifndef ORG_VLEPROJECT_IRRITATOR_2020
 #define ORG_VLEPROJECT_IRRITATOR_2020
 
+#include <ios>
 #include <irritator/macros.hpp>
 
 #include <irritator/container.hpp>
@@ -803,7 +804,7 @@ public:
                                  : Upper)
     {}
 
-    constexpr explicit   operator T() const noexcept { return m_value; }
+    constexpr explicit operator T() const noexcept { return m_value; }
     constexpr value_type operator*() const noexcept { return m_value; }
     constexpr value_type value() const noexcept { return m_value; }
 };
@@ -1334,54 +1335,53 @@ public:
 
 template<typename T>
 concept has_lambda_function = requires(T t, simulation& sim) {
-                                  {
-                                      t.lambda(sim)
-                                      } -> std::same_as<status>;
-                              };
+    {
+        t.lambda(sim)
+    } -> std::same_as<status>;
+};
 
 template<typename T>
 concept has_transition_function =
   requires(T t, simulation& sim, time s, time e, time r) {
       {
           t.transition(sim, s, e, r)
-          } -> std::same_as<status>;
+      } -> std::same_as<status>;
   };
 
 template<typename T>
-concept has_observation_function =
-  requires(T t, time s, time e) {
-      {
-          t.observation(s, e)
-          } -> std::same_as<observation_message>;
-  };
+concept has_observation_function = requires(T t, time s, time e) {
+    {
+        t.observation(s, e)
+    } -> std::same_as<observation_message>;
+};
 
 template<typename T>
 concept has_initialize_function = requires(T t, simulation& sim) {
-                                      {
-                                          t.initialize(sim)
-                                          } -> std::same_as<status>;
-                                  };
+    {
+        t.initialize(sim)
+    } -> std::same_as<status>;
+};
 
 template<typename T>
 concept has_finalize_function = requires(T t, simulation& sim) {
-                                    {
-                                        t.finalize(sim)
-                                        } -> std::same_as<status>;
-                                };
+    {
+        t.finalize(sim)
+    } -> std::same_as<status>;
+};
 
 template<typename T>
 concept has_input_port = requires(T t) {
-                             {
-                                 t.x
-                             };
-                         };
+    {
+        t.x
+    };
+};
 
 template<typename T>
 concept has_output_port = requires(T t) {
-                              {
-                                  t.y
-                              };
-                          };
+    {
+        t.y
+    };
+};
 
 constexpr observation_message qss_observation(real X,
                                               real u,
@@ -2488,7 +2488,7 @@ struct abstract_wsum {
         std::copy_n(default_values, std::size(default_values), values);
 
         if constexpr (QssLevel >= 2) {
-            std::fill_n(values + std::size(default_values),
+            std::fill_n(std::begin(values) + std::size(default_values),
                         std::size(values) - std::size(default_values),
                         zero);
         }

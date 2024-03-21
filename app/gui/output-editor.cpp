@@ -8,6 +8,8 @@
 #include "internal.hpp"
 #include "irritator/core.hpp"
 #include "irritator/helpers.hpp"
+#include "irritator/macros.hpp"
+#include "irritator/modeling.hpp"
 
 #include <optional>
 #include <utility>
@@ -20,8 +22,7 @@ static const char* simulation_plot_type_string[] = { "None",
 
 output_editor::output_editor() noexcept
   : implot_context{ ImPlot::CreateContext() }
-{
-}
+{}
 
 output_editor::~output_editor() noexcept
 {
@@ -29,11 +30,11 @@ output_editor::~output_editor() noexcept
         ImPlot::DestroyContext(implot_context);
 }
 
-static void show_plot_observation(application&       app,
-                                  observer&          obs,
-                                  variable_observer& var) noexcept
+static void show_plot_observation(application&                  app,
+                                  variable_observer&            var,
+                                  variable_simulation_observer& sys) noexcept
 {
-    ImGui::PushID(&obs);
+    ImGui::PushID(&var);
 
     ImGui::TableNextColumn();
     ImGui::PushItemWidth(-1);
@@ -51,8 +52,7 @@ static void show_plot_observation(application&       app,
     ImGui::PopItemWidth();
 
     ImGui::TableNextColumn();
-    ImGui::TextFormat(
-      "{} / {}", obs.buffer.size(), obs.linearized_buffer.size());
+    ImGui::TextFormat("{}", sys.observers.size());
     ImGui::TableNextColumn();
 
     int plot_type = ordinal(var.type);
@@ -67,10 +67,14 @@ static void show_plot_observation(application&       app,
     const bool can_copy = app.simulation_ed.copy_obs.can_alloc(1);
     ImGui::BeginDisabled(!can_copy);
     if (ImGui::Button("copy")) {
-        auto& new_obs          = app.simulation_ed.copy_obs.alloc();
-        new_obs.name           = var.name.sv();
-        new_obs.linear_outputs = obs.linearized_buffer;
+        // auto& new_obs          = app.simulation_ed.copy_obs.alloc();
+        // new_obs.name           = var.name.sv();
+        // new_obs.linear_outputs = obs.linearized_buffer;
+        auto& n = app.notifications.alloc(log_level::notice);
+        n.title = "Not yet implemented";
+        app.notifications.enable(n);
     }
+
     ImGui::EndDisabled();
 
     ImGui::SameLine();
@@ -108,14 +112,13 @@ static void show_observation_table(application& app) noexcept
 
         ImGui::TableHeadersRow();
 
-        app.simulation_ed.plot_obs.for_each_observers(
-          [&](auto obs_id, auto var_obs_id) noexcept -> void {
-              auto* obs     = app.sim.observers.try_to_get(obs_id);
-              auto* var_obs = app.pj.variable_observers.try_to_get(var_obs_id);
+        for (auto& v_obs : app.pj.variable_observers) {
+            const auto id  = app.pj.variable_observers.get_id(v_obs);
+            const auto idx = get_index(id);
 
-              if (obs && var_obs)
-                  show_plot_observation(app, *obs, *var_obs);
-          });
+            show_plot_observation(
+              app, v_obs, app.pj.variable_observation_systems[idx]);
+        }
 
         plot_copy *copy = nullptr, *prev = nullptr;
         while (app.simulation_ed.copy_obs.next(copy)) {

@@ -153,15 +153,15 @@ static constexpr bool are_equal(const std::string_view lhs,
     return true;
 }
 
-static const std::string_view keywords[] = {
-    "digraph", "edge", "graph", "node", "strict", "subgraph",
-};
+// static const std::string_view keywords[] = {
+//     "digraph", "edge", "graph", "node", "strict", "subgraph",
+// };
 
-static constexpr bool is_keyword(const std::string_view str) noexcept
-{
-    return std::binary_search(
-      std::begin(keywords), std::end(keywords), str, are_equal);
-}
+// static constexpr bool is_keyword(const std::string_view str) noexcept
+// {
+//     return std::binary_search(
+//       std::begin(keywords), std::end(keywords), str, are_equal);
+// }
 
 static constexpr bool is_separator(const int c) noexcept
 {
@@ -240,10 +240,10 @@ static constexpr bool starts_as_number(const int c) noexcept
     }
 }
 
-static constexpr bool starts_as_number(const std::string_view str) noexcept
-{
-    return not str.empty() and starts_as_number(str[0]);
-}
+// static constexpr bool starts_as_number(const std::string_view str) noexcept
+// {
+//     return not str.empty() and starts_as_number(str[0]);
+// }
 
 static constexpr bool next_char_is_number(const int c) noexcept
 {

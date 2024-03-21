@@ -106,14 +106,15 @@ bool graph_simulation_editor::show_settings(
     return true;
 }
 
-bool graph_simulation_editor::show_observations(tree_node& /* tn */,
-                                                component& /*compo*/,
-                                                graph_component& graph) noexcept
+bool graph_simulation_editor::show_observations(
+  tree_node& /* tn */,
+  component& /*compo*/,
+  graph_component& /* graph */) noexcept
 {
-    auto& ed  = container_of(this, &simulation_editor::graph_sim);
-    auto& app = container_of(&ed, &application::simulation_ed);
+    // auto& ed  = container_of(this, &simulation_editor::graph_sim);
+    // auto& app = container_of(&ed, &application::simulation_ed);
 
-    const auto graph_id = app.mod.graph_components.get_id(graph);
+    // const auto graph_id = app.mod.graph_components.get_id(graph);
     // if (graph_id != current_id)
     //     graph_simulation_rebuild(*this, graph, graph_id);
     // return graph_simulation_show_observations(*app, *this, tn, graph);
