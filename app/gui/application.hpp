@@ -167,38 +167,39 @@ private:
     bool scroll_to_bottom = false;
 };
 
-//! @brief Manage simulation observer interpolation compuation
-class simulation_observation
-{
-public:
-    static inline constexpr limiter<i32> raw_buffer_limits{ 32, 32768 };
-    static inline constexpr limiter<i32> linearized_buffer_limits{ 1024,
-                                                                   1048576 };
+// //! @brief Manage simulation observer interpolation compuation
+// class simulation_observation
+// {
+// public:
+//     static inline constexpr limiter<i32> raw_buffer_limits{ 32, 32768 };
+//     static inline constexpr limiter<i32> linearized_buffer_limits{ 1024,
+//                                                                    1048576 };
 
-    real min_time_step          = to_real(1.f / 1000.f);
-    real max_time_step          = to_real(1.f);
-    real time_step              = to_real(1.f / 100.f);
-    i32  raw_buffer_size        = 64;
-    i32  linearized_buffer_size = 32768;
+//     real min_time_step          = to_real(1.f / 1000.f);
+//     real max_time_step          = to_real(1.f);
+//     real time_step              = to_real(1.f / 100.f);
+//     i32  raw_buffer_size        = 64;
+//     i32  linearized_buffer_size = 32768;
 
-    ImPlotRange limits; //! use in preview output simulation observation.
+//     ImPlotRange limits; //! use in preview output simulation observation.
 
-    //! Clear and reinitialize/resizing buffer and linearized buffers for all
-    //! simulation observers according to the raw_buffer_size and
-    //! linearized_buffer_size buffer sizes.
-    void init() noexcept;
+//     //! Clear and reinitialize/resizing buffer and linearized buffers for all
+//     //! simulation observers according to the raw_buffer_size and
+//     //! linearized_buffer_size buffer sizes.
+//     void init() noexcept;
 
-    //! Clear buffer and linearized buffers for all simulation observers.
-    void clear() noexcept;
+//     //! Clear buffer and linearized buffers for all simulation observers.
+//     void clear() noexcept;
 
-    //! For all simulation observers in the simulation, computes the
-    //! interpolate data according to the @c time_step.
-    //!
-    //! @warning This function starts computation using a @c task_list
-    //! from @c application and wait until all computation are finish. Prefers
-    //! call this function from a class @c task.
-    void update() noexcept;
-};
+//     //! For all simulation observers in the simulation, computes the
+//     //! interpolate data according to the @c time_step.
+//     //!
+//     //! @warning This function starts computation using a @c task_list
+//     //! from @c application and wait until all computation are finish.
+//     Prefers
+//     //! call this function from a class @c task.
+//     void update() noexcept;
+// };
 
 class plot_observation_widget
 {
@@ -560,6 +561,7 @@ struct simulation_editor {
     void start_simulation_delete() noexcept;
     void start_simulation_clear() noexcept;
     void start_simulation_start() noexcept;
+    void start_simulation_observation() noexcept;
     void start_simulation_live_run() noexcept;
     void start_simulation_static_run() noexcept;
     void start_simulation_start_1() noexcept;
@@ -892,7 +894,6 @@ struct application {
 
     component_selector       component_sel;
     component_model_selector component_model_sel;
-    simulation_observation   sim_obs;
 
     project_window project_wnd;
 

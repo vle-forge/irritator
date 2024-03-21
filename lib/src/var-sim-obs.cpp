@@ -25,11 +25,21 @@ status variable_simulation_observer::init(project&           pj,
 
             if (obs) {
                 obs_id = mdl->obs_id;
+                obs->buffer.clear();
+                obs->buffer.reserve(raw_buffer_size.value());
+                obs->linearized_buffer.clear();
+                obs->linearized_buffer.reserve(linearized_buffer_size.value());
+                obs->time_step = time_step;
             } else {
                 if (sim.observers.can_alloc()) {
                     format(tmp, "{}", i);
                     auto& new_obs = sim.observers.alloc(tmp.sv());
-                    obs_id        = sim.observers.get_id(new_obs);
+                    new_obs.buffer.reserve(raw_buffer_size.value());
+                    new_obs.linearized_buffer.reserve(
+                      linearized_buffer_size.value());
+                    new_obs.time_step = time_step;
+
+                    obs_id = sim.observers.get_id(new_obs);
 
                     sim.observe(*mdl, new_obs);
                     obs = &new_obs;

@@ -45,10 +45,10 @@ static void show_plot_observation(application&                  app,
 
     ImGui::TableNextColumn();
     ImGui::PushItemWidth(-1);
-    if (ImGui::InputReal("##ts", &app.sim_obs.time_step))
-        app.sim_obs.time_step = std::clamp(app.sim_obs.time_step,
-                                           app.sim_obs.min_time_step,
-                                           app.sim_obs.max_time_step);
+    float copy = sys.time_step;
+
+    if (ImGui::InputReal("##ts", &copy))
+        sys.time_step.set(copy);
     ImGui::PopItemWidth();
 
     ImGui::TableNextColumn();
