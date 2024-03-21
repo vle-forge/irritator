@@ -132,38 +132,4 @@ void component_editor::add_grid_component() noexcept
 // task implementation
 //
 
-static status save_component_impl(modeling&             mod,
-                                  component&            compo,
-                                  const registred_path& reg_path,
-                                  const dir_path&       dir,
-                                  const file_path&      file) noexcept
-{
-    try {
-        std::filesystem::path p{ reg_path.path.sv() };
-        p /= dir.path.sv();
-        std::error_code ec;
-
-        if (!std::filesystem::exists(p, ec)) {
-            if (!std::filesystem::create_directory(p, ec)) {
-                return new_error(filesystem_error{}, e_file_name{ p.string() });
-            }
-        } else {
-            if (!std::filesystem::is_directory(p, ec)) {
-                return new_error(filesystem_error{}, e_file_name{ p.string() });
-            }
-        }
-
-        p /= file.path.sv();
-        p.replace_extension(".irt");
-
-        cache_rw      cache;
-        json_archiver j;
-        irt_check(j.component_save(mod, compo, cache, p.string().c_str()));
-    } catch (...) {
-        return new_error(filesystem_error{});
-    }
-
-    return success();
-}
-
 } // irt
