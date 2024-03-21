@@ -5,6 +5,7 @@
 #ifndef ORG_VLEPROJECT_IRRITATOR_2024_SRC_DOT_PARSER
 #define ORG_VLEPROJECT_IRRITATOR_2024_SRC_DOT_PARSER
 
+#include <irritator/core.hpp>
 #include <irritator/modeling.hpp>
 
 #include <forward_list>
@@ -59,8 +60,16 @@ public:
     };
 
     struct node {
+        node() noexcept = default;
+
+        node(std::string_view name_, graph_component::vertex_id id_) noexcept
+          : name(name_)
+          , id(id_)
+        {}
+
         std::string_view           name;
-        graph_component::vertex_id id;
+        graph_component::vertex_id id =
+          undefined<typename graph_component::vertex_id>();
     };
 
     struct edge {

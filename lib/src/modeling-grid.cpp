@@ -555,7 +555,7 @@ void grid_component::add_input_connection(const port_id x,
                                           const port_id id) noexcept
 {
     if (not exist_input_connection(x, row, col, id))
-        input_connections.emplace_back(x, row, col, id);
+        input_connections.push_back(input_connection{ x, row, col, id });
 }
 
 void grid_component::add_output_connection(const port_id y,
@@ -564,7 +564,7 @@ void grid_component::add_output_connection(const port_id y,
                                            const port_id id) noexcept
 {
     if (not exist_output_connection(y, row, col, id))
-        output_connections.emplace_back(y, row, col, id);
+        output_connections.push_back(output_connection{ y, row, col, id });
 }
 
 } // namespace irt
