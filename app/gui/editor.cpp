@@ -660,16 +660,16 @@ static bool show_parameter_editor(application& /*app*/,
 }
 
 static bool show_parameter_editor(application& /*app*/,
-                                  qss1_sum_2& dyn,
-                                  parameter&  p) noexcept
+                                  qss1_sum_2& /*dyn*/,
+                                  parameter& p) noexcept
 {
     return ImGui::InputReal("value-1", &p.reals[0]) ||
            ImGui::InputReal("value-2", &p.reals[1]);
 }
 
 static bool show_parameter_editor(application& /*app*/,
-                                  qss1_sum_3& dyn,
-                                  parameter&  p) noexcept
+                                  qss1_sum_3& /*dyn*/,
+                                  parameter& p) noexcept
 {
     return ImGui::InputReal("value-1", &p.reals[0]) ||
            ImGui::InputReal("value-2", &p.reals[1]) ||
@@ -677,8 +677,8 @@ static bool show_parameter_editor(application& /*app*/,
 }
 
 static bool show_parameter_editor(application& /*app*/,
-                                  qss1_sum_4& dyn,
-                                  parameter&  p) noexcept
+                                  qss1_sum_4& /*dyn*/,
+                                  parameter& p) noexcept
 {
     return ImGui::InputReal("value-1", &p.reals[0]) ||
            ImGui::InputReal("value-2", &p.reals[1]) ||
@@ -687,8 +687,8 @@ static bool show_parameter_editor(application& /*app*/,
 }
 
 static bool show_parameter_editor(application& /*app*/,
-                                  qss1_wsum_2& dyn,
-                                  parameter&   p) noexcept
+                                  qss1_wsum_2& /*dyn*/,
+                                  parameter& p) noexcept
 {
     return ImGui::InputReal("value-1", &p.reals[0]) ||
            ImGui::InputReal("value-2", &p.reals[1]) ||
@@ -761,7 +761,7 @@ static bool show_parameter_editor(application& /*app*/,
 }
 
 static bool show_parameter_editor(application& /*app*/,
-                                  qss2_wsum_3& dyn,
+                                  qss2_wsum_3& /*dyn*/,
                                   parameter& p) noexcept
 {
     return ImGui::InputReal("value-1", &p.reals[0]) ||
