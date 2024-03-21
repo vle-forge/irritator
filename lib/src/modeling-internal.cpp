@@ -91,8 +91,10 @@ static void affect_abstract_wsum(modeling&      mod,
 {
     const auto idx = get_index(id);
 
-    mod.children_parameters[idx].reals[0] = coeff_0;
-    mod.children_parameters[idx].reals[1] = coeff_1;
+    mod.children_parameters[idx].reals[0] = zero;
+    mod.children_parameters[idx].reals[1] = zero;
+    mod.children_parameters[idx].reals[2] = coeff_0;
+    mod.children_parameters[idx].reals[3] = coeff_1;
 }
 
 static void affect_abstract_wsum(modeling&      mod,
@@ -103,9 +105,12 @@ static void affect_abstract_wsum(modeling&      mod,
 {
     const auto idx = get_index(id);
 
-    mod.children_parameters[idx].reals[0] = coeff_0;
-    mod.children_parameters[idx].reals[1] = coeff_1;
-    mod.children_parameters[idx].reals[2] = coeff_2;
+    mod.children_parameters[idx].reals[0] = zero;
+    mod.children_parameters[idx].reals[1] = zero;
+    mod.children_parameters[idx].reals[2] = zero;
+    mod.children_parameters[idx].reals[3] = coeff_0;
+    mod.children_parameters[idx].reals[4] = coeff_1;
+    mod.children_parameters[idx].reals[5] = coeff_2;
 }
 
 static void affect_abstract_wsum(modeling&      mod,
@@ -117,10 +122,14 @@ static void affect_abstract_wsum(modeling&      mod,
 {
     const auto idx = get_index(id);
 
-    mod.children_parameters[idx].reals[0] = coeff_0;
-    mod.children_parameters[idx].reals[1] = coeff_1;
-    mod.children_parameters[idx].reals[2] = coeff_2;
-    mod.children_parameters[idx].reals[3] = coeff_3;
+    mod.children_parameters[idx].reals[0] = zero;
+    mod.children_parameters[idx].reals[1] = zero;
+    mod.children_parameters[idx].reals[2] = zero;
+    mod.children_parameters[idx].reals[3] = zero;
+    mod.children_parameters[idx].reals[4] = coeff_0;
+    mod.children_parameters[idx].reals[5] = coeff_1;
+    mod.children_parameters[idx].reals[6] = coeff_2;
+    mod.children_parameters[idx].reals[7] = coeff_3;
 }
 
 static void affect_abstract_cross(modeling&      mod,
@@ -176,11 +185,11 @@ status add_lotka_volterra(modeling&          mod,
 
     auto sum_a = alloc<abstract_wsum<QssLevel, 2>>(
       mod, com, "X+XY", bitflags<child_flags>(child_flags::configurable));
-    affect_abstract_multiplier(mod, sum_a, 2.0_r, -0.4_r);
+    affect_abstract_wsum(mod, sum_a, 2.0_r, -0.4_r);
 
     auto sum_b = alloc<abstract_wsum<QssLevel, 2>>(
       mod, com, "Y+XY", bitflags<child_flags>(child_flags::configurable));
-    affect_abstract_multiplier(mod, sum_b, -1.0_r, 0.1_r);
+    affect_abstract_wsum(mod, sum_b, -1.0_r, 0.1_r);
 
     irt_check(connect(mod, com, sum_a, 0, integrator_a, 0));
     irt_check(connect(mod, com, sum_b, 0, integrator_b, 0));
