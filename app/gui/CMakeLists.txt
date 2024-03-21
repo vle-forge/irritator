@@ -9,7 +9,7 @@ set(gui_sources application.cpp application.hpp component.cpp
     library-window.cpp memory-window.cpp notification.cpp output-editor.cpp
     plot-copy-widget.cpp plot-observation-widget.cpp project-window.cpp
     settings-window.cpp simulation-component.cpp simulation-editor.cpp
-    simulation-observation.cpp task-window.cpp window-logger.cpp
+    task-window.cpp window-logger.cpp
 
     generic/modeling.cpp
     generic/simulation.cpp

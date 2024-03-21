@@ -167,40 +167,6 @@ private:
     bool scroll_to_bottom = false;
 };
 
-// //! @brief Manage simulation observer interpolation compuation
-// class simulation_observation
-// {
-// public:
-//     static inline constexpr limiter<i32> raw_buffer_limits{ 32, 32768 };
-//     static inline constexpr limiter<i32> linearized_buffer_limits{ 1024,
-//                                                                    1048576 };
-
-//     real min_time_step          = to_real(1.f / 1000.f);
-//     real max_time_step          = to_real(1.f);
-//     real time_step              = to_real(1.f / 100.f);
-//     i32  raw_buffer_size        = 64;
-//     i32  linearized_buffer_size = 32768;
-
-//     ImPlotRange limits; //! use in preview output simulation observation.
-
-//     //! Clear and reinitialize/resizing buffer and linearized buffers for all
-//     //! simulation observers according to the raw_buffer_size and
-//     //! linearized_buffer_size buffer sizes.
-//     void init() noexcept;
-
-//     //! Clear buffer and linearized buffers for all simulation observers.
-//     void clear() noexcept;
-
-//     //! For all simulation observers in the simulation, computes the
-//     //! interpolate data according to the @c time_step.
-//     //!
-//     //! @warning This function starts computation using a @c task_list
-//     //! from @c application and wait until all computation are finish.
-//     Prefers
-//     //! call this function from a class @c task.
-//     void update() noexcept;
-// };
-
 class plot_observation_widget
 {
 public:
