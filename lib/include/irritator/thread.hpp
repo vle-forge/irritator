@@ -296,7 +296,7 @@ inline spin_lock::spin_lock(const spin_lock& /*other*/) noexcept
 
 inline void spin_lock::lock() noexcept
 {
-    while (!try_lock())
+    while (m_flag.test_and_set(std::memory_order_acquire))
         m_flag.wait(true, std::memory_order_relaxed);
 }
 
