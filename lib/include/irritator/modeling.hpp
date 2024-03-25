@@ -34,8 +34,8 @@ enum class child_id : u64;
 enum class connection_id : u64;
 enum class registred_path_id : u64;
 enum class variable_observer_id : u64;
-enum class grid_modeling_observer_id : u64;
-enum class graph_modeling_observer_id : u64;
+enum class grid_observer_id : u64;
+enum class graph_observer_id : u64;
 enum class global_parameter_id : u64;
 
 using port_str           = small_string<7>;
@@ -135,8 +135,8 @@ struct description;
 struct cache_rw;
 struct tree_node;
 struct variable_observer;
-struct grid_modeling_observer;
-struct graph_modeling_observer;
+struct grid_observer;
+struct graph_observer;
 
 /// A structure use to cache data when read or write json component.
 /// - @c buffer is used to store the full file content or output buffer.
@@ -746,10 +746,10 @@ public:
     ///  simulation layer.
     ///
     /// @return The status.
-    status init(project&                pj,
-                modeling&               mod,
-                simulation&             sim,
-                grid_modeling_observer& grid) noexcept;
+    status init(project&       pj,
+                modeling&      mod,
+                simulation&    sim,
+                grid_observer& grid) noexcept;
 
     /// Assign a new size to children and remove all @c model_id.
     void resize(int row, int col) noexcept;
@@ -768,7 +768,7 @@ public:
     int  rows       = 0;
     int  cols       = 0;
 
-    grid_modeling_observer_id id = undefined<grid_modeling_observer_id>();
+    grid_observer_id id = undefined<grid_observer_id>();
 };
 
 struct tree_node {
@@ -793,8 +793,8 @@ struct tree_node {
     table<u64, global_parameter_id>  parameters_ids;
     table<u64, variable_observer_id> variable_observer_ids;
 
-    vector<graph_modeling_observer_id> graph_observer_ids;
-    vector<grid_modeling_observer_id>  grid_observer_ids;
+    vector<graph_observer_id> graph_observer_ids;
+    vector<grid_observer_id>  grid_observer_ids;
 
     auto get_model_id(const u64 u_id) const noexcept -> std::optional<model_id>
     {
@@ -860,7 +860,7 @@ struct parameter {
     void clear() noexcept;
 };
 
-struct grid_modeling_observer {
+struct grid_observer {
     name_str name;
 
     tree_node_id parent_id; ///< @c tree_node identifier ancestor of the model
@@ -874,7 +874,7 @@ struct grid_modeling_observer {
     i32   color_map = 0;
 };
 
-struct graph_modeling_observer {
+struct graph_observer {
     name_str name;
 
     tree_node_id parent_id; ///< @c tree_node identifier ancestor of the model.
@@ -1296,10 +1296,8 @@ public:
     data_array<tree_node, tree_node_id> tree_nodes;
 
     data_array<variable_observer, variable_observer_id> variable_observers;
-    data_array<grid_modeling_observer, grid_modeling_observer_id>
-      grid_observers;
-    data_array<graph_modeling_observer, graph_modeling_observer_id>
-      graph_observers;
+    data_array<grid_observer, grid_observer_id>         grid_observers;
+    data_array<graph_observer, graph_observer_id>       graph_observers;
 
     data_array<global_parameter, global_parameter_id> global_parameters;
 

@@ -688,7 +688,7 @@ static void show_local_grid(application& app, tree_node& tn) noexcept
 
 static bool show_simulation_grid_observers(application& app) noexcept
 {
-    auto to_delete   = undefined<grid_modeling_observer_id>();
+    auto to_delete   = undefined<grid_observer_id>();
     bool is_modified = false;
 
     ImGui::BeginChild("c-show-grid",
@@ -756,7 +756,7 @@ static bool show_simulation_grid_observers(application& app) noexcept
 
 static bool show_simulation_graph_observers(application& app) noexcept
 {
-    auto to_delete   = undefined<graph_modeling_observer_id>();
+    auto to_delete   = undefined<graph_observer_id>();
     bool is_modified = false;
 
     ImGui::BeginChild("c-show-graph",

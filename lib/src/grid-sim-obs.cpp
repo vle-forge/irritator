@@ -12,7 +12,7 @@ static status build_grid(grid_simulation_observer& grid_system,
                          simulation&               sim,
                          tree_node&                grid_parent,
                          grid_component&           grid_compo,
-                         grid_modeling_observer&   grid_obs) noexcept
+                         grid_observer&            grid_obs) noexcept
 {
     irt_assert(pj.tree_nodes.try_to_get(grid_obs.tn_id) != nullptr);
 
@@ -58,10 +58,10 @@ static status build_grid(grid_simulation_observer& grid_system,
     return success();
 }
 
-status grid_simulation_observer::init(project&                pj,
-                                      modeling&               mod,
-                                      simulation&             sim,
-                                      grid_modeling_observer& grid_obs) noexcept
+status grid_simulation_observer::init(project&       pj,
+                                      modeling&      mod,
+                                      simulation&    sim,
+                                      grid_observer& grid_obs) noexcept
 {
     return if_tree_node_is_grid_do(
       pj,

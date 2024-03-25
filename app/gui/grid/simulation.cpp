@@ -413,8 +413,8 @@ bool show_local_observers(application& app,
                    get_index(app.pj.grid_observers.get_id(grid)));
         }
 
-        std::optional<grid_modeling_observer_id> to_delete;
-        bool                                     is_modified = false;
+        std::optional<grid_observer_id> to_delete;
+        bool                            is_modified = false;
 
         for_specified_data(
           app.pj.grid_observers,

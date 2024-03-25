@@ -573,10 +573,9 @@ void application::show() noexcept
 #endif
 }
 
-static void show_select_model_box_recursive(
-  application&            app,
-  tree_node&              tn,
-  grid_modeling_observer& access) noexcept
+static void show_select_model_box_recursive(application&   app,
+                                            tree_node&     tn,
+                                            grid_observer& access) noexcept
 {
     constexpr auto flags = ImGuiTreeNodeFlags_DefaultOpen;
 
@@ -601,9 +600,7 @@ static void show_select_model_box_recursive(
         ImGui::PushID(&tn);
         if (ImGui::TreeNodeEx(str.c_str(), flags)) {
             for_each_model(
-              app.sim,
-              tn,
-              [&](u64 /*unique_id*/, auto& mdl) noexcept {
+              app.sim, tn, [&](u64 /*unique_id*/, auto& mdl) noexcept {
                   const auto mdl_id = app.sim.models.get_id(mdl);
                   ImGui::PushID(get_index(mdl_id));
 
@@ -661,13 +658,13 @@ auto build_unique_component_vector(application& app, tree_node& tn)
     return ret;
 }
 
-bool show_select_model_box(const char*             button_label,
-                           const char*             popup_label,
-                           application&            app,
-                           tree_node&              tn,
-                           grid_modeling_observer& access) noexcept
+bool show_select_model_box(const char*    button_label,
+                           const char*    popup_label,
+                           application&   app,
+                           tree_node&     tn,
+                           grid_observer& access) noexcept
 {
-    static grid_modeling_observer copy;
+    static grid_observer copy;
     // static vector<component_id> selectable_components;
 
     auto ret = false;
@@ -709,13 +706,13 @@ bool show_select_model_box(const char*             button_label,
     return ret;
 }
 
-bool show_select_model_box(const char*              button_label,
-                           const char*              popup_label,
-                           application&             app,
-                           tree_node&               tn,
-                           graph_modeling_observer& access) noexcept
+bool show_select_model_box(const char*     button_label,
+                           const char*     popup_label,
+                           application&    app,
+                           tree_node&      tn,
+                           graph_observer& access) noexcept
 {
-    static graph_modeling_observer copy;
+    static graph_observer copy;
 
     auto ret = false;
 

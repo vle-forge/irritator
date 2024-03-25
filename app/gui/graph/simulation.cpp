@@ -43,8 +43,8 @@ bool show_local_observers(application& app,
                    get_index(app.pj.graph_observers.get_id(graph)));
         }
 
-        std::optional<graph_modeling_observer_id> to_delete;
-        bool                                      is_modified = false;
+        std::optional<graph_observer_id> to_delete;
+        bool                             is_modified = false;
 
         for_specified_data(
           app.pj.graph_observers,

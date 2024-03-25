@@ -3948,7 +3948,7 @@ struct reader {
     }
 
     bool read_project_grid_observation(const rapidjson::Value& val,
-                                       grid_modeling_observer& grid) noexcept
+                                       grid_observer&          grid) noexcept
     {
         auto_stack s(this, stack_id::project_grid_observation);
 
