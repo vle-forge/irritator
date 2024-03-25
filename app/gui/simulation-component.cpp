@@ -31,17 +31,8 @@ static status simulation_init_grid_observation(application& app) noexcept
 
 static status simulation_init_var_obs(application& app) noexcept
 {
-    app.pj.variable_observation_systems.clear();
-    app.pj.variable_observation_systems.resize(
-      app.pj.variable_observers.max_used());
-
-    for (auto& v_obs : app.pj.variable_observers) {
-        const auto id  = app.pj.variable_observers.get_id(v_obs);
-        const auto idx = get_index(id);
-
-        irt_check(app.pj.variable_observation_systems[idx].init(
-          app.pj, app.sim, v_obs));
-    }
+    for (auto& v_obs : app.pj.variable_observers)
+        irt_check(v_obs.init(app.pj, app.sim));
 
     return success();
 }

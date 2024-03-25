@@ -44,7 +44,6 @@ void plot_observation_widget::show(application& app) noexcept
     for (auto& v_obs : app.pj.variable_observers) {
         const auto id  = app.pj.variable_observers.get_id(v_obs);
         const auto idx = get_index(id);
-        auto&      sys = app.pj.variable_observation_systems[idx];
 
         small_string<32> name;
         format(name, "{}##{}", v_obs.name.sv(), idx);
@@ -58,11 +57,11 @@ void plot_observation_widget::show(application& app) noexcept
                               ImPlotAxisFlags_AutoFit,
                               ImPlotAxisFlags_AutoFit);
 
-            for (int i = 0, e = sys.observers.ssize(); i != e; ++i) {
-                auto* obs = app.sim.observers.try_to_get(sys.observers[i]);
+            for (int i = 0, e = v_obs.obs_ids.ssize(); i != e; ++i) {
+                auto* obs = app.sim.observers.try_to_get(v_obs.obs_ids[i]);
 
                 if (obs->linearized_buffer.size() > 0) {
-                    switch (v_obs.type) {
+                    switch (v_obs.options[i]) {
                     case variable_observer::type_options::line:
                         ImPlot::PlotLineG(obs->name.c_str(),
                                           ring_buffer_getter,

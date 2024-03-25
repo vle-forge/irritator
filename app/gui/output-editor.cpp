@@ -30,9 +30,8 @@ output_editor::~output_editor() noexcept
         ImPlot::DestroyContext(implot_context);
 }
 
-static void show_plot_observation(application&                  app,
-                                  variable_observer&            var,
-                                  variable_simulation_observer& sys) noexcept
+static void show_plot_observation(application&       app,
+                                  variable_observer& var) noexcept
 {
     ImGui::PushID(&var);
 
@@ -45,22 +44,15 @@ static void show_plot_observation(application&                  app,
 
     ImGui::TableNextColumn();
     ImGui::PushItemWidth(-1);
-    float copy = sys.time_step;
+    float copy = var.time_step;
 
     if (ImGui::InputReal("##ts", &copy))
-        sys.time_step.set(copy);
+        var.time_step.set(copy);
     ImGui::PopItemWidth();
 
     ImGui::TableNextColumn();
-    ImGui::TextFormat("{}", sys.observers.size());
+    ImGui::TextFormat("Observers: {}", var.obs_ids.size());
     ImGui::TableNextColumn();
-
-    int plot_type = ordinal(var.type);
-    if (ImGui::Combo("##plot",
-                     &plot_type,
-                     simulation_plot_type_string,
-                     IM_ARRAYSIZE(simulation_plot_type_string)))
-        var.type = enum_cast<variable_observer::type_options>(plot_type);
 
     ImGui::TableNextColumn();
 
@@ -112,13 +104,8 @@ static void show_observation_table(application& app) noexcept
 
         ImGui::TableHeadersRow();
 
-        for (auto& v_obs : app.pj.variable_observers) {
-            const auto id  = app.pj.variable_observers.get_id(v_obs);
-            const auto idx = get_index(id);
-
-            show_plot_observation(
-              app, v_obs, app.pj.variable_observation_systems[idx]);
-        }
+        for (auto& v_obs : app.pj.variable_observers)
+            show_plot_observation(app, v_obs);
 
         plot_copy *copy = nullptr, *prev = nullptr;
         while (app.simulation_ed.copy_obs.next(copy)) {

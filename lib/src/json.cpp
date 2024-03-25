@@ -3884,11 +3884,19 @@ struct reader {
                   return read_project_unique_id_path(val, path) &&
                          convert_to_tn_model_ids(path, plot.tn_id, plot.mdl_id);
 
-              if ("color"sv == name)
-                  return read_color(value, plot.default_color);
+              if ("color"sv == name) {
+                  color c   = 0xff00ff;
+                  auto  ret = read_color(value, c);
+                  plot.colors.emplace_back(c);
+                  return ret;
+              }
 
-              if ("type"sv == name)
-                  return read_temp_string(value) && copy_to(plot.type);
+              if ("type"sv == name) {
+                  auto t   = variable_observer::type_options::line;
+                  auto ret = read_temp_string(value);
+                  plot.options.emplace_back(t);
+                  return ret;
+              }
 
               report_json_error(error_id::unknown_element);
           });

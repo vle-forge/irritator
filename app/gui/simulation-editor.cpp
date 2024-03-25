@@ -323,7 +323,6 @@ static auto get_first_variable_observer(project& pj) noexcept
     if (pj.variable_observers.can_alloc()) {
         auto& v_obs = pj.variable_observers.alloc();
         v_obs.name  = "New";
-        v_obs.type  = variable_observer::type_options::line;
         return pj.variable_observers.get_id(v_obs);
     }
 
@@ -595,11 +594,12 @@ static bool show_local_simulation_specific_observers(application& app,
       []() noexcept -> bool { return false; });
 }
 
-static void show_local_variable_plot(variable_observer& var_obs,
-                                     observer&          obs) noexcept
+static void show_local_variable_plot(
+  observer&                       obs,
+  variable_observer::type_options type) noexcept
 {
     if (obs.linearized_buffer.size() > 0) {
-        switch (var_obs.type) {
+        switch (type) {
         case variable_observer::type_options::line:
             ImPlot::PlotLineG(obs.name.c_str(),
                               ring_buffer_getter,
@@ -628,7 +628,7 @@ static void show_local_variables_plot(application&       app,
     while (i != v_obs.mdl_id.ssize()) {
         if (auto* mdl = app.sim.models.try_to_get(v_obs.mdl_id[i]); mdl) {
             if (auto* obs = app.sim.observers.try_to_get(mdl->obs_id); obs) {
-                show_local_variable_plot(v_obs, *obs);
+                show_local_variable_plot(*obs, v_obs.options[i]);
             }
             ++i;
         } else {
