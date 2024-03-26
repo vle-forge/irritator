@@ -7,6 +7,7 @@ add_executable(app src/main.cpp
     ${PROJECT_SOURCE_DIR}/../lib/src/dot-parser.hpp
     ${PROJECT_SOURCE_DIR}/../lib/src/error.cpp
     ${PROJECT_SOURCE_DIR}/../lib/src/external_source.cpp
+    ${PROJECT_SOURCE_DIR}/../lib/src/graph-observer.cpp
     ${PROJECT_SOURCE_DIR}/../lib/src/grid-sim-obs.cpp
     ${PROJECT_SOURCE_DIR}/../lib/src/hsm.cpp
     ${PROJECT_SOURCE_DIR}/../lib/src/io.cpp

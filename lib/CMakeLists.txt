@@ -76,7 +76,7 @@ install(DIRECTORY include/irritator
   ${CMAKE_INSTALL_INCLUDEDIR}/irritator-${PROJECT_VERSION_MAJOR}.${PROJECT_VERSION_MINOR})
 
 function(irritator_add_test test_name)
-  add_executable(${test_name} ${ARGN} "src/archiver.cpp;src/dot-parser.hpp;src/dot-parser.cpp;src/error.cpp;src/external_source.cpp;src/file.cpp;src/grid-sim-obs.cpp;src/hsm.cpp;src/io.cpp;src/json.cpp;src/memory-resource.cpp;src/modeling.cpp;src/modeling-generic.cpp;src/modeling-graph.cpp;src/modeling-grid.cpp;src/modeling-internal.cpp;src/parameter.cpp;src/project.cpp;src/timeline.cpp;src/var-sim-obs.cpp")
+  add_executable(${test_name} ${ARGN} "src/archiver.cpp;src/dot-parser.hpp;src/dot-parser.cpp;src/error.cpp;src/external_source.cpp;src/file.cpp;src/graph-observer.cpp;src/grid-sim-obs.cpp;src/hsm.cpp;src/io.cpp;src/json.cpp;src/memory-resource.cpp;src/modeling.cpp;src/modeling-generic.cpp;src/modeling-graph.cpp;src/modeling-grid.cpp;src/modeling-internal.cpp;src/parameter.cpp;src/project.cpp;src/timeline.cpp;src/var-sim-obs.cpp")
 
   set_target_properties(${test_name} PROPERTIES
     COMPILE_DEFINITIONS EXAMPLES_DIR=\"${CMAKE_CURRENT_SOURCE_DIR}/test\"

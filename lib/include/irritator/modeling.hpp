@@ -824,6 +824,24 @@ public:
     component_id compo_id;  //< @c component in the graph to observe.
     tree_node_id tn_id;     //< @c tree_node identifier parent of the model.
     model_id     mdl_id;    //< @c model to observe.
+
+    vector<observer_id> observers;
+    vector<real>        values;
+
+    // Build or reuse existing observer for each pair `tn_id`, `mdl_id` and
+    // reinitialize all buffers.
+    status init(project& pj, modeling& mod, simulation& sim) noexcept;
+
+    // Clear the `observers` and `values` vectors.
+    void clear() noexcept;
+
+    // For each `observer`, get the latest observation value and fill the values
+    // vector.
+    void update(const simulation& sim) noexcept;
+
+    float scale_min = -100.f;
+    float scale_max = +100.f;
+    i32   nodes     = 0;
 };
 
 class variable_observer
