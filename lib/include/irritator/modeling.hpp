@@ -693,84 +693,6 @@ struct modeling_initializer {
     bool is_fixed_window_placement = true;
 };
 
-// class variable_simulation_observer
-// {
-// public:
-//     status init(project&           pj,
-//                 simulation&        sim,
-//                 variable_observer& v_obs) noexcept;
-
-//     void clear() noexcept;
-//     void update(simulation& sim) noexcept;
-
-//     vector<observer_id> observers;
-
-//     static_limiter<i32, 8, 512>      raw_buffer_size         = 64;
-//     static_limiter<i32, 1024, 65536> linearized_buffer_size  = 32768;
-//     floating_point_limiter<float, 1, 10000, 1, 10> time_step = .01f;
-
-//     variable_observer_id id = undefined<variable_observer_id>();
-// };
-
-//! A simulation structure to stores the matrix of @c observer_id identifier and
-//! a matrix of the last value from each observers.
-//!
-//! @c grid_simulation_observer stores simulation informations and can be used
-//! to dipslay or write data into files.
-//!
-//!    simulation              modeling
-//!   +----------------+      +-----------------+
-//!   | grid           |      | grid            |
-//!   | simulation     |      | modeling        |
-//!   | observer       |      | observer        |
-//!   +----------------+      +-----------------+
-//!   | vector<obs_id> |      | tree_node       |
-//!   | vector<float>  |<-----+                 |
-//!   |                |      | compo_id        |
-//!   +-----+----------+      | tn_id           |
-//!         |  ^  cols        | mdl_id          |
-//!         |  |  * rows      |                 |
-//!         v  |              +-----------------+
-//!   +--------+--+
-//!   | observer  |
-//!   +-----------+
-//!   | mdl_id    |
-//!   +-----------+
-//!
-// class grid_simulation_observer
-// {
-// public:
-//     /// @brief Clear, initialize the grid according to the @c grid_observer.
-//     /// @details Clear the @c grid_observation_widget and use the @c
-//     ///  grid_observer data to initialize all @c observer_id from the
-//     ///  simulation layer.
-//     ///
-//     /// @return The status.
-//     status init(project&       pj,
-//                 modeling&      mod,
-//                 simulation&    sim,
-//                 grid_observer& grid) noexcept;
-//
-//     /// Assign a new size to children and remove all @c model_id.
-//     void resize(int row, int col) noexcept;
-//
-//     /// Assign @c undefined<model_id> to all children.
-//     void clear() noexcept;
-//
-//     /// Update the values vector with observation values from the simulation
-//     /// observers object.
-//     void update(simulation& pj) noexcept;
-//
-//     vector<observer_id> observers;
-//     vector<real>        values;
-//
-//     real none_value = 0.f;
-//     int  rows       = 0;
-//     int  cols       = 0;
-//
-//     grid_observer_id id = undefined<grid_observer_id>();
-// };
-
 struct tree_node {
     tree_node(component_id id_, u64 unique_id_) noexcept;
 
@@ -1303,12 +1225,6 @@ public:
     data_array<graph_observer, graph_observer_id>       graph_observers;
 
     data_array<global_parameter, global_parameter_id> global_parameters;
-
-    /** Use the index of the @c get_index<grid_observer_id>. */
-    // vector<grid_simulation_observer> grid_observation_systems;
-
-    /** Use the index of the @c get_index<graph_observer_id>. */
-    // vector<graph_observation_system> graph_observation_systems;
 
 private:
     component_id m_head    = undefined<component_id>();
