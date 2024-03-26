@@ -8,12 +8,11 @@ add_executable(app src/main.cpp
     ${PROJECT_SOURCE_DIR}/../lib/src/error.cpp
     ${PROJECT_SOURCE_DIR}/../lib/src/external_source.cpp
     ${PROJECT_SOURCE_DIR}/../lib/src/graph-observer.cpp
-    ${PROJECT_SOURCE_DIR}/../lib/src/grid-sim-obs.cpp
+    ${PROJECT_SOURCE_DIR}/../lib/src/grid-observer.cpp
     ${PROJECT_SOURCE_DIR}/../lib/src/hsm.cpp
     ${PROJECT_SOURCE_DIR}/../lib/src/io.cpp
     ${PROJECT_SOURCE_DIR}/../lib/src/json.cpp
     ${PROJECT_SOURCE_DIR}/../lib/src/file.cpp
-    ${PROJECT_SOURCE_DIR}/../lib/src/grid-sim-obs.cpp
     ${PROJECT_SOURCE_DIR}/../lib/src/memory-resource.cpp
     ${PROJECT_SOURCE_DIR}/../lib/src/modeling.cpp
     ${PROJECT_SOURCE_DIR}/../lib/src/modeling-generic.cpp
@@ -23,7 +22,7 @@ add_executable(app src/main.cpp
     ${PROJECT_SOURCE_DIR}/../lib/src/parameter.cpp
     ${PROJECT_SOURCE_DIR}/../lib/src/project.cpp
     ${PROJECT_SOURCE_DIR}/../lib/src/timeline.cpp
-    ${PROJECT_SOURCE_DIR}/../lib/src/var-sim-obs.cpp
+    ${PROJECT_SOURCE_DIR}/../lib/src/variable-observer.cpp
     )
 
 target_link_libraries(app
