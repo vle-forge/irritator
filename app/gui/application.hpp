@@ -210,7 +210,7 @@ public:
 /// this class is available in @c application::simulation_editor::grid_obs.
 struct grid_observation_widget {
     /// Display the @c grid_observation_system into ImPlot::PlotHeatmap plot.
-    void show(grid_simulation_observer& grid) noexcept;
+    void show(grid_observer& grid) noexcept;
 };
 
 class graph_observation_widget

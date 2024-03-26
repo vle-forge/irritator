@@ -135,8 +135,8 @@ struct description;
 struct cache_rw;
 struct tree_node;
 class variable_observer;
-struct grid_observer;
-struct graph_observer;
+class grid_observer;
+class graph_observer;
 
 /// A structure use to cache data when read or write json component.
 /// - @c buffer is used to store the full file content or output buffer.
@@ -737,39 +737,39 @@ struct modeling_initializer {
 //!   | mdl_id    |
 //!   +-----------+
 //!
-class grid_simulation_observer
-{
-public:
-    /// @brief Clear, initialize the grid according to the @c grid_observer.
-    /// @details Clear the @c grid_observation_widget and use the @c
-    ///  grid_observer data to initialize all @c observer_id from the
-    ///  simulation layer.
-    ///
-    /// @return The status.
-    status init(project&       pj,
-                modeling&      mod,
-                simulation&    sim,
-                grid_observer& grid) noexcept;
-
-    /// Assign a new size to children and remove all @c model_id.
-    void resize(int row, int col) noexcept;
-
-    /// Assign @c undefined<model_id> to all children.
-    void clear() noexcept;
-
-    /// Update the values vector with observation values from the simulation
-    /// observers object.
-    void update(simulation& pj) noexcept;
-
-    vector<observer_id> observers;
-    vector<real>        values;
-
-    real none_value = 0.f;
-    int  rows       = 0;
-    int  cols       = 0;
-
-    grid_observer_id id = undefined<grid_observer_id>();
-};
+// class grid_simulation_observer
+// {
+// public:
+//     /// @brief Clear, initialize the grid according to the @c grid_observer.
+//     /// @details Clear the @c grid_observation_widget and use the @c
+//     ///  grid_observer data to initialize all @c observer_id from the
+//     ///  simulation layer.
+//     ///
+//     /// @return The status.
+//     status init(project&       pj,
+//                 modeling&      mod,
+//                 simulation&    sim,
+//                 grid_observer& grid) noexcept;
+//
+//     /// Assign a new size to children and remove all @c model_id.
+//     void resize(int row, int col) noexcept;
+//
+//     /// Assign @c undefined<model_id> to all children.
+//     void clear() noexcept;
+//
+//     /// Update the values vector with observation values from the simulation
+//     /// observers object.
+//     void update(simulation& pj) noexcept;
+//
+//     vector<observer_id> observers;
+//     vector<real>        values;
+//
+//     real none_value = 0.f;
+//     int  rows       = 0;
+//     int  cols       = 0;
+//
+//     grid_observer_id id = undefined<grid_observer_id>();
+// };
 
 struct tree_node {
     tree_node(component_id id_, u64 unique_id_) noexcept;
@@ -860,7 +860,9 @@ struct parameter {
     void clear() noexcept;
 };
 
-struct grid_observer {
+class grid_observer
+{
+public:
     name_str name;
 
     tree_node_id parent_id; ///< @c tree_node identifier ancestor of the model
@@ -869,12 +871,30 @@ struct grid_observer {
     tree_node_id tn_id;     //< @c tree_node identifier parent of the model.
     model_id     mdl_id;    //< @c model to observe.
 
+    vector<observer_id> observers;
+    vector<real>        values;
+
+    // Build or reuse existing observer for each pair `tn_id`, `mdl_id` and
+    // reinitialize all buffers.
+    status init(project& pj, modeling& mod, simulation& sim) noexcept;
+
+    // Clear the `observers` and `values` vectors.
+    void clear() noexcept;
+
+    // For each `observer`, get the latest observation value and fill the values
+    // vector.
+    void update(const simulation& sim) noexcept;
+
     float scale_min = -100.f;
     float scale_max = +100.f;
     i32   color_map = 0;
+    i32   rows      = 0;
+    i32   cols      = 0;
 };
 
-struct graph_observer {
+class graph_observer
+{
+public:
     name_str name;
 
     tree_node_id parent_id; ///< @c tree_node identifier ancestor of the model.
@@ -1285,7 +1305,7 @@ public:
     data_array<global_parameter, global_parameter_id> global_parameters;
 
     /** Use the index of the @c get_index<grid_observer_id>. */
-    vector<grid_simulation_observer> grid_observation_systems;
+    // vector<grid_simulation_observer> grid_observation_systems;
 
     /** Use the index of the @c get_index<graph_observer_id>. */
     // vector<graph_observation_system> graph_observation_systems;

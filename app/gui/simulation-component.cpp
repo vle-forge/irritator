@@ -14,17 +14,8 @@ namespace irt {
 
 static status simulation_init_grid_observation(application& app) noexcept
 {
-    app.pj.grid_observation_systems.resize(app.pj.grid_observers.capacity());
-
-    for (auto& grid_obs : app.pj.grid_observers) {
-        const auto id  = app.pj.grid_observers.get_id(grid_obs);
-        const auto idx = get_index(id);
-
-        if (auto ret = app.pj.grid_observation_systems[idx].init(
-              app.pj, app.mod, app.sim, grid_obs);
-            !ret)
-            return ret.error();
-    }
+    for (auto& grid_obs : app.pj.grid_observers)
+        irt_check(grid_obs.init(app.pj, app.mod, app.sim));
 
     return success();
 }

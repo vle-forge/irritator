@@ -7,12 +7,11 @@
 
 namespace irt {
 
-static status build_grid(grid_simulation_observer& grid_system,
-                         project&                  pj,
-                         simulation&               sim,
-                         tree_node&                grid_parent,
-                         grid_component&           grid_compo,
-                         grid_observer&            grid_obs) noexcept
+static status build_grid(grid_observer&  grid_obs,
+                         project&        pj,
+                         simulation&     sim,
+                         tree_node&      grid_parent,
+                         grid_component& grid_compo) noexcept
 {
     irt_assert(pj.tree_nodes.try_to_get(grid_obs.tn_id) != nullptr);
 
@@ -41,14 +40,14 @@ static status build_grid(grid_simulation_observer& grid_system,
                   static_cast<i32>(w.second);
 
                 irt_assert(0 <= index);
-                irt_assert(index < grid_system.observers.ssize());
+                irt_assert(index < grid_obs.observers.ssize());
 
                 auto&      obs    = sim.observers.alloc("tmp");
                 const auto obs_id = sim.observers.get_id(obs);
 
                 sim.observe(*mdl, obs);
 
-                grid_system.observers[index] = obs_id;
+                grid_obs.observers[index] = obs_id;
             }
         }
 
@@ -58,15 +57,15 @@ static status build_grid(grid_simulation_observer& grid_system,
     return success();
 }
 
-status grid_simulation_observer::init(project&       pj,
-                                      modeling&      mod,
-                                      simulation&    sim,
-                                      grid_observer& grid_obs) noexcept
+status grid_observer::init(project& pj, modeling& mod, simulation& sim) noexcept
 {
+    observers.clear();
+    values.clear();
+
     return if_tree_node_is_grid_do(
       pj,
       mod,
-      grid_obs.parent_id,
+      parent_id,
       [&](auto& grid_parent_tn, auto& compo, auto& grid) -> status {
           irt_assert(compo.type == component_type::grid);
 
@@ -78,45 +77,31 @@ status grid_simulation_observer::init(project&       pj,
           values.resize(len);
 
           std::fill_n(observers.data(), len, undefined<observer_id>());
-          std::fill_n(values.data(), len, none_value);
+          std::fill_n(values.data(), len, zero);
 
-          id = pj.grid_observers.get_id(grid_obs);
-
-          return build_grid(*this, pj, sim, grid_parent_tn, grid, grid_obs);
+          return build_grid(*this, pj, sim, grid_parent_tn, grid);
       });
 }
 
-void grid_simulation_observer::resize(int rows_, int cols_) noexcept
-{
-    const auto len = rows_ * cols_;
-    rows           = rows_;
-    cols           = cols_;
-
-    irt_assert(len > 0);
-
-    observers.resize(len);
-    values.resize(len);
-    clear();
-}
-
-void grid_simulation_observer::clear() noexcept
+void grid_observer::clear() noexcept
 {
     observers.clear();
     values.clear();
 }
 
-void grid_simulation_observer::update(simulation& sim) noexcept
+void grid_observer::update(const simulation& sim) noexcept
 {
-    irt_assert(rows * cols == observers.ssize());
+    debug::ensure(rows * cols == observers.ssize());
+    debug::ensure(values.ssize() == observers.ssize());
 
     for (int row = 0; row < rows; ++row) {
         for (int col = 0; col < cols; ++col) {
-            const auto  id  = observers[row * cols + col];
-            const auto* obs = sim.observers.try_to_get(id);
+            const auto  pos = row * cols + col;
+            const auto* obs = sim.observers.try_to_get(observers[pos]);
 
-            values[row * cols + col] = obs && !obs->linearized_buffer.empty()
-                                         ? obs->linearized_buffer.back().y
-                                         : none_value;
+            values[pos] = obs && !obs->linearized_buffer.empty()
+                            ? obs->linearized_buffer.back().y
+                            : zero;
         }
     }
 }

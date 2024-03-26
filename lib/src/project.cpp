@@ -1173,8 +1173,6 @@ status project::init(const modeling_initializer& init) noexcept
     if (not global_parameters.can_alloc())
         return new_error(project::part::global_parameters);
 
-    grid_observation_systems.resize(init.tree_capacity);
-
     return success();
 }
 
@@ -1225,12 +1223,8 @@ void project::clean_simulation() noexcept
 {
     for_all_tree_nodes([](auto& tn) { tn.child_to_node.data.clear(); });
 
-    for_each_data(grid_observers, [&](auto& grid_obs) noexcept {
-        auto id  = grid_observers.get_id(grid_obs);
-        auto idx = get_index(id);
-
-        grid_observation_systems[idx].clear();
-    });
+    for_each_data(grid_observers,
+                  [&](auto& grid_obs) noexcept { grid_obs.clear(); });
 }
 
 status project::load(modeling&   mod,

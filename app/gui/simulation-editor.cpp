@@ -666,16 +666,10 @@ static void show_local_variables_plot(application& app, tree_node& tn) noexcept
 
 static void show_local_grid(application& app, tree_node& tn) noexcept
 {
-    // @TODO get a grid_observation_system then
-
     for_specified_data(
       app.pj.grid_observers, tn.grid_observer_ids, [&](auto& grid) noexcept {
-          const auto id    = app.pj.grid_observers.get_id(grid);
-          const auto index = get_index(id);
-
           ImGui::PushID(&grid);
-          app.simulation_ed.grid_obs.show(
-            app.pj.grid_observation_systems[index]);
+          app.simulation_ed.grid_obs.show(grid);
           ImGui::PopID();
       });
 }
