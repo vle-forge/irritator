@@ -204,8 +204,8 @@ static bool check_connection_already_exists(
         if (!c || c->type != connection::connection_type::internal)
             continue;
 
-        const auto* src = mod.children.try_to_get(c->internal.src);
-        const auto* dst = mod.children.try_to_get(c->internal.dst);
+        const auto* src = gen.children.try_to_get(c->internal.src);
+        const auto* dst = gen.children.try_to_get(c->internal.dst);
         if (!src || !dst)
             continue;
 
@@ -249,7 +249,7 @@ static bool check_connection_already_exists(
         if (!c || c->type != connection::connection_type::input)
             continue;
 
-        const auto* dst = mod.children.try_to_get(c->input.dst);
+        const auto* dst = gen.children.try_to_get(c->input.dst);
         if (!dst)
             continue;
 
@@ -279,7 +279,7 @@ static bool check_connection_already_exists(
         if (!c || c->type != connection::connection_type::output)
             continue;
 
-        const auto* src = mod.children.try_to_get(c->output.src);
+        const auto* src = gen.children.try_to_get(c->output.src);
         if (!src)
             continue;
 
@@ -310,10 +310,10 @@ status modeling::connect_input(generic_component& parent,
     if (check_connection_already_exists(
           *this,
           parent,
-          connection::input_t{ children.get_id(c), ports.get_id(x), p_c }))
+          connection::input_t{ parent.children.get_id(c), ports.get_id(x), p_c }))
         return new_error(connection_error{}, already_exist_error{});
 
-    const auto c_id = children.get_id(c);
+    const auto c_id = parent.children.get_id(c);
     const auto x_id = ports.get_id(x);
 
     if (c.type == child_type::component) {
@@ -342,10 +342,10 @@ status modeling::connect_output(generic_component& parent,
     if (check_connection_already_exists(
           *this,
           parent,
-          connection::output_t{ children.get_id(c), ports.get_id(y), p_c }))
+          connection::output_t{ parent.children.get_id(c), ports.get_id(y), p_c }))
         return new_error(connection_error{}, already_exist_error{});
 
-    const auto c_id = children.get_id(c);
+    const auto c_id = parent.children.get_id(c);
     const auto y_id = ports.get_id(y);
 
     if (c.type == child_type::component) {
@@ -376,11 +376,11 @@ status modeling::connect(generic_component& parent,
           *this,
           parent,
           connection::internal_t{
-            children.get_id(src), children.get_id(dst), y, x }))
+            parent.children.get_id(src), parent.children.get_id(dst), y, x }))
         return new_error(connection_error{}, already_exist_error{});
 
-    const auto src_id = children.get_id(src);
-    const auto dst_id = children.get_id(dst);
+    const auto src_id = parent.children.get_id(src);
+    const auto dst_id = parent.children.get_id(dst);
 
     if (src.type == child_type::component) {
         irt_assert(ports.try_to_get(y.compo) != nullptr);
@@ -420,8 +420,8 @@ static status modeling_connect(modeling&          mod,
                                child_id           dst,
                                connection::port   p_dst) noexcept
 {
-    if (auto* child_src = mod.children.try_to_get(src); child_src) {
-        if (auto* child_dst = mod.children.try_to_get(dst); child_dst) {
+    if (auto* child_src = gen.children.try_to_get(src); child_src) {
+        if (auto* child_dst = gen.children.try_to_get(dst); child_dst) {
             if (child_src->type == child_type::component) {
                 if (child_dst->type == child_type::component) {
                     return mod.connect(
@@ -451,13 +451,13 @@ status modeling::copy(const generic_component& src,
     table<child_id, child_id> mapping; // @TODO move this mapping variable into
                                        // the modeling or cache class.
 
-    for_specified_data(children, src.children, [&](auto& c) noexcept {
-        const auto src_id  = children.get_id(c);
+    for_each_data(src.children, [&](auto& c) noexcept {
+        const auto src_id  = src.children.get_id(c);
         const auto src_idx = get_index(src_id);
 
         if (c.type == child_type::model) {
             auto&      new_child     = alloc(dst, c.id.mdl_type);
-            const auto new_child_id  = children.get_id(new_child);
+            const auto new_child_id  = dst.children.get_id(new_child);
             const auto new_child_idx = get_index(new_child_id);
 
             children_names[new_child_idx]     = children_names[src_idx];
@@ -473,7 +473,7 @@ status modeling::copy(const generic_component& src,
 
             if (auto* compo = components.try_to_get(compo_id); compo) {
                 auto& new_child     = alloc(dst, compo_id);
-                auto  new_child_id  = children.get_id(new_child);
+                auto  new_child_id  = dst.children.get_id(new_child);
                 auto  new_child_idx = get_index(new_child_id);
 
                 children_names[new_child_idx]     = children_names[src_idx];

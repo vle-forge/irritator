@@ -120,38 +120,38 @@ void for_each_component(modeling&                  mod,
     });
 }
 
-template<typename Function>
-void for_each_child(modeling&          mod,
-                    component&         compo,
-                    generic_component& generic,
-                    Function&&         f) noexcept
-{
-    for_each_data(mod.children, generic.children, [&](auto& child) noexcept {
-        f(compo, generic, child);
-    });
-}
-
-template<typename Function>
-void for_each_child(modeling&       mod,
-                    component&      compo,
-                    grid_component& grid,
-                    Function&&      f) noexcept
-{
-    for_each_data(mod.children, grid.cache, [&](auto& child) noexcept {
-        f(compo, grid, child);
-    });
-}
-
-template<typename Function>
-void for_each_child(modeling&        mod,
-                    component&       compo,
-                    graph_component& graph,
-                    Function&&       f) noexcept
-{
-    for_each_data(mod.children, graph.children, [&](auto& child) noexcept {
-        f(compo, graph, child);
-    });
-}
+// template<typename Function>
+// void for_each_child(modeling&          mod,
+//                     component&         compo,
+//                     generic_component& generic,
+//                     Function&&         f) noexcept
+// {
+//     for_each_data(mod.children, generic.children, [&](auto& child) noexcept {
+//         f(compo, generic, child);
+//     });
+// }
+//
+// template<typename Function>
+// void for_each_child(modeling&       mod,
+//                     component&      compo,
+//                     grid_component& grid,
+//                     Function&&      f) noexcept
+// {
+//     for_each_data(mod.children, grid.cache, [&](auto& child) noexcept {
+//         f(compo, grid, child);
+//     });
+// }
+//
+// template<typename Function>
+// void for_each_child(modeling&        mod,
+//                     component&       compo,
+//                     graph_component& graph,
+//                     Function&&       f) noexcept
+// {
+//     for_each_data(mod.children, graph.children, [&](auto& child) noexcept {
+//         f(compo, graph, child);
+//     });
+// }
 
 template<typename Function>
 void for_each_child(modeling& mod, component& compo, Function&& f) noexcept
@@ -195,13 +195,16 @@ void for_each_child(modeling& mod, tree_node& tn, Function&& f) noexcept
     });
 }
 
-//! \brief If child exists and is a component, invoke the function \c f
-//! otherwise do nothing. \param f A invokable with no const \c child and \c
+//! \brief if child exists and is a component, invoke the function \c f
+//! otherwise do nothing. \param f a invokable with no const \c child and \c
 //! component references.
-template<typename Function>
-void if_child_is_component_do(modeling& mod, child_id id, Function&& f) noexcept
+template<typename function>
+void if_child_is_component_do(modeling&                    mod,
+                              data_array<child, child_id>& data,
+                              child_id                     id,
+                              function&&                   f) noexcept
 {
-    if_data_exists_do(mod.children, id, [&](auto& child) noexcept {
+    if_data_exists_do(data, id, [&](auto& child) noexcept {
         if (child.type == child_type::component) {
             if_data_exists_do(mod.components,
                               child.id.compo_id,
@@ -210,13 +213,16 @@ void if_child_is_component_do(modeling& mod, child_id id, Function&& f) noexcept
     });
 }
 
-//! \brief If child exists and is a component, invoke the function \c f
-//! otherwise do nothing. \param f A invokable with no const \c child and \c
+//! \brief if child exists and is a component, invoke the function \c f
+//! otherwise do nothing. \param f a invokable with no const \c child and \c
 //! component references.
-template<typename Function>
-void if_child_is_model_do(modeling& mod, child_id id, Function&& f) noexcept
+template<typename function>
+void if_child_is_model_do(modeling&                    mod,
+                          data_array<child, child_id>& data,
+                          child_id                     id,
+                          function&&                   f) noexcept
 {
-    if_data_exists_do(mod.children, id, [&](auto& child) noexcept {
+    if_data_exists_do(data, id, [&](auto& child) noexcept {
         if (child.type == child_type::component) {
             if_data_exists_do(mod.components,
                               child.id.compo_id,

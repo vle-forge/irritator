@@ -69,8 +69,9 @@ int main()
         auto& ch32 = mod.alloc(s3, mod.components.get_id(c1));
         expect(!!mod.connect(s3, ch31, p2_id, ch32, p1_id));
 
-        expect(eq(mod.children.ssize(), 4));
-        expect(eq(mod.connections.ssize(), 3));
+        expect(eq(s1.children.ssize(), 1));
+        expect(eq(s2.children.ssize(), 1));
+        expect(eq(s3.children.ssize(), 2));
         expect(eq(s1.connections.ssize(), 1));
         expect(eq(s2.connections.ssize(), 1));
         expect(eq(s3.connections.ssize(), 1));
@@ -113,9 +114,6 @@ int main()
         auto& s3 = mod.generic_components.get(c3.id.generic_id);
         mod.alloc(s3, mod.components.get_id(c2));
         mod.alloc(s3, mod.components.get_id(c1));
-
-        expect(eq(mod.children.ssize(), 4));
-        expect(eq(mod.connections.ssize(), 0));
 
         expect(!!pj.set(mod, sim, c3));
         expect(eq(pj.tree_nodes_size().first, 3));
@@ -175,9 +173,6 @@ int main()
 
         expect(!!mod.connect(s3, ch31, p22_id, ch32, p11_id));
 
-        expect(eq(mod.children.ssize(), 6));
-        expect(eq(mod.connections.ssize(), 5));
-
         expect(!!pj.set(mod, sim, c3));
         expect(eq(pj.tree_nodes_size().first, 5));
 
@@ -208,9 +203,6 @@ int main()
         auto& s = mod.generic_components.get(c.id.generic_id);
         mod.alloc(s, irt::dynamics_type::counter);
 
-        expect(eq(mod.children.ssize(), 1));
-        expect(eq(mod.connections.ssize(), 0));
-
         auto& cg = mod.alloc_graph_component();
         auto& g  = mod.graph_components.get(cg.id.graph_id);
         g.resize(25, mod.components.get_id(c));
@@ -233,9 +225,6 @@ int main()
         auto& c = mod.alloc_generic_component();
         auto& s = mod.generic_components.get(c.id.generic_id);
         mod.alloc(s, irt::dynamics_type::counter);
-
-        expect(eq(mod.children.ssize(), 1));
-        expect(eq(mod.connections.ssize(), 0));
 
         auto& cg = mod.alloc_graph_component();
         auto& g  = mod.graph_components.get(cg.id.graph_id);
@@ -260,9 +249,6 @@ int main()
         auto& s = mod.generic_components.get(c.id.generic_id);
         mod.alloc(s, irt::dynamics_type::counter);
 
-        expect(eq(mod.children.ssize(), 1));
-        expect(eq(mod.connections.ssize(), 0));
-
         auto& cg = mod.alloc_grid_component();
         auto& g  = mod.grid_components.get(cg.id.grid_id);
         g.resize(5, 5, mod.components.get_id(c));
@@ -284,9 +270,6 @@ int main()
         auto& c = mod.alloc_generic_component();
         auto& s = mod.generic_components.get(c.id.generic_id);
         mod.alloc(s, irt::dynamics_type::counter);
-
-        expect(eq(mod.children.ssize(), 1));
-        expect(eq(mod.connections.ssize(), 0));
 
         auto& cg = mod.alloc_grid_component();
         auto& g  = mod.grid_components.get(cg.id.grid_id);
@@ -339,9 +322,6 @@ int main()
             auto& ch31 = mod.alloc(s3, mod.components.get_id(c2));
             auto& ch32 = mod.alloc(s3, mod.components.get_id(c1));
             expect(!!mod.connect(s3, ch31, p2_id, ch32, p1_id));
-
-            expect(eq(mod.children.ssize(), 4));
-            expect(eq(mod.connections.ssize(), 3));
 
             auto& cg = mod.alloc_grid_component();
             auto& g  = mod.grid_components.get(cg.id.grid_id);
@@ -556,9 +536,9 @@ int main()
             auto* p32    = mod.ports.try_to_get(p32_id);
             expect((p32 != nullptr) >> fatal);
 
-            const auto ch5_id  = mod.children.get_id(ch5);
+            const auto ch5_id  = s3.children.get_id(ch5);
             const auto ch5_idx = get_index(ch5_id);
-            auto&      p       = mod.children_parameters[ch5_idx];
+            auto&      p       = s3.children_parameters[ch5_idx];
             p.reals[0]         = 0.0;
             p.reals[1]         = 0.0;
             p.integers[0] =
@@ -568,9 +548,6 @@ int main()
             expect(!!mod.connect(s3, ch3, p2_id, ch4, p1_id));
             expect(!!mod.connect_input(s3, *p31, ch4, p1_id));
             expect(!!mod.connect_output(s3, ch3, p2_id, *p32));
-
-            expect(eq(mod.children.ssize(), 5));
-            expect(eq(mod.connections.ssize(), 5));
 
             auto& cg = mod.alloc_grid_component();
             auto& g  = mod.grid_components.get(cg.id.grid_id);
@@ -651,8 +628,8 @@ int main()
             // irt::constant::init_type::incoming_component_n; dyn.port =
             // ordinal(p31_id);
 
-            const auto ch5_id = mod.children.get_id(ch5);
-            auto&      p_ch5  = mod.children_parameters[get_index(ch5_id)];
+            const auto ch5_id = s3.children.get_id(ch5);
+            auto&      p_ch5  = s3.children_parameters[get_index(ch5_id)];
             p_ch5.reals[0]    = 0.0;
             p_ch5.integers[0] =
               ordinal(irt::constant::init_type::incoming_component_n);
@@ -661,9 +638,6 @@ int main()
             expect(!!mod.connect(s3, ch3, p2_id, ch4, p1_id));
             expect(!!mod.connect_input(s3, *p31, ch4, p1_id));
             expect(!!mod.connect_output(s3, ch3, p2_id, *p32));
-
-            expect(eq(mod.children.ssize(), 5));
-            expect(eq(mod.connections.ssize(), 5));
 
             auto& cg = mod.alloc_grid_component();
             auto& g  = mod.grid_components.get(cg.id.grid_id);
@@ -733,17 +707,14 @@ int main()
             // irt::constant::init_type::incoming_component_n; dyn.port = 17; //
             // Impossible port
 
-            const auto ch5_id = mod.children.get_id(ch5);
-            auto&      p_ch5  = mod.children_parameters[get_index(ch5_id)];
+            const auto ch5_id = s3.children.get_id(ch5);
+            auto&      p_ch5  = s3.children_parameters[get_index(ch5_id)];
             p_ch5.reals[0]    = 0.0;
             p_ch5.integers[0] =
               ordinal(irt::constant::init_type::incoming_component_n);
             p_ch5.integers[1] = 17; // Impossible port
 
             expect(!!mod.connect(s3, ch3, p2_id, ch4, p1_id));
-
-            expect(eq(mod.children.ssize(), 5));
-            expect(eq(mod.connections.ssize(), 3));
 
             auto& cg = mod.alloc_grid_component();
             auto& g  = mod.grid_components.get(cg.id.grid_id);

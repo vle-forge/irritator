@@ -127,17 +127,10 @@ status modeling::init(modeling_initializer& p) noexcept
     if (not hsms.can_alloc())
         return new_error(modeling::part::hsms);
 
-    children.reserve(p.children_capacity);
-    if (not children.can_alloc())
-        return new_error(modeling::part::children);
-
     connections.reserve(p.connection_capacity);
     if (not connections.can_alloc())
         return new_error(modeling::part::connections);
 
-    children_positions.resize(children.capacity());
-    children_names.resize(children.capacity());
-    children_parameters.resize(children.capacity());
     component_colors.resize(components.capacity());
 
     return success();
@@ -863,10 +856,9 @@ static bool fill_children(const modeling&       mod,
     case component_type::simple: {
         auto id = compo.id.generic_id;
         if (auto* s = mod.generic_components.try_to_get(id); s) {
-            for (auto id : s->children)
-                if (auto* ch = mod.children.try_to_get(id); ch)
-                    if (fill_child(mod, *ch, out, search))
-                        return true;
+            for (const auto& ch : s->children)
+                if (fill_child(mod, ch, out, search))
+                    return true;
         }
         break;
     }
@@ -956,8 +948,8 @@ void modeling::clear(component& compo) noexcept
 
 void modeling::free_input_port(component& compo, port& p) noexcept
 {
-    const auto compo_id = components.get_id(compo);
-    const auto port_id  = ports.get_id(p);
+    // const auto compo_id = components.get_id(compo);
+    const auto port_id = ports.get_id(p);
 
     if (compo.type == component_type::simple) {
         auto* gen = generic_components.try_to_get(compo.id.generic_id);
@@ -970,26 +962,26 @@ void modeling::free_input_port(component& compo, port& p) noexcept
           });
     }
 
-    remove_data_if(connections, [&](auto& con) -> bool {
-        if (con.type == connection::connection_type::internal) {
-            auto* ch = children.try_to_get(con.internal.dst);
-
-            if (ch)
-                return ch->type == child_type::component &&
-                       ch->id.compo_id == compo_id;
-            else
-                return true;
-        }
-        return false;
-    });
+    // remove_data_if(connections, [&](auto& con) -> bool {
+    //     if (con.type == connection::connection_type::internal) {
+    //         auto* ch = children.try_to_get(con.internal.dst);
+    //
+    //         if (ch)
+    //             return ch->type == child_type::component &&
+    //                    ch->id.compo_id == compo_id;
+    //         else
+    //             return true;
+    //     }
+    //     return false;
+    // });
 
     ports.free(p);
 }
 
 void modeling::free_output_port(component& compo, port& p) noexcept
 {
-    const auto compo_id = components.get_id(compo);
-    const auto port_id  = ports.get_id(p);
+    // const auto compo_id = components.get_id(compo);
+    const auto port_id = ports.get_id(p);
 
     if (compo.type == component_type::simple) {
         auto* gen = generic_components.try_to_get(compo.id.generic_id);
@@ -1002,37 +994,28 @@ void modeling::free_output_port(component& compo, port& p) noexcept
           });
     }
 
-    remove_data_if(connections, [&](auto& con) -> bool {
-        if (con.type == connection::connection_type::internal) {
-            auto* ch = children.try_to_get(con.internal.src);
-
-            if (ch)
-                return ch->type == child_type::component &&
-                       ch->id.compo_id == compo_id;
-            else
-                return true;
-        }
-        return false;
-    });
+    // remove_data_if(connections, [&](auto& con) -> bool {
+    //     if (con.type == connection::connection_type::internal) {
+    //         auto* ch = children.try_to_get(con.internal.src);
+    //
+    //         if (ch)
+    //             return ch->type == child_type::component &&
+    //                    ch->id.compo_id == compo_id;
+    //         else
+    //             return true;
+    //     }
+    //     return false;
+    // });
 
     ports.free(p);
 }
 
-void modeling::free(child& c) noexcept
-{
-    clear(c);
-
-    children.free(c);
-}
+void modeling::free(child& /* c */) noexcept { debug::ensure(false); }
 
 void modeling::free(connection& c) noexcept { connections.free(c); }
 
 void modeling::free(generic_component& gen) noexcept
 {
-    for (auto child_id : gen.children)
-        if (auto* child = children.try_to_get(child_id); child)
-            free(*child);
-
     for (auto connection_id : gen.connections)
         if (auto* con = connections.try_to_get(connection_id); con)
             free(*con);
@@ -1086,29 +1069,33 @@ void modeling::free(component& compo) noexcept
 
 child& modeling::alloc(generic_component& parent, component_id id) noexcept
 {
-    irt_assert(children.can_alloc());
+    debug::ensure(parent.children.can_alloc());
 
-    auto& child       = children.alloc(id);
-    auto  child_id    = children.get_id(child);
-    child.unique_id   = parent.make_next_unique_id();
-    child.type        = child_type::component;
-    child.id.compo_id = id;
-    parent.children.emplace_back(child_id);
+    auto&      child    = parent.children.alloc(id);
+    const auto child_id = parent.children.get_id(child);
+    const auto index    = get_index(child_id);
+    child.unique_id     = parent.make_next_unique_id();
+    child.type          = child_type::component;
+    child.id.compo_id   = id;
+
+    children_names[index].clear();
+    children_parameters[index].clear();
+    children_positions[index].x = 0.f;
+    children_positions[index].y = 0.f;
 
     return child;
 }
 
 child& modeling::alloc(generic_component& parent, dynamics_type type) noexcept
 {
-    irt_assert(children.can_alloc());
+    debug::ensure(parent.children.can_alloc());
 
-    auto&      child = children.alloc(type);
-    const auto id    = children.get_id(child);
-    const auto index = get_index(id);
-
-    child.unique_id = parent.make_next_unique_id();
-
-    parent.children.emplace_back(id);
+    auto&      child  = parent.children.alloc(type);
+    const auto id     = parent.children.get_id(child);
+    const auto index  = get_index(id);
+    child.unique_id   = parent.make_next_unique_id();
+    child.type        = child_type::model;
+    child.id.mdl_type = type;
 
     children_names[index].clear();
     children_parameters[index].clear();

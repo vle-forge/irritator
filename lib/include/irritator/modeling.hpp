@@ -45,6 +45,8 @@ using registred_path_str = small_string<256 * 16 - 2>;
 using directory_path_str = small_string<512 - 2>;
 using file_path_str      = small_string<512 - 2>;
 using log_str            = small_string<512 - 2>;
+using color              = u32;
+using component_color    = std::array<float, 4>;
 
 /// Maximum deepth of the component tree.
 constexpr i32 max_component_stack_size = 16;
@@ -127,6 +129,7 @@ enum class observable_type {
 
 class project;
 
+struct parameter;
 struct connection;
 struct child;
 class generic_component;
@@ -137,6 +140,21 @@ struct tree_node;
 class variable_observer;
 class grid_observer;
 class graph_observer;
+
+// Use to store `irt::dynamics` default values.
+struct parameter {
+    std::array<real, 8> reals;
+    std::array<i64, 4>  integers;
+
+    //! Copy data from the vectors to the simulation model.
+    void copy_to(model& mdl) const noexcept;
+
+    //! Copy data from model to the vectors of this parameter.
+    void copy_from(const model& mdl) noexcept;
+
+    //! Assign @c 0 to vector.
+    void clear() noexcept;
+};
 
 /// A structure use to cache data when read or write json component.
 /// - @c buffer is used to store the full file content or output buffer.
@@ -296,13 +314,16 @@ public:
         u64      port;
     };
 
-    vector<child_id>      children;
-    vector<connection_id> connections;
+    data_array<child, child_id>           children;
+    data_array<connection, connection_id> connections;
 
-    // vector<child_id>          children;
-    // vector<connection_id>     connections;
     vector<input_connection>  input_connections;
     vector<output_connection> output_connections;
+
+    vector<child_position>  children_positions;
+    vector<name_str>        children_names;
+    vector<parameter>       children_parameters;
+    vector<component_color> component_colors;
 
     /// Use to affect @c child::unique_id when the component is saved. The value
     /// 0 means unique_id is undefined. Mutable variable to allow function @c
@@ -421,8 +442,8 @@ struct grid_component {
                                const i32     col,
                                const port_id id) noexcept;
 
-    vector<child_id>      cache;
-    vector<connection_id> cache_connections;
+    data_array<child, child_id> cache;
+    vector<connection_id>       cache_connections;
 
     options      opts            = options::none;
     type         connection_type = type::name;
@@ -530,14 +551,12 @@ public:
     std::array<u64, 4> seed  = { 0u, 0u, 0u, 0u };
     std::array<u64, 2> key   = { 0u, 0u };
 
-    vector<child_id>      cache;
-    vector<connection_id> cache_connections;
+    data_array<child, child_id>           cache;
+    data_array<connection, connection_id> cache_connections;
+    vector<child_position>                positions;
 
     connection_type type = connection_type::name;
 };
-
-using color           = u32;
-using component_color = std::array<float, 4>;
 
 struct port {
     port() noexcept = default;
@@ -768,20 +787,6 @@ struct tree_node {
     table<child_id, node> child_to_node;
 };
 
-struct parameter {
-    std::array<real, 8> reals;
-    std::array<i64, 4>  integers;
-
-    //! Copy data from the vectors to the simulation model.
-    void copy_to(model& mdl) const noexcept;
-
-    //! Copy data from model to the vectors of this parameter.
-    void copy_from(const model& mdl) noexcept;
-
-    //! Assign @c 0 to vector.
-    void clear() noexcept;
-};
-
 class grid_observer
 {
 public:
@@ -926,12 +931,7 @@ public:
     data_array<dir_path, dir_path_id>                   dir_paths;
     data_array<file_path, file_path_id>                 file_paths;
     data_array<hierarchical_state_machine, hsm_id>      hsms;
-    data_array<child, child_id>                         children;
-    data_array<connection, connection_id>               connections;
 
-    vector<child_position>  children_positions;
-    vector<name_str>        children_names;
-    vector<parameter>       children_parameters;
     vector<component_color> component_colors;
 
     vector<registred_path_id> component_repertories;
@@ -1016,21 +1016,16 @@ public:
     /// based on children vectors and grid_component options (torus, cylinder
     /// etc.). The newly allocated child and connection are append to the output
     /// vectors. The vectors are not cleared.
-    status build_grid_children_and_connections(grid_component&        grid,
-                                               vector<child_id>&      ids,
-                                               vector<connection_id>& cnts,
-                                               i32 upper_limit = 0,
-                                               i32 left_limit  = 0,
-                                               i32 space_x     = 30,
-                                               i32 space_y     = 50) noexcept;
+    status build_grid_children_and_connections(grid_component& grid,
+                                               i32             upper_limit = 0,
+                                               i32             left_limit  = 0,
+                                               i32             space_x     = 30,
+                                               i32 space_y = 50) noexcept;
 
-    /// For graph_component, build the children and connections
-    /// based on children vectors and graph_component options (torus, cylinder
-    /// etc.). The newly allocated child and connection are append to the output
-    /// vectors. The vectors are not cleared.
-    status build_graph_children_and_connections(graph_component&       graph,
-                                                vector<child_id>&      ids,
-                                                vector<connection_id>& cnts,
+    /// Build the children and connections for the specificed `graph_component`
+    /// according to graph_component options (torus, cylinder etc.). The newly
+    /// allocated child and connection are build into `graph_component` cache.
+    status build_graph_children_and_connections(graph_component& graph,
                                                 i32 upper_limit = 0,
                                                 i32 left_limit  = 0,
                                                 i32 space_x     = 30,

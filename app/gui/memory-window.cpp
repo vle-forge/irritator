@@ -91,30 +91,6 @@ void memory_window::show() noexcept
                     ImGui::TextFormat("Description: {}", ordinal(compo->desc));
                     ImGui::TextFormat("File: {}", ordinal(compo->file));
 
-                    ImGui::Separator();
-
-                    int x = 0, y = 0;
-                    for (auto connection_id : s_compo->connections) {
-                        auto* con =
-                          app.mod.connections.try_to_get(connection_id);
-                        if (!con)
-                            continue;
-
-                        switch (con->type) {
-                        case connection::connection_type::input:
-                            ++x;
-                            break;
-                        case connection::connection_type::output:
-                            ++y;
-                            break;
-                        default:
-                            break;
-                        }
-                    }
-
-                    ImGui::TextFormat("X: {}", x);
-                    ImGui::TextFormat("Y: {}", y);
-
                     ImGui::TreePop();
                 }
             }

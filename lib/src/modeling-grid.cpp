@@ -474,13 +474,13 @@ static auto build_grid_connections(modeling&              mod,
 }
 
 status modeling::build_grid_children_and_connections(
-  grid_component&        grid,
-  vector<child_id>&      ids,
-  vector<connection_id>& cnts,
-  i32                    upper_limit,
-  i32                    left_limit,
-  i32                    space_x,
-  i32                    space_y) noexcept
+  grid_component&              grid,
+  data_array<child, child_id>& ids,
+  vector<connection_id>&       cnts,
+  i32                          upper_limit,
+  i32                          left_limit,
+  i32                          space_x,
+  i32                          space_y) noexcept
 {
     // Use to compute grid access with existing children in ids vector.
     const auto old_size = ids.ssize();
