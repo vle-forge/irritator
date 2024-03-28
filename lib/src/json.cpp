@@ -474,8 +474,8 @@ struct reader {
 
     template<size_t N, typename Function>
     bool for_members(const rapidjson::Value& val,
-                     const std::string_view (&names)[N],
-                     Function&& fn) noexcept
+                     const std::string_view  (&names)[N],
+                     Function&&              fn) noexcept
     {
         if (!val.IsObject())
             report_json_error(error_id::value_not_object);
@@ -932,10 +932,13 @@ struct reader {
         return true;
     }
 
-    bool modeling_can_alloc(std::integral auto i) noexcept
+    bool generic_can_alloc(const generic_component& compo,
+                           std::integral auto       i) noexcept
     {
-        if (!mod().children.can_alloc(i))
-            report_json_error(error_id::modeling_not_enough_children);
+        if (not compo.children.can_alloc(i))
+            report_json_error(
+              error_id::modeling_not_enough_children); // @TODO replace with a
+                                                       // better `error_id`.
 
         return true;
     }
@@ -1785,6 +1788,7 @@ struct reader {
     }
 
     bool read_child(const rapidjson::Value& val,
+                    generic_component&      generic,
                     child&                  c,
                     child_id                c_id) noexcept
     {
@@ -1807,14 +1811,17 @@ struct reader {
                      if ("x"sv == name)
                          return read_temp_real(value) and
                                 copy_to(
-                                  mod().children_positions[get_index(c_id)].x);
+                                  generic.children_positions[get_index(c_id)]
+                                    .x);
                      if ("y"sv == name)
                          return read_temp_real(value) and
                                 copy_to(
-                                  mod().children_positions[get_index(c_id)].y);
+                                  generic.children_positions[get_index(c_id)]
+                                    .y);
                      if ("name"sv == name)
                          return read_temp_string(value) and
-                                copy_to(mod().children_names[get_index(c_id)]);
+                                copy_to(
+                                  generic.children_names[get_index(c_id)]);
                      if ("configurable"sv == name)
                          return read_temp_bool(value) and
                                 affect_configurable_to(c.flags);
@@ -1829,15 +1836,16 @@ struct reader {
     }
 
     bool read_child_model_dynamics(const rapidjson::Value& val,
+                                   generic_component&      compo,
                                    child&                  c,
                                    model&                  mdl) noexcept
     {
         auto_stack a(this, stack_id::child_model_dynamics);
 
-        const auto c_id  = mod().children.get_id(c);
+        const auto c_id  = compo.children.get_id(c);
         const auto c_idx = get_index(c_id);
 
-        auto& param = mod().children_parameters[c_idx];
+        auto& param = compo.children_parameters[c_idx];
         param.clear();
 
         return for_first_member(
@@ -1862,6 +1870,7 @@ struct reader {
     }
 
     bool read_child_model(const rapidjson::Value& val,
+                          generic_component&      compo,
                           const dynamics_type     type,
                           child&                  c) noexcept
     {
@@ -1885,7 +1894,7 @@ struct reader {
                     dyn.y[i] = undefined<node_id>();
         });
 
-        return read_child_model_dynamics(val, c, mdl);
+        return read_child_model_dynamics(val, compo, c, mdl);
     }
 
     bool copy_internal_component(internal_component type,
@@ -2126,6 +2135,7 @@ struct reader {
     }
 
     bool dispatch_child_component_or_model(const rapidjson::Value& val,
+                                           generic_component&      generic,
                                            dynamics_type           d_type,
                                            child&                  c) noexcept
     {
@@ -2133,10 +2143,11 @@ struct reader {
 
         return c.type == child_type::component
                  ? read_child_component(val, c.id.compo_id)
-                 : read_child_model(val, d_type, c);
+                 : read_child_model(val, generic, d_type, c);
     }
 
     bool read_child_component_or_model(const rapidjson::Value& val,
+                                       generic_component&      generic,
                                        child&                  c) noexcept
     {
         auto_stack a(this, stack_id::child_component_or_model);
@@ -2149,7 +2160,7 @@ struct reader {
                                     return read_temp_string(value) &&
                                            copy_to(c.type, type);
                                 }) &&
-               dispatch_child_component_or_model(val, type, c);
+               dispatch_child_component_or_model(val, generic, type, c);
     }
 
     bool read_children_array(const rapidjson::Value& val,
@@ -2160,15 +2171,16 @@ struct reader {
         i64 size = 0;
 
         return is_value_array(val) && copy_array_size(val, size) &&
-               modeling_can_alloc(size) &&
+               generic_can_alloc(generic, size) &&
                for_each_array(
                  val,
                  [&](const auto /*i*/, const auto& value) noexcept -> bool {
-                     auto& new_child    = mod().children.alloc();
-                     auto  new_child_id = mod().children.get_id(new_child);
-                     generic.children.emplace_back(new_child_id);
-                     return read_child(value, new_child, new_child_id) &&
-                            read_child_component_or_model(value, new_child);
+                     auto& new_child    = generic.children.alloc();
+                     auto  new_child_id = generic.children.get_id(new_child);
+                     return read_child(
+                              value, generic, new_child, new_child_id) &&
+                            read_child_component_or_model(
+                              value, generic, new_child);
                  });
     }
 
@@ -2618,8 +2630,8 @@ struct reader {
     {
         auto_stack a(this, stack_id::component_generic_connect);
 
-        if (auto* c_src = mod().children.try_to_get(src); c_src)
-            if (auto* c_dst = mod().children.try_to_get(dst); c_dst)
+        if (auto* c_src = compo.children.try_to_get(src); c_src)
+            if (auto* c_dst = compo.children.try_to_get(dst); c_dst)
                 if (mod().connect(compo, *c_src, p_src, *c_dst, p_dst))
                     return true;
 
@@ -2633,7 +2645,7 @@ struct reader {
     {
         auto_stack a(this, stack_id::component_generic_connect_input);
 
-        if (auto* c_dst = mod().children.try_to_get(dst); c_dst)
+        if (auto* c_dst = compo.children.try_to_get(dst); c_dst)
             if (auto* port = mod().ports.try_to_get(src_port); port)
                 if (mod().connect_input(compo, *port, *c_dst, p_dst))
                     return true;
@@ -2648,7 +2660,7 @@ struct reader {
     {
         auto_stack a(this, stack_id::component_generic_connect_output);
 
-        if (auto* c_src = mod().children.try_to_get(src); c_src)
+        if (auto* c_src = compo.children.try_to_get(src); c_src)
             if (auto* port = mod().ports.try_to_get(dst_port); port)
                 if (mod().connect_output(compo, *c_src, p_src, *port))
                     return true;
@@ -2676,14 +2688,15 @@ struct reader {
         report_json_error(error_id::cache_model_mapping_unfound);
     }
 
-    bool get_x_port(const child_id                    dst_id,
+    bool get_x_port(generic_component&                generic,
+                    const child_id                    dst_id,
                     const std::optional<std::string>& dst_str_port,
                     const std::optional<int>&         dst_int_port,
                     std::optional<connection::port>&  out) noexcept
     {
         auto_stack a(this, stack_id::component_generic_x_port);
 
-        if (auto* child = mod().children.try_to_get(dst_id); child) {
+        if (auto* child = generic.children.try_to_get(dst_id); child) {
             if (dst_int_port.has_value()) {
                 if (child->type != child_type::model)
                     report_json_error(
@@ -2716,14 +2729,15 @@ struct reader {
         report_json_error(error_id::unknown_element);
     }
 
-    bool get_y_port(const child_id                    src_id,
+    bool get_y_port(generic_component&                generic,
+                    const child_id                    src_id,
                     const std::optional<std::string>& src_str_port,
                     const std::optional<int>&         src_int_port,
                     std::optional<connection::port>&  out) noexcept
     {
         auto_stack a(this, stack_id::component_generic_y_port);
 
-        if (auto* child = mod().children.try_to_get(src_id); child) {
+        if (auto* child = generic.children.try_to_get(src_id); child) {
             if (src_int_port.has_value()) {
                 if (child->type != child_type::model)
                     report_json_error(
@@ -2828,36 +2842,12 @@ struct reader {
                      return true;
                  }) &&
                optional_has_value(src_id) &&
-               get_y_port(*src_id, src_str_port, src_int_port, src_port) &&
+               get_y_port(gen, *src_id, src_str_port, src_int_port, src_port) &&
                optional_has_value(dst_id) &&
-               get_x_port(*dst_id, dst_str_port, dst_int_port, dst_port) &&
+               get_x_port(gen, *dst_id, dst_str_port, dst_int_port, dst_port) &&
                optional_has_value(src_port) && optional_has_value(dst_port) &&
-               modeling_connect_internal_can_alloc() &&
+               gen.connections.can_alloc() &&
                modeling_connect(gen, *src_id, *src_port, *dst_id, *dst_port);
-    }
-
-    bool modeling_connect_internal_can_alloc() noexcept
-    {
-        if (mod().connections.can_alloc())
-            return true;
-
-        report_json_error(error_id::modeling_connect_error);
-    }
-
-    bool modeling_connect_output_can_alloc() noexcept
-    {
-        if (mod().connections.can_alloc())
-            return true;
-
-        report_json_error(error_id::modeling_connect_output_error);
-    }
-
-    bool modeling_connect_input_can_alloc() noexcept
-    {
-        if (mod().connections.can_alloc())
-            return true;
-
-        report_json_error(error_id::modeling_connect_input_error);
     }
 
     bool read_output_connection(const rapidjson::Value& val,
@@ -2892,9 +2882,9 @@ struct reader {
                      return true;
                  }) &&
                get_y_port(compo, str_port, port) &&
-               get_y_port(src_id, src_str_port, src_int_port, src_port) &&
-               modeling_connect_output_can_alloc() &&
-               optional_has_value(src_port) && optional_has_value(port) &&
+               get_y_port(gen, src_id, src_str_port, src_int_port, src_port) &&
+               gen.connections.can_alloc() && optional_has_value(src_port) &&
+               optional_has_value(port) &&
                modeling_connect_output(gen, src_id, *src_port, *port);
     }
 
@@ -2931,9 +2921,9 @@ struct reader {
                      return true;
                  }) &&
                get_x_port(compo, str_port, port) &&
-               get_x_port(dst_id, dst_str_port, dst_int_port, dst_port) &&
-               modeling_connect_input_can_alloc() &&
-               optional_has_value(dst_port) && optional_has_value(port) &&
+               get_x_port(gen, dst_id, dst_str_port, dst_int_port, dst_port) &&
+               gen.connections.can_alloc() && optional_has_value(dst_port) &&
+               optional_has_value(port) &&
                modeling_connect_input(gen, *port, dst_id, *dst_port);
     }
 
@@ -4178,7 +4168,8 @@ static status parse_json_data(const std::span<char>& buffer,
 //
 
 template<typename Writer, int QssLevel>
-status write(Writer& writer, const abstract_integrator<QssLevel>& dyn) noexcept
+static void write(Writer&                              writer,
+                  const abstract_integrator<QssLevel>& dyn) noexcept
 {
     writer.StartObject();
     writer.Key("X");
@@ -4186,20 +4177,18 @@ status write(Writer& writer, const abstract_integrator<QssLevel>& dyn) noexcept
     writer.Key("dQ");
     writer.Double(dyn.default_dQ);
     writer.EndObject();
-    return success();
 }
 
 template<typename Writer, int QssLevel>
-status write(Writer& writer,
-             const abstract_multiplier<QssLevel>& /*dyn*/) noexcept
+static void write(Writer& writer,
+                  const abstract_multiplier<QssLevel>& /*dyn*/) noexcept
 {
     writer.StartObject();
     writer.EndObject();
-    return success();
 }
 
 template<typename Writer>
-status write(Writer& writer, const qss1_sum_2& dyn) noexcept
+static void write(Writer& writer, const qss1_sum_2& dyn) noexcept
 {
     writer.StartObject();
 
@@ -4209,12 +4198,10 @@ status write(Writer& writer, const qss1_sum_2& dyn) noexcept
     writer.Double(dyn.default_values[1]);
 
     writer.EndObject();
-
-    return success();
 }
 
 template<typename Writer>
-status write(Writer& writer, const qss1_sum_3& dyn) noexcept
+static void write(Writer& writer, const qss1_sum_3& dyn) noexcept
 {
     writer.StartObject();
 
@@ -4226,12 +4213,10 @@ status write(Writer& writer, const qss1_sum_3& dyn) noexcept
     writer.Double(dyn.default_values[2]);
 
     writer.EndObject();
-
-    return success();
 }
 
 template<typename Writer>
-status write(Writer& writer, const qss1_sum_4& dyn) noexcept
+static void write(Writer& writer, const qss1_sum_4& dyn) noexcept
 {
     writer.StartObject();
 
@@ -4245,12 +4230,10 @@ status write(Writer& writer, const qss1_sum_4& dyn) noexcept
     writer.Double(dyn.default_values[3]);
 
     writer.EndObject();
-
-    return success();
 }
 
 template<typename Writer>
-status write(Writer& writer, const qss1_wsum_2& dyn) noexcept
+static void write(Writer& writer, const qss1_wsum_2& dyn) noexcept
 {
     writer.StartObject();
 
@@ -4265,12 +4248,10 @@ status write(Writer& writer, const qss1_wsum_2& dyn) noexcept
     writer.Double(dyn.default_input_coeffs[1]);
 
     writer.EndObject();
-
-    return success();
 }
 
 template<typename Writer>
-status write(Writer& writer, const qss1_wsum_3& dyn) noexcept
+static void write(Writer& writer, const qss1_wsum_3& dyn) noexcept
 {
     writer.StartObject();
 
@@ -4289,12 +4270,10 @@ status write(Writer& writer, const qss1_wsum_3& dyn) noexcept
     writer.Double(dyn.default_input_coeffs[2]);
 
     writer.EndObject();
-
-    return success();
 }
 
 template<typename Writer>
-status write(Writer& writer, const qss1_wsum_4& dyn) noexcept
+static void write(Writer& writer, const qss1_wsum_4& dyn) noexcept
 {
     writer.StartObject();
 
@@ -4317,11 +4296,10 @@ status write(Writer& writer, const qss1_wsum_4& dyn) noexcept
     writer.Double(dyn.default_input_coeffs[3]);
 
     writer.EndObject();
-    return success();
 }
 
 template<typename Writer>
-status write(Writer& writer, const qss2_sum_2& dyn) noexcept
+static void write(Writer& writer, const qss2_sum_2& dyn) noexcept
 {
     writer.StartObject();
 
@@ -4331,12 +4309,10 @@ status write(Writer& writer, const qss2_sum_2& dyn) noexcept
     writer.Double(dyn.default_values[1]);
 
     writer.EndObject();
-
-    return success();
 }
 
 template<typename Writer>
-status write(Writer& writer, const qss2_sum_3& dyn) noexcept
+static void write(Writer& writer, const qss2_sum_3& dyn) noexcept
 {
     writer.StartObject();
 
@@ -4348,12 +4324,10 @@ status write(Writer& writer, const qss2_sum_3& dyn) noexcept
     writer.Double(dyn.default_values[2]);
 
     writer.EndObject();
-
-    return success();
 }
 
 template<typename Writer>
-status write(Writer& writer, const qss2_sum_4& dyn) noexcept
+static void write(Writer& writer, const qss2_sum_4& dyn) noexcept
 {
     writer.StartObject();
 
@@ -4367,12 +4341,10 @@ status write(Writer& writer, const qss2_sum_4& dyn) noexcept
     writer.Double(dyn.default_values[3]);
 
     writer.EndObject();
-
-    return success();
 }
 
 template<typename Writer>
-status write(Writer& writer, const qss2_wsum_2& dyn) noexcept
+static void write(Writer& writer, const qss2_wsum_2& dyn) noexcept
 {
     writer.StartObject();
 
@@ -4387,12 +4359,10 @@ status write(Writer& writer, const qss2_wsum_2& dyn) noexcept
     writer.Double(dyn.default_input_coeffs[1]);
 
     writer.EndObject();
-
-    return success();
 }
 
 template<typename Writer>
-status write(Writer& writer, const qss2_wsum_3& dyn) noexcept
+static void write(Writer& writer, const qss2_wsum_3& dyn) noexcept
 {
     writer.StartObject();
 
@@ -4411,12 +4381,10 @@ status write(Writer& writer, const qss2_wsum_3& dyn) noexcept
     writer.Double(dyn.default_input_coeffs[2]);
 
     writer.EndObject();
-
-    return success();
 }
 
 template<typename Writer>
-status write(Writer& writer, const qss2_wsum_4& dyn) noexcept
+static void write(Writer& writer, const qss2_wsum_4& dyn) noexcept
 {
     writer.StartObject();
 
@@ -4439,11 +4407,10 @@ status write(Writer& writer, const qss2_wsum_4& dyn) noexcept
     writer.Double(dyn.default_input_coeffs[3]);
 
     writer.EndObject();
-    return success();
 }
 
 template<typename Writer>
-status write(Writer& writer, const qss3_sum_2& dyn) noexcept
+static void write(Writer& writer, const qss3_sum_2& dyn) noexcept
 {
     writer.StartObject();
 
@@ -4453,12 +4420,10 @@ status write(Writer& writer, const qss3_sum_2& dyn) noexcept
     writer.Double(dyn.default_values[1]);
 
     writer.EndObject();
-
-    return success();
 }
 
 template<typename Writer>
-status write(Writer& writer, const qss3_sum_3& dyn) noexcept
+static void write(Writer& writer, const qss3_sum_3& dyn) noexcept
 {
     writer.StartObject();
 
@@ -4470,12 +4435,10 @@ status write(Writer& writer, const qss3_sum_3& dyn) noexcept
     writer.Double(dyn.default_values[2]);
 
     writer.EndObject();
-
-    return success();
 }
 
 template<typename Writer>
-status write(Writer& writer, const qss3_sum_4& dyn) noexcept
+static void write(Writer& writer, const qss3_sum_4& dyn) noexcept
 {
     writer.StartObject();
 
@@ -4489,12 +4452,10 @@ status write(Writer& writer, const qss3_sum_4& dyn) noexcept
     writer.Double(dyn.default_values[3]);
 
     writer.EndObject();
-
-    return success();
 }
 
 template<typename Writer>
-status write(Writer& writer, const qss3_wsum_2& dyn) noexcept
+static void write(Writer& writer, const qss3_wsum_2& dyn) noexcept
 {
     writer.StartObject();
 
@@ -4509,12 +4470,10 @@ status write(Writer& writer, const qss3_wsum_2& dyn) noexcept
     writer.Double(dyn.default_input_coeffs[1]);
 
     writer.EndObject();
-
-    return success();
 }
 
 template<typename Writer>
-status write(Writer& writer, const qss3_wsum_3& dyn) noexcept
+static void write(Writer& writer, const qss3_wsum_3& dyn) noexcept
 {
     writer.StartObject();
 
@@ -4533,12 +4492,10 @@ status write(Writer& writer, const qss3_wsum_3& dyn) noexcept
     writer.Double(dyn.default_input_coeffs[2]);
 
     writer.EndObject();
-
-    return success();
 }
 
 template<typename Writer>
-status write(Writer& writer, const qss3_wsum_4& dyn) noexcept
+static void write(Writer& writer, const qss3_wsum_4& dyn) noexcept
 {
     writer.StartObject();
 
@@ -4561,29 +4518,26 @@ status write(Writer& writer, const qss3_wsum_4& dyn) noexcept
     writer.Double(dyn.default_input_coeffs[3]);
 
     writer.EndObject();
-    return success();
 }
 
 template<typename Writer>
-status write(Writer& writer, const counter& /*dyn*/) noexcept
+static void write(Writer& writer, const counter& /*dyn*/) noexcept
 {
     writer.StartObject();
     writer.EndObject();
-    return success();
 }
 
 template<typename Writer>
-status write(Writer& writer, const queue& dyn) noexcept
+static void write(Writer& writer, const queue& dyn) noexcept
 {
     writer.StartObject();
     writer.Key("ta");
     writer.Double(dyn.default_ta);
     writer.EndObject();
-    return success();
 }
 
 template<typename Writer>
-status write(Writer& writer, const dynamic_queue& dyn) noexcept
+static void write(Writer& writer, const dynamic_queue& dyn) noexcept
 {
     writer.StartObject();
     writer.Key("source-ta-type");
@@ -4593,11 +4547,10 @@ status write(Writer& writer, const dynamic_queue& dyn) noexcept
     writer.Key("stop-on-error");
     writer.Bool(dyn.stop_on_error);
     writer.EndObject();
-    return success();
 }
 
 template<typename Writer>
-status write(Writer& writer, const priority_queue& dyn) noexcept
+static void write(Writer& writer, const priority_queue& dyn) noexcept
 {
     writer.StartObject();
     writer.Key("ta");
@@ -4609,11 +4562,10 @@ status write(Writer& writer, const priority_queue& dyn) noexcept
     writer.Key("stop-on-error");
     writer.Bool(dyn.stop_on_error);
     writer.EndObject();
-    return success();
 }
 
 template<typename Writer>
-status write(Writer& writer, const generator& dyn) noexcept
+static void write(Writer& writer, const generator& dyn) noexcept
 {
     writer.StartObject();
     writer.Key("offset");
@@ -4629,11 +4581,10 @@ status write(Writer& writer, const generator& dyn) noexcept
     writer.Key("stop-on-error");
     writer.Bool(dyn.stop_on_error);
     writer.EndObject();
-    return success();
 }
 
 template<typename Writer>
-status write(Writer& writer, const constant& dyn) noexcept
+static void write(Writer& writer, const constant& dyn) noexcept
 {
     writer.StartObject();
     writer.Key("value");
@@ -4664,11 +4615,10 @@ status write(Writer& writer, const constant& dyn) noexcept
         break;
     }
     writer.EndObject();
-    return success();
 }
 
 template<typename Writer>
-status write(Writer& writer, const qss1_cross& dyn) noexcept
+static void write(Writer& writer, const qss1_cross& dyn) noexcept
 {
     writer.StartObject();
     writer.Key("threshold");
@@ -4676,11 +4626,10 @@ status write(Writer& writer, const qss1_cross& dyn) noexcept
     writer.Key("detect-up");
     writer.Bool(dyn.default_detect_up);
     writer.EndObject();
-    return success();
 }
 
 template<typename Writer>
-status write(Writer& writer, const qss2_cross& dyn) noexcept
+static void write(Writer& writer, const qss2_cross& dyn) noexcept
 {
     writer.StartObject();
     writer.Key("threshold");
@@ -4688,11 +4637,10 @@ status write(Writer& writer, const qss2_cross& dyn) noexcept
     writer.Key("detect-up");
     writer.Bool(dyn.default_detect_up);
     writer.EndObject();
-    return success();
 }
 
 template<typename Writer>
-status write(Writer& writer, const qss3_cross& dyn) noexcept
+static void write(Writer& writer, const qss3_cross& dyn) noexcept
 {
     writer.StartObject();
     writer.Key("threshold");
@@ -4700,11 +4648,10 @@ status write(Writer& writer, const qss3_cross& dyn) noexcept
     writer.Key("detect-up");
     writer.Bool(dyn.default_detect_up);
     writer.EndObject();
-    return success();
 }
 
 template<typename Writer>
-status write(Writer& writer, const qss1_filter& dyn) noexcept
+static void write(Writer& writer, const qss1_filter& dyn) noexcept
 {
     writer.StartObject();
     writer.Key("lower-threshold");
@@ -4716,11 +4663,10 @@ status write(Writer& writer, const qss1_filter& dyn) noexcept
                     ? std::numeric_limits<double>::max()
                     : dyn.default_upper_threshold);
     writer.EndObject();
-    return success();
 }
 
 template<typename Writer>
-status write(Writer& writer, const qss2_filter& dyn) noexcept
+static void write(Writer& writer, const qss2_filter& dyn) noexcept
 {
     writer.StartObject();
     writer.Key("lower-threshold");
@@ -4732,11 +4678,10 @@ status write(Writer& writer, const qss2_filter& dyn) noexcept
                     ? std::numeric_limits<double>::max()
                     : dyn.default_upper_threshold);
     writer.EndObject();
-    return success();
 }
 
 template<typename Writer>
-status write(Writer& writer, const qss3_filter& dyn) noexcept
+static void write(Writer& writer, const qss3_filter& dyn) noexcept
 {
     writer.StartObject();
     writer.Key("lower-threshold");
@@ -4748,57 +4693,53 @@ status write(Writer& writer, const qss3_filter& dyn) noexcept
                     ? std::numeric_limits<double>::max()
                     : dyn.default_upper_threshold);
     writer.EndObject();
-    return success();
 }
 
 template<typename Writer>
-status write(Writer& writer, const qss1_power& dyn) noexcept
+static void write(Writer& writer, const qss1_power& dyn) noexcept
 {
     writer.StartObject();
     writer.Key("n");
     writer.Double(dyn.default_n);
     writer.EndObject();
-    return success();
 }
 
 template<typename Writer>
-status write(Writer& writer, const qss2_power& dyn) noexcept
+static void write(Writer& writer, const qss2_power& dyn) noexcept
 {
     writer.StartObject();
     writer.Key("n");
     writer.Double(dyn.default_n);
     writer.EndObject();
-    return success();
 }
 
 template<typename Writer>
-status write(Writer& writer, const qss3_power& dyn) noexcept
+static void write(Writer& writer, const qss3_power& dyn) noexcept
 {
     writer.StartObject();
     writer.Key("n");
     writer.Double(dyn.default_n);
     writer.EndObject();
-    return success();
 }
 
 template<typename Writer, int QssLevel>
-status write(Writer& writer, const abstract_square<QssLevel>& /*dyn*/) noexcept
+static void write(Writer& writer,
+                  const abstract_square<QssLevel>& /*dyn*/) noexcept
 {
     writer.StartObject();
     writer.EndObject();
-    return success();
 }
 
 template<typename Writer, int PortNumber>
-status write(Writer& writer, const accumulator<PortNumber>& /*dyn*/) noexcept
+static void write(Writer& writer,
+                  const accumulator<PortNumber>& /*dyn*/) noexcept
 {
     writer.StartObject();
     writer.EndObject();
-    return success();
 }
 
 template<typename Writer>
-status write(Writer& writer, const time_func& dyn) noexcept
+static void write(Writer& writer, const time_func& dyn) noexcept
 {
     writer.StartObject();
     writer.Key("function");
@@ -4806,11 +4747,10 @@ status write(Writer& writer, const time_func& dyn) noexcept
                   : dyn.default_f == &square_time_function ? "square"
                                                            : "sin");
     writer.EndObject();
-    return success();
 }
 
 template<typename Writer>
-status write(Writer& writer, const logical_and_2& dyn) noexcept
+static void write(Writer& writer, const logical_and_2& dyn) noexcept
 {
     writer.StartObject();
     writer.Key("value-0");
@@ -4818,37 +4758,10 @@ status write(Writer& writer, const logical_and_2& dyn) noexcept
     writer.Key("value-1");
     writer.Bool(dyn.default_values[1]);
     writer.EndObject();
-    return success();
 }
 
 template<typename Writer>
-status write(Writer& writer, const logical_and_3& dyn) noexcept
-{
-    writer.StartObject();
-    writer.Key("value-0");
-    writer.Bool(dyn.default_values[0]);
-    writer.Key("value-1");
-    writer.Bool(dyn.default_values[1]);
-    writer.Key("value-2");
-    writer.Bool(dyn.default_values[2]);
-    writer.EndObject();
-    return success();
-}
-
-template<typename Writer>
-status write(Writer& writer, const logical_or_2& dyn) noexcept
-{
-    writer.StartObject();
-    writer.Key("value-0");
-    writer.Bool(dyn.default_values[0]);
-    writer.Key("value-1");
-    writer.Bool(dyn.default_values[1]);
-    writer.EndObject();
-    return success();
-}
-
-template<typename Writer>
-status write(Writer& writer, const logical_or_3& dyn) noexcept
+static void write(Writer& writer, const logical_and_3& dyn) noexcept
 {
     writer.StartObject();
     writer.Key("value-0");
@@ -4858,19 +4771,41 @@ status write(Writer& writer, const logical_or_3& dyn) noexcept
     writer.Key("value-2");
     writer.Bool(dyn.default_values[2]);
     writer.EndObject();
-    return success();
 }
 
 template<typename Writer>
-status write(Writer& writer, const logical_invert& /*dyn*/) noexcept
+static void write(Writer& writer, const logical_or_2& dyn) noexcept
+{
+    writer.StartObject();
+    writer.Key("value-0");
+    writer.Bool(dyn.default_values[0]);
+    writer.Key("value-1");
+    writer.Bool(dyn.default_values[1]);
+    writer.EndObject();
+}
+
+template<typename Writer>
+static void write(Writer& writer, const logical_or_3& dyn) noexcept
+{
+    writer.StartObject();
+    writer.Key("value-0");
+    writer.Bool(dyn.default_values[0]);
+    writer.Key("value-1");
+    writer.Bool(dyn.default_values[1]);
+    writer.Key("value-2");
+    writer.Bool(dyn.default_values[2]);
+    writer.EndObject();
+}
+
+template<typename Writer>
+static void write(Writer& writer, const logical_invert& /*dyn*/) noexcept
 {
     writer.StartObject();
     writer.EndObject();
-    return success();
 }
 
 template<typename Writer>
-status write(Writer& writer, const hsm_wrapper& dyn) noexcept
+static void write(Writer& writer, const hsm_wrapper& dyn) noexcept
 {
     writer.StartObject();
     writer.Key("hsm");
@@ -4880,11 +4815,12 @@ status write(Writer& writer, const hsm_wrapper& dyn) noexcept
     writer.Key("b");
     writer.Int(dyn.exec.b);
     writer.EndObject();
-    return success();
 }
 
 template<typename Writer>
-status write(modeling& mod, Writer& writer, const hsm_wrapper& dyn) noexcept
+static void write(modeling&          mod,
+                  Writer&            writer,
+                  const hsm_wrapper& dyn) noexcept
 {
     writer.StartObject();
     writer.Key("hsm");
@@ -4896,13 +4832,13 @@ status write(modeling& mod, Writer& writer, const hsm_wrapper& dyn) noexcept
     writer.Key("b");
     writer.Int(dyn.exec.b);
     writer.EndObject();
-    return success();
 }
 
 template<typename Writer>
-status write(Writer&                                         writer,
-             std::string_view                                name,
-             const hierarchical_state_machine::state_action& state) noexcept
+static void write(
+  Writer&                                         writer,
+  std::string_view                                name,
+  const hierarchical_state_machine::state_action& state) noexcept
 {
     writer.Key(name.data(), static_cast<rapidjson::SizeType>(name.size()));
     writer.StartObject();
@@ -4915,13 +4851,13 @@ status write(Writer&                                         writer,
     writer.Key("type");
     writer.Int(static_cast<int>(state.type));
     writer.EndObject();
-    return success();
 }
 
 template<typename Writer>
-status write(Writer&                                             writer,
-             std::string_view                                    name,
-             const hierarchical_state_machine::condition_action& state) noexcept
+static void write(
+  Writer&                                             writer,
+  std::string_view                                    name,
+  const hierarchical_state_machine::condition_action& state) noexcept
 {
     writer.Key(name.data(), static_cast<rapidjson::SizeType>(name.size()));
     writer.StartObject();
@@ -4934,7 +4870,6 @@ status write(Writer&                                             writer,
     writer.Key("mask");
     writer.Int(static_cast<int>(state.mask));
     writer.EndObject();
-    return success();
 }
 
 void cache_rw::clear() noexcept
@@ -5258,10 +5193,10 @@ static void write_random_sources(cache_rw& /*cache*/,
 }
 
 template<typename Writer>
-static status write_child_component_path(Writer&               w,
-                                         const registred_path& reg,
-                                         const dir_path&       dir,
-                                         const file_path&      file) noexcept
+static void write_child_component_path(Writer&               w,
+                                       const registred_path& reg,
+                                       const dir_path&       dir,
+                                       const file_path&      file) noexcept
 {
     w.Key("name");
     w.String(reg.name.begin(), reg.name.size());
@@ -5271,43 +5206,34 @@ static status write_child_component_path(Writer&               w,
 
     w.Key("file");
     w.String(file.path.begin(), file.path.size());
-
-    return success();
 }
 
 template<typename Writer>
-static status write_child_component_path(const modeling&  mod,
-                                         const component& compo,
-                                         Writer&          w) noexcept
+static void write_child_component_path(const modeling&  mod,
+                                       const component& compo,
+                                       Writer&          w) noexcept
 {
     auto* reg = mod.registred_paths.try_to_get(compo.reg_path);
-    if (!reg)
-        return new_error(project::registred_path_access_error);
-
-    if (reg->path.empty())
-        return new_error(project::error::registred_path_access_error);
-    if (reg->name.empty())
-        return new_error(project::error::registred_path_access_error);
+    debug::ensure(reg);
+    debug::ensure(not reg->path.empty());
+    debug::ensure(not reg->name.empty());
 
     auto* dir = mod.dir_paths.try_to_get(compo.dir);
-    if (!dir)
-        return new_error(project::error::directory_access_error);
-    if (dir->path.empty())
-        return new_error(project::error::directory_access_error);
+    debug::ensure(dir);
+    debug::ensure(not dir->path.empty());
 
     auto* file = mod.file_paths.try_to_get(compo.file);
-    if (!file)
-        return new_error(project::error::file_access_error);
-    if (file->path.empty())
-        return new_error(project::error::file_access_error);
+    debug::ensure(file);
+    debug::ensure(not file->path.empty());
 
-    return write_child_component_path(w, *reg, *dir, *file);
+    if (reg and dir and file)
+        write_child_component_path(w, *reg, *dir, *file);
 }
 
 template<typename Writer>
-static status write_child_component(const modeling&    mod,
-                                    const component_id compo_id,
-                                    Writer&            w) noexcept
+static void write_child_component(const modeling&    mod,
+                                  const component_id compo_id,
+                                  Writer&            w) noexcept
 {
     if (auto* compo = mod.components.try_to_get(compo_id); compo) {
         w.Key("component-type");
@@ -5317,49 +5243,48 @@ static status write_child_component(const modeling&    mod,
         case component_type::none:
             w.Key("component-type");
             w.String(component_type_names[ordinal(component_type::none)]);
-            return success();
+            break;
         case component_type::internal:
             w.Key("parameter");
             w.String(internal_component_names[ordinal(compo->id.internal_id)]);
-            return success();
+            break;
         case component_type::grid:
-            return write_child_component_path(mod, *compo, w);
+            write_child_component_path(mod, *compo, w);
+            break;
         case component_type::graph:
-            return write_child_component_path(mod, *compo, w);
+            write_child_component_path(mod, *compo, w);
+            break;
         case component_type::simple:
-            return write_child_component_path(mod, *compo, w);
+            write_child_component_path(mod, *compo, w);
+            break;
         case component_type::hsm:
-            return write_child_component_path(mod, *compo, w);
+            write_child_component_path(mod, *compo, w);
+            break;
         }
-        unreachable();
-
     } else {
         w.Key("component-type");
         w.String(component_type_names[ordinal(component_type::none)]);
-        return success();
     }
 }
 
 template<typename Writer>
-static status write_child_model(model& mdl, Writer& w) noexcept
+static void write_child_model(model& mdl, Writer& w) noexcept
 {
     w.Key("dynamics");
 
-    return dispatch(mdl, [&w]<typename Dynamics>(Dynamics& dyn) -> status {
-        if (auto ret = write(w, dyn); !ret)
-            return ret.error();
-
-        return success();
-    });
+    dispatch(mdl,
+             [&]<typename Dynamics>(Dynamics& dyn) noexcept { write(w, dyn); });
 }
 
 template<typename Writer>
-static status write_child(const modeling& mod,
-                          const child&    ch,
-                          const u64       unique_id,
-                          Writer&         w) noexcept
+static void write_child(const modeling&          mod,
+                        const generic_component& gen,
+                        const child&             ch,
+                        const u64                unique_id,
+                        Writer&                  w) noexcept
 {
-    const auto child_id = mod.children.get_id(ch);
+    const auto child_id  = gen.children.get_id(ch);
+    const auto child_idx = get_index(child_id);
 
     w.StartObject();
     w.Key("id");
@@ -5371,11 +5296,11 @@ static status write_child(const modeling& mod,
     }
 
     w.Key("x");
-    w.Double(mod.children_positions[get_index(child_id)].x);
+    w.Double(gen.children_positions[child_idx].x);
     w.Key("y");
-    w.Double(mod.children_positions[get_index(child_id)].y);
+    w.Double(gen.children_positions[child_idx].y);
     w.Key("name");
-    w.String(mod.children_names[get_index(child_id)].c_str());
+    w.String(gen.children_names[child_idx].c_str());
 
     w.Key("configurable");
     w.Bool(ch.flags[child_flags::configurable]);
@@ -5389,12 +5314,9 @@ static status write_child(const modeling& mod,
             w.Key("type");
             w.String("component");
 
-            irt_check(write_child_component(mod, compo_id, w));
+            write_child_component(mod, compo_id, w);
         }
     } else {
-        const auto ch_id    = mod.children.get_id(ch);
-        const auto ch_index = get_index(ch_id);
-
         model mdl;
         mdl.type = ch.id.mdl_type;
 
@@ -5402,21 +5324,19 @@ static status write_child(const modeling& mod,
             std::construct_at<Dynamics>(&dyn);
         });
 
-        mod.children_parameters[ch_index].copy_to(mdl);
+        gen.children_parameters[child_idx].copy_to(mdl);
 
         w.Key("type");
         w.String(dynamics_type_names[ordinal(ch.id.mdl_type)]);
 
-        irt_check(write_child_model(mdl, w));
+        write_child_model(mdl, w);
     }
 
     w.EndObject();
-
-    return success();
 }
 
 template<typename Writer>
-static status write_generic_component_children(
+static void write_generic_component_children(
   cache_rw& /*cache*/,
   const modeling&          mod,
   const generic_component& simple_compo,
@@ -5425,25 +5345,23 @@ static status write_generic_component_children(
     w.Key("children");
     w.StartArray();
 
-    for (auto child_id : simple_compo.children)
-        if (auto* c = mod.children.try_to_get(child_id); c)
-            irt_check(write_child(mod,
-                                  *c,
-                                  c->unique_id == 0
-                                    ? simple_compo.make_next_unique_id()
-                                    : c->unique_id,
-                                  w));
+    for_each_data(simple_compo.children, [&](auto& c) noexcept {
+        write_child(mod,
+                    simple_compo,
+                    c,
+                    c.unique_id == 0 ? simple_compo.make_next_unique_id()
+                                     : c.unique_id,
+                    w);
+    });
 
     w.EndArray();
-
-    return success();
 }
 
 template<typename Writer>
-static status write_component_ports(cache_rw& /*cache*/,
-                                    const modeling&  mod,
-                                    const component& compo,
-                                    Writer&          w) noexcept
+static void write_component_ports(cache_rw& /*cache*/,
+                                  const modeling&  mod,
+                                  const component& compo,
+                                  Writer&          w) noexcept
 {
     if (!compo.x_names.empty()) {
         w.Key("x");
@@ -5466,91 +5384,65 @@ static status write_component_ports(cache_rw& /*cache*/,
 
         w.EndArray();
     }
-
-    return success();
 }
 
 template<typename FunctionModel, typename FunctionComponent>
-bool dispatch_child_connection(modeling&           mod,
-                               child&              ch,
-                               connection::port&   port,
-                               FunctionModel&&     model_cb,
-                               FunctionComponent&& component_cb)
+static void dispatch_child_connection(modeling&           mod,
+                                      child&              ch,
+                                      connection::port&   port,
+                                      FunctionModel&&     model_cb,
+                                      FunctionComponent&& component_cb)
 {
     if (ch.type == child_type::model)
-        return model_cb(port.model);
+        model_cb(port.model);
 
     if (auto* p = mod.ports.try_to_get(port.compo); p)
-        return component_cb(*p);
-
-    return false;
+        component_cb(*p);
 }
 
 template<typename InternalF, typename InputF, typename OutputF>
-bool dispatch_connection_type(modeling&   mod,
-                              connection& con,
-                              InternalF&& internal_f,
-                              InputF&&    input_f,
-                              OutputF&&   output_f) noexcept
+static void for_each_specified_connections(modeling&          mod,
+                                           generic_component& gen,
+                                           InternalF&&        internal_f,
+                                           InputF&&           input_f,
+                                           OutputF&&          output_f) noexcept
 {
-    switch (con.type) {
-    case connection::connection_type::input:
-        if (auto* c = mod.children.try_to_get(con.input.dst); c)
-            if (auto* p = mod.ports.try_to_get(con.input.index); p)
-                return input_f(*p, *c, con.input.index_dst);
-        return false;
+    for (const auto& con : gen.connections) {
+        switch (con.type) {
+        case connection::connection_type::input:
+            if (auto* c = gen.children.try_to_get(con.input.dst); c)
+                if (auto* p = mod.ports.try_to_get(con.input.index); p)
+                    input_f(*p, *c, con.input.index_dst);
+            break;
 
-    case connection::connection_type::output:
-        if (auto* c = mod.children.try_to_get(con.output.src); c)
-            if (auto* p = mod.ports.try_to_get(con.output.index); p)
-                return output_f(*c, con.output.index_src, *p);
-        return false;
+        case connection::connection_type::output:
+            if (auto* c = gen.children.try_to_get(con.output.src); c)
+                if (auto* p = mod.ports.try_to_get(con.output.index); p)
+                    output_f(*c, con.output.index_src, *p);
+            break;
 
-    case connection::connection_type::internal:
-        if (auto* c_src = mod.children.try_to_get(con.internal.src); c_src)
-            if (auto* c_dst = mod.children.try_to_get(con.internal.dst); c_dst)
-                return internal_f(*c_src,
-                                  con.internal.index_src,
-                                  *c_dst,
-                                  con.internal.index_dst);
-        return false;
-    }
-
-    unreachable();
-}
-
-template<typename InternalF, typename InputF, typename OutputF>
-void for_each_specified_connections(modeling&              mod,
-                                    vector<connection_id>& vec,
-                                    InternalF&&            internal_f,
-                                    InputF&&               input_f,
-                                    OutputF&&              output_f) noexcept
-{
-    int i = 0;
-
-    while (i < vec.ssize()) {
-        if (auto* ptr = mod.connections.try_to_get(vec[i]); ptr) {
-            if (dispatch_connection_type(
-                  mod, *ptr, internal_f, input_f, output_f) == false) {
-                mod.connections.free(*ptr);
-                vec.swap_pop_back(i);
-            } else {
-                ++i;
-            }
-        } else {
-            vec.swap_pop_back(i);
+        case connection::connection_type::internal:
+            if (auto* c_src = gen.children.try_to_get(con.internal.src); c_src)
+                if (auto* c_dst = gen.children.try_to_get(con.internal.dst);
+                    c_dst)
+                    internal_f(*c_src,
+                               con.internal.index_src,
+                               *c_dst,
+                               con.internal.index_dst);
+            break;
         }
     }
 }
 
 template<typename Writer>
-bool write_input_connection(modeling&        mod,
-                            port&            x,
-                            child&           dst,
-                            connection::port dst_y,
-                            Writer&          w) noexcept
+static void write_input_connection(modeling&          mod,
+                                   generic_component& gen,
+                                   port&              x,
+                                   child&             dst,
+                                   connection::port   dst_y,
+                                   Writer&            w) noexcept
 {
-    return dispatch_child_connection(
+    dispatch_child_connection(
       mod,
       dst,
       dst_y,
@@ -5561,11 +5453,10 @@ bool write_input_connection(modeling&        mod,
           w.Key("port");
           w.String(x.name.c_str());
           w.Key("destination");
-          w.Uint64(get_index(mod.children.get_id(dst)));
+          w.Uint64(get_index(gen.children.get_id(dst)));
           w.Key("port-destination");
           w.Int(port);
           w.EndObject();
-          return true;
       },
       [&](port& p) {
           w.StartObject();
@@ -5574,22 +5465,22 @@ bool write_input_connection(modeling&        mod,
           w.Key("port");
           w.String(x.name.c_str());
           w.Key("destination");
-          w.Uint64(get_index(mod.children.get_id(dst)));
+          w.Uint64(get_index(gen.children.get_id(dst)));
           w.Key("port-destination");
           w.String(p.name.c_str());
           w.EndObject();
-          return true;
       });
 }
 
 template<typename Writer>
-bool write_output_connection(modeling&        mod,
-                             child&           src,
-                             connection::port src_y,
-                             port&            y,
-                             Writer&          w) noexcept
+static void write_output_connection(modeling&          mod,
+                                    generic_component& gen,
+                                    child&             src,
+                                    connection::port   src_y,
+                                    port&              y,
+                                    Writer&            w) noexcept
 {
-    return dispatch_child_connection(
+    dispatch_child_connection(
       mod,
       src,
       src_y,
@@ -5600,11 +5491,10 @@ bool write_output_connection(modeling&        mod,
           w.Key("port");
           w.String(y.name.c_str());
           w.Key("source");
-          w.Uint64(get_index(mod.children.get_id(src)));
+          w.Uint64(get_index(gen.children.get_id(src)));
           w.Key("port-source");
           w.Int(port);
           w.EndObject();
-          return true;
       },
       [&](port& p) {
           w.StartObject();
@@ -5613,21 +5503,21 @@ bool write_output_connection(modeling&        mod,
           w.Key("port");
           w.String(y.name.c_str());
           w.Key("source");
-          w.Uint64(get_index(mod.children.get_id(src)));
+          w.Uint64(get_index(gen.children.get_id(src)));
           w.Key("port-source");
           w.String(p.name.c_str());
           w.EndObject();
-          return true;
       });
 }
 
 template<typename Writer>
-bool write_internal_connection(modeling&        mod,
-                               child&           src,
-                               connection::port src_y,
-                               child&           dst,
-                               connection::port dst_x,
-                               Writer&          w) noexcept
+static void write_internal_connection(modeling&          mod,
+                                      generic_component& gen,
+                                      child&             src,
+                                      connection::port   src_y,
+                                      child&             dst,
+                                      connection::port   dst_x,
+                                      Writer&            w) noexcept
 {
     const char* src_str = nullptr;
     const char* dst_str = nullptr;
@@ -5635,18 +5525,18 @@ bool write_internal_connection(modeling&        mod,
     int         dst_int = 0;
 
     if (src.type == child_type::component) {
-        if (auto* p = mod.ports.try_to_get(src_y.compo); p) {
+        auto* p = mod.ports.try_to_get(src_y.compo);
+        debug::ensure(p);
+        if (p)
             src_str = p->name.c_str();
-        } else
-            return false;
     } else
         src_int = src_y.model;
 
     if (dst.type == child_type::component) {
-        if (auto* p = mod.ports.try_to_get(dst_x.compo); p) {
+        auto* p = mod.ports.try_to_get(dst_x.compo);
+        debug::ensure(p);
+        if (p)
             dst_str = p->name.c_str();
-        } else
-            return false;
     } else
         dst_int = dst_x.model;
 
@@ -5654,7 +5544,7 @@ bool write_internal_connection(modeling&        mod,
     w.Key("type");
     w.String("internal");
     w.Key("source");
-    w.Uint64(get_index(mod.children.get_id(src)));
+    w.Uint64(get_index(gen.children.get_id(src)));
     w.Key("port-source");
     if (src_str)
         w.String(src_str);
@@ -5662,64 +5552,58 @@ bool write_internal_connection(modeling&        mod,
         w.Int(src_int);
 
     w.Key("destination");
-    w.Uint64(get_index(mod.children.get_id(dst)));
+    w.Uint64(get_index(gen.children.get_id(dst)));
     w.Key("port-destination");
     if (dst_str)
         w.String(dst_str);
     else
         w.Int(dst_int);
     w.EndObject();
-
-    return true;
 }
 
 template<typename Writer>
-static status write_generic_component_connections(cache_rw& /*cache*/,
-                                                  modeling&          mod,
-                                                  generic_component& compo,
-                                                  Writer&            w) noexcept
+static void write_generic_component_connections(cache_rw& /*cache*/,
+                                                modeling&          mod,
+                                                generic_component& compo,
+                                                Writer&            w) noexcept
 {
     w.Key("connections");
     w.StartArray();
 
     for_each_specified_connections(
       mod,
-      compo.connections,
+      compo,
       [&](auto& c_src, auto& c_y, auto& c_dst, auto& c_x) {
-          return write_internal_connection(mod, c_src, c_y, c_dst, c_x, w);
+          write_internal_connection(mod, compo, c_src, c_y, c_dst, c_x, w);
       },
       [&](auto& x, auto& child, auto& c_x) {
-          return write_input_connection(mod, x, child, c_x, w);
+          write_input_connection(mod, compo, x, child, c_x, w);
       },
       [&](auto& child, auto& c_y, auto& y) {
-          return write_output_connection(mod, child, c_y, y, w);
+          write_output_connection(mod, compo, child, c_y, y, w);
       });
 
     w.EndArray();
-
-    return success();
 }
 
 template<typename Writer>
-static status write_generic_component(cache_rw&          cache,
-                                      modeling&          mod,
-                                      generic_component& s_compo,
-                                      Writer&            w) noexcept
+static void write_generic_component(cache_rw&          cache,
+                                    modeling&          mod,
+                                    generic_component& s_compo,
+                                    Writer&            w) noexcept
 {
     w.String("next-unique-id");
     w.Uint64(s_compo.next_unique_id);
 
-    irt_check(write_generic_component_children(cache, mod, s_compo, w));
-    irt_check(write_generic_component_connections(cache, mod, s_compo, w));
-
-    return success();
+    write_generic_component_children(cache, mod, s_compo, w);
+    write_generic_component_connections(cache, mod, s_compo, w);
 }
 
 template<typename Writer>
-static status write_grid_component(cache_rw& /*cache*/,
-                                   const modeling&       mod,
-                                   const grid_component& grid,
-                                   Writer&               w) noexcept
+static void write_grid_component(cache_rw& /*cache*/,
+                                 const modeling&       mod,
+                                 const grid_component& grid,
+                                 Writer&               w) noexcept
 {
     w.Key("rows");
     w.Int(grid.row);
@@ -5732,17 +5616,14 @@ static status write_grid_component(cache_rw& /*cache*/,
     w.StartArray();
     for (auto& elem : grid.children) {
         w.StartObject();
-        if (auto ret = write_child_component(mod, elem, w); !ret)
-            return ret.error();
+        write_child_component(mod, elem, w);
         w.EndObject();
     }
     w.EndArray();
-
-    return success();
 }
 
 template<typename Writer>
-static status write_graph_component_param(
+static void write_graph_component_param(
   const modeling&                            mod,
   const graph_component::random_graph_param& param,
   Writer&                                    w) noexcept
@@ -5761,8 +5642,7 @@ static status write_graph_component_param(
             w.Key("file");
             w.String(file->path.begin(), file->path.size());
         }
-
-        return success();
+        break;
     }
 
     case 1: {
@@ -5772,8 +5652,7 @@ static status write_graph_component_param(
         w.Double(p.alpha);
         w.Key("beta");
         w.Double(p.beta);
-
-        return success();
+        break;
     }
 
     case 2: {
@@ -5783,42 +5662,33 @@ static status write_graph_component_param(
         w.Double(p.probability);
         w.Key("k");
         w.Int(p.k);
-
-        return success();
+        break;
     }
     }
-
-    static_assert(std::variant_size_v<graph_component::random_graph_param> ==
-                  3);
-    unreachable();
 }
 
 template<typename Writer>
-static status write_graph_component(cache_rw& /*cache*/,
-                                    const modeling&        mod,
-                                    const graph_component& graph,
-                                    Writer&                w) noexcept
+static void write_graph_component(cache_rw& /*cache*/,
+                                  const modeling&        mod,
+                                  const graph_component& graph,
+                                  Writer&                w) noexcept
 {
     w.Key("graph-type");
-    if (auto ret = write_graph_component_param(mod, graph.param, w); !ret)
-        return ret.error();
+    write_graph_component_param(mod, graph.param, w);
 
     w.Key("children");
     w.StartArray();
     for (auto& elem : graph.children) {
         w.StartObject();
-        if (auto ret = write_child_component(mod, elem.id, w); !ret)
-            return ret.error();
+        write_child_component(mod, elem.id, w);
         w.EndObject();
     }
     w.EndArray();
-
-    return success();
 }
 
 template<typename Writer>
-static status write_hsm_component(const hierarchical_state_machine& hsm,
-                                  Writer&                           w) noexcept
+static void write_hsm_component(const hierarchical_state_machine& hsm,
+                                Writer&                           w) noexcept
 {
     w.Key("states");
     w.StartArray();
@@ -5845,11 +5715,11 @@ static status write_hsm_component(const hierarchical_state_machine& hsm,
         if (states_to_write[i]) {
             w.Key("id");
             w.Uint(i);
-            irt_check(write(w, "enter", hsm.states[i].enter_action));
-            irt_check(write(w, "exit", hsm.states[i].exit_action));
-            irt_check(write(w, "if", hsm.states[i].if_action));
-            irt_check(write(w, "else", hsm.states[i].else_action));
-            irt_check(write(w, "condition", hsm.states[i].condition));
+            write(w, "enter", hsm.states[i].enter_action);
+            write(w, "exit", hsm.states[i].exit_action);
+            write(w, "if", hsm.states[i].if_action);
+            write(w, "else", hsm.states[i].else_action);
+            write(w, "condition", hsm.states[i].condition);
 
             w.Key("if-transition");
             w.Int(hsm.states[i].if_transition);
@@ -5865,9 +5735,8 @@ static status write_hsm_component(const hierarchical_state_machine& hsm,
 
     w.Key("top");
     w.Uint(hsm.top_state);
-
-    return success();
 }
+
 template<typename Writer>
 static void write_internal_component(cache_rw& /*cache*/,
                                      const modeling& /* mod */,
@@ -5879,10 +5748,10 @@ static void write_internal_component(cache_rw& /*cache*/,
 }
 
 template<typename Writer>
-static status do_component_save(Writer&    w,
-                                modeling&  mod,
-                                component& compo,
-                                cache_rw&  cache) noexcept
+static void do_component_save(Writer&    w,
+                              modeling&  mod,
+                              component& compo,
+                              cache_rw&  cache) noexcept
 {
     w.StartObject();
 
@@ -5903,7 +5772,7 @@ static status do_component_save(Writer&    w,
     w.Double(color[3]);
     w.EndArray();
 
-    irt_check(write_component_ports(cache, mod, compo, w));
+    write_component_ports(cache, mod, compo, w);
 
     w.Key("type");
     w.String(component_type_names[ordinal(compo.type)]);
@@ -5918,44 +5787,30 @@ static status do_component_save(Writer&    w,
 
     case component_type::simple: {
         auto* p = mod.generic_components.try_to_get(compo.id.generic_id);
-        if (!p)
-            return new_error(project::component_empty);
-
-        if (auto ret = write_generic_component(cache, mod, *p, w); !ret)
-            return ret.error();
+        if (p)
+            write_generic_component(cache, mod, *p, w);
     } break;
 
     case component_type::grid: {
         auto* p = mod.grid_components.try_to_get(compo.id.grid_id);
-        if (!p)
-            return new_error(project::component_empty);
-
-        if (auto ret = write_grid_component(cache, mod, *p, w); !ret)
-            return ret.error();
+        if (p)
+            write_grid_component(cache, mod, *p, w);
     } break;
 
     case component_type::graph: {
         auto* p = mod.graph_components.try_to_get(compo.id.graph_id);
-        if (!p)
-            return new_error(project::component_empty);
-
-        if (auto ret = write_graph_component(cache, mod, *p, w); !ret)
-            return ret.error();
+        if (p)
+            write_graph_component(cache, mod, *p, w);
     } break;
 
     case component_type::hsm: {
         auto* p = mod.hsm_components.try_to_get(compo.id.hsm_id);
-        if (!p)
-            return new_error(project::component_empty);
-
-        if (auto ret = write_hsm_component(p->machine, w); !ret)
-            return ret.error();
+        if (p)
+            write_hsm_component(p->machine, w);
     } break;
     }
 
     w.EndObject();
-
-    return success();
 }
 
 status json_archiver::component_save(modeling&                   mod,
@@ -5980,18 +5835,19 @@ status json_archiver::component_save(modeling&                   mod,
     switch (print) {
     case json_archiver::print_option::indent_2:
         w.SetIndent(' ', 2);
-        return do_component_save(w, mod, compo, cache);
+        do_component_save(w, mod, compo, cache);
+        break;
 
     case json_archiver::print_option::indent_2_one_line_array:
         w.SetIndent(' ', 2);
         w.SetFormatOptions(rapidjson::kFormatSingleLineArray);
-        return do_component_save(w, mod, compo, cache);
+        do_component_save(w, mod, compo, cache);
+        break;
 
     default:
-        return do_component_save(w, mod, compo, cache);
+        do_component_save(w, mod, compo, cache);
+        break;
     }
-
-    unreachable();
 
     return success();
 }
@@ -6009,22 +5865,19 @@ status json_archiver::component_save(modeling&                   mod,
     case json_archiver::print_option::indent_2: {
         rapidjson::PrettyWriter<rapidjson::StringBuffer> w(buffer);
         w.SetIndent(' ', 2);
-        if (auto ret = do_component_save(w, mod, compo, cache); !ret)
-            return ret.error();
+        do_component_save(w, mod, compo, cache);
     } break;
 
     case json_archiver::print_option::indent_2_one_line_array: {
         rapidjson::PrettyWriter<rapidjson::StringBuffer> w(buffer);
         w.SetIndent(' ', 2);
         w.SetFormatOptions(rapidjson::kFormatSingleLineArray);
-        if (auto ret = do_component_save(w, mod, compo, cache); !ret)
-            return ret.error();
+        do_component_save(w, mod, compo, cache);
     } break;
 
     default: {
         rapidjson::Writer<rapidjson::StringBuffer> w(buffer);
-        if (auto ret = do_component_save(w, mod, compo, cache); !ret)
-            return ret.error();
+        do_component_save(w, mod, compo, cache);
     } break;
     }
 
@@ -6043,7 +5896,7 @@ status json_archiver::component_save(modeling&                   mod,
  ****************************************************************************/
 
 template<typename Writer>
-static status write_simulation_model(const simulation& sim, Writer& w) noexcept
+static void write_simulation_model(const simulation& sim, Writer& w) noexcept
 {
     w.Key("hsms");
     w.StartArray();
@@ -6052,9 +5905,7 @@ static status write_simulation_model(const simulation& sim, Writer& w) noexcept
         w.StartObject();
         w.Key("hsm");
         w.Uint64(ordinal(sim.hsms.get_id(machine)));
-        if (auto ret = write_hsm_component(machine, w); !ret)
-            return ret.error();
-
+        write_hsm_component(machine, w);
         w.EndObject();
     }
     w.EndArray();
@@ -6072,23 +5923,14 @@ static status write_simulation_model(const simulation& sim, Writer& w) noexcept
         w.String(dynamics_type_names[ordinal(mdl.type)]);
         w.Key("dynamics");
 
-        if (auto ret =
-              dispatch(mdl,
-                       [&w]<typename Dynamics>(const Dynamics& dyn) -> status {
-                           if (auto ret = write(w, dyn); !ret)
-                               return ret.error();
-
-                           return success();
-                       });
-            !ret)
-            return ret.error();
+        dispatch(mdl, [&w]<typename Dynamics>(const Dynamics& dyn) noexcept {
+            write(w, dyn);
+        });
 
         w.EndObject();
     }
 
     w.EndArray();
-
-    return success();
 }
 
 template<typename Writer>
@@ -6129,9 +5971,9 @@ static void write_simulation_connections(const simulation& sim,
 }
 
 template<typename Writer>
-status do_simulation_save(Writer&           w,
-                          const simulation& sim,
-                          cache_rw&         cache) noexcept
+static void do_simulation_save(Writer&           w,
+                               const simulation& sim,
+                               cache_rw&         cache) noexcept
 {
     w.StartObject();
 
@@ -6139,15 +5981,10 @@ status do_simulation_save(Writer&           w,
     write_binary_file_sources(cache, sim.srcs, w);
     write_text_file_sources(cache, sim.srcs, w);
     write_random_sources(cache, sim.srcs, w);
-
-    if (auto ret = write_simulation_model(sim, w); !ret)
-        return ret.error();
-
+    write_simulation_model(sim, w);
     write_simulation_connections(sim, w);
 
     w.EndObject();
-
-    return success();
 }
 
 status json_archiver::simulation_save(const simulation& sim,
@@ -6169,16 +6006,21 @@ status json_archiver::simulation_save(const simulation& sim,
     switch (print_options) {
     case print_option::indent_2:
         w.SetIndent(' ', 2);
-        return do_simulation_save(w, sim, cache);
+        do_simulation_save(w, sim, cache);
+        break;
 
     case print_option::indent_2_one_line_array:
         w.SetIndent(' ', 2);
         w.SetFormatOptions(rapidjson::kFormatSingleLineArray);
-        return do_simulation_save(w, sim, cache);
+        do_simulation_save(w, sim, cache);
+        break;
 
     default:
-        return do_simulation_save(w, sim, cache);
+        do_simulation_save(w, sim, cache);
+        break;
     }
+
+    return success();
 }
 
 status json_archiver::simulation_save(const simulation& sim,
@@ -6193,8 +6035,7 @@ status json_archiver::simulation_save(const simulation& sim,
     case print_option::indent_2: {
         rapidjson::PrettyWriter<rapidjson::StringBuffer> w(buffer);
         w.SetIndent(' ', 2);
-        if (auto ret = do_simulation_save(w, sim, cache); !ret)
-            return ret.error();
+        do_simulation_save(w, sim, cache);
         break;
     }
 
@@ -6202,15 +6043,13 @@ status json_archiver::simulation_save(const simulation& sim,
         rapidjson::PrettyWriter<rapidjson::StringBuffer> w(buffer);
         w.SetIndent(' ', 2);
         w.SetFormatOptions(rapidjson::kFormatSingleLineArray);
-        if (auto ret = do_simulation_save(w, sim, cache); !ret)
-            return ret.error();
+        do_simulation_save(w, sim, cache);
         break;
     }
 
     default: {
         rapidjson::Writer<rapidjson::StringBuffer> w(buffer);
-        if (auto ret = do_simulation_save(w, sim, cache); !ret)
-            return ret.error();
+        do_simulation_save(w, sim, cache);
         break;
     }
     }

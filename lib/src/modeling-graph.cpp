@@ -55,7 +55,7 @@ struct local_rng {
         if (last_elem == 0) {
             c.incr();
 
-            rng b;
+            rng b{};
             rdata = b(c, k);
 
             n++;
@@ -90,39 +90,47 @@ struct local_rng {
     sz           last_elem;
 };
 
-static auto build_graph_children(modeling&        mod,
-                                 graph_component& graph,
-                                 i32              upper_limit,
-                                 i32              left_limit,
-                                 i32              space_x,
-                                 i32              space_y) noexcept
-  -> result<table<graph_component::vertex_id, child_id>>
+static auto build_graph_children(
+  const data_array<component, component_id>& components,
+  const data_array<graph_component::vertex, graph_component::vertex_id>&
+                               vertices,
+  data_array<child, child_id>& out,
+  vector<child_position>&      positions,
+  i32                          upper_limit,
+  i32                          left_limit,
+  i32                          space_x,
+  i32 space_y) noexcept -> result<table<graph_component::vertex_id, child_id>>
 {
-    if (!mod.children.can_alloc(graph.children.size()))
-        return new_error(project::error::not_enough_memory);
+    if (not out.can_alloc(vertices.size())) {
+        out.reserve(vertices.size());
+        if (not out.can_alloc(vertices.size()))
+            return new_error(project::error::not_enough_memory);
+    }
+
+    positions.resize(vertices.size());
 
     table<graph_component::vertex_id, child_id> tr;
 
-    tr.data.reserve(graph.children.ssize());
+    tr.data.reserve(vertices.ssize());
 
-    const auto sq = std::sqrt(static_cast<float>(graph.children.size()));
+    const auto sq = std::sqrt(static_cast<float>(vertices.size()));
     const auto gr = static_cast<i32>(sq);
 
     i32 x = 0;
     i32 y = 0;
 
-    for (const auto& vertex : graph.children) {
+    for (const auto& vertex : vertices) {
         child_id new_id = undefined<child_id>();
 
-        if (mod.components.try_to_get(vertex.id)) {
-            auto& new_ch     = mod.children.alloc(vertex.id);
-            new_id           = mod.children.get_id(new_ch);
-            new_ch.unique_id = static_cast<u64>(graph.children.get_id(vertex));
+        if (auto* c = components.try_to_get(vertex.id); c) {
+            auto& new_ch     = out.alloc(vertex.id);
+            new_id           = out.get_id(new_ch);
+            new_ch.unique_id = static_cast<u64>(vertices.get_id(vertex));
 
-            mod.children_positions[get_index(new_id)] = child_position{
-                .x = static_cast<float>(((space_x * x) + left_limit)),
-                .y = static_cast<float>(((space_y * y) + upper_limit))
-            };
+            positions[get_index(new_id)].x =
+              static_cast<float>(((space_x * x) + left_limit));
+            positions[get_index(new_id)].y =
+              static_cast<float>(((space_y * y) + upper_limit));
         }
 
         if (x++ > gr) {
@@ -130,7 +138,7 @@ static auto build_graph_children(modeling&        mod,
             y++;
         }
 
-        tr.data.emplace_back(graph.children.get_id(vertex), new_id);
+        tr.data.emplace_back(vertices.get_id(vertex), new_id);
     }
 
     tr.sort();
@@ -138,60 +146,73 @@ static auto build_graph_children(modeling&        mod,
     return tr;
 }
 
-static auto in_out_connection_add(modeling& mod,
-                                  child_id  src,
-                                  child_id  dst) noexcept
-  -> std::optional<connection_id>
+static void in_out_connection_add(modeling&        mod,
+                                  graph_component& compo,
+                                  child_id         src_id,
+                                  child_id         dst_id) noexcept
 {
-    port_id p_src = undefined<port_id>();
-    port_id p_dst = undefined<port_id>();
+    auto* src = compo.cache.try_to_get(src_id);
+    auto* dst = compo.cache.try_to_get(dst_id);
 
-    if_child_is_component_do(mod, src, [&](auto& /* ch */, auto& compo) {
-        p_src = mod.get_y_index(compo, "out");
-    });
+    if (src and dst) {
+        if (src->type == child_type::component) {
+            auto* c_src = mod.components.try_to_get(src->id.compo_id);
+            if (c_src) {
+                const auto p_src = mod.get_y_index(*c_src, "out");
 
-    if_child_is_component_do(mod, dst, [&](auto& /* ch */, auto& compo) {
-        p_dst = mod.get_x_index(compo, "in");
-    });
+                if (dst->type == child_type::component) {
+                    auto* c_dst = mod.components.try_to_get(dst->id.compo_id);
+                    if (c_dst) {
+                        const auto p_dst = mod.get_x_index(*c_dst, "in");
 
-    if (is_defined(p_src) && is_defined(p_dst)) {
-        auto& c = mod.connections.alloc(src, p_src, dst, p_dst);
-        return mod.connections.get_id(c);
+                        if (is_defined(p_src) and is_defined(p_dst)) {
+                            compo.cache_connections.alloc(
+                              src_id, p_src, dst_id, p_dst);
+                        }
+                    }
+                }
+            }
+        }
     }
-
-    return std::nullopt;
 }
 
-static auto named_connection_add(modeling& mod,
-                                 child_id  src,
-                                 child_id  dst) noexcept
-  -> std::optional<connection_id>
+static void named_connection_add(modeling&        mod,
+                                 graph_component& compo,
+                                 child_id         src_id,
+                                 child_id         dst_id) noexcept
 {
-    port_id p_src = undefined<port_id>();
-    port_id p_dst = undefined<port_id>();
+    auto* src = compo.cache.try_to_get(src_id);
+    auto* dst = compo.cache.try_to_get(dst_id);
 
-    if_child_is_component_do(
-      mod, src, [&](auto& /* ch_src */, auto& compo_src) {
-          if_child_is_component_do(
-            mod, dst, [&](auto& /* ch_dst */, auto& compo_dst) {
-                auto     sz_src = compo_src.x_names.ssize();
-                auto     sz_dst = compo_dst.y_names.ssize();
-                port_str temp;
+    if (src and dst) {
+        if (src->type == child_type::component) {
+            auto* c_src = mod.components.try_to_get(src->id.compo_id);
+            if (c_src) {
+                auto p_src = mod.get_y_index(*c_src, "out");
 
-                format(temp, "{}", sz_src);
-                p_src = mod.get_x_index(compo_src, temp.sv());
+                if (dst->type == child_type::component) {
+                    auto* c_dst = mod.components.try_to_get(dst->id.compo_id);
+                    if (c_dst) {
+                        auto p_dst = mod.get_x_index(*c_dst, "in");
 
-                format(temp, "{}", sz_dst);
-                p_dst = mod.get_y_index(compo_dst, temp.sv());
-            });
-      });
+                        auto     sz_src = c_src->x_names.ssize();
+                        auto     sz_dst = c_dst->y_names.ssize();
+                        port_str temp;
 
-    if (is_defined(p_src) && is_defined(p_dst)) {
-        auto& c = mod.connections.alloc(src, p_src, dst, p_dst);
-        return mod.connections.get_id(c);
+                        format(temp, "{}", sz_src);
+                        p_src = mod.get_x_index(*c_src, temp.sv());
+
+                        format(temp, "{}", sz_dst);
+                        p_dst = mod.get_y_index(*c_dst, temp.sv());
+
+                        if (is_defined(p_src) and is_defined(p_dst))
+                            compo.cache_connections.alloc(
+                              src_id, p_src, dst_id, p_dst);
+                    }
+                }
+            }
+        }
     }
-
-    return std::nullopt;
 }
 
 static void build_dot_file_edges(
@@ -375,53 +396,47 @@ void graph_component::resize(const i32          children_size,
     output_connections.clear();
 }
 
-static auto build_graph_connections(
+static void build_graph_connections(
   modeling&                                          mod,
   graph_component&                                   graph,
   const table<graph_component::vertex_id, child_id>& vertex) noexcept
-  -> vector<connection_id>
 {
-    vector<connection_id> ret;
-
     for (const auto& edge : graph.edges) {
-        const auto v = vertex.get(edge.v);
         const auto u = vertex.get(edge.u);
+        const auto v = vertex.get(edge.v);
 
         if (v and u) {
             if (graph.type == graph_component::connection_type::name) {
-                if (auto cnt = named_connection_add(mod, *u, *v); cnt)
-                    ret.emplace_back(*cnt);
+                named_connection_add(mod, graph, *u, *v);
             } else {
-                if (auto cnt = in_out_connection_add(mod, *u, *v); cnt)
-                    ret.emplace_back(*cnt);
+                in_out_connection_add(mod, graph, *u, *v);
             }
         }
     }
-
-    return ret;
 }
 
-status modeling::build_graph_children_and_connections(
-  graph_component&       graph,
-  vector<child_id>&      ids,
-  vector<connection_id>& cnts,
-  i32                    upper_limit,
-  i32                    left_limit,
-  i32                    space_x,
-  i32                    space_y) noexcept
+status modeling::build_graph_children_and_connections(graph_component& graph,
+                                                      i32 upper_limit,
+                                                      i32 left_limit,
+                                                      i32 space_x,
+                                                      i32 space_y) noexcept
 {
-    irt_auto(tr,
-             build_graph_children(
-               *this, graph, upper_limit, left_limit, space_x, space_y));
+    graph.cache.clear();
+    graph.cache_connections.clear();
+    graph.positions.clear();
 
-    ids.reserve(ids.size() + tr.size());
-    for (auto i = 0, e = tr.data.ssize(); i != e; ++i)
-        ids.emplace_back(tr.data[i].value);
+    auto tr = build_graph_children(components,
+                                   graph.children,
+                                   graph.cache,
+                                   graph.positions,
+                                   upper_limit,
+                                   left_limit,
+                                   space_x,
+                                   space_y);
+    if (not tr)
+        return tr.error();
 
-    auto edges = build_graph_connections(*this, graph, tr);
-    cnts.reserve(cnts.size() + edges.size());
-    for (auto i = 0, e = edges.ssize(); i != e; ++i)
-        cnts.emplace_back(edges[i]);
+    build_graph_connections(*this, graph, *tr);
 
     return success();
 }
@@ -430,26 +445,67 @@ status modeling::build_graph_component_cache(graph_component& graph) noexcept
 {
     clear_graph_component_cache(graph);
 
-    return build_graph_children_and_connections(
-      graph, graph.cache, graph.cache_connections);
+    return build_graph_children_and_connections(graph);
 }
 
 void modeling::clear_graph_component_cache(graph_component& graph) noexcept
 {
-    for (auto id : graph.cache)
-        children.free(id);
-
-    for (auto id : graph.cache_connections)
-        connections.free(id);
-
     graph.cache.clear();
     graph.cache_connections.clear();
 }
 
-status modeling::copy(graph_component& grid, generic_component& s) noexcept
+status modeling::copy(graph_component&   graph,
+                      generic_component& generic) noexcept
 {
-    return build_graph_children_and_connections(
-      grid, s.children, s.connections);
+    irt_check(build_graph_children_and_connections(graph));
+
+    if (not generic.children.can_alloc(graph.cache.size()))
+        return new_error(modeling::children_error{}, container_full_error{});
+
+    if (not generic.connections.can_alloc(graph.cache_connections.size()))
+        return new_error(modeling::connection_error{}, container_full_error{});
+
+    table<child_id, child_id> graph_to_generic;
+    graph_to_generic.data.reserve(graph.cache.size());
+
+    for (const auto& src : graph.cache) {
+        const auto src_id = graph.cache.get_id(src);
+
+        if (src.type == child_type::model) {
+            auto&      dst    = generic.children.alloc(src.id.mdl_type);
+            const auto dst_id = generic.children.get_id(dst);
+
+            graph_to_generic.data.emplace_back(src_id, dst_id);
+        } else {
+            auto&      dst    = generic.children.alloc(src.id.compo_id);
+            const auto dst_id = generic.children.get_id(dst);
+
+            graph_to_generic.data.emplace_back(src_id, dst_id);
+        }
+    }
+
+    graph_to_generic.sort();
+
+    for (const auto& src : graph.cache_connections) {
+        switch (src.type) {
+        case connection::connection_type::internal: {
+            auto c_src = graph_to_generic.get(src.internal.src);
+            auto c_dst = graph_to_generic.get(src.internal.dst);
+            if (c_src and c_dst) {
+                generic.connections.alloc(
+                  connection::internal_t{ *c_src,
+                                          *c_dst,
+                                          src.internal.index_src,
+                                          src.internal.index_dst });
+            }
+        } break;
+
+        default:
+            break;
+        }
+    }
+
+    return success();
 }
 
 } // namespace irt

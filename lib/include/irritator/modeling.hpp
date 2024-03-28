@@ -5,6 +5,7 @@
 #ifndef ORG_VLEPROJECT_IRRITATOR_2021_MODELING_HPP
 #define ORG_VLEPROJECT_IRRITATOR_2021_MODELING_HPP
 
+#include "irritator/container.hpp"
 #include "irritator/helpers.hpp"
 #include "irritator/macros.hpp"
 #include <irritator/core.hpp>
@@ -45,6 +46,8 @@ using registred_path_str = small_string<256 * 16 - 2>;
 using directory_path_str = small_string<512 - 2>;
 using file_path_str      = small_string<512 - 2>;
 using log_str            = small_string<512 - 2>;
+using color              = u32;
+using component_color    = std::array<float, 4>;
 
 /// Maximum deepth of the component tree.
 constexpr i32 max_component_stack_size = 16;
@@ -127,6 +130,7 @@ enum class observable_type {
 
 class project;
 
+struct parameter;
 struct connection;
 struct child;
 class generic_component;
@@ -137,6 +141,21 @@ struct tree_node;
 class variable_observer;
 class grid_observer;
 class graph_observer;
+
+// Use to store `irt::dynamics` default values.
+struct parameter {
+    std::array<real, 8> reals;
+    std::array<i64, 4>  integers;
+
+    //! Copy data from the vectors to the simulation model.
+    void copy_to(model& mdl) const noexcept;
+
+    //! Copy data from model to the vectors of this parameter.
+    void copy_from(const model& mdl) noexcept;
+
+    //! Assign @c 0 to vector.
+    void clear() noexcept;
+};
 
 /// A structure use to cache data when read or write json component.
 /// - @c buffer is used to store the full file content or output buffer.
@@ -209,19 +228,6 @@ struct child_position {
 };
 
 struct connection {
-    connection(child_id src, port_id p_src, child_id dst, port_id p_dst);
-    connection(child_id src, port_id p_src, child_id dst, int p_dst);
-    connection(child_id src, int p_src, child_id dst, port_id p_dst);
-    connection(child_id src, int p_src, child_id dst, int p_dst);
-
-    connection(port_id p_src, child_id dst, port_id p_dst);
-    connection(port_id p_src, child_id dst, int p_dst);
-
-    connection(child_id src, port_id p_src, port_id p_dst);
-    connection(child_id src, int p_src, port_id p_dst);
-
-    enum class connection_type : i8 { internal, input, output };
-
     union port {
         port(const port_id compo_) noexcept
           : compo(compo_)
@@ -254,6 +260,23 @@ struct connection {
         port     index_src;
     };
 
+    connection(internal_t con) noexcept;
+    connection(input_t con) noexcept;
+    connection(output_t con) noexcept;
+
+    connection(child_id src, port_id p_src, child_id dst, port_id p_dst);
+    connection(child_id src, port_id p_src, child_id dst, int p_dst);
+    connection(child_id src, int p_src, child_id dst, port_id p_dst);
+    connection(child_id src, int p_src, child_id dst, int p_dst);
+
+    connection(port_id p_src, child_id dst, port_id p_dst);
+    connection(port_id p_src, child_id dst, int p_dst);
+
+    connection(child_id src, port_id p_src, port_id p_dst);
+    connection(child_id src, int p_src, port_id p_dst);
+
+    enum class connection_type : i8 { internal, input, output };
+
     connection_type type;
 
     union {
@@ -277,6 +300,14 @@ struct hsm_component {
 class generic_component
 {
 public:
+    using child_limiter      = static_limiter<i32, 64, 64 * 16>;
+    using connection_limiter = static_limiter<i32, 64 * 4, 64 * 16 * 4>;
+
+    generic_component() noexcept;
+
+    generic_component(const child_limiter      child_limit,
+                      const connection_limiter connection_limit) noexcept;
+
     struct internal_connection {
         child_id src;
         u64      p_src;
@@ -296,18 +327,43 @@ public:
         u64      port;
     };
 
-    vector<child_id>      children;
-    vector<connection_id> connections;
+    data_array<child, child_id>           children;
+    data_array<connection, connection_id> connections;
 
-    // vector<child_id>          children;
-    // vector<connection_id>     connections;
     vector<input_connection>  input_connections;
     vector<output_connection> output_connections;
+
+    vector<child_position> children_positions;
+    vector<name_str>       children_names;
+    vector<parameter>      children_parameters;
 
     /// Use to affect @c child::unique_id when the component is saved. The value
     /// 0 means unique_id is undefined. Mutable variable to allow function @c
     /// make_next_unique_id to be const and called in json const functions.
     mutable u64 next_unique_id = 1;
+
+    /// @brief Copy a child into another `generic_component`.
+    ///
+    /// @param c [in] The identifier to copy.
+    /// @param dst [in,out] The `generic_component` destination.
+    ///
+    /// @return Identifier of the newly allocated child. Can return error if
+    /// `dst` can not allocate a new child.
+    result<child_id> copy_to(const child&       c,
+                             generic_component& dst) const noexcept;
+
+    /// @brief Import children, connections and optionaly properties.
+    ///
+    /// @details Copy children and connections into the this `generic_component`
+    /// and initialize of copy properties if exsits.
+    ///
+    /// @return `success()` or `modeling::connection_error`,
+    /// `modeling::child_error`.
+    status import(const data_array<child, child_id>&           children,
+                  const data_array<connection, connection_id>& connections,
+                  const std::span<child_position>              positions = {},
+                  const std::span<name_str>                    names     = {},
+                  const std::span<parameter> parameters = {}) noexcept;
 
     u64 make_next_unique_id() const noexcept { return next_unique_id++; }
 };
@@ -421,8 +477,8 @@ struct grid_component {
                                const i32     col,
                                const port_id id) noexcept;
 
-    vector<child_id>      cache;
-    vector<connection_id> cache_connections;
+    data_array<child, child_id>           cache;
+    data_array<connection, connection_id> cache_connections;
 
     options      opts            = options::none;
     type         connection_type = type::name;
@@ -530,14 +586,12 @@ public:
     std::array<u64, 4> seed  = { 0u, 0u, 0u, 0u };
     std::array<u64, 2> key   = { 0u, 0u };
 
-    vector<child_id>      cache;
-    vector<connection_id> cache_connections;
+    data_array<child, child_id>           cache;
+    data_array<connection, connection_id> cache_connections;
+    vector<child_position>                positions;
 
     connection_type type = connection_type::name;
 };
-
-using color           = u32;
-using component_color = std::array<float, 4>;
 
 struct port {
     port() noexcept = default;
@@ -552,14 +606,10 @@ struct port {
 };
 
 struct component {
-    static inline constexpr int port_number = 8;
-
     component() noexcept = default;
 
     vector<port_id> x_names;
     vector<port_id> y_names;
-
-    table<i32, child_id> child_mapping_io;
 
     description_id    desc     = description_id{ 0 };
     registred_path_id reg_path = registred_path_id{ 0 };
@@ -768,20 +818,6 @@ struct tree_node {
     table<child_id, node> child_to_node;
 };
 
-struct parameter {
-    std::array<real, 8> reals;
-    std::array<i64, 4>  integers;
-
-    //! Copy data from the vectors to the simulation model.
-    void copy_to(model& mdl) const noexcept;
-
-    //! Copy data from model to the vectors of this parameter.
-    void copy_from(const model& mdl) noexcept;
-
-    //! Assign @c 0 to vector.
-    void clear() noexcept;
-};
-
 class grid_observer
 {
 public:
@@ -926,12 +962,7 @@ public:
     data_array<dir_path, dir_path_id>                   dir_paths;
     data_array<file_path, file_path_id>                 file_paths;
     data_array<hierarchical_state_machine, hsm_id>      hsms;
-    data_array<child, child_id>                         children;
-    data_array<connection, connection_id>               connections;
 
-    vector<child_position>  children_positions;
-    vector<name_str>        children_names;
-    vector<parameter>       children_parameters;
     vector<component_color> component_colors;
 
     vector<registred_path_id> component_repertories;
@@ -971,8 +1002,6 @@ public:
     void free(graph_component& c) noexcept;
     void free(grid_component& c) noexcept;
     void free(hsm_component& c) noexcept;
-    void free(child& c) noexcept;
-    void free(connection& c) noexcept;
 
     void free_input_port(component& compo, port& idx) noexcept;
     void free_output_port(component& compo, port& idx) noexcept;
@@ -1016,21 +1045,16 @@ public:
     /// based on children vectors and grid_component options (torus, cylinder
     /// etc.). The newly allocated child and connection are append to the output
     /// vectors. The vectors are not cleared.
-    status build_grid_children_and_connections(grid_component&        grid,
-                                               vector<child_id>&      ids,
-                                               vector<connection_id>& cnts,
-                                               i32 upper_limit = 0,
-                                               i32 left_limit  = 0,
-                                               i32 space_x     = 30,
-                                               i32 space_y     = 50) noexcept;
+    status build_grid_children_and_connections(grid_component& grid,
+                                               i32             upper_limit = 0,
+                                               i32             left_limit  = 0,
+                                               i32             space_x     = 30,
+                                               i32 space_y = 50) noexcept;
 
-    /// For graph_component, build the children and connections
-    /// based on children vectors and graph_component options (torus, cylinder
-    /// etc.). The newly allocated child and connection are append to the output
-    /// vectors. The vectors are not cleared.
-    status build_graph_children_and_connections(graph_component&       graph,
-                                                vector<child_id>&      ids,
-                                                vector<connection_id>& cnts,
+    /// Build the children and connections for the specificed `graph_component`
+    /// according to graph_component options (torus, cylinder etc.). The newly
+    /// allocated child and connection are build into `graph_component` cache.
+    status build_graph_children_and_connections(graph_component& graph,
                                                 i32 upper_limit = 0,
                                                 i32 left_limit  = 0,
                                                 i32 space_x     = 30,
@@ -1062,10 +1086,11 @@ public:
     child& alloc(generic_component& parent, dynamics_type type) noexcept;
     child& alloc(generic_component& parent, component_id id) noexcept;
 
-    status copy(const generic_component& src, generic_component& dst) noexcept;
     status copy(internal_component src, component& dst) noexcept;
     status copy(const component& src, component& dst) noexcept;
     status copy(grid_component& grid, component& dst) noexcept;
+
+    status copy(const generic_component& src, generic_component& dst) noexcept;
     status copy(grid_component& grid, generic_component& s) noexcept;
     status copy(graph_component& grid, generic_component& s) noexcept;
 
@@ -1257,6 +1282,39 @@ std::string_view to_string(const project::error e) noexcept;
 /* ------------------------------------------------------------------
    Child part
  */
+
+inline connection::connection(internal_t con) noexcept
+  : type{ connection_type::internal }
+{
+    internal.src = con.src;
+    internal.dst = con.dst;
+    std::copy_n(reinterpret_cast<std::byte*>(&con.index_src),
+                sizeof(port),
+                reinterpret_cast<std::byte*>(&internal.index_src));
+    std::copy_n(reinterpret_cast<std::byte*>(&con.index_dst),
+                sizeof(port),
+                reinterpret_cast<std::byte*>(&internal.index_dst));
+}
+
+inline connection::connection(input_t con) noexcept
+  : type{ connection_type::input }
+{
+    input.dst   = con.dst;
+    input.index = con.index;
+    std::copy_n(reinterpret_cast<std::byte*>(&con.index_dst),
+                sizeof(port),
+                reinterpret_cast<std::byte*>(&input.index_dst));
+}
+
+inline connection::connection(output_t con) noexcept
+  : type{ connection_type::output }
+{
+    output.src   = con.src;
+    output.index = con.index;
+    std::copy_n(reinterpret_cast<std::byte*>(&con.index_src),
+                sizeof(port),
+                reinterpret_cast<std::byte*>(&output.index_src));
+}
 
 inline connection::connection(child_id src,
                               port_id  p_src,

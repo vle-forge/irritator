@@ -209,6 +209,10 @@ void for_specified_data(Data& d, Vector& vec, Function&& f) noexcept
     }
 }
 
+//! @brief If @c pred returns true, remove data from `data_array`.
+//!
+//! Remove data from @c data_array @c d when the predicate
+//! function @c pred returns true. Otherwise do noting.
 template<typename Data, typename Predicate>
 void remove_data_if(Data& d, Predicate&& pred) noexcept
 {
@@ -216,22 +220,22 @@ void remove_data_if(Data& d, Predicate&& pred) noexcept
 
     using value_type = typename Data::value_type;
 
-    value_type* to_del = nullptr;
-    value_type* ptr    = nullptr;
+    value_type* current = nullptr;
+    value_type* to_del  = nullptr;
 
-    while (d.next(ptr)) {
+    while (d.next(current)) {
         if (to_del) {
             d.free(*to_del);
             to_del = nullptr;
         }
 
-        if (pred(*ptr)) {
-            to_del = ptr;
-        }
+        if (pred(*current) == true)
+            to_del = current;
     }
 
     if (to_del) {
         d.free(*to_del);
+        to_del = nullptr;
     }
 }
 

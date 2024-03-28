@@ -2,6 +2,7 @@
 // Version 1.0. (See accompanying file LICENSE_1_0.txt or copy at
 // http://www.boost.org/LICENSE_1_0.txt)
 
+#include "irritator/container.hpp"
 #include <irritator/core.hpp>
 #include <irritator/format.hpp>
 #include <irritator/helpers.hpp>
@@ -195,42 +196,40 @@ static bool is_ports_compatible(modeling&          mod,
 // }
 
 static bool check_connection_already_exists(
-  const irt::modeling&               mod,
   const irt::generic_component&      gen,
   const irt::connection::internal_t& con) noexcept
 {
-    for (auto id : gen.connections) {
-        const auto* c = mod.connections.try_to_get(id);
-        if (!c || c->type != connection::connection_type::internal)
+    for (const auto c : gen.connections) {
+        if (c.type != connection::connection_type::internal)
             continue;
 
-        const auto* src = mod.children.try_to_get(c->internal.src);
-        const auto* dst = mod.children.try_to_get(c->internal.dst);
+        const auto* src = gen.children.try_to_get(c.internal.src);
+        const auto* dst = gen.children.try_to_get(c.internal.dst);
         if (!src || !dst)
             continue;
 
         if (src->type == child_type::component) {
             if (dst->type == child_type::component) {
-                if (c->internal.src == con.src && c->internal.dst == con.dst &&
-                    c->internal.index_src.compo == con.index_src.compo &&
-                    c->internal.index_dst.compo == con.index_dst.compo)
+                if (c.internal.src == con.src && c.internal.dst == con.dst &&
+                    c.internal.index_src.compo == con.index_src.compo &&
+                    c.internal.index_dst.compo == con.index_dst.compo)
                     return true;
             } else {
-                if (c->internal.src == con.src && c->internal.dst == con.dst &&
-                    c->internal.index_src.compo == con.index_src.compo &&
-                    c->internal.index_dst.model == con.index_dst.model)
+                if (c.internal.src == con.src && c.internal.dst == con.dst &&
+                    c.internal.index_src.compo == con.index_src.compo &&
+                    c.internal.index_dst.model == con.index_dst.model)
                     return true;
             }
         } else {
             if (dst->type == child_type::component) {
-                if (c->internal.src == con.src && c->internal.dst == con.dst &&
-                    c->internal.index_src.model == con.index_src.model &&
-                    c->internal.index_dst.compo == con.index_dst.compo)
+                if (c.internal.src == con.src && c.internal.dst == con.dst &&
+                    c.internal.index_src.model == con.index_src.model &&
+                    c.internal.index_dst.compo == con.index_dst.compo)
                     return true;
             } else {
-                if (c->internal.src == con.src && c->internal.dst == con.dst &&
-                    c->internal.index_src.model == con.index_src.model &&
-                    c->internal.index_dst.model == con.index_dst.model)
+                if (c.internal.src == con.src && c.internal.dst == con.dst &&
+                    c.internal.index_src.model == con.index_src.model &&
+                    c.internal.index_dst.model == con.index_dst.model)
                     return true;
             }
         }
@@ -240,28 +239,26 @@ static bool check_connection_already_exists(
 }
 
 static bool check_connection_already_exists(
-  const irt::modeling&            mod,
   const irt::generic_component&   gen,
   const irt::connection::input_t& con) noexcept
 {
-    for (auto id : gen.connections) {
-        const auto* c = mod.connections.try_to_get(id);
-        if (!c || c->type != connection::connection_type::input)
+    for (const auto& c : gen.connections) {
+        if (c.type != connection::connection_type::input)
             continue;
 
-        const auto* dst = mod.children.try_to_get(c->input.dst);
+        const auto* dst = gen.children.try_to_get(c.input.dst);
         if (!dst)
             continue;
 
         if (dst->type == child_type::component) {
-            if (con.dst == c->input.dst &&
-                con.index_dst.compo == c->input.index_dst.compo &&
-                con.index == c->input.index)
+            if (con.dst == c.input.dst &&
+                con.index_dst.compo == c.input.index_dst.compo &&
+                con.index == c.input.index)
                 return true;
         } else {
-            if (con.dst == c->input.dst &&
-                con.index_dst.model == c->input.index_dst.model &&
-                con.index == c->input.index)
+            if (con.dst == c.input.dst &&
+                con.index_dst.model == c.input.index_dst.model &&
+                con.index == c.input.index)
                 return true;
         }
     }
@@ -270,28 +267,26 @@ static bool check_connection_already_exists(
 }
 
 static bool check_connection_already_exists(
-  const irt::modeling&             mod,
   const irt::generic_component&    gen,
   const irt::connection::output_t& con) noexcept
 {
-    for (auto id : gen.connections) {
-        const auto* c = mod.connections.try_to_get(id);
-        if (!c || c->type != connection::connection_type::output)
+    for (const auto& c : gen.connections) {
+        if (c.type != connection::connection_type::output)
             continue;
 
-        const auto* src = mod.children.try_to_get(c->output.src);
+        const auto* src = gen.children.try_to_get(c.output.src);
         if (!src)
             continue;
 
         if (src->type == child_type::component) {
-            if (con.src == c->output.src &&
-                con.index_src.compo == c->output.index_src.compo &&
-                con.index == c->output.index)
+            if (con.src == c.output.src &&
+                con.index_src.compo == c.output.index_src.compo &&
+                con.index == c.output.index)
                 return true;
         } else {
-            if (con.src == c->output.src &&
-                con.index_src.model == c->output.index_src.model &&
-                con.index == c->output.index)
+            if (con.src == c.output.src &&
+                con.index_src.model == c.output.index_src.model &&
+                con.index == c.output.index)
                 return true;
         }
     }
@@ -304,28 +299,23 @@ status modeling::connect_input(generic_component& parent,
                                child&             c,
                                connection::port   p_c) noexcept
 {
-    if (!connections.can_alloc())
+    if (not parent.connections.can_alloc())
         return new_error(connection_error{}, container_full_error{});
 
     if (check_connection_already_exists(
-          *this,
           parent,
-          connection::input_t{ children.get_id(c), ports.get_id(x), p_c }))
+          connection::input_t{
+            parent.children.get_id(c), ports.get_id(x), p_c }))
         return new_error(connection_error{}, already_exist_error{});
 
-    const auto c_id = children.get_id(c);
+    const auto c_id = parent.children.get_id(c);
     const auto x_id = ports.get_id(x);
 
     if (c.type == child_type::component) {
-        irt_assert(ports.try_to_get(p_c.compo) != nullptr);
-
-        auto& con    = connections.alloc(x_id, c_id, p_c.compo);
-        auto  con_id = connections.get_id(con);
-        parent.connections.emplace_back(con_id);
+        debug::ensure(ports.try_to_get(p_c.compo) != nullptr);
+        parent.connections.alloc(x_id, c_id, p_c.compo);
     } else {
-        auto& con    = connections.alloc(x_id, c_id, p_c.model);
-        auto  con_id = connections.get_id(con);
-        parent.connections.emplace_back(con_id);
+        parent.connections.alloc(x_id, c_id, p_c.model);
     }
 
     return success();
@@ -336,28 +326,23 @@ status modeling::connect_output(generic_component& parent,
                                 connection::port   p_c,
                                 port&              y) noexcept
 {
-    if (!connections.can_alloc())
+    if (not parent.connections.can_alloc())
         return new_error(connection_error{}, container_full_error{});
 
     if (check_connection_already_exists(
-          *this,
           parent,
-          connection::output_t{ children.get_id(c), ports.get_id(y), p_c }))
+          connection::output_t{
+            parent.children.get_id(c), ports.get_id(y), p_c }))
         return new_error(connection_error{}, already_exist_error{});
 
-    const auto c_id = children.get_id(c);
+    const auto c_id = parent.children.get_id(c);
     const auto y_id = ports.get_id(y);
 
     if (c.type == child_type::component) {
-        irt_assert(ports.try_to_get(p_c.compo) != nullptr);
-
-        auto& con    = connections.alloc(c_id, p_c.compo, y_id);
-        auto  con_id = connections.get_id(con);
-        parent.connections.emplace_back(con_id);
+        debug::ensure(ports.try_to_get(p_c.compo) != nullptr);
+        parent.connections.alloc(c_id, p_c.compo, y_id);
     } else {
-        auto& con    = connections.alloc(c_id, p_c.model, y_id);
-        auto  con_id = connections.get_id(con);
-        parent.connections.emplace_back(con_id);
+        parent.connections.alloc(c_id, p_c.model, y_id);
     }
 
     return success();
@@ -369,44 +354,33 @@ status modeling::connect(generic_component& parent,
                          child&             dst,
                          connection::port   x) noexcept
 {
-    if (!connections.can_alloc())
+    if (!parent.connections.can_alloc())
         return new_error(connection_error{}, container_full_error{});
 
     if (check_connection_already_exists(
-          *this,
           parent,
           connection::internal_t{
-            children.get_id(src), children.get_id(dst), y, x }))
+            parent.children.get_id(src), parent.children.get_id(dst), y, x }))
         return new_error(connection_error{}, already_exist_error{});
 
-    const auto src_id = children.get_id(src);
-    const auto dst_id = children.get_id(dst);
+    const auto src_id = parent.children.get_id(src);
+    const auto dst_id = parent.children.get_id(dst);
 
     if (src.type == child_type::component) {
-        irt_assert(ports.try_to_get(y.compo) != nullptr);
+        debug::ensure(ports.try_to_get(y.compo) != nullptr);
 
         if (dst.type == child_type::component) {
-            irt_assert(ports.try_to_get(x.compo) != nullptr);
-
-            auto& con    = connections.alloc(src_id, y.compo, dst_id, x.compo);
-            auto  con_id = connections.get_id(con);
-            parent.connections.emplace_back(con_id);
+            debug::ensure(ports.try_to_get(x.compo) != nullptr);
+            parent.connections.alloc(src_id, y.compo, dst_id, x.compo);
         } else {
-            auto& con    = connections.alloc(src_id, y.compo, dst_id, x.model);
-            auto  con_id = connections.get_id(con);
-            parent.connections.emplace_back(con_id);
+            parent.connections.alloc(src_id, y.compo, dst_id, x.model);
         }
     } else {
         if (dst.type == child_type::component) {
-            irt_assert(ports.try_to_get(x.compo) != nullptr);
-
-            auto& con    = connections.alloc(src_id, y.model, dst_id, x.compo);
-            auto  con_id = connections.get_id(con);
-            parent.connections.emplace_back(con_id);
+            debug::ensure(ports.try_to_get(x.compo) != nullptr);
+            parent.connections.alloc(src_id, y.model, dst_id, x.compo);
         } else {
-            auto& con    = connections.alloc(src_id, y.model, dst_id, x.model);
-            auto  con_id = connections.get_id(con);
-            parent.connections.emplace_back(con_id);
+            parent.connections.alloc(src_id, y.model, dst_id, x.model);
         }
     }
 
@@ -420,8 +394,8 @@ static status modeling_connect(modeling&          mod,
                                child_id           dst,
                                connection::port   p_dst) noexcept
 {
-    if (auto* child_src = mod.children.try_to_get(src); child_src) {
-        if (auto* child_dst = mod.children.try_to_get(dst); child_dst) {
+    if (auto* child_src = gen.children.try_to_get(src); child_src) {
+        if (auto* child_dst = gen.children.try_to_get(dst); child_dst) {
             if (child_src->type == child_type::component) {
                 if (child_dst->type == child_type::component) {
                     return mod.connect(
@@ -445,64 +419,228 @@ static status modeling_connect(modeling&          mod,
     return success();
 }
 
+static status modeling_connect(generic_component& parent,
+                               child&             src,
+                               connection::port   y,
+                               child&             dst,
+                               connection::port   x) noexcept
+{
+    if (!parent.connections.can_alloc())
+        return new_error(modeling::connection_error{}, container_full_error{});
+
+    if (check_connection_already_exists(
+          parent,
+          connection::internal_t{
+            parent.children.get_id(src), parent.children.get_id(dst), y, x }))
+        return new_error(modeling::connection_error{}, already_exist_error{});
+
+    const auto src_id = parent.children.get_id(src);
+    const auto dst_id = parent.children.get_id(dst);
+
+    if (src.type == child_type::component) {
+        if (dst.type == child_type::component) {
+            parent.connections.alloc(src_id, y.compo, dst_id, x.compo);
+        } else {
+            parent.connections.alloc(src_id, y.compo, dst_id, x.model);
+        }
+    } else {
+        if (dst.type == child_type::component) {
+            parent.connections.alloc(src_id, y.model, dst_id, x.compo);
+        } else {
+            parent.connections.alloc(src_id, y.model, dst_id, x.model);
+        }
+    }
+
+    return success();
+}
+
+static status modeling_connect(generic_component& gen,
+                               child_id           src,
+                               connection::port   p_src,
+                               child_id           dst,
+                               connection::port   p_dst) noexcept
+{
+    if (auto* child_src = gen.children.try_to_get(src); child_src) {
+        if (auto* child_dst = gen.children.try_to_get(dst); child_dst) {
+            if (child_src->type == child_type::component) {
+                if (child_dst->type == child_type::component) {
+                    return modeling_connect(
+                      gen, *child_src, p_src.compo, *child_dst, p_dst.compo);
+                } else {
+                    return modeling_connect(
+                      gen, *child_src, p_src.compo, *child_dst, p_dst.model);
+                }
+            } else {
+                if (child_dst->type == child_type::component) {
+                    return modeling_connect(
+                      gen, *child_src, p_src.model, *child_dst, p_dst.compo);
+                } else {
+                    return modeling_connect(
+                      gen, *child_src, p_src.model, *child_dst, p_src.model);
+                }
+            }
+        }
+    }
+
+    return success();
+}
+
+generic_component::generic_component() noexcept
+  : generic_component(child_limiter::lower_bound(),
+                      connection_limiter::lower_bound())
+{}
+
+generic_component::generic_component(
+  const child_limiter      child_limit,
+  const connection_limiter connection_limit) noexcept
+{
+    children.reserve(child_limit.value());
+    connections.reserve(connection_limit.value());
+
+    children_positions.resize(child_limit.value());
+    children_names.resize(child_limit.value());
+    children_parameters.resize(child_limit.value());
+}
+
+result<child_id> generic_component::copy_to(
+  const child&       c,
+  generic_component& dst) const noexcept
+{
+    // debug::ensure(children.is_in_array(c));
+
+    const auto src_id  = children.get_id(c);
+    const auto src_idx = get_index(src_id);
+
+    if (not dst.children.can_alloc())
+        return new_error(modeling::part::children);
+
+    auto&      new_c     = dst.children.alloc();
+    const auto new_c_id  = dst.children.get_id(new_c);
+    const auto new_c_idx = get_index(new_c_id);
+
+    new_c.type = c.type;
+    new_c.id   = c.id;
+    if (c.unique_id)
+        new_c.unique_id = dst.make_next_unique_id();
+
+    debug::ensure(std::cmp_less(new_c_idx, dst.children_names.size()));
+    debug::ensure(std::cmp_less(new_c_idx, dst.children_positions.size()));
+    debug::ensure(std::cmp_less(new_c_idx, dst.children_parameters.size()));
+
+    dst.children_names[new_c_idx]      = children_names[src_idx];
+    dst.children_positions[new_c_idx]  = children_positions[new_c_idx];
+    dst.children_parameters[new_c_idx] = children_parameters[src_idx];
+
+    return new_c_id;
+}
+
 status modeling::copy(const generic_component& src,
                       generic_component&       dst) noexcept
 {
     table<child_id, child_id> mapping; // @TODO move this mapping variable into
                                        // the modeling or cache class.
 
-    for_specified_data(children, src.children, [&](auto& c) noexcept {
-        const auto src_id  = children.get_id(c);
-        const auto src_idx = get_index(src_id);
-
-        if (c.type == child_type::model) {
-            auto&      new_child     = alloc(dst, c.id.mdl_type);
-            const auto new_child_id  = children.get_id(new_child);
-            const auto new_child_idx = get_index(new_child_id);
-
-            children_names[new_child_idx]     = children_names[src_idx];
-            children_positions[new_child_idx] = {
-                .x = children_positions[src_idx].x,
-                .y = children_positions[src_idx].y
-            };
-            children_parameters[new_child_idx] = children_parameters[src_idx];
-
-            mapping.data.emplace_back(src_id, new_child_id);
-        } else {
-            const auto compo_id = c.id.compo_id;
-
-            if (auto* compo = components.try_to_get(compo_id); compo) {
-                auto& new_child     = alloc(dst, compo_id);
-                auto  new_child_id  = children.get_id(new_child);
-                auto  new_child_idx = get_index(new_child_id);
-
-                children_names[new_child_idx]     = children_names[src_idx];
-                children_positions[new_child_idx] = {
-                    .x = children_positions[src_idx].x,
-                    .y = children_positions[src_idx].y
-                };
-                children_parameters[new_child_idx] =
-                  children_parameters[src_idx];
-
-                mapping.data.emplace_back(src_id, new_child_id);
-            }
+    for (const auto& c : src.children) {
+        if (auto ret = src.copy_to(c, dst); ret.has_value()) {
+            const auto c_id = src.children.get_id(c);
+            mapping.data.emplace_back(c_id, *ret);
         }
-    });
+    }
 
     mapping.sort();
 
-    for (auto c_id : src.connections) {
-        if (auto* con = connections.try_to_get(c_id); con) {
-            if (auto* child_src = mapping.get(con->internal.src); child_src) {
-                if (auto* child_dst = mapping.get(con->internal.dst);
-                    child_dst) {
-                    irt_check(modeling_connect(*this,
-                                               dst,
-                                               *child_src,
-                                               con->internal.index_src,
-                                               *child_dst,
-                                               con->internal.index_dst));
-                }
+    for (const auto& con : src.connections) {
+        if (auto* child_src = mapping.get(con.internal.src); child_src) {
+            if (auto* child_dst = mapping.get(con.internal.dst); child_dst) {
+                irt_check(modeling_connect(*this,
+                                           dst,
+                                           *child_src,
+                                           con.internal.index_src,
+                                           *child_dst,
+                                           con.internal.index_dst));
+            }
+        }
+    }
+
+    return success();
+}
+
+status generic_component::import(
+  const data_array<child, child_id>&           children,
+  const data_array<connection, connection_id>& connections,
+  const std::span<child_position>              positions,
+  const std::span<name_str>                    names,
+  const std::span<parameter>                   parameters) noexcept
+{
+    table<child_id, child_id> src_to_this;
+
+    for (const auto& c : children) {
+        if (not this->children.can_alloc())
+            return new_error(modeling::part::children);
+
+        auto& new_c     = this->children.alloc();
+        new_c.type      = c.type;
+        new_c.id        = c.id;
+        new_c.unique_id = c.unique_id ? this->make_next_unique_id() : 0;
+
+        src_to_this.data.emplace_back(children.get_id(c),
+                                      this->children.get_id(new_c));
+    }
+
+    src_to_this.sort();
+
+    for (const auto& con : connections) {
+        if (auto* child_src = src_to_this.get(con.internal.src); child_src) {
+            if (auto* child_dst = src_to_this.get(con.internal.dst);
+                child_dst) {
+
+                irt_check(modeling_connect(*this,
+                                           *child_src,
+                                           con.internal.index_src,
+                                           *child_dst,
+                                           con.internal.index_dst));
+            }
+        }
+    }
+
+    if (children_positions.size() <= positions.size()) {
+        for (const auto pair : src_to_this.data) {
+            const auto* src = children.try_to_get(pair.id);
+            const auto* dst = this->children.try_to_get(pair.value);
+
+            if (src and dst) {
+                const auto src_idx = get_index(children.get_id(*src));
+                const auto dst_idx = get_index(this->children.get_id(*dst));
+
+                children_positions[dst_idx] = positions[src_idx];
+            }
+        }
+    }
+
+    if (children_names.size() <= names.size()) {
+        for (const auto pair : src_to_this.data) {
+            const auto* src = children.try_to_get(pair.id);
+            const auto* dst = this->children.try_to_get(pair.value);
+
+            if (src and dst) {
+                const auto src_idx = get_index(children.get_id(*src));
+                const auto dst_idx = get_index(this->children.get_id(*dst));
+
+                children_names[dst_idx] = names[src_idx];
+            }
+        }
+    }
+
+    if (children_parameters.size() < parameters.size()) {
+        for (const auto pair : src_to_this.data) {
+            const auto* src = children.try_to_get(pair.id);
+            const auto* dst = this->children.try_to_get(pair.value);
+
+            if (src and dst) {
+                const auto src_idx = get_index(children.get_id(*src));
+                const auto dst_idx = get_index(this->children.get_id(*dst));
+
+                children_parameters[dst_idx] = parameters[src_idx];
             }
         }
     }

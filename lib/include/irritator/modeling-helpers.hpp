@@ -55,9 +55,9 @@ inline result<file> open_file(dir_path& dir_p, file_path& file_p) noexcept
     return new_error(project::error::file_open_error);
 }
 
-/// Checks the type of @c component pointed by the @c tree_node @c.
+/// Checks the type of \c component pointed by the \c tree_node \c.
 ///
-/// @return true in the underlying @c component in the @c tree_node @c is a
+/// \return true in the underlying \c component in the \c tree_node \c is a
 /// graph or a grid otherwise return false. If the component does not exists
 /// this function returns false.
 inline bool component_is_grid_or_graph(const modeling&  mod,
@@ -120,37 +120,122 @@ void for_each_component(modeling&                  mod,
     });
 }
 
+/// \brief Call `f` function if `id` reference a generic component.
+///
+/// \details `f` is called if `id` reference an existing `generic_component`
+///   and do nothing otherwise. Function `f` receives constant `component` and
+///   constant `generic_component`.
 template<typename Function>
-void for_each_child(modeling&          mod,
-                    component&         compo,
-                    generic_component& generic,
-                    Function&&         f) noexcept
+void if_component_is_generic(const modeling&    mod,
+                             const component_id id,
+                             Function&&         f) noexcept
 {
-    for_each_data(mod.children, generic.children, [&](auto& child) noexcept {
-        f(compo, generic, child);
-    });
+    if (const auto* compo = mod.components.try_to_get(id); compo) {
+        if (compo->type == component_type::simple) {
+            if (const auto* gen =
+                  mod.generic_components.try_to_get(compo->id.generic_id);
+                gen)
+                f(*compo, *gen);
+        }
+    }
 }
 
+/// \brief Call `f` function if `id` reference a generic component.
+///
+/// \details `f` is called if `id` reference an existing `generic_component` and
+/// do nothing otherwise. Function `f` receives  `component` and
+/// `generic_component`.
 template<typename Function>
-void for_each_child(modeling&       mod,
-                    component&      compo,
-                    grid_component& grid,
-                    Function&&      f) noexcept
+void if_component_is_generic(modeling&          mod,
+                             const component_id id,
+                             Function&&         f) noexcept
 {
-    for_each_data(mod.children, grid.cache, [&](auto& child) noexcept {
-        f(compo, grid, child);
-    });
+    if (auto* compo = mod.components.try_to_get(id); compo) {
+        if (compo->type == component_type::simple) {
+            if (auto* gen =
+                  mod.generic_components.try_to_get(compo->id.generic_id);
+                gen)
+                f(*compo, *gen);
+        }
+    }
 }
 
+/// \brief Call `f` function if `id` reference a grid component.
+///
+/// \details `f` is called if `id` reference an existing `grid_component` and
+/// do nothing otherwise. Function `f` receives constant `component` and
+/// constant `grid_component`.
 template<typename Function>
-void for_each_child(modeling&        mod,
-                    component&       compo,
-                    graph_component& graph,
-                    Function&&       f) noexcept
+void if_component_is_grid(const modeling&    mod,
+                          const component_id id,
+                          Function&&         f) noexcept
 {
-    for_each_data(mod.children, graph.children, [&](auto& child) noexcept {
-        f(compo, graph, child);
-    });
+    if (const auto* compo = mod.components.try_to_get(id); compo) {
+        if (compo->type == component_type::grid) {
+            if (const auto* gen =
+                  mod.grid_components.try_to_get(compo->id.grid_id);
+                gen)
+                f(*compo, *gen);
+        }
+    }
+}
+
+/// \brief Call `f` function if `id` reference a grid component.
+///
+/// \details `f` is called if `id` reference an existing `grid_component` and
+/// do nothing otherwise. Function `f` receives  `component` and
+/// `grid_component`.
+template<typename Function>
+void if_component_is_grid(modeling&          mod,
+                          const component_id id,
+                          Function&&         f) noexcept
+{
+    if (auto* compo = mod.components.try_to_get(id); compo) {
+        if (compo->type == component_type::grid) {
+            if (auto* gen = mod.grid_components.try_to_get(compo->id.grid_id);
+                gen)
+                f(*compo, *gen);
+        }
+    }
+}
+
+/// \brief Call `f` function if `id` reference a graph component.
+///
+/// \details `f` is called if `id` reference an existing `graph_component` and
+/// do nothing otherwise. Function `f` receives constant `component` and
+/// constant `graph_component`.
+template<typename Function>
+void if_component_is_graph(const modeling&    mod,
+                           const component_id id,
+                           Function&&         f) noexcept
+{
+    if (const auto* compo = mod.components.try_to_get(id); compo) {
+        if (compo->type == component_type::graph) {
+            if (const auto* gen =
+                  mod.graph_components.try_to_get(compo->id.graph_id);
+                gen)
+                f(*compo, *gen);
+        }
+    }
+}
+
+/// \brief Call `f` function if `id` reference a graph component.
+///
+/// \details `f` is called if `id` reference an existing `graph_component` and
+/// do nothing otherwise. Function `f` receives  `component` and
+/// `graph_component`.
+template<typename Function>
+void if_component_is_graph(modeling&          mod,
+                           const component_id id,
+                           Function&&         f) noexcept
+{
+    if (auto* compo = mod.components.try_to_get(id); compo) {
+        if (compo->type == component_type::graph) {
+            if (auto* gen = mod.graph_components.try_to_get(compo->id.graph_id);
+                gen)
+                f(*compo, *gen);
+        }
+    }
 }
 
 template<typename Function>
@@ -195,13 +280,16 @@ void for_each_child(modeling& mod, tree_node& tn, Function&& f) noexcept
     });
 }
 
-//! \brief If child exists and is a component, invoke the function \c f
-//! otherwise do nothing. \param f A invokable with no const \c child and \c
+//! \brief if child exists and is a component, invoke the function \c f
+//! otherwise do nothing. \param f a invokable with no const \c child and \c
 //! component references.
-template<typename Function>
-void if_child_is_component_do(modeling& mod, child_id id, Function&& f) noexcept
+template<typename function>
+void if_child_is_component_do(modeling&                    mod,
+                              data_array<child, child_id>& data,
+                              child_id                     id,
+                              function&&                   f) noexcept
 {
-    if_data_exists_do(mod.children, id, [&](auto& child) noexcept {
+    if_data_exists_do(data, id, [&](auto& child) noexcept {
         if (child.type == child_type::component) {
             if_data_exists_do(mod.components,
                               child.id.compo_id,
@@ -210,13 +298,16 @@ void if_child_is_component_do(modeling& mod, child_id id, Function&& f) noexcept
     });
 }
 
-//! \brief If child exists and is a component, invoke the function \c f
-//! otherwise do nothing. \param f A invokable with no const \c child and \c
+//! \brief if child exists and is a component, invoke the function \c f
+//! otherwise do nothing. \param f a invokable with no const \c child and \c
 //! component references.
-template<typename Function>
-void if_child_is_model_do(modeling& mod, child_id id, Function&& f) noexcept
+template<typename function>
+void if_child_is_model_do(modeling&                    mod,
+                          data_array<child, child_id>& data,
+                          child_id                     id,
+                          function&&                   f) noexcept
 {
-    if_data_exists_do(mod.children, id, [&](auto& child) noexcept {
+    if_data_exists_do(data, id, [&](auto& child) noexcept {
         if (child.type == child_type::component) {
             if_data_exists_do(mod.components,
                               child.id.compo_id,
@@ -225,7 +316,7 @@ void if_child_is_model_do(modeling& mod, child_id id, Function&& f) noexcept
     });
 }
 
-//! Call @c f for each model found into @c tree_node::nodes_v table.
+//! Call \c f for each model found into \c tree_node::nodes_v table.
 template<typename Function>
 void for_each_model(simulation& sim, tree_node& tn, Function&& f) noexcept
 {
