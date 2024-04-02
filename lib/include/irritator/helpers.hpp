@@ -49,14 +49,17 @@ public:
         return Lower <= value && value <= Upper;
     }
 
-    void set(const T value) noexcept
+    constexpr void set(const T value) noexcept
     {
         m_value = std::clamp(value, Lower, Upper);
     }
 
-    T value() const noexcept { return m_value; }
-    operator T() noexcept { return m_value; }
-    operator T() const noexcept { return m_value; }
+    constexpr T value() const noexcept { return m_value; }
+    constexpr   operator T() noexcept { return m_value; }
+    constexpr   operator T() const noexcept { return m_value; }
+
+    static constexpr T lower_bound() noexcept { return Lower; }
+    static constexpr T upper_bound() noexcept { return Upper; }
 };
 
 template<typename T, int LowerNum, int LowerDenom, int UpperNum, int UpperDenom>
