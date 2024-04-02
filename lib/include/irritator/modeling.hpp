@@ -308,13 +308,6 @@ public:
     generic_component(const child_limiter      child_limit,
                       const connection_limiter connection_limit) noexcept;
 
-    struct internal_connection {
-        child_id src;
-        u64      p_src;
-        child_id dst;
-        u64      p_dst;
-    };
-
     struct input_connection {
         port_id  x; // The port_id in this component.
         child_id dst;
