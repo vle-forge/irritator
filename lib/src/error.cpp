@@ -10,47 +10,22 @@ namespace debug {
 
 void breakpoint() noexcept
 {
-#if (defined(__i386__) || defined(__x86_64__)) && defined(__GNUC__) &&         \
-  __GNUC__ >= 2
-#define irt_breakpoint()                                                       \
-    do {                                                                       \
-        if (::irt::is_fatal_breakpoint)                                        \
-            __asm__ __volatile__("int $03");                                   \
-    } while (0)
-#elif (defined(_MSC_VER) || defined(__DMC__)) && defined(_M_IX86)
-#define irt_breakpoint()                                                       \
-    do {                                                                       \
-        if (::irt::is_fatal_breakpoint)                                        \
-            __asm int 3h                                                       \
-    } while (0)
+#if ((defined(__i386__) || defined(__x86_64__)) && defined(__GNUC__) &&        \
+     __GNUC__ >= 2)
+    __asm__ __volatile__("int $03");
+#elif ((defined(_MSC_VER) || defined(__DMC__)) && defined(_M_IX86))
+    __asm int 3h
 #elif defined(_MSC_VER)
-#define irt_breakpoint()                                                       \
-    do {                                                                       \
-        if (::irt::is_fatal_breakpoint)                                        \
-            __debugbreak();                                                    \
-    } while (0)
-#elif defined(__alpha__) && !defined(__osf__) && defined(__GNUC__) &&          \
-  __GNUC__ >= 2
-#define irt_breakpoint()                                                       \
-    do {                                                                       \
-        if (::irt::is_fatal_breakpoint)                                        \
-            __asm__ __volatile__("bpt");                                       \
-    } while (0)
+    __debugbreak();
+#elif (defined(__alpha__) && !defined(__osf__) && defined(__GNUC__) &&         \
+       __GNUC__ >= 2)
+    __asm__ __volatile__("bpt");
 #elif defined(__APPLE__)
-#define irt_breakpoint()                                                       \
-    do {                                                                       \
-        if (::irt::is_fatal_breakpoint)                                        \
-            __builtin_trap();                                                  \
-    } while (0)
-#else /* !__i386__ && !__alpha__ */
-#define irt_breakpoint()                                                       \
-    do {                                                                       \
-        if (::irt::is_fatal_breakpoint)                                        \
-            raise(SIGTRAP);                                                    \
-    } while (0)
+    __builtin_trap();
+#else  /* !__i386__ && !__alpha__ */
+    raise(SIGTRAP);
 #endif /* __i386__ */
 }
-}
 
-
+} // namespace debug
 } // namespace irt
