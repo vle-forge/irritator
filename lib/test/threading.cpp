@@ -101,7 +101,7 @@ int main()
         irt::spin_lock mutex_2;
 
         for (int i = 0; i < 100; ++i) {
-            int mult = 0;
+            std::atomic_int mult = 0;
 
             std::thread j1([&mult, &mutex_1]() {
                 std::scoped_lock lock(mutex_1);
@@ -122,7 +122,7 @@ int main()
             j2.join();
             j3.join();
 
-            expect(eq(mult, 111));
+            expect(eq(mult.load(), 111));
         }
     };
 
