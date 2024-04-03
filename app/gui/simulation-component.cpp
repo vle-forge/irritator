@@ -344,7 +344,7 @@ void simulation_editor::start_simulation_live_run() noexcept
 
 void simulation_editor::start_simulation_update_state() noexcept
 {
-    if (mutex.try_lock()) {
+    if (std::unique_lock lock(mutex, std::try_to_lock); lock.owns_lock()) {
         if (simulation_state == simulation_status::paused) {
             simulation_state = simulation_status::run_requiring;
 
@@ -368,8 +368,6 @@ void simulation_editor::start_simulation_update_state() noexcept
 
             ImNodes::SetNodeScreenSpacePos(index_i, it->second);
         }
-
-        mutex.unlock();
     }
 }
 

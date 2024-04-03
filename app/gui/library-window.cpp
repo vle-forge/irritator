@@ -115,9 +115,7 @@ static void show_component_popup_menu(application& app, component& sel) noexcept
                       [&](project::error error) noexcept {
                           auto& n = app.notifications.alloc(log_level::error);
                           n.title = "Project import error";
-                          format(n.message,
-                                 "Error: {}",
-                                 to_string(error));
+                          format(n.message, "Error: {}", to_string(error));
                       },
 
                       [&]() noexcept {
@@ -247,7 +245,7 @@ static void show_file_component(application& app,
                                 component&   c,
                                 tree_node*   head) noexcept
 {
-    if (file.mutex.try_lock()) {
+    if (std::unique_lock lock(file.mutex, std::try_to_lock); lock.owns_lock()) {
         const auto id       = app.mod.components.get_id(c);
         const bool selected = head ? id == head->id : false;
         const auto state    = c.state;
@@ -299,8 +297,6 @@ static void show_file_component(application& app,
         }
 
         ImGui::PopStyleColor();
-
-        file.mutex.unlock();
     } else {
         ImGui::TextDisabled("file is being updated");
     }
@@ -360,7 +356,7 @@ static void show_dirpath_component(irt::component_editor& ed,
                                    dir_path&              dir,
                                    irt::tree_node*        head) noexcept
 {
-    if (dir.mutex.try_lock()) {
+    if (std::unique_lock lock(dir.mutex, std::try_to_lock); lock.owns_lock()) {
         auto& app = container_of(&ed, &application::component_ed);
 
         if (ImGui::TreeNodeEx(dir.path.c_str())) {
@@ -373,8 +369,6 @@ static void show_dirpath_component(irt::component_editor& ed,
 
             ImGui::TreePop();
         }
-
-        dir.mutex.unlock();
     } else {
         ImGui::TextDisabled("The directory is being updated");
     }

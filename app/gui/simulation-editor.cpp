@@ -912,7 +912,7 @@ void simulation_editor::show() noexcept
         return;
     }
 
-    if (mutex.try_lock()) {
+    if (std::unique_lock lock(mutex, std::try_to_lock); lock.owns_lock()) {
         constexpr ImGuiTableFlags flags =
           ImGuiTableFlags_SizingFixedFit | ImGuiTableFlags_RowBg |
           ImGuiTableFlags_Borders | ImGuiTableFlags_Resizable |
@@ -1009,8 +1009,6 @@ void simulation_editor::show() noexcept
 
             ImGui::EndTable();
         }
-
-        mutex.unlock();
     }
 
     ImGui::End();

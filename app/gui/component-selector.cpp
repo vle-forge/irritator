@@ -133,7 +133,7 @@ bool component_selector::combobox(const char*   label,
 {
     bool ret = false;
 
-    if (m_mutex.try_lock()) {
+    if (std::unique_lock lock(m_mutex, std::try_to_lock); lock.owns_lock()) {
         auto& mod = container_of(this, &application::component_sel).mod;
 
         if (*new_selected != selected_id) {
@@ -164,7 +164,6 @@ bool component_selector::combobox(const char*   label,
 
             ImGui::EndCombo();
         }
-        m_mutex.unlock();
     }
 
     return ret;
@@ -176,7 +175,7 @@ bool component_selector::combobox(const char*   label,
 {
     bool ret = false;
 
-    if (m_mutex.try_lock()) {
+    if (std::unique_lock lock(m_mutex, std::try_to_lock); lock.owns_lock()) {
         auto& mod = container_of(this, &application::component_sel).mod;
 
         if (ImGui::BeginCombo(label, selected_name.c_str())) {
@@ -209,7 +208,6 @@ bool component_selector::combobox(const char*   label,
 
             ImGui::EndCombo();
         }
-        m_mutex.unlock();
     }
 
     return ret;
@@ -220,7 +218,7 @@ bool component_selector::menu(const char*   label,
 {
     bool ret = false;
 
-    if (m_mutex.try_lock()) {
+    if (std::unique_lock lock(m_mutex, std::try_to_lock); lock.owns_lock()) {
         if (*new_selected != selected_id) {
             auto& app   = container_of(this, &application::component_sel);
             selected_id = *new_selected;
@@ -251,7 +249,6 @@ bool component_selector::menu(const char*   label,
 
             ImGui::EndMenu();
         }
-        m_mutex.unlock();
     }
 
     return ret;

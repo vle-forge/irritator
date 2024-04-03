@@ -160,7 +160,7 @@ void notification_manager::show() noexcept
     auto       height  = 0.f;
     auto       i       = 0;
 
-    if (mutex.try_lock()) {
+    if (std::unique_lock lock(mutex, std::try_to_lock); lock.owns_lock()) {
         for (auto it = r_buffer.head(); it != r_buffer.end(); ++it) {
             auto* notif = data.try_to_get(*it);
             if (!notif) {
@@ -230,8 +230,6 @@ void notification_manager::show() noexcept
             r_buffer.dequeue();
 
         ImGui::PopStyleVar();
-
-        mutex.unlock();
     }
 }
 
