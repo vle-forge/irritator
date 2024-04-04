@@ -409,7 +409,7 @@ inline bool unordered_task_list::add(Fn&& fn) noexcept
 
     ++stats.num_submitted_tasks;
 
-    tasks.emplace_back(task{ fn });
+    tasks.emplace_back(fn);
     return true;
 }
 
