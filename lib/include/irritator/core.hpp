@@ -377,21 +377,6 @@ struct time_domain<time> {
  *
  ****************************************************************************/
 
-//! @brief Compute the best size to fit the small storage size.
-template<size_t N>
-using small_storage_size_t = std::conditional_t<
-  (N < std::numeric_limits<uint8_t>::max()),
-  uint8_t,
-  std::conditional_t<
-    (N < std::numeric_limits<uint16_t>::max()),
-    uint16_t,
-    std::conditional_t<
-      (N < std::numeric_limits<uint32_t>::max()),
-      uint32_t,
-      std::conditional_t<(N < std::numeric_limits<uint32_t>::max()),
-                         uint64_t,
-                         size_t>>>>;
-
 //! @brief A small array of reals.
 //!
 //! This class in mainly used to store message and observation in the
