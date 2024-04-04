@@ -887,33 +887,34 @@ public:
     floating_point_limiter<float, 1, 10000, 1, 10> time_step = .01f;
 
 private:
-    vector<tree_node_id> m_tn_ids;  //< @c tree_node parent of the model.
-    vector<model_id>     m_mdl_ids; //< @c model to observe.
-    vector<observer_id>  m_obs_ids;
-    vector<color>        m_colors;
-    vector<type_options> m_options;
+    vector<tree_node_id> m_tn_ids;  //!< `tree_node` parent of the model.
+    vector<model_id>     m_mdl_ids; //!< `model` to observe.
+    vector<observer_id>  m_obs_ids; //!< `observer` connected to `model`.
+    vector<color>        m_colors;  //!< Colors used for observers.
+    vector<type_options> m_options; //!< Line, dash etc. for observers.
 
 public:
-    // Build or reuse existing observer for each pair `tn_id`, `mdl_id` and
-    // reinitialize all buffers.
+    //! @brief Fill the `observer_id` vector and initialize buffers.
+    //!
+    //! @details Build or reuse existing observer in `obs_id` vector for each
+    //! pair `tn_id` and `mdl_id` and (re)initialize buffer reserve buffer.
     status init(project& pj, simulation& sim) noexcept;
 
+    //! @brief Fill the `observer_id` vector with undefined value.
     void clear() noexcept;
 
-    void update(simulation& sim) noexcept;
-
-    // Removes at index `i` for all vectors where `tn_ids[i]` equals `tn` and
-    // `mdl_ids[i]` equals `mdl`.
+    //! @brief Remove at index `i` for all vectors where `tn_ids[i]` equals
+    //! `tn` and `mdl_ids[i]` equals `mdl`.
     void erase(const tree_node_id tn, const model_id mdl) noexcept;
 
-    // Remove at index `i` for all vectors.
+    //! @brief Remove at index `i` for all vectors.
     void erase(const int i) noexcept;
 
-    // Push into `tn_id` and `mdl_id` vectors the pair (tn, mdl) if the pair
-    // does not already exsits.
+    //! @brief Push data in all vectors if pair (`tn`, `mdl`) does not
+    //! already exists.
     void push_back(const tree_node_id tn,
                    const model_id     mdl,
-                   const color          = 0xff00ff,
+                   const color          = 0xFe1a0Fe,
                    const type_options t = type_options::line) noexcept;
 
     const vector<tree_node_id>& tn_ids() const noexcept { return m_tn_ids; }

@@ -77,9 +77,10 @@ status variable_observer::init(project& pj, simulation& sim) noexcept
     return success();
 }
 
-void variable_observer::clear() noexcept { m_obs_ids.clear(); }
-
-void variable_observer::update(simulation& /*sim*/) noexcept {}
+void variable_observer::clear() noexcept
+{
+    std::fill_n(m_obs_ids.data(), m_obs_ids.size(), undefined<observer_id>());
+}
 
 void variable_observer::erase(const tree_node_id tn,
                               const model_id     mdl) noexcept
