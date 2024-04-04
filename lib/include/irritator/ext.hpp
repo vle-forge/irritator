@@ -140,7 +140,7 @@ private:
         }
     }
 
-    Storage data;
+    Storage data{};
     Invoker invoker = nullptr;
     Manager manager = nullptr;
 };
