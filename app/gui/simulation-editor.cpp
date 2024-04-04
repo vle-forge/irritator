@@ -391,10 +391,7 @@ static bool show_local_simulation_plot_observers_table(application& app,
                             auto* v_obs =
                               app.pj.variable_observers.try_to_get(v_obs_id);
                             if (v_obs) {
-                                v_obs->tn_id.emplace_back(
-                                  app.pj.tree_nodes.get_id(tn));
-                                v_obs->mdl_id.emplace_back(
-                                  app.sim.models.get_id(mdl));
+                                v_obs->push_back(tn_id, mdl_id);
                                 tn.variable_observer_ids.set(uid, v_obs_id);
                                 current = v_obs_id;
                             } else {
@@ -469,8 +466,8 @@ static bool show_local_graph_observers(application&     app,
     return show_local_observers(app, tn, compo, graph);
 }
 
-static auto get_global_parameter(const auto& tn,
-                                 const u64 uid) noexcept -> global_parameter_id
+static auto get_global_parameter(const auto& tn, const u64 uid) noexcept
+  -> global_parameter_id
 {
     auto* ptr = tn.parameters_ids.get(uid);
     return ptr ? *ptr : undefined<global_parameter_id>();
@@ -625,15 +622,14 @@ static void show_local_variables_plot(application&       app,
 {
     auto i = 0;
 
-    while (i != v_obs.mdl_id.ssize()) {
-        if (auto* mdl = app.sim.models.try_to_get(v_obs.mdl_id[i]); mdl) {
+    while (i != v_obs.mdl_ids().ssize()) {
+        if (auto* mdl = app.sim.models.try_to_get(v_obs.mdl_ids()[i]); mdl) {
             if (auto* obs = app.sim.observers.try_to_get(mdl->obs_id); obs) {
-                show_local_variable_plot(*obs, v_obs.options[i]);
+                show_local_variable_plot(*obs, v_obs.options()[i]);
             }
             ++i;
         } else {
-            v_obs.tn_id.swap_pop_back(i);
-            v_obs.mdl_id.swap_pop_back(i);
+            v_obs.erase(i);
         }
     }
 }
@@ -850,7 +846,7 @@ static bool show_simulation_variable_observers(application& app) noexcept
 
             ImGui::TableNextColumn();
 
-            ImGui::TextFormat("{}", variable.mdl_id.ssize());
+            ImGui::TextFormat("{}", variable.mdl_ids().ssize());
 
             ImGui::TableNextColumn();
 

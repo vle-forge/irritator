@@ -5,12 +5,12 @@
 #ifndef ORG_VLEPROJECT_IRRITATOR_2021_MODELING_HPP
 #define ORG_VLEPROJECT_IRRITATOR_2021_MODELING_HPP
 
-#include "irritator/container.hpp"
-#include "irritator/helpers.hpp"
-#include "irritator/macros.hpp"
+#include <irritator/container.hpp>
 #include <irritator/core.hpp>
 #include <irritator/error.hpp>
 #include <irritator/ext.hpp>
+#include <irritator/helpers.hpp>
+#include <irritator/macros.hpp>
 #include <irritator/thread.hpp>
 
 #include <bitset>
@@ -886,12 +886,14 @@ public:
     static_limiter<i32, 1024, 65536> linearized_buffer_size  = 32768;
     floating_point_limiter<float, 1, 10000, 1, 10> time_step = .01f;
 
-    vector<tree_node_id> tn_id; //< @c tree_node identifier parent of the model.
-    vector<model_id>     mdl_id; //< @c model to observe.
-    vector<observer_id>  obs_ids;
-    vector<color>        colors;
-    vector<type_options> options;
+private:
+    vector<tree_node_id> m_tn_ids;  //< @c tree_node parent of the model.
+    vector<model_id>     m_mdl_ids; //< @c model to observe.
+    vector<observer_id>  m_obs_ids;
+    vector<color>        m_colors;
+    vector<type_options> m_options;
 
+public:
     // Build or reuse existing observer for each pair `tn_id`, `mdl_id` and
     // reinitialize all buffers.
     status init(project& pj, simulation& sim) noexcept;
@@ -900,12 +902,25 @@ public:
 
     void update(simulation& sim) noexcept;
 
-    // Removes from `tn_id` and `mdl_id` vectors the pair (tn, mdl).
+    // Removes at index `i` for all vectors where `tn_ids[i]` equals `tn` and
+    // `mdl_ids[i]` equals `mdl`.
     void erase(const tree_node_id tn, const model_id mdl) noexcept;
+
+    // Remove at index `i` for all vectors.
+    void erase(const int i) noexcept;
 
     // Push into `tn_id` and `mdl_id` vectors the pair (tn, mdl) if the pair
     // does not already exsits.
-    void push_back(const tree_node_id tn, const model_id mdl) noexcept;
+    void push_back(const tree_node_id tn,
+                   const model_id     mdl,
+                   const color          = 0xff00ff,
+                   const type_options t = type_options::line) noexcept;
+
+    const vector<tree_node_id>& tn_ids() const noexcept { return m_tn_ids; }
+    const vector<model_id>&     mdl_ids() const noexcept { return m_mdl_ids; }
+    const vector<observer_id>&  obs_ids() const noexcept { return m_obs_ids; }
+    const vector<color>&        colors() const noexcept { return m_colors; }
+    const vector<type_options>& options() const noexcept { return m_options; }
 };
 
 struct global_parameter {

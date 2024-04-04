@@ -44,14 +44,14 @@ static void show_plot_observation(application&       app,
 
     ImGui::TableNextColumn();
     ImGui::PushItemWidth(-1);
-    float copy = var.time_step;
+    float copy = var.time_step.value();
 
     if (ImGui::InputReal("##ts", &copy))
         var.time_step.set(copy);
     ImGui::PopItemWidth();
 
     ImGui::TableNextColumn();
-    ImGui::TextFormat("Observers: {}", var.obs_ids.size());
+    ImGui::TextFormat("Observers: {}", var.obs_ids().size());
     ImGui::TableNextColumn();
 
     ImGui::TableNextColumn();

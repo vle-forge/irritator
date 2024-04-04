@@ -3862,34 +3862,38 @@ struct reader {
                                              variable_observer& plot) noexcept
     {
         auto_stack s(this, stack_id::project_plot_observation_child);
+        auto       tn_id  = undefined<tree_node_id>();
+        auto       mdl_id = undefined<model_id>();
+        auto       c      = color(0xff0ff);
+        auto       t      = variable_observer::type_options::line;
 
         return for_each_member(
-          val, [&](const auto name, const auto& value) noexcept -> bool {
-              unique_id_path path;
+                 val,
+                 [&](const auto name, const auto& value) noexcept -> bool {
+                     unique_id_path path;
 
-              if ("name"sv == name)
-                  return read_temp_string(value) && copy_to(plot.name);
+                     if ("name"sv == name)
+                         return read_temp_string(value) && copy_to(plot.name);
 
-              if ("access"sv == name)
-                  return read_project_unique_id_path(val, path) &&
-                         convert_to_tn_model_ids(path, plot.tn_id, plot.mdl_id);
+                     if ("access"sv == name)
+                         return read_project_unique_id_path(val, path) &&
+                                convert_to_tn_model_ids(path, tn_id, mdl_id);
 
-              if ("color"sv == name) {
-                  color c   = 0xff00ff;
-                  auto  ret = read_color(value, c);
-                  plot.colors.emplace_back(c);
-                  return ret;
-              }
+                     if ("color"sv == name)
+                         return read_color(value, c);
 
-              if ("type"sv == name) {
-                  auto t   = variable_observer::type_options::line;
-                  auto ret = read_temp_string(value);
-                  plot.options.emplace_back(t);
-                  return ret;
-              }
+                     if ("type"sv == name)
+                         return read_temp_string(value);
 
-              report_json_error(error_id::unknown_element);
-          });
+                     report_json_error(error_id::unknown_element);
+                 }) &&
+                 [&]() noexcept -> bool {
+            if (is_defined(tn_id) and is_defined(mdl_id)) {
+                plot.push_back(tn_id, mdl_id, c, t);
+                return true;
+            }
+            return false;
+        }();
     }
 
     bool copy_to(variable_observer::type_options& type) noexcept
@@ -6257,9 +6261,9 @@ static status do_project_save_plot_observations(Writer& w, project& pj) noexcept
         w.Key("name");
         w.String(plot.name.begin(), plot.name.size());
 
-        for (int i = 0, e = plot.tn_id.ssize(); i != e; ++i) {
+        for (int i = 0, e = plot.tn_ids().ssize(); i != e; ++i) {
             w.Key("access");
-            pj.build_unique_id_path(plot.tn_id[i], plot.mdl_id[i], path);
+            pj.build_unique_id_path(plot.tn_ids()[i], plot.mdl_ids()[i], path);
             write_project_unique_id_path(w, path);
         }
 

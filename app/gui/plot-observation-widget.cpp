@@ -57,11 +57,11 @@ void plot_observation_widget::show(application& app) noexcept
                               ImPlotAxisFlags_AutoFit,
                               ImPlotAxisFlags_AutoFit);
 
-            for (int i = 0, e = v_obs.obs_ids.ssize(); i != e; ++i) {
-                auto* obs = app.sim.observers.try_to_get(v_obs.obs_ids[i]);
+            for (int i = 0, e = v_obs.obs_ids().ssize(); i != e; ++i) {
+                auto* obs = app.sim.observers.try_to_get(v_obs.obs_ids()[i]);
 
                 if (obs->linearized_buffer.size() > 0) {
-                    switch (v_obs.options[i]) {
+                    switch (v_obs.options()[i]) {
                     case variable_observer::type_options::line:
                         ImPlot::PlotLineG(obs->name.c_str(),
                                           ring_buffer_getter,

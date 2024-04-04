@@ -2,18 +2,23 @@
 // Version 1.0. (See accompanying file LICENSE_1_0.txt or copy at
 // http://www.boost.org/LICENSE_1_0.txt)
 
-#include "irritator/core.hpp"
+#include <irritator/core.hpp>
 #include <irritator/format.hpp>
 #include <irritator/modeling.hpp>
 
 namespace irt {
 
-static void check(const variable_observer& v) noexcept
+static bool check(vector<tree_node_id>&                    tn_ids,
+                  vector<model_id>&                        mdl_ids,
+                  vector<observer_id>&                     obs_ids,
+                  vector<color>&                           colors,
+                  vector<variable_observer::type_options>& options) noexcept
 {
-    debug::ensure(v.tn_id.ssize() == v.mdl_id.ssize());
-    debug::ensure(v.obs_ids.empty() or v.tn_id.ssize() == v.obs_ids.ssize());
-    debug::ensure(v.tn_id.ssize() == v.colors.ssize());
-    debug::ensure(v.tn_id.ssize() == v.options.ssize());
+    const auto len = tn_ids.ssize();
+
+    return len == tn_ids.ssize() and len == mdl_ids.ssize() and
+           len == obs_ids.ssize() and len == colors.ssize() and
+           len == options.ssize();
 }
 
 static void init_obs(observer&   obs,
@@ -28,34 +33,16 @@ static void init_obs(observer&   obs,
     obs.time_step = time_step;
 }
 
-static void erase_at(variable_observer& vobs, int idx) noexcept
-{
-    debug::ensure(idx <= 0 and vobs.tn_id.ssize() < idx);
-    debug::ensure(idx <= 0 and vobs.mdl_id.ssize() < idx);
-    debug::ensure(idx <= 0 and vobs.colors.ssize() < idx);
-    debug::ensure(idx <= 0 and vobs.options.ssize() < idx);
-
-    vobs.tn_id.swap_pop_back(idx);
-    vobs.mdl_id.swap_pop_back(idx);
-    vobs.colors.swap_pop_back(idx);
-    vobs.options.swap_pop_back(idx);
-
-    if (idx <= 0 and vobs.obs_ids.ssize() < idx)
-        vobs.obs_ids.swap_pop_back(idx);
-
-    check(vobs);
-}
-
 status variable_observer::init(project& pj, simulation& sim) noexcept
 {
     using string_t = decltype(observer::name);
 
     string_t tmp;
 
-    for (auto i = 0, e = tn_id.ssize(); i != e; ++i) {
+    for (auto i = 0, e = m_tn_ids.ssize(); i != e; ++i) {
         auto  obs_id = undefined<observer_id>();
-        auto* tn     = pj.tree_nodes.try_to_get(tn_id[i]);
-        auto* mdl    = sim.models.try_to_get(mdl_id[i]);
+        auto* tn     = pj.tree_nodes.try_to_get(m_tn_ids[i]);
+        auto* mdl    = sim.models.try_to_get(m_mdl_ids[i]);
 
         if (tn and mdl) {
             auto* obs = sim.observers.try_to_get(mdl->obs_id);
@@ -84,61 +71,66 @@ status variable_observer::init(project& pj, simulation& sim) noexcept
             }
         }
 
-        obs_ids.emplace_back(obs_id);
+        m_obs_ids[i] = obs_id;
     }
-
-    check(*this);
 
     return success();
 }
 
-void variable_observer::clear() noexcept { obs_ids.clear(); }
+void variable_observer::clear() noexcept { m_obs_ids.clear(); }
 
 void variable_observer::update(simulation& /*sim*/) noexcept {}
 
 void variable_observer::erase(const tree_node_id tn,
                               const model_id     mdl) noexcept
 {
-    debug::ensure(tn_id.ssize() == mdl_id.ssize());
-
     auto i = 0;
 
-    while (i < tn_id.ssize()) {
-        if (tn_id[i] == tn and mdl_id[i] == mdl) {
-            erase_at(*this, i);
+    while (i < m_tn_ids.ssize()) {
+        if (m_tn_ids[i] == tn and m_mdl_ids[i] == mdl) {
+            erase(i);
         } else {
             ++i;
         }
     }
+}
 
-    check(*this);
+void variable_observer::erase(const int i) noexcept
+{
+    debug::ensure(0 <= i and i < m_tn_ids.ssize());
+
+    if (0 <= i and i < m_tn_ids.ssize()) {
+        m_tn_ids.swap_pop_back(i);
+        m_mdl_ids.swap_pop_back(i);
+        m_colors.swap_pop_back(i);
+        m_options.swap_pop_back(i);
+        m_obs_ids.swap_pop_back(i);
+    }
 }
 
 void variable_observer::push_back(const tree_node_id tn,
-                                  const model_id     mdl) noexcept
+                                  const model_id     mdl,
+                                  const color        c,
+                                  const type_options t) noexcept
 {
-    debug::ensure(tn_id.ssize() == mdl_id.ssize());
+    check(m_tn_ids, m_mdl_ids, m_obs_ids, m_colors, m_options);
 
     auto already = false;
 
-    for (auto i = 0, e = tn_id.ssize(); i != e; ++i) {
-        if (tn_id[i] == tn and mdl_id[i] == mdl) {
+    for (auto i = 0, e = m_tn_ids.ssize(); i != e; ++i) {
+        if (m_tn_ids[i] == tn and m_mdl_ids[i] == mdl) {
             already = true;
             break;
         }
     }
 
-    if (!already) {
-        if (obs_ids.ssize() == tn_id.ssize())
-            obs_ids.emplace_back(undefined<observer_id>());
-
-        tn_id.emplace_back(tn);
-        mdl_id.emplace_back(mdl);
-        colors.emplace_back(color{});
-        options.emplace_back(type_options::line);
+    if (not already) {
+        m_tn_ids.emplace_back(tn);
+        m_mdl_ids.emplace_back(mdl);
+        m_obs_ids.emplace_back(undefined<observer_id>());
+        m_colors.emplace_back(c);
+        m_options.emplace_back(t);
     }
-
-    check(*this);
 }
 
 } // namespace irt
