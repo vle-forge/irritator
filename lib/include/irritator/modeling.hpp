@@ -382,7 +382,7 @@ struct grid_component {
 
     void resize(i32 row_, i32 col_, component_id id) noexcept
     {
-        irt_assert(row_ > 0 && col_ > 0);
+        debug::ensure(row_ > 0 && col_ > 0);
 
         row    = row_;
         column = col_;
@@ -424,8 +424,8 @@ struct grid_component {
     constexpr u64 make_next_unique_id(std::integral auto row,
                                       std::integral auto col) const noexcept
     {
-        irt_assert(is_numeric_castable<u32>(row));
-        irt_assert(is_numeric_castable<u32>(col));
+        debug::ensure(is_numeric_castable<u32>(row));
+        debug::ensure(is_numeric_castable<u32>(col));
 
         return make_doubleword(static_cast<u32>(row), static_cast<u32>(col));
     }

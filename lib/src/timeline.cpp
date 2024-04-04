@@ -43,9 +43,9 @@ timeline::timeline(i32 simulation_point_number,
   , connection_points(connection_point_number)
   , points(timeline_point_number)
 {
-    irt_assert(simulation_point_number >= 0 && model_point_number >= 0 &&
-               connection_point_number >= 0 && timeline_point_number >= 0 &&
-               model_number >= 0 && message_number >= 0);
+    debug::ensure(simulation_point_number >= 0 && model_point_number >= 0 &&
+                  connection_point_number >= 0 && timeline_point_number >= 0 &&
+                  model_number >= 0 && message_number >= 0);
 
     max_models_number   = model_number;
     max_messages_number = message_number;
@@ -181,10 +181,11 @@ static status build_initial_simulation_point(timeline&   tl,
     return success();
 }
 
-static status build_simulation_point(timeline&                             tl,
-                                     simulation&                           sim,
-                                     const vector<model_id, freelist_allocator>& imm,
-                                     time t) noexcept
+static status build_simulation_point(
+  timeline&                                   tl,
+  simulation&                                 sim,
+  const vector<model_id, freelist_allocator>& imm,
+  time                                        t) noexcept
 {
     // if (!tl.can_alloc(timeline_point_type::simulation,
     //                   imm.ssize(),

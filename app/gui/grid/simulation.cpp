@@ -320,7 +320,7 @@ static bool grid_simulation_show_observations(application&            app,
 
         ImGui::Text("Select the model to observe");
 
-        irt_assert(grid_sim.selected_tn != nullptr);
+        debug::ensure(grid_sim.selected_tn != nullptr);
         // show_select_observation_model(app,
         //                               grid_sim,
         //                               *grid_sim.selected_tn,

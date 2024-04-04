@@ -55,7 +55,7 @@ void add_extension(file_path& file) noexcept
     decltype(file.path) tmp;
 
     if (auto last = sv.find_last_of('.'); last == std::string_view::npos) {
-        irt_assert(last != 0);
+        debug::ensure(last != 0);
         tmp.assign(sv.substr(0, last - 1));
     } else {
         tmp.assign(sv);

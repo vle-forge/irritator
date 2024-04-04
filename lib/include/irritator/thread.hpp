@@ -401,7 +401,7 @@ inline unordered_task_list::unordered_task_list(worker_stats& stats_) noexcept
 template<typename Fn>
 inline bool unordered_task_list::add(Fn&& fn) noexcept
 {
-    irt_assert(any_equal(phase, ordinal(phase::add)));
+    debug::ensure(any_equal(phase, ordinal(phase::add)));
     phase = ordinal(phase::add);
 
     if (tasks.full())
@@ -415,7 +415,7 @@ inline bool unordered_task_list::add(Fn&& fn) noexcept
 
 inline void unordered_task_list::submit() noexcept
 {
-    irt_assert(any_equal(phase, ordinal(phase::add)));
+    debug::ensure(any_equal(phase, ordinal(phase::add)));
     phase = ordinal(phase::submit);
 
     current_task = 0;
@@ -445,7 +445,7 @@ inline void unordered_task_list::submit() noexcept
 
 inline void unordered_task_list::wait() noexcept
 {
-    irt_assert(any_equal(phase, ordinal(phase::submit)));
+    debug::ensure(any_equal(phase, ordinal(phase::submit)));
 
     do {
         for (auto* w : workers) {
@@ -508,7 +508,7 @@ inline worker_base<T>::~worker_base() noexcept
 template<typename T>
 inline void worker_base<T>::start() noexcept
 {
-    irt_assert(any_equal(phase, ordinal(phase::start)));
+    debug::ensure(any_equal(phase, ordinal(phase::start)));
 
     try {
         thread = std::thread{ &T::run, static_cast<T*>(this) };

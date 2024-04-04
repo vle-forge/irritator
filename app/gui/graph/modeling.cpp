@@ -770,7 +770,7 @@ void graph_editor_dialog::load(application&       app_,
 
 void graph_editor_dialog::save() noexcept
 {
-    irt_assert(app && compo);
+    debug::ensure(app && compo);
 
     if (auto ret = app->mod.copy(graph, *compo); !ret)
         log_w(*app, log_level::error, "Fail to copy the graph into component");

@@ -474,8 +474,8 @@ struct reader {
 
     template<size_t N, typename Function>
     bool for_members(const rapidjson::Value& val,
-                     const std::string_view  (&names)[N],
-                     Function&&              fn) noexcept
+                     const std::string_view (&names)[N],
+                     Function&& fn) noexcept
     {
         if (!val.IsObject())
             report_json_error(error_id::value_not_object);
@@ -977,7 +977,7 @@ struct reader {
 
     bool is_value_array_size_equal(const rapidjson::Value& val, int to) noexcept
     {
-        irt_assert(val.IsArray());
+        debug::ensure(val.IsArray());
 
         if (std::cmp_equal(val.GetArray().Size(), to))
             return true;
@@ -995,7 +995,7 @@ struct reader {
 
     bool copy_array_size(const rapidjson::Value& val, i64& dst) noexcept
     {
-        irt_assert(val.IsArray());
+        debug::ensure(val.IsArray());
 
         dst = static_cast<i64>(val.GetArray().Size());
 
@@ -1005,7 +1005,7 @@ struct reader {
     bool is_value_array_size_less(const rapidjson::Value& val,
                                   std::integral auto      i) noexcept
     {
-        irt_assert(val.IsArray());
+        debug::ensure(val.IsArray());
 
         if (std::cmp_less(val.GetArray().Size(), i))
             return true;
@@ -1935,8 +1935,8 @@ struct reader {
         return nullptr;
     }
 
-    auto search_dir_in_reg(registred_path& reg, std::string_view name) noexcept
-      -> dir_path*
+    auto search_dir_in_reg(registred_path&  reg,
+                           std::string_view name) noexcept -> dir_path*
     {
         for (auto dir_id : reg.children) {
             if (auto* dir = mod().dir_paths.try_to_get(dir_id); dir) {
@@ -2005,8 +2005,8 @@ struct reader {
         return nullptr;
     }
 
-    auto search_file(dir_path& dir, std::string_view name) noexcept
-      -> file_path*
+    auto search_file(dir_path&        dir,
+                     std::string_view name) noexcept -> file_path*
     {
         for (auto file_id : dir.children)
             if (auto* file = mod().file_paths.try_to_get(file_id); file)
@@ -3046,7 +3046,7 @@ struct reader {
     {
         auto_stack s(this, stack_id::component_graph_type);
 
-        irt_assert(name.IsString());
+        debug::ensure(name.IsString());
 
         if ("dot-file"sv == name.GetString()) {
             graph.param = graph_component::dot_file_param{};
@@ -4064,14 +4064,14 @@ struct reader {
         auto_stack(reader* r_, const stack_id id) noexcept
           : r(r_)
         {
-            irt_assert(r->stack.can_alloc(1));
+            debug::ensure(r->stack.can_alloc(1));
             r->stack.emplace_back(id);
         }
 
         ~auto_stack() noexcept
         {
             if (!r->have_error()) {
-                irt_assert(!r->stack.empty());
+                debug::ensure(!r->stack.empty());
                 r->stack.pop_back();
             }
         }
@@ -4100,25 +4100,25 @@ struct reader {
 
     modeling& mod() const noexcept
     {
-        irt_assert(m_mod);
+        debug::ensure(m_mod);
         return *m_mod;
     }
 
     simulation& sim() const noexcept
     {
-        irt_assert(m_sim);
+        debug::ensure(m_sim);
         return *m_sim;
     }
 
     project& pj() const noexcept
     {
-        irt_assert(m_pj);
+        debug::ensure(m_pj);
         return *m_pj;
     }
 
     cache_rw& cache() const noexcept
     {
-        irt_assert(m_cache);
+        debug::ensure(m_cache);
         return *m_cache;
     }
 
@@ -4137,8 +4137,8 @@ struct reader {
 
 static status read_file_to_buffer(cache_rw& cache, file& f) noexcept
 {
-    irt_assert(f.is_open());
-    irt_assert(f.get_mode() == open_mode::read);
+    debug::ensure(f.is_open());
+    debug::ensure(f.get_mode() == open_mode::read);
 
     if (const auto len = f.length(); len > 0) {
         cache.buffer.resize(len);
@@ -4913,7 +4913,7 @@ static status parse_json_component(modeling&                  mod,
         auto*      c  = mod.components.try_to_get(id);
         r.dependencies.pop_back();
 
-        irt_assert(c);
+        debug::ensure(c);
         if (c->state == component_status::unmodified)
             continue;
 
@@ -6446,7 +6446,7 @@ status json_archiver::project_save(project&  pj,
                                    file&        io,
                                    print_option print_options) noexcept
 {
-    irt_assert(io.is_open());
+    debug::ensure(io.is_open());
 
     auto* compo  = mod.components.try_to_get(pj.head());
     auto* parent = pj.tn_head();
@@ -6454,7 +6454,7 @@ status json_archiver::project_save(project&  pj,
     if (!(compo && parent))
         return new_error(project::error::empty_project);
 
-    irt_assert(mod.components.get_id(compo) == parent->id);
+    debug::ensure(mod.components.get_id(compo) == parent->id);
 
     auto* reg = mod.registred_paths.try_to_get(compo->reg_path);
     if (!reg)
@@ -6508,7 +6508,7 @@ status json_archiver::project_save(project&  pj,
     if (!(compo && parent))
         return new_error(project::error::empty_project);
 
-    irt_assert(mod.components.get_id(compo) == parent->id);
+    debug::ensure(mod.components.get_id(compo) == parent->id);
 
     rapidjson::StringBuffer buffer;
     buffer.Reserve(4096u);

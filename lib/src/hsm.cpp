@@ -68,7 +68,7 @@ status hierarchical_state_machine::start(execution& exec) noexcept
 result<bool> hierarchical_state_machine::dispatch(const event_type event,
                                                   execution& exec) noexcept
 {
-    irt_assert(!is_dispatching(exec));
+    debug::ensure(!is_dispatching(exec));
 
     bool is_processed = false;
 
@@ -130,9 +130,9 @@ status hierarchical_state_machine::on_enter_sub_state(execution& exec) noexcept
 void hierarchical_state_machine::transition(state_id   target,
                                             execution& exec) noexcept
 {
-    irt_assert(target < max_number_of_state);
-    irt_assert(exec.disallow_transition == false);
-    irt_assert(is_dispatching(exec));
+    debug::ensure(target < max_number_of_state);
+    debug::ensure(exec.disallow_transition == false);
+    debug::ensure(is_dispatching(exec));
 
     if (exec.disallow_transition)
         return;
@@ -148,7 +148,7 @@ void hierarchical_state_machine::transition(state_id   target,
     }
 
     int stepsToCommonRoot = steps_to_common_root(exec.source_state, target);
-    irt_assert(stepsToCommonRoot >= 0);
+    debug::ensure(stepsToCommonRoot >= 0);
 
     while (stepsToCommonRoot--) {
         handle(sid, event_type::exit, exec);
@@ -266,63 +266,63 @@ void hierarchical_state_machine::affect_action(const state_action& action,
     case action_type::none:
         break;
     case action_type::set:
-        irt_assert(port >= 0 && port <= 3);
+        debug::ensure(port >= 0 && port <= 3);
         exec.values |= static_cast<u8>(1u << port);
         break;
     case action_type::unset:
-        irt_assert(port >= 0 && port <= 3);
+        debug::ensure(port >= 0 && port <= 3);
         exec.values &= static_cast<u8>(~(1u << port));
         break;
     case action_type::reset:
         exec.values = static_cast<u8>(0u);
         break;
     case action_type::output:
-        irt_assert(port >= 0 && port <= 3);
+        debug::ensure(port >= 0 && port <= 3);
         exec.outputs.emplace_back(hierarchical_state_machine::output_message{
           .value = action.parameter, .port = port });
         break;
     case action_type::affect:
-        irt_assert(var_1 && var_2);
+        debug::ensure(var_1 && var_2);
         *var_1 = *var_2;
         break;
     case action_type::plus:
-        irt_assert(var_1 && var_2);
+        debug::ensure(var_1 && var_2);
         *var_1 = std::plus<>{}(*var_1, *var_2);
         break;
     case action_type::minus:
-        irt_assert(var_1 && var_2);
+        debug::ensure(var_1 && var_2);
         *var_1 = std::minus<>{}(*var_1, *var_2);
         break;
     case action_type::negate:
-        irt_assert(var_1 && var_2);
+        debug::ensure(var_1 && var_2);
         *var_1 = std::negate<>{}(*var_1);
         break;
     case action_type::multiplies:
-        irt_assert(var_1 && var_2);
+        debug::ensure(var_1 && var_2);
         *var_1 = std::multiplies<>{}(*var_1, *var_2);
         break;
     case action_type::divides:
-        irt_assert(var_1 && var_2);
+        debug::ensure(var_1 && var_2);
         *var_1 = std::divides<>{}(*var_1, *var_2);
         break;
     case action_type::modulus:
-        irt_assert(var_1 && var_2);
+        debug::ensure(var_1 && var_2);
         *var_1 = std::modulus<>{}(*var_1, *var_2);
         break;
     case action_type::bit_and:
-        irt_assert(var_1 && var_2);
+        debug::ensure(var_1 && var_2);
         *var_1 = std::bit_and<>{}(*var_1, *var_2);
         break;
     case action_type::bit_or:
-        irt_assert(var_1 && var_2);
+        debug::ensure(var_1 && var_2);
         *var_1 = std::bit_or<>{}(*var_1, *var_2);
         break;
     case action_type::bit_not:
-        irt_assert(var_1 && var_2);
+        debug::ensure(var_1 && var_2);
         *var_1 = std::bit_not<>{}(*var_1);
         break;
     case action_type::bit_xor:
-        irt_assert(var_1 && var_2);
+        debug::ensure(var_1 && var_2);
         *var_1 = std::bit_xor<>{}(*var_1, *var_2);
         break;
 

@@ -332,7 +332,7 @@ static auto get_first_variable_observer(project& pj) noexcept
 static bool show_local_simulation_plot_observers_table(application& app,
                                                        tree_node&   tn) noexcept
 {
-    irt_assert(!component_is_grid_or_graph(app.mod, tn));
+    debug::ensure(!component_is_grid_or_graph(app.mod, tn));
 
     int is_modified = 0;
 
@@ -469,8 +469,8 @@ static bool show_local_graph_observers(application&     app,
     return show_local_observers(app, tn, compo, graph);
 }
 
-static auto get_global_parameter(const auto& tn, const u64 uid) noexcept
-  -> global_parameter_id
+static auto get_global_parameter(const auto& tn,
+                                 const u64 uid) noexcept -> global_parameter_id
 {
     auto* ptr = tn.parameters_ids.get(uid);
     return ptr ? *ptr : undefined<global_parameter_id>();

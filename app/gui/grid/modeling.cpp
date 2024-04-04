@@ -457,7 +457,7 @@ void grid_component_editor_data::show(component_editor& ed) noexcept
     auto* compo = app.mod.components.try_to_get(m_id);
     auto* grid  = app.mod.grid_components.try_to_get(grid_id);
 
-    irt_assert(compo && grid);
+    debug::ensure(compo && grid);
 
     if (show_row_column_widgets(*grid)) {
         grid->resize(grid->row, grid->column, get_default_component_id(*grid));
@@ -488,7 +488,7 @@ void grid_editor_dialog::load(application&       app_,
 
 void grid_editor_dialog::save() noexcept
 {
-    irt_assert(app && compo);
+    debug::ensure(app && compo);
 
     if (auto ret = app->mod.copy(grid, *compo); !ret) {
         auto& n = app->notifications.alloc();

@@ -13,7 +13,7 @@ static status build_grid(grid_observer&  grid_obs,
                          tree_node&      grid_parent,
                          grid_component& grid_compo) noexcept
 {
-    irt_assert(pj.tree_nodes.try_to_get(grid_obs.tn_id) != nullptr);
+    debug::ensure(pj.tree_nodes.try_to_get(grid_obs.tn_id) != nullptr);
 
     const auto* to = pj.tree_nodes.try_to_get(grid_obs.tn_id);
 
@@ -32,15 +32,15 @@ static status build_grid(grid_observer&  grid_obs,
 
             if (tn && mdl) {
                 const auto w = unpack_doubleword(child->unique_id);
-                irt_assert(w.first < static_cast<u32>(grid_compo.row));
-                irt_assert(w.second < static_cast<u32>(grid_compo.column));
+                debug::ensure(w.first < static_cast<u32>(grid_compo.row));
+                debug::ensure(w.second < static_cast<u32>(grid_compo.column));
 
                 const auto index =
                   static_cast<i32>(w.first) * grid_compo.column +
                   static_cast<i32>(w.second);
 
-                irt_assert(0 <= index);
-                irt_assert(index < grid_obs.observers.ssize());
+                debug::ensure(0 <= index);
+                debug::ensure(index < grid_obs.observers.ssize());
 
                 auto&      obs    = sim.observers.alloc("tmp");
                 const auto obs_id = sim.observers.get_id(obs);
@@ -67,7 +67,7 @@ status grid_observer::init(project& pj, modeling& mod, simulation& sim) noexcept
       mod,
       parent_id,
       [&](auto& grid_parent_tn, auto& compo, auto& grid) -> status {
-          irt_assert(compo.type == component_type::grid);
+          debug::ensure(compo.type == component_type::grid);
 
           const auto len = grid.row * grid.column;
           rows           = grid.row;

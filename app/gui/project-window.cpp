@@ -19,8 +19,8 @@ static void show_tree_node_children(application& app,
                                     tree_node&   parent,
                                     const char*  str) noexcept
 {
-    irt_assert(str);
-    irt_assert(parent.tree.get_child() != nullptr);
+    debug::ensure(str);
+    debug::ensure(parent.tree.get_child() != nullptr);
 
     ImGuiTreeNodeFlags flags = ImGuiTreeNodeFlags_OpenOnArrow;
     bool is_selected         = app.project_wnd.is_selected(app.pj.node(parent));
@@ -44,8 +44,8 @@ static void show_tree_node_no_children(application& app,
                                        tree_node&   parent,
                                        const char*  str) noexcept
 {
-    irt_assert(str);
-    irt_assert(parent.tree.get_child() == nullptr);
+    debug::ensure(str);
+    debug::ensure(parent.tree.get_child() == nullptr);
 
     bool is_selected = app.project_wnd.is_selected(app.pj.node(parent));
 

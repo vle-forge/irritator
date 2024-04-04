@@ -46,7 +46,7 @@ static void show_only_variable_widget(hsm_t::variable& act) noexcept
 
     ImGui::PushItemWidth(-1);
     if (ImGui::Combo("##var", &var, variable_names + 5, 2)) {
-        irt_assert(0 <= var && var < 2);
+        debug::ensure(0 <= var && var < 2);
         act = enum_cast<hsm_t::variable>(var + 5);
     }
     ImGui::PopItemWidth();
@@ -62,7 +62,7 @@ static void show_variable_widget(hsm_t::variable& act, i32& parameter) noexcept
 
     ImGui::PushItemWidth(-1);
     if (ImGui::Combo("##var", &var, variable_names + 5, 3)) {
-        irt_assert(0 <= var && var < 3);
+        debug::ensure(0 <= var && var < 3);
         act = enum_cast<hsm_t::variable>(var + 5);
     }
 
@@ -257,7 +257,7 @@ static void show_port_widget(hsm_t::variable& var) noexcept
 
     ImGui::PushItemWidth(-1);
     if (ImGui::Combo("##port", &port, variable_names + 1, 4)) {
-        irt_assert(0 <= port && port <= 3);
+        debug::ensure(0 <= port && port <= 3);
         var = enum_cast<hsm_t::variable>(port + 1);
     }
     ImGui::PopItemWidth();
@@ -401,7 +401,7 @@ static void show_state_condition(hsm_t::condition_action& condition) noexcept
     ImGui::PushItemWidth(-1);
     if (ImGui::Combo(
           "##event", &type, condition_names, length(condition_names)))
-        irt_assert(0 <= type && type < hsm_t::condition_type_count);
+        debug::ensure(0 <= type && type < hsm_t::condition_type_count);
     condition.type = enum_cast<hsm_t::condition_type>(type);
     ImGui::PopItemWidth();
 
@@ -791,8 +791,8 @@ bool hsm_editor::valid() noexcept
     return true;
 }
 
-static auto get(hsm_editor& ed, component_id cid) noexcept
-  -> hierarchical_state_machine*
+static auto get(hsm_editor&  ed,
+                component_id cid) noexcept -> hierarchical_state_machine*
 {
     auto& app = container_of(&ed, &application::hsm_ed);
 

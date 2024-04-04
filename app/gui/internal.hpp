@@ -104,7 +104,7 @@ constexpr void log_w(application& app,
     auto level_msg_len = level_msg.size();
 
     auto& str = app.log_wnd.enqueue();
-    irt_assert(std::cmp_greater(str.capacity(), level_msg_len));
+    debug::ensure(std::cmp_greater(str.capacity(), level_msg_len));
 
     std::copy_n(level_msg.data(), level_msg.size(), str.begin());
     str[level_msg_len] = ' ';

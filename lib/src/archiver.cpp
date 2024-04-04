@@ -850,7 +850,7 @@ static void do_serialize_external_source(const Archiver /*s*/,
 
         i32 size = 0;
         io(size);
-        irt_assert(size > 0);
+        debug::ensure(size > 0);
         buffer.resize(size);
         io(std::span(buffer.data(), static_cast<size_t>(size)));
         buffer[size] = '\0';
@@ -858,7 +858,7 @@ static void do_serialize_external_source(const Archiver /*s*/,
     } else {
         auto str       = src.file_path.string();
         auto orig_size = str.size();
-        irt_assert(orig_size < INT32_MAX);
+        debug::ensure(orig_size < INT32_MAX);
         i32 size = static_cast<i32>(orig_size);
         io(size);
         io(std::span(str.data(), str.size()));
@@ -875,7 +875,7 @@ static void do_serialize_external_source(const Archiver /*s*/,
 
         i32 size = 0;
         io(size);
-        irt_assert(size > 0);
+        debug::ensure(size > 0);
         buffer.resize(size);
         io(std::span(buffer.data(), static_cast<size_t>(size)));
         buffer[size] = '\0';
@@ -883,7 +883,7 @@ static void do_serialize_external_source(const Archiver /*s*/,
     } else {
         auto str       = src.file_path.string();
         auto orig_size = str.size();
-        irt_assert(orig_size < INT32_MAX);
+        debug::ensure(orig_size < INT32_MAX);
         i32 size = static_cast<i32>(orig_size);
         io(size);
         io(std::span(str.data(), str.size()));
@@ -1206,7 +1206,7 @@ static status do_deserialize(Dearchiver&             arc,
         if (!out_id || !in_id)
             return new_error(binary_archiver::unknown_model_error{});
 
-        irt_assert(out_id && in_id);
+        debug::ensure(out_id && in_id);
 
         auto* mdl_src = sim.models.try_to_get(enum_cast<model_id>(*out_id));
         if (!mdl_src)

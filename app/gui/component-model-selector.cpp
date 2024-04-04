@@ -19,7 +19,7 @@ static void try_append(const application&                             app,
                        vector<std::pair<tree_node_id, component_id>>& out,
                        vector<small_string<254>>& names) noexcept
 {
-    irt_assert(out.ssize() == names.ssize());
+    debug::ensure(out.ssize() == names.ssize());
 
     if (auto it = std::find_if(
           out.begin(),
@@ -41,8 +41,8 @@ static void build_component_list(
   vector<std::pair<tree_node_id, component_id>>& out,
   vector<small_string<254>>&                     names) noexcept
 {
-    irt_assert(cache.empty());
-    irt_assert(out.empty());
+    debug::ensure(cache.empty());
+    debug::ensure(out.empty());
 
     auto* child = tn.tree.get_child();
     if (!child)
@@ -193,12 +193,12 @@ bool component_model_selector::observable_model_treenode(
   tree_node_id& tn_id,
   model_id&     mdl_id) noexcept
 {
-    irt_assert(0 <= component_selected);
-    irt_assert(component_selected < names.ssize());
-    irt_assert(is_defined(compo_id));
-    irt_assert(compo_id == components[component_selected].second);
-    irt_assert(is_defined(tn_id));
-    irt_assert(tn_id == components[component_selected].first);
+    debug::ensure(0 <= component_selected);
+    debug::ensure(component_selected < names.ssize());
+    debug::ensure(is_defined(compo_id));
+    debug::ensure(compo_id == components[component_selected].second);
+    debug::ensure(is_defined(tn_id));
+    debug::ensure(tn_id == components[component_selected].first);
 
     stack_tree_nodes.clear();
 
@@ -241,9 +241,9 @@ bool component_model_selector::combobox(const char*   label,
                                         tree_node_id& tn_id,
                                         model_id&     mdl_id) noexcept
 {
-    irt_assert(components.ssize() == names.ssize());
-    irt_assert(component_selected < names.ssize());
-    irt_assert(parent_id == current_tree_node);
+    debug::ensure(components.ssize() == names.ssize());
+    debug::ensure(component_selected < names.ssize());
+    debug::ensure(parent_id == current_tree_node);
 
     bool ret = component_comboxbox(label, compo_id, tn_id);
 

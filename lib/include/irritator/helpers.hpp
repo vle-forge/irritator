@@ -22,7 +22,7 @@ struct limiter {
       : lower{ lower_ }
       , upper{ upper_ }
     {
-        irt_assert(lower_ < upper_);
+        debug::ensure(lower_ < upper_);
     }
 
     constexpr bool is_valid(const T value) const noexcept

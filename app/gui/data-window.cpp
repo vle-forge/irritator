@@ -729,7 +729,7 @@ void data_window::show() noexcept
 
     if (show_source) {
         if (plot_available) {
-            irt_assert(plot.size() > 0);
+            debug::ensure(plot.size() > 0);
             if (ImPlot::BeginPlot("Plot", ImVec2(-1, -1))) {
                 ImPlot::PushStyleVar(ImPlotStyleVar_LineWeight, 1.f);
                 ImPlot::PushStyleVar(ImPlotStyleVar_MarkerSize, 1.f);

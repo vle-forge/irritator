@@ -95,7 +95,7 @@ constexpr auto compute_interpolate_size(const time t,
 template<typename OutputIterator>
 auto write_raw_data(observer& obs, OutputIterator it) noexcept -> void
 {
-    irt_assert(obs.buffer.ssize() >= 2);
+    debug::ensure(obs.buffer.ssize() >= 2);
 
     auto head = obs.buffer.head();
     auto tail = obs.buffer.tail();
@@ -148,7 +148,7 @@ auto compute_interpolate(const observation_message& msg,
 
 inline auto write_raw_data(observer& obs) noexcept -> void
 {
-    irt_assert(obs.buffer.ssize() >= 2);
+    debug::ensure(obs.buffer.ssize() >= 2);
 
     auto head = obs.buffer.head();
     auto tail = obs.buffer.tail();
@@ -202,7 +202,7 @@ auto write_interpolate_data(observer&      obs,
                             OutputIterator it,
                             real           time_step) noexcept -> void
 {
-    irt_assert(obs.buffer.ssize() >= 2);
+    debug::ensure(obs.buffer.ssize() >= 2);
 
     auto head = obs.buffer.head();
     auto tail = obs.buffer.tail();
@@ -245,10 +245,10 @@ auto write_interpolate_data(observer&      obs,
     }
 }
 
-inline auto write_interpolate_data(observer& obs, real time_step) noexcept
-  -> void
+inline auto write_interpolate_data(observer& obs,
+                                   real      time_step) noexcept -> void
 {
-    irt_assert(obs.buffer.ssize() >= 2);
+    debug::ensure(obs.buffer.ssize() >= 2);
 
     auto head = obs.buffer.head();
     auto tail = obs.buffer.tail();

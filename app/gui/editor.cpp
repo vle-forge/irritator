@@ -234,15 +234,15 @@ bool show_external_sources_combo(external_source& srcs,
                                  i64&             integer_0,
                                  i64&             integer_1) noexcept
 {
-    irt_assert(is_numeric_castable<u64>(integer_0));
-    irt_assert(std::cmp_less_equal(0, integer_1) &&
-               std::cmp_less_equal(integer_1, source::source_type_count));
+    debug::ensure(is_numeric_castable<u64>(integer_0));
+    debug::ensure(std::cmp_less_equal(0, integer_1) &&
+                  std::cmp_less_equal(integer_1, source::source_type_count));
 
     u64                 id   = static_cast<u64>(integer_0);
     source::source_type type = enum_cast<source::source_type>(integer_0);
 
     if (show_external_sources_combo(srcs, title, id, type)) {
-        irt_assert(is_numeric_castable<i64>(id));
+        debug::ensure(is_numeric_castable<i64>(id));
         integer_0 = static_cast<i64>(id);
         integer_1 = ordinal(type);
         return true;
@@ -940,7 +940,7 @@ static bool show_parameter_editor(application& /*app*/,
                                         "outcoming_component_n" };
 
     bool is_changed = false;
-    irt_assert(
+    debug::ensure(
       std::cmp_equal(std::size(type_names), constant::init_type_count));
 
     if (ImGui::InputReal("value", &p.reals[0]))
@@ -949,8 +949,8 @@ static bool show_parameter_editor(application& /*app*/,
     if (ImGui::InputReal("offset", &p.reals[1]))
         is_changed = true;
 
-    irt_assert(std::cmp_less_equal(0, p.integers[0]) &&
-               std::cmp_less(p.integers[0], constant::init_type_count));
+    debug::ensure(std::cmp_less_equal(0, p.integers[0]) &&
+                  std::cmp_less(p.integers[0], constant::init_type_count));
 
     int i = static_cast<int>(p.integers[0]);
     if (ImGui::Combo("type", &i, type_names, length(type_names))) {
@@ -1208,8 +1208,8 @@ static bool show_parameter_editor(application& /*app*/,
 
     static const char* items[] = { "time", "square", "sin" };
 
-    irt_assert(std::cmp_less_equal(0, p.integers[0]) &&
-               std::cmp_less(p.integers[0], 3));
+    debug::ensure(std::cmp_less_equal(0, p.integers[0]) &&
+                  std::cmp_less(p.integers[0], 3));
 
     auto value = static_cast<int>(p.integers[0]);
 
@@ -1569,7 +1569,7 @@ bool show_parameter(dynamics_constant_tag,
                                         "outcoming component n" };
 
     bool is_changed = false;
-    irt_assert(
+    debug::ensure(
       std::cmp_equal(std::size(type_names), constant::init_type_count));
 
     if (ImGui::InputReal("value", &p.reals[0]))
@@ -1578,8 +1578,8 @@ bool show_parameter(dynamics_constant_tag,
     if (ImGui::InputReal("offset", &p.reals[1]))
         is_changed = true;
 
-    irt_assert(std::cmp_less_equal(0, p.integers[0]) &&
-               std::cmp_less(p.integers[0], constant::init_type_count));
+    debug::ensure(std::cmp_less_equal(0, p.integers[0]) &&
+                  std::cmp_less(p.integers[0], constant::init_type_count));
 
     int i = static_cast<int>(p.integers[0]);
     if (ImGui::Combo("type", &i, type_names, length(type_names))) {
@@ -1730,8 +1730,8 @@ bool show_parameter(dynamics_time_func_tag,
 {
     static const char* items[] = { "time", "square", "sin" };
 
-    irt_assert(std::cmp_less_equal(0, p.integers[0]) &&
-               std::cmp_less(p.integers[0], 3));
+    debug::ensure(std::cmp_less_equal(0, p.integers[0]) &&
+                  std::cmp_less(p.integers[0], 3));
 
     bool is_changed = false;
     auto value      = static_cast<int>(p.integers[0]);

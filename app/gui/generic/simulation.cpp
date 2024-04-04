@@ -41,10 +41,10 @@ const char* observable_type_names[] = {
 
 static int make_input_node_id(const irt::model_id mdl, const int port) noexcept
 {
-    irt_assert(port >= 0 && port < 8);
+    debug::ensure(port >= 0 && port < 8);
 
     irt::u32 index = static_cast<u32>(irt::get_index(mdl));
-    irt_assert(index < 268435456u);
+    debug::ensure(index < 268435456u);
 
     irt::u32 port_index = static_cast<irt::u32>(port) << 28u;
     index |= port_index;
@@ -54,10 +54,10 @@ static int make_input_node_id(const irt::model_id mdl, const int port) noexcept
 
 static int make_output_node_id(const irt::model_id mdl, const int port) noexcept
 {
-    irt_assert(port >= 0 && port < 8);
+    debug::ensure(port >= 0 && port < 8);
 
     irt::u32 index = static_cast<u32>(irt::get_index(mdl));
-    irt_assert(index < 268435456u);
+    debug::ensure(index < 268435456u);
 
     irt::u32 port_index = static_cast<irt::u32>(8u + port) << 28u;
     index |= port_index;
@@ -71,7 +71,7 @@ static std::pair<irt::u32, irt::u32> get_model_input_port(
     const irt::u32 real_node_id = static_cast<irt::u32>(node_id);
 
     irt::u32 port = real_node_id >> 28u;
-    irt_assert(port < 8u);
+    debug::ensure(port < 8u);
 
     constexpr irt::u32 mask  = ~(15u << 28u);
     irt::u32           index = real_node_id & mask;
@@ -85,9 +85,9 @@ static std::pair<irt::u32, irt::u32> get_model_output_port(
     const irt::u32 real_node_id = static_cast<irt::u32>(node_id);
 
     irt::u32 port = real_node_id >> 28u;
-    irt_assert(port >= 8u && port < 16u);
+    debug::ensure(port >= 8u && port < 16u);
     port -= 8u;
-    irt_assert(port < 8u);
+    debug::ensure(port < 8u);
 
     constexpr irt::u32 mask  = ~(15u << 28u);
     irt::u32           index = real_node_id & mask;
@@ -107,9 +107,9 @@ static void add_input_attribute(simulation_editor& ed,
         const auto   mdl_id = app.sim.models.get_id(mdl);
         const auto   e      = length(dyn.x);
 
-        irt_assert(names != nullptr);
-        irt_assert(app.sim.models.try_to_get(mdl_id) == &mdl);
-        irt_assert(0 <= e && e < 8);
+        debug::ensure(names != nullptr);
+        debug::ensure(app.sim.models.try_to_get(mdl_id) == &mdl);
+        debug::ensure(0 <= e && e < 8);
 
         for (int i = 0; i != e; ++i) {
             ImNodes::BeginInputAttribute(make_input_node_id(mdl_id, i),
@@ -132,9 +132,9 @@ static void add_output_attribute(simulation_editor& ed,
         const auto   mdl_id = app.sim.models.get_id(mdl);
         const auto   e      = length(dyn.y);
 
-        irt_assert(names != nullptr);
-        irt_assert(app.sim.models.try_to_get(mdl_id) == &mdl);
-        irt_assert(0 <= e && e < 8);
+        debug::ensure(names != nullptr);
+        debug::ensure(app.sim.models.try_to_get(mdl_id) == &mdl);
+        debug::ensure(0 <= e && e < 8);
 
         for (int i = 0; i != e; ++i) {
             ImNodes::BeginOutputAttribute(make_output_node_id(mdl_id, i),
@@ -858,7 +858,7 @@ static void compute_automatic_layout(simulation_editor& ed) noexcept
 
     model* mdl = nullptr;
     for (int i_v = 0; i_v < size; ++i_v) {
-        irt_assert(app.sim.models.next(mdl));
+        debug::ensure(app.sim.models.next(mdl));
         const int v = i_v;
 
         const float d2 = ed.displacements[v].x * ed.displacements[v].x +

@@ -179,10 +179,10 @@ int struct_with_static_member::j = 0;
 inline int make_input_node_id(const irt::model_id mdl, const int port) noexcept
 {
     fmt::print("make_input_node_id({},{})\n", static_cast<irt::u64>(mdl), port);
-    irt_assert(port >= 0 && port < 8);
+    boost::ut::expect(port >= 0 && port < 8);
 
     auto index = irt::get_index(mdl);
-    irt_assert(index < 268435456u);
+    boost::ut::expect(index < 268435456u);
 
     fmt::print("{0:32b} <- index\n", index);
     fmt::print("{0:32b} <- port\n", port);
@@ -200,10 +200,10 @@ inline int make_output_node_id(const irt::model_id mdl, const int port) noexcept
 {
     fmt::print(
       "make_output_node_id({},{})\n", static_cast<irt::u64>(mdl), port);
-    irt_assert(port >= 0 && port < 8);
+    boost::ut::expect(port >= 0 && port < 8);
 
     auto index = irt::get_index(mdl);
-    irt_assert(index < 268435456u);
+    boost::ut::expect(index < 268435456u);
 
     fmt::print("{0:32b} <- index\n", index);
     fmt::print("{0:32b} <- port\n", port);
@@ -229,7 +229,7 @@ inline std::pair<irt::u32, irt::u32> get_model_input_port(
 
     irt::u32 port = real_node_id >> 28u;
     fmt::print("{0:32b} <- port\n", port);
-    irt_assert(port < 8u);
+    boost::ut::expect(port < 8u);
 
     constexpr irt::u32 mask = ~(15u << 28u);
     fmt::print("{0:32b} <- mask\n", mask);
@@ -251,10 +251,10 @@ inline std::pair<irt::u32, irt::u32> get_model_output_port(
     irt::u32 port = real_node_id >> 28u;
     fmt::print("{0:32b} <- port\n", port);
 
-    irt_assert(port >= 8u && port < 16u);
+    boost::ut::expect(port >= 8u && port < 16u);
     port -= 8u;
     fmt::print("{0:32b} <- port - 8u\n", port);
-    irt_assert(port < 8u);
+    boost::ut::expect(port < 8u);
 
     constexpr irt::u32 mask = ~(15u << 28u);
     fmt::print("{0:32b} <- mask\n", mask);

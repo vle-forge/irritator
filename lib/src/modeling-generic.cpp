@@ -37,8 +37,8 @@ static bool is_ports_compatible(modeling&          mod,
         if (con->type == connection::connection_type::output &&
             con->output.index == port_dst) {
             auto* sub_child_dst = mod.children.try_to_get(con->output.src);
-            irt_assert(sub_child_dst);
-            irt_assert(sub_child_dst->type == child_type::model);
+            debug::ensure(sub_child_dst);
+            debug::ensure(sub_child_dst->type == child_type::model);
 
             auto  sub_model_dst_id = sub_child_dst->id.mdl_id;
             auto* sub_model_dst    = mod.models.try_to_get(sub_model_dst_id);
@@ -72,11 +72,11 @@ static bool is_ports_compatible(modeling&          mod,
         if (con->type == connection::connection_type::input &&
             con->input.index == port_src) {
             auto* sub_child_src = mod.children.try_to_get(con->input.dst);
-            irt_assert(sub_child_src);
+            debug::ensure(sub_child_src);
             if (sub_child_src->type == child_type::model) {
                 auto  sub_model_src_id = sub_child_src->id.mdl_id;
                 auto* sub_model_src = mod.models.try_to_get(sub_model_src_id);
-                irt_assert(sub_model_src);
+                debug::ensure(sub_model_src);
 
                 if (!is_ports_compatible(*sub_model_src,
                                          con->input.index_dst.model,
@@ -110,12 +110,12 @@ static bool is_ports_compatible(modeling&          mod,
         if (con->type == connection::connection_type::output &&
             con->output.index == port_src) {
             auto* sub_child_src = mod.children.try_to_get(con->output.src);
-            irt_assert(sub_child_src);
+            debug::ensure(sub_child_src);
 
             if (sub_child_src->type == child_type::model) {
                 auto  sub_model_src_id = sub_child_src->id.mdl_id;
                 auto* sub_model_src = mod.models.try_to_get(sub_model_src_id);
-                irt_assert(sub_model_src);
+                debug::ensure(sub_model_src);
 
                 if (!is_ports_compatible(mod,
                                          *sub_model_src,
@@ -142,8 +142,8 @@ static bool is_ports_compatible(modeling&          mod,
 //{
 //     auto* child_src = mod.children.try_to_get(src);
 //     auto* child_dst = mod.children.try_to_get(dst);
-//     irt_assert(child_src);
-//     irt_assert(child_dst);
+//     debug::ensure(child_src);
+//     debug::ensure(child_dst);
 //
 //     if (child_src->type == child_type::model) {
 //         auto  mdl_src_id = child_src->id.mdl_id;
@@ -158,10 +158,10 @@ static bool is_ports_compatible(modeling&          mod,
 //         } else {
 //             auto  compo_dst_id = child_dst->id.compo_id;
 //             auto* compo_dst    = mod.components.try_to_get(compo_dst_id);
-//             irt_assert(compo_dst);
+//             debug::ensure(compo_dst);
 //             auto* s_compo_dst =
 //               mod.generic_components.try_to_get(compo_dst->id.generic_id);
-//             irt_assert(s_compo_dst);
+//             debug::ensure(s_compo_dst);
 //
 //             return is_ports_compatible(
 //               mod, *mdl_src, port_src, *s_compo_dst, port_dst);
@@ -169,25 +169,25 @@ static bool is_ports_compatible(modeling&          mod,
 //     } else {
 //         auto  compo_src_id = child_src->id.compo_id;
 //         auto* compo_src    = mod.components.try_to_get(compo_src_id);
-//         irt_assert(compo_src);
+//         debug::ensure(compo_src);
 //         auto* s_compo_src =
 //           mod.generic_components.try_to_get(compo_src->id.generic_id);
-//         irt_assert(s_compo_src);
+//         debug::ensure(s_compo_src);
 //
 //         if (child_dst->type == child_type::model) {
 //             auto  mdl_dst_id = child_dst->id.mdl_id;
 //             auto* mdl_dst    = mod.models.try_to_get(mdl_dst_id);
-//             irt_assert(mdl_dst);
+//             debug::ensure(mdl_dst);
 //
 //             return is_ports_compatible(
 //               mod, *s_compo_src, port_src, *mdl_dst, port_dst);
 //         } else {
 //             auto  compo_dst_id = child_dst->id.compo_id;
 //             auto* compo_dst    = mod.components.try_to_get(compo_dst_id);
-//             irt_assert(compo_dst);
+//             debug::ensure(compo_dst);
 //             auto* s_compo_dst =
 //               mod.generic_components.try_to_get(compo_dst->id.generic_id);
-//             irt_assert(s_compo_dst);
+//             debug::ensure(s_compo_dst);
 //
 //             return is_ports_compatible(
 //               mod, *s_compo_src, port_src, *s_compo_dst, port_dst);

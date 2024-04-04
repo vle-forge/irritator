@@ -378,7 +378,7 @@ void simulation_editor::start_simulation_copy_modeling() noexcept
                            simulation_status::not_started,
                            simulation_status::finished);
 
-    irt_assert(state);
+    debug::ensure(state);
 
     if (state) {
         auto& app           = container_of(this, &application::simulation_ed);
@@ -408,7 +408,7 @@ void simulation_editor::start_simulation_init() noexcept
                            simulation_status::not_started,
                            simulation_status::finished);
 
-    irt_assert(state);
+    debug::ensure(state);
 
     if (state) {
         auto& app = container_of(this, &application::simulation_ed);
@@ -457,7 +457,7 @@ void simulation_editor::start_simulation_start() noexcept
                            simulation_status::initialized,
                            simulation_status::pause_forced);
 
-    irt_assert(state);
+    debug::ensure(state);
 
     if (state) {
         if (real_time) {
@@ -506,8 +506,8 @@ void simulation_editor::start_simulation_observation() noexcept
                 obs_max = 0;
         }
     } else {
-        irt_assert(app.simulation_ed.simulation_state !=
-                   simulation_status::finished);
+        debug::ensure(app.simulation_ed.simulation_state !=
+                      simulation_status::finished);
 
         int obs_max = app.sim.immediate_observers.ssize();
         int current = 0;
@@ -548,7 +548,7 @@ void simulation_editor::start_simulation_start_1() noexcept
                            simulation_status::pause_forced,
                            simulation_status::debugged);
 
-    irt_assert(state);
+    debug::ensure(state);
 
     if (state) {
         auto& app = container_of(this, &application::simulation_ed);
@@ -593,7 +593,7 @@ void simulation_editor::start_simulation_pause() noexcept
 {
     bool state = any_equal(simulation_state, simulation_status::running);
 
-    irt_assert(state);
+    debug::ensure(state);
 
     if (state) {
         auto& app = container_of(this, &application::simulation_ed);
@@ -607,7 +607,7 @@ void simulation_editor::start_simulation_stop() noexcept
     bool state = any_equal(
       simulation_state, simulation_status::running, simulation_status::paused);
 
-    irt_assert(state);
+    debug::ensure(state);
 
     if (state) {
         auto& app = container_of(this, &application::simulation_ed);

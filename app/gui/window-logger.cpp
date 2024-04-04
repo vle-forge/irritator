@@ -11,14 +11,13 @@ namespace irt {
 
 window_logger::window_logger() noexcept
   : entries{ window_logger::ring_buffer_length }
-{
-}
+{}
 
 void window_logger::clear() noexcept { entries.clear(); }
 
 auto window_logger::enqueue() noexcept -> window_logger::string_t&
 {
-    irt_assert(entries.capacity() > 0);
+    debug::ensure(entries.capacity() > 0);
 
     if (entries.full())
         entries.pop_head();

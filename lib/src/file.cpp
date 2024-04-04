@@ -84,7 +84,7 @@ bool read_from_file(File& f, i16& value) noexcept
 #if defined(__GNUC__) || defined(__clang__)
         value = __builtin_bswap16(value);
 #elif defined(_MSC_VER)
-        value     = _byteswap_ushort(value);
+        value = _byteswap_ushort(value);
 #endif
     }
 
@@ -116,7 +116,7 @@ bool read_from_file(File& f, i32& value) noexcept
 #if defined(__GNUC__) || defined(__clang__)
         value = __builtin_bswap32(value);
 #elif defined(_MSC_VER)
-        value     = _byteswap_ulong(value);
+        value = _byteswap_ulong(value);
 #endif
     }
 
@@ -148,7 +148,7 @@ bool read_from_file(File& f, i64& value) noexcept
 #if defined(__GNUC__) || defined(__clang__)
         value = __builtin_bswap64(value);
 #elif defined(_MSC_VER)
-        value     = _byteswap_uint64(value);
+        value = _byteswap_uint64(value);
 #endif
     }
 
@@ -192,7 +192,7 @@ bool read_from_file(File& f, u16& value) noexcept
 #if defined(__GNUC__) || defined(__clang__)
         value = __builtin_bswap16(value);
 #elif defined(_MSC_VER)
-        value     = _byteswap_ushort(value);
+        value = _byteswap_ushort(value);
 #endif
     }
 
@@ -224,7 +224,7 @@ bool read_from_file(File& f, u32& value) noexcept
 #if defined(__GNUC__) || defined(__clang__)
         value = __builtin_bswap32(value);
 #elif defined(_MSC_VER)
-        value     = _byteswap_ulong(value);
+        value = _byteswap_ulong(value);
 #endif
     }
 
@@ -256,7 +256,7 @@ bool read_from_file(File& f, u64& value) noexcept
 #if defined(__GNUC__) || defined(__clang__)
         value = __builtin_bswap64(value);
 #elif defined(_MSC_VER)
-        value     = _byteswap_uint64(value);
+        value = _byteswap_uint64(value);
 #endif
     }
 
@@ -288,7 +288,7 @@ bool read_from_file(File& f, float& value) noexcept
 #if defined(__GNUC__) || defined(__clang__)
         value = __builtin_bswap32(value);
 #elif defined(_MSC_VER)
-        value     = _byteswap_ulong(value);
+        value = _byteswap_ulong(value);
 #endif
     }
 
@@ -320,7 +320,7 @@ bool read_from_file(File& f, double& value) noexcept
 #if defined(__GNUC__) || defined(__clang__)
         value = __builtin_bswap64(value);
 #elif defined(_MSC_VER)
-        value     = _byteswap_uint64(value);
+        value = _byteswap_uint64(value);
 #endif
     }
 
@@ -342,8 +342,8 @@ bool write_to_file(File& f, const double value) noexcept
     }
 }
 
-auto file::make_file(const char* filename, const open_mode mode_) noexcept
-  -> result<file>
+auto file::make_file(const char*     filename,
+                     const open_mode mode_) noexcept -> result<file>
 {
     errno = 0;
 
@@ -437,7 +437,7 @@ bool file::is_open() const noexcept { return file_handle != nullptr; }
 
 i64 file::length() const noexcept
 {
-    irt_assert(file_handle);
+    debug::ensure(file_handle);
 
     const auto prev = std::ftell(to_handle(file_handle));
     std::fseek(to_handle(file_handle), 0, SEEK_END);
@@ -450,21 +450,21 @@ i64 file::length() const noexcept
 
 i64 file::tell() const noexcept
 {
-    irt_assert(file_handle);
+    debug::ensure(file_handle);
 
     return std::ftell(to_handle(file_handle));
 }
 
 void file::flush() const noexcept
 {
-    irt_assert(file_handle);
+    debug::ensure(file_handle);
 
     std::fflush(to_handle(file_handle));
 }
 
 i64 file::seek(i64 offset, seek_origin origin) noexcept
 {
-    irt_assert(file_handle);
+    debug::ensure(file_handle);
 
     const auto offset_good = static_cast<long int>(offset);
     const auto origin_good = origin == seek_origin::current ? SEEK_CUR
@@ -476,7 +476,7 @@ i64 file::seek(i64 offset, seek_origin origin) noexcept
 
 void file::rewind() noexcept
 {
-    irt_assert(file_handle);
+    debug::ensure(file_handle);
 
     std::rewind(to_handle(file_handle));
 }
@@ -571,9 +571,9 @@ bool file::write(const double value) noexcept
 
 bool file::read(void* buffer, i64 length) noexcept
 {
-    irt_assert(file_handle);
-    irt_assert(buffer);
-    irt_assert(length > 0);
+    debug::ensure(file_handle);
+    debug::ensure(buffer);
+    debug::ensure(length > 0);
 
     const auto len     = static_cast<size_t>(length);
     const auto written = std::fread(buffer, len, 1, to_handle(file_handle));
@@ -582,9 +582,9 @@ bool file::read(void* buffer, i64 length) noexcept
 
 bool file::write(const void* buffer, i64 length) noexcept
 {
-    irt_assert(file_handle);
-    irt_assert(buffer);
-    irt_assert(length > 0);
+    debug::ensure(file_handle);
+    debug::ensure(buffer);
+    debug::ensure(length > 0);
 
     const auto len     = static_cast<size_t>(length);
     const auto written = std::fwrite(buffer, len, 1, to_handle(file_handle));
@@ -721,9 +721,9 @@ bool memory::write(const double value) noexcept
 
 bool memory::read(void* buffer, i64 length) noexcept
 {
-    irt_assert(data.ssize() == data.capacity());
-    irt_assert(buffer);
-    irt_assert(length > 0);
+    debug::ensure(data.ssize() == data.capacity());
+    debug::ensure(buffer);
+    debug::ensure(length > 0);
 
     if (pos + length < static_cast<i64>(data.capacity())) {
         std::copy_n(data.data() + pos,
@@ -739,9 +739,9 @@ bool memory::read(void* buffer, i64 length) noexcept
 
 bool memory::write(const void* buffer, i64 length) noexcept
 {
-    irt_assert(data.ssize() == data.capacity());
-    irt_assert(buffer);
-    irt_assert(length > 0);
+    debug::ensure(data.ssize() == data.capacity());
+    debug::ensure(buffer);
+    debug::ensure(length > 0);
 
     if (pos + length < static_cast<i64>(data.capacity())) {
         std::copy_n(reinterpret_cast<const u8*>(buffer),

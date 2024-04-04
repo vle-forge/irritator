@@ -109,14 +109,14 @@ public:
 
     Ret operator()(Params... args) noexcept
     {
-        irt_assert(invoker && "Bad small_function call");
+        debug::ensure(invoker && "Bad small_function call");
         return invoker(&data, std::forward<Params>(args)...);
     }
 
 private:
     enum class Operation { Clone, Destroy };
 
-    using Invoker = Ret  (*)(void*, Params&&...);
+    using Invoker = Ret (*)(void*, Params&&...);
     using Manager = void (*)(void*, const void*, Operation);
     using Storage = std::array<std::byte, Size>;
 
@@ -157,8 +157,8 @@ class function_ref;
 template<typename Ret, typename... Params>
 class function_ref<Ret(Params...)>
 {
-    Ret   (*callback)(void* callable, Params... params) = nullptr;
-    void* callable                                      = nullptr;
+    Ret (*callback)(void* callable, Params... params) = nullptr;
+    void* callable                                    = nullptr;
 
     template<typename Callable>
     static Ret callback_fn(void* callable, Params... params)
@@ -188,7 +188,7 @@ public:
 
     Ret operator()(Params... params) const
     {
-        irt_assert(callable && "Bad function_ref call");
+        debug::ensure(callable && "Bad function_ref call");
         return callback(callable, std::forward<Params>(params)...);
     }
 
@@ -488,8 +488,8 @@ hierarchy<T>* hierarchy<T>::get_prior_sibling_node() const noexcept
         node = node->m_sibling;
     }
 
-    irt_assert(node == this &&
-               "could not find node in parent's list of children");
+    debug::ensure(node == this &&
+                  "could not find node in parent's list of children");
 
     return prev;
 }

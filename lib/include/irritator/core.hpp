@@ -5,18 +5,15 @@
 #ifndef ORG_VLEPROJECT_IRRITATOR_2020
 #define ORG_VLEPROJECT_IRRITATOR_2020
 
-#include <ios>
-#include <irritator/macros.hpp>
-
 #include <irritator/container.hpp>
 #include <irritator/error.hpp>
+#include <irritator/macros.hpp>
 
 #include <array>
 #include <concepts>
 #include <cstddef>
 #include <filesystem>
 #include <fstream>
-#include <functional>
 #include <limits>
 #include <memory>
 #include <span>
@@ -33,7 +30,6 @@
 #endif
 #endif
 
-#include <climits>
 #include <cmath>
 #include <cstdint>
 #include <cstring>
@@ -804,7 +800,7 @@ public:
                                  : Upper)
     {}
 
-    constexpr explicit operator T() const noexcept { return m_value; }
+    constexpr explicit   operator T() const noexcept { return m_value; }
     constexpr value_type operator*() const noexcept { return m_value; }
     constexpr value_type value() const noexcept { return m_value; }
 };
@@ -1332,52 +1328,38 @@ public:
 
 template<typename T>
 concept has_lambda_function = requires(T t, simulation& sim) {
-    {
-        t.lambda(sim)
-    } -> std::same_as<status>;
+    { t.lambda(sim) } -> std::same_as<status>;
 };
 
 template<typename T>
 concept has_transition_function =
   requires(T t, simulation& sim, time s, time e, time r) {
-      {
-          t.transition(sim, s, e, r)
-      } -> std::same_as<status>;
+      { t.transition(sim, s, e, r) } -> std::same_as<status>;
   };
 
 template<typename T>
 concept has_observation_function = requires(T t, time s, time e) {
-    {
-        t.observation(s, e)
-    } -> std::same_as<observation_message>;
+    { t.observation(s, e) } -> std::same_as<observation_message>;
 };
 
 template<typename T>
 concept has_initialize_function = requires(T t, simulation& sim) {
-    {
-        t.initialize(sim)
-    } -> std::same_as<status>;
+    { t.initialize(sim) } -> std::same_as<status>;
 };
 
 template<typename T>
 concept has_finalize_function = requires(T t, simulation& sim) {
-    {
-        t.finalize(sim)
-    } -> std::same_as<status>;
+    { t.finalize(sim) } -> std::same_as<status>;
 };
 
 template<typename T>
 concept has_input_port = requires(T t) {
-    {
-        t.x
-    };
+    { t.x };
 };
 
 template<typename T>
 concept has_output_port = requires(T t) {
-    {
-        t.y
-    };
+    { t.y };
 };
 
 constexpr observation_message qss_observation(real X,

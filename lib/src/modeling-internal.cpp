@@ -48,9 +48,9 @@ static status add_integrator_component_port(modeling&          mod,
     auto* y_port    = mod.ports.try_to_get(y_port_id);
     auto* c         = com.children.try_to_get(id);
 
-    irt_assert(x_port);
-    irt_assert(y_port);
-    irt_assert(c);
+    debug::ensure(x_port);
+    debug::ensure(y_port);
+    debug::ensure(c);
 
     irt_check(mod.connect_input(com, *x_port, *c, 1));
     irt_check(mod.connect_output(com, *c, 0, *y_port));

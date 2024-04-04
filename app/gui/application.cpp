@@ -629,8 +629,8 @@ static void show_select_model_box_recursive(application&   app,
         show_select_model_box_recursive(app, *sibling, access);
 }
 
-auto build_unique_component_vector(application& app, tree_node& tn)
-  -> vector<component_id>
+auto build_unique_component_vector(application& app,
+                                   tree_node&   tn) -> vector<component_id>
 {
     vector<component_id> ret;
     vector<tree_node*>   stack;
@@ -670,7 +670,7 @@ bool show_select_model_box(const char*    button_label,
     auto ret = false;
 
     if (ImGui::Button(button_label)) {
-        irt_assert(app.pj.tree_nodes.get_id(tn) == access.parent_id);
+        debug::ensure(app.pj.tree_nodes.get_id(tn) == access.parent_id);
         app.component_model_sel.select(
           access.parent_id, access.compo_id, access.tn_id, access.mdl_id);
         copy = access;
@@ -717,7 +717,7 @@ bool show_select_model_box(const char*     button_label,
     auto ret = false;
 
     if (ImGui::Button(button_label)) {
-        irt_assert(app.pj.tree_nodes.get_id(tn) == access.parent_id);
+        debug::ensure(app.pj.tree_nodes.get_id(tn) == access.parent_id);
         app.component_model_sel.select(
           access.parent_id, access.compo_id, access.tn_id, access.mdl_id);
         copy = access;

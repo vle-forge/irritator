@@ -8,10 +8,6 @@
 #include <cassert>
 #include <cstdlib>
 
-#ifndef irt_assert
-#define irt_assert(_expr) assert(_expr)
-#endif
-
 #if defined(_MSC_VER) && !defined(__clang__)
 #define irt_force_inline_attribute [[msvc::forceinline]]
 #else

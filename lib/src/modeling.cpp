@@ -51,7 +51,7 @@ auto modeling::get_or_add_x_index(component&       compo,
     if (is_defined(ret))
         return ret;
 
-    irt_assert(ports.can_alloc());
+    debug::ensure(ports.can_alloc());
 
     auto& new_p    = ports.alloc(name, components.get_id(compo));
     auto  new_p_id = ports.get_id(new_p);
@@ -68,7 +68,7 @@ auto modeling::get_or_add_y_index(component&       compo,
     if (is_defined(ret))
         return ret;
 
-    irt_assert(ports.can_alloc());
+    debug::ensure(ports.can_alloc());
 
     auto& new_p    = ports.alloc(name, components.get_id(compo));
     auto  new_p_id = ports.get_id(new_p);
@@ -739,7 +739,7 @@ void modeling::move_file(registred_path& /*reg*/,
         it != from.children.end())
         from.children.erase(it);
 
-    irt_assert(!exist_file(to, id));
+    debug::ensure(!exist_file(to, id));
 
     file.parent = dir_paths.get_id(to);
     to.children.emplace_back(id);
@@ -762,7 +762,7 @@ bool modeling::can_alloc_generic_component() const noexcept
 
 component& modeling::alloc_grid_component() noexcept
 {
-    irt_assert(can_alloc_grid_component());
+    debug::ensure(can_alloc_grid_component());
 
     auto& new_compo    = components.alloc();
     auto  new_compo_id = components.get_id(new_compo);
@@ -779,7 +779,7 @@ component& modeling::alloc_grid_component() noexcept
 
 component& modeling::alloc_graph_component() noexcept
 {
-    irt_assert(can_alloc_graph_component());
+    debug::ensure(can_alloc_graph_component());
 
     auto& new_compo    = components.alloc();
     auto  new_compo_id = components.get_id(new_compo);
@@ -795,7 +795,7 @@ component& modeling::alloc_graph_component() noexcept
 
 component& modeling::alloc_generic_component() noexcept
 {
-    irt_assert(can_alloc_generic_component());
+    debug::ensure(can_alloc_generic_component());
 
     auto& new_compo    = components.alloc();
     auto  new_compo_id = components.get_id(new_compo);

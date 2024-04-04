@@ -323,8 +323,8 @@ static void build_small_world_edges(
                 second = target;
             }
 
-            irt_assert(first >= 0 && first < n);
-            irt_assert(second >= 0 && second < n);
+            debug::ensure(first >= 0 && first < n);
+            debug::ensure(second >= 0 && second < n);
 
             vertex* vertex_first = nullptr;
             {

@@ -647,7 +647,7 @@ status random_source::update(source& src) noexcept
 
 status random_source::restore(source& src) noexcept
 {
-    irt_assert(src.chunk_id[3] >= start_counter);
+    debug::ensure(src.chunk_id[3] >= start_counter);
 
     const auto client = numeric_cast<int>(src.chunk_id[3] - start_counter);
 

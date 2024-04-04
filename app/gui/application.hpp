@@ -29,7 +29,7 @@
 namespace irt {
 
 template<class T, class M>
-constexpr std::ptrdiff_t offset_of(const M T::*member)
+constexpr std::ptrdiff_t offset_of(const M T::* member)
 {
     return reinterpret_cast<std::ptrdiff_t>(
       &(reinterpret_cast<T*>(0)->*member));
@@ -49,7 +49,7 @@ constexpr std::ptrdiff_t offset_of(const M T::*member)
 //! }
 //! @endcode
 template<class T, class M>
-constexpr T& container_of(M* ptr, const M T::*member)
+constexpr T& container_of(M* ptr, const M T::* member)
 {
     return *reinterpret_cast<T*>(reinterpret_cast<intptr_t>(ptr) -
                                  offset_of(member));
@@ -198,7 +198,7 @@ public:
     // template<typename Function>
     // void for_each_observers(Function&& f) noexcept
     // {
-    //     irt_assert(observers.size() == ids.size());
+    //     debug::ensure(observers.size() == ids.size());
 
     //     for (int i = 0, e = observers.ssize(); i != e; ++i) {
     //         f(observers[i], ids[i]);

@@ -47,31 +47,31 @@ inline int pack_node_child(const child_id child) noexcept
 
 inline int unpack_node_child(const int node) noexcept
 {
-    irt_assert(is_node_child(node));
+    debug::ensure(is_node_child(node));
     return node >> shift_tag;
 }
 
 inline int pack_node_X(const port_id port) noexcept
 {
-    irt_assert(get_index(port) <= 0x1fff);
+    debug::ensure(get_index(port) <= 0x1fff);
     return static_cast<int>((get_index(port) << shift_tag) | input_tag);
 }
 
 inline int unpack_node_X(const int node) noexcept
 {
-    irt_assert(is_node_X(node));
+    debug::ensure(is_node_X(node));
     return node >> shift_tag;
 }
 
 inline int pack_node_Y(const port_id port) noexcept
 {
-    irt_assert(get_index(port) <= 0x1fff);
+    debug::ensure(get_index(port) <= 0x1fff);
     return static_cast<int>((get_index(port) << shift_tag) | output_tag);
 }
 
 inline int unpack_node_Y(const int node) noexcept
 {
-    irt_assert(is_node_Y(node));
+    debug::ensure(is_node_Y(node));
     return node >> shift_tag;
 }
 
@@ -117,7 +117,7 @@ inline bool is_output_child_component(const int attribute) noexcept
 
 inline int pack_X(const port_id port) noexcept
 {
-    irt_assert(get_index(port) <= 0x1fff);
+    debug::ensure(get_index(port) <= 0x1fff);
 
     return static_cast<int>((get_index(port) << shift_port) |
                             input_component_port);
@@ -125,13 +125,13 @@ inline int pack_X(const port_id port) noexcept
 
 inline u32 unpack_X(const int attribute) noexcept
 {
-    irt_assert(is_input_X(attribute));
+    debug::ensure(is_input_X(attribute));
     return static_cast<u32>(attribute >> shift_port);
 }
 
 inline int pack_Y(const port_id port) noexcept
 {
-    irt_assert(get_index(port) <= 0x1fff);
+    debug::ensure(get_index(port) <= 0x1fff);
 
     return static_cast<int>(
       (get_index(port) << shift_port | output_component_port));
@@ -139,13 +139,13 @@ inline int pack_Y(const port_id port) noexcept
 
 inline u32 unpack_Y(const int attribute) noexcept
 {
-    irt_assert(is_output_Y(attribute));
+    debug::ensure(is_output_Y(attribute));
     return static_cast<u32>(attribute >> shift_port);
 }
 
 inline int pack_in(const child_id id, const int port) noexcept
 {
-    irt_assert(0 <= port && port < 8);
+    debug::ensure(0 <= port && port < 8);
 
     auto ret = get_index(id) << shift_child_port;
     ret |= static_cast<u16>(port) << 3;
@@ -155,7 +155,7 @@ inline int pack_in(const child_id id, const int port) noexcept
 
 inline int pack_in(const child_id id, const port_id port) noexcept
 {
-    irt_assert(get_index(port) <= 0x1fff);
+    debug::ensure(get_index(port) <= 0x1fff);
 
     auto ret = get_index(id) << shift_child_port;
     ret |= static_cast<u16>(port) << 3;
@@ -165,9 +165,9 @@ inline int pack_in(const child_id id, const port_id port) noexcept
 
 inline std::pair<u32, u32> unpack_in(const int attribute) noexcept
 {
-    irt_assert(!is_input_X(attribute));
-    irt_assert(is_input_child_model(attribute) ||
-               is_input_child_component(attribute));
+    debug::ensure(!is_input_X(attribute));
+    debug::ensure(is_input_child_model(attribute) ||
+                  is_input_child_component(attribute));
 
     const auto child = attribute >> 16;
     const auto port  = (attribute >> 3) & 0x1fff;
@@ -176,7 +176,7 @@ inline std::pair<u32, u32> unpack_in(const int attribute) noexcept
 
 inline int pack_out(const child_id id, const int port) noexcept
 {
-    irt_assert(0 <= port && port < 8);
+    debug::ensure(0 <= port && port < 8);
 
     auto ret = get_index(id) << shift_child_port;
     ret |= static_cast<u16>(port) << 3;
@@ -186,7 +186,7 @@ inline int pack_out(const child_id id, const int port) noexcept
 
 inline int pack_out(const child_id id, const port_id port) noexcept
 {
-    irt_assert(get_index(port) <= 0x1fff);
+    debug::ensure(get_index(port) <= 0x1fff);
 
     auto ret = get_index(id) << shift_child_port;
     ret |= static_cast<u16>(port) << 3;
@@ -196,9 +196,9 @@ inline int pack_out(const child_id id, const port_id port) noexcept
 
 inline std::pair<u32, u32> unpack_out(const int attribute) noexcept
 {
-    irt_assert(!is_output_Y(attribute));
-    irt_assert(is_output_child_model(attribute) ||
-               is_output_child_component(attribute));
+    debug::ensure(!is_output_Y(attribute));
+    debug::ensure(is_output_child_model(attribute) ||
+                  is_output_child_component(attribute));
 
     const auto child = attribute >> 16;
     const auto port  = (attribute >> 3) & 0x1fff;
@@ -909,7 +909,7 @@ static void is_link_created(application& app,
         if (is_input_X(start)) {
             auto  port_idx = unpack_X(start);
             auto* port     = app.mod.ports.try_to_get(port_idx);
-            irt_assert(port);
+            debug::ensure(port);
 
             if (is_output_Y(end)) {
                 error_not_connection_auth(app);
@@ -918,7 +918,7 @@ static void is_link_created(application& app,
 
             auto  child_port = unpack_in(end);
             auto* child      = s_parent.children.try_to_get(child_port.first);
-            irt_assert(child);
+            debug::ensure(child);
 
             if (child->type == child_type::model) {
                 auto port_in = static_cast<int>(child_port.second);
@@ -930,7 +930,7 @@ static void is_link_created(application& app,
                 parent.state = component_status::modified;
             } else {
                 auto* port_in = app.mod.ports.try_to_get(child_port.second);
-                irt_assert(port_in);
+                debug::ensure(port_in);
 
                 if (auto ret = app.mod.connect_input(
                       s_parent, *port, *child, app.mod.ports.get_id(*port_in));
@@ -941,12 +941,12 @@ static void is_link_created(application& app,
         } else {
             auto  ch_port_src = unpack_out(start);
             auto* ch_src      = s_parent.children.try_to_get(ch_port_src.first);
-            irt_assert(ch_src);
+            debug::ensure(ch_src);
 
             if (is_output_Y(end)) {
                 auto  port_idx = unpack_Y(end);
                 auto* port     = app.mod.ports.try_to_get(port_idx);
-                irt_assert(port);
+                debug::ensure(port);
 
                 if (ch_src->type == child_type::model) {
                     auto port_out = static_cast<int>(ch_port_src.second);
@@ -958,7 +958,7 @@ static void is_link_created(application& app,
                 } else {
                     auto* port_out =
                       app.mod.ports.try_to_get(ch_port_src.second);
-                    irt_assert(port_out);
+                    debug::ensure(port_out);
 
                     if (auto ret = app.mod.connect_output(
                           s_parent,
@@ -972,7 +972,7 @@ static void is_link_created(application& app,
             } else {
                 auto  ch_port_dst = unpack_in(end);
                 auto* ch_dst = s_parent.children.try_to_get(ch_port_dst.first);
-                irt_assert(ch_dst);
+                debug::ensure(ch_dst);
 
                 if (ch_src->type == child_type::model) {
                     auto port_out = static_cast<int>(ch_port_src.second);
@@ -987,7 +987,7 @@ static void is_link_created(application& app,
                     } else {
                         auto* port_in =
                           app.mod.ports.try_to_get(ch_port_dst.second);
-                        irt_assert(port_in);
+                        debug::ensure(port_in);
 
                         if (auto ret =
                               app.mod.connect(s_parent,
@@ -1002,7 +1002,7 @@ static void is_link_created(application& app,
                 } else {
                     auto* port_out =
                       app.mod.ports.try_to_get(ch_port_src.second);
-                    irt_assert(port_out);
+                    debug::ensure(port_out);
 
                     if (ch_dst->type == child_type::model) {
                         auto port_in = static_cast<int>(ch_port_dst.second);
@@ -1019,7 +1019,7 @@ static void is_link_created(application& app,
                     } else {
                         auto* port_in =
                           app.mod.ports.try_to_get(ch_port_dst.second);
-                        irt_assert(port_in);
+                        debug::ensure(port_in);
 
                         if (auto ret =
                               app.mod.connect(s_parent,
