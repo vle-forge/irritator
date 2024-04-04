@@ -1229,8 +1229,8 @@ public:
     using memory_resource_t = typename A::memory_resource_t;
 
     static_assert((std::is_nothrow_constructible_v<T> ||
-                   std::is_nothrow_move_constructible_v<
-                     T>)&&std::is_nothrow_destructible_v<T>);
+                   std::is_nothrow_move_constructible_v<T>) &&
+                  std::is_nothrow_destructible_v<T>);
 
 private:
     T*                                   buffer = nullptr;
@@ -1535,8 +1535,8 @@ class small_ring_buffer
 public:
     static_assert(length >= 1);
     static_assert((std::is_nothrow_constructible_v<T> ||
-                   std::is_nothrow_move_constructible_v<
-                     T>)&&std::is_nothrow_destructible_v<T>);
+                   std::is_nothrow_move_constructible_v<T>) &&
+                  std::is_nothrow_destructible_v<T>);
 
     using value_type      = T;
     using size_type       = small_storage_size_t<length>;
@@ -1799,7 +1799,8 @@ constexpr Identifier id_array<Identifier, A>::alloc() noexcept
         ++m_valid_item_number;
         return m_items[new_index];
     } else {
-        m_items.emplace_back(make_id(m_next_key, m_items.size()));
+        m_items.emplace_back(
+          make_id(m_next_key, static_cast<index_type>(m_items.size())));
         m_next_key = make_next_key(m_next_key);
         ++m_valid_item_number;
         return m_items.back();
