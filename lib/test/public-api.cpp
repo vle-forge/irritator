@@ -2916,10 +2916,10 @@ int main()
     "binary-memory-io"_test = [] {
         irt::memory f(256, irt::open_mode::write);
 
-        assert(f.data.ssize() == 256);
-        assert(f.data.capacity() == 256);
-        assert(f.tell() == 0);
-        assert(f.length() == 256);
+        expect(eq(f.data.ssize(), 256));
+        expect(eq(f.data.capacity(), 256));
+        expect(eq(f.tell(), 0));
+        expect(eq(f.length(), 256));
 
         irt::u8  a = 0xfe;
         irt::u16 b = 0xfedc;
@@ -2931,20 +2931,20 @@ int main()
         f.write(c);
         f.write(d);
 
-        assert(f.data.ssize() == 256);
-        assert(f.data.capacity() == 256);
-        assert(f.tell() == 8 + 4 + 2 + 1);
-        assert(f.length() == 256);
+        expect(eq(f.data.ssize(), 256));
+        expect(eq(f.data.capacity(), 256));
+        expect(eq(f.tell(), 8 + 4 + 2 + 1));
+        expect(eq(f.length(), 256));
 
         irt::u8  a_w = f.data[0];
         irt::u16 b_w = *(reinterpret_cast<irt::u16*>(&f.data[1]));
         irt::u32 c_w = *(reinterpret_cast<irt::u32*>(&f.data[3]));
         irt::u64 d_w = *(reinterpret_cast<irt::u64*>(&f.data[7]));
 
-        assert(a == a_w);
-        assert(b == b_w);
-        assert(c == c_w);
-        assert(d == d_w);
+        expect(eq(a, a_w));
+        expect(eq(b, b_w));
+        expect(eq(c, c_w));
+        expect(eq(d, d_w));
 
         f.rewind();
 
