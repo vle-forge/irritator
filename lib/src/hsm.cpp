@@ -266,18 +266,18 @@ void hierarchical_state_machine::affect_action(const state_action& action,
     case action_type::none:
         break;
     case action_type::set:
-        debug::ensure(port >= 0 && port <= 3);
+        debug::ensure(port >= 0u && port <= 3u);
         exec.values |= static_cast<u8>(1u << port);
         break;
     case action_type::unset:
-        debug::ensure(port >= 0 && port <= 3);
+        debug::ensure(port >= 0u && port <= 3u);
         exec.values &= static_cast<u8>(~(1u << port));
         break;
     case action_type::reset:
         exec.values = static_cast<u8>(0u);
         break;
     case action_type::output:
-        debug::ensure(port >= 0 && port <= 3);
+        debug::ensure(port >= 0u && port <= 3u);
         exec.outputs.emplace_back(hierarchical_state_machine::output_message{
           .value = action.parameter, .port = port });
         break;
