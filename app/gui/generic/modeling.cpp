@@ -666,8 +666,8 @@ static void compute_grid_layout(settings_window&               settings,
 
     const auto column  = std::floor(std::sqrt(fsize));
     const auto panning = ImNodes::EditorContextGetPanning();
-    auto       i       = 0;
-    auto       j       = 0;
+    auto       i       = 0.f;
+    auto       j       = 0.f;
 
     for_each_data(s_compo.children, [&](auto& c) noexcept {
         const auto id  = s_compo.children.get_id(c);
@@ -680,7 +680,7 @@ static void compute_grid_layout(settings_window&               settings,
         ++j;
 
         if (j >= static_cast<int>(column)) {
-            j = 0;
+            j = 0.f;
             ++i;
         }
     });

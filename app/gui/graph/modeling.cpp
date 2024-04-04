@@ -34,14 +34,11 @@ static bool compute_automatic_layout(const graph_component& graph,
         return false;
 
     const auto sqrt_size = std::sqrt(static_cast<float>(size));
-    const auto column    = static_cast<int>(sqrt_size);
-    const auto line      = column;
-
-    const float W        = static_cast<float>(column + 1.f) * vertex_distance.x;
-    const float L        = static_cast<float>(line + 1.f) * vertex_distance.x;
-    const float area     = W * L;
-    const float k_square = area / static_cast<float>(size);
-    const float k        = std::sqrt(k_square);
+    const auto W         = (sqrt_size + 1.f) * vertex_distance.x;
+    const auto L         = (sqrt_size + 1.f) * vertex_distance.x;
+    const auto area      = W * L;
+    const auto k_square  = area / static_cast<float>(size);
+    const auto k         = std::sqrt(k_square);
 
     const auto t =
       (1.f -
@@ -131,16 +128,17 @@ static void update_position_to_grid(const ImVec2    vertex_distance,
     const auto raw_sq = std::sqrt(static_cast<float>(size));
     const auto sq     = ImFloor(raw_sq);
 
-    int i = 0, y = 0;
+    auto i = 0;
+    auto y = 0.f;
 
-    for (int x = 0; x < sq; ++x) {
-        for (y = 0; y < sq; ++i, ++y) {
+    for (auto x = 0.f; x < sq; ++x) {
+        for (y = 0.f; y < sq; ++i, ++y) {
             positions[i].x = x * (vertex_size.x + vertex_distance.x);
             positions[i].y = y * (vertex_size.y + vertex_distance.y);
         }
     }
 
-    for (int x = 0; i < size; ++i, ++x) {
+    for (auto x = 0.f; i < size; ++i, ++x) {
         positions[i].x = x * (vertex_size.x + vertex_distance.x);
         positions[i].y = y * (vertex_size.y + vertex_distance.y);
     }
