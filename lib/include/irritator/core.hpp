@@ -377,87 +377,9 @@ struct time_domain<time> {
  *
  ****************************************************************************/
 
-//! @brief A small array of reals.
-//!
-//! This class in mainly used to store message and observation in the
-//! simulation kernel.
-template<int length>
-struct fixed_real_array {
-    using value_type = real;
-
-    static_assert(length >= 1, "fixed_real_array length must be >= 1");
-
-    std::array<real, length> data;
-
-    constexpr unsigned size() const noexcept
-    {
-        for (unsigned i = length; i != 0u; --i)
-            if (data[i - 1u])
-                return i;
-
-        return 0u;
-    }
-
-    constexpr int ssize() const noexcept { return static_cast<int>(size()); }
-
-    constexpr fixed_real_array() noexcept
-    {
-        std::fill_n(data.data(), data.size(), 0.0);
-    }
-
-    constexpr fixed_real_array(const fixed_real_array& rhs) noexcept
-    {
-        std::copy_n(rhs.data.data(), rhs.data.size(), data.data());
-    }
-
-    constexpr fixed_real_array& operator=(const fixed_real_array& rhs) noexcept
-    {
-        if (this != &rhs) {
-            std::copy_n(rhs.data.data(), rhs.data.size(), data.data());
-        }
-
-        return *this;
-    }
-
-    constexpr fixed_real_array(fixed_real_array&& rhs) noexcept = delete;
-    constexpr fixed_real_array& operator=(fixed_real_array&& rhs) noexcept =
-      delete;
-
-    template<typename... Args>
-    constexpr fixed_real_array(Args... args) noexcept
-      : data{ args... }
-    {}
-
-    constexpr real operator[](std::integral auto i) const noexcept
-    {
-
-        return data[i];
-    }
-
-    constexpr real& operator[](std::integral auto i) noexcept
-    {
-        return data[i];
-    }
-
-    constexpr void reset() noexcept { std::fill_n(data, length, zero); }
-
-    void swap(fixed_real_array& other) noexcept
-    {
-        for (std::size_t i = 0; i != length; ++i)
-            std::swap(other.data[i], data[i]);
-    }
-};
-
-template<int length>
-constexpr inline void swap(fixed_real_array<length>& left,
-                           fixed_real_array<length>& right) noexcept
-{
-    left.swap(right);
-}
-
-using message             = fixed_real_array<3>;
-using dated_message       = fixed_real_array<4>;
-using observation_message = fixed_real_array<5>;
+using message             = std::array<real, 3>;
+using dated_message       = std::array<real, 4>;
+using observation_message = std::array<real, 5>;
 
 struct model;
 class simulation;
@@ -2890,8 +2812,7 @@ struct constant {
 
     enum class init_type : i8 {
         // A constant value initialized at startup of the simulation. Use
-        // the @c
-        // default_value.
+        // the @c default_value.
         constant,
 
         // The numbers of incoming connections on all input ports of the
@@ -2906,15 +2827,13 @@ struct constant {
 
         // The number of incoming connections on the nth input port of the
         // component. Use the @c port attribute to specify the identifier of
-        // the
-        // port. The @c default_value is filled via the component to
+        // the port. The @c default_value is filled via the component to
         // simulation algorithm. Otherwise, the default value is unmodified.
         incoming_component_n,
 
         // The number of incoming connections on the nth output ports of the
         // component. Use the @c port attribute to specify the identifier of
-        // the
-        // port. The @c default_value is filled via the component to
+        // the port. The @c default_value is filled via the component to
         // simulation algorithm. Otherwise, the default value is unmodified.
         outcoming_component_n,
     };
@@ -4012,12 +3931,12 @@ struct queue {
     status lambda(simulation& sim) noexcept
     {
         if (auto* ar = sim.dated_messages.try_to_get(fifo); ar) {
-            const auto t = ar->head()->data[0];
+            const auto t = ar->head()->data()[0];
 
-            for (auto& elem : *ar)
-                if (elem.data[0] <= t)
-                    irt_check(send_message(
-                      sim, y[0], elem.data[1], elem.data[2], elem.data[3]));
+            for (const auto& elem : *ar)
+                if (elem[0] <= t)
+                    irt_check(
+                      send_message(sim, y[0], elem[1], elem[2], elem[3]));
         }
 
         return success();
@@ -4076,11 +3995,11 @@ struct dynamic_queue {
         if (auto* ar = sim.dated_messages.try_to_get(fifo); ar) {
             auto       it  = ar->begin();
             auto       end = ar->end();
-            const auto t   = it->data[0];
+            const auto t   = it->data()[0];
 
-            for (; it != end && it->data[0] <= t; ++it)
+            for (; it != end && it->data()[0] <= t; ++it)
                 irt_check(send_message(
-                  sim, y[0], it->data[1], it->data[2], it->data[3]));
+                  sim, y[0], it->data()[1], it->data()[2], it->data()[3]));
         }
 
         return success();
@@ -4147,11 +4066,11 @@ public:
         if (auto* ar = sim.dated_messages.try_to_get(fifo); ar) {
             auto       it  = ar->begin();
             auto       end = ar->end();
-            const auto t   = it->data[0];
+            const auto t   = it->data()[0];
 
-            for (; it != end && it->data[0] <= t; ++it)
+            for (; it != end && it->data()[0] <= t; ++it)
                 irt_check(send_message(
-                  sim, y[0], it->data[1], it->data[2], it->data[3]));
+                  sim, y[0], it->data()[1], it->data()[2], it->data()[3]));
         }
 
         return success();
@@ -4825,7 +4744,7 @@ inline void observer::update(observation_message msg) noexcept
     if (states[observer_flags::buffer_full])
         states.set(observer_flags::data_lost);
 
-    if (!buffer.empty() && buffer.tail()->data[0] == msg[0])
+    if (!buffer.empty() && buffer.tail()->data()[0] == msg[0])
         *(buffer.tail()) = msg;
     else
         buffer.force_enqueue(msg);
@@ -5778,14 +5697,13 @@ inline status simulation::run(time& t) noexcept
         dispatch(*mdl, [this, port, &msg]<typename Dynamics>(Dynamics& dyn) {
             if constexpr (has_input_port<Dynamics>) {
                 auto* list = messages.try_to_get(dyn.x[port]);
-
                 if (not list) {
-                    auto& msg   = messages.alloc();
-                    dyn.x[port] = messages.get_id(msg);
-                    list        = &msg;
+                    auto& new_list = messages.alloc();
+                    dyn.x[port]    = messages.get_id(new_list);
+                    list           = &new_list;
                 }
 
-                list->emplace_back(msg[0], msg[1], msg[2]);
+                list->push_back({ msg[0], msg[1], msg[2] });
             }
         });
     }
@@ -6149,7 +6067,7 @@ inline status queue::transition(simulation& sim,
                                 time /*r*/) noexcept
 {
     if (auto* ar = sim.dated_messages.try_to_get(fifo); ar) {
-        while (!ar->empty() and ar->tail()->data[0] <= t)
+        while (!ar->empty() and ar->tail()->data()[0] <= t)
             ar->pop_tail();
 
         auto* lst = sim.messages.try_to_get(x[0]);
@@ -6159,8 +6077,8 @@ inline status queue::transition(simulation& sim,
                     return new_error(simulation::part::dated_messages,
                                      container_full_error{});
 
-                ar->emplace_head(
-                  irt::real(t + default_ta), msg[0], msg[1], msg[2]);
+                ar->push_head(
+                  { irt::real(t + default_ta), msg[0], msg[1], msg[2] });
             }
         }
 
@@ -6184,7 +6102,7 @@ inline status dynamic_queue::transition(simulation& sim,
                                         time /*r*/) noexcept
 {
     if (auto* ar = sim.dated_messages.try_to_get(fifo); ar) {
-        while (not ar->empty() and ar->tail()->data[0] <= t)
+        while (not ar->empty() and ar->tail()->data()[0] <= t)
             ar->pop_tail();
 
         auto* lst = sim.messages.try_to_get(x[0]);
@@ -6197,19 +6115,21 @@ inline status dynamic_queue::transition(simulation& sim,
                 real ta = zero;
                 if (stop_on_error) {
                     irt_check(update_source(sim, default_source_ta, ta));
-                    ar->emplace_head(
-                      t + static_cast<real>(ta), msg[0], msg[1], msg[2]);
+                    ar->push_head(
+                      { t + static_cast<real>(ta), msg[0], msg[1], msg[2] });
                 } else {
                     if (auto ret = update_source(sim, default_source_ta, ta);
                         !ret)
-                        ar->emplace_head(
-                          t + static_cast<real>(ta), msg[0], msg[1], msg[2]);
+                        ar->push_head({ t + static_cast<real>(ta),
+                                        msg[0],
+                                        msg[1],
+                                        msg[2] });
                 }
             }
         }
 
         if (lst and not lst->empty()) {
-            sigma = lst->front().data[0] - t;
+            sigma = lst->front().data()[0] - t;
             sigma = sigma <= time_domain<time>::zero ? time_domain<time>::zero
                                                      : sigma;
         } else {
@@ -6231,9 +6151,9 @@ inline status priority_queue::try_to_insert(simulation&    sim,
                          container_full_error{});
 
     if (auto* ar = sim.dated_messages.try_to_get(fifo); ar) {
-        ar->emplace_head(irt::real(t), msg[0], msg[1], msg[2]);
+        ar->push_head({ irt::real(t), msg[0], msg[1], msg[2] });
         ar->sort([](auto& l, auto& r) noexcept -> bool {
-            return l.data[0] < r.data[0];
+            return l.data()[0] < r.data()[0];
         });
     }
 
@@ -6246,7 +6166,7 @@ inline status priority_queue::transition(simulation& sim,
                                          time /*r*/) noexcept
 {
     if (auto* ar = sim.dated_messages.try_to_get(fifo); ar) {
-        while (not ar->empty() and ar->tail()->data[0] <= t)
+        while (not ar->empty() and ar->tail()->data()[0] <= t)
             ar->pop_tail();
 
         auto* lst = sim.messages.try_to_get(x[0]);

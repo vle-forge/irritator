@@ -353,8 +353,8 @@ static void show_dynamics_values(simulation& sim, const queue& dyn)
     if (not ar) {
         ImGui::TextFormat("empty");
     } else {
-        ImGui::TextFormat("next ta {}", ar->front().data[0]);
-        ImGui::TextFormat("next value {}", ar->front().data[1]);
+        ImGui::TextFormat("next ta {}", ar->front()[0]);
+        ImGui::TextFormat("next value {}", ar->front()[1]);
     }
 }
 
@@ -365,8 +365,8 @@ static void show_dynamics_values(simulation& sim, const dynamic_queue& dyn)
     if (not ar) {
         ImGui::TextFormat("empty");
     } else {
-        ImGui::TextFormat("next ta {}", ar->front().data[0]);
-        ImGui::TextFormat("next value {}", ar->front().data[1]);
+        ImGui::TextFormat("next ta {}", ar->front()[0]);
+        ImGui::TextFormat("next value {}", ar->front()[1]);
     }
 }
 
@@ -377,8 +377,8 @@ static void show_dynamics_values(simulation& sim, const priority_queue& dyn)
     if (not ar) {
         ImGui::TextFormat("empty");
     } else {
-        ImGui::TextFormat("next ta {}", ar->front().data[0]);
-        ImGui::TextFormat("next value {}", ar->front().data[1]);
+        ImGui::TextFormat("next ta {}", ar->front()[0]);
+        ImGui::TextFormat("next value {}", ar->front()[1]);
     }
 }
 

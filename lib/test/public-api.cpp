@@ -1142,39 +1142,31 @@ int main()
         using namespace irt::literals;
 
         {
-            irt::message vdouble;
-            assert(vdouble[0] == 0.0_r);
-            assert(vdouble[1] == 0.0_r);
-            assert(vdouble[2] == 0.0_r);
-            assert(vdouble.size() == 0);
-            assert(vdouble.ssize() == 0);
+            irt::message vdouble({ 0, 0, 0 });
+            expect(eq(vdouble[0], 0.0_r));
+            expect(eq(vdouble[1], 0.0_r));
+            expect(eq(vdouble[2], 0.0_r));
         }
 
         {
-            irt::message vdouble(1.0_r);
-            assert(vdouble[0] == 1.0_r);
-            assert(vdouble[1] == 0.0_r);
-            assert(vdouble[2] == 0.0_r);
-            assert(vdouble.size() == 1);
-            assert(vdouble.ssize() == 1);
+            irt::message vdouble({ 1.0_r });
+            expect(eq(vdouble[0], 1.0_r));
+            expect(eq(vdouble[1], 0.0_r));
+            expect(eq(vdouble[2], 0.0_r));
         }
 
         {
-            irt::message vdouble(0.0_r, 1.0_r);
-            assert(vdouble[0] == 0.0_r);
-            assert(vdouble[1] == 1.0_r);
-            assert(vdouble[2] == 0.0_r);
-            assert(vdouble.size() == 2);
-            assert(vdouble.ssize() == 2);
+            irt::message vdouble({ 0.0_r, 1.0_r });
+            expect(eq(vdouble[0], 0.0_r));
+            expect(eq(vdouble[1], 1.0_r));
+            expect(eq(vdouble[2], 0.0_r));
         }
 
         {
-            irt::message vdouble(0.0_r, 0.0_r, 1.0_r);
-            assert(vdouble[0] == 0.0_r);
-            assert(vdouble[1] == 0.0_r);
-            assert(vdouble[2] == 1.0_r);
-            assert(vdouble.size() == 3);
-            assert(vdouble.ssize() == 3);
+            irt::message vdouble({ 0.0_r, 0.0_r, 1.0_r });
+            expect(eq(vdouble[0], 0.0_r));
+            expect(eq(vdouble[1], 0.0_r));
+            expect(eq(vdouble[2], 1.0_r));
         }
     };
 
@@ -1182,53 +1174,43 @@ int main()
         using namespace irt::literals;
 
         {
-            irt::observation_message vdouble;
+            irt::observation_message vdouble({ 0 });
             assert(vdouble[0] == 0.0_r);
             assert(vdouble[1] == 0.0_r);
             assert(vdouble[2] == 0.0_r);
             assert(vdouble[3] == 0.0_r);
-            assert(vdouble.size() == 0);
-            assert(vdouble.ssize() == 0);
         }
 
         {
-            irt::observation_message vdouble(1.0_r);
+            irt::observation_message vdouble({ 1.0_r });
             assert(vdouble[0] == 1.0_r);
             assert(vdouble[1] == 0.0_r);
             assert(vdouble[2] == 0.0_r);
             assert(vdouble[3] == 0.0_r);
-            assert(vdouble.size() == 1);
-            assert(vdouble.ssize() == 1);
         }
 
         {
-            irt::observation_message vdouble(0.0_r, 1.0_r);
+            irt::observation_message vdouble({ 0.0_r, 1.0_r });
             assert(vdouble[0] == 0.0_r);
             assert(vdouble[1] == 1.0_r);
             assert(vdouble[2] == 0.0_r);
             assert(vdouble[3] == 0.0_r);
-            assert(vdouble.size() == 2);
-            assert(vdouble.ssize() == 2);
         }
 
         {
-            irt::observation_message vdouble(0.0_r, 0.0_r, 1.0_r);
+            irt::observation_message vdouble({ 0.0_r, 0.0_r, 1.0_r });
             assert(vdouble[0] == 0.0_r);
             assert(vdouble[1] == 0.0_r);
             assert(vdouble[2] == 1.0_r);
             assert(vdouble[3] == 0.0_r);
-            assert(vdouble.size() == 3);
-            assert(vdouble.ssize() == 3);
         }
 
         {
-            irt::observation_message vdouble(0.0_r, 0.0_r, 0.0_r, 1.0_r);
+            irt::observation_message vdouble({ 0.0_r, 0.0_r, 0.0_r, 1.0_r });
             assert(vdouble[0] == 0.0_r);
             assert(vdouble[1] == 0.0_r);
             assert(vdouble[2] == 0.0_r);
             assert(vdouble[3] == 1.0_r);
-            assert(vdouble.size() == 4);
-            assert(vdouble.ssize() == 4);
         }
     };
 

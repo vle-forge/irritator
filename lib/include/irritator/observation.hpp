@@ -101,7 +101,7 @@ auto write_raw_data(observer& obs, OutputIterator it) noexcept -> void
     auto tail = obs.buffer.tail();
 
     while (head != tail) {
-        *it++ = { head->data[0], head->data[1] };
+        *it++ = { head->data()[0], head->data()[1] };
 
         obs.buffer.pop_head();
         head = obs.buffer.head();
@@ -116,7 +116,7 @@ auto flush_raw_data(observer& obs, OutputIterator it) noexcept -> void
 
     if (!obs.buffer.empty()) {
         auto head = obs.buffer.head();
-        *it++     = { head->data[0], head->data[1] };
+        *it++     = { head->data()[0], head->data()[1] };
     }
 
     obs.clear();
@@ -154,7 +154,7 @@ inline auto write_raw_data(observer& obs) noexcept -> void
     auto tail = obs.buffer.tail();
 
     while (head != tail) {
-        obs.linearized_buffer.emplace_tail(head->data[0], head->data[1]);
+        obs.linearized_buffer.emplace_tail(head->data()[0], head->data()[1]);
         obs.buffer.pop_head();
         head = obs.buffer.head();
     }
@@ -167,7 +167,7 @@ inline auto flush_raw_data(observer& obs) noexcept -> void
 
     if (!obs.buffer.empty()) {
         auto head = obs.buffer.head();
-        obs.linearized_buffer.emplace_tail(head->data[0], head->data[1]);
+        obs.linearized_buffer.emplace_tail(head->data()[0], head->data()[1]);
     }
 }
 
@@ -210,7 +210,7 @@ auto write_interpolate_data(observer&      obs,
     switch (get_interpolate_type(obs.type)) {
     case interpolate_type::none:
         while (head != tail) {
-            *it++ = observation(head->data[0], head->data[1]);
+            *it++ = observation(head->data()[0], head->data()[1]);
             obs.buffer.pop_head();
             head = obs.buffer.head();
         }
@@ -219,7 +219,7 @@ auto write_interpolate_data(observer&      obs,
         while (head != tail) {
             auto next{ head };
             ++next;
-            compute_interpolate<1>(*head, it, next->data[0], time_step);
+            compute_interpolate<1>(*head, it, next->data()[0], time_step);
             obs.buffer.pop_head();
             head = obs.buffer.head();
         }
@@ -228,7 +228,7 @@ auto write_interpolate_data(observer&      obs,
         while (head != tail) {
             auto next{ head };
             ++next;
-            compute_interpolate<2>(*head, it, next->data[0], time_step);
+            compute_interpolate<2>(*head, it, next->data()[0], time_step);
             obs.buffer.pop_head();
             head = obs.buffer.head();
         }
@@ -237,7 +237,7 @@ auto write_interpolate_data(observer&      obs,
         while (head != tail) {
             auto next{ head };
             ++next;
-            compute_interpolate<3>(*head, it, next->data[0], time_step);
+            compute_interpolate<3>(*head, it, next->data()[0], time_step);
             obs.buffer.pop_head();
             head = obs.buffer.head();
         }
@@ -257,7 +257,7 @@ inline auto write_interpolate_data(observer& obs,
     case interpolate_type::none:
         while (head != tail) {
             obs.linearized_buffer.emplace_tail(
-              observation(head->data[0], head->data[1]));
+              observation(head->data()[0], head->data()[1]));
             obs.buffer.pop_head();
             head = obs.buffer.head();
         }
@@ -267,7 +267,7 @@ inline auto write_interpolate_data(observer& obs,
             auto next{ head };
             ++next;
             compute_interpolate<1>(
-              *head, obs.linearized_buffer, next->data[0], time_step);
+              *head, obs.linearized_buffer, next->data()[0], time_step);
             obs.buffer.pop_head();
             head = obs.buffer.head();
         }
@@ -277,7 +277,7 @@ inline auto write_interpolate_data(observer& obs,
             auto next{ head };
             ++next;
             compute_interpolate<2>(
-              *head, obs.linearized_buffer, next->data[0], time_step);
+              *head, obs.linearized_buffer, next->data()[0], time_step);
             obs.buffer.pop_head();
             head = obs.buffer.head();
         }
@@ -287,7 +287,7 @@ inline auto write_interpolate_data(observer& obs,
             auto next{ head };
             ++next;
             compute_interpolate<3>(
-              *head, obs.linearized_buffer, next->data[0], time_step);
+              *head, obs.linearized_buffer, next->data()[0], time_step);
             obs.buffer.pop_head();
             head = obs.buffer.head();
         }
