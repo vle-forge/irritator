@@ -885,6 +885,117 @@ public:
     constexpr int        capacity() const noexcept;
     constexpr index_type next_key() const noexcept;
     constexpr bool       is_free_list_empty() const noexcept;
+
+    template<bool is_const>
+    struct iterator_base {
+        using iterator_concept = std::bidirectional_iterator_tag;
+        using difference_type  = std::ptrdiff_t;
+        using element_type =
+          std::conditional_t<is_const, const value_type, value_type>;
+        using pointer   = element_type*;
+        using reference = element_type&;
+        using container_type =
+          std::conditional_t<is_const, const this_container, this_container>;
+
+        iterator_base() noexcept = default;
+
+        template<typename Container>
+        iterator_base(Container* self_, identifier_type id_) noexcept
+            requires(!std::is_const_v<Container> && !is_const)
+          : self{ self_ }
+          , id{ id_ }
+        {}
+
+        template<typename Container>
+        iterator_base(Container* self_, identifier_type id_) noexcept
+            requires(std::is_const_v<Container> && is_const)
+          : self{ self_ }
+          , id{ id_ }
+        {}
+
+        reference operator*() const noexcept { return id; }
+        pointer   operator->() noexcept { return &id; }
+
+        iterator_base& operator--() noexcept
+        {
+            if (auto index = get_index(id); index) {
+                do {
+                    --index;
+                    if (is_valid(self->m_items[index])) {
+                        id = self->m_items[index];
+                        return *this;
+                    }
+                } while (index);
+            }
+
+            id = identifier_type{};
+            return *this;
+        }
+
+        iterator_base& operator++() noexcept
+        {
+            auto index = get_index(id);
+            ++index;
+
+            for (const auto e = self->m_items.size(); index < e; ++index) {
+                if (is_valid(self->m_items[index])) {
+                    id = self->m_items[index];
+                    return *this;
+                }
+            }
+
+            id = identifier_type{};
+            return *this;
+        }
+
+        iterator_base operator--(int) noexcept
+        {
+            const auto old_id = id;
+
+            if (auto index = get_index(id); index) {
+                do {
+                    --index;
+                    if (is_valid(self->m_items[index])) {
+                        id = self->m_items[index];
+                        return iterator_base{ .self = self, .id = old_id };
+                    }
+                } while (index);
+            }
+
+            id = identifier_type{};
+            return iterator_base{ .self = self, .id = old_id };
+        }
+
+        iterator_base operator++(int) noexcept
+        {
+            const auto old_id = id;
+            auto       index  = get_index(id);
+            ++index;
+
+            for (const auto e = self->m_items.size(); index < e; ++index) {
+                if (is_valid(self->m_items[index])) {
+                    id = self->m_items[index];
+                    return iterator_base{ .self = self, .id = old_id };
+                }
+            }
+
+            id = identifier_type{};
+            return iterator_base{ .self = self, .id = old_id };
+        }
+
+        auto operator<=>(const iterator_base&) const noexcept = default;
+
+        container_type* self = {};
+        identifier_type id   = { 0 };
+    };
+
+    using iterator       = iterator_base<false>;
+    using const_iterator = iterator_base<true>;
+
+    constexpr iterator       begin() noexcept;
+    constexpr const_iterator begin() const noexcept;
+    constexpr iterator       end() noexcept;
+    constexpr const_iterator end() const noexcept;
 };
 
 //! @brief An optimized fixed size array for dynamics objects.
@@ -1229,8 +1340,8 @@ public:
     using memory_resource_t = typename A::memory_resource_t;
 
     static_assert((std::is_nothrow_constructible_v<T> ||
-                   std::is_nothrow_move_constructible_v<T>) &&
-                  std::is_nothrow_destructible_v<T>);
+                   std::is_nothrow_move_constructible_v<
+                     T>)&&std::is_nothrow_destructible_v<T>);
 
 private:
     T*                                   buffer = nullptr;
@@ -1535,8 +1646,8 @@ class small_ring_buffer
 public:
     static_assert(length >= 1);
     static_assert((std::is_nothrow_constructible_v<T> ||
-                   std::is_nothrow_move_constructible_v<T>) &&
-                  std::is_nothrow_destructible_v<T>);
+                   std::is_nothrow_move_constructible_v<
+                     T>)&&std::is_nothrow_destructible_v<T>);
 
     using value_type      = T;
     using size_type       = small_storage_size_t<length>;
@@ -1818,6 +1929,13 @@ id_array<Identifier, A>::try_alloc() noexcept
 }
 
 template<typename Identifier, typename A>
+constexpr bool id_array<Identifier, A>::reserve(
+  std::integral auto capacity) noexcept
+{
+    return m_items.reserve(capacity);
+}
+
+template<typename Identifier, typename A>
 constexpr void id_array<Identifier, A>::free(const Identifier id) noexcept
 {
     const auto index = get_index(id);
@@ -1858,9 +1976,9 @@ id_array<Identifier, A>::get(const Identifier id) noexcept
     const auto index = get_index(id);
 
     debug::ensure(std::cmp_less_equal(0, index));
-    debug::ensure(std::cmp_less(index, m_items.size));
+    debug::ensure(std::cmp_less(index, m_items.size()));
 
-    return m_items[index] == id ? index : std::nullopt;
+    return m_items[index] == id ? std::make_optional(index) : std::nullopt;
 }
 
 template<typename Identifier, typename A>
@@ -1871,7 +1989,7 @@ constexpr bool id_array<Identifier, A>::next(
         auto index = get_index(*id);
         ++index;
 
-        for (auto e = m_items.size(); index < e; ++index) {
+        for (const auto e = m_items.size(); index < e; ++index) {
             if (is_valid(m_items[index])) {
                 id = &m_items[index];
                 return true;
@@ -1937,6 +2055,42 @@ template<typename Identifier, typename A>
 constexpr bool id_array<Identifier, A>::is_free_list_empty() const noexcept
 {
     return m_free_head == none;
+}
+
+template<typename Identifier, typename A>
+constexpr typename id_array<Identifier, A>::iterator
+id_array<Identifier, A>::begin() noexcept
+{
+    for (index_type index = 0; index < m_items.size(); ++index)
+        if (is_valid(m_items[index]))
+            return iterator(this, m_items[index]);
+
+    return iterator(this, identifier_type{});
+}
+
+template<typename Identifier, typename A>
+constexpr typename id_array<Identifier, A>::iterator
+id_array<Identifier, A>::end() noexcept
+{
+    return iterator(this, identifier_type{});
+}
+
+template<typename Identifier, typename A>
+constexpr typename id_array<Identifier, A>::const_iterator
+id_array<Identifier, A>::begin() const noexcept
+{
+    for (index_type index = 0; index < m_items.size(); ++index)
+        if (is_valid(m_items[index]))
+            return const_iterator(this, m_items[index]);
+
+    return const_iterator(this, identifier_type{});
+}
+
+template<typename Identifier, typename A>
+constexpr typename id_array<Identifier, A>::const_iterator
+id_array<Identifier, A>::end() const noexcept
+{
+    return const_iterator(this, identifier_type{});
 }
 
 // template<typename T, typename Identifier, typename A>

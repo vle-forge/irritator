@@ -87,26 +87,19 @@ void variable_observer::erase(const tree_node_id tn,
 {
     auto i = 0;
 
-    while (i < m_tn_ids.ssize()) {
-        if (m_tn_ids[i] == tn and m_mdl_ids[i] == mdl) {
-            erase(i);
-        } else {
-            ++i;
-        }
+    const sub_id* ptr = nullptr;
+    while (m_ids.next(ptr)) {
+        const auto idx = get_index(*ptr);
+
+        if (m_tn_ids[idx] == tn and m_mdl_ids[idx] == mdl)
+            erase(*ptr);
     }
 }
 
-void variable_observer::erase(const int i) noexcept
+void variable_observer::erase(const sub_id i) noexcept
 {
-    debug::ensure(0 <= i and i < m_tn_ids.ssize());
-
-    if (0 <= i and i < m_tn_ids.ssize()) {
-        m_tn_ids.swap_pop_back(i);
-        m_mdl_ids.swap_pop_back(i);
-        m_colors.swap_pop_back(i);
-        m_options.swap_pop_back(i);
-        m_obs_ids.swap_pop_back(i);
-    }
+    if (const auto idx_opt = m_ids.get(i); idx_opt.has_value())
+        m_ids.free(i);
 }
 
 void variable_observer::push_back(const tree_node_id tn,
@@ -116,22 +109,32 @@ void variable_observer::push_back(const tree_node_id tn,
 {
     check(m_tn_ids, m_mdl_ids, m_obs_ids, m_colors, m_options);
 
-    auto already = false;
-
-    for (auto i = 0, e = m_tn_ids.ssize(); i != e; ++i) {
-        if (m_tn_ids[i] == tn and m_mdl_ids[i] == mdl) {
-            already = true;
-            break;
-        }
+    if (not m_ids.capacity()) {
+        m_ids.reserve(max_observers.value());
+        m_tn_ids.resize(max_observers.value());
+        m_mdl_ids.resize(max_observers.value());
+        m_obs_ids.resize(max_observers.value());
+        m_colors.resize(max_observers.value());
+        m_options.resize(max_observers.value());
     }
 
-    if (not already) {
-        m_tn_ids.emplace_back(tn);
-        m_mdl_ids.emplace_back(mdl);
-        m_obs_ids.emplace_back(undefined<observer_id>());
-        m_colors.emplace_back(c);
-        m_options.emplace_back(t);
+    const sub_id* ptr = nullptr;
+    while (m_ids.next(ptr)) {
+        const auto idx = get_index(*ptr);
+
+        if (m_tn_ids[idx] == tn and m_mdl_ids[idx] == mdl)
+            return;
     }
+
+    debug::ensure(m_ids.can_alloc(1));
+
+    const auto id  = m_ids.alloc();
+    const auto idx = get_index(id);
+    m_tn_ids[idx]  = tn;
+    m_mdl_ids[idx] = mdl;
+    m_obs_ids[idx] = undefined<observer_id>();
+    m_colors[idx]  = c;
+    m_options[idx] = t;
 }
 
 } // namespace irt

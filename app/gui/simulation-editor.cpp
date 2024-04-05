@@ -620,18 +620,11 @@ static void show_local_variable_plot(
 static void show_local_variables_plot(application&       app,
                                       variable_observer& v_obs) noexcept
 {
-    auto i = 0;
-
-    while (i != v_obs.mdl_ids().ssize()) {
-        if (auto* mdl = app.sim.models.try_to_get(v_obs.mdl_ids()[i]); mdl) {
-            if (auto* obs = app.sim.observers.try_to_get(mdl->obs_id); obs) {
-                show_local_variable_plot(*obs, v_obs.options()[i]);
-            }
-            ++i;
-        } else {
-            v_obs.erase(i);
-        }
-    }
+    v_obs.for_each_obs(
+      [&](const auto obs_id, const auto /*color*/, const auto option) noexcept {
+          if (auto* obs = app.sim.observers.try_to_get(obs_id); obs)
+              show_local_variable_plot(*obs, option);
+      });
 }
 
 static void show_local_variables_plot(application& app, tree_node& tn) noexcept
@@ -846,7 +839,7 @@ static bool show_simulation_variable_observers(application& app) noexcept
 
             ImGui::TableNextColumn();
 
-            ImGui::TextFormat("{}", variable.mdl_ids().ssize());
+            ImGui::TextFormat("{}", variable.size());
 
             ImGui::TableNextColumn();
 

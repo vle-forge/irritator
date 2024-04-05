@@ -57,11 +57,13 @@ void plot_observation_widget::show(application& app) noexcept
                               ImPlotAxisFlags_AutoFit,
                               ImPlotAxisFlags_AutoFit);
 
-            for (int i = 0, e = v_obs.obs_ids().ssize(); i != e; ++i) {
-                auto* obs = app.sim.observers.try_to_get(v_obs.obs_ids()[i]);
+            v_obs.for_each_obs([&](const auto obs_id,
+                                   const auto /*color*/,
+                                   const auto option) noexcept {
+                auto* obs = app.sim.observers.try_to_get(obs_id);
 
                 if (obs->linearized_buffer.size() > 0) {
-                    switch (v_obs.options()[i]) {
+                    switch (option) {
                     case variable_observer::type_options::line:
                         ImPlot::PlotLineG(obs->name.c_str(),
                                           ring_buffer_getter,
@@ -80,7 +82,7 @@ void plot_observation_widget::show(application& app) noexcept
                         unreachable();
                     }
                 }
-            }
+            });
 
             ImPlot::PopStyleVar(2);
             ImPlot::EndPlot();
@@ -116,7 +118,8 @@ static void plot_observation_widget_write(
     //     first_column = true;
 
     //     for_specified_data(
-    //       app.sim.observers, plot_widget.observers, [&](auto& obs) noexcept {
+    //       app.sim.observers, plot_widget.observers, [&](auto& obs)
+    //       noexcept {
     //           auto idx = obs.linearized_buffer.index_from_begin(i);
     //           if (first_column) {
     //               ofs << obs.linearized_buffer[idx].x << ","

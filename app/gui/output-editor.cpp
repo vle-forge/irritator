@@ -51,7 +51,7 @@ static void show_plot_observation(application&       app,
     ImGui::PopItemWidth();
 
     ImGui::TableNextColumn();
-    ImGui::TextFormat("Observers: {}", var.obs_ids().size());
+    ImGui::TextFormat("Observers: {}", var.size());
     ImGui::TableNextColumn();
 
     ImGui::TableNextColumn();

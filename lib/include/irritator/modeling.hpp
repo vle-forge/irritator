@@ -882,11 +882,15 @@ public:
     };
 
     name_str                         name;
+    static_limiter<i32, 8, 64>       max_observers           = 8;
     static_limiter<i32, 8, 512>      raw_buffer_size         = 64;
     static_limiter<i32, 1024, 65536> linearized_buffer_size  = 32768;
     floating_point_limiter<float, 1, 10000, 1, 10> time_step = .01f;
 
+    enum class sub_id : u32;
+
 private:
+    id_array<sub_id>     m_ids;
     vector<tree_node_id> m_tn_ids;  //!< `tree_node` parent of the model.
     vector<model_id>     m_mdl_ids; //!< `model` to observe.
     vector<observer_id>  m_obs_ids; //!< `observer` connected to `model`.
@@ -903,12 +907,14 @@ public:
     //! @brief Fill the `observer_id` vector with undefined value.
     void clear() noexcept;
 
-    //! @brief Remove at index `i` for all vectors where `tn_ids[i]` equals
-    //! `tn` and `mdl_ids[i]` equals `mdl`.
+    //! @brief Remove `sub_id` for all ` m_tn_ids` equal to `tn` and `mdl_ids`
+    //! equal to `mdl`.
+    //!
+    //! @details Do nothing if `tn` and `mdl` is not found.
     void erase(const tree_node_id tn, const model_id mdl) noexcept;
 
-    //! @brief Remove at index `i` for all vectors.
-    void erase(const int i) noexcept;
+    //! @brief Remove a `sub_id` from `id_array`.
+    void erase(const sub_id id) noexcept;
 
     //! @brief Push data in all vectors if pair (`tn`, `mdl`) does not
     //! already exists.
@@ -917,11 +923,24 @@ public:
                    const color          = 0xFe1a0Fe,
                    const type_options t = type_options::line) noexcept;
 
-    const vector<tree_node_id>& tn_ids() const noexcept { return m_tn_ids; }
-    const vector<model_id>&     mdl_ids() const noexcept { return m_mdl_ids; }
-    const vector<observer_id>&  obs_ids() const noexcept { return m_obs_ids; }
-    const vector<color>&        colors() const noexcept { return m_colors; }
-    const vector<type_options>& options() const noexcept { return m_options; }
+    unsigned size() const noexcept { return m_ids.size(); }
+    int      ssize() const noexcept { return m_ids.ssize(); }
+
+    template<typename Function>
+    void for_each_tn_mdl(Function&& f) const noexcept
+    {
+        for (const auto id : m_ids)
+            f(m_tn_ids[get_index(id)], m_mdl_ids[get_index(id)]);
+    }
+
+    template<typename Function>
+    void for_each_obs(Function&& f) const noexcept
+    {
+        for (const auto id : m_ids)
+            f(m_obs_ids[get_index(id)],
+              m_colors[get_index(id)],
+              m_options[get_index(id)]);
+    }
 };
 
 struct global_parameter {

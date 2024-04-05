@@ -474,8 +474,8 @@ struct reader {
 
     template<size_t N, typename Function>
     bool for_members(const rapidjson::Value& val,
-                     const std::string_view (&names)[N],
-                     Function&& fn) noexcept
+                     const std::string_view  (&names)[N],
+                     Function&&              fn) noexcept
     {
         if (!val.IsObject())
             report_json_error(error_id::value_not_object);
@@ -1935,8 +1935,8 @@ struct reader {
         return nullptr;
     }
 
-    auto search_dir_in_reg(registred_path&  reg,
-                           std::string_view name) noexcept -> dir_path*
+    auto search_dir_in_reg(registred_path& reg, std::string_view name) noexcept
+      -> dir_path*
     {
         for (auto dir_id : reg.children) {
             if (auto* dir = mod().dir_paths.try_to_get(dir_id); dir) {
@@ -2005,8 +2005,8 @@ struct reader {
         return nullptr;
     }
 
-    auto search_file(dir_path&        dir,
-                     std::string_view name) noexcept -> file_path*
+    auto search_file(dir_path& dir, std::string_view name) noexcept
+      -> file_path*
     {
         for (auto file_id : dir.children)
             if (auto* file = mod().file_paths.try_to_get(file_id); file)
@@ -6261,11 +6261,11 @@ static status do_project_save_plot_observations(Writer& w, project& pj) noexcept
         w.Key("name");
         w.String(plot.name.begin(), plot.name.size());
 
-        for (int i = 0, e = plot.tn_ids().ssize(); i != e; ++i) {
+        plot.for_each_tn_mdl([&](const auto tn_id, const auto mdl_id) noexcept {
             w.Key("access");
-            pj.build_unique_id_path(plot.tn_ids()[i], plot.mdl_ids()[i], path);
+            pj.build_unique_id_path(tn_id, mdl_id, path);
             write_project_unique_id_path(w, path);
-        }
+        });
 
         w.Key("color");
         write_color(w, color_white);
