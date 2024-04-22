@@ -289,12 +289,29 @@ public:
                       const connection_limiter connection_limit) noexcept;
 
     struct input_connection {
+        input_connection(const port_id          x_,
+                         const child_id         dst_,
+                         const connection::port port_) noexcept
+          : x(x_)
+          , dst(dst_)
+          , port(port_)
+        {}
+
         port_id          x; // The port_id in this component.
         child_id         dst;
         connection::port port;
     };
 
     struct output_connection {
+        output_connection(port_id          y_,
+                          child_id         src_,
+                          connection::port port_) noexcept
+
+          : y(y_)
+          , src(src_)
+          , port(port_)
+        {}
+
         port_id          y; // The port_id in this component.
         child_id         src;
         connection::port port;
@@ -451,6 +468,13 @@ struct grid_component {
     }
 
     struct input_connection {
+        input_connection(port_id x_, i32 row_, i32 col_, port_id id_) noexcept
+          : x(x_)
+          , row(row_)
+          , col(col_)
+          , id(id_)
+        {}
+
         port_id x;   // The port_id in this component.
         i32     row; // The row in children vector.
         i32     col; // The col in children vector.
@@ -458,6 +482,13 @@ struct grid_component {
     };
 
     struct output_connection {
+        output_connection(port_id y_, i32 row_, i32 col_, port_id id_) noexcept
+          : y(y_)
+          , row(row_)
+          , col(col_)
+          , id(id_)
+        {}
+
         port_id y;   // The port_id in this component.
         i32     row; // The row in children vector.
         i32     col; // The col in children vector.
@@ -522,12 +553,24 @@ public:
     enum class graph_type { dot_file, scale_free, small_world };
 
     struct input_connection {
+        input_connection(port_id x_, vertex_id v_, port_id id_) noexcept
+          : x(x_)
+          , v(v_)
+          , id(id_)
+        {}
+
         port_id   x;  // The port_id in this component.
         vertex_id v;  // The index in children vector.
         port_id   id; // The port_id of the @c children[idx].
     };
 
     struct output_connection {
+        output_connection(port_id y_, vertex_id v_, port_id id_) noexcept
+          : y(y_)
+          , v(v_)
+          , id(id_)
+        {}
+
         port_id   y;  // The port_id in this component.
         vertex_id v;  // The index in children vector.
         port_id   id; // The port_id of the @c children[idx].
@@ -1337,6 +1380,13 @@ public:
     /// cached can be completely free using the @c destroy_cache function.
     struct cache {
         struct model_port {
+	    model_port() noexcept = default;
+
+	    model_port(model* mdl_, int port_) noexcept
+		: mdl{mdl_}
+	    , port{port_}
+	    {}
+
             model* mdl{};
             int    port{};
         };
