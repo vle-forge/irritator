@@ -5,12 +5,12 @@
 #ifndef ORG_VLEPROJECT_IRRITATOR_CONTAINER_2023
 #define ORG_VLEPROJECT_IRRITATOR_CONTAINER_2023
 
-#include <functional>
 #include <irritator/macros.hpp>
 
 #include <algorithm>
 #include <bitset>
 #include <concepts>
+#include <functional>
 #include <iterator>
 #include <limits>
 #include <memory>
@@ -872,7 +872,19 @@ public:
     constexpr void clear() noexcept;
     constexpr void destroy() noexcept;
 
-    constexpr std::optional<index_type> get(const Identifier id) noexcept;
+    constexpr std::optional<index_type> get(const Identifier id) const noexcept;
+    constexpr bool exists(const Identifier id) const noexcept;
+
+    //! @brief Checks if a `id` exists in the underlying array at index `index`.
+    //!
+    //! @attention This function can check the version of the identifier only
+    //! the `is_defined<Identifier>` is used to detect the `Identifier`.
+    //!
+    //! @param index A integer.
+    //! @return The `Identifier` found at index `index` or `std::nullopt`
+    //! otherwise.
+    constexpr std::optional<Identifier> get_from_index(
+      std::integral auto index) const noexcept;
 
     constexpr bool next(const Identifier*& idx) const noexcept;
 
@@ -892,7 +904,7 @@ public:
         using element_type =
           std::conditional_t<is_const, const value_type, value_type>;
         using pointer   = element_type*;
-        using reference = element_type&;
+        using reference = element_type;
         using container_type =
           std::conditional_t<is_const, const this_container, this_container>;
 
@@ -912,8 +924,10 @@ public:
           , id{ id_ }
         {}
 
-        reference operator*() const noexcept { return id; }
-        pointer   operator->() noexcept { return &id; }
+        reference     operator*() const noexcept { return id; }
+        reference     operator*() noexcept { return id; }
+        const pointer operator->() const noexcept { return &id; }
+        pointer       operator->() noexcept { return &id; }
 
         iterator_base& operator--() noexcept
         {
@@ -1339,8 +1353,8 @@ public:
     using memory_resource_t = typename A::memory_resource_t;
 
     static_assert((std::is_nothrow_constructible_v<T> ||
-                   std::is_nothrow_move_constructible_v<
-                     T>)&&std::is_nothrow_destructible_v<T>);
+                   std::is_nothrow_move_constructible_v<T>) &&
+                  std::is_nothrow_destructible_v<T>);
 
 private:
     T*                                   buffer = nullptr;
@@ -1645,8 +1659,8 @@ class small_ring_buffer
 public:
     static_assert(length >= 1);
     static_assert((std::is_nothrow_constructible_v<T> ||
-                   std::is_nothrow_move_constructible_v<
-                     T>)&&std::is_nothrow_destructible_v<T>);
+                   std::is_nothrow_move_constructible_v<T>) &&
+                  std::is_nothrow_destructible_v<T>);
 
     using value_type      = T;
     using size_type       = small_storage_size_t<length>;
@@ -1970,7 +1984,7 @@ constexpr void id_array<Identifier, A>::destroy() noexcept
 
 template<typename Identifier, typename A>
 constexpr std::optional<typename id_array<Identifier, A>::index_type>
-id_array<Identifier, A>::get(const Identifier id) noexcept
+id_array<Identifier, A>::get(const Identifier id) const noexcept
 {
     const auto index = get_index(id);
 
@@ -1978,6 +1992,27 @@ id_array<Identifier, A>::get(const Identifier id) noexcept
     debug::ensure(std::cmp_less(index, m_items.size()));
 
     return m_items[index] == id ? std::make_optional(index) : std::nullopt;
+}
+
+template<typename Identifier, typename A>
+constexpr bool id_array<Identifier, A>::exists(
+  const Identifier id) const noexcept
+{
+    const auto index = get_index(id);
+
+    return std::cmp_greater_equal(index, 0u) and
+           std::cmp_less(index, m_items.size()) and m_items[index] == id;
+}
+
+template<typename Identifier, typename A>
+constexpr std::optional<Identifier> id_array<Identifier, A>::get_from_index(
+  std::integral auto index) const noexcept
+{
+    if (std::cmp_greater_equal(index, 0u) and
+        std::cmp_less(index, m_items.size()) and is_defined(m_items[index]))
+        return std::make_optional(m_items[index]);
+
+    return std::nullopt;
 }
 
 template<typename Identifier, typename A>
