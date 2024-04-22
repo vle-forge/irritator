@@ -220,38 +220,34 @@ static void show_input_output_ports(modeling& mod, component& compo) noexcept
             ImGui::TableHeadersRow();
 
             std::optional<port_id> to_del;
-            for (int i = 0, e = compo.x_names.ssize(); i != e; ++i) {
-                if_data_exists_do(
-                  mod.ports, compo.x_names[i], [&](auto& port) noexcept {
-                      ImGui::TableNextRow();
-                      ImGui::TableNextColumn();
-                      ImGui::TextFormat("{}", i);
+            for (const auto id : compo.x) {
+                ImGui::TableNextRow();
+                ImGui::TableNextColumn();
+                ImGui::TextFormat("{}", ordinal(id));
 
-                      ImGui::TableNextColumn();
-                      ImGui::PushItemWidth(-1.f);
-                      ImGui::PushID(i);
+                ImGui::TableNextColumn();
+                ImGui::PushItemWidth(-1.f);
+                ImGui::PushID(ordinal(id));
 
-                      ImGui::InputFilteredString("##in-name", port.name);
+                ImGui::InputFilteredString("##in-name",
+                                           compo.x_names[get_index(id)]);
 
-                      ImGui::PopID();
-                      ImGui::PopItemWidth();
+                ImGui::PopID();
+                ImGui::PopItemWidth();
 
-                      ImGui::TableNextColumn();
-                      if (ImGui::Button("del"))
-                          to_del = compo.x_names[i];
-                  });
+                ImGui::TableNextColumn();
+                if (ImGui::Button("del"))
+                    to_del = id;
             }
 
             if (to_del.has_value())
-                mod.free_input_port(compo, mod.ports.get(*to_del));
+                compo.x.free(*to_del);
 
             ImGui::EndTable();
 
-            if (mod.ports.can_alloc() && ImGui::Button("+##in-port")) {
-                auto& new_port =
-                  mod.ports.alloc("-", mod.components.get_id(compo));
-                auto new_port_id = mod.ports.get_id(new_port);
-                compo.x_names.emplace_back(new_port_id);
+            if (compo.x.can_alloc(1) && ImGui::Button("+##in-port")) {
+                const auto id                = compo.x.alloc();
+                compo.x_names[get_index(id)] = "-";
             }
         }
     }
@@ -269,38 +265,34 @@ static void show_input_output_ports(modeling& mod, component& compo) noexcept
             ImGui::TableHeadersRow();
 
             std::optional<port_id> to_del;
-            for (int i = 0, e = compo.y_names.ssize(); i != e; ++i) {
-                if_data_exists_do(
-                  mod.ports, compo.y_names[i], [&](auto& port) noexcept {
-                      ImGui::TableNextRow();
-                      ImGui::TableNextColumn();
-                      ImGui::TextFormat("{}", i);
+            for (const auto id : compo.y) {
+                ImGui::TableNextRow();
+                ImGui::TableNextColumn();
+                ImGui::TextFormat("{}", ordinal(id));
 
-                      ImGui::TableNextColumn();
-                      ImGui::PushItemWidth(-1.f);
-                      ImGui::PushID(i);
+                ImGui::TableNextColumn();
+                ImGui::PushItemWidth(-1.f);
+                ImGui::PushID(ordinal(id));
 
-                      ImGui::InputFilteredString("##out-name", port.name);
+                ImGui::InputFilteredString("##out-name",
+                                           compo.y_names[get_index(id)]);
 
-                      ImGui::PopID();
-                      ImGui::PopItemWidth();
+                ImGui::PopID();
+                ImGui::PopItemWidth();
 
-                      ImGui::TableNextColumn();
-                      if (ImGui::Button("del"))
-                          to_del = compo.y_names[i];
-                  });
+                ImGui::TableNextColumn();
+                if (ImGui::Button("del"))
+                    to_del = id;
             }
 
             if (to_del.has_value())
-                mod.free_output_port(compo, mod.ports.get(*to_del));
+                compo.y.free(*to_del);
 
             ImGui::EndTable();
 
-            if (mod.ports.can_alloc() && ImGui::Button("+##out-port")) {
-                auto& new_port =
-                  mod.ports.alloc("-", mod.components.get_id(compo));
-                auto new_port_id = mod.ports.get_id(new_port);
-                compo.y_names.emplace_back(new_port_id);
+            if (compo.y.can_alloc(1) && ImGui::Button("+##out-port")) {
+                const auto id                = compo.y.alloc();
+                compo.y_names[get_index(id)] = "-";
             }
         }
     }

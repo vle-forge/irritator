@@ -276,6 +276,8 @@ static inline constexpr std::string_view stack_id_names[] = {
 static_assert(std::cmp_equal(std::size(stack_id_names),
                              ordinal(stack_id::COUNT)));
 
+enum class connection_type { internal, input, output };
+
 enum class error_id {
     none,
     object_name_not_found,
@@ -646,14 +648,14 @@ struct reader {
         return true;
     }
 
-    bool copy_to(connection::connection_type& type) noexcept
+    bool copy_to(connection_type& type) noexcept
     {
         if (temp_string == "internal"sv)
-            type = connection::connection_type::internal;
+            type = connection_type::internal;
         else if (temp_string == "output"sv)
-            type = connection::connection_type::output;
+            type = connection_type::output;
         else if (temp_string == "input"sv)
-            type = connection::connection_type::input;
+            type = connection_type::input;
         else
             report_json_error(error_id::missing_connection_type);
 
@@ -2632,7 +2634,7 @@ struct reader {
 
         if (auto* c_src = compo.children.try_to_get(src); c_src)
             if (auto* c_dst = compo.children.try_to_get(dst); c_dst)
-                if (mod().connect(compo, *c_src, p_src, *c_dst, p_dst))
+                if (not compo.connect(mod(), *c_src, p_src, *c_dst, p_dst))
                     return true;
 
         report_json_error(error_id::modeling_connect_error);
@@ -2646,9 +2648,8 @@ struct reader {
         auto_stack a(this, stack_id::component_generic_connect_input);
 
         if (auto* c_dst = compo.children.try_to_get(dst); c_dst)
-            if (auto* port = mod().ports.try_to_get(src_port); port)
-                if (mod().connect_input(compo, *port, *c_dst, p_dst))
-                    return true;
+            if (compo.connect_input(src_port, *c_dst, p_dst))
+                return true;
 
         report_json_error(error_id::modeling_connect_error);
     }
@@ -2661,9 +2662,8 @@ struct reader {
         auto_stack a(this, stack_id::component_generic_connect_output);
 
         if (auto* c_src = compo.children.try_to_get(src); c_src)
-            if (auto* port = mod().ports.try_to_get(dst_port); port)
-                if (mod().connect_output(compo, *c_src, p_src, *port))
-                    return true;
+            if (compo.connect_output(dst_port, *c_src, p_src))
+                return true;
 
         report_json_error(error_id::modeling_connect_error);
     }
@@ -2702,7 +2702,8 @@ struct reader {
                     report_json_error(
                       error_id::generic_component_error_port_identifier);
 
-                out = std::make_optional(*dst_int_port);
+                out = std::make_optional(
+                  connection::port{ .model = *dst_int_port });
                 return true;
             } else if (dst_str_port.has_value()) {
                 if (child->type != child_type::component)
@@ -2714,12 +2715,12 @@ struct reader {
                     report_json_error(
                       error_id::generic_component_unknown_component);
 
-                auto p_id = mod().get_x_index(*compo, *dst_str_port);
+                auto p_id = compo->get_x(*dst_str_port);
                 if (is_undefined(p_id))
                     report_json_error(
                       error_id::generic_component_unknown_component_x_port);
 
-                out = std::make_optional(p_id);
+                out = std::make_optional(connection::port{ .compo = p_id });
                 return true;
             } else {
                 unreachable();
@@ -2743,7 +2744,8 @@ struct reader {
                     report_json_error(
                       error_id::generic_component_error_port_identifier);
 
-                out = std::make_optional(*src_int_port);
+                out = std::make_optional(
+                  connection::port{ .model = *src_int_port });
                 return true;
             } else if (src_str_port.has_value()) {
                 if (child->type != child_type::component)
@@ -2755,12 +2757,12 @@ struct reader {
                     report_json_error(
                       error_id::generic_component_unknown_component);
 
-                auto p_id = mod().get_y_index(*compo, *src_str_port);
+                auto p_id = compo->get_y(*src_str_port);
                 if (is_undefined(p_id))
                     report_json_error(
                       error_id::generic_component_unknown_component_y_port);
 
-                out = std::make_optional(p_id);
+                out = std::make_optional(connection::port{ .compo = p_id });
                 return true;
             } else {
                 unreachable();
@@ -2777,7 +2779,7 @@ struct reader {
         if (!str_port.has_value())
             report_json_error(error_id::missing_mandatory_arg);
 
-        auto port_id = mod().get_x_index(compo, *str_port);
+        auto port_id = compo.get_x(*str_port);
         if (is_undefined(port_id))
             report_json_error(
               error_id::generic_component_unknown_component_x_port);
@@ -2793,7 +2795,7 @@ struct reader {
         if (!str_port.has_value())
             report_json_error(error_id::missing_mandatory_arg);
 
-        auto port_id = mod().get_y_index(compo, *str_port);
+        auto port_id = compo.get_y(*str_port);
         if (is_undefined(port_id))
             report_json_error(
               error_id::generic_component_unknown_component_y_port);
@@ -2927,19 +2929,19 @@ struct reader {
                modeling_connect_input(gen, *port, dst_id, *dst_port);
     }
 
-    bool dispatch_connection_type(const rapidjson::Value&     val,
-                                  connection::connection_type type,
-                                  component&                  compo,
-                                  generic_component&          gen) noexcept
+    bool dispatch_connection_type(const rapidjson::Value& val,
+                                  connection_type         type,
+                                  component&              compo,
+                                  generic_component&      gen) noexcept
     {
         auto_stack s(this, stack_id::component_generic_dispatch_connection);
 
         switch (type) {
-        case connection::connection_type::internal:
+        case connection_type::internal:
             return read_internal_connection(val, gen);
-        case connection::connection_type::output:
+        case connection_type::output:
             return read_output_connection(val, compo, gen);
-        case connection::connection_type::input:
+        case connection_type::input:
             return read_input_connection(val, compo, gen);
         }
 
@@ -2961,8 +2963,7 @@ struct reader {
                        [&](const auto  name,
                            const auto& value) noexcept -> bool {
                            if ("type"sv == name) {
-                               connection::connection_type type =
-                                 connection::connection_type::internal;
+                               connection_type type = connection_type::internal;
                                return read_temp_string(value) &&
                                       copy_to(type) &&
                                       dispatch_connection_type(
@@ -3272,23 +3273,20 @@ struct reader {
     }
 
     bool read_ports(const rapidjson::Value& val,
-                    component&              compo,
-                    vector<port_id>&        names) noexcept
+                    id_array<port_id>&      port,
+                    vector<port_str>&       names) noexcept
     {
         auto_stack s(this, stack_id::component_ports);
 
-        return is_value_array(val) &&
+        return is_value_array(val) && port.can_alloc(val.GetArray().Size()) &&
                buffer_reserve(val.GetArray().Size(), names) &&
                for_each_array(
                  val,
                  [&](const auto /*i*/, const auto& value) noexcept -> bool {
                      if (read_temp_string(value)) {
-                         auto& new_port  = mod().ports.alloc();
-                         auto  id        = mod().ports.get_id(new_port);
-                         new_port.parent = mod().components.get_id(compo);
-                         names.emplace_back(id);
-
-                         return copy_to(new_port.name);
+                         auto port_id              = port.alloc();
+                         names[get_index(port_id)] = temp_string;
+                         return true;
                      }
 
                      report_json_error(error_id::missing_string);
@@ -3324,9 +3322,9 @@ struct reader {
               if ("random-sources"sv == name)
                   return read_random_sources(value, mod().srcs);
               if ("x"sv == name)
-                  return read_ports(value, compo, compo.x_names);
+                  return read_ports(value, compo.x, compo.x_names);
               if ("y"sv == name)
-                  return read_ports(value, compo, compo.y_names);
+                  return read_ports(value, compo.y, compo.y_names);
               if ("type"sv == name)
                   return read_temp_string(value) &&
                          convert_to_component(compo) &&
@@ -5371,9 +5369,8 @@ static void write_component_ports(cache_rw& /*cache*/,
         w.Key("x");
         w.StartArray();
 
-        for_specified_data(mod.ports, compo.x_names, [&](auto& port) {
-            w.String(port.name.c_str());
-        });
+        for (const auto id : compo.x)
+            w.String(compo.x_names[get_index(id)].c_str());
 
         w.EndArray();
     }
@@ -5382,225 +5379,164 @@ static void write_component_ports(cache_rw& /*cache*/,
         w.Key("y");
         w.StartArray();
 
-        for_specified_data(mod.ports, compo.y_names, [&](auto& port) {
-            w.String(port.name.c_str());
-        });
+        for (const auto id : compo.y)
+            w.String(compo.y_names[get_index(id)].c_str());
 
         w.EndArray();
     }
 }
 
-template<typename FunctionModel, typename FunctionComponent>
-static void dispatch_child_connection(modeling&           mod,
-                                      child&              ch,
-                                      connection::port&   port,
-                                      FunctionModel&&     model_cb,
-                                      FunctionComponent&& component_cb)
-{
-    if (ch.type == child_type::model)
-        model_cb(port.model);
-
-    if (auto* p = mod.ports.try_to_get(port.compo); p)
-        component_cb(*p);
-}
-
-template<typename InternalF, typename InputF, typename OutputF>
-static void for_each_specified_connections(modeling&          mod,
-                                           generic_component& gen,
-                                           InternalF&&        internal_f,
-                                           InputF&&           input_f,
-                                           OutputF&&          output_f) noexcept
-{
-    for (const auto& con : gen.connections) {
-        switch (con.type) {
-        case connection::connection_type::input:
-            if (auto* c = gen.children.try_to_get(con.input.dst); c)
-                if (auto* p = mod.ports.try_to_get(con.input.index); p)
-                    input_f(*p, *c, con.input.index_dst);
-            break;
-
-        case connection::connection_type::output:
-            if (auto* c = gen.children.try_to_get(con.output.src); c)
-                if (auto* p = mod.ports.try_to_get(con.output.index); p)
-                    output_f(*c, con.output.index_src, *p);
-            break;
-
-        case connection::connection_type::internal:
-            if (auto* c_src = gen.children.try_to_get(con.internal.src); c_src)
-                if (auto* c_dst = gen.children.try_to_get(con.internal.dst);
-                    c_dst)
-                    internal_f(*c_src,
-                               con.internal.index_src,
-                               *c_dst,
-                               con.internal.index_dst);
-            break;
-        }
-    }
-}
-
 template<typename Writer>
-static void write_input_connection(modeling&          mod,
-                                   generic_component& gen,
-                                   port&              x,
-                                   child&             dst,
-                                   connection::port   dst_y,
-                                   Writer&            w) noexcept
+static void write_input_connection(const modeling&          mod,
+                                   const component&         parent,
+                                   const generic_component& gen,
+                                   const port_id            x,
+                                   const child&             dst,
+                                   const connection::port   dst_x,
+                                   Writer&                  w) noexcept
 {
-    dispatch_child_connection(
-      mod,
-      dst,
-      dst_y,
-      [&](int port) {
-          w.StartObject();
-          w.Key("type");
-          w.String("input");
-          w.Key("port");
-          w.String(x.name.c_str());
-          w.Key("destination");
-          w.Uint64(get_index(gen.children.get_id(dst)));
-          w.Key("port-destination");
-          w.Int(port);
-          w.EndObject();
-      },
-      [&](port& p) {
-          w.StartObject();
-          w.Key("type");
-          w.String("input");
-          w.Key("port");
-          w.String(x.name.c_str());
-          w.Key("destination");
-          w.Uint64(get_index(gen.children.get_id(dst)));
-          w.Key("port-destination");
-          w.String(p.name.c_str());
-          w.EndObject();
-      });
-}
-
-template<typename Writer>
-static void write_output_connection(modeling&          mod,
-                                    generic_component& gen,
-                                    child&             src,
-                                    connection::port   src_y,
-                                    port&              y,
-                                    Writer&            w) noexcept
-{
-    dispatch_child_connection(
-      mod,
-      src,
-      src_y,
-      [&](int port) {
-          w.StartObject();
-          w.Key("type");
-          w.String("output");
-          w.Key("port");
-          w.String(y.name.c_str());
-          w.Key("source");
-          w.Uint64(get_index(gen.children.get_id(src)));
-          w.Key("port-source");
-          w.Int(port);
-          w.EndObject();
-      },
-      [&](port& p) {
-          w.StartObject();
-          w.Key("type");
-          w.String("output");
-          w.Key("port");
-          w.String(y.name.c_str());
-          w.Key("source");
-          w.Uint64(get_index(gen.children.get_id(src)));
-          w.Key("port-source");
-          w.String(p.name.c_str());
-          w.EndObject();
-      });
-}
-
-template<typename Writer>
-static void write_internal_connection(modeling&          mod,
-                                      generic_component& gen,
-                                      child&             src,
-                                      connection::port   src_y,
-                                      child&             dst,
-                                      connection::port   dst_x,
-                                      Writer&            w) noexcept
-{
-    const char* src_str = nullptr;
-    const char* dst_str = nullptr;
-    int         src_int = 0;
-    int         dst_int = 0;
-
-    if (src.type == child_type::component) {
-        auto* p = mod.ports.try_to_get(src_y.compo);
-        debug::ensure(p);
-        if (p)
-            src_str = p->name.c_str();
-    } else
-        src_int = src_y.model;
-
-    if (dst.type == child_type::component) {
-        auto* p = mod.ports.try_to_get(dst_x.compo);
-        debug::ensure(p);
-        if (p)
-            dst_str = p->name.c_str();
-    } else
-        dst_int = dst_x.model;
-
     w.StartObject();
     w.Key("type");
-    w.String("internal");
-    w.Key("source");
-    w.Uint64(get_index(gen.children.get_id(src)));
-    w.Key("port-source");
-    if (src_str)
-        w.String(src_str);
-    else
-        w.Int(src_int);
-
+    w.String("input");
+    w.Key("port");
+    w.String(parent.x_names[get_index(x)].c_str());
     w.Key("destination");
     w.Uint64(get_index(gen.children.get_id(dst)));
     w.Key("port-destination");
-    if (dst_str)
-        w.String(dst_str);
-    else
-        w.Int(dst_int);
+
+    if (dst.type == child_type::model) {
+        w.Int(dst_x.model);
+    } else {
+        const auto* compo_child = mod.components.try_to_get(dst.id.compo_id);
+        if (compo_child and compo_child->x.exists(dst_x.compo))
+            w.String(compo_child->x_names[get_index(dst_x.compo)].c_str());
+    }
+
     w.EndObject();
 }
 
 template<typename Writer>
+static void write_output_connection(const modeling&          mod,
+                                    const component&         parent,
+                                    const generic_component& gen,
+                                    const port_id            y,
+                                    const child&             src,
+                                    const connection::port   src_y,
+                                    Writer&                  w) noexcept
+{
+    w.StartObject();
+    w.Key("type");
+    w.String("output");
+    w.Key("port");
+    w.String(parent.y_names[get_index(y)].c_str());
+    w.Key("spirce");
+    w.Uint64(get_index(gen.children.get_id(src)));
+    w.Key("port-source");
+
+    if (src.type == child_type::model) {
+        w.Int(src_y.model);
+    } else {
+        const auto* compo_child = mod.components.try_to_get(src.id.compo_id);
+        if (compo_child and compo_child->y.exists(src_y.compo)) {
+            w.String(compo_child->y_names[get_index(src_y.compo)].c_str());
+        }
+    }
+    w.EndObject();
+}
+
+template<typename Writer>
+static void write_internal_connection(const modeling&          mod,
+                                      const generic_component& gen,
+                                      const child&             src,
+                                      const connection::port   src_y,
+                                      const child&             dst,
+                                      const connection::port   dst_x,
+                                      Writer&                  w) noexcept
+{
+    const char* src_str = nullptr;
+    const char* dst_str = nullptr;
+    int         src_int = -1;
+    int         dst_int = -1;
+
+    if (src.type == child_type::component) {
+        auto* compo = mod.components.try_to_get(src.id.compo_id);
+        if (compo and compo->y.exists(src_y.compo))
+            src_str = compo->y_names[get_index(src_y.compo)].c_str();
+    } else
+        src_int = src_y.model;
+
+    if (dst.type == child_type::component) {
+        auto* compo = mod.components.try_to_get(dst.id.compo_id);
+        if (compo and compo->x.exists(dst_x.compo))
+            dst_str = compo->x_names[get_index(dst_x.compo)].c_str();
+    } else
+        dst_int = dst_x.model;
+
+    if ((src_str or src_int >= 0) and (dst_str or dst_int >= 0)) {
+        w.StartObject();
+        w.Key("type");
+        w.String("internal");
+        w.Key("source");
+        w.Uint64(get_index(gen.children.get_id(src)));
+        w.Key("port-source");
+        if (src_str)
+            w.String(src_str);
+        else
+            w.Int(src_int);
+
+        w.Key("destination");
+        w.Uint64(get_index(gen.children.get_id(dst)));
+        w.Key("port-destination");
+        if (dst_str)
+            w.String(dst_str);
+        else
+            w.Int(dst_int);
+        w.EndObject();
+    }
+}
+
+template<typename Writer>
 static void write_generic_component_connections(cache_rw& /*cache*/,
-                                                modeling&          mod,
-                                                generic_component& compo,
-                                                Writer&            w) noexcept
+                                                const modeling&          mod,
+                                                const component&         compo,
+                                                const generic_component& gen,
+                                                Writer& w) noexcept
 {
     w.Key("connections");
     w.StartArray();
 
-    for_each_specified_connections(
-      mod,
-      compo,
-      [&](auto& c_src, auto& c_y, auto& c_dst, auto& c_x) {
-          write_internal_connection(mod, compo, c_src, c_y, c_dst, c_x, w);
-      },
-      [&](auto& x, auto& child, auto& c_x) {
-          write_input_connection(mod, compo, x, child, c_x, w);
-      },
-      [&](auto& child, auto& c_y, auto& y) {
-          write_output_connection(mod, compo, child, c_y, y, w);
-      });
+    for (const auto& con : gen.connections)
+        if (auto* c_src = gen.children.try_to_get(con.src); c_src)
+            if (auto* c_dst = gen.children.try_to_get(con.dst); c_dst)
+                write_internal_connection(
+                  mod, gen, *c_src, con.index_src, *c_dst, con.index_dst, w);
+
+    for (const auto& con : gen.input_connections)
+        if (auto* c = gen.children.try_to_get(con.dst); c)
+            if (compo.x.exists(con.x))
+                write_input_connection(mod, compo, gen, con.x, *c, con.port, w);
+
+    for (const auto& con : gen.output_connections)
+        if (auto* c = gen.children.try_to_get(con.src); c)
+            if (compo.y.exists(con.y))
+                write_output_connection(
+                  mod, compo, gen, con.y, *c, con.port, w);
 
     w.EndArray();
 }
 
 template<typename Writer>
-static void write_generic_component(cache_rw&          cache,
-                                    modeling&          mod,
-                                    generic_component& s_compo,
-                                    Writer&            w) noexcept
+static void write_generic_component(cache_rw&                cache,
+                                    const modeling&          mod,
+                                    const component&         compo,
+                                    const generic_component& s_compo,
+                                    Writer&                  w) noexcept
 {
     w.String("next-unique-id");
     w.Uint64(s_compo.next_unique_id);
 
     write_generic_component_children(cache, mod, s_compo, w);
-    write_generic_component_connections(cache, mod, s_compo, w);
+    write_generic_component_connections(cache, mod, compo, s_compo, w);
 }
 
 template<typename Writer>
@@ -5792,7 +5728,7 @@ static void do_component_save(Writer&    w,
     case component_type::simple: {
         auto* p = mod.generic_components.try_to_get(compo.id.generic_id);
         if (p)
-            write_generic_component(cache, mod, *p, w);
+            write_generic_component(cache, mod, compo, *p, w);
     } break;
 
     case component_type::grid: {

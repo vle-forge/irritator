@@ -87,8 +87,7 @@ static void connection_add(modeling&       mod,
         if (child.type == child_type::component) {
             if (auto* compo = mod.components.try_to_get(child.id.compo_id);
                 compo) {
-                port_src_real =
-                  mod.get_y_index(*compo, p_in_out_names[ordinal(port_src)]);
+                port_src_real = compo->get_y(p_in_out_names[ordinal(port_src)]);
             }
         }
     });
@@ -97,8 +96,7 @@ static void connection_add(modeling&       mod,
         if (child.type == child_type::component) {
             if (auto* compo = mod.components.try_to_get(child.id.compo_id);
                 compo) {
-                port_dst_real =
-                  mod.get_x_index(*compo, p_in_out_names[ordinal(port_dst)]);
+                port_dst_real = compo->get_x(p_in_out_names[ordinal(port_dst)]);
             }
         }
     });
@@ -121,8 +119,7 @@ static void connection_add(modeling&       mod,
         if (child.type == child_type::component) {
             if (auto* compo = mod.components.try_to_get(child.id.compo_id);
                 compo) {
-                port_src_real =
-                  mod.get_y_index(*compo, p_4x4_names[ordinal(port_src)]);
+                port_src_real = compo->get_y(p_4x4_names[ordinal(port_src)]);
             }
         }
     });
@@ -131,8 +128,7 @@ static void connection_add(modeling&       mod,
         if (child.type == child_type::component) {
             if (auto* compo = mod.components.try_to_get(child.id.compo_id);
                 compo) {
-                port_dst_real =
-                  mod.get_x_index(*compo, p_4x4_names[ordinal(port_dst)]);
+                port_dst_real = compo->get_x(p_4x4_names[ordinal(port_dst)]);
             }
         }
     });
@@ -155,8 +151,7 @@ static void connection_add(modeling&       mod,
         if (child.type == child_type::component) {
             if (auto* compo = mod.components.try_to_get(child.id.compo_id);
                 compo) {
-                port_src_real =
-                  mod.get_y_index(*compo, p_8x8_names[ordinal(port_src)]);
+                port_src_real = compo->get_y(p_8x8_names[ordinal(port_src)]);
             }
         }
     });
@@ -165,8 +160,7 @@ static void connection_add(modeling&       mod,
         if (child.type == child_type::component) {
             if (auto* compo = mod.components.try_to_get(child.id.compo_id);
                 compo) {
-                port_dst_real =
-                  mod.get_x_index(*compo, p_8x8_names[ordinal(port_dst)]);
+                port_dst_real = compo->get_x(p_8x8_names[ordinal(port_dst)]);
             }
         }
     });
@@ -508,49 +502,52 @@ status modeling::copy(grid_component& grid, generic_component& s) noexcept
     return s.import(grid.cache, grid.cache_connections);
 }
 
-bool grid_component::exist_input_connection(const port_id x,
-                                            const i32     row,
-                                            const i32     col,
-                                            const port_id id) const noexcept
-{
-    for (int i = 0, e = input_connections.ssize(); i != e; ++i)
-        if (x == input_connections[i].x and row == input_connections[i].row and
-            col == input_connections[i].col and id == input_connections[i].id)
-            return true;
-
-    return false;
-}
-
-bool grid_component::exist_output_connection(const port_id y,
+bool grid_component::exists_input_connection(const port_id x,
                                              const i32     row,
                                              const i32     col,
                                              const port_id id) const noexcept
 {
-    for (int i = 0, e = output_connections.ssize(); i != e; ++i)
-        if (y == output_connections[i].y and
-            row == output_connections[i].row and
-            col == output_connections[i].col and id == output_connections[i].id)
+    for (const auto& con : input_connections)
+        if (x == con.x and row == con.row and col == con.col and id == con.id)
             return true;
 
     return false;
 }
 
-void grid_component::add_input_connection(const port_id x,
-                                          const i32     row,
-                                          const i32     col,
-                                          const port_id id) noexcept
+bool grid_component::exists_output_connection(const port_id y,
+                                              const i32     row,
+                                              const i32     col,
+                                              const port_id id) const noexcept
 {
-    if (not exist_input_connection(x, row, col, id))
-        input_connections.push_back(input_connection{ x, row, col, id });
+    for (const auto& con : output_connections)
+        if (y == con.y and row == con.row and col == con.col and id == con.id)
+            return true;
+
+    return false;
 }
 
-void grid_component::add_output_connection(const port_id y,
-                                           const i32     row,
-                                           const i32     col,
-                                           const port_id id) noexcept
+result<input_connection_id> grid_component::connect_input(
+  const port_id x,
+  const i32     row,
+  const i32     col,
+  const port_id id) noexcept
 {
-    if (not exist_output_connection(y, row, col, id))
-        output_connections.push_back(output_connection{ y, row, col, id });
+    if (exists_input_connection(x, row, col, id))
+        return new_error(modeling::part::grid_components);
+
+    return input_connections.get_id(input_connections.alloc(x, row, col, id));
+}
+
+result<output_connection_id> grid_component::connect_output(
+  const port_id y,
+  const i32     row,
+  const i32     col,
+  const port_id id) noexcept
+{
+    if (exists_output_connection(y, row, col, id))
+        return new_error(modeling::part::grid_components);
+
+    return output_connections.get_id(output_connections.alloc(y, row, col, id));
 }
 
 } // namespace irt

@@ -85,14 +85,10 @@ void variable_observer::clear() noexcept
 void variable_observer::erase(const tree_node_id tn,
                               const model_id     mdl) noexcept
 {
-    auto i = 0;
+    for (const auto id : m_ids) {
+        const auto idx = get_index(id);
 
-    const sub_id* ptr = nullptr;
-    while (m_ids.next(ptr)) {
-        const auto idx = get_index(*ptr);
-
-        if (m_tn_ids[idx] == tn and m_mdl_ids[idx] == mdl)
-            erase(*ptr);
+        if (m_tn_ids[idx] == tn and m_mdl_ids[idx] == mdl) erase(id);
     }
 }
 

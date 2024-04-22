@@ -25,15 +25,36 @@ static child_id alloc(modeling&              mod,
     return id;
 }
 
-static status connect(modeling&          mod,
-                      generic_component& c,
+static auto is_connection_exits(const generic_component& c,
+                                const child_id           src,
+                                const int                port_src,
+                                const child_id           dst,
+                                const int port_dst) noexcept -> bool
+{
+    const connection cpy(src, port_src, dst, port_dst);
+
+    for (const auto& con : c.connections)
+        if (cpy == con)
+            return true;
+
+    return false;
+}
+
+static status connect(generic_component& c,
                       child_id           src,
                       int                port_src,
                       child_id           dst,
                       int                port_dst) noexcept
 {
-    return mod.connect(
-      c, c.children.get(src), port_src, c.children.get(dst), port_dst);
+    if (not c.connections.can_alloc())
+        return new_error(modeling::connection_error{}, container_full_error{});
+
+    if (is_connection_exits(c, src, port_src, dst, port_dst))
+        return new_error(modeling::connection_error{}, already_exist_error{});
+
+    c.connections.alloc(src, port_src, dst, port_dst);
+
+    return success();
 }
 
 static status add_integrator_component_port(modeling&          mod,
@@ -42,18 +63,19 @@ static status add_integrator_component_port(modeling&          mod,
                                             child_id           id,
                                             std::string_view   port) noexcept
 {
-    auto  x_port_id = mod.get_or_add_x_index(dst, port);
-    auto  y_port_id = mod.get_or_add_y_index(dst, port);
-    auto* x_port    = mod.ports.try_to_get(x_port_id);
-    auto* y_port    = mod.ports.try_to_get(y_port_id);
-    auto* c         = com.children.try_to_get(id);
+    const auto x_port_id = dst.get_or_add_x(port);
+    const auto y_port_id = dst.get_or_add_y(port);
+    auto*      c         = com.children.try_to_get(id);
 
-    debug::ensure(x_port);
-    debug::ensure(y_port);
+    debug::ensure(is_defined(x_port_id));
+    debug::ensure(is_defined(y_port_id));
     debug::ensure(c);
 
-    irt_check(mod.connect_input(com, *x_port, *c, 1));
-    irt_check(mod.connect_output(com, *c, 0, *y_port));
+    irt_check(com.connect_input(
+      x_port_id, com.children.get(id), connection::port{ .model = 1 }));
+    irt_check(com.connect_output(
+      y_port_id, com.children.get(id), connection::port{ .model = 0 }));
+
     c->unique_id = com.make_next_unique_id();
 
     return success();
@@ -177,14 +199,14 @@ status add_lotka_volterra(modeling&          mod,
       mod, com, "Y+XY", bitflags<child_flags>(child_flags::configurable));
     affect_abstract_wsum(com, sum_b, -1.0_r, 0.1_r);
 
-    irt_check(connect(mod, com, sum_a, 0, integrator_a, 0));
-    irt_check(connect(mod, com, sum_b, 0, integrator_b, 0));
-    irt_check(connect(mod, com, integrator_a, 0, sum_a, 0));
-    irt_check(connect(mod, com, integrator_b, 0, sum_b, 0));
-    irt_check(connect(mod, com, integrator_a, 0, product, 0));
-    irt_check(connect(mod, com, integrator_b, 0, product, 1));
-    irt_check(connect(mod, com, product, 0, sum_a, 1));
-    irt_check(connect(mod, com, product, 0, sum_b, 1));
+    irt_check(connect(com, sum_a, 0, integrator_a, 0));
+    irt_check(connect(com, sum_b, 0, integrator_b, 0));
+    irt_check(connect(com, integrator_a, 0, sum_a, 0));
+    irt_check(connect(com, integrator_b, 0, sum_b, 0));
+    irt_check(connect(com, integrator_a, 0, product, 0));
+    irt_check(connect(com, integrator_b, 0, product, 1));
+    irt_check(connect(com, product, 0, sum_a, 1));
+    irt_check(connect(com, product, 0, sum_b, 1));
 
     irt_check(add_integrator_component_port(mod, dst, com, integrator_a, "X"));
     irt_check(add_integrator_component_port(mod, dst, com, integrator_b, "Y"));
@@ -226,13 +248,13 @@ status add_lif(modeling& mod, component& dst, generic_component& com) noexcept
     auto cross = alloc<abstract_cross<QssLevel>>(mod, com);
     affect_abstract_cross(com, cross, Vt, false);
 
-    irt_check(connect(mod, com, cross, 0, integrator, 1));
-    irt_check(connect(mod, com, cross, 1, sum, 0));
-    irt_check(connect(mod, com, integrator, 0, cross, 0));
-    irt_check(connect(mod, com, integrator, 0, cross, 2));
-    irt_check(connect(mod, com, cst_cross, 0, cross, 1));
-    irt_check(connect(mod, com, cst, 0, sum, 1));
-    irt_check(connect(mod, com, sum, 0, integrator, 0));
+    irt_check(connect(com, cross, 0, integrator, 1));
+    irt_check(connect(com, cross, 1, sum, 0));
+    irt_check(connect(com, integrator, 0, cross, 0));
+    irt_check(connect(com, integrator, 0, cross, 2));
+    irt_check(connect(com, cst_cross, 0, cross, 1));
+    irt_check(connect(com, cst, 0, sum, 1));
+    irt_check(connect(com, sum, 0, integrator, 0));
 
     irt_check(add_integrator_component_port(mod, dst, com, integrator, "V"));
 
@@ -293,33 +315,33 @@ status add_izhikevich(modeling&          mod,
     affect_abstract_wsum(com, sum_c, 0.04_r, 5.0_r, 140.0_r, 1.0_r);
     affect_abstract_wsum(com, sum_d, 1.0_r, d);
 
-    irt_check(connect(mod, com, integrator_a, 0, cross, 0));
-    irt_check(connect(mod, com, cst2, 0, cross, 1));
-    irt_check(connect(mod, com, integrator_a, 0, cross, 2));
+    irt_check(connect(com, integrator_a, 0, cross, 0));
+    irt_check(connect(com, cst2, 0, cross, 1));
+    irt_check(connect(com, integrator_a, 0, cross, 2));
 
-    irt_check(connect(mod, com, cross, 1, product, 0));
-    irt_check(connect(mod, com, cross, 1, product, 1));
-    irt_check(connect(mod, com, product, 0, sum_c, 0));
-    irt_check(connect(mod, com, cross, 1, sum_c, 1));
-    irt_check(connect(mod, com, cross, 1, sum_b, 1));
+    irt_check(connect(com, cross, 1, product, 0));
+    irt_check(connect(com, cross, 1, product, 1));
+    irt_check(connect(com, product, 0, sum_c, 0));
+    irt_check(connect(com, cross, 1, sum_c, 1));
+    irt_check(connect(com, cross, 1, sum_b, 1));
 
-    irt_check(connect(mod, com, cst, 0, sum_c, 2));
-    irt_check(connect(mod, com, cst3, 0, sum_c, 3));
+    irt_check(connect(com, cst, 0, sum_c, 2));
+    irt_check(connect(com, cst3, 0, sum_c, 3));
 
-    irt_check(connect(mod, com, sum_c, 0, sum_a, 0));
-    irt_check(connect(mod, com, cross2, 1, sum_a, 1));
-    irt_check(connect(mod, com, sum_a, 0, integrator_a, 0));
-    irt_check(connect(mod, com, cross, 0, integrator_a, 1));
+    irt_check(connect(com, sum_c, 0, sum_a, 0));
+    irt_check(connect(com, cross2, 1, sum_a, 1));
+    irt_check(connect(com, sum_a, 0, integrator_a, 0));
+    irt_check(connect(com, cross, 0, integrator_a, 1));
 
-    irt_check(connect(mod, com, cross2, 1, sum_b, 0));
-    irt_check(connect(mod, com, sum_b, 0, integrator_b, 0));
+    irt_check(connect(com, cross2, 1, sum_b, 0));
+    irt_check(connect(com, sum_b, 0, integrator_b, 0));
 
-    irt_check(connect(mod, com, cross2, 0, integrator_b, 1));
-    irt_check(connect(mod, com, integrator_a, 0, cross2, 0));
-    irt_check(connect(mod, com, integrator_b, 0, cross2, 2));
-    irt_check(connect(mod, com, sum_d, 0, cross2, 1));
-    irt_check(connect(mod, com, integrator_b, 0, sum_d, 0));
-    irt_check(connect(mod, com, cst, 0, sum_d, 1));
+    irt_check(connect(com, cross2, 0, integrator_b, 1));
+    irt_check(connect(com, integrator_a, 0, cross2, 0));
+    irt_check(connect(com, integrator_b, 0, cross2, 2));
+    irt_check(connect(com, sum_d, 0, cross2, 1));
+    irt_check(connect(com, integrator_b, 0, sum_d, 0));
+    irt_check(connect(com, cst, 0, sum_d, 1));
 
     irt_check(add_integrator_component_port(mod, dst, com, integrator_a, "V"));
     irt_check(add_integrator_component_port(mod, dst, com, integrator_b, "U"));
@@ -358,15 +380,15 @@ status add_van_der_pol(modeling&          mod,
     constexpr double mu = 4.0_r;
     affect_abstract_wsum(com, sum, mu, -mu, -1.0_r);
 
-    irt_check(connect(mod, com, integrator_b, 0, integrator_a, 0));
-    irt_check(connect(mod, com, sum, 0, integrator_b, 0));
-    irt_check(connect(mod, com, integrator_b, 0, sum, 0));
-    irt_check(connect(mod, com, product2, 0, sum, 1));
-    irt_check(connect(mod, com, integrator_a, 0, sum, 2));
-    irt_check(connect(mod, com, integrator_b, 0, product1, 0));
-    irt_check(connect(mod, com, integrator_a, 0, product1, 1));
-    irt_check(connect(mod, com, product1, 0, product2, 0));
-    irt_check(connect(mod, com, integrator_a, 0, product2, 1));
+    irt_check(connect(com, integrator_b, 0, integrator_a, 0));
+    irt_check(connect(com, sum, 0, integrator_b, 0));
+    irt_check(connect(com, integrator_b, 0, sum, 0));
+    irt_check(connect(com, product2, 0, sum, 1));
+    irt_check(connect(com, integrator_a, 0, sum, 2));
+    irt_check(connect(com, integrator_b, 0, product1, 0));
+    irt_check(connect(com, integrator_a, 0, product1, 1));
+    irt_check(connect(com, product1, 0, product2, 0));
+    irt_check(connect(com, integrator_a, 0, product2, 1));
 
     irt_check(add_integrator_component_port(mod, dst, com, integrator_a, "X"));
     irt_check(add_integrator_component_port(mod, dst, com, integrator_b, "Y"));
@@ -405,13 +427,13 @@ status add_negative_lif(modeling&          mod,
     affect_abstract_integrator(com, integrator, 0.0_r, 0.001_r);
     affect_abstract_cross(com, cross, Vt, true);
 
-    irt_check(connect(mod, com, cross, 0, integrator, 1));
-    irt_check(connect(mod, com, cross, 1, sum, 0));
-    irt_check(connect(mod, com, integrator, 0, cross, 0));
-    irt_check(connect(mod, com, integrator, 0, cross, 2));
-    irt_check(connect(mod, com, cst_cross, 0, cross, 1));
-    irt_check(connect(mod, com, cst, 0, sum, 1));
-    irt_check(connect(mod, com, sum, 0, integrator, 0));
+    irt_check(connect(com, cross, 0, integrator, 1));
+    irt_check(connect(com, cross, 1, sum, 0));
+    irt_check(connect(com, integrator, 0, cross, 0));
+    irt_check(connect(com, integrator, 0, cross, 2));
+    irt_check(connect(com, cst_cross, 0, cross, 1));
+    irt_check(connect(com, cst, 0, sum, 1));
+    irt_check(connect(com, sum, 0, integrator, 0));
 
     irt_check(add_integrator_component_port(mod, dst, com, integrator, "V"));
 
@@ -487,28 +509,28 @@ status add_seirs(modeling& mod, component& dst, generic_component& com) noexcept
       alloc<abstract_wsum<QssLevel, 2>>(mod, com, "gamma I - rho R");
     affect_abstract_wsum(com, gamma_I_rho_R, -1.0_r, 1.0_r);
 
-    irt_check(connect(mod, com, rho, 0, rho_R, 0));
-    irt_check(connect(mod, com, beta, 0, rho_R, 1));
-    irt_check(connect(mod, com, beta, 0, beta_S, 1));
-    irt_check(connect(mod, com, dS, 0, beta_S, 0));
-    irt_check(connect(mod, com, dI, 0, beta_S_I, 0));
-    irt_check(connect(mod, com, beta_S, 0, beta_S_I, 1));
-    irt_check(connect(mod, com, rho_R, 0, rho_R_beta_S_I, 0));
-    irt_check(connect(mod, com, beta_S_I, 0, rho_R_beta_S_I, 1));
-    irt_check(connect(mod, com, rho_R_beta_S_I, 0, dS, 0));
-    irt_check(connect(mod, com, dE, 0, sigma_E, 0));
-    irt_check(connect(mod, com, sigma, 0, sigma_E, 1));
-    irt_check(connect(mod, com, beta_S_I, 0, beta_S_I_sigma_E, 0));
-    irt_check(connect(mod, com, sigma_E, 0, beta_S_I_sigma_E, 1));
-    irt_check(connect(mod, com, beta_S_I_sigma_E, 0, dE, 0));
-    irt_check(connect(mod, com, dI, 0, gamma_I, 0));
-    irt_check(connect(mod, com, gamma, 0, gamma_I, 1));
-    irt_check(connect(mod, com, sigma_E, 0, sigma_E_gamma_I, 0));
-    irt_check(connect(mod, com, gamma_I, 0, sigma_E_gamma_I, 1));
-    irt_check(connect(mod, com, sigma_E_gamma_I, 0, dI, 0));
-    irt_check(connect(mod, com, rho_R, 0, gamma_I_rho_R, 0));
-    irt_check(connect(mod, com, gamma_I, 0, gamma_I_rho_R, 1));
-    irt_check(connect(mod, com, gamma_I_rho_R, 0, dR, 0));
+    irt_check(connect(com, rho, 0, rho_R, 0));
+    irt_check(connect(com, beta, 0, rho_R, 1));
+    irt_check(connect(com, beta, 0, beta_S, 1));
+    irt_check(connect(com, dS, 0, beta_S, 0));
+    irt_check(connect(com, dI, 0, beta_S_I, 0));
+    irt_check(connect(com, beta_S, 0, beta_S_I, 1));
+    irt_check(connect(com, rho_R, 0, rho_R_beta_S_I, 0));
+    irt_check(connect(com, beta_S_I, 0, rho_R_beta_S_I, 1));
+    irt_check(connect(com, rho_R_beta_S_I, 0, dS, 0));
+    irt_check(connect(com, dE, 0, sigma_E, 0));
+    irt_check(connect(com, sigma, 0, sigma_E, 1));
+    irt_check(connect(com, beta_S_I, 0, beta_S_I_sigma_E, 0));
+    irt_check(connect(com, sigma_E, 0, beta_S_I_sigma_E, 1));
+    irt_check(connect(com, beta_S_I_sigma_E, 0, dE, 0));
+    irt_check(connect(com, dI, 0, gamma_I, 0));
+    irt_check(connect(com, gamma, 0, gamma_I, 1));
+    irt_check(connect(com, sigma_E, 0, sigma_E_gamma_I, 0));
+    irt_check(connect(com, gamma_I, 0, sigma_E_gamma_I, 1));
+    irt_check(connect(com, sigma_E_gamma_I, 0, dI, 0));
+    irt_check(connect(com, rho_R, 0, gamma_I_rho_R, 0));
+    irt_check(connect(com, gamma_I, 0, gamma_I_rho_R, 1));
+    irt_check(connect(com, gamma_I_rho_R, 0, dR, 0));
 
     irt_check(add_integrator_component_port(mod, dst, com, dS, "S"));
     irt_check(add_integrator_component_port(mod, dst, com, dE, "E"));

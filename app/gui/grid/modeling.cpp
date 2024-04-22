@@ -94,19 +94,16 @@ static void show_grid_component_options(grid_component& grid) noexcept
 
 static bool new_name_4(modeling& mod, component& compo) noexcept
 {
-    if (mod.ports.can_alloc(8)) {
-        const auto id = mod.components.get_id(compo);
+    if (compo.x.can_alloc(4) and compo.y.can_alloc(4)) {
+        compo.x_names[get_index(compo.x.alloc())] = "N";
+        compo.x_names[get_index(compo.x.alloc())] = "S";
+        compo.x_names[get_index(compo.x.alloc())] = "W";
+        compo.x_names[get_index(compo.x.alloc())] = "E";
 
-        compo.x_names.emplace_back(mod.ports.get_id(mod.ports.alloc("N", id)));
-        compo.x_names.emplace_back(mod.ports.get_id(mod.ports.alloc("S", id)));
-        compo.x_names.emplace_back(mod.ports.get_id(mod.ports.alloc("W", id)));
-        compo.x_names.emplace_back(mod.ports.get_id(mod.ports.alloc("E", id)));
-
-        compo.y_names.emplace_back(mod.ports.get_id(mod.ports.alloc("N", id)));
-        compo.y_names.emplace_back(mod.ports.get_id(mod.ports.alloc("S", id)));
-        compo.y_names.emplace_back(mod.ports.get_id(mod.ports.alloc("W", id)));
-        compo.y_names.emplace_back(mod.ports.get_id(mod.ports.alloc("E", id)));
-
+        compo.y_names[get_index(compo.y.alloc())] = "N";
+        compo.y_names[get_index(compo.y.alloc())] = "S";
+        compo.y_names[get_index(compo.y.alloc())] = "W";
+        compo.y_names[get_index(compo.y.alloc())] = "E";
         return true;
     }
 
@@ -115,13 +112,9 @@ static bool new_name_4(modeling& mod, component& compo) noexcept
 
 static bool new_number_4(modeling& mod, component& compo) noexcept
 {
-    if (mod.ports.can_alloc(2)) {
-        const auto id = mod.components.get_id(compo);
-
-        compo.x_names.emplace_back(mod.ports.get_id(mod.ports.alloc("in", id)));
-        compo.y_names.emplace_back(
-          mod.ports.get_id(mod.ports.alloc("out", id)));
-
+    if (compo.x.can_alloc(1) and compo.y.can_alloc(1)) {
+        compo.x_names[get_index(compo.x.alloc())] = "in";
+        compo.y_names[get_index(compo.y.alloc())] = "out";
         return true;
     }
 
@@ -130,27 +123,24 @@ static bool new_number_4(modeling& mod, component& compo) noexcept
 
 static bool new_name_8(modeling& mod, component& compo) noexcept
 {
-    if (mod.ports.can_alloc(16)) {
-        const auto id = mod.components.get_id(compo);
+    if (compo.x.can_alloc(8) and compo.y.can_alloc(8)) {
+        compo.x_names[get_index(compo.x.alloc())] = "N";
+        compo.x_names[get_index(compo.x.alloc())] = "S";
+        compo.x_names[get_index(compo.x.alloc())] = "W";
+        compo.x_names[get_index(compo.x.alloc())] = "E";
+        compo.x_names[get_index(compo.x.alloc())] = "NE";
+        compo.x_names[get_index(compo.x.alloc())] = "SE";
+        compo.x_names[get_index(compo.x.alloc())] = "NW";
+        compo.x_names[get_index(compo.x.alloc())] = "SW";
 
-        compo.x_names.emplace_back(mod.ports.get_id(mod.ports.alloc("N", id)));
-        compo.x_names.emplace_back(mod.ports.get_id(mod.ports.alloc("S", id)));
-        compo.x_names.emplace_back(mod.ports.get_id(mod.ports.alloc("W", id)));
-        compo.x_names.emplace_back(mod.ports.get_id(mod.ports.alloc("E", id)));
-        compo.x_names.emplace_back(mod.ports.get_id(mod.ports.alloc("NE", id)));
-        compo.x_names.emplace_back(mod.ports.get_id(mod.ports.alloc("SE", id)));
-        compo.x_names.emplace_back(mod.ports.get_id(mod.ports.alloc("NW", id)));
-        compo.x_names.emplace_back(mod.ports.get_id(mod.ports.alloc("SW", id)));
-
-        compo.y_names.emplace_back(mod.ports.get_id(mod.ports.alloc("N", id)));
-        compo.y_names.emplace_back(mod.ports.get_id(mod.ports.alloc("S", id)));
-        compo.y_names.emplace_back(mod.ports.get_id(mod.ports.alloc("W", id)));
-        compo.y_names.emplace_back(mod.ports.get_id(mod.ports.alloc("E", id)));
-        compo.y_names.emplace_back(mod.ports.get_id(mod.ports.alloc("NE", id)));
-        compo.y_names.emplace_back(mod.ports.get_id(mod.ports.alloc("SE", id)));
-        compo.y_names.emplace_back(mod.ports.get_id(mod.ports.alloc("NW", id)));
-        compo.y_names.emplace_back(mod.ports.get_id(mod.ports.alloc("SW", id)));
-
+        compo.y_names[get_index(compo.y.alloc())] = "N";
+        compo.y_names[get_index(compo.y.alloc())] = "S";
+        compo.y_names[get_index(compo.y.alloc())] = "W";
+        compo.y_names[get_index(compo.y.alloc())] = "E";
+        compo.y_names[get_index(compo.y.alloc())] = "NE";
+        compo.y_names[get_index(compo.y.alloc())] = "SE";
+        compo.y_names[get_index(compo.y.alloc())] = "NW";
+        compo.y_names[get_index(compo.y.alloc())] = "SE";
         return true;
     }
 
@@ -159,13 +149,9 @@ static bool new_name_8(modeling& mod, component& compo) noexcept
 
 static bool new_number_8(modeling& mod, component& compo) noexcept
 {
-    if (mod.ports.can_alloc(2)) {
-        const auto id = mod.components.get_id(compo);
-
-        compo.x_names.emplace_back(mod.ports.get_id(mod.ports.alloc("in", id)));
-        compo.y_names.emplace_back(
-          mod.ports.get_id(mod.ports.alloc("out", id)));
-
+    if (compo.x.can_alloc(1) and compo.y.can_alloc(1)) {
+        compo.x_names[get_index(compo.x.alloc())] = "in";
+        compo.y_names[get_index(compo.y.alloc())] = "out";
         return true;
     }
 
@@ -331,59 +317,51 @@ static void show_grid(application&                app,
 
     if (ImGui::BeginPopup("Canvas-Context")) {
         if (ImGui::BeginMenu("Connect to grid input port")) {
-            for (auto s_id : ed.hovered_component->x_names) {
-                if (auto* s_port = app.mod.ports.try_to_get(s_id); s_port) {
-                    ImGui::PushID(s_port);
+            for (const auto s_id : ed.hovered_component->x) {
+                ImGui::PushID(ordinal(s_id));
 
-                    for (auto id : compo.x_names) {
-                        if (auto* port = app.mod.ports.try_to_get(id); port) {
-                            ImGui::PushID(port);
-                            small_string<128> str;
+                for (const auto id : compo.x) {
+                    ImGui::PushID(ordinal(id));
+                    small_string<128> str;
 
-                            format(str,
-                                   "grid port {} to {}",
-                                   port->name.sv(),
-                                   s_port->name.sv());
+                    format(str,
+                           "grid port {} to {}",
+                           compo.x_names[get_index(id)].sv(),
+                           ed.hovered_component->x_names[get_index(s_id)].sv());
 
-                            if (ImGui::MenuItem(str.c_str())) {
-                                data.add_input_connection(
-                                  id, ed.row, ed.col, s_id);
-                                ed.hovered_component = nullptr;
-                            }
-                            ImGui::PopID();
-                        }
+                    if (ImGui::MenuItem(str.c_str())) {
+                        data.connect_input(s_id, ed.row, ed.col, id);
+                        ed.hovered_component = nullptr;
                     }
+
                     ImGui::PopID();
                 }
             }
-            ImGui::EndMenu();
+            ImGui::PopID();
         }
+        ImGui::EndMenu();
 
         if (ImGui::BeginMenu("Connect to grid output port")) {
-            for (auto s_id : ed.hovered_component->y_names) {
-                if (auto* s_port = app.mod.ports.try_to_get(s_id); s_port) {
-                    ImGui::PushID(s_port);
+            for (const auto s_id : ed.hovered_component->y) {
+                ImGui::PushID(ordinal(s_id));
 
-                    for (auto id : compo.y_names) {
-                        if (auto* port = app.mod.ports.try_to_get(id); port) {
-                            ImGui::PushID(port);
-                            small_string<128> str;
+                for (const auto id : compo.y) {
+                    ImGui::PushID(ordinal(id));
+                    small_string<128> str;
 
-                            format(str,
-                                   "{} to grid port {}",
-                                   s_port->name.sv(),
-                                   port->name.sv());
+                    format(str,
+                           "{} to grid port {}",
+                           ed.hovered_component->y_names[get_index(s_id)].sv(),
+                           compo.y_names[get_index(id)].sv());
 
-                            if (ImGui::MenuItem(str.c_str())) {
-                                data.add_output_connection(
-                                  id, ed.row, ed.col, s_id);
-                                ed.hovered_component = nullptr;
-                            }
-                            ImGui::PopID();
-                        }
+                    if (ImGui::MenuItem(str.c_str())) {
+                        data.connect_output(s_id, ed.row, ed.col, id);
+                        ed.hovered_component = nullptr;
                     }
+
                     ImGui::PopID();
                 }
+                ImGui::PopID();
             }
             ImGui::EndMenu();
         }

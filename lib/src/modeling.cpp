@@ -19,64 +19,6 @@
 
 namespace irt {
 
-static auto get_x_or_y_index(const modeling&        mod,
-                             const vector<port_id>& ports,
-                             std::string_view       name) noexcept -> port_id
-{
-    for (int i = 0, e = ports.ssize(); i != e; ++i)
-        if (auto* port = mod.ports.try_to_get(ports[i]);
-            port && name == port->name.sv())
-            return mod.ports.get_id(*port);
-
-    return undefined<port_id>();
-}
-
-auto modeling::get_x_index(const component& compo,
-                           std::string_view name) const noexcept -> port_id
-{
-    return get_x_or_y_index(*this, compo.x_names, name);
-}
-
-auto modeling::get_y_index(const component& compo,
-                           std::string_view name) const noexcept -> port_id
-{
-    return get_x_or_y_index(*this, compo.y_names, name);
-}
-
-auto modeling::get_or_add_x_index(component&       compo,
-                                  std::string_view name) noexcept -> port_id
-{
-    auto ret = get_x_or_y_index(*this, compo.x_names, name);
-
-    if (is_defined(ret))
-        return ret;
-
-    debug::ensure(ports.can_alloc());
-
-    auto& new_p    = ports.alloc(name, components.get_id(compo));
-    auto  new_p_id = ports.get_id(new_p);
-    compo.x_names.emplace_back(new_p_id);
-
-    return new_p_id;
-}
-
-auto modeling::get_or_add_y_index(component&       compo,
-                                  std::string_view name) noexcept -> port_id
-{
-    auto ret = get_x_or_y_index(*this, compo.y_names, name);
-
-    if (is_defined(ret))
-        return ret;
-
-    debug::ensure(ports.can_alloc());
-
-    auto& new_p    = ports.alloc(name, components.get_id(compo));
-    auto  new_p_id = ports.get_id(new_p);
-    compo.y_names.emplace_back(new_p_id);
-
-    return new_p_id;
-}
-
 modeling::modeling() noexcept
   : log_entries{ 16 }
 {}
@@ -86,10 +28,6 @@ status modeling::init(modeling_initializer& p) noexcept
     descriptions.reserve(p.description_capacity);
     if (not descriptions.can_alloc())
         return new_error(modeling::part::descriptions);
-
-    ports.reserve(p.model_capacity);
-    if (not ports.can_alloc())
-        return new_error(modeling::part::ports);
 
     components.reserve(p.component_capacity);
     if (not components.can_alloc())
@@ -907,11 +845,6 @@ void modeling::clear(child& c) noexcept
 
 void modeling::clear(component& compo) noexcept
 {
-    for_specified_data(
-      ports, compo.x_names, [&](auto& port) { ports.free(port); });
-    for_specified_data(
-      ports, compo.y_names, [&](auto& port) { ports.free(port); });
-
     switch (compo.type) {
     case component_type::none:
         break;
@@ -940,38 +873,6 @@ void modeling::clear(component& compo) noexcept
         compo.id.hsm_id = undefined<hsm_component_id>();
         break;
     }
-}
-
-void modeling::free_input_port(component& compo, port& p) noexcept
-{
-    const auto port_id = ports.get_id(p);
-
-    if (compo.type == component_type::simple) {
-        if_data_exists_do(
-          generic_components, compo.id.generic_id, [&](auto& gen) noexcept {
-              remove_data_if(gen.connections, [&](auto& con) noexcept -> bool {
-                  return con.type == connection::connection_type::input &&
-                         con.input.index == port_id;
-              });
-          });
-    }
-
-    ports.free(p);
-}
-
-void modeling::free_output_port(component& compo, port& p) noexcept
-{
-    const auto port_id = ports.get_id(p);
-
-    if_data_exists_do(
-      generic_components, compo.id.generic_id, [&](auto& gen) noexcept {
-          remove_data_if(gen.connections, [&](auto& con) noexcept -> bool {
-              return con.type == connection::connection_type::output &&
-                     con.output.index == port_id;
-          });
-      });
-
-    ports.free(p);
 }
 
 void modeling::free(generic_component& gen) noexcept

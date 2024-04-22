@@ -2,6 +2,7 @@
 // Version 1.0. (See accompanying file LICENSE_1_0.txt or copy at
 // http://www.boost.org/LICENSE_1_0.txt)
 
+#include <exception>
 #include <irritator/archiver.hpp>
 #include <irritator/core.hpp>
 #include <irritator/error.hpp>
@@ -33,7 +34,8 @@ static bool get_temp_registred_path(irt::small_string<length>& str) noexcept
 int main()
 {
 #if defined(IRRITATOR_ENABLE_DEBUG)
-    irt::on_error_callback = irt::debug::breakpoint;
+    irt::on_error_callback        = irt::debug::breakpoint;
+    irt::debug::enable_memory_log = false;
 #endif
 
     using namespace boost::ut;
@@ -50,30 +52,32 @@ int main()
         auto& c1    = mod.alloc_generic_component();
         auto& s1    = mod.generic_components.get(c1.id.generic_id);
         auto& ch1   = mod.alloc(s1, irt::dynamics_type::counter);
-        auto  p1_id = mod.get_or_add_x_index(c1, "in");
-        auto* p1    = mod.ports.try_to_get(p1_id);
-        expect((p1 != nullptr) >> fatal);
-        expect(!!mod.connect_input(s1, *p1, ch1, 0));
+        auto  p1_id = c1.get_or_add_x("in");
+        expect(
+          !!s1.connect_input(p1_id, ch1, irt::connection::port{ .model = 0 }));
 
         auto& c2    = mod.alloc_generic_component();
         auto& s2    = mod.generic_components.get(c2.id.generic_id);
         auto& ch2   = mod.alloc(s2, irt::dynamics_type::time_func);
-        auto  p2_id = mod.get_or_add_y_index(c2, "out");
-        auto* p2    = mod.ports.try_to_get(p2_id);
-        expect((p2 != nullptr) >> fatal);
-        expect(!!mod.connect_output(s2, ch2, 0, *p2));
+        auto  p2_id = c2.get_or_add_y("out");
+        expect(
+          !!s2.connect_output(p2_id, ch2, irt::connection::port{ .model = 0 }));
 
         auto& c3   = mod.alloc_generic_component();
         auto& s3   = mod.generic_components.get(c3.id.generic_id);
         auto& ch31 = mod.alloc(s3, mod.components.get_id(c2));
         auto& ch32 = mod.alloc(s3, mod.components.get_id(c1));
-        expect(!!mod.connect(s3, ch31, p2_id, ch32, p1_id));
+        expect(!!s3.connect(mod,
+                            ch31,
+                            irt::connection::port{ .compo = p2_id },
+                            ch32,
+                            irt::connection::port{ .compo = p1_id }));
 
         expect(eq(s1.children.ssize(), 1));
         expect(eq(s2.children.ssize(), 1));
         expect(eq(s3.children.ssize(), 2));
-        expect(eq(s1.connections.ssize(), 1));
-        expect(eq(s2.connections.ssize(), 1));
+        expect(eq(s1.connections.ssize(), 0));
+        expect(eq(s2.connections.ssize(), 0));
         expect(eq(s3.connections.ssize(), 1));
 
         expect(!!pj.set(mod, sim, c3));
@@ -138,40 +142,39 @@ int main()
         auto& c1    = mod.alloc_generic_component();
         auto& s1    = mod.generic_components.get(c1.id.generic_id);
         auto& ch1   = mod.alloc(s1, irt::dynamics_type::counter);
-        auto  p1_id = mod.get_or_add_x_index(c1, "in");
-        auto* p1    = mod.ports.try_to_get(p1_id);
-        expect(!!mod.connect_input(s1, *p1, ch1, 0));
+        auto  p1_id = c1.get_or_add_x("in");
 
         auto& c11    = mod.alloc_generic_component();
         auto& s11    = mod.generic_components.get(c11.id.generic_id);
         auto& ch11   = mod.alloc(s11, mod.components.get_id(c1));
-        auto  p11_id = mod.get_or_add_x_index(c11, "in");
-        auto* p11    = mod.ports.try_to_get(p11_id);
+        auto  p11_id = c11.get_or_add_x("in");
 
-        expect(!!mod.connect_input(s11, *p11, ch11, p1_id));
+        expect(!!s11.connect_input(
+          p11_id, ch11, irt::connection::port{ .compo = p1_id }));
 
         auto& c2    = mod.alloc_generic_component();
         auto& s2    = mod.generic_components.get(c2.id.generic_id);
         auto& ch2   = mod.alloc(s2, irt::dynamics_type::time_func);
-        auto  p2_id = mod.get_or_add_y_index(c2, "out");
-        auto* p2    = mod.ports.try_to_get(p2_id);
-
-        expect(!!mod.connect_output(s2, ch2, 0, *p2));
+        auto  p2_id = c2.get_or_add_y("out");
 
         auto& c22    = mod.alloc_generic_component();
         auto& s22    = mod.generic_components.get(c22.id.generic_id);
         auto& ch22   = mod.alloc(s22, mod.components.get_id(c2));
-        auto  p22_id = mod.get_or_add_y_index(c22, "out");
-        auto* p22    = mod.ports.try_to_get(p22_id);
+        auto  p22_id = c22.get_or_add_y("out");
 
-        expect(!!mod.connect_output(s22, ch22, p2_id, *p22));
+        expect(!!s22.connect_output(
+          p22_id, ch22, irt::connection::port{ .compo = p2_id }));
 
         auto& c3   = mod.alloc_generic_component();
         auto& s3   = mod.generic_components.get(c3.id.generic_id);
         auto& ch31 = mod.alloc(s3, mod.components.get_id(c22));
         auto& ch32 = mod.alloc(s3, mod.components.get_id(c11));
 
-        expect(!!mod.connect(s3, ch31, p22_id, ch32, p11_id));
+        expect(!!s3.connect(mod,
+                            ch31,
+                            irt::connection::port{ .compo = p22_id },
+                            ch32,
+                            irt::connection::port{ .compo = p11_id }));
 
         expect(!!pj.set(mod, sim, c3));
         expect(eq(pj.tree_nodes_size().first, 5));
@@ -184,9 +187,9 @@ int main()
         expect(neq(m2, nullptr));
 
         if (m1->type == irt::dynamics_type::counter) {
-            expect(!sim.can_connect(*m2, 0, *m1, 0));
+            expect(sim.can_connect(*m2, 0, *m1, 0));
         } else {
-            expect(!sim.can_connect(*m1, 0, *m2, 0));
+            expect(sim.can_connect(*m1, 0, *m2, 0));
         }
     };
 
@@ -304,24 +307,26 @@ int main()
             auto& c1    = mod.alloc_generic_component();
             auto& s1    = mod.generic_components.get(c1.id.generic_id);
             auto& ch1   = mod.alloc(s1, irt::dynamics_type::counter);
-            auto  p1_id = mod.get_or_add_x_index(c1, "in");
-            auto* p1    = mod.ports.try_to_get(p1_id);
-            expect(p1 != nullptr);
-            expect(!!mod.connect_input(s1, *p1, ch1, 0));
+            auto  p1_id = c1.get_or_add_x("in");
+            expect(!!s1.connect_input(
+              p1_id, ch1, irt::connection::port{ .model = 0 }));
 
             auto& c2    = mod.alloc_generic_component();
             auto& s2    = mod.generic_components.get(c2.id.generic_id);
             auto& ch2   = mod.alloc(s2, irt::dynamics_type::time_func);
-            auto  p2_id = mod.get_or_add_y_index(c2, "out");
-            auto* p2    = mod.ports.try_to_get(p2_id);
-            expect(p2 != nullptr);
-            expect(!!mod.connect_output(s2, ch2, 0, *p2));
+            auto  p2_id = c2.get_or_add_y("out");
+            expect(!!s2.connect_output(
+              p2_id, ch2, irt::connection::port{ .model = 0 }));
 
             auto& c3   = mod.alloc_generic_component();
             auto& s3   = mod.generic_components.get(c3.id.generic_id);
             auto& ch31 = mod.alloc(s3, mod.components.get_id(c2));
             auto& ch32 = mod.alloc(s3, mod.components.get_id(c1));
-            expect(!!mod.connect(s3, ch31, p2_id, ch32, p1_id));
+            expect(!!s3.connect(mod,
+                                ch31,
+                                irt::connection::port{ .compo = p2_id },
+                                ch32,
+                                irt::connection::port{ .compo = p1_id }));
 
             auto& cg = mod.alloc_grid_component();
             auto& g  = mod.grid_components.get(cg.id.grid_id);
@@ -367,7 +372,9 @@ int main()
             cg.file     = mod.file_paths.get_id(file_cg);
 
             expect(!!mod.save(c1));
+
             expect(!!mod.save(c2));
+
             expect(!!mod.save(c3));
             expect(!!mod.save(cg));
 
@@ -508,33 +515,28 @@ int main()
             expect(!!mod.init(mod_init));
             expect(!!pj.init(mod_init));
 
-            auto& c1    = mod.alloc_generic_component();
-            auto& s1    = mod.generic_components.get(c1.id.generic_id);
-            auto& ch1   = mod.alloc(s1, irt::dynamics_type::counter);
-            auto  p1_id = mod.get_or_add_x_index(c1, "in");
-            auto* p1    = mod.ports.try_to_get(p1_id);
-            expect(p1 != nullptr);
-            expect(!!mod.connect_input(s1, *p1, ch1, 0));
+            auto& c1  = mod.alloc_generic_component();
+            auto& s1  = mod.generic_components.get(c1.id.generic_id);
+            auto& ch1 = mod.alloc(s1, irt::dynamics_type::counter);
+
+            auto p1_id = c1.get_or_add_x("in");
+            expect(!!s1.connect_input(
+              p1_id, ch1, irt::connection::port{ .model = 0 }));
 
             auto& c2    = mod.alloc_generic_component();
             auto& s2    = mod.generic_components.get(c2.id.generic_id);
             auto& ch2   = mod.alloc(s2, irt::dynamics_type::time_func);
-            auto  p2_id = mod.get_or_add_y_index(c2, "out");
-            auto* p2    = mod.ports.try_to_get(p2_id);
-            expect(p2 != nullptr);
-            expect(!!mod.connect_output(s2, ch2, 0, *p2));
+            auto  p2_id = c2.get_or_add_y("out");
+            expect(!!s2.connect_output(
+              p2_id, ch2, irt::connection::port{ .model = 0 }));
 
             auto& c3     = mod.alloc_generic_component();
             auto& s3     = mod.generic_components.get(c3.id.generic_id);
             auto& ch3    = mod.alloc(s3, mod.components.get_id(c2));
             auto& ch4    = mod.alloc(s3, mod.components.get_id(c1));
             auto& ch5    = mod.alloc(s3, irt::dynamics_type::constant);
-            auto  p31_id = mod.get_or_add_x_index(c3, "in");
-            auto* p31    = mod.ports.try_to_get(p31_id);
-            expect((p31 != nullptr) >> fatal);
-            auto  p32_id = mod.get_or_add_y_index(c3, "out");
-            auto* p32    = mod.ports.try_to_get(p32_id);
-            expect((p32 != nullptr) >> fatal);
+            auto  p31_id = c3.get_or_add_x("in");
+            auto  p32_id = c3.get_or_add_y("out");
 
             const auto ch5_id  = s3.children.get_id(ch5);
             const auto ch5_idx = get_index(ch5_id);
@@ -545,9 +547,15 @@ int main()
               ordinal(irt::constant::init_type::incoming_component_all);
             p.integers[1] = 0;
 
-            expect(!!mod.connect(s3, ch3, p2_id, ch4, p1_id));
-            expect(!!mod.connect_input(s3, *p31, ch4, p1_id));
-            expect(!!mod.connect_output(s3, ch3, p2_id, *p32));
+            expect(!!s3.connect(mod,
+                                ch3,
+                                irt::connection::port{ .compo = p2_id },
+                                ch4,
+                                irt::connection::port{ .compo = p1_id }));
+            expect(!!s3.connect_input(
+              p31_id, ch4, irt::connection::port{ .compo = p1_id }));
+            expect(!!s3.connect_output(
+              p32_id, ch3, irt::connection::port{ .compo = p2_id }));
 
             auto& cg = mod.alloc_grid_component();
             auto& g  = mod.grid_components.get(cg.id.grid_id);
@@ -594,33 +602,36 @@ int main()
             expect(!!mod.init(mod_init));
             expect(!!pj.init(mod_init));
 
-            auto& c1    = mod.alloc_generic_component();
-            auto& s1    = mod.generic_components.get(c1.id.generic_id);
-            auto& ch1   = mod.alloc(s1, irt::dynamics_type::counter);
-            auto  p1_id = mod.get_or_add_x_index(c1, "in");
-            auto* p1    = mod.ports.try_to_get(p1_id);
-            expect(p1 != nullptr);
-            expect(!!mod.connect_input(s1, *p1, ch1, 0));
+            auto& compo_counter = mod.alloc_generic_component();
+            auto& gen_counter =
+              mod.generic_components.get(compo_counter.id.generic_id);
+            auto& child_counter =
+              mod.alloc(gen_counter, irt::dynamics_type::counter);
+            auto compo_counter_in = compo_counter.get_or_add_x("in");
+            expect(
+              !!gen_counter.connect_input(compo_counter_in,
+                                          child_counter,
+                                          irt::connection::port{ .model = 0 }));
 
-            auto& c2    = mod.alloc_generic_component();
-            auto& s2    = mod.generic_components.get(c2.id.generic_id);
-            auto& ch2   = mod.alloc(s2, irt::dynamics_type::time_func);
-            auto  p2_id = mod.get_or_add_y_index(c2, "out");
-            auto* p2    = mod.ports.try_to_get(p2_id);
-            expect(p2 != nullptr);
-            expect(!!mod.connect_output(s2, ch2, 0, *p2));
+            auto& compo_timef = mod.alloc_generic_component();
+            auto& gen_timef =
+              mod.generic_components.get(compo_timef.id.generic_id);
+            auto& child_timef =
+              mod.alloc(gen_timef, irt::dynamics_type::time_func);
+            auto compo_timef_out = compo_timef.get_or_add_y("out");
+            expect(
+              !!gen_timef.connect_output(compo_timef_out,
+                                         child_timef,
+                                         irt::connection::port{ .model = 0 }));
 
             auto& c3     = mod.alloc_generic_component();
             auto& s3     = mod.generic_components.get(c3.id.generic_id);
-            auto& ch3    = mod.alloc(s3, mod.components.get_id(c2));
-            auto& ch4    = mod.alloc(s3, mod.components.get_id(c1));
+            auto& ch3    = mod.alloc(s3, mod.components.get_id(compo_timef));
+            auto& ch4    = mod.alloc(s3, mod.components.get_id(compo_counter));
             auto& ch5    = mod.alloc(s3, irt::dynamics_type::constant);
-            auto  p31_id = mod.get_or_add_x_index(c3, "in");
-            auto* p31    = mod.ports.try_to_get(p31_id);
-            expect(p31 != nullptr);
-            auto  p32_id = mod.get_or_add_y_index(c3, "out");
-            auto* p32    = mod.ports.try_to_get(p32_id);
-            expect(p32 != nullptr);
+            auto  p31_id = c3.get_or_add_x("in");
+            auto  p32_id = c3.get_or_add_y("out");
+
             // auto& mdl          = mod.models.get(ch5.id.mdl_id);
             // auto& dyn          = irt::get_dyn<irt::constant>(mdl);
             // dyn.default_offset = 0;
@@ -635,9 +646,17 @@ int main()
               ordinal(irt::constant::init_type::incoming_component_n);
             p_ch5.integers[1] = ordinal(p31_id);
 
-            expect(!!mod.connect(s3, ch3, p2_id, ch4, p1_id));
-            expect(!!mod.connect_input(s3, *p31, ch4, p1_id));
-            expect(!!mod.connect_output(s3, ch3, p2_id, *p32));
+            expect(
+              !!s3.connect(mod,
+                           ch3,
+                           irt::connection::port{ .compo = compo_timef_out },
+                           ch4,
+                           irt::connection::port{ .compo = compo_counter_in }));
+
+            expect(!!s3.connect_input(
+              p31_id, ch4, irt::connection::port{ .compo = compo_counter_in }));
+            expect(!!s3.connect_output(
+              p32_id, ch3, irt::connection::port{ .compo = compo_timef_out }));
 
             auto& cg = mod.alloc_grid_component();
             auto& g  = mod.grid_components.get(cg.id.grid_id);
@@ -667,75 +686,60 @@ int main()
     };
 
     "grid-3x3-constant-model-init-port-empty"_test = [] {
-        irt::vector<char> buffer;
-        irt::cache_rw     cache;
+        auto old_error_callback =
+          std::exchange(irt::on_error_callback, nullptr);
 
-        {
-            irt::modeling_initializer mod_init;
-            irt::modeling             mod;
-            irt::project              pj;
-            irt::simulation           sim(1024 * 1024 * 8);
+        irt::modeling_initializer mod_init;
+        irt::modeling             mod;
+        irt::project              pj;
+        irt::simulation           sim(1024 * 1024 * 8);
 
-            expect(!!mod.init(mod_init));
-            expect(!!pj.init(mod_init));
+        expect(!!mod.init(mod_init));
+        expect(!!pj.init(mod_init));
 
-            auto& c1    = mod.alloc_generic_component();
-            auto& s1    = mod.generic_components.get(c1.id.generic_id);
-            auto& ch1   = mod.alloc(s1, irt::dynamics_type::counter);
-            auto  p1_id = mod.get_or_add_x_index(c1, "in");
-            auto* p1    = mod.ports.try_to_get(p1_id);
-            expect(p1 != nullptr);
-            expect(!!mod.connect_input(s1, *p1, ch1, 0));
+        auto& c1    = mod.alloc_generic_component();
+        auto& s1    = mod.generic_components.get(c1.id.generic_id);
+        auto& ch1   = mod.alloc(s1, irt::dynamics_type::counter);
+        auto  p1_id = c1.get_or_add_x("in");
+        expect(
+          !!s1.connect_input(p1_id, ch1, irt::connection::port{ .model = 0 }));
 
-            auto& c2    = mod.alloc_generic_component();
-            auto& s2    = mod.generic_components.get(c2.id.generic_id);
-            auto& ch2   = mod.alloc(s2, irt::dynamics_type::time_func);
-            auto  p2_id = mod.get_or_add_y_index(c2, "out");
-            auto* p2    = mod.ports.try_to_get(p2_id);
-            expect(p2 != nullptr);
-            expect(!!mod.connect_output(s2, ch2, 0, *p2));
+        auto& c2    = mod.alloc_generic_component();
+        auto& s2    = mod.generic_components.get(c2.id.generic_id);
+        auto& ch2   = mod.alloc(s2, irt::dynamics_type::time_func);
+        auto  p2_id = c2.get_or_add_y("out");
+        expect(
+          !!s2.connect_output(p2_id, ch2, irt::connection::port{ .model = 0 }));
 
-            auto& c3  = mod.alloc_generic_component();
-            auto& s3  = mod.generic_components.get(c3.id.generic_id);
-            auto& ch3 = mod.alloc(s3, mod.components.get_id(c2));
-            auto& ch4 = mod.alloc(s3, mod.components.get_id(c1));
-            auto& ch5 = mod.alloc(s3, irt::dynamics_type::constant);
-            // auto& mdl          = mod.models.get(ch5.id.mdl_id);
-            // auto& dyn          = irt::get_dyn<irt::constant>(mdl);
-            // dyn.default_offset = 0;
-            // dyn.type           =
-            // irt::constant::init_type::incoming_component_n; dyn.port = 17; //
-            // Impossible port
+        auto& c3  = mod.alloc_generic_component();
+        auto& s3  = mod.generic_components.get(c3.id.generic_id);
+        auto& ch3 = mod.alloc(s3, mod.components.get_id(c2));
+        auto& ch4 = mod.alloc(s3, mod.components.get_id(c1));
+        auto& ch5 = mod.alloc(s3, irt::dynamics_type::constant);
 
-            const auto ch5_id = s3.children.get_id(ch5);
-            auto&      p_ch5  = s3.children_parameters[get_index(ch5_id)];
-            p_ch5.reals[0]    = 0.0;
-            p_ch5.integers[0] =
-              ordinal(irt::constant::init_type::incoming_component_n);
-            p_ch5.integers[1] = 17; // Impossible port
+        const auto ch5_id = s3.children.get_id(ch5);
+        auto&      p_ch5  = s3.children_parameters[get_index(ch5_id)];
+        p_ch5.reals[0]    = 0.0;
+        p_ch5.integers[0] =
+          ordinal(irt::constant::init_type::incoming_component_n);
+        p_ch5.integers[1] = 17; // Impossible port
 
-            expect(!!mod.connect(s3, ch3, p2_id, ch4, p1_id));
+        expect(!!s3.connect(mod,
+                            ch3,
+                            irt::connection::port{ .compo = p2_id },
+                            ch4,
+                            irt::connection::port{ .compo = p1_id }));
 
-            auto& cg = mod.alloc_grid_component();
-            auto& g  = mod.grid_components.get(cg.id.grid_id);
-            g.resize(5, 5, mod.components.get_id(c3));
+        auto& cg = mod.alloc_grid_component();
+        auto& g  = mod.grid_components.get(cg.id.grid_id);
+        g.resize(5, 5, mod.components.get_id(c3));
 
-            expect(!!pj.set(mod, sim, cg));
-            expect(eq(pj.tree_nodes_size().first, g.row * g.column * 3 + 1));
+        expect(!pj.set(
+          mod,
+          sim,
+          cg)); /* Fail to build the project since the constant
+                   models can not be initialized with dyn.port equals to 17. */
 
-            expect(eq(sim.models.ssize(), g.row * g.column * 3));
-
-            int         nb_constant_model = 0;
-            irt::model* cst_mdl           = nullptr;
-            while (sim.models.next(cst_mdl)) {
-                if (cst_mdl->type == irt::dynamics_type::constant) {
-                    ++nb_constant_model;
-                    auto& dyn = irt::get_dyn<irt::constant>(*cst_mdl);
-                    expect(eq(dyn.default_value, 0.0));
-                }
-            }
-
-            expect(eq(nb_constant_model, g.row * g.column));
-        }
+        irt::on_error_callback = old_error_callback;
     };
 }

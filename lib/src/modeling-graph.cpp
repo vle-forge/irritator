@@ -158,12 +158,12 @@ static void in_out_connection_add(modeling&        mod,
         if (src->type == child_type::component) {
             auto* c_src = mod.components.try_to_get(src->id.compo_id);
             if (c_src) {
-                const auto p_src = mod.get_y_index(*c_src, "out");
+                const auto p_src = c_src->get_y("out");
 
                 if (dst->type == child_type::component) {
                     auto* c_dst = mod.components.try_to_get(dst->id.compo_id);
                     if (c_dst) {
-                        const auto p_dst = mod.get_x_index(*c_dst, "in");
+                        const auto p_dst = c_dst->get_x("in");
 
                         if (is_defined(p_src) and is_defined(p_dst)) {
                             compo.cache_connections.alloc(
@@ -188,22 +188,22 @@ static void named_connection_add(modeling&        mod,
         if (src->type == child_type::component) {
             auto* c_src = mod.components.try_to_get(src->id.compo_id);
             if (c_src) {
-                auto p_src = mod.get_y_index(*c_src, "out");
+                auto p_src = c_src->get_y("out");
 
                 if (dst->type == child_type::component) {
                     auto* c_dst = mod.components.try_to_get(dst->id.compo_id);
                     if (c_dst) {
-                        auto p_dst = mod.get_x_index(*c_dst, "in");
+                        auto p_dst = c_dst->get_x("in");
 
                         auto     sz_src = c_src->x_names.ssize();
                         auto     sz_dst = c_dst->y_names.ssize();
                         port_str temp;
 
                         format(temp, "{}", sz_src);
-                        p_src = mod.get_x_index(*c_src, temp.sv());
+                        p_src = c_src->get_x(temp.sv());
 
                         format(temp, "{}", sz_dst);
-                        p_dst = mod.get_y_index(*c_dst, temp.sv());
+                        p_dst = c_dst->get_y(temp.sv());
 
                         if (is_defined(p_src) and is_defined(p_dst))
                             compo.cache_connections.alloc(
@@ -487,25 +487,65 @@ status modeling::copy(graph_component&   graph,
     graph_to_generic.sort();
 
     for (const auto& src : graph.cache_connections) {
-        switch (src.type) {
-        case connection::connection_type::internal: {
-            auto c_src = graph_to_generic.get(src.internal.src);
-            auto c_dst = graph_to_generic.get(src.internal.dst);
-            if (c_src and c_dst) {
-                generic.connections.alloc(
-                  connection::internal_t{ *c_src,
-                                          *c_dst,
-                                          src.internal.index_src,
-                                          src.internal.index_dst });
-            }
-        } break;
-
-        default:
-            break;
+        auto c_src = graph_to_generic.get(src.src);
+        auto c_dst = graph_to_generic.get(src.dst);
+        if (c_src and c_dst) {
+            generic.connections.alloc(
+              *c_src, src.index_src, *c_dst, src.index_dst);
         }
     }
 
     return success();
+}
+
+bool graph_component::exists_input_connection(const port_id   x,
+                                              const vertex_id v,
+                                              const port_id   id) const noexcept
+{
+    for (const auto& con : input_connections)
+        if (con.id == id and con.x == x and con.v == v)
+            return true;
+
+    return false;
+}
+
+bool graph_component::exists_output_connection(const port_id   y,
+                                               const vertex_id v,
+                                               const port_id id) const noexcept
+{
+    for (const auto& con : output_connections)
+        if (con.id == id and con.y == y and con.v == v)
+            return true;
+
+    return false;
+}
+
+result<input_connection_id> graph_component::connect_input(
+  const port_id   x,
+  const vertex_id v,
+  const port_id   id) noexcept
+{
+    if (exists_input_connection(x, v, id))
+        return new_error(modeling::part::connections);
+
+    if (not input_connections.can_alloc(1))
+        return new_error(modeling::part::connections);
+
+    return input_connections.get_id(input_connections.alloc(x, v, id));
+}
+
+result<output_connection_id> graph_component::connect_output(
+  const port_id   y,
+  const vertex_id v,
+  const port_id   id) noexcept
+{
+    if (exists_output_connection(y, v, id))
+        return new_error(modeling::part::connections);
+
+    if (not output_connections.can_alloc(1))
+        return new_error(modeling::part::connections);
+
+    return output_connections.get_id(output_connections.alloc(y, v, id));
 }
 
 } // namespace irt

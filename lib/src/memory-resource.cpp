@@ -24,8 +24,8 @@ void* malloc_memory_resource_allocate_win32(std::size_t bytes,
     debug::ensure(is_alignment(alignment));
     debug::ensure((bytes % alignment) == 0);
 
-    using fn = void* (*)(std::size_t, std::size_t) noexcept;
-    fn call  = reinterpret_cast<fn>(::_aligned_malloc);
+    using fn              = void* (*)(std::size_t, std::size_t) noexcept;
+    fn               call = reinterpret_cast<fn>(::_aligned_malloc);
 
     return call(bytes, alignment);
 }
@@ -60,8 +60,8 @@ void* malloc_memory_resource_allocate_posix(std::size_t bytes,
     debug::ensure(is_alignment(alignment));
     debug::ensure((bytes % alignment) == 0);
 
-    using fn = void* (*)(std::size_t, std::size_t) noexcept;
-    fn call  = reinterpret_cast<fn>(std::aligned_alloc);
+    using fn              = void* (*)(std::size_t, std::size_t) noexcept;
+    fn               call = reinterpret_cast<fn>(std::aligned_alloc);
 
     return call(alignment, bytes);
 }
@@ -70,12 +70,8 @@ void* malloc_memory_resource_allocate_posix(std::size_t bytes,
 void* malloc_memory_resource::do_allocate(std::size_t bytes,
                                           std::size_t alignment) noexcept
 {
-#if defined(IRRITATOR_ENABLE_DEBUG)
-    std::fprintf(stderr,
-                 "malloc_memory_resource::need-allocate [%zu %zu]\n",
-                 bytes,
-                 alignment);
-#endif
+    debug::mem_log(
+      "malloc_memory_resource::need-allocate [", bytes, " ", alignment, "]\n");
 
 #if defined(_MSC_VER)
     auto* p = malloc_memory_resource_allocate_win32(bytes, alignment);
@@ -86,24 +82,21 @@ void* malloc_memory_resource::do_allocate(std::size_t bytes,
 #endif
 
     if (not p) {
-#if defined(IRRITATOR_ENABLE_DEBUG)
-        std::fprintf(
-          stderr,
-          "Irritator shutdown: Unable to allocate memory %zu alignment %zu\n",
-          bytes,
-          alignment);
-#endif
+        debug::log("Irritator shutdown: Unable to allocate memory ",
+                   bytes,
+                   " alignment ",
+                   alignment,
+                   "\n");
         std::abort();
     }
 
-#if defined(IRRITATOR_ENABLE_DEBUG)
-    std::fprintf(stderr,
-                 "malloc_memory_resource::allocate [%p %zu %zu]\n",
-                 p,
-                 bytes,
-                 alignment);
-#endif
-
+    debug::log("malloc_memory_resource::allocate [",
+               p,
+               " ",
+               bytes,
+               " ",
+               alignment,
+               "]\n");
     return p;
 }
 
@@ -112,13 +105,13 @@ void malloc_memory_resource::do_deallocate(
   [[maybe_unused]] std::size_t bytes,
   [[maybe_unused]] std::size_t alignment) noexcept
 {
-#if defined(IRRITATOR_ENABLE_DEBUG)
-    std::fprintf(stderr,
-                 "malloc_memory_resource::do_deallocate [%p %zu %zu]\n",
-                 pointer,
-                 bytes,
-                 alignment);
-#endif
+    debug::mem_log("malloc_memory_resource::do_deallocate [",
+                   pointer,
+                   " ",
+                   bytes,
+                   " ",
+                   alignment,
+                   "]\n");
 
 #if defined(_WIN32)
     if (pointer)

@@ -21,7 +21,9 @@
 
 namespace irt {
 
-enum class port_id : u64;
+enum class port_id : u32;
+enum class input_connection_id : u32;
+enum class output_connection_id : u32;
 enum class component_id : u64;
 enum class hsm_component_id : u64;
 enum class generic_component_id : u64;
@@ -31,7 +33,7 @@ enum class tree_node_id : u64;
 enum class description_id : u64;
 enum class dir_path_id : u64;
 enum class file_path_id : u64;
-enum class child_id : u64;
+enum class child_id : u32;
 enum class connection_id : u64;
 enum class registred_path_id : u64;
 enum class variable_observer_id : u64;
@@ -228,62 +230,40 @@ struct child_position {
 };
 
 struct connection {
-    union port {
-        port(const port_id compo_) noexcept
-          : compo(compo_)
-        {}
+    struct port {
+        port_id compo = port_id{};
+        int     model = 0;
 
-        port(const int model_) noexcept
-          : model(model_)
-        {}
-
-        port_id compo;
-        int     model;
+        friend bool operator==(const port& left, const port& right) noexcept
+        {
+            return left.compo == right.compo and left.model == right.model;
+        }
     };
 
-    struct internal_t {
-        child_id src;
-        child_id dst;
-        port     index_src;
-        port     index_dst;
-    };
+    child_id src;
+    child_id dst;
+    port     index_src;
+    port     index_dst;
 
-    struct input_t {
-        child_id dst;
-        port_id  index;
-        port     index_dst;
-    };
+    connection(child_id src_,
+               port     index_src_,
+               child_id dst_,
+               port     index_dst_) noexcept;
+    connection(child_id src,
+               port_id  p_src,
+               child_id dst,
+               port_id  p_dst) noexcept;
+    connection(child_id src, port_id p_src, child_id dst, int p_dst) noexcept;
+    connection(child_id src, int p_src, child_id dst, port_id p_dst) noexcept;
+    connection(child_id src, int p_src, child_id dst, int p_dst) noexcept;
 
-    struct output_t {
-        child_id src;
-        port_id  index;
-        port     index_src;
-    };
-
-    connection(internal_t con) noexcept;
-    connection(input_t con) noexcept;
-    connection(output_t con) noexcept;
-
-    connection(child_id src, port_id p_src, child_id dst, port_id p_dst);
-    connection(child_id src, port_id p_src, child_id dst, int p_dst);
-    connection(child_id src, int p_src, child_id dst, port_id p_dst);
-    connection(child_id src, int p_src, child_id dst, int p_dst);
-
-    connection(port_id p_src, child_id dst, port_id p_dst);
-    connection(port_id p_src, child_id dst, int p_dst);
-
-    connection(child_id src, port_id p_src, port_id p_dst);
-    connection(child_id src, int p_src, port_id p_dst);
-
-    enum class connection_type : i8 { internal, input, output };
-
-    connection_type type;
-
-    union {
-        internal_t internal;
-        input_t    input;
-        output_t   output;
-    };
+    friend bool operator==(const connection& left,
+                           const connection& right) noexcept
+    {
+        return left.src == right.src and left.dst == right.dst and
+               left.index_src == right.index_src and
+               left.index_dst == right.index_dst;
+    }
 };
 
 /// A wrapper to the simulation @c hierarchical_state_machine class.
@@ -309,46 +289,83 @@ public:
                       const connection_limiter connection_limit) noexcept;
 
     struct input_connection {
-        port_id  x; // The port_id in this component.
-        child_id dst;
-        u64      port;
+        port_id          x; // The port_id in this component.
+        child_id         dst;
+        connection::port port;
     };
 
     struct output_connection {
-        port_id  y; // The port_id in this component.
-        child_id src;
-        u64      port;
+        port_id          y; // The port_id in this component.
+        child_id         src;
+        connection::port port;
     };
 
-    data_array<child, child_id>           children;
-    data_array<connection, connection_id> connections;
-
-    vector<input_connection>  input_connections;
-    vector<output_connection> output_connections;
+    data_array<child, child_id>                         children;
+    data_array<connection, connection_id>               connections;
+    data_array<input_connection, input_connection_id>   input_connections;
+    data_array<output_connection, output_connection_id> output_connections;
 
     vector<child_position> children_positions;
     vector<name_str>       children_names;
     vector<parameter>      children_parameters;
 
-    /// Use to affect @c child::unique_id when the component is saved. The value
-    /// 0 means unique_id is undefined. Mutable variable to allow function @c
-    /// make_next_unique_id to be const and called in json const functions.
+    //! Use to affect @c child::unique_id when the component is saved. The value
+    //! 0 means unique_id is undefined. Mutable variable to allow function @c
+    //! make_next_unique_id to be const and called in json const functions.
     mutable u64 next_unique_id = 1;
+
+    bool exists_input_connection(const port_id          x,
+                                 const child&           dst,
+                                 const connection::port port) const noexcept;
+    bool exists_output_connection(const port_id          y,
+                                  const child&           src,
+                                  const connection::port port) const noexcept;
+
+    bool exists(const child&           src,
+                const connection::port p_src,
+                const child&           dst,
+                const connection::port p_dst) const noexcept;
+
+    //! @brief Add a new connection into `connections` data_array.
+    //!
+    //! This function checks if none connection already exists with the same
+    //! parameter and if the child are compatible (at `model` and `component`
+    //! level).
+    //!
+    //! @param components
+    //! @param src
+    //! @param p_src
+    //! @param dst
+    //! @param p_dst
+    //!
+    //! @return `success()` or `already_exists_connection_error` or
+    //! `incompatible_connection_error`.
+    status connect(const modeling&        mod,
+                   const child&           src,
+                   const connection::port p_src,
+                   const child&           dst,
+                   const connection::port p_dst) noexcept;
+    status connect_input(const port_id          x,
+                         const child&           dst,
+                         const connection::port port) noexcept;
+    status connect_output(const port_id          y,
+                          const child&           src,
+                          const connection::port port) noexcept;
 
     /// @brief Copy a child into another `generic_component`.
     ///
     /// @param c [in] The identifier to copy.
     /// @param dst [in,out] The `generic_component` destination.
     ///
-    /// @return Identifier of the newly allocated child. Can return error if
-    /// `dst` can not allocate a new child.
+    /// @return Identifier of the newly allocated child. Can return
+    /// error if `dst` can not allocate a new child.
     result<child_id> copy_to(const child&       c,
                              generic_component& dst) const noexcept;
 
     /// @brief Import children, connections and optionaly properties.
     ///
-    /// @details Copy children and connections into the this `generic_component`
-    /// and initialize of copy properties if exsits.
+    /// @details Copy children and connections into the this
+    /// `generic_component` and initialize of copy properties if exsits.
     ///
     /// @return `success()` or `modeling::connection_error`,
     /// `modeling::child_error`.
@@ -393,14 +410,17 @@ struct grid_component {
 
     static inline constexpr auto type_count = 2;
 
-    constexpr int pos(int row_, int col_) noexcept { return col_ * row + row_; }
+    constexpr int pos(int row_, int col_) const noexcept
+    {
+        return col_ * row + row_;
+    }
 
-    constexpr std::pair<int, int> pos(int pos_) noexcept
+    constexpr std::pair<int, int> pos(int pos_) const noexcept
     {
         return std::make_pair(pos_ / row, pos_ % row);
     }
 
-    constexpr u64 unique_id(int pos_) noexcept
+    constexpr u64 unique_id(int pos_) const noexcept
     {
         auto pair = pos(pos_);
 
@@ -408,7 +428,7 @@ struct grid_component {
                                static_cast<u32>(pair.second));
     }
 
-    constexpr std::pair<int, int> unique_id(u64 id) noexcept
+    constexpr std::pair<int, int> unique_id(u64 id) const noexcept
     {
         auto unpack = unpack_doubleword(id);
 
@@ -444,31 +464,35 @@ struct grid_component {
         port_id id;  // The port_id of the @c children[idx].
     };
 
-    vector<component_id>      children;
-    vector<input_connection>  input_connections;
-    vector<output_connection> output_connections;
-
-    bool exist_input_connection(const port_id x,
-                                const i32     row,
-                                const i32     col,
-                                const port_id id) const noexcept;
-
-    bool exist_output_connection(const port_id y,
+    //! @brief Check if the input connection already exits.
+    bool exists_input_connection(const port_id x,
                                  const i32     row,
                                  const i32     col,
                                  const port_id id) const noexcept;
 
-    /** Tries to add this input connection if it does not already exist. */
-    void add_input_connection(const port_id x,
-                              const i32     row,
-                              const i32     col,
-                              const port_id id) noexcept;
+    //! @brief Check if the output connection already exits.
+    bool exists_output_connection(const port_id x,
+                                  const i32     row,
+                                  const i32     col,
+                                  const port_id id) const noexcept;
 
-    /** Tries to add this output connection if it does not already exist. */
-    void add_output_connection(const port_id y,
-                               const i32     row,
-                               const i32     col,
-                               const port_id id) noexcept;
+    //! @brief Tries to add this input connection if it does not already exist.
+    //! @return `success()` or `connection_already_exists`.
+    result<input_connection_id> connect_input(const port_id x,
+                                              const i32     row,
+                                              const i32     col,
+                                              const port_id id) noexcept;
+
+    //! @brief Tries to add this output connection if it does not already exist.
+    //! @return `success()` or `connection_already_exists`.
+    result<output_connection_id> connect_output(const port_id y,
+                                                const i32     row,
+                                                const i32     col,
+                                                const port_id id) noexcept;
+
+    vector<component_id>                                children;
+    data_array<input_connection, input_connection_id>   input_connections;
+    data_array<output_connection, output_connection_id> output_connections;
 
     data_array<child, child_id>           cache;
     data_array<connection, connection_id> cache_connections;
@@ -498,15 +522,15 @@ public:
     enum class graph_type { dot_file, scale_free, small_world };
 
     struct input_connection {
-        port_id   x;   // The port_id in this component.
-        vertex_id idx; // The index in children vector.
-        port_id   id;  // The port_id of the @c children[idx].
+        port_id   x;  // The port_id in this component.
+        vertex_id v;  // The index in children vector.
+        port_id   id; // The port_id of the @c children[idx].
     };
 
     struct output_connection {
-        port_id   y;   // The port_id in this component.
-        vertex_id idx; // The index in children vector.
-        port_id   id;  // The port_id of the @c children[idx].
+        port_id   y;  // The port_id in this component.
+        vertex_id v;  // The index in children vector.
+        port_id   id; // The port_id of the @c children[idx].
     };
 
     struct vertex {
@@ -569,11 +593,32 @@ public:
         return static_cast<u64>(pos_);
     }
 
-    data_array<vertex, vertex_id> children;
-    data_array<edge, edge_id>     edges;
+    //! @brief Check if the input connection already exits.
+    bool exists_input_connection(const port_id   x,
+                                 const vertex_id v,
+                                 const port_id   id) const noexcept;
 
-    vector<input_connection>  input_connections;
-    vector<output_connection> output_connections;
+    //! @brief Check if the output connection already exits.
+    bool exists_output_connection(const port_id   y,
+                                  const vertex_id v,
+                                  const port_id   id) const noexcept;
+
+    //! @brief Tries to add this input connection if it does not already exist.
+    //! @return `success()` or `connection_already_exists`.
+    result<input_connection_id> connect_input(const port_id   x,
+                                              const vertex_id v,
+                                              const port_id   id) noexcept;
+
+    //! @brief Tries to add this output connection if it does not already exist.
+    //! @return `success()` or `connection_already_exists`.
+    result<output_connection_id> connect_output(const port_id   y,
+                                                const vertex_id v,
+                                                const port_id   id) noexcept;
+
+    data_array<vertex, vertex_id>                       children;
+    data_array<edge, edge_id>                           edges;
+    data_array<input_connection, input_connection_id>   input_connections;
+    data_array<output_connection, output_connection_id> output_connections;
 
     random_graph_param param = scale_free_param{};
     std::array<u64, 4> seed  = { 0u, 0u, 0u, 0u };
@@ -586,23 +631,60 @@ public:
     connection_type type = connection_type::name;
 };
 
-struct port {
-    port() noexcept = default;
-
-    port(const std::string_view name_, const component_id parent_) noexcept
-      : name{ name_ }
-      , parent{ parent_ }
-    {}
-
-    port_str     name;
-    component_id parent;
-};
-
 struct component {
-    component() noexcept = default;
+    component() noexcept;
 
-    vector<port_id> x_names;
-    vector<port_id> y_names;
+    id_array<port_id> x;
+    id_array<port_id> y;
+
+    vector<port_str> x_names;
+    vector<port_str> y_names;
+
+    port_id get_x(std::string_view str) const noexcept
+    {
+        for (const auto id : x)
+            if (str == x_names[get_index(id)].sv())
+                return id;
+
+        return undefined<port_id>();
+    }
+
+    port_id get_y(std::string_view str) const noexcept
+    {
+        for (const auto id : y)
+            if (str == y_names[get_index(id)].sv())
+                return id;
+
+        return undefined<port_id>();
+    }
+
+    port_id get_or_add_x(std::string_view str) noexcept
+    {
+        const auto id = get_x(str);
+        if (is_defined<port_id>(id))
+            return id;
+
+        if (not x.can_alloc(1))
+            return undefined<port_id>();
+
+        const auto new_id          = x.alloc();
+        x_names[get_index(new_id)] = str;
+        return new_id;
+    }
+
+    port_id get_or_add_y(std::string_view str) noexcept
+    {
+        const auto id = get_y(str);
+        if (is_defined<port_id>(id))
+            return id;
+
+        if (not y.can_alloc(1))
+            return undefined<port_id>();
+
+        const auto new_id          = y.alloc();
+        y_names[get_index(new_id)] = str;
+        return new_id;
+    }
 
     description_id    desc     = description_id{ 0 };
     registred_path_id reg_path = registred_path_id{ 0 };
@@ -744,6 +826,43 @@ struct tree_node {
 
     /// Reference the current component
     component_id id = undefined<component_id>();
+
+    struct child_node {
+        union {
+            model*     mdl{}; /* `mdl_id` Always valid in `data_array`. */
+            tree_node* tn;    /* `tn_id` is valid in `data_array`. */
+        };
+
+        enum class type { empty, model, tree_node } type = type::empty;
+
+        void set(model* id) noexcept
+        {
+            mdl  = id;
+            type = type::model;
+        }
+
+        void set(tree_node* id) noexcept
+        {
+            tn   = id;
+            type = type::tree_node;
+        }
+    };
+
+    //! Filled during the `project::set` or `project::rebuild` functions, the
+    //! size of this vector is the same as `generic_component::children`,
+    //! `grid_component::cache` or `graph_component::cache` capacity. Use the
+    //! `get_index(child_id)` to get the correct value.
+    vector<child_node> children;
+
+    bool is_model(const child_id id) const noexcept
+    {
+        return children[get_index(id)].type == child_node::type::model;
+    }
+
+    bool is_tree_node(const child_id id) const noexcept
+    {
+        return children[get_index(id)].type == child_node::type::tree_node;
+    }
 
     /// A unique identifier provided by component parent.
     u64 unique_id = 0;
@@ -984,7 +1103,6 @@ public:
     data_array<grid_component, grid_component_id>       grid_components;
     data_array<graph_component, graph_component_id>     graph_components;
     data_array<hsm_component, hsm_component_id>         hsm_components;
-    data_array<port, port_id>                           ports;
     data_array<component, component_id>                 components;
     data_array<registred_path, registred_path_id>       registred_paths;
     data_array<dir_path, dir_path_id>                   dir_paths;
@@ -1030,9 +1148,6 @@ public:
     void free(graph_component& c) noexcept;
     void free(grid_component& c) noexcept;
     void free(hsm_component& c) noexcept;
-
-    void free_input_port(component& compo, port& idx) noexcept;
-    void free_output_port(component& compo, port& idx) noexcept;
 
     bool can_alloc_file(i32 number = 1) const noexcept;
     bool can_alloc_dir(i32 number = 1) const noexcept;
@@ -1121,30 +1236,6 @@ public:
     status copy(const generic_component& src, generic_component& dst) noexcept;
     status copy(grid_component& grid, generic_component& s) noexcept;
     status copy(graph_component& grid, generic_component& s) noexcept;
-
-    port_id get_x_index(const component& c,
-                        std::string_view name) const noexcept;
-    port_id get_y_index(const component& c,
-                        std::string_view name) const noexcept;
-
-    port_id get_or_add_x_index(component& c, std::string_view name) noexcept;
-    port_id get_or_add_y_index(component& c, std::string_view name) noexcept;
-
-    status connect_input(generic_component& parent,
-                         port&              x,
-                         child&             c,
-                         connection::port   p_c) noexcept;
-
-    status connect_output(generic_component& parent,
-                          child&             c,
-                          connection::port   p_c,
-                          port&              y) noexcept;
-
-    status connect(generic_component& parent,
-                   child&             src,
-                   connection::port   y,
-                   child&             dst,
-                   connection::port   x) noexcept;
 
     status save(component& c) noexcept;
 
@@ -1245,9 +1336,14 @@ public:
     /// simulation. The memory cached can be reused using clear but memory
     /// cached can be completely free using the @c destroy_cache function.
     struct cache {
-        vector<tree_node*>             stack;
-        vector<std::pair<model*, int>> inputs;
-        vector<std::pair<model*, int>> outputs;
+        struct model_port {
+            model* mdl{};
+            int    port{};
+        };
+
+        vector<tree_node*> stack;
+        vector<model_port> inputs;
+        vector<model_port> outputs;
 
         table<u64, constant_source_id>    constants;
         table<u64, binary_file_source_id> binary_files;
@@ -1311,115 +1407,63 @@ std::string_view to_string(const project::error e) noexcept;
    Child part
  */
 
-inline connection::connection(internal_t con) noexcept
-  : type{ connection_type::internal }
+inline component::component() noexcept
 {
-    internal.src = con.src;
-    internal.dst = con.dst;
-    std::copy_n(reinterpret_cast<std::byte*>(&con.index_src),
-                sizeof(port),
-                reinterpret_cast<std::byte*>(&internal.index_src));
-    std::copy_n(reinterpret_cast<std::byte*>(&con.index_dst),
-                sizeof(port),
-                reinterpret_cast<std::byte*>(&internal.index_dst));
+    x.reserve(16);
+    y.reserve(16);
+    x_names.resize(16);
+    y_names.resize(16);
 }
 
-inline connection::connection(input_t con) noexcept
-  : type{ connection_type::input }
-{
-    input.dst   = con.dst;
-    input.index = con.index;
-    std::copy_n(reinterpret_cast<std::byte*>(&con.index_dst),
-                sizeof(port),
-                reinterpret_cast<std::byte*>(&input.index_dst));
-}
+inline connection::connection(child_id src_,
+                              port     p_src_,
+                              child_id dst_,
+                              port     p_dst_) noexcept
+  : src{ src_ }
+  , dst{ dst_ }
+  , index_src{ p_src_ }
+  , index_dst{ p_dst_ }
+{}
 
-inline connection::connection(output_t con) noexcept
-  : type{ connection_type::output }
-{
-    output.src   = con.src;
-    output.index = con.index;
-    std::copy_n(reinterpret_cast<std::byte*>(&con.index_src),
-                sizeof(port),
-                reinterpret_cast<std::byte*>(&output.index_src));
-}
+inline connection::connection(child_id src_,
+                              port_id  p_src_,
+                              child_id dst_,
+                              port_id  p_dst_) noexcept
+  : src{ src_ }
+  , dst{ dst_ }
+  , index_src{ .compo = p_src_ }
+  , index_dst{ .compo = p_dst_ }
+{}
 
-inline connection::connection(child_id src,
-                              port_id  p_src,
-                              child_id dst,
-                              port_id  p_dst)
-  : type{ connection_type::internal }
-{
-    internal.src             = src;
-    internal.dst             = dst;
-    internal.index_src.compo = p_src;
-    internal.index_dst.compo = p_dst;
-}
+inline connection::connection(child_id src_,
+                              int      p_src_,
+                              child_id dst_,
+                              port_id  p_dst_) noexcept
+  : src{ src_ }
+  , dst{ dst_ }
+  , index_src{ .model = p_src_ }
+  , index_dst{ .compo = p_dst_ }
+{}
 
-inline connection::connection(child_id src,
-                              int      p_src,
-                              child_id dst,
-                              port_id  p_dst)
-  : type{ connection_type::internal }
-{
-    internal.src             = src;
-    internal.dst             = dst;
-    internal.index_src.model = p_src;
-    internal.index_dst.compo = p_dst;
-}
+inline connection::connection(child_id src_,
+                              port_id  p_src_,
+                              child_id dst_,
+                              int      p_dst_) noexcept
+  : src{ src_ }
+  , dst{ dst_ }
+  , index_src{ .compo = p_src_ }
+  , index_dst{ .model = p_dst_ }
+{}
 
-inline connection::connection(child_id src,
-                              port_id  p_src,
-                              child_id dst,
-                              int      p_dst)
-  : type{ connection_type::internal }
-{
-    internal.src             = src;
-    internal.dst             = dst;
-    internal.index_src.compo = p_src;
-    internal.index_dst.model = p_dst;
-}
-
-inline connection::connection(child_id src, int p_src, child_id dst, int p_dst)
-  : type{ connection_type::internal }
-{
-    internal.src             = src;
-    internal.dst             = dst;
-    internal.index_src.model = p_src;
-    internal.index_dst.model = p_dst;
-}
-
-inline connection::connection(port_id p_src, child_id dst, port_id p_dst)
-  : type{ connection_type::input }
-{
-    input.dst             = dst;
-    input.index           = p_src;
-    input.index_dst.compo = p_dst;
-}
-
-inline connection::connection(port_id p_src, child_id dst, int p_dst)
-  : type{ connection_type::input }
-{
-    input.dst             = dst;
-    input.index           = p_src;
-    input.index_dst.model = p_dst;
-}
-
-inline connection::connection(child_id src, port_id p_src, port_id p_dst)
-  : type{ connection_type::output }
-{
-    output.src             = src;
-    output.index           = p_dst;
-    output.index_src.compo = p_src;
-}
-
-inline connection::connection(child_id src, int p_src, port_id p_dst)
-  : type{ connection_type::output }
-{
-    output.src             = src;
-    output.index           = p_dst;
-    output.index_src.model = p_src;
-}
+inline connection::connection(child_id src_,
+                              int      p_src_,
+                              child_id dst_,
+                              int      p_dst_) noexcept
+  : src{ src_ }
+  , dst{ dst_ }
+  , index_src{ .model = p_src_ }
+  , index_dst{ .model = p_dst_ }
+{}
 
 inline child::child() noexcept
   : id{ .mdl_type = dynamics_type::constant }
