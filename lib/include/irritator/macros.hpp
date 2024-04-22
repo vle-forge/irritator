@@ -8,6 +8,10 @@
 #include <cassert>
 #include <cstdlib>
 
+#ifdef IRRITATOR_ENABLE_DEBUG
+#include <iostream>
+#endif
+
 #if defined(_MSC_VER) && !defined(__clang__)
 #define irt_force_inline_attribute [[msvc::forceinline]]
 #else
@@ -25,10 +29,38 @@ using real = float;
 namespace debug {
 
 #ifdef IRRITATOR_ENABLE_DEBUG
-static constexpr bool enable_ensure = true;
+static constexpr bool enable_ensure     = true;
+static bool           enable_memory_log = true;
 #else
 static constexpr bool enable_ensure = false;
 #endif
+
+template<typename... Args>
+    requires(::irt::debug::enable_ensure == true)
+void log(const Args&... args)
+{
+    (std::cout << ... << args) << '\n';
+}
+
+template<typename... Args>
+    requires(::irt::debug::enable_ensure == false)
+void log([[maybe_unused]] const Args&... args)
+{}
+
+template<typename... Args>
+    requires(::irt::debug::enable_ensure == true)
+void mem_log(const Args&... args)
+{
+    if (not enable_memory_log)
+        return;
+
+    log(args...);
+}
+
+template<typename... Args>
+    requires(::irt::debug::enable_ensure == false)
+void mem_log([[maybe_unused]] const Args&... args)
+{}
 
 //! @brief A c++ function to replace assert macro controlled via constexpr
 //! boolean variable.
