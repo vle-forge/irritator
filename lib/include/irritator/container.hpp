@@ -132,25 +132,23 @@ protected:
     void* do_allocate(std::size_t bytes,
                       std::size_t alignment) noexcept override
     {
-#if defined(IRRITATOR_ENABLE_DEBUG)
-        std::fprintf(stderr,
-                     "static_memory_resource<%zu>::need-allocate [%zu %zu]\n",
-                     Bytes,
-                     bytes,
-                     alignment);
-#endif
+        debug::mem_log("static_memory_resource<",
+                       Bytes,
+                       ">::need - allocate[",
+                       bytes,
+                       " ",
+                       alignment,
+                       "]\n");
 
         debug::ensure(bytes > 0);
         debug::ensure((bytes % alignment) == 0);
 
         if (Bytes < (position + bytes)) {
-#if defined(IRRITATOR_ENABLE_DEBUG)
-            std::fprintf(stderr,
-                         "Irritator shutdown: Unable to allocate memory %zu "
-                         "alignment %zu\n",
-                         bytes,
-                         alignment);
-#endif
+            debug::log("Irritator shutdown: Unable to allocate memory ",
+                       bytes,
+                       " alignment ",
+                       alignment,
+                       "\n");
             std::abort();
         }
 
@@ -158,14 +156,15 @@ protected:
         position += bytes;
         auto* p = static_cast<void*>(buffer.data() + old_position);
 
-#if defined(IRRITATOR_ENABLE_DEBUG)
-        std::fprintf(stderr,
-                     "static_memory_resource<%zu>::allocate [%p %zu %zu]\n",
-                     Bytes,
-                     p,
-                     bytes,
-                     alignment);
-#endif
+        debug::mem_log("static_memory_resource<",
+                       Bytes,
+                       ">::allocate[",
+                       p,
+                       " ",
+                       bytes,
+                       " ",
+                       alignment,
+                       "]\n");
 
         return p;
     }
@@ -174,15 +173,15 @@ protected:
                        [[maybe_unused]] std::size_t bytes,
                        [[maybe_unused]] std::size_t alignment) noexcept override
     {
-#if defined(IRRITATOR_ENABLE_DEBUG)
-        std::fprintf(
-          stderr,
-          "static_memory_resource<%zu>::do_deallocate [%p %zu %zu]\n",
-          Bytes,
-          pointer,
-          bytes,
-          alignment);
-#endif
+        debug::mem_log("static_memory_resource<",
+                       Bytes,
+                       ">::do_deallocate[",
+                       pointer,
+                       " ",
+                       bytes,
+                       " ",
+                       alignment,
+                       "]\n");
 
         [[maybe_unused]] const auto pos =
           reinterpret_cast<std::uintptr_t>(pointer);
