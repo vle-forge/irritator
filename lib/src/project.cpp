@@ -46,79 +46,12 @@ static status simulation_copy_source(simulation_copy& sc,
 static auto make_tree_recursive(simulation_copy& sc,
                                 tree_node&       parent,
                                 component&       compo,
-                                child_id         id_in_parent,
                                 u64 unique_id) noexcept -> result<tree_node_id>;
 
 struct parent_t {
     tree_node& parent;
     component& compo;
 };
-
-static auto get_graph_connections(const modeling&  mod,
-                                  const component& compo) noexcept
-  -> result<data_array<connection, connection_id>&>
-{
-    debug::ensure(compo.type == component_type::graph);
-
-    auto* graph = mod.graph_components.try_to_get(compo.id.graph_id);
-
-    return graph ? result<data_array<connection, connection_id>&>(
-                     graph->cache_connections)
-                 : new_error(project::part::tree_nodes);
-}
-
-static auto get_grid_connections(const modeling&  mod,
-                                 const component& compo) noexcept
-  -> result<data_array<connection, connection_id>&>
-{
-    debug::ensure(compo.type == component_type::grid);
-
-    if (auto* grid = mod.grid_components.try_to_get(compo.id.grid_id); grid)
-        return grid->cache_connections;
-
-    return new_error(project::part::tree_nodes);
-}
-
-static auto get_generic_connections(const modeling&  mod,
-                                    const component& compo) noexcept
-  -> result<data_array<connection, connection_id>&>
-{
-    debug::ensure(compo.type == component_type::simple);
-
-    if (auto* gen = mod.generic_components.try_to_get(compo.id.generic_id); gen)
-        return gen->connections;
-
-    return new_error(project::part::tree_nodes);
-}
-
-static auto get_connections(const modeling&  mod,
-                            const component& compo) noexcept
-  -> result<data_array<connection, connection_id>&>
-{
-    static data_array<connection, connection_id> empty{};
-
-    switch (compo.type) {
-    case component_type::grid:
-        return get_grid_connections(mod, compo);
-
-    case component_type::graph:
-        return get_graph_connections(mod, compo);
-
-    case component_type::internal:
-        return empty;
-
-    case component_type::none:
-        return empty;
-
-    case component_type::simple:
-        return get_generic_connections(mod, compo);
-
-    case component_type::hsm:
-        return empty;
-    }
-
-    unreachable();
-}
 
 static auto get_incoming_connection(const generic_component& gen,
                                     const port_id            id) noexcept -> int
@@ -376,8 +309,8 @@ static status make_tree_recursive(simulation_copy&   sc,
             const auto compo_id = child.id.compo_id;
 
             if (auto* compo = sc.mod.components.try_to_get(compo_id); compo) {
-                auto tn_id = make_tree_recursive(
-                  sc, new_tree, *compo, child_id, child.unique_id);
+                auto tn_id =
+                  make_tree_recursive(sc, new_tree, *compo, child.unique_id);
 
                 if (tn_id.has_error())
                     return tn_id.error();
@@ -419,9 +352,9 @@ static status make_tree_recursive(simulation_copy& sc,
             const auto compo_id = child.id.compo_id;
 
             if (auto* compo = sc.mod.components.try_to_get(compo_id); compo) {
-                irt_auto(tn_id,
-                         make_tree_recursive(
-                           sc, new_tree, *compo, child_id, child.unique_id));
+                irt_auto(
+                  tn_id,
+                  make_tree_recursive(sc, new_tree, *compo, child.unique_id));
 
                 new_tree.children[get_index(child_id)].set(
                   sc.tree_nodes.try_to_get(tn_id));
@@ -450,8 +383,8 @@ static status make_tree_recursive(simulation_copy& sc,
             const auto compo_id = child.id.compo_id;
 
             if (auto* compo = sc.mod.components.try_to_get(compo_id); compo) {
-                auto tn_id = make_tree_recursive(
-                  sc, new_tree, *compo, child_id, child.unique_id);
+                auto tn_id =
+                  make_tree_recursive(sc, new_tree, *compo, child.unique_id);
                 if (tn_id.has_error())
                     return tn_id.error();
 
@@ -479,7 +412,6 @@ static status make_tree_recursive([[maybe_unused]] simulation_copy& sc,
 static auto make_tree_recursive(simulation_copy& sc,
                                 tree_node&       parent,
                                 component&       compo,
-                                child_id         id_in_parent,
                                 u64 unique_id) noexcept -> result<tree_node_id>
 {
     if (not sc.tree_nodes.can_alloc())
