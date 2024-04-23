@@ -92,7 +92,7 @@ static void show_grid_component_options(grid_component& grid) noexcept
     }
 }
 
-static bool new_name_4(modeling& mod, component& compo) noexcept
+static bool new_name_4(component& compo) noexcept
 {
     if (compo.x.can_alloc(4) and compo.y.can_alloc(4)) {
         compo.x_names[get_index(compo.x.alloc())] = "N";
@@ -110,7 +110,7 @@ static bool new_name_4(modeling& mod, component& compo) noexcept
     return false;
 }
 
-static bool new_number_4(modeling& mod, component& compo) noexcept
+static bool new_number_4(component& compo) noexcept
 {
     if (compo.x.can_alloc(1) and compo.y.can_alloc(1)) {
         compo.x_names[get_index(compo.x.alloc())] = "in";
@@ -121,7 +121,7 @@ static bool new_number_4(modeling& mod, component& compo) noexcept
     return false;
 }
 
-static bool new_name_8(modeling& mod, component& compo) noexcept
+static bool new_name_8(component& compo) noexcept
 {
     if (compo.x.can_alloc(8) and compo.y.can_alloc(8)) {
         compo.x_names[get_index(compo.x.alloc())] = "N";
@@ -147,7 +147,7 @@ static bool new_name_8(modeling& mod, component& compo) noexcept
     return false;
 }
 
-static bool new_number_8(modeling& mod, component& compo) noexcept
+static bool new_number_8(component& compo) noexcept
 {
     if (compo.x.can_alloc(1) and compo.y.can_alloc(1)) {
         compo.x_names[get_index(compo.x.alloc())] = "in";
@@ -158,19 +158,16 @@ static bool new_number_8(modeling& mod, component& compo) noexcept
     return false;
 }
 
-static bool assign_name(modeling&       mod,
-                        grid_component& grid,
-                        component&      compo) noexcept
+static bool assign_name(grid_component& grid, component& compo) noexcept
 {
-
     switch (grid.neighbors) {
     case grid_component::neighborhood::four:
         switch (grid.connection_type) {
         case grid_component::type::name:
-            return new_name_4(mod, compo);
+            return new_name_4(compo);
 
         case grid_component::type::number:
-            return new_number_4(mod, compo);
+            return new_number_4(compo);
         }
 
         unreachable();
@@ -179,10 +176,10 @@ static bool assign_name(modeling&       mod,
     case grid_component::neighborhood::eight:
         switch (grid.connection_type) {
         case grid_component::type::name:
-            return new_name_8(mod, compo);
+            return new_name_8(compo);
 
         case grid_component::type::number:
-            return new_number_8(mod, compo);
+            return new_number_8(compo);
         }
 
         unreachable();
@@ -224,19 +221,19 @@ static void show_grid_editor_options(application&                app,
     ImGui::SameLine();
     if (app.mod.generic_components.can_alloc() && ImGui::Button("+ generic")) {
         auto& compo = app.mod.alloc_generic_component();
-        assign_name(app.mod, grid, compo);
+        assign_name(grid, compo);
     }
 
     ImGui::SameLine();
     if (app.mod.grid_components.can_alloc() && ImGui::Button("+ grid")) {
         auto& compo = app.mod.alloc_grid_component();
-        assign_name(app.mod, grid, compo);
+        assign_name(grid, compo);
     }
 
     ImGui::SameLine();
     if (app.mod.graph_components.can_alloc() && ImGui::Button("+ graph")) {
         auto& compo = app.mod.alloc_graph_component();
-        assign_name(app.mod, grid, compo);
+        assign_name(grid, compo);
     }
 
     ImGui::EndDisabled();
