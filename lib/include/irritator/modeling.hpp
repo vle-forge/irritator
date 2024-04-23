@@ -953,20 +953,6 @@ struct tree_node {
 
         return it == unique_id_to_tree_node_id.data.end() ? 0u : it->id;
     }
-
-    union node {
-        node() noexcept = default;
-        node(tree_node* tn_) noexcept;
-        node(model* mdl_) noexcept;
-
-        tree_node* tn;
-        model*     mdl; // model in simluation models.
-    };
-
-    /// Stores for each component in children list the identifier of the
-    /// tree_node. This variable allows to quickly build the connection
-    /// network at build time.
-    table<child_id, node> child_to_node;
 };
 
 class grid_observer
@@ -1529,14 +1515,6 @@ inline child::child(component_id component) noexcept
 inline tree_node::tree_node(component_id id_, u64 unique_id_) noexcept
   : id(id_)
   , unique_id(unique_id_)
-{}
-
-inline tree_node::node::node(tree_node* tn_) noexcept
-  : tn(tn_)
-{}
-
-inline tree_node::node::node(model* mdl_) noexcept
-  : mdl(mdl_)
 {}
 
 /*

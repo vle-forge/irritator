@@ -354,20 +354,11 @@ static auto make_tree_leaf(simulation_copy&   sc,
           return success();
       }));
 
-    {
-        auto& x     = parent.child_to_node.data.emplace_back();
-        x.id        = gen.children.get_id(ch);
-        x.value.mdl = &new_mdl;
-    }
+    debug::ensure(unique_id != 0);
 
-    {
-        debug::ensure(unique_id != 0);
-
-        if (ch.flags[child_flags::configurable] and
-            ch.flags[child_flags::observable])
-            parent.unique_id_to_model_id.data.emplace_back(unique_id,
-                                                           new_mdl_id);
-    }
+    if (ch.flags[child_flags::configurable] and
+        ch.flags[child_flags::observable])
+        parent.unique_id_to_model_id.data.emplace_back(unique_id, new_mdl_id);
 
     return new_mdl_id;
 }
@@ -407,7 +398,6 @@ static status make_tree_recursive(simulation_copy&   sc,
         }
     }
 
-    new_tree.child_to_node.sort();
     new_tree.unique_id_to_model_id.sort();
     new_tree.unique_id_to_tree_node_id.sort();
 
@@ -439,7 +429,6 @@ static status make_tree_recursive(simulation_copy& sc,
         }
     }
 
-    new_tree.child_to_node.sort();
     new_tree.unique_id_to_model_id.sort();
     new_tree.unique_id_to_tree_node_id.sort();
 
@@ -472,7 +461,6 @@ static status make_tree_recursive(simulation_copy& sc,
         }
     }
 
-    new_tree.child_to_node.sort();
     new_tree.unique_id_to_model_id.sort();
     new_tree.unique_id_to_tree_node_id.sort();
 
@@ -501,10 +489,6 @@ static auto make_tree_recursive(simulation_copy& sc,
       sc.tree_nodes.alloc(sc.mod.components.get_id(compo), unique_id);
     new_tree.tree.set_id(&new_tree);
     new_tree.tree.parent_to(parent.tree);
-
-    auto& x    = parent.child_to_node.data.emplace_back();
-    x.id       = id_in_parent;
-    x.value.tn = &new_tree;
 
     switch (compo.type) {
     case component_type::simple: {
@@ -1134,8 +1118,6 @@ void project::clear() noexcept
 
 void project::clean_simulation() noexcept
 {
-    for_all_tree_nodes([](auto& tn) { tn.child_to_node.data.clear(); });
-
     for_each_data(grid_observers,
                   [&](auto& grid_obs) noexcept { grid_obs.clear(); });
 }
