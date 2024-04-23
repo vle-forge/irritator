@@ -330,7 +330,12 @@ static void show_grid(application&                app,
                            ed.hovered_component->x_names[get_index(s_id)].sv());
 
                     if (ImGui::MenuItem(str.c_str())) {
-                        data.connect_input(s_id, ed.row, ed.col, id);
+                        auto ret = data.connect_input(s_id, ed.row, ed.col, id);
+                        if (!ret) {
+                            auto& n = app.notifications.alloc();
+                            n.title = "Fail to connect input";
+                            app.notifications.enable(n);
+                        }
                         ed.hovered_component = nullptr;
                     }
 
@@ -355,7 +360,13 @@ static void show_grid(application&                app,
                            compo.y_names[get_index(id)].sv());
 
                     if (ImGui::MenuItem(str.c_str())) {
-                        data.connect_output(s_id, ed.row, ed.col, id);
+                        auto ret =
+                          data.connect_output(s_id, ed.row, ed.col, id);
+                        if (!ret) {
+                            auto& n = app.notifications.alloc();
+                            n.title = "Fail to connect output";
+                            app.notifications.enable(n);
+                        }
                         ed.hovered_component = nullptr;
                     }
 
