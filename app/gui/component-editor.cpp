@@ -205,7 +205,7 @@ static void show_file_access(application& app, component& compo) noexcept
     }
 }
 
-static void show_input_output_ports(modeling& mod, component& compo) noexcept
+static void show_input_output_ports(component& compo) noexcept
 {
     if (ImGui::CollapsingHeader("X ports")) {
         if (ImGui::BeginTable("X",
@@ -349,7 +349,7 @@ static void show_data(application&       app,
                     if (ImGui::CollapsingHeader("path"))
                         show_file_access(app, *c);
 
-                    show_input_output_ports(app.mod, *c);
+                    show_input_output_ports(*c);
 
                     if (ImGui::CollapsingHeader("selected"))
                         element->show_selected_nodes(ed);
