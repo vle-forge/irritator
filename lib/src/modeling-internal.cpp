@@ -57,8 +57,7 @@ static status connect(generic_component& c,
     return success();
 }
 
-static status add_integrator_component_port(modeling&          mod,
-                                            component&         dst,
+static status add_integrator_component_port(component&         dst,
                                             generic_component& com,
                                             child_id           id,
                                             std::string_view   port) noexcept
@@ -208,8 +207,8 @@ status add_lotka_volterra(modeling&          mod,
     irt_check(connect(com, product, 0, sum_a, 1));
     irt_check(connect(com, product, 0, sum_b, 1));
 
-    irt_check(add_integrator_component_port(mod, dst, com, integrator_a, "X"));
-    irt_check(add_integrator_component_port(mod, dst, com, integrator_b, "Y"));
+    irt_check(add_integrator_component_port(dst, com, integrator_a, "X"));
+    irt_check(add_integrator_component_port(dst, com, integrator_b, "Y"));
 
     return success();
 }
@@ -256,7 +255,7 @@ status add_lif(modeling& mod, component& dst, generic_component& com) noexcept
     irt_check(connect(com, cst, 0, sum, 1));
     irt_check(connect(com, sum, 0, integrator, 0));
 
-    irt_check(add_integrator_component_port(mod, dst, com, integrator, "V"));
+    irt_check(add_integrator_component_port(dst, com, integrator, "V"));
 
     return success();
 }
@@ -343,8 +342,8 @@ status add_izhikevich(modeling&          mod,
     irt_check(connect(com, integrator_b, 0, sum_d, 0));
     irt_check(connect(com, cst, 0, sum_d, 1));
 
-    irt_check(add_integrator_component_port(mod, dst, com, integrator_a, "V"));
-    irt_check(add_integrator_component_port(mod, dst, com, integrator_b, "U"));
+    irt_check(add_integrator_component_port(dst, com, integrator_a, "V"));
+    irt_check(add_integrator_component_port(dst, com, integrator_b, "U"));
 
     return success();
 }
@@ -390,8 +389,8 @@ status add_van_der_pol(modeling&          mod,
     irt_check(connect(com, product1, 0, product2, 0));
     irt_check(connect(com, integrator_a, 0, product2, 1));
 
-    irt_check(add_integrator_component_port(mod, dst, com, integrator_a, "X"));
-    irt_check(add_integrator_component_port(mod, dst, com, integrator_b, "Y"));
+    irt_check(add_integrator_component_port(dst, com, integrator_a, "X"));
+    irt_check(add_integrator_component_port(dst, com, integrator_b, "Y"));
 
     return success();
 }
@@ -435,7 +434,7 @@ status add_negative_lif(modeling&          mod,
     irt_check(connect(com, cst, 0, sum, 1));
     irt_check(connect(com, sum, 0, integrator, 0));
 
-    irt_check(add_integrator_component_port(mod, dst, com, integrator, "V"));
+    irt_check(add_integrator_component_port(dst, com, integrator, "V"));
 
     return success();
 }
@@ -532,10 +531,10 @@ status add_seirs(modeling& mod, component& dst, generic_component& com) noexcept
     irt_check(connect(com, gamma_I, 0, gamma_I_rho_R, 1));
     irt_check(connect(com, gamma_I_rho_R, 0, dR, 0));
 
-    irt_check(add_integrator_component_port(mod, dst, com, dS, "S"));
-    irt_check(add_integrator_component_port(mod, dst, com, dE, "E"));
-    irt_check(add_integrator_component_port(mod, dst, com, dI, "I"));
-    irt_check(add_integrator_component_port(mod, dst, com, dR, "R"));
+    irt_check(add_integrator_component_port(dst, com, dS, "S"));
+    irt_check(add_integrator_component_port(dst, com, dE, "E"));
+    irt_check(add_integrator_component_port(dst, com, dI, "I"));
+    irt_check(add_integrator_component_port(dst, com, dR, "R"));
 
     return success();
 }

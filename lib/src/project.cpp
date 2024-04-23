@@ -54,8 +54,8 @@ struct parent_t {
     component& compo;
 };
 
-static auto get_parent(modeling& mod, tree_node& node) noexcept
-  -> result<parent_t>
+static auto get_parent(modeling&  mod,
+                       tree_node& node) noexcept -> result<parent_t>
 {
     if (auto* p = node.tree.get_parent(); p)
         if (auto* c = mod.components.try_to_get(p->id); c)
@@ -130,8 +130,7 @@ static auto get_connections(const modeling&  mod,
     unreachable();
 }
 
-static auto get_incoming_connection(const component&         compo,
-                                    const generic_component& gen,
+static auto get_incoming_connection(const generic_component& gen,
                                     const port_id            id) noexcept -> int
 {
     int i = 0;
@@ -161,7 +160,7 @@ static auto get_incoming_connection(const modeling&  mod,
 
     if (compo->type == component_type::simple) {
         auto* gen = mod.generic_components.try_to_get(compo->id.generic_id);
-        return gen ? get_incoming_connection(*compo, *gen, id) : 0;
+        return gen ? get_incoming_connection(*gen, id) : 0;
     }
 
     return new_error(project::part::tree_nodes);
@@ -179,15 +178,14 @@ static auto get_incoming_connection(const modeling&  mod,
         if (compo->type == component_type::simple) {
             auto* gen = mod.generic_components.try_to_get(compo->id.generic_id);
             if (gen)
-                nb += get_incoming_connection(*compo, *gen, id);
+                nb += get_incoming_connection(*gen, id);
         }
     }
 
     return nb;
 }
 
-static auto get_outcoming_connection(const component&         compo,
-                                     const generic_component& gen,
+static auto get_outcoming_connection(const generic_component& gen,
                                      const port_id id) noexcept -> int
 {
     int i = 0;
@@ -217,7 +215,7 @@ static auto get_outcoming_connection(const modeling&  mod,
 
     if (compo->type == component_type::simple) {
         auto* gen = mod.generic_components.try_to_get(compo->id.generic_id);
-        return gen ? get_outcoming_connection(*compo, *gen, id) : 0;
+        return gen ? get_outcoming_connection(*gen, id) : 0;
     }
 
     return new_error(project::part::tree_nodes);
@@ -236,7 +234,7 @@ static auto get_outcoming_connection(const modeling&  mod,
         if (compo->type == component_type::simple) {
             auto* gen = mod.generic_components.try_to_get(compo->id.generic_id);
             if (gen)
-                nb += get_outcoming_connection(*compo, *gen, id);
+                nb += get_outcoming_connection(*gen, id);
         }
     }
 
