@@ -1380,12 +1380,12 @@ public:
     /// cached can be completely free using the @c destroy_cache function.
     struct cache {
         struct model_port {
-	    model_port() noexcept = default;
+            model_port() noexcept = default;
 
-	    model_port(model* mdl_, int port_) noexcept
-		: mdl{mdl_}
-	    , port{port_}
-	    {}
+            model_port(model* mdl_, int port_) noexcept
+              : mdl{ mdl_ }
+              , port{ port_ }
+            {}
 
             model* mdl{};
             int    port{};
