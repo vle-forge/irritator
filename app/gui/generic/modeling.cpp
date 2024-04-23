@@ -346,8 +346,7 @@ static void show(component_editor& ed,
     ImNodes::PopColorStyle();
 }
 
-static void show_input_an_output_ports(modeling&      mod,
-                                       component&     compo,
+static void show_input_an_output_ports(component&     compo,
                                        const child_id c_id) noexcept
 {
     for (const auto id : compo.x) {
@@ -388,7 +387,7 @@ static void show_generic_node(application&       app,
     ImNodes::BeginNodeTitleBar();
     ImGui::TextFormat("{}\n{}", name, compo.name.c_str());
     ImNodes::EndNodeTitleBar();
-    show_input_an_output_ports(app.mod, compo, c_id);
+    show_input_an_output_ports(compo, c_id);
     ImNodes::EndNode();
 
     ImNodes::PopColorStyle();
@@ -415,7 +414,7 @@ static void show_grid_node(application&     app,
     ImGui::TextFormat("{}\n{}", name, compo.name.sv());
     ImGui::TextFormat("{}x{}", grid.row, grid.column);
     ImNodes::EndNodeTitleBar();
-    show_input_an_output_ports(app.mod, compo, c_id);
+    show_input_an_output_ports(compo, c_id);
     ImNodes::EndNode();
 
     ImNodes::PopColorStyle();
@@ -442,7 +441,7 @@ static void show_graph_node(application&     app,
     ImGui::TextFormat("{}\n{}", name, compo.name.sv());
     ImGui::TextFormat("{}", graph.children.size());
     ImNodes::EndNodeTitleBar();
-    show_input_an_output_ports(app.mod, compo, c_id);
+    show_input_an_output_ports(compo, c_id);
     ImNodes::EndNode();
 
     ImNodes::PopColorStyle();
