@@ -139,10 +139,10 @@ int main()
         expect(!!mod.init(mod_init));
         expect(!!pj.init(mod_init));
 
-        auto& c1    = mod.alloc_generic_component();
-        auto& s1    = mod.generic_components.get(c1.id.generic_id);
-        auto& ch1   = mod.alloc(s1, irt::dynamics_type::counter);
-        auto  p1_id = c1.get_or_add_x("in");
+        auto& c1 = mod.alloc_generic_component();
+        auto& s1 = mod.generic_components.get(c1.id.generic_id);
+        mod.alloc(s1, irt::dynamics_type::counter);
+        auto p1_id = c1.get_or_add_x("in");
 
         auto& c11    = mod.alloc_generic_component();
         auto& s11    = mod.generic_components.get(c11.id.generic_id);
@@ -152,10 +152,10 @@ int main()
         expect(!!s11.connect_input(
           p11_id, ch11, irt::connection::port{ .compo = p1_id }));
 
-        auto& c2    = mod.alloc_generic_component();
-        auto& s2    = mod.generic_components.get(c2.id.generic_id);
-        auto& ch2   = mod.alloc(s2, irt::dynamics_type::time_func);
-        auto  p2_id = c2.get_or_add_y("out");
+        auto& c2 = mod.alloc_generic_component();
+        auto& s2 = mod.generic_components.get(c2.id.generic_id);
+        mod.alloc(s2, irt::dynamics_type::time_func);
+        auto p2_id = c2.get_or_add_y("out");
 
         auto& c22    = mod.alloc_generic_component();
         auto& s22    = mod.generic_components.get(c22.id.generic_id);
