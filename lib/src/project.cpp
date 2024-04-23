@@ -54,16 +54,6 @@ struct parent_t {
     component& compo;
 };
 
-static auto get_parent(modeling&  mod,
-                       tree_node& node) noexcept -> result<parent_t>
-{
-    if (auto* p = node.tree.get_parent(); p)
-        if (auto* c = mod.components.try_to_get(p->id); c)
-            return parent_t{ .parent = *p, .compo = *c };
-
-    return new_error(project::part::tree_nodes);
-}
-
 static auto get_graph_connections(const modeling&  mod,
                                   const component& compo) noexcept
   -> result<data_array<connection, connection_id>&>
@@ -371,12 +361,6 @@ static auto make_tree_leaf(simulation_copy&   sc,
     }
 
     {
-        auto& x = parent.child_to_sim.data.emplace_back();
-        x.id    = gen.children.get_id(ch);
-        x.value = new_mdl_id;
-    }
-
-    {
         debug::ensure(unique_id != 0);
 
         if (ch.flags[child_flags::configurable] and
@@ -424,7 +408,6 @@ static status make_tree_recursive(simulation_copy&   sc,
     }
 
     new_tree.child_to_node.sort();
-    new_tree.child_to_sim.sort();
     new_tree.unique_id_to_model_id.sort();
     new_tree.unique_id_to_tree_node_id.sort();
 
@@ -457,7 +440,6 @@ static status make_tree_recursive(simulation_copy& sc,
     }
 
     new_tree.child_to_node.sort();
-    new_tree.child_to_sim.sort();
     new_tree.unique_id_to_model_id.sort();
     new_tree.unique_id_to_tree_node_id.sort();
 
@@ -491,7 +473,6 @@ static status make_tree_recursive(simulation_copy& sc,
     }
 
     new_tree.child_to_node.sort();
-    new_tree.child_to_sim.sort();
     new_tree.unique_id_to_model_id.sort();
     new_tree.unique_id_to_tree_node_id.sort();
 

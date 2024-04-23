@@ -910,10 +910,6 @@ struct tree_node {
     /// A unique identifier provided by component parent.
     u64 unique_id = 0;
 
-    /// Map component children into simulation model. Table build in @c
-    /// project::set or @c project::rebuild functions.
-    table<child_id, model_id> child_to_sim;
-
     table<u64, tree_node_id> unique_id_to_tree_node_id;
     table<u64, model_id>     unique_id_to_model_id;
 
