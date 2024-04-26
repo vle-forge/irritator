@@ -5760,7 +5760,7 @@ status json_archiver::component_save(modeling&                   mod,
 {
     fmt::print("json_archiver::component-save\n");
 
-    auto f = file::make_file(filename, open_mode::write);
+    auto f = file::open(filename, open_mode::write);
     if (!f)
         return f.error();
 
@@ -5931,7 +5931,7 @@ status json_archiver::simulation_save(const simulation& sim,
                                       const char*       filename,
                                       print_option      print_options) noexcept
 {
-    auto f = file::make_file(filename, open_mode::write);
+    auto f = file::open(filename, open_mode::write);
     if (!f)
         return f.error();
 

@@ -399,12 +399,17 @@ struct settings_parser {
     }
 
     bool open_settings_file(const std::u8string& filename,
-                            file&                f,
+                            file&                out,
                             open_mode            mode) noexcept
     {
-        f.open(reinterpret_cast<const char*>(filename.c_str()), mode);
-
-        return f.is_open() ? true : build_notification_bad_open(filename);
+        if (auto f =
+              file::open(reinterpret_cast<const char*>(filename.c_str()), mode);
+            !f) {
+            return build_notification_bad_open(filename);
+        } else {
+            out = std::move(*f);
+            return true;
+        }
     }
 
     bool parse_settings_file(const std::u8string&       filename,

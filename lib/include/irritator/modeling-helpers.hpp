@@ -48,7 +48,7 @@ inline result<file> open_file(dir_path& dir_p, file_path& file_p) noexcept
         std::u8string u8str = p.u8string();
         const char*   cstr  = reinterpret_cast<const char*>(u8str.c_str());
 
-        return file::make_file(cstr, open_mode::read);
+        return file::open(cstr, open_mode::read);
     } catch (...) {
     }
 

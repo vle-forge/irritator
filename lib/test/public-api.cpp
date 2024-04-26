@@ -2926,10 +2926,10 @@ int main()
         irt::u32 c = 0xfedcba98;
         irt::u64 d = 0xfedcba9876543210;
 
-        f.write(a);
-        f.write(b);
-        f.write(c);
-        f.write(d);
+        expect(!!f.write(a));
+        expect(!!f.write(b));
+        expect(!!f.write(c));
+        expect(!!f.write(d));
 
         expect(eq(f.data.ssize(), 256));
         expect(eq(f.data.capacity(), 256));
@@ -2958,8 +2958,8 @@ int main()
         file_path /= "irritator.txt";
 
         {
-            auto f = irt::file::make_file(file_path.string().c_str(),
-                                          irt::open_mode::write);
+            auto f = irt::file::open(file_path.string().c_str(),
+                                     irt::open_mode::write);
             expect(!!f);
             expect(f->length() == 0);
 
@@ -2968,17 +2968,17 @@ int main()
             irt::u32 c = 0xfedcba98;
             irt::u64 d = 0xfedcba9876543210;
 
-            f->write(a);
-            f->write(b);
-            f->write(c);
-            f->write(d);
+            expect(!!f->write(a));
+            expect(!!f->write(b));
+            expect(!!f->write(c));
+            expect(!!f->write(d));
 
             expect(f->tell() == 15);
         }
 
         {
-            auto f = irt::file::make_file(file_path.string().c_str(),
-                                          irt::open_mode::read);
+            auto f =
+              irt::file::open(file_path.string().c_str(), irt::open_mode::read);
             expect(!!f);
             expect(f->length() == 15);
 
@@ -2991,10 +2991,10 @@ int main()
             irt::u32 c_w = 0;
             irt::u64 d_w = 0;
 
-            f->read(a_w);
-            f->read(b_w);
-            f->read(c_w);
-            f->read(d_w);
+            expect(!!f->read(a_w));
+            expect(!!f->read(b_w));
+            expect(!!f->read(c_w));
+            expect(!!f->read(d_w));
 
             expect(a == a_w);
             expect(b == b_w);
@@ -3013,8 +3013,8 @@ int main()
 
     "memory"_test = [] {
         irt::memory mem(2040, irt::open_mode::write);
-        expect(mem.write(0x00112233) == true);
-        expect(mem.write(0x44556677) == true);
+        expect(!!mem.write(0x00112233));
+        expect(!!mem.write(0x44556677));
 
         expect(mem.data.ssize() == 2040);
         expect(mem.pos == 8);
@@ -3022,8 +3022,8 @@ int main()
         mem.rewind();
 
         irt::u32 a, b;
-        expect(mem.read(a) == true);
-        expect(mem.read(b) == true);
+        expect(!!mem.read(a));
+        expect(!!mem.read(b));
 
         expect(a == 0x00112233);
         expect(b == 0x44556677);
@@ -3075,7 +3075,6 @@ int main()
 
     "archive"_test = [] {
         irt::vector<irt::u8> data;
-
         {
             irt::memory     m(256 * 8, irt::open_mode::write);
             irt::simulation sim(
@@ -3100,7 +3099,7 @@ int main()
               irt::simulation_memory_requirement(1024 * 1024 * 8));
             irt::binary_archiver bin;
 
-            std::copy_n(data.data(), 200, m.data.data());
+            std::copy_n(data.data(), data.size(), m.data.data());
             m.pos = 0;
 
             expect(!!bin.simulation_load(sim, m));

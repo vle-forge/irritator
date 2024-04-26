@@ -74,6 +74,16 @@ struct e_file_name {
     char value[64];
 };
 
+struct e_errno {
+    e_errno() noexcept = default;
+
+    e_errno(int value_ = errno) noexcept
+      : value{ value_ }
+    {}
+
+    int value;
+};
+
 struct e_memory {
     long long unsigned int capacity; //!< Current capacity in bytes.
     long long unsigned int request;  //!< Requested capacity in bytes.
@@ -88,7 +98,7 @@ struct e_json {
     e_json() noexcept = default;
 
     e_json(long long unsigned int offset_, std::string_view str) noexcept
-        : offset(offset_)
+      : offset(offset_)
     {
         const auto len =
           str.size() > sizeof error_code ? sizeof error_code : str.size();

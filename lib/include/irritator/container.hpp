@@ -924,10 +924,10 @@ public:
           , id{ id_ }
         {}
 
-        reference     operator*() const noexcept { return id; }
-        reference     operator*() noexcept { return id; }
-        const pointer operator->() const noexcept { return &id; }
-        pointer       operator->() noexcept { return &id; }
+        reference operator*() const noexcept { return id; }
+        reference operator*() noexcept { return id; }
+        pointer   operator->() const noexcept { return &id; }
+        pointer   operator->() noexcept { return &id; }
 
         iterator_base& operator--() noexcept
         {
@@ -1353,8 +1353,8 @@ public:
     using memory_resource_t = typename A::memory_resource_t;
 
     static_assert((std::is_nothrow_constructible_v<T> ||
-                   std::is_nothrow_move_constructible_v<T>) &&
-                  std::is_nothrow_destructible_v<T>);
+                   std::is_nothrow_move_constructible_v<
+                     T>)&&std::is_nothrow_destructible_v<T>);
 
 private:
     T*                                   buffer = nullptr;
@@ -1659,8 +1659,8 @@ class small_ring_buffer
 public:
     static_assert(length >= 1);
     static_assert((std::is_nothrow_constructible_v<T> ||
-                   std::is_nothrow_move_constructible_v<T>) &&
-                  std::is_nothrow_destructible_v<T>);
+                   std::is_nothrow_move_constructible_v<
+                     T>)&&std::is_nothrow_destructible_v<T>);
 
     using value_type      = T;
     using size_type       = small_storage_size_t<length>;

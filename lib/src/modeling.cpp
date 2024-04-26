@@ -386,7 +386,7 @@ static status load_component(modeling& mod, component& compo) noexcept
         std::string str{ p.string() };
 
         {
-            auto f = file::make_file(str.c_str(), open_mode::read);
+            auto f = file::open(str.c_str(), open_mode::read);
             if (!f) {
                 compo.state = component_status::unreadable;
                 return new_error(modeling::part::components,
@@ -409,7 +409,7 @@ static status load_component(modeling& mod, component& compo) noexcept
         str = p.string();
 
         if (file::exists(str.c_str())) {
-            if (auto f = file::make_file(str.c_str(), open_mode::read); f) {
+            if (auto f = file::open(str.c_str(), open_mode::read); f) {
                 auto* desc = mod.descriptions.try_to_get(compo.desc);
                 if (!desc) {
                     auto& d    = mod.descriptions.alloc();

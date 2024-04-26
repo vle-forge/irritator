@@ -1059,7 +1059,7 @@ status project::load(modeling&   mod,
                      cache_rw&   cache,
                      const char* filename) noexcept
 {
-    if (auto file = file::make_file(filename, open_mode::read); !file) {
+    if (auto file = file::open(filename, open_mode::read); !file) {
         return file.error();
     } else {
         json_archiver j;
@@ -1072,7 +1072,7 @@ status project::save(modeling&   mod,
                      cache_rw&   cache,
                      const char* filename) noexcept
 {
-    if (auto file = file::make_file(filename, open_mode::write); !file) {
+    if (auto file = file::open(filename, open_mode::write); !file) {
         return file.error();
     } else {
         json_archiver j;
