@@ -244,11 +244,11 @@ static bool show_connection(
                                   : pack_in(con.dst, con.port.compo);
 
             ImNodes::Link(con_id, id_src, id_dst);
-            return true;
+            return false;
         }
     }
 
-    return false;
+    return true;
 }
 
 static bool show_connection(
@@ -268,11 +268,11 @@ static bool show_connection(
                                   : pack_out(con.src, con.port.compo);
 
             ImNodes::Link(con_id, id_src, id_dst);
-            return true;
+            return false;
         }
     }
 
-    return false;
+    return true;
 }
 
 static bool show_connection(const generic_component& compo,
@@ -293,11 +293,11 @@ static bool show_connection(const generic_component& compo,
                                   : pack_in(con.dst, con.index_dst.compo);
 
             ImNodes::Link(con_id, id_src, id_dst);
-            return true;
+            return false;
         }
     }
 
-    return false;
+    return true;
 }
 
 static void show(component_editor& ed,
