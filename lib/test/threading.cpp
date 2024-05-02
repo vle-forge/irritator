@@ -5,6 +5,8 @@
 #include <irritator/core.hpp>
 #include <irritator/thread.hpp>
 
+#include <mutex>
+
 #include <fmt/format.h>
 
 #include <boost/ut.hpp>
@@ -69,7 +71,7 @@ int main()
 
     "spin-lock"_test = [] {
         int            counter = 0;
-        irt::spin_lock spin;
+        irt::spin_mutex spin;
 
         std::thread j1([&counter, &spin]() {
             for (int i = 0; i < 1000; ++i) {
@@ -97,8 +99,8 @@ int main()
     };
 
     "scoped-lock"_test = [] {
-        irt::spin_lock mutex_1;
-        irt::spin_lock mutex_2;
+        irt::spin_mutex mutex_1;
+        irt::spin_mutex mutex_2;
 
         for (int i = 0; i < 100; ++i) {
             std::atomic_int mult = 0;

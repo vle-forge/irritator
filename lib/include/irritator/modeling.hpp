@@ -772,7 +772,7 @@ struct registred_path {
     state               status   = state::unread;
     bitflags<reg_flags> flags    = reg_flags::none;
     i8                  priority = 0;
-    spin_lock           mutex;
+    spin_mutex           mutex;
 };
 
 class dir_path
@@ -801,7 +801,7 @@ public:
 
     state               status = state::unread;
     bitflags<dir_flags> flags  = dir_flags::none;
-    spin_lock           mutex;
+    spin_mutex           mutex;
 
     /**
      * Refresh the `children` vector with new file in the filesystem.
@@ -837,7 +837,7 @@ struct file_path {
     file_type            type{ file_type::undefined_file };
     state                status = state::unread;
     bitflags<file_flags> flags  = file_flags::none;
-    spin_lock            mutex;
+    spin_mutex            mutex;
 };
 
 struct modeling_initializer {
@@ -1266,9 +1266,9 @@ public:
 
     ring_buffer<log_entry> log_entries;
 
-    spin_lock reg_paths_mutex;
-    spin_lock dir_paths_mutex;
-    spin_lock file_paths_mutex;
+    spin_mutex reg_paths_mutex;
+    spin_mutex dir_paths_mutex;
+    spin_mutex file_paths_mutex;
 };
 
 class project

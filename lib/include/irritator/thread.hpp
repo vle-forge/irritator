@@ -10,7 +10,6 @@
 
 #include <atomic>
 #include <chrono>
-#include <mutex>
 #include <thread>
 #include <type_traits>
 
@@ -33,30 +32,31 @@ static inline constexpr auto main_task_size                   = 2;
 static inline constexpr auto max_temp_worker                  = 8;
 static inline constexpr auto max_threads = main_task_size + max_temp_worker;
 
-//! A `spin-lock` based on `std::atomic_flag::wait` and
+//! A `std::mutex` like based on `std::atomic_flag::wait` and
 //! `std::atomic_flag::notify_one` standard functions.
-class spin_lock
+class spin_mutex
 {
     std::atomic_flag m_flag = ATOMIC_FLAG_INIT;
 
 public:
-    spin_lock() noexcept  = default;
-    ~spin_lock() noexcept = default;
+    spin_mutex() noexcept  = default;
+    ~spin_mutex() noexcept = default;
 
-    spin_lock(const spin_lock& other) noexcept;
+    spin_mutex(const spin_mutex& other) noexcept;
 
     void lock() noexcept;
     bool try_lock() noexcept;
     void unlock() noexcept;
 };
 
-//! A `spin-lock` only for test. Burst CPU until another thread unlock.
-class spin_bad_lock
+//! A `std::mutex` like based on `std::atomic_flag` and
+//! `std::thread::yied`.
+class spin_yield_mutex_lock
 {
     std::atomic_flag m_flag = ATOMIC_FLAG_INIT;
 
 public:
-    spin_bad_lock() noexcept;
+    spin_yield_mutex_lock() noexcept;
     bool try_lock() noexcept;
     void lock() noexcept;
     void unlock() noexcept;
@@ -290,22 +290,22 @@ public:
 // spin_lock
 //
 
-inline spin_lock::spin_lock(const spin_lock& /*other*/) noexcept
-  : spin_lock()
+inline spin_mutex::spin_mutex(const spin_mutex& /*other*/) noexcept
+  : spin_mutex()
 {}
 
-inline void spin_lock::lock() noexcept
+inline void spin_mutex::lock() noexcept
 {
     while (m_flag.test_and_set(std::memory_order_acquire))
         m_flag.wait(true, std::memory_order_relaxed);
 }
 
-inline bool spin_lock::try_lock() noexcept
+inline bool spin_mutex::try_lock() noexcept
 {
     return not m_flag.test_and_set(std::memory_order_acquire);
 }
 
-inline void spin_lock::unlock() noexcept
+inline void spin_mutex::unlock() noexcept
 {
     m_flag.clear(std::memory_order_release);
     m_flag.notify_one();
@@ -315,21 +315,21 @@ inline void spin_lock::unlock() noexcept
 // spin_bad_lock
 //
 
-inline spin_bad_lock::spin_bad_lock() noexcept { m_flag.clear(); }
+inline spin_yield_mutex_lock::spin_yield_mutex_lock() noexcept { m_flag.clear(); }
 
-inline bool spin_bad_lock::try_lock() noexcept
+inline bool spin_yield_mutex_lock::try_lock() noexcept
 {
     return !m_flag.test_and_set(std::memory_order_acquire);
 }
 
-inline void spin_bad_lock::lock() noexcept
+inline void spin_yield_mutex_lock::lock() noexcept
 {
     for (size_t i = 0; !try_lock(); ++i)
-        if (i % 100 == 0)
+        if ((i % 100) == 0)
             std::this_thread::yield();
 }
 
-inline void spin_bad_lock::unlock() noexcept
+inline void spin_yield_mutex_lock::unlock() noexcept
 {
     m_flag.clear(std::memory_order_release);
 }

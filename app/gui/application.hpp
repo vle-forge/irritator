@@ -135,7 +135,7 @@ public:
 private:
     data_array<notification, notification_id> data;
     ring_buffer<notification_id>              r_buffer;
-    spin_lock                                 mutex;
+    spin_mutex                                 mutex;
 };
 
 //! @brief Show notification into a classical window in botton.
@@ -606,7 +606,7 @@ struct simulation_editor {
       models_to_move; /**< Online simulation created models need to use ImNodes
                          API to move into the canvas. */
 
-    spin_lock mutex; /**< Sharing the simulation data from gui's tasks and gui's
+    spin_mutex mutex; /**< Sharing the simulation data from gui's tasks and gui's
                         draw functions. */
 };
 
@@ -799,7 +799,7 @@ private:
     int files   = 0; //! Number of component in registred directories
     int unsaved = 0; //! Number of unsaved component
 
-    spin_lock m_mutex;
+    spin_mutex m_mutex;
 };
 
 class component_model_selector
