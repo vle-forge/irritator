@@ -64,7 +64,6 @@ status variable_observer::init(project& pj, simulation& sim) noexcept
 
                     obs_id = sim.observers.get_id(new_obs);
                     sim.observe(*mdl, new_obs);
-                    obs = &new_obs;
                 } else {
                     // Maybe return another status?
                 }
