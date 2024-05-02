@@ -188,22 +188,18 @@ static void named_connection_add(modeling&        mod,
         if (src->type == child_type::component) {
             auto* c_src = mod.components.try_to_get(src->id.compo_id);
             if (c_src) {
-                auto p_src = c_src->get_y("out");
-
                 if (dst->type == child_type::component) {
                     auto* c_dst = mod.components.try_to_get(dst->id.compo_id);
                     if (c_dst) {
-                        auto p_dst = c_dst->get_x("in");
-
                         auto     sz_src = c_src->x_names.ssize();
                         auto     sz_dst = c_dst->y_names.ssize();
                         port_str temp;
 
                         format(temp, "{}", sz_src);
-                        p_src = c_src->get_x(temp.sv());
+                        const auto p_src = c_src->get_x(temp.sv());
 
                         format(temp, "{}", sz_dst);
-                        p_dst = c_dst->get_y(temp.sv());
+                        const auto p_dst = c_dst->get_y(temp.sv());
 
                         if (is_defined(p_src) and is_defined(p_dst))
                             compo.cache_connections.alloc(
