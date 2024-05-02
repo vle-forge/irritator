@@ -247,83 +247,85 @@ bool hierarchical_state_machine::handle(const state_id   state,
 void hierarchical_state_machine::affect_action(const state_action& action,
                                                execution& exec) noexcept
 {
-    i32 param = action.parameter;
-    u8  port  = 255; // @TODO better code need
+    std::optional<u8>  port;
+    std::optional<i32*> var_1;
+    std::optional<i32*> var_2;
 
     if (action.var1 >= variable::port_0 && action.var1 <= variable::port_3)
-        port = ordinal(action.var1) - 1; // @TODO better code need
+        port.emplace(ordinal(action.var1) - 1);
 
-    i32* var_1 = action.var1 == variable::var_a   ? &exec.a
-                 : action.var1 == variable::var_b ? &exec.b
-                                                  : nullptr;
+    if (action.var1 == variable::var_a)
+        var_1 = &exec.a;
+    else if (action.var1 == variable::var_b)
+        var_1 = &exec.b;
 
-    i32* var_2 = action.var2 == variable::var_a      ? &exec.a
-                 : action.var2 == variable::var_b    ? &exec.b
-                 : action.var2 == variable::constant ? &param
-                                                     : nullptr;
+    if (action.var2 == variable::var_a)
+        var_2 = &exec.a;
+    else if (action.var2 == variable::var_b)
+        var_2 = &exec.b;
 
     switch (action.type) {
     case action_type::none:
         break;
     case action_type::set:
-        debug::ensure(port <= 3u);
-        exec.values |= static_cast<u8>(1u << port);
+        debug::ensure(port.has_value());
+        exec.values |= static_cast<u8>(1u << *port);
         break;
     case action_type::unset:
-        debug::ensure(port <= 3u);
-        exec.values &= static_cast<u8>(~(1u << port));
+        debug::ensure(port.has_value());
+        exec.values &= static_cast<u8>(~(1u << *port));
         break;
     case action_type::reset:
         exec.values = static_cast<u8>(0u);
         break;
     case action_type::output:
-        debug::ensure(port <= 3u);
+        debug::ensure(port.has_value());
         exec.outputs.emplace_back(hierarchical_state_machine::output_message{
-          .value = action.parameter, .port = port });
+          .value = action.parameter, .port = *port });
         break;
     case action_type::affect:
         debug::ensure(var_1 && var_2);
-        *var_1 = *var_2;
+        **var_1 = **var_2;
         break;
     case action_type::plus:
         debug::ensure(var_1 && var_2);
-        *var_1 = std::plus<>{}(*var_1, *var_2);
+        **var_1 = std::plus<>{}(**var_1, **var_2);
         break;
     case action_type::minus:
         debug::ensure(var_1 && var_2);
-        *var_1 = std::minus<>{}(*var_1, *var_2);
+        **var_1 = std::minus<>{}(**var_1, **var_2);
         break;
     case action_type::negate:
         debug::ensure(var_1 && var_2);
-        *var_1 = std::negate<>{}(*var_1);
+        **var_1 = std::negate<>{}(**var_1);
         break;
     case action_type::multiplies:
         debug::ensure(var_1 && var_2);
-        *var_1 = std::multiplies<>{}(*var_1, *var_2);
+        **var_1 = std::multiplies<>{}(**var_1, **var_2);
         break;
     case action_type::divides:
         debug::ensure(var_1 && var_2);
-        *var_1 = std::divides<>{}(*var_1, *var_2);
+        **var_1 = std::divides<>{}(**var_1, **var_2);
         break;
     case action_type::modulus:
         debug::ensure(var_1 && var_2);
-        *var_1 = std::modulus<>{}(*var_1, *var_2);
+        **var_1 = std::modulus<>{}(**var_1, **var_2);
         break;
     case action_type::bit_and:
         debug::ensure(var_1 && var_2);
-        *var_1 = std::bit_and<>{}(*var_1, *var_2);
+        **var_1 = std::bit_and<>{}(**var_1, **var_2);
         break;
     case action_type::bit_or:
         debug::ensure(var_1 && var_2);
-        *var_1 = std::bit_or<>{}(*var_1, *var_2);
+        **var_1 = std::bit_or<>{}(**var_1, **var_2);
         break;
     case action_type::bit_not:
         debug::ensure(var_1 && var_2);
-        *var_1 = std::bit_not<>{}(*var_1);
+        **var_1 = std::bit_not<>{}(**var_2);
         break;
     case action_type::bit_xor:
         debug::ensure(var_1 && var_2);
-        *var_1 = std::bit_xor<>{}(*var_1, *var_2);
+        **var_1 = std::bit_xor<>{}(**var_1, **var_2);
         break;
 
     default:
