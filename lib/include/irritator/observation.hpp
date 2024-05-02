@@ -181,16 +181,17 @@ auto compute_interpolate(const observation_message& msg,
 
     out.emplace_tail(msg[0], compute_value<QssLevel>(msg, 0));
 
-    auto duration = until - msg[0] - time_step;
+    const auto duration = until - msg[0] - time_step;
     if (duration > 0) {
         time elapsed = time_step;
-        for (; elapsed < duration; elapsed += time_step) {
+        while (elapsed < duration) {
             out.emplace_tail(msg[0] + elapsed,
                              compute_value<QssLevel>(msg, elapsed));
+            elapsed += time_step;
         }
 
         if (duration < elapsed) {
-            auto limit = duration - std::numeric_limits<real>::epsilon();
+            const auto limit = duration - std::numeric_limits<real>::epsilon();
             out.emplace_tail(msg[0] + limit,
                              compute_value<QssLevel>(msg, limit));
         }
