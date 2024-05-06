@@ -13,9 +13,6 @@
 #include <irritator/macros.hpp>
 #include <irritator/thread.hpp>
 
-#include <bitset>
-#include <functional>
-#include <memory>
 #include <optional>
 #include <variant>
 
