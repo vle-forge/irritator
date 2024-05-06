@@ -824,6 +824,9 @@ struct observer {
 
     observer(std::string_view name_) noexcept;
 
+    void init(const i32 raw_buffer_size,
+              const i32 linearizer_buffer_size,
+              const float time_step_) noexcept;
     void reset() noexcept;
     void clear() noexcept;
     void update(observation_message msg) noexcept;
@@ -4712,6 +4715,21 @@ inline observer::observer(std::string_view name_) noexcept
   , name{ name_ }
   , states{ observer_flags::none }
 {}
+
+inline void observer::init(const i32 raw_buffer_size,
+                           const i32 linearizer_buffer_size,
+                           const float time_step_) noexcept
+{
+    debug::ensure(time_step > 0.f);
+    debug::ensure(raw_buffer_size > 0);
+    debug::ensure(linearizer_buffer_size > 0);
+
+    buffer.clear();
+    buffer.reserve(raw_buffer_size);
+    linearized_buffer.clear();
+    linearized_buffer.reserve(linearizer_buffer_size);
+    time_step = time_step_;
+}
 
 inline void observer::reset() noexcept
 {

@@ -12,31 +12,13 @@
 
 namespace irt {
 
-static status simulation_init_grid_observation(application& app) noexcept
+static status simulation_init_observation(application& app) noexcept
 {
     for (auto& grid_obs : app.pj.grid_observers)
         irt_check(grid_obs.init(app.pj, app.mod, app.sim));
 
-    return success();
-}
-
-static status simulation_init_var_obs(application& app) noexcept
-{
     for (auto& v_obs : app.pj.variable_observers)
         irt_check(v_obs.init(app.pj, app.sim));
-
-    return success();
-}
-
-static status simulation_init_observation(application& app) noexcept
-{
-    irt_check(simulation_init_var_obs(app));
-
-    // app.simulation_ed.grid_obs.clear();
-    // app.simulation_ed.graph_obs.clear();
-
-    irt_check(simulation_init_grid_observation(app));
-    // irt_return_if_bad(simulation_init_graph_observation(app));
 
     return success();
 }

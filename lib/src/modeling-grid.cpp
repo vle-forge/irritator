@@ -2,21 +2,14 @@
 // Version 1.0. (See accompanying file LICENSE_1_0.txt or copy at
 // http://www.boost.org/LICENSE_1_0.txt)
 
-#include "irritator/error.hpp"
 #include <irritator/core.hpp>
+#include <irritator/error.hpp>
 #include <irritator/format.hpp>
 #include <irritator/io.hpp>
 #include <irritator/modeling-helpers.hpp>
 #include <irritator/modeling.hpp>
 
-#include <algorithm>
-#include <filesystem>
-#include <iterator>
-#include <numeric>
-#include <optional>
 #include <utility>
-
-#include <cstdint>
 
 namespace irt {
 
@@ -80,8 +73,8 @@ static void connection_add(modeling&       mod,
                            child_id        dst,
                            p_in_out        port_dst) noexcept
 {
-    port_id port_src_real = undefined<port_id>();
-    port_id port_dst_real = undefined<port_id>();
+    auto port_src_real = undefined<port_id>();
+    auto port_dst_real = undefined<port_id>();
 
     if_data_exists_do(grid.cache, src, [&](auto& child) noexcept {
         if (child.type == child_type::component) {
@@ -473,13 +466,10 @@ status modeling::build_grid_children_and_connections(grid_component& grid,
                                                      i32 space_x,
                                                      i32 space_y) noexcept
 {
-    auto ret = build_grid_children(
-      *this, grid, upper_limit, left_limit, space_x, space_y);
+    irt_auto(vec, build_grid_children(*this, grid, upper_limit, left_limit, space_x, space_y));
+    irt_check(build_grid_connections(*this, grid, vec));
 
-    if (not ret)
-        return ret.error();
-    else
-        return build_grid_connections(*this, grid, *ret);
+    return success();
 }
 
 status modeling::build_grid_component_cache(grid_component& grid) noexcept

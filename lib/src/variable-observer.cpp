@@ -21,18 +21,6 @@ static bool check(vector<tree_node_id>&                    tn_ids,
            len == options.ssize();
 }
 
-static void init_obs(observer&   obs,
-                     const i32   raw_buffer_size,
-                     const i32   linearized_buffer_size,
-                     const float time_step) noexcept
-{
-    obs.buffer.clear();
-    obs.buffer.reserve(raw_buffer_size);
-    obs.linearized_buffer.clear();
-    obs.linearized_buffer.reserve(linearized_buffer_size);
-    obs.time_step = time_step;
-}
-
 status variable_observer::init(project& pj, simulation& sim) noexcept
 {
     using string_t = decltype(observer::name);
@@ -49,18 +37,16 @@ status variable_observer::init(project& pj, simulation& sim) noexcept
 
             if (obs) {
                 obs_id = mdl->obs_id;
-                init_obs(*obs,
-                         raw_buffer_size.value(),
-                         linearized_buffer_size.value(),
-                         time_step.value());
+                obs->init(raw_buffer_size.value(),
+                          linearized_buffer_size.value(),
+                          time_step.value());
             } else {
                 if (sim.observers.can_alloc()) {
                     format(tmp, "{}", i);
                     auto& new_obs = sim.observers.alloc(tmp.sv());
-                    init_obs(new_obs,
-                             raw_buffer_size.value(),
-                             linearized_buffer_size.value(),
-                             time_step.value());
+                    new_obs.init(raw_buffer_size.value(),
+                                 linearized_buffer_size.value(),
+                                 time_step.value());
 
                     obs_id = sim.observers.get_id(new_obs);
                     sim.observe(*mdl, new_obs);

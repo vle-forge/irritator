@@ -2,10 +2,30 @@
 // Version 1.0. (See accompanying file LICENSE_1_0.txt or copy at
 // http://www.boost.org/LICENSE_1_0.txt)
 
+#include <irritator/format.hpp>
 #include <irritator/modeling-helpers.hpp>
 #include <irritator/modeling.hpp>
 
 namespace irt {
+
+static auto init_or_reuse_observer(simulation&        sim,
+                                   observer_id        obs_id,
+                                   std::integral auto row,
+                                   std::integral auto col) noexcept
+  -> observer_id
+{
+    if (auto* obs = sim.observers.try_to_get(obs_id); obs) {
+        // @TODO If the previous observer have different time-step or buffer
+        // lengths, how to initialize?
+        obs->init(16, 32, 0.01f);
+    } else {
+        auto& new_obs = sim.observers.alloc("");
+        format(new_obs.name, "{}x{}", row, col);
+        new_obs.init(16, 32, 0.01f);
+        obs_id = sim.observers.get_id(new_obs);
+    }
+    return obs_id;
+}
 
 static status build_grid(grid_observer&  grid_obs,
                          project&        pj,
@@ -32,8 +52,8 @@ static status build_grid(grid_observer&  grid_obs,
 
             if (tn && mdl) {
                 const auto w = unpack_doubleword(child->unique_id);
-                debug::ensure(w.first < static_cast<u32>(grid_compo.row));
-                debug::ensure(w.second < static_cast<u32>(grid_compo.column));
+                debug::ensure(std::cmp_less(w.first, grid_compo.row));
+                debug::ensure(std::cmp_less(w.second, grid_compo.column));
 
                 const auto index =
                   static_cast<i32>(w.first) * grid_compo.column +
@@ -42,12 +62,8 @@ static status build_grid(grid_observer&  grid_obs,
                 debug::ensure(0 <= index);
                 debug::ensure(index < grid_obs.observers.ssize());
 
-                auto&      obs    = sim.observers.alloc("tmp");
-                const auto obs_id = sim.observers.get_id(obs);
-
-                sim.observe(*mdl, obs);
-
-                grid_obs.observers[index] = obs_id;
+                grid_obs.observers[index] =
+                  init_or_reuse_observer(sim, mdl->obs_id, w.first, w.second);
             }
         }
 
@@ -91,8 +107,12 @@ void grid_observer::clear() noexcept
 
 void grid_observer::update(const simulation& sim) noexcept
 {
-    debug::ensure(rows * cols == observers.ssize());
-    debug::ensure(values.ssize() == observers.ssize());
+    if (rows * cols != observers.ssize() or
+        values.ssize() != observers.ssize())
+        return;
+
+    // debug::ensure(rows * cols == observers.ssize());
+    // debug::ensure(values.ssize() == observers.ssize());
 
     for (int row = 0; row < rows; ++row) {
         for (int col = 0; col < cols; ++col) {

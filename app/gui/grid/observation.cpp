@@ -18,18 +18,21 @@ void grid_observation_widget::show(grid_observer& grid) noexcept
 
     grid.update(app.sim);
 
-    ImPlot::PushColormap(grid.color_map);
-    if (ImPlot::BeginPlot(grid.name.c_str(),
-                          ImVec2(-1, -1),
-                          ImPlotFlags_NoLegend | ImPlotFlags_NoMouseText)) {
-        ImPlot::PlotHeatmap(grid.name.c_str(),
-                            grid.values.data(),
-                            grid.rows,
-                            grid.cols,
-                            grid.scale_min,
-                            grid.scale_max);
-        ImPlot::EndPlot();
+    if (not grid.values.empty()) {
+        ImPlot::PushColormap(grid.color_map);
+        if (ImPlot::BeginPlot(grid.name.c_str(),
+                              ImVec2(-1, -1),
+                              ImPlotFlags_NoLegend | ImPlotFlags_NoMouseText)) {
+            ImPlot::PlotHeatmap(grid.name.c_str(),
+                                grid.values.data(),
+                                grid.rows,
+                                grid.cols,
+                                grid.scale_min,
+                                grid.scale_max);
+            ImPlot::EndPlot();
+        }
     }
+
     ImGui::PopID();
 }
 
