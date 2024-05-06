@@ -5428,7 +5428,7 @@ static void write_output_connection(const modeling&          mod,
     w.String("output");
     w.Key("port");
     w.String(parent.y_names[get_index(y)].c_str());
-    w.Key("spirce");
+    w.Key("source");
     w.Uint64(get_index(gen.children.get_id(src)));
     w.Key("port-source");
 
