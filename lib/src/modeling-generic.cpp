@@ -139,7 +139,7 @@ status generic_component::connect([[maybe_unused]] const modeling& mod,
         return new_error(modeling::part::connections);
 
     if (src.type == child_type::model) {
-        if (src.type == child_type::model) {
+        if (dst.type == child_type::model) {
             if (not is_ports_compatible(
                   src.id.mdl_type, p_src.model, dst.id.mdl_type, p_dst.model))
                 return new_error(modeling::part::connections);

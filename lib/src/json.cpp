@@ -2634,7 +2634,7 @@ struct reader {
 
         if (auto* c_src = compo.children.try_to_get(src); c_src)
             if (auto* c_dst = compo.children.try_to_get(dst); c_dst)
-                if (not compo.connect(mod(), *c_src, p_src, *c_dst, p_dst))
+                if (compo.connect(mod(), *c_src, p_src, *c_dst, p_dst))
                     return true;
 
         report_json_error(error_id::modeling_connect_error);
