@@ -1317,6 +1317,41 @@ static void update_unique_id(generic_component& gen, child& ch) noexcept
     }
 }
 
+static bool show_selected_node(component& compo, generic_component& gen, child& c) noexcept
+{
+    const auto id = gen.children.get_id(c);
+    const auto idx = get_index(id);
+    bool is_modified = false;
+
+    if (ImGui::TreeNodeEx(&c, ImGuiTreeNodeFlags_DefaultOpen, "%u", idx)) {
+        ImGui::TextFormat("position {},{}",
+                          gen.children_positions[idx].x,
+                          gen.children_positions[idx].y);
+
+        bool configurable = c.flags[child_flags::configurable];
+        if (ImGui::Checkbox("configurable", &configurable)) {
+            c.flags.set(child_flags::configurable, configurable);
+            is_modified = true;
+        }
+
+        bool observable = c.flags[child_flags::observable];
+        if (ImGui::Checkbox("observables", &observable)) {
+            c.flags.set(child_flags::observable, observable);
+            is_modified = true;
+        }
+
+        if (ImGui::InputSmallString("name", gen.children_names[idx]))
+            is_modified = true;
+
+        update_unique_id(gen, c);
+
+        ImGui::TextFormat("name: {}", compo.name.sv());
+        ImGui::TreePop();
+    }
+
+    return is_modified;
+}
+
 void generic_component_editor_data::show_selected_nodes(
   component_editor& ed) noexcept
 {
@@ -1325,54 +1360,20 @@ void generic_component_editor_data::show_selected_nodes(
 
     auto& app = container_of(&ed, &application::component_ed);
 
-    if_component_is_generic(
-      app.mod, m_id, [&](auto& compo, auto& gen) noexcept {
-          for (int i = 0, e = selected_nodes.size(); i != e; ++i) {
-              if (is_node_X(selected_nodes[i]) || is_node_Y(selected_nodes[i]))
-                  continue;
+    if_component_is_generic(app.mod, m_id, [&](component& compo, generic_component& gen) noexcept {
+        bool is_modified = false;
+        for (int i = 0, e = selected_nodes.size(); i != e; ++i) {
+            if (is_node_X(selected_nodes[i]) || is_node_Y(selected_nodes[i]))
+                continue;
 
-              auto  id    = unpack_node_child(selected_nodes[i]);
-              auto* child = gen.children.try_to_get(id);
+            const auto id = unpack_node_child(selected_nodes[i]);
+            if (auto* child = gen.children.try_to_get(id); child)
+                is_modified = show_selected_node(compo, gen, *child) or is_modified;
+        }
 
-              if (!child)
-                  continue;
-
-              if (ImGui::TreeNodeEx(child,
-                                    ImGuiTreeNodeFlags_DefaultOpen,
-                                    "%d",
-                                    selected_nodes[i])) {
-                  bool is_modified = false;
-                  ImGui::TextFormat(
-                    "position {},{}",
-                    gen.children_positions[selected_nodes[i]].x,
-                    gen.children_positions[selected_nodes[i]].y);
-
-                  bool configurable = child->flags[child_flags::configurable];
-                  if (ImGui::Checkbox("configurable", &configurable)) {
-                      child->flags.set(child_flags::configurable, configurable);
-                      is_modified = true;
-                  }
-
-                  bool observable = child->flags[child_flags::observable];
-                  if (ImGui::Checkbox("observables", &observable)) {
-                      child->flags.set(child_flags::observable, observable);
-                      is_modified = true;
-                  }
-
-                  if (ImGui::InputSmallString(
-                        "name", gen.children_names[selected_nodes[i]]))
-                      is_modified = true;
-
-                  update_unique_id(gen, *child);
-
-                  if (is_modified)
-                      compo.state = component_status::modified;
-
-                  ImGui::TextFormat("name: {}", compo.name.sv());
-                  ImGui::TreePop();
-              }
-          }
-      });
+        if (is_modified)
+            compo.state = component_status::modified;
+    });
 }
 
 } // namespace irt
