@@ -141,7 +141,10 @@ class variable_observer;
 class grid_observer;
 class graph_observer;
 
-// Use to store `irt::dynamics` default values.
+//! Stores default values for all @c irt::dynamics.
+//!
+//! Mainly used to override default values of @c irt::component models into
+//! the @c irt::tree_node objects of the @c irt::project class.
 struct parameter {
     std::array<real, 8> reals;
     std::array<i64, 4>  integers;
@@ -152,7 +155,7 @@ struct parameter {
     //! Copy data from model to the vectors of this parameter.
     void copy_from(const model& mdl) noexcept;
 
-    //! Assign @c 0 to vector.
+    //! Assign @c 0 to reals and integers arrays.
     void clear() noexcept;
 };
 

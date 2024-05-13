@@ -6,11 +6,6 @@
 #include <irritator/helpers.hpp>
 #include <irritator/modeling.hpp>
 
-#include "parameter.hpp"
-
-#include <optional>
-#include <utility>
-
 namespace irt {
 
 template<int QssLevel>
