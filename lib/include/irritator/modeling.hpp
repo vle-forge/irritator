@@ -119,16 +119,7 @@ enum class component_status {
 
 enum class modeling_status { modified, unmodified };
 
-enum class observable_type {
-    none,
-    file,
-    plot,
-    graph,
-    grid,
-};
-
 class project;
-
 struct parameter;
 struct connection;
 struct child;
