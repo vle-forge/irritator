@@ -837,12 +837,6 @@ void modeling::clean_simulation() noexcept
         clear_grid_component_cache(*grid);
 }
 
-void modeling::clear(child& c) noexcept
-{
-    c.id.mdl_type = dynamics_type::constant;
-    c.type        = child_type::model;
-}
-
 void modeling::clear(component& compo) noexcept
 {
     switch (compo.type) {

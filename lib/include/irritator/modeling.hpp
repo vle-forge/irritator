@@ -1148,11 +1148,6 @@ public:
     /// Clean data used as cache for simulation.
     void clean_simulation() noexcept;
 
-    /// If the @c child references a model, model is freed, otherwise, do
-    /// nothing. This function is useful to replace the content of a existing @c
-    /// child
-    void clear(child& c) noexcept;
-
     /// Clear and free all dependencies of the component but let the component
     /// alive.
     void clear(component& c) noexcept;
@@ -1331,12 +1326,6 @@ public:
     auto node(const tree_node& node) const noexcept -> tree_node_id;
 
     template<typename Function, typename... Args>
-    auto for_all_tree_nodes(Function&& f, Args... args) noexcept;
-
-    template<typename Function, typename... Args>
-    auto for_all_tree_nodes(Function&& f, Args... args) const noexcept;
-
-    template<typename Function, typename... Args>
     void for_each_children(tree_node& tn, Function&& f, Args... args) noexcept;
 
     /// Return the size and the capacity of the tree_nodes data_array.
@@ -1511,23 +1500,6 @@ inline tree_node::tree_node(component_id id_, u64 unique_id_) noexcept
 /*
    Project part
  */
-
-template<typename Function, typename... Args>
-inline auto project::for_all_tree_nodes(Function&& f, Args... args) noexcept
-{
-    tree_node* tn = nullptr;
-    while (tree_nodes.next(tn))
-        return f(*tn, args...);
-}
-
-template<typename Function, typename... Args>
-inline auto project::for_all_tree_nodes(Function&& f,
-                                        Args... args) const noexcept
-{
-    const tree_node* tn = nullptr;
-    while (tree_nodes.next(tn))
-        return f(*tn, args...);
-}
 
 template<typename Function, typename... Args>
 inline void project::for_each_children(tree_node& tn,
