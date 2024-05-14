@@ -137,8 +137,11 @@ class graph_observer;
 //! Mainly used to override default values of @c irt::component models into
 //! the @c irt::tree_node objects of the @c irt::project class.
 struct parameter {
-    std::array<real, 8> reals;
-    std::array<i64, 4>  integers;
+    parameter() noexcept = default;
+
+    //! Import values from the model @c mdl according to the underlying @c
+    //! irt::dynamics_type.
+    parameter(const model& mdl) noexcept;
 
     //! Copy data from the vectors to the simulation model.
     void copy_to(model& mdl) const noexcept;
@@ -148,6 +151,9 @@ struct parameter {
 
     //! Assign @c 0 to reals and integers arrays.
     void clear() noexcept;
+
+    std::array<real, 8> reals;
+    std::array<i64, 4>  integers;
 };
 
 /// A structure use to cache data when read or write json component.
@@ -1093,10 +1099,12 @@ public:
     {
         return m_ids.can_alloc(nb);
     }
+
     bool exists(global_parameter_id id) const noexcept
     {
         return m_ids.exists(id);
     }
+
     unsigned size() const noexcept { return m_ids.size(); }
     int      ssize() const noexcept { return m_ids.ssize(); }
 

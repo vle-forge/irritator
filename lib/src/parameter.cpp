@@ -382,6 +382,13 @@ static void parameter_init(parameter& param, const time_func& dyn) noexcept
                                                                  : 2;
 }
 
+parameter::parameter(const model& mdl) noexcept
+{
+    dispatch(mdl, [&]<typename Dynamics>(const Dynamics& dyn) noexcept {
+        parameter_init(*this, dyn);
+    });
+}
+
 void parameter::copy_to(model& mdl) const noexcept
 {
     dispatch(mdl, [&]<typename Dynamics>(Dynamics& dyn) noexcept {
