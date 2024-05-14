@@ -254,12 +254,14 @@ static auto make_tree_leaf(simulation_copy&   sc,
 
               case constant::init_type::incoming_component_all: {
                   irt_auto(nb, get_incoming_connection(sc.mod, parent));
-                  dyn.default_value = nb;
+                  gen.children_parameters[ch_idx].reals[0] = nb;
+                  dyn.default_value                        = nb;
               } break;
 
               case constant::init_type::outcoming_component_all: {
                   irt_auto(nb, get_outcoming_connection(sc.mod, parent));
-                  dyn.default_value = nb;
+                  gen.children_parameters[ch_idx].reals[0] = nb;
+                  dyn.default_value                        = nb;
               } break;
 
               case constant::init_type::incoming_component_n: {
@@ -268,7 +270,8 @@ static auto make_tree_leaf(simulation_copy&   sc,
                       return new_error(project::part::tree_nodes);
 
                   irt_auto(nb, get_incoming_connection(sc.mod, parent, id));
-                  dyn.default_value = nb;
+                  gen.children_parameters[ch_idx].reals[0] = nb;
+                  dyn.default_value                        = nb;
               } break;
 
               case constant::init_type::outcoming_component_n: {
@@ -277,7 +280,8 @@ static auto make_tree_leaf(simulation_copy&   sc,
                       return new_error(project::part::tree_nodes);
 
                   irt_auto(nb, get_outcoming_connection(sc.mod, parent, id));
-                  dyn.default_value = nb;
+                  gen.children_parameters[ch_idx].reals[0] = nb;
+                  dyn.default_value                        = nb;
               } break;
               }
           }
