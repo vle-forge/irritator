@@ -763,7 +763,7 @@ struct registred_path {
     state               status   = state::unread;
     bitflags<reg_flags> flags    = reg_flags::none;
     i8                  priority = 0;
-    spin_mutex           mutex;
+    spin_mutex          mutex;
 };
 
 class dir_path
@@ -792,7 +792,7 @@ public:
 
     state               status = state::unread;
     bitflags<dir_flags> flags  = dir_flags::none;
-    spin_mutex           mutex;
+    spin_mutex          mutex;
 
     /**
      * Refresh the `children` vector with new file in the filesystem.
@@ -828,7 +828,7 @@ struct file_path {
     file_type            type{ file_type::undefined_file };
     state                status = state::unread;
     bitflags<file_flags> flags  = file_flags::none;
-    spin_mutex            mutex;
+    spin_mutex           mutex;
 };
 
 struct modeling_initializer {
@@ -1078,14 +1078,107 @@ public:
     }
 };
 
-struct global_parameter {
-    name_str name;
+//! Stores @c irt::project parameters per couple @c tree_node, @c child_id.
+class global_parameters
+{
+public:
+    static_limiter<i32, 8, 65536> max_parameters = 256;
 
-    tree_node_id tn_id;  //< @c tree_node identifier parent of the model.
-    model_id     mdl_id; //< @c model to observe.
+    global_parameters() noexcept;
 
-    parameter param;
+    void clear() noexcept;
+    void erase(const global_parameter_id id) noexcept;
+
+    bool can_alloc(std::integral auto nb) const noexcept
+    {
+        return m_ids.can_alloc(nb);
+    }
+    bool exists(global_parameter_id id) const noexcept
+    {
+        return m_ids.exists(id);
+    }
+    unsigned size() const noexcept { return m_ids.size(); }
+    int      ssize() const noexcept { return m_ids.ssize(); }
+
+    parameter&       parameters(std::integral auto i) noexcept;
+    const parameter& parameters(std::integral auto i) const noexcept;
+
+    template<typename Function>
+    global_parameter_id alloc(Function&& fn) noexcept
+    {
+        debug::ensure(m_ids.can_alloc(1));
+
+        const auto id  = m_ids.alloc();
+        const auto idx = get_index(id);
+
+        fn(id, m_names[idx], m_tn_ids[idx], m_mdl_ids[idx], m_parameters[idx]);
+
+        return id;
+    }
+
+    template<typename Function>
+    void for_each(Function&& fn) noexcept
+    {
+        for (const auto id : m_ids) {
+            const auto idx = get_index(id);
+
+            fn(id,
+               m_names[idx],
+               m_tn_ids[idx],
+               m_mdl_ids[idx],
+               m_parameters[idx]);
+        }
+    }
+
+private:
+    id_array<global_parameter_id> m_ids;
+    vector<name_str>              m_names;
+    vector<tree_node_id>          m_tn_ids;
+    vector<model_id>              m_mdl_ids;
+    vector<parameter>             m_parameters;
 };
+
+inline global_parameters::global_parameters() noexcept
+{
+    m_ids.reserve(max_parameters.value());
+
+    m_names.resize(max_parameters.value());
+    m_tn_ids.resize(max_parameters.value());
+    m_mdl_ids.resize(max_parameters.value());
+    m_parameters.resize(max_parameters.value());
+}
+
+inline void global_parameters::clear() noexcept
+{
+    m_ids.clear();
+    m_names.clear();
+    m_tn_ids.clear();
+    m_mdl_ids.clear();
+    m_parameters.clear();
+}
+
+inline void global_parameters::erase(const global_parameter_id id) noexcept
+{
+    if (m_ids.exists(id))
+        m_ids.free(id);
+}
+
+inline parameter& global_parameters::parameters(std::integral auto i) noexcept
+{
+    debug::ensure(std::cmp_less_equal(0, i));
+    debug::ensure(std::cmp_less(i, m_ids.size()));
+
+    return m_parameters[i];
+}
+
+inline const parameter& global_parameters::parameters(
+  std::integral auto i) const noexcept
+{
+    debug::ensure(std::cmp_less_equal(0, i));
+    debug::ensure(std::cmp_less(i, m_ids.size()));
+
+    return m_parameters[i];
+}
 
 struct log_entry {
     log_str   buffer;
@@ -1403,7 +1496,7 @@ public:
     data_array<grid_observer, grid_observer_id>         grid_observers;
     data_array<graph_observer, graph_observer_id>       graph_observers;
 
-    data_array<global_parameter, global_parameter_id> global_parameters;
+    global_parameters parameters;
 
 private:
     component_id m_head    = undefined<component_id>();

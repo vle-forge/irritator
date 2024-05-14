@@ -466,8 +466,8 @@ static bool show_local_graph_observers(application&     app,
     return show_local_observers(app, tn, compo, graph);
 }
 
-static auto get_global_parameter(const auto& tn, const u64 uid) noexcept
-  -> global_parameter_id
+static auto get_global_parameter(const auto& tn,
+                                 const u64 uid) noexcept -> global_parameter_id
 {
     auto* ptr = tn.parameters_ids.get(uid);
     return ptr ? *ptr : undefined<global_parameter_id>();
@@ -502,18 +502,23 @@ static bool show_local_simulation_settings(application& app,
                 ImGui::TableNextColumn();
 
                 if (ImGui::Checkbox("##enable", &enable)) {
-                    if (enable and app.pj.global_parameters.can_alloc()) {
-                        auto& gp    = app.pj.global_parameters.alloc();
-                        auto  gp_id = app.pj.global_parameters.get_id(gp);
-                        gp.mdl_id   = app.sim.models.get_id(mdl);
-                        gp.tn_id    = app.pj.tree_nodes.get_id(tn);
-                        gp.param.copy_from(mdl);
-                        format(gp.name, "{}", ordinal(gp_id));
+                    if (enable and app.pj.parameters.can_alloc(1)) {
+                        const auto gp_id =
+                          app.pj.parameters.alloc([&](auto  id,
+                                                      auto& name,
+                                                      auto& tn_id,
+                                                      auto& mdl_id,
+                                                      auto& p) noexcept {
+                              format(name, "{}", ordinal(id));
+                              tn_id  = app.pj.tree_nodes.get_id(tn);
+                              mdl_id = app.sim.models.get_id(mdl);
+                              p.copy_from(mdl);
+                          });
 
                         tn.parameters_ids.set(uid, gp_id);
                         current = gp_id;
                     } else {
-                        app.pj.global_parameters.free(current);
+                        app.pj.parameters.erase(current);
                         tn.parameters_ids.erase(uid);
                         current = undefined<global_parameter_id>();
                         enable  = false;
@@ -529,9 +534,11 @@ static bool show_local_simulation_settings(application& app,
                 ImGui::TableNextColumn();
 
                 if (enable) {
-                    auto* gp = app.pj.global_parameters.try_to_get(current);
-                    if (gp)
-                        show_parameter_editor(app, mdl, gp->param);
+                    if (app.pj.parameters.exists(current)) {
+                        const auto idx = get_index(current);
+                        show_parameter_editor(
+                          app, mdl, app.pj.parameters.parameters(idx));
+                    }
                 }
 
                 ImGui::TableNextColumn();

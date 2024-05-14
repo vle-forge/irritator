@@ -29,7 +29,6 @@
 #include <fmt/format.h>
 #endif
 
-#include <climits>
 #include <cstdint>
 
 using namespace std::literals;
@@ -912,7 +911,7 @@ struct reader {
 
     bool project_global_parameters_can_alloc(std::integral auto i) noexcept
     {
-        if (!pj().global_parameters.can_alloc(i))
+        if (!pj().parameters.can_alloc(i))
             report_json_error(error_id::project_global_parameters_not_enough);
 
         return true;
@@ -3705,27 +3704,71 @@ struct reader {
     }
 
     bool read_global_parameter(const rapidjson::Value& val,
-                               global_parameter&       param) noexcept
+                               global_parameters&      param) noexcept
     {
         auto_stack s(this, stack_id::project_global_parameter);
 
-        return for_each_member(
+        std::optional<std::string>  name_opt;
+        std::optional<tree_node_id> tn_id_opt;
+        std::optional<model_id>     mdl_id_opt;
+        std::optional<parameter>    parameter_opt;
+
+        bool success = for_each_member(
           val, [&](const auto name, const auto& value) noexcept -> bool {
-              unique_id_path path;
+              if ("name"sv == name) {
+                  if (not read_temp_string(value))
+                      return false;
 
-              if ("name"sv == name)
-                  return read_temp_string(value) && copy_to(param.name);
+                  name_opt = temp_string;
 
-              if ("access"sv == name)
-                  return read_project_unique_id_path(val, path) &&
-                         convert_to_tn_model_ids(
-                           path, param.tn_id, param.mdl_id);
+                  return true;
+              }
 
-              if ("parameter"sv == name)
-                  return read_parameter(value, param.param);
+              if ("access"sv == name) {
+                  unique_id_path path;
+                  if (not read_project_unique_id_path(val, path))
+                      return false;
+
+                  tree_node_id tn_id;
+                  model_id     mdl_id;
+                  if (not convert_to_tn_model_ids(path, tn_id, mdl_id))
+                      return false;
+
+                  tn_id_opt  = tn_id;
+                  mdl_id_opt = mdl_id;
+
+                  return true;
+              }
+
+              if ("parameter"sv == name) {
+                  parameter p;
+                  if (not read_parameter(value, p))
+                      return false;
+
+                  parameter_opt = p;
+                  return true;
+              }
 
               return true;
           });
+
+        if (success and name_opt.has_value() and tn_id_opt.has_value() and
+            mdl_id_opt.has_value() and parameter_opt.has_value()) {
+            param.alloc([&](auto /*id*/,
+                            auto& name,
+                            auto& tn_id,
+                            auto& mdl_id,
+                            auto& p) noexcept {
+                name   = *name_opt;
+                tn_id  = *tn_id_opt;
+                mdl_id = *mdl_id_opt;
+                p      = *parameter_opt;
+            });
+
+            return true;
+        }
+
+        return false;
     }
 
     bool read_global_parameters(const rapidjson::Value& val) noexcept
@@ -3739,8 +3782,7 @@ struct reader {
                for_each_array(
                  val,
                  [&](const auto /*i*/, const auto& value) noexcept -> bool {
-                     auto& param = pj().global_parameters.alloc();
-                     return read_global_parameter(value, param);
+                     return read_global_parameter(value, pj().parameters);
                  });
     }
 
@@ -6175,7 +6217,7 @@ static status do_project_save_parameters(Writer& w, project& pj) noexcept
     w.Key("parameters");
 
     w.StartObject();
-    irt_check((do_project_save_global_parameters(w, pj)));
+    irt_check(do_project_save_global_parameters(w, pj));
     w.EndObject();
 
     return success();
@@ -6254,7 +6296,7 @@ static status do_project_save_observations(Writer& w, project& pj) noexcept
 }
 
 template<typename Writer>
-static status write_parameter(Writer& w, const parameter& param) noexcept
+static void write_parameter(Writer& w, const parameter& param) noexcept
 {
     w.Key("parameter");
     w.StartObject();
@@ -6268,28 +6310,6 @@ static status write_parameter(Writer& w, const parameter& param) noexcept
     for (auto elem : param.integers)
         w.Int64(elem);
     w.EndArray();
-
-    return success();
-}
-
-template<typename Writer>
-static status do_project_save_global_parameter(Writer&           w,
-                                               project&          pj,
-                                               global_parameter& param) noexcept
-{
-    w.StartObject();
-    w.Key("name");
-    w.String(param.name.begin(), param.name.size());
-
-    unique_id_path path;
-    w.Key("access");
-    pj.build_unique_id_path(param.tn_id, param.mdl_id, path);
-    write_project_unique_id_path(w, path);
-
-    irt_check(write_parameter(w, param.param));
-    w.EndObject();
-
-    return success();
 }
 
 template<typename Writer>
@@ -6298,8 +6318,25 @@ static status do_project_save_global_parameters(Writer& w, project& pj) noexcept
     w.Key("global");
     w.StartArray();
 
-    for (auto& p : pj.global_parameters)
-        irt_check(do_project_save_global_parameter(w, pj, p));
+    pj.parameters.for_each([&](const auto /*id*/,
+                               const auto& name,
+                               const auto  tn_id,
+                               const auto  mdl_id,
+                               const auto& p) noexcept {
+        unique_id_path path;
+        w.Key("access");
+        pj.build_unique_id_path(tn_id, mdl_id, path);
+
+        w.StartObject();
+        w.Key("name");
+        w.String(name.begin(), name.size());
+
+        w.Key("access");
+        write_project_unique_id_path(w, path);
+        write_parameter(w, p);
+
+        w.EndObject();
+    });
 
     w.EndArray();
 

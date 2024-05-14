@@ -13,8 +13,6 @@
 #include <optional>
 #include <utility>
 
-#include <cstdint>
-
 #include "parameter.hpp"
 
 namespace irt {
@@ -999,9 +997,6 @@ status project::init(const modeling_initializer& init) noexcept
     grid_observers.reserve(init.tree_capacity);
     if (not grid_observers.can_alloc())
         return new_error(project::part::grid_observers);
-    global_parameters.reserve(init.tree_capacity);
-    if (not global_parameters.can_alloc())
-        return new_error(project::part::global_parameters);
 
     return success();
 }
@@ -1045,7 +1040,7 @@ void project::clear() noexcept
     variable_observers.clear();
     grid_observers.clear();
     graph_observers.clear();
-    global_parameters.clear();
+    parameters.clear();
 }
 
 void project::clean_simulation() noexcept
