@@ -934,8 +934,7 @@ static status simulation_copy_sources(project::cache& cache,
 static status make_component_cache(project& /*pj*/, modeling& mod) noexcept
 {
     for (auto& grid : mod.grid_components)
-        if (auto ret = mod.build_grid_component_cache(grid); !ret)
-            return ret.error();
+        irt_check(grid.build_cache(mod));
 
     for (auto& graph : mod.graph_components)
         if (auto ret = mod.build_graph_component_cache(graph); !ret)

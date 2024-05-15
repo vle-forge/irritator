@@ -832,9 +832,8 @@ bool modeling::can_add(const component& parent,
 
 void modeling::clean_simulation() noexcept
 {
-    grid_component* grid = nullptr;
-    while (grid_components.next(grid))
-        clear_grid_component_cache(*grid);
+    for (auto& grid : grid_components)
+        grid.clear_cache();
 }
 
 void modeling::clear(component& compo) noexcept

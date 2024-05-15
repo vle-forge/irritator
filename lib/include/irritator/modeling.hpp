@@ -402,8 +402,9 @@ struct grid_component {
     enum class options : i8 { none = 0, row_cylinder, column_cylinder, torus };
 
     enum class type : i8 {
-        number, ///< Only one port for all neighbor.
-        name    ///< One, two, three or four ports according to neighbor.
+        number, ///< Only one port for all neighbor: "in" and "out".
+        name ///< One, two, three or four ports according to neighbor: "N", "S",
+             ///< "W", "E".
     };
 
     enum class neighborhood : i8 {
@@ -524,6 +525,18 @@ struct grid_component {
 
     data_array<child, child_id>           cache;
     data_array<connection, connection_id> cache_connections;
+
+    //! clear the @c cache and @c cache_connection data_array.
+    void clear_cache() noexcept;
+
+    //! build the @c cache and @c cache_connection data_array according to
+    //! current attributes @c row, @c column, @c opts, @c connection_type and @c
+    //! neighbors.
+    //!
+    //! @param mod Necessary to read, check and build components and
+    //! connections.
+    //! @return success() or @c project::error::not_enough_memory.
+    status build_cache(modeling& mod) noexcept;
 
     options      opts            = options::none;
     type         connection_type = type::name;
@@ -1296,16 +1309,6 @@ public:
     component& alloc_generic_component() noexcept;
     component& alloc_graph_component() noexcept;
 
-    /// For grid_component, build the children and connections
-    /// based on children vectors and grid_component options (torus, cylinder
-    /// etc.). The newly allocated child and connection are append to the output
-    /// vectors. The vectors are not cleared.
-    status build_grid_children_and_connections(grid_component& grid,
-                                               i32             upper_limit = 0,
-                                               i32             left_limit  = 0,
-                                               i32             space_x     = 30,
-                                               i32 space_y = 50) noexcept;
-
     /// Build the children and connections for the specificed `graph_component`
     /// according to graph_component options (torus, cylinder etc.). The newly
     /// allocated child and connection are build into `graph_component` cache.
@@ -1315,19 +1318,10 @@ public:
                                                 i32 space_x     = 30,
                                                 i32 space_y     = 50) noexcept;
 
-    /// For grid_component, build the real children and connections grid
-    /// based on default_chidren and specific_children vectors and
-    /// grid_component options (torus, cylinder etc.).
-    status build_grid_component_cache(grid_component& grid) noexcept;
-
     /// For graph_component, build the real children and connections graph
     /// based on default_chidren and specific_children vectors and
     /// graph_component options (torus, cylinder etc.).
     status build_graph_component_cache(graph_component& graph) noexcept;
-
-    /// Delete children and connections from @c modeling for the @c
-    /// grid_component cache.
-    void clear_grid_component_cache(grid_component& grid) noexcept;
 
     /// Delete children and connections from @c modeling for the @c
     /// graph_component cache.
