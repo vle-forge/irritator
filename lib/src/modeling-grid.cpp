@@ -13,26 +13,11 @@
 
 namespace irt {
 
-enum class p_in_out { in = 0, out };
+enum class p_id { in, out, N, S, W, E, NE, SE, NW, SW };
 
-enum class p_4x4 { north = 0, south, west, east };
-
-enum class p_8x8 {
-    north = 0,
-    south,
-    west,
-    east,
-    north_east,
-    south_east,
-    north_west,
-    south_west
-};
-
-constexpr static inline std::string_view p_in_out_names[] = { "in", "out" };
-constexpr static inline std::string_view p_4x4_names[] = { "N", "S", "W", "E" };
-constexpr static inline std::string_view p_8x8_names[] = { "N",  "S",  "W",
-                                                           "E",  "NE", "SE",
-                                                           "NW", "SW" };
+constexpr static inline std::string_view p_names[] = { "in", "out", "N",  "S",
+                                                       "W",  "E",   "NE", "SE",
+                                                       "NW", "SW" };
 
 constexpr static int compute_grid_children_size(
   const grid_component& grid) noexcept
@@ -152,373 +137,117 @@ static void connection_add(modeling&        mod,
         grid.cache_connections.alloc(src, port_src_real, dst, port_dst_real);
 }
 
-static void connection_add(modeling&       mod,
-                           grid_component& grid,
-                           child_id        src,
-                           p_in_out        port_src,
-                           child_id        dst,
-                           p_in_out        port_dst) noexcept
+void build_grid_connections(modeling&               mod,
+                            grid_component&         grid,
+                            const vector<child_id>& ids,
+                            const int               row,
+                            const int               col) noexcept
 {
-    connection_add(mod,
-                   grid,
-                   src,
-                   p_in_out_names[ordinal(port_src)],
-                   dst,
-                   p_in_out_names[ordinal(port_dst)]);
-}
+    struct destination {
+        int  r; // row index [0..grid.row[
+        int  c; // column index [0..grid.column[
+        p_id p; // input port identifier.
+    };
 
-static void connection_add(modeling&       mod,
-                           grid_component& grid,
-                           child_id        src,
-                           p_4x4           port_src,
-                           child_id        dst,
-                           p_4x4           port_dst) noexcept
-{
-    connection_add(mod,
-                   grid,
-                   src,
-                   p_4x4_names[ordinal(port_src)],
-                   dst,
-                   p_4x4_names[ordinal(port_dst)]);
-}
+    std::array<p_id, 8>        srcs;
+    std::array<destination, 8> dests;
+    std::array<bool, 8>        valids;
 
-static void connection_add(modeling&       mod,
-                           grid_component& grid,
-                           child_id        src,
-                           p_8x8           port_src,
-                           child_id        dst,
-                           p_8x8           port_dst) noexcept
-{
-    connection_add(mod,
-                   grid,
-                   src,
-                   p_8x8_names[ordinal(port_src)],
-                   dst,
-                   p_8x8_names[ordinal(port_dst)]);
-}
+    if (grid.connection_type == grid_component::type::name) {
+        srcs[0] = { p_id::NE };
+        srcs[1] = { p_id::NW };
+        srcs[2] = { p_id::SE };
+        srcs[3] = { p_id::SW };
+        srcs[4] = { p_id::N };
+        srcs[5] = { p_id::S };
+        srcs[6] = { p_id::E };
+        srcs[7] = { p_id::W };
 
-static void build_name_grid_affect_options(modeling&               mod,
-                                           grid_component&         grid,
-                                           const vector<child_id>& ids) noexcept
-{
-    if (any_equal(grid.opts,
-                  grid_component::options::row_cylinder,
-                  grid_component::options::torus)) {
-        for (auto col = 0; col < grid.column; ++col) {
-            const auto cell_1 = ids[grid.pos(grid.row - 1, col)];
-            const auto cell_2 = ids[grid.pos(0, col)];
-            connection_add(mod, grid, cell_1, p_4x4::west, cell_2, p_4x4::east);
-            connection_add(mod, grid, cell_2, p_4x4::east, cell_1, p_4x4::west);
-        }
-    }
-
-    if (any_equal(grid.opts,
-                  grid_component::options::column_cylinder,
-                  grid_component::options::torus)) {
-        for (auto row = 0; row < grid.column; ++row) {
-            const auto cell_1 = ids[grid.pos(row, grid.column - 1)];
-            const auto cell_2 = ids[grid.pos(row, 0)];
-            connection_add(
-              mod, grid, cell_1, p_4x4::north, cell_2, p_4x4::south);
-            connection_add(
-              mod, grid, cell_2, p_4x4::south, cell_1, p_4x4::north);
-        }
-    }
-}
-
-static void build_simple_grid_affect_options(
-  modeling&               mod,
-  grid_component&         grid,
-  const vector<child_id>& ids) noexcept
-{
-    if (any_equal(grid.opts,
-                  grid_component::options::row_cylinder,
-                  grid_component::options::torus)) {
-        for (auto col = 0; col < grid.column; ++col) {
-            const auto cell_1 = ids[grid.pos(grid.row - 1, col)];
-            const auto cell_2 = ids[grid.pos(0, col)];
-            connection_add(
-              mod, grid, cell_1, p_in_out::out, cell_2, p_in_out::in);
-            connection_add(
-              mod, grid, cell_2, p_in_out::out, cell_1, p_in_out::in);
-        }
-    }
-
-    if (any_equal(grid.opts,
-                  grid_component::options::column_cylinder,
-                  grid_component::options::torus)) {
-        for (auto row = 0; row < grid.column; ++row) {
-            const auto cell_1 = ids[grid.pos(row, grid.column - 1)];
-            const auto cell_2 = ids[grid.pos(row, 0)];
-            connection_add(
-              mod, grid, cell_1, p_in_out::out, cell_2, p_in_out::in);
-            connection_add(
-              mod, grid, cell_2, p_in_out::out, cell_1, p_in_out::in);
-        }
-    }
-}
-
-static void build_name_grid_connections_4(modeling&               mod,
-                                          grid_component&         grid,
-                                          const vector<child_id>& ids,
-                                          int                     row,
-                                          int                     col) noexcept
-{
-    debug::ensure(0 <= row and row < grid.row);
-    debug::ensure(0 <= col and col < grid.column);
-    debug::ensure(row * col < ids.ssize());
-
-    const auto row_min = row == 0 ? 0 : row - 1;
-    const auto row_max = row == grid.row - 1 ? row : row + 1;
-    const auto col_min = col == 0 ? 0 : col - 1;
-    const auto col_max = col == grid.column - 1 ? col : col + 1;
-    const auto src     = ids[grid.pos(row, col)];
-
-    if (row_min != row) {
-        const auto dst = ids[grid.pos(row_min, col)];
-        connection_add(mod, grid, src, p_4x4::south, dst, p_4x4::north);
-    }
-
-    if (row_max != row) {
-        const auto dst = ids[grid.pos(row_max, col)];
-        connection_add(mod, grid, src, p_4x4::north, dst, p_4x4::south);
-    }
-
-    if (col_min != col) {
-        const auto dst = ids[grid.pos(row, col_min)];
-        connection_add(mod, grid, src, p_4x4::east, dst, p_4x4::west);
-    }
-
-    if (col_max != col) {
-        const auto dst = ids[grid.pos(row, col_max)];
-        connection_add(mod, grid, src, p_4x4::west, dst, p_4x4::east);
-    }
-
-    build_name_grid_affect_options(mod, grid, ids);
-}
-
-static void build_simple_grid_connections_4(modeling&               mod,
-                                            grid_component&         grid,
-                                            const vector<child_id>& ids,
-                                            int                     row,
-                                            int col) noexcept
-{
-    const auto row_min = row == 0 ? 0 : row - 1;
-    const auto row_max = row == grid.row - 1 ? row : row + 1;
-    const auto col_min = col == 0 ? 0 : col - 1;
-    const auto col_max = col == grid.column - 1 ? col : col + 1;
-    const auto src     = ids[grid.pos(row, col)];
-
-    if (row_min != row) {
-        const auto dst = ids[grid.pos(row_min, col)];
-        connection_add(mod, grid, src, p_in_out::out, dst, p_in_out::in);
-    }
-
-    if (row_max != row) {
-        const auto dst = ids[grid.pos(row_max, col)];
-        connection_add(mod, grid, src, p_in_out::out, dst, p_in_out::in);
-    }
-
-    if (col_min != col) {
-        const auto dst = ids[grid.pos(row, col_min)];
-        connection_add(mod, grid, src, p_in_out::out, dst, p_in_out::in);
-    }
-
-    if (col_max != col) {
-        const auto dst = ids[grid.pos(row, col_max)];
-        connection_add(mod, grid, src, p_in_out::out, dst, p_in_out::in);
-    }
-
-    build_simple_grid_affect_options(mod, grid, ids);
-}
-
-static void build_name_grid_connections_8(modeling&               mod,
-                                          grid_component&         grid,
-                                          const vector<child_id>& ids,
-                                          int                     row,
-                                          int                     col) noexcept
-{
-    const auto row_min = row == 0 ? 0 : row - 1;
-    const auto row_max = row == grid.row - 1 ? row : row + 1;
-    const auto col_min = col == 0 ? 0 : col - 1;
-    const auto col_max = col == grid.column - 1 ? col : col + 1;
-    const auto src     = ids[grid.pos(row, col)];
-
-    build_name_grid_connections_4(mod, grid, ids, row, col);
-
-    if (row_min != row && col_min != col) {
-        const auto dst = ids[grid.pos(row_min, col_min)];
-        connection_add(
-          mod, grid, src, p_8x8::north_west, dst, p_8x8::south_east);
-    } else if (any_equal(grid.opts,
-                         grid_component::options::row_cylinder,
-                         grid_component::options::torus)) {
-        const auto dst = ids[grid.pos(grid.row - 1, col)];
-        connection_add(
-          mod, grid, src, p_8x8::north_west, dst, p_8x8::south_east);
-    }
-
-    if (row_max != row && col_min != col) {
-        const auto dst = ids[grid.pos(row_max, col_min)];
-        connection_add(
-          mod, grid, src, p_8x8::north_east, dst, p_8x8::south_west);
-    } else if (any_equal(grid.opts,
-                         grid_component::options::row_cylinder,
-                         grid_component::options::torus)) {
-        const auto dst = ids[grid.pos(grid.row - 1, col)];
-        connection_add(
-          mod, grid, src, p_8x8::north_east, dst, p_8x8::south_west);
-    }
-
-    if (row_min != row && col_max != col) {
-        const auto dst = ids[grid.pos(row_min, col_max)];
-        connection_add(
-          mod, grid, src, p_8x8::south_west, dst, p_8x8::north_east);
-    } else if (any_equal(grid.opts,
-                         grid_component::options::column_cylinder,
-                         grid_component::options::torus)) {
-        const auto dst = ids[grid.pos(row, grid.column - 1)];
-        connection_add(
-          mod, grid, src, p_8x8::south_west, dst, p_8x8::north_east);
-    }
-
-    if (row_max != row && col_max != col) {
-        const auto dst = ids[grid.pos(row_max, col_max)];
-        connection_add(
-          mod, grid, src, p_8x8::south_east, dst, p_8x8::north_west);
-    } else if (any_equal(grid.opts,
-                         grid_component::options::column_cylinder,
-                         grid_component::options::torus)) {
-        const auto dst = ids[grid.pos(row, grid.column - 1)];
-        connection_add(
-          mod, grid, src, p_8x8::south_east, dst, p_8x8::north_west);
-    }
-}
-
-static void build_simple_grid_connections_8(modeling&               mod,
-                                            grid_component&         grid,
-                                            const vector<child_id>& ids,
-                                            int                     row,
-                                            int col) noexcept
-{
-    const auto row_min = row == 0 ? 0 : row - 1;
-    const auto row_max = row == grid.row - 1 ? row : row + 1;
-    const auto col_min = col == 0 ? 0 : col - 1;
-    const auto col_max = col == grid.column - 1 ? col : col + 1;
-    const auto src     = ids[grid.pos(row, col)];
-
-    build_simple_grid_connections_4(mod, grid, ids, row, col);
-
-    if (row_min != row && col_min != col) {
-        const auto dst = ids[grid.pos(row_min, col_min)];
-        connection_add(mod, grid, src, p_in_out::out, dst, p_in_out::in);
-    } else if (any_equal(grid.opts,
-                         grid_component::options::column_cylinder,
-                         grid_component::options::torus)) {
-        const auto dst = ids[grid.pos(row, grid.column - 1)];
-        connection_add(mod, grid, src, p_in_out::out, dst, p_in_out::in);
-    }
-
-    if (row_max != row && col_min != col) {
-        const auto dst = ids[grid.pos(row_max, col_min)];
-        connection_add(mod, grid, src, p_in_out::out, dst, p_in_out::in);
-    } else if (any_equal(grid.opts,
-                         grid_component::options::column_cylinder,
-                         grid_component::options::torus)) {
-        const auto dst = ids[grid.pos(row, grid.column - 1)];
-        connection_add(mod, grid, src, p_in_out::out, dst, p_in_out::in);
-    }
-
-    if (row_min != row && col_max != col) {
-        const auto dst = ids[grid.pos(row_min, col_max)];
-        connection_add(mod, grid, src, p_in_out::out, dst, p_in_out::in);
-    } else if (any_equal(grid.opts,
-                         grid_component::options::column_cylinder,
-                         grid_component::options::torus)) {
-        const auto dst = ids[grid.pos(row, grid.column - 1)];
-        connection_add(mod, grid, src, p_in_out::out, dst, p_in_out::in);
-    }
-
-    if (row_max != row && col_max != col) {
-        const auto dst = ids[grid.pos(row_max, col_max)];
-        connection_add(mod, grid, src, p_in_out::out, dst, p_in_out::in);
-    } else if (any_equal(grid.opts,
-                         grid_component::options::column_cylinder,
-                         grid_component::options::torus)) {
-        const auto dst = ids[grid.pos(row, grid.column - 1)];
-        connection_add(mod, grid, src, p_in_out::out, dst, p_in_out::in);
-    }
-}
-
-static auto build_grid_connections(modeling&               mod,
-                                   grid_component&         grid,
-                                   const vector<child_id>& ids) noexcept
-  -> status
-{
-    const auto connections_nb = compute_grid_connections_size(grid);
-
-    grid.cache_connections.reserve(connections_nb);
-
-    if (grid.connection_type == grid_component::type::number) {
-        switch (grid.neighbors) {
-        case grid_component::neighborhood::four:
-            for (int row = 0; row < grid.row; ++row) {
-                for (int col = 0; col < grid.column; ++col) {
-                    const auto src_id = ids[grid.pos(row, col)];
-                    if (src_id == undefined<child_id>())
-                        continue;
-
-                    build_simple_grid_connections_4(mod, grid, ids, row, col);
-                }
-            }
-            break;
-        case grid_component::neighborhood::eight:
-            for (int row = 0; row < grid.row; ++row) {
-                for (int col = 0; col < grid.column; ++col) {
-                    const auto src_id = ids[grid.pos(row, col)];
-                    if (src_id == undefined<child_id>())
-                        continue;
-
-                    build_simple_grid_connections_8(mod, grid, ids, row, col);
-                }
-            }
-            break;
-
-        default:
-            unreachable();
-        };
+        dests[0] = { row - 1, col - 1, p_id::SW };
+        dests[1] = { row - 1, col + 1, p_id::SE };
+        dests[2] = { row + 1, col - 1, p_id::NW };
+        dests[3] = { row + 1, col + 1, p_id::NE };
+        dests[4] = { row - 1, col, p_id::S };
+        dests[5] = { row + 1, col, p_id::N };
+        dests[6] = { row, col - 1, p_id::W };
+        dests[7] = { row, col + 1, p_id::E };
     } else {
-        switch (grid.neighbors) {
-        case grid_component::neighborhood::four:
-            for (int row = 0; row < grid.row; ++row) {
-                for (int col = 0; col < grid.column; ++col) {
-                    const auto src_id = ids[grid.pos(row, col)];
-                    if (src_id == undefined<child_id>())
-                        continue;
+        srcs.fill(p_id::out);
 
-                    build_name_grid_connections_4(mod, grid, ids, row, col);
-                }
-            }
-            break;
-
-        case grid_component::neighborhood::eight:
-            for (int row = 0; row < grid.row; ++row) {
-                for (int col = 0; col < grid.column; ++col) {
-                    const auto src_id = ids[grid.pos(row, col)];
-                    if (src_id == undefined<child_id>())
-                        continue;
-
-                    build_name_grid_connections_8(mod, grid, ids, row, col);
-                }
-            }
-            break;
-
-        default:
-            unreachable();
-        }
+        dests[0] = { row - 1, col - 1, p_id::in };
+        dests[1] = { row - 1, col + 1, p_id::in };
+        dests[2] = { row + 1, col - 1, p_id::in };
+        dests[3] = { row + 1, col + 1, p_id::in };
+        dests[4] = { row - 1, col, p_id::in };
+        dests[5] = { row + 1, col, p_id::in };
+        dests[6] = { row, col - 1, p_id::in };
+        dests[7] = { row, col + 1, p_id::in };
     }
 
-    return success();
+    if (grid.neighbors == grid_component::neighborhood::eight) {
+        std::fill_n(valids.begin(), 8u, true);
+    } else {
+        std::fill_n(valids.begin(), 4, false);
+        std::fill_n(valids.begin() + 4, 4, true);
+    }
+
+    if (any_equal(grid.opts,
+                  grid_component::options::column_cylinder,
+                  grid_component::options::torus)) {
+        for (std::size_t i = 0; i < valids.size(); ++i) {
+            if (valids[i]) {
+                if (dests[i].c < 0)
+                    dests[i].c = grid.column - 1;
+                else if (dests[i].c >= grid.column)
+                    dests[i].c = 0;
+            }
+        }
+    } else {
+        for (std::size_t i = 0; i < valids.size(); ++i)
+            if (valids[i])
+                valids[i] = 0 <= dests[i].c and dests[i].c < grid.column;
+    }
+
+    if (any_equal(grid.opts,
+                  grid_component::options::row_cylinder,
+                  grid_component::options::torus)) {
+        for (std::size_t i = 0; i < valids.size(); ++i) {
+            if (valids[i]) {
+                if (dests[i].r < 0)
+                    dests[i].r = grid.row - 1;
+                else if (dests[i].r >= grid.row)
+                    dests[i].r = 0;
+            }
+        }
+    } else {
+        for (std::size_t i = 0; i < valids.size(); ++i)
+            if (valids[i])
+                valids[i] = 0 <= dests[i].r and dests[i].r < grid.row;
+    }
+
+    const auto c_src = ids[grid.pos(row, col)];
+    for (std::size_t i = 0; i < valids.size(); ++i) {
+        if (valids[i]) {
+            debug::ensure(0 <= dests[i].r and dests[i].r < grid.row);
+            debug::ensure(0 <= dests[i].c and dests[i].c < grid.column);
+
+            connection_add(mod,
+                           grid,
+                           c_src,
+                           p_names[ordinal(srcs[i])],
+                           ids[grid.pos(dests[i].r, dests[i].c)],
+                           p_names[ordinal(dests[i].p)]);
+        }
+    }
+}
+
+void build_grid_connections(modeling&               mod,
+                            grid_component&         grid,
+                            const vector<child_id>& ids) noexcept
+{
+    for (int row = 0; row < grid.row; ++row)
+        for (int col = 0; col < grid.column; ++col)
+            build_grid_connections(mod, grid, ids, row, col);
 }
 
 status modeling::copy(grid_component& grid, generic_component& s) noexcept
@@ -590,7 +319,7 @@ status grid_component::build_cache(modeling& mod) noexcept
         return new_error(project::error::not_enough_memory);
 
     const auto vec = build_grid_children(mod, *this);
-    irt_check(build_grid_connections(mod, *this, vec));
+    build_grid_connections(mod, *this, vec);
 
     return success();
 }
