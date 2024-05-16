@@ -584,10 +584,11 @@ void grid_component::clear_cache() noexcept
 
 status grid_component::build_cache(modeling& mod) noexcept
 {
+    clear_cache();
+
     if (not can_alloc_grid_children_and_connections(*this))
         return new_error(project::error::not_enough_memory);
 
-    clear_cache();
     const auto vec = build_grid_children(mod, *this);
     irt_check(build_grid_connections(mod, *this, vec));
 

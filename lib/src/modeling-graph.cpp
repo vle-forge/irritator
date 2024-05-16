@@ -90,47 +90,31 @@ struct local_rng {
     sz           last_elem;
 };
 
-static auto build_graph_children(
-  const data_array<component, component_id>& components,
-  const data_array<graph_component::vertex, graph_component::vertex_id>&
-                               vertices,
-  data_array<child, child_id>& out,
-  vector<child_position>&      positions,
-  i32                          upper_limit,
-  i32                          left_limit,
-  i32                          space_x,
-  i32 space_y) noexcept -> result<table<graph_component::vertex_id, child_id>>
+static auto build_graph_children(modeling& mod, graph_component& graph) noexcept
+  -> table<graph_component::vertex_id, child_id>
 {
-    if (not out.can_alloc(vertices.size())) {
-        out.reserve(vertices.size());
-        if (not out.can_alloc(vertices.size()))
-            return new_error(project::error::not_enough_memory);
-    }
-
-    positions.resize(vertices.size());
-
+    graph.positions.resize(graph.children.size());
     table<graph_component::vertex_id, child_id> tr;
+    tr.data.reserve(graph.children.ssize());
 
-    tr.data.reserve(vertices.ssize());
-
-    const auto sq = std::sqrt(static_cast<float>(vertices.size()));
+    const auto sq = std::sqrt(static_cast<float>(graph.children.size()));
     const auto gr = static_cast<i32>(sq);
 
     i32 x = 0;
     i32 y = 0;
 
-    for (const auto& vertex : vertices) {
+    for (const auto& vertex : graph.children) {
         child_id new_id = undefined<child_id>();
 
-        if (auto* c = components.try_to_get(vertex.id); c) {
-            auto& new_ch     = out.alloc(vertex.id);
-            new_id           = out.get_id(new_ch);
-            new_ch.unique_id = static_cast<u64>(vertices.get_id(vertex));
+        if (auto* c = mod.components.try_to_get(vertex.id); c) {
+            auto& new_ch     = graph.cache.alloc(vertex.id);
+            new_id           = graph.cache.get_id(new_ch);
+            new_ch.unique_id = static_cast<u64>(graph.children.get_id(vertex));
 
-            positions[get_index(new_id)].x =
-              static_cast<float>(((space_x * x) + left_limit));
-            positions[get_index(new_id)].y =
-              static_cast<float>(((space_y * y) + upper_limit));
+            graph.positions[get_index(new_id)].x =
+              static_cast<float>(((graph.space_x * x) + graph.left_limit));
+            graph.positions[get_index(new_id)].y =
+              static_cast<float>(((graph.space_y * y) + graph.upper_limit));
         }
 
         if (x++ > gr) {
@@ -138,7 +122,7 @@ static auto build_graph_children(
             y++;
         }
 
-        tr.data.emplace_back(vertices.get_id(vertex), new_id);
+        tr.data.emplace_back(graph.children.get_id(vertex), new_id);
     }
 
     tr.sort();
@@ -411,49 +395,31 @@ static void build_graph_connections(
     }
 }
 
-status modeling::build_graph_children_and_connections(graph_component& graph,
-                                                      i32 upper_limit,
-                                                      i32 left_limit,
-                                                      i32 space_x,
-                                                      i32 space_y) noexcept
+status graph_component::build_cache(modeling& mod) noexcept
 {
-    graph.cache.clear();
-    graph.cache_connections.clear();
-    graph.positions.clear();
+    clear_cache();
 
-    auto tr = build_graph_children(components,
-                                   graph.children,
-                                   graph.cache,
-                                   graph.positions,
-                                   upper_limit,
-                                   left_limit,
-                                   space_x,
-                                   space_y);
-    if (not tr)
-        return tr.error();
+    cache.reserve(children.size());
+    if (not cache.can_alloc(children.size()))
+        return new_error(project::error::not_enough_memory);
 
-    build_graph_connections(*this, graph, *tr);
+    const auto vec = build_graph_children(mod, *this);
+    build_graph_connections(mod, *this, vec);
 
     return success();
 }
 
-status modeling::build_graph_component_cache(graph_component& graph) noexcept
+void graph_component::clear_cache() noexcept
 {
-    clear_graph_component_cache(graph);
-
-    return build_graph_children_and_connections(graph);
-}
-
-void modeling::clear_graph_component_cache(graph_component& graph) noexcept
-{
-    graph.cache.clear();
-    graph.cache_connections.clear();
+    cache.clear();
+    cache_connections.clear();
+    positions.clear();
 }
 
 status modeling::copy(graph_component&   graph,
                       generic_component& generic) noexcept
 {
-    irt_check(build_graph_children_and_connections(graph));
+    irt_check(graph.build_cache(*this));
 
     if (not generic.children.can_alloc(graph.cache.size()))
         return new_error(modeling::children_error{}, container_full_error{});

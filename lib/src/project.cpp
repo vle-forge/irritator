@@ -937,8 +937,7 @@ static status make_component_cache(project& /*pj*/, modeling& mod) noexcept
         irt_check(grid.build_cache(mod));
 
     for (auto& graph : mod.graph_components)
-        if (auto ret = mod.build_graph_component_cache(graph); !ret)
-            return ret.error();
+        irt_check(graph.build_cache(mod));
 
     return success();
 }

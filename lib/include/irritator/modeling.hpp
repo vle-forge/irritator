@@ -681,6 +681,22 @@ public:
     data_array<connection, connection_id> cache_connections;
     vector<child_position>                positions;
 
+    int space_x     = 100;
+    int space_y     = 100;
+    int left_limit  = 0;
+    int upper_limit = 0;
+
+    //! clear the @c cache and @c cache_connection data_array.
+    void clear_cache() noexcept;
+
+    //! build the @c cache and @c cache_connection data_array according to
+    //! current attributes @c children, @c edges and @c random_graph_param.
+    //!
+    //! @param mod Necessary to read, check and build components and
+    //! connections.
+    //! @return success() or @c project::error::not_enough_memory.
+    status build_cache(modeling& mod) noexcept;
+
     connection_type type = connection_type::name;
 };
 
@@ -1308,24 +1324,6 @@ public:
     component& alloc_grid_component() noexcept;
     component& alloc_generic_component() noexcept;
     component& alloc_graph_component() noexcept;
-
-    /// Build the children and connections for the specificed `graph_component`
-    /// according to graph_component options (torus, cylinder etc.). The newly
-    /// allocated child and connection are build into `graph_component` cache.
-    status build_graph_children_and_connections(graph_component& graph,
-                                                i32 upper_limit = 0,
-                                                i32 left_limit  = 0,
-                                                i32 space_x     = 30,
-                                                i32 space_y     = 50) noexcept;
-
-    /// For graph_component, build the real children and connections graph
-    /// based on default_chidren and specific_children vectors and
-    /// graph_component options (torus, cylinder etc.).
-    status build_graph_component_cache(graph_component& graph) noexcept;
-
-    /// Delete children and connections from @c modeling for the @c
-    /// graph_component cache.
-    void clear_graph_component_cache(graph_component& graph) noexcept;
 
     /// Checks if the child can be added to the parent to avoid recursive loop
     /// (ie. a component child which need the same component in sub-child).
