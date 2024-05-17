@@ -561,7 +561,7 @@ int main()
             auto& g  = mod.grid_components.get(cg.id.grid_id);
             g.resize(5, 5, mod.components.get_id(c3));
             g.opts            = irt::grid_component::options::none;
-            g.connection_type = irt::grid_component::type::number;
+            g.connection_type = irt::grid_component::type::in_out;
             g.neighbors       = irt::grid_component::neighborhood::four;
 
             expect(!!pj.set(mod, sim, cg));
@@ -661,7 +661,7 @@ int main()
             auto& cg = mod.alloc_grid_component();
             auto& g  = mod.grid_components.get(cg.id.grid_id);
             g.resize(5, 5, mod.components.get_id(c3));
-            g.connection_type = irt::grid_component::type::number;
+            g.connection_type = irt::grid_component::type::in_out;
 
             expect(!!pj.set(mod, sim, cg));
             expect(eq(pj.tree_nodes_size().first, g.row * g.column * 3 + 1));

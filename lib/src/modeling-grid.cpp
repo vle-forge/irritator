@@ -13,11 +13,35 @@
 
 namespace irt {
 
-enum class p_id { in, out, N, S, W, E, NE, SE, NW, SW };
+enum class p_id {
+    in,
+    out,
+    N,
+    S,
+    W,
+    E,
+    NE,
+    SE,
+    NW,
+    SW,
+    n4,
+    n5,
+    n6,
+    n44,
+    n45,
+    n46,
+    n54,
+    n55,
+    n56,
+    n64,
+    n65,
+    n66
+};
 
-constexpr static inline std::string_view p_names[] = { "in", "out", "N",  "S",
-                                                       "W",  "E",   "NE", "SE",
-                                                       "NW", "SW" };
+constexpr static inline std::string_view p_names[] = {
+    "in", "out", "N",  "S",  "W",  "E",  "NE", "SE", "NW", "SW", "4",
+    "5",  "6",   "44", "45", "46", "54", "55", "56", "64", "65", "66"
+};
 
 constexpr static int compute_grid_children_size(
   const grid_component& grid) noexcept
@@ -153,27 +177,9 @@ void build_grid_connections(modeling&               mod,
     std::array<destination, 8> dests;
     std::array<bool, 8>        valids;
 
-    if (grid.connection_type == grid_component::type::name) {
-        srcs[0] = { p_id::NE };
-        srcs[1] = { p_id::NW };
-        srcs[2] = { p_id::SE };
-        srcs[3] = { p_id::SW };
-        srcs[4] = { p_id::N };
-        srcs[5] = { p_id::S };
-        srcs[6] = { p_id::E };
-        srcs[7] = { p_id::W };
-
-        dests[0] = { row - 1, col - 1, p_id::SW };
-        dests[1] = { row - 1, col + 1, p_id::SE };
-        dests[2] = { row + 1, col - 1, p_id::NW };
-        dests[3] = { row + 1, col + 1, p_id::NE };
-        dests[4] = { row - 1, col, p_id::S };
-        dests[5] = { row + 1, col, p_id::N };
-        dests[6] = { row, col - 1, p_id::W };
-        dests[7] = { row, col + 1, p_id::E };
-    } else {
+    switch (grid.connection_type) {
+    case grid_component::type::in_out:
         srcs.fill(p_id::out);
-
         dests[0] = { row - 1, col - 1, p_id::in };
         dests[1] = { row - 1, col + 1, p_id::in };
         dests[2] = { row + 1, col - 1, p_id::in };
@@ -182,6 +188,45 @@ void build_grid_connections(modeling&               mod,
         dests[5] = { row + 1, col, p_id::in };
         dests[6] = { row, col - 1, p_id::in };
         dests[7] = { row, col + 1, p_id::in };
+        break;
+
+    case grid_component::type::name:
+        srcs[0]  = { p_id::NE };
+        srcs[1]  = { p_id::NW };
+        srcs[2]  = { p_id::SE };
+        srcs[3]  = { p_id::SW };
+        srcs[4]  = { p_id::N };
+        srcs[5]  = { p_id::S };
+        srcs[6]  = { p_id::E };
+        srcs[7]  = { p_id::W };
+        dests[0] = { row - 1, col - 1, p_id::SW };
+        dests[1] = { row - 1, col + 1, p_id::SE };
+        dests[2] = { row + 1, col - 1, p_id::NW };
+        dests[3] = { row + 1, col + 1, p_id::NE };
+        dests[4] = { row - 1, col, p_id::S };
+        dests[5] = { row + 1, col, p_id::N };
+        dests[6] = { row, col - 1, p_id::W };
+        dests[7] = { row, col + 1, p_id::E };
+        break;
+
+    case grid_component::type::number:
+        srcs[0]  = { p_id::n44 };
+        srcs[1]  = { p_id::n46 };
+        srcs[2]  = { p_id::n64 };
+        srcs[3]  = { p_id::n66 };
+        srcs[4]  = { p_id::n45 };
+        srcs[5]  = { p_id::n54 };
+        srcs[6]  = { p_id::n56 };
+        srcs[7]  = { p_id::n65 };
+        dests[0] = { row - 1, col - 1, p_id::n66 };
+        dests[1] = { row + 1, col - 1, p_id::n64 };
+        dests[2] = { row + 1, col, p_id::n46 };
+        dests[3] = { row, col + 1, p_id::n44 };
+        dests[4] = { row - 1, col + 1, p_id::n65 };
+        dests[5] = { row + 1, col + 1, p_id::n56 };
+        dests[6] = { row - 1, col, p_id::n54 };
+        dests[7] = { row, col - 1, p_id::n45 };
+        break;
     }
 
     if (grid.neighbors == grid_component::neighborhood::eight) {

@@ -402,9 +402,13 @@ struct grid_component {
     enum class options : i8 { none = 0, row_cylinder, column_cylinder, torus };
 
     enum class type : i8 {
-        number, ///< Only one port for all neighbor: "in" and "out".
-        name ///< One, two, three or four ports according to neighbor: "N", "S",
-             ///< "W", "E".
+        in_out, //!< Only one port "in" or "out".
+        name,   //!< Cardinal points according to neighbor: "N", "S", "W", "E",
+                //!< "NE", ...
+        number  //!< A tuple of integers that represent neighborhood for
+                //!< examples: (5,5,5) the middle in 3D and the (4,4,5) the
+                //!< top-left cell. (5) the middle in 1D and (6) the
+                //!< righ-cell.
     };
 
     enum class neighborhood : i8 {
