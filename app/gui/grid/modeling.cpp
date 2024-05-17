@@ -27,14 +27,16 @@ static const char* grid_options[] = {
 constexpr auto grid_options_count = 4;
 
 static const char* grid_type[] = {
-    "number (in - out port)",
-    "name (N, W, S, E ports)",
+    "in-out (in - out port)",
+    "name (N, W, S, E, NW, ... port)",
+    "number (4, 6, 44, 45, .., 66, port)",
 };
 
-constexpr auto grid_type_count = 2;
+constexpr static inline auto grid_type_count = 3;
 
-static const char* grid_neighborhood[]     = { "four", "eight" };
-constexpr auto     grid_neighborhood_count = 2;
+static const char* grid_neighborhood[] = { "four", "eight" };
+
+constexpr static inline auto grid_neighborhood_count = 2;
 
 constexpr inline auto get_default_component_id(const grid_component& g) noexcept
   -> component_id
@@ -92,70 +94,69 @@ static void show_grid_component_options(grid_component& grid) noexcept
     }
 }
 
-static bool new_name_4(component& compo) noexcept
+static bool get_or_add_x(component& compo, std::string_view name) noexcept
 {
-    if (compo.x.can_alloc(4) and compo.y.can_alloc(4)) {
-        compo.x_names[get_index(compo.x.alloc())] = "N";
-        compo.x_names[get_index(compo.x.alloc())] = "S";
-        compo.x_names[get_index(compo.x.alloc())] = "W";
-        compo.x_names[get_index(compo.x.alloc())] = "E";
+    if (is_defined(compo.get_x(name)))
+        return true;
 
-        compo.y_names[get_index(compo.y.alloc())] = "N";
-        compo.y_names[get_index(compo.y.alloc())] = "S";
-        compo.y_names[get_index(compo.y.alloc())] = "W";
-        compo.y_names[get_index(compo.y.alloc())] = "E";
+    if (compo.x.can_alloc(1)) {
+        compo.x_names[get_index(compo.x.alloc())] = name;
         return true;
     }
 
     return false;
+}
+
+static bool get_or_add_y(component& compo, std::string_view name) noexcept
+{
+    if (is_defined(compo.get_y(name)))
+        return true;
+
+    if (compo.y.can_alloc(1)) {
+        compo.y_names[get_index(compo.y.alloc())] = name;
+        return true;
+    }
+
+    return false;
+}
+
+static bool new_in_out(component& compo) noexcept
+{
+    return get_or_add_x(compo, "in") and get_or_add_y(compo, "out");
 }
 
 static bool new_number_4(component& compo) noexcept
 {
-    if (compo.x.can_alloc(1) and compo.y.can_alloc(1)) {
-        compo.x_names[get_index(compo.x.alloc())] = "in";
-        compo.y_names[get_index(compo.y.alloc())] = "out";
-        return true;
-    }
-
-    return false;
+    return get_or_add_x(compo, "45") and get_or_add_x(compo, "54") and
+           get_or_add_x(compo, "56") and get_or_add_x(compo, "65") and
+           get_or_add_y(compo, "45") and get_or_add_y(compo, "54") and
+           get_or_add_y(compo, "56") and get_or_add_y(compo, "65");
 }
 
-static bool new_name_8(component& compo) noexcept
+static bool new_name_4(component& compo) noexcept
 {
-    if (compo.x.can_alloc(8) and compo.y.can_alloc(8)) {
-        compo.x_names[get_index(compo.x.alloc())] = "N";
-        compo.x_names[get_index(compo.x.alloc())] = "S";
-        compo.x_names[get_index(compo.x.alloc())] = "W";
-        compo.x_names[get_index(compo.x.alloc())] = "E";
-        compo.x_names[get_index(compo.x.alloc())] = "NE";
-        compo.x_names[get_index(compo.x.alloc())] = "SE";
-        compo.x_names[get_index(compo.x.alloc())] = "NW";
-        compo.x_names[get_index(compo.x.alloc())] = "SW";
-
-        compo.y_names[get_index(compo.y.alloc())] = "N";
-        compo.y_names[get_index(compo.y.alloc())] = "S";
-        compo.y_names[get_index(compo.y.alloc())] = "W";
-        compo.y_names[get_index(compo.y.alloc())] = "E";
-        compo.y_names[get_index(compo.y.alloc())] = "NE";
-        compo.y_names[get_index(compo.y.alloc())] = "SE";
-        compo.y_names[get_index(compo.y.alloc())] = "NW";
-        compo.y_names[get_index(compo.y.alloc())] = "SE";
-        return true;
-    }
-
-    return false;
+    return get_or_add_x(compo, "N") and get_or_add_x(compo, "S") and
+           get_or_add_x(compo, "W") and get_or_add_x(compo, "E") and
+           get_or_add_y(compo, "N") and get_or_add_y(compo, "S") and
+           get_or_add_y(compo, "W") and get_or_add_y(compo, "E");
 }
 
 static bool new_number_8(component& compo) noexcept
 {
-    if (compo.x.can_alloc(1) and compo.y.can_alloc(1)) {
-        compo.x_names[get_index(compo.x.alloc())] = "in";
-        compo.y_names[get_index(compo.y.alloc())] = "out";
-        return true;
-    }
+    return new_number_4(compo) and get_or_add_x(compo, "44") and
+           get_or_add_x(compo, "46") and get_or_add_x(compo, "64") and
+           get_or_add_x(compo, "66") and get_or_add_y(compo, "44") and
+           get_or_add_y(compo, "46") and get_or_add_y(compo, "64") and
+           get_or_add_y(compo, "66");
+}
 
-    return false;
+static bool new_name_8(component& compo) noexcept
+{
+    return new_name_4(compo) and get_or_add_x(compo, "NW") and
+           get_or_add_x(compo, "NE") and get_or_add_x(compo, "SW") and
+           get_or_add_x(compo, "SE") and get_or_add_y(compo, "NW") and
+           get_or_add_y(compo, "NE") and get_or_add_y(compo, "SW") and
+           get_or_add_y(compo, "SE");
 }
 
 static bool assign_name(grid_component& grid, component& compo) noexcept
@@ -163,6 +164,9 @@ static bool assign_name(grid_component& grid, component& compo) noexcept
     switch (grid.neighbors) {
     case grid_component::neighborhood::four:
         switch (grid.connection_type) {
+        case grid_component::type::in_out:
+            return new_in_out(compo);
+
         case grid_component::type::name:
             return new_name_4(compo);
 
@@ -175,6 +179,9 @@ static bool assign_name(grid_component& grid, component& compo) noexcept
 
     case grid_component::neighborhood::eight:
         switch (grid.connection_type) {
+        case grid_component::type::in_out:
+            return new_in_out(compo);
+
         case grid_component::type::name:
             return new_name_8(compo);
 
