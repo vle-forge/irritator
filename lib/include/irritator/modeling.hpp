@@ -542,9 +542,10 @@ struct grid_component {
     //! @return success() or @c project::error::not_enough_memory.
     status build_cache(modeling& mod) noexcept;
 
-    options      opts            = options::none;
-    type         connection_type = type::name;
-    neighborhood neighbors       = neighborhood::four;
+    options      opts                = options::none;
+    type         in_connection_type  = type::name;
+    type         out_connection_type = type::name;
+    neighborhood neighbors           = neighborhood::four;
 };
 
 /// random-graph type:

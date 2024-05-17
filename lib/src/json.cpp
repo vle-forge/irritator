@@ -475,8 +475,8 @@ struct reader {
 
     template<size_t N, typename Function>
     bool for_members(const rapidjson::Value& val,
-                     const std::string_view (&names)[N],
-                     Function&& fn) noexcept
+                     const std::string_view  (&names)[N],
+                     Function&&              fn) noexcept
     {
         if (!val.IsObject())
             report_json_error(error_id::value_not_object);
@@ -1936,8 +1936,8 @@ struct reader {
         return nullptr;
     }
 
-    auto search_dir_in_reg(registred_path&  reg,
-                           std::string_view name) noexcept -> dir_path*
+    auto search_dir_in_reg(registred_path& reg, std::string_view name) noexcept
+      -> dir_path*
     {
         for (auto dir_id : reg.children) {
             if (auto* dir = mod().dir_paths.try_to_get(dir_id); dir) {
@@ -2006,8 +2006,8 @@ struct reader {
         return nullptr;
     }
 
-    auto search_file(dir_path&        dir,
-                     std::string_view name) noexcept -> file_path*
+    auto search_file(dir_path& dir, std::string_view name) noexcept
+      -> file_path*
     {
         for (auto file_id : dir.children)
             if (auto* file = mod().file_paths.try_to_get(file_id); file)
@@ -3180,9 +3180,13 @@ struct reader {
                                 is_int_less_than(grid_component::row_max) &&
                                 copy_to(grid.column);
 
-                     if ("connection-type"sv == name)
+                     if ("in-connection-type"sv == name)
                          return read_temp_integer(value) &&
-                                copy_to(grid.connection_type);
+                                copy_to(grid.in_connection_type);
+
+                     if ("out-connection-type"sv == name)
+                         return read_temp_integer(value) &&
+                                copy_to(grid.out_connection_type);
 
                      if ("children"sv == name)
                          return read_grid_children(value, grid);
@@ -5590,8 +5594,10 @@ static void write_grid_component(cache_rw& /*cache*/,
     w.Int(grid.row);
     w.Key("columns");
     w.Int(grid.column);
-    w.Key("connection-type");
-    w.Int(ordinal(grid.connection_type));
+    w.Key("in-connection-type");
+    w.Int(ordinal(grid.in_connection_type));
+    w.Key("out-connection-type");
+    w.Int(ordinal(grid.out_connection_type));
 
     w.Key("children");
     w.StartArray();

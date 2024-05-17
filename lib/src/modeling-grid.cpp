@@ -177,9 +177,36 @@ void build_grid_connections(modeling&               mod,
     std::array<destination, 8> dests;
     std::array<bool, 8>        valids;
 
-    switch (grid.connection_type) {
+    switch (grid.out_connection_type) {
     case grid_component::type::in_out:
         srcs.fill(p_id::out);
+        break;
+
+    case grid_component::type::name:
+        srcs[0] = { p_id::NE };
+        srcs[1] = { p_id::NW };
+        srcs[2] = { p_id::SE };
+        srcs[3] = { p_id::SW };
+        srcs[4] = { p_id::N };
+        srcs[5] = { p_id::S };
+        srcs[6] = { p_id::E };
+        srcs[7] = { p_id::W };
+        break;
+
+    case grid_component::type::number:
+        srcs[0] = { p_id::n44 };
+        srcs[1] = { p_id::n46 };
+        srcs[2] = { p_id::n64 };
+        srcs[3] = { p_id::n66 };
+        srcs[4] = { p_id::n45 };
+        srcs[5] = { p_id::n54 };
+        srcs[6] = { p_id::n56 };
+        srcs[7] = { p_id::n65 };
+        break;
+    }
+
+    switch (grid.in_connection_type) {
+    case grid_component::type::in_out:
         dests[0] = { row - 1, col - 1, p_id::in };
         dests[1] = { row - 1, col + 1, p_id::in };
         dests[2] = { row + 1, col - 1, p_id::in };
@@ -191,14 +218,6 @@ void build_grid_connections(modeling&               mod,
         break;
 
     case grid_component::type::name:
-        srcs[0]  = { p_id::NE };
-        srcs[1]  = { p_id::NW };
-        srcs[2]  = { p_id::SE };
-        srcs[3]  = { p_id::SW };
-        srcs[4]  = { p_id::N };
-        srcs[5]  = { p_id::S };
-        srcs[6]  = { p_id::E };
-        srcs[7]  = { p_id::W };
         dests[0] = { row - 1, col - 1, p_id::SW };
         dests[1] = { row - 1, col + 1, p_id::SE };
         dests[2] = { row + 1, col - 1, p_id::NW };
@@ -210,14 +229,6 @@ void build_grid_connections(modeling&               mod,
         break;
 
     case grid_component::type::number:
-        srcs[0]  = { p_id::n44 };
-        srcs[1]  = { p_id::n46 };
-        srcs[2]  = { p_id::n64 };
-        srcs[3]  = { p_id::n66 };
-        srcs[4]  = { p_id::n45 };
-        srcs[5]  = { p_id::n54 };
-        srcs[6]  = { p_id::n56 };
-        srcs[7]  = { p_id::n65 };
         dests[0] = { row - 1, col - 1, p_id::n66 };
         dests[1] = { row + 1, col - 1, p_id::n64 };
         dests[2] = { row + 1, col, p_id::n46 };

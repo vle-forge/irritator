@@ -76,11 +76,28 @@ static void show_grid_component_options(grid_component& grid) noexcept
             grid.opts = static_cast<grid_component::options>(selected_options);
     }
 
-    int selected_type = ordinal(grid.connection_type);
-    if (ImGui::Combo("Type", &selected_type, grid_type, grid_type_count)) {
-        if (selected_type != ordinal(grid.connection_type))
-            grid.connection_type =
-              enum_cast<grid_component::type>(selected_type);
+    {
+        int selected_type = ordinal(grid.out_connection_type);
+        if (ImGui::Combo("Output connection type",
+                         &selected_type,
+                         grid_type,
+                         grid_type_count)) {
+            if (selected_type != ordinal(grid.out_connection_type))
+                grid.out_connection_type =
+                  enum_cast<grid_component::type>(selected_type);
+        }
+    }
+
+    {
+        int selected_type = ordinal(grid.in_connection_type);
+        if (ImGui::Combo("Input connection type",
+                         &selected_type,
+                         grid_type,
+                         grid_type_count)) {
+            if (selected_type != ordinal(grid.in_connection_type))
+                grid.in_connection_type =
+                  enum_cast<grid_component::type>(selected_type);
+        }
     }
 
     int selected_neighbors = ordinal(grid.neighbors);
@@ -120,73 +137,96 @@ static bool get_or_add_y(component& compo, std::string_view name) noexcept
     return false;
 }
 
-static bool new_in_out(component& compo) noexcept
+static bool new_in_out_x(component& compo) noexcept
 {
-    return get_or_add_x(compo, "in") and get_or_add_y(compo, "out");
+    return get_or_add_x(compo, "in");
 }
 
-static bool new_number_4(component& compo) noexcept
+static bool new_in_out_y(component& compo) noexcept
+{
+    return get_or_add_y(compo, "out");
+}
+
+static bool new_number_4_x(component& compo) noexcept
 {
     return get_or_add_x(compo, "45") and get_or_add_x(compo, "54") and
-           get_or_add_x(compo, "56") and get_or_add_x(compo, "65") and
-           get_or_add_y(compo, "45") and get_or_add_y(compo, "54") and
+           get_or_add_x(compo, "56") and get_or_add_x(compo, "65");
+}
+
+static bool new_number_4_y(component& compo) noexcept
+{
+    return get_or_add_y(compo, "45") and get_or_add_y(compo, "54") and
            get_or_add_y(compo, "56") and get_or_add_y(compo, "65");
 }
 
-static bool new_name_4(component& compo) noexcept
+static bool new_name_4_x(component& compo) noexcept
 {
     return get_or_add_x(compo, "N") and get_or_add_x(compo, "S") and
-           get_or_add_x(compo, "W") and get_or_add_x(compo, "E") and
-           get_or_add_y(compo, "N") and get_or_add_y(compo, "S") and
+           get_or_add_x(compo, "W") and get_or_add_x(compo, "E");
+}
+
+static bool new_name_4_y(component& compo) noexcept
+{
+    return get_or_add_y(compo, "N") and get_or_add_y(compo, "S") and
            get_or_add_y(compo, "W") and get_or_add_y(compo, "E");
 }
 
-static bool new_number_8(component& compo) noexcept
+static bool new_number_8_x(component& compo) noexcept
 {
-    return new_number_4(compo) and get_or_add_x(compo, "44") and
+    return new_number_4_x(compo) and get_or_add_x(compo, "44") and
            get_or_add_x(compo, "46") and get_or_add_x(compo, "64") and
-           get_or_add_x(compo, "66") and get_or_add_y(compo, "44") and
+           get_or_add_x(compo, "66");
+}
+
+static bool new_number_8_y(component& compo) noexcept
+{
+    return new_number_4_y(compo) and get_or_add_y(compo, "44") and
            get_or_add_y(compo, "46") and get_or_add_y(compo, "64") and
            get_or_add_y(compo, "66");
 }
 
-static bool new_name_8(component& compo) noexcept
+static bool new_name_8_x(component& compo) noexcept
 {
-    return new_name_4(compo) and get_or_add_x(compo, "NW") and
+    return new_name_4_x(compo) and get_or_add_x(compo, "NW") and
            get_or_add_x(compo, "NE") and get_or_add_x(compo, "SW") and
-           get_or_add_x(compo, "SE") and get_or_add_y(compo, "NW") and
+           get_or_add_x(compo, "SE");
+}
+
+static bool new_name_8_y(component& compo) noexcept
+{
+    return new_name_4_y(compo) and get_or_add_y(compo, "NW") and
            get_or_add_y(compo, "NE") and get_or_add_y(compo, "SW") and
            get_or_add_y(compo, "SE");
 }
 
-static bool assign_name(grid_component& grid, component& compo) noexcept
+static bool assign_name_x(grid_component& grid, component& compo) noexcept
 {
     switch (grid.neighbors) {
     case grid_component::neighborhood::four:
-        switch (grid.connection_type) {
+        switch (grid.in_connection_type) {
         case grid_component::type::in_out:
-            return new_in_out(compo);
+            return new_in_out_x(compo);
 
         case grid_component::type::name:
-            return new_name_4(compo);
+            return new_name_4_x(compo);
 
         case grid_component::type::number:
-            return new_number_4(compo);
+            return new_number_4_x(compo);
         }
 
         unreachable();
         break;
 
     case grid_component::neighborhood::eight:
-        switch (grid.connection_type) {
+        switch (grid.in_connection_type) {
         case grid_component::type::in_out:
-            return new_in_out(compo);
+            return new_in_out_x(compo);
 
         case grid_component::type::name:
-            return new_name_8(compo);
+            return new_name_8_x(compo);
 
         case grid_component::type::number:
-            return new_number_8(compo);
+            return new_number_8_x(compo);
         }
 
         unreachable();
@@ -194,6 +234,48 @@ static bool assign_name(grid_component& grid, component& compo) noexcept
     }
 
     unreachable();
+}
+
+static bool assign_name_y(grid_component& grid, component& compo) noexcept
+{
+    switch (grid.neighbors) {
+    case grid_component::neighborhood::four:
+        switch (grid.out_connection_type) {
+        case grid_component::type::in_out:
+            return new_in_out_y(compo);
+
+        case grid_component::type::name:
+            return new_name_4_y(compo);
+
+        case grid_component::type::number:
+            return new_number_4_y(compo);
+        }
+
+        unreachable();
+        break;
+
+    case grid_component::neighborhood::eight:
+        switch (grid.out_connection_type) {
+        case grid_component::type::in_out:
+            return new_in_out_y(compo);
+
+        case grid_component::type::name:
+            return new_name_8_y(compo);
+
+        case grid_component::type::number:
+            return new_number_8_y(compo);
+        }
+
+        unreachable();
+        break;
+    }
+
+    unreachable();
+}
+
+static bool assign_name(grid_component& grid, component& compo) noexcept
+{
+    return assign_name_x(grid, compo) and assign_name_y(grid, compo);
 }
 
 static void show_grid_editor_options(application&                app,
