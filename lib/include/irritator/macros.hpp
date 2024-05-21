@@ -5,10 +5,10 @@
 #ifndef ORG_VLEPROJECT_IRRITATOR_MACROS_2024
 #define ORG_VLEPROJECT_IRRITATOR_MACROS_2024
 
-#include <cassert>
 #include <cstdlib>
 
 #ifdef IRRITATOR_ENABLE_DEBUG
+#include <fstream>
 #include <iostream>
 #endif
 
@@ -35,11 +35,20 @@ static bool           enable_memory_log = true;
 static constexpr bool enable_ensure = false;
 #endif
 
+inline std::ostream& mem_file() noexcept
+{
+    static std::ofstream ofs("irt-mem.txt");
+    if (ofs.is_open())
+        return ofs;
+
+    return std::cout;
+}
+
 template<typename... Args>
     requires(::irt::debug::enable_ensure == true)
 void log(const Args&... args)
 {
-    (std::cout << ... << args) << '\n';
+    (mem_file() << ... << args);
 }
 
 template<typename... Args>
