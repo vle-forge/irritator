@@ -1280,9 +1280,6 @@ public:
     //! Adds a new path to read and search component files.
     status fill_components(registred_path& path) noexcept;
 
-    /// Clean data used as cache for simulation.
-    void clean_simulation() noexcept;
-
     /// Clear and free all dependencies of the component but let the component
     /// alive.
     void clear(component& c) noexcept;

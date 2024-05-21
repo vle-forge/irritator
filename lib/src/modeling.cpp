@@ -830,12 +830,6 @@ bool modeling::can_add(const component& parent,
     return false;
 }
 
-void modeling::clean_simulation() noexcept
-{
-    for (auto& grid : grid_components)
-        grid.clear_cache();
-}
-
 void modeling::clear(component& compo) noexcept
 {
     switch (compo.type) {

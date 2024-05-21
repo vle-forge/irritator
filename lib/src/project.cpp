@@ -1008,7 +1008,6 @@ status project::set(modeling& mod, simulation& sim, component& compo) noexcept
     clear();
     clear_cache();
     clean_simulation();
-    mod.clean_simulation();
 
     irt_check(make_component_cache(*this, mod));
 
