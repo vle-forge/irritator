@@ -1011,6 +1011,125 @@ public:
     constexpr const_iterator end() const noexcept;
 };
 
+//! @brief An optimized SOA structure to store unique identifier and mutiples vector.
+//!
+//! A container to handle only identifier.
+//! - linear memory/iteration
+//! - O(1) alloc/free
+//! - stable indices
+//! - weak references
+//! - zero overhead dereferences
+//!
+//! @code
+//! struct pos3d {
+//!     float x, y, z;
+//! };
+//!
+//! struct color {
+//!     std::uint32_t rgba;
+//! };
+//!
+//! using name = irt::small_string<15>;
+//!
+//! enum class ex1_id : uint32_t;
+//!
+//! irt::id_data_array<ex1_id, irt::default_allocator, pos3d, color, name>
+//!   d;
+//! d.reserve(1024);
+//! expect(ge(d.capacity(), 1024u));
+//! expect(fatal(d.can_alloc(1)));
+//!
+//! const auto id =
+//!   d.alloc([](const auto /*id*/, auto& p, auto& c, auto& n) noexcept {
+//!       p = pos3d(1.f, 2.f, 3.f);
+//!       c = color{ 123u };
+//!       n = "HelloWorld!";
+//!   });
+//! @endcode
+//!
+//! @tparam Identifier A enum class identifier to store identifier unsigned
+//!     number.
+template<typename Identifier, typename A = irt::default_allocator, class... Ts>
+class id_data_array
+{
+    static_assert(std::is_enum_v<Identifier>,
+                  "Identifier must be a enumeration: enum class id : "
+                  "std::uint32_t or std::uint64_t;");
+
+    static_assert(
+      std::is_same_v<std::underlying_type_t<Identifier>, std::uint32_t> ||
+        std::is_same_v<std::underlying_type_t<Identifier>, std::uint64_t>,
+      "Identifier underlying type must be std::uint32_t or std::uint64_t");
+
+    using underlying_id_type = std::conditional_t<
+      std::is_same_v<std::uint32_t, std::underlying_type_t<Identifier>>,
+      std::uint32_t,
+      std::uint64_t>;
+
+    using index_type =
+      std::conditional_t<std::is_same_v<std::uint32_t, underlying_id_type>,
+                         std::uint16_t,
+                         std::uint32_t>;
+
+    using identifier_type   = Identifier;
+    using value_type        = Identifier;
+    using allocator_type    = A;
+    using memory_resource_t = typename A::memory_resource_t;
+
+    id_array<identifier_type, A> m_ids;
+    std::tuple<vector<Ts, A>...> m_col;
+
+private:
+    template<typename Function, std::size_t... Is>
+    void do_call_fn(Function&&            fn,
+                    const identifier_type id,
+                    std::index_sequence<Is...>) noexcept
+    {
+        const auto idx = get_index(id);
+
+        fn(id, std::get<Is>(m_col).operator[](idx)...);
+    }
+
+    template<typename Function, std::size_t... Is>
+    void do_call_alloc_fn(Function&&            fn,
+                          const identifier_type id,
+                          std::index_sequence<Is...>) noexcept
+    {
+        const auto idx = get_index(id);
+
+        fn(id, std::get<Is>(m_col).operator[](idx)...);
+    }
+
+    template<std::size_t... Is>
+    void do_resize(std::index_sequence<Is...>,
+                   const std::integral auto len) noexcept
+    {
+        (std::get<Is>(m_col).resize(len), ...);
+    }
+
+public:
+    template<typename Function>
+    identifier_type alloc(Function&& fn) noexcept;
+
+    void free(const identifier_type id) noexcept;
+
+    //! Call the @c fn function if @c id is valid.
+    template<typename Function>
+    void if_exists_do(const identifier_type id, Function& fn) noexcept;
+
+    //! Call the @c fn function for each valid identifier.
+    template<typename Function>
+    void for_each(Function&& fn) noexcept;
+
+    void clear() noexcept;
+    void reserve(std::integral auto len) noexcept;
+
+    bool can_alloc(std::integral auto nb = 1) const noexcept;
+    unsigned size() const noexcept;
+    int      ssize() const noexcept;
+    unsigned capacity() const noexcept;
+};
+
 //! @brief An optimized fixed size array for dynamics objects.
 //!
 //! A container to handle everything from trivial, pod or object.
@@ -2125,6 +2244,85 @@ constexpr typename id_array<Identifier, A>::const_iterator
 id_array<Identifier, A>::end() const noexcept
 {
     return const_iterator(this, identifier_type{});
+}
+
+// template<typename Identifier, typename A, class... Ts>
+// class id_data_array
+
+template<typename Identifier, typename A, class... Ts>
+template<typename Function>
+auto id_data_array<Identifier, A, Ts...>::alloc(Function&& fn) noexcept
+-> id_data_array<Identifier, A, Ts...>::identifier_type
+{
+    irt::debug::ensure(m_ids.can_alloc(1));
+
+    const auto id = m_ids.alloc();
+
+    do_call_alloc_fn(fn, id, std::index_sequence_for<Ts...>());
+
+    return id;
+}
+
+template<typename Identifier, typename A, class... Ts>
+void id_data_array<Identifier, A, Ts...>::free(const identifier_type id) noexcept
+{
+    if (m_ids.exists(id))
+        m_ids.free(id);
+}
+
+template<typename Identifier, typename A, class... Ts>
+template<typename Function>
+void id_data_array<Identifier, A, Ts...>::if_exists_do(const identifier_type id, Function& fn) noexcept
+{
+    if (m_ids.exists(id))
+        do_call_fn(fn, id, std::index_sequence_for<Ts...>());
+}
+
+template<typename Identifier, typename A, class... Ts>
+template<typename Function>
+void id_data_array<Identifier, A, Ts...>::for_each(Function&& fn) noexcept
+{
+    for (const auto id : m_ids)
+        do_call_fn(fn, id, std::index_sequence_for<Ts...>());
+}
+
+template<typename Identifier, typename A, class... Ts>
+void id_data_array<Identifier, A, Ts...>::clear() noexcept
+{
+    m_ids.clear();
+}
+
+template<typename Identifier, typename A, class... Ts>
+void id_data_array<Identifier, A, Ts...>::reserve(std::integral auto len) noexcept
+{
+    if (std::cmp_less(capacity(), len)) {
+        m_ids.reserve(len);
+        do_resize(std::index_sequence_for<Ts...>(), len);
+    }
+}
+
+template<typename Identifier, typename A, class... Ts>
+bool id_data_array<Identifier, A, Ts...>::can_alloc(std::integral auto nb) const noexcept
+{
+    return m_ids.can_alloc(nb);
+}
+
+template<typename Identifier, typename A, class... Ts>
+unsigned id_data_array<Identifier, A, Ts...>::size() const noexcept
+{
+    return m_ids.size();
+}
+
+template<typename Identifier, typename A, class... Ts>
+int id_data_array<Identifier, A, Ts...>::ssize() const noexcept
+{
+    return m_ids.ssize();
+}
+
+template<typename Identifier, typename A, class... Ts>
+unsigned id_data_array<Identifier, A, Ts...>::capacity() const noexcept
+{
+    return m_ids.capacity();
 }
 
 // template<typename T, typename Identifier, typename A>

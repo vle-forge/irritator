@@ -155,10 +155,6 @@ void global_free(void* ptr) noexcept
     }
 }
 
-// static void* null_alloc(size_t /*sz*/) noexcept { return nullptr; }
-
-// static void null_free(void*) noexcept {}
-
 struct struct_with_static_member {
     static int i;
     static int j;
@@ -1136,6 +1132,86 @@ int main()
 
             expect(check_data_array_loop(array));
         }
+    };
+
+    "id-data-array"_test = [] {
+        struct pos3d {
+            float x, y, z;
+        };
+
+        struct color {
+            std::uint32_t rgba;
+        };
+
+        using name = irt::small_string<15>;
+
+        enum class ex1_id : uint32_t;
+
+        irt::id_data_array<ex1_id, irt::default_allocator, pos3d, color, name>
+          d;
+        d.reserve(1024);
+        expect(ge(d.capacity(), 1024u));
+        expect(fatal(d.can_alloc(1)));
+
+        const auto id =
+          d.alloc([](const auto /*id*/, auto& p, auto& c, auto& n) noexcept {
+              p = pos3d(0.f, 0.f, 0.f);
+              c = color{ 123u };
+              n = "HelloWorld!";
+          });
+
+        expect(eq(d.ssize(), 1));
+
+        const auto idx = irt::get_index(id);
+        expect(eq(idx, 0));
+
+        d.for_each([](const auto /*id*/,
+                      const auto& p,
+                      const auto& c,
+                      const auto& n) noexcept {
+            expect(eq(p.x, 0.f));
+            expect(eq(p.x, 0.f));
+            expect(eq(p.x, 0.f));
+            expect(eq(123u, c.rgba));
+            expect(n.sv() == "HelloWorld!");
+        });
+
+        d.free(id);
+        expect(eq(d.ssize(), 0));
+
+        const auto id1 =
+          d.alloc([](const auto /*id*/, auto& p, auto& c, auto& n) noexcept {
+              p = pos3d(0.f, 0.f, 0.f);
+              c = color{ 123u };
+              n = "HelloWorld!";
+          });
+
+        const auto id2 =
+          d.alloc([](const auto /*id*/, auto& p, auto& c, auto& n) noexcept {
+              p = pos3d(0.f, 0.f, 0.f);
+              c = color{ 123u };
+              n = "HelloWorld!";
+          });
+
+        const auto idx1 = irt::get_index(id1);
+        expect(eq(idx1, 0));
+        const auto idx2 = irt::get_index(id2);
+        expect(eq(idx2, 1));
+        expect(eq(d.ssize(), 2));
+
+        d.for_each([](const auto /*id*/,
+                      const auto& p,
+                      const auto& c,
+                      const auto& n) noexcept {
+            expect(eq(p.x, 0.f));
+            expect(eq(p.x, 0.f));
+            expect(eq(p.x, 0.f));
+            expect(eq(123u, c.rgba));
+            expect(n.sv() == "HelloWorld!");
+        });
+
+        d.clear();
+        expect(eq(d.ssize(), 0));
     };
 
     "message"_test = [] {
