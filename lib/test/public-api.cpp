@@ -23,7 +23,6 @@
 #include <cstdio>
 
 #include <boost/ut.hpp>
-#include <type_traits>
 
 irt::static_memory_resource<256 * 256 * 16> mem;
 
@@ -1262,6 +1261,14 @@ int main()
 
     "id-data-array"_test = [] {
         struct pos3d {
+	    pos3d() = default;
+
+            pos3d(float x_, float y_, float z_)
+              : x(x_)
+              , y(y_)
+              , z(z_)
+            {}
+
             float x, y, z;
         };
 
