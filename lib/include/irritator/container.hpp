@@ -1574,7 +1574,7 @@ public:
     constexpr bool emplace_enqueue(Args&&... args) noexcept;
 
     template<typename... Args>
-    constexpr void force_emplace_enqueue(Args&&... args) noexcept;
+    constexpr reference force_emplace_enqueue(Args&&... args) noexcept;
 
     constexpr void force_enqueue(const T& item) noexcept;
     constexpr bool enqueue(const T& item) noexcept;
@@ -4524,13 +4524,16 @@ constexpr bool ring_buffer<T, A>::emplace_enqueue(Args&&... args) noexcept
 
 template<class T, typename A>
 template<typename... Args>
-constexpr void ring_buffer<T, A>::force_emplace_enqueue(Args&&... args) noexcept
+constexpr typename ring_buffer<T, A>::reference
+ring_buffer<T, A>::force_emplace_enqueue(Args&&... args) noexcept
 {
     if (full())
         dequeue();
 
     std::construct_at(&buffer[m_tail], std::forward<Args>(args)...);
+    const auto old = m_tail;
     m_tail = advance(m_tail);
+    return buffer[old];
 }
 
 template<class T, typename A>
