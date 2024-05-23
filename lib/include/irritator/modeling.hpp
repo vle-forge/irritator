@@ -13,6 +13,7 @@
 #include <irritator/macros.hpp>
 #include <irritator/thread.hpp>
 
+#include <mutex>
 #include <optional>
 #include <variant>
 
@@ -120,6 +121,8 @@ enum class component_status {
 enum class modeling_status { modified, unmodified };
 
 class project;
+class log_manager;
+struct log_entry;
 struct parameter;
 struct connection;
 struct child;
@@ -396,6 +399,10 @@ struct grid_component {
     static inline constexpr i32 row_max    = 1024;
     static inline constexpr i32 column_max = 1024;
 
+    struct input_connection_error {};
+    struct output_connection_error {};
+    struct children_connection_error {};
+
     i32 row    = 1;
     i32 column = 1;
 
@@ -546,6 +553,12 @@ struct grid_component {
     type         in_connection_type  = type::name;
     type         out_connection_type = type::name;
     neighborhood neighbors           = neighborhood::four;
+
+    auto build_error_handlers(log_manager& l) const noexcept;
+    void format_input_connection_error(log_entry& e) const noexcept;
+    void format_output_connection_error(log_entry& e) const noexcept;
+    void format_children_connection_error(log_entry& e,
+                                          e_memory*  mem) const noexcept;
 };
 
 /// random-graph type:
@@ -1227,6 +1240,70 @@ struct log_entry {
     log_level level;
 };
 
+class log_manager
+{
+public:
+    log_manager(constrained_value<int, 1, 64> value = 8)
+      : m_data(value.value())
+    {}
+
+    log_manager(const log_manager& other) noexcept            = delete;
+    log_manager& operator=(const log_manager& other) noexcept = delete;
+    log_manager(log_manager&& other) noexcept                 = delete;
+    log_manager& operator=(log_manager&& other) noexcept      = delete;
+
+    template<typename Function>
+    bool try_push(Function&& fn) noexcept
+    {
+        if (std::unique_lock _(m_mutex, std::try_to_lock); _.owns_lock()) {
+            fn(m_data.force_emplace_enqueue());
+            return true;
+        }
+
+        return false;
+    }
+
+    template<typename Function>
+    void push(Function&& fn) noexcept
+    {
+        std::scoped_lock lock{ m_mutex };
+        fn(m_data.force_emplace_enqueue());
+    }
+
+    template<typename Function>
+    bool try_consume(Function&& fn) noexcept
+    {
+        if (std::unique_lock _(m_mutex, std::try_to_lock); _.owns_lock()) {
+            fn(m_data);
+            return true;
+        }
+
+        return false;
+    }
+
+    template<typename Function>
+    void consume(Function&& fn) noexcept
+    {
+        std::scoped_lock lock{ m_mutex };
+        fn(m_data);
+    }
+
+    bool full() const noexcept { return m_data.full(); }
+
+    //! Return true if the underlying container available space is low.
+    //!
+    //! @return true if the remaining entry is lower than 25% of the capacity,
+    //! false otherwise.
+    bool almost_full() const noexcept
+    {
+        return (m_data.capacity() - m_data.ssize()) <= m_data.capacity() >> 2;
+    }
+
+private:
+    ring_buffer<log_entry> m_data;
+    spin_mutex             m_mutex;
+};
+
 class modeling
 {
 public:
@@ -1619,6 +1696,20 @@ inline void project::for_each_children(tree_node& tn,
         if (auto* child = cur->tree.get_child(); child)
             stack.emplace_back(child);
     }
+}
+
+inline auto grid_component::build_error_handlers(log_manager& l) const noexcept
+{
+    return std::make_tuple(
+      [&](input_connection_error, already_exist_error) {
+          l.push([&](auto& e) { format_input_connection_error(e); });
+      },
+      [&](output_connection_error, already_exist_error) {
+          l.push([&](auto& e) { format_output_connection_error(e); });
+      },
+      [&](children_connection_error, e_memory* mem) {
+          l.push([&](auto& e) { format_children_connection_error(e, mem); });
+      });
 }
 
 } // namespace irt

@@ -287,6 +287,55 @@ static bool check_data_array_loop(const Data& d) noexcept
     return true;
 }
 
+struct leaf_tester {
+    struct a_error {};
+    bool make_error = false;
+
+    leaf_tester(bool error)
+      : make_error(error)
+    {}
+
+    irt::result<int> make() noexcept
+    {
+        if (make_error)
+            return boost::leaf::new_error(a_error{});
+
+        return 1;
+    }
+
+    static auto build_error_handlers(int& num) noexcept
+    {
+        return std::make_tuple([&](leaf_tester::a_error) { num = 1; });
+    }
+};
+
+struct leaf_tester_2 {
+    struct a_error {};
+    bool make_error = false;
+
+    leaf_tester_2(bool error)
+      : make_error(error)
+    {}
+
+    irt::result<int> make() noexcept
+    {
+        if (make_error)
+            return boost::leaf::new_error(a_error{});
+
+        return 2;
+    }
+
+    static auto build_error_handlers(int& num) noexcept
+    {
+        return std::make_tuple([&](leaf_tester_2::a_error) { num = 2; });
+    }
+};
+
+static auto build_error_handler(int& num) noexcept
+{
+    return std::make_tuple([&] { num = -1; });
+}
+
 int main()
 {
 #if defined(IRRITATOR_ENABLE_DEBUG)
@@ -294,6 +343,83 @@ int main()
 #endif
 
     using namespace boost::ut;
+
+    "tester_1"_test = [] {
+        leaf_tester   t(true);
+        leaf_tester_2 t2(false);
+        int           error_sum = 0;
+
+        irt::attempt_all(
+          [&]() -> irt::status {
+              irt_check(t.make());
+              irt_check(t2.make());
+              return irt::success();
+          },
+
+          std::tuple_cat(t.build_error_handlers(error_sum),
+                         t2.build_error_handlers(error_sum),
+                         build_error_handler(error_sum)));
+
+        expect(eq(error_sum, 1));
+    };
+
+    "tester_1"_test = [] {
+        leaf_tester   t(false);
+        leaf_tester_2 t2(true);
+        int           error_sum = 0;
+
+        irt::attempt_all(
+          [&]() -> irt::status {
+              irt_check(t.make());
+              irt_check(t2.make());
+              return irt::success();
+          },
+
+          std::tuple_cat(t.build_error_handlers(error_sum),
+                         t2.build_error_handlers(error_sum),
+                         build_error_handler(error_sum)));
+
+        expect(eq(error_sum, 2));
+    };
+
+    "tester_off"_test = [] {
+        leaf_tester   t(false);
+        leaf_tester_2 t2(false);
+        int           error_sum = 0;
+
+        irt::attempt_all(
+          [&]() -> irt::status {
+              irt_check(t.make());
+              irt_check(t2.make());
+              return irt::success();
+          },
+
+          std::tuple_cat(t.build_error_handlers(error_sum),
+                         t2.build_error_handlers(error_sum),
+                         build_error_handler(error_sum)));
+
+        expect(eq(error_sum, 0));
+    };
+
+    "tester_unknown"_test = [] {
+        leaf_tester   t(false);
+        leaf_tester_2 t2(false);
+        int           error_sum = 0;
+
+        irt::attempt_all(
+          [&]() -> irt::status {
+              irt_check(t.make());
+              irt_check(t2.make());
+
+              return boost::leaf::new_error(123456789);
+          },
+
+          std::tuple_cat(t.build_error_handlers(error_sum),
+                         t2.build_error_handlers(error_sum),
+                         build_error_handler(error_sum)));
+
+        expect(eq(error_sum, -1));
+    };
 
     "small-function-1"_test = [] {
         double o = 15.0, p = 2.0, uu = 10.0;

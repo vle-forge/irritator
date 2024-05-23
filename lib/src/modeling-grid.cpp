@@ -344,7 +344,7 @@ result<input_connection_id> grid_component::connect_input(
   const port_id id) noexcept
 {
     if (exists_input_connection(x, row, col, id))
-        return new_error(modeling::part::grid_components);
+        return new_error(input_connection_error{}, already_exist_error{});
 
     return input_connections.get_id(input_connections.alloc(x, row, col, id));
 }
@@ -356,7 +356,7 @@ result<output_connection_id> grid_component::connect_output(
   const port_id id) noexcept
 {
     if (exists_output_connection(y, row, col, id))
-        return new_error(modeling::part::grid_components);
+        return new_error(input_connection_error{}, already_exist_error{});
 
     return output_connections.get_id(output_connections.alloc(y, row, col, id));
 }
@@ -372,12 +372,46 @@ status grid_component::build_cache(modeling& mod) noexcept
     clear_cache();
 
     if (not can_alloc_grid_children_and_connections(*this))
-        return new_error(project::error::not_enough_memory);
+        return new_error(
+          children_connection_error{},
+          e_memory{
+            static_cast<unsigned long long>(cache.capacity()),
+            static_cast<unsigned long long>(cache_connections.capacity()) });
 
     const auto vec = build_grid_children(mod, *this);
     build_grid_connections(mod, *this, vec);
 
     return success();
+}
+
+void grid_component::format_input_connection_error(log_entry& e) const noexcept
+{
+    e.buffer = "Input connection already exists in this grid component";
+    e.level  = log_level::notice;
+}
+
+void grid_component::format_output_connection_error(log_entry& e) const noexcept
+{
+    e.buffer = "Input connection already exists in this grid component";
+    e.level  = log_level::notice;
+}
+
+void grid_component::format_children_connection_error(
+  log_entry& e,
+  e_memory*  mem) const noexcept
+{
+    if (mem) {
+        format(e.buffer,
+               "Not enough available space for model or connection "
+               "in this grid component({}, {}) ",
+               mem->request,
+               mem->capacity);
+        e.level = log_level::error;
+    } else {
+        e.buffer = "Not enough available space for model or "
+                   "connection in this grid component";
+        e.level  = log_level::error;
+    }
 }
 
 } // namespace irt
