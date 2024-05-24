@@ -289,6 +289,11 @@ public:
     using child_limiter      = static_limiter<i32, 64, 64 * 16>;
     using connection_limiter = static_limiter<i32, 64 * 4, 64 * 16 * 4>;
 
+    struct children_error {};
+    struct connection_error {};
+    struct input_connection_error {};
+    struct output_connection_error {};
+
     generic_component() noexcept;
 
     generic_component(const child_limiter      child_limit,
@@ -399,6 +404,15 @@ public:
                   const std::span<parameter> parameters = {}) noexcept;
 
     u64 make_next_unique_id() const noexcept { return next_unique_id++; }
+
+    static auto build_error_handlers(log_manager& l) noexcept;
+    static void format_connection_error(log_entry& e) noexcept;
+    static void format_connection_full_error(log_entry& e) noexcept;
+    static void format_input_connection_error(log_entry& e) noexcept;
+    static void format_input_connection_full_error(log_entry& e) noexcept;
+    static void format_output_connection_error(log_entry& e) noexcept;
+    static void format_output_connection_full_error(log_entry& e) noexcept;
+    static void format_children_error(log_entry& e) noexcept;
 };
 
 struct grid_component {
@@ -560,11 +574,11 @@ struct grid_component {
     type         out_connection_type = type::name;
     neighborhood neighbors           = neighborhood::four;
 
-    auto build_error_handlers(log_manager& l) const noexcept;
-    void format_input_connection_error(log_entry& e) const noexcept;
-    void format_output_connection_error(log_entry& e) const noexcept;
-    void format_children_connection_error(log_entry& e,
-                                          e_memory*  mem) const noexcept;
+    static auto build_error_handlers(log_manager& l) noexcept;
+    static void format_input_connection_error(log_entry& e) noexcept;
+    static void format_output_connection_error(log_entry& e) noexcept;
+    static void format_children_connection_error(log_entry& e,
+                                                 e_memory   mem) noexcept;
 };
 
 /// random-graph type:
@@ -580,6 +594,10 @@ class graph_component
 {
 public:
     static inline constexpr i32 children_max = 4096;
+
+    struct input_connection_error {};
+    struct output_connection_error {};
+    struct children_error {};
 
     enum class vertex_id : u32;
     enum class edge_id : u32;
@@ -722,6 +740,13 @@ public:
     status build_cache(modeling& mod) noexcept;
 
     connection_type type = connection_type::name;
+
+    static auto build_error_handlers(log_manager& l) noexcept;
+    static void format_input_connection_error(log_entry& e) noexcept;
+    static void format_input_connection_full_error(log_entry& e) noexcept;
+    static void format_output_connection_error(log_entry& e) noexcept;
+    static void format_output_connection_full_error(log_entry& e) noexcept;
+    static void format_children_error(log_entry& e, e_memory mem) noexcept;
 };
 
 struct component {
@@ -1712,7 +1737,7 @@ inline void project::for_each_children(tree_node& tn,
     }
 }
 
-inline auto grid_component::build_error_handlers(log_manager& l) const noexcept
+inline auto grid_component::build_error_handlers(log_manager& l) noexcept
 {
     return std::make_tuple(
       [&](input_connection_error, already_exist_error) {
@@ -1723,9 +1748,70 @@ inline auto grid_component::build_error_handlers(log_manager& l) const noexcept
           l.push(log_level::error,
                  [&](auto& e) { format_output_connection_error(e); });
       },
-      [&](children_connection_error, e_memory* mem) {
+      [&](children_connection_error, e_memory mem) {
           l.push(log_level::error,
                  [&](auto& e) { format_children_connection_error(e, mem); });
+      });
+}
+
+inline auto graph_component::build_error_handlers(log_manager& l) noexcept
+{
+    return std::make_tuple(
+      [&](input_connection_error, already_exist_error) {
+          l.push(log_level::error,
+                 [&](auto& e) { format_input_connection_error(e); });
+      },
+      [&](input_connection_error, container_full_error) {
+          l.push(log_level::error,
+                 [&](auto& e) { format_input_connection_full_error(e); });
+      },
+      [&](output_connection_error, already_exist_error) {
+          l.push(log_level::error,
+                 [&](auto& e) { format_output_connection_error(e); });
+      },
+      [&](output_connection_error, container_full_error) {
+          l.push(log_level::error,
+                 [&](auto& e) { format_output_connection_full_error(e); });
+      },
+      [&](children_error, e_memory mem) {
+          l.push(log_level::error,
+                 [&](auto& e) { format_children_error(e, mem); });
+      });
+}
+
+inline auto generic_component::build_error_handlers(log_manager& l) noexcept
+{
+    return std::make_tuple(
+      [&](connection_error, container_full_error) {
+          l.push(log_level::error,
+                 [&](auto& e) { format_input_connection_error(e); });
+      },
+      [&](connection_error, already_exist_error) {
+          l.push(log_level::error,
+                 [&](auto& e) { format_input_connection_error(e); });
+      },
+      [&](connection_error, container_full_error) {
+          l.push(log_level::error,
+                 [&](auto& e) { format_input_connection_error(e); });
+      },
+      [&](input_connection_error, already_exist_error) {
+          l.push(log_level::error,
+                 [&](auto& e) { format_input_connection_error(e); });
+      },
+      [&](input_connection_error, container_full_error) {
+          l.push(log_level::error,
+                 [&](auto& e) { format_input_connection_full_error(e); });
+      },
+      [&](output_connection_error, already_exist_error) {
+          l.push(log_level::error,
+                 [&](auto& e) { format_output_connection_error(e); });
+      },
+      [&](output_connection_error, container_full_error) {
+          l.push(log_level::error,
+                 [&](auto& e) { format_output_connection_full_error(e); });
+      },
+      [&](children_error, container_full_error) {
+          l.push(log_level::error, [&](auto& e) { format_children_error(e); });
       });
 }
 

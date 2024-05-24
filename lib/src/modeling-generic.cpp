@@ -40,7 +40,7 @@ result<child_id> generic_component::copy_to(
     const auto src_idx = get_index(src_id);
 
     if (not dst.children.can_alloc())
-        return new_error(modeling::part::children);
+        return new_error(children_error{}, container_full_error{});
 
     auto&      new_c     = dst.children.alloc();
     const auto new_c_id  = dst.children.get_id(new_c);
@@ -136,18 +136,18 @@ status generic_component::connect([[maybe_unused]] const modeling& mod,
                                   const connection::port p_dst) noexcept
 {
     if (exists(src, p_src, dst, p_dst))
-        return new_error(modeling::part::connections);
+        return new_error(connection_error{}, already_exist_error{});
 
     if (src.type == child_type::model) {
         if (dst.type == child_type::model) {
             if (not is_ports_compatible(
                   src.id.mdl_type, p_src.model, dst.id.mdl_type, p_dst.model))
-                return new_error(modeling::part::connections);
+                return new_error(connection_error{}, incompatibility_error{});
         }
     }
 
     if (not connections.can_alloc(1))
-        return new_error(modeling::part::connections);
+        return new_error(connection_error{}, container_full_error{});
 
     connections.alloc(children.get_id(src), p_src, children.get_id(dst), p_dst);
 
@@ -159,7 +159,11 @@ status generic_component::connect_input(const port_id          x,
                                         const connection::port port) noexcept
 {
     if (not input_connections.can_alloc(1))
-        return new_error(modeling::part::connections);
+        return new_error(input_connection_error{}, container_full_error{});
+
+    for (const auto& con : input_connections)
+        if (con.x == x and con.dst == children.get_id(dst) and con.port == port)
+            return new_error(input_connection_error{}, already_exist_error{});
 
     input_connections.alloc(x, children.get_id(dst), port);
 
@@ -171,7 +175,11 @@ status generic_component::connect_output(const port_id          y,
                                          const connection::port port) noexcept
 {
     if (not output_connections.can_alloc(1))
-        return new_error(modeling::part::connections);
+        return new_error(output_connection_error{}, container_full_error{});
+
+    for (const auto& con : output_connections)
+        if (con.y == y and con.src == children.get_id(src) and con.port == port)
+            return new_error(output_connection_error{}, already_exist_error{});
 
     output_connections.alloc(y, children.get_id(src), port);
 
@@ -187,10 +195,10 @@ status generic_component::import(
 {
     table<child_id, child_id> src_to_this;
 
-    for (const auto& c : children) {
-        if (not this->children.can_alloc())
-            return new_error(modeling::part::children);
+    if (not this->children.can_alloc(children.size()))
+        return new_error(children_error{}, container_full_error{});
 
+    for (const auto& c : children) {
         auto& new_c     = this->children.alloc();
         new_c.type      = c.type;
         new_c.id        = c.id;
@@ -254,6 +262,50 @@ status generic_component::import(
     }
 
     return success();
+}
+
+void generic_component::format_connection_error(log_entry& e) noexcept
+{
+    e.buffer = "Internal connection already exists in this generic component";
+    e.level  = log_level::notice;
+}
+
+void generic_component::format_connection_full_error(log_entry& e) noexcept
+{
+    e.buffer = "Internal connection list is full in this generic component";
+    e.level  = log_level::error;
+}
+
+void generic_component::format_input_connection_error(log_entry& e) noexcept
+{
+    e.buffer = "Input connection already exists in this generic component";
+    e.level  = log_level::notice;
+}
+
+void generic_component::format_input_connection_full_error(
+  log_entry& e) noexcept
+{
+    e.buffer = "Input connection list is full in this generic component";
+    e.level  = log_level::error;
+}
+
+void generic_component::format_output_connection_error(log_entry& e) noexcept
+{
+    e.buffer = "Input connection already exists in this generic component";
+    e.level  = log_level::notice;
+}
+
+void generic_component::format_output_connection_full_error(
+  log_entry& e) noexcept
+{
+    e.buffer = "Output connection list is full in this generic component";
+    e.level  = log_level::error;
+}
+
+void generic_component::format_children_error(log_entry& e) noexcept
+{
+    e.buffer = "Not enough available space for model in this generic component";
+    e.level  = log_level::error;
 }
 
 } // namespace irt

@@ -384,34 +384,27 @@ status grid_component::build_cache(modeling& mod) noexcept
     return success();
 }
 
-void grid_component::format_input_connection_error(log_entry& e) const noexcept
+void grid_component::format_input_connection_error(log_entry& e) noexcept
 {
     e.buffer = "Input connection already exists in this grid component";
     e.level  = log_level::notice;
 }
 
-void grid_component::format_output_connection_error(log_entry& e) const noexcept
+void grid_component::format_output_connection_error(log_entry& e) noexcept
 {
     e.buffer = "Input connection already exists in this grid component";
     e.level  = log_level::notice;
 }
 
-void grid_component::format_children_connection_error(
-  log_entry& e,
-  e_memory*  mem) const noexcept
+void grid_component::format_children_connection_error(log_entry& e,
+                                                      e_memory   mem) noexcept
 {
-    if (mem) {
-        format(e.buffer,
-               "Not enough available space for model or connection "
-               "in this grid component({}, {}) ",
-               mem->request,
-               mem->capacity);
-        e.level = log_level::error;
-    } else {
-        e.buffer = "Not enough available space for model or "
-                   "connection in this grid component";
-        e.level  = log_level::error;
-    }
+    format(e.buffer,
+           "Not enough available space for model or connection "
+           "in this grid component({}, {}) ",
+           mem.request,
+           mem.capacity);
+    e.level = log_level::error;
 }
 
 } // namespace irt

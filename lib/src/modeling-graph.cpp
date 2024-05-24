@@ -401,7 +401,10 @@ status graph_component::build_cache(modeling& mod) noexcept
 
     cache.reserve(children.size());
     if (not cache.can_alloc(children.size()))
-        return new_error(project::error::not_enough_memory);
+        return new_error(
+          graph_component::children_error{},
+          e_memory{ children.size(),
+                    static_cast<unsigned>(children.capacity()) });
 
     const auto vec = build_graph_children(mod, *this);
     build_graph_connections(mod, *this, vec);
@@ -488,10 +491,10 @@ result<input_connection_id> graph_component::connect_input(
   const port_id   id) noexcept
 {
     if (exists_input_connection(x, v, id))
-        return new_error(modeling::part::connections);
+        return new_error(input_connection_error{}, already_exist_error{});
 
     if (not input_connections.can_alloc(1))
-        return new_error(modeling::part::connections);
+        return new_error(input_connection_error{}, container_full_error{});
 
     return input_connections.get_id(input_connections.alloc(x, v, id));
 }
@@ -502,12 +505,47 @@ result<output_connection_id> graph_component::connect_output(
   const port_id   id) noexcept
 {
     if (exists_output_connection(y, v, id))
-        return new_error(modeling::part::connections);
+        return new_error(input_connection_error{}, already_exist_error{});
 
     if (not output_connections.can_alloc(1))
-        return new_error(modeling::part::connections);
+        return new_error(input_connection_error{}, container_full_error{});
 
     return output_connections.get_id(output_connections.alloc(y, v, id));
+}
+
+void graph_component::format_input_connection_error(log_entry& e) noexcept
+{
+    e.buffer = "Input connection already exists in this graph component";
+    e.level  = log_level::notice;
+}
+
+void graph_component::format_input_connection_full_error(log_entry& e) noexcept
+{
+    e.buffer = "Input connection list is full in this graph component";
+    e.level  = log_level::error;
+}
+
+void graph_component::format_output_connection_error(log_entry& e) noexcept
+{
+    e.buffer = "Input connection already exists in this graph component";
+    e.level  = log_level::notice;
+}
+
+void graph_component::format_output_connection_full_error(log_entry& e) noexcept
+{
+    e.buffer = "Output connection list is full in this graph component";
+    e.level  = log_level::error;
+}
+
+void graph_component::format_children_error(log_entry& e, e_memory mem) noexcept
+{
+    format(e.buffer,
+           "Not enough available space for model "
+           "in this grid component({}, {}) ",
+           mem.request,
+           mem.capacity);
+
+    e.level = log_level::error;
 }
 
 } // namespace irt
