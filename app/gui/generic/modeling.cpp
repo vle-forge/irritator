@@ -648,11 +648,13 @@ static void add_popup_menuitem(component_editor&              ed,
     }
 
     if (ImGui::MenuItem(dynamics_type_names[ordinal(type)])) {
-        auto& child    = s_parent.children.alloc(type);
-        auto  child_id = s_parent.children.get_id(child);
+        auto&      child = s_parent.children.alloc(type);
+        const auto id    = s_parent.children.get_id(child);
+        const auto idx   = get_index(id);
 
-        s_parent.children_positions[get_index(child_id)].x = click_pos.x;
-        s_parent.children_positions[get_index(child_id)].y = click_pos.y;
+        s_parent.children_positions[idx].x = click_pos.x;
+        s_parent.children_positions[idx].y = click_pos.y;
+        s_parent.children_parameters[idx].init_from(type);
 
         parent.state = component_status::modified;
         data.update_position();
@@ -660,7 +662,7 @@ static void add_popup_menuitem(component_editor&              ed,
         auto& app = container_of(&ed, &application::component_ed);
         auto& n   = app.notifications.alloc();
         n.level   = log_level::debug;
-        format(n.title, "new model {} added", ordinal(child_id));
+        format(n.title, "new model {} added", ordinal(id));
     }
 }
 
@@ -1317,11 +1319,13 @@ static void update_unique_id(generic_component& gen, child& ch) noexcept
     }
 }
 
-static bool show_selected_node(component& compo, generic_component& gen, child& c) noexcept
+static bool show_selected_node(component&         compo,
+                               generic_component& gen,
+                               child&             c) noexcept
 {
-    const auto id = gen.children.get_id(c);
-    const auto idx = get_index(id);
-    bool is_modified = false;
+    const auto id          = gen.children.get_id(c);
+    const auto idx         = get_index(id);
+    bool       is_modified = false;
 
     if (ImGui::TreeNodeEx(&c, ImGuiTreeNodeFlags_DefaultOpen, "%u", idx)) {
         ImGui::TextFormat("position {},{}",
@@ -1360,20 +1364,22 @@ void generic_component_editor_data::show_selected_nodes(
 
     auto& app = container_of(&ed, &application::component_ed);
 
-    if_component_is_generic(app.mod, m_id, [&](component& compo, generic_component& gen) noexcept {
-        bool is_modified = false;
-        for (int i = 0, e = selected_nodes.size(); i != e; ++i) {
-            if (is_node_X(selected_nodes[i]) || is_node_Y(selected_nodes[i]))
-                continue;
+    if_component_is_generic(
+      app.mod, m_id, [&](component& compo, generic_component& gen) noexcept {
+          bool is_modified = false;
+          for (int i = 0, e = selected_nodes.size(); i != e; ++i) {
+              if (is_node_X(selected_nodes[i]) || is_node_Y(selected_nodes[i]))
+                  continue;
 
-            const auto id = unpack_node_child(selected_nodes[i]);
-            if (auto* child = gen.children.try_to_get(id); child)
-                is_modified = show_selected_node(compo, gen, *child) or is_modified;
-        }
+              const auto id = unpack_node_child(selected_nodes[i]);
+              if (auto* child = gen.children.try_to_get(id); child)
+                  is_modified =
+                    show_selected_node(compo, gen, *child) or is_modified;
+          }
 
-        if (is_modified)
-            compo.state = component_status::modified;
-    });
+          if (is_modified)
+              compo.state = component_status::modified;
+      });
 }
 
 } // namespace irt

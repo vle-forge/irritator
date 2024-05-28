@@ -412,7 +412,7 @@ void parameter::init_from(const dynamics_type type) noexcept
     model mdl;
     mdl.type = type;
 
-    dispatch(mdl, [&]<typename Dynamics>(const Dynamics& dyn) noexcept {
+    dispatch(mdl, [&]<typename Dynamics>(Dynamics& dyn) noexcept {
         std::construct_at(&dyn);
         parameter_init(*this, dyn);
     });
