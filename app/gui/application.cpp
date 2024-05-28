@@ -492,20 +492,17 @@ void application::show() noexcept
         ImGui::PushFont(ttf);
 #endif
 
-    if (!mod.log_entries.empty()) {
-        while (!mod.log_entries.empty()) {
-            auto& w = mod.log_entries.front();
-            mod.log_entries.pop_head();
+    if (mod.log_entries.have_entry()) {
+        mod.log_entries.try_consume([&](auto& entries) noexcept {
+            for (auto& w : entries) {
+                auto& n = notifications.alloc();
+                n.level = w.level;
+                n.title = w.buffer.sv();
+                notifications.enable(n);
+            }
 
-            auto& n = notifications.alloc();
-            n.level = w.level;
-            n.title = w.buffer.sv();
-
-            if (any_equal(w.level, log_level::info, log_level::debug))
-                n.only_log = true;
-
-            notifications.enable(n);
-        }
+            entries.clear();
+        });
     }
 
     application_show_menu(*this);

@@ -315,7 +315,10 @@ inline void spin_mutex::unlock() noexcept
 // spin_bad_lock
 //
 
-inline spin_yield_mutex_lock::spin_yield_mutex_lock() noexcept { m_flag.clear(); }
+inline spin_yield_mutex_lock::spin_yield_mutex_lock() noexcept
+{
+    m_flag.clear();
+}
 
 inline bool spin_yield_mutex_lock::try_lock() noexcept
 {

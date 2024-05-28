@@ -1253,25 +1253,30 @@ public:
     log_manager& operator=(log_manager&& other) noexcept      = delete;
 
     template<typename Function>
-    bool try_push(Function&& fn) noexcept
+    constexpr bool try_push(log_level l, Function&& fn) noexcept
     {
-        if (std::unique_lock _(m_mutex, std::try_to_lock); _.owns_lock()) {
-            fn(m_data.force_emplace_enqueue());
-            return true;
+        if (ordinal(l) <= ordinal(m_minlevel)) {
+            if (std::unique_lock _(m_mutex, std::try_to_lock); _.owns_lock()) {
+                fn(m_data.force_emplace_enqueue());
+                return true;
+            }
         }
 
         return false;
     }
 
     template<typename Function>
-    void push(Function&& fn) noexcept
+    constexpr void push(log_level l, Function&& fn) noexcept
     {
-        std::scoped_lock lock{ m_mutex };
-        fn(m_data.force_emplace_enqueue());
+        if (ordinal(l) <= ordinal(m_minlevel)) {
+            m_mutex.lock();
+            fn(m_data.force_emplace_enqueue());
+            m_mutex.unlock();
+        }
     }
 
     template<typename Function>
-    bool try_consume(Function&& fn) noexcept
+    constexpr bool try_consume(Function&& fn) noexcept
     {
         if (std::unique_lock _(m_mutex, std::try_to_lock); _.owns_lock()) {
             fn(m_data);
@@ -1282,19 +1287,21 @@ public:
     }
 
     template<typename Function>
-    void consume(Function&& fn) noexcept
+    constexpr void consume(Function&& fn) noexcept
     {
-        std::scoped_lock lock{ m_mutex };
+        m_mutex.lock();
         fn(m_data);
+        m_mutex.unlock();
     }
 
-    bool full() const noexcept { return m_data.full(); }
+    constexpr bool have_entry() const noexcept { return m_data.ssize() > 0; }
+    constexpr bool full() const noexcept { return m_data.full(); }
 
     //! Return true if the underlying container available space is low.
     //!
     //! @return true if the remaining entry is lower than 25% of the capacity,
     //! false otherwise.
-    bool almost_full() const noexcept
+    constexpr bool almost_full() const noexcept
     {
         return (m_data.capacity() - m_data.ssize()) <= m_data.capacity() >> 2;
     }
@@ -1302,6 +1309,7 @@ public:
 private:
     ring_buffer<log_entry> m_data;
     spin_mutex             m_mutex;
+    log_level              m_minlevel = log_level::notice;
 };
 
 class modeling
@@ -1422,7 +1430,7 @@ public:
 
     status save(component& c) noexcept;
 
-    ring_buffer<log_entry> log_entries;
+    log_manager log_entries;
 
     spin_mutex reg_paths_mutex;
     spin_mutex dir_paths_mutex;
@@ -1702,13 +1710,16 @@ inline auto grid_component::build_error_handlers(log_manager& l) const noexcept
 {
     return std::make_tuple(
       [&](input_connection_error, already_exist_error) {
-          l.push([&](auto& e) { format_input_connection_error(e); });
+          l.push(log_level::error,
+                 [&](auto& e) { format_input_connection_error(e); });
       },
       [&](output_connection_error, already_exist_error) {
-          l.push([&](auto& e) { format_output_connection_error(e); });
+          l.push(log_level::error,
+                 [&](auto& e) { format_output_connection_error(e); });
       },
       [&](children_connection_error, e_memory* mem) {
-          l.push([&](auto& e) { format_children_connection_error(e, mem); });
+          l.push(log_level::error,
+                 [&](auto& e) { format_children_connection_error(e, mem); });
       });
 }
 

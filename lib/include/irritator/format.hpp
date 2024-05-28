@@ -29,8 +29,7 @@ constexpr void debug_log(const S& s, Args&&... args) noexcept
 template<typename S, typename... Args>
 constexpr void debug_log([[maybe_unused]] const S& s,
                          [[maybe_unused]] Args&&... args) noexcept
-{
-}
+{}
 #endif
 
 /// Debug log with indent support. Use the underlying @c fmt::print function.
@@ -48,8 +47,7 @@ template<typename S, typename... Args>
 constexpr void debug_logi([[maybe_unused]] int      indent,
                           [[maybe_unused]] const S& s,
                           [[maybe_unused]] Args&&... args) noexcept
-{
-}
+{}
 #endif
 
 //! Helper function to assign fmtlib format string to an irt::small_string
@@ -95,48 +93,6 @@ inline void debug_component(const modeling& mod, const component_id id) noexcept
     } else {
         debug_log("component id {} unknown\n", ordinal(id));
     }
-}
-
-//! Copy a formatted string into the \c modeling warnings.
-//!
-//! The formatted string in take from the \c modeling \c ring-buffer.
-//! \param mode A reference to a modeling object.
-//! \param status The \c irt::status attached to the error.
-//! \param fmt A format string for the fmtlib library.
-//! \param args Arguments for the fmtlib library.
-template<typename S, typename... Args>
-constexpr void log_warning(modeling& mod,
-                           log_level level,
-                           const S&  fmt,
-                           Args&&... args) noexcept
-{
-    using size_type = typename log_str::size_type;
-
-    if (mod.log_entries.full())
-        mod.log_entries.pop_head();
-
-    mod.log_entries.push_tail({ .buffer = "", .level = level });
-    auto& warning = mod.log_entries.back();
-
-    auto ret = fmt::vformat_to_n(warning.buffer.begin(),
-                                 warning.buffer.capacity() - 1,
-                                 fmt,
-                                 fmt::make_format_args(args...));
-
-    warning.buffer.resize(static_cast<size_type>(ret.size));
-}
-
-//! Copy a formatted string into the \c modeling log_entries.
-//!
-//! The formatted string in take from the \c modeling \c ring-buffer.
-//! \param mode A reference to a modeling object.
-//! \param status The \c irt::status attached to the error.
-constexpr void log_warning(modeling& mod, log_level level) noexcept
-{
-    if (mod.log_entries.full())
-        mod.log_entries.pop_head();
-
-    mod.log_entries.push_tail({ .buffer = "", .level = level });
 }
 
 } //  irt

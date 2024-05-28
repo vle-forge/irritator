@@ -11,9 +11,7 @@
 
 #include <algorithm>
 #include <filesystem>
-#include <iterator>
 #include <optional>
-#include <utility>
 
 #include <cstdint>
 
@@ -98,11 +96,21 @@ static void prepare_component_loading(modeling&             mod,
                 desc.status = description_status::unread;
                 compo.desc  = mod.descriptions.get_id(desc);
             } else {
-                log_warning(mod, log_level::error);
+                mod.log_entries.push(log_level::error, [&](auto& e) noexcept {
+                    format(e.buffer,
+                           "Fail to allocate more description ({})",
+                           mod.descriptions.size());
+                });
             }
         }
     } catch (const std::exception& /*e*/) {
-        log_warning(mod, log_level::error, reg_dir.path.c_str());
+        mod.log_entries.push(log_level::error, [&](auto& e) noexcept {
+            format(e.buffer,
+                   "File system error in {} {} {}",
+                   reg_dir.path.sv(),
+                   dir.path.sv(),
+                   file.path.sv());
+        });
     }
 }
 
@@ -252,15 +260,18 @@ static void prepare_component_loading(modeling&             mod,
         }
 
         if (too_many_file) {
-            log_warning(mod,
-                        log_level::error,
-                        "registred path {}, directory {}",
-                        reg_dir.path.sv(),
-                        dir.path.sv());
+            mod.log_entries.push(log_level::error, [&](auto& e) noexcept {
+                format(e.buffer,
+                       "Too many file in application for registred path {} "
+                       "directory {}",
+                       reg_dir.path.sv(),
+                       dir.path.sv());
+            });
         }
     } catch (...) {
-        log_warning(
-          mod, log_level::error, "registred path {}", reg_dir.path.sv());
+        mod.log_entries.push(log_level::error, [&](auto& e) noexcept {
+            format(e.buffer, "Fail to register path {}", reg_dir.path.sv());
+        });
     }
 }
 
@@ -306,18 +317,27 @@ static void prepare_component_loading(modeling&              mod,
                 it = it.increment(ec);
             }
 
-            if (too_many_directory)
-                log_warning(mod,
-                            log_level::error,
-                            "registred path {}",
-                            reg_dir.path.sv());
-        } else {
-            log_warning(
-              mod, log_level::error, "registred path {}", reg_dir.path.sv());
+            if (too_many_directory) {
+                mod.log_entries.push(log_level::error, [&](auto& e) noexcept {
+                    format(e.buffer,
+                           "Too many directory {} in paths {}\n",
+                           mod.dir_paths.size(),
+                           reg_dir.path.sv());
+                });
+            } else {
+                mod.log_entries.push(log_level::notice, [&](auto& e) noexcept {
+                    format(e.buffer,
+                           "Directory {} registered in paths {}\n",
+                           mod.dir_paths.size(),
+                           reg_dir.path.sv());
+                });
+            }
         }
     } catch (...) {
-        log_warning(
-          mod, log_level::error, "registred path {}", reg_dir.path.sv());
+        mod.log_entries.push(log_level::error, [&](auto& e) noexcept {
+            format(
+              e.buffer, "File system error in paths {}\n", reg_dir.path.sv());
+        });
     }
 }
 
@@ -339,14 +359,15 @@ static void prepare_component_loading(modeling&       mod,
             debug_logi(4, "registered path does not exists");
             reg_dir.status = registred_path::state::error;
 
-            log_warning(mod,
-                        log_level::debug,
-                        "registred path does not exist {} ",
-                        reg_dir.path.sv());
+            mod.log_entries.push(log_level::error, [&](auto& e) noexcept {
+                format(e.buffer, "Path {} does not exists", reg_dir.path.sv());
+            });
         }
     } catch (...) {
-        log_warning(
-          mod, log_level::debug, "registred path: {} ", reg_dir.path.sv());
+        mod.log_entries.push(log_level::error, [&](auto& e) noexcept {
+            format(
+              e.buffer, "File system error in paths {}\n", reg_dir.path.sv());
+        });
     }
 }
 
@@ -471,21 +492,22 @@ status modeling::fill_components() noexcept
 
             if (auto ret = load_component(*this, compo); !ret) {
                 if (compo.state == component_status::unread) {
-                    log_warning(*this,
-                                log_level::warning,
-                                "Need to read dependency for component {} - {}",
-                                compo.name.sv(),
-                                static_cast<u64>(components.get_id(compo)));
+                    log_entries.push(log_level::warning, [&](auto& e) noexcept {
+                        format(e.buffer,
+                               "Need to read dependecy for component {} ({})",
+                               compo.name.sv(),
+                               static_cast<u64>(components.get_id(compo)));
+                    });
 
                     have_unread_component = true;
                 }
 
                 if (compo.state == component_status::unreadable) {
-                    log_warning(*this,
-                                log_level::warning,
-                                "Fail to read component {} - {}",
-                                compo.name.sv(),
-                                static_cast<u64>(components.get_id(compo)));
+                    log_entries.push(log_level::warning, [&](auto& e) noexcept {
+                        format(e.buffer,
+                               "Fail to read component `{}'",
+                               compo.name.sv());
+                    });
                 }
             }
         });
