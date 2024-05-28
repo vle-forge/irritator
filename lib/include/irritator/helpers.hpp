@@ -33,7 +33,7 @@ struct limiter {
 
 template<typename T, T Lower, T Upper>
     requires std::integral<T>
-class static_limiter
+class  static_limiter
 {
     static_assert(Lower < Upper);
 
@@ -64,7 +64,7 @@ public:
 
 template<typename T, int LowerNum, int LowerDenom, int UpperNum, int UpperDenom>
     requires std::floating_point<T>
-class floating_point_limiter
+class  floating_point_limiter
 {
     static inline constexpr T lower =
       static_cast<T>(LowerNum) / static_cast<T>(LowerDenom);

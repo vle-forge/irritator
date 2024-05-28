@@ -33,8 +33,7 @@ static bool get_temp_registred_path(irt::small_string<length>& str) noexcept
 int main()
 {
 #if defined(IRRITATOR_ENABLE_DEBUG)
-    irt::on_error_callback        = irt::debug::breakpoint;
-    irt::debug::enable_memory_log = false;
+    irt::on_error_callback = irt::debug::breakpoint;
 #endif
 
     using namespace boost::ut;
@@ -208,7 +207,8 @@ int main()
         auto& cg = mod.alloc_graph_component();
         auto& g  = mod.graph_components.get(cg.id.graph_id);
         g.resize(25, mod.components.get_id(c));
-        g.param = irt::graph_component::small_world_param{};
+        g.param.small = irt::graph_component::small_world_param{};
+        g.g_type      = irt::graph_component::graph_type::small_world;
 
         expect(!!pj.set(mod, sim, cg));
         expect(eq(pj.tree_nodes_size().first, g.children.ssize() + 1));
@@ -231,7 +231,8 @@ int main()
         auto& cg = mod.alloc_graph_component();
         auto& g  = mod.graph_components.get(cg.id.graph_id);
         g.resize(25, mod.components.get_id(c));
-        g.param = irt::graph_component::scale_free_param{};
+        g.param.scale = irt::graph_component::scale_free_param{};
+        g.g_type      = irt::graph_component::graph_type::scale_free;
 
         expect(!!pj.set(mod, sim, cg));
         expect(eq(pj.tree_nodes_size().first, g.children.ssize() + 1));

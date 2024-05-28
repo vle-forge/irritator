@@ -32,7 +32,8 @@ public:
     small_function(const small_function& other) noexcept
     {
         if (other) {
-            other.manager(data.data(), other.data.data(), Operation::Clone);
+            other.manager(
+              std::data(data), std::data(other.data), Operation::Clone);
             invoker = other.invoker;
             manager = other.manager;
         }
@@ -73,7 +74,7 @@ public:
 
         static_assert(sizeof(f_type) <= Size, "storage too small");
 
-        new (data.data()) f_type(std::forward<f_type>(f));
+        new (std::data(data)) f_type(std::forward<f_type>(f));
         invoker = &invoke<f_type>;
         manager = &manage<f_type>;
     }
@@ -116,9 +117,9 @@ public:
 private:
     enum class Operation { Clone, Destroy };
 
-    using Invoker = Ret (*)(void*, Params&&...);
+    using Invoker = Ret  (*)(void*, Params&&...);
     using Manager = void (*)(void*, const void*, Operation);
-    using Storage = std::array<std::byte, Size>;
+    using Storage = std::byte[Size];
 
     template<typename F>
     static Ret invoke(void* data, Params&&... args)
@@ -157,8 +158,8 @@ class function_ref;
 template<typename Ret, typename... Params>
 class function_ref<Ret(Params...)>
 {
-    Ret (*callback)(void* callable, Params... params) = nullptr;
-    void* callable                                    = nullptr;
+    Ret   (*callback)(void* callable, Params... params) = nullptr;
+    void* callable                                      = nullptr;
 
     template<typename Callable>
     static Ret callback_fn(void* callable, Params... params)

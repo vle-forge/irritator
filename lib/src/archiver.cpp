@@ -1059,39 +1059,36 @@ static status do_serialize(const IOTag auto        arc,
         }
     }
 
-     {
-         model* mdl = nullptr;
-         while (sim.models.next(mdl)) {
-             dispatch(*mdl, [&sim, &mdl, &io]<typename Dynamics>(Dynamics&
-             dyn) {
-                 if constexpr (has_output_port<Dynamics>) {
-                     i8         i      = 0;
-                     const auto out_id = sim.models.get_id(mdl);
+    {
+        model* mdl = nullptr;
+        while (sim.models.next(mdl)) {
+            dispatch(*mdl, [&sim, &mdl, &io]<typename Dynamics>(Dynamics& dyn) {
+                if constexpr (has_output_port<Dynamics>) {
+                    i8         i      = 0;
+                    const auto out_id = sim.models.get_id(mdl);
 
-                     for (const auto elem : dyn.y) {
-                         if (auto* lst = sim.nodes.try_to_get(elem); lst)
-                         {
-                             for (const auto& cnt : *lst) {
-                                 auto* dst =
-                                 sim.models.try_to_get(cnt.model); if
-                                 (dst) {
-                                     auto out = get_index(out_id);
-                                     auto in  = get_index(cnt.model);
+                    for (const auto elem : dyn.y) {
+                        if (auto* lst = sim.nodes.try_to_get(elem); lst) {
+                            for (const auto& cnt : *lst) {
+                                auto* dst = sim.models.try_to_get(cnt.model);
+                                if (dst) {
+                                    auto out = get_index(out_id);
+                                    auto in  = get_index(cnt.model);
 
-                                     io(out);
-                                     io(i);
-                                     io(in);
-                                     io(cnt.port_index);
-                                 }
-                             }
+                                    io(out);
+                                    io(i);
+                                    io(in);
+                                    io(cnt.port_index);
+                                }
+                            }
 
-                             ++i;
-                         }
-                     }
-                 }
-             });
-         }
-     }
+                            ++i;
+                        }
+                    }
+                }
+            });
+        }
+    }
 
     return success();
 }
@@ -1251,48 +1248,43 @@ static status do_deserialize(const IOTag auto        s,
         c.to_models.sort();
     }
 
-     while (not io.is_eof()) {
-         u32 out = 0, in = 0;
-         i8  port_out = 0, port_in = 0;
+    while (not io.is_eof()) {
+        u32 out = 0, in = 0;
+        i8  port_out = 0, port_in = 0;
 
-         io(out);
-         io(port_out);
-         io(in);
-         io(port_in);
+        io(out);
+        io(port_out);
+        io(in);
+        io(port_in);
 
-         if (!io.state)
-             break;
+        if (!io.state)
+            break;
 
-         auto* out_id = c.to_models.get(out);
-         auto* in_id  = c.to_models.get(in);
-         if (!out_id || !in_id)
-             return new_error(binary_archiver::unknown_model_error{});
+        auto* out_id = c.to_models.get(out);
+        auto* in_id  = c.to_models.get(in);
+        if (!out_id || !in_id)
+            return new_error(binary_archiver::unknown_model_error{});
 
-         debug::ensure(out_id && in_id);
+        debug::ensure(out_id && in_id);
 
-         auto* mdl_src =
-         sim.models.try_to_get(enum_cast<model_id>(*out_id)); if
-         (!mdl_src)
-             return new_error(binary_archiver::unknown_model_error{});
+        auto* mdl_src = sim.models.try_to_get(enum_cast<model_id>(*out_id));
+        if (!mdl_src)
+            return new_error(binary_archiver::unknown_model_error{});
 
-         auto* mdl_dst =
-         sim.models.try_to_get(enum_cast<model_id>(*in_id)); if (!mdl_dst)
-             return new_error(binary_archiver::unknown_model_error{});
+        auto* mdl_dst = sim.models.try_to_get(enum_cast<model_id>(*in_id));
+        if (!mdl_dst)
+            return new_error(binary_archiver::unknown_model_error{});
 
-         node_id*    pout = nullptr;
-         message_id* pin  = nullptr;
+        node_id*    pout = nullptr;
+        message_id* pin  = nullptr;
 
-         if (auto ret = get_output_port(*mdl_src, port_out, pout); !ret)
-             return
-             new_error(binary_archiver::unknown_model_port_error{});
-         if (auto ret = get_input_port(*mdl_dst, port_in, pin); !ret)
-             return
-             new_error(binary_archiver::unknown_model_port_error{});
-         if (auto ret = sim.connect(*mdl_src, port_out, *mdl_dst,
-         port_in); !ret)
-             return
-             new_error(binary_archiver::unknown_model_port_error{});
-     }
+        if (auto ret = get_output_port(*mdl_src, port_out, pout); !ret)
+            return new_error(binary_archiver::unknown_model_port_error{});
+        if (auto ret = get_input_port(*mdl_dst, port_in, pin); !ret)
+            return new_error(binary_archiver::unknown_model_port_error{});
+        if (auto ret = sim.connect(*mdl_src, port_out, *mdl_dst, port_in); !ret)
+            return new_error(binary_archiver::unknown_model_port_error{});
+    }
 
     return success();
 }

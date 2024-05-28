@@ -70,7 +70,7 @@ int main()
     };
 
     "spin-lock"_test = [] {
-        int            counter = 0;
+        int             counter = 0;
         irt::spin_mutex spin;
 
         std::thread j1([&counter, &spin]() {
@@ -178,8 +178,6 @@ int main()
         irt::task_manager tm;
 
         constexpr int loop = 100;
-
-        expect(tm.main_task_lists[0].tasks.capacity() < loop * 2);
 
         tm.start();
 

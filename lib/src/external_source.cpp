@@ -161,19 +161,30 @@ void binary_file_source::finalize() noexcept
         ifs.close();
 }
 
+bool binary_file_source::seekg(const long to_seek) noexcept
+{
+    return ifs.seekg(to_seek).good();
+}
+
+bool binary_file_source::read(source& src, const int length) noexcept
+{
+    return ifs.read(reinterpret_cast<char*>(src.buffer.data()), length).good();
+}
+
+int binary_file_source::tellg() noexcept { return ifs.tellg(); }
+
 static status binary_file_source_fill_buffer(binary_file_source& ext,
                                              source&             src) noexcept
 {
     const auto to_seek = src.chunk_id[1] * sizeof(double);
 
-    if (!ext.ifs.seekg(static_cast<long>(to_seek)))
+    if (!ext.seekg(static_cast<long>(to_seek)))
         return new_error(binary_file_source::eof_file_error{});
 
-    auto* s = reinterpret_cast<char*>(src.buffer.data());
-    if (!ext.ifs.read(s, external_source_chunk_size))
+    if (!ext.read(src, external_source_chunk_size))
         return new_error(binary_file_source::eof_file_error{});
 
-    const auto tellg = ext.ifs.tellg();
+    const auto tellg = ext.tellg();
     if (tellg < 0)
         return new_error(binary_file_source::eof_file_error{});
 
@@ -264,12 +275,19 @@ status text_file_source::init() noexcept
     return success();
 }
 
+bool text_file_source::read_chunk() noexcept
+{
+    for (int i = 0; i < external_source_chunk_size; ++i)
+        if (not(ifs >> buffer[static_cast<sz>(i)]))
+            return false;
+    return true;
+}
+
 static status text_file_source_fill_buffer(text_file_source& ext,
                                            source& /*src*/) noexcept
 {
-    for (int i = 0; i < external_source_chunk_size; ++i)
-        if (!(ext.ifs >> ext.buffer[static_cast<sz>(i)]))
-            return new_error(text_file_source::eof_file_error{});
+    if (not ext.read_chunk())
+        return new_error(text_file_source::eof_file_error{});
 
     return success();
 }

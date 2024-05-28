@@ -169,27 +169,27 @@ static std::pair<bool, int> show_size_widget(
 static bool show_random_graph_type(graph_component& graph) noexcept
 {
     bool is_changed = false;
-    auto current    = static_cast<int>(graph.param.index());
+    auto current    = static_cast<int>(graph.g_type);
 
     if (ImGui::Combo("type",
                      &current,
                      random_graph_type_names,
                      length(random_graph_type_names))) {
-        if (current != static_cast<int>(graph.param.index())) {
-            switch (current) {
-            case 0:
-                graph.param = graph_component::dot_file_param{};
-                is_changed  = true;
+        if (current != static_cast<int>(graph.g_type)) {
+            switch (enum_cast<graph_component::graph_type>(current)) {
+            case graph_component::graph_type::dot_file:
+                graph.param.dot = graph_component::dot_file_param{};
+                is_changed      = true;
                 break;
 
-            case 1:
-                graph.param = graph_component::scale_free_param{};
-                is_changed  = true;
+            case graph_component::graph_type::scale_free:
+                graph.param.scale = graph_component::scale_free_param{};
+                is_changed        = true;
                 break;
 
-            case 2:
-                graph.param = graph_component::small_world_param{};
-                is_changed  = true;
+            case graph_component::graph_type::small_world:
+                graph.param.small = graph_component::small_world_param{};
+                is_changed        = true;
                 break;
             }
         }
@@ -231,12 +231,10 @@ static bool show_random_graph_params(application&     app,
 {
     bool is_changed = false;
 
-    switch (graph.param.index()) {
-    case 0: {
-        auto* param =
-          std::get_if<graph_component::dot_file_param>(&graph.param);
-
-        auto* dir = mod.dir_paths.try_to_get(param->dir);
+    switch (graph.g_type) {
+    case graph_component::graph_type::dot_file: {
+        auto* param = &graph.param.dot;
+        auto* dir   = mod.dir_paths.try_to_get(param->dir);
         if (not dir) {
             param->file = undefined<file_path_id>();
             param->dir  = undefined<dir_path_id>();
@@ -310,12 +308,10 @@ static bool show_random_graph_params(application&     app,
         }
     } break;
 
-    case 1: {
-        auto* param =
-          std::get_if<graph_component::scale_free_param>(&graph.param);
-
-        auto alpha = param->alpha;
-        auto beta  = param->beta;
+    case graph_component::graph_type::scale_free: {
+        auto* param = &graph.param.scale;
+        auto  alpha = param->alpha;
+        auto  beta  = param->beta;
 
         if (ImGui::InputDouble("alpha", &alpha)) {
             param->alpha = std::clamp(alpha, 0.0, 1000.0);
@@ -327,12 +323,10 @@ static bool show_random_graph_params(application&     app,
         }
     } break;
 
-    case 2: {
-        auto* param =
-          std::get_if<graph_component::small_world_param>(&graph.param);
-
-        auto probability = param->probability;
-        auto k           = param->k;
+    case graph_component::graph_type::small_world: {
+        auto* param       = &graph.param.small;
+        auto  probability = param->probability;
+        auto  k           = param->k;
 
         if (ImGui::InputDouble("probability", &probability)) {
             param->probability = std::clamp(probability, 0.0, 1.0);

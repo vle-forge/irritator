@@ -1,11 +1,10 @@
 cmake_minimum_required(VERSION 3.5 FATAL_ERROR)
 project(irritator VERSION 0.1.0.0 LANGUAGES CXX)
 
-# Use the GNU standard installation directories. See
-# https://cmake.org/cmake/help/v3.0/module/GNUInstallDirs.html
 include(GNUInstallDirs)
 
 option(WITH_GUI "Build the graphical user interface [default: ON]" ON)
+option(WITH_DEBUG "enable maximium debug code. [default: ON]" ON)
 
 find_package(Threads REQUIRED)
 add_library(threads INTERFACE IMPORTED)

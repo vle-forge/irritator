@@ -490,6 +490,10 @@ public:
     status update(source& src) noexcept;
     status restore(source& src) noexcept;
     status finalize(source& src) noexcept;
+
+    bool seekg(const long to_seek) noexcept;
+    bool read(source& src, const int length) noexcept;
+    int  tellg() noexcept;
 };
 
 //! Use a file with a set of double real in ascii text file to produce
@@ -522,6 +526,8 @@ public:
     status update(source& src) noexcept;
     status restore(source& src) noexcept;
     status finalize(source& src) noexcept;
+
+    bool read_chunk() noexcept;
 };
 
 //! Use a prng to produce set of double real. This external source can be
@@ -824,8 +830,8 @@ struct observer {
 
     observer(std::string_view name_) noexcept;
 
-    void init(const i32 raw_buffer_size,
-              const i32 linearizer_buffer_size,
+    void init(const i32   raw_buffer_size,
+              const i32   linearizer_buffer_size,
               const float time_step_) noexcept;
     void reset() noexcept;
     void clear() noexcept;
@@ -1238,38 +1244,52 @@ public:
 
 template<typename T>
 concept has_lambda_function = requires(T t, simulation& sim) {
-    { t.lambda(sim) } -> std::same_as<status>;
+    {
+        t.lambda(sim)
+    } -> std::same_as<status>;
 };
 
 template<typename T>
 concept has_transition_function =
   requires(T t, simulation& sim, time s, time e, time r) {
-      { t.transition(sim, s, e, r) } -> std::same_as<status>;
+      {
+          t.transition(sim, s, e, r)
+      } -> std::same_as<status>;
   };
 
 template<typename T>
 concept has_observation_function = requires(T t, time s, time e) {
-    { t.observation(s, e) } -> std::same_as<observation_message>;
+    {
+        t.observation(s, e)
+    } -> std::same_as<observation_message>;
 };
 
 template<typename T>
 concept has_initialize_function = requires(T t, simulation& sim) {
-    { t.initialize(sim) } -> std::same_as<status>;
+    {
+        t.initialize(sim)
+    } -> std::same_as<status>;
 };
 
 template<typename T>
 concept has_finalize_function = requires(T t, simulation& sim) {
-    { t.finalize(sim) } -> std::same_as<status>;
+    {
+        t.finalize(sim)
+    } -> std::same_as<status>;
 };
 
 template<typename T>
 concept has_input_port = requires(T t) {
-    { t.x };
+    {
+        t.x
+    };
 };
 
 template<typename T>
 concept has_output_port = requires(T t) {
-    { t.y };
+    {
+        t.y
+    };
 };
 
 constexpr observation_message qss_observation(real X,
@@ -4716,8 +4736,8 @@ inline observer::observer(std::string_view name_) noexcept
   , states{ observer_flags::none }
 {}
 
-inline void observer::init(const i32 raw_buffer_size,
-                           const i32 linearizer_buffer_size,
+inline void observer::init(const i32   raw_buffer_size,
+                           const i32   linearizer_buffer_size,
                            const float time_step_) noexcept
 {
     debug::ensure(time_step > 0.f);

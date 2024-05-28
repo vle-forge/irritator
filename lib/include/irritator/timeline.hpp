@@ -10,36 +10,37 @@
 
 namespace irt {
 
-enum class timeline_point_type
-{
+enum class timeline_point_type {
     simulation, //! a copy of state of model (basic - deep copy for now)
     model,      //! user add, remove or change value in a model
     connection  //! user add, remove or change value in a connection
 };
 
-struct simulation_point
-{
-    simulation_point() noexcept = default;
+struct simulation_point {
+     simulation_point() noexcept = default;
 
-    simulation_point(const simulation_point& rhs) noexcept = delete;
-    simulation_point(simulation_point&& rhs) noexcept      = default;
+     simulation_point(const simulation_point& rhs) noexcept = delete;
+     simulation_point(simulation_point&& rhs) noexcept      = default;
 
     time t;
 
-    vector<model>                            models;
-    vector<model_id>                         model_ids;
-    vector<message> message_alloc;
+    vector<model>    models;
+    vector<model_id> model_ids;
+    vector<message>  message_alloc;
 };
 
-struct model_point
-{
+static_assert(std::is_move_constructible_v<simulation_point>);
+static_assert(not std::is_move_assignable_v<simulation_point>);
+static_assert(not std::is_copy_constructible_v<simulation_point>);
+static_assert(not std::is_copy_assignable_v<simulation_point>);
+
+struct model_point {
     time t;
 
     model    mdl;
     model_id id;
 
-    enum class operation_type
-    {
+    enum class operation_type {
         add,
         remove,
         change,
@@ -48,8 +49,7 @@ struct model_point
     operation_type type = operation_type::add;
 };
 
-struct connection_point
-{
+struct connection_point {
     time t;
 
     model_id src;
@@ -57,8 +57,7 @@ struct connection_point
     i8       port_src;
     i8       port_dst;
 
-    enum class operation_type
-    {
+    enum class operation_type {
         add,
         remove,
     };
@@ -66,24 +65,21 @@ struct connection_point
     operation_type type = operation_type::add;
 };
 
-struct timeline_point
-{
+struct timeline_point {
     timeline_point() noexcept = default;
 
     timeline_point(timeline_point_type type_, i32 index_, i32 bag_) noexcept
       : index(index_)
       , bag(bag_)
       , type(type_)
-    {
-    }
+    {}
 
     i32                 index;
     i32                 bag;
     timeline_point_type type = timeline_point_type::simulation;
 };
 
-struct timeline
-{
+struct  timeline {
     bool can_alloc(timeline_point_type type,
                    i32                 models   = 0,
                    i32                 messages = 0) noexcept;
@@ -98,6 +94,9 @@ struct timeline
              i32 timeline_points,
              i32 model_number,
              i32 message_number) noexcept;
+
+    timeline(const timeline& other) noexcept = delete;
+    timeline(timeline&& other) noexcept      = delete;
 
     void reset() noexcept;
     void cleanup_after_current_bag() noexcept;
@@ -120,19 +119,19 @@ struct timeline
 };
 
 //! @brief Initialize simulation and store first state.
-status initialize(timeline& tl, simulation&, time t) noexcept;
+ status initialize(timeline& tl, simulation&, time t) noexcept;
 
 //! @brief Run one step of simulation and store state.
-status run(timeline& tl, simulation&, time& t) noexcept;
+ status run(timeline& tl, simulation&, time& t) noexcept;
 
 //! @brief Finalize the simulation.
-status finalize(timeline& tl, simulation&, time t) noexcept;
+ status finalize(timeline& tl, simulation&, time t) noexcept;
 
 //! @brief  Advance the simulation by one step.
-status advance(timeline& tl, simulation& sim, time& t) noexcept;
+ status advance(timeline& tl, simulation& sim, time& t) noexcept;
 
 //! @brief  Back the simulation by one step.
-status back(timeline& tl, simulation& sim, time& t) noexcept;
+ status back(timeline& tl, simulation& sim, time& t) noexcept;
 
 } // namespace irt
 

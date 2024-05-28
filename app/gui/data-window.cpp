@@ -301,7 +301,7 @@ void data_window::show() noexcept
             ImGui::TextUnformatted(
               external_source_str(source::source_type::text_file));
             ImGui::TableNextColumn();
-            ImGui::Text("%s", txt_src->file_path.string().c_str());
+            // ImGui::Text("%s", txt_src->file_path.string().c_str());
         }
 
         binary_file_source* bin_src = nullptr;
@@ -329,7 +329,7 @@ void data_window::show() noexcept
             ImGui::TextUnformatted(
               external_source_str(source::source_type::binary_file));
             ImGui::TableNextColumn();
-            ImGui::Text("%s", bin_src->file_path.string().c_str());
+            // ImGui::Text("%s", bin_src->file_path.string().c_str());
         }
 
         random_source* rnd_src = nullptr;
@@ -564,7 +564,7 @@ void data_window::show() noexcept
                              text_file_ptr->name.begin(),
                              to_unsigned(text_file_ptr->name.capacity()));
 
-            ImGui::Text("%s", text_file_ptr->file_path.string().c_str());
+            // ImGui::Text("%s", text_file_ptr->file_path.string().c_str());
             if (ImGui::Button("...")) {
                 show_file_dialog = true;
             }
@@ -598,7 +598,7 @@ void data_window::show() noexcept
                 }
             }
 
-            ImGui::Text("%s", binary_file_ptr->file_path.string().c_str());
+            // ImGui::Text("%s", binary_file_ptr->file_path.string().c_str());
             if (ImGui::Button("...")) {
                 show_file_dialog = true;
             }

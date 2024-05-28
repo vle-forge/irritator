@@ -618,10 +618,21 @@ struct reader {
         return true;
     }
 
-    bool copy_to(std::filesystem::path& path) noexcept
+    bool copy_to(binary_file_source& src) noexcept
     {
         try {
-            path = temp_string;
+            src.file_path = temp_string;
+            return true;
+        } catch (...) {
+        }
+
+        report_json_error(error_id::filesystem_error);
+    }
+
+    bool copy_to(text_file_source& src) noexcept
+    {
+        try {
+            src.file_path = temp_string;
             return true;
         } catch (...) {
         }
@@ -2341,7 +2352,7 @@ struct reader {
 
                                   if ("path"sv == name)
                                       return read_temp_string(value) &&
-                                             copy_to(text.file_path);
+                                             copy_to(text);
 
                                   return true;
                               }) &&
@@ -2387,7 +2398,7 @@ struct reader {
 
                                   if ("path"sv == name)
                                       return read_temp_string(value) &&
-                                             copy_to(text.file_path);
+                                             copy_to(text);
 
                                   return true;
                               }) &&
@@ -3049,23 +3060,18 @@ struct reader {
         debug::ensure(name.IsString());
 
         if ("dot-file"sv == name.GetString()) {
-            graph.param = graph_component::dot_file_param{};
-            return read_graph_param(
-              val, *std::get_if<graph_component::dot_file_param>(&graph.param));
+            graph.param.dot = graph_component::dot_file_param{};
+            return read_graph_param(val, graph.param.dot);
         }
 
         if ("scale-free"sv == name.GetString()) {
-            graph.param = graph_component::scale_free_param{};
-            return read_graph_param(
-              val,
-              *std::get_if<graph_component::scale_free_param>(&graph.param));
+            graph.param.scale = graph_component::scale_free_param{};
+            return read_graph_param(val, graph.param.scale);
         }
 
         if ("small-world"sv == name.GetString()) {
-            graph.param = graph_component::small_world_param{};
-            return read_graph_param(
-              val,
-              *std::get_if<graph_component::small_world_param>(&graph.param));
+            graph.param.small = graph_component::small_world_param{};
+            return read_graph_param(val, graph.param.small);
         }
 
         report_json_error(error_id::graph_component_type_error);
@@ -5073,14 +5079,19 @@ static void write_binary_file_sources(cache_rw& /*cache*/,
     w.StartArray();
 
     const binary_file_source* src = nullptr;
+    std::string               filepath;
+
     while (srcs.binary_file_sources.next(src)) {
+        filepath = src->file_path.string();
+
         w.StartObject();
         w.Key("id");
         w.Uint64(ordinal(srcs.binary_file_sources.get_id(*src)));
         w.Key("max-clients");
         w.Uint(src->max_clients);
         w.Key("path");
-        w.String(src->file_path.string().c_str());
+        w.String(filepath.data(),
+                 static_cast<rapidjson::SizeType>(filepath.size()));
         w.EndObject();
     }
 
@@ -5096,12 +5107,17 @@ static void write_text_file_sources(cache_rw& /*cache*/,
     w.StartArray();
 
     const text_file_source* src = nullptr;
+    std::string             filepath;
+
     while (srcs.text_file_sources.next(src)) {
+        filepath = src->file_path.string();
+
         w.StartObject();
         w.Key("id");
         w.Uint64(ordinal(srcs.text_file_sources.get_id(*src)));
         w.Key("path");
-        w.String(src->file_path.string().c_str());
+        w.String(filepath.data(),
+                 static_cast<rapidjson::SizeType>(filepath.size()));
         w.EndObject();
     }
 
@@ -5610,15 +5626,14 @@ static void write_grid_component(cache_rw& /*cache*/,
 }
 
 template<typename Writer>
-static void write_graph_component_param(
-  const modeling&                            mod,
-  const graph_component::random_graph_param& param,
-  Writer&                                    w) noexcept
+static void write_graph_component_param(const modeling&        mod,
+                                        const graph_component& g,
+                                        Writer&                w) noexcept
 {
-    switch (param.index()) {
-    case 0: {
+    switch (g.g_type) {
+    case graph_component::graph_type::dot_file: {
         w.String("dot-file");
-        auto& p = *std::get_if<graph_component::dot_file_param>(&param);
+        auto& p = g.param.dot;
 
         if (auto* dir = mod.dir_paths.try_to_get(p.dir); dir) {
             w.Key("dir");
@@ -5632,23 +5647,21 @@ static void write_graph_component_param(
         break;
     }
 
-    case 1: {
+    case graph_component::graph_type::scale_free: {
         w.String("scale-free");
-        auto& p = *std::get_if<graph_component::scale_free_param>(&param);
         w.Key("alpha");
-        w.Double(p.alpha);
+        w.Double(g.param.scale.alpha);
         w.Key("beta");
-        w.Double(p.beta);
+        w.Double(g.param.scale.beta);
         break;
     }
 
-    case 2: {
+    case graph_component::graph_type::small_world: {
         w.String("small-world");
-        auto& p = *std::get_if<graph_component::small_world_param>(&param);
         w.Key("probability");
-        w.Double(p.probability);
+        w.Double(g.param.small.probability);
         w.Key("k");
-        w.Int(p.k);
+        w.Int(g.param.small.k);
         break;
     }
     }
@@ -5661,7 +5674,7 @@ static void write_graph_component(cache_rw& /*cache*/,
                                   Writer&                w) noexcept
 {
     w.Key("graph-type");
-    write_graph_component_param(mod, graph.param, w);
+    write_graph_component_param(mod, graph, w);
 
     w.Key("children");
     w.StartArray();

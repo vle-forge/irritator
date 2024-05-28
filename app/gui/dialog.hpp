@@ -12,8 +12,7 @@
 
 namespace irt {
 
-enum class fs_error
-{
+enum class fs_error {
     user_directory_access_fail,
     user_directory_file_access_fail,
     user_component_directory_access_fail,
@@ -32,15 +31,8 @@ result<std::filesystem::path> get_system_component_dir() noexcept;
 result<std::filesystem::path> get_default_user_component_dir() noexcept;
 result<std::filesystem::path> get_settings_filename() noexcept;
 
-struct file_dialog
-{
-    enum class status
-    {
-        show,
-        ok,
-        cancel,
-        hide
-    };
+struct file_dialog {
+    enum class status { show, ok, cancel, hide };
 
     std::vector<std::filesystem::path> paths;
     std::filesystem::path              current;

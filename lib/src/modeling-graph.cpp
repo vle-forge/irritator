@@ -344,18 +344,15 @@ graph_component::graph_component() noexcept
 
 void graph_component::update() noexcept
 {
-    switch (param.index()) {
-    case 0:
-        build_dot_file_edges(
-          *this, *std::get_if<graph_component::dot_file_param>(&param));
+    switch (g_type) {
+    case graph_type::dot_file:
+        build_dot_file_edges(*this, param.dot);
         return;
-    case 1:
-        build_scale_free_edges(
-          *this, *std::get_if<graph_component::scale_free_param>(&param));
+    case graph_type::scale_free:
+        build_scale_free_edges(*this, param.scale);
         return;
-    case 2:
-        build_small_world_edges(
-          *this, *std::get_if<graph_component::small_world_param>(&param));
+    case graph_type::small_world:
+        build_small_world_edges(*this, param.small);
         return;
     };
 

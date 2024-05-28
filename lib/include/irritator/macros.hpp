@@ -7,10 +7,8 @@
 
 #include <cstdlib>
 
-#ifdef IRRITATOR_ENABLE_DEBUG
 #include <fstream>
 #include <iostream>
-#endif
 
 #if defined(_MSC_VER) && !defined(__clang__)
 #define irt_force_inline_attribute [[msvc::forceinline]]
@@ -30,9 +28,10 @@ namespace debug {
 
 #ifdef IRRITATOR_ENABLE_DEBUG
 static constexpr bool enable_ensure     = true;
-static bool           enable_memory_log = true;
+static constexpr bool enable_memory_log = true;
 #else
-static constexpr bool enable_ensure = false;
+static constexpr bool enable_ensure     = false;
+static constexpr bool enable_memory_log = false;
 #endif
 
 inline std::ostream& mem_file() noexcept
@@ -105,7 +104,7 @@ irt_force_inline_attribute constexpr void ensure(
 //! and only if @c NDEBUG is not defined and @c IRRITATOR_ENABLE_DEBUG is
 //! defined. This function can be use with the @c on_error_callback to stop the
 //! application when a @c new_error function is called.
-void breakpoint() noexcept;
+ void breakpoint() noexcept;
 
 } // namespace debug
 

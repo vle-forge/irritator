@@ -51,8 +51,13 @@ static auto internal_fopen(const char* filename, const char* mode) noexcept
     ::MultiByteToWideChar(
       CP_UTF8, 0, mode, -1, (wchar_t*)&buf[filname_sz], mode_sz);
 
-    auto* f =
-      ::_wfopen((const wchar_t*)&buf[0], (const wchar_t*)&buf[filname_sz]);
+    FILE* f = nullptr;
+
+    const auto err = ::_wfopen_s(
+      &f, (const wchar_t*)&buf[0], (const wchar_t*)&buf[filname_sz]);
+
+    if (err != 0)
+        f = nullptr;
 #else
     auto* f = std::fopen(filename, mode);
 #endif
@@ -95,7 +100,7 @@ status read_from_file(File& f, i16& value) noexcept
 #if defined(__GNUC__) || defined(__clang__)
         value = __builtin_bswap16(value);
 #elif defined(_MSC_VER)
-        value     = _byteswap_ushort(value);
+        value = _byteswap_ushort(value);
 #endif
     }
 
@@ -126,7 +131,7 @@ status read_from_file(File& f, i32& value) noexcept
 #if defined(__GNUC__) || defined(__clang__)
         value = __builtin_bswap32(value);
 #elif defined(_MSC_VER)
-        value     = _byteswap_ulong(value);
+        value = _byteswap_ulong(value);
 #endif
     }
 
@@ -157,7 +162,7 @@ status read_from_file(File& f, i64& value) noexcept
 #if defined(__GNUC__) || defined(__clang__)
         value = __builtin_bswap64(value);
 #elif defined(_MSC_VER)
-        value     = _byteswap_uint64(value);
+        value = _byteswap_uint64(value);
 #endif
     }
 
@@ -200,7 +205,7 @@ status read_from_file(File& f, u16& value) noexcept
 #if defined(__GNUC__) || defined(__clang__)
         value = __builtin_bswap16(value);
 #elif defined(_MSC_VER)
-        value     = _byteswap_ushort(value);
+        value = _byteswap_ushort(value);
 #endif
     }
 
@@ -231,7 +236,7 @@ status read_from_file(File& f, u32& value) noexcept
 #if defined(__GNUC__) || defined(__clang__)
         value = __builtin_bswap32(value);
 #elif defined(_MSC_VER)
-        value     = _byteswap_ulong(value);
+        value = _byteswap_ulong(value);
 #endif
     }
 
@@ -262,7 +267,7 @@ status read_from_file(File& f, u64& value) noexcept
 #if defined(__GNUC__) || defined(__clang__)
         value = __builtin_bswap64(value);
 #elif defined(_MSC_VER)
-        value     = _byteswap_uint64(value);
+        value = _byteswap_uint64(value);
 #endif
     }
 
@@ -293,7 +298,7 @@ status read_from_file(File& f, float& value) noexcept
 #if defined(__GNUC__) || defined(__clang__)
         value = __builtin_bswap32(value);
 #elif defined(_MSC_VER)
-        value     = _byteswap_ulong(value);
+        value = _byteswap_ulong(value);
 #endif
     }
 
@@ -324,7 +329,7 @@ status read_from_file(File& f, double& value) noexcept
 #if defined(__GNUC__) || defined(__clang__)
         value = __builtin_bswap64(value);
 #elif defined(_MSC_VER)
-        value     = _byteswap_uint64(value);
+        value = _byteswap_uint64(value);
 #endif
     }
 

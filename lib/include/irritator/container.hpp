@@ -116,7 +116,7 @@ template<size_t Bytes>
 class static_memory_resource final : public memory_resource
 {
 private:
-    alignas(std::max_align_t) std::array<std::byte, Bytes> buffer;
+    alignas(std::max_align_t) std::byte buffer[Bytes];
     std::size_t position{};
 
 public:
@@ -124,7 +124,7 @@ public:
 
     ~static_memory_resource() noexcept = default;
 
-    std::size_t capacity() const noexcept { return buffer.size(); }
+    std::size_t capacity() const noexcept { return std::size(buffer); }
 
     void reset() noexcept { position = 0; }
 
@@ -154,7 +154,7 @@ protected:
 
         const auto old_position = position;
         position += bytes;
-        auto* p = static_cast<void*>(buffer.data() + old_position);
+        auto* p = static_cast<void*>(std::data(buffer) + old_position);
 
         debug::mem_log("static_memory_resource<",
                        Bytes,
@@ -186,7 +186,7 @@ protected:
         [[maybe_unused]] const auto pos =
           reinterpret_cast<std::uintptr_t>(pointer);
         [[maybe_unused]] const auto first =
-          reinterpret_cast<std::uintptr_t>(buffer.data());
+          reinterpret_cast<std::uintptr_t>(std::data(buffer));
         [[maybe_unused]] const auto last = reinterpret_cast<std::uintptr_t>(
           std::data(buffer) + std::size(buffer));
 
@@ -672,6 +672,7 @@ public:
 
     constexpr vector(memory_resource_t* mem) noexcept
         requires(!std::is_empty_v<A>);
+
     vector(memory_resource_t* mem, std::integral auto capacity) noexcept
         requires(!std::is_empty_v<A>);
     vector(memory_resource_t* mem,
@@ -1011,7 +1012,8 @@ public:
     constexpr const_iterator end() const noexcept;
 };
 
-//! @brief An optimized SOA structure to store unique identifier and mutiples vector.
+//! @brief An optimized SOA structure to store unique identifier and mutiples
+//! vector.
 //!
 //! A container to handle only identifier.
 //! - linear memory/iteration
@@ -1124,7 +1126,7 @@ public:
     void clear() noexcept;
     void reserve(std::integral auto len) noexcept;
 
-    bool can_alloc(std::integral auto nb = 1) const noexcept;
+    bool     can_alloc(std::integral auto nb = 1) const noexcept;
     unsigned size() const noexcept;
     int      ssize() const noexcept;
     unsigned capacity() const noexcept;
@@ -2252,7 +2254,7 @@ id_array<Identifier, A>::end() const noexcept
 template<typename Identifier, typename A, class... Ts>
 template<typename Function>
 auto id_data_array<Identifier, A, Ts...>::alloc(Function&& fn) noexcept
--> id_data_array<Identifier, A, Ts...>::identifier_type
+  -> id_data_array<Identifier, A, Ts...>::identifier_type
 {
     irt::debug::ensure(m_ids.can_alloc(1));
 
@@ -2264,7 +2266,8 @@ auto id_data_array<Identifier, A, Ts...>::alloc(Function&& fn) noexcept
 }
 
 template<typename Identifier, typename A, class... Ts>
-void id_data_array<Identifier, A, Ts...>::free(const identifier_type id) noexcept
+void id_data_array<Identifier, A, Ts...>::free(
+  const identifier_type id) noexcept
 {
     if (m_ids.exists(id))
         m_ids.free(id);
@@ -2272,7 +2275,8 @@ void id_data_array<Identifier, A, Ts...>::free(const identifier_type id) noexcep
 
 template<typename Identifier, typename A, class... Ts>
 template<typename Function>
-void id_data_array<Identifier, A, Ts...>::if_exists_do(const identifier_type id, Function& fn) noexcept
+void id_data_array<Identifier, A, Ts...>::if_exists_do(const identifier_type id,
+                                                       Function& fn) noexcept
 {
     if (m_ids.exists(id))
         do_call_fn(fn, id, std::index_sequence_for<Ts...>());
@@ -2293,7 +2297,8 @@ void id_data_array<Identifier, A, Ts...>::clear() noexcept
 }
 
 template<typename Identifier, typename A, class... Ts>
-void id_data_array<Identifier, A, Ts...>::reserve(std::integral auto len) noexcept
+void id_data_array<Identifier, A, Ts...>::reserve(
+  std::integral auto len) noexcept
 {
     if (std::cmp_less(capacity(), len)) {
         m_ids.reserve(len);
@@ -2302,7 +2307,8 @@ void id_data_array<Identifier, A, Ts...>::reserve(std::integral auto len) noexce
 }
 
 template<typename Identifier, typename A, class... Ts>
-bool id_data_array<Identifier, A, Ts...>::can_alloc(std::integral auto nb) const noexcept
+bool id_data_array<Identifier, A, Ts...>::can_alloc(
+  std::integral auto nb) const noexcept
 {
     return m_ids.can_alloc(nb);
 }
@@ -4532,7 +4538,7 @@ ring_buffer<T, A>::force_emplace_enqueue(Args&&... args) noexcept
 
     std::construct_at(&buffer[m_tail], std::forward<Args>(args)...);
     const auto old = m_tail;
-    m_tail = advance(m_tail);
+    m_tail         = advance(m_tail);
     return buffer[old];
 }
 

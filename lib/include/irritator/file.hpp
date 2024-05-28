@@ -13,7 +13,7 @@ enum class seek_origin { current, end, set };
 
 enum class open_mode { read, write, append };
 
-class file
+class  file
 {
 public:
     enum class error_code {
@@ -138,7 +138,7 @@ private:
     open_mode mode        = open_mode::read;
 };
 
-class memory
+class  memory
 {
 public:
     enum class error_code {
