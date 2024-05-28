@@ -5,7 +5,6 @@
 #include <irritator/modeling-helpers.hpp>
 
 #include "application.hpp"
-#include "dialog.hpp"
 #include "editor.hpp"
 #include "imgui.h"
 #include "internal.hpp"
@@ -150,6 +149,24 @@ static void show_component_popup_menu(application& app, component& sel) noexcept
                                 app.mod.remove_file(*reg, *dir, *file);
                             }
                         }
+
+                        app.notifications.enable(n);
+                    });
+
+                    app.add_gui_task(
+                      [&app]() noexcept { app.component_sel.update(); });
+                }
+            } else {
+                if (ImGui::MenuItem("Delete component")) {
+                    app.add_gui_task([&]() noexcept {
+                        const auto compo_id = app.mod.components.get_id(sel);
+                        auto& n = app.notifications.alloc(log_level::notice);
+                        n.title = "Remove component";
+
+                        if_data_exists_do(
+                          app.mod.components, compo_id, [&](auto& compo) {
+                              app.mod.free(compo);
+                          });
 
                         app.notifications.enable(n);
                     });
