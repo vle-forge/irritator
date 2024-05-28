@@ -146,11 +146,17 @@ struct parameter {
     //! irt::dynamics_type.
     parameter(const model& mdl) noexcept;
 
+    //! Initialize values from the default dynamics type.
+    parameter(const dynamics_type type) noexcept;
+
     //! Copy data from the vectors to the simulation model.
     void copy_to(model& mdl) const noexcept;
 
     //! Copy data from model to the vectors of this parameter.
     void copy_from(const model& mdl) noexcept;
+
+    //! Initialize data from dynamics type default values.
+    void init_from(const dynamics_type type) noexcept;
 
     //! Assign @c 0 to reals and integers arrays.
     void clear() noexcept;

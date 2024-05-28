@@ -389,6 +389,8 @@ parameter::parameter(const model& mdl) noexcept
     });
 }
 
+parameter::parameter(const dynamics_type type) noexcept { init_from(type); }
+
 void parameter::copy_to(model& mdl) const noexcept
 {
     dispatch(mdl, [&]<typename Dynamics>(Dynamics& dyn) noexcept {
@@ -401,6 +403,17 @@ void parameter::copy_from(const model& mdl) noexcept
     clear();
 
     dispatch(mdl, [&]<typename Dynamics>(const Dynamics& dyn) noexcept {
+        parameter_init(*this, dyn);
+    });
+};
+
+void parameter::init_from(const dynamics_type type) noexcept
+{
+    model mdl;
+    mdl.type = type;
+
+    dispatch(mdl, [&]<typename Dynamics>(const Dynamics& dyn) noexcept {
+        std::construct_at(&dyn);
         parameter_init(*this, dyn);
     });
 };
