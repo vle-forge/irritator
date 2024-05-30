@@ -8,18 +8,18 @@
 
 namespace irt {
 
-static status build_graph(graph_observer&  graph_obs,
-                          project&         pj,
-                          simulation&      sim,
-                          tree_node&       graph_parent,
-                          graph_component& graph_compo) noexcept
+static void build_graph(graph_observer&  graph_obs,
+                        project&         pj,
+                        simulation&      sim,
+                        tree_node&       graph_parent,
+                        graph_component& graph_compo) noexcept
 {
     debug::ensure(pj.tree_nodes.try_to_get(graph_obs.tn_id) != nullptr);
 
     const auto* to = pj.tree_nodes.try_to_get(graph_obs.tn_id);
 
     if (!to)
-        return new_error(project::part::graph_observers, unknown_error{});
+        return;
 
     const auto relative_path =
       pj.build_relative_path(graph_parent, *to, graph_obs.mdl_id);
@@ -51,22 +51,18 @@ static status build_graph(graph_observer&  graph_obs,
 
         child = child->tree.get_sibling();
     }
-
-    return success();
 }
 
-status graph_observer::init(project&    pj,
-                            modeling&   mod,
-                            simulation& sim) noexcept
+void graph_observer::init(project& pj, modeling& mod, simulation& sim) noexcept
 {
     observers.clear();
     values.clear();
 
-    return if_tree_node_is_graph_do(
+    if_tree_node_is_graph_do(
       pj,
       mod,
       parent_id,
-      [&](auto& graph_parent_tn, auto& compo, auto& graph) -> status {
+      [&](auto& graph_parent_tn, auto& compo, auto& graph) noexcept {
           debug::ensure(compo.type == component_type::graph);
 
           const auto len = graph.children.ssize();
@@ -77,7 +73,7 @@ status graph_observer::init(project&    pj,
           std::fill_n(observers.data(), len, undefined<observer_id>());
           std::fill_n(values.data(), len, zero);
 
-          return build_graph(*this, pj, sim, graph_parent_tn, graph);
+          build_graph(*this, pj, sim, graph_parent_tn, graph);
       });
 }
 

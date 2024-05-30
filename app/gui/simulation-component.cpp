@@ -17,6 +17,9 @@ static status simulation_init_observation(application& app) noexcept
     for (auto& grid_obs : app.pj.grid_observers)
         grid_obs.init(app.pj, app.mod, app.sim);
 
+    for (auto& graph_obs : app.pj.graph_observers)
+        graph_obs.init(app.pj, app.mod, app.sim);
+
     for (auto& v_obs : app.pj.variable_observers)
         irt_check(v_obs.init(app.pj, app.sim));
 

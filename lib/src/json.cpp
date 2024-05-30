@@ -475,8 +475,8 @@ struct reader {
 
     template<size_t N, typename Function>
     bool for_members(const rapidjson::Value& val,
-                     const std::string_view  (&names)[N],
-                     Function&&              fn) noexcept
+                     const std::string_view (&names)[N],
+                     Function&& fn) noexcept
     {
         if (!val.IsObject())
             report_json_error(error_id::value_not_object);
@@ -1947,8 +1947,8 @@ struct reader {
         return nullptr;
     }
 
-    auto search_dir_in_reg(registred_path& reg, std::string_view name) noexcept
-      -> dir_path*
+    auto search_dir_in_reg(registred_path&  reg,
+                           std::string_view name) noexcept -> dir_path*
     {
         for (auto dir_id : reg.children) {
             if (auto* dir = mod().dir_paths.try_to_get(dir_id); dir) {
@@ -2017,8 +2017,8 @@ struct reader {
         return nullptr;
     }
 
-    auto search_file(dir_path& dir, std::string_view name) noexcept
-      -> file_path*
+    auto search_file(dir_path&        dir,
+                     std::string_view name) noexcept -> file_path*
     {
         for (auto file_id : dir.children)
             if (auto* file = mod().file_paths.try_to_get(file_id); file)
@@ -3713,8 +3713,7 @@ struct reader {
           });
     }
 
-    bool read_global_parameter(const rapidjson::Value& val,
-                               global_parameters&      param) noexcept
+    bool read_global_parameter(const rapidjson::Value& val) noexcept
     {
         auto_stack s(this, stack_id::project_global_parameter);
 
@@ -3764,11 +3763,11 @@ struct reader {
 
         if (success and name_opt.has_value() and tn_id_opt.has_value() and
             mdl_id_opt.has_value() and parameter_opt.has_value()) {
-            param.alloc([&](auto /*id*/,
-                            auto& name,
-                            auto& tn_id,
-                            auto& mdl_id,
-                            auto& p) noexcept {
+            pj().parameters.alloc([&](auto /*id*/,
+                                      auto& name,
+                                      auto& tn_id,
+                                      auto& mdl_id,
+                                      auto& p) noexcept {
                 name   = *name_opt;
                 tn_id  = *tn_id_opt;
                 mdl_id = *mdl_id_opt;
@@ -3792,7 +3791,7 @@ struct reader {
                for_each_array(
                  val,
                  [&](const auto /*i*/, const auto& value) noexcept -> bool {
-                     return read_global_parameter(value, pj().parameters);
+                     return read_global_parameter(value);
                  });
     }
 

@@ -990,6 +990,8 @@ static auto make_tree_from(simulation_copy&                     sc,
 
 status project::init(const modeling_initializer& init) noexcept
 {
+    parameters.reserve(256);
+
     tree_nodes.reserve(init.tree_capacity);
     if (not tree_nodes.can_alloc())
         return new_error(project::part::tree_nodes);

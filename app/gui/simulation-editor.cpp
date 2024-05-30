@@ -2,10 +2,8 @@
 // Version 1.0. (See accompanying file LICENSE_1_0.txt or copy at
 // http://www.boost.org/LICENSE_1_0.txt)
 
-#include "irritator/macros.hpp"
 #include <mutex>
 #include <optional>
-#include <utility>
 
 #define IMGUI_DEFINE_MATH_OPERATORS
 #include <imgui.h>
@@ -14,6 +12,7 @@
 #include <irritator/core.hpp>
 #include <irritator/helpers.hpp>
 #include <irritator/io.hpp>
+#include <irritator/macros.hpp>
 #include <irritator/modeling-helpers.hpp>
 #include <irritator/modeling.hpp>
 #include <irritator/observation.hpp>
@@ -22,11 +21,6 @@
 #include "application.hpp"
 #include "editor.hpp"
 #include "internal.hpp"
-
-#include <chrono>
-#include <filesystem>
-#include <fstream>
-#include <string>
 
 namespace irt {
 
@@ -518,7 +512,7 @@ static bool show_local_simulation_settings(application& app,
                         tn.parameters_ids.set(uid, gp_id);
                         current = gp_id;
                     } else {
-                        app.pj.parameters.erase(current);
+                        app.pj.parameters.free(current);
                         tn.parameters_ids.erase(uid);
                         current = undefined<global_parameter_id>();
                         enable  = false;
@@ -534,11 +528,10 @@ static bool show_local_simulation_settings(application& app,
                 ImGui::TableNextColumn();
 
                 if (enable) {
-                    if (app.pj.parameters.exists(current)) {
-                        const auto idx = get_index(current);
-                        show_parameter_editor(
-                          app, mdl, app.pj.parameters.parameters(idx));
-                    }
+                    app.pj.parameters.if_exists_do<irt::parameter>(
+                      current, [&](auto /*id*/, auto& param) noexcept {
+                          show_parameter_editor(app, mdl, param);
+                      });
                 }
 
                 ImGui::TableNextColumn();

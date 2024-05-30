@@ -76,32 +76,22 @@ void grid_observer::init(project& pj, modeling& mod, simulation& sim) noexcept
     observers.clear();
     values.clear();
 
-    tree_node*      grid_tn{};
-    component*      compo{};
-    grid_component* g_compo{};
+    if_tree_node_is_grid_do(
+      pj, mod, parent_id, [&](auto& tn, auto& compo, auto& g_compo) noexcept {
+          debug::ensure(compo.type == component_type::grid);
 
-    if (grid_tn = pj.tree_nodes.try_to_get(tn_id); grid_tn) {
-        if (compo = mod.components.try_to_get(grid_tn->id); compo) {
-            if (compo->type == component_type::grid) {
-                if (g_compo = mod.grid_components.try_to_get(compo->id.grid_id);
-                    g_compo) {
+          const auto len = g_compo.row * g_compo.column;
+          rows           = g_compo.row;
+          cols           = g_compo.column;
 
-                    const auto len = g_compo->row * g_compo->column;
-                    rows           = g_compo->row;
-                    cols           = g_compo->column;
+          observers.resize(len);
+          values.resize(len);
 
-                    observers.resize(len);
-                    values.resize(len);
+          std::fill_n(observers.data(), len, undefined<observer_id>());
+          std::fill_n(values.data(), len, zero);
 
-                    std::fill_n(
-                      observers.data(), len, undefined<observer_id>());
-                    std::fill_n(values.data(), len, zero);
-
-                    build_grid_observer(*this, pj, sim, *grid_tn, *g_compo);
-                }
-            }
-        }
-    }
+          build_grid_observer(*this, pj, sim, tn, g_compo);
+      });
 }
 
 void grid_observer::clear() noexcept
