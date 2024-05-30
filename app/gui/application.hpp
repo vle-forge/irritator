@@ -13,11 +13,6 @@
 #include <irritator/timeline.hpp>
 
 #include <filesystem>
-#include <fstream>
-#include <map>
-#include <mutex>
-#include <variant>
-#include <vector>
 
 #include "dialog.hpp"
 

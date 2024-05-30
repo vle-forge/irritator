@@ -13,13 +13,7 @@
 #include "dot-parser.hpp"
 
 #include <algorithm>
-#include <filesystem>
-#include <iterator>
-#include <math.h>
-#include <numeric>
-#include <optional>
 #include <random>
-#include <utility>
 
 #ifndef R123_USE_CXX11
 #define R123_USE_CXX11 1
@@ -37,7 +31,6 @@
 #pragma GCC diagnostic pop
 #endif
 
-#include <cstdint>
 
 namespace irt {
 

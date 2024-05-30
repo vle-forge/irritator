@@ -27,18 +27,18 @@ static auto init_or_reuse_observer(simulation&        sim,
     return obs_id;
 }
 
-static status build_grid(grid_observer&  grid_obs,
-                         project&        pj,
-                         simulation&     sim,
-                         tree_node&      grid_parent,
-                         grid_component& grid_compo) noexcept
+static void build_grid_observer(grid_observer&  grid_obs,
+                                project&        pj,
+                                simulation&     sim,
+                                tree_node&      grid_parent,
+                                grid_component& grid_compo) noexcept
 {
     debug::ensure(pj.tree_nodes.try_to_get(grid_obs.tn_id) != nullptr);
 
     const auto* to = pj.tree_nodes.try_to_get(grid_obs.tn_id);
 
     if (!to)
-        return new_error(project::part::grid_observers, unknown_error{});
+        return;
 
     const auto relative_path =
       pj.build_relative_path(grid_parent, *to, grid_obs.mdl_id);
@@ -69,34 +69,39 @@ static status build_grid(grid_observer&  grid_obs,
 
         child = child->tree.get_sibling();
     }
-
-    return success();
 }
 
-status grid_observer::init(project& pj, modeling& mod, simulation& sim) noexcept
+void grid_observer::init(project& pj, modeling& mod, simulation& sim) noexcept
 {
     observers.clear();
     values.clear();
 
-    return if_tree_node_is_grid_do(
-      pj,
-      mod,
-      parent_id,
-      [&](auto& grid_parent_tn, auto& compo, auto& grid) -> status {
-          debug::ensure(compo.type == component_type::grid);
+    tree_node*      grid_tn{};
+    component*      compo{};
+    grid_component* g_compo{};
 
-          const auto len = grid.row * grid.column;
-          rows           = grid.row;
-          cols           = grid.column;
+    if (grid_tn = pj.tree_nodes.try_to_get(tn_id); grid_tn) {
+        if (compo = mod.components.try_to_get(grid_tn->id); compo) {
+            if (compo->type == component_type::grid) {
+                if (g_compo = mod.grid_components.try_to_get(compo->id.grid_id);
+                    g_compo) {
 
-          observers.resize(len);
-          values.resize(len);
+                    const auto len = g_compo->row * g_compo->column;
+                    rows           = g_compo->row;
+                    cols           = g_compo->column;
 
-          std::fill_n(observers.data(), len, undefined<observer_id>());
-          std::fill_n(values.data(), len, zero);
+                    observers.resize(len);
+                    values.resize(len);
 
-          return build_grid(*this, pj, sim, grid_parent_tn, grid);
-      });
+                    std::fill_n(
+                      observers.data(), len, undefined<observer_id>());
+                    std::fill_n(values.data(), len, zero);
+
+                    build_grid_observer(*this, pj, sim, *grid_tn, *g_compo);
+                }
+            }
+        }
+    }
 }
 
 void grid_observer::clear() noexcept
@@ -107,8 +112,7 @@ void grid_observer::clear() noexcept
 
 void grid_observer::update(const simulation& sim) noexcept
 {
-    if (rows * cols != observers.ssize() or
-        values.ssize() != observers.ssize())
+    if (rows * cols != observers.ssize() or values.ssize() != observers.ssize())
         return;
 
     // debug::ensure(rows * cols == observers.ssize());

@@ -138,7 +138,7 @@ class graph_observer;
 //!
 //! Mainly used to override default values of @c irt::component models into
 //! the @c irt::tree_node objects of the @c irt::project class.
-struct  parameter {
+struct parameter {
     parameter() noexcept = default;
 
     //! Import values from the model @c mdl according to the underlying @c
@@ -169,7 +169,7 @@ struct  parameter {
 /// - @c string_buffer is used when reading string.
 /// - @c stack is used when parsing project file.
 /// - other variable are used to link file identifier with new identifier.
-struct  cache_rw {
+struct cache_rw {
     vector<char> buffer;
     vector<i32>  stack;
 
@@ -234,7 +234,7 @@ struct child_position {
     float y = 0.f;
 };
 
-struct  connection {
+struct connection {
     struct port {
         port_id compo = port_id{};
         int     model = 0;
@@ -278,11 +278,11 @@ struct  connection {
 /// hierarchical_state_machine is copied into the simulation HSM data array. The
 /// parameter @c a and @c b are store into the @c children_parameters of the @c
 /// generic_component.
-struct  hsm_component {
+struct hsm_component {
     hierarchical_state_machine machine;
 };
 
-class  generic_component
+class generic_component
 {
 public:
     using child_limiter      = static_limiter<i32, 64, 64 * 16>;
@@ -414,7 +414,7 @@ public:
     static void format_children_error(log_entry& e) noexcept;
 };
 
-struct  grid_component {
+struct grid_component {
     static inline constexpr i32 row_max    = 1024;
     static inline constexpr i32 column_max = 1024;
 
@@ -691,28 +691,26 @@ public:
     }
 
     //! @brief Check if the input connection already exits.
-     bool exists_input_connection(const port_id   x,
-                                            const vertex_id v,
-                                            const port_id   id) const noexcept;
+    bool exists_input_connection(const port_id   x,
+                                 const vertex_id v,
+                                 const port_id   id) const noexcept;
 
     //! @brief Check if the output connection already exits.
-     bool exists_output_connection(const port_id   y,
-                                             const vertex_id v,
-                                             const port_id   id) const noexcept;
+    bool exists_output_connection(const port_id   y,
+                                  const vertex_id v,
+                                  const port_id   id) const noexcept;
 
     //! @brief Tries to add this input connection if it does not already exist.
     //! @return `success()` or `connection_already_exists`.
-     result<input_connection_id> connect_input(
-      const port_id   x,
-      const vertex_id v,
-      const port_id   id) noexcept;
+    result<input_connection_id> connect_input(const port_id   x,
+                                              const vertex_id v,
+                                              const port_id   id) noexcept;
 
     //! @brief Tries to add this output connection if it does not already exist.
     //! @return `success()` or `connection_already_exists`.
-     result<output_connection_id> connect_output(
-      const port_id   y,
-      const vertex_id v,
-      const port_id   id) noexcept;
+    result<output_connection_id> connect_output(const port_id   y,
+                                                const vertex_id v,
+                                                const port_id   id) noexcept;
 
     data_array<vertex, vertex_id>                       children;
     data_array<edge, edge_id>                           edges;
@@ -734,7 +732,7 @@ public:
     int upper_limit = 0;
 
     //! clear the @c cache and @c cache_connection data_array.
-     void clear_cache() noexcept;
+    void clear_cache() noexcept;
 
     //! build the @c cache and @c cache_connection data_array according to
     //! current attributes @c children, @c edges and @c random_graph_param.
@@ -742,23 +740,19 @@ public:
     //! @param mod Necessary to read, check and build components and
     //! connections.
     //! @return success() or @c project::error::not_enough_memory.
-     status build_cache(modeling& mod) noexcept;
+    status build_cache(modeling& mod) noexcept;
 
     connection_type type = connection_type::name;
 
-     static auto build_error_handlers(log_manager& l) noexcept;
-     static void format_input_connection_error(log_entry& e) noexcept;
-     static void format_input_connection_full_error(
-      log_entry& e) noexcept;
-     static void format_output_connection_error(
-      log_entry& e) noexcept;
-     static void format_output_connection_full_error(
-      log_entry& e) noexcept;
-     static void format_children_error(log_entry& e,
-                                                 e_memory   mem) noexcept;
+    static auto build_error_handlers(log_manager& l) noexcept;
+    static void format_input_connection_error(log_entry& e) noexcept;
+    static void format_input_connection_full_error(log_entry& e) noexcept;
+    static void format_output_connection_error(log_entry& e) noexcept;
+    static void format_output_connection_full_error(log_entry& e) noexcept;
+    static void format_children_error(log_entry& e, e_memory mem) noexcept;
 };
 
-struct  component {
+struct component {
     component() noexcept;
 
     id_array<port_id> x;
@@ -894,7 +888,7 @@ public:
      * but a flag is added in the `file_path` to indicate an absence of
      * existence in the filesystem.
      */
-     vector<file_path_id> refresh(modeling& mod) noexcept;
+    vector<file_path_id> refresh(modeling& mod) noexcept;
 };
 
 struct file_path {
@@ -945,7 +939,7 @@ struct modeling_initializer {
     bool is_fixed_window_placement = true;
 };
 
-struct  tree_node {
+struct tree_node {
     tree_node(component_id id_, u64 unique_id_) noexcept;
 
     /// Intrusive hierarchy to the children, sibling and parent @c tree_node.
@@ -1039,7 +1033,7 @@ struct  tree_node {
     }
 };
 
-class  grid_observer
+class grid_observer
 {
 public:
     name_str name;
@@ -1055,7 +1049,7 @@ public:
 
     // Build or reuse existing observer for each pair `tn_id`, `mdl_id` and
     // reinitialize all buffers.
-    status init(project& pj, modeling& mod, simulation& sim) noexcept;
+    void init(project& pj, modeling& mod, simulation& sim) noexcept;
 
     // Clear the `observers` and `values` vectors.
     void clear() noexcept;
@@ -1071,7 +1065,7 @@ public:
     i32   cols      = 0;
 };
 
-class  graph_observer
+class graph_observer
 {
 public:
     name_str name;
@@ -1101,7 +1095,7 @@ public:
     i32   nodes     = 0;
 };
 
-class  variable_observer
+class variable_observer
 {
 public:
     enum class type_options {
@@ -1172,7 +1166,7 @@ public:
 };
 
 //! Stores @c irt::project parameters per couple @c tree_node, @c child_id.
-class  global_parameters
+class global_parameters
 {
 public:
     static_limiter<i32, 8, 65536> max_parameters = 256;
@@ -1283,7 +1277,7 @@ struct log_entry {
 class log_manager
 {
 public:
-     constexpr log_manager(constrained_value<int, 1, 64> value = 8)
+    constexpr log_manager(constrained_value<int, 1, 64> value = 8)
       : m_data(value.value())
     {}
 
@@ -1293,7 +1287,7 @@ public:
     log_manager& operator=(log_manager&& other) noexcept      = delete;
 
     template<typename Function>
-     constexpr bool try_push(log_level l, Function&& fn) noexcept
+    constexpr bool try_push(log_level l, Function&& fn) noexcept
     {
         if (ordinal(l) <= ordinal(m_minlevel)) {
             if (std::unique_lock _(m_mutex, std::try_to_lock); _.owns_lock()) {
@@ -1306,7 +1300,7 @@ public:
     }
 
     template<typename Function>
-     constexpr void push(log_level l, Function&& fn) noexcept
+    constexpr void push(log_level l, Function&& fn) noexcept
     {
         if (ordinal(l) <= ordinal(m_minlevel)) {
             m_mutex.lock();
@@ -1316,7 +1310,7 @@ public:
     }
 
     template<typename Function>
-     constexpr bool try_consume(Function&& fn) noexcept
+    constexpr bool try_consume(Function&& fn) noexcept
     {
         if (std::unique_lock _(m_mutex, std::try_to_lock); _.owns_lock()) {
             fn(m_data);
@@ -1327,25 +1321,22 @@ public:
     }
 
     template<typename Function>
-     constexpr void consume(Function&& fn) noexcept
+    constexpr void consume(Function&& fn) noexcept
     {
         m_mutex.lock();
         fn(m_data);
         m_mutex.unlock();
     }
 
-     constexpr bool have_entry() const noexcept
-    {
-        return m_data.ssize() > 0;
-    }
+    constexpr bool have_entry() const noexcept { return m_data.ssize() > 0; }
 
-     constexpr bool full() const noexcept { return m_data.full(); }
+    constexpr bool full() const noexcept { return m_data.full(); }
 
     //! Return true if the underlying container available space is low.
     //!
     //! @return true if the remaining entry is lower than 25% of the capacity,
     //! false otherwise.
-     constexpr bool almost_full() const noexcept
+    constexpr bool almost_full() const noexcept
     {
         return (m_data.capacity() - m_data.ssize()) <= m_data.capacity() >> 2;
     }
@@ -1356,7 +1347,7 @@ private:
     log_level              m_minlevel = log_level::notice;
 };
 
-class  modeling
+class modeling
 {
 public:
     struct connection_error {};
@@ -1481,7 +1472,7 @@ public:
     spin_mutex file_paths_mutex;
 };
 
-class  project
+class project
 {
 public:
     //! Used to report which part of the @c project have a problem with the @c
@@ -1636,8 +1627,8 @@ private:
     cache m_cache;
 };
 
- std::string_view to_string(const project::part p) noexcept;
- std::string_view to_string(const project::error e) noexcept;
+std::string_view to_string(const project::part p) noexcept;
+std::string_view to_string(const project::error e) noexcept;
 
 /* ------------------------------------------------------------------
    Child part

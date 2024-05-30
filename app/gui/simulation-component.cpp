@@ -5,8 +5,8 @@
 #include <irritator/io.hpp>
 
 #include "application.hpp"
-#include "internal.hpp"
 #include "irritator/core.hpp"
+#include "irritator/format.hpp"
 #include "irritator/helpers.hpp"
 #include "irritator/modeling.hpp"
 
@@ -15,7 +15,7 @@ namespace irt {
 static status simulation_init_observation(application& app) noexcept
 {
     for (auto& grid_obs : app.pj.grid_observers)
-        irt_check(grid_obs.init(app.pj, app.mod, app.sim));
+        grid_obs.init(app.pj, app.mod, app.sim);
 
     for (auto& v_obs : app.pj.variable_observers)
         irt_check(v_obs.init(app.pj, app.sim));
@@ -23,20 +23,24 @@ static status simulation_init_observation(application& app) noexcept
     return success();
 }
 
+template<typename S>
+constexpr static void make_copy_error_msg(application& app,
+                                          const S&     str) noexcept
+{
+    auto& n   = app.notifications.alloc(log_level::error);
+    n.title   = "Component copy failed";
+    n.message = str;
+    app.notifications.enable(n);
+}
+
 template<typename S, typename... Args>
-static void make_copy_error_msg(application& app,
-                                const S&     fmt,
-                                Args&&... args) noexcept
+constexpr static void make_copy_error_msg(application& app,
+                                          const S&     fmt,
+                                          Args&&... args) noexcept
 {
     auto& n = app.notifications.alloc(log_level::error);
     n.title = "Component copy failed";
-
-    auto ret = fmt::vformat_to_n(n.message.begin(),
-                                 static_cast<size_t>(n.message.capacity() - 1),
-                                 fmt,
-                                 fmt::make_format_args(args...));
-    n.message.resize(static_cast<int>(ret.size));
-
+    format(n.message, fmt, std::forward<Args...>(args...));
     app.notifications.enable(n);
 }
 
