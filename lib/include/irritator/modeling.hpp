@@ -1038,11 +1038,11 @@ class grid_observer
 public:
     name_str name;
 
-    tree_node_id parent_id; ///< @c tree_node identifier ancestor of the model
-                            ///< A grid component.
-    component_id compo_id;  //< @c component in the grid to observe.
-    tree_node_id tn_id;     //< @c tree_node identifier parent of the model.
-    model_id     mdl_id;    //< @c model to observe.
+    tree_node_id parent_id; //!< @c tree_node identifier ancestor of the model a
+                            //!< grid component.
+    component_id compo_id;  //!< @c component in the grid to observe.
+    tree_node_id tn_id;     //!< @c tree_node identifier parent of the model.
+    model_id     mdl_id;    //!< @c model to observe.
 
     vector<observer_id> observers;
     vector<real>        values;
@@ -1424,10 +1424,6 @@ public:
 
     /// Remove @c tree_node hierarchy and clear the @c component head.
     void clear() noexcept;
-
-    /// For all @c tree_node remove the simulation mapping between modelling and
-    /// simulation part (ie @c tree_node::sim variable).
-    void clean_simulation() noexcept;
 
     auto head() const noexcept -> component_id;
     auto tn_head() const noexcept -> tree_node*;

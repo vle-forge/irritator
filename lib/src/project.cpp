@@ -1009,7 +1009,6 @@ status project::set(modeling& mod, simulation& sim, component& compo) noexcept
 {
     clear();
     clear_cache();
-    clean_simulation();
 
     irt_check(make_component_cache(*this, mod));
 
@@ -1040,16 +1039,11 @@ void project::clear() noexcept
     m_head    = undefined<component_id>();
     m_tn_head = undefined<tree_node_id>();
 
+    tree_nodes.clear();
     variable_observers.clear();
     grid_observers.clear();
     graph_observers.clear();
     parameters.clear();
-}
-
-void project::clean_simulation() noexcept
-{
-    for_each_data(grid_observers,
-                  [&](auto& grid_obs) noexcept { grid_obs.clear(); });
 }
 
 status project::load(modeling&   mod,

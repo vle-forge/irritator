@@ -33,9 +33,9 @@ static void build_grid_observer(grid_observer&  grid_obs,
                                 tree_node&      grid_parent,
                                 grid_component& grid_compo) noexcept
 {
-    debug::ensure(pj.tree_nodes.try_to_get(grid_obs.tn_id) != nullptr);
-
     const auto* to = pj.tree_nodes.try_to_get(grid_obs.tn_id);
+
+    debug::ensure(pj.tree_nodes.try_to_get(grid_obs.tn_id) != nullptr);
 
     if (!to)
         return;
@@ -116,6 +116,8 @@ void grid_observer::update(const simulation& sim) noexcept
             values[pos] = obs && !obs->linearized_buffer.empty()
                             ? obs->linearized_buffer.back().y
                             : zero;
+
+            fmt::print("{}\n", values[pos]);
         }
     }
 }

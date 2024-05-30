@@ -132,7 +132,7 @@ static void show_simulation_action_buttons(simulation_editor& ed,
     const auto button         = ImVec2{ button_x, 0.f };
     const auto small_button   = ImVec2{ small_button_x, 0.f };
 
-    bool open = false;
+    auto open = false;
 
     open = ImGui::Button("Clear", button);
     if (ImGui::IsItemHovered(ImGuiHoveredFlags_AllowWhenDisabled))
@@ -231,52 +231,47 @@ static inline constexpr std::string_view simulation_status_names[] = {
     "finishing",   "finished",     "debugged",
 };
 
-static bool show_main_simulation_settings(application& app) noexcept
+static bool show_project_simulation_settings(application& app) noexcept
 {
     int is_modified = 0;
 
-    if (ImGui::CollapsingHeader("Main parameters")) {
-        ImGui::PushItemWidth(100.f);
-        is_modified +=
-          ImGui::InputReal("Begin", &app.simulation_ed.simulation_begin);
-        ImGui::SameLine(ImGui::GetContentRegionAvail().x * 0.5f);
-        is_modified +=
-          ImGui::Checkbox("Edit", &app.simulation_ed.allow_user_changes);
+    ImGui::PushItemWidth(100.f);
+    is_modified +=
+      ImGui::InputReal("Begin", &app.simulation_ed.simulation_begin);
+    ImGui::SameLine(ImGui::GetContentRegionAvail().x * 0.5f);
+    is_modified +=
+      ImGui::Checkbox("Edit", &app.simulation_ed.allow_user_changes);
 
-        is_modified +=
-          ImGui::InputReal("End", &app.simulation_ed.simulation_end);
-        ImGui::SameLine(ImGui::GetContentRegionAvail().x * 0.5f);
-        if (ImGui::Checkbox("Debug", &app.simulation_ed.store_all_changes)) {
-            is_modified = true;
-            if (app.simulation_ed.store_all_changes &&
-                app.simulation_ed.simulation_state ==
-                  simulation_status::running) {
-                app.simulation_ed.start_enable_or_disable_debug();
-            }
+    is_modified += ImGui::InputReal("End", &app.simulation_ed.simulation_end);
+    ImGui::SameLine(ImGui::GetContentRegionAvail().x * 0.5f);
+    if (ImGui::Checkbox("Debug", &app.simulation_ed.store_all_changes)) {
+        is_modified = true;
+        if (app.simulation_ed.store_all_changes &&
+            app.simulation_ed.simulation_state == simulation_status::running) {
+            app.simulation_ed.start_enable_or_disable_debug();
         }
-
-        ImGui::BeginDisabled(!app.simulation_ed.real_time);
-        is_modified +=
-          ImGui::InputScalar("Micro second for 1 unit time",
-                             ImGuiDataType_S64,
-                             &app.simulation_ed.simulation_real_time_relation);
-        ImGui::EndDisabled();
-        ImGui::SameLine(ImGui::GetContentRegionAvail().x * 0.5f);
-        is_modified += ImGui::Checkbox("No time limit",
-                                       &app.simulation_ed.infinity_simulation);
-
-        ImGui::TextFormat("Current time {:.6f}",
-                          app.simulation_ed.simulation_current);
-        ImGui::SameLine(ImGui::GetContentRegionAvail().x * 0.5f);
-        is_modified +=
-          ImGui::Checkbox("Real time", &app.simulation_ed.real_time);
-
-        ImGui::TextFormat(
-          "Simulation phase: {}",
-          simulation_status_names[ordinal(app.simulation_ed.simulation_state)]);
-
-        ImGui::PopItemWidth();
     }
+
+    ImGui::BeginDisabled(!app.simulation_ed.real_time);
+    is_modified +=
+      ImGui::InputScalar("Micro second for 1 unit time",
+                         ImGuiDataType_S64,
+                         &app.simulation_ed.simulation_real_time_relation);
+    ImGui::EndDisabled();
+    ImGui::SameLine(ImGui::GetContentRegionAvail().x * 0.5f);
+    is_modified +=
+      ImGui::Checkbox("No time limit", &app.simulation_ed.infinity_simulation);
+
+    ImGui::TextFormat("Current time {:.6f}",
+                      app.simulation_ed.simulation_current);
+    ImGui::SameLine(ImGui::GetContentRegionAvail().x * 0.5f);
+    is_modified += ImGui::Checkbox("Real time", &app.simulation_ed.real_time);
+
+    ImGui::TextFormat(
+      "Simulation phase: {}",
+      simulation_status_names[ordinal(app.simulation_ed.simulation_state)]);
+
+    ImGui::PopItemWidth();
 
     return is_modified > 0;
 }
@@ -290,7 +285,7 @@ static bool select_variable_observer(project&              pj,
     if (v_obs)
         preview = v_obs->name.sv();
 
-    bool ret = false;
+    auto ret = false;
     if (ImGui::BeginCombo("Select group variable", preview.c_str())) {
         for (auto& v_obs : pj.variable_observers) {
             const auto id       = pj.variable_observers.get_id(v_obs);
@@ -309,7 +304,7 @@ static bool select_variable_observer(project&              pj,
 }
 
 static auto get_first_variable_observer(project& pj) noexcept
-  -> std::optional<variable_observer_id>
+  -> variable_observer_id
 {
     if (not pj.variable_observers.empty())
         return pj.variable_observers.get_id(*pj.variable_observers.begin());
@@ -320,7 +315,33 @@ static auto get_first_variable_observer(project& pj) noexcept
         return pj.variable_observers.get_id(v_obs);
     }
 
-    return std::nullopt;
+    return undefined<variable_observer_id>();
+}
+
+static void show_local_variable_plot(
+  observer&                       obs,
+  variable_observer::type_options type) noexcept
+{
+    if (obs.linearized_buffer.size() > 0) {
+        switch (type) {
+        case variable_observer::type_options::line:
+            ImPlot::PlotLineG(obs.name.c_str(),
+                              ring_buffer_getter,
+                              &obs.linearized_buffer,
+                              obs.linearized_buffer.ssize());
+            break;
+
+        case variable_observer::type_options::dash:
+            ImPlot::PlotScatterG(obs.name.c_str(),
+                                 ring_buffer_getter,
+                                 &obs.linearized_buffer,
+                                 obs.linearized_buffer.ssize());
+            break;
+
+        default:
+            unreachable();
+        }
+    }
 }
 
 static bool show_local_simulation_plot_observers_table(application& app,
@@ -328,7 +349,7 @@ static bool show_local_simulation_plot_observers_table(application& app,
 {
     debug::ensure(!component_is_grid_or_graph(app.mod, tn));
 
-    int is_modified = 0;
+    auto is_modified = 0;
 
     if (ImGui::CollapsingHeader("Plot observers",
                                 ImGuiTreeNodeFlags_DefaultOpen)) {
@@ -374,29 +395,23 @@ static bool show_local_simulation_plot_observers_table(application& app,
                     if (enable) {
                         debug::ensure(is_undefined(current));
 
-                        auto id_opt = get_first_variable_observer(app.pj);
-                        if (not id_opt.has_value()) {
+                        const auto id = get_first_variable_observer(app.pj);
+                        auto* vobs = app.pj.variable_observers.try_to_get(id);
+                        if (not vobs) {
                             auto& n =
                               app.notifications.alloc(log_level::warning);
                             n.title = "Can not allocate more observers";
                             app.notifications.enable(n);
                         } else {
-                            auto  v_obs_id = *id_opt;
-                            auto* v_obs =
-                              app.pj.variable_observers.try_to_get(v_obs_id);
-                            if (v_obs) {
-                                v_obs->push_back(tn_id, mdl_id);
-                                tn.variable_observer_ids.set(uid, v_obs_id);
-                                current = v_obs_id;
-                            } else {
-                                tn.variable_observer_ids.erase(uid);
-                            }
+                            vobs->push_back(tn_id, mdl_id);
+                            tn.variable_observer_ids.set(uid, id);
+                            current = id;
                         }
                     } else {
-                        auto* v_obs =
+                        auto* vobs =
                           app.pj.variable_observers.try_to_get(current);
-                        if (v_obs) {
-                            v_obs->erase(tn_id, mdl_id);
+                        if (vobs) {
+                            vobs->erase(tn_id, mdl_id);
                         } else {
                             tn.variable_observer_ids.erase(uid);
                         }
@@ -444,22 +459,6 @@ static bool show_local_simulation_plot_observers_table(application& app,
     return is_modified > 0;
 }
 
-static bool show_local_grid_observers(application&    app,
-                                      tree_node&      tn,
-                                      component&      compo,
-                                      grid_component& grid) noexcept
-{
-    return show_local_observers(app, tn, compo, grid);
-}
-
-static bool show_local_graph_observers(application&     app,
-                                       tree_node&       tn,
-                                       component&       compo,
-                                       graph_component& graph) noexcept
-{
-    return show_local_observers(app, tn, compo, graph);
-}
-
 static auto get_global_parameter(const auto& tn,
                                  const u64 uid) noexcept -> global_parameter_id
 {
@@ -488,7 +487,7 @@ static bool show_local_simulation_settings(application& app,
             for_each_model(app.sim, tn, [&](auto uid, auto& mdl) noexcept {
                 const auto mdl_id  = app.sim.get_id(mdl);
                 auto       current = get_global_parameter(tn, uid);
-                bool       enable  = is_defined(current);
+                auto       enable  = is_defined(current);
 
                 ImGui::PushID(static_cast<int>(get_index(mdl_id)));
 
@@ -544,7 +543,7 @@ static bool show_local_simulation_settings(application& app,
         ImGui::EndChild();
     }
 
-    return is_modified > 0;
+    return is_modified;
 }
 
 static bool show_local_simulation_specific_observers(application& app,
@@ -560,7 +559,7 @@ static bool show_local_simulation_specific_observers(application& app,
                 app.mod.graph_components,
                 compo.id.graph_id,
                 [&](auto& graph) noexcept -> bool {
-                    return show_local_graph_observers(app, tn, compo, graph);
+                    return show_local_observers(app, tn, compo, graph);
                 },
                 []() noexcept -> bool { return false; });
 
@@ -569,18 +568,12 @@ static bool show_local_simulation_specific_observers(application& app,
                 app.mod.grid_components,
                 compo.id.grid_id,
                 [&](auto& grid) noexcept {
-                    return show_local_grid_observers(app, tn, compo, grid);
+                    return show_local_observers(app, tn, compo, grid);
                 },
                 []() noexcept -> bool { return false; });
 
           case component_type::simple:
-              // return if_data_exists_do(
-              //   app.mod.generic_components,
-              //   compo.id.generic_id,
-              //   [&](auto& generic) noexcept {
-              //       return show_local_observers(app, tn, compo, generic);
-              //   });
-              return true;
+              return show_local_simulation_plot_observers_table(app, tn);
 
           default:
               unreachable();
@@ -589,32 +582,6 @@ static bool show_local_simulation_specific_observers(application& app,
           return false;
       },
       []() noexcept -> bool { return false; });
-}
-
-static void show_local_variable_plot(
-  observer&                       obs,
-  variable_observer::type_options type) noexcept
-{
-    if (obs.linearized_buffer.size() > 0) {
-        switch (type) {
-        case variable_observer::type_options::line:
-            ImPlot::PlotLineG(obs.name.c_str(),
-                              ring_buffer_getter,
-                              &obs.linearized_buffer,
-                              obs.linearized_buffer.ssize());
-            break;
-
-        case variable_observer::type_options::dash:
-            ImPlot::PlotScatterG(obs.name.c_str(),
-                                 ring_buffer_getter,
-                                 &obs.linearized_buffer,
-                                 obs.linearized_buffer.ssize());
-            break;
-
-        default:
-            unreachable();
-        }
-    }
 }
 
 static void show_local_variables_plot(application&       app,
@@ -627,7 +594,8 @@ static void show_local_variables_plot(application&       app,
       });
 }
 
-static void show_local_variables_plot(application& app, tree_node& tn) noexcept
+static void show_local_variable_observers(application& app,
+                                          tree_node&   tn) noexcept
 {
     if (ImPlot::BeginPlot("variables", ImVec2(-1, 200))) {
         ImPlot::PushStyleVar(ImPlotStyleVar_LineWeight, 1.f);
@@ -653,7 +621,7 @@ static void show_local_variables_plot(application& app, tree_node& tn) noexcept
     }
 }
 
-static void show_local_grid(application& app, tree_node& tn) noexcept
+static void show_local_grid_observers(application& app, tree_node& tn) noexcept
 {
     for_specified_data(
       app.pj.grid_observers, tn.grid_observer_ids, [&](auto& grid) noexcept {
@@ -669,12 +637,12 @@ static void show_local_grid(application& app, tree_node& tn) noexcept
 // show_simulation_main_observations(application& app, DataArray& d)
 // noexcept {...}
 
-static bool show_simulation_grid_observers(application& app) noexcept
+static bool show_simulation_table_grid_observers(application& app) noexcept
 {
     auto to_delete   = undefined<grid_observer_id>();
     bool is_modified = false;
 
-    ImGui::BeginChild("c-show-grid",
+    ImGui::BeginChild("c-show-table-grid",
                       ImVec2(ImGui::GetContentRegionAvail().x, 260.f),
                       ImGuiChildFlags_None,
                       ImGuiWindowFlags_HorizontalScrollbar);
@@ -737,12 +705,12 @@ static bool show_simulation_grid_observers(application& app) noexcept
     return is_modified;
 }
 
-static bool show_simulation_graph_observers(application& app) noexcept
+static bool show_simulation_table_graph_observers(application& app) noexcept
 {
     auto to_delete   = undefined<graph_observer_id>();
     bool is_modified = false;
 
-    ImGui::BeginChild("c-show-graph",
+    ImGui::BeginChild("c-show-table-graph",
                       ImVec2(ImGui::GetContentRegionAvail().x, 260.f),
                       ImGuiChildFlags_None,
                       ImGuiWindowFlags_HorizontalScrollbar);
@@ -803,12 +771,12 @@ static bool show_simulation_graph_observers(application& app) noexcept
     return is_modified;
 }
 
-static bool show_simulation_variable_observers(application& app) noexcept
+static bool show_simulation_table_variable_observers(application& app) noexcept
 {
     auto to_delete   = undefined<variable_observer_id>();
     bool is_modified = false;
 
-    ImGui::BeginChild("c-show-plot",
+    ImGui::BeginChild("c-show-table-plot",
                       ImVec2(ImGui::GetContentRegionAvail().x, 260.f),
                       ImGuiChildFlags_None,
                       ImGuiWindowFlags_HorizontalScrollbar);
@@ -869,39 +837,103 @@ static bool show_simulation_variable_observers(application& app) noexcept
     return is_modified;
 }
 
-static bool show_main_simulation_observers(application& app) noexcept
+static bool show_project_parameters(application& app) noexcept
+{
+    constexpr auto tflags = ImGuiTableFlags_SizingStretchProp;
+    constexpr auto fflags = ImGuiTableColumnFlags_WidthFixed;
+    constexpr auto sflags = ImGuiTableColumnFlags_WidthStretch;
+
+    auto to_del      = std::optional<global_parameter_id>();
+    auto is_modified = 0;
+
+    if (ImGui::BeginTable("Parameter table", 5, tflags)) {
+        ImGui::TableSetupColumn("id", fflags, 80.f);
+        ImGui::TableSetupColumn("name", fflags, 100.f);
+        ImGui::TableSetupColumn("action", fflags, 60.f);
+        ImGui::TableSetupColumn("model type", fflags, 120.f);
+        ImGui::TableSetupColumn("parameters", sflags);
+        ImGui::TableHeadersRow();
+
+        app.pj.parameters.for_each([&](auto  id,
+                                       auto& name,
+                                       auto& /*tn_id*/,
+                                       auto& mdl_id,
+                                       auto& p) noexcept {
+            const auto* mdl = app.sim.models.try_to_get(mdl_id);
+            ImGui::PushID(get_index(id));
+
+            ImGui::TableNextRow();
+            ImGui::TableNextColumn();
+            ImGui::TextFormat("{}", ordinal(id));
+            ImGui::TableNextColumn();
+            ImGui::PushItemWidth(-1.f);
+            if (ImGui::InputFilteredString("name", name))
+                is_modified++;
+            ImGui::PopItemWidth();
+
+            ImGui::TableNextColumn();
+            if (ImGui::SmallButton("del"))
+                to_del = id;
+
+            if (mdl) {
+                ImGui::TableNextColumn();
+                ImGui::TextUnformatted(dynamics_type_names[ordinal(mdl->type)]);
+                ImGui::TableNextColumn();
+                if (show_parameter_editor(app, mdl->type, p))
+                    is_modified++;
+            } else {
+                ImGui::TableNextColumn();
+                ImGui::TextUnformatted("deleted model");
+                ImGui::TableNextColumn();
+                ImGui::TextUnformatted("");
+            }
+
+            ImGui::PopID();
+        });
+
+        ImGui::EndTable();
+    }
+
+    if (to_del.has_value()) {
+        app.pj.parameters.free(*to_del);
+        is_modified++;
+    }
+
+    return is_modified;
+}
+
+static bool show_project_observations(application& app) noexcept
 {
     constexpr static auto flags = ImGuiTreeNodeFlags_DefaultOpen;
 
-    bool variable_updated = false;
-    bool grid_updated     = false;
-    bool graph_updated    = false;
+    auto updated = 0;
 
-    if (ImGui::CollapsingHeader("Main observations", flags)) {
-        if (app.pj.variable_observers.ssize() > 0 &&
-            ImGui::CollapsingHeader("All plots", flags))
-            variable_updated = show_simulation_variable_observers(app);
+    if (not app.pj.variable_observers.empty() &&
+        ImGui::CollapsingHeader("Plots", flags))
+        updated += show_simulation_table_variable_observers(app);
 
-        if (app.pj.grid_observers.ssize() > 0 &&
-            ImGui::CollapsingHeader("All grids", flags))
-            grid_updated = show_simulation_grid_observers(app);
+    if (not app.pj.grid_observers.empty() &&
+        ImGui::CollapsingHeader("Grid observers", flags))
+        updated += show_simulation_table_grid_observers(app);
 
-        if (app.pj.graph_observers.ssize() > 0 &&
-            ImGui::CollapsingHeader("All graphs", flags))
-            graph_updated = show_simulation_graph_observers(app);
-    }
+    if (not app.pj.graph_observers.empty() &&
+        ImGui::CollapsingHeader("Graph observers", flags))
+        updated += show_simulation_table_graph_observers(app);
 
-    return variable_updated or grid_updated or graph_updated;
+    return updated;
 }
 
 void simulation_editor::show() noexcept
 {
+    auto& app = container_of(this, &application::simulation_ed);
+
     if (!ImGui::Begin(simulation_editor::name, &is_open)) {
         ImGui::End();
         return;
     }
 
-    if (std::unique_lock lock(mutex, std::try_to_lock); lock.owns_lock()) {
+    if (std::unique_lock lock(app.sim_mutex, std::try_to_lock);
+        lock.owns_lock()) {
         constexpr ImGuiTableFlags flags =
           ImGuiTableFlags_SizingFixedFit | ImGuiTableFlags_RowBg |
           ImGuiTableFlags_Borders | ImGuiTableFlags_Resizable |
@@ -952,42 +984,52 @@ void simulation_editor::show() noexcept
                                            can_be_stopped);
 
             if (ImGui::BeginChild("##s-c", ImVec2(0, 0), false)) {
+                const auto selected_tn = app.project_wnd.selected_tn();
+                auto*      selected    = app.pj.node(selected_tn);
+
                 if (ImGui::BeginTabBar("##SimulationTabBar")) {
-                    if (ImGui::BeginTabItem("Parameters")) {
-                        show_main_simulation_settings(app);
-
-                        auto selected_tn = app.project_wnd.selected_tn();
-                        if (auto* selected = app.pj.node(selected_tn); selected)
-                            show_local_simulation_settings(app, *selected);
-
+                    if (ImGui::BeginTabItem("Project parameters")) {
+                        show_project_simulation_settings(app);
+                        show_project_parameters(app);
                         ImGui::EndTabItem();
                     }
 
                     if (ImGui::BeginTabItem("Observations")) {
-                        show_main_simulation_observers(app);
+                        show_project_observations(app);
+                        ImGui::EndTabItem();
+                    }
 
-                        auto selected_tn = app.project_wnd.selected_tn();
-                        if (auto* selected = app.pj.node(selected_tn);
-                            selected) {
-                            if (!component_is_grid_or_graph(app.mod, *selected))
-                                show_local_simulation_plot_observers_table(
-                                  app, *selected);
+                    if (selected) {
+                        if (ImGui::BeginTabItem("Component parameters")) {
+                            show_local_simulation_settings(app, *selected);
+                            ImGui::EndTabItem();
+                        }
+
+                        if (ImGui::BeginTabItem("Component observations")) {
                             show_local_simulation_specific_observers(app,
                                                                      *selected);
 
                             if (!selected->variable_observer_ids.data.empty())
-                                show_local_variables_plot(app, *selected);
+                                show_local_variable_observers(app, *selected);
 
                             if (!selected->grid_observer_ids.empty())
-                                show_local_grid(app, *selected);
-                        }
+                                show_local_grid_observers(app, *selected);
 
-                        ImGui::EndTabItem();
+                            // if (!selected->graph_observer_ids.empty())
+                            //     show_local_graph(app, *selected);
+
+                            ImGui::EndTabItem();
+                        }
                     }
 
-                    if (ImGui::BeginTabItem("graph")) {
-                        // if (app.simulation_ed.can_display_graph_editor())
-                        show_simulation_editor(app);
+                    if (ImGui::BeginTabItem("Simulation graph")) {
+                        if (app.simulation_ed.can_display_graph_editor() and
+                            app.sim.models.ssize() <
+                              512) { // @TODO We need to update this value with
+                                     // a constant build and available in the
+                                     // application class.
+                            show_simulation_editor(app);
+                        }
                         ImGui::EndTabItem();
                     }
 

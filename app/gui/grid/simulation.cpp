@@ -392,71 +392,105 @@ bool grid_simulation_editor::show_observations(tree_node& tn,
     return grid_simulation_show_observations(app, *this, tn, grid);
 }
 
+void alloc_grid_observer(irt::application& app, irt::tree_node& tn)
+{
+    auto& grid = app.pj.grid_observers.alloc();
+
+    grid.parent_id = app.pj.tree_nodes.get_id(tn);
+    grid.compo_id  = undefined<component_id>();
+    grid.tn_id     = undefined<tree_node_id>();
+    grid.mdl_id    = undefined<model_id>();
+    tn.grid_observer_ids.emplace_back(app.pj.grid_observers.get_id(grid));
+
+    format(
+      grid.name, "rename-{}", get_index(app.pj.grid_observers.get_id(grid)));
+}
+
 bool show_local_observers(application& app,
                           tree_node&   tn,
                           component& /*compo*/,
                           grid_component& /*grid*/) noexcept
 {
-    if (ImGui::CollapsingHeader("Local grid observation")) {
-        if (app.pj.grid_observers.can_alloc() && ImGui::Button("+##grid")) {
-            auto& grid = app.pj.grid_observers.alloc();
+    auto to_del      = std::optional<grid_observer_id>();
+    auto is_modified = false;
 
-            grid.parent_id = app.pj.tree_nodes.get_id(tn);
-            grid.compo_id  = undefined<component_id>();
-            grid.tn_id     = undefined<tree_node_id>();
-            grid.mdl_id    = undefined<model_id>();
-            tn.grid_observer_ids.emplace_back(
-              app.pj.grid_observers.get_id(grid));
-
-            format(grid.name,
-                   "rename-{}",
-                   get_index(app.pj.grid_observers.get_id(grid)));
-        }
-
-        std::optional<grid_observer_id> to_delete;
-        bool                            is_modified = false;
+    if (ImGui::BeginTable("Grid observers", 6)) {
+        ImGui::TableSetupColumn("id");
+        ImGui::TableSetupColumn("name");
+        ImGui::TableSetupColumn("scale");
+        ImGui::TableSetupColumn("color");
+        ImGui::TableSetupColumn("model");
+        ImGui::TableSetupColumn("delete");
+        ImGui::TableHeadersRow();
 
         for_specified_data(
           app.pj.grid_observers,
           tn.grid_observer_ids,
           [&](auto& grid) noexcept {
+              const auto id = app.pj.grid_observers.get_id(grid);
               ImGui::PushID(&grid);
 
+              ImGui::TableNextRow();
+              ImGui::TableNextColumn();
+
+              ImGui::TextFormat("{}", ordinal(id));
+
+              ImGui::TableNextColumn();
+
+              ImGui::PushItemWidth(-1.0f);
               if (ImGui::InputFilteredString("name", grid.name))
                   is_modified = true;
+              ImGui::PopItemWidth();
 
-              ImGui::SameLine();
+              ImGui::TableNextColumn();
+              ImGui::PushItemWidth(-1);
+              ImGui::DragFloatRange2(
+                "##scale", &grid.scale_min, &grid.scale_max, 0.01f);
+              ImGui::PopItemWidth();
+              ImGui::TableNextColumn();
+              if (ImPlot::ColormapButton(
+                    ImPlot::GetColormapName(grid.color_map),
+                    ImVec2(225, 0),
+                    grid.color_map)) {
+                  grid.color_map =
+                    (grid.color_map + 1) % ImPlot::GetColormapCount();
+              }
 
-              if (ImGui::Button("del"))
-                  to_delete =
-                    std::make_optional(app.pj.grid_observers.get_id(grid));
-
-              ImGui::TextFormatDisabled(
-                "grid-id {} component_id {} tree-node-id {} model-id {}",
-                ordinal(grid.parent_id),
-                ordinal(grid.compo_id),
-                ordinal(grid.tn_id),
-                ordinal(grid.mdl_id));
+              ImGui::TableNextColumn();
+              show_select_model_box(
+                "Select model", "Choose model to observe", app, tn, grid);
 
               if_data_exists_do(
                 app.sim.models, grid.mdl_id, [&](auto& mdl) noexcept {
+                    ImGui::SameLine();
                     ImGui::TextUnformatted(
                       dynamics_type_names[ordinal(mdl.type)]);
                 });
 
-              show_select_model_box(
-                "Select model", "Choose model to observe", app, tn, grid);
+              ImGui::TableNextColumn();
+
+              if (ImGui::Button("del"))
+                  to_del = id;
 
               ImGui::PopID();
           });
 
-        if (to_delete.has_value()) {
-            is_modified = true;
-            app.pj.grid_observers.free(*to_delete);
+        ImGui::TableNextRow();
+        ImGui::TableNextColumn();
+
+        if (app.pj.grid_observers.can_alloc() && ImGui::Button("+##grid")) {
+            alloc_grid_observer(app, tn);
         }
+
+        ImGui::EndTable();
     }
 
-    return false;
+    if (to_del.has_value()) {
+        is_modified = true;
+        app.pj.grid_observers.free(*to_del);
+    }
+
+    return is_modified;
 }
 
 } // namespace irt

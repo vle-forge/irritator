@@ -112,22 +112,22 @@ notification::notification(log_level level_) noexcept
 {}
 
 notification_manager::notification_manager() noexcept
-  : r_buffer(notification_number)
+  : m_enabled_ids(notification_number)
 {
-    data.reserve(notification_number);
+    m_data.reserve(notification_number);
 }
 
 notification& notification_manager::alloc() noexcept
 {
-    std::scoped_lock lock{ mutex };
+    std::scoped_lock lock{ m_mutex };
 
-    if (r_buffer.full()) {
-        const auto front = r_buffer.front();
-        data.free(front);
-        r_buffer.dequeue();
+    if (m_enabled_ids.full()) {
+        const auto front = m_enabled_ids.front();
+        m_data.free(front);
+        m_enabled_ids.dequeue();
     }
 
-    return data.alloc();
+    return m_data.alloc();
 }
 
 notification& notification_manager::alloc(log_level level) noexcept
@@ -140,16 +140,16 @@ notification& notification_manager::alloc(log_level level) noexcept
 
 void notification_manager::enable(const notification& n) noexcept
 {
-    std::scoped_lock lock{ mutex };
+    std::scoped_lock lock{ m_mutex };
 
-    if (r_buffer.full()) {
-        const auto front = r_buffer.front();
-        data.free(front);
-        r_buffer.dequeue();
+    if (m_enabled_ids.full()) {
+        const auto front = m_enabled_ids.front();
+        m_data.free(front);
+        m_enabled_ids.dequeue();
     }
 
-    const auto id = data.get_id(n);
-    r_buffer.enqueue(id);
+    const auto id = m_data.get_id(n);
+    m_enabled_ids.enqueue(id);
 }
 
 void notification_manager::show() noexcept
@@ -160,9 +160,9 @@ void notification_manager::show() noexcept
     auto       height  = 0.f;
     auto       i       = 0;
 
-    if (std::unique_lock lock(mutex, std::try_to_lock); lock.owns_lock()) {
-        for (auto it = r_buffer.head(); it != r_buffer.end(); ++it) {
-            auto* notif = data.try_to_get(*it);
+    if (std::unique_lock lock(m_mutex, std::try_to_lock); lock.owns_lock()) {
+        for (auto it = m_enabled_ids.head(); it != m_enabled_ids.end(); ++it) {
+            auto* notif = m_data.try_to_get(*it);
             if (!notif) {
                 *it = undefined<notification_id>();
                 continue;
@@ -178,7 +178,7 @@ void notification_manager::show() noexcept
                     format(
                       msg, "{}: {}", notif->title.sv(), notif->message.sv());
 
-                data.free(*it);
+                m_data.free(*it);
                 *it = undefined<notification_id>();
                 continue;
             }
@@ -225,9 +225,9 @@ void notification_manager::show() noexcept
             ++i;
         }
 
-        while (!r_buffer.empty() &&
-               r_buffer.front() == undefined<notification_id>())
-            r_buffer.dequeue();
+        while (!m_enabled_ids.empty() &&
+               m_enabled_ids.front() == undefined<notification_id>())
+            m_enabled_ids.dequeue();
 
         ImGui::PopStyleVar();
     }

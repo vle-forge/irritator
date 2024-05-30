@@ -51,7 +51,7 @@ constexpr T& container_of(M* ptr, const M T::* member)
 }
 
 struct application;
-struct component_editor;
+class component_editor;
 
 enum class notification_id : u32;
 enum class plot_copy_id : u32;
@@ -128,9 +128,12 @@ public:
     void show() noexcept;
 
 private:
-    data_array<notification, notification_id> data;
-    ring_buffer<notification_id>              r_buffer;
-    spin_mutex                                 mutex;
+    data_array<notification, notification_id> m_data;
+    ring_buffer<notification_id>              m_enabled_ids;
+
+    spin_mutex m_mutex; /** @c alloc() and @c enable() functions lock the mutex
+                           to fill @c data and @c r_buffer. The show function
+                           only try to lock the mutex to display data. */
 };
 
 //! @brief Show notification into a classical window in botton.
@@ -241,7 +244,9 @@ struct plot_copy_widget {
     void show_plot_line(const plot_copy_id id) noexcept;
 };
 
-struct output_editor {
+class output_editor
+{
+public:
     constexpr static inline const char* name = "Output";
 
     output_editor() noexcept;
@@ -600,9 +605,6 @@ struct simulation_editor {
     small_ring_buffer<std::pair<model_id, ImVec2>, 8>
       models_to_move; /**< Online simulation created models need to use ImNodes
                          API to move into the canvas. */
-
-    spin_mutex mutex; /**< Sharing the simulation data from gui's tasks and gui's
-                        draw functions. */
 };
 
 struct data_window {
@@ -628,7 +630,9 @@ struct data_window {
     bool is_open          = true;
 };
 
-struct component_editor {
+class component_editor
+{
+public:
     constexpr static inline const char* name = "Component editor";
 
     void show() noexcept;
@@ -647,7 +651,9 @@ private:
     component_id m_request_to_open = undefined<component_id>();
 };
 
-struct library_window {
+class library_window
+{
+public:
     constexpr static inline const char* name = "Library";
 
     library_window() noexcept = default;
@@ -794,7 +800,9 @@ private:
     int files   = 0; //! Number of component in registred directories
     int unsaved = 0; //! Number of unsaved component
 
-    spin_mutex m_mutex;
+    spin_mutex m_mutex; /** @c update() lock the class to read modeling data and
+                           build the @c ids and @c names vectors. Other
+                           functions try to lock. */
 };
 
 class component_model_selector
@@ -852,6 +860,10 @@ struct application {
     modeling   mod;
     simulation sim;
     project    pj;
+
+    spin_mutex mod_mutex;
+    spin_mutex sim_mutex;
+    spin_mutex pj_mutex;
 
     component_selector       component_sel;
     component_model_selector component_model_sel;
@@ -974,6 +986,8 @@ bool show_local_observers(application&     app,
                           tree_node&       tn,
                           component&       compo,
                           graph_component& graph) noexcept;
+
+void alloc_grid_observer(irt::application& app, irt::tree_node& tn);
 
 bool show_local_observers(application&    app,
                           tree_node&      tn,

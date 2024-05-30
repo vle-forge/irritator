@@ -18,7 +18,10 @@ static void add_generic_component_data(application& app) noexcept
     app.generics.alloc(compo_id);
     app.component_ed.request_to_open(compo_id);
 
-    app.add_gui_task([&app]() noexcept { app.component_sel.update(); });
+    app.add_gui_task([&app]() noexcept {
+        std::scoped_lock lock(app.mod_mutex);
+        app.component_sel.update();
+    });
 }
 
 static void add_grid_component_data(application& app) noexcept
@@ -27,7 +30,10 @@ static void add_grid_component_data(application& app) noexcept
     auto  compo_id = app.mod.components.get_id(compo);
     app.grids.alloc(compo_id, compo.id.grid_id);
     app.component_ed.request_to_open(compo_id);
-    app.add_gui_task([&app]() noexcept { app.component_sel.update(); });
+    app.add_gui_task([&app]() noexcept {
+        std::scoped_lock lock(app.mod_mutex);
+        app.component_sel.update();
+    });
 }
 
 static void add_graph_component_data(application& app) noexcept
@@ -37,7 +43,10 @@ static void add_graph_component_data(application& app) noexcept
     app.graphs.alloc(compo_id, compo.id.graph_id);
     app.component_ed.request_to_open(compo_id);
 
-    app.add_gui_task([&app]() noexcept { app.component_sel.update(); });
+    app.add_gui_task([&app]() noexcept {
+        std::scoped_lock lock(app.mod_mutex);
+        app.component_sel.update();
+    });
 }
 
 static void show_component_popup_menu(application& app, component& sel) noexcept
@@ -71,8 +80,10 @@ static void show_component_popup_menu(application& app, component& sel) noexcept
                         app.notifications.enable(n);
                     }
 
-                    app.add_gui_task(
-                      [&app]() noexcept { app.component_sel.update(); });
+                    app.add_gui_task([&app]() noexcept {
+                        std::scoped_lock lock(app.mod_mutex);
+                        app.component_sel.update();
+                    });
                 } else {
                     auto& n = app.notifications.alloc();
                     n.level = log_level::error;
@@ -85,7 +96,9 @@ static void show_component_popup_menu(application& app, component& sel) noexcept
                 const auto compo_id = app.mod.components.get_id(sel);
 
                 app.add_gui_task([&app, compo_id]() noexcept {
-                    std::scoped_lock lock{ app.simulation_ed.mutex };
+                    std::scoped_lock lock{ app.sim_mutex,
+                                           app.mod_mutex,
+                                           app.pj_mutex };
 
                     attempt_all(
                       [&]() noexcept -> status {

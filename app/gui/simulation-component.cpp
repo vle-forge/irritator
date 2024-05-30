@@ -333,7 +333,10 @@ void simulation_editor::start_simulation_live_run() noexcept
 
 void simulation_editor::start_simulation_update_state() noexcept
 {
-    if (std::unique_lock lock(mutex, std::try_to_lock); lock.owns_lock()) {
+    auto& app = container_of(this, &application::simulation_ed);
+
+    if (std::unique_lock lock(app.sim_mutex, std::try_to_lock);
+        lock.owns_lock()) {
         if (simulation_state == simulation_status::paused) {
             simulation_state = simulation_status::run_requiring;
 
@@ -418,8 +421,7 @@ void simulation_editor::start_simulation_clear() noexcept
     app.simulation_ed.display_graph = false;
 
     app.add_simulation_task([&app]() noexcept {
-        std::scoped_lock lock(app.simulation_ed.mutex);
-        app.pj.clean_simulation();
+        std::scoped_lock lock(app.sim_mutex);
         app.simulation_ed.clear();
     });
 }
@@ -433,7 +435,7 @@ void simulation_editor::start_simulation_delete() noexcept
     app.simulation_ed.display_graph = false;
 
     app.add_simulation_task([&app]() noexcept {
-        std::scoped_lock lock(app.simulation_ed.mutex);
+        std::scoped_lock lock(app.sim_mutex);
         app.pj.clear();
         app.sim.clear();
         app.simulation_ed.clear();
@@ -610,7 +612,7 @@ void simulation_editor::start_simulation_finish() noexcept
     auto& app = container_of(this, &application::simulation_ed);
 
     app.add_simulation_task([&app]() noexcept {
-        std::scoped_lock lock{ app.simulation_ed.mutex };
+        std::scoped_lock lock{ app.sim_mutex };
 
         app.simulation_ed.simulation_state = simulation_status::finishing;
         app.sim.immediate_observers.clear();
@@ -743,7 +745,7 @@ void simulation_editor::start_simulation_model_add(const dynamics_type type,
     auto& app = container_of(this, &application::simulation_ed);
 
     app.add_simulation_task([&app, type, x, y]() noexcept {
-        std::scoped_lock lock{ app.simulation_ed.mutex };
+        std::scoped_lock lock{ app.sim_mutex };
 
         if (!app.sim.can_alloc(1)) {
             auto& n = app.notifications.alloc(log_level::error);
@@ -791,7 +793,7 @@ void simulation_editor::start_simulation_model_del(const model_id id) noexcept
     auto& app = container_of(this, &application::simulation_ed);
 
     app.add_simulation_task([&app, id]() noexcept {
-        std::scoped_lock lock{ app.simulation_ed.mutex };
+        std::scoped_lock lock{ app.sim_mutex };
         app.sim.deallocate(id);
     });
 }
@@ -802,7 +804,7 @@ void simulation_editor::remove_simulation_observation_from(
     auto& app = container_of(this, &application::simulation_ed);
 
     app.add_simulation_task([&app, mdl_id]() noexcept {
-        std::scoped_lock _(app.simulation_ed.mutex);
+        std::scoped_lock _(app.sim_mutex);
 
         if_data_exists_do(
           app.sim.models, mdl_id, [&](auto& mdl) noexcept -> void {
@@ -817,7 +819,7 @@ void simulation_editor::add_simulation_observation_for(
     auto& app = container_of(this, &application::simulation_ed);
 
     app.add_simulation_task([&app, mdl_id]() noexcept {
-        std::scoped_lock _(app.simulation_ed.mutex);
+        std::scoped_lock _(app.sim_mutex);
 
         if_data_exists_do(
           app.sim.models, mdl_id, [&](auto& mdl) noexcept -> void {
