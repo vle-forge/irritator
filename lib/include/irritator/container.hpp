@@ -1116,16 +1116,31 @@ public:
     void free(const identifier_type id) noexcept;
 
     //! Call the @c fn function if @c id is valid.
+    //!
+    //! The function take one value from Index (integer or type).
+    template<typename Index, typename Function>
+    void if_exists_do(const identifier_type id, Function&& fn) noexcept;
+
+    //! Call the @c fn function if @c id is valid.
+    //!
+    //! The function take values from all vectors.
     template<typename Function>
-    void if_exists_do(const identifier_type id, Function& fn) noexcept;
+    void if_exists_do(const identifier_type id, Function&& fn) noexcept;
 
     //! Call the @c fn function for each valid identifier.
+    template<typename Index, typename Function>
+    void for_each(Function&& fn) noexcept;
+
+    //! Call the @c fn function for each valid identifier.
+    //
+    //! The function take one vector from Index (integer or type).
     template<typename Function>
     void for_each(Function&& fn) noexcept;
 
     void clear() noexcept;
     void reserve(std::integral auto len) noexcept;
 
+    bool     exists(const identifier_type id) const noexcept;
     bool     can_alloc(std::integral auto nb = 1) const noexcept;
     unsigned size() const noexcept;
     int      ssize() const noexcept;
@@ -2274,12 +2289,30 @@ void id_data_array<Identifier, A, Ts...>::free(
 }
 
 template<typename Identifier, typename A, class... Ts>
-template<typename Function>
+template<typename Index, typename Function>
 void id_data_array<Identifier, A, Ts...>::if_exists_do(const identifier_type id,
-                                                       Function& fn) noexcept
+                                                       Function&& fn) noexcept
 {
-    if (m_ids.exists(id))
-        do_call_fn(fn, id, std::index_sequence_for<Ts...>());
+    if constexpr (std::is_integral_v<Index>) {
+        if (m_ids.exists(id))
+            fn(id, std::get<Index>(m_col)[get_index(id)]);
+    } else {
+        if (m_ids.exists(id))
+            fn(id, std::get<vector<Index>>(m_col)[get_index(id)]);
+    }
+}
+
+template<typename Identifier, typename A, class... Ts>
+template<typename Index, typename Function>
+void id_data_array<Identifier, A, Ts...>::for_each(Function&& fn) noexcept
+{
+    if constexpr (std::is_integral_v<Index>) {
+        for (const auto id : m_ids)
+            fn(id, std::get<Index>(m_col));
+    } else {
+        for (const auto id : m_ids)
+            fn(id, std::get<vector<Index>>(m_col));
+    }
 }
 
 template<typename Identifier, typename A, class... Ts>
@@ -2304,6 +2337,13 @@ void id_data_array<Identifier, A, Ts...>::reserve(
         m_ids.reserve(len);
         do_resize(std::index_sequence_for<Ts...>(), len);
     }
+}
+
+template<typename Identifier, typename A, class... Ts>
+bool id_data_array<Identifier, A, Ts...>::exists(
+  const identifier_type id) const noexcept
+{
+    return m_ids.exists(id);
 }
 
 template<typename Identifier, typename A, class... Ts>
