@@ -9,22 +9,29 @@
 namespace irt {
 
 static auto init_or_reuse_observer(simulation&        sim,
-                                   observer_id        obs_id,
+                                   model&             mdl,
                                    std::integral auto row,
                                    std::integral auto col) noexcept
   -> observer_id
 {
-    if (auto* obs = sim.observers.try_to_get(obs_id); obs) {
-        // @TODO If the previous observer have different time-step or buffer
-        // lengths, how to initialize?
-        obs->init(16, 32, 0.01f);
+    if (auto* obs = sim.observers.try_to_get(mdl.obs_id); obs) {
+        const auto raw_buffer_size = std::max(obs->buffer.ssize(), 16);
+        const auto linerized_buffer_size =
+          std::max(obs->linearized_buffer.ssize(), 16);
+        const auto time_step = std::clamp(
+          obs->time_step, std::numeric_limits<float>::epsilon(), 0.01f);
+
+        obs->init(raw_buffer_size, linerized_buffer_size, time_step);
+        sim.observe(mdl, *obs);
     } else {
         auto& new_obs = sim.observers.alloc("");
         format(new_obs.name, "{}x{}", row, col);
         new_obs.init(16, 32, 0.01f);
-        obs_id = sim.observers.get_id(new_obs);
+        mdl.obs_id = sim.observers.get_id(new_obs);
+        sim.observe(mdl, new_obs);
     }
-    return obs_id;
+
+    return mdl.obs_id;
 }
 
 static void build_grid_observer(grid_observer&  grid_obs,
@@ -63,7 +70,7 @@ static void build_grid_observer(grid_observer&  grid_obs,
                 debug::ensure(index < grid_obs.observers.ssize());
 
                 grid_obs.observers[index] =
-                  init_or_reuse_observer(sim, mdl->obs_id, w.first, w.second);
+                  init_or_reuse_observer(sim, *mdl, w.first, w.second);
             }
         }
 
@@ -110,14 +117,21 @@ void grid_observer::update(const simulation& sim) noexcept
 
     for (int row = 0; row < rows; ++row) {
         for (int col = 0; col < cols; ++col) {
-            const auto  pos = row * cols + col;
-            const auto* obs = sim.observers.try_to_get(observers[pos]);
+            const auto pos = row * cols + col;
+            const auto id  = observers[pos];
 
-            values[pos] = obs && !obs->linearized_buffer.empty()
-                            ? obs->linearized_buffer.back().y
-                            : zero;
+            if (is_defined(id)) {
+                const auto* obs = sim.observers.try_to_get(observers[pos]);
 
-            fmt::print("{}\n", values[pos]);
+                if (not obs) {
+                    observers[pos] = undefined<observer_id>();
+                    values[pos]    = zero;
+                } else {
+                    values[pos] = !obs->linearized_buffer.empty()
+                                    ? obs->linearized_buffer.back().y
+                                    : zero;
+                }
+            }
         }
     }
 }
