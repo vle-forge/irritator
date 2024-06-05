@@ -551,44 +551,82 @@ status modeling::copy(internal_component src, component& dst) noexcept
 
     switch (src) {
     case internal_component::qss1_izhikevich:
-        return add_izhikevich<1>(*this, dst, s_compo);
+        irt_check(add_izhikevich<1>(*this, dst, s_compo));
+        break;
     case internal_component::qss1_lif:
-        return add_lif<1>(*this, dst, s_compo);
+        irt_check(add_lif<1>(*this, dst, s_compo));
+        break;
     case internal_component::qss1_lotka_volterra:
-        return add_lotka_volterra<1>(*this, dst, s_compo);
+        irt_check(add_lotka_volterra<1>(*this, dst, s_compo));
+        break;
     case internal_component::qss1_negative_lif:
-        return add_negative_lif<1>(*this, dst, s_compo);
+        irt_check(add_negative_lif<1>(*this, dst, s_compo));
+        break;
     case internal_component::qss1_seirs:
-        return add_seirs<1>(*this, dst, s_compo);
+        irt_check(add_seirs<1>(*this, dst, s_compo));
+        break;
     case internal_component::qss1_van_der_pol:
-        return add_van_der_pol<1>(*this, dst, s_compo);
+        irt_check(add_van_der_pol<1>(*this, dst, s_compo));
+        break;
     case internal_component::qss2_izhikevich:
-        return add_izhikevich<2>(*this, dst, s_compo);
+        irt_check(add_izhikevich<2>(*this, dst, s_compo));
+        break;
     case internal_component::qss2_lif:
-        return add_lif<2>(*this, dst, s_compo);
+        irt_check(add_lif<2>(*this, dst, s_compo));
+        break;
     case internal_component::qss2_lotka_volterra:
-        return add_lotka_volterra<2>(*this, dst, s_compo);
+        irt_check(add_lotka_volterra<2>(*this, dst, s_compo));
+        break;
     case internal_component::qss2_negative_lif:
-        return add_negative_lif<2>(*this, dst, s_compo);
+        irt_check(add_negative_lif<2>(*this, dst, s_compo));
+        break;
     case internal_component::qss2_seirs:
-        return add_seirs<2>(*this, dst, s_compo);
+        irt_check(add_seirs<2>(*this, dst, s_compo));
+        break;
     case internal_component::qss2_van_der_pol:
-        return add_van_der_pol<2>(*this, dst, s_compo);
+        irt_check(add_van_der_pol<2>(*this, dst, s_compo));
+        break;
     case internal_component::qss3_izhikevich:
-        return add_izhikevich<3>(*this, dst, s_compo);
+        irt_check(add_izhikevich<3>(*this, dst, s_compo));
+        break;
     case internal_component::qss3_lif:
-        return add_lif<3>(*this, dst, s_compo);
+        irt_check(add_lif<3>(*this, dst, s_compo));
+        break;
     case internal_component::qss3_lotka_volterra:
-        return add_lotka_volterra<3>(*this, dst, s_compo);
+        irt_check(add_lotka_volterra<3>(*this, dst, s_compo));
+        break;
     case internal_component::qss3_negative_lif:
-        return add_negative_lif<3>(*this, dst, s_compo);
+        irt_check(add_negative_lif<3>(*this, dst, s_compo));
+        break;
     case internal_component::qss3_seirs:
-        return add_seirs<3>(*this, dst, s_compo);
+        irt_check(add_seirs<3>(*this, dst, s_compo));
+        break;
     case internal_component::qss3_van_der_pol:
-        return add_van_der_pol<3>(*this, dst, s_compo);
+        irt_check(add_van_der_pol<3>(*this, dst, s_compo));
     }
 
-    unreachable();
+    const auto children = s_compo.children.size();
+    const auto sq       = static_cast<int>(std::floor(std::sqrt(children)));
+
+    auto x = 0;
+    auto y = 0;
+
+    debug::ensure(s_compo.children_positions.size() >= children);
+    for (auto& c : s_compo.children) {
+        const auto index = get_index(s_compo.children.get_id(c));
+
+        const auto px = 100.f + static_cast<float>(x * 240.f);
+        const auto py = 100.f + static_cast<float>(y * 200.f);
+
+        s_compo.children_positions[index].x = px;
+        s_compo.children_positions[index].y = py;
+
+        ++x;
+        if (x >= sq) {
+            ++y;
+            x = 0;
+        }
+    }
 
     return success();
 }
