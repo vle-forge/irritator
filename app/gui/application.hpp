@@ -384,8 +384,10 @@ private:
     component_id m_id = undefined<component_id>();
 };
 
-struct generic_component_editor_data {
-    generic_component_editor_data(const component_id id_) noexcept;
+class generic_component_editor_data
+{
+public:
+    generic_component_editor_data(const component_id id) noexcept;
     ~generic_component_editor_data() noexcept;
 
     void show(component_editor& ed) noexcept;
@@ -407,8 +409,9 @@ public:
     bool fix_input_output        = false;
     bool force_update_position   = false;
 
-    ImVector<int> selected_links;
-    ImVector<int> selected_nodes;
+    ImVector<int>    selected_links;
+    ImVector<int>    selected_nodes;
+    vector<child_id> update_position_list;
 
 private:
     component_id m_id = undefined<component_id>();

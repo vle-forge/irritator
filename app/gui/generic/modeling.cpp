@@ -448,18 +448,44 @@ static void show_graph_node(application&     app,
     ImNodes::PopColorStyle();
 }
 
-static void update_position(generic_component_editor_data& data,
-                            generic_component&             generic) noexcept
+static void update_editor_position(const child_id        id,
+                                   const child_position& pos) noexcept
 {
-    for_each_data(generic.children, [&](auto& child) {
+    ImNodes::SetNodeScreenSpacePos(pack_node_child(id), ImVec2(pos.x, pos.y));
+}
+
+static void update_editor_all_positions(generic_component& generic) noexcept
+{
+    for_each_data(generic.children, [&](auto& child) noexcept {
         const auto id  = generic.children.get_id(child);
         const auto idx = get_index(id);
 
-        ImNodes::SetNodeEditorSpacePos(
-          pack_node_child(id),
-          ImVec2(generic.children_positions[idx].x,
-                 generic.children_positions[idx].y));
+        update_editor_position(id, generic.children_positions[idx]);
     });
+}
+
+static void update_editor_list_positions(generic_component&  generic,
+                                         std::span<child_id> ids) noexcept
+{
+    for (const auto id : ids) {
+        if_data_exists_do(generic.children, id, [&](auto& /*child*/) noexcept {
+            const auto idx = get_index(id);
+
+            update_editor_position(id, generic.children_positions[idx]);
+        });
+    }
+}
+
+static void update_editor_positions(generic_component_editor_data& data,
+                                    generic_component& generic) noexcept
+{
+    if (data.update_position_list.empty()) {
+        update_editor_all_positions(generic);
+    } else {
+        update_editor_list_positions(
+          generic, std::span<child_id>(data.update_position_list));
+        data.update_position_list.clear();
+    }
 
     data.force_update_position = false;
 }
@@ -507,7 +533,7 @@ static void show_graph(component_editor&              ed,
     const auto pos_x2 = pos.x + width - 50.f;
 
     if (data.force_update_position)
-        update_position(data, s_parent);
+        update_editor_positions(data, s_parent);
 
     if (data.show_input_output) {
         update_input_output_draggable(parent, data.fix_input_output);
@@ -657,6 +683,7 @@ static void add_popup_menuitem(component_editor&              ed,
         s_parent.children_parameters[idx].init_from(type);
 
         parent.state = component_status::modified;
+        data.update_position_list.emplace_back(id);
         data.update_position();
 
         auto& app = container_of(&ed, &application::component_ed);
@@ -708,6 +735,7 @@ static void compute_grid_layout(settings_window&               settings,
         }
     });
 
+    data.update_position_list.clear();
     data.update_position();
 }
 
@@ -736,6 +764,8 @@ static void add_component_to_current(component_editor&              ed,
 
     parent_compo.children_positions[c_idx].x = click_pos.x;
     parent_compo.children_positions[c_idx].y = click_pos.y;
+
+    data.update_position_list.emplace_back(c_id);
     data.update_position();
 }
 
@@ -1189,6 +1219,7 @@ static void show_component_editor(component_editor&              ed,
         if (app.grid_dlg.is_ok && !app.grid_dlg.is_running) {
             app.grid_dlg.save();
             app.grid_dlg.is_ok = false;
+            data.update_position_list.clear();
             data.update_position();
 
             for_each_data(s_compo.children, [&](auto& c) noexcept {
@@ -1209,6 +1240,7 @@ static void show_component_editor(component_editor&              ed,
         if (app.graph_dlg.is_ok && !app.graph_dlg.is_running) {
             app.graph_dlg.save();
             app.graph_dlg.is_ok = false;
+            data.update_position_list.clear();
             data.update_position();
 
             for_each_data(s_compo.children, [&](auto& c) noexcept {
@@ -1260,8 +1292,8 @@ static void show_component_editor(component_editor&              ed,
 }
 
 generic_component_editor_data::generic_component_editor_data(
-  const component_id id_) noexcept
-  : m_id{ id_ }
+  const component_id id) noexcept
+  : m_id{ id }
 {
     context = ImNodes::EditorContextCreate();
     ImNodes::PushAttributeFlag(
@@ -1276,6 +1308,7 @@ generic_component_editor_data::generic_component_editor_data(
       ImNodesStyleFlags_GridLinesPrimary | ImNodesStyleFlags_GridSnapping;
 
     first_show_input_output = true;
+    update_position_list.reserve(8);
     update_position();
 }
 
