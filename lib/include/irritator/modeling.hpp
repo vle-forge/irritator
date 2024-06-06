@@ -1116,7 +1116,7 @@ private:
     vector<observer_id>  m_obs_ids; //!< `observer` connected to `model`.
     vector<color>        m_colors;  //!< Colors used for observers.
     vector<type_options> m_options; //!< Line, dash etc. for observers.
-    vector<name_str>     m_names;
+    vector<name_str>     m_names;   //!< Name of the observation.
 
 public:
     //! @brief Fill the `observer_id` vector and initialize buffers.
@@ -1127,6 +1127,9 @@ public:
 
     //! @brief Fill the `observer_id` vector with undefined value.
     void clear() noexcept;
+
+    //! @brief Search a `sub_id`  `tn` and `mdl`.
+    sub_id find(const tree_node_id tn, const model_id mdl) noexcept;
 
     //! @brief Remove `sub_id` for all ` m_tn_ids` equal to `tn` and `mdl_ids`
     //! equal to `mdl`.
@@ -1139,13 +1142,23 @@ public:
 
     //! @brief Push data in all vectors if pair (`tn`, `mdl`) does not
     //! already exists.
-    void push_back(const tree_node_id tn,
-                   const model_id     mdl,
-                   const color          = 0xFe1a0Fe,
-                   const type_options t = type_options::line) noexcept;
+    sub_id push_back(const tree_node_id tn,
+                     const model_id     mdl,
+                     const color          = 0xFe1a0Fe,
+                     const type_options t = type_options::line) noexcept;
 
     unsigned size() const noexcept { return m_ids.size(); }
     int      ssize() const noexcept { return m_ids.ssize(); }
+
+    template<typename Function>
+    void if_exists_do(const sub_id id, Function&& fn) noexcept
+    {
+        if (m_ids.exists(id)) {
+            const auto idx = get_index(id);
+
+            fn(m_obs_ids[idx], m_colors[idx], m_options[idx], m_names[idx]);
+        }
+    }
 
     template<typename Function>
     void for_each_tn_mdl(Function&& f) const noexcept

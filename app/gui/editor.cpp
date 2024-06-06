@@ -1814,8 +1814,8 @@ bool show_parameter(dynamics_logical_invert_tag,
     return false;
 }
 
-static auto get_current_component_name(application& app, parameter& p) noexcept
-  -> const char*
+static auto get_current_component_name(application& app,
+                                       parameter&   p) noexcept -> const char*
 {
     static constexpr auto undefined_name = "-";
 
@@ -1849,7 +1849,8 @@ bool show_parameter(dynamics_hsm_wrapper_tag,
         for (const auto& c : app.mod.components) {
             if (c.type == component_type::hsm) {
                 ImGui::PushID(imgui_id++);
-                const auto c_id = ordinal(app.mod.components.get_id(c));
+                const auto c_id =
+                  static_cast<i64>(app.mod.components.get_id(c));
                 if (ImGui::Selectable(c.name.c_str(), p.integers[0] == c_id)) {
                     p.integers[0] = c_id;
                 }

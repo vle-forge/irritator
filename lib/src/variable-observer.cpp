@@ -62,6 +62,19 @@ void variable_observer::clear() noexcept
     std::fill_n(m_obs_ids.data(), m_obs_ids.size(), undefined<observer_id>());
 }
 
+auto variable_observer::find(const tree_node_id tn,
+                             const model_id     mdl) noexcept -> sub_id
+{
+    for (const auto id : m_ids) {
+        const auto idx = get_index(id);
+
+        if (m_tn_ids[idx] == tn and m_mdl_ids[idx] == mdl)
+            return id;
+    }
+
+    return undefined<variable_observer::sub_id>();
+}
+
 void variable_observer::erase(const tree_node_id tn,
                               const model_id     mdl) noexcept
 {
@@ -79,10 +92,11 @@ void variable_observer::erase(const sub_id i) noexcept
         m_ids.free(i);
 }
 
-void variable_observer::push_back(const tree_node_id tn,
-                                  const model_id     mdl,
-                                  const color        c,
-                                  const type_options t) noexcept
+variable_observer::sub_id variable_observer::push_back(
+  const tree_node_id tn,
+  const model_id     mdl,
+  const color        c,
+  const type_options t) noexcept
 {
     check(m_tn_ids, m_mdl_ids, m_obs_ids, m_colors, m_options);
 
@@ -96,12 +110,11 @@ void variable_observer::push_back(const tree_node_id tn,
         m_names.resize(max_observers.value());
     }
 
-    const sub_id* ptr = nullptr;
-    while (m_ids.next(ptr)) {
-        const auto idx = get_index(*ptr);
+    for (auto id : m_ids) {
+        const auto idx = get_index(id);
 
         if (m_tn_ids[idx] == tn and m_mdl_ids[idx] == mdl)
-            return;
+            return id;
     }
 
     debug::ensure(m_ids.can_alloc(1));
@@ -114,6 +127,8 @@ void variable_observer::push_back(const tree_node_id tn,
     m_colors[idx]  = c;
     m_options[idx] = t;
     m_names[idx].clear();
+
+    return id;
 }
 
 } // namespace irt
