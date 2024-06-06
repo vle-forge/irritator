@@ -40,9 +40,8 @@ static void build_graph(graph_observer&  graph_obs,
                               graph_compo.children.ssize());
                 debug::ensure(index < graph_obs.observers.ssize());
 
-                auto&      obs    = sim.observers.alloc("tmp");
+                auto&      obs    = sim.observers.alloc();
                 const auto obs_id = sim.observers.get_id(obs);
-                format(obs.name, "{}", index);
                 sim.observe(*mdl, obs);
 
                 graph_obs.observers[index] = obs_id;

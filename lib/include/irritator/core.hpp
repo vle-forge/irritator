@@ -826,13 +826,27 @@ enum class observer_flags : u8 {
 };
 
 struct observer {
+    static inline constexpr auto default_buffer_size            = 4;
+    static inline constexpr auto default_linearized_buffer_size = 256;
+
+    using buffer_size_t            = constrained_value<int, 4, 64>;
+    using linearized_buffer_size_t = constrained_value<int, 64, 32768>;
+
     using value_type = observation;
 
-    observer(std::string_view name_) noexcept;
+    /// Allocate raw and liearized buffers with default sizes.
+    observer() noexcept;
 
-    void init(const i32   raw_buffer_size,
-              const i32   linearizer_buffer_size,
-              const float time_step_) noexcept;
+    /// Allocate raw and linearized buffers with specified constrained sizes.
+    observer(const buffer_size_t            buffer_size,
+             const linearized_buffer_size_t linearized_buffer_size) noexcept;
+
+    /// Change the raw and linearized buffers with specified constrained sizes
+    /// and change the time-step.
+    void init(const buffer_size_t            buffer_size,
+              const linearized_buffer_size_t linearized_buffer_size,
+              const float                    ts) noexcept;
+
     void reset() noexcept;
     void clear() noexcept;
     void update(observation_message msg) noexcept;
@@ -842,12 +856,10 @@ struct observer {
     ring_buffer<observation_message> buffer;
     ring_buffer<observation>         linearized_buffer;
 
-    model_id              model     = undefined<model_id>();
-    dynamics_type         type      = dynamics_type::qss1_integrator;
-    float                 time_step = 0.1f;
-    std::pair<real, real> limits;
-
-    small_string<14>         name;
+    model_id                 model     = undefined<model_id>();
+    dynamics_type            type      = dynamics_type::qss1_integrator;
+    float                    time_step = 1e-2;
+    std::pair<real, real>    limits;
     bitflags<observer_flags> states;
 };
 
@@ -1244,52 +1256,38 @@ public:
 
 template<typename T>
 concept has_lambda_function = requires(T t, simulation& sim) {
-    {
-        t.lambda(sim)
-    } -> std::same_as<status>;
+    { t.lambda(sim) } -> std::same_as<status>;
 };
 
 template<typename T>
 concept has_transition_function =
   requires(T t, simulation& sim, time s, time e, time r) {
-      {
-          t.transition(sim, s, e, r)
-      } -> std::same_as<status>;
+      { t.transition(sim, s, e, r) } -> std::same_as<status>;
   };
 
 template<typename T>
 concept has_observation_function = requires(T t, time s, time e) {
-    {
-        t.observation(s, e)
-    } -> std::same_as<observation_message>;
+    { t.observation(s, e) } -> std::same_as<observation_message>;
 };
 
 template<typename T>
 concept has_initialize_function = requires(T t, simulation& sim) {
-    {
-        t.initialize(sim)
-    } -> std::same_as<status>;
+    { t.initialize(sim) } -> std::same_as<status>;
 };
 
 template<typename T>
 concept has_finalize_function = requires(T t, simulation& sim) {
-    {
-        t.finalize(sim)
-    } -> std::same_as<status>;
+    { t.finalize(sim) } -> std::same_as<status>;
 };
 
 template<typename T>
 concept has_input_port = requires(T t) {
-    {
-        t.x
-    };
+    { t.x };
 };
 
 template<typename T>
 concept has_output_port = requires(T t) {
-    {
-        t.y
-    };
+    { t.y };
 };
 
 constexpr observation_message qss_observation(real X,
@@ -4730,25 +4728,30 @@ inline status finalize_source(simulation& sim, source& src) noexcept
 
 //! observer
 
-inline observer::observer(std::string_view name_) noexcept
-  : buffer{ 64 }
-  , name{ name_ }
-  , states{ observer_flags::none }
+inline observer::observer() noexcept
+  : buffer(default_buffer_size)
+  , linearized_buffer(default_linearized_buffer_size)
 {}
 
-inline void observer::init(const i32   raw_buffer_size,
-                           const i32   linearizer_buffer_size,
-                           const float time_step_) noexcept
+inline observer::observer(
+  const buffer_size_t            buffer_size,
+  const linearized_buffer_size_t linearized_buffer_size) noexcept
+  : buffer(*buffer_size)
+  , linearized_buffer(*linearized_buffer_size)
+{}
+
+inline void observer::init(
+  const buffer_size_t            buffer_size,
+  const linearized_buffer_size_t linearized_buffer_size,
+  const float                    ts) noexcept
 {
     debug::ensure(time_step > 0.f);
-    debug::ensure(raw_buffer_size > 0);
-    debug::ensure(linearizer_buffer_size > 0);
 
     buffer.clear();
-    buffer.reserve(raw_buffer_size);
+    buffer.reserve(*buffer_size);
     linearized_buffer.clear();
-    linearized_buffer.reserve(linearizer_buffer_size);
-    time_step = time_step_;
+    linearized_buffer.reserve(*linearized_buffer_size);
+    time_step = ts <= zero ? 1e-2 : time_step;
 }
 
 inline void observer::reset() noexcept

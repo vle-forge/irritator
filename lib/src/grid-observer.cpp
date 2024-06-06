@@ -8,10 +8,10 @@
 
 namespace irt {
 
-static auto init_or_reuse_observer(simulation&        sim,
-                                   model&             mdl,
-                                   std::integral auto row,
-                                   std::integral auto col) noexcept
+static auto init_or_reuse_observer(simulation& sim,
+                                   model&      mdl,
+                                   std::integral auto /*row*/,
+                                   std::integral auto /*col*/) noexcept
   -> observer_id
 {
     if (auto* obs = sim.observers.try_to_get(mdl.obs_id); obs) {
@@ -24,8 +24,7 @@ static auto init_or_reuse_observer(simulation&        sim,
         obs->init(raw_buffer_size, linerized_buffer_size, time_step);
         sim.observe(mdl, *obs);
     } else {
-        auto& new_obs = sim.observers.alloc("");
-        format(new_obs.name, "{}x{}", row, col);
+        auto& new_obs = sim.observers.alloc();
         new_obs.init(16, 32, 0.01f);
         mdl.obs_id = sim.observers.get_id(new_obs);
         sim.observe(mdl, new_obs);

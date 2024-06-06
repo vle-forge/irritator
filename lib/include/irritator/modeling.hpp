@@ -1118,6 +1118,7 @@ private:
     vector<observer_id>  m_obs_ids; //!< `observer` connected to `model`.
     vector<color>        m_colors;  //!< Colors used for observers.
     vector<type_options> m_options; //!< Line, dash etc. for observers.
+    vector<name_str>     m_names;
 
 public:
     //! @brief Fill the `observer_id` vector and initialize buffers.
@@ -1161,7 +1162,8 @@ public:
         for (const auto id : m_ids)
             f(m_obs_ids[get_index(id)],
               m_colors[get_index(id)],
-              m_options[get_index(id)]);
+              m_options[get_index(id)],
+              m_names[get_index(id)]);
     }
 };
 

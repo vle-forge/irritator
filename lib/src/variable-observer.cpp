@@ -23,10 +23,6 @@ static bool check(vector<tree_node_id>&                    tn_ids,
 
 status variable_observer::init(project& pj, simulation& sim) noexcept
 {
-    using string_t = decltype(observer::name);
-
-    string_t tmp;
-
     for (auto i = 0, e = m_tn_ids.ssize(); i != e; ++i) {
         auto  obs_id = undefined<observer_id>();
         auto* tn     = pj.tree_nodes.try_to_get(m_tn_ids[i]);
@@ -42,8 +38,7 @@ status variable_observer::init(project& pj, simulation& sim) noexcept
                           time_step.value());
             } else {
                 if (sim.observers.can_alloc()) {
-                    format(tmp, "{}", i);
-                    auto& new_obs = sim.observers.alloc(tmp.sv());
+                    auto& new_obs = sim.observers.alloc();
                     new_obs.init(raw_buffer_size.value(),
                                  linearized_buffer_size.value(),
                                  time_step.value());
@@ -73,7 +68,8 @@ void variable_observer::erase(const tree_node_id tn,
     for (const auto id : m_ids) {
         const auto idx = get_index(id);
 
-        if (m_tn_ids[idx] == tn and m_mdl_ids[idx] == mdl) erase(id);
+        if (m_tn_ids[idx] == tn and m_mdl_ids[idx] == mdl)
+            erase(id);
     }
 }
 
@@ -97,6 +93,7 @@ void variable_observer::push_back(const tree_node_id tn,
         m_obs_ids.resize(max_observers.value());
         m_colors.resize(max_observers.value());
         m_options.resize(max_observers.value());
+        m_names.resize(max_observers.value());
     }
 
     const sub_id* ptr = nullptr;
@@ -116,6 +113,7 @@ void variable_observer::push_back(const tree_node_id tn,
     m_obs_ids[idx] = undefined<observer_id>();
     m_colors[idx]  = c;
     m_options[idx] = t;
+    m_names[idx].clear();
 }
 
 } // namespace irt

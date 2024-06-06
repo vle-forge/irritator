@@ -319,20 +319,21 @@ static auto get_first_variable_observer(project& pj) noexcept
 }
 
 static void show_local_variable_plot(
-  observer&                       obs,
-  variable_observer::type_options type) noexcept
+  observer&                             obs,
+  const name_str&                       name,
+  const variable_observer::type_options type) noexcept
 {
     if (obs.linearized_buffer.size() > 0) {
         switch (type) {
         case variable_observer::type_options::line:
-            ImPlot::PlotLineG(obs.name.c_str(),
+            ImPlot::PlotLineG(name.c_str(),
                               ring_buffer_getter,
                               &obs.linearized_buffer,
                               obs.linearized_buffer.ssize());
             break;
 
         case variable_observer::type_options::dash:
-            ImPlot::PlotScatterG(obs.name.c_str(),
+            ImPlot::PlotScatterG(name.c_str(),
                                  ring_buffer_getter,
                                  &obs.linearized_buffer,
                                  obs.linearized_buffer.ssize());
@@ -459,8 +460,8 @@ static bool show_local_simulation_plot_observers_table(application& app,
     return is_modified > 0;
 }
 
-static auto get_global_parameter(const auto& tn, const u64 uid) noexcept
-  -> global_parameter_id
+static auto get_global_parameter(const auto& tn,
+                                 const u64 uid) noexcept -> global_parameter_id
 {
     auto* ptr = tn.parameters_ids.get(uid);
     return ptr ? *ptr : undefined<global_parameter_id>();
@@ -587,11 +588,13 @@ static bool show_local_simulation_specific_observers(application& app,
 static void show_local_variables_plot(application&       app,
                                       variable_observer& v_obs) noexcept
 {
-    v_obs.for_each_obs(
-      [&](const auto obs_id, const auto /*color*/, const auto option) noexcept {
-          if (auto* obs = app.sim.observers.try_to_get(obs_id); obs)
-              show_local_variable_plot(*obs, option);
-      });
+    v_obs.for_each_obs([&](const auto obs_id,
+                           const auto /*color*/,
+                           const auto  option,
+                           const auto& name) noexcept {
+        if (auto* obs = app.sim.observers.try_to_get(obs_id); obs)
+            show_local_variable_plot(*obs, name, option);
+    });
 }
 
 static void show_local_variable_observers(application& app,

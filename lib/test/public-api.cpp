@@ -41,7 +41,7 @@ struct file_output {
       , type{ get_interpolate_type(obs.type) }
     {
         if (os = std::fopen(filename, "w"); os)
-            fmt::print(os, "t,{}\n", obs_.name.c_str());
+            fmt::print(os, "t,v\n");
     }
 
     void push_back(const irt::observation& vec) noexcept
@@ -1261,7 +1261,7 @@ int main()
 
     "id-data-array"_test = [] {
         struct pos3d {
-	    pos3d() = default;
+            pos3d() = default;
 
             pos3d(float x_, float y_, float z_)
               : x(x_)
@@ -2008,9 +2008,9 @@ int main()
         expect(!!sim.connect(product, 0, sum_a, 1));
         expect(!!sim.connect(product, 0, sum_b, 1));
 
-        auto&       obs_a = sim.observers.alloc("A");
+        auto&       obs_a = sim.observers.alloc();
         file_output fo_a(obs_a, "lotka-volterra-qss1_a.csv");
-        auto&       obs_b = sim.observers.alloc("B");
+        auto&       obs_b = sim.observers.alloc();
         file_output fo_b(obs_b, "lotka-volterra-qss1_b.csv");
         expect(fo_a.os != nullptr);
         expect(fo_b.os != nullptr);
@@ -2073,9 +2073,9 @@ int main()
         expect(!!sim.connect(product, 0, sum_a, 1));
         expect(!!sim.connect(product, 0, sum_b, 1));
 
-        auto&       obs_a = sim.observers.alloc("A");
+        auto&       obs_a = sim.observers.alloc();
         file_output fo_a(obs_a, "lotka-volterra-qss2_a.csv");
-        auto&       obs_b = sim.observers.alloc("B");
+        auto&       obs_b = sim.observers.alloc();
         file_output fo_b(obs_b, "lotka-volterra-qss2_b.csv");
         expect(fo_a.os != nullptr);
         expect(fo_b.os != nullptr);
@@ -2141,7 +2141,7 @@ int main()
         expect(!!sim.connect(constant, 0, sum, 1));
         expect(!!sim.connect(sum, 0, integrator, 0));
 
-        auto&       obs_a = sim.observers.alloc("A");
+        auto&       obs_a = sim.observers.alloc();
         file_output fo_a(obs_a, "lif-qss1.csv");
         expect(fo_a.os != nullptr);
 
@@ -2206,7 +2206,7 @@ int main()
         expect(!!sim.connect(constant, 0, sum, 1));
         expect(!!sim.connect(sum, 0, integrator, 0));
 
-        auto&       obs_a = sim.observers.alloc("A");
+        auto&       obs_a = sim.observers.alloc();
         file_output fo_a(obs_a, "lif-qss2.csv");
         expect(fo_a.os != nullptr);
 
@@ -2311,11 +2311,11 @@ int main()
         expect(!!sim.connect(integrator_b, 0, sum_d, 0));
         expect(!!sim.connect(constant, 0, sum_d, 1));
 
-        auto&       obs_a = sim.observers.alloc("A");
+        auto&       obs_a = sim.observers.alloc();
         file_output fo_a(obs_a, "izhikevitch-qss1_a.csv");
         expect(fo_a.os != nullptr);
 
-        auto&       obs_b = sim.observers.alloc("B");
+        auto&       obs_b = sim.observers.alloc();
         file_output fo_b(obs_b, "izhikevitch-qss1_b.csv");
         expect(fo_b.os != nullptr);
 
@@ -2422,11 +2422,11 @@ int main()
         expect(!!sim.connect(integrator_b, 0, sum_d, 0));
         expect(!!sim.connect(constant, 0, sum_d, 1));
 
-        auto&       obs_a = sim.observers.alloc("A");
+        auto&       obs_a = sim.observers.alloc();
         file_output fo_a(obs_a, "izhikevitch-qss2_a.csv");
         expect(fo_a.os != nullptr);
 
-        auto&       obs_b = sim.observers.alloc("B");
+        auto&       obs_b = sim.observers.alloc();
         file_output fo_b(obs_b, "izhikevitch-qss2_b.csv");
         expect(fo_b.os != nullptr);
 
@@ -2488,10 +2488,10 @@ int main()
         expect(!!sim.connect(product, 0, sum_a, 1));
         expect(!!sim.connect(product, 0, sum_b, 1));
 
-        auto&       obs_a = sim.observers.alloc("A");
+        auto&       obs_a = sim.observers.alloc();
         file_output fo_a(obs_a, "lotka-volterra-qss3_a.csv");
         expect(fo_a.os != nullptr);
-        auto&       obs_b = sim.observers.alloc("B");
+        auto&       obs_b = sim.observers.alloc();
         file_output fo_b(obs_b, "lotka-volterra-qss3_b.csv");
         expect(fo_b.os != nullptr);
 
@@ -2559,7 +2559,7 @@ int main()
         expect(!!sim.connect(constant, 0, sum, 1));
         expect(!!sim.connect(sum, 0, integrator, 0));
 
-        auto&       obs_a = sim.observers.alloc("A");
+        auto&       obs_a = sim.observers.alloc();
         file_output fo_a(obs_a, "lif-qss3.csv");
         expect(fo_a.os != nullptr);
 
@@ -2663,11 +2663,11 @@ int main()
         expect(!!sim.connect(integrator_b, 0, sum_d, 0));
         expect(!!sim.connect(constant, 0, sum_d, 1));
 
-        auto&       obs_a = sim.observers.alloc("A");
+        auto&       obs_a = sim.observers.alloc();
         file_output fo_a(obs_a, "izhikevitch-qss3_a.csv");
         expect(fo_a.os != nullptr);
 
-        auto&       obs_b = sim.observers.alloc("B");
+        auto&       obs_b = sim.observers.alloc();
         file_output fo_b(obs_b, "izhikevitch-qss3_b.csv");
         expect(fo_b.os != nullptr);
 
@@ -2729,11 +2729,11 @@ int main()
         expect(!!sim.connect(product1, 0, product2, 0));
         expect(!!sim.connect(integrator_a, 0, product2, 1));
 
-        auto&       obs_a = sim.observers.alloc("A");
+        auto&       obs_a = sim.observers.alloc();
         file_output fo_a(obs_a, "van_der_pol_qss3_a.csv");
         expect(fo_a.os != nullptr);
 
-        auto&       obs_b = sim.observers.alloc("B");
+        auto&       obs_b = sim.observers.alloc();
         file_output fo_b(obs_b, "van_der_pol_qss3_b.csv");
         expect(fo_b.os != nullptr);
 
@@ -2801,7 +2801,7 @@ int main()
         expect(!!sim.connect(constant, 0, sum, 1));
         expect(!!sim.connect(sum, 0, integrator, 0));
 
-        auto&       obs_a = sim.observers.alloc("A");
+        auto&       obs_a = sim.observers.alloc();
         file_output fo_a(obs_a, "neg-lif-qss1.csv");
         expect(fo_a.os != nullptr);
 
@@ -2865,7 +2865,7 @@ int main()
         expect(!!sim.connect(constant, 0, sum, 1));
         expect(!!sim.connect(sum, 0, integrator, 0));
 
-        auto&       obs_a = sim.observers.alloc("A");
+        auto&       obs_a = sim.observers.alloc();
         file_output fo_a(obs_a, "neg-lif-qss2.csv");
         expect(fo_a.os != nullptr);
 
@@ -2930,7 +2930,7 @@ int main()
         expect(!!sim.connect(constant, 0, sum, 1));
         expect(!!sim.connect(sum, 0, integrator, 0));
 
-        auto&       obs_a = sim.observers.alloc("A");
+        auto&       obs_a = sim.observers.alloc();
         file_output fo_a(obs_a, "neg-lif-qss3.csv");
         expect(fo_a.os != nullptr);
 

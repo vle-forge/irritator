@@ -59,20 +59,21 @@ void plot_observation_widget::show(application& app) noexcept
 
             v_obs.for_each_obs([&](const auto obs_id,
                                    const auto /*color*/,
-                                   const auto option) noexcept {
+                                   const auto  option,
+                                   const auto& name) noexcept {
                 auto* obs = app.sim.observers.try_to_get(obs_id);
 
                 if (obs->linearized_buffer.size() > 0) {
                     switch (option) {
                     case variable_observer::type_options::line:
-                        ImPlot::PlotLineG(obs->name.c_str(),
+                        ImPlot::PlotLineG(name.c_str(),
                                           ring_buffer_getter,
                                           &obs->linearized_buffer,
                                           obs->linearized_buffer.ssize());
                         break;
 
                     case variable_observer::type_options::dash:
-                        ImPlot::PlotScatterG(obs->name.c_str(),
+                        ImPlot::PlotScatterG(name.c_str(),
                                              ring_buffer_getter,
                                              &obs->linearized_buffer,
                                              obs->linearized_buffer.ssize());

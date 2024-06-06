@@ -824,12 +824,16 @@ void simulation_editor::add_simulation_observation_for(
         if_data_exists_do(
           app.sim.models, mdl_id, [&](auto& mdl) noexcept -> void {
               if (app.sim.observers.can_alloc(1)) {
-                  auto& obs = app.sim.observers.alloc("new");
+                  auto& obs = app.sim.observers.alloc();
                   app.sim.observe(mdl, obs);
               } else {
-                  auto& n = app.notifications.alloc(log_level::error);
-                  n.title = "Too many observer in simulation";
-                  app.notifications.enable(n);
+                  app.notifications.try_insert(
+                    log_level::error, [&](auto& title, auto& msg) noexcept {
+                        title = "Simulation editor";
+                        format(msg,
+                               "Too many observers ({}) in simulation",
+                               app.sim.observers.capacity());
+                    });
               }
           });
     });
