@@ -160,6 +160,7 @@ bool application::init() noexcept
     graphs.reserve(32);
     grids.reserve(32);
     generics.reserve(32);
+    hsms.reserve(32);
 
     if (auto ret = mod.fill_components(); !ret)
         log_w(*this, log_level::error, "Fail to read all components\n");
@@ -558,18 +559,6 @@ void application::show() noexcept
         }
     }
 
-    if (show_hsm_editor) {
-        ImGui::OpenPopup("HSM editor");
-        if (hsm_ed.show("HSM editor")) {
-            if (hsm_ed.state_ok())
-                hsm_ed.save();
-
-            hsm_ed.clear();
-            hsm_ed.hide();
-            show_hsm_editor = false;
-        }
-    }
-
     notifications.show();
 
 #ifdef IRRITATOR_USE_TTF
@@ -854,17 +843,6 @@ void application::start_init_source(const u64                 id,
               n.title = "Fail to initialize data";
               notifications.enable(n);
           });
-    });
-}
-
-void application::start_hsm_test_start() noexcept
-{
-    add_gui_task([&]() noexcept {
-        if (not hsm_ed.valid()) {
-            auto& n = notifications.alloc(log_level::error);
-            n.title = "HSM badly define";
-            notifications.enable(n);
-        }
     });
 }
 

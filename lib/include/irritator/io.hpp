@@ -9,7 +9,6 @@
 #include <irritator/file.hpp>
 #include <irritator/modeling.hpp>
 
-#include <algorithm>
 #include <optional>
 #include <string_view>
 #include <type_traits>
@@ -29,15 +28,13 @@ static inline constexpr const std::string_view component_status_string[] = {
     "unreadable"
 };
 
-static constexpr inline const char* component_type_names[] = { "none",
-                                                               "internal",
-                                                               "simple",
-                                                               "grid",
-                                                               "graph" };
+static constexpr inline const char* component_type_names[] = {
+    "none", "internal", "simple", "grid", "graph", "hsm"
+};
 
 //! Try to get the component type from a string. If the string is unknown,
 //! optional returns \c std::nullopt.
- auto get_component_type(std::string_view name) noexcept
+auto get_component_type(std::string_view name) noexcept
   -> std::optional<component_type>;
 
 static constexpr inline const char* internal_component_names[] = {
@@ -72,7 +69,7 @@ static constexpr inline const char* dynamics_type_names[] = {
 
 //! Try to get the dymamics type from a string. If the string is unknown,
 //! optional returns \c std::nullopt.
- auto get_dynamics_type(std::string_view dynamics_name) noexcept
+auto get_dynamics_type(std::string_view dynamics_name) noexcept
   -> std::optional<dynamics_type>;
 
 static_assert(std::size(dynamics_type_names) ==
@@ -408,7 +405,7 @@ inline const char* distribution_str(const distribution_type type) noexcept
 
 //! Try to get the random source distribution type from a string. If the string
 //! is unknwon, optional return @c std::nullopt.
- auto get_distribution_type(std::string_view name) noexcept
+auto get_distribution_type(std::string_view name) noexcept
   -> std::optional<distribution_type>;
 
 enum class random_file_type {

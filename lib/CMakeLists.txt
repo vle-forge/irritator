@@ -61,6 +61,12 @@ target_compile_options(libirritator PRIVATE
         /EHsc /bigobj /Zc:__cplusplus /wd5030 /wd4251 /std:c++20
         $<$<CONFIG:Debug>:/Od /W3 /Zi>>)
 
+target_compile_definitions(libirritator PRIVATE
+      $<$<BOOL:${WITH_DEBUG}>:IRRITATOR_ENABLE_DEBUG>
+      $<$<CXX_COMPILER_ID:MSVC>:_CRT_SECURE_NO_WARNINGS>
+      $<$<CXX_COMPILER_ID:MSVC>:_SCL_SECURE_NO_WARNINGS>
+      $<$<CXX_COMPILER_ID:MSVC>:BOOST_UT_DISABLE_MODULE>)
+
 target_include_directories(libirritator PUBLIC
     ${CMAKE_CURRENT_SOURCE_DIR}/include
     ${CMAKE_CURRENT_BINARY_DIR}/include)

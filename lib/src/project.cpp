@@ -173,10 +173,6 @@ static auto make_tree_leaf(simulation_copy&   sc,
     if (!sc.sim.models.can_alloc())
         return new_error(project::error::not_enough_memory);
 
-    if (mdl_type == dynamics_type::hsm_wrapper)
-        if (!sc.sim.hsms.can_alloc())
-            return new_error(project::error::not_enough_memory);
-
     const auto ch_idx     = get_index(ch_id);
     auto&      new_mdl    = sc.sim.models.alloc();
     auto       new_mdl_id = sc.sim.models.get_id(new_mdl);
@@ -203,12 +199,30 @@ static auto make_tree_leaf(simulation_copy&   sc,
               const auto mod_hsm_id  = enum_cast<hsm_component_id>(
                 gen.children_parameters[child_index].integers[0]);
 
-              const auto* sim_hsm_id = sc.hsm_mod_to_sim.get(mod_hsm_id);
-              if (sim_hsm_id) {
-                  const auto* hsm = sc.sim.hsms.try_to_get(*sim_hsm_id);
-                  debug::ensure(hsm);
-                  dyn.id = *sim_hsm_id;
+              auto* chsm = sc.mod.hsm_components.try_to_get(mod_hsm_id);
+              if (not chsm)
+                  return new_error(
+                    project::part::tree_nodes); /* @TODO Need to return a better
+                                                   error: modeling do not known
+                                                   this hsm-component-id. */
+
+              auto* sim_hsm_id_ptr = sc.hsm_mod_to_sim.get(mod_hsm_id);
+              auto  sim_hsm_id     = undefined<hsm_id>();
+
+              if (not sim_hsm_id_ptr) {
+                  if (not sc.sim.hsms.can_alloc())
+                      return new_error(
+                        project::error::
+                          not_enough_memory); /* TODO Need to return a better
+                                                 error: simulation failed to
+                                                 allocate more hsm. */
+                  auto& hsm  = sc.sim.hsms.alloc(*chsm);
+                  sim_hsm_id = sc.sim.hsms.get_id(hsm);
+              } else {
+                  sim_hsm_id = *sim_hsm_id_ptr;
               }
+
+              dyn.id = sim_hsm_id;
           }
 
           if constexpr (std::is_same_v<Dynamics, generator>) {

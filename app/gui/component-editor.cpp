@@ -387,6 +387,7 @@ void component_editor::show() noexcept
         show_data(app, *this, app.generics, "generic");
         show_data(app, *this, app.grids, "grid");
         show_data(app, *this, app.graphs, "graph");
+        show_data(app, *this, app.hsms, "hsm");
         ImGui::EndTabBar();
     }
 

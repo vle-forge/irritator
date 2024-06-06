@@ -720,6 +720,11 @@ bool modeling::can_alloc_generic_component() const noexcept
     return components.can_alloc() && generic_components.can_alloc();
 }
 
+bool modeling::can_alloc_hsm_component() const noexcept
+{
+    return components.can_alloc() && hsm_components.can_alloc();
+}
+
 component& modeling::alloc_grid_component() noexcept
 {
     debug::ensure(can_alloc_grid_component());
@@ -749,6 +754,22 @@ component& modeling::alloc_graph_component() noexcept
 
     auto& graph           = graph_components.alloc();
     new_compo.id.graph_id = graph_components.get_id(graph);
+
+    return new_compo;
+}
+
+component& modeling::alloc_hsm_component() noexcept
+{
+    debug::ensure(can_alloc_hsm_component());
+
+    auto& new_compo    = components.alloc();
+    auto  new_compo_id = components.get_id(new_compo);
+    format(new_compo.name, "hsm {}", get_index(new_compo_id));
+    new_compo.type  = component_type::hsm;
+    new_compo.state = component_status::modified;
+
+    auto& h             = hsm_components.alloc();
+    new_compo.id.hsm_id = hsm_components.get_id(h);
 
     return new_compo;
 }

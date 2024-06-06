@@ -278,9 +278,7 @@ struct connection {
 /// hierarchical_state_machine is copied into the simulation HSM data array. The
 /// parameter @c a and @c b are store into the @c children_parameters of the @c
 /// generic_component.
-struct hsm_component {
-    hierarchical_state_machine machine;
-};
+using hsm_component = hierarchical_state_machine;
 
 class generic_component
 {
@@ -1340,10 +1338,12 @@ public:
     bool can_alloc_grid_component() const noexcept;
     bool can_alloc_generic_component() const noexcept;
     bool can_alloc_graph_component() const noexcept;
+    bool can_alloc_hsm_component() const noexcept;
 
     component& alloc_grid_component() noexcept;
     component& alloc_generic_component() noexcept;
     component& alloc_graph_component() noexcept;
+    component& alloc_hsm_component() noexcept;
 
     /// Checks if the child can be added to the parent to avoid recursive loop
     /// (ie. a component child which need the same component in sub-child).

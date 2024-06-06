@@ -24,7 +24,7 @@
 namespace irt {
 
 template<class T, class M>
-constexpr std::ptrdiff_t offset_of(const M T::* member)
+constexpr std::ptrdiff_t offset_of(const M T::*member)
 {
     return reinterpret_cast<std::ptrdiff_t>(
       &(reinterpret_cast<T*>(0)->*member));
@@ -44,7 +44,7 @@ constexpr std::ptrdiff_t offset_of(const M T::* member)
 //! }
 //! @endcode
 template<class T, class M>
-constexpr T& container_of(M* ptr, const M T::* member)
+constexpr T& container_of(M* ptr, const M T::*member)
 {
     return *reinterpret_cast<T*>(reinterpret_cast<intptr_t>(ptr) -
                                  offset_of(member));
@@ -62,6 +62,7 @@ enum class gui_task_id : u64;
 enum class grid_editor_data_id : u32;
 enum class graph_editor_data_id : u32;
 enum class generic_editor_data_id : u32;
+enum class hsm_editor_data_id : u32;
 
 enum class task_status { not_started, started, finished };
 
@@ -276,61 +277,6 @@ public:
     bool is_open      = true;
 };
 
-//! An ImNodes editor for HSM.
-//! Default, node 0 is the top state.
-class hsm_editor
-{
-public:
-    constexpr static inline const char* name = "HSM Editor";
-
-    constexpr static inline auto max_number_of_state =
-      hierarchical_state_machine::max_number_of_state;
-
-    enum class state { show, ok, cancel, hide };
-
-    enum class test_status { none, being_processed, done, failed };
-
-    hsm_editor() noexcept;
-    ~hsm_editor() noexcept;
-
-    //! This function clear the current hierarchical state machine: suppress all
-    //! states, transitions and actions. Assign the state-0 as initial state.
-    void clear() noexcept;
-
-    void load(component_id c_id, model_id m_id) noexcept;
-    void load(model_id m_id) noexcept;
-    void save() noexcept;
-
-    bool show(const char* title) noexcept;
-    bool valid() noexcept;
-
-    bool state_ok() const noexcept { return m_state == state::ok; }
-    void hide() noexcept { m_state = state::hide; }
-
-private:
-    void show_hsm() noexcept;
-    void show_menu() noexcept;
-    void show_graph() noexcept;
-    void show_panel() noexcept;
-
-    ImNodesEditorContext* m_context = nullptr;
-
-    hierarchical_state_machine m_hsm;
-    component_id               m_compo_id;
-    model_id                   m_model_id;
-
-    ImVector<int>                                  m_selected_links;
-    ImVector<int>                                  m_selected_nodes;
-    ImVector<hierarchical_state_machine::state_id> m_stack;
-
-    std::array<ImVec2, max_number_of_state>        m_position;
-    std::array<bool, max_number_of_state>          m_enabled;
-    thread_safe_ring_buffer<small_string<127>, 10> m_messages;
-
-    test_status m_test  = test_status::none;
-    state       m_state = state::hide;
-};
-
 class grid_component_editor_data
 {
 public:
@@ -398,6 +344,56 @@ public:
 
 private:
     component_id m_id = undefined<component_id>();
+};
+
+class hsm_component_editor_data
+{
+public:
+    constexpr static inline const char* name = "HSM Editor";
+
+    constexpr static inline auto max_number_of_state =
+      hierarchical_state_machine::max_number_of_state;
+
+    enum class test_status { none, being_processed, done, failed };
+
+    hsm_component_editor_data(const component_id     id,
+                              const hsm_component_id hid,
+                              hsm_component&         hsm) noexcept;
+    ~hsm_component_editor_data() noexcept;
+
+    //! Get the underlying component_id.
+    component_id get_id() const noexcept { return m_id; }
+
+    void show(component_editor& ed) noexcept;
+    void show_selected_nodes(component_editor& ed) noexcept;
+
+    // void load(component_id c_id, model_id m_id) noexcept;
+    // void load(model_id m_id) noexcept;
+    // void save() noexcept;
+
+private:
+    void show_hsm(hsm_component& hsm) noexcept;
+    void show_menu(hsm_component& hsm) noexcept;
+    void show_graph(hsm_component& hsm) noexcept;
+    void show_panel(hsm_component& hsm) noexcept;
+    void clear(hsm_component& hsm) noexcept;
+    bool valid(hsm_component& hsm) noexcept;
+
+    ImNodesEditorContext* m_context = nullptr;
+
+    ImVector<int>                                  m_selected_links;
+    ImVector<int>                                  m_selected_nodes;
+    ImVector<hierarchical_state_machine::state_id> m_stack;
+
+    std::array<ImVec2, max_number_of_state>  m_position;
+    std::array<bool, max_number_of_state>    m_enabled;
+    small_ring_buffer<small_string<127>, 10> m_messages;
+
+    test_status m_test = test_status::none;
+
+private:
+    component_id     m_id     = undefined<component_id>();
+    hsm_component_id m_hsm_id = undefined<hsm_component_id>();
 };
 
 class generic_component_editor_data
@@ -892,7 +888,6 @@ struct application {
     component_editor  component_ed;
     simulation_editor simulation_ed;
     output_editor     output_ed;
-    hsm_editor        hsm_ed;
     data_window       data_ed;
 
     grid_editor_dialog  grid_dlg;
@@ -912,6 +907,7 @@ struct application {
     data_array<grid_component_editor_data, grid_editor_data_id>       grids;
     data_array<graph_component_editor_data, graph_editor_data_id>     graphs;
     data_array<generic_component_editor_data, generic_editor_data_id> generics;
+    data_array<hsm_component_editor_data, hsm_editor_data_id>         hsms;
 
     std::filesystem::path project_file;
     std::filesystem::path select_directory;
@@ -933,8 +929,6 @@ struct application {
 
     bool show_imgui_demo  = false;
     bool show_implot_demo = false;
-
-    bool show_hsm_editor = false;
 
     bool menu_new_project_file     = false;
     bool menu_load_project_file    = false;

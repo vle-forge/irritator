@@ -23,7 +23,6 @@
 #include <optional>
 #include <string_view>
 #include <utility>
-#include <variant>
 
 #ifdef IRRITATOR_ENABLE_DEBUG
 #include <fmt/format.h>
@@ -772,7 +771,7 @@ struct reader {
 
     bool copy_to(i32& dst) noexcept
     {
-        if (!(INT32_MIN <= temp_integer && temp_integer < INT32_MAX))
+        if (!(INT32_MIN <= temp_integer && temp_integer <= INT32_MAX))
             report_json_error(error_id::integer_to_i32_error);
 
         dst = static_cast<i32>(temp_integer);
@@ -792,7 +791,7 @@ struct reader {
 
     bool copy_to(i8& dst) noexcept
     {
-        if (!(0 <= temp_integer && temp_integer < INT8_MAX))
+        if (!(0 <= temp_integer && temp_integer <= INT8_MAX))
             report_json_error(error_id::integer_to_i8_error);
 
         dst = static_cast<i8>(temp_integer);
@@ -802,7 +801,7 @@ struct reader {
 
     bool copy_to(u8& dst) noexcept
     {
-        if (!(0 <= temp_integer && temp_integer < UINT8_MAX))
+        if (!(0 <= temp_integer && temp_integer <= UINT8_MAX))
             report_json_error(error_id::integer_to_u8_error);
 
         dst = static_cast<u8>(temp_integer);
@@ -883,7 +882,7 @@ struct reader {
 
     bool copy_to(std::optional<i8>& dst) noexcept
     {
-        if (!(INT8_MIN <= temp_integer && temp_integer < INT8_MAX))
+        if (!(INT8_MIN <= temp_integer && temp_integer <= INT8_MAX))
             report_json_error(error_id::integer_to_i8_error);
 
         dst = static_cast<i8>(temp_integer);
@@ -892,7 +891,7 @@ struct reader {
 
     bool copy_to(std::optional<i32>& dst) noexcept
     {
-        if (!(INT32_MIN <= temp_integer && temp_integer < INT32_MAX))
+        if (!(INT32_MIN <= temp_integer && temp_integer <= INT32_MAX))
             report_json_error(error_id::integer_to_i32_error);
 
         dst = static_cast<int>(temp_integer);
@@ -1597,42 +1596,59 @@ struct reader {
           });
     }
 
-    bool read_hsm_state(const rapidjson::Value&            val,
-                        hierarchical_state_machine::state& s) noexcept
+    bool read_hsm_state(
+      const rapidjson::Value& val,
+      std::array<hierarchical_state_machine::state,
+                 hierarchical_state_machine::max_number_of_state>&
+        states) noexcept
     {
-        auto_stack a(this, stack_id::dynamics_hsm_state);
+        auto_stack                        a(this, stack_id::dynamics_hsm_state);
+        std::optional<int>                id;
+        hierarchical_state_machine::state s;
 
-        return for_each_member(
-          val, [&](const auto name, const auto& value) noexcept -> bool {
-              if ("enter"sv == name)
-                  return read_hsm_state_action(value, s.enter_action);
+        if (not for_each_member(
+              val,
+              [&](const auto name, const auto& value) noexcept -> bool {
+                  if ("id"sv == name)
+                      return read_temp_integer(value) and copy_to(id);
 
-              if ("exit"sv == name)
-                  return read_hsm_state_action(value, s.exit_action);
+                  if ("enter"sv == name)
+                      return read_hsm_state_action(value, s.enter_action);
 
-              if ("if"sv == name)
-                  return read_hsm_state_action(value, s.if_action);
+                  if ("exit"sv == name)
+                      return read_hsm_state_action(value, s.exit_action);
 
-              if ("else"sv == name)
-                  return read_hsm_state_action(value, s.else_action);
+                  if ("if"sv == name)
+                      return read_hsm_state_action(value, s.if_action);
 
-              if ("condition"sv == name)
-                  return read_hsm_condition_action(value, s.condition);
+                  if ("else"sv == name)
+                      return read_hsm_state_action(value, s.else_action);
 
-              if ("if-transition"sv == name)
-                  return read_temp_integer(value) && copy_to(s.if_transition);
+                  if ("condition"sv == name)
+                      return read_hsm_condition_action(value, s.condition);
 
-              if ("else-transition"sv == name)
-                  return read_temp_integer(value) && copy_to(s.else_transition);
+                  if ("if-transition"sv == name)
+                      return read_temp_integer(value) &&
+                             copy_to(s.if_transition);
 
-              if ("super-id"sv == name)
-                  return read_temp_integer(value) && copy_to(s.super_id);
+                  if ("else-transition"sv == name)
+                      return read_temp_integer(value) &&
+                             copy_to(s.else_transition);
 
-              if ("sub-id"sv == name)
-                  return read_temp_integer(value) && copy_to(s.sub_id);
+                  if ("super-id"sv == name)
+                      return read_temp_integer(value) && copy_to(s.super_id);
 
-              report_json_error(error_id::unknown_element);
-          });
+                  if ("sub-id"sv == name)
+                      return read_temp_integer(value) && copy_to(s.sub_id);
+
+                  report_json_error(error_id::unknown_element);
+              }) or
+            not id.has_value())
+            return false;
+
+        states[*id] = s;
+
+        return true;
     }
 
     bool read_hsm_states(
@@ -1644,8 +1660,8 @@ struct reader {
         auto_stack a(this, stack_id::dynamics_hsm_states);
 
         return for_each_array(
-          val, [&](const auto i, const auto& value) noexcept -> bool {
-              return read_hsm_state(value, states[i]);
+          val, [&](const auto /*i*/, const auto& value) noexcept -> bool {
+              return read_hsm_state(value, states);
           });
     }
 
@@ -3236,11 +3252,11 @@ struct reader {
         return for_each_member(
           val, [&](const auto name, const auto& value) noexcept -> bool {
               if ("states"sv == name)
-                  return read_hsm_states(value, hsm.machine.states);
+                  return read_hsm_states(value, hsm.states);
 
               if ("top"sv == name)
                   return read_temp_unsigned_integer(value) &&
-                         copy_to(hsm.machine.top_state);
+                         copy_to(hsm.top_state);
               return true;
           });
     }
@@ -5692,14 +5708,16 @@ static void write_hsm_component(const hierarchical_state_machine& hsm,
     w.Key("states");
     w.StartArray();
 
-    constexpr auto length =
-      to_unsigned(hierarchical_state_machine::max_number_of_state);
+    constexpr auto length  = hierarchical_state_machine::max_number_of_state;
     constexpr auto invalid = hierarchical_state_machine::invalid_state_id;
 
     std::array<bool, length> states_to_write;
     states_to_write.fill(false);
 
-    for (unsigned i = 0; i != length; ++i) {
+    if (hsm.top_state != invalid)
+        states_to_write[hsm.top_state] = true;
+
+    for (auto i = 0; i != length; ++i) {
         if (hsm.states[i].if_transition != invalid)
             states_to_write[hsm.states[i].if_transition] = true;
         if (hsm.states[i].else_transition != invalid)
@@ -5710,8 +5728,9 @@ static void write_hsm_component(const hierarchical_state_machine& hsm,
             states_to_write[hsm.states[i].sub_id] = true;
     }
 
-    for (unsigned i = 0; i != length; ++i) {
+    for (auto i = 0; i != length; ++i) {
         if (states_to_write[i]) {
+            w.StartObject();
             w.Key("id");
             w.Uint(i);
             write(w, "enter", hsm.states[i].enter_action);
@@ -5728,6 +5747,7 @@ static void write_hsm_component(const hierarchical_state_machine& hsm,
             w.Int(hsm.states[i].super_id);
             w.Key("sub-id");
             w.Int(hsm.states[i].sub_id);
+            w.EndObject();
         }
     }
     w.EndArray();
@@ -5805,7 +5825,7 @@ static void do_component_save(Writer&    w,
     case component_type::hsm: {
         auto* p = mod.hsm_components.try_to_get(compo.id.hsm_id);
         if (p)
-            write_hsm_component(p->machine, w);
+            write_hsm_component(*p, w);
     } break;
     }
 

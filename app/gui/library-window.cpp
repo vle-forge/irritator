@@ -49,6 +49,20 @@ static void add_graph_component_data(application& app) noexcept
     });
 }
 
+static void add_hsm_component_data(application& app) noexcept
+{
+    auto& compo    = app.mod.alloc_hsm_component();
+    auto  compo_id = app.mod.components.get_id(compo);
+    app.hsms.alloc(
+      compo_id, compo.id.hsm_id, app.mod.hsm_components.get(compo.id.hsm_id));
+    app.component_ed.request_to_open(compo_id);
+
+    app.add_gui_task([&app]() noexcept {
+        std::scoped_lock lock(app.mod_mutex);
+        app.component_sel.update();
+    });
+}
+
 static void show_component_popup_menu(application& app, component& sel) noexcept
 {
     if (ImGui::BeginPopupContextItem()) {
@@ -64,6 +78,10 @@ static void show_component_popup_menu(application& app, component& sel) noexcept
             ImGui::MenuItem("New graph component"))
             add_graph_component_data(app);
 
+        if (app.mod.can_alloc_hsm_component() && app.hsms.can_alloc() &&
+            ImGui::MenuItem("New HSM component"))
+            add_hsm_component_data(app);
+
         ImGui::Separator();
 
         if (sel.type != component_type::internal) {
@@ -73,11 +91,14 @@ static void show_component_popup_menu(application& app, component& sel) noexcept
                     new_c.type  = component_type::simple;
                     new_c.name  = sel.name;
                     new_c.state = component_status::modified;
+
                     if (auto ret = app.mod.copy(sel, new_c); !ret) {
-                        auto& n = app.notifications.alloc();
-                        n.level = log_level::error;
-                        n.title = "Can not alloc a new component";
-                        app.notifications.enable(n);
+                        app.notifications.try_insert(
+                          log_level::error,
+                          [](auto& title, auto& msg) noexcept {
+                              title = "Library";
+                              msg   = "Fail to copy model";
+                          });
                     }
 
                     app.add_gui_task([&app]() noexcept {
@@ -85,10 +106,13 @@ static void show_component_popup_menu(application& app, component& sel) noexcept
                         app.component_sel.update();
                     });
                 } else {
-                    auto& n = app.notifications.alloc();
-                    n.level = log_level::error;
-                    n.title = "Can not alloc a new component";
-                    app.notifications.enable(n);
+                    app.notifications.try_insert(
+                      log_level::error, [&](auto& title, auto& msg) noexcept {
+                          title = "Library";
+                          format(msg,
+                                 "Can not alloc a new component ({})",
+                                 app.mod.components.capacity());
+                      });
                 }
             }
 
@@ -259,11 +283,14 @@ static void open_component(application& app, component_id id) noexcept
                     app.graphs.alloc(id, compo.id.graph_id);
             break;
 
-        case component_type::internal:
+        case component_type::hsm:
+            if (!is_already_open(app.hsms, id) && app.hsms.can_alloc())
+                if (auto* h = app.mod.hsm_components.try_to_get(compo.id.hsm_id); h)
+                    app.hsms.alloc(id, compo.id.hsm_id, *h);
             break;
 
-        default:
-            unreachable();
+        case component_type::internal:
+            break;
         }
 
         app.component_ed.request_to_open(id);
@@ -404,12 +431,9 @@ static void show_dirpath_component(irt::component_editor& ed,
     }
 }
 
-static void show_component_library(component_editor& c_editor,
-                                   irt::tree_node*   tree) noexcept
+static void show_component_library_new_component(application& app) noexcept
 {
-    auto& app = container_of(&c_editor, &application::component_ed);
-
-    const ImVec2 button_size = ImGui::ComputeButtonSize(3);
+    const ImVec2 button_size = ImGui::ComputeButtonSize(4);
 
     if (ImGui::Button("+generic", button_size))
         add_generic_component_data(app);
@@ -421,6 +445,18 @@ static void show_component_library(component_editor& c_editor,
     ImGui::SameLine();
     if (ImGui::Button("+graph", button_size))
         add_graph_component_data(app);
+
+    ImGui::SameLine();
+    if (ImGui::Button("+hsm", button_size))
+        add_hsm_component_data(app);
+}
+
+static void show_component_library(component_editor& c_editor,
+                                   irt::tree_node*   tree) noexcept
+{
+    auto& app = container_of(&c_editor, &application::component_ed);
+
+    show_component_library_new_component(app);
 
     if (ImGui::CollapsingHeader("Components",
                                 ImGuiTreeNodeFlags_CollapsingHeader |
