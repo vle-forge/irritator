@@ -667,9 +667,13 @@ static void add_popup_menuitem(component_editor&              ed,
 {
     if (not s_parent.children.can_alloc(1)) {
         auto& app = container_of(&ed, &application::component_ed);
-        auto& n   = app.notifications.alloc();
-        n.level   = log_level::error;
-        n.title   = "can not allocate a new model";
+        app.notifications.try_insert(
+          log_level::error, [](auto& title, auto& msg) noexcept {
+              title = "Generic component";
+              msg   = "Can not allocate new model. Delete models or increase "
+                      "generic component default size.";
+          });
+
         return;
     }
 
@@ -687,9 +691,12 @@ static void add_popup_menuitem(component_editor&              ed,
         data.update_position();
 
         auto& app = container_of(&ed, &application::component_ed);
-        auto& n   = app.notifications.alloc();
-        n.level   = log_level::debug;
-        format(n.title, "new model {} added", ordinal(id));
+        app.notifications.try_insert(
+          log_level::info, [type](auto& title, auto& msg) noexcept {
+              title = "Generic component";
+              format(
+                msg, "New model {} added", dynamics_type_names[ordinal(type)]);
+          });
     }
 }
 
