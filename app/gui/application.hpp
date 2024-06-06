@@ -127,6 +127,22 @@ public:
     void enable(const notification& n) noexcept;
     void show() noexcept;
 
+    template<typename Function>
+    void try_insert(log_level level, Function&& fn) noexcept
+    {
+        std::unique_lock lock(m_mutex);
+
+        if (m_data.can_alloc() and not m_enabled_ids.full()) {
+            auto& d = m_data.alloc();
+            d.level = level;
+            lock.unlock();
+
+            fn(d.title, d.message);
+
+            enable(d);
+        }
+    }
+
 private:
     data_array<notification, notification_id> m_data;
     ring_buffer<notification_id>              m_enabled_ids;
