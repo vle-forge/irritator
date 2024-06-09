@@ -196,31 +196,31 @@ static auto make_tree_leaf(simulation_copy&   sc,
 
           if constexpr (std::is_same_v<Dynamics, hsm_wrapper>) {
               const auto child_index = get_index(ch_id);
-              const auto mod_hsm_id  = enum_cast<hsm_component_id>(
+              const auto compo_id    = enum_cast<component_id>(
                 gen.children_parameters[child_index].integers[0]);
 
-              auto* chsm = sc.mod.hsm_components.try_to_get(mod_hsm_id);
-              if (not chsm)
-                  return new_error(
-                    project::part::tree_nodes); /* @TODO Need to return a better
-                                                   error: modeling do not known
-                                                   this hsm-component-id. */
+              auto* compo = sc.mod.components.try_to_get(compo_id);
+              if (not compo or compo->type != component_type::hsm)
+                  return new_error(project::hsm_error{}, unknown_error{});
 
-              auto* sim_hsm_id_ptr = sc.hsm_mod_to_sim.get(mod_hsm_id);
+              auto* chsm = sc.mod.hsm_components.try_to_get(compo->id.hsm_id);
+              if (not chsm)
+                  return new_error(project::hsm_error{}, unknown_error{});
+
+              auto* sim_hsm_id_ptr = sc.hsm_mod_to_sim.get(compo->id.hsm_id);
               auto  sim_hsm_id     = undefined<hsm_id>();
 
               if (not sim_hsm_id_ptr) {
                   if (not sc.sim.hsms.can_alloc())
-                      return new_error(
-                        project::error::
-                          not_enough_memory); /* TODO Need to return a better
-                                                 error: simulation failed to
-                                                 allocate more hsm. */
+                      return new_error(project::hsm_error{},
+                                       container_full_error{});
                   auto& hsm  = sc.sim.hsms.alloc(*chsm);
                   sim_hsm_id = sc.sim.hsms.get_id(hsm);
               } else {
                   sim_hsm_id = *sim_hsm_id_ptr;
               }
+
+              sc.hsm_mod_to_sim.set(compo->id.hsm_id, sim_hsm_id);
 
               dyn.id = sim_hsm_id;
           }
@@ -303,9 +303,7 @@ static auto make_tree_leaf(simulation_copy&   sc,
           return success();
       }));
 
-    debug::ensure(unique_id != 0);
-
-    if (ch.flags[child_flags::configurable] and
+    if (unique_id != 0 and ch.flags[child_flags::configurable] and
         ch.flags[child_flags::observable])
         parent.unique_id_to_model_id.data.emplace_back(unique_id, new_mdl_id);
 

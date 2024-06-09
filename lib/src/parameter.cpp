@@ -360,13 +360,19 @@ static void parameter_init(parameter& /*param*/,
                            const logical_invert& /*dyn*/) noexcept
 {}
 
-static void model_init(const parameter& /*param*/,
-                       hsm_wrapper& /*dyn*/) noexcept
-{}
+static void model_init(const parameter& param, hsm_wrapper& dyn) noexcept
+{
+    dyn.compo_id = static_cast<u64>(param.integers[0]);
+    dyn.exec.a   = static_cast<i32>(param.integers[1]);
+    dyn.exec.b   = static_cast<i32>(param.integers[2]);
+}
 
-static void parameter_init(parameter& /*param*/,
-                           const hsm_wrapper& /*dyn*/) noexcept
-{}
+static void parameter_init(parameter& param, const hsm_wrapper& dyn) noexcept
+{
+    param.integers[0] = static_cast<i64>(dyn.compo_id);
+    param.integers[1] = static_cast<i64>(dyn.exec.a);
+    param.integers[2] = static_cast<i64>(dyn.exec.b);
+}
 
 static void model_init(const parameter& param, time_func& dyn) noexcept
 {

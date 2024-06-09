@@ -1373,6 +1373,8 @@ public:
 class project
 {
 public:
+    struct hsm_error {};
+
     //! Used to report which part of the @c project have a problem with the @c
     //! new_error function.
     enum class part {
