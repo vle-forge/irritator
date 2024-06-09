@@ -568,44 +568,9 @@ void show_dynamics_inputs(external_source& /*srcs*/, logical_invert& /*dyn*/) {}
 
 void show_dynamics_inputs(external_source& /*srcs*/, hsm_wrapper& dyn)
 {
-    // @TODO Select the hsm_component ?
     ImGui::InputInt("a", &dyn.exec.a);
     ImGui::InputInt("b", &dyn.exec.b);
 }
-
-// void show_dynamics_inputs(application&                app,
-//                           component_id                compo,
-//                           model_id                    id,
-//                           hierarchical_state_machine& machine,
-//                           hsm_wrapper&                wrapper)
-//{
-//     hierarchical_state_machine copy{ machine };
-//
-//     ImGui::Text("current state: %d",
-//                 static_cast<int>(wrapper.exec.current_state));
-//
-//     if (ImGui::Button("Edit")) {
-//         app.hsm_ed.load(compo, id);
-//         app.show_hsm_editor = true;
-//     }
-// }
-//
-// void show_dynamics_inputs(application&                app,
-//                           model_id                    id,
-//                           hierarchical_state_machine& machine,
-//                           hsm_wrapper&                wrapper)
-//{
-//     hierarchical_state_machine copy{ machine };
-//
-//     ImGui::Text("current state: %d",
-//                 static_cast<int>(wrapper.exec.current_state));
-//
-//     if (ImGui::Button("Edit")) {
-//         app.hsm_ed.clear();
-//         app.hsm_ed.load(id);
-//         app.show_hsm_editor = true;
-//     }
-// }
 
 void show_dynamics_inputs(external_source& /*srcs*/, time_func& dyn)
 {
@@ -1849,22 +1814,62 @@ bool show_parameter(dynamics_logical_invert_tag,
     return false;
 }
 
-bool show_parameter(dynamics_hsm_wrapper_tag,
-                    application& /*app*/,
-                    parameter& p) noexcept
+static auto get_current_component_name(application& app, parameter& p) noexcept
+  -> const char*
 {
-    auto a = static_cast<i32>(p.integers[0]);
-    auto b = static_cast<i32>(p.integers[1]);
+    static constexpr auto undefined_name = "-";
 
-    const auto b1 = ImGui::InputInt("A", &a);
-    if (a)
-        p.integers[0] = a;
+    const auto* compo =
+      app.mod.components.try_to_get(enum_cast<component_id>(p.integers[0]));
+    if (not compo or compo->type != component_type::hsm) {
+        p.integers[0] = 0;
+        compo         = nullptr;
+    }
 
-    const auto b2 = ImGui::InputInt("B", &b);
-    if (b)
-        p.integers[0] = b;
+    return compo ? compo->name.c_str() : undefined_name;
+}
 
-    return b1 or b2;
+bool show_parameter(dynamics_hsm_wrapper_tag,
+                    application& app,
+                    parameter&   p) noexcept
+{
+    auto update = false;
+
+    if (ImGui::BeginCombo("hsm component",
+                          get_current_component_name(app, p))) {
+        auto imgui_id = 0;
+
+        ImGui::PushID(imgui_id++);
+        if (ImGui::Selectable("-", p.integers[0] == 0)) {
+            p.integers[0] = 0;
+            update        = true;
+        }
+        ImGui::PopID();
+
+        for (const auto& c : app.mod.components) {
+            if (c.type == component_type::hsm) {
+                ImGui::PushID(imgui_id++);
+                const auto c_id = ordinal(app.mod.components.get_id(c));
+                if (ImGui::Selectable(c.name.c_str(), p.integers[0] == c_id)) {
+                    p.integers[0] = c_id;
+                }
+                ImGui::PopID();
+            }
+        }
+
+        ImGui::EndCombo();
+    }
+
+    auto a = static_cast<int>(p.integers[1]);
+    auto b = static_cast<int>(p.integers[2]);
+
+    update = ImGui::InputInt("A", &a) or update;
+    update = ImGui::InputInt("B", &b) or update;
+
+    p.integers[1] = a;
+    p.integers[2] = b;
+
+    return update;
 }
 
 bool show_parameter_editor(application&  app,
