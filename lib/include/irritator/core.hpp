@@ -858,7 +858,7 @@ struct observer {
 
     model_id                 model     = undefined<model_id>();
     dynamics_type            type      = dynamics_type::qss1_integrator;
-    float                    time_step = 1e-2;
+    float                    time_step = 1e-2f;
     std::pair<real, real>    limits;
     bitflags<observer_flags> states;
 };
@@ -4751,7 +4751,7 @@ inline void observer::init(
     buffer.reserve(*buffer_size);
     linearized_buffer.clear();
     linearized_buffer.reserve(*linearized_buffer_size);
-    time_step = ts <= zero ? 1e-2 : time_step;
+    time_step = ts <= zero ? 1e-2f : time_step;
 }
 
 inline void observer::reset() noexcept
