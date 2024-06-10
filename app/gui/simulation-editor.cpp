@@ -408,6 +408,24 @@ static bool show_local_simulation_plot_observers_table(application& app,
                         vobs_id    = app.pj.variable_observers.get_id(vobs);
                         sub_obs_id = vobs.push_back(tn_id, mdl_id);
                         tn.variable_observer_ids.set(uid, vobs_id);
+
+                        if (auto* c = app.mod.components.try_to_get(tn.id);
+                            c and c->type == component_type::simple) {
+                            if (auto* g = app.mod.generic_components.try_to_get(
+                                  c->id.generic_id);
+                                g) {
+                                for (auto& ch : g->children) {
+                                    if (ch.unique_id == uid) {
+                                        vobs
+                                          .get_names()[get_index(sub_obs_id)] =
+                                          g->children_names[get_index(
+                                            g->children.get_id(ch))];
+                                        break;
+                                    }
+                                }
+                            }
+                        }
+
                     } else {
                         auto& vobs =
                           get_or_add_variable_observer(app.pj, vobs_id);
@@ -423,17 +441,14 @@ static bool show_local_simulation_plot_observers_table(application& app,
                     if (auto* vobs =
                           app.pj.variable_observers.try_to_get(vobs_id);
                         vobs) {
-                        vobs->if_exists_do(
-                          sub_obs_id,
-                          [&](auto /*id*/,
-                              auto& /*c*/,
-                              auto& /*opt*/,
-                              auto& name) noexcept {
-                              ImGui::PushItemWidth(-1.f);
-                              if (ImGui::InputSmallString("name", name))
-                                  is_modified++;
-                              ImGui::PopItemWidth();
-                          });
+                        if (vobs->exists(sub_obs_id)) {
+                            ImGui::PushItemWidth(-1.f);
+                            if (ImGui::InputSmallString(
+                                  "name",
+                                  vobs->get_names()[get_index(sub_obs_id)]))
+                                is_modified++;
+                            ImGui::PopItemWidth();
+                        }
                     }
                 } else {
                     ImGui::TextUnformatted("-");
