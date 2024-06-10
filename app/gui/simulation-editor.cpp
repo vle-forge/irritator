@@ -804,6 +804,11 @@ static bool show_simulation_table_variable_observers(application& app) noexcept
                       ImGuiChildFlags_None,
                       ImGuiWindowFlags_HorizontalScrollbar);
 
+    if (not app.pj.variable_observers.can_alloc(1))
+        ImGui::TextFormatDisabled(
+          "Can not allocate more multi-plot observers (max reached: {})",
+          app.pj.variable_observers.capacity());
+
     if (ImGui::BeginTable("Plot observers", 5)) {
         ImGui::TableSetupColumn("id");
         ImGui::TableSetupColumn("name");
@@ -846,6 +851,14 @@ static bool show_simulation_table_variable_observers(application& app) noexcept
 
             ImGui::PopID();
         });
+
+        if (app.pj.variable_observers.can_alloc(1)) {
+            ImGui::TableNextColumn();
+            if (ImGui::Button("+")) {
+                auto& v = app.pj.variable_observers.alloc();
+                v.name  = "New";
+            }
+        }
 
         ImGui::EndTable();
     }
