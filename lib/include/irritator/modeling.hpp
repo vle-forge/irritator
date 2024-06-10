@@ -1147,6 +1147,7 @@ public:
                      const color          = 0xFe1a0Fe,
                      const type_options t = type_options::line) noexcept;
 
+    bool     exists(const sub_id id) const noexcept { return m_ids.exists(id); }
     unsigned size() const noexcept { return m_ids.size(); }
     int      ssize() const noexcept { return m_ids.ssize(); }
 
@@ -1176,6 +1177,9 @@ public:
               m_options[get_index(id)],
               m_names[get_index(id)]);
     }
+
+    std::span<name_str>       get_names() noexcept { return m_names; }
+    std::span<const name_str> get_names() const noexcept { return m_names; }
 };
 
 struct log_entry {
