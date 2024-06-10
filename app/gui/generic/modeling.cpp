@@ -842,7 +842,16 @@ static void show_popup_menuitem(component_editor&              ed,
         if (c_id != undefined<component_id>())
             if_data_exists_do(
               app.mod.components, c_id, [&](auto& compo) noexcept {
-                  add_component_to_current(ed, data, parent, s_parent, compo);
+                  if (compo.type == component_type::hsm)
+                      app.notifications.try_insert(
+                        log_level::error, [](auto& title, auto& msg) noexcept {
+                            title = "Component editor";
+                            msg = "Please, use the hsm_wrapper model to add a "
+                                  "hierarchical state machine";
+                        });
+                  else
+                      add_component_to_current(
+                        ed, data, parent, s_parent, compo);
               });
 
         ImGui::Separator();
