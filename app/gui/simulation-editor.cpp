@@ -355,23 +355,10 @@ static bool show_local_simulation_plot_observers_table(application& app,
 {
     debug::ensure(!component_is_grid_or_graph(app.mod, tn));
 
-    if (not app.pj.variable_observers.can_alloc()) {
-        ImGui::TextFormatDisabled(
-          "Not enough variable observers memory available (default: {})",
-          app.pj.variable_observers.capacity());
-        return false;
-    }
-
     auto is_modified = 0;
 
     if (ImGui::CollapsingHeader("Plot observers",
                                 ImGuiTreeNodeFlags_DefaultOpen)) {
-
-        ImGui::BeginChild("c-show-plot",
-                          ImVec2(ImGui::GetContentRegionAvail().x, 260.f),
-                          ImGuiChildFlags_None,
-                          ImGuiWindowFlags_HorizontalScrollbar);
-
         if (ImGui::BeginTable("Observation table", 4)) {
             ImGui::TableSetupColumn("enable");
             ImGui::TableSetupColumn("name");
@@ -459,22 +446,26 @@ static bool show_local_simulation_plot_observers_table(application& app,
                 ImGui::TableNextColumn();
 
                 if (enable) {
-                    const auto old_current = vobs_id;
-                    if (select_variable_observer(app.pj, vobs_id)) {
-                        if (old_current != vobs_id) {
-                            if_data_exists_do(app.pj.variable_observers,
-                                              old_current,
-                                              [&](auto& v_obs) noexcept {
-                                                  v_obs.erase(tn_id, mdl_id);
-                                              });
+                    const auto old_vobs_id = vobs_id;
+                    if (select_variable_observer(app.pj, vobs_id) and
+                        old_vobs_id != vobs_id) {
+                        auto* o =
+                          app.pj.variable_observers.try_to_get(old_vobs_id);
+                        auto* n = app.pj.variable_observers.try_to_get(vobs_id);
 
+                        if (o and n) {
+                            const auto old_sub_id = o->find(tn_id, mdl_id);
+                            auto       new_sub_id = n->push_back(tn_id, mdl_id);
+
+                            n->get_colors()[get_index(new_sub_id)] =
+                              o->get_colors()[get_index(old_sub_id)];
+                            n->get_options()[get_index(new_sub_id)] =
+                              o->get_options()[get_index(old_sub_id)];
+                            n->get_names()[get_index(new_sub_id)] =
+                              o->get_names()[get_index(old_sub_id)];
+
+                            o->erase(tn_id, mdl_id);
                             tn.variable_observer_ids.set(uid, vobs_id);
-                            if_data_exists_do(app.pj.variable_observers,
-                                              vobs_id,
-                                              [&](auto& v_obs) noexcept {
-                                                  v_obs.push_back(tn_id,
-                                                                  mdl_id);
-                                              });
                         }
                     }
                 } else {
@@ -488,8 +479,6 @@ static bool show_local_simulation_plot_observers_table(application& app,
 
             ImGui::EndTable();
         }
-
-        ImGui::EndChild();
     }
 
     return is_modified > 0;
@@ -621,41 +610,37 @@ static bool show_local_simulation_specific_observers(application& app,
 }
 
 static void show_local_variables_plot(application&       app,
-                                      variable_observer& v_obs) noexcept
+                                      variable_observer& v_obs,
+                                      tree_node_id       tn_id) noexcept
 {
-    v_obs.for_each_obs([&](const auto obs_id,
-                           const auto /*color*/,
-                           const auto  option,
-                           const auto& name) noexcept {
-        if (auto* obs = app.sim.observers.try_to_get(obs_id); obs)
-            show_local_variable_plot(*obs, name, option);
+    v_obs.for_each([&](const auto id) noexcept {
+        const auto idx = get_index(id);
+        auto*      obs = app.sim.observers.try_to_get(v_obs.get_obs_ids()[idx]);
+
+        if (obs and v_obs.get_tn_ids()[idx] == tn_id)
+            show_local_variable_plot(
+              *obs, v_obs.get_names()[idx], v_obs.get_options()[idx]);
     });
 }
 
 static void show_local_variable_observers(application& app,
                                           tree_node&   tn) noexcept
 {
-    if (ImPlot::BeginPlot("variables", ImVec2(-1, 200))) {
-        ImPlot::PushStyleVar(ImPlotStyleVar_LineWeight, 1.f);
-        ImPlot::PushStyleVar(ImPlotStyleVar_MarkerSize, 1.f);
+    for (auto& vobs : app.pj.variable_observers) {
+        const auto tn_id = app.pj.tree_nodes.get_id(tn);
+        if (vobs.exists(tn_id)) {
+            ImGui::PushID(&vobs);
+            if (ImPlot::BeginPlot(vobs.name.c_str(), ImVec2(-1, 200))) {
+                ImPlot::PushStyleVar(ImPlotStyleVar_LineWeight, 1.f);
+                ImPlot::PushStyleVar(ImPlotStyleVar_MarkerSize, 1.f);
 
-        auto i = 0;
+                show_local_variables_plot(app, vobs, tn_id);
 
-        while (i != tn.variable_observer_ids.data.ssize()) {
-            auto  v_obs_id = tn.variable_observer_ids.data[i].value;
-            auto* v_obs    = app.pj.variable_observers.try_to_get(v_obs_id);
-
-            if (v_obs) {
-                show_local_variables_plot(app, *v_obs);
-                ++i;
-            } else {
-                tn.variable_observer_ids.data.swap_pop_back(i);
-                tn.variable_observer_ids.sort();
+                ImPlot::PopStyleVar(2);
+                ImPlot::EndPlot();
             }
+            ImGui::PopID();
         }
-
-        ImPlot::PopStyleVar(2);
-        ImPlot::EndPlot();
     }
 }
 
@@ -814,11 +799,6 @@ static bool show_simulation_table_variable_observers(application& app) noexcept
     auto to_delete   = undefined<variable_observer_id>();
     bool is_modified = false;
 
-    ImGui::BeginChild("c-show-table-plot",
-                      ImVec2(ImGui::GetContentRegionAvail().x, 260.f),
-                      ImGuiChildFlags_None,
-                      ImGuiWindowFlags_HorizontalScrollbar);
-
     if (not app.pj.variable_observers.can_alloc(1))
         ImGui::TextFormatDisabled(
           "Can not allocate more multi-plot observers (max reached: {})",
@@ -867,18 +847,16 @@ static bool show_simulation_table_variable_observers(application& app) noexcept
             ImGui::PopID();
         });
 
-        if (app.pj.variable_observers.can_alloc(1)) {
-            ImGui::TableNextColumn();
-            if (ImGui::Button("+")) {
-                auto& v = app.pj.variable_observers.alloc();
-                v.name  = "New";
-            }
-        }
-
         ImGui::EndTable();
     }
 
-    ImGui::EndChild();
+    if (app.pj.variable_observers.can_alloc(1)) {
+        if (ImGui::Button("+")) {
+            auto& v     = app.pj.variable_observers.alloc();
+            v.name      = "New";
+            is_modified = true;
+        }
+    }
 
     if (is_defined(to_delete)) {
         app.pj.variable_observers.free(to_delete);
@@ -959,8 +937,7 @@ static bool show_project_observations(application& app) noexcept
 
     auto updated = 0;
 
-    if (not app.pj.variable_observers.empty() &&
-        ImGui::CollapsingHeader("Plots", flags))
+    if (ImGui::CollapsingHeader("Plots", flags))
         updated += show_simulation_table_variable_observers(app);
 
     if (not app.pj.grid_observers.empty() &&

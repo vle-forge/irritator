@@ -57,14 +57,13 @@ void plot_observation_widget::show(application& app) noexcept
                               ImPlotAxisFlags_AutoFit,
                               ImPlotAxisFlags_AutoFit);
 
-            v_obs.for_each_obs([&](const auto obs_id,
-                                   const auto /*color*/,
-                                   const auto  option,
-                                   const auto& name) noexcept {
-                auto* obs = app.sim.observers.try_to_get(obs_id);
+            v_obs.for_each([&](const auto id) noexcept {
+                const auto idx    = get_index(id);
+                const auto obs_id = v_obs.get_obs_ids()[idx];
+                auto*      obs    = app.sim.observers.try_to_get(obs_id);
 
                 if (obs->linearized_buffer.size() > 0) {
-                    switch (option) {
+                    switch (v_obs.get_options()[idx]) {
                     case variable_observer::type_options::line:
                         ImPlot::PlotLineG(name.c_str(),
                                           ring_buffer_getter,

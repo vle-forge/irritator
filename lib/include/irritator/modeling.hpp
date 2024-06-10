@@ -1130,6 +1130,7 @@ public:
 
     //! @brief Search a `sub_id`  `tn` and `mdl`.
     sub_id find(const tree_node_id tn, const model_id mdl) noexcept;
+    bool   exists(const tree_node_id tn) noexcept;
 
     //! @brief Remove `sub_id` for all ` m_tn_ids` equal to `tn` and `mdl_ids`
     //! equal to `mdl`.
@@ -1154,32 +1155,36 @@ public:
     template<typename Function>
     void if_exists_do(const sub_id id, Function&& fn) noexcept
     {
-        if (m_ids.exists(id)) {
-            const auto idx = get_index(id);
-
-            fn(m_obs_ids[idx], m_colors[idx], m_options[idx], m_names[idx]);
-        }
+        if (m_ids.exists(id))
+            fn(id);
     }
 
     template<typename Function>
-    void for_each_tn_mdl(Function&& f) const noexcept
+    void for_each(Function&& f) noexcept
     {
         for (const auto id : m_ids)
-            f(m_tn_ids[get_index(id)], m_mdl_ids[get_index(id)]);
+            f(id);
     }
 
     template<typename Function>
-    void for_each_obs(Function&& f) const noexcept
+    void for_each(Function&& f) const noexcept
     {
         for (const auto id : m_ids)
-            f(m_obs_ids[get_index(id)],
-              m_colors[get_index(id)],
-              m_options[get_index(id)],
-              m_names[get_index(id)]);
+            f(id);
     }
 
-    std::span<name_str>       get_names() noexcept { return m_names; }
-    std::span<const name_str> get_names() const noexcept { return m_names; }
+    std::span<tree_node_id>       get_tn_ids() noexcept;
+    std::span<const tree_node_id> get_tn_ids() const noexcept;
+    std::span<model_id>           get_mdl_ids() noexcept;
+    std::span<const model_id>     get_mdl_ids() const noexcept;
+    std::span<observer_id>        get_obs_ids() noexcept;
+    std::span<const observer_id>  get_obs_ids() const noexcept;
+    std::span<name_str>           get_names() noexcept;
+    std::span<const name_str>     get_names() const noexcept;
+    std::span<color>              get_colors() noexcept;
+    std::span<const color>        get_colors() const noexcept;
+    std::span<type_options>       get_options() noexcept;
+    std::span<const type_options> get_options() const noexcept;
 };
 
 struct log_entry {
@@ -1625,6 +1630,70 @@ inline child::child(component_id component) noexcept
   : id{ .compo_id = component }
   , type{ child_type::component }
 {}
+
+inline std::span<tree_node_id> variable_observer::get_tn_ids() noexcept
+{
+    return m_tn_ids;
+}
+
+inline std::span<const tree_node_id> variable_observer::get_tn_ids()
+  const noexcept
+{
+    return m_tn_ids;
+}
+
+inline std::span<model_id> variable_observer::get_mdl_ids() noexcept
+{
+    return m_mdl_ids;
+}
+
+inline std::span<const model_id> variable_observer::get_mdl_ids() const noexcept
+{
+    return m_mdl_ids;
+}
+
+inline std::span<observer_id> variable_observer::get_obs_ids() noexcept
+{
+    return m_obs_ids;
+}
+
+inline std::span<const observer_id> variable_observer::get_obs_ids()
+  const noexcept
+{
+    return m_obs_ids;
+}
+
+inline std::span<name_str> variable_observer::get_names() noexcept
+{
+    return m_names;
+}
+
+inline std::span<const name_str> variable_observer::get_names() const noexcept
+{
+    return m_names;
+}
+
+inline std::span<color> variable_observer::get_colors() noexcept
+{
+    return m_colors;
+}
+
+inline std::span<const color> variable_observer::get_colors() const noexcept
+{
+    return m_colors;
+}
+
+inline std::span<variable_observer::type_options>
+variable_observer::get_options() noexcept
+{
+    return m_options;
+}
+
+inline std::span<const variable_observer::type_options>
+variable_observer::get_options() const noexcept
+{
+    return m_options;
+}
 
 inline tree_node::tree_node(component_id id_, u64 unique_id_) noexcept
   : id(id_)

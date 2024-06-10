@@ -75,6 +75,18 @@ auto variable_observer::find(const tree_node_id tn,
     return undefined<variable_observer::sub_id>();
 }
 
+bool variable_observer::exists(const tree_node_id tn) noexcept
+{
+    for (const auto id : m_ids) {
+        const auto idx = get_index(id);
+
+        if (m_tn_ids[idx] == tn)
+            return true;
+    }
+
+    return false;
+}
+
 void variable_observer::erase(const tree_node_id tn,
                               const model_id     mdl) noexcept
 {

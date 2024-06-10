@@ -6274,9 +6274,13 @@ static status do_project_save_plot_observations(Writer& w, project& pj) noexcept
         w.Key("name");
         w.String(plot.name.begin(), plot.name.size());
 
-        plot.for_each_tn_mdl([&](const auto tn_id, const auto mdl_id) noexcept {
+        plot.for_each([&](const auto id) noexcept {
+            const auto idx = get_index(id);
+            const auto tn  = plot.get_tn_ids()[idx];
+            const auto mdl = plot.get_mdl_ids()[idx];
+
             w.Key("access");
-            pj.build_unique_id_path(tn_id, mdl_id, path);
+            pj.build_unique_id_path(tn, mdl, path);
             write_project_unique_id_path(w, path);
         });
 
