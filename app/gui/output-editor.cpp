@@ -16,77 +16,127 @@
 
 namespace irt {
 
-static const char* simulation_plot_type_string[] = { "None",
-                                                     "Plot line",
-                                                     "Plot dot" };
+constexpr static inline const char* plot_type_str[] = { "None",
+                                                        "Plot line",
+                                                        "Plot dot" };
 
-output_editor::output_editor() noexcept
-  : implot_context{ ImPlot::CreateContext() }
-{}
-
-output_editor::~output_editor() noexcept
+static void show_obervers_table(application& app) noexcept
 {
-    if (implot_context)
-        ImPlot::DestroyContext(implot_context);
+    for (auto& vobs : app.pj.variable_observers) {
+        auto to_copy  = std::optional<variable_observer::sub_id>();
+        auto to_write = std::optional<variable_observer::sub_id>();
+
+        vobs.for_each([&](const auto id) noexcept {
+            const auto  idx    = get_index(id);
+            const auto  obs_id = vobs.get_obs_ids()[idx];
+            const auto* obs    = app.sim.observers.try_to_get(obs_id);
+            ImGui::PushID(idx);
+
+            ImGui::TableNextColumn();
+            ImGui::PushItemWidth(-1);
+            ImGui::InputFilteredString("##name", vobs.get_names()[idx]);
+            ImGui::PopItemWidth();
+
+            ImGui::TableNextColumn();
+            ImGui::TextFormat("{}", ordinal(id));
+
+            ImGui::TableNextColumn();
+            if (obs)
+                ImGui::TextFormat("{}", obs->time_step);
+            else
+                ImGui::TextUnformatted("-");
+
+            ImGui::TableNextColumn();
+            if (obs)
+                ImGui::TextFormat("{}", obs->linearized_buffer.size());
+            else
+                ImGui::TextUnformatted("-");
+
+            ImGui::TableNextColumn();
+            int plot_type = ordinal(vobs.get_options()[idx]);
+            if (ImGui::Combo("##plot",
+                             &plot_type,
+                             plot_type_str,
+                             IM_ARRAYSIZE(plot_type_str)))
+                vobs.get_options()[idx] =
+                  enum_cast<variable_observer::type_options>(plot_type);
+
+            ImGui::TableNextColumn();
+            const bool can_copy = app.simulation_ed.copy_obs.can_alloc(1);
+            ImGui::BeginDisabled(!can_copy);
+            if (ImGui::Button("copy"))
+                to_copy = id;
+            ImGui::EndDisabled();
+            ImGui::SameLine();
+            if (ImGui::Button("write"))
+                to_write = id;
+
+            ImGui::PopID();
+        });
+
+        if (to_copy.has_value()) {
+            const auto obs_id = vobs.get_obs_ids()[get_index(*to_copy)];
+            const auto obs    = app.sim.observers.try_to_get(obs_id);
+
+            auto& new_obs          = app.simulation_ed.copy_obs.alloc();
+            new_obs.name           = vobs.get_names()[get_index(*to_copy)].sv();
+            new_obs.linear_outputs = obs->linearized_buffer;
+        }
+
+        if (to_write.has_value()) {
+            app.output_ed.write_output = true;
+            auto err                   = std::error_code{};
+            auto file_path             = std::filesystem::current_path(err);
+            app.simulation_ed.plot_obs.write(app, file_path);
+        }
+    }
 }
 
-static void show_plot_observation(application&       app,
-                                  variable_observer& var) noexcept
+static void show_copy_table(irt::application& app) noexcept
 {
-    ImGui::PushID(&var);
+    auto to_del = std::optional<plot_copy_id>();
 
-    ImGui::TableNextColumn();
-    ImGui::PushItemWidth(-1);
-    ImGui::InputFilteredString("##name", var.name);
-    ImGui::PopItemWidth();
+    for (auto& copy : app.simulation_ed.copy_obs) {
+        const auto id = app.simulation_ed.copy_obs.get_id(copy);
 
-    ImGui::TableNextColumn();
+        ImGui::PushID(&copy);
+        ImGui::TableNextRow();
 
-    ImGui::TableNextColumn();
-    ImGui::PushItemWidth(-1);
-    float copy = var.time_step.value();
+        ImGui::TableNextColumn();
+        ImGui::PushItemWidth(-1);
+        ImGui::InputFilteredString("##name", copy.name);
+        ImGui::PopItemWidth();
 
-    if (ImGui::InputReal("##ts", &copy))
-        var.time_step.set(copy);
-    ImGui::PopItemWidth();
+        ImGui::TableNextColumn();
+        ImGui::TextFormat("{}", ordinal(id));
 
-    ImGui::TableNextColumn();
-    ImGui::TextFormat("Observers: {}", var.size());
-    ImGui::TableNextColumn();
+        ImGui::TableNextColumn();
+        ImGui::TextUnformatted("-");
 
-    ImGui::TableNextColumn();
+        ImGui::TableNextColumn();
+        ImGui::TextFormat("{}", copy.linear_outputs.size());
 
-    const bool can_copy = app.simulation_ed.copy_obs.can_alloc(1);
-    ImGui::BeginDisabled(!can_copy);
-    if (ImGui::Button("copy")) {
-        // auto& new_obs          = app.simulation_ed.copy_obs.alloc();
-        // new_obs.name           = var.name.sv();
-        // new_obs.linear_outputs = obs.linearized_buffer;
-        auto& n = app.notifications.alloc(log_level::notice);
-        n.title = "Not yet implemented";
-        app.notifications.enable(n);
+        ImGui::TableNextColumn();
+        int plot_type = ordinal(copy.plot_type);
+        if (ImGui::Combo(
+              "##plot", &plot_type, plot_type_str, IM_ARRAYSIZE(plot_type_str)))
+            copy.plot_type = enum_cast<simulation_plot_type>(plot_type);
+
+        ImGui::TableNextColumn();
+
+        if (ImGui::Button("del"))
+            to_del = id;
+
+        ImGui::PopID();
     }
 
-    ImGui::EndDisabled();
-
-    ImGui::SameLine();
-    if (ImGui::Button("write")) {
-        app.output_ed.write_output = true;
-        auto err                   = std::error_code{};
-        auto file_path             = std::filesystem::current_path(err);
-        app.simulation_ed.plot_obs.write(app, file_path);
-    }
-
-    ImGui::SameLine();
-    ImGui::TextUnformatted(reinterpret_cast<const char*>(
-      app.simulation_ed.plot_obs.file.generic_string().c_str()));
-
-    ImGui::PopID();
+    if (to_del.has_value())
+        app.simulation_ed.copy_obs.free(*to_del);
 }
 
 static void show_observation_table(application& app) noexcept
 {
-    static const ImGuiTableFlags flags =
+    constexpr static auto flags =
       ImGuiTableFlags_BordersOuter | ImGuiTableFlags_BordersV |
       ImGuiTableFlags_RowBg | ImGuiTableFlags_Resizable |
       ImGuiTableFlags_Reorderable;
@@ -99,57 +149,25 @@ static void show_observation_table(application& app) noexcept
         ImGui::TableSetupColumn("size", ImGuiTableColumnFlags_WidthFixed, 60.f);
         ImGui::TableSetupColumn(
           "plot", ImGuiTableColumnFlags_WidthFixed, 180.f);
-        ImGui::TableSetupColumn("export as",
-                                ImGuiTableColumnFlags_WidthStretch);
+        ImGui::TableSetupColumn("actions", ImGuiTableColumnFlags_WidthStretch);
 
         ImGui::TableHeadersRow();
 
-        for (auto& v_obs : app.pj.variable_observers)
-            show_plot_observation(app, v_obs);
-
-        plot_copy *copy = nullptr, *prev = nullptr;
-        while (app.simulation_ed.copy_obs.next(copy)) {
-            const auto id = app.simulation_ed.copy_obs.get_id(*copy);
-            ImGui::PushID(copy);
-            ImGui::TableNextRow();
-
-            ImGui::TableNextColumn();
-            ImGui::PushItemWidth(-1);
-            ImGui::InputFilteredString("##name", copy->name);
-            ImGui::PopItemWidth();
-
-            ImGui::TableNextColumn();
-            ImGui::TextFormat("{}", ordinal(id));
-
-            ImGui::TableNextColumn();
-            ImGui::TextUnformatted("-");
-
-            ImGui::TableNextColumn();
-            ImGui::TextUnformatted("-");
-
-            ImGui::TableNextColumn();
-            ImGui::TextFormat("{}", copy->linear_outputs.size());
-
-            ImGui::TableNextColumn();
-            int plot_type = ordinal(copy->plot_type);
-            if (ImGui::Combo("##plot",
-                             &plot_type,
-                             simulation_plot_type_string,
-                             IM_ARRAYSIZE(simulation_plot_type_string)))
-                copy->plot_type = enum_cast<simulation_plot_type>(plot_type);
-
-            ImGui::TableNextColumn();
-            if (ImGui::Button("del")) {
-                app.simulation_ed.copy_obs.free(*copy);
-                copy = prev;
-            }
-
-            ImGui::PopID();
-            prev = copy;
-        }
+        show_obervers_table(app);
+        show_copy_table(app);
 
         ImGui::EndTable();
     }
+}
+
+output_editor::output_editor() noexcept
+  : implot_context{ ImPlot::CreateContext() }
+{}
+
+output_editor::~output_editor() noexcept
+{
+    if (implot_context)
+        ImPlot::DestroyContext(implot_context);
 }
 
 void output_editor::show() noexcept
@@ -161,14 +179,47 @@ void output_editor::show() noexcept
 
     auto& app = container_of(this, &application::output_ed);
 
-    static const ImGuiTreeNodeFlags flags = ImGuiTreeNodeFlags_DefaultOpen;
-
-    if (ImGui::CollapsingHeader("Observations list", flags))
+    if (ImGui::CollapsingHeader("Observations list",
+                                ImGuiTreeNodeFlags_DefaultOpen))
         show_observation_table(app);
 
-    if (ImGui::CollapsingHeader("Plots outputs", flags)) {
+    if (ImGui::CollapsingHeader("Plots outputs",
+                                ImGuiTreeNodeFlags_DefaultOpen)) {
         ImPlot::SetCurrentContext(app.output_ed.implot_context);
-        app.simulation_ed.plot_copy_wgt.show("Copy");
+
+        if (ImPlot::BeginPlot("Plots", ImVec2(-1, -1))) {
+            ImPlot::PushStyleVar(ImPlotStyleVar_LineWeight, 1.f);
+            ImPlot::PushStyleVar(ImPlotStyleVar_MarkerSize, 1.f);
+
+            ImPlot::SetupAxes(nullptr,
+                              nullptr,
+                              ImPlotAxisFlags_AutoFit,
+                              ImPlotAxisFlags_AutoFit);
+
+            for (auto& vobs : app.pj.variable_observers) {
+                vobs.for_each([&](const auto id) noexcept {
+                    const auto idx = get_index(id);
+
+                    const auto  obs_id = vobs.get_obs_ids()[idx];
+                    const auto* obs    = app.sim.observers.try_to_get(obs_id);
+
+                    if (not obs)
+                        return;
+
+                    if (vobs.get_options()[idx] !=
+                        variable_observer::type_options::none)
+                        app.simulation_ed.plot_obs.show_plot_line(
+                          *obs, vobs.get_options()[idx], vobs.get_names()[idx]);
+                });
+            }
+
+            for (auto& p : app.simulation_ed.copy_obs)
+                if (p.plot_type != simulation_plot_type::none)
+                    app.simulation_ed.plot_copy_wgt.show_plot_line(p);
+
+            ImPlot::PopStyleVar(2);
+            ImPlot::EndPlot();
+        }
     }
 
     ImGui::End();

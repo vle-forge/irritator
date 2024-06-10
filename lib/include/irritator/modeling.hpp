@@ -1097,6 +1097,7 @@ class variable_observer
 {
 public:
     enum class type_options {
+        none,
         line,
         dash,
     };

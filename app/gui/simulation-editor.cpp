@@ -105,8 +105,6 @@ void simulation_editor::clear() noexcept
 
     simulation_state = simulation_status::not_started;
 
-    plot_obs.clear();
-
     // @TODO maybe clear project grid and graph obs ?
     // grid_obs.clear();
     // graph_obs.clear();

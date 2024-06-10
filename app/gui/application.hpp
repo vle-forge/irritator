@@ -187,38 +187,26 @@ class plot_observation_widget
 public:
     plot_observation_widget() noexcept = default;
 
-    //! @brief Clear, initialize the plot and connect to @c observer_id.
-    //! @details Clear the @c plot_observation_widget and use the @c
-    //!  variable_observer data to initialize all @c observer_id from the
-    //!  simulation layer.
-    //!
-    //! @return The status.
-    void init(application& app) noexcept;
-
-    //! Clear the children vector.
-    void clear() noexcept;
-
-    //! Display plots using @c ImGui code.
+    /** Display all observers data using an ImPlot::PlotLineG or
+     * ImPlot::PlotScatterG into and ImPlot::BeginPlot() / ImPlot::EndPlot().
+     */
     void show(application& app) noexcept;
+
+    /** Display the observer data using an ImPlot::PlotLineG or
+     * ImPlot::PlotScatterG.
+     *
+     * @attention Use this function after the call to ImPlot::BeginPlot() and
+     * before the call to ImPlot::EndPlot().
+     */
+    void show_plot_line(const observer&                       obs,
+                        const variable_observer::type_options options,
+                        const name_str&                       name) noexcept;
 
     //! Write interpolate data
     void write(application&                 app,
                const std::filesystem::path& file_path) noexcept;
 
     std::filesystem::path file;
-
-    // vector<observer_id>          observers;
-    // vector<variable_observer_id> ids;
-
-    // template<typename Function>
-    // void for_each_observers(Function&& f) noexcept
-    // {
-    //     debug::ensure(observers.size() == ids.size());
-
-    //     for (int i = 0, e = observers.ssize(); i != e; ++i) {
-    //         f(observers[i], ids[i]);
-    //     }
-    // }
 };
 
 /// Use to display a grid_observation_system into ImGui widget. An instance of
@@ -258,7 +246,7 @@ struct plot_copy_widget {
     /** Display a @c plot_copy using @c ImPlot::PlogLineG or @c
      * ImPlot::PlotScatterG but without @c ImPlot::BeginPlot and @c
      * ImPlot::EndPlot */
-    void show_plot_line(const plot_copy_id id) noexcept;
+    void show_plot_line(const plot_copy& id) noexcept;
 };
 
 class output_editor

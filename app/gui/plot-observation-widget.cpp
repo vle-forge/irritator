@@ -10,35 +10,6 @@
 
 namespace irt {
 
-void plot_observation_widget::init(application& /*app*/) noexcept
-{
-    // const auto len = app.pj.variable_observers.size();
-    // clear();
-
-    // observers.reserve(len);
-    // ids.reserve(len);
-
-    // for_each_data(app.pj.variable_observers, [&](auto& var) noexcept {
-    //     const auto var_id = app.pj.variable_observers.get_id(var);
-
-    //     if_data_exists_do(app.sim.models, var.mdl_id, [&](auto& mdl) noexcept
-    //     {
-    //         auto& obs =
-    //           app.sim.observers.alloc(var.name.sv(), ordinal(var_id), 0);
-    //         app.sim.observe(mdl, obs);
-
-    //         observers.emplace_back(mdl.obs_id);
-    //         ids.emplace_back(app.pj.variable_observers.get_id(var));
-    //     });
-    // });
-}
-
-void plot_observation_widget::clear() noexcept
-{
-    // observers.clear();
-    // ids.clear();
-}
-
 void plot_observation_widget::show(application& app) noexcept
 {
     for (auto& v_obs : app.pj.variable_observers) {
@@ -88,6 +59,40 @@ void plot_observation_widget::show(application& app) noexcept
             ImPlot::EndPlot();
         }
     }
+}
+
+void plot_observation_widget::show_plot_line(
+  const observer&                       obs,
+  const variable_observer::type_options options,
+  const name_str&                       name) noexcept
+{
+    ImGui::PushID(&obs);
+
+    if (obs.linearized_buffer.size() > 0) {
+        switch (options) {
+        case variable_observer::type_options::line:
+            ImPlot::PlotLineG(name.c_str(),
+                              ring_buffer_getter,
+                              const_cast<void*>(reinterpret_cast<const void*>(
+                                &obs.linearized_buffer)),
+                              obs.linearized_buffer.ssize());
+            break;
+
+        case variable_observer::type_options::dash:
+            ImPlot::PlotScatterG(
+              name.c_str(),
+              ring_buffer_getter,
+              const_cast<void*>(
+                reinterpret_cast<const void*>(&obs.linearized_buffer)),
+              obs.linearized_buffer.ssize());
+            break;
+
+        default:
+            break;
+        }
+    }
+
+    ImGui::PopID();
 }
 
 static void plot_observation_widget_write(
