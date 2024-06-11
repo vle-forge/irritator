@@ -394,38 +394,6 @@ static void application_manage_menu_action(application& app) noexcept
             app.menu_save_as_project_file = false;
         }
     }
-
-    if (app.output_ed.write_output) {
-        // auto* obs = app.simulation_ed.plot_obs.try_to_get(
-        //   app.simulation_ed.selected_sim_obs);
-
-        // if (obs) {
-        //     if (auto* mdl = app.sim.models.try_to_get(obs->model); mdl) {
-        //         if (auto* o = app.sim.observers.try_to_get(mdl->obs_id);
-        //         o) {
-        //             const char* title = "Select raw file path to save";
-        //             const std::u8string_view default_filename =
-        //               u8"filename.txt";
-        //             const char8_t* filters[] = { u8".txt", nullptr };
-
-        //             ImGui::OpenPopup(title);
-        //             if (app.f_dialog.show_save_file(
-        //                   title, default_filename, filters)) {
-        //                 if (app.f_dialog.state ==
-        //                 file_dialog::status::ok) {
-        //                     obs->file = app.f_dialog.result;
-        //                     obs->write(*o, obs->file);
-        //                 }
-
-        //                 app.simulation_ed.selected_sim_obs =
-        //                   undefined<simulation_observation_id>();
-        //                 app.output_ed.write_output = false;
-        //                 app.f_dialog.clear();
-        //             }
-        //         }
-        //     }
-        // }
-    }
 }
 
 static void application_show_windows(application& app) noexcept

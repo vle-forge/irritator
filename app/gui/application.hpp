@@ -201,12 +201,6 @@ public:
     void show_plot_line(const observer&                       obs,
                         const variable_observer::type_options options,
                         const name_str&                       name) noexcept;
-
-    //! Write interpolate data
-    void write(application&                 app,
-               const std::filesystem::path& file_path) noexcept;
-
-    std::filesystem::path file;
 };
 
 /// Use to display a grid_observation_system into ImGui widget. An instance of
@@ -259,10 +253,22 @@ public:
 
     void show() noexcept;
 
-    ImPlotContext* implot_context = nullptr;
+    bool is_open = true;
 
-    bool write_output = false;
-    bool is_open      = true;
+    void save_obs(const variable_observer_id      vobs,
+                  const variable_observer::sub_id svobs) noexcept;
+    void save_copy(const plot_copy_id id) noexcept;
+
+private:
+    ImPlotContext* m_ctx = nullptr;
+
+    std::filesystem::path m_file;
+
+    plot_copy_id              m_copy_id = undefined<plot_copy_id>();
+    variable_observer_id      m_vobs_id = undefined<variable_observer_id>();
+    variable_observer::sub_id m_sub_id = undefined<variable_observer::sub_id>();
+
+    enum class save_option { none, copy, obs } m_need_save = save_option::none;
 };
 
 class grid_component_editor_data
