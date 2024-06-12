@@ -1901,6 +1901,62 @@ int main()
         expect(cnt.number == static_cast<irt::i64>(10));
     };
 
+    "boolean_simulation"_test = [] {
+        mem.reset();
+        irt::simulation sim(&mem, mem.capacity());
+
+        expect(sim.srcs.constant_sources.can_alloc(2u));
+        auto& cst_value  = sim.srcs.constant_sources.alloc();
+        cst_value.buffer = { 1.0, 0.0, 1.0, 0.0, 1.0, 0.0, 1.0, 0.0, 1.0, 0.0 };
+        cst_value.length = 10;
+
+        auto& cst_ta  = sim.srcs.constant_sources.alloc();
+        cst_ta.buffer = { 1., 1., 1., 1., 1., 1., 1., 1., 1., 1., 1. };
+        cst_ta.length = 10;
+
+        auto& gen   = sim.alloc<irt::generator>();
+        auto& l_and = sim.alloc<irt::logical_and_2>();
+        auto& l_or  = sim.alloc<irt::logical_or_2>();
+
+        gen.default_source_value.id =
+          irt::ordinal(sim.srcs.constant_sources.get_id(cst_value));
+        gen.default_source_value.type = irt::source::source_type::constant;
+        gen.default_source_ta.id =
+          irt::ordinal(sim.srcs.constant_sources.get_id(cst_ta));
+        gen.default_source_ta.type = irt::source::source_type::constant;
+
+        expect(!!sim.connect(gen, 0, l_and, 0));
+        expect(!!sim.connect(l_and, 0, l_or, 0));
+
+        l_and.default_values[0] = false;
+        l_and.default_values[1] = true;
+
+        l_or.default_values[0] = false;
+        l_or.default_values[1] = false;
+
+        auto& obs = sim.observers.alloc();
+        sim.observe(irt::get_model(l_and), obs);
+
+        irt::time t     = 0;
+        irt::real value = 0.0;
+        expect(!!sim.srcs.prepare());
+        expect(!!sim.initialize(t));
+        do {
+            auto old_t = t;
+            expect(!!sim.run(t));
+
+            if (old_t != t) {
+                expect(eq(obs.buffer.ssize(), 1)) << fatal;
+                for (auto v : obs.buffer) {
+                    expect(eq(v[0], old_t));
+                    expect(eq(v[1], value));
+                }
+                value = value == 0. ? 1.0 : 0.;
+                obs.buffer.clear();
+            }
+        } while (t < 10.0);
+    };
+
     "time_func"_test = [] {
         fmt::print("time_func\n");
         mem.reset();

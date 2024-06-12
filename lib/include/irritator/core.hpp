@@ -3207,15 +3207,16 @@ struct abstract_logical {
 
     abstract_logical() noexcept = default;
 
-    status initialize() noexcept
+    status initialize(simulation& /*sim*/) noexcept
     {
         std::copy_n(std::data(default_values),
                     std::size(default_values),
                     std::data(values));
 
         AbstractLogicalTester tester{};
-        is_valid      = tester(std::begin(values), std::end(values));
-        sigma         = time_domain<time>::zero;
+        is_valid = tester(std::begin(values), std::end(values));
+        sigma =
+          is_valid ? time_domain<time>::zero : time_domain<time>::infinity;
         value_changed = true;
 
         return success();
@@ -3284,7 +3285,7 @@ struct logical_invert {
 
     logical_invert() noexcept { sigma = time_domain<time>::infinity; }
 
-    status initialize() noexcept
+    status initialize(simulation& /*sim*/) noexcept
     {
         value         = default_value;
         sigma         = time_domain<time>::infinity;
@@ -4585,6 +4586,15 @@ inline bool is_ports_compatible(const dynamics_type mdl_src,
     case dynamics_type::qss3_wsum_2:
     case dynamics_type::qss3_wsum_3:
     case dynamics_type::qss3_wsum_4:
+        if (any_equal(mdl_dst,
+                      dynamics_type::logical_and_2,
+                      dynamics_type::logical_and_3,
+                      dynamics_type::logical_or_2,
+                      dynamics_type::logical_or_3,
+                      dynamics_type::logical_invert))
+            return false;
+        return true;
+
     case dynamics_type::counter:
     case dynamics_type::queue:
     case dynamics_type::dynamic_queue:
@@ -4593,13 +4603,6 @@ inline bool is_ports_compatible(const dynamics_type mdl_src,
     case dynamics_type::time_func:
     case dynamics_type::hsm_wrapper:
     case dynamics_type::accumulator_2:
-        if (any_equal(mdl_dst,
-                      dynamics_type::logical_and_2,
-                      dynamics_type::logical_and_3,
-                      dynamics_type::logical_or_2,
-                      dynamics_type::logical_or_3,
-                      dynamics_type::logical_invert))
-            return false;
         return true;
 
     case dynamics_type::constant:
@@ -6123,7 +6126,7 @@ inline status queue::transition(simulation& sim,
             }
         }
 
-        if (lst and not !lst->empty()) {
+        if (lst and not lst->empty()) {
             sigma = lst->front()[0] - t;
             sigma = sigma <= time_domain<time>::zero ? time_domain<time>::zero
                                                      : sigma;
