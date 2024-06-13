@@ -581,78 +581,159 @@ int main()
     };
 
     "model_constepxr"_test = [] {
-        static_assert(irt::has_initialize_function<irt::constant> == true);
-        static_assert(irt::has_lambda_function<irt::constant> == true);
-        static_assert(irt::has_transition_function<irt::constant> == true);
-        static_assert(irt::has_input_port<irt::constant> == false);
-        static_assert(irt::has_output_port<irt::constant> == true);
-        static_assert(irt::has_observation_function<irt::constant> == true);
+        static_assert(irt::has_initialize_function<irt::constant>);
+        static_assert(irt::has_lambda_function<irt::constant>);
+        static_assert(irt::has_transition_function<irt::constant>);
+        static_assert(not irt::has_input_port<irt::constant>);
+        static_assert(irt::has_output_port<irt::constant>);
+        static_assert(irt::has_observation_function<irt::constant>);
 
-        static_assert(irt::has_initialize_function<irt::counter> == true);
-        static_assert(irt::has_lambda_function<irt::counter> == false);
-        static_assert(irt::has_transition_function<irt::counter> == true);
-        static_assert(irt::has_input_port<irt::counter> == true);
-        static_assert(irt::has_output_port<irt::counter> == false);
-        static_assert(irt::has_observation_function<irt::counter> == true);
+        static_assert(irt::has_initialize_function<irt::counter>);
+        static_assert(not irt::has_lambda_function<irt::counter>);
+        static_assert(irt::has_transition_function<irt::counter>);
+        static_assert(irt::has_input_port<irt::counter>);
+        static_assert(not irt::has_output_port<irt::counter>);
+        static_assert(irt::has_observation_function<irt::counter>);
 
-        static_assert(irt::has_initialize_function<irt::generator> == true);
-        static_assert(irt::has_lambda_function<irt::generator> == true);
-        static_assert(irt::has_transition_function<irt::generator> == true);
-        static_assert(irt::has_input_port<irt::generator> == false);
-        static_assert(irt::has_output_port<irt::generator> == true);
-        static_assert(irt::has_observation_function<irt::generator> == true);
+        static_assert(irt::has_initialize_function<irt::generator>);
+        static_assert(irt::has_lambda_function<irt::generator>);
+        static_assert(irt::has_transition_function<irt::generator>);
+        static_assert(not irt::has_input_port<irt::generator>);
+        static_assert(irt::has_output_port<irt::generator>);
+        static_assert(irt::has_observation_function<irt::generator>);
 
-        static_assert(irt::has_initialize_function<irt::qss1_sum_2> == true);
-        static_assert(irt::has_lambda_function<irt::qss1_sum_2> == true);
-        static_assert(irt::has_transition_function<irt::qss1_sum_2> == true);
-        static_assert(irt::has_input_port<irt::qss1_sum_2> == true);
-        static_assert(irt::has_output_port<irt::qss1_sum_2> == true);
-        static_assert(irt::has_observation_function<irt::qss1_sum_2> == true);
+        static_assert(irt::has_initialize_function<irt::qss1_cross>);
+        static_assert(irt::has_lambda_function<irt::qss1_cross>);
+        static_assert(irt::has_transition_function<irt::qss1_cross>);
+        static_assert(irt::has_input_port<irt::qss1_cross>);
+        static_assert(irt::has_output_port<irt::qss1_cross>);
+        static_assert(irt::has_observation_function<irt::qss1_cross>);
 
-        static_assert(irt::has_initialize_function<irt::qss1_sum_3> == true);
-        static_assert(irt::has_lambda_function<irt::qss1_sum_3> == true);
-        static_assert(irt::has_transition_function<irt::qss1_sum_3> == true);
-        static_assert(irt::has_input_port<irt::qss1_sum_3> == true);
-        static_assert(irt::has_output_port<irt::qss1_sum_3> == true);
-        static_assert(irt::has_observation_function<irt::qss1_sum_3> == true);
+        static_assert(irt::has_initialize_function<irt::qss1_filter>);
+        static_assert(irt::has_lambda_function<irt::qss1_filter>);
+        static_assert(irt::has_transition_function<irt::qss1_filter>);
+        static_assert(irt::has_input_port<irt::qss1_filter>);
+        static_assert(irt::has_output_port<irt::qss1_filter>);
+        static_assert(irt::has_observation_function<irt::qss1_filter>);
 
-        static_assert(irt::has_initialize_function<irt::qss1_sum_4> == true);
-        static_assert(irt::has_lambda_function<irt::qss1_sum_4> == true);
-        static_assert(irt::has_transition_function<irt::qss1_sum_4> == true);
-        static_assert(irt::has_input_port<irt::qss1_sum_4> == true);
-        static_assert(irt::has_output_port<irt::qss1_sum_4> == true);
-        static_assert(irt::has_observation_function<irt::qss1_sum_4> == true);
+        static_assert(irt::has_initialize_function<irt::qss1_power>);
+        static_assert(irt::has_lambda_function<irt::qss1_power>);
+        static_assert(irt::has_transition_function<irt::qss1_power>);
+        static_assert(irt::has_input_port<irt::qss1_power>);
+        static_assert(irt::has_output_port<irt::qss1_power>);
+        static_assert(irt::has_observation_function<irt::qss1_power>);
 
-        static_assert(irt::has_initialize_function<irt::qss1_wsum_2> == true);
-        static_assert(irt::has_lambda_function<irt::qss1_wsum_2> == true);
-        static_assert(irt::has_transition_function<irt::qss1_wsum_2> == true);
-        static_assert(irt::has_input_port<irt::qss1_wsum_2> == true);
-        static_assert(irt::has_output_port<irt::qss1_wsum_2> == true);
-        static_assert(irt::has_observation_function<irt::qss1_wsum_2> == true);
+        static_assert(irt::has_initialize_function<irt::qss1_square>);
+        static_assert(irt::has_lambda_function<irt::qss1_square>);
+        static_assert(irt::has_transition_function<irt::qss1_square>);
+        static_assert(irt::has_input_port<irt::qss1_square>);
+        static_assert(irt::has_output_port<irt::qss1_square>);
+        static_assert(irt::has_observation_function<irt::qss1_square>);
 
-        static_assert(irt::has_initialize_function<irt::qss1_wsum_3> == true);
-        static_assert(irt::has_lambda_function<irt::qss1_wsum_3> == true);
-        static_assert(irt::has_transition_function<irt::qss1_wsum_3> == true);
-        static_assert(irt::has_input_port<irt::qss1_wsum_3> == true);
-        static_assert(irt::has_output_port<irt::qss1_wsum_3> == true);
-        static_assert(irt::has_observation_function<irt::qss1_wsum_3> == true);
+        static_assert(irt::has_initialize_function<irt::qss1_sum_2>);
+        static_assert(irt::has_lambda_function<irt::qss1_sum_2>);
+        static_assert(irt::has_transition_function<irt::qss1_sum_2>);
+        static_assert(irt::has_input_port<irt::qss1_sum_2>);
+        static_assert(irt::has_output_port<irt::qss1_sum_2>);
+        static_assert(irt::has_observation_function<irt::qss1_sum_2>);
 
-        static_assert(irt::has_initialize_function<irt::qss1_wsum_4> == true);
-        static_assert(irt::has_lambda_function<irt::qss1_wsum_4> == true);
-        static_assert(irt::has_transition_function<irt::qss1_wsum_4> == true);
-        static_assert(irt::has_input_port<irt::qss1_wsum_4> == true);
-        static_assert(irt::has_output_port<irt::qss1_wsum_4> == true);
-        static_assert(irt::has_observation_function<irt::qss1_wsum_4> == true);
+        static_assert(irt::has_initialize_function<irt::qss1_sum_3>);
+        static_assert(irt::has_lambda_function<irt::qss1_sum_3>);
+        static_assert(irt::has_transition_function<irt::qss1_sum_3>);
+        static_assert(irt::has_input_port<irt::qss1_sum_3>);
+        static_assert(irt::has_output_port<irt::qss1_sum_3>);
+        static_assert(irt::has_observation_function<irt::qss1_sum_3>);
 
-        static_assert(irt::has_initialize_function<irt::qss1_integrator> ==
-                      true);
-        static_assert(irt::has_lambda_function<irt::qss1_integrator> == true);
-        static_assert(irt::has_transition_function<irt::qss1_integrator> ==
-                      true);
-        static_assert(irt::has_input_port<irt::qss1_integrator> == true);
-        static_assert(irt::has_output_port<irt::qss1_integrator> == true);
-        static_assert(irt::has_observation_function<irt::qss1_integrator> ==
-                      true);
+        static_assert(irt::has_initialize_function<irt::qss1_sum_4>);
+        static_assert(irt::has_lambda_function<irt::qss1_sum_4>);
+        static_assert(irt::has_transition_function<irt::qss1_sum_4>);
+        static_assert(irt::has_input_port<irt::qss1_sum_4>);
+        static_assert(irt::has_output_port<irt::qss1_sum_4>);
+        static_assert(irt::has_observation_function<irt::qss1_sum_4>);
+
+        static_assert(irt::has_initialize_function<irt::qss1_wsum_2>);
+        static_assert(irt::has_lambda_function<irt::qss1_wsum_2>);
+        static_assert(irt::has_transition_function<irt::qss1_wsum_2>);
+        static_assert(irt::has_input_port<irt::qss1_wsum_2>);
+        static_assert(irt::has_output_port<irt::qss1_wsum_2>);
+        static_assert(irt::has_observation_function<irt::qss1_wsum_2>);
+
+        static_assert(irt::has_initialize_function<irt::qss1_wsum_3>);
+        static_assert(irt::has_lambda_function<irt::qss1_wsum_3>);
+        static_assert(irt::has_transition_function<irt::qss1_wsum_3>);
+        static_assert(irt::has_input_port<irt::qss1_wsum_3>);
+        static_assert(irt::has_output_port<irt::qss1_wsum_3>);
+        static_assert(irt::has_observation_function<irt::qss1_wsum_3>);
+
+        static_assert(irt::has_initialize_function<irt::qss1_wsum_4>);
+        static_assert(irt::has_lambda_function<irt::qss1_wsum_4>);
+        static_assert(irt::has_transition_function<irt::qss1_wsum_4>);
+        static_assert(irt::has_input_port<irt::qss1_wsum_4>);
+        static_assert(irt::has_output_port<irt::qss1_wsum_4>);
+        static_assert(irt::has_observation_function<irt::qss1_wsum_4>);
+
+        static_assert(irt::has_initialize_function<irt::qss1_integrator>);
+        static_assert(irt::has_lambda_function<irt::qss1_integrator>);
+        static_assert(irt::has_transition_function<irt::qss1_integrator>);
+        static_assert(irt::has_input_port<irt::qss1_integrator>);
+        static_assert(irt::has_output_port<irt::qss1_integrator>);
+        static_assert(irt::has_observation_function<irt::qss1_integrator>);
+
+        static_assert(irt::has_initialize_function<irt::qss2_multiplier>);
+        static_assert(irt::has_lambda_function<irt::qss2_multiplier>);
+        static_assert(irt::has_transition_function<irt::qss2_multiplier>);
+        static_assert(irt::has_input_port<irt::qss2_multiplier>);
+        static_assert(irt::has_output_port<irt::qss2_multiplier>);
+        static_assert(irt::has_observation_function<irt::qss2_multiplier>);
+
+        static_assert(irt::has_initialize_function<irt::logical_and_2>);
+        static_assert(irt::has_lambda_function<irt::logical_and_2>);
+        static_assert(irt::has_transition_function<irt::logical_and_2>);
+        static_assert(irt::has_input_port<irt::logical_and_2>);
+        static_assert(irt::has_output_port<irt::logical_and_2>);
+        static_assert(irt::has_observation_function<irt::logical_and_2>);
+
+        static_assert(irt::has_initialize_function<irt::logical_invert>);
+        static_assert(irt::has_lambda_function<irt::logical_invert>);
+        static_assert(irt::has_transition_function<irt::logical_invert>);
+        static_assert(irt::has_input_port<irt::logical_invert>);
+        static_assert(irt::has_output_port<irt::logical_invert>);
+        static_assert(irt::has_observation_function<irt::logical_invert>);
+
+        static_assert(irt::has_initialize_function<irt::accumulator_2>);
+        static_assert(not irt::has_lambda_function<irt::accumulator_2>);
+        static_assert(irt::has_transition_function<irt::accumulator_2>);
+        static_assert(irt::has_input_port<irt::accumulator_2>);
+        static_assert(not irt::has_output_port<irt::accumulator_2>);
+        static_assert(irt::has_observation_function<irt::accumulator_2>);
+
+        static_assert(irt::has_initialize_function<irt::hsm_wrapper>);
+        static_assert(irt::has_lambda_function<irt::hsm_wrapper>);
+        static_assert(irt::has_transition_function<irt::hsm_wrapper>);
+        static_assert(irt::has_input_port<irt::hsm_wrapper>);
+        static_assert(irt::has_output_port<irt::hsm_wrapper>);
+        static_assert(irt::has_observation_function<irt::hsm_wrapper>);
+
+        static_assert(irt::has_initialize_function<irt::queue>);
+        static_assert(irt::has_lambda_function<irt::queue>);
+        static_assert(irt::has_transition_function<irt::queue>);
+        static_assert(irt::has_input_port<irt::queue>);
+        static_assert(irt::has_output_port<irt::queue>);
+        static_assert(not irt::has_observation_function<irt::queue>);
+
+        static_assert(irt::has_initialize_function<irt::dynamic_queue>);
+        static_assert(irt::has_lambda_function<irt::dynamic_queue>);
+        static_assert(irt::has_transition_function<irt::dynamic_queue>);
+        static_assert(irt::has_input_port<irt::dynamic_queue>);
+        static_assert(irt::has_output_port<irt::dynamic_queue>);
+        static_assert(not irt::has_observation_function<irt::dynamic_queue>);
+
+        static_assert(irt::has_initialize_function<irt::priority_queue>);
+        static_assert(irt::has_lambda_function<irt::priority_queue>);
+        static_assert(irt::has_transition_function<irt::priority_queue>);
+        static_assert(irt::has_input_port<irt::priority_queue>);
+        static_assert(irt::has_output_port<irt::priority_queue>);
+        static_assert(not irt::has_observation_function<irt::priority_queue>);
     };
 
     "time"_test = [] {

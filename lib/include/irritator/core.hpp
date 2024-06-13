@@ -10,7 +10,6 @@
 #include <irritator/macros.hpp>
 
 #include <array>
-#include <concepts>
 #include <cstddef>
 #include <filesystem>
 #include <fstream>
