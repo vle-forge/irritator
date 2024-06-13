@@ -61,35 +61,75 @@ void plot_observation_widget::show(application& app) noexcept
     }
 }
 
+static void show_discrete_plot_line(
+  const variable_observer::type_options options,
+  const name_str&                       name,
+  const observer&                       obs) noexcept
+{
+    switch (options) {
+    case variable_observer::type_options::line:
+        ImPlot::PlotStairsG(name.c_str(),
+                            ring_buffer_getter,
+                            const_cast<void*>(reinterpret_cast<const void*>(
+                              &obs.linearized_buffer)),
+                            obs.linearized_buffer.ssize());
+        break;
+
+    case variable_observer::type_options::dash:
+        ImPlot::PlotBarsG(name.c_str(),
+                          ring_buffer_getter,
+                          const_cast<void*>(reinterpret_cast<const void*>(
+                            &obs.linearized_buffer)),
+                          obs.linearized_buffer.ssize(),
+                          1.5);
+        break;
+
+    default:
+        break;
+    }
+}
+
+static void show_continuous_plot_line(
+  const variable_observer::type_options options,
+  const name_str&                       name,
+  const observer&                       obs) noexcept
+{
+    switch (options) {
+    case variable_observer::type_options::line:
+        ImPlot::PlotLineG(name.c_str(),
+                          ring_buffer_getter,
+                          const_cast<void*>(reinterpret_cast<const void*>(
+                            &obs.linearized_buffer)),
+                          obs.linearized_buffer.ssize());
+        break;
+
+    case variable_observer::type_options::dash:
+        ImPlot::PlotScatterG(name.c_str(),
+                             ring_buffer_getter,
+                             const_cast<void*>(reinterpret_cast<const void*>(
+                               &obs.linearized_buffer)),
+                             obs.linearized_buffer.ssize());
+        break;
+
+    default:
+        break;
+    }
+}
+
 void plot_observation_widget::show_plot_line(
   const observer&                       obs,
   const variable_observer::type_options options,
   const name_str&                       name) noexcept
 {
+    if (obs.linearized_buffer.size() <= 1)
+        return;
+
     ImGui::PushID(&obs);
 
-    if (obs.linearized_buffer.size() > 0) {
-        switch (options) {
-        case variable_observer::type_options::line:
-            ImPlot::PlotLineG(name.c_str(),
-                              ring_buffer_getter,
-                              const_cast<void*>(reinterpret_cast<const void*>(
-                                &obs.linearized_buffer)),
-                              obs.linearized_buffer.ssize());
-            break;
-
-        case variable_observer::type_options::dash:
-            ImPlot::PlotScatterG(
-              name.c_str(),
-              ring_buffer_getter,
-              const_cast<void*>(
-                reinterpret_cast<const void*>(&obs.linearized_buffer)),
-              obs.linearized_buffer.ssize());
-            break;
-
-        default:
-            break;
-        }
+    if (get_interpolate_type(obs.type) == interpolate_type::none) {
+        show_discrete_plot_line(options, name, obs);
+    } else {
+        show_continuous_plot_line(options, name, obs);
     }
 
     ImGui::PopID();

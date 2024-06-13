@@ -321,33 +321,6 @@ static auto get_or_add_variable_observer(project&             pj,
     return v;
 }
 
-static void show_local_variable_plot(
-  observer&                             obs,
-  const name_str&                       name,
-  const variable_observer::type_options type) noexcept
-{
-    if (obs.linearized_buffer.size() > 0) {
-        switch (type) {
-        case variable_observer::type_options::line:
-            ImPlot::PlotLineG(name.c_str(),
-                              ring_buffer_getter,
-                              &obs.linearized_buffer,
-                              obs.linearized_buffer.ssize());
-            break;
-
-        case variable_observer::type_options::dash:
-            ImPlot::PlotScatterG(name.c_str(),
-                                 ring_buffer_getter,
-                                 &obs.linearized_buffer,
-                                 obs.linearized_buffer.ssize());
-            break;
-
-        default:
-            unreachable();
-        }
-    }
-}
-
 static bool show_local_simulation_plot_observers_table(application& app,
                                                        tree_node&   tn) noexcept
 {
@@ -616,8 +589,8 @@ static void show_local_variables_plot(application&       app,
         auto*      obs = app.sim.observers.try_to_get(v_obs.get_obs_ids()[idx]);
 
         if (obs and v_obs.get_tn_ids()[idx] == tn_id)
-            show_local_variable_plot(
-              *obs, v_obs.get_names()[idx], v_obs.get_options()[idx]);
+            app.simulation_ed.plot_obs.show_plot_line(
+              *obs, v_obs.get_options()[idx], v_obs.get_names()[idx]);
     });
 }
 

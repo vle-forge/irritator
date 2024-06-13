@@ -24,7 +24,7 @@
 namespace irt {
 
 template<class T, class M>
-constexpr std::ptrdiff_t offset_of(const M T::*member)
+constexpr std::ptrdiff_t offset_of(const M T::* member)
 {
     return reinterpret_cast<std::ptrdiff_t>(
       &(reinterpret_cast<T*>(0)->*member));
@@ -44,7 +44,7 @@ constexpr std::ptrdiff_t offset_of(const M T::*member)
 //! }
 //! @endcode
 template<class T, class M>
-constexpr T& container_of(M* ptr, const M T::*member)
+constexpr T& container_of(M* ptr, const M T::* member)
 {
     return *reinterpret_cast<T*>(reinterpret_cast<intptr_t>(ptr) -
                                  offset_of(member));
@@ -188,12 +188,15 @@ public:
     plot_observation_widget() noexcept = default;
 
     /** Display all observers data using an ImPlot::PlotLineG or
-     * ImPlot::PlotScatterG into and ImPlot::BeginPlot() / ImPlot::EndPlot().
+     * ImPlot::PlotScatterG for continuous data or ImPlot::PlotStairsG or
+     * ImPlot::PlotBarG for discrete data into and ImPlot::BeginPlot() /
+     * ImPlot::EndPlot().
      */
     void show(application& app) noexcept;
 
     /** Display the observer data using an ImPlot::PlotLineG or
-     * ImPlot::PlotScatterG.
+     * ImPlot::PlotScatterG for continuous data or ImPlot::PlotStairsG or
+     * ImPlot::PlotBarG for discrete data.
      *
      * @attention Use this function after the call to ImPlot::BeginPlot() and
      * before the call to ImPlot::EndPlot().

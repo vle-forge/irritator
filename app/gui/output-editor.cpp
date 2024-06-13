@@ -7,12 +7,9 @@
 #include "editor.hpp"
 #include "internal.hpp"
 #include "irritator/core.hpp"
-#include "irritator/helpers.hpp"
-#include "irritator/macros.hpp"
 #include "irritator/modeling.hpp"
 
 #include <optional>
-#include <utility>
 
 namespace irt {
 
@@ -205,9 +202,7 @@ static void write(application&                    app,
           });
 }
 
-static void write(application&     app,
-                  std::ofstream&   ofs,
-                  const plot_copy& p) noexcept
+static void write(std::ofstream& ofs, const plot_copy& p) noexcept
 {
     ofs.imbue(std::locale::classic());
 
@@ -222,7 +217,7 @@ static void write(application&       app,
                   const plot_copy_id id) noexcept
 {
     if (auto* p = app.simulation_ed.copy_obs.try_to_get(id); p)
-        write(app, ofs, *p);
+        write(ofs, *p);
     else
         app.notifications.try_insert(log_level::error,
                                      [](auto& title, auto& msg) noexcept {
@@ -335,14 +330,14 @@ void output_editor::show() noexcept
 void output_editor::save_obs(const variable_observer_id      vobs,
                              const variable_observer::sub_id svobs) noexcept
 {
-    m_vobs_id     = vobs;
-    m_sub_id      = svobs;
+    m_vobs_id   = vobs;
+    m_sub_id    = svobs;
     m_need_save = save_option::obs;
 }
 
 void output_editor::save_copy(const plot_copy_id id) noexcept
 {
-    m_copy_id     = id;
+    m_copy_id   = id;
     m_need_save = save_option::copy;
 }
 
