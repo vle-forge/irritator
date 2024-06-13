@@ -3564,6 +3564,7 @@ struct hsm_wrapper {
     status initialize(simulation& sim) noexcept;
     status transition(simulation& sim, time t, time e, time r) noexcept;
     status lambda(simulation& sim) noexcept;
+    observation_message observation(time t, time e) const noexcept;
 };
 
 template<int PortNumber>
@@ -3613,6 +3614,11 @@ struct accumulator {
         }
 
         return success();
+    }
+
+    observation_message observation(time t, time /*e*/) const noexcept
+    {
+        return { t, number };
     }
 };
 
@@ -5845,6 +5851,12 @@ inline status hsm_wrapper::lambda(simulation& sim) noexcept
     }
 
     return success();
+}
+
+inline observation_message hsm_wrapper::observation(time t,
+                                                    time /*e*/) const noexcept
+{
+    return { t, static_cast<real>(exec.current_state) };
 }
 
 inline bool simulation::can_alloc(std::integral auto place) const noexcept
