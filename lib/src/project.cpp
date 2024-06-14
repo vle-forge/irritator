@@ -1017,12 +1017,145 @@ status project::init(const modeling_initializer& init) noexcept
     return success();
 }
 
+class treenode_require_computer
+{
+public:
+    table<component_id, project::required_data> map;
+
+    project::required_data compute(const modeling&          mod,
+                                   const component&         c,
+                                   const generic_component& g) noexcept
+    {
+        project::required_data ret;
+
+        for (const auto& ch : g.children) {
+            if (ch.type == child_type::component) {
+                const auto* sub_c = mod.components.try_to_get(ch.id.compo_id);
+                if (sub_c)
+                    ret += compute(mod, *sub_c);
+            } else {
+                ++ret.model_nb;
+            }
+        }
+
+        return ret;
+    }
+
+    project::required_data compute(const modeling&       mod,
+                                   const component&      c,
+                                   const grid_component& g) noexcept
+    {
+        project::required_data ret;
+
+        for (auto r = 0; r < g.row; ++r) {
+            for (auto c = 0; c < g.column; ++c) {
+                const auto* sub_c =
+                  mod.components.try_to_get(g.children[g.pos(r, c)]);
+                if (sub_c)
+                    ret += compute(mod, *sub_c);
+            }
+        }
+
+        return ret;
+    }
+
+    project::required_data compute(const modeling&        mod,
+                                   const component&       c,
+                                   const graph_component& g) noexcept
+    {
+        project::required_data ret;
+
+        for (const auto v : g.children) {
+            const auto* sub_c = mod.components.try_to_get(v.id);
+            if (sub_c)
+                ret += compute(mod, *sub_c);
+        }
+
+        return ret;
+    }
+
+public:
+    project::required_data compute(const modeling&  mod,
+                                   const component& c) noexcept
+    {
+        project::required_data ret{ .tree_node_nb = 1 };
+
+        if (auto* ptr = map.get(mod.components.get_id(c)); ptr) {
+            ret = *ptr;
+        } else {
+            switch (c.type) {
+            case component_type::simple: {
+                auto s_id = c.id.generic_id;
+                if (auto* s = mod.generic_components.try_to_get(s_id); s)
+                    ret += compute(mod, c, *s);
+            } break;
+
+            case component_type::grid: {
+                auto g_id = c.id.grid_id;
+                if (auto* g = mod.grid_components.try_to_get(g_id); g)
+                    ret += compute(mod, c, *g);
+            } break;
+
+            case component_type::graph: {
+                auto g_id = c.id.graph_id;
+                if (auto* g = mod.graph_components.try_to_get(g_id); g)
+                    ret += compute(mod, c, *g);
+            } break;
+
+            case component_type::hsm:
+                ret.hsm_nb++;
+                break;
+
+            case component_type::internal:
+                break;
+
+            case component_type::none:
+                break;
+            }
+
+            map.data.emplace_back(mod.components.get_id(c), ret);
+        }
+
+        return ret;
+    }
+};
+
+project::required_data project::compute_treenode_number(
+  const modeling&  mod,
+  const component& c) const noexcept
+{
+    treenode_require_computer tn;
+
+    return tn.compute(mod, c);
+}
+
 status project::set(modeling& mod, simulation& sim, component& compo) noexcept
 {
     clear();
     clear_cache();
 
+    const auto numbers = compute_treenode_number(mod, compo);
+    if (std::cmp_greater_equal(numbers.tree_node_nb, tree_nodes.capacity())) {
+        tree_nodes.reserve(numbers.tree_node_nb * 2); // TODO make 2 a variable?
+
+        if (std::cmp_greater_equal(numbers.tree_node_nb, tree_nodes.capacity()))
+            return new_error(
+              tree_node_error{},
+              e_memory{
+                static_cast<long long unsigned int>(numbers.model_nb),
+                static_cast<long long unsigned int>(tree_nodes.capacity()) });
+    }
+
     irt_check(make_component_cache(*this, mod));
+
+    simulation_memory_requirement smr(numbers.model_nb, numbers.hsm_nb);
+    sim.destroy();
+
+    if (not sim.m_alloc.can_alloc_bytes(smr.global_b))
+        return new_error(simulation::model_error{},
+                         e_allocator{ smr.global_b });
+
+    sim.realloc(smr);
 
     simulation_copy sc(m_cache, mod, sim, tree_nodes);
 

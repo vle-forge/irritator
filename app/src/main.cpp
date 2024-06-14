@@ -246,10 +246,10 @@ void show_version() noexcept
                VERSION_TWEAK);
 }
 
-void run_simulation(irt::real   begin,
-                    irt::real   duration,
-                    int         /* models */,
-                    int         /* messages */,
+void run_simulation(irt::real begin,
+                    irt::real duration,
+                    int /* models */,
+                    int /* messages */,
                     const char* file_name) noexcept
 {
     fmt::print("Run simulation from `{}' to `{}' for file {}\n",
@@ -259,12 +259,13 @@ void run_simulation(irt::real   begin,
 
     irt::attempt_all(
       [&]() noexcept -> irt::status {
-          irt::project              pj;
-          irt::modeling_initializer init;
-          irt::modeling             mod;
-          irt::simulation           sim;
-          irt::external_source      srcs;
-          irt::cache_rw             cache;
+          irt::project                       pj;
+          irt::modeling_initializer          init;
+          irt::modeling                      mod;
+          irt::simulation_memory_requirement smr{ 1024 * 1024 * 8 };
+          irt::simulation                    sim{ smr };
+          irt::external_source               srcs;
+          irt::cache_rw                      cache;
 
           irt_check(pj.init(init));
           irt_check(mod.init(init));

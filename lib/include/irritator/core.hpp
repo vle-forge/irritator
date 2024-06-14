@@ -1059,36 +1059,59 @@ struct external_source_memory_requirement {
 
 //! Helps to calculate the sizes of the `vectors` and `data_array` from a
 //! number of bytes.
-struct simulation_memory_requirement {
+class simulation_memory_requirement
+{
+public:
+    constexpr static inline auto default_simulation_model_number      = 256u;
+    constexpr static inline auto default_simulation_connection_number = 1024u;
+
     std::size_t connections_b     = 0;
     std::size_t dated_messages_b  = 0;
     std::size_t external_source_b = 0;
     std::size_t simulation_b      = 0;
+    std::size_t global_b          = 0;
 
-    int model_nb = 32;
-    int hsms_nb  = 4;
+    int model_nb = 0;
+    int hsm_nb   = 0;
 
     external_source_memory_requirement srcs;
 
-    //! Assign a default size for each simulation subobject.
-    constexpr simulation_memory_requirement() noexcept = default;
+    /** Computes the required memory to build the simulation that can run at
+     * least @c model_nb models and @c connection_nb connections.
+     *
+     * @param bytes The numbers of bytes availables.
+     * @param external_source Percentage of memory to use in external source.
+     * @param source_client_ratio
+     * @param connections Percentage of simulation memory dedicated to
+     * connections.
+     * @param dated_messages Percentage of siulation memory dedicated to fifo,
+     * lifo history.
+     */
+    constexpr simulation_memory_requirement(
+      const std::size_t                   model_nb,
+      const std::size_t                   connection_nb,
+      const constrained_value<int, 5, 90> connections     = 5,
+      const constrained_value<int, 1, 10> hsms            = 1,
+      const constrained_value<int, 0, 50> dated_messages  = 5,
+      const constrained_value<int, 1, 90> external_source = 10,
+      const constrained_value<int, 1, 95> source_client   = 50) noexcept;
 
-    //! Compute the size of each sub-objects.
-    //!
-    //! @param bytes The numbers of bytes availables.
-    //! @param external_source Percentage of memory to use in external
-    //! source.
-    //! @param hsms_ratio Percentage of hsms model vs model number.
-    //! @param source_client_ratio
-    //! @param connections Percentage of simulation memory dedicated to
-    //! connections.
-    //! @param dated_messages Percentage of siulation memory dedicated to fifo,
-    //! lifo history.
+    /** Computes the required memory to build the simulation and splits
+     * available memory in memory resource, free list and container.
+     *
+     * @param bytes The numbers of bytes availables.
+     * @param external_source Percentage of memory to use in external source.
+     * @param source_client_ratio
+     * @param connections Percentage of simulation memory dedicated to
+     * connections.
+     * @param dated_messages Percentage of siulation memory dedicated to fifo,
+     * lifo history.
+     */
     constexpr simulation_memory_requirement(
       const std::size_t                   bytes,
       const constrained_value<int, 5, 90> connections     = 5,
+      const constrained_value<int, 1, 10> hsms            = 10,
       const constrained_value<int, 0, 50> dated_messages  = 5,
-      const constrained_value<int, 0, 90> hsms            = 10,
       const constrained_value<int, 1, 90> external_source = 10,
       const constrained_value<int, 1, 95> source_client   = 50) noexcept;
 
@@ -1096,6 +1119,15 @@ struct simulation_memory_requirement {
 
     //! Compute an estimate to store a model in simulation memory.
     constexpr static size_t estimate_model() noexcept;
+
+private:
+    constexpr void compute_buffer_size(
+      const std::size_t                   bytes,
+      const constrained_value<int, 5, 90> connections,
+      const constrained_value<int, 1, 10> hsms,
+      const constrained_value<int, 0, 50> dated_messages,
+      const constrained_value<int, 1, 90> external_source,
+      const constrained_value<int, 1, 95> source_client) noexcept;
 };
 
 class simulation
@@ -1113,6 +1145,8 @@ public:
         scheduler,
         external_sources
     };
+
+    struct model_error {};
 
     mr_allocator<memory_resource> m_alloc;
 
@@ -1150,8 +1184,7 @@ public:
 public:
     //! Use the default malloc memory resource to allocate all memory need
     //! by sub-containers.
-    simulation(const simulation_memory_requirement& init =
-                 simulation_memory_requirement()) noexcept;
+    simulation(const simulation_memory_requirement& init) noexcept;
 
     //! Use the memory resource to allocate all memory need by
     //! sub-containers. This constructor alloc to allocate in heap or in
@@ -1159,10 +1192,19 @@ public:
     //!
     //! @param mem Must be no-null.
     simulation(memory_resource*                     mem,
-               const simulation_memory_requirement& init =
-                 simulation_memory_requirement()) noexcept;
+               const simulation_memory_requirement& init) noexcept;
 
+    /** Call the @C destroy function to free allocated memory */
     ~simulation() noexcept;
+
+    /** Call the @c destroy() function then allocate new buffers according to @c
+     * init parameter. */
+    void realloc(const simulation_memory_requirement& init) noexcept;
+
+    /** Clear, delete or destroy any buffer allocated in constructor or in @c
+     * realloc() function. Use the @c realloc() function to allocate new buffer
+     * and use simulation again. */
+    void destroy() noexcept;
 
     bool can_alloc(std::integral auto place) const noexcept;
     bool can_alloc(dynamics_type type, std::integral auto place) const noexcept;
@@ -1255,38 +1297,52 @@ public:
 
 template<typename T>
 concept has_lambda_function = requires(T t, simulation& sim) {
-    { t.lambda(sim) } -> std::same_as<status>;
+    {
+        t.lambda(sim)
+    } -> std::same_as<status>;
 };
 
 template<typename T>
 concept has_transition_function =
   requires(T t, simulation& sim, time s, time e, time r) {
-      { t.transition(sim, s, e, r) } -> std::same_as<status>;
+      {
+          t.transition(sim, s, e, r)
+      } -> std::same_as<status>;
   };
 
 template<typename T>
 concept has_observation_function = requires(T t, time s, time e) {
-    { t.observation(s, e) } -> std::same_as<observation_message>;
+    {
+        t.observation(s, e)
+    } -> std::same_as<observation_message>;
 };
 
 template<typename T>
 concept has_initialize_function = requires(T t, simulation& sim) {
-    { t.initialize(sim) } -> std::same_as<status>;
+    {
+        t.initialize(sim)
+    } -> std::same_as<status>;
 };
 
 template<typename T>
 concept has_finalize_function = requires(T t, simulation& sim) {
-    { t.finalize(sim) } -> std::same_as<status>;
+    {
+        t.finalize(sim)
+    } -> std::same_as<status>;
 };
 
 template<typename T>
 concept has_input_port = requires(T t) {
-    { t.x };
+    {
+        t.x
+    };
 };
 
 template<typename T>
 concept has_output_port = requires(T t) {
-    { t.y };
+    {
+        t.y
+    };
 };
 
 constexpr observation_message qss_observation(real X,
@@ -5347,7 +5403,12 @@ inline simulation::simulation(
           .text_file_sources{ &external_source_alloc },
           .random_sources{ &external_source_alloc } }
 {
-    debug::ensure(mem);
+    realloc(init);
+}
+
+inline void simulation::realloc(
+  const simulation_memory_requirement& init) noexcept
+{
     debug::ensure(init.valid());
 
     shared.reset(m_alloc.allocate_bytes(init.simulation_b), init.simulation_b);
@@ -5372,8 +5433,8 @@ inline simulation::simulation(
         sched.reserve(init.model_nb);
     }
 
-    if (init.hsms_nb > 0)
-        hsms.reserve(init.hsms_nb);
+    if (init.hsm_nb > 0)
+        hsms.reserve(init.hsm_nb);
 
     if (init.srcs.constant_nb > 0)
         srcs.constant_sources.reserve(init.srcs.constant_nb);
@@ -5388,7 +5449,7 @@ inline simulation::simulation(
         srcs.random_sources.reserve(init.srcs.random_nb);
 }
 
-inline simulation::~simulation() noexcept
+inline void simulation::destroy() noexcept
 {
     models.destroy();
     observers.destroy();
@@ -5414,6 +5475,8 @@ inline simulation::~simulation() noexcept
     m_alloc.deallocate_bytes(external_source_alloc.head(),
                              external_source_alloc.capacity());
 }
+
+inline simulation::~simulation() noexcept { destroy(); }
 
 inline model_id simulation::get_id(const model& mdl) const
 {
@@ -6268,15 +6331,60 @@ inline status priority_queue::transition(simulation& sim,
 // simulation memory requirement
 
 inline constexpr simulation_memory_requirement::simulation_memory_requirement(
+  const std::size_t                   model_nb,
+  const std::size_t                   hsm_nb,
+  const constrained_value<int, 5, 90> connections,
+  const constrained_value<int, 1, 10> hsms_model,
+  const constrained_value<int, 0, 50> dated_messages,
+  const constrained_value<int, 1, 90> external_source,
+  const constrained_value<int, 1, 95> source_client) noexcept
+{
+    const auto model_size = estimate_model();
+    const auto base_size  = model_size * model_nb;
+    auto       size       = base_size;
+
+    size += sizeof(hierarchical_state_machine) * hsm_nb * 2;
+    size += (*connections * base_size) / 100;
+    size += (*dated_messages * base_size) / 100;
+    size += (*hsms_model * base_size) / 100;
+    size += (*external_source * base_size) / 100;
+    size += (*source_client * base_size) / 100;
+
+    compute_buffer_size(size,
+                        connections,
+                        hsms_model,
+                        dated_messages,
+                        external_source,
+                        source_client);
+}
+
+inline constexpr simulation_memory_requirement::simulation_memory_requirement(
   const std::size_t                   bytes,
   const constrained_value<int, 5, 90> connections,
+  const constrained_value<int, 1, 10> hsms_model,
   const constrained_value<int, 0, 50> dated_messages,
-  const constrained_value<int, 0, 90> hsms_model,
+  const constrained_value<int, 1, 90> external_source,
+  const constrained_value<int, 1, 95> source_client) noexcept
+{
+    compute_buffer_size(bytes,
+                        connections,
+                        hsms_model,
+                        dated_messages,
+                        external_source,
+                        source_client);
+}
+
+inline constexpr void simulation_memory_requirement::compute_buffer_size(
+  const std::size_t                   bytes,
+  const constrained_value<int, 5, 90> connections,
+  const constrained_value<int, 1, 10> hsms,
+  const constrained_value<int, 0, 50> dated_messages,
   const constrained_value<int, 1, 90> external_source,
   const constrained_value<int, 1, 95> source_client) noexcept
 {
     constexpr size_t alg = alignof(std::max_align_t);
 
+    global_b          = bytes;
     connections_b     = make_divisible_to(bytes * *connections / 100, alg);
     dated_messages_b  = make_divisible_to(bytes * *dated_messages / 100, alg);
     external_source_b = make_divisible_to(bytes * *external_source / 100, alg);
@@ -6292,15 +6400,15 @@ inline constexpr simulation_memory_requirement::simulation_memory_requirement(
     const auto model_size   = estimate_model();
     const auto max_model_nb = static_cast<int>(simulation_b / model_size);
 
-    hsms_nb  = max_model_nb * *hsms_model / 100;
-    model_nb = max_model_nb - hsms_nb;
+    hsm_nb   = max_model_nb * *hsms / 100;
+    model_nb = max_model_nb - hsm_nb;
     srcs =
       external_source_memory_requirement(external_source_b, *source_client);
 }
 
 inline constexpr bool simulation_memory_requirement::valid() const noexcept
 {
-    return model_nb > 0 and hsms_nb >= 0 and srcs.valid();
+    return model_nb > 0 and hsm_nb >= 0 and srcs.valid();
 }
 
 inline constexpr size_t simulation_memory_requirement::estimate_model() noexcept

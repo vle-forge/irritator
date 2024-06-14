@@ -1397,6 +1397,7 @@ class project
 {
 public:
     struct hsm_error {};
+    struct tree_node_error {};
 
     //! Used to report which part of the @c project have a problem with the @c
     //! new_error function.
@@ -1441,6 +1442,35 @@ public:
                 simulation& sim,
                 cache_rw&   cache,
                 const char* filename) noexcept;
+
+    struct required_data {
+        unsigned tree_node_nb{};
+        unsigned model_nb{};
+        unsigned hsm_nb{};
+
+        constexpr static friend required_data operator+(
+          const required_data lhs,
+          const required_data rhs) noexcept
+        {
+            return { lhs.tree_node_nb + rhs.tree_node_nb,
+                     lhs.model_nb + rhs.model_nb,
+                     lhs.hsm_nb + rhs.hsm_nb };
+        }
+
+        constexpr required_data& operator+=(const required_data other) noexcept
+        {
+            tree_node_nb += other.tree_node_nb;
+            model_nb += other.model_nb;
+            hsm_nb += other.hsm_nb;
+            return *this;
+        }
+    };
+
+    /** Compute the number of @c tree_node required to load the component @c
+     * into the @c project and the number of models and connections to fill the
+     * simulation structures. */
+    required_data compute_treenode_number(const modeling&  mod,
+                                          const component& c) const noexcept;
 
     /// Assign a new @c component head. The previously allocated tree_node
     /// hierarchy is removed and a newly one is allocated.

@@ -80,6 +80,13 @@ public:
             do_deallocate(pointer, bytes, alignment);
     }
 
+    bool can_alloc(
+      std::size_t bytes,
+      std::size_t alignment = alignof(std::max_align_t)) const noexcept
+    {
+        return do_can_alloc(bytes, alignment);
+    }
+
 protected:
     virtual void* do_allocate(std::size_t bytes,
                               std::size_t alignment) noexcept = 0;
@@ -87,6 +94,9 @@ protected:
     virtual void do_deallocate(void*       pointer,
                                std::size_t bytes,
                                std::size_t alignment) noexcept = 0;
+
+    virtual bool do_can_alloc(std::size_t bytes,
+                              std::size_t alignment) const noexcept = 0;
 };
 
 //! A dynamic heap `memory_resource` using `std::aligned_alloc` or
@@ -107,6 +117,12 @@ protected:
     void do_deallocate(void*       pointer,
                        std::size_t bytes,
                        std::size_t alignment) noexcept override;
+
+    bool do_can_alloc(std::size_t /*bytes*/,
+                      std::size_t /*alignment*/) const noexcept override
+    {
+        return true;
+    }
 };
 
 //! A stack `memory_resource` using an `std::array` to store aligned memory.
@@ -191,6 +207,12 @@ protected:
           std::data(buffer) + std::size(buffer));
 
         debug::ensure(first <= pos and pos <= last);
+    }
+
+    bool do_can_alloc(std::size_t bytes,
+                      std::size_t /*alignment*/) const noexcept override
+    {
+        return bytes < Bytes;
     }
 };
 
@@ -284,6 +306,13 @@ public:
       size_type  alignment = alignof(std::max_align_t)) noexcept
     {
         m_mr->deallocate(pointer, bytes, alignment);
+    }
+
+    bool can_alloc_bytes(
+      size_type bytes,
+      size_type alignment = alignof(std::max_align_t)) noexcept
+    {
+        return m_mr->can_alloc(bytes, alignment);
     }
 
     template<typename T>
