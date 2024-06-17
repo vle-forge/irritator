@@ -1297,52 +1297,38 @@ public:
 
 template<typename T>
 concept has_lambda_function = requires(T t, simulation& sim) {
-    {
-        t.lambda(sim)
-    } -> std::same_as<status>;
+    { t.lambda(sim) } -> std::same_as<status>;
 };
 
 template<typename T>
 concept has_transition_function =
   requires(T t, simulation& sim, time s, time e, time r) {
-      {
-          t.transition(sim, s, e, r)
-      } -> std::same_as<status>;
+      { t.transition(sim, s, e, r) } -> std::same_as<status>;
   };
 
 template<typename T>
 concept has_observation_function = requires(T t, time s, time e) {
-    {
-        t.observation(s, e)
-    } -> std::same_as<observation_message>;
+    { t.observation(s, e) } -> std::same_as<observation_message>;
 };
 
 template<typename T>
 concept has_initialize_function = requires(T t, simulation& sim) {
-    {
-        t.initialize(sim)
-    } -> std::same_as<status>;
+    { t.initialize(sim) } -> std::same_as<status>;
 };
 
 template<typename T>
 concept has_finalize_function = requires(T t, simulation& sim) {
-    {
-        t.finalize(sim)
-    } -> std::same_as<status>;
+    { t.finalize(sim) } -> std::same_as<status>;
 };
 
 template<typename T>
 concept has_input_port = requires(T t) {
-    {
-        t.x
-    };
+    { t.x };
 };
 
 template<typename T>
 concept has_output_port = requires(T t) {
-    {
-        t.y
-    };
+    { t.y };
 };
 
 constexpr observation_message qss_observation(real X,
@@ -5410,6 +5396,7 @@ inline void simulation::realloc(
   const simulation_memory_requirement& init) noexcept
 {
     debug::ensure(init.valid());
+    destroy();
 
     shared.reset(m_alloc.allocate_bytes(init.simulation_b), init.simulation_b);
     nodes_alloc.reset(m_alloc.allocate_bytes(init.connections_b),
@@ -5463,17 +5450,24 @@ inline void simulation::destroy() noexcept
     hsms.destroy();
     srcs.destroy();
 
-    shared.reset();
-    nodes_alloc.reset();
-    dated_messages_alloc.reset();
-    external_source_alloc.reset();
+    if (nodes_alloc.head())
+        m_alloc.deallocate_bytes(nodes_alloc.head(), nodes_alloc.capacity());
 
-    m_alloc.deallocate_bytes(shared.head(), shared.capacity());
-    m_alloc.deallocate_bytes(nodes_alloc.head(), nodes_alloc.capacity());
-    m_alloc.deallocate_bytes(dated_messages_alloc.head(),
-                             dated_messages_alloc.capacity());
-    m_alloc.deallocate_bytes(external_source_alloc.head(),
-                             external_source_alloc.capacity());
+    if (dated_messages_alloc.head())
+        m_alloc.deallocate_bytes(dated_messages_alloc.head(),
+                                 dated_messages_alloc.capacity());
+
+    if (external_source_alloc.head())
+        m_alloc.deallocate_bytes(external_source_alloc.head(),
+                                 external_source_alloc.capacity());
+
+    if (shared.head())
+        m_alloc.deallocate_bytes(shared.head(), shared.capacity());
+
+    nodes_alloc.destroy();
+    dated_messages_alloc.destroy();
+    external_source_alloc.destroy();
+    shared.destroy();
 }
 
 inline simulation::~simulation() noexcept { destroy(); }

@@ -875,22 +875,31 @@ static status simulation_copy_sources(project::cache& cache,
 {
     sim.srcs.clear();
 
-    sim.srcs.constant_sources.reserve(mod.srcs.constant_sources.capacity());
-    if (not sim.srcs.constant_sources.can_alloc())
-        return new_error(external_source::part::constant_source);
+    if (mod.srcs.constant_sources.capacity()) {
+        sim.srcs.constant_sources.reserve(mod.srcs.constant_sources.capacity());
+        if (not sim.srcs.constant_sources.capacity())
+            return new_error(external_source::part::constant_source);
+    }
 
-    sim.srcs.binary_file_sources.reserve(
-      mod.srcs.binary_file_sources.capacity());
-    if (not sim.srcs.binary_file_sources.can_alloc())
-        return new_error(external_source::part::binary_file_source);
+    if (mod.srcs.binary_file_sources.capacity()) {
+        sim.srcs.binary_file_sources.reserve(
+          mod.srcs.binary_file_sources.capacity());
+        if (not sim.srcs.binary_file_sources.capacity())
+            return new_error(external_source::part::binary_file_source);
+    }
 
-    sim.srcs.text_file_sources.reserve(mod.srcs.text_file_sources.capacity());
-    if (not sim.srcs.text_file_sources.can_alloc())
-        return new_error(external_source::part::text_file_source);
+    if (mod.srcs.text_file_sources.capacity()) {
+        sim.srcs.text_file_sources.reserve(
+          mod.srcs.text_file_sources.capacity());
+        if (not sim.srcs.text_file_sources.capacity())
+            return new_error(external_source::part::text_file_source);
+    }
 
-    sim.srcs.random_sources.reserve(mod.srcs.random_sources.capacity());
-    if (not sim.srcs.random_sources.can_alloc())
-        return new_error(external_source::part::random_source);
+    if (mod.srcs.random_sources.capacity()) {
+        sim.srcs.random_sources.reserve(mod.srcs.random_sources.capacity());
+        if (not sim.srcs.random_sources.capacity())
+            return new_error(external_source::part::random_source);
+    }
 
     {
         constant_source* src = nullptr;
@@ -1023,7 +1032,6 @@ public:
     table<component_id, project::required_data> map;
 
     project::required_data compute(const modeling&          mod,
-                                   const component&         c,
                                    const generic_component& g) noexcept
     {
         project::required_data ret;
@@ -1042,7 +1050,6 @@ public:
     }
 
     project::required_data compute(const modeling&       mod,
-                                   const component&      c,
                                    const grid_component& g) noexcept
     {
         project::required_data ret;
@@ -1060,12 +1067,11 @@ public:
     }
 
     project::required_data compute(const modeling&        mod,
-                                   const component&       c,
                                    const graph_component& g) noexcept
     {
         project::required_data ret;
 
-        for (const auto v : g.children) {
+        for (const auto& v : g.children) {
             const auto* sub_c = mod.components.try_to_get(v.id);
             if (sub_c)
                 ret += compute(mod, *sub_c);
@@ -1087,19 +1093,19 @@ public:
             case component_type::simple: {
                 auto s_id = c.id.generic_id;
                 if (auto* s = mod.generic_components.try_to_get(s_id); s)
-                    ret += compute(mod, c, *s);
+                    ret += compute(mod, *s);
             } break;
 
             case component_type::grid: {
                 auto g_id = c.id.grid_id;
                 if (auto* g = mod.grid_components.try_to_get(g_id); g)
-                    ret += compute(mod, c, *g);
+                    ret += compute(mod, *g);
             } break;
 
             case component_type::graph: {
                 auto g_id = c.id.graph_id;
                 if (auto* g = mod.graph_components.try_to_get(g_id); g)
-                    ret += compute(mod, c, *g);
+                    ret += compute(mod, *g);
             } break;
 
             case component_type::hsm:
@@ -1120,7 +1126,7 @@ public:
     }
 };
 
-project::required_data project::compute_treenode_number(
+project::required_data project::compute_memory_required(
   const modeling&  mod,
   const component& c) const noexcept
 {
@@ -1134,9 +1140,11 @@ status project::set(modeling& mod, simulation& sim, component& compo) noexcept
     clear();
     clear_cache();
 
-    const auto numbers = compute_treenode_number(mod, compo);
+    auto numbers = compute_memory_required(mod, compo);
+    numbers.fix();
+
     if (std::cmp_greater_equal(numbers.tree_node_nb, tree_nodes.capacity())) {
-        tree_nodes.reserve(numbers.tree_node_nb * 2); // TODO make 2 a variable?
+        tree_nodes.reserve(numbers.tree_node_nb);
 
         if (std::cmp_greater_equal(numbers.tree_node_nb, tree_nodes.capacity()))
             return new_error(

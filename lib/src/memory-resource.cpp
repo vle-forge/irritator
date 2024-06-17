@@ -24,8 +24,8 @@ void* malloc_memory_resource_allocate_win32(std::size_t bytes,
     debug::ensure(is_alignment(alignment));
     debug::ensure((bytes % alignment) == 0);
 
-    using fn              = void* (*)(std::size_t, std::size_t) noexcept;
-    fn               call = reinterpret_cast<fn>(::_aligned_malloc);
+    using fn = void* (*)(std::size_t, std::size_t) noexcept;
+    fn call  = reinterpret_cast<fn>(::_aligned_malloc);
 
     return call(bytes, alignment);
 }
@@ -60,8 +60,8 @@ void* malloc_memory_resource_allocate_posix(std::size_t bytes,
     debug::ensure(is_alignment(alignment));
     debug::ensure((bytes % alignment) == 0);
 
-    using fn              = void* (*)(std::size_t, std::size_t) noexcept;
-    fn               call = reinterpret_cast<fn>(std::aligned_alloc);
+    using fn = void* (*)(std::size_t, std::size_t) noexcept;
+    fn call  = reinterpret_cast<fn>(std::aligned_alloc);
 
     return call(alignment, bytes);
 }
@@ -152,6 +152,13 @@ void* fixed_linear_memory_resource::allocate(size_t bytes,
     m_offset += bytes;
 
     return reinterpret_cast<void*>(next_address);
+}
+
+void fixed_linear_memory_resource::destroy() noexcept
+{
+    m_start      = nullptr;
+    m_total_size = 0;
+    m_offset     = 0;
 }
 
 void fixed_linear_memory_resource::reset() noexcept { m_offset = { 0 }; }
@@ -337,10 +344,44 @@ void freelist_memory_resource::deallocate(void* ptr,
     merge(prev, freeNode);
 }
 
+void freelist_memory_resource::destroy() noexcept
+{
+    m_start_ptr   = nullptr;
+    m_total_size  = 0;
+    m_used        = 0;
+    m_peak        = 0;
+    m_find_policy = find_policy::find_first;
+}
+
 void freelist_memory_resource::reset() noexcept
 {
     m_used = 0u;
     m_peak = 0u;
+
+    if (not m_start_ptr) {
+        destroy();
+    } else {
+        node* first            = reinterpret_cast<node*>(m_start_ptr);
+        first->data.block_size = m_total_size;
+        first->next            = nullptr;
+
+        m_freeList.head = nullptr;
+        m_freeList.insert(nullptr, first);
+    }
+}
+
+void freelist_memory_resource::reset(std::byte* data, std::size_t size) noexcept
+{
+    debug::ensure(data != nullptr);
+    debug::ensure(size != 0u);
+
+    if (data == nullptr or size == 0)
+        return;
+
+    destroy();
+
+    m_start_ptr  = data;
+    m_total_size = size;
 
     node* first            = reinterpret_cast<node*>(m_start_ptr);
     first->data.block_size = m_total_size;
@@ -348,22 +389,6 @@ void freelist_memory_resource::reset() noexcept
 
     m_freeList.head = nullptr;
     m_freeList.insert(nullptr, first);
-}
-
-void freelist_memory_resource::reset(std::byte* data, std::size_t size) noexcept
-{
-    debug::ensure(data != nullptr);
-    debug::ensure(size != 0u);
-    debug::ensure(m_start_ptr == nullptr);
-    debug::ensure(m_total_size == 0u);
-
-    m_start_ptr   = data;
-    m_total_size  = size;
-    m_used        = 0;
-    m_peak        = 0;
-    m_find_policy = find_policy::find_first;
-
-    reset();
 }
 
 void freelist_memory_resource::merge(node* previous, node* free_node) noexcept

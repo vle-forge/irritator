@@ -85,13 +85,13 @@ struct e_errno {
 };
 
 struct e_memory {
-    long long unsigned int capacity; //!< Current capacity in bytes.
-    long long unsigned int request;  //!< Requested capacity in bytes.
+    long long unsigned int capacity{}; //!< Current capacity in bytes.
+    long long unsigned int request{};  //!< Requested capacity in bytes.
 };
 
 struct e_allocator {
-    long long unsigned int needed;
-    long long unsigned int capacity;
+    size_t needed{};
+    size_t capacity{};
 };
 
 struct e_json {

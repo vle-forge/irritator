@@ -415,6 +415,9 @@ public:
                      size_t /*alignment*/) noexcept
     {}
 
+    /** Release memory provides in contructor or in release memory. */
+    void destroy() noexcept;
+
     //! @brief Reset the use of the chunk of memory.
     void reset() noexcept;
 
@@ -618,15 +621,22 @@ public:
 
     void deallocate(void* ptr, size_t /*bytes*/, size_t /*alignment*/) noexcept;
 
-    //! @brief Reset the use of the chunk of memory.
+    /** Release memory provides in contructor or in release memory. */
+    void destroy() noexcept;
+
+    /** Reset the use of the chunk of memory. If the chunk is undefined do
+     * nothing.
+     * @attention Release of all memory of container/memory_resource using old
+     * chunk. */
     void reset() noexcept;
 
-    //! @brief Assign a chunk of memory.
-    //!
-    //! @attention Use this function only when no chunk of memory are allocated
-    //! (ie the default constructor was called).
-    //! @param data The new buffer. Must be not null.
-    //! @param size The size of the buffer. Must be not null.
+    /** Assign a new chunk of memory to the memory resource. If the new chunk is
+     * undefined do nothing.
+     * @attention Release of all memory of container/memory_resource using old
+     * chunk.
+     * @param data The new buffer. Must be not null.
+     * @param size The size of the buffer. Must be not null.
+     */
     void reset(std::byte* data, std::size_t size) noexcept;
 
     //! Get the pointer to the allocated memory provided in `constructor` or in
@@ -1518,8 +1528,8 @@ public:
     using memory_resource_t = typename A::memory_resource_t;
 
     static_assert((std::is_nothrow_constructible_v<T> ||
-                   std::is_nothrow_move_constructible_v<
-                     T>)&&std::is_nothrow_destructible_v<T>);
+                   std::is_nothrow_move_constructible_v<T>) &&
+                  std::is_nothrow_destructible_v<T>);
 
 private:
     T*                                   buffer = nullptr;
@@ -1824,8 +1834,8 @@ class small_ring_buffer
 public:
     static_assert(length >= 1);
     static_assert((std::is_nothrow_constructible_v<T> ||
-                   std::is_nothrow_move_constructible_v<
-                     T>)&&std::is_nothrow_destructible_v<T>);
+                   std::is_nothrow_move_constructible_v<T>) &&
+                  std::is_nothrow_destructible_v<T>);
 
     using value_type      = T;
     using size_type       = small_storage_size_t<length>;

@@ -1444,11 +1444,11 @@ public:
                 const char* filename) noexcept;
 
     struct required_data {
-        unsigned tree_node_nb{};
-        unsigned model_nb{};
-        unsigned hsm_nb{};
+        unsigned tree_node_nb{ 1u };
+        unsigned model_nb{ 0u };
+        unsigned hsm_nb{ 0u };
 
-        constexpr static friend required_data operator+(
+        constexpr friend required_data operator+(
           const required_data lhs,
           const required_data rhs) noexcept
         {
@@ -1464,12 +1464,21 @@ public:
             hsm_nb += other.hsm_nb;
             return *this;
         }
+
+        /** Apply boundaries for all values. */
+        constexpr void fix() noexcept
+        {
+            tree_node_nb = std::clamp(tree_node_nb, 1u, UINT32_MAX >> 16);
+            model_nb     = std::clamp(model_nb, 16u, UINT32_MAX >> 2);
+            hsm_nb       = std::clamp(hsm_nb, 0u, UINT32_MAX >> 2);
+        }
     };
 
     /** Compute the number of @c tree_node required to load the component @c
-     * into the @c project and the number of models and connections to fill the
-     * simulation structures. */
-    required_data compute_treenode_number(const modeling&  mod,
+     * into the @c project and the number of @c irt::model and @c
+     * irt::hierarchical_state_machine to fill the @C irt::simulation
+     * structures. */
+    required_data compute_memory_required(const modeling&  mod,
                                           const component& c) const noexcept;
 
     /// Assign a new @c component head. The previously allocated tree_node
