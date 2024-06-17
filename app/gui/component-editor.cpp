@@ -7,14 +7,10 @@
 #include <irritator/modeling.hpp>
 
 #include "application.hpp"
-#include "dialog.hpp"
 #include "editor.hpp"
 #include "imgui.h"
 #include "imnodes.h"
 #include "internal.hpp"
-#include "irritator/helpers.hpp"
-
-#include <cstring>
 
 namespace irt {
 
@@ -174,25 +170,28 @@ static void show_file_access(application& app, component& compo) noexcept
 
             is_save_enabled = is_valid_irt_filename(file->path.sv());
 
-            auto* desc = app.mod.descriptions.try_to_get(compo.desc);
-            if (!desc) {
+            if (not app.mod.descriptions.exists(compo.desc)) {
                 if (app.mod.descriptions.can_alloc(1) &&
                     ImGui::Button("Add description")) {
-                    auto& new_desc = app.mod.descriptions.alloc();
-                    compo.desc     = app.mod.descriptions.get_id(new_desc);
+                    compo.desc = app.mod.descriptions.alloc(
+                      [](auto /*id*/, auto& str, auto& status) noexcept {
+                          str.clear();
+                          status = description_status::modified;
+                      });
                 }
             } else {
                 constexpr ImGuiInputTextFlags flags =
                   ImGuiInputTextFlags_AllowTabInput;
+                auto& str = app.mod.descriptions.get<0>(compo.desc);
 
                 ImGui::InputSmallStringMultiline(
                   "##source",
-                  desc->data,
+                  str,
                   ImVec2(-FLT_MIN, ImGui::GetTextLineHeight() * 16),
                   flags);
 
                 if (ImGui::Button("Remove")) {
-                    app.mod.descriptions.free(*desc);
+                    app.mod.descriptions.free(compo.desc);
                     compo.desc = undefined<description_id>();
                 }
             }

@@ -127,7 +127,6 @@ struct connection;
 struct child;
 class generic_component;
 class modeling;
-struct description;
 struct cache_rw;
 struct tree_node;
 class variable_observer;
@@ -189,17 +188,6 @@ struct cache_rw {
     //! Delete buffers for all vector, table and string.
     //! @attention @c warning_cb and @c error_cb are unmodified.
     void destroy() noexcept;
-};
-
-/// Description store the description of a component in a text way. A
-/// description is attached to only one component (@c description_id). The
-/// filename is the same than the component
-/// @c file_path but with the extension ".txt".
-///
-/// @note  The size of the buffer is static for now
-struct description {
-    description_str    data;
-    description_status status = description_status::unread;
 };
 
 enum class child_flags : u8 {
@@ -1271,6 +1259,7 @@ class modeling
 public:
     struct connection_error {};
     struct children_error {};
+    struct description_error {};
 
     enum class part {
         descriptions,
@@ -1288,7 +1277,16 @@ public:
         connections
     };
 
-    data_array<description, description_id>             descriptions;
+    /** Stores the description of a component in a text. A description is
+     * attached to only one component (@c description_id). The file name of the
+     * description is the same than the component except the extension ".desc".
+     * @attention The size of the buffer is static for now. */
+    id_data_array<description_id,
+                  default_allocator,
+                  description_str,
+                  description_status>
+      descriptions;
+
     data_array<generic_component, generic_component_id> generic_components;
     data_array<grid_component, grid_component_id>       grid_components;
     data_array<graph_component, graph_component_id>     graph_components;

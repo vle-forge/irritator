@@ -21,9 +21,8 @@ void memory_window::show() noexcept
 
     if (ImGui::CollapsingHeader("Component usage",
                                 ImGuiTreeNodeFlags_DefaultOpen)) {
-        ImGui::TextFormat("descriptions: {} / {} / {}",
+        ImGui::TextFormat("descriptions: {} / {}",
                           app.mod.descriptions.size(),
-                          app.mod.descriptions.max_used(),
                           app.mod.descriptions.capacity());
         ImGui::TextFormat("components: {} / {} / {}",
                           app.mod.components.size(),

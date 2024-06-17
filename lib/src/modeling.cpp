@@ -23,9 +23,12 @@ modeling::modeling() noexcept
 
 status modeling::init(modeling_initializer& p) noexcept
 {
-    descriptions.reserve(p.description_capacity);
-    if (not descriptions.can_alloc())
-        return new_error(modeling::part::descriptions);
+    if (p.description_capacity) {
+        descriptions.reserve(p.description_capacity);
+        if (not descriptions.capacity())
+            return new_error(description_error{},
+                             e_memory{ p.description_capacity, 0 });
+    }
 
     components.reserve(p.component_capacity);
     if (not components.can_alloc())
@@ -91,10 +94,12 @@ static void prepare_component_loading(modeling&             mod,
         std::error_code ec;
         if (fs::exists(desc_file, ec)) {
             debug_logi(6, "found description file {}\n", desc_file.string());
-            if (mod.descriptions.can_alloc()) {
-                auto& desc  = mod.descriptions.alloc();
-                desc.status = description_status::unread;
-                compo.desc  = mod.descriptions.get_id(desc);
+            if (mod.descriptions.can_alloc(1)) {
+                compo.desc = mod.descriptions.alloc(
+                  [](auto /*id*/, auto& str, auto& status) noexcept {
+                      str.clear();
+                      status = description_status::unread;
+                  });
             } else {
                 mod.log_entries.push(log_level::error, [&](auto& e) noexcept {
                     format(e.buffer,
@@ -431,16 +436,21 @@ static status load_component(modeling& mod, component& compo) noexcept
 
         if (file::exists(str.c_str())) {
             if (auto f = file::open(str.c_str(), open_mode::read); f) {
-                auto* desc = mod.descriptions.try_to_get(compo.desc);
-                if (!desc) {
-                    auto& d    = mod.descriptions.alloc();
-                    desc       = &d;
-                    compo.desc = mod.descriptions.get_id(d);
-                }
+                if (not mod.descriptions.exists(compo.desc))
+                    if (mod.descriptions.can_alloc(1))
+                        compo.desc = mod.descriptions.alloc(
+                          [](auto /*id*/, auto& str, auto& status) noexcept {
+                              str.clear();
+                              status = description_status::modified;
+                          });
 
-                if (!f->read(desc->data.data(), desc->data.capacity())) {
-                    mod.descriptions.free(*desc);
-                    compo.desc = undefined<description_id>();
+                if (mod.descriptions.exists(compo.desc)) {
+                    auto& str = mod.descriptions.get<0>(compo.desc);
+
+                    if (not f->read(str.data(), str.capacity())) {
+                        mod.descriptions.free(compo.desc);
+                        compo.desc = undefined<description_id>();
+                    }
                 }
             }
         }
@@ -945,8 +955,8 @@ void modeling::free(component& compo) noexcept
         break;
     }
 
-    if (auto* desc = descriptions.try_to_get(compo.desc); desc)
-        descriptions.free(*desc);
+    if (descriptions.exists(compo.desc))
+        descriptions.free(compo.desc);
 
     if (auto* path = file_paths.try_to_get(compo.file); path)
         file_paths.free(*path);
@@ -1125,12 +1135,14 @@ status modeling::save(component& c) noexcept
             return ret.error();
     }
 
-    if (auto* desc = descriptions.try_to_get(c.desc); desc) {
+    if (descriptions.exists(c.desc)) {
         std::filesystem::path p{ dir->path.c_str() };
         p /= file->path.c_str();
         p.replace_extension(".desc");
         std::ofstream ofs{ p };
-        ofs.write(desc->data.c_str(), desc->data.size());
+
+        auto& str = descriptions.get<0>()[get_index(c.desc)];
+        ofs.write(str.c_str(), str.size());
     }
 
     c.state = component_status::unmodified;
