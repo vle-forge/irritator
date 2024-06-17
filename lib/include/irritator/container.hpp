@@ -9,8 +9,6 @@
 
 #include <algorithm>
 #include <bitset>
-#include <concepts>
-#include <functional>
 #include <iterator>
 #include <limits>
 #include <memory>
@@ -1149,10 +1147,69 @@ private:
     }
 
 public:
+    identifier_type alloc() noexcept;
+
     template<typename Function>
     identifier_type alloc(Function&& fn) noexcept;
 
+    /** Release the @c identifier from the @c id_array. @attention To improve
+     * memory access, the destructors of underlying objects in @c std::tuple of
+     * @c vector are not called. If you need to realease memory use it before
+     * releasing the identifier but these objects can be reuse in future. In any
+     * case all destructor will free the memory in @c id_data_array destructor
+     * or during the @c reserve() operation.
+     *
+     * @example
+     * id_data_array<obj_id, default_allocator, std::string, position> m;
+     *
+     * if (m.exists(id))
+     *     std::swap(m.get<std::string>()[get_index(id)], std::string{});
+     * @endexample */
     void free(const identifier_type id) noexcept;
+
+    /** Get the underlying @c vector in @c tuple using an index. (read @c
+     * std::get). */
+    template<std::size_t Index>
+    auto& get() noexcept;
+
+    /** Get the underlying @c vector in @c tuple using a type (read @c
+     * std::get). */
+    template<typename Type>
+    auto& get() noexcept
+        requires(not std::is_integral_v<Type>);
+
+    /** Get the underlying object at position @c id @c vector in @c tuple using
+     * an index. (read @c std::get). */
+    template<std::size_t Index>
+    auto& get(const identifier_type id) noexcept;
+
+    /** Get the underlying object at position @c id in @c vector in @c tuple
+     * using a type (read @c std::get). */
+    template<typename Type>
+    auto& get(const identifier_type id) noexcept
+        requires(not std::is_integral_v<Type>);
+
+    /** Get the underlying @c vector in @c tuple using an index. (read @c
+     * std::get). */
+    template<std::size_t Index>
+    auto& get() const noexcept;
+
+    /** Get the underlying @c vector in @c tuple using a type (read @c
+     * std::get). */
+    template<typename Type>
+    auto& get() const noexcept
+        requires(not std::is_integral_v<Type>);
+
+    /** Get the underlying object at position @c id @c vector in @c tuple using
+     * an index. (read @c std::get). */
+    template<std::size_t Index>
+    auto& get(const identifier_type id) const noexcept;
+
+    /** Get the underlying object at position @c id in @c vector in @c tuple
+     * using a type (read @c std::get). */
+    template<typename Type>
+    auto& get(const identifier_type id) const noexcept
+        requires(not std::is_integral_v<Type>);
 
     //! Call the @c fn function if @c id is valid.
     //!
@@ -2306,6 +2363,15 @@ id_array<Identifier, A>::end() const noexcept
 // class id_data_array
 
 template<typename Identifier, typename A, class... Ts>
+auto id_data_array<Identifier, A, Ts...>::alloc() noexcept
+  -> id_data_array<Identifier, A, Ts...>::identifier_type
+{
+    irt::debug::ensure(m_ids.can_alloc(1));
+
+    return m_ids.alloc();
+}
+
+template<typename Identifier, typename A, class... Ts>
 template<typename Function>
 auto id_data_array<Identifier, A, Ts...>::alloc(Function&& fn) noexcept
   -> id_data_array<Identifier, A, Ts...>::identifier_type
@@ -2325,6 +2391,78 @@ void id_data_array<Identifier, A, Ts...>::free(
 {
     if (m_ids.exists(id))
         m_ids.free(id);
+}
+
+template<typename Identifier, typename A, class... Ts>
+template<std::size_t Index>
+auto& id_data_array<Identifier, A, Ts...>::get() noexcept
+{
+    return std::get<Index>(m_col);
+}
+
+template<typename Identifier, typename A, class... Ts>
+template<typename Type>
+auto& id_data_array<Identifier, A, Ts...>::get() noexcept
+    requires(not std::is_integral_v<Type>)
+{
+    return std::get<vector<Type>>(m_col);
+}
+
+template<typename Identifier, typename A, class... Ts>
+template<std::size_t Index>
+auto& id_data_array<Identifier, A, Ts...>::get(
+  const identifier_type id) noexcept
+{
+    debug::ensure(m_ids.exists(id));
+
+    return std::get<Index>(m_col)[get_index(id)];
+}
+
+template<typename Identifier, typename A, class... Ts>
+template<typename Type>
+auto& id_data_array<Identifier, A, Ts...>::get(
+  const identifier_type id) noexcept
+    requires(not std::is_integral_v<Type>)
+{
+    debug::ensure(m_ids.exists(id));
+
+    return std::get<vector<Type>>(m_col)[get_index(id)];
+}
+
+template<typename Identifier, typename A, class... Ts>
+template<std::size_t Index>
+auto& id_data_array<Identifier, A, Ts...>::get() const noexcept
+{
+    return std::get<Index>(m_col);
+}
+
+template<typename Identifier, typename A, class... Ts>
+template<typename Type>
+auto& id_data_array<Identifier, A, Ts...>::get() const noexcept
+    requires(not std::is_integral_v<Type>)
+{
+    return std::get<vector<Type>>(m_col);
+}
+
+template<typename Identifier, typename A, class... Ts>
+template<std::size_t Index>
+auto& id_data_array<Identifier, A, Ts...>::get(
+  const identifier_type id) const noexcept
+{
+    debug::ensure(m_ids.exists(id));
+
+    return std::get<Index>(m_col)[get_index(id)];
+}
+
+template<typename Identifier, typename A, class... Ts>
+template<typename Type>
+auto& id_data_array<Identifier, A, Ts...>::get(
+  const identifier_type id) const noexcept
+    requires(not std::is_integral_v<Type>)
+{
+    debug::ensure(m_ids.exists(id));
+
+    return std::get<vector<Type>>(m_col)[get_index(id)];
 }
 
 template<typename Identifier, typename A, class... Ts>
