@@ -49,10 +49,6 @@ struct unknown_error {};
 //! component with bad @c registered_id, @c dir_path_id or @c file_path_id.
 struct undefined_error {};
 
-//! Memory error to report a error during the allocation process. Often add a
-//! e_memory structure to report memory request.
-struct memory_error {};
-
 //! Report an error in the argument pass to a function. Must be rarely used,
 //! prefer @c irt_assert to @c std::abort the application and fix the source
 //! code.
@@ -84,14 +80,16 @@ struct e_errno {
     int value;
 };
 
+/** To report a error during the allocation process. */
 struct e_memory {
-    long long unsigned int capacity{}; //!< Current capacity in bytes.
-    long long unsigned int request{};  //!< Requested capacity in bytes.
-};
+    std::size_t request{};  //!< Requested capacity in bytes.
+    std::size_t capacity{}; //!< Current capacity in bytes. Can be nul if
+                            //!< current capacity is not available. */
 
-struct e_allocator {
-    size_t needed{};
-    size_t capacity{};
+    e_memory(std::integral auto req, std::integral auto cap) noexcept
+      : request{ static_cast<size_t>(req) }
+      , capacity{ static_cast<size_t>(cap) }
+    {}
 };
 
 struct e_json {

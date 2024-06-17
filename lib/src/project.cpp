@@ -1149,9 +1149,7 @@ status project::set(modeling& mod, simulation& sim, component& compo) noexcept
         if (std::cmp_greater_equal(numbers.tree_node_nb, tree_nodes.capacity()))
             return new_error(
               tree_node_error{},
-              e_memory{
-                static_cast<long long unsigned int>(numbers.model_nb),
-                static_cast<long long unsigned int>(tree_nodes.capacity()) });
+              e_memory{ numbers.model_nb, tree_nodes.capacity() });
     }
 
     irt_check(make_component_cache(*this, mod));
@@ -1160,8 +1158,7 @@ status project::set(modeling& mod, simulation& sim, component& compo) noexcept
     sim.destroy();
 
     if (not sim.m_alloc.can_alloc_bytes(smr.global_b))
-        return new_error(simulation::model_error{},
-                         e_allocator{ smr.global_b });
+        return new_error(simulation::model_error{}, e_memory(smr.global_b, 0));
 
     sim.realloc(smr);
 
