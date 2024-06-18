@@ -489,8 +489,8 @@ static void do_serialize_source(const IOTag auto /*s*/,
     io(src.chunk_id.data(), src.chunk_id.size());
 }
 
-template<typename IO>
-static void do_serialize_dynamics(const IOTag auto s,
+template<IOTag T, typename IO>
+static void do_serialize_dynamics(const T s,
                                   binary_archiver::cache& /*c*/,
                                   IO&        io,
                                   generator& dyn) noexcept
@@ -499,10 +499,20 @@ static void do_serialize_dynamics(const IOTag auto s,
     io(dyn.value);
     io(dyn.default_offset);
 
-    do_serialize_source(s, io, dyn.default_source_ta);
-    do_serialize_source(s, io, dyn.default_source_value);
+    if (dyn.flags[generator::option::ta_use_source])
+        do_serialize_source(s, io, dyn.default_source_ta);
 
-    io(dyn.stop_on_error);
+    if (dyn.flags[generator::option::value_use_source])
+        do_serialize_source(s, io, dyn.default_source_value);
+
+    if constexpr (std::is_same_v<T, dearchiver_tag_type>) {
+        u64 opt;
+        io(opt);
+        dyn.flags = enum_cast<generator::option>(opt);
+    } else {
+        u64 opt = dyn.flags.to_unsigned();
+        io(opt);
+    }
 }
 
 template<typename IO>

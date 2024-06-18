@@ -228,17 +228,27 @@ static auto make_tree_leaf(simulation_copy&   sc,
           if constexpr (std::is_same_v<Dynamics, generator>) {
               using enum generator_parameter_indices;
 
-              irt_check(simulation_copy_source(
-                sc,
-                gen.children_parameters[ch_idx].integers[ordinal(ta_id)],
-                gen.children_parameters[ch_idx].integers[ordinal(ta_type)],
-                dyn.default_source_ta));
+              const auto uint = gen.children_parameters[ch_idx].integers[0];
+              const auto enum_flags = enum_cast<generator::option>(uint);
+              dyn.flags             = bitflags<generator::option>(enum_flags);
+              dyn.default_offset    = gen.children_parameters[ch_idx].reals[0];
 
-              irt_check(simulation_copy_source(
-                sc,
-                gen.children_parameters[ch_idx].integers[ordinal(value_id)],
-                gen.children_parameters[ch_idx].integers[ordinal(value_type)],
-                dyn.default_source_value));
+              if (dyn.flags[generator::option::ta_use_source]) {
+                  irt_check(simulation_copy_source(
+                    sc,
+                    gen.children_parameters[ch_idx].integers[ordinal(ta_id)],
+                    gen.children_parameters[ch_idx].integers[ordinal(ta_type)],
+                    dyn.default_source_ta));
+              }
+
+              if (dyn.flags[generator::option::value_use_source]) {
+                  irt_check(simulation_copy_source(
+                    sc,
+                    gen.children_parameters[ch_idx].integers[ordinal(value_id)],
+                    gen.children_parameters[ch_idx]
+                      .integers[ordinal(value_type)],
+                    dyn.default_source_value));
+              }
           }
 
           if constexpr (std::is_same_v<Dynamics, dynamic_queue>) {

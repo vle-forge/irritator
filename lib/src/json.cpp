@@ -474,8 +474,8 @@ struct reader {
 
     template<size_t N, typename Function>
     bool for_members(const rapidjson::Value& val,
-                     const std::string_view (&names)[N],
-                     Function&& fn) noexcept
+                     const std::string_view  (&names)[N],
+                     Function&&              fn) noexcept
     {
         if (!val.IsObject())
             report_json_error(error_id::value_not_object);
@@ -1313,6 +1313,9 @@ struct reader {
     bool read_dynamics(const rapidjson::Value& val, generator& dyn) noexcept
     {
         auto_stack a(this, stack_id::dynamics_generator);
+        bool       stop_on_error = false;
+
+        dyn.flags.reset();
 
         return for_each_member(
           val, [&](const auto name, const auto& value) noexcept -> bool {
@@ -1321,26 +1324,53 @@ struct reader {
                          is_double_greater_equal_than(0.0) &&
                          copy_to(dyn.default_offset);
 
-              if ("source-ta-type"sv == name)
-                  return read_temp_integer(value) &&
-                         is_int_greater_equal_than(0) &&
-                         is_int_less_than(source::source_type_count) &&
-                         copy_to(dyn.default_source_ta.type);
-              if ("source-ta-id"sv == name)
-                  return read_temp_unsigned_integer(value) &&
-                         copy_to(dyn.default_source_ta.id);
+              if ("source-ta-type"sv == name) {
+                  if (read_temp_integer(value) &&
+                      is_int_greater_equal_than(0) &&
+                      is_int_less_than(source::source_type_count) &&
+                      copy_to(dyn.default_source_ta.type)) {
+                      dyn.flags.set(generator::option::ta_use_source);
+                      return true;
+                  }
+                  return false;
+              }
 
-              if ("source-value-type"sv == name)
-                  return read_temp_integer(value) &&
-                         is_int_greater_equal_than(0) &&
-                         is_int_less_than(source::source_type_count) &&
-                         copy_to(dyn.default_source_value.type);
-              if ("source-value-id"sv == name)
-                  return read_temp_unsigned_integer(value) &&
-                         copy_to(dyn.default_source_value.id);
+              if ("source-ta-id"sv == name) {
+                  if (read_temp_unsigned_integer(value) &&
+                      copy_to(dyn.default_source_ta.id)) {
+                      dyn.flags.set(generator::option::ta_use_source);
+                      return true;
+                  }
+                  return false;
+              }
 
-              if ("stop-on-error"sv == name)
-                  return read_temp_bool(value) && copy_to(dyn.stop_on_error);
+              if ("source-value-type"sv == name) {
+                  if (read_temp_integer(value) &&
+                      is_int_greater_equal_than(0) &&
+                      is_int_less_than(source::source_type_count) &&
+                      copy_to(dyn.default_source_value.type)) {
+                      dyn.flags.set(generator::option::value_use_source);
+                      return true;
+                  }
+                  return false;
+              }
+
+              if ("source-value-id"sv == name) {
+                  if (read_temp_unsigned_integer(value) &&
+                      copy_to(dyn.default_source_value.id)) {
+                      dyn.flags.set(generator::option::value_use_source);
+                      return true;
+                  }
+                  return false;
+              }
+
+              if ("stop-on-error"sv == name) {
+                  if (read_temp_bool(value) && copy_to(stop_on_error)) {
+                      dyn.flags.set(generator::option::stop_on_error);
+                      return true;
+                  }
+                  return false;
+              }
 
               report_json_error(error_id::unknown_element);
           });
@@ -1963,8 +1993,8 @@ struct reader {
         return nullptr;
     }
 
-    auto search_dir_in_reg(registred_path&  reg,
-                           std::string_view name) noexcept -> dir_path*
+    auto search_dir_in_reg(registred_path& reg, std::string_view name) noexcept
+      -> dir_path*
     {
         for (auto dir_id : reg.children) {
             if (auto* dir = mod().dir_paths.try_to_get(dir_id); dir) {
@@ -2033,8 +2063,8 @@ struct reader {
         return nullptr;
     }
 
-    auto search_file(dir_path&        dir,
-                     std::string_view name) noexcept -> file_path*
+    auto search_file(dir_path& dir, std::string_view name) noexcept
+      -> file_path*
     {
         for (auto file_id : dir.children)
             if (auto* file = mod().file_paths.try_to_get(file_id); file)
@@ -4637,18 +4667,26 @@ template<typename Writer>
 static void write(Writer& writer, const generator& dyn) noexcept
 {
     writer.StartObject();
-    writer.Key("offset");
-    writer.Double(dyn.default_offset);
-    writer.Key("source-ta-type");
-    writer.Int(ordinal(dyn.default_source_ta.type));
-    writer.Key("source-ta-id");
-    writer.Uint64(dyn.default_source_ta.id);
-    writer.Key("source-value-type");
-    writer.Int(ordinal(dyn.default_source_value.type));
-    writer.Key("source-value-id");
-    writer.Uint64(dyn.default_source_value.id);
+
     writer.Key("stop-on-error");
-    writer.Bool(dyn.stop_on_error);
+    writer.Bool(dyn.flags[generator::option::stop_on_error]);
+
+    if (dyn.flags[generator::option::ta_use_source]) {
+        writer.Key("offset");
+        writer.Double(dyn.default_offset);
+        writer.Key("source-ta-type");
+        writer.Int(ordinal(dyn.default_source_ta.type));
+        writer.Key("source-ta-id");
+        writer.Uint64(dyn.default_source_ta.id);
+    }
+
+    if (dyn.flags[generator::option::value_use_source]) {
+        writer.Key("source-value-type");
+        writer.Int(ordinal(dyn.default_source_value.type));
+        writer.Key("source-value-id");
+        writer.Uint64(dyn.default_source_value.id);
+    }
+
     writer.EndObject();
 }
 

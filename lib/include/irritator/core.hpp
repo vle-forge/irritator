@@ -1297,38 +1297,52 @@ public:
 
 template<typename T>
 concept has_lambda_function = requires(T t, simulation& sim) {
-    { t.lambda(sim) } -> std::same_as<status>;
+    {
+        t.lambda(sim)
+    } -> std::same_as<status>;
 };
 
 template<typename T>
 concept has_transition_function =
   requires(T t, simulation& sim, time s, time e, time r) {
-      { t.transition(sim, s, e, r) } -> std::same_as<status>;
+      {
+          t.transition(sim, s, e, r)
+      } -> std::same_as<status>;
   };
 
 template<typename T>
 concept has_observation_function = requires(T t, time s, time e) {
-    { t.observation(s, e) } -> std::same_as<observation_message>;
+    {
+        t.observation(s, e)
+    } -> std::same_as<observation_message>;
 };
 
 template<typename T>
 concept has_initialize_function = requires(T t, simulation& sim) {
-    { t.initialize(sim) } -> std::same_as<status>;
+    {
+        t.initialize(sim)
+    } -> std::same_as<status>;
 };
 
 template<typename T>
 concept has_finalize_function = requires(T t, simulation& sim) {
-    { t.finalize(sim) } -> std::same_as<status>;
+    {
+        t.finalize(sim)
+    } -> std::same_as<status>;
 };
 
 template<typename T>
 concept has_input_port = requires(T t) {
-    { t.x };
+    {
+        t.x
+    };
 };
 
 template<typename T>
 concept has_output_port = requires(T t) {
-    { t.y };
+    {
+        t.y
+    };
 };
 
 constexpr observation_message qss_observation(real X,
@@ -2780,14 +2794,24 @@ struct counter {
 };
 
 struct generator {
-    node_id y[1];
-    time    sigma;
-    real    value;
+    enum { x_value, x_t, x_add_tr, x_mult_tr };
+    enum class option : u8 {
+        none             = 0,
+        stop_on_error    = 1 << 0,
+        ta_use_source    = 1 << 1,
+        value_use_source = 1 << 2,
+        Count
+    };
 
-    real   default_offset = 0.0;
-    source default_source_ta;
-    source default_source_value;
-    bool   stop_on_error = false;
+    message_id x[4];
+    node_id    y[1];
+    time       sigma;
+    real       value;
+
+    real             default_offset = time_domain<time>::infinity;
+    source           default_source_ta;
+    source           default_source_value;
+    bitflags<option> flags;
 
     generator() noexcept = default;
 
@@ -2797,19 +2821,31 @@ struct generator {
       , default_offset(other.default_offset)
       , default_source_ta(other.default_source_ta)
       , default_source_value(other.default_source_value)
-      , stop_on_error(other.stop_on_error)
+      , flags(option::stop_on_error,
+              option::ta_use_source,
+              option::value_use_source)
     {}
 
     status initialize(simulation& sim) noexcept
     {
         sigma = default_offset;
 
-        if (stop_on_error) {
-            irt_check(initialize_source(sim, default_source_ta));
-            irt_check(initialize_source(sim, default_source_value));
+        if (flags[option::ta_use_source]) {
+            if (flags[option::stop_on_error]) {
+                irt_check(initialize_source(sim, default_source_ta));
+            } else {
+                (void)initialize_source(sim, default_source_ta);
+            }
         } else {
-            (void)initialize_source(sim, default_source_ta);
-            (void)initialize_source(sim, default_source_value);
+            sigma = time_domain<time>::infinity;
+        }
+
+        if (flags[option::value_use_source]) {
+            if (flags[option::stop_on_error]) {
+                irt_check(initialize_source(sim, default_source_value));
+            } else {
+                (void)initialize_source(sim, default_source_value);
+            }
         }
 
         return success();
@@ -2817,38 +2853,85 @@ struct generator {
 
     status finalize(simulation& sim) noexcept
     {
-        irt_check(finalize_source(sim, default_source_ta));
-        irt_check(finalize_source(sim, default_source_value));
+        if (flags[option::ta_use_source])
+            irt_check(finalize_source(sim, default_source_ta));
+
+        if (flags[option::value_use_source])
+            irt_check(finalize_source(sim, default_source_value));
 
         return success();
     }
 
-    status transition(simulation& sim,
-                      time /*t*/,
-                      time /*e*/,
-                      time /*r*/) noexcept
+    status transition(simulation& sim, time /*t*/, time /*e*/, time r) noexcept
     {
-        double local_sigma = 0;
-        double local_value = 0;
+        sigma = time_domain<time>::infinity;
 
-        if (stop_on_error) {
-            irt_check(update_source(sim, default_source_ta, local_sigma));
-            irt_check(update_source(sim, default_source_value, local_value));
-            sigma = static_cast<real>(local_sigma);
-            value = static_cast<real>(local_value);
+        if (not flags[option::value_use_source]) {
+            auto* lst_value = sim.messages.try_to_get(x[x_value]);
+
+            if (lst_value and not lst_value->empty()) {
+                for (const auto& msg : *lst_value)
+                    value = msg[0];
+            }
+        }
+
+        if (not flags[option::ta_use_source]) {
+            auto* lst_t       = sim.messages.try_to_get(x[x_t]);
+            auto* lst_add_tr  = sim.messages.try_to_get(x[x_add_tr]);
+            auto* lst_mult_tr = sim.messages.try_to_get(x[x_mult_tr]);
+
+            real t = time_domain<time>::infinity;
+            if (lst_t and not lst_t->empty())
+                for (const auto& msg : *lst_t)
+                    t = std::min(msg[0], t);
+
+            real add_tr = time_domain<time>::infinity;
+            if (lst_add_tr and not lst_add_tr->empty())
+                for (const auto& msg : *lst_add_tr)
+                    add_tr = std::min(msg[0], add_tr);
+
+            real mult_tr = zero;
+            if (lst_mult_tr and not lst_mult_tr->empty())
+                for (const auto& msg : *lst_mult_tr)
+                    mult_tr = std::max(msg[0], mult_tr);
+
+            if (t >= zero)
+                sigma = t;
+
+            if (std::isfinite(add_tr))
+                sigma = r + add_tr;
+
+            if (std::isnormal(mult_tr))
+                sigma = r * mult_tr;
+
+            if (sigma < 0)
+                sigma = zero;
+
         } else {
-            if (auto ret = update_source(sim, default_source_ta, local_sigma);
-                !ret)
-                sigma = time_domain<time>::infinity;
-            else
-                sigma = static_cast<real>(local_sigma);
+            real local_sigma = 0;
+            real local_value = 0;
 
-            if (auto ret =
-                  update_source(sim, default_source_value, local_value);
-                !ret)
-                value = 0;
-            else
+            if (flags[option::stop_on_error]) {
+                irt_check(update_source(sim, default_source_ta, local_sigma));
+                irt_check(
+                  update_source(sim, default_source_value, local_value));
+                sigma = static_cast<real>(local_sigma);
                 value = static_cast<real>(local_value);
+            } else {
+                if (auto ret =
+                      update_source(sim, default_source_ta, local_sigma);
+                    !ret)
+                    sigma = time_domain<time>::infinity;
+                else
+                    sigma = static_cast<real>(local_sigma);
+
+                if (auto ret =
+                      update_source(sim, default_source_value, local_value);
+                    !ret)
+                    value = 0;
+                else
+                    value = static_cast<real>(local_value);
+            }
         }
 
         return success();
@@ -2873,30 +2956,42 @@ struct constant {
     time default_offset = time_domain<time>::zero;
 
     enum class init_type : i8 {
-        // A constant value initialized at startup of the simulation. Use
+        // A constant value initialized at startup of the simulation.
+        // Use
         // the @c default_value.
         constant,
 
         // The numbers of incoming connections on all input ports of the
-        // component. The @c default_value is filled via the component to
-        // simulation algorithm. Otherwise, the default value is unmodified.
+        // component. The @c default_value is filled via the component
+        // to
+        // simulation algorithm. Otherwise, the default value is
+        // unmodified.
         incoming_component_all,
 
-        // The number of outcoming connections on all output ports of the
-        // component. The @c default_value is filled via the component to
-        // simulation algorithm. Otherwise, the default value is unmodified.
+        // The number of outcoming connections on all output ports of
+        // the
+        // component. The @c default_value is filled via the component
+        // to
+        // simulation algorithm. Otherwise, the default value is
+        // unmodified.
         outcoming_component_all,
 
-        // The number of incoming connections on the nth input port of the
-        // component. Use the @c port attribute to specify the identifier of
+        // The number of incoming connections on the nth input port of
+        // the
+        // component. Use the @c port attribute to specify the
+        // identifier of
         // the port. The @c default_value is filled via the component to
-        // simulation algorithm. Otherwise, the default value is unmodified.
+        // simulation algorithm. Otherwise, the default value is
+        // unmodified.
         incoming_component_n,
 
-        // The number of incoming connections on the nth output ports of the
-        // component. Use the @c port attribute to specify the identifier of
+        // The number of incoming connections on the nth output ports of
+        // the
+        // component. Use the @c port attribute to specify the
+        // identifier of
         // the port. The @c default_value is filled via the component to
-        // simulation algorithm. Otherwise, the default value is unmodified.
+        // simulation algorithm. Otherwise, the default value is
+        // unmodified.
         outcoming_component_n,
     };
 
@@ -3375,9 +3470,9 @@ struct logical_invert {
  * construction/destruction. Use custom events for that.
  * 2. You are not allowed to dispatch an event from within an event
  * dispatch. You should queue events if you want such behavior. This
- * restriction is imposed only to prevent the user from creating extremely
- * complicated to trace state machines (which is what we are trying to
- * avoid).
+ * restriction is imposed only to prevent the user from creating
+ * extremely complicated to trace state machines (which is what we are
+ * trying to avoid).
  */
 class hierarchical_state_machine
 {
@@ -3450,8 +3545,9 @@ public:
     };
 
     //! Action available when state is processed during enter, exit or
-    //! condition event. \note Only on action (value set/unset, devs output,
-    //! etc.) by action. To perform more action, use several states.
+    //! condition event. \note Only on action (value set/unset, devs
+    //! output, etc.) by action. To perform more action, use several
+    //! states.
     struct state_action {
         i32         parameter = 0;
         variable    var1      = variable::none;
@@ -3462,13 +3558,15 @@ public:
     };
 
     //! \note
-    //! 1. \c value_condition stores the bit for input value corresponding
-    //! to the user request to satisfy the condition. \c value_mask stores
-    //! the bit useful in value_condition. If value_mask equal \c 0x0 then,
-    //! the condition is always true. If \c value_mask equals \c 0xff the \c
-    //! value_condition bit are mandatory.
-    //! 2. \c condition_state_action stores transition or action conditions.
-    //! Condition can use input port state or condition on integer a or b.
+    //! 1. \c value_condition stores the bit for input value
+    //! corresponding to the user request to satisfy the condition. \c
+    //! value_mask stores the bit useful in value_condition. If
+    //! value_mask equal \c 0x0 then, the condition is always true. If
+    //! \c value_mask equals \c 0xff the \c value_condition bit are
+    //! mandatory.
+    //! 2. \c condition_state_action stores transition or action
+    //! conditions. Condition can use input port state or condition on
+    //! integer a or b.
     struct condition_action {
         i32            parameter = 0;
         condition_type type      = condition_type::none;
@@ -3543,23 +3641,25 @@ public:
     }
 
     /// Dispatches an event.
-    /// @return return true if the event was processed, otherwise false. If
-    /// the automata is badly defined, return an modeling error.
+    /// @return return true if the event was processed, otherwise false.
+    /// If the automata is badly defined, return an modeling error.
     result<bool> dispatch(const event_type e, execution& exec) noexcept;
 
-    /// Return true if the state machine is currently dispatching an event.
+    /// Return true if the state machine is currently dispatching an
+    /// event.
     bool is_dispatching(execution& state) const noexcept;
 
-    /// Transitions the state machine. This function can not be called from
-    /// Enter / Exit events in the state handler.
+    /// Transitions the state machine. This function can not be called
+    /// from Enter / Exit events in the state handler.
     void transition(state_id target, execution& exec) noexcept;
 
     /// Set a handler for a state ID. This function will overwrite the
     /// current state handler. \param id state id from 0 to
     /// max_number_of_state \param super_id id of the super state, if
-    /// invalid_state_id this is a top state. Only one state can be a top
-    /// state. \param sub_id if != invalid_state_id this sub state (child
-    /// state) will be entered after the state Enter event is executed.
+    /// invalid_state_id this is a top state. Only one state can be a
+    /// top state. \param sub_id if != invalid_state_id this sub state
+    /// (child state) will be entered after the state Enter event is
+    /// executed.
     status set_state(state_id id,
                      state_id super_id = invalid_state_id,
                      state_id sub_id   = invalid_state_id) noexcept;

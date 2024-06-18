@@ -86,6 +86,10 @@ static inline const char* str_value_if_else[] = { "value",
                                                   "else",
                                                   "threshold" };
 static inline const char* str_in_2_nb_2[] = { "in-1", "in-2", "nb-1", "nb-2" };
+static inline const char* str_generator[] = { "value",
+                                              "set-t",
+                                              "add-tr",
+                                              "mult-tr" };
 
 template<typename Dynamics>
 static constexpr const char** get_input_port_names() noexcept
@@ -143,8 +147,10 @@ static constexpr const char** get_input_port_names() noexcept
                   std::is_same_v<Dynamics, logical_invert>)
         return str_in_1;
 
-    if constexpr (std::is_same_v<Dynamics, generator> ||
-                  std::is_same_v<Dynamics, constant> ||
+    if constexpr (std::is_same_v<Dynamics, generator>)
+        return str_generator;
+
+    if constexpr (std::is_same_v<Dynamics, constant> ||
                   std::is_same_v<Dynamics, time_func>)
         return str_empty;
 

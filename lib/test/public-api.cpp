@@ -599,7 +599,7 @@ int main()
         static_assert(irt::has_initialize_function<irt::generator>);
         static_assert(irt::has_lambda_function<irt::generator>);
         static_assert(irt::has_transition_function<irt::generator>);
-        static_assert(not irt::has_input_port<irt::generator>);
+        static_assert(irt::has_input_port<irt::generator>);
         static_assert(irt::has_output_port<irt::generator>);
         static_assert(irt::has_observation_function<irt::generator>);
 
@@ -1891,7 +1891,10 @@ int main()
 
         auto& cnt = sim.alloc<irt::counter>();
 
-        auto& gen = sim.alloc<irt::generator>();
+        auto& gen          = sim.alloc<irt::generator>();
+        gen.default_offset = 0;
+        gen.flags.set(irt::generator::option::ta_use_source);
+        gen.flags.set(irt::generator::option::value_use_source);
         gen.default_source_value.id =
           irt::ordinal(sim.srcs.constant_sources.get_id(cst_value));
         gen.default_source_value.type = irt::source::source_type::constant;
@@ -1960,6 +1963,10 @@ int main()
         auto& gen = sim.alloc<irt::generator>();
         auto& cnt = sim.alloc<irt::counter>();
 
+        gen.default_offset = 0;
+        gen.flags.set(irt::generator::option::ta_use_source);
+        gen.flags.set(irt::generator::option::value_use_source);
+        gen.flags.set(irt::generator::option::stop_on_error);
         gen.default_source_value.id =
           irt::ordinal(sim.srcs.constant_sources.get_id(cst_value));
         gen.default_source_value.type = irt::source::source_type::constant;
@@ -1980,7 +1987,7 @@ int main()
             expect(!!st);
         } while (t < 10);
 
-        expect(cnt.number == static_cast<irt::i64>(10));
+        expect(eq(cnt.number, static_cast<irt::i64>(10)));
     };
 
     "boolean_simulation"_test = [] {

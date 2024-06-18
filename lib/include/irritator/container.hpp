@@ -1585,8 +1585,8 @@ public:
     using memory_resource_t = typename A::memory_resource_t;
 
     static_assert((std::is_nothrow_constructible_v<T> ||
-                   std::is_nothrow_move_constructible_v<T>) &&
-                  std::is_nothrow_destructible_v<T>);
+                   std::is_nothrow_move_constructible_v<
+                     T>)&&std::is_nothrow_destructible_v<T>);
 
 private:
     T*                                   buffer = nullptr;
@@ -1891,8 +1891,8 @@ class small_ring_buffer
 public:
     static_assert(length >= 1);
     static_assert((std::is_nothrow_constructible_v<T> ||
-                   std::is_nothrow_move_constructible_v<T>) &&
-                  std::is_nothrow_destructible_v<T>);
+                   std::is_nothrow_move_constructible_v<
+                     T>)&&std::is_nothrow_destructible_v<T>);
 
     using value_type      = T;
     using size_type       = small_storage_size_t<length>;
@@ -2035,11 +2035,11 @@ class bitflags
     static_assert(std::is_enum_v<EnumT>,
                   "irt::flags can only be used with enum types");
 
+public:
     using value_type      = EnumT;
     using underlying_type = typename std::make_unsigned_t<
       typename std::underlying_type_t<value_type>>;
 
-public:
     constexpr bitflags() noexcept = default;
     constexpr bitflags(unsigned long long val) noexcept;
 
@@ -2055,6 +2055,7 @@ public:
 
     constexpr std::size_t size() const noexcept;
     constexpr std::size_t count() const noexcept;
+    std::size_t           to_unsigned() const noexcept;
 
     constexpr bool operator[](value_type e) const;
 
@@ -5595,6 +5596,12 @@ template<typename EnumT>
 constexpr std::size_t bitflags<EnumT>::count() const noexcept
 {
     return m_bits.count();
+}
+
+template<typename EnumT>
+std::size_t bitflags<EnumT>::to_unsigned() const noexcept
+{
+    return m_bits.to_ullong();
 }
 
 template<typename EnumT>

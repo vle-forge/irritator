@@ -100,30 +100,41 @@ static void parameter_init(parameter& param, const priority_queue& dyn) noexcept
 
 static void model_init(const parameter& param, generator& dyn) noexcept
 {
-    dyn.default_offset = param.reals[0];
-    dyn.stop_on_error  = param.integers[0] != 0;
+    dyn.flags = bitflags<generator::option>(param.integers[0]);
 
-    dyn.default_source_ta.id = static_cast<u64>(param.integers[1]);
-    dyn.default_source_ta.type =
-      (0 <= param.integers[2] && param.integers[2] < 4)
-        ? enum_cast<source::source_type>(param.integers[2])
-        : source::source_type::none;
+    if (dyn.flags[generator::option::ta_use_source]) {
+        dyn.default_offset       = param.reals[0];
+        dyn.default_source_ta.id = static_cast<u64>(param.integers[1]);
+        dyn.default_source_ta.type =
+          (0 <= param.integers[2] && param.integers[2] < 4)
+            ? enum_cast<source::source_type>(param.integers[2])
+            : source::source_type::none;
+    }
 
-    dyn.default_source_value.id = static_cast<u64>(param.integers[3]);
+    if (dyn.flags[generator::option::value_use_source]) {
+        dyn.default_source_value.id = static_cast<u64>(param.integers[3]);
 
-    dyn.default_source_value.type =
-      (0 <= param.integers[4] && param.integers[4] < 4)
-        ? enum_cast<source::source_type>(param.integers[4])
-        : source::source_type::none;
+        dyn.default_source_value.type =
+          (0 <= param.integers[4] && param.integers[4] < 4)
+            ? enum_cast<source::source_type>(param.integers[4])
+            : source::source_type::none;
+    }
 }
 
 static void parameter_init(parameter& param, const generator& dyn) noexcept
 {
-    param.integers[0] = dyn.stop_on_error ? 1 : 0;
-    param.integers[1] = static_cast<i64>(dyn.default_source_ta.id);
-    param.integers[2] = ordinal(dyn.default_source_ta.type);
-    param.integers[3] = static_cast<i64>(dyn.default_source_value.id);
-    param.integers[4] = ordinal(dyn.default_source_value.type);
+    param.integers[0] = dyn.flags.to_unsigned();
+
+    if (dyn.flags[generator::option::ta_use_source]) {
+        param.reals[0]    = dyn.default_offset;
+        param.integers[1] = static_cast<i64>(dyn.default_source_ta.id);
+        param.integers[2] = ordinal(dyn.default_source_ta.type);
+    }
+
+    if (dyn.flags[generator::option::value_use_source]) {
+        param.integers[3] = static_cast<i64>(dyn.default_source_value.id);
+        param.integers[4] = ordinal(dyn.default_source_value.type);
+    }
 }
 
 template<int QssLevel>

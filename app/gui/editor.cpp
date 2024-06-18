@@ -447,14 +447,51 @@ void show_dynamics_inputs(external_source& srcs, priority_queue& dyn)
 
 void show_dynamics_inputs(external_source& srcs, generator& dyn)
 {
-    ImGui::InputReal("offset", &dyn.default_offset);
-    ImGui::Checkbox("Stop on error", &dyn.stop_on_error);
-    ImGui::SameLine();
-    HelpMarker("Unchecked, the generator stops to send data if the source are "
-               "empty or undefined. Checked, the simulation will stop.");
+    const char* menu[] = { "source", "external events" };
 
-    show_external_sources_combo(srcs, "source", dyn.default_source_value);
-    show_external_sources_combo(srcs, "time", dyn.default_source_ta);
+    auto combo_ta    = dyn.flags[generator::option::ta_use_source] ? 0 : 1;
+    auto combo_value = dyn.flags[generator::option::value_use_source] ? 0 : 1;
+
+    {
+        auto ret = ImGui::Combo("ta", &combo_ta, menu, length(menu));
+        ImGui::SameLine();
+        HelpMarker(
+          "`Source` means you need to setup external source like random "
+          "number, input file etc. In `external events`, the value comes "
+          "from the input ports.");
+
+        if (ret)
+            dyn.flags.set(generator::option::ta_use_source, combo_ta == 0);
+    }
+
+    {
+        auto ret = ImGui::Combo("value", &combo_value, menu, length(menu));
+        ImGui::SameLine();
+        HelpMarker(
+          "`Source` means you need to setup external source like random "
+          "number, input file etc. In `external events`, the value comes "
+          "from the input port.");
+
+        if (ret)
+            dyn.flags.set(generator::option::value_use_source,
+                          combo_value == 0);
+    }
+
+    if (dyn.flags[generator::option::ta_use_source]) {
+        auto stop_on_error = dyn.flags[generator::option::stop_on_error];
+
+        show_external_sources_combo(srcs, "time", dyn.default_source_ta);
+        ImGui::InputReal("offset", &dyn.default_offset);
+        if (ImGui::Checkbox("Stop on error", &stop_on_error))
+            dyn.flags.set(generator::option::stop_on_error);
+        ImGui::SameLine();
+        HelpMarker(
+          "Unchecked, the generator stops to send data if the source are "
+          "empty or undefined. Checked, the simulation will stop.");
+    }
+
+    if (dyn.flags[generator::option::value_use_source])
+        show_external_sources_combo(srcs, "source", dyn.default_source_value);
 }
 
 void show_dynamics_inputs(external_source& /*srcs*/, constant& dyn)
@@ -870,26 +907,75 @@ static bool show_parameter_editor(application& app,
 }
 
 static bool show_parameter_editor(application& app,
-                                  generator& /*dyn*/,
+                                  generator& /* dyn */,
                                   parameter& p) noexcept
 {
-    bool is_changed = false;
-    bool value      = p.integers[0] != 0;
+    static const char* items[] = { "source", "external events" };
 
-    if (ImGui::Checkbox("Stop on error", &value)) {
-        p.integers[0] = value ? 1 : 0;
-        is_changed    = true;
+    auto flags      = bitflags<generator::option>(p.integers[0]);
+    auto is_changed = false;
+
+    auto combo_ta    = flags[generator::option::ta_use_source] ? 0 : 1;
+    auto combo_value = flags[generator::option::value_use_source] ? 0 : 1;
+
+    {
+        auto ret = ImGui::Combo("ta", &combo_ta, items, length(items));
+        ImGui::SameLine();
+        HelpMarker(
+          "`Source` means you need to setup external source like random "
+          "number, input file etc. In `external events`, the value comes "
+          "from the input ports.");
+
+        if (ret) {
+            flags.set(generator::option::ta_use_source, combo_ta == 0);
+            is_changed = true;
+        }
     }
 
-    if (show_external_sources_combo(
-          app.mod.srcs, "source", p.integers[1], p.integers[2])) {
-        is_changed = true;
+    {
+        auto ret = ImGui::Combo("value", &combo_value, items, length(items));
+        ImGui::SameLine();
+        HelpMarker(
+          "`Source` means you need to setup external source like random "
+          "number, input file etc. In `external events`, the value comes "
+          "from the input port.");
+
+        if (ret) {
+            flags.set(generator::option::value_use_source, combo_value == 0);
+            is_changed = true;
+        }
     }
 
-    if (show_external_sources_combo(
-          app.mod.srcs, "time", p.integers[3], p.integers[4])) {
-        is_changed = true;
+    if (is_changed)
+        p.integers[0] = flags.to_unsigned();
+
+    if (flags[generator::option::ta_use_source]) {
+        auto stop_on_error = flags[generator::option::stop_on_error];
+
+        if (show_external_sources_combo(
+              app.mod.srcs, "time", p.integers[1], p.integers[2]))
+            is_changed = true;
+
+        if (ImGui::InputReal("offset", &p.reals[0])) {
+            p.reals[0] = p.reals[0] < 0.0 ? 0.0 : p.reals[0];
+            is_changed = true;
+        }
+
+        if (ImGui::Checkbox("Stop on error", &stop_on_error)) {
+            flags.set(generator::option::stop_on_error, stop_on_error);
+            is_changed = true;
+        }
+
+        ImGui::SameLine();
+        HelpMarker(
+          "Unchecked, the generator stops to send data if the source are "
+          "empty or undefined. Checked, the simulation will stop.");
     }
+
+    if (flags[generator::option::value_use_source])
+        if (show_external_sources_combo(
+              app.mod.srcs, "source", p.integers[3], p.integers[4]))
+            is_changed = true;
 
     return is_changed;
 }
@@ -1502,23 +1588,72 @@ bool show_parameter(dynamics_generator_tag,
                     application& app,
                     parameter&   p) noexcept
 {
-    bool is_changed = false;
-    bool value      = p.integers[0] != 0;
+    static const char* items[] = { "source", "external events" };
 
-    if (ImGui::Checkbox("Stop on error", &value)) {
-        p.integers[0] = value ? 1 : 0;
-        is_changed    = true;
+    auto flags      = bitflags<generator::option>(p.integers[0]);
+    auto is_changed = false;
+
+    auto combo_ta    = flags[generator::option::ta_use_source] ? 0 : 1;
+    auto combo_value = flags[generator::option::value_use_source] ? 0 : 1;
+
+    {
+        auto ret = ImGui::Combo("ta", &combo_ta, items, length(items));
+        ImGui::SameLine();
+        HelpMarker(
+          "`Source` means you need to setup external source like random "
+          "number, input file etc. In `external events`, the value comes "
+          "from the input ports.");
+
+        if (ret) {
+            flags.set(generator::option::ta_use_source, combo_ta == 0);
+            is_changed = true;
+        }
     }
 
-    if (show_external_sources_combo(
-          app.mod.srcs, "source", p.integers[1], p.integers[2])) {
-        is_changed = true;
+    {
+        auto ret = ImGui::Combo("value", &combo_value, items, length(items));
+        ImGui::SameLine();
+        HelpMarker(
+          "`Source` means you need to setup external source like random "
+          "number, input file etc. In `external events`, the value comes "
+          "from the input port.");
+
+        if (ret) {
+            flags.set(generator::option::value_use_source, combo_value == 0);
+            is_changed = true;
+        }
     }
 
-    if (show_external_sources_combo(
-          app.mod.srcs, "time", p.integers[3], p.integers[4])) {
-        is_changed = true;
+    if (is_changed)
+        p.integers[0] = flags.to_unsigned();
+
+    if (flags[generator::option::ta_use_source]) {
+        auto stop_on_error = flags[generator::option::stop_on_error];
+
+        if (show_external_sources_combo(
+              app.mod.srcs, "time", p.integers[1], p.integers[2]))
+            is_changed = true;
+
+        if (ImGui::InputReal("offset", &p.reals[0])) {
+            p.reals[0] = p.reals[0] < 0.0 ? 0.0 : p.reals[0];
+            is_changed = true;
+        }
+
+        if (ImGui::Checkbox("Stop on error", &stop_on_error)) {
+            flags.set(generator::option::stop_on_error, stop_on_error);
+            is_changed = true;
+        }
+
+        ImGui::SameLine();
+        HelpMarker(
+          "Unchecked, the generator stops to send data if the source are "
+          "empty or undefined. Checked, the simulation will stop.");
     }
+
+    if (flags[generator::option::value_use_source])
+        if (show_external_sources_combo(
+              app.mod.srcs, "source", p.integers[3], p.integers[4]))
+            is_changed = true;
 
     return is_changed;
 }
@@ -1814,8 +1949,8 @@ bool show_parameter(dynamics_logical_invert_tag,
     return false;
 }
 
-static auto get_current_component_name(application& app,
-                                       parameter&   p) noexcept -> const char*
+static auto get_current_component_name(application& app, parameter& p) noexcept
+  -> const char*
 {
     static constexpr auto undefined_name = "-";
 
@@ -2241,7 +2376,11 @@ auto get_dynamics_input_names(dynamics_priority_queue_tag) noexcept
 auto get_dynamics_input_names(dynamics_generator_tag) noexcept
   -> std::span<const std::string_view>
 {
-    return std::span<const std::string_view>{};
+    static const std::array<std::string_view, 4> names = {
+        "value", "set-t", "add-t", "mult_t"
+    };
+
+    return std::span{ names.data(), names.size() };
 }
 
 auto get_dynamics_input_names(dynamics_constant_tag) noexcept
