@@ -2041,10 +2041,9 @@ class bitflags
 
 public:
     constexpr bitflags() noexcept = default;
-    constexpr bitflags(value_type e) noexcept;
+    constexpr bitflags(unsigned long long val) noexcept;
 
-    template<typename... Args>
-    constexpr bitflags(Args... args) noexcept;
+    constexpr bitflags(std::same_as<EnumT> auto... args) noexcept;
 
     constexpr bitflags& set(value_type e, bool value = true) noexcept;
     constexpr bitflags& reset(value_type e) noexcept;
@@ -5535,14 +5534,13 @@ void small_ring_buffer<T, length>::iterator_base<is_const>::reset() noexcept
 //
 
 template<typename EnumT>
-constexpr bitflags<EnumT>::bitflags(value_type e) noexcept
+constexpr bitflags<EnumT>::bitflags(unsigned long long val) noexcept
 {
-    m_bits.set(underlying(e), true);
+    m_bits = val;
 }
 
 template<typename EnumT>
-template<typename... Args>
-constexpr bitflags<EnumT>::bitflags(Args... args) noexcept
+constexpr bitflags<EnumT>::bitflags(std::same_as<EnumT> auto... args) noexcept
 {
     (set(args), ...);
 }
