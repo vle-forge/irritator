@@ -19,7 +19,7 @@
 namespace irt {
 
 application::application() noexcept
-  : sim(simulation_memory_requirement(1024 * 1024 * 8, 10, 10, 5))
+  : sim(simulation_memory_requirement(4096, 128))
   , task_mgr{}
 {
     settings_wnd.update();
@@ -436,9 +436,9 @@ static void application_show_windows(application& app) noexcept
     }
 
     if (app.component_ed.is_open)
-        //if (std::unique_lock l(app.component_ed.mutex, std::try_to_lock);
-        //    l.owns_lock())
-            app.component_ed.show();
+        // if (std::unique_lock l(app.component_ed.mutex, std::try_to_lock);
+        //     l.owns_lock())
+        app.component_ed.show();
 
     if (app.simulation_ed.is_open)
         // if (std::unique_lock l(app.simulation_ed.mutex, std::try_to_lock);
@@ -446,9 +446,9 @@ static void application_show_windows(application& app) noexcept
         app.simulation_ed.show();
 
     if (app.output_ed.is_open)
-        //if (std::unique_lock l(app.output_ed.mutex, std::try_to_lock);
-        //    l.owns_lock())
-            app.output_ed.show();
+        // if (std::unique_lock l(app.output_ed.mutex, std::try_to_lock);
+        //     l.owns_lock())
+        app.output_ed.show();
 
     if (app.data_ed.is_open)
         app.data_ed.show();
@@ -457,9 +457,9 @@ static void application_show_windows(application& app) noexcept
         app.log_wnd.show();
 
     if (app.library_wnd.is_open)
-        //if (std::unique_lock l(app.library_wnd.mutex, std::try_to_lock);
-        //    l.owns_lock())
-            app.library_wnd.show();
+        // if (std::unique_lock l(app.library_wnd.mutex, std::try_to_lock);
+        //     l.owns_lock())
+        app.library_wnd.show();
 }
 
 void application::show() noexcept
