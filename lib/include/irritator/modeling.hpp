@@ -160,7 +160,7 @@ struct parameter {
     void clear() noexcept;
 
     std::array<real, 8> reals;
-    std::array<i64, 4>  integers;
+    std::array<i64, 8>  integers;
 };
 
 /// A structure use to cache data when read or write json component.

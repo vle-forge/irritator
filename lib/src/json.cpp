@@ -3702,7 +3702,7 @@ struct reader {
     }
 
     bool read_integer_parameter(const rapidjson::Value& val,
-                                std::array<i64, 4>&     integers) noexcept
+                                std::array<i64, 8>&     integers) noexcept
     {
         auto_stack s(this, stack_id::project_integer_parameter);
 
