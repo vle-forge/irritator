@@ -24,7 +24,7 @@
 namespace irt {
 
 template<class T, class M>
-constexpr std::ptrdiff_t offset_of(const M T::* member)
+constexpr std::ptrdiff_t offset_of(const M T::*member)
 {
     return reinterpret_cast<std::ptrdiff_t>(
       &(reinterpret_cast<T*>(0)->*member));
@@ -44,7 +44,7 @@ constexpr std::ptrdiff_t offset_of(const M T::* member)
 //! }
 //! @endcode
 template<class T, class M>
-constexpr T& container_of(M* ptr, const M T::* member)
+constexpr T& container_of(M* ptr, const M T::*member)
 {
     return *reinterpret_cast<T*>(reinterpret_cast<intptr_t>(ptr) -
                                  offset_of(member));
@@ -632,10 +632,22 @@ struct data_window {
 
     ImPlotContext* context = nullptr;
 
-    irt::constant_source*    constant_ptr      = nullptr;
-    irt::binary_file_source* binary_file_ptr   = nullptr;
-    irt::text_file_source*   text_file_ptr     = nullptr;
-    irt::random_source*      random_source_ptr = nullptr;
+    struct selection {
+        void clear() noexcept;
+
+        void select(constant_source_id id) noexcept;
+        void select(text_file_source_id id) noexcept;
+        void select(binary_file_source_id id) noexcept;
+        void select(random_source_id id) noexcept;
+
+        bool is(constant_source_id id) const noexcept;
+        bool is(text_file_source_id id) const noexcept;
+        bool is(binary_file_source_id id) const noexcept;
+        bool is(random_source_id id) const noexcept;
+
+        std::optional<source::source_type> type_sel;
+        u64                                id_sel = 0;
+    } sel;
 
     bool show_file_dialog = false;
     bool plot_available   = false;

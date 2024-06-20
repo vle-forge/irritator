@@ -310,6 +310,44 @@ enum class log_level {
     debug
 };
 
+//! Assign a value constrained by the template parameters.
+//!
+//! @code
+//! static int v = 0;
+//! if (ImGui::InputInt("test", &v)) {
+//!     f(v);
+//! }
+//!
+//! void f(constrained_value<int, 0, 100> v)
+//! {
+//!     assert(0 <= *v && *v <= 100);
+//! }
+//! @endcode
+template<typename T = int, T Lower = 0, T Upper = 100>
+class constrained_value
+{
+public:
+    using value_type = T;
+
+private:
+    static_assert(std::is_trivial_v<T>,
+                  "T must be a trivial type in ratio_parameter");
+    static_assert(Lower < Upper);
+
+    T m_value;
+
+public:
+    constexpr constrained_value(const T value_) noexcept
+      : m_value(value_ < Lower   ? Lower
+                : value_ < Upper ? value_
+                                 : Upper)
+    {}
+
+    constexpr explicit   operator T() const noexcept { return m_value; }
+    constexpr value_type operator*() const noexcept { return m_value; }
+    constexpr value_type value() const noexcept { return m_value; }
+};
+
 /*****************************************************************************
  *
  * Return status of many function
@@ -397,6 +435,116 @@ enum class constant_source_id : u64;
 enum class binary_file_source_id : u64;
 enum class text_file_source_id : u64;
 enum class random_source_id : u64;
+
+//! Helps to calculate the sizes of the `vectors` and `data_array` from a
+//! number of bytes. Compute for each `source` the same number and adjust
+//! the `max_client` variables for both random and binary source.
+struct external_source_memory_requirement {
+    int constant_nb            = 4;
+    int text_file_nb           = 4;
+    int binary_file_nb         = 4;
+    int random_nb              = 4;
+    int binary_file_max_client = 8;
+    int random_max_client      = 8;
+
+    constexpr external_source_memory_requirement() noexcept = default;
+
+    //! Compute the size of each source.
+    //!
+    //! @param bytes The numbers of bytes availables.
+    //! @param source_client_ratio A integer in the range `[0..100]` defines
+    //! the ratio between `source` and `max_client` variables. `50` mean 50%
+    //! sources and 50% max_clients, `0` means no source, `100` means no
+    //! max-client.
+    constexpr external_source_memory_requirement(
+      const std::size_t                   bytes,
+      const constrained_value<int, 5, 95> source_client_ratio) noexcept;
+
+    constexpr external_source_memory_requirement(
+      const std::size_t constant,
+      const std::size_t text_f,
+      const std::size_t bin_f,
+      const std::size_t random,
+      const std::size_t bin_f_max_client,
+      const std::size_t random_max_client) noexcept;
+
+    constexpr bool valid() const;
+
+    constexpr size_t in_bytes() const noexcept;
+};
+
+//! Helps to calculate the sizes of the `vectors` and `data_array` from a
+//! number of bytes.
+class simulation_memory_requirement
+{
+public:
+    constexpr static inline auto default_simulation_model_number      = 256u;
+    constexpr static inline auto default_simulation_connection_number = 1024u;
+
+    std::size_t connections_b     = 0;
+    std::size_t dated_messages_b  = 0;
+    std::size_t external_source_b = 0;
+    std::size_t simulation_b      = 0;
+    std::size_t global_b          = 0;
+
+    int model_nb = 0;
+    int hsm_nb   = 0;
+
+    external_source_memory_requirement srcs;
+
+    /** Computes the required memory to build the simulation that can run at
+     * least @c model_nb models and @c connection_nb connections.
+     *
+     * @param bytes The numbers of bytes availables.
+     * @param external_source Percentage of memory to use in external source.
+     * @param source_client_ratio
+     * @param connections Percentage of simulation memory dedicated to
+     * connections.
+     * @param dated_messages Percentage of siulation memory dedicated to fifo,
+     * lifo history.
+     */
+    constexpr simulation_memory_requirement(
+      const std::size_t                   model_nb,
+      const std::size_t                   connection_nb,
+      const constrained_value<int, 5, 90> connections     = 5,
+      const constrained_value<int, 1, 10> hsms            = 1,
+      const constrained_value<int, 0, 50> dated_messages  = 5,
+      const constrained_value<int, 1, 90> external_source = 10,
+      const constrained_value<int, 1, 95> source_client   = 50) noexcept;
+
+    /** Computes the required memory to build the simulation and splits
+     * available memory in memory resource, free list and container.
+     *
+     * @param bytes The numbers of bytes availables.
+     * @param external_source Percentage of memory to use in external source.
+     * @param source_client_ratio
+     * @param connections Percentage of simulation memory dedicated to
+     * connections.
+     * @param dated_messages Percentage of siulation memory dedicated to fifo,
+     * lifo history.
+     */
+    constexpr simulation_memory_requirement(
+      const std::size_t                   bytes,
+      const constrained_value<int, 5, 90> connections     = 5,
+      const constrained_value<int, 1, 10> hsms            = 10,
+      const constrained_value<int, 0, 50> dated_messages  = 5,
+      const constrained_value<int, 1, 90> external_source = 10,
+      const constrained_value<int, 1, 95> source_client   = 50) noexcept;
+
+    constexpr bool valid() const noexcept;
+
+    //! Compute an estimate to store a model in simulation memory.
+    constexpr static size_t estimate_model() noexcept;
+
+private:
+    constexpr void compute_buffer_size(
+      const std::size_t                   bytes,
+      const constrained_value<int, 5, 90> connections,
+      const constrained_value<int, 1, 10> hsms,
+      const constrained_value<int, 0, 50> dated_messages,
+      const constrained_value<int, 1, 90> external_source,
+      const constrained_value<int, 1, 95> source_client) noexcept;
+};
 
 /*****************************************************************************
  *
@@ -578,7 +726,6 @@ class source
 {
 public:
     enum class source_type : i16 {
-        none,
         binary_file, /* Best solution to reproductible simulation. Each
                         client take a part of the stream (substream). */
         constant,    /* Just an easy source to use mode. */
@@ -597,7 +744,7 @@ public:
 
     std::span<double> buffer;
     u64               id   = 0;
-    source_type       type = source_type::none;
+    source_type       type = source_type::constant;
     i16 index = 0; // The index of the next double to read in current chunk.
     std::array<u64, 4> chunk_id; // Current chunk. Use when restore is apply.
 
@@ -609,7 +756,7 @@ public:
     {
         buffer = std::span<double>();
         id     = 0u;
-        type   = source_type::none;
+        type   = source_type::constant;
         index  = 0;
         std::fill_n(chunk_id.data(), chunk_id.size(), 0);
     }
@@ -644,6 +791,9 @@ public:
         random_source,
     };
 
+    mr_allocator<memory_resource> alloc;
+    freelist_memory_resource      shared;
+
     data_array<constant_source, constant_source_id, freelist_allocator>
       constant_sources;
     data_array<binary_file_source, binary_file_source_id, freelist_allocator>
@@ -652,6 +802,27 @@ public:
       text_file_sources;
     data_array<random_source, random_source_id, freelist_allocator>
       random_sources;
+
+    external_source(const external_source_memory_requirement& init) noexcept
+      : external_source(get_malloc_memory_resource(), init)
+    {}
+
+    external_source(memory_resource*                          mem,
+                    const external_source_memory_requirement& init) noexcept
+      : alloc(mem)
+      , constant_sources(&shared)
+      , binary_file_sources(&shared)
+      , text_file_sources(&shared)
+      , random_sources(&shared)
+    {
+        realloc(init);
+    }
+
+    /** Destroy then allocate memory according to the @c init parameter .*/
+    void realloc(const external_source_memory_requirement& init) noexcept;
+
+    //! Call `clear()` and release memory.
+    void destroy() noexcept;
 
     u64 seed[2] = { 0xdeadbeef12345678U, 0xdeadbeef12345678U };
 
@@ -670,51 +841,10 @@ public:
     //! Call the @c data_array<T, Id>::clear() function for all sources.
     void clear() noexcept;
 
-    //! Call `clear()` and release memory.
-    void destroy() noexcept;
-
     //! An example of error handlers to catch all error from the external
     //! source class and friend (@c binary_file_source, @c text_file_source,
     //! @c random_source and @c constant_source).
     // constexpr auto make_error_handlers() const noexcept;
-};
-
-//! Assign a value constrained by the template parameters.
-//!
-//! @code
-//! static int v = 0;
-//! if (ImGui::InputInt("test", &v)) {
-//!     f(v);
-//! }
-//!
-//! void f(constrained_value<int, 0, 100> v)
-//! {
-//!     assert(0 <= *v && *v <= 100);
-//! }
-//! @endcode
-template<typename T = int, T Lower = 0, T Upper = 100>
-class constrained_value
-{
-public:
-    using value_type = T;
-
-private:
-    static_assert(std::is_trivial_v<T>,
-                  "T must be a trivial type in ratio_parameter");
-    static_assert(Lower < Upper);
-
-    T m_value;
-
-public:
-    constexpr constrained_value(const T value_) noexcept
-      : m_value(value_ < Lower   ? Lower
-                : value_ < Upper ? value_
-                                 : Upper)
-    {}
-
-    constexpr explicit   operator T() const noexcept { return m_value; }
-    constexpr value_type operator*() const noexcept { return m_value; }
-    constexpr value_type value() const noexcept { return m_value; }
 };
 
 //! To be used in model declaration to initialize a source instance
@@ -1025,109 +1155,6 @@ public:
 
     unsigned size() const noexcept;
     int      ssize() const noexcept;
-};
-
-//! Helps to calculate the sizes of the `vectors` and `data_array` from a
-//! number of bytes. Compute for each `source` the same number and adjust
-//! the `max_client` variables for both random and binary source.
-struct external_source_memory_requirement {
-    int constant_nb            = 4;
-    int text_file_nb           = 4;
-    int binary_file_nb         = 4;
-    int random_nb              = 4;
-    int binary_file_max_client = 8;
-    int random_max_client      = 8;
-
-    //! Assign a default size for each external source subobject.
-    constexpr external_source_memory_requirement() noexcept = default;
-
-    //! Compute the size of each source.
-    //!
-    //! @param bytes The numbers of bytes availables.
-    //! @param source_client_ratio A integer in the range `[0..100]` defines
-    //! the ratio between `source` and `max_client` variables. `50` mean 50%
-    //! sources and 50% max_clients, `0` means no source, `100` means no
-    //! max-client.
-    constexpr external_source_memory_requirement(
-      const std::size_t                   bytes,
-      const constrained_value<int, 5, 95> source_client_ratio) noexcept;
-
-    constexpr bool valid() const;
-
-    constexpr size_t in_bytes() const noexcept;
-};
-
-//! Helps to calculate the sizes of the `vectors` and `data_array` from a
-//! number of bytes.
-class simulation_memory_requirement
-{
-public:
-    constexpr static inline auto default_simulation_model_number      = 256u;
-    constexpr static inline auto default_simulation_connection_number = 1024u;
-
-    std::size_t connections_b     = 0;
-    std::size_t dated_messages_b  = 0;
-    std::size_t external_source_b = 0;
-    std::size_t simulation_b      = 0;
-    std::size_t global_b          = 0;
-
-    int model_nb = 0;
-    int hsm_nb   = 0;
-
-    external_source_memory_requirement srcs;
-
-    /** Computes the required memory to build the simulation that can run at
-     * least @c model_nb models and @c connection_nb connections.
-     *
-     * @param bytes The numbers of bytes availables.
-     * @param external_source Percentage of memory to use in external source.
-     * @param source_client_ratio
-     * @param connections Percentage of simulation memory dedicated to
-     * connections.
-     * @param dated_messages Percentage of siulation memory dedicated to fifo,
-     * lifo history.
-     */
-    constexpr simulation_memory_requirement(
-      const std::size_t                   model_nb,
-      const std::size_t                   connection_nb,
-      const constrained_value<int, 5, 90> connections     = 5,
-      const constrained_value<int, 1, 10> hsms            = 1,
-      const constrained_value<int, 0, 50> dated_messages  = 5,
-      const constrained_value<int, 1, 90> external_source = 10,
-      const constrained_value<int, 1, 95> source_client   = 50) noexcept;
-
-    /** Computes the required memory to build the simulation and splits
-     * available memory in memory resource, free list and container.
-     *
-     * @param bytes The numbers of bytes availables.
-     * @param external_source Percentage of memory to use in external source.
-     * @param source_client_ratio
-     * @param connections Percentage of simulation memory dedicated to
-     * connections.
-     * @param dated_messages Percentage of siulation memory dedicated to fifo,
-     * lifo history.
-     */
-    constexpr simulation_memory_requirement(
-      const std::size_t                   bytes,
-      const constrained_value<int, 5, 90> connections     = 5,
-      const constrained_value<int, 1, 10> hsms            = 10,
-      const constrained_value<int, 0, 50> dated_messages  = 5,
-      const constrained_value<int, 1, 90> external_source = 10,
-      const constrained_value<int, 1, 95> source_client   = 50) noexcept;
-
-    constexpr bool valid() const noexcept;
-
-    //! Compute an estimate to store a model in simulation memory.
-    constexpr static size_t estimate_model() noexcept;
-
-private:
-    constexpr void compute_buffer_size(
-      const std::size_t                   bytes,
-      const constrained_value<int, 5, 90> connections,
-      const constrained_value<int, 1, 10> hsms,
-      const constrained_value<int, 0, 50> dated_messages,
-      const constrained_value<int, 1, 90> external_source,
-      const constrained_value<int, 1, 95> source_client) noexcept;
 };
 
 class simulation
@@ -5484,10 +5511,7 @@ inline simulation::simulation(
   , messages(&shared)
   , dated_messages(&shared)
   , sched(&shared)
-  , srcs{ .constant_sources{ &external_source_alloc },
-          .binary_file_sources{ &external_source_alloc },
-          .text_file_sources{ &external_source_alloc },
-          .random_sources{ &external_source_alloc } }
+  , srcs{ mem, init.srcs }
 {
     realloc(init);
 }
@@ -6546,6 +6570,36 @@ inline constexpr external_source_memory_requirement::
     binary_file_max_client = client;
     random_max_client      = client;
 }
+
+inline constexpr external_source_memory_requirement::
+  external_source_memory_requirement(
+    const std::size_t constant,
+    const std::size_t text_f,
+    const std::size_t bin_f,
+    const std::size_t random,
+    const std::size_t bin_f_max_client,
+    const std::size_t random_max_client) noexcept
+  : external_source_memory_requirement(
+      sizeof(data_array<constant_source,
+                        constant_source_id,
+                        freelist_allocator>::internal_value_type) *
+          constant +
+        sizeof(data_array<binary_file_source,
+                          binary_file_source_id,
+                          freelist_allocator>::internal_value_type) *
+          text_f +
+        (sizeof(data_array<text_file_source,
+                           text_file_source_id,
+                           freelist_allocator>::internal_value_type) +
+         (sizeof(chunk_type) + sizeof(u64)) * bin_f_max_client) *
+          bin_f +
+        (sizeof(data_array<random_source,
+                           random_source_id,
+                           freelist_allocator>::internal_value_type) +
+         (sizeof(chunk_type) + sizeof(u64) * 4) * random_max_client) *
+          random,
+      10)
+{}
 
 inline constexpr bool external_source_memory_requirement::valid() const
 {

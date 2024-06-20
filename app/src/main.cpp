@@ -264,7 +264,6 @@ void run_simulation(irt::real begin,
           irt::modeling                      mod;
           irt::simulation_memory_requirement smr{ 1024 * 1024 * 8 };
           irt::simulation                    sim{ smr };
-          irt::external_source               srcs;
           irt::cache_rw                      cache;
 
           irt_check(pj.init(init));
@@ -274,7 +273,7 @@ void run_simulation(irt::real begin,
           irt::time       t   = begin;
           const irt::time end = begin + duration;
 
-          irt_check(srcs.prepare());
+          irt_check(sim.srcs.prepare());
           irt_check(sim.initialize(t));
 
           do {

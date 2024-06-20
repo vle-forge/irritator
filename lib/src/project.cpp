@@ -484,8 +484,6 @@ static status simulation_copy_source(simulation_copy& sc,
                                      source&          dst) noexcept
 {
     switch (enum_cast<source::source_type>(type)) {
-    case source::source_type::none:
-        break;
     case source::source_type::constant:
         if (auto* ret = sc.cache.constants.get(id); ret) {
             dst.id = ordinal(*ret);

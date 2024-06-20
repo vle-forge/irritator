@@ -260,9 +260,6 @@ bool show_external_sources_combo(external_source&     srcs,
     small_string<63> label("None");
 
     switch (src_type) {
-    case source::source_type::none:
-        break;
-
     case source::source_type::binary_file: {
         const auto id    = enum_cast<binary_file_source_id>(src_id);
         const auto index = get_index(id);
@@ -316,7 +313,7 @@ bool show_external_sources_combo(external_source&     srcs,
 
     if (ImGui::BeginCombo(title, label.c_str())) {
         {
-            bool is_selected = src_type == source::source_type::none;
+            bool is_selected = src_type == source::source_type::constant;
             ImGui::Selectable("None", is_selected);
         }
 

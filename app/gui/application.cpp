@@ -794,22 +794,29 @@ void application::start_init_source(const u64                 id,
 
         attempt_all(
           [&]() noexcept -> status {
-              irt_check(
-                sim.srcs.dispatch(src, source::operation_type::initialize));
+              if (mod.srcs.dispatch(src, source::operation_type::initialize)) {
+                  data_ed.plot.clear();
+                  for (sz i = 0, e = src.buffer.size(); i != e; ++i)
+                      data_ed.plot.push_back(
+                        ImVec2{ static_cast<float>(i),
+                                static_cast<float>(src.buffer[i]) });
+                  data_ed.plot_available = true;
 
-              data_ed.plot.clear();
-              for (sz i = 0, e = src.buffer.size(); i != e; ++i)
-                  data_ed.plot.push_back(ImVec2{
-                    static_cast<float>(i), static_cast<float>(src.buffer[i]) });
-              data_ed.plot_available = true;
-
-              return mod.srcs.prepare();
+                  if (!mod.srcs.prepare())
+                      notifications.try_insert(
+                        log_level::error, [](auto& title, auto& msg) noexcept {
+                            title = "Data error";
+                            msg   = "Fail to prepare data from source.";
+                        });
+              }
+              return success();
           },
-
-          [&]() -> void {
-              auto& n = notifications.alloc(log_level::error);
-              n.title = "Fail to initialize data";
-              notifications.enable(n);
+          [&]() {
+              notifications.try_insert(
+                log_level::error, [](auto& title, auto& msg) noexcept {
+                    title = "Data error";
+                    msg   = "Fail to prepare data from source.";
+                });
           });
     });
 }

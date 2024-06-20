@@ -70,7 +70,7 @@ static void model_init(const parameter& param, dynamic_queue& dyn) noexcept
     dyn.default_source_ta.type =
       (0 <= param.integers[2] && param.integers[2] < 4)
         ? enum_cast<source::source_type>(param.integers[2])
-        : source::source_type::none;
+        : source::source_type::constant;
 }
 
 static void parameter_init(parameter& param, const dynamic_queue& dyn) noexcept
@@ -88,7 +88,7 @@ static void model_init(const parameter& param, priority_queue& dyn) noexcept
     dyn.default_source_ta.type =
       (0 <= param.integers[2] && param.integers[2] < 4)
         ? enum_cast<source::source_type>(param.integers[2])
-        : source::source_type::none;
+        : source::source_type::constant;
 }
 
 static void parameter_init(parameter& param, const priority_queue& dyn) noexcept
@@ -108,7 +108,7 @@ static void model_init(const parameter& param, generator& dyn) noexcept
         dyn.default_source_ta.type =
           (0 <= param.integers[2] && param.integers[2] < 4)
             ? enum_cast<source::source_type>(param.integers[2])
-            : source::source_type::none;
+            : source::source_type::constant;
     }
 
     if (dyn.flags[generator::option::value_use_source]) {
@@ -117,7 +117,7 @@ static void model_init(const parameter& param, generator& dyn) noexcept
         dyn.default_source_value.type =
           (0 <= param.integers[4] && param.integers[4] < 4)
             ? enum_cast<source::source_type>(param.integers[4])
-            : source::source_type::none;
+            : source::source_type::constant;
     }
 }
 

@@ -18,7 +18,8 @@
 namespace irt {
 
 modeling::modeling() noexcept
-  : log_entries{ 16 }
+  : srcs(external_source_memory_requirement(16, 16, 16, 16, 256, 256))
+  , log_entries{ 16 }
 {}
 
 status modeling::init(modeling_initializer& p) noexcept
@@ -67,6 +68,11 @@ status modeling::init(modeling_initializer& p) noexcept
         return new_error(modeling::part::hsms);
 
     component_colors.resize(components.capacity());
+
+    srcs.constant_sources.reserve(8);
+    srcs.binary_file_sources.reserve(8);
+    srcs.text_file_sources.reserve(6);
+    srcs.random_sources.reserve(16);
 
     return success();
 }

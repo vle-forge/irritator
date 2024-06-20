@@ -754,9 +754,6 @@ status external_source::dispatch(source&                      src,
                                  const source::operation_type op) noexcept
 {
     switch (src.type) {
-    case source::source_type::none:
-        return success();
-
     case source::source_type::binary_file: {
         const auto src_id = enum_cast<binary_file_source_id>(src.id);
         if (auto* bin_src = binary_file_sources.try_to_get(src_id); bin_src)
@@ -811,6 +808,30 @@ void external_source::destroy() noexcept
     binary_file_sources.destroy();
     text_file_sources.destroy();
     random_sources.destroy();
+
+    shared.destroy();
+}
+
+void external_source::realloc(
+  const external_source_memory_requirement& init) noexcept
+{
+    debug::ensure(init.valid());
+    destroy();
+
+    const auto size = init.in_bytes();
+    shared.reset(alloc.allocate_bytes(size), size);
+
+    if (init.constant_nb > 0)
+        constant_sources.reserve(init.constant_nb);
+
+    if (init.binary_file_nb > 0)
+        binary_file_sources.reserve(init.binary_file_nb);
+
+    if (init.text_file_nb > 0)
+        text_file_sources.reserve(init.text_file_nb);
+
+    if (init.random_nb > 0)
+        random_sources.reserve(init.random_nb);
 }
 
 } // namespace irt
