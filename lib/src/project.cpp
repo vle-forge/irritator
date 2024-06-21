@@ -1165,10 +1165,19 @@ status project::set(modeling& mod, simulation& sim, component& compo) noexcept
     simulation_memory_requirement smr(numbers.model_nb, numbers.hsm_nb);
     sim.destroy();
 
-    if (not sim.m_alloc.can_alloc_bytes(smr.global_b))
-        return new_error(simulation::model_error{}, e_memory(smr.global_b, 0));
+    if (smr.global_b < 1024u * 1024u * 8u) {
+        if (not sim.m_alloc.can_alloc_bytes(1024u * 1024u * 8u))
+            return new_error(simulation::model_error{},
+                             e_memory(smr.global_b, 0));
 
-    sim.realloc(smr);
+        sim.realloc(simulation_memory_requirement(1024u * 1024u * 8u));
+    } else {
+        if (not sim.m_alloc.can_alloc_bytes(smr.global_b))
+            return new_error(simulation::model_error{},
+                             e_memory(smr.global_b, 0));
+
+        sim.realloc(smr);
+    }
 
     simulation_copy sc(m_cache, mod, sim, tree_nodes);
 

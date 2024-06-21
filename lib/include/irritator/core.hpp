@@ -440,12 +440,14 @@ enum class random_source_id : u64;
 //! number of bytes. Compute for each `source` the same number and adjust
 //! the `max_client` variables for both random and binary source.
 struct external_source_memory_requirement {
-    int constant_nb            = 4;
-    int text_file_nb           = 4;
-    int binary_file_nb         = 4;
-    int random_nb              = 4;
-    int binary_file_max_client = 8;
-    int random_max_client      = 8;
+    std::size_t bytes = 0;
+
+    unsigned constant_nb            = 4u;
+    unsigned text_file_nb           = 4u;
+    unsigned binary_file_nb         = 4u;
+    unsigned random_nb              = 4u;
+    unsigned binary_file_max_client = 8u;
+    unsigned random_max_client      = 8u;
 
     constexpr external_source_memory_requirement() noexcept = default;
 
@@ -461,12 +463,12 @@ struct external_source_memory_requirement {
       const constrained_value<int, 5, 95> source_client_ratio) noexcept;
 
     constexpr external_source_memory_requirement(
-      const std::size_t constant,
-      const std::size_t text_f,
-      const std::size_t bin_f,
-      const std::size_t random,
-      const std::size_t bin_f_max_client,
-      const std::size_t random_max_client) noexcept;
+      const unsigned constant,
+      const unsigned text_f,
+      const unsigned bin_f,
+      const unsigned random,
+      const unsigned bin_f_max_client,
+      const unsigned random_max_client) noexcept;
 
     constexpr bool valid() const;
 
@@ -803,20 +805,26 @@ public:
     data_array<random_source, random_source_id, freelist_allocator>
       random_sources;
 
-    external_source(const external_source_memory_requirement& init) noexcept
-      : external_source(get_malloc_memory_resource(), init)
-    {}
+    /** Use the global `malloc_memory_resource` to prepare the
+     * `free_list_allocator` to allocate memory. Use the `realloc` function
+     * after this constructor to allocate memory. */
+    external_source() noexcept;
 
+    /** Use the specified memory resource `mem` to prepare the
+     * `free_list_allocator` to allocate memory. Use the `realloc` function
+     * after this constructor to allocate memory. */
+    external_source(memory_resource* mem) noexcept;
+
+    /** Use the global `malloc_memory_resource` to prepare `free_list_allocator`
+     * and allocate memory according to the `init` values. */
+    external_source(const external_source_memory_requirement& init) noexcept;
+
+    /** Use the specified memory resource `mem` to prepare `free_list_allocator`
+     * and allocate memory according to the `init` values. */
     external_source(memory_resource*                          mem,
-                    const external_source_memory_requirement& init) noexcept
-      : alloc(mem)
-      , constant_sources(&shared)
-      , binary_file_sources(&shared)
-      , text_file_sources(&shared)
-      , random_sources(&shared)
-    {
-        realloc(init);
-    }
+                    const external_source_memory_requirement& init) noexcept;
+
+    ~external_source() noexcept;
 
     /** Destroy then allocate memory according to the @c init parameter .*/
     void realloc(const external_source_memory_requirement& init) noexcept;
@@ -1180,7 +1188,6 @@ public:
     freelist_memory_resource shared;
     freelist_memory_resource nodes_alloc;
     freelist_memory_resource dated_messages_alloc;
-    freelist_memory_resource external_source_alloc;
 
     vector<output_message, freelist_allocator> emitting_output_ports;
     vector<model_id, freelist_allocator>       immediate_models;
@@ -1207,6 +1214,12 @@ public:
 
     template<typename Dynamics>
     model_id get_id(const Dynamics& dyn) const;
+
+private:
+    /** Allocate new buffers for all memory resource and container. Do not call
+     * destroy before. This function is used in `constructors` or in `realloc()`
+     * function after the call to `destroy()`. */
+    void do_realloc(const simulation_memory_requirement& init) noexcept;
 
 public:
     //! Use the default malloc memory resource to allocate all memory need
@@ -5511,12 +5524,12 @@ inline simulation::simulation(
   , messages(&shared)
   , dated_messages(&shared)
   , sched(&shared)
-  , srcs{ mem, init.srcs }
+  , srcs{ mem }
 {
-    realloc(init);
+    do_realloc(init);
 }
 
-inline void simulation::realloc(
+inline void simulation::do_realloc(
   const simulation_memory_requirement& init) noexcept
 {
     debug::ensure(init.valid());
@@ -5527,8 +5540,6 @@ inline void simulation::realloc(
                       init.connections_b);
     dated_messages_alloc.reset(m_alloc.allocate_bytes(init.dated_messages_b),
                                init.dated_messages_b);
-    external_source_alloc.reset(m_alloc.allocate_bytes(init.external_source_b),
-                                init.external_source_b);
 
     if (init.model_nb > 0) {
         models.reserve(init.model_nb);
@@ -5547,17 +5558,14 @@ inline void simulation::realloc(
     if (init.hsm_nb > 0)
         hsms.reserve(init.hsm_nb);
 
-    if (init.srcs.constant_nb > 0)
-        srcs.constant_sources.reserve(init.srcs.constant_nb);
+    srcs.realloc(init.srcs);
+}
 
-    if (init.srcs.binary_file_nb > 0)
-        srcs.binary_file_sources.reserve(init.srcs.binary_file_nb);
-
-    if (init.srcs.text_file_nb > 0)
-        srcs.text_file_sources.reserve(init.srcs.text_file_nb);
-
-    if (init.srcs.random_nb > 0)
-        srcs.random_sources.reserve(init.srcs.random_nb);
+inline void simulation::realloc(
+  const simulation_memory_requirement& init) noexcept
+{
+    destroy();
+    do_realloc(init);
 }
 
 inline void simulation::destroy() noexcept
@@ -5581,17 +5589,13 @@ inline void simulation::destroy() noexcept
         m_alloc.deallocate_bytes(dated_messages_alloc.head(),
                                  dated_messages_alloc.capacity());
 
-    if (external_source_alloc.head())
-        m_alloc.deallocate_bytes(external_source_alloc.head(),
-                                 external_source_alloc.capacity());
-
     if (shared.head())
         m_alloc.deallocate_bytes(shared.head(), shared.capacity());
 
     nodes_alloc.destroy();
     dated_messages_alloc.destroy();
-    external_source_alloc.destroy();
     shared.destroy();
+    srcs.destroy();
 }
 
 inline simulation::~simulation() noexcept { destroy(); }
@@ -6467,6 +6471,7 @@ inline constexpr simulation_memory_requirement::simulation_memory_requirement(
     size += (*hsms_model * base_size) / 100;
     size += (*external_source * base_size) / 100;
     size += (*source_client * base_size) / 100;
+    size = make_divisible_to(size * 2, alignof(std::max_align_t));
 
     compute_buffer_size(size,
                         connections,
@@ -6503,14 +6508,13 @@ inline constexpr void simulation_memory_requirement::compute_buffer_size(
     constexpr size_t alg = alignof(std::max_align_t);
 
     global_b          = bytes;
-    connections_b     = make_divisible_to(bytes * *connections / 100, alg);
-    dated_messages_b  = make_divisible_to(bytes * *dated_messages / 100, alg);
-    external_source_b = make_divisible_to(bytes * *external_source / 100, alg);
+    const auto margin = bytes - ((bytes * 10) / 100);
+    connections_b     = make_divisible_to(margin * *connections / 100, alg);
+    dated_messages_b  = make_divisible_to(margin * *dated_messages / 100, alg);
+    external_source_b = make_divisible_to(margin * *external_source / 100, alg);
     simulation_b      = make_divisible_to(
-      bytes - (connections_b + dated_messages_b + external_source_b), alg);
+      margin - (connections_b + dated_messages_b + external_source_b), alg);
 
-    debug::ensure(connections_b + dated_messages_b + external_source_b < bytes);
-    debug::ensure(simulation_b > 0);
     debug::ensure(connections_b + dated_messages_b + external_source_b +
                     simulation_b <=
                   bytes);
@@ -6552,12 +6556,13 @@ inline constexpr size_t simulation_memory_requirement::estimate_model() noexcept
 
 inline constexpr external_source_memory_requirement::
   external_source_memory_requirement(
-    const std::size_t                   bytes,
+    const std::size_t                   bytes_,
     const constrained_value<int, 5, 95> source_client_ratio) noexcept
+  : bytes{ bytes_ }
 {
     const auto srcs = make_divisible_to(bytes * *source_client_ratio / 100);
     const auto max_client = make_divisible_to(bytes - srcs);
-    const auto block_size = sizeof(chunk_type);
+    const auto block_size = sizeof(chunk_type) + sizeof(u64);
     const auto client     = static_cast<int>((max_client / 2) / block_size);
 
     const auto sources = static_cast<int>(srcs / block_size);
@@ -6572,34 +6577,40 @@ inline constexpr external_source_memory_requirement::
 }
 
 inline constexpr external_source_memory_requirement::
-  external_source_memory_requirement(
-    const std::size_t constant,
-    const std::size_t text_f,
-    const std::size_t bin_f,
-    const std::size_t random,
-    const std::size_t bin_f_max_client,
-    const std::size_t random_max_client) noexcept
-  : external_source_memory_requirement(
+  external_source_memory_requirement(const unsigned constant,
+                                     const unsigned text_f,
+                                     const unsigned bin_f,
+                                     const unsigned random,
+                                     const unsigned bin_f_max_client,
+                                     const unsigned random_max_client) noexcept
+  : constant_nb{ constant }
+  , text_file_nb{ text_f }
+  , binary_file_nb{ bin_f }
+  , random_nb{ random }
+  , binary_file_max_client{ bin_f_max_client }
+  , random_max_client{ random_max_client }
+{
+    const auto estimation =
       sizeof(data_array<constant_source,
                         constant_source_id,
                         freelist_allocator>::internal_value_type) *
-          constant +
-        sizeof(data_array<binary_file_source,
-                          binary_file_source_id,
-                          freelist_allocator>::internal_value_type) *
-          text_f +
-        (sizeof(data_array<text_file_source,
-                           text_file_source_id,
-                           freelist_allocator>::internal_value_type) +
-         (sizeof(chunk_type) + sizeof(u64)) * bin_f_max_client) *
-          bin_f +
-        (sizeof(data_array<random_source,
-                           random_source_id,
-                           freelist_allocator>::internal_value_type) +
-         (sizeof(chunk_type) + sizeof(u64) * 4) * random_max_client) *
-          random,
-      10)
-{}
+        constant +
+      sizeof(data_array<binary_file_source,
+                        binary_file_source_id,
+                        freelist_allocator>::internal_value_type) *
+        text_f +
+      (sizeof(data_array<text_file_source,
+                         text_file_source_id,
+                         freelist_allocator>::internal_value_type) +
+       (sizeof(chunk_type) + sizeof(u64)) * bin_f_max_client) *
+        bin_f +
+      (sizeof(data_array<random_source, random_source_id, freelist_allocator>::
+                internal_value_type) +
+       (sizeof(chunk_type) + sizeof(u64) * 4) * random_max_client) *
+        random;
+
+    bytes = make_divisible_to(estimation << 2);
+}
 
 inline constexpr bool external_source_memory_requirement::valid() const
 {

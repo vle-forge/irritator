@@ -809,6 +809,9 @@ void external_source::destroy() noexcept
     text_file_sources.destroy();
     random_sources.destroy();
 
+    if (shared.head())
+        alloc.deallocate_bytes(shared.head(), shared.capacity());
+
     shared.destroy();
 }
 
@@ -833,5 +836,36 @@ void external_source::realloc(
     if (init.random_nb > 0)
         random_sources.reserve(init.random_nb);
 }
+
+external_source::external_source() noexcept
+  : external_source(get_malloc_memory_resource())
+{}
+
+external_source::external_source(memory_resource* mem) noexcept
+  : alloc(mem)
+  , constant_sources(&shared)
+  , binary_file_sources(&shared)
+  , text_file_sources(&shared)
+  , random_sources(&shared)
+{}
+
+external_source::external_source(
+  const external_source_memory_requirement& init) noexcept
+  : external_source(get_malloc_memory_resource(), init)
+{}
+
+external_source::external_source(
+  memory_resource*                          mem,
+  const external_source_memory_requirement& init) noexcept
+  : alloc(mem)
+  , constant_sources(&shared)
+  , binary_file_sources(&shared)
+  , text_file_sources(&shared)
+  , random_sources(&shared)
+{
+    realloc(init);
+}
+
+external_source::~external_source() noexcept { destroy(); }
 
 } // namespace irt
