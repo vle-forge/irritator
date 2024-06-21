@@ -387,25 +387,19 @@ static void show_dynamics_values(simulation& /*sim*/, const generator& dyn)
     ImGui::TextFormat("next {}", dyn.sigma);
 }
 
-static void show_dynamics_values(simulation& /*sim*/, const constant& dyn)
+static void show_dynamics_values(simulation& sim, constant& dyn)
 {
-    ImGui::TextFormat("next {}", dyn.sigma);
-    ImGui::TextFormat("value {}", dyn.value);
+    ImGui::TextFormat("next ta {}", dyn.sigma);
+    ImGui::InputDouble("value", &dyn.value);
 
-    // @todo reenable
-    // if (ImGui::Button("Send now")) {
-    //     dyn.value = dyn.default_value;
-    //     dyn.sigma = dyn.default_offset;
-
-    //     auto& mdl = get_model(dyn);
-    //     mdl.tl    = ed.simulation_current;
-    //     mdl.tn    = ed.simulation_current + dyn.sigma;
-    //     if (dyn.sigma && mdl.tn == ed.simulation_current)
-    //         mdl.tn = std::nextafter(ed.simulation_current,
-    //                                 ed.simulation_current + to_real(1.));
-
-    //     ed.sim.sched.update(mdl, mdl.tn);
-    // }
+    if (ImGui::Button("Send value now")) {
+        auto& mdl = get_model(dyn);
+        sim.sched.remove(mdl);
+        mdl.tl    = sim.t;
+        mdl.tn    = std::nextafter(mdl.tl, mdl.tl + to_real(1.));
+        dyn.sigma = mdl.tn - mdl.tl;
+        sim.sched.reintegrate(mdl, mdl.tn);
+    }
 }
 
 template<int QssLevel>
@@ -509,8 +503,7 @@ static void show_dynamics_values(simulation& /*sim*/, const logical_invert& dyn)
     ImGui::TextFormat("value {}", dyn.value);
 }
 
-static void show_dynamics_values(simulation& /*sim*/,
-                                 const hsm_wrapper& /*dyn*/)
+static void show_dynamics_values(simulation& /*sim*/, const hsm_wrapper& dyn)
 {
     ImGui::TextFormat("no data");
 }
@@ -522,16 +515,20 @@ static void show_model_dynamics(simulation_editor& ed, model& mdl) noexcept
     dispatch(mdl, [&]<typename Dynamics>(Dynamics& dyn) {
         add_input_attribute(ed, dyn);
         if (ed.show_internal_values) {
+            ImGui::PushID(0);
             ImGui::PushItemWidth(120.0f);
             show_dynamics_values(app.sim, dyn);
             ImGui::PopItemWidth();
+            ImGui::PopID();
         }
 
         if (ed.allow_user_changes) {
             auto& app = container_of(&ed, &application::simulation_ed);
+            ImGui::PushID(1);
             ImGui::PushItemWidth(120.0f);
-            show_dynamics_inputs(app.mod.srcs, dyn);
+            show_dynamics_inputs(app.sim, dyn);
             ImGui::PopItemWidth();
+            ImGui::PopID();
         }
 
         add_output_attribute(ed, dyn);

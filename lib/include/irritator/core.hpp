@@ -1147,6 +1147,7 @@ public:
 
     void reintegrate(model& mdl, time tn) noexcept;
 
+    void remove(model& mdl) noexcept;
     void erase(model& mdl) noexcept;
 
     void update(model& mdl, time tn) noexcept;
@@ -1209,6 +1210,8 @@ public:
     scheduller<freelist_allocator> sched;
 
     external_source srcs;
+
+    time t = time_domain<time>::infinity;
 
     model_id get_id(const model& mdl) const;
 
@@ -5437,6 +5440,13 @@ inline void scheduller<A>::reintegrate(model& mdl, time tn) noexcept
 }
 
 template<typename A>
+inline void scheduller<A>::remove(model& mdl) noexcept
+{
+    if (mdl.handle)
+        m_heap.remove(mdl.handle);
+}
+
+template<typename A>
 inline void scheduller<A>::erase(model& mdl) noexcept
 {
     if (mdl.handle) {
@@ -5757,6 +5767,7 @@ inline status simulation::disconnect(model& src,
 inline status simulation::initialize(time t) noexcept
 {
     clean();
+    this->t = t;
 
     irt::model* mdl = nullptr;
     while (models.next(mdl))
@@ -5896,6 +5907,7 @@ inline status simulation::finalize(time t) noexcept
 
 inline status simulation::run(time& t) noexcept
 {
+    this->t = t;
     immediate_models.clear();
     immediate_observers.clear();
 

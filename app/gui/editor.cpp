@@ -10,41 +10,40 @@
 
 namespace irt {
 
-void show_dynamics_inputs(external_source& /*srcs*/, qss1_integrator& dyn)
+void show_dynamics_inputs(simulation& /*sim*/, qss1_integrator& dyn)
 {
     ImGui::InputReal("value", &dyn.default_X);
     ImGui::InputReal("dQ", &dyn.default_dQ);
 }
 
-void show_dynamics_inputs(external_source& /*srcs*/, qss2_integrator& dyn)
+void show_dynamics_inputs(simulation& /*sim*/, qss2_integrator& dyn)
 {
     ImGui::InputReal("value", &dyn.default_X);
     ImGui::InputReal("dQ", &dyn.default_dQ);
 }
 
-void show_dynamics_inputs(external_source& /*srcs*/, qss3_integrator& dyn)
+void show_dynamics_inputs(simulation& /*sim*/, qss3_integrator& dyn)
 {
     ImGui::InputReal("value", &dyn.default_X);
     ImGui::InputReal("dQ", &dyn.default_dQ);
 }
 
-void show_dynamics_inputs(external_source& /*srcs*/, qss1_multiplier& /*dyn*/)
-{}
+void show_dynamics_inputs(simulation& /*sim*/, qss1_multiplier& /*dyn*/) {}
 
-void show_dynamics_inputs(external_source& /*srcs*/, qss1_sum_2& dyn)
+void show_dynamics_inputs(simulation& /*sim*/, qss1_sum_2& dyn)
 {
     ImGui::InputReal("value-0", &dyn.default_values[0]);
     ImGui::InputReal("value-1", &dyn.default_values[1]);
 }
 
-void show_dynamics_inputs(external_source& /*srcs*/, qss1_sum_3& dyn)
+void show_dynamics_inputs(simulation& /*sim*/, qss1_sum_3& dyn)
 {
     ImGui::InputReal("value-0", &dyn.default_values[0]);
     ImGui::InputReal("value-1", &dyn.default_values[1]);
     ImGui::InputReal("value-2", &dyn.default_values[2]);
 }
 
-void show_dynamics_inputs(external_source& /*srcs*/, qss1_sum_4& dyn)
+void show_dynamics_inputs(simulation& /*sim*/, qss1_sum_4& dyn)
 {
     ImGui::InputReal("value-0", &dyn.default_values[0]);
     ImGui::InputReal("value-1", &dyn.default_values[1]);
@@ -52,7 +51,7 @@ void show_dynamics_inputs(external_source& /*srcs*/, qss1_sum_4& dyn)
     ImGui::InputReal("value-3", &dyn.default_values[3]);
 }
 
-void show_dynamics_inputs(external_source& /*srcs*/, qss1_wsum_2& dyn)
+void show_dynamics_inputs(simulation& /*sim*/, qss1_wsum_2& dyn)
 {
     ImGui::InputReal("value-0", &dyn.default_values[0]);
     ImGui::InputReal("value-1", &dyn.default_values[1]);
@@ -61,7 +60,7 @@ void show_dynamics_inputs(external_source& /*srcs*/, qss1_wsum_2& dyn)
     ImGui::InputReal("coeff-1", &dyn.default_input_coeffs[1]);
 }
 
-void show_dynamics_inputs(external_source& /*srcs*/, qss1_wsum_3& dyn)
+void show_dynamics_inputs(simulation& /*sim*/, qss1_wsum_3& dyn)
 {
     ImGui::InputReal("value-0", &dyn.default_values[0]);
     ImGui::InputReal("value-1", &dyn.default_values[1]);
@@ -72,7 +71,7 @@ void show_dynamics_inputs(external_source& /*srcs*/, qss1_wsum_3& dyn)
     ImGui::InputReal("coeff-2", &dyn.default_input_coeffs[2]);
 }
 
-void show_dynamics_inputs(external_source& /*srcs*/, qss1_wsum_4& dyn)
+void show_dynamics_inputs(simulation& /*sim*/, qss1_wsum_4& dyn)
 {
     ImGui::InputReal("value-0", &dyn.default_values[0]);
     ImGui::InputReal("value-1", &dyn.default_values[1]);
@@ -85,23 +84,22 @@ void show_dynamics_inputs(external_source& /*srcs*/, qss1_wsum_4& dyn)
     ImGui::InputReal("coeff-3", &dyn.default_input_coeffs[3]);
 }
 
-void show_dynamics_inputs(external_source& /*srcs*/, qss2_multiplier& /*dyn*/)
-{}
+void show_dynamics_inputs(simulation& /*sim*/, qss2_multiplier& /*dyn*/) {}
 
-void show_dynamics_inputs(external_source& /*srcs*/, qss2_sum_2& dyn)
+void show_dynamics_inputs(simulation& /*sim*/, qss2_sum_2& dyn)
 {
     ImGui::InputReal("value-0", &dyn.default_values[0]);
     ImGui::InputReal("value-1", &dyn.default_values[1]);
 }
 
-void show_dynamics_inputs(external_source& /*srcs*/, qss2_sum_3& dyn)
+void show_dynamics_inputs(simulation& /*sim*/, qss2_sum_3& dyn)
 {
     ImGui::InputReal("value-0", &dyn.default_values[0]);
     ImGui::InputReal("value-1", &dyn.default_values[1]);
     ImGui::InputReal("value-2", &dyn.default_values[2]);
 }
 
-void show_dynamics_inputs(external_source& /*srcs*/, qss2_sum_4& dyn)
+void show_dynamics_inputs(simulation& /*sim*/, qss2_sum_4& dyn)
 {
     ImGui::InputReal("value-0", &dyn.default_values[0]);
     ImGui::InputReal("value-1", &dyn.default_values[1]);
@@ -109,7 +107,7 @@ void show_dynamics_inputs(external_source& /*srcs*/, qss2_sum_4& dyn)
     ImGui::InputReal("value-3", &dyn.default_values[3]);
 }
 
-void show_dynamics_inputs(external_source& /*srcs*/, qss2_wsum_2& dyn)
+void show_dynamics_inputs(simulation& /*sim*/, qss2_wsum_2& dyn)
 {
     ImGui::InputReal("value-0", &dyn.default_values[0]);
     ImGui::InputReal("value-1", &dyn.default_values[1]);
@@ -118,7 +116,7 @@ void show_dynamics_inputs(external_source& /*srcs*/, qss2_wsum_2& dyn)
     ImGui::InputReal("coeff-1", &dyn.default_input_coeffs[1]);
 }
 
-void show_dynamics_inputs(external_source& /*srcs*/, qss2_wsum_3& dyn)
+void show_dynamics_inputs(simulation& /*sim*/, qss2_wsum_3& dyn)
 {
     ImGui::InputReal("value-0", &dyn.default_values[0]);
     ImGui::InputReal("value-1", &dyn.default_values[1]);
@@ -129,64 +127,7 @@ void show_dynamics_inputs(external_source& /*srcs*/, qss2_wsum_3& dyn)
     ImGui::InputReal("coeff-2", &dyn.default_input_coeffs[2]);
 }
 
-void show_dynamics_inputs(external_source& /*srcs*/, qss2_wsum_4& dyn)
-{
-    ImGui::InputReal("value-0", &dyn.default_values[0]);
-    ImGui::InputReal("value-1", &dyn.default_values[1]);
-    ImGui::InputReal("value-2", &dyn.default_values[2]);
-    ImGui::InputReal("value-3", &dyn.default_values[3]);
-
-    ImGui::InputReal("coeff-0", &dyn.default_input_coeffs[0]);
-    ImGui::InputReal("coeff-1", &dyn.default_input_coeffs[1]);
-    ImGui::InputReal("coeff-2", &dyn.default_input_coeffs[2]);
-    ImGui::InputReal("coeff-3", &dyn.default_input_coeffs[3]);
-}
-
-void show_dynamics_inputs(external_source& /*srcs*/, qss3_multiplier& /*dyn*/)
-{}
-
-void show_dynamics_inputs(external_source& /*srcs*/, qss3_sum_2& dyn)
-{
-    ImGui::InputReal("value-0", &dyn.default_values[0]);
-    ImGui::InputReal("value-1", &dyn.default_values[1]);
-}
-
-void show_dynamics_inputs(external_source& /*srcs*/, qss3_sum_3& dyn)
-{
-    ImGui::InputReal("value-0", &dyn.default_values[0]);
-    ImGui::InputReal("value-1", &dyn.default_values[1]);
-    ImGui::InputReal("value-2", &dyn.default_values[2]);
-}
-
-void show_dynamics_inputs(external_source& /*srcs*/, qss3_sum_4& dyn)
-{
-    ImGui::InputReal("value-0", &dyn.default_values[0]);
-    ImGui::InputReal("value-1", &dyn.default_values[1]);
-    ImGui::InputReal("value-2", &dyn.default_values[2]);
-    ImGui::InputReal("value-3", &dyn.default_values[3]);
-}
-
-void show_dynamics_inputs(external_source& /*srcs*/, qss3_wsum_2& dyn)
-{
-    ImGui::InputReal("value-0", &dyn.default_values[0]);
-    ImGui::InputReal("value-1", &dyn.default_values[1]);
-
-    ImGui::InputReal("coeff-0", &dyn.default_input_coeffs[0]);
-    ImGui::InputReal("coeff-1", &dyn.default_input_coeffs[1]);
-}
-
-void show_dynamics_inputs(external_source& /*srcs*/, qss3_wsum_3& dyn)
-{
-    ImGui::InputReal("value-0", &dyn.default_values[0]);
-    ImGui::InputReal("value-1", &dyn.default_values[1]);
-    ImGui::InputReal("value-2", &dyn.default_values[2]);
-
-    ImGui::InputReal("coeff-0", &dyn.default_input_coeffs[0]);
-    ImGui::InputReal("coeff-1", &dyn.default_input_coeffs[1]);
-    ImGui::InputReal("coeff-2", &dyn.default_input_coeffs[2]);
-}
-
-void show_dynamics_inputs(external_source& /*srcs*/, qss3_wsum_4& dyn)
+void show_dynamics_inputs(simulation& /*sim*/, qss2_wsum_4& dyn)
 {
     ImGui::InputReal("value-0", &dyn.default_values[0]);
     ImGui::InputReal("value-1", &dyn.default_values[1]);
@@ -199,9 +140,65 @@ void show_dynamics_inputs(external_source& /*srcs*/, qss3_wsum_4& dyn)
     ImGui::InputReal("coeff-3", &dyn.default_input_coeffs[3]);
 }
 
-void show_dynamics_inputs(external_source& /*srcs*/, counter& /*dyn*/) {}
+void show_dynamics_inputs(simulation& /*sim*/, qss3_multiplier& /*dyn*/) {}
 
-void show_dynamics_inputs(external_source& /*srcs*/, queue& dyn)
+void show_dynamics_inputs(simulation& /*sim*/, qss3_sum_2& dyn)
+{
+    ImGui::InputReal("value-0", &dyn.default_values[0]);
+    ImGui::InputReal("value-1", &dyn.default_values[1]);
+}
+
+void show_dynamics_inputs(simulation& /*sim*/, qss3_sum_3& dyn)
+{
+    ImGui::InputReal("value-0", &dyn.default_values[0]);
+    ImGui::InputReal("value-1", &dyn.default_values[1]);
+    ImGui::InputReal("value-2", &dyn.default_values[2]);
+}
+
+void show_dynamics_inputs(simulation& /*sim*/, qss3_sum_4& dyn)
+{
+    ImGui::InputReal("value-0", &dyn.default_values[0]);
+    ImGui::InputReal("value-1", &dyn.default_values[1]);
+    ImGui::InputReal("value-2", &dyn.default_values[2]);
+    ImGui::InputReal("value-3", &dyn.default_values[3]);
+}
+
+void show_dynamics_inputs(simulation& /*sim*/, qss3_wsum_2& dyn)
+{
+    ImGui::InputReal("value-0", &dyn.default_values[0]);
+    ImGui::InputReal("value-1", &dyn.default_values[1]);
+
+    ImGui::InputReal("coeff-0", &dyn.default_input_coeffs[0]);
+    ImGui::InputReal("coeff-1", &dyn.default_input_coeffs[1]);
+}
+
+void show_dynamics_inputs(simulation& /*sim*/, qss3_wsum_3& dyn)
+{
+    ImGui::InputReal("value-0", &dyn.default_values[0]);
+    ImGui::InputReal("value-1", &dyn.default_values[1]);
+    ImGui::InputReal("value-2", &dyn.default_values[2]);
+
+    ImGui::InputReal("coeff-0", &dyn.default_input_coeffs[0]);
+    ImGui::InputReal("coeff-1", &dyn.default_input_coeffs[1]);
+    ImGui::InputReal("coeff-2", &dyn.default_input_coeffs[2]);
+}
+
+void show_dynamics_inputs(simulation& /*sim*/, qss3_wsum_4& dyn)
+{
+    ImGui::InputReal("value-0", &dyn.default_values[0]);
+    ImGui::InputReal("value-1", &dyn.default_values[1]);
+    ImGui::InputReal("value-2", &dyn.default_values[2]);
+    ImGui::InputReal("value-3", &dyn.default_values[3]);
+
+    ImGui::InputReal("coeff-0", &dyn.default_input_coeffs[0]);
+    ImGui::InputReal("coeff-1", &dyn.default_input_coeffs[1]);
+    ImGui::InputReal("coeff-2", &dyn.default_input_coeffs[2]);
+    ImGui::InputReal("coeff-3", &dyn.default_input_coeffs[3]);
+}
+
+void show_dynamics_inputs(simulation& /*sim*/, counter& /*dyn*/) {}
+
+void show_dynamics_inputs(simulation& /*sim*/, queue& dyn)
 {
     ImGui::InputReal("delay", &dyn.default_ta);
     ImGui::SameLine();
@@ -420,7 +417,7 @@ bool show_external_sources_combo(external_source&     srcs,
     return is_changed;
 }
 
-void show_dynamics_inputs(external_source& srcs, dynamic_queue& dyn)
+void show_dynamics_inputs(simulation& sim, dynamic_queue& dyn)
 {
     ImGui::Checkbox("Stop on error", &dyn.stop_on_error);
     ImGui::SameLine();
@@ -428,10 +425,10 @@ void show_dynamics_inputs(external_source& srcs, dynamic_queue& dyn)
       "Unchecked, the dynamic queue stops to send data if the source are "
       "empty or undefined. Checked, the simulation will stop.");
 
-    show_external_sources_combo(srcs, "time", dyn.default_source_ta);
+    show_external_sources_combo(sim.srcs, "time", dyn.default_source_ta);
 }
 
-void show_dynamics_inputs(external_source& srcs, priority_queue& dyn)
+void show_dynamics_inputs(simulation& sim, priority_queue& dyn)
 {
     ImGui::Checkbox("Stop on error", &dyn.stop_on_error);
     ImGui::SameLine();
@@ -439,10 +436,10 @@ void show_dynamics_inputs(external_source& srcs, priority_queue& dyn)
       "Unchecked, the priority queue stops to send data if the source are "
       "empty or undefined. Checked, the simulation will stop.");
 
-    show_external_sources_combo(srcs, "time", dyn.default_source_ta);
+    show_external_sources_combo(sim.srcs, "time", dyn.default_source_ta);
 }
 
-void show_dynamics_inputs(external_source& srcs, generator& dyn)
+void show_dynamics_inputs(simulation& sim, generator& dyn)
 {
     const char* menu[] = { "source", "external events" };
 
@@ -477,7 +474,7 @@ void show_dynamics_inputs(external_source& srcs, generator& dyn)
     if (dyn.flags[generator::option::ta_use_source]) {
         auto stop_on_error = dyn.flags[generator::option::stop_on_error];
 
-        show_external_sources_combo(srcs, "time", dyn.default_source_ta);
+        show_external_sources_combo(sim.srcs, "time", dyn.default_source_ta);
         ImGui::InputReal("offset", &dyn.default_offset);
         if (ImGui::Checkbox("Stop on error", &stop_on_error))
             dyn.flags.set(generator::option::stop_on_error);
@@ -488,10 +485,11 @@ void show_dynamics_inputs(external_source& srcs, generator& dyn)
     }
 
     if (dyn.flags[generator::option::value_use_source])
-        show_external_sources_combo(srcs, "source", dyn.default_source_value);
+        show_external_sources_combo(
+          sim.srcs, "source", dyn.default_source_value);
 }
 
-void show_dynamics_inputs(external_source& /*srcs*/, constant& dyn)
+void show_dynamics_inputs(simulation& /*sim*/, constant& dyn)
 {
     static const char* type_names[] = { "constant",
                                         "incoming_component_all",
@@ -513,100 +511,100 @@ void show_dynamics_inputs(external_source& /*srcs*/, constant& dyn)
     }
 }
 
-void show_dynamics_inputs(external_source& /*srcs*/, qss1_cross& dyn)
+void show_dynamics_inputs(simulation& /*sim*/, qss1_cross& dyn)
 {
     ImGui::InputReal("threshold", &dyn.default_threshold);
     ImGui::Checkbox("up detection", &dyn.default_detect_up);
 }
 
-void show_dynamics_inputs(external_source& /*srcs*/, qss2_cross& dyn)
+void show_dynamics_inputs(simulation& /*sim*/, qss2_cross& dyn)
 {
     ImGui::InputReal("threshold", &dyn.default_threshold);
     ImGui::Checkbox("up detection", &dyn.default_detect_up);
 }
 
-void show_dynamics_inputs(external_source& /*srcs*/, qss3_cross& dyn)
+void show_dynamics_inputs(simulation& /*sim*/, qss3_cross& dyn)
 {
     ImGui::InputReal("threshold", &dyn.default_threshold);
     ImGui::Checkbox("up detection", &dyn.default_detect_up);
 }
 
-void show_dynamics_inputs(external_source& /*srcs*/, qss1_filter& dyn)
+void show_dynamics_inputs(simulation& /*sim*/, qss1_filter& dyn)
 {
     ImGui::InputReal("lowe threshold", &dyn.default_lower_threshold);
     ImGui::InputReal("upper threshold", &dyn.default_upper_threshold);
 }
 
-void show_dynamics_inputs(external_source& /*srcs*/, qss2_filter& dyn)
+void show_dynamics_inputs(simulation& /*sim*/, qss2_filter& dyn)
 {
     ImGui::InputReal("lower threshold", &dyn.default_lower_threshold);
     ImGui::InputReal("upper threshold", &dyn.default_upper_threshold);
 }
 
-void show_dynamics_inputs(external_source& /*srcs*/, qss3_filter& dyn)
+void show_dynamics_inputs(simulation& /*sim*/, qss3_filter& dyn)
 {
     ImGui::InputReal("lower threshold", &dyn.default_lower_threshold);
     ImGui::InputReal("upper threshold", &dyn.default_upper_threshold);
 }
 
-void show_dynamics_inputs(external_source& /*srcs*/, qss1_power& dyn)
+void show_dynamics_inputs(simulation& /*sim*/, qss1_power& dyn)
 {
     ImGui::InputReal("n", &dyn.default_n);
 }
 
-void show_dynamics_inputs(external_source& /*srcs*/, qss2_power& dyn)
+void show_dynamics_inputs(simulation& /*sim*/, qss2_power& dyn)
 {
     ImGui::InputReal("n", &dyn.default_n);
 }
 
-void show_dynamics_inputs(external_source& /*srcs*/, qss3_power& dyn)
+void show_dynamics_inputs(simulation& /*sim*/, qss3_power& dyn)
 {
     ImGui::InputReal("n", &dyn.default_n);
 }
 
-void show_dynamics_inputs(external_source& /*srcs*/, qss1_square& /*dyn*/) {}
+void show_dynamics_inputs(simulation& /*sim*/, qss1_square& /*dyn*/) {}
 
-void show_dynamics_inputs(external_source& /*srcs*/, qss2_square& /*dyn*/) {}
+void show_dynamics_inputs(simulation& /*sim*/, qss2_square& /*dyn*/) {}
 
-void show_dynamics_inputs(external_source& /*srcs*/, qss3_square& /*dyn*/) {}
+void show_dynamics_inputs(simulation& /*sim*/, qss3_square& /*dyn*/) {}
 
-void show_dynamics_inputs(external_source& /*srcs*/, accumulator_2& /*dyn*/) {}
+void show_dynamics_inputs(simulation& /*sim*/, accumulator_2& /*dyn*/) {}
 
-void show_dynamics_inputs(external_source& /*srcs*/, logical_and_2& dyn)
+void show_dynamics_inputs(simulation& /*sim*/, logical_and_2& dyn)
 {
     ImGui::Checkbox("value 1", &dyn.default_values[0]);
     ImGui::Checkbox("value 2", &dyn.default_values[1]);
 }
 
-void show_dynamics_inputs(external_source& /*srcs*/, logical_or_2& dyn)
+void show_dynamics_inputs(simulation& /*sim*/, logical_or_2& dyn)
 {
     ImGui::Checkbox("value 1", &dyn.default_values[0]);
     ImGui::Checkbox("value 2", &dyn.default_values[1]);
 }
 
-void show_dynamics_inputs(external_source& /*srcs*/, logical_and_3& dyn)
+void show_dynamics_inputs(simulation& /*sim*/, logical_and_3& dyn)
 {
     ImGui::Checkbox("value 1", &dyn.default_values[0]);
     ImGui::Checkbox("value 2", &dyn.default_values[1]);
     ImGui::Checkbox("value 3", &dyn.default_values[2]);
 }
 
-void show_dynamics_inputs(external_source& /*srcs*/, logical_or_3& dyn)
+void show_dynamics_inputs(simulation& /*sim*/, logical_or_3& dyn)
 {
     ImGui::Checkbox("value 1", &dyn.default_values[0]);
     ImGui::Checkbox("value 2", &dyn.default_values[1]);
     ImGui::Checkbox("value 3", &dyn.default_values[2]);
 }
 
-void show_dynamics_inputs(external_source& /*srcs*/, logical_invert& /*dyn*/) {}
+void show_dynamics_inputs(simulation& /*sim*/, logical_invert& /*dyn*/) {}
 
-void show_dynamics_inputs(external_source& /*srcs*/, hsm_wrapper& dyn)
+void show_dynamics_inputs(simulation& /*sim*/, hsm_wrapper& dyn)
 {
     ImGui::InputInt("a", &dyn.exec.a);
     ImGui::InputInt("b", &dyn.exec.b);
 }
 
-void show_dynamics_inputs(external_source& /*srcs*/, time_func& dyn)
+void show_dynamics_inputs(simulation& /*sim*/, time_func& dyn)
 {
     static const char* items[] = { "time", "square", "sin" };
 
