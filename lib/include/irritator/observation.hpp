@@ -154,7 +154,8 @@ inline auto write_raw_data(observer& obs) noexcept -> void
     auto tail = obs.buffer.tail();
 
     while (head != tail) {
-        obs.linearized_buffer.emplace_tail(head->data()[0], head->data()[1]);
+        obs.linearized_buffer.force_emplace_tail(head->data()[0],
+                                                 head->data()[1]);
         obs.buffer.pop_head();
         head = obs.buffer.head();
     }
@@ -167,7 +168,8 @@ inline auto flush_raw_data(observer& obs) noexcept -> void
 
     if (!obs.buffer.empty()) {
         auto head = obs.buffer.head();
-        obs.linearized_buffer.emplace_tail(head->data()[0], head->data()[1]);
+        obs.linearized_buffer.force_emplace_tail(head->data()[0],
+                                                 head->data()[1]);
     }
 }
 
@@ -179,21 +181,21 @@ auto compute_interpolate(const observation_message& msg,
 {
     static_assert(1 <= QssLevel && QssLevel <= 3);
 
-    out.emplace_tail(msg[0], compute_value<QssLevel>(msg, 0));
+    out.force_emplace_tail(msg[0], compute_value<QssLevel>(msg, 0));
 
     const auto duration = until - msg[0] - time_step;
     if (duration > 0) {
         time elapsed = time_step;
         while (elapsed < duration) {
-            out.emplace_tail(msg[0] + elapsed,
-                             compute_value<QssLevel>(msg, elapsed));
+            out.force_emplace_tail(msg[0] + elapsed,
+                                   compute_value<QssLevel>(msg, elapsed));
             elapsed += time_step;
         }
 
         if (duration < elapsed) {
             const auto limit = duration - std::numeric_limits<real>::epsilon();
-            out.emplace_tail(msg[0] + limit,
-                             compute_value<QssLevel>(msg, limit));
+            out.force_emplace_tail(msg[0] + limit,
+                                   compute_value<QssLevel>(msg, limit));
         }
     }
 }
@@ -257,7 +259,7 @@ inline auto write_interpolate_data(observer& obs,
     switch (get_interpolate_type(obs.type)) {
     case interpolate_type::none:
         while (head != tail) {
-            obs.linearized_buffer.emplace_tail(
+            obs.linearized_buffer.force_emplace_tail(
               observation(head->data()[0], head->data()[1]));
             obs.buffer.pop_head();
             head = obs.buffer.head();
