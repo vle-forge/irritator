@@ -1585,8 +1585,8 @@ public:
     using memory_resource_t = typename A::memory_resource_t;
 
     static_assert((std::is_nothrow_constructible_v<T> ||
-                   std::is_nothrow_move_constructible_v<
-                     T>)&&std::is_nothrow_destructible_v<T>);
+                   std::is_nothrow_move_constructible_v<T>) &&
+                  std::is_nothrow_destructible_v<T>);
 
 private:
     T*                                   buffer = nullptr;
@@ -1675,6 +1675,8 @@ public:
     constexpr bool emplace_head(Args&&... args) noexcept;
     template<typename... Args>
     constexpr bool emplace_tail(Args&&... args) noexcept;
+    template<typename... Args>
+    constexpr void force_emplace_tail(Args&&... args) noexcept;
 
     constexpr bool push_head(const T& item) noexcept;
     constexpr void pop_head() noexcept;
@@ -1891,8 +1893,8 @@ class small_ring_buffer
 public:
     static_assert(length >= 1);
     static_assert((std::is_nothrow_constructible_v<T> ||
-                   std::is_nothrow_move_constructible_v<
-                     T>)&&std::is_nothrow_destructible_v<T>);
+                   std::is_nothrow_move_constructible_v<T>) &&
+                  std::is_nothrow_destructible_v<T>);
 
     using value_type      = T;
     using size_type       = small_storage_size_t<length>;
@@ -4663,6 +4665,17 @@ constexpr bool ring_buffer<T, A>::emplace_tail(Args&&... args) noexcept
     m_tail = advance(m_tail);
 
     return true;
+}
+
+template<class T, typename A>
+template<typename... Args>
+constexpr void ring_buffer<T, A>::force_emplace_tail(Args&&... args) noexcept
+{
+    if (full())
+        pop_head();
+
+    std::construct_at(&buffer[m_tail], std::forward<Args>(args)...);
+    m_tail = advance(m_tail);
 }
 
 template<class T, typename A>
