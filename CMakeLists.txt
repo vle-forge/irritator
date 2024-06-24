@@ -20,6 +20,14 @@ include_directories(${CMAKE_SOURCE_DIR}/external/ut/include)
 include_directories(${CMAKE_SOURCE_DIR}/external/rapidjson/include)
 include_directories(${CMAKE_SOURCE_DIR}/external/random123/include)
 
+file(COPY examples/
+  DESTINATION
+  ${CMAKE_BINARY_DIR}/app/gui/share/irritator-${PROJECT_VERSION_MAJOR}.${PROJECT_VERSION_MINOR}/components)
+
+install(DIRECTORY examples/
+  DESTINATION
+  ${CMAKE_INSTALL_FULL_DATAROOTDIR}/irritator-${PROJECT_VERSION_MAJOR}.${PROJECT_VERSION_MINOR}/components)
+
 enable_testing()
 add_subdirectory(lib)
 add_subdirectory(app)

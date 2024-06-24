@@ -26,9 +26,22 @@ enum class fs_error {
 ///   directory otherwise use the current directory.
 result<std::filesystem::path> get_home_directory() noexcept;
 
+/** Retrieves the path of the application binary (the gui, the CLI or unit test)
+ * running this code if it exists. */
 result<std::filesystem::path> get_executable_directory() noexcept;
+
+/** Retrieves the path `get_executable_directory/irritator-0.1/components` if it
+ * exists. */
 result<std::filesystem::path> get_system_component_dir() noexcept;
+
+/** Retrieves the path `CMAKE_INSTALL_FULL_DATAROOTDIR/irritator-0.1/components`
+ * if it exists. */
+result<std::filesystem::path> get_system_prefix_component_dir() noexcept;
+
+/** Retrieves the path `$HOME/irritator-0.1/components` if it exists. */
 result<std::filesystem::path> get_default_user_component_dir() noexcept;
+
+/** Retrieves the path `$HOME/irritator-0.1/settings.ini` if it exists. */
 result<std::filesystem::path> get_settings_filename() noexcept;
 
 struct file_dialog {

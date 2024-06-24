@@ -185,9 +185,6 @@ result<std::filesystem::path> get_system_component_dir() noexcept
     if (std::filesystem::exists(install_path, ec))
         return install_path;
 
-    if (std::filesystem::create_directories(install_path, ec))
-        return install_path;
-
     return new_error(fs_error::executable_access_fail);
 }
 #elif defined(_WIN32)
@@ -198,15 +195,31 @@ result<std::filesystem::path> get_system_component_dir() noexcept
         return exe.error();
 
     auto install_path = exe.value().parent_path();
+    install_path /= "share";
+    install_path /= "irritator-" irritator_to_string(
+      VERSION_MAJOR) "." irritator_to_string(VERSION_MINOR);
     install_path /= "components";
 
     std::error_code ec;
     if (auto exists = std::filesystem::exists(install_path, ec); !ec && exists)
         return install_path;
 
-    if (auto success = std::filesystem::create_directories(install_path, ec);
-        !ec && success)
-        return install_path;
+    return new_error(fs_error::executable_access_fail);
+}
+#endif
+
+#if defined(IRT_DATAROOTDIR)
+result<std::filesystem::path> get_system_prefix_component_dir() noexcept
+{
+    std::filesystem::path path(IRT_DATAROOTDIR);
+
+    path /= "irritator-" irritator_to_string(
+      VERSION_MAJOR) "." irritator_to_string(VERSION_MINOR);
+    path /= "components";
+
+    std::error_code ec;
+    if (std::filesystem::exists(path, ec))
+        return path;
 
     return new_error(fs_error::executable_access_fail);
 }
@@ -431,11 +444,11 @@ void show_drives(const std::filesystem::path& current,
     ImGui::SameLine();
 }
 #else
-void     show_drives(const std::filesystem::path& /*current*/,
-                     std::filesystem::path& /*selected*/,
-                     const uint32_t /*drives*/,
-                     bool* /*path_click*/,
-                     std::filesystem::path* /*next*/) noexcept
+void show_drives(const std::filesystem::path& /*current*/,
+                 std::filesystem::path& /*selected*/,
+                 const uint32_t /*drives*/,
+                 bool* /*path_click*/,
+                 std::filesystem::path* /*next*/) noexcept
 {}
 #endif
 
