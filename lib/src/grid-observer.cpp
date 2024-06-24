@@ -111,26 +111,23 @@ void grid_observer::update(const simulation& sim) noexcept
     if (rows * cols != observers.ssize() or values.ssize() != observers.ssize())
         return;
 
-    // debug::ensure(rows * cols == observers.ssize());
-    // debug::ensure(values.ssize() == observers.ssize());
-
     for (int row = 0; row < rows; ++row) {
         for (int col = 0; col < cols; ++col) {
             const auto pos = row * cols + col;
             const auto id  = observers[pos];
 
-            if (is_defined(id)) {
-                const auto* obs = sim.observers.try_to_get(observers[pos]);
+            if (is_undefined(id))
+                continue;
 
-                if (not obs) {
-                    observers[pos] = undefined<observer_id>();
-                    values[pos]    = zero;
-                } else {
-                    values[pos] = !obs->linearized_buffer.empty()
-                                    ? obs->linearized_buffer.back().y
-                                    : zero;
-                }
+            const auto* obs = sim.observers.try_to_get(observers[pos]);
+            if (not obs) {
+                observers[pos] = undefined<observer_id>();
+                continue;
             }
+
+            values[pos] = not obs->linearized_buffer.empty()
+                            ? obs->linearized_buffer.back().y
+                            : zero;
         }
     }
 }
