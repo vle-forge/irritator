@@ -1151,10 +1151,10 @@ status project::set(modeling& mod, simulation& sim, component& compo) noexcept
     auto numbers = compute_memory_required(mod, compo);
     numbers.fix();
 
-    if (std::cmp_greater_equal(numbers.tree_node_nb, tree_nodes.capacity())) {
+    if (std::cmp_greater(numbers.tree_node_nb, tree_nodes.capacity())) {
         tree_nodes.reserve(numbers.tree_node_nb);
 
-        if (std::cmp_greater_equal(numbers.tree_node_nb, tree_nodes.capacity()))
+        if (std::cmp_greater(numbers.tree_node_nb, tree_nodes.capacity()))
             return new_error(
               tree_node_error{},
               e_memory{ numbers.model_nb, tree_nodes.capacity() });
