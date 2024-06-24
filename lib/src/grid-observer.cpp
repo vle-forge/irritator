@@ -40,10 +40,7 @@ static void build_grid_observer(grid_observer&  grid_obs,
                                 grid_component& grid_compo) noexcept
 {
     const auto* to = pj.tree_nodes.try_to_get(grid_obs.tn_id);
-
-    debug::ensure(pj.tree_nodes.try_to_get(grid_obs.tn_id) != nullptr);
-
-    if (!to)
+    if (not to)
         return;
 
     const auto relative_path =
