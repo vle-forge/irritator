@@ -12,6 +12,42 @@
 
 namespace irt {
 
+struct human_readable_length_t {
+    human_readable_length_t(double size_, std::string_view type_) noexcept
+      : size(size_)
+      , type(type_)
+    {}
+
+    friend std::ostream& operator<<(std::ostream&                  os,
+                                    const human_readable_length_t& hr) noexcept
+    {
+        return os << hr.size << ' ' << hr.type;
+    }
+
+    double           size;
+    std::string_view type;
+};
+
+/** Print a human readable version of number of bytes. It shows xxx bytes, xxx
+ * mb, xxx gb etc. using the std::fprintf stream. */
+static auto make_human_readable_bytes(const std::size_t bytes) noexcept
+  -> human_readable_length_t
+{
+    const auto b  = static_cast<double>(bytes);
+    const auto kb = b / 1024.0;
+    const auto mb = b / (1024.0 * 1024.0);
+    const auto gb = b / (1024.0 * 1024.0 * 1024.0);
+
+    if (gb > 1)
+        return human_readable_length_t(gb, "GB");
+    else if (mb > 1.0)
+        return human_readable_length_t(mb, "MB");
+    else if (kb > 1.0)
+        return human_readable_length_t(kb, "KB");
+    else
+        return human_readable_length_t(b, "B");
+}
+
 constexpr inline bool is_alignment(std::size_t value) noexcept
 {
     return (value > 0) && ((value & (value - 1)) == 0);
@@ -70,8 +106,11 @@ void* malloc_memory_resource_allocate_posix(std::size_t bytes,
 void* malloc_memory_resource::do_allocate(std::size_t bytes,
                                           std::size_t alignment) noexcept
 {
-    debug::mem_log(
-      "malloc_memory_resource::need-allocate [", bytes, " ", alignment, "]\n");
+    debug::mem_log("malloc_memory_resource::need-allocate [",
+                   make_human_readable_bytes(bytes),
+                   " ",
+                   alignment,
+                   "]\n");
 
 #if defined(_MSC_VER)
     auto* p = malloc_memory_resource_allocate_win32(bytes, alignment);
@@ -83,7 +122,7 @@ void* malloc_memory_resource::do_allocate(std::size_t bytes,
 
     if (not p) {
         debug::log("Irritator shutdown: Unable to allocate memory ",
-                   bytes,
+                   make_human_readable_bytes(bytes),
                    " alignment ",
                    alignment,
                    "\n");
@@ -93,7 +132,7 @@ void* malloc_memory_resource::do_allocate(std::size_t bytes,
     debug::log("malloc_memory_resource::allocate [",
                p,
                " ",
-               bytes,
+               make_human_readable_bytes(bytes),
                " ",
                alignment,
                "]\n");
@@ -108,7 +147,7 @@ void malloc_memory_resource::do_deallocate(
     debug::mem_log("malloc_memory_resource::do_deallocate [",
                    pointer,
                    " ",
-                   bytes,
+                   make_human_readable_bytes(bytes),
                    " ",
                    alignment,
                    "]\n");
