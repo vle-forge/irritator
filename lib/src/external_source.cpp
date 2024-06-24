@@ -818,7 +818,6 @@ void external_source::destroy() noexcept
 void external_source::realloc(
   const external_source_memory_requirement& init) noexcept
 {
-    debug::ensure(init.valid());
     destroy();
 
     const auto size = init.in_bytes();

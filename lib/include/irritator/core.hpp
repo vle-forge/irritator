@@ -470,8 +470,6 @@ struct external_source_memory_requirement {
       const unsigned bin_f_max_client,
       const unsigned random_max_client) noexcept;
 
-    constexpr bool valid() const;
-
     constexpr size_t in_bytes() const noexcept;
 };
 
@@ -1340,52 +1338,38 @@ public:
 
 template<typename T>
 concept has_lambda_function = requires(T t, simulation& sim) {
-    {
-        t.lambda(sim)
-    } -> std::same_as<status>;
+    { t.lambda(sim) } -> std::same_as<status>;
 };
 
 template<typename T>
 concept has_transition_function =
   requires(T t, simulation& sim, time s, time e, time r) {
-      {
-          t.transition(sim, s, e, r)
-      } -> std::same_as<status>;
+      { t.transition(sim, s, e, r) } -> std::same_as<status>;
   };
 
 template<typename T>
 concept has_observation_function = requires(T t, time s, time e) {
-    {
-        t.observation(s, e)
-    } -> std::same_as<observation_message>;
+    { t.observation(s, e) } -> std::same_as<observation_message>;
 };
 
 template<typename T>
 concept has_initialize_function = requires(T t, simulation& sim) {
-    {
-        t.initialize(sim)
-    } -> std::same_as<status>;
+    { t.initialize(sim) } -> std::same_as<status>;
 };
 
 template<typename T>
 concept has_finalize_function = requires(T t, simulation& sim) {
-    {
-        t.finalize(sim)
-    } -> std::same_as<status>;
+    { t.finalize(sim) } -> std::same_as<status>;
 };
 
 template<typename T>
 concept has_input_port = requires(T t) {
-    {
-        t.x
-    };
+    { t.x };
 };
 
 template<typename T>
 concept has_output_port = requires(T t) {
-    {
-        t.y
-    };
+    { t.y };
 };
 
 constexpr observation_message qss_observation(real X,
@@ -6542,7 +6526,7 @@ inline constexpr void simulation_memory_requirement::compute_buffer_size(
 
 inline constexpr bool simulation_memory_requirement::valid() const noexcept
 {
-    return model_nb > 0 and hsm_nb >= 0 and srcs.valid();
+    return model_nb > 0 and hsm_nb >= 0;
 }
 
 inline constexpr size_t simulation_memory_requirement::estimate_model() noexcept
@@ -6622,13 +6606,6 @@ inline constexpr external_source_memory_requirement::
         random;
 
     bytes = make_divisible_to(estimation << 2);
-}
-
-inline constexpr bool external_source_memory_requirement::valid() const
-{
-    return constant_nb >= 0 and text_file_nb >= 0 and binary_file_nb >= 0 and
-           random_nb >= 0 and binary_file_max_client >= 0 and
-           random_max_client >= 0;
 }
 
 inline constexpr size_t external_source_memory_requirement::in_bytes()
