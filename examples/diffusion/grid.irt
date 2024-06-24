@@ -1,0 +1,622 @@
+{
+    "name": "cell-grid-10x10",
+    "constant-sources": [],
+    "binary-file-sources": [],
+    "text-file-sources": [],
+    "random-sources": [],
+    "colors": [
+        0.3014116585254669,
+        0.8938053250312805,
+        0.1581956446170807,
+        1.0
+    ],
+    "x": [],
+    "y": [],
+    "type": "grid",
+    "rows": 10,
+    "columns": 10,
+    "in-connection-type": 1,
+    "out-connection-type": 1,
+    "children": [
+        {
+            "component-type": "simple",
+            "name": "User directory",
+            "directory": "diffusion",
+            "file": "cell.irt"
+        },
+        {
+            "component-type": "simple",
+            "name": "User directory",
+            "directory": "diffusion",
+            "file": "cell.irt"
+        },
+        {
+            "component-type": "simple",
+            "name": "User directory",
+            "directory": "diffusion",
+            "file": "cell.irt"
+        },
+        {
+            "component-type": "simple",
+            "name": "User directory",
+            "directory": "diffusion",
+            "file": "cell.irt"
+        },
+        {
+            "component-type": "simple",
+            "name": "User directory",
+            "directory": "diffusion",
+            "file": "cell.irt"
+        },
+        {
+            "component-type": "simple",
+            "name": "User directory",
+            "directory": "diffusion",
+            "file": "cell.irt"
+        },
+        {
+            "component-type": "simple",
+            "name": "User directory",
+            "directory": "diffusion",
+            "file": "cell.irt"
+        },
+        {
+            "component-type": "simple",
+            "name": "User directory",
+            "directory": "diffusion",
+            "file": "cell.irt"
+        },
+        {
+            "component-type": "simple",
+            "name": "User directory",
+            "directory": "diffusion",
+            "file": "cell.irt"
+        },
+        {
+            "component-type": "simple",
+            "name": "User directory",
+            "directory": "diffusion",
+            "file": "cell.irt"
+        },
+        {
+            "component-type": "simple",
+            "name": "User directory",
+            "directory": "diffusion",
+            "file": "cell.irt"
+        },
+        {
+            "component-type": "simple",
+            "name": "User directory",
+            "directory": "diffusion",
+            "file": "cell.irt"
+        },
+        {
+            "component-type": "simple",
+            "name": "User directory",
+            "directory": "diffusion",
+            "file": "cell.irt"
+        },
+        {
+            "component-type": "simple",
+            "name": "User directory",
+            "directory": "diffusion",
+            "file": "cell.irt"
+        },
+        {
+            "component-type": "simple",
+            "name": "User directory",
+            "directory": "diffusion",
+            "file": "cell.irt"
+        },
+        {
+            "component-type": "simple",
+            "name": "User directory",
+            "directory": "diffusion",
+            "file": "cell.irt"
+        },
+        {
+            "component-type": "simple",
+            "name": "User directory",
+            "directory": "diffusion",
+            "file": "cell.irt"
+        },
+        {
+            "component-type": "simple",
+            "name": "User directory",
+            "directory": "diffusion",
+            "file": "cell.irt"
+        },
+        {
+            "component-type": "simple",
+            "name": "User directory",
+            "directory": "diffusion",
+            "file": "cell.irt"
+        },
+        {
+            "component-type": "simple",
+            "name": "User directory",
+            "directory": "diffusion",
+            "file": "cell.irt"
+        },
+        {
+            "component-type": "simple",
+            "name": "User directory",
+            "directory": "diffusion",
+            "file": "cell.irt"
+        },
+        {
+            "component-type": "simple",
+            "name": "User directory",
+            "directory": "diffusion",
+            "file": "cell.irt"
+        },
+        {
+            "component-type": "simple",
+            "name": "User directory",
+            "directory": "diffusion",
+            "file": "cell.irt"
+        },
+        {
+            "component-type": "simple",
+            "name": "User directory",
+            "directory": "diffusion",
+            "file": "cell.irt"
+        },
+        {
+            "component-type": "simple",
+            "name": "User directory",
+            "directory": "diffusion",
+            "file": "cell.irt"
+        },
+        {
+            "component-type": "simple",
+            "name": "User directory",
+            "directory": "diffusion",
+            "file": "cell.irt"
+        },
+        {
+            "component-type": "simple",
+            "name": "User directory",
+            "directory": "diffusion",
+            "file": "cell.irt"
+        },
+        {
+            "component-type": "simple",
+            "name": "User directory",
+            "directory": "diffusion",
+            "file": "cell.irt"
+        },
+        {
+            "component-type": "simple",
+            "name": "User directory",
+            "directory": "diffusion",
+            "file": "cell.irt"
+        },
+        {
+            "component-type": "simple",
+            "name": "User directory",
+            "directory": "diffusion",
+            "file": "cell.irt"
+        },
+        {
+            "component-type": "simple",
+            "name": "User directory",
+            "directory": "diffusion",
+            "file": "cell.irt"
+        },
+        {
+            "component-type": "simple",
+            "name": "User directory",
+            "directory": "diffusion",
+            "file": "cell.irt"
+        },
+        {
+            "component-type": "simple",
+            "name": "User directory",
+            "directory": "diffusion",
+            "file": "cell.irt"
+        },
+        {
+            "component-type": "simple",
+            "name": "User directory",
+            "directory": "diffusion",
+            "file": "cell.irt"
+        },
+        {
+            "component-type": "simple",
+            "name": "User directory",
+            "directory": "diffusion",
+            "file": "cell.irt"
+        },
+        {
+            "component-type": "simple",
+            "name": "User directory",
+            "directory": "diffusion",
+            "file": "cell.irt"
+        },
+        {
+            "component-type": "simple",
+            "name": "User directory",
+            "directory": "diffusion",
+            "file": "cell.irt"
+        },
+        {
+            "component-type": "simple",
+            "name": "User directory",
+            "directory": "diffusion",
+            "file": "cell.irt"
+        },
+        {
+            "component-type": "simple",
+            "name": "User directory",
+            "directory": "diffusion",
+            "file": "cell.irt"
+        },
+        {
+            "component-type": "simple",
+            "name": "User directory",
+            "directory": "diffusion",
+            "file": "cell.irt"
+        },
+        {
+            "component-type": "simple",
+            "name": "User directory",
+            "directory": "diffusion",
+            "file": "cell.irt"
+        },
+        {
+            "component-type": "simple",
+            "name": "User directory",
+            "directory": "diffusion",
+            "file": "cell.irt"
+        },
+        {
+            "component-type": "simple",
+            "name": "User directory",
+            "directory": "diffusion",
+            "file": "cell.irt"
+        },
+        {
+            "component-type": "simple",
+            "name": "User directory",
+            "directory": "diffusion",
+            "file": "cell.irt"
+        },
+        {
+            "component-type": "simple",
+            "name": "User directory",
+            "directory": "diffusion",
+            "file": "cell.irt"
+        },
+        {
+            "component-type": "simple",
+            "name": "User directory",
+            "directory": "diffusion",
+            "file": "cell.irt"
+        },
+        {
+            "component-type": "simple",
+            "name": "User directory",
+            "directory": "diffusion",
+            "file": "cell.irt"
+        },
+        {
+            "component-type": "simple",
+            "name": "User directory",
+            "directory": "diffusion",
+            "file": "cell.irt"
+        },
+        {
+            "component-type": "simple",
+            "name": "User directory",
+            "directory": "diffusion",
+            "file": "cell.irt"
+        },
+        {
+            "component-type": "simple",
+            "name": "User directory",
+            "directory": "diffusion",
+            "file": "cell.irt"
+        },
+        {
+            "component-type": "simple",
+            "name": "User directory",
+            "directory": "diffusion",
+            "file": "cell.irt"
+        },
+        {
+            "component-type": "simple",
+            "name": "User directory",
+            "directory": "diffusion",
+            "file": "cell.irt"
+        },
+        {
+            "component-type": "simple",
+            "name": "User directory",
+            "directory": "diffusion",
+            "file": "cell.irt"
+        },
+        {
+            "component-type": "simple",
+            "name": "User directory",
+            "directory": "diffusion",
+            "file": "cell.irt"
+        },
+        {
+            "component-type": "simple",
+            "name": "User directory",
+            "directory": "diffusion",
+            "file": "cell.irt"
+        },
+        {
+            "component-type": "simple",
+            "name": "User directory",
+            "directory": "diffusion",
+            "file": "cell.irt"
+        },
+        {
+            "component-type": "simple",
+            "name": "User directory",
+            "directory": "diffusion",
+            "file": "cell.irt"
+        },
+        {
+            "component-type": "simple",
+            "name": "User directory",
+            "directory": "diffusion",
+            "file": "cell.irt"
+        },
+        {
+            "component-type": "simple",
+            "name": "User directory",
+            "directory": "diffusion",
+            "file": "cell.irt"
+        },
+        {
+            "component-type": "simple",
+            "name": "User directory",
+            "directory": "diffusion",
+            "file": "cell.irt"
+        },
+        {
+            "component-type": "simple",
+            "name": "User directory",
+            "directory": "diffusion",
+            "file": "cell.irt"
+        },
+        {
+            "component-type": "simple",
+            "name": "User directory",
+            "directory": "diffusion",
+            "file": "cell.irt"
+        },
+        {
+            "component-type": "simple",
+            "name": "User directory",
+            "directory": "diffusion",
+            "file": "cell.irt"
+        },
+        {
+            "component-type": "simple",
+            "name": "User directory",
+            "directory": "diffusion",
+            "file": "cell.irt"
+        },
+        {
+            "component-type": "simple",
+            "name": "User directory",
+            "directory": "diffusion",
+            "file": "cell.irt"
+        },
+        {
+            "component-type": "simple",
+            "name": "User directory",
+            "directory": "diffusion",
+            "file": "cell.irt"
+        },
+        {
+            "component-type": "simple",
+            "name": "User directory",
+            "directory": "diffusion",
+            "file": "cell.irt"
+        },
+        {
+            "component-type": "simple",
+            "name": "User directory",
+            "directory": "diffusion",
+            "file": "cell.irt"
+        },
+        {
+            "component-type": "simple",
+            "name": "User directory",
+            "directory": "diffusion",
+            "file": "cell.irt"
+        },
+        {
+            "component-type": "simple",
+            "name": "User directory",
+            "directory": "diffusion",
+            "file": "cell.irt"
+        },
+        {
+            "component-type": "simple",
+            "name": "User directory",
+            "directory": "diffusion",
+            "file": "cell.irt"
+        },
+        {
+            "component-type": "simple",
+            "name": "User directory",
+            "directory": "diffusion",
+            "file": "cell.irt"
+        },
+        {
+            "component-type": "simple",
+            "name": "User directory",
+            "directory": "diffusion",
+            "file": "cell.irt"
+        },
+        {
+            "component-type": "simple",
+            "name": "User directory",
+            "directory": "diffusion",
+            "file": "cell.irt"
+        },
+        {
+            "component-type": "simple",
+            "name": "User directory",
+            "directory": "diffusion",
+            "file": "cell.irt"
+        },
+        {
+            "component-type": "simple",
+            "name": "User directory",
+            "directory": "diffusion",
+            "file": "cell.irt"
+        },
+        {
+            "component-type": "simple",
+            "name": "User directory",
+            "directory": "diffusion",
+            "file": "cell.irt"
+        },
+        {
+            "component-type": "simple",
+            "name": "User directory",
+            "directory": "diffusion",
+            "file": "cell.irt"
+        },
+        {
+            "component-type": "simple",
+            "name": "User directory",
+            "directory": "diffusion",
+            "file": "cell.irt"
+        },
+        {
+            "component-type": "simple",
+            "name": "User directory",
+            "directory": "diffusion",
+            "file": "cell.irt"
+        },
+        {
+            "component-type": "simple",
+            "name": "User directory",
+            "directory": "diffusion",
+            "file": "cell.irt"
+        },
+        {
+            "component-type": "simple",
+            "name": "User directory",
+            "directory": "diffusion",
+            "file": "cell.irt"
+        },
+        {
+            "component-type": "simple",
+            "name": "User directory",
+            "directory": "diffusion",
+            "file": "cell.irt"
+        },
+        {
+            "component-type": "simple",
+            "name": "User directory",
+            "directory": "diffusion",
+            "file": "cell.irt"
+        },
+        {
+            "component-type": "simple",
+            "name": "User directory",
+            "directory": "diffusion",
+            "file": "cell.irt"
+        },
+        {
+            "component-type": "simple",
+            "name": "User directory",
+            "directory": "diffusion",
+            "file": "cell.irt"
+        },
+        {
+            "component-type": "simple",
+            "name": "User directory",
+            "directory": "diffusion",
+            "file": "cell.irt"
+        },
+        {
+            "component-type": "simple",
+            "name": "User directory",
+            "directory": "diffusion",
+            "file": "cell.irt"
+        },
+        {
+            "component-type": "simple",
+            "name": "User directory",
+            "directory": "diffusion",
+            "file": "cell.irt"
+        },
+        {
+            "component-type": "simple",
+            "name": "User directory",
+            "directory": "diffusion",
+            "file": "cell.irt"
+        },
+        {
+            "component-type": "simple",
+            "name": "User directory",
+            "directory": "diffusion",
+            "file": "cell.irt"
+        },
+        {
+            "component-type": "simple",
+            "name": "User directory",
+            "directory": "diffusion",
+            "file": "cell.irt"
+        },
+        {
+            "component-type": "simple",
+            "name": "User directory",
+            "directory": "diffusion",
+            "file": "cell.irt"
+        },
+        {
+            "component-type": "simple",
+            "name": "User directory",
+            "directory": "diffusion",
+            "file": "cell.irt"
+        },
+        {
+            "component-type": "simple",
+            "name": "User directory",
+            "directory": "diffusion",
+            "file": "cell.irt"
+        },
+        {
+            "component-type": "simple",
+            "name": "User directory",
+            "directory": "diffusion",
+            "file": "cell.irt"
+        },
+        {
+            "component-type": "simple",
+            "name": "User directory",
+            "directory": "diffusion",
+            "file": "cell.irt"
+        },
+        {
+            "component-type": "simple",
+            "name": "User directory",
+            "directory": "diffusion",
+            "file": "cell.irt"
+        },
+        {
+            "component-type": "simple",
+            "name": "User directory",
+            "directory": "diffusion",
+            "file": "cell.irt"
+        },
+        {
+            "component-type": "simple",
+            "name": "User directory",
+            "directory": "diffusion",
+            "file": "cell.irt"
+        }
+    ]
+}

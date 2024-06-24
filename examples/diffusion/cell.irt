@@ -1,0 +1,186 @@
+{
+    "name": "cell",
+    "constant-sources": [],
+    "binary-file-sources": [],
+    "text-file-sources": [],
+    "random-sources": [],
+    "colors": [
+        0.8584070801734924,
+        0.11394783854484558,
+        0.11394783854484558,
+        1.0
+    ],
+    "x": [
+        "N",
+        "S",
+        "E",
+        "W"
+    ],
+    "y": [
+        "N",
+        "S",
+        "E",
+        "W"
+    ],
+    "type": "simple",
+    "next-unique-id": 8,
+    "children": [
+        {
+            "id": 0,
+            "unique-id": 7,
+            "x": 392.0,
+            "y": 180.0,
+            "name": "",
+            "configurable": false,
+            "observable": false,
+            "type": "constant",
+            "dynamics": {
+                "value": 0.0,
+                "offset": 0.0,
+                "type": "incoming_component_all"
+            }
+        },
+        {
+            "id": 1,
+            "unique-id": 6,
+            "x": 764.0,
+            "y": 460.0,
+            "name": "X",
+            "configurable": true,
+            "observable": true,
+            "type": "qss3_integrator",
+            "dynamics": {
+                "X": 100.0,
+                "dQ": 0.01
+            }
+        },
+        {
+            "id": 2,
+            "unique-id": 8,
+            "x": 522.0,
+            "y": 445.0,
+            "name": "neighborhood",
+            "configurable": false,
+            "observable": false,
+            "type": "qss1_sum_4",
+            "dynamics": {
+                "value-0": 0.0,
+                "value-1": 0.0,
+                "value-2": 0.0,
+                "value-3": 0.0
+            }
+        },
+        {
+            "id": 3,
+            "unique-id": 9,
+            "x": 802.0,
+            "y": 516.0,
+            "name": "",
+            "configurable": false,
+            "observable": false,
+            "type": "qss3_wsum_2",
+            "dynamics": {
+                "value-0": 0.0,
+                "value-1": 0.0,
+                "coeff-0": -1.0,
+                "coeff-1": 1.0
+            }
+        },
+        {
+            "id": 4,
+            "unique-id": 10,
+            "x": 583.0,
+            "y": 609.0,
+            "name": "",
+            "configurable": false,
+            "observable": false,
+            "type": "qss3_multiplier",
+            "dynamics": {}
+        }
+    ],
+    "connections": [
+        {
+            "type": "internal",
+            "source": 2,
+            "port-source": 0,
+            "destination": 3,
+            "port-destination": 1
+        },
+        {
+            "type": "internal",
+            "source": 4,
+            "port-source": 0,
+            "destination": 3,
+            "port-destination": 0
+        },
+        {
+            "type": "internal",
+            "source": 0,
+            "port-source": 0,
+            "destination": 4,
+            "port-destination": 0
+        },
+        {
+            "type": "internal",
+            "source": 1,
+            "port-source": 0,
+            "destination": 4,
+            "port-destination": 1
+        },
+        {
+            "type": "internal",
+            "source": 3,
+            "port-source": 0,
+            "destination": 1,
+            "port-destination": 0
+        },
+        {
+            "type": "input",
+            "port": "N",
+            "destination": 2,
+            "port-destination": 0
+        },
+        {
+            "type": "input",
+            "port": "S",
+            "destination": 2,
+            "port-destination": 1
+        },
+        {
+            "type": "input",
+            "port": "E",
+            "destination": 2,
+            "port-destination": 2
+        },
+        {
+            "type": "input",
+            "port": "W",
+            "destination": 2,
+            "port-destination": 3
+        },
+        {
+            "type": "output",
+            "port": "N",
+            "source": 1,
+            "port-source": 0
+        },
+        {
+            "type": "output",
+            "port": "S",
+            "source": 1,
+            "port-source": 0
+        },
+        {
+            "type": "output",
+            "port": "W",
+            "source": 1,
+            "port-source": 0
+        },
+        {
+            "type": "output",
+            "port": "E",
+            "source": 1,
+            "port-source": 0
+        }
+    ]
+}
