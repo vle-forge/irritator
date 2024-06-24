@@ -448,7 +448,7 @@ struct grid_component {
 
     constexpr std::pair<int, int> pos(int pos_) const noexcept
     {
-        return std::make_pair(pos_ / row, pos_ % row);
+        return std::make_pair(pos_ % row, pos_ / row);
     }
 
     constexpr u64 unique_id(int pos_) const noexcept
@@ -469,15 +469,6 @@ struct grid_component {
 
     constexpr u64 unique_id(int row, int col) noexcept
     {
-        return make_doubleword(static_cast<u32>(row), static_cast<u32>(col));
-    }
-
-    constexpr u64 make_next_unique_id(std::integral auto row,
-                                      std::integral auto col) const noexcept
-    {
-        debug::ensure(is_numeric_castable<u32>(row));
-        debug::ensure(is_numeric_castable<u32>(col));
-
         return make_doubleword(static_cast<u32>(row), static_cast<u32>(col));
     }
 

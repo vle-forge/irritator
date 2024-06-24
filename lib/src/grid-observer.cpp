@@ -58,9 +58,8 @@ static void build_grid_observer(grid_observer&  grid_obs,
                 debug::ensure(std::cmp_less(w.first, grid_compo.row));
                 debug::ensure(std::cmp_less(w.second, grid_compo.column));
 
-                const auto index =
-                  static_cast<i32>(w.first) * grid_compo.column +
-                  static_cast<i32>(w.second);
+                const auto index = static_cast<i32>(w.second) * grid_compo.row +
+                                   static_cast<i32>(w.first);
 
                 debug::ensure(0 <= index);
                 debug::ensure(index < grid_obs.observers.ssize());
@@ -110,7 +109,7 @@ void grid_observer::update(const simulation& sim) noexcept
 
     for (int row = 0; row < rows; ++row) {
         for (int col = 0; col < cols; ++col) {
-            const auto pos = row * cols + col;
+            const auto pos = col * rows + row;
             const auto id  = observers[pos];
 
             if (is_undefined(id))
