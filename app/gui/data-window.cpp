@@ -464,6 +464,7 @@ void data_window::show() noexcept
         if (ImGui::Button("+text file", button_sz)) {
             if (app.mod.srcs.text_file_sources.can_alloc(1u)) {
                 auto& new_src = app.mod.srcs.text_file_sources.alloc();
+                (void)new_src;
                 // attempt_all(
                 //   [&]() noexcept -> status {
                 //       irt_check(new_src.init());
@@ -490,6 +491,7 @@ void data_window::show() noexcept
         if (ImGui::Button("+binary file", button_sz)) {
             if (app.mod.srcs.binary_file_sources.can_alloc(1u)) {
                 auto& new_src = app.mod.srcs.binary_file_sources.alloc();
+                (void)new_src;
                 // attempt_all(
                 //   [&]() noexcept -> status {
                 //       irt_check(new_src.init());
@@ -888,27 +890,29 @@ void data_window::selection::select(random_source_id id) noexcept
 
 bool data_window::selection::is(constant_source_id id) const noexcept
 {
-    return type_sel.has_value() and
-           *type_sel == source::source_type::constant and id_sel == ordinal(id);
+    return type_sel.has_value() and * type_sel ==
+             source::source_type::constant and
+           id_sel == ordinal(id);
 }
 
 bool data_window::selection::is(text_file_source_id id) const noexcept
 {
-    return type_sel.has_value() and
-           *type_sel == source::source_type::text_file and
+    return type_sel.has_value() and * type_sel ==
+             source::source_type::text_file and
            id_sel == ordinal(id);
 }
 
 bool data_window::selection::is(binary_file_source_id id) const noexcept
 {
-    return type_sel.has_value() and
-           *type_sel == source::source_type::binary_file and
+    return type_sel.has_value() and * type_sel ==
+             source::source_type::binary_file and
            id_sel == ordinal(id);
 }
 
 bool data_window::selection::is(random_source_id id) const noexcept
 {
-    return type_sel.has_value() and *type_sel == source::source_type::random and
+    return type_sel.has_value() and * type_sel ==
+             source::source_type::random and
            id_sel == ordinal(id);
 }
 
