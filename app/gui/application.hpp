@@ -24,7 +24,7 @@
 namespace irt {
 
 template<class T, class M>
-constexpr std::ptrdiff_t offset_of(const M T::*member)
+constexpr std::ptrdiff_t offset_of(const M T::* member)
 {
     return reinterpret_cast<std::ptrdiff_t>(
       &(reinterpret_cast<T*>(0)->*member));
@@ -44,7 +44,7 @@ constexpr std::ptrdiff_t offset_of(const M T::*member)
 //! }
 //! @endcode
 template<class T, class M>
-constexpr T& container_of(M* ptr, const M T::*member)
+constexpr T& container_of(M* ptr, const M T::* member)
 {
     return *reinterpret_cast<T*>(reinterpret_cast<intptr_t>(ptr) -
                                  offset_of(member));
@@ -210,7 +210,7 @@ public:
 /// this class is available in @c application::simulation_editor::grid_obs.
 struct grid_observation_widget {
     /// Display the @c grid_observation_system into ImPlot::PlotHeatmap plot.
-    void show(grid_observer& grid) noexcept;
+    void show(grid_observer& grid, const ImVec2& size) noexcept;
 };
 
 class graph_observation_widget
@@ -609,6 +609,10 @@ struct simulation_editor {
 
     ImVector<int> selected_links;
     ImVector<int> selected_nodes;
+
+    /** Number of column in the tree node observation. */
+    constrained_value<int, 1, 100> tree_node_observation        = 1;
+    float                          tree_node_observation_height = 200.f;
 
     //! Position of each node
     int              automatic_layout_iteration = 0;

@@ -9,7 +9,8 @@
 
 namespace irt {
 
-void grid_observation_widget::show(grid_observer& grid) noexcept
+void grid_observation_widget::show(grid_observer& grid,
+                                   const ImVec2&  size) noexcept
 {
     auto& sim_ed = container_of(this, &simulation_editor::grid_obs);
     auto& app    = container_of(&sim_ed, &application::simulation_ed);
@@ -21,7 +22,7 @@ void grid_observation_widget::show(grid_observer& grid) noexcept
     if (not grid.values.empty()) {
         ImPlot::PushColormap(grid.color_map);
         if (ImPlot::BeginPlot(grid.name.c_str(),
-                              ImVec2(-1, -1),
+                              size,
                               ImPlotFlags_NoLegend | ImPlotFlags_NoMouseText)) {
             ImPlot::PlotHeatmap(grid.name.c_str(),
                                 grid.values.data(),

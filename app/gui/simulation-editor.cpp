@@ -594,37 +594,6 @@ static void show_local_variables_plot(application&       app,
     });
 }
 
-static void show_local_variable_observers(application& app,
-                                          tree_node&   tn) noexcept
-{
-    for (auto& vobs : app.pj.variable_observers) {
-        const auto tn_id = app.pj.tree_nodes.get_id(tn);
-        if (vobs.exists(tn_id)) {
-            ImGui::PushID(&vobs);
-            if (ImPlot::BeginPlot(vobs.name.c_str(), ImVec2(-1, 200))) {
-                ImPlot::PushStyleVar(ImPlotStyleVar_LineWeight, 1.f);
-                ImPlot::PushStyleVar(ImPlotStyleVar_MarkerSize, 1.f);
-
-                show_local_variables_plot(app, vobs, tn_id);
-
-                ImPlot::PopStyleVar(2);
-                ImPlot::EndPlot();
-            }
-            ImGui::PopID();
-        }
-    }
-}
-
-static void show_local_grid_observers(application& app, tree_node& tn) noexcept
-{
-    for_specified_data(
-      app.pj.grid_observers, tn.grid_observer_ids, [&](auto& grid) noexcept {
-          ImGui::PushID(&grid);
-          app.simulation_ed.grid_obs.show(grid);
-          ImGui::PopID();
-      });
-}
-
 // @TODO merge the three next functions with a template on
 // template<typename DataArray>
 // static bool
@@ -922,6 +891,105 @@ static bool show_project_observations(application& app) noexcept
     return updated;
 }
 
+static void show_component_observations_actions(
+  simulation_editor& sim_ed) noexcept
+{
+    ImGui::TextUnformatted("Column: ");
+    ImGui::SameLine();
+    if (ImGui::Button("1"))
+        sim_ed.tree_node_observation = 1;
+    ImGui::SameLine();
+    if (ImGui::Button("2"))
+        sim_ed.tree_node_observation = 2;
+    ImGui::SameLine();
+    if (ImGui::Button("3"))
+        sim_ed.tree_node_observation = 3;
+    ImGui::SameLine();
+    if (ImGui::Button("4"))
+        sim_ed.tree_node_observation = 4;
+    ImGui::SameLine();
+
+    ImGui::TextUnformatted("Height in pixel: ");
+    ImGui::SameLine();
+    if (ImGui::Button("200"))
+        sim_ed.tree_node_observation_height = 200.f;
+    ImGui::SameLine();
+    if (ImGui::Button("+50"))
+        sim_ed.tree_node_observation_height += 50.f;
+    ImGui::SameLine();
+    if (ImGui::Button("-50")) {
+        sim_ed.tree_node_observation_height -= 50.f;
+        if (sim_ed.tree_node_observation_height <= 0.f)
+            sim_ed.tree_node_observation_height = 10.f;
+    }
+    ImGui::SameLine();
+    if (ImGui::Button("x2"))
+        sim_ed.tree_node_observation_height *= 2.f;
+    ImGui::SameLine();
+    if (ImGui::Button("x0.5")) {
+        sim_ed.tree_node_observation_height *= 0.5f;
+        if (sim_ed.tree_node_observation_height <= 0.f)
+            sim_ed.tree_node_observation_height = 10.f;
+    }
+}
+
+static void show_component_observations(application&       app,
+                                        simulation_editor& sim_ed,
+                                        tree_node&         selected)
+{
+    show_local_simulation_specific_observers(app, selected);
+    show_component_observations_actions(sim_ed);
+
+    const auto sub_obs_size =
+      ImVec2(ImGui::GetContentRegionAvail().x / *sim_ed.tree_node_observation,
+             sim_ed.tree_node_observation_height);
+
+    auto pos = 0;
+    if (ImGui::BeginTable("##obs-table", *sim_ed.tree_node_observation)) {
+        ImGui::TableHeadersRow();
+        ImGui::TableNextRow();
+        ImGui::TableNextColumn();
+
+        for_specified_data(app.pj.grid_observers,
+                           selected.grid_observer_ids,
+                           [&](auto& grid) noexcept {
+                               app.simulation_ed.grid_obs.show(grid,
+                                                               sub_obs_size);
+
+                               ++pos;
+
+                               if (pos >= *sim_ed.tree_node_observation) {
+                                   pos = 0;
+                                   ImGui::TableNextRow();
+                               }
+                               ImGui::TableNextColumn();
+                           });
+
+        for (auto& vobs : app.pj.variable_observers) {
+            const auto tn_id = app.pj.tree_nodes.get_id(selected);
+            if (vobs.exists(tn_id)) {
+                ImGui::PushID(&vobs);
+                if (ImPlot::BeginPlot(vobs.name.c_str(), ImVec2(-1, 200))) {
+                    ImPlot::PushStyleVar(ImPlotStyleVar_LineWeight, 1.f);
+                    ImPlot::PushStyleVar(ImPlotStyleVar_MarkerSize, 1.f);
+                    show_local_variables_plot(app, vobs, tn_id);
+                    ImPlot::PopStyleVar(2);
+                    ImPlot::EndPlot();
+                }
+                ImGui::PopID();
+            }
+
+            ++pos;
+            if (pos >= *sim_ed.tree_node_observation) {
+                pos = 0;
+                ImGui::TableNextRow();
+            }
+            ImGui::TableNextColumn();
+        }
+        ImGui::EndTable();
+    }
+}
+
 void simulation_editor::show() noexcept
 {
     auto& app = container_of(this, &application::simulation_ed);
@@ -983,6 +1051,7 @@ void simulation_editor::show() noexcept
                                            can_be_stopped);
 
             if (ImGui::BeginChild("##s-c", ImVec2(0, 0), false)) {
+                // {
                 const auto selected_tn = app.project_wnd.selected_tn();
                 auto*      selected    = app.pj.node(selected_tn);
 
@@ -1005,18 +1074,7 @@ void simulation_editor::show() noexcept
                         }
 
                         if (ImGui::BeginTabItem("Component observations")) {
-                            show_local_simulation_specific_observers(app,
-                                                                     *selected);
-
-                            if (!selected->variable_observer_ids.data.empty())
-                                show_local_variable_observers(app, *selected);
-
-                            if (!selected->grid_observer_ids.empty())
-                                show_local_grid_observers(app, *selected);
-
-                            // if (!selected->graph_observer_ids.empty())
-                            //     show_local_graph(app, *selected);
-
+                            show_component_observations(app, *this, *selected);
                             ImGui::EndTabItem();
                         }
                     }
