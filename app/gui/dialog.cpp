@@ -63,12 +63,12 @@ static result<std::filesystem::path> get_local_home_directory() noexcept
             if (auto exists = std::filesystem::exists(ret, ec); !ec && exists)
                 return ret;
 
-        return new_error(fs_error::user_directory_access_fail);
+        return boost::leaf::new_error(fs_error::user_directory_access_fail);
     } else {
         return std::filesystem::path{ std::string_view{ buf.data() } };
     }
 
-    return new_error(fs_error::user_directory_access_fail);
+    return boost::leaf::new_error(fs_error::user_directory_access_fail);
 }
 #elif defined(_WIN32)
 static result<std::filesystem::path> get_local_home_directory() noexcept
@@ -87,7 +87,7 @@ static result<std::filesystem::path> get_local_home_directory() noexcept
             if (auto exists = std::filesystem::exists(ret, ec); !ec && exists)
                 return ret;
 
-        return new_error(fs_error::user_directory_access_fail);
+        return boost::leaf::new_error(fs_error::user_directory_access_fail);
     }
 }
 #endif
@@ -116,7 +116,7 @@ result<std::filesystem::path> get_home_directory() noexcept
     } catch (...) {
     }
 
-    return new_error(fs_error::user_directory_access_fail);
+    return boost::leaf::new_error(fs_error::user_directory_access_fail);
 }
 
 #if defined(__linux__)
@@ -126,7 +126,7 @@ result<std::filesystem::path> get_executable_directory() noexcept
     const auto        ssize = readlink("/proc/self/exe", buf.data(), PATH_MAX);
 
     if (ssize <= 0)
-        return new_error(fs_error::executable_access_fail);
+        return boost::leaf::new_error(fs_error::executable_access_fail);
 
     const auto size = static_cast<size_t>(ssize);
 
@@ -139,7 +139,7 @@ result<std::filesystem::path> get_executable_directory() noexcept
     uint32_t          size{ 0 };
 
     if (_NSGetExecutablePath(buf.data(), &size))
-        return new_error(fs_error::executable_access_fail);
+        return boost::leaf::new_error(fs_error::executable_access_fail);
 
     return std::filesystem::path{ std::string_view{ buf.data(), size } };
 }
@@ -164,7 +164,7 @@ result<std::filesystem::path> get_executable_directory() noexcept
         }
     }
 
-    return new_error(fs_error::executable_access_fail, error);
+    return boost::leaf::new_error(fs_error::executable_access_fail, error);
 }
 #endif
 
@@ -185,7 +185,7 @@ result<std::filesystem::path> get_system_component_dir() noexcept
     if (std::filesystem::exists(install_path, ec))
         return install_path;
 
-    return new_error(fs_error::executable_access_fail);
+    return boost::leaf::new_error(fs_error::executable_access_fail);
 }
 #elif defined(_WIN32)
 result<std::filesystem::path> get_system_component_dir() noexcept
@@ -204,7 +204,7 @@ result<std::filesystem::path> get_system_component_dir() noexcept
     if (auto exists = std::filesystem::exists(install_path, ec); !ec && exists)
         return install_path;
 
-    return new_error(fs_error::executable_access_fail);
+    return boost::leaf::new_error(fs_error::executable_access_fail);
 }
 #endif
 
@@ -221,7 +221,7 @@ result<std::filesystem::path> get_system_prefix_component_dir() noexcept
     if (std::filesystem::exists(path, ec))
         return path;
 
-    return new_error(fs_error::executable_access_fail);
+    return boost::leaf::new_error(fs_error::executable_access_fail);
 }
 #endif
 
@@ -243,7 +243,8 @@ result<std::filesystem::path> get_default_user_component_dir() noexcept
     if (std::filesystem::create_directories(compo_path, ec))
         return compo_path;
 
-    return new_error(fs_error::user_component_directory_access_fail);
+    return boost::leaf::new_error(
+      fs_error::user_component_directory_access_fail);
 }
 #elif defined(_WIN32)
 result<std::filesystem::path> get_default_user_component_dir() noexcept
@@ -262,7 +263,8 @@ result<std::filesystem::path> get_default_user_component_dir() noexcept
     if (std::filesystem::create_directories(compo_path, ec))
         return compo_path;
 
-    return new_error(fs_error::user_component_directory_access_fail);
+    return boost::leaf::new_error(
+      fs_error::user_component_directory_access_fail);
 }
 #endif
 
@@ -280,7 +282,7 @@ static result<std::filesystem::path> get_home_filename(
     } catch (...) {
     }
 
-    return new_error(fs_error::user_directory_file_access_fail);
+    return boost::leaf::new_error(fs_error::user_directory_file_access_fail);
 }
 
 result<std::filesystem::path> get_settings_filename() noexcept
