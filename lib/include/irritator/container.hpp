@@ -921,7 +921,7 @@ public:
     //! @param index A integer.
     //! @return The `Identifier` found at index `index` or `std::nullopt`
     //! otherwise.
-    constexpr std::optional<Identifier> get_from_index(
+    constexpr identifier_type get_from_index(
       std::integral auto index) const noexcept;
 
     constexpr bool next(const Identifier*& idx) const noexcept;
@@ -1130,6 +1130,16 @@ private:
     }
 
     template<typename Function, std::size_t... Is>
+    void do_call_fn(Function&&            fn,
+                    const identifier_type id,
+                    std::index_sequence<Is...>) const noexcept
+    {
+        const auto idx = get_index(id);
+
+        fn(id, std::get<Is>(m_col).operator[](idx)...);
+    }
+
+    template<typename Function, std::size_t... Is>
     void do_call_alloc_fn(Function&&            fn,
                           const identifier_type id,
                           std::index_sequence<Is...>) noexcept
@@ -1151,6 +1161,11 @@ public:
 
     template<typename Function>
     identifier_type alloc(Function&& fn) noexcept;
+
+    /** Return the identifier type at index `idx` if and only if `idx` is in
+     * range `[0, size()[` and if the value `is_defined` otherwise return
+     * `undefined<identifier_type>()`. */
+    identifier_type get_id(std::integral auto idx) const noexcept;
 
     /** Release the @c identifier from the @c id_array. @attention To improve
      * memory access, the destructors of underlying objects in @c std::tuple of
@@ -1224,6 +1239,17 @@ public:
     void if_exists_do(const identifier_type id, Function&& fn) noexcept;
 
     //! Call the @c fn function for each valid identifier.
+    //! The function take one identifier_type.
+    template<typename Function>
+    void for_each_id(Function&& fn) noexcept;
+
+    //! Call the @c fn function for each valid identifier.
+    //!
+    //! The function take one identifier_type.
+    template<typename Function>
+    void for_each_id(Function&& fn) const noexcept;
+
+    //! Call the @c fn function for each valid identifier.
     template<typename Index, typename Function>
     void for_each(Function&& fn) noexcept;
 
@@ -1233,11 +1259,22 @@ public:
     template<typename Function>
     void for_each(Function&& fn) noexcept;
 
+    //! Call the @c fn function for each valid identifier.
+    template<typename Index, typename Function>
+    void for_each(Function&& fn) const noexcept;
+
+    //! Call the @c fn function for each valid identifier.
+    //
+    //! The function take one vector from Index (integer or type).
+    template<typename Function>
+    void for_each(Function&& fn) const noexcept;
+
     void clear() noexcept;
     void reserve(std::integral auto len) noexcept;
 
     bool     exists(const identifier_type id) const noexcept;
     bool     can_alloc(std::integral auto nb = 1) const noexcept;
+    bool     empty() const noexcept;
     unsigned size() const noexcept;
     int      ssize() const noexcept;
     unsigned capacity() const noexcept;
@@ -1585,8 +1622,8 @@ public:
     using memory_resource_t = typename A::memory_resource_t;
 
     static_assert((std::is_nothrow_constructible_v<T> ||
-                   std::is_nothrow_move_constructible_v<T>) &&
-                  std::is_nothrow_destructible_v<T>);
+                   std::is_nothrow_move_constructible_v<
+                     T>)&&std::is_nothrow_destructible_v<T>);
 
 private:
     T*                                   buffer = nullptr;
@@ -1893,8 +1930,8 @@ class small_ring_buffer
 public:
     static_assert(length >= 1);
     static_assert((std::is_nothrow_constructible_v<T> ||
-                   std::is_nothrow_move_constructible_v<T>) &&
-                  std::is_nothrow_destructible_v<T>);
+                   std::is_nothrow_move_constructible_v<
+                     T>)&&std::is_nothrow_destructible_v<T>);
 
     using value_type      = T;
     using size_type       = small_storage_size_t<length>;
@@ -2239,14 +2276,15 @@ constexpr bool id_array<Identifier, A>::exists(
 }
 
 template<typename Identifier, typename A>
-constexpr std::optional<Identifier> id_array<Identifier, A>::get_from_index(
-  std::integral auto index) const noexcept
+constexpr typename id_array<Identifier, A>::identifier_type
+id_array<Identifier, A>::get_from_index(std::integral auto index) const noexcept
 {
     if (std::cmp_greater_equal(index, 0u) and
-        std::cmp_less(index, m_items.size()) and is_defined(m_items[index]))
-        return std::make_optional(m_items[index]);
+        std::cmp_less(index, m_items.size()) and is_defined(m_items[index]) and
+        std::cmp_equal(get_index(m_items[index]), index))
+        return m_items[index];
 
-    return std::nullopt;
+    return undefined<identifier_type>();
 }
 
 template<typename Identifier, typename A>
@@ -2487,10 +2525,10 @@ void id_data_array<Identifier, A, Ts...>::for_each(Function&& fn) noexcept
 {
     if constexpr (std::is_integral_v<Index>) {
         for (const auto id : m_ids)
-            fn(id, std::get<Index>(m_col));
+            fn(id, std::get<Index>(m_col).operator[](get_index(id)));
     } else {
         for (const auto id : m_ids)
-            fn(id, std::get<vector<Index>>(m_col));
+            fn(id, std::get<vector<Index>>(m_col).operator[](get_index(id)));
     }
 }
 
@@ -2500,6 +2538,44 @@ void id_data_array<Identifier, A, Ts...>::for_each(Function&& fn) noexcept
 {
     for (const auto id : m_ids)
         do_call_fn(fn, id, std::index_sequence_for<Ts...>());
+}
+
+template<typename Identifier, typename A, class... Ts>
+template<typename Index, typename Function>
+void id_data_array<Identifier, A, Ts...>::for_each(Function&& fn) const noexcept
+{
+    if constexpr (std::is_integral_v<Index>) {
+        for (const auto id : m_ids)
+            fn(id, std::get<Index>(m_col).operator[](get_index(id)));
+    } else {
+        for (const auto id : m_ids)
+            fn(id, std::get<vector<Index>>(m_col).operator[](get_index(id)));
+    }
+}
+
+template<typename Identifier, typename A, class... Ts>
+template<typename Function>
+void id_data_array<Identifier, A, Ts...>::for_each(Function&& fn) const noexcept
+{
+    for (const auto id : m_ids)
+        do_call_fn(fn, id, std::index_sequence_for<Ts...>());
+}
+
+template<typename Identifier, typename A, class... Ts>
+template<typename Function>
+void id_data_array<Identifier, A, Ts...>::for_each_id(Function&& fn) noexcept
+{
+    for (const auto id : m_ids)
+        fn(id);
+}
+
+template<typename Identifier, typename A, class... Ts>
+template<typename Function>
+void id_data_array<Identifier, A, Ts...>::for_each_id(
+  Function&& fn) const noexcept
+{
+    for (const auto id : m_ids)
+        fn(id);
 }
 
 template<typename Identifier, typename A, class... Ts>
@@ -2526,10 +2602,24 @@ bool id_data_array<Identifier, A, Ts...>::exists(
 }
 
 template<typename Identifier, typename A, class... Ts>
+typename id_data_array<Identifier, A, Ts...>::identifier_type
+id_data_array<Identifier, A, Ts...>::get_id(
+  std::integral auto idx) const noexcept
+{
+    return m_ids.get_from_index(idx);
+}
+
+template<typename Identifier, typename A, class... Ts>
 bool id_data_array<Identifier, A, Ts...>::can_alloc(
   std::integral auto nb) const noexcept
 {
     return m_ids.can_alloc(nb);
+}
+
+template<typename Identifier, typename A, class... Ts>
+bool id_data_array<Identifier, A, Ts...>::empty() const noexcept
+{
+    return m_ids.size() == 0;
 }
 
 template<typename Identifier, typename A, class... Ts>
