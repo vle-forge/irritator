@@ -3,9 +3,7 @@
 // http://www.boost.org/LICENSE_1_0.txt)
 
 #include "application.hpp"
-#include "fmt/core.h"
 #include "internal.hpp"
-#include "irritator/format.hpp"
 
 #include <irritator/core.hpp>
 #include <irritator/modeling.hpp>

@@ -474,8 +474,8 @@ struct reader {
 
     template<size_t N, typename Function>
     bool for_members(const rapidjson::Value& val,
-                     const std::string_view  (&names)[N],
-                     Function&&              fn) noexcept
+                     const std::string_view (&names)[N],
+                     Function&& fn) noexcept
     {
         if (!val.IsObject())
             report_json_error(error_id::value_not_object);
@@ -1993,8 +1993,8 @@ struct reader {
         return nullptr;
     }
 
-    auto search_dir_in_reg(registred_path& reg, std::string_view name) noexcept
-      -> dir_path*
+    auto search_dir_in_reg(registred_path&  reg,
+                           std::string_view name) noexcept -> dir_path*
     {
         for (auto dir_id : reg.children) {
             if (auto* dir = mod().dir_paths.try_to_get(dir_id); dir) {
@@ -2063,8 +2063,8 @@ struct reader {
         return nullptr;
     }
 
-    auto search_file(dir_path& dir, std::string_view name) noexcept
-      -> file_path*
+    auto search_file(dir_path&        dir,
+                     std::string_view name) noexcept -> file_path*
     {
         for (auto file_id : dir.children)
             if (auto* file = mod().file_paths.try_to_get(file_id); file)
@@ -3327,20 +3327,20 @@ struct reader {
         report_json_error(error_id::missing_component_type);
     }
 
-    bool read_ports(const rapidjson::Value& val,
-                    id_array<port_id>&      port,
-                    vector<port_str>&       names) noexcept
+    bool read_ports(
+      const rapidjson::Value&                              val,
+      id_data_array<port_id, default_allocator, port_str>& port) noexcept
     {
         auto_stack s(this, stack_id::component_ports);
 
         return is_value_array(val) && port.can_alloc(val.GetArray().Size()) &&
-               buffer_reserve(val.GetArray().Size(), names) &&
                for_each_array(
                  val,
                  [&](const auto /*i*/, const auto& value) noexcept -> bool {
                      if (read_temp_string(value)) {
-                         auto port_id              = port.alloc();
-                         names[get_index(port_id)] = temp_string;
+                         port.alloc([&](auto /*id*/, auto& str) noexcept {
+                             str = temp_string;
+                         });
                          return true;
                      }
 
@@ -3377,9 +3377,9 @@ struct reader {
               if ("random-sources"sv == name)
                   return read_random_sources(value, mod().srcs);
               if ("x"sv == name)
-                  return read_ports(value, compo.x, compo.x_names);
+                  return read_ports(value, compo.x);
               if ("y"sv == name)
-                  return read_ports(value, compo.y, compo.y_names);
+                  return read_ports(value, compo.y);
               if ("type"sv == name)
                   return read_temp_string(value) &&
                          convert_to_component(compo) &&
@@ -5479,22 +5479,24 @@ static void write_component_ports(cache_rw& /*cache*/,
                                   const component& compo,
                                   Writer&          w) noexcept
 {
-    if (!compo.x_names.empty()) {
+    if (not compo.x.empty()) {
         w.Key("x");
         w.StartArray();
 
-        for (const auto id : compo.x)
-            w.String(compo.x_names[get_index(id)].c_str());
+        compo.x.for_each([&](auto /*id*/, const auto& str) noexcept {
+            w.String(str.c_str());
+        });
 
         w.EndArray();
     }
 
-    if (!compo.y_names.empty()) {
+    if (not compo.y.empty()) {
         w.Key("y");
         w.StartArray();
 
-        for (const auto id : compo.y)
-            w.String(compo.y_names[get_index(id)].c_str());
+        compo.y.for_each([&](auto /*id*/, const auto& str) noexcept {
+            w.String(str.c_str());
+        });
 
         w.EndArray();
     }
@@ -5513,7 +5515,7 @@ static void write_input_connection(const modeling&          mod,
     w.Key("type");
     w.String("input");
     w.Key("port");
-    w.String(parent.x_names[get_index(x)].c_str());
+    w.String(parent.x.get<port_str>(x).c_str());
     w.Key("destination");
     w.Uint64(get_index(gen.children.get_id(dst)));
     w.Key("port-destination");
@@ -5523,7 +5525,7 @@ static void write_input_connection(const modeling&          mod,
     } else {
         const auto* compo_child = mod.components.try_to_get(dst.id.compo_id);
         if (compo_child and compo_child->x.exists(dst_x.compo))
-            w.String(compo_child->x_names[get_index(dst_x.compo)].c_str());
+            w.String(compo_child->x.get<port_str>(dst_x.compo).c_str());
     }
 
     w.EndObject();
@@ -5542,7 +5544,7 @@ static void write_output_connection(const modeling&          mod,
     w.Key("type");
     w.String("output");
     w.Key("port");
-    w.String(parent.y_names[get_index(y)].c_str());
+    w.String(parent.y.get<port_str>(y).c_str());
     w.Key("source");
     w.Uint64(get_index(gen.children.get_id(src)));
     w.Key("port-source");
@@ -5552,7 +5554,7 @@ static void write_output_connection(const modeling&          mod,
     } else {
         const auto* compo_child = mod.components.try_to_get(src.id.compo_id);
         if (compo_child and compo_child->y.exists(src_y.compo)) {
-            w.String(compo_child->y_names[get_index(src_y.compo)].c_str());
+            w.String(compo_child->y.get<port_str>(src_y.compo).c_str());
         }
     }
     w.EndObject();
@@ -5575,14 +5577,14 @@ static void write_internal_connection(const modeling&          mod,
     if (src.type == child_type::component) {
         auto* compo = mod.components.try_to_get(src.id.compo_id);
         if (compo and compo->y.exists(src_y.compo))
-            src_str = compo->y_names[get_index(src_y.compo)].c_str();
+            src_str = compo->y.get<port_str>(src_y.compo).c_str();
     } else
         src_int = src_y.model;
 
     if (dst.type == child_type::component) {
         auto* compo = mod.components.try_to_get(dst.id.compo_id);
         if (compo and compo->x.exists(dst_x.compo))
-            dst_str = compo->x_names[get_index(dst_x.compo)].c_str();
+            dst_str = compo->x.get<port_str>(dst_x.compo).c_str();
     } else
         dst_int = dst_x.model;
 

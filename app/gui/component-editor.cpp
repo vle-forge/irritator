@@ -219,7 +219,7 @@ static void show_input_output_ports(component& compo) noexcept
             ImGui::TableHeadersRow();
 
             std::optional<port_id> to_del;
-            for (const auto id : compo.x) {
+            compo.x.for_each<port_str>([&](auto id, auto& name) noexcept {
                 ImGui::TableNextRow();
                 ImGui::TableNextColumn();
                 ImGui::TextFormat("{}", ordinal(id));
@@ -228,8 +228,7 @@ static void show_input_output_ports(component& compo) noexcept
                 ImGui::PushItemWidth(-1.f);
                 ImGui::PushID(ordinal(id));
 
-                ImGui::InputFilteredString("##in-name",
-                                           compo.x_names[get_index(id)]);
+                ImGui::InputFilteredString("##in-name", name);
 
                 ImGui::PopID();
                 ImGui::PopItemWidth();
@@ -237,7 +236,7 @@ static void show_input_output_ports(component& compo) noexcept
                 ImGui::TableNextColumn();
                 if (ImGui::Button("del"))
                     to_del = id;
-            }
+            });
 
             if (to_del.has_value())
                 compo.x.free(*to_del);
@@ -245,8 +244,8 @@ static void show_input_output_ports(component& compo) noexcept
             ImGui::EndTable();
 
             if (compo.x.can_alloc(1) && ImGui::Button("+##in-port")) {
-                const auto id                = compo.x.alloc();
-                compo.x_names[get_index(id)] = "-";
+                compo.x.alloc(
+                  [&](auto /*id*/, auto& name) noexcept { name = "-"; });
             }
         }
     }
@@ -264,7 +263,7 @@ static void show_input_output_ports(component& compo) noexcept
             ImGui::TableHeadersRow();
 
             std::optional<port_id> to_del;
-            for (const auto id : compo.y) {
+            compo.y.for_each([&](auto id, auto& name) noexcept {
                 ImGui::TableNextRow();
                 ImGui::TableNextColumn();
                 ImGui::TextFormat("{}", ordinal(id));
@@ -273,8 +272,7 @@ static void show_input_output_ports(component& compo) noexcept
                 ImGui::PushItemWidth(-1.f);
                 ImGui::PushID(ordinal(id));
 
-                ImGui::InputFilteredString("##out-name",
-                                           compo.y_names[get_index(id)]);
+                ImGui::InputFilteredString("##out-name", name);
 
                 ImGui::PopID();
                 ImGui::PopItemWidth();
@@ -282,7 +280,7 @@ static void show_input_output_ports(component& compo) noexcept
                 ImGui::TableNextColumn();
                 if (ImGui::Button("del"))
                     to_del = id;
-            }
+            });
 
             if (to_del.has_value())
                 compo.y.free(*to_del);
@@ -290,8 +288,8 @@ static void show_input_output_ports(component& compo) noexcept
             ImGui::EndTable();
 
             if (compo.y.can_alloc(1) && ImGui::Button("+##out-port")) {
-                const auto id                = compo.y.alloc();
-                compo.y_names[get_index(id)] = "-";
+                compo.y.alloc(
+                  [&](auto /*id*/, auto& name) noexcept { name = "-"; });
             }
         }
     }

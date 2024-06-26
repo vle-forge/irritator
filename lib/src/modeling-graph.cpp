@@ -168,8 +168,8 @@ static void named_connection_add(modeling&        mod,
                 if (dst->type == child_type::component) {
                     auto* c_dst = mod.components.try_to_get(dst->id.compo_id);
                     if (c_dst) {
-                        auto     sz_src = c_src->x_names.ssize();
-                        auto     sz_dst = c_dst->y_names.ssize();
+                        auto     sz_src = c_src->x.ssize();
+                        auto     sz_dst = c_dst->y.ssize();
                         port_str temp;
 
                         format(temp, "{}", sz_src);

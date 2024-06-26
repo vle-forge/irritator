@@ -732,28 +732,31 @@ public:
 struct component {
     component() noexcept;
 
-    id_array<port_id> x;
-    id_array<port_id> y;
-
-    vector<port_str> x_names;
-    vector<port_str> y_names;
+    id_data_array<port_id, default_allocator, port_str> x;
+    id_data_array<port_id, default_allocator, port_str> y;
 
     port_id get_x(std::string_view str) const noexcept
     {
-        for (const auto id : x)
-            if (str == x_names[get_index(id)].sv())
-                return id;
+        auto ret = undefined<port_id>();
 
-        return undefined<port_id>();
+        x.for_each<port_str>([&](const auto id, const auto& name) noexcept {
+            if (name.sv() == str)
+                ret = id;
+        });
+
+        return ret;
     }
 
     port_id get_y(std::string_view str) const noexcept
     {
-        for (const auto id : y)
-            if (str == y_names[get_index(id)].sv())
-                return id;
+        auto ret = undefined<port_id>();
 
-        return undefined<port_id>();
+        y.for_each<port_str>([&](const auto id, const auto& name) noexcept {
+            if (name == str)
+                ret = id;
+        });
+
+        return ret;
     }
 
     port_id get_or_add_x(std::string_view str) noexcept
@@ -765,9 +768,7 @@ struct component {
         if (not x.can_alloc(1))
             return undefined<port_id>();
 
-        const auto new_id          = x.alloc();
-        x_names[get_index(new_id)] = str;
-        return new_id;
+        return x.alloc([&](auto /*id*/, auto& name) noexcept { name = str; });
     }
 
     port_id get_or_add_y(std::string_view str) noexcept
@@ -779,9 +780,7 @@ struct component {
         if (not y.can_alloc(1))
             return undefined<port_id>();
 
-        const auto new_id          = y.alloc();
-        y_names[get_index(new_id)] = str;
-        return new_id;
+        return y.alloc([&](auto /*id*/, auto& name) noexcept { name = str; });
     }
 
     description_id    desc     = description_id{ 0 };
@@ -1591,8 +1590,6 @@ inline component::component() noexcept
 {
     x.reserve(16);
     y.reserve(16);
-    x_names.resize(16);
-    y_names.resize(16);
 }
 
 inline connection::connection(child_id src_,

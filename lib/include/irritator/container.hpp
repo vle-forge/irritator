@@ -1622,8 +1622,8 @@ public:
     using memory_resource_t = typename A::memory_resource_t;
 
     static_assert((std::is_nothrow_constructible_v<T> ||
-                   std::is_nothrow_move_constructible_v<
-                     T>)&&std::is_nothrow_destructible_v<T>);
+                   std::is_nothrow_move_constructible_v<T>) &&
+                  std::is_nothrow_destructible_v<T>);
 
 private:
     T*                                   buffer = nullptr;
@@ -1930,8 +1930,8 @@ class small_ring_buffer
 public:
     static_assert(length >= 1);
     static_assert((std::is_nothrow_constructible_v<T> ||
-                   std::is_nothrow_move_constructible_v<
-                     T>)&&std::is_nothrow_destructible_v<T>);
+                   std::is_nothrow_move_constructible_v<T>) &&
+                  std::is_nothrow_destructible_v<T>);
 
     using value_type      = T;
     using size_type       = small_storage_size_t<length>;
@@ -2284,7 +2284,7 @@ id_array<Identifier, A>::get_from_index(std::integral auto index) const noexcept
         std::cmp_equal(get_index(m_items[index]), index))
         return m_items[index];
 
-    return undefined<identifier_type>();
+    return static_cast<identifier_type>(0);
 }
 
 template<typename Identifier, typename A>

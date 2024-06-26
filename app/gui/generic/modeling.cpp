@@ -349,21 +349,21 @@ static void show(component_editor& ed,
 static void show_input_an_output_ports(component&     compo,
                                        const child_id c_id) noexcept
 {
-    for (const auto id : compo.x) {
+    compo.x.for_each([&](const auto id, const auto& name) noexcept {
         const auto pack_id = pack_in(c_id, id);
 
         ImNodes::BeginInputAttribute(pack_id, ImNodesPinShape_TriangleFilled);
-        ImGui::TextUnformatted(compo.x_names[get_index(id)].c_str());
+        ImGui::TextUnformatted(name.c_str());
         ImNodes::EndInputAttribute();
-    }
+    });
 
-    for (const auto id : compo.y) {
+    compo.y.for_each([&](const auto id, const auto& name) noexcept {
         const auto pack_id = pack_out(c_id, id);
 
         ImNodes::BeginOutputAttribute(pack_id, ImNodesPinShape_TriangleFilled);
-        ImGui::TextUnformatted(compo.y_names[get_index(id)].c_str());
+        ImGui::TextUnformatted(name.c_str());
         ImNodes::EndOutputAttribute();
-    }
+    });
 }
 
 static void show_generic_node(application&       app,
@@ -493,11 +493,13 @@ static void update_editor_positions(generic_component_editor_data& data,
 static void update_input_output_draggable(component& parent,
                                           bool       draggable) noexcept
 {
-    for (const auto id : parent.x)
+    parent.x.for_each_id([&](auto id) noexcept {
         ImNodes::SetNodeDraggable(pack_node_X(id), draggable);
+    });
 
-    for (const auto id : parent.y)
+    parent.y.for_each_id([&](auto id) noexcept {
         ImNodes::SetNodeDraggable(pack_node_Y(id), draggable);
+    });
 }
 
 static void update_input_output_position(component&                     parent,
@@ -507,14 +509,16 @@ static void update_input_output_position(component&                     parent,
                                          float y) noexcept
 {
     int i = 0;
-    for (const auto id : parent.x)
+    parent.x.for_each_id([&](auto id) noexcept {
         ImNodes::SetNodeEditorSpacePos(
           pack_node_X(id), ImVec2(x1, static_cast<float>(i++) * 50.f + y));
+    });
 
     i = 0;
-    for (const auto id : parent.y)
+    parent.y.for_each_id([&](auto id) noexcept {
         ImNodes::SetNodeEditorSpacePos(
           pack_node_Y(id), ImVec2(x2, static_cast<float>(i++) * 50.f + y));
+    });
 
     data.first_show_input_output = false;
 }
@@ -543,9 +547,7 @@ static void show_graph(component_editor&              ed,
     }
 
     if (data.show_input_output) {
-        for (const auto id : parent.x) {
-            const auto idx = get_index(id);
-
+        parent.x.for_each<port_str>([&](auto id, const auto& name) noexcept {
             ImNodes::PushColorStyle(
               ImNodesCol_TitleBar,
               ImGui::ColorConvertFloat4ToU32(settings.gui_component_color));
@@ -558,14 +560,12 @@ static void show_graph(component_editor&              ed,
             ImNodes::BeginNode(pack_node_X(id));
             ImNodes::BeginOutputAttribute(pack_X(id),
                                           ImNodesPinShape_TriangleFilled);
-            ImGui::TextUnformatted(parent.x_names[idx].c_str());
+            ImGui::TextUnformatted(name.c_str());
             ImNodes::EndOutputAttribute();
             ImNodes::EndNode();
-        }
+        });
 
-        for (const auto id : parent.y) {
-            const auto idx = get_index(id);
-
+        parent.y.for_each<port_str>([&](auto id, const auto& name) noexcept {
             ImNodes::PushColorStyle(
               ImNodesCol_TitleBar,
               ImGui::ColorConvertFloat4ToU32(settings.gui_component_color));
@@ -578,10 +578,10 @@ static void show_graph(component_editor&              ed,
             ImNodes::BeginNode(pack_node_Y(id));
             ImNodes::BeginInputAttribute(pack_Y(id),
                                          ImNodesPinShape_TriangleFilled);
-            ImGui::TextUnformatted(parent.y_names[idx].c_str());
+            ImGui::TextUnformatted(name.c_str());
             ImNodes::EndInputAttribute();
             ImNodes::EndNode();
-        }
+        });
     }
 
     for_each_data(s_parent.children, [&](auto& c) noexcept {
@@ -977,8 +977,8 @@ static void is_link_created(application& app,
 
         if (is_input_X(start)) {
             auto port_idx = unpack_X(start);
-            auto port_opt = parent.x.get_from_index(port_idx);
-            debug::ensure(port_opt.has_value());
+            auto port_id  = parent.x.get_id(port_idx);
+            debug::ensure(is_defined(port_id));
 
             if (is_output_Y(end)) {
                 error_not_connection_auth(app);
@@ -993,7 +993,7 @@ static void is_link_created(application& app,
                 auto port_in = static_cast<int>(child_port.second);
 
                 if (auto ret = s_parent.connect_input(
-                      *port_opt, *child, connection::port{ .model = port_in });
+                      port_id, *child, connection::port{ .model = port_in });
                     !ret)
                     debug_log("fail to create link");
                 parent.state = component_status::modified;
@@ -1003,15 +1003,14 @@ static void is_link_created(application& app,
                 if (not compo_dst)
                     return;
 
-                const auto port_dst_opt =
-                  compo_dst->x.get_from_index(child_port.second);
-                if (not port_dst_opt.has_value())
+                const auto port_dst_id = compo_dst->x.get_id(child_port.second);
+                if (is_undefined(port_dst_id))
                     return;
 
                 if (auto ret = s_parent.connect_input(
-                      *port_opt,
+                      port_id,
                       *child,
-                      connection::port{ .compo = *port_dst_opt });
+                      connection::port{ .compo = port_dst_id });
                     !ret)
                     debug_log("fail to create link\n");
                 parent.state = component_status::modified;
@@ -1023,14 +1022,14 @@ static void is_link_created(application& app,
 
             if (is_output_Y(end)) {
                 auto port_idx = unpack_Y(end);
-                auto port_opt = parent.y.get_from_index(port_idx);
-                debug::ensure(port_opt.has_value());
+                auto port_id  = parent.y.get_id(port_idx);
+                debug::ensure(is_defined(port_id));
 
                 if (ch_src->type == child_type::model) {
                     auto port_out = static_cast<int>(ch_port_src.second);
 
                     if (auto ret = s_parent.connect_output(
-                          *port_opt,
+                          port_id,
                           *ch_src,
                           connection::port{ .model = port_out });
                         !ret)
@@ -1043,14 +1042,14 @@ static void is_link_created(application& app,
                         return;
 
                     const auto port_out =
-                      compo_src->y.get_from_index(ch_port_src.second);
-                    if (not port_out.has_value())
+                      compo_src->y.get_id(ch_port_src.second);
+                    if (is_undefined(port_out))
                         return;
 
                     if (auto ret = s_parent.connect_output(
-                          *port_opt,
+                          port_id,
                           *ch_src,
-                          connection::port{ .compo = *port_opt });
+                          connection::port{ .compo = port_id });
                         !ret)
                         debug_log("fail to create link\n");
                     parent.state = component_status::modified;
@@ -1080,9 +1079,9 @@ static void is_link_created(application& app,
                         if (not compo_dst)
                             return;
 
-                        const auto port_dst_opt =
-                          compo_dst->x.get_from_index(ch_port_dst.second);
-                        if (not port_dst_opt.has_value())
+                        const auto port_dst_id =
+                          compo_dst->x.get_id(ch_port_dst.second);
+                        if (is_undefined(port_dst_id))
                             return;
 
                         if (auto ret = s_parent.connect(
@@ -1090,7 +1089,7 @@ static void is_link_created(application& app,
                               *ch_src,
                               connection::port{ .model = port_out },
                               *ch_dst,
-                              connection::port{ .compo = *port_dst_opt });
+                              connection::port{ .compo = port_dst_id });
                             !ret)
                             debug_log("fail to create link\n");
                         parent.state = component_status::modified;
@@ -1102,8 +1101,8 @@ static void is_link_created(application& app,
                         return;
 
                     const auto port_out =
-                      compo_src->y.get_from_index(ch_port_src.second);
-                    if (not port_out.has_value())
+                      compo_src->y.get_id(ch_port_src.second);
+                    if (is_undefined(port_out))
                         return;
 
                     if (ch_dst->type == child_type::model) {
@@ -1112,7 +1111,7 @@ static void is_link_created(application& app,
                         if (auto ret = s_parent.connect(
                               app.mod,
                               *ch_src,
-                              connection::port{ .compo = *port_out },
+                              connection::port{ .compo = port_out },
                               *ch_dst,
                               connection::port{ .model = port_in });
                             !ret)
@@ -1125,16 +1124,16 @@ static void is_link_created(application& app,
                             return;
 
                         const auto port_in =
-                          compo_dst->x.get_from_index(ch_port_dst.second);
-                        if (not port_in.has_value())
+                          compo_dst->x.get_id(ch_port_dst.second);
+                        if (is_undefined(port_in))
                             return;
 
                         if (auto ret = s_parent.connect(
                               app.mod,
                               *ch_src,
-                              connection::port{ .compo = *port_out },
+                              connection::port{ .compo = port_out },
                               *ch_dst,
-                              connection::port{ .compo = *port_in });
+                              connection::port{ .compo = port_in });
                             !ret)
                             debug_log("fail to create link\n");
                         parent.state = component_status::modified;

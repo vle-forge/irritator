@@ -1015,12 +1015,23 @@ child& modeling::alloc(generic_component& parent, dynamics_type type) noexcept
 
 status modeling::copy(const component& src, component& dst) noexcept
 {
-    dst.x_names = src.x_names;
-    dst.y_names = src.y_names;
-    dst.name    = src.name;
-    dst.id      = src.id;
-    dst.type    = src.type;
-    dst.state   = src.state;
+    if (not(dst.x.can_alloc(src.x.size()) and dst.y.can_alloc(src.y.size())))
+        return new_error(part::components, container_full_error{});
+
+    src.x.for_each([&](auto /*id*/, const auto& name) noexcept {
+        auto new_id                 = dst.x.alloc();
+        dst.x.get<port_str>(new_id) = name;
+    });
+
+    src.y.for_each([&](auto /*id*/, const auto& name) noexcept {
+        auto new_id                 = dst.y.alloc();
+        dst.y.get<port_str>(new_id) = name;
+    });
+
+    dst.name  = src.name;
+    dst.id    = src.id;
+    dst.type  = src.type;
+    dst.state = src.state;
 
     switch (src.type) {
     case component_type::none:

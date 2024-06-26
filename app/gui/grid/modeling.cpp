@@ -117,7 +117,7 @@ static bool get_or_add_x(component& compo, std::string_view name) noexcept
         return true;
 
     if (compo.x.can_alloc(1)) {
-        compo.x_names[get_index(compo.x.alloc())] = name;
+        compo.x.alloc([&](auto /*id*/, auto& str) { str = name; });
         return true;
     }
 
@@ -130,7 +130,7 @@ static bool get_or_add_y(component& compo, std::string_view name) noexcept
         return true;
 
     if (compo.y.can_alloc(1)) {
-        compo.y_names[get_index(compo.y.alloc())] = name;
+        compo.y.alloc([&](auto /*id*/, auto& str) { str = name; });
         return true;
     }
 
@@ -403,19 +403,18 @@ static void show_grid(application&                app,
         if (ImGui::BeginMenu("Menu##compo")) {
             if (ImGui::BeginMenu("Connect to grid input port")) {
                 if (ed.hovered_component) {
-                    for (const auto s_id : ed.hovered_component->x) {
+                    ed.hovered_component->x.for_each([&](auto  s_id,
+                                                         auto& s_name) {
                         ImGui::PushID(ordinal(s_id));
 
-                        for (const auto id : compo.x) {
+                        compo.x.for_each([&](auto id, auto& name) noexcept {
                             ImGui::PushID(ordinal(id));
                             small_string<128> str;
 
-                            format(
-                              str,
-                              "grid port {} to {}",
-                              compo.x_names[get_index(id)].sv(),
-                              ed.hovered_component->x_names[get_index(s_id)]
-                                .sv());
+                            format(str,
+                                   "grid port {} to {}",
+                                   name.sv(),
+                                   s_name.sv());
 
                             if (ImGui::MenuItem(str.c_str())) {
                                 auto ret =
@@ -428,28 +427,28 @@ static void show_grid(application&                app,
                                 deselect = true;
                             }
                             ImGui::PopID();
-                        }
+                        });
+
                         ImGui::PopID();
-                    }
+                    });
                 }
                 ImGui::EndMenu();
             }
 
             if (ImGui::BeginMenu("Connect to grid output port")) {
                 if (ed.hovered_component) {
-                    for (const auto s_id : ed.hovered_component->y) {
+                    ed.hovered_component->y.for_each([&](auto  s_id,
+                                                         auto& s_name) {
                         ImGui::PushID(ordinal(s_id));
 
-                        for (const auto id : compo.y) {
+                        compo.y.for_each([&](auto id, auto& name) noexcept {
                             ImGui::PushID(ordinal(id));
                             small_string<128> str;
 
-                            format(
-                              str,
-                              "{} to grid port {}",
-                              ed.hovered_component->y_names[get_index(s_id)]
-                                .sv(),
-                              compo.y_names[get_index(id)].sv());
+                            format(str,
+                                   "{} to grid port {}",
+                                   s_name.sv(),
+                                   name.sv());
 
                             if (ImGui::MenuItem(str.c_str())) {
                                 auto ret =
@@ -462,10 +461,12 @@ static void show_grid(application&                app,
                                 deselect = true;
                             }
                             ImGui::PopID();
-                        }
+                        });
+
                         ImGui::PopID();
-                    }
+                    });
                 }
+
                 ImGui::EndMenu();
             }
 

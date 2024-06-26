@@ -75,8 +75,7 @@ static auto get_incoming_connection(const modeling&  mod,
     if (not compo)
         return new_error(project::part::tree_nodes);
 
-    const auto idx = compo->x.get(id);
-    if (not idx.has_value())
+    if (not compo->x.exists(id))
         return new_error(project::part::tree_nodes);
 
     if (compo->type == component_type::simple) {
@@ -95,13 +94,13 @@ static auto get_incoming_connection(const modeling&  mod,
         return new_error(project::part::tree_nodes);
 
     int nb = 0;
-    for (const auto id : compo->x) {
+    compo->x.for_each_id([&](auto id) noexcept {
         if (compo->type == component_type::simple) {
             auto* gen = mod.generic_components.try_to_get(compo->id.generic_id);
             if (gen)
                 nb += get_incoming_connection(*gen, id);
         }
-    }
+    });
 
     return nb;
 }
@@ -130,8 +129,7 @@ static auto get_outcoming_connection(const modeling&  mod,
     if (not compo)
         return new_error(project::part::tree_nodes);
 
-    const auto idx = compo->y.get(id);
-    if (not idx.has_value())
+    if (not compo->y.exists(id))
         return new_error(project::part::tree_nodes);
 
     if (compo->type == component_type::simple) {
@@ -151,13 +149,13 @@ static auto get_outcoming_connection(const modeling&  mod,
         return new_error(project::part::tree_nodes);
 
     int nb = 0;
-    for (const auto id : compo->y) {
+    compo->y.for_each_id([&](auto id) noexcept {
         if (compo->type == component_type::simple) {
             auto* gen = mod.generic_components.try_to_get(compo->id.generic_id);
             if (gen)
                 nb += get_outcoming_connection(*gen, id);
         }
-    }
+    });
 
     return nb;
 }
