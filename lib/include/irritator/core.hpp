@@ -2897,8 +2897,10 @@ struct generator {
             auto* lst_value = sim.messages.try_to_get(x[x_value]);
 
             if (lst_value and not lst_value->empty()) {
-                for (const auto& msg : *lst_value)
+                for (const auto& msg : *lst_value) {
                     value = msg[0];
+                    sigma = r;
+                }
             }
         }
 
@@ -2922,18 +2924,18 @@ struct generator {
                 for (const auto& msg : *lst_mult_tr)
                     mult_tr = std::max(msg[0], mult_tr);
 
-            if (t >= zero)
+            if (t >= zero) {
                 sigma = t;
+            } else {
+                if (std::isfinite(add_tr))
+                    sigma = r + add_tr;
 
-            if (std::isfinite(add_tr))
-                sigma = r + add_tr;
-
-            if (std::isnormal(mult_tr))
-                sigma = r * mult_tr;
+                if (std::isnormal(mult_tr))
+                    sigma = r * mult_tr;
+            }
 
             if (sigma < 0)
                 sigma = zero;
-
         } else {
             real local_sigma = 0;
             real local_value = 0;
