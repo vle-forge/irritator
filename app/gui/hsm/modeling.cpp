@@ -915,6 +915,8 @@ void hsm_component_editor_data::show(component_editor& ed) noexcept
         }
 
         if (ImGui::BeginTabItem("log")) {
+            ImGui::TextFormatDisabled("Not yet implemented.");
+            ImGui::EndTabItem();
         }
 
         ImGui::EndTabBar();
