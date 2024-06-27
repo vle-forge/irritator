@@ -198,8 +198,6 @@ static void remove_state(hsm_t&          hsm,
 
 static void remove_link(hsm_t& hsm, transition t) noexcept
 {
-    using hsm_t = hsm_t;
-
     switch (t.type) {
     // case transition_type::super_transition:
     //     hsm.states[t.output].super_id = hsm_t::invalid_state_id;
@@ -882,12 +880,8 @@ void hsm_component_editor_data::show(component_editor& ed) noexcept
     if (not hsm)
         return;
 
-    // const auto item_spacing  = ImGui::GetStyle().ItemSpacing.x;
-    // const auto region_width  = ImGui::GetContentRegionAvail().x;
     const auto region_height = ImGui::GetContentRegionAvail().y;
-    // const auto button_size   = ImVec2((region_width - item_spacing) / 2.f,
-    // 0.f);
-    const auto table_heigth = region_height -
+    const auto table_heigth  = region_height -
                               ImGui::GetFrameHeightWithSpacing() -
                               ImGui::GetStyle().ItemSpacing.y;
 
