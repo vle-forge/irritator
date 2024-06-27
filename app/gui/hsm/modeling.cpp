@@ -703,17 +703,21 @@ void hsm_component_editor_data::show_panel(hsm_component& hsm) noexcept
             // show_state_id_editor(m_enabled, state.super_id);
             ImGui::TextFormat("State {}", m_selected_nodes[i]);
 
-            ImGui::TextUnformatted("condition");
+            ImGui::SeparatorText("Condition");
             show_state_condition(state.condition);
 
-            ImGui::TextUnformatted("if success run:");
+            ImGui::SeparatorText("Actions");
+            ImGui::TextUnformatted("if condition is true");
             show_state_action(state.if_action);
             // show_state_id_editor(m_enabled, state.if_transition);
+            ImGui::Separator();
 
-            ImGui::TextUnformatted("else run:");
+            ImGui::TextUnformatted("else");
             show_state_action(state.else_action);
             // show_state_id_editor(m_enabled, state.else_transition);
+            ImGui::Separator();
 
+            ImGui::SeparatorText("Enter/Exit actions");
             ImGui::TextUnformatted("enter state run:");
             show_state_action(state.enter_action);
 
