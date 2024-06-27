@@ -128,7 +128,7 @@ constexpr int make_transition(hsm_t::state_id from,
                               hsm_t::state_id to,
                               transition_type type) noexcept
 {
-    return make_input(from) | make_output(to, type);
+    return make_input(to) | make_output(from, type);
 }
 
 constexpr transition get_transition(int idx) noexcept
@@ -670,9 +670,18 @@ void hsm_component_editor_data::show_graph(hsm_component& hsm) noexcept
         ImNodes::GetSelectedLinks(m_selected_links.begin());
 
         if (ImGui::IsKeyReleased(ImGuiKey_Delete)) {
+            auto need_clear = false;
+
             for (auto idx : m_selected_links) {
-                if (idx != 0)
+                if (idx != 0) {
                     remove_link(hsm, get_transition(idx));
+                    need_clear = true;
+                }
+            }
+
+            if (need_clear) {
+                m_selected_links.clear();
+                ImNodes::ClearLinkSelection();
             }
         }
     }
