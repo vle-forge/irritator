@@ -426,7 +426,7 @@ static status make_tree_recursive([[maybe_unused]] simulation_copy& sc,
                                   [[maybe_unused]] tree_node&       new_tree,
                                   [[maybe_unused]] hsm_component& src) noexcept
 {
-    debug::ensure(false && "missing hsm-component implementation");
+    debug::ensure(sc.sim.hsms.can_alloc());
 
     return success();
 }

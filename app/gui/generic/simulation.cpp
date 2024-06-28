@@ -514,8 +514,11 @@ static void show_dynamics_values(simulation& /*sim*/, const hsm_wrapper& dyn)
 {
     ImGui::TextFormat("state={}",
                       static_cast<unsigned>(dyn.exec.current_state));
-    ImGui::TextFormat("a={}", dyn.exec.a);
-    ImGui::TextFormat("b={}", dyn.exec.a);
+    ImGui::TextFormat("i1={}", dyn.exec.i1);
+    ImGui::TextFormat("i2={}", dyn.exec.i2);
+    ImGui::TextFormat("r1={}", dyn.exec.r1);
+    ImGui::TextFormat("r2={}", dyn.exec.r2);
+    ImGui::TextFormat("sigma={}", dyn.exec.sigma);
 }
 
 static void show_model_dynamics(simulation_editor& ed, model& mdl) noexcept

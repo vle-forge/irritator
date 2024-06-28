@@ -13,62 +13,54 @@ namespace irt {
 
 using hsm_t = hierarchical_state_machine;
 
-static const char* variable_names[] = { "none",       "port_0",  "port_1",
-                                        "port_2",     "port_3",  "variable a",
-                                        "variable b", "constant" };
+static const char* variable_names[] = {
+    "none",        "port_0",         "port_1",      "port_2",
+    "port_3",      "variable i1",    "variable i2", "variable r1",
+    "variable r2", "variable timer", "constant i",  "constant r"
+};
 
 static const char* action_names[] = {
-    "none",        "set port",   "unset port", "reset ports",
-    "output port", "x = y",      "x = x + y",  "x = x - y",
-    "x = -x",      "x = x * y",  "x = x / y",  "x = x % y",
-    "x = x and y", "x = x or y", "x = not x",  "x = x xor y"
+    "none",           "set port",   "unset port", "reset ports",
+    "output message", "x = y",      "x = x + y",  "x = x - y",
+    "x = -x",         "x = x * y",  "x = x / y",  "x = x % y",
+    "x = x and y",    "x = x or y", "x = not x",  "x = x xor y"
 };
 
-static const char* condition_names[] = {
-    "none",          "value on port", "a = constant",  "a != constant",
-    "a > constant",  "a < constant",  "a >= constant", "a <= constant",
-    "b = constant",  "b != constant", "b > constant",  "b < constant",
-    "b >= constant", "b <= constant", "a = b",         "a != b",
-    "a > b",         "a < b",         "a >= b",        "a <= b",
-};
+static const char* condition_names[] = { "none",   "value on port", "timeout",
+                                         "x = y",  "x != y",        "x > y",
+                                         "x >= y", "x < y",         "x <= y" };
 
 static const std::string_view test_status_string[] = { "none",
                                                        "being_processed",
                                                        "done",
                                                        "failed" };
 
-static void show_only_variable_widget(hsm_t::variable& act) noexcept
+/** Display a combobox for input port 1, 2, 3 and 4, variables i1, i2, r1, r1,
+ * timer and constants i and r. */
+template<typename Action>
+static void show_ports_variables_constants_combobox(hsm_t::variable& act,
+                                                    Action&          a) noexcept
 {
     ImGui::PushID(&act);
-    int var = static_cast<int>(act) - 5;
-    if (!(0 <= var && var < 2))
-        var = 0;
+
+    auto var = static_cast<int>(act);
+    debug::ensure(0 <= var and var < hsm_t::variable_count);
 
     ImGui::PushItemWidth(-1);
-    if (ImGui::Combo("##var", &var, variable_names + 5, 2)) {
-        debug::ensure(0 <= var && var < 2);
-        act = enum_cast<hsm_t::variable>(var + 5);
-    }
-    ImGui::PopItemWidth();
-    ImGui::PopID();
-}
-
-static void show_variable_widget(hsm_t::variable& act, i32& parameter) noexcept
-{
-    ImGui::PushID(&act);
-    int var = static_cast<int>(act) - 5;
-    if (!(0 <= var && var < 3))
-        var = 0;
-
-    ImGui::PushItemWidth(-1);
-    if (ImGui::Combo("##var", &var, variable_names + 5, 3)) {
-        debug::ensure(0 <= var && var < 3);
-        act = enum_cast<hsm_t::variable>(var + 5);
+    if (ImGui::Combo("##var", &var, variable_names, length(variable_names))) {
+        debug::ensure(0 <= var and var < hsm_t::variable_count);
+        act = enum_cast<hsm_t::variable>(var);
     }
 
-    if (act == hsm_t::variable::constant) {
+    if (act == hsm_t::variable::constant_i) {
         ImGui::PushItemWidth(-1);
-        ImGui::InputScalar("value", ImGuiDataType_S32, &parameter);
+        ImGui::InputScalar("value", ImGuiDataType_S32, &a.constant.i);
+        ImGui::PopItemWidth();
+    }
+
+    if (act == hsm_t::variable::constant_r) {
+        ImGui::PushItemWidth(-1);
+        ImGui::InputScalar("value", ImGuiDataType_Float, &a.constant.f);
         ImGui::PopItemWidth();
     }
 
@@ -76,12 +68,150 @@ static void show_variable_widget(hsm_t::variable& act, i32& parameter) noexcept
     ImGui::PopID();
 }
 
-constexpr int make_state(hsm_t::state_id id) noexcept
+/** Display a combobox for variables i1, i2, r1, r1 and timer. */
+static void show_variables_combobox(hsm_t::variable& act) noexcept
+{
+    ImGui::PushID(&act);
+
+    constexpr auto p0    = (int)ordinal(hsm_t::variable::var_i1);
+    constexpr auto pn    = (int)ordinal(hsm_t::variable::var_timer);
+    constexpr auto nb    = pn - p0 + 1;
+    auto           p_act = (int)ordinal(act);
+
+    if (not(p0 <= p_act and p_act <= pn)) {
+        act   = enum_cast<hsm_t::variable>(p0);
+        p_act = p0;
+    }
+
+    p_act -= p0;
+    ImGui::PushItemWidth(-1);
+    if (ImGui::Combo("##var", &p_act, variable_names + p0, nb)) {
+        debug::ensure(0 <= p_act && p_act < nb);
+        act = enum_cast<hsm_t::variable>(p_act + p0);
+    }
+
+    ImGui::PopItemWidth();
+    ImGui::PopID();
+}
+
+/** Display a combobox for variables i1, i2, r1, r1, timer and constants i and
+ * r. */
+static void show_variables_and_constants_combobox(
+  hsm_t::variable&     act,
+  hsm_t::state_action& p) noexcept
+{
+    ImGui::PushID(&act);
+
+    constexpr auto p0    = (int)ordinal(hsm_t::variable::var_i1);
+    constexpr auto pn    = (int)ordinal(hsm_t::variable::constant_r);
+    constexpr auto nb    = pn - p0 + 1;
+    auto           p_act = (int)ordinal(act);
+
+    if (not(p0 <= p_act and p_act <= pn)) {
+        act   = enum_cast<hsm_t::variable>(p0);
+        p_act = p0;
+    }
+
+    p_act -= p0;
+    ImGui::PushItemWidth(-1);
+    if (ImGui::Combo("##var", &p_act, variable_names + p0, nb)) {
+        debug::ensure(0 <= p_act && p_act < nb);
+        act = enum_cast<hsm_t::variable>(p_act + p0);
+    }
+
+    if (act == hsm_t::variable::constant_i) {
+        ImGui::PushItemWidth(-1);
+        ImGui::InputScalar("value", ImGuiDataType_S32, &p.constant.i);
+        ImGui::PopItemWidth();
+    }
+
+    if (act == hsm_t::variable::constant_r) {
+        ImGui::PushItemWidth(-1);
+        ImGui::InputScalar("value", ImGuiDataType_Float, &p.constant.f);
+        ImGui::PopItemWidth();
+    }
+
+    ImGui::PopItemWidth();
+    ImGui::PopID();
+}
+
+static void show_port_widget(hsm_t::variable& var) noexcept
+{
+    ImGui::PushID(&var);
+
+    constexpr auto p0    = (int)ordinal(hsm_t::variable::port_0);
+    constexpr auto pn    = (int)ordinal(hsm_t::variable::port_3);
+    constexpr auto nb    = pn - p0 + 1;
+    auto           p_var = (int)ordinal(var);
+
+    if (not(p0 <= p_var and p_var <= pn)) {
+        var   = enum_cast<hsm_t::variable>(p0);
+        p_var = p0;
+    }
+
+    p_var -= p0;
+    ImGui::PushItemWidth(-1);
+    if (ImGui::Combo("##port", &p_var, variable_names + p0, nb)) {
+        debug::ensure(0 <= p_var && p_var < nb);
+        var = enum_cast<hsm_t::variable>(p_var + p0);
+    }
+
+    ImGui::PopItemWidth();
+    ImGui::PopID();
+}
+
+static void show_ports(hsm_t::condition_action& p) noexcept
+{
+    u8 port, mask;
+    p.get(port, mask);
+
+    const int sub_value_3 = port & 0b0001 ? 1 : 0;
+    const int sub_value_2 = port & 0b0010 ? 1 : 0;
+    const int sub_value_1 = port & 0b0100 ? 1 : 0;
+    const int sub_value_0 = port & 0b1000 ? 1 : 0;
+
+    int value_3 = mask & 0b0001 ? sub_value_3 : -1;
+    int value_2 = mask & 0b0010 ? sub_value_2 : -1;
+    int value_1 = mask & 0b0100 ? sub_value_1 : -1;
+    int value_0 = mask & 0b1000 ? sub_value_0 : -1;
+
+    bool have_changed = false;
+
+    have_changed = ImGui::CheckBoxTristate("0", &value_0);
+    ImGui::SameLine();
+    have_changed = ImGui::CheckBoxTristate("1", &value_1) || have_changed;
+    ImGui::SameLine();
+    have_changed = ImGui::CheckBoxTristate("2", &value_2) || have_changed;
+    ImGui::SameLine();
+    have_changed = ImGui::CheckBoxTristate("3", &value_3) || have_changed;
+
+    if (have_changed) {
+        port = value_0 == 1 ? 1u : 0u;
+        port <<= 1;
+        port |= value_1 == 1 ? 1u : 0u;
+        port <<= 1;
+        port |= value_2 == 1 ? 1u : 0u;
+        port <<= 1;
+        port |= value_3 == 1 ? 1u : 0u;
+
+        mask = value_0 != -1 ? 1u : 0u;
+        mask <<= 1;
+        mask |= value_1 != -1 ? 1u : 0u;
+        mask <<= 1;
+        mask |= value_2 != -1 ? 1u : 0u;
+        mask <<= 1;
+        mask |= value_3 != -1 ? 1u : 0u;
+
+        p.set(port, mask);
+    }
+}
+
+static constexpr int make_state(hsm_t::state_id id) noexcept
 {
     return static_cast<int>(id);
 }
 
-constexpr hsm_t::state_id get_state(int idx) noexcept
+static constexpr hsm_t::state_id get_state(int idx) noexcept
 {
     return static_cast<hsm_t::state_id>(idx);
 }
@@ -103,35 +233,36 @@ struct transition {
     transition_type type;
 };
 
-constexpr int make_input(hsm_t::state_id id) noexcept
+static constexpr int make_input(hsm_t::state_id id) noexcept
 {
     return static_cast<int>(id << 16);
 }
 
-constexpr hsm_t::state_id get_input(int idx) noexcept
+static constexpr hsm_t::state_id get_input(int idx) noexcept
 {
     return static_cast<hsm_t::state_id>((idx >> 16) & 0xff);
 }
 
-constexpr int make_output(hsm_t::state_id id, transition_type type) noexcept
+static constexpr int make_output(hsm_t::state_id id,
+                                 transition_type type) noexcept
 {
     return static_cast<int>((static_cast<u8>(type) << 8) | id);
 }
 
-constexpr output get_output(int idx) noexcept
+static constexpr output get_output(int idx) noexcept
 {
     return output{ .output = static_cast<u8>(idx & 0xff),
                    .type   = static_cast<transition_type>((idx >> 8) & 0xff) };
 }
 
-constexpr int make_transition(hsm_t::state_id from,
-                              hsm_t::state_id to,
-                              transition_type type) noexcept
+static constexpr int make_transition(hsm_t::state_id from,
+                                     hsm_t::state_id to,
+                                     transition_type type) noexcept
 {
     return make_input(to) | make_output(from, type);
 }
 
-constexpr transition get_transition(int idx) noexcept
+static constexpr transition get_transition(int idx) noexcept
 {
     const auto input  = get_input(idx);
     const auto output = get_output(idx);
@@ -141,7 +272,7 @@ constexpr transition get_transition(int idx) noexcept
                        .type   = output.type };
 }
 
-//! Get the first unused state from the HSM.
+/** Get the first unused state from the HSM. */
 static constexpr auto get_first_available(
   std::array<bool, 254>& enabled) noexcept -> std::optional<u8>
 {
@@ -152,8 +283,8 @@ static constexpr auto get_first_available(
     return std::nullopt;
 }
 
-//! After removing a state or a link between a child and his parent, we need to
-//! search a new children to assign otherwise, parent child is set to invalid.
+/** After removing a state or a link between a child and his parent, we need to
+ * search a new children to assign otherwise, parent child is set to invalid. */
 static void update_super_sub_id(hsm_t&          hsm,
                                 hsm_t::state_id super,
                                 hsm_t::state_id old_sub) noexcept
@@ -217,96 +348,6 @@ static void show_condition(hsm_t::condition_action& act) noexcept
     ImGui::TextUnformatted(condition_names[ordinal(act.type)]);
 }
 
-// static void show_state_id_editor(const std::array<bool, 254>& enabled,
-//                                  hsm_t::state_id&             current)
-//                                  noexcept
-// {
-//     ImGui::PushID(&current);
-
-//     small_string<7> preview_value("-");
-//     if (current != hsm_t::invalid_state_id)
-//         format(preview_value, "{}", current);
-
-//     ImGui::PushItemWidth(-1);
-//     if (ImGui::BeginCombo("##transition", preview_value.c_str())) {
-//         if (ImGui::Selectable("-", current == hsm_t::invalid_state_id))
-//             current = hsm_t::invalid_state_id;
-
-//         for (u8 i = 0, e = hsm_t::max_number_of_state; i < e; ++i) {
-//             if (enabled[i]) {
-//                 format(preview_value, "{}", i);
-//                 if (ImGui::Selectable(preview_value.c_str(), i == current))
-//                     current = i;
-//             }
-//         }
-
-//         ImGui::EndCombo();
-//     }
-//     ImGui::PopItemWidth();
-//     ImGui::PopID();
-// }
-
-static void show_port_widget(hsm_t::variable& var) noexcept
-{
-    ImGui::PushID(&var);
-    int port = static_cast<int>(var) - 1;
-    if (!(0 <= port && port < 4))
-        port = 0;
-
-    ImGui::PushItemWidth(-1);
-    if (ImGui::Combo("##port", &port, variable_names + 1, 4)) {
-        debug::ensure(0 <= port && port <= 3);
-        var = enum_cast<hsm_t::variable>(port + 1);
-    }
-    ImGui::PopItemWidth();
-    ImGui::PopID();
-}
-
-static void show_ports(u8& value, u8& mask) noexcept
-{
-    ImGui::PushID(static_cast<void*>(&value));
-
-    const int sub_value_3 = value & 0b0001 ? 1 : 0;
-    const int sub_value_2 = value & 0b0010 ? 1 : 0;
-    const int sub_value_1 = value & 0b0100 ? 1 : 0;
-    const int sub_value_0 = value & 0b1000 ? 1 : 0;
-
-    int value_3 = mask & 0b0001 ? sub_value_3 : -1;
-    int value_2 = mask & 0b0010 ? sub_value_2 : -1;
-    int value_1 = mask & 0b0100 ? sub_value_1 : -1;
-    int value_0 = mask & 0b1000 ? sub_value_0 : -1;
-
-    bool have_changed = false;
-
-    have_changed = ImGui::CheckBoxTristate("0", &value_0);
-    ImGui::SameLine();
-    have_changed = ImGui::CheckBoxTristate("1", &value_1) || have_changed;
-    ImGui::SameLine();
-    have_changed = ImGui::CheckBoxTristate("2", &value_2) || have_changed;
-    ImGui::SameLine();
-    have_changed = ImGui::CheckBoxTristate("3", &value_3) || have_changed;
-
-    if (have_changed) {
-        value = value_0 == 1 ? 1u : 0u;
-        value <<= 1;
-        value |= value_1 == 1 ? 1u : 0u;
-        value <<= 1;
-        value |= value_2 == 1 ? 1u : 0u;
-        value <<= 1;
-        value |= value_3 == 1 ? 1u : 0u;
-
-        mask = value_0 != -1 ? 1u : 0u;
-        mask <<= 1;
-        mask |= value_1 != -1 ? 1u : 0u;
-        mask <<= 1;
-        mask |= value_2 != -1 ? 1u : 0u;
-        mask <<= 1;
-        mask |= value_3 != -1 ? 1u : 0u;
-    }
-
-    ImGui::PopID();
-}
-
 static void show_state_action(hsm_t::state_action& action) noexcept
 {
     ImGui::PushID(static_cast<void*>(&action));
@@ -325,7 +366,7 @@ static void show_state_action(hsm_t::state_action& action) noexcept
     case hsm_t::action_type::set:
         show_port_widget(action.var1);
         ImGui::PushItemWidth(-1);
-        ImGui::InputScalar("value", ImGuiDataType_S32, &action.parameter);
+        ImGui::InputScalar("value", ImGuiDataType_S32, &action.constant.i);
         ImGui::PopItemWidth();
         break;
     case hsm_t::action_type::unset:
@@ -336,52 +377,52 @@ static void show_state_action(hsm_t::state_action& action) noexcept
     case hsm_t::action_type::output:
         show_port_widget(action.var1);
         ImGui::PushItemWidth(-1);
-        ImGui::InputScalar("value", ImGuiDataType_S32, &action.parameter);
+        show_variables_and_constants_combobox(action.var2, action);
         ImGui::PopItemWidth();
         break;
     case hsm_t::action_type::affect:
-        show_only_variable_widget(action.var1);
-        show_variable_widget(action.var2, action.parameter);
+        show_variables_combobox(action.var1);
+        show_ports_variables_constants_combobox(action.var2, action);
         break;
     case hsm_t::action_type::plus:
-        show_only_variable_widget(action.var1);
-        show_variable_widget(action.var2, action.parameter);
+        show_variables_combobox(action.var1);
+        show_ports_variables_constants_combobox(action.var2, action);
         break;
     case hsm_t::action_type::minus:
-        show_only_variable_widget(action.var1);
-        show_variable_widget(action.var2, action.parameter);
+        show_variables_combobox(action.var1);
+        show_ports_variables_constants_combobox(action.var2, action);
         break;
     case hsm_t::action_type::negate:
-        show_only_variable_widget(action.var1);
-        show_variable_widget(action.var2, action.parameter);
+        show_variables_combobox(action.var1);
+        show_ports_variables_constants_combobox(action.var2, action);
         break;
     case hsm_t::action_type::multiplies:
-        show_only_variable_widget(action.var1);
-        show_variable_widget(action.var2, action.parameter);
+        show_variables_combobox(action.var1);
+        show_ports_variables_constants_combobox(action.var2, action);
         break;
     case hsm_t::action_type::divides:
-        show_only_variable_widget(action.var1);
-        show_variable_widget(action.var2, action.parameter);
+        show_variables_combobox(action.var1);
+        show_ports_variables_constants_combobox(action.var2, action);
         break;
     case hsm_t::action_type::modulus:
-        show_only_variable_widget(action.var1);
-        show_variable_widget(action.var2, action.parameter);
+        show_variables_combobox(action.var1);
+        show_ports_variables_constants_combobox(action.var2, action);
         break;
     case hsm_t::action_type::bit_and:
-        show_only_variable_widget(action.var1);
-        show_variable_widget(action.var2, action.parameter);
+        show_variables_combobox(action.var1);
+        show_ports_variables_constants_combobox(action.var2, action);
         break;
     case hsm_t::action_type::bit_or:
-        show_only_variable_widget(action.var1);
-        show_variable_widget(action.var2, action.parameter);
+        show_variables_combobox(action.var1);
+        show_ports_variables_constants_combobox(action.var2, action);
         break;
     case hsm_t::action_type::bit_not:
-        show_only_variable_widget(action.var1);
-        show_variable_widget(action.var2, action.parameter);
+        show_variables_combobox(action.var1);
+        show_ports_variables_constants_combobox(action.var2, action);
         break;
     case hsm_t::action_type::bit_xor:
-        show_only_variable_widget(action.var1);
-        show_variable_widget(action.var2, action.parameter);
+        show_variables_combobox(action.var1);
+        show_ports_variables_constants_combobox(action.var2, action);
         break;
     default:
         break;
@@ -407,79 +448,45 @@ static void show_state_condition(hsm_t::condition_action& condition) noexcept
     case hsm_t::condition_type::none:
         break;
     case hsm_t::condition_type::port:
-        show_ports(condition.port, condition.mask);
+        show_ports(condition);
         break;
-    case hsm_t::condition_type::a_equal_to_cst:
+    case hsm_t::condition_type::sigma:
+        break;
+    case hsm_t::condition_type::equal_to:
         ImGui::PushItemWidth(-1);
-        ImGui::InputScalar("value", ImGuiDataType_S32, &condition.parameter);
+        show_variables_combobox(condition.var1);
+        show_variables_combobox(condition.var2);
         ImGui::PopItemWidth();
         break;
-    case hsm_t::condition_type::a_not_equal_to_cst:
+    case hsm_t::condition_type::not_equal_to:
         ImGui::PushItemWidth(-1);
-        ImGui::InputScalar("value", ImGuiDataType_S32, &condition.parameter);
+        show_variables_combobox(condition.var1);
+        show_variables_combobox(condition.var2);
         ImGui::PopItemWidth();
         break;
-    case hsm_t::condition_type::a_greater_cst:
+    case hsm_t::condition_type::greater:
         ImGui::PushItemWidth(-1);
-        ImGui::InputScalar("value", ImGuiDataType_S32, &condition.parameter);
+        show_variables_combobox(condition.var1);
+        show_variables_combobox(condition.var2);
         ImGui::PopItemWidth();
         break;
-    case hsm_t::condition_type::a_less_cst:
+    case hsm_t::condition_type::greater_equal:
         ImGui::PushItemWidth(-1);
-        ImGui::InputScalar("value", ImGuiDataType_S32, &condition.parameter);
+        show_variables_combobox(condition.var1);
+        show_variables_combobox(condition.var2);
         ImGui::PopItemWidth();
         break;
-    case hsm_t::condition_type::a_greater_equal_cst:
+    case hsm_t::condition_type::less:
         ImGui::PushItemWidth(-1);
-        ImGui::InputScalar("value", ImGuiDataType_S32, &condition.parameter);
+        show_variables_combobox(condition.var1);
+        show_variables_combobox(condition.var2);
         ImGui::PopItemWidth();
         break;
-    case hsm_t::condition_type::a_less_equal_cst:
+    case hsm_t::condition_type::less_equal:
         ImGui::PushItemWidth(-1);
-        ImGui::InputScalar("value", ImGuiDataType_S32, &condition.parameter);
+        show_variables_combobox(condition.var1);
+        show_variables_combobox(condition.var2);
         ImGui::PopItemWidth();
-        break;
-    case hsm_t::condition_type::b_equal_to_cst:
-        ImGui::PushItemWidth(-1);
-        ImGui::InputScalar("value", ImGuiDataType_S32, &condition.parameter);
-        ImGui::PopItemWidth();
-        break;
-    case hsm_t::condition_type::b_not_equal_to_cst:
-        ImGui::PushItemWidth(-1);
-        ImGui::InputScalar("value", ImGuiDataType_S32, &condition.parameter);
-        ImGui::PopItemWidth();
-        break;
-    case hsm_t::condition_type::b_greater_cst:
-        ImGui::PushItemWidth(-1);
-        ImGui::InputScalar("value", ImGuiDataType_S32, &condition.parameter);
-        ImGui::PopItemWidth();
-        break;
-    case hsm_t::condition_type::b_less_cst:
-        ImGui::PushItemWidth(-1);
-        ImGui::InputScalar("value", ImGuiDataType_S32, &condition.parameter);
-        ImGui::PopItemWidth();
-        break;
-    case hsm_t::condition_type::b_greater_equal_cst:
-        ImGui::PushItemWidth(-1);
-        ImGui::InputScalar("value", ImGuiDataType_S32, &condition.parameter);
-        ImGui::PopItemWidth();
-        break;
-    case hsm_t::condition_type::b_less_equal_cst:
-        ImGui::PushItemWidth(-1);
-        ImGui::InputScalar("value", ImGuiDataType_S32, &condition.parameter);
-        ImGui::PopItemWidth();
-        break;
-    case hsm_t::condition_type::a_equal_to_b:
-        break;
-    case hsm_t::condition_type::a_not_equal_to_b:
-        break;
-    case hsm_t::condition_type::a_greater_b:
-        break;
-    case hsm_t::condition_type::a_less_b:
-        break;
-    case hsm_t::condition_type::a_greater_equal_b:
-        break;
-    case hsm_t::condition_type::a_less_equal_b:
         break;
     }
     ImGui::PopID();
@@ -493,7 +500,7 @@ void hsm_component_editor_data::clear(hsm_component& hsm) noexcept
     m_enabled[0] = true;
 
     hsm.clear();
-    (void)hsm.set_state(0);
+    (void)hsm.set_state(0); // @TODO Vraiment necessaire?!?
 }
 
 void hsm_component_editor_data::show_hsm(hsm_component& hsm) noexcept
@@ -687,12 +694,6 @@ void hsm_component_editor_data::show_graph(hsm_component& hsm) noexcept
 
 void hsm_component_editor_data::show_panel(hsm_component& hsm) noexcept
 {
-    if (ImGui::CollapsingHeader("parameters", ImGuiTreeNodeFlags_DefaultOpen)) {
-        ImGui::TextUnformatted("Re-add a and b?");
-        // ImGui::InputScalar("a", ImGuiDataType_S32, &m_hsm.a);
-        // ImGui::InputScalar("b", ImGuiDataType_S32, &m_hsm.a);
-    }
-
     if (ImGui::CollapsingHeader("selected states",
                                 ImGuiTreeNodeFlags_DefaultOpen)) {
         for (int i = 0, e = m_selected_nodes.Size; i != e; ++i) {
@@ -700,8 +701,17 @@ void hsm_component_editor_data::show_panel(hsm_component& hsm) noexcept
             auto&      state = hsm.states[id];
 
             ImGui::PushID(i);
-            // show_state_id_editor(m_enabled, state.super_id);
             ImGui::TextFormat("State {}", m_selected_nodes[i]);
+
+            const auto old_state_0 = hsm.top_state == id;
+            auto       state_0     = hsm.top_state == id;
+
+            if (ImGui::Checkbox("initial state", &state_0)) {
+                if (old_state_0)
+                    hsm.top_state = hsm_t::invalid_state_id;
+                if (state_0)
+                    hsm.top_state = id;
+            }
 
             ImGui::SeparatorText("Condition");
             show_state_condition(state.condition);
@@ -709,12 +719,10 @@ void hsm_component_editor_data::show_panel(hsm_component& hsm) noexcept
             ImGui::SeparatorText("Actions");
             ImGui::TextUnformatted("if condition is true");
             show_state_action(state.if_action);
-            // show_state_id_editor(m_enabled, state.if_transition);
             ImGui::Separator();
 
             ImGui::TextUnformatted("else");
             show_state_action(state.else_action);
-            // show_state_id_editor(m_enabled, state.else_transition);
             ImGui::Separator();
 
             ImGui::SeparatorText("Enter/Exit actions");
@@ -780,102 +788,6 @@ bool hsm_component_editor_data::valid(hsm_component& hsm) noexcept
     return true;
 }
 
-// static auto get(application& app,
-//                 component_id cid) noexcept -> std::optional<hsm_component_id>
-// {
-//     if (auto* compo = app.mod.components.try_to_get(cid);
-//         compo && compo->type == component_type::hsm) {
-
-//         if (auto* hsm = app.mod.hsm_components.try_to_get(compo->id.hsm_id);
-//             hsm) {
-//             return compo->id.hsm_id;
-//         }
-//     }
-
-//     return std::nullopt;
-// }
-
-// void hsm_component_editor_data::load(component_id c_id, model_id m_id)
-// noexcept
-//{
-//     clear();
-//
-//     m_compo_id = c_id;
-//     m_model_id = m_id;
-//
-//     if (auto* machine = get(*this, m_compo_id); machine) {
-//         m_stack.push_back(0);
-//
-//         while (!m_stack.empty()) {
-//             const auto idx = m_stack.back();
-//             m_enabled[idx] = true;
-//             m_stack.pop_back();
-//
-//             if (machine->states[idx].super_id != hsm_t::invalid_state_id)
-//                 if (m_enabled[machine->states[idx].super_id] == false)
-//                     m_stack.push_back(machine->states[idx].super_id);
-//
-//             if (machine->states[idx].sub_id != hsm_t::invalid_state_id)
-//                 if (m_enabled[machine->states[idx].sub_id] == false)
-//                     m_stack.push_back(machine->states[idx].sub_id);
-//
-//             if (machine->states[idx].if_transition !=
-//             hsm_t::invalid_state_id)
-//                 if (m_enabled[machine->states[idx].if_transition] == false)
-//                     m_stack.push_back(machine->states[idx].if_transition);
-//
-//             if (machine->states[idx].else_transition !=
-//             hsm_t::invalid_state_id)
-//                 if (m_enabled[machine->states[idx].else_transition] == false)
-//                     m_stack.push_back(machine->states[idx].else_transition);
-//
-//             m_hsm.states[idx] = machine->states[idx];
-//         }
-//     }
-// }
-//
-// void hsm_component_editor_data::load(model_id m_id) noexcept
-//{
-//     m_compo_id = undefined<component_id>();
-//     m_model_id = m_id;
-//
-//     if (auto* machine = get(*this, m_compo_id); machine) {
-//         m_stack.push_back(0);
-//
-//         while (!m_stack.empty()) {
-//             const auto idx = m_stack.back();
-//             m_enabled[idx] = true;
-//             m_stack.pop_back();
-//
-//             if (machine->states[idx].super_id != hsm_t::invalid_state_id)
-//                 if (m_enabled[machine->states[idx].super_id] == false)
-//                     m_stack.push_back(machine->states[idx].super_id);
-//
-//             if (machine->states[idx].sub_id != hsm_t::invalid_state_id)
-//                 if (m_enabled[machine->states[idx].sub_id] == false)
-//                     m_stack.push_back(machine->states[idx].sub_id);
-//
-//             if (machine->states[idx].if_transition !=
-//             hsm_t::invalid_state_id)
-//                 if (m_enabled[machine->states[idx].if_transition] == false)
-//                     m_stack.push_back(machine->states[idx].if_transition);
-//
-//             if (machine->states[idx].else_transition !=
-//             hsm_t::invalid_state_id)
-//                 if (m_enabled[machine->states[idx].else_transition] == false)
-//                     m_stack.push_back(machine->states[idx].else_transition);
-//
-//             m_hsm.states[idx] = machine->states[idx];
-//         }
-//     }
-// }
-//
-// void hsm_component_editor_data::save() noexcept
-//{
-//     if (auto* machine = get(*this, m_compo_id); machine)
-//         *machine = m_hsm;
-// }
-
 void hsm_component_editor_data::show(component_editor& ed) noexcept
 {
     auto& app = container_of(&ed, &application::component_ed);
@@ -913,6 +825,12 @@ void hsm_component_editor_data::show(component_editor& ed) noexcept
         }
 
         if (ImGui::BeginTabItem("log")) {
+            if (hsm->top_state == hsm_t::invalid_state_id) {
+                ImGui::TextUnformatted("Top state is undefined");
+            } else {
+                ImGui::TextFormat("Top state: {}", hsm->top_state);
+            }
+
             ImGui::TextFormatDisabled("Not yet implemented.");
             ImGui::EndTabItem();
         }
@@ -953,17 +871,25 @@ hsm_component_editor_data::hsm_component_editor_data(
 
     for (auto i = 0, e = length(hsm.states); i != e; ++i) {
         if (hsm.states[i].if_transition !=
-            hierarchical_state_machine::invalid_state_id)
+            hierarchical_state_machine::invalid_state_id) {
             m_enabled[hsm.states[i].if_transition] = true;
+            m_enabled[i]                           = true;
+        }
         if (hsm.states[i].else_transition !=
-            hierarchical_state_machine::invalid_state_id)
+            hierarchical_state_machine::invalid_state_id) {
             m_enabled[hsm.states[i].else_transition] = true;
+            m_enabled[i]                             = true;
+        }
         if (hsm.states[i].super_id !=
-            hierarchical_state_machine::invalid_state_id)
+            hierarchical_state_machine::invalid_state_id) {
             m_enabled[hsm.states[i].super_id] = true;
+            m_enabled[i]                      = true;
+        }
         if (hsm.states[i].sub_id !=
-            hierarchical_state_machine::invalid_state_id)
+            hierarchical_state_machine::invalid_state_id) {
             m_enabled[hsm.states[i].sub_id] = true;
+            m_enabled[i]                    = true;
+        }
     }
 }
 

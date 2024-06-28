@@ -1845,16 +1845,17 @@ int main()
 
         hsmw.states[1u].condition.type =
           irt::hierarchical_state_machine::condition_type::port;
-        hsmw.states[1u].condition.port = 3u;
-        hsmw.states[1u].condition.mask = 7u;
-        hsmw.states[1u].if_transition  = 2u;
+        hsmw.states[1u].condition.set(3u, 7u);
+        hsmw.states[1u].if_transition = 2u;
 
         expect(!!hsmw.set_state(2u, 0u));
         hsmw.states[2u].enter_action.type =
           irt::hsm_wrapper::hsm::action_type::output;
         hsmw.states[2u].enter_action.var1 =
           irt::hierarchical_state_machine::variable::port_0;
-        hsmw.states[2u].enter_action.parameter = 1;
+        hsmw.states[2u].enter_action.var2 =
+          irt::hierarchical_state_machine::variable::constant_r;
+        hsmw.states[2u].enter_action.constant.f = 1.f;
 
         expect(!!hsmw.start(exec));
 
@@ -1867,6 +1868,57 @@ int main()
           irt::hierarchical_state_machine::event_type::input_changed, exec);
         expect(!!processed);
         expect(processed.value() == true);
+
+        expect(exec.outputs.ssize() == 1);
+    };
+
+    "hsm_automata_timer"_test = [] {
+        irt::hierarchical_state_machine            hsmw;
+        irt::hierarchical_state_machine::execution exec;
+
+        expect(!!hsmw.set_state(
+          0u, irt::hierarchical_state_machine::invalid_state_id, 1u));
+
+        expect(!!hsmw.set_state(1u, 0u));
+
+        hsmw.states[1u].condition.type =
+          irt::hierarchical_state_machine::condition_type::port;
+        hsmw.states[1u].condition.set(3u, 7u);
+        hsmw.states[1u].if_transition = 2u;
+
+        expect(!!hsmw.set_state(2u, 0u));
+        hsmw.states[2u].enter_action.type =
+          irt::hsm_wrapper::hsm::action_type::affect;
+        hsmw.states[2u].enter_action.var1 =
+          irt::hierarchical_state_machine::variable::var_timer;
+        hsmw.states[2u].enter_action.var2 =
+          irt::hierarchical_state_machine::variable::constant_r;
+        hsmw.states[2u].enter_action.constant.f = 1.f;
+        hsmw.states[2u].condition.type =
+          irt::hierarchical_state_machine::condition_type::sigma;
+        hsmw.states[2u].if_transition = 3u;
+
+        expect(!!hsmw.set_state(3u, 0u));
+        hsmw.states[2u].enter_action.type =
+          irt::hsm_wrapper::hsm::action_type::output;
+        hsmw.states[2u].enter_action.var1 =
+          irt::hierarchical_state_machine::variable::port_0;
+        hsmw.states[2u].enter_action.var2 =
+          irt::hierarchical_state_machine::variable::constant_r;
+        hsmw.states[2u].enter_action.constant.f = 1.f;
+
+        expect(!!hsmw.start(exec));
+
+        expect((int)exec.current_state == 1);
+        exec.values = 0b00000011;
+
+        expect(exec.outputs.ssize() == 0);
+
+        const auto processed = hsmw.dispatch(
+          irt::hierarchical_state_machine::event_type::input_changed, exec);
+        expect(!!processed);
+        expect(processed.value() == true);
+        expect((int)exec.current_state == 2);
 
         expect(exec.outputs.ssize() == 1);
     };
@@ -1915,16 +1967,17 @@ int main()
         expect(!!hsmw->set_state(1u, 0u));
         hsmw->states[1u].condition.type =
           irt::hierarchical_state_machine::condition_type::port;
-        hsmw->states[1u].condition.port = 0b0011u;
-        hsmw->states[1u].condition.mask = 0b0011u;
-        hsmw->states[1u].if_transition  = 2u;
+        hsmw->states[1u].condition.set(0b0011u, 0b0011u);
+        hsmw->states[1u].if_transition = 2u;
 
         expect(!!hsmw->set_state(2u, 0u));
         hsmw->states[2u].enter_action.type =
           irt::hsm_wrapper::hsm::action_type::output;
         hsmw->states[2u].enter_action.var1 =
           irt::hierarchical_state_machine::variable::port_0;
-        hsmw->states[2u].enter_action.parameter = 1;
+        hsmw->states[2u].enter_action.var2 =
+          irt::hierarchical_state_machine::variable::constant_r;
+        hsmw->states[2u].enter_action.constant.f = 1.0f;
 
         expect(!!sim.connect(gen, 0, hsm, 0));
         expect(!!sim.connect(gen, 0, hsm, 1));

@@ -1336,38 +1336,52 @@ public:
 
 template<typename T>
 concept has_lambda_function = requires(T t, simulation& sim) {
-    { t.lambda(sim) } -> std::same_as<status>;
+    {
+        t.lambda(sim)
+    } -> std::same_as<status>;
 };
 
 template<typename T>
 concept has_transition_function =
   requires(T t, simulation& sim, time s, time e, time r) {
-      { t.transition(sim, s, e, r) } -> std::same_as<status>;
+      {
+          t.transition(sim, s, e, r)
+      } -> std::same_as<status>;
   };
 
 template<typename T>
 concept has_observation_function = requires(T t, time s, time e) {
-    { t.observation(s, e) } -> std::same_as<observation_message>;
+    {
+        t.observation(s, e)
+    } -> std::same_as<observation_message>;
 };
 
 template<typename T>
 concept has_initialize_function = requires(T t, simulation& sim) {
-    { t.initialize(sim) } -> std::same_as<status>;
+    {
+        t.initialize(sim)
+    } -> std::same_as<status>;
 };
 
 template<typename T>
 concept has_finalize_function = requires(T t, simulation& sim) {
-    { t.finalize(sim) } -> std::same_as<status>;
+    {
+        t.finalize(sim)
+    } -> std::same_as<status>;
 };
 
 template<typename T>
 concept has_input_port = requires(T t) {
-    { t.x };
+    {
+        t.x
+    };
 };
 
 template<typename T>
 concept has_output_port = requires(T t) {
-    { t.y };
+    {
+        t.y
+    };
 };
 
 constexpr observation_message qss_observation(real X,
@@ -3488,13 +3502,12 @@ struct logical_invert {
     }
 };
 
-/**
- * Hierarchical state machine.
+/** Hierarchical state machine.
  *
- * \note This implementation have the standard restriction for HSM:
+ * @note This implementation have the standard restriction for HSM:
  * 1. You can not call Transition from HSM::event_type::enter and
  * HSM::event_type::exit! These event are provided to execute your
- * construction/destruction. Use custom events for that.
+ * construction/destruction.
  * 2. You are not allowed to dispatch an event from within an event
  * dispatch. You should queue events if you want such behavior. This
  * restriction is imposed only to prevent the user from creating
@@ -3504,37 +3517,51 @@ struct logical_invert {
 class hierarchical_state_machine
 {
 public:
-    using state_id                      = u8;
+    using state_id = u8;
+    struct execution;
+
     static const u8 max_number_of_state = 254;
     static const u8 invalid_state_id    = 255;
-
-    enum class event_type : u8 { enter = 0, exit, input_changed };
 
     struct top_state_error {};
     struct next_state_error {};
 
-    constexpr static int event_type_count     = 3;
-    constexpr static int variable_count       = 8;
+    constexpr static int event_type_count     = 5;
+    constexpr static int variable_count       = 12;
     constexpr static int action_type_count    = 16;
-    constexpr static int condition_type_count = 20;
+    constexpr static int condition_type_count = 9;
+
+    enum class event_type : u8 {
+        enter,
+        exit,
+        input_changed, /**< HSM receives an expected input message. */
+        internal,      /**< Can HSM move to the next state. */
+        wake_up, /**< HSM receives an end of a timer message with or without
+                    input message (priority to timer event). */
+
+    };
 
     enum class variable : u8 {
-        none = 0,
+        none,
         port_0,
         port_1,
         port_2,
         port_3,
-        var_a,
-        var_b,
-        constant
+        var_i1,
+        var_i2,
+        var_r1,
+        var_r2,
+        var_timer,
+        constant_i,
+        constant_r,
     };
 
     enum class action_type : u8 {
-        none = 0, // no param
-        set,      // port identifer + i32 parameter value
-        unset,    // port identifier to clear
-        reset,    // all port to reset
-        output,   // port identifier + i32 parameter value
+        none,   // do nothing.
+        set,    // port identifer + a variable.
+        unset,  // port identifier to clear.
+        reset,  // all port to reset
+        output, // port identifier + a variable.
         affect,
         plus,
         minus,
@@ -3549,37 +3576,29 @@ public:
     };
 
     enum class condition_type : u8 {
-        none, // No condition (always true)
-        port, // Message on port
-        a_equal_to_cst,
-        a_not_equal_to_cst,
-        a_greater_cst,
-        a_less_cst,
-        a_greater_equal_cst,
-        a_less_equal_cst,
-        b_equal_to_cst,
-        b_not_equal_to_cst,
-        b_greater_cst,
-        b_less_cst,
-        b_greater_equal_cst,
-        b_less_equal_cst,
-        a_equal_to_b,
-        a_not_equal_to_b,
-        a_greater_b,
-        a_less_b,
-        a_greater_equal_b,
-        a_less_equal_b,
+        none,  // No condition (always true)
+        port,  // Wait a message on port.
+        sigma, // Wait a wakup after a `ta(sigma)`.
+        equal_to,
+        not_equal_to,
+        greater,
+        greater_equal,
+        less,
+        less_equal,
     };
 
-    //! Action available when state is processed during enter, exit or
-    //! condition event. \note Only on action (value set/unset, devs
-    //! output, etc.) by action. To perform more action, use several
-    //! states.
+    /** Action available when state is processed during enter, exit or condition
+     * event. @c note Only one action (value set/unset, devs output, etc.) by
+     * action. To perform more action, use several states. */
     struct state_action {
-        i32         parameter = 0;
-        variable    var1      = variable::none;
-        variable    var2      = variable::none;
-        action_type type      = action_type::none;
+        variable    var1 = variable::none;
+        variable    var2 = variable::none;
+        action_type type = action_type::none;
+
+        union {
+            i32   i;
+            float f;
+        } constant;
 
         void clear() noexcept;
     };
@@ -3595,12 +3614,25 @@ public:
     //! conditions. Condition can use input port state or condition on
     //! integer a or b.
     struct condition_action {
-        i32            parameter = 0;
-        condition_type type      = condition_type::none;
-        u8             port      = 0;
-        u8             mask      = 0;
+        variable       var1 = variable::none;
+        variable       var2 = variable::none;
+        condition_type type = condition_type::none;
 
-        bool check(u8 port_values, i32 a, i32 b) noexcept;
+        union {
+            i32   i;
+            u32   u;
+            float f;
+        } constant;
+
+        void set(u8 port, u8 mask) noexcept { constant.u = (port << 4) | mask; }
+
+        void get(u8& port, u8& mask) const noexcept
+        {
+            port = (constant.u >> 4) & 0b1111;
+            mask = constant.u & 0b1111;
+        }
+
+        bool check(execution& e) noexcept;
         void clear() noexcept;
     };
 
@@ -3619,17 +3651,28 @@ public:
 
         state_id super_id = invalid_state_id;
         state_id sub_id   = invalid_state_id;
+
+        bool is_terminal() const noexcept
+        {
+            return if_transition == invalid_state_id and
+                   else_transition == invalid_state_id;
+        }
     };
 
     struct output_message {
-        i32 value{};
-        u8  port{};
+        real value{};
+        u8   port{};
     };
 
     struct execution {
-        i32 a      = 0;
-        i32 b      = 0;
-        u8  values = 0;
+        i32                 i1    = 0;
+        i32                 i2    = 0;
+        real                r1    = 0.0;
+        real                r2    = 0.0;
+        time                sigma = time_domain<time>::infinity;
+        std::array<real, 4> ports; //<! Stores first part of input message.
+        small_vector<output_message, 4> outputs;
+        std::bitset<4> values; //<! Bit storage message available on X port.
 
         state_id current_state        = invalid_state_id;
         state_id next_state           = invalid_state_id;
@@ -3638,12 +3681,16 @@ public:
         state_id previous_state       = invalid_state_id;
         bool     disallow_transition  = false;
 
-        small_vector<output_message, 4> outputs;
-
         void clear() noexcept
         {
-            values = 0u;
-            outputs.clear();
+            i1    = 0;
+            i2    = 0;
+            r1    = 0;
+            r2    = 0;
+            sigma = time_domain<time>::infinity;
+
+            ports.fill(0.0);
+            values.reset();
 
             current_state        = invalid_state_id;
             next_state           = invalid_state_id;
@@ -3651,13 +3698,14 @@ public:
             current_source_state = invalid_state_id;
             previous_state       = invalid_state_id;
             disallow_transition  = false;
+
+            outputs.clear();
         }
     };
 
     hierarchical_state_machine() noexcept = default;
-    hierarchical_state_machine(const hierarchical_state_machine&) noexcept;
-    hierarchical_state_machine& operator=(
-      const hierarchical_state_machine&) noexcept;
+    hierarchical_state_machine(const hierarchical_state_machine&) noexcept =
+      default;
 
     status start(execution& state) noexcept;
 
@@ -3706,12 +3754,12 @@ public:
     void affect_action(const state_action& action, execution& exec) noexcept;
 
     std::array<state, max_number_of_state> states;
-    state_id                               top_state = invalid_state_id;
+
+    state_id top_state = invalid_state_id;
 };
 
-status get_hierarchical_state_machine(simulation&                  sim,
-                                      hierarchical_state_machine*& hsm,
-                                      hsm_id                       id) noexcept;
+auto get_hierarchical_state_machine(simulation& sim, hsm_id id) noexcept
+  -> result<hierarchical_state_machine*>;
 
 struct hsm_wrapper {
     using hsm      = hierarchical_state_machine;
@@ -5024,16 +5072,15 @@ inline status send_message(simulation& sim,
     return success();
 }
 
-//! Get an @c hierarchical_state_machine from the ID.
-//!
-//! @return @c success() or a new error @c simulation::hsms_error{} @c
-//! unknown_error{} and e_ulong_id{ ordinal(id).
-inline status get_hierarchical_state_machine(simulation&                  sim,
-                                             hierarchical_state_machine*& hsm,
-                                             const hsm_id id) noexcept
+/**  Get an @c hierarchical_state_machine from the ID.
+ * @return @c success() or a new error @c simulation::hsms_error{} @c
+ * unknown_error{} and e_ulong_id{ ordinal(id). */
+inline auto get_hierarchical_state_machine(simulation&  sim,
+                                           const hsm_id id) noexcept
+  -> result<hierarchical_state_machine*>
 {
-    if (hsm = sim.hsms.try_to_get(id); hsm)
-        return success();
+    if (auto* hsm = sim.hsms.try_to_get(id); hsm)
+        return hsm;
 
     return new_error(
       simulation::part::hsms, unknown_error{}, e_ulong_id{ ordinal(id) });
@@ -5955,12 +6002,30 @@ inline hsm_wrapper::hsm_wrapper(const hsm_wrapper& other) noexcept
 
 inline status hsm_wrapper::initialize(simulation& sim) noexcept
 {
-    hierarchical_state_machine* machine = nullptr;
-    irt_check(get_hierarchical_state_machine(sim, machine, id));
+    exec.clear();
 
+    irt_auto(machine, get_hierarchical_state_machine(sim, id));
     irt_check(machine->start(exec));
 
     sigma = time_domain<time>::infinity;
+
+    if (exec.current_state != hierarchical_state_machine::invalid_state_id and
+        not machine->states[exec.current_state].is_terminal()) {
+        switch (machine->states[exec.current_state].condition.type) {
+        case hierarchical_state_machine::condition_type::sigma:
+            sigma = exec.sigma;
+            break;
+        case irt::hierarchical_state_machine::condition_type::port:
+            sigma = time_domain<time>::infinity;
+            break;
+        default:
+            sigma = time_domain<time>::zero;
+            break;
+        }
+    }
+
+    if (not exec.outputs.empty())
+        sigma = time_domain<time>::zero;
 
     return success();
 }
@@ -5968,62 +6033,82 @@ inline status hsm_wrapper::initialize(simulation& sim) noexcept
 inline status hsm_wrapper::transition(simulation& sim,
                                       time /*t*/,
                                       time /*e*/,
-                                      time /*r*/) noexcept
+                                      time r) noexcept
 {
-    hierarchical_state_machine* machine = nullptr;
-    irt_check(get_hierarchical_state_machine(sim, machine, id));
+    irt_auto(machine, get_hierarchical_state_machine(sim, id));
+
+    auto have_x_msg = false;
+    for (int i = 0, e = length(x); i != e; ++i) {
+        auto* lst = sim.messages.try_to_get(x[i]);
+        if (lst and not lst->empty()) {
+            have_x_msg = true;
+            exec.values.set(i, true);
+
+            for (auto& elem : *lst)
+                exec.ports[i] = elem[0];
+        }
+    }
 
     exec.outputs.clear();
-    sigma                       = time_domain<time>::infinity;
-    const auto old_values_state = exec.values;
 
-    for (int i = 0, e = length(x); i != e; ++i) {
-        if (is_defined(x[i]))
-            exec.values |= static_cast<u8>(1u << i);
+    const auto wait_timer =
+      machine->states[exec.current_state].condition.type ==
+      hierarchical_state_machine::condition_type::sigma;
 
-        // notice for clear a bit if negative value ? or 0 value ?
-        // for (const auto& msg : span) {
-        //     if (msg[0] != 0)
-        //         machine->values |= 1u << i;
-        //     else
-        //         machine->values &= ~(1u << n);
-        // }
-        //
-        // Setting a bit number |= 1UL << n;
-        // clearing a bit bit number &= ~(1UL << n);
-        // Toggling a bit number ^= 1UL << n;
-        // Checking a bit bit = (number >> n) & 1U;
-        // Changing the nth bit to x
-        //  number = (number & ~(1UL << n)) | (x << n);
-    }
+    const auto wait_msg = machine->states[exec.current_state].condition.type ==
+                          hierarchical_state_machine::condition_type::port;
 
-    if (old_values_state != exec.values) {
+    // Wake up from a timer event. The timer event takes precedence over
+    // internal and external events.
+    if (wait_timer) {
+        exec.sigma = r;
+
         exec.previous_state = exec.current_state;
-
-        auto ret = machine->dispatch(
-          hierarchical_state_machine::event_type::input_changed, exec);
-
-        if (!ret)
-            return ret.error();
-
-        if (*ret == true && !exec.outputs.empty())
-            sigma = time_domain<time>::zero;
+        irt_check(machine->dispatch(
+          hierarchical_state_machine::event_type::wake_up, exec));
+        // New message are stored in exec.values and exec.ports. HSM needs to
+        // handle input event.
+    } else if (wait_msg) {
+        if (have_x_msg) {
+            exec.previous_state = exec.current_state;
+            irt_check(machine->dispatch(
+              hierarchical_state_machine::event_type::input_changed, exec));
+        }
+    } else {
+        exec.previous_state = exec.current_state;
+        irt_check(machine->dispatch(
+          hierarchical_state_machine::event_type::internal, exec));
     }
+
+    sigma = time_domain<time>::infinity;
+
+    if (exec.current_state != hierarchical_state_machine::invalid_state_id and
+        not machine->states[exec.current_state].is_terminal()) {
+        switch (machine->states[exec.current_state].condition.type) {
+        case hierarchical_state_machine::condition_type::sigma:
+            sigma = exec.sigma;
+            break;
+        case irt::hierarchical_state_machine::condition_type::port:
+            sigma = time_domain<time>::infinity;
+            break;
+        default:
+            sigma = time_domain<time>::zero;
+            break;
+        }
+    }
+
+    if (not exec.outputs.empty())
+        sigma = time_domain<time>::zero;
 
     return success();
 }
 
 inline status hsm_wrapper::lambda(simulation& sim) noexcept
 {
-    if (exec.previous_state != hierarchical_state_machine::invalid_state_id &&
-        !exec.outputs.empty()) {
+    if (not exec.outputs.empty()) {
         for (int i = 0, e = exec.outputs.ssize(); i != e; ++i) {
-            const u8  port  = exec.outputs[i].port;
-            const i32 value = exec.outputs[i].value;
-
-            debug::ensure(port < exec.outputs.size());
-
-            irt_check(send_message(sim, y[port], to_real(value)));
+            irt_check(send_message(
+              sim, y[exec.outputs[i].port], exec.outputs[i].value));
         }
     }
 

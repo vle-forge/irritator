@@ -600,8 +600,11 @@ void show_dynamics_inputs(simulation& /*sim*/, logical_invert& /*dyn*/) {}
 
 void show_dynamics_inputs(simulation& /*sim*/, hsm_wrapper& dyn)
 {
-    ImGui::InputInt("a", &dyn.exec.a);
-    ImGui::InputInt("b", &dyn.exec.b);
+    ImGui::InputInt("integer 1", &dyn.exec.i1);
+    ImGui::InputInt("integer 2", &dyn.exec.i2);
+    ImGui::InputDouble("real 1", &dyn.exec.r1);
+    ImGui::InputDouble("real 2", &dyn.exec.r2);
+    ImGui::InputDouble("timer", &dyn.exec.sigma);
 }
 
 void show_dynamics_inputs(simulation& /*sim*/, time_func& dyn)
@@ -1963,7 +1966,7 @@ bool show_parameter(dynamics_hsm_wrapper_tag,
                     application& app,
                     parameter&   p) noexcept
 {
-    auto update = false;
+    auto up = false;
 
     if (ImGui::BeginCombo("hsm component",
                           get_current_component_name(app, p))) {
@@ -1972,7 +1975,7 @@ bool show_parameter(dynamics_hsm_wrapper_tag,
         ImGui::PushID(imgui_id++);
         if (ImGui::Selectable("-", p.integers[0] == 0)) {
             p.integers[0] = 0;
-            update        = true;
+            up            = true;
         }
         ImGui::PopID();
 
@@ -1991,16 +1994,13 @@ bool show_parameter(dynamics_hsm_wrapper_tag,
         ImGui::EndCombo();
     }
 
-    auto a = static_cast<int>(p.integers[1]);
-    auto b = static_cast<int>(p.integers[2]);
+    up = ImGui::InputScalar("i1", ImGuiDataType_S64, &p.integers[1]) or up;
+    up = ImGui::InputScalar("i2", ImGuiDataType_S64, &p.integers[2]) or up;
+    up = ImGui::InputDouble("r1", &p.reals[0]) or up;
+    up = ImGui::InputDouble("r2", &p.reals[1]) or up;
+    up = ImGui::InputDouble("timer", &p.reals[2]) or up;
 
-    update = ImGui::InputInt("A", &a) or update;
-    update = ImGui::InputInt("B", &b) or update;
-
-    p.integers[1] = a;
-    p.integers[2] = b;
-
-    return update;
+    return up;
 }
 
 bool show_parameter_editor(application&  app,

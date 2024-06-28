@@ -835,10 +835,10 @@ static void do_serialize(
   IO&                                       io,
   hierarchical_state_machine::state_action& action) noexcept
 {
-    io(action.parameter);
     io(action.var1);
     io(action.var2);
     io(action.type);
+    io(action.constant.i);
 }
 
 template<typename IO>
@@ -847,10 +847,10 @@ static void do_serialize(
   IO&                                           io,
   hierarchical_state_machine::condition_action& action) noexcept
 {
-    io(action.parameter);
+    io(action.var1);
+    io(action.var2);
     io(action.type);
-    io(action.port);
-    io(action.mask);
+    io(action.constant.i);
 }
 
 template<typename IO>

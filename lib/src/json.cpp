@@ -474,8 +474,8 @@ struct reader {
 
     template<size_t N, typename Function>
     bool for_members(const rapidjson::Value& val,
-                     const std::string_view (&names)[N],
-                     Function&& fn) noexcept
+                     const std::string_view  (&names)[N],
+                     Function&&              fn) noexcept
     {
         if (!val.IsObject())
             report_json_error(error_id::value_not_object);
@@ -804,7 +804,7 @@ struct reader {
         if (!(temp_u64 <= UINT8_MAX))
             report_json_error(error_id::integer_to_u8_error);
 
-        dst = static_cast<u8>(temp_integer);
+        dst = static_cast<u8>(temp_u64);
 
         return true;
     }
@@ -870,6 +870,21 @@ struct reader {
     {
         dst = temp_u64;
 
+        return true;
+    }
+
+    bool copy_to(std::optional<double>& dst) noexcept
+    {
+        dst = temp_double;
+        return true;
+    }
+
+    bool copy_to(std::optional<u8>& dst) noexcept
+    {
+        if (!(temp_u64 <= UINT8_MAX))
+            report_json_error(error_id::integer_to_i8_error);
+
+        dst = static_cast<u8>(temp_integer);
         return true;
     }
 
@@ -1566,12 +1581,27 @@ struct reader {
       const rapidjson::Value&                       val,
       hierarchical_state_machine::condition_action& s) noexcept
     {
-        auto_stack a(this, stack_id::dynamics_hsm_condition_action);
+        auto_stack          a(this, stack_id::dynamics_hsm_condition_action);
+        std::optional<u8>   port;
+        std::optional<u8>   mask;
+        std::optional<i32>  i;
+        std::optional<real> f;
 
-        return for_each_member(
+        auto ret = for_each_member(
           val, [&](const auto name, const auto& value) noexcept -> bool {
-              if ("parameter"sv == name)
-                  return read_temp_integer(value) && copy_to(s.parameter);
+              if ("var-1"sv == name)
+                  return read_temp_integer(value) &&
+                         is_int_greater_equal_than(0) &&
+                         is_int_less_than(
+                           hierarchical_state_machine::variable_count) &&
+                         copy_to(s.var1);
+
+              if ("var-2"sv == name)
+                  return read_temp_integer(value) &&
+                         is_int_greater_equal_than(0) &&
+                         is_int_less_than(
+                           hierarchical_state_machine::variable_count) &&
+                         copy_to(s.var2);
 
               if ("type"sv == name)
                   return read_temp_integer(value) &&
@@ -1581,26 +1611,43 @@ struct reader {
                          copy_to(s.type);
 
               if ("port"sv == name)
-                  return read_temp_integer(value) && copy_to(s.port);
+                  return read_temp_integer(value) && copy_to(port);
 
               if ("mask"sv == name)
-                  return read_temp_integer(value) && copy_to(s.mask);
+                  return read_temp_integer(value) && copy_to(mask);
+
+              if ("contant-i"sv == name)
+                  return read_temp_integer(value) && copy_to(i);
+
+              if ("contant-f"sv == name)
+                  return read_temp_real(value) && copy_to(f);
 
               report_json_error(error_id::unknown_element);
           });
+
+        if (not ret)
+            return ret;
+
+        if (port.has_value() and mask.has_value())
+            s.set(*port, *mask);
+        else if (i.has_value())
+            s.constant.i = *i;
+        else if (f.has_value())
+            s.constant.f = static_cast<float>(*f);
+
+        return true;
     }
 
     bool read_hsm_state_action(
       const rapidjson::Value&                   val,
       hierarchical_state_machine::state_action& s) noexcept
     {
-        auto_stack a(this, stack_id::dynamics_hsm_state_action);
+        auto_stack          a(this, stack_id::dynamics_hsm_state_action);
+        std::optional<i32>  i;
+        std::optional<real> f;
 
-        return for_each_member(
+        auto ret = for_each_member(
           val, [&](const auto name, const auto& value) noexcept -> bool {
-              if ("parameter"sv == name)
-                  return read_temp_integer(value) && copy_to(s.parameter);
-
               if ("var-1"sv == name)
                   return read_temp_integer(value) &&
                          is_int_greater_equal_than(0) &&
@@ -1622,8 +1669,24 @@ struct reader {
                            hierarchical_state_machine::action_type_count) &&
                          copy_to(s.type);
 
+              if ("constant-i"sv == name)
+                  return read_temp_integer(value) && copy_to(i);
+
+              if ("constant-r"sv == name)
+                  return read_temp_real(value) && copy_to(f);
+
               report_json_error(error_id::unknown_element);
           });
+
+        if (not ret)
+            return ret;
+
+        if (i.has_value())
+            s.constant.i = *i;
+        else if (f.has_value())
+            s.constant.f = static_cast<float>(*f);
+
+        return true;
     }
 
     bool read_hsm_state(
@@ -1658,18 +1721,20 @@ struct reader {
                       return read_hsm_condition_action(value, s.condition);
 
                   if ("if-transition"sv == name)
-                      return read_temp_integer(value) &&
+                      return read_temp_unsigned_integer(value) &&
                              copy_to(s.if_transition);
 
                   if ("else-transition"sv == name)
-                      return read_temp_integer(value) &&
+                      return read_temp_unsigned_integer(value) &&
                              copy_to(s.else_transition);
 
                   if ("super-id"sv == name)
-                      return read_temp_integer(value) && copy_to(s.super_id);
+                      return read_temp_unsigned_integer(value) &&
+                             copy_to(s.super_id);
 
                   if ("sub-id"sv == name)
-                      return read_temp_integer(value) && copy_to(s.sub_id);
+                      return read_temp_unsigned_integer(value) &&
+                             copy_to(s.sub_id);
 
                   report_json_error(error_id::unknown_element);
               }) or
@@ -1729,15 +1794,13 @@ struct reader {
     {
         auto_stack a(this, stack_id::dynamics_hsm);
 
-        static constexpr std::string_view n[] = { "a", "b", "hsm" };
+        static constexpr std::string_view n[] = {
+            "hsm", "i1", "i2", "r1", "r2"
+        };
 
         return for_members(val, n, [&](auto idx, const auto& value) noexcept {
             switch (idx) {
-            case 0:
-                return read_temp_integer(value) && copy_to(wrapper.exec.a);
-            case 1:
-                return read_temp_integer(value) && copy_to(wrapper.exec.b);
-            case 2: {
+            case 0: {
                 u64 id_in_file = 0;
 
                 return read_u64(value, id_in_file) &&
@@ -1747,6 +1810,14 @@ struct reader {
                          warning("hsm_wrapper does not reference a valid hsm",
                                  log_level::error)));
             }
+            case 1:
+                return read_temp_integer(value) && copy_to(wrapper.exec.i1);
+            case 2:
+                return read_temp_integer(value) && copy_to(wrapper.exec.i2);
+            case 3:
+                return read_temp_real(value) && copy_to(wrapper.exec.r1);
+            case 4:
+                return read_temp_real(value) && copy_to(wrapper.exec.r2);
             default:
                 report_json_error(error_id::unknown_element);
             }
@@ -1758,19 +1829,25 @@ struct reader {
     {
         auto_stack a(this, stack_id::dynamics_hsm);
 
-        static constexpr std::string_view n[] = { "a", "b", "hsm" };
+        static constexpr std::string_view n[] = {
+            "hsm", "i1", "i2", "r1", "r2"
+        };
 
         return for_members(val, n, [&](auto idx, const auto& value) noexcept {
             switch (idx) {
-            case 0:
-                return read_temp_integer(value) && copy_to(wrapper.exec.a);
-            case 1:
-                return read_temp_integer(value) && copy_to(wrapper.exec.b);
-            case 2: {
+            case 0: {
                 component_id c;
-                return read_child_component(value, c) &&
+                return read_child_simple_or_grid_component(value, c) &&
                        copy<component_id>(c, wrapper.compo_id);
             }
+            case 1:
+                return read_temp_integer(value) && copy_to(wrapper.exec.i1);
+            case 2:
+                return read_temp_integer(value) && copy_to(wrapper.exec.i2);
+            case 3:
+                return read_temp_real(value) && copy_to(wrapper.exec.r1);
+            case 4:
+                return read_temp_real(value) && copy_to(wrapper.exec.r2);
             default:
                 report_json_error(error_id::unknown_element);
             }
@@ -1993,8 +2070,8 @@ struct reader {
         return nullptr;
     }
 
-    auto search_dir_in_reg(registred_path&  reg,
-                           std::string_view name) noexcept -> dir_path*
+    auto search_dir_in_reg(registred_path& reg, std::string_view name) noexcept
+      -> dir_path*
     {
         for (auto dir_id : reg.children) {
             if (auto* dir = mod().dir_paths.try_to_get(dir_id); dir) {
@@ -2063,8 +2140,8 @@ struct reader {
         return nullptr;
     }
 
-    auto search_file(dir_path&        dir,
-                     std::string_view name) noexcept -> file_path*
+    auto search_file(dir_path& dir, std::string_view name) noexcept
+      -> file_path*
     {
         for (auto file_id : dir.children)
             if (auto* file = mod().file_paths.try_to_get(file_id); file)
@@ -4917,28 +4994,39 @@ static void write(Writer& writer, const hsm_wrapper& dyn) noexcept
     writer.StartObject();
     writer.Key("hsm");
     writer.Uint64(get_index(dyn.id));
-    writer.Key("a");
-    writer.Int(dyn.exec.a);
-    writer.Key("b");
-    writer.Int(dyn.exec.b);
+    writer.Key("i1");
+    writer.Int(dyn.exec.i1);
+    writer.Key("i2");
+    writer.Int(dyn.exec.i2);
+    writer.Key("r1");
+    writer.Double(dyn.exec.r1);
+    writer.Key("r2");
+    writer.Double(dyn.exec.r2);
     writer.EndObject();
 }
 
 template<typename Writer>
-static void write(modeling&          mod,
+static void write(const modeling&    mod,
                   Writer&            writer,
                   const hsm_wrapper& dyn) noexcept
 {
-    writer.StartObject();
-    writer.Key("hsm");
-    write_child_component(mod, dyn.id, writer);
-
-    writer.Uint64(ordinal(dyn.id));
-    writer.Key("a");
-    writer.Int(dyn.exec.a);
-    writer.Key("b");
-    writer.Int(dyn.exec.b);
-    writer.EndObject();
+    if_data_exists_do(
+      mod.components, enum_cast<component_id>(dyn.compo_id), [&](auto& compo) {
+          writer.StartObject();
+          writer.Key("hsm");
+          writer.StartObject();
+          write_child_component_path(mod, compo, writer);
+          writer.EndObject();
+          writer.Key("i1");
+          writer.Int(dyn.exec.i1);
+          writer.Key("i2");
+          writer.Int(dyn.exec.i2);
+          writer.Key("r1");
+          writer.Double(dyn.exec.r1);
+          writer.Key("r2");
+          writer.Double(dyn.exec.r2);
+          writer.EndObject();
+      });
 }
 
 template<typename Writer>
@@ -4949,14 +5037,21 @@ static void write(
 {
     writer.Key(name.data(), static_cast<rapidjson::SizeType>(name.size()));
     writer.StartObject();
-    writer.Key("parameter");
-    writer.Int(state.parameter);
     writer.Key("var-1");
     writer.Int(static_cast<int>(state.var1));
     writer.Key("var-2");
     writer.Int(static_cast<int>(state.var2));
     writer.Key("type");
     writer.Int(static_cast<int>(state.type));
+
+    if (state.var2 == hierarchical_state_machine::variable::constant_i) {
+        writer.Key("constant-i");
+        writer.Int(state.constant.i);
+    } else if (state.var2 == hierarchical_state_machine::variable::constant_r) {
+        writer.Key("constant-r");
+        writer.Double(state.constant.f);
+    }
+
     writer.EndObject();
 }
 
@@ -4968,14 +5063,31 @@ static void write(
 {
     writer.Key(name.data(), static_cast<rapidjson::SizeType>(name.size()));
     writer.StartObject();
-    writer.Key("parameter");
-    writer.Int(state.parameter);
+    writer.Key("var-1");
+    writer.Int(static_cast<int>(state.var1));
+    writer.Key("var-2");
+    writer.Int(static_cast<int>(state.var2));
     writer.Key("type");
     writer.Int(static_cast<int>(state.type));
-    writer.Key("port");
-    writer.Int(static_cast<int>(state.port));
-    writer.Key("mask");
-    writer.Int(static_cast<int>(state.mask));
+
+    if (state.type == hierarchical_state_machine::condition_type::port) {
+        u8 port{}, mask{};
+        state.get(port, mask);
+
+        writer.Key("port");
+        writer.Int(static_cast<int>(port));
+        writer.Key("mask");
+        writer.Int(static_cast<int>(mask));
+    }
+
+    if (state.var2 == hierarchical_state_machine::variable::constant_i) {
+        writer.Key("constant-i");
+        writer.Int(state.constant.i);
+    } else if (state.var2 == hierarchical_state_machine::variable::constant_r) {
+        writer.Key("constant-r");
+        writer.Double(state.constant.f);
+    }
+
     writer.EndObject();
 }
 
@@ -5358,8 +5470,6 @@ static void write_child_component(const modeling&    mod,
 
         switch (compo->type) {
         case component_type::none:
-            w.Key("component-type");
-            w.String(component_type_names[ordinal(component_type::none)]);
             break;
         case component_type::internal:
             w.Key("parameter");
@@ -5385,12 +5495,19 @@ static void write_child_component(const modeling&    mod,
 }
 
 template<typename Writer>
-static void write_child_model(model& mdl, Writer& w) noexcept
+static void write_child_model(const modeling& mod,
+                              model&          mdl,
+                              Writer&         w) noexcept
 {
     w.Key("dynamics");
 
-    dispatch(mdl,
-             [&]<typename Dynamics>(Dynamics& dyn) noexcept { write(w, dyn); });
+    dispatch(mdl, [&]<typename Dynamics>(Dynamics& dyn) noexcept {
+        if constexpr (std::is_same_v<Dynamics, hsm_wrapper>) {
+            write(mod, w, dyn);
+        } else {
+            write(w, dyn);
+        }
+    });
 }
 
 template<typename Writer>
@@ -5446,7 +5563,7 @@ static void write_child(const modeling&          mod,
         w.Key("type");
         w.String(dynamics_type_names[ordinal(ch.id.mdl_type)]);
 
-        write_child_model(mdl, w);
+        write_child_model(mod, mdl, w);
     }
 
     w.EndObject();

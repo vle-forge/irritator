@@ -6,22 +6,149 @@
 
 namespace irt {
 
-hierarchical_state_machine::hierarchical_state_machine(
-  const hierarchical_state_machine& other) noexcept
-  : states(other.states)
-  , top_state(other.top_state)
-{}
+using hsm_t = hierarchical_state_machine;
 
-hierarchical_state_machine& hierarchical_state_machine::operator=(
-  const hierarchical_state_machine& other) noexcept
+static i32 copy_to_i32(const hsm_t::variable      v,
+                       const hsm_t::state_action& act,
+                       const hsm_t::execution&    e) noexcept
 {
-    if (this != &other) {
-        states    = other.states;
-        top_state = other.top_state;
+    switch (v) {
+    case hsm_t::variable::none:
+        return 0;
+    case hsm_t::variable::port_0:
+        return static_cast<i32>(e.ports[0]);
+    case hsm_t::variable::port_1:
+        return static_cast<i32>(e.ports[1]);
+    case hsm_t::variable::port_2:
+        return static_cast<i32>(e.ports[2]);
+    case hsm_t::variable::port_3:
+        return static_cast<i32>(e.ports[3]);
+    case hsm_t::variable::var_i1:
+        return e.i1;
+    case hsm_t::variable::var_i2:
+        return e.i2;
+    case hsm_t::variable::var_r1:
+        return static_cast<i32>(e.r1);
+    case hsm_t::variable::var_r2:
+        return static_cast<i32>(e.r2);
+    case hsm_t::variable::var_timer:
+        return static_cast<i32>(e.sigma);
+    case hsm_t::variable::constant_i:
+        return act.constant.i;
+    case hsm_t::variable::constant_r:
+        return static_cast<i32>(act.constant.f);
     }
 
-    return *this;
+    irt::unreachable();
 }
+
+static real copy_to_real(const hsm_t::variable      v,
+                         const hsm_t::state_action& act,
+                         const hsm_t::execution&    e) noexcept
+{
+    switch (v) {
+    case hsm_t::variable::none:
+        return 0.0;
+    case hsm_t::variable::port_0:
+        return e.ports[0];
+    case hsm_t::variable::port_1:
+        return e.ports[1];
+    case hsm_t::variable::port_2:
+        return e.ports[2];
+    case hsm_t::variable::port_3:
+        return e.ports[3];
+    case hsm_t::variable::var_i1:
+        return static_cast<real>(e.i1);
+    case hsm_t::variable::var_i2:
+        return static_cast<real>(e.i2);
+    case hsm_t::variable::var_r1:
+        return e.r1;
+    case hsm_t::variable::var_r2:
+        return e.r2;
+    case hsm_t::variable::var_timer:
+        return e.sigma;
+    case hsm_t::variable::constant_i:
+        return static_cast<real>(act.constant.i);
+    case hsm_t::variable::constant_r:
+        return act.constant.f;
+    }
+
+    irt::unreachable();
+}
+
+struct wrap_var {
+    union {
+        real r;
+        i32  i;
+    };
+
+    enum { none, real, integer } type;
+
+    auto operator<=>(const wrap_var& o) const noexcept { return r <=> o.r; }
+
+    bool operator==(const wrap_var& o) const noexcept
+    {
+        if (type == real)
+            return r == o.r;
+        else
+            return i == o.i;
+    }
+
+    template<typename Action>
+    wrap_var(const hsm_t::variable   v,
+             Action&                 act,
+             const hsm_t::execution& e) noexcept
+    {
+        switch (v) {
+        case hsm_t::variable::none:
+        case hsm_t::variable::port_0:
+        case hsm_t::variable::port_1:
+        case hsm_t::variable::port_2:
+        case hsm_t::variable::port_3:
+            irt::unreachable();
+            r    = 0.0;
+            i    = 0;
+            type = none;
+            break;
+
+        case hsm_t::variable::var_i1:
+            r    = static_cast<double>(e.i1);
+            i    = e.i1;
+            type = integer;
+            break;
+        case hsm_t::variable::var_i2:
+            r    = static_cast<double>(e.i2);
+            i    = e.i2;
+            type = integer;
+            break;
+        case hsm_t::variable::var_r1:
+            r    = e.r1;
+            i    = static_cast<i32>(e.r1);
+            type = real;
+            break;
+        case hsm_t::variable::var_r2:
+            r    = e.r2;
+            i    = static_cast<i32>(e.r2);
+            type = real;
+            break;
+        case hsm_t::variable::var_timer:
+            r    = e.sigma;
+            i    = static_cast<i32>(e.sigma);
+            type = real;
+            break;
+        case hsm_t::variable::constant_i:
+            r    = static_cast<double>(act.constant.i);
+            i    = act.constant.i;
+            type = integer;
+            break;
+        case hsm_t::variable::constant_r:
+            r    = act.constant.f;
+            i    = static_cast<i32>(act.constant.f);
+            type = real;
+            break;
+        }
+    }
+};
 
 bool hierarchical_state_machine::is_dispatching(execution& exec) const noexcept
 {
@@ -30,26 +157,23 @@ bool hierarchical_state_machine::is_dispatching(execution& exec) const noexcept
 
 void hierarchical_state_machine::state_action::clear() noexcept
 {
-    parameter = 0;
-    var1      = variable::none;
-    var2      = variable::none;
-    type      = action_type::none;
+    var1 = variable::none;
+    var2 = variable::none;
+    type = action_type::none;
 }
 
 void hierarchical_state_machine::condition_action::clear() noexcept
 {
-    parameter = 0;
-    type      = condition_type::none;
-    port      = 0;
-    mask      = 0;
+    var1 = variable::none;
+    var2 = variable::none;
+    type = condition_type::none;
 }
 
 status hierarchical_state_machine::start(execution& exec) noexcept
 {
-    if (states.empty())
-        return success();
+    exec.sigma = time_domain<time>::infinity;
 
-    if (top_state == invalid_state_id)
+    if (states.empty() or top_state == invalid_state_id)
         return new_error(top_state_error{});
 
     exec.current_state = top_state;
@@ -91,6 +215,7 @@ result<bool> hierarchical_state_machine::dispatch(const event_type event,
 
         sid = state.super_id;
     }
+
     exec.current_source_state = invalid_state_id;
 
     return is_processed;
@@ -223,8 +348,13 @@ bool hierarchical_state_machine::handle(const state_id   state,
         affect_action(states[state].exit_action, exec);
         return true;
 
-    case event_type::input_changed:
-        if (states[state].condition.check(exec.values, exec.a, exec.b)) {
+    case event_type::internal:
+        if (any_equal(states[state].condition.type,
+                      condition_type::sigma,
+                      condition_type::port))
+            return false;
+
+        if (states[state].condition.check(exec)) {
             affect_action(states[state].if_action, exec);
             if (states[state].if_transition != invalid_state_id)
                 transition(states[state].if_transition, exec);
@@ -235,7 +365,41 @@ bool hierarchical_state_machine::handle(const state_id   state,
                 transition(states[state].else_transition, exec);
             return true;
         }
-        return false;
+        break;
+
+    case event_type::input_changed:
+        if (states[state].condition.type == condition_type::sigma) {
+            affect_action(states[state].else_action, exec);
+            if (states[state].else_transition != invalid_state_id)
+                transition(states[state].else_transition, exec);
+            return true;
+        } else {
+            if (states[state].condition.check(exec)) {
+                affect_action(states[state].if_action, exec);
+                if (states[state].if_transition != invalid_state_id)
+                    transition(states[state].if_transition, exec);
+                return true;
+            } else {
+                affect_action(states[state].else_action, exec);
+                if (states[state].else_transition != invalid_state_id)
+                    transition(states[state].else_transition, exec);
+                return true;
+            }
+        }
+        break;
+
+    case event_type::wake_up:
+        if (states[state].condition.check(exec)) {
+            affect_action(states[state].if_action, exec);
+            if (states[state].if_transition != invalid_state_id)
+                transition(states[state].if_transition, exec);
+            return true;
+        } else {
+            affect_action(states[state].else_action, exec);
+            if (states[state].else_transition != invalid_state_id)
+                transition(states[state].else_transition, exec);
+            return true;
+        }
 
     default:
         break;
@@ -245,87 +409,448 @@ bool hierarchical_state_machine::handle(const state_id   state,
 }
 
 void hierarchical_state_machine::affect_action(const state_action& action,
-                                               execution& exec) noexcept
+                                               execution&          e) noexcept
 {
-    std::optional<u8>  port;
-    std::optional<i32*> var_1;
-    std::optional<i32*> var_2;
-
-    if (action.var1 >= variable::port_0 && action.var1 <= variable::port_3)
-        port.emplace(ordinal(action.var1) - 1);
-
-    if (action.var1 == variable::var_a)
-        var_1 = &exec.a;
-    else if (action.var1 == variable::var_b)
-        var_1 = &exec.b;
-
-    if (action.var2 == variable::var_a)
-        var_2 = &exec.a;
-    else if (action.var2 == variable::var_b)
-        var_2 = &exec.b;
-
     switch (action.type) {
     case action_type::none:
         break;
-    case action_type::set:
-        debug::ensure(port.has_value());
-        exec.values |= static_cast<u8>(1u << *port);
-        break;
-    case action_type::unset:
-        debug::ensure(port.has_value());
-        exec.values &= static_cast<u8>(~(1u << *port));
-        break;
+
+    case action_type::set: {
+        debug::ensure(1 <= ordinal(action.var1) and ordinal(action.var1) <= 4);
+        const u8 port = ordinal(action.var1) - 1u;
+        e.values |= static_cast<u8>(1u << port);
+    } break;
+
+    case action_type::unset: {
+        debug::ensure(1 <= ordinal(action.var1) and ordinal(action.var1) <= 4);
+        const u8 port = ordinal(action.var1) - 1u;
+        e.values &= static_cast<u8>(~(1u << port));
+    } break;
+
     case action_type::reset:
-        exec.values = static_cast<u8>(0u);
+        e.values = static_cast<u8>(0u);
         break;
-    case action_type::output:
-        debug::ensure(port.has_value());
-        exec.outputs.emplace_back(hierarchical_state_machine::output_message{
-          .value = action.parameter, .port = *port });
-        break;
+
+    case action_type::output: {
+        debug::ensure(1 <= ordinal(action.var1) and ordinal(action.var1) <= 4);
+        const u8 port = ordinal(action.var1) - 1u;
+
+        switch (action.var2) {
+        case variable::none:
+        case variable::port_0:
+        case variable::port_1:
+        case variable::port_2:
+        case variable::port_3:
+            irt::unreachable();
+            break;
+
+        case variable::var_i1:
+            e.outputs.emplace_back(hierarchical_state_machine::output_message{
+              .value = static_cast<real>(e.i1), .port = port });
+            break;
+        case variable::var_i2:
+            e.outputs.emplace_back(hierarchical_state_machine::output_message{
+              .value = static_cast<real>(e.i2), .port = port });
+            break;
+        case variable::var_r1:
+            e.outputs.emplace_back(hierarchical_state_machine::output_message{
+              .value = e.r1, .port = port });
+            break;
+        case variable::var_r2:
+            e.outputs.emplace_back(hierarchical_state_machine::output_message{
+              .value = e.r2, .port = port });
+            break;
+        case variable::var_timer:
+            e.outputs.emplace_back(hierarchical_state_machine::output_message{
+              .value = e.sigma, .port = port });
+            break;
+        case variable::constant_i:
+            e.outputs.emplace_back(hierarchical_state_machine::output_message{
+              .value = static_cast<real>(action.constant.i), .port = port });
+            break;
+        case variable::constant_r:
+            e.outputs.emplace_back(hierarchical_state_machine::output_message{
+              .value = action.constant.f, .port = port });
+            break;
+        }
+    } break;
+
     case action_type::affect:
-        debug::ensure(var_1 && var_2);
-        **var_1 = **var_2;
+        switch (action.var1) {
+        case variable::none:
+        case variable::port_0:
+        case variable::port_1:
+        case variable::port_2:
+        case variable::port_3:
+            unreachable();
+            break;
+
+        case variable::var_i1:
+            e.i1 = copy_to_i32(action.var2, action, e);
+            break;
+        case variable::var_i2:
+            e.i2 = copy_to_i32(action.var2, action, e);
+            break;
+        case variable::var_r1:
+            e.r1 = copy_to_real(action.var2, action, e);
+            break;
+        case variable::var_r2:
+            e.r2 = copy_to_real(action.var2, action, e);
+            break;
+        case variable::var_timer:
+            e.sigma = copy_to_real(action.var2, action, e);
+            break;
+        case variable::constant_i:
+            irt::unreachable();
+            break;
+        case variable::constant_r:
+            irt::unreachable();
+            break;
+        }
         break;
+
     case action_type::plus:
-        debug::ensure(var_1 && var_2);
-        **var_1 = std::plus<>{}(**var_1, **var_2);
+        switch (action.var1) {
+        case variable::none:
+        case variable::port_0:
+        case variable::port_1:
+        case variable::port_2:
+        case variable::port_3:
+            unreachable();
+            break;
+
+        case variable::var_i1:
+            e.i1 += copy_to_i32(action.var2, action, e);
+            break;
+        case variable::var_i2:
+            e.i2 += copy_to_i32(action.var2, action, e);
+            break;
+        case variable::var_r1:
+            e.r1 += copy_to_real(action.var2, action, e);
+            break;
+        case variable::var_r2:
+            e.r2 += copy_to_real(action.var2, action, e);
+            break;
+        case variable::var_timer:
+            e.sigma += copy_to_real(action.var2, action, e);
+            break;
+        case variable::constant_i:
+            irt::unreachable();
+            break;
+        case variable::constant_r:
+            irt::unreachable();
+            break;
+        }
         break;
+
     case action_type::minus:
-        debug::ensure(var_1 && var_2);
-        **var_1 = std::minus<>{}(**var_1, **var_2);
+        switch (action.var1) {
+        case variable::none:
+        case variable::port_0:
+        case variable::port_1:
+        case variable::port_2:
+        case variable::port_3:
+            unreachable();
+            break;
+
+        case variable::var_i1:
+            e.i1 -= copy_to_i32(action.var2, action, e);
+            break;
+        case variable::var_i2:
+            e.i2 -= copy_to_i32(action.var2, action, e);
+            break;
+        case variable::var_r1:
+            e.r1 -= copy_to_real(action.var2, action, e);
+            break;
+        case variable::var_r2:
+            e.r2 -= copy_to_real(action.var2, action, e);
+            break;
+        case variable::var_timer:
+            e.sigma -= copy_to_real(action.var2, action, e);
+            e.sigma = e.sigma < 0.0 ? 0.0 : e.sigma;
+            break;
+        case variable::constant_i:
+            irt::unreachable();
+            break;
+        case variable::constant_r:
+            irt::unreachable();
+            break;
+        }
         break;
+
     case action_type::negate:
-        debug::ensure(var_1 && var_2);
-        **var_1 = std::negate<>{}(**var_1);
+        switch (action.var1) {
+        case variable::none:
+        case variable::port_0:
+        case variable::port_1:
+        case variable::port_2:
+        case variable::port_3:
+            unreachable();
+            break;
+
+        case variable::var_i1:
+            e.i1 *= -1;
+            break;
+        case variable::var_i2:
+            e.i2 *= -1;
+            break;
+        case variable::var_r1:
+            e.r1 *= -1.0;
+            break;
+        case variable::var_r2:
+            e.r2 *= -1.0;
+            break;
+        case variable::var_timer:
+            e.sigma *= -1.0;
+            e.sigma = e.sigma < 0.0 ? 0.0 : e.sigma;
+            break;
+        case variable::constant_i:
+            irt::unreachable();
+            break;
+        case variable::constant_r:
+            irt::unreachable();
+            break;
+        }
         break;
+
     case action_type::multiplies:
-        debug::ensure(var_1 && var_2);
-        **var_1 = std::multiplies<>{}(**var_1, **var_2);
+        switch (action.var1) {
+        case variable::none:
+        case variable::port_0:
+        case variable::port_1:
+        case variable::port_2:
+        case variable::port_3:
+            unreachable();
+            break;
+
+        case variable::var_i1:
+            e.i1 *= copy_to_i32(action.var2, action, e);
+            break;
+        case variable::var_i2:
+            e.i2 *= copy_to_i32(action.var2, action, e);
+            break;
+        case variable::var_r1:
+            e.r1 *= copy_to_real(action.var2, action, e);
+            break;
+        case variable::var_r2:
+            e.r2 *= copy_to_real(action.var2, action, e);
+            break;
+        case variable::var_timer:
+            e.sigma *= copy_to_real(action.var2, action, e);
+            e.sigma = e.sigma < 0.0 ? 0.0 : e.sigma;
+            break;
+        case variable::constant_i:
+            irt::unreachable();
+            break;
+        case variable::constant_r:
+            irt::unreachable();
+            break;
+        }
         break;
+
     case action_type::divides:
-        debug::ensure(var_1 && var_2);
-        **var_1 = std::divides<>{}(**var_1, **var_2);
+        switch (action.var1) {
+        case variable::none:
+        case variable::port_0:
+        case variable::port_1:
+        case variable::port_2:
+        case variable::port_3:
+            unreachable();
+            break;
+
+        case variable::var_i1:
+            e.i1 /= copy_to_i32(action.var2, action, e);
+            break;
+        case variable::var_i2:
+            e.i2 /= copy_to_i32(action.var2, action, e);
+            break;
+        case variable::var_r1:
+            e.r1 /= copy_to_real(action.var2, action, e);
+            break;
+        case variable::var_r2:
+            e.r2 /= copy_to_real(action.var2, action, e);
+            break;
+        case variable::var_timer:
+            e.sigma /= copy_to_real(action.var2, action, e);
+            e.sigma = e.sigma < 0.0 ? 0.0 : e.sigma;
+            break;
+        case variable::constant_i:
+            irt::unreachable();
+            break;
+        case variable::constant_r:
+            irt::unreachable();
+            break;
+        }
         break;
+
     case action_type::modulus:
-        debug::ensure(var_1 && var_2);
-        **var_1 = std::modulus<>{}(**var_1, **var_2);
+        switch (action.var1) {
+        case variable::none:
+        case variable::port_0:
+        case variable::port_1:
+        case variable::port_2:
+        case variable::port_3:
+            unreachable();
+            break;
+
+        case variable::var_i1:
+            e.i1 = std::modulus<>{}(e.i1, copy_to_i32(action.var2, action, e));
+            break;
+        case variable::var_i2:
+            e.i2 = std::modulus<>{}(e.i1, copy_to_i32(action.var2, action, e));
+            break;
+        case variable::var_r1:
+            irt::unreachable();
+            break;
+        case variable::var_r2:
+            irt::unreachable();
+            break;
+        case variable::var_timer:
+            irt::unreachable();
+            break;
+        case variable::constant_i:
+            irt::unreachable();
+            break;
+        case variable::constant_r:
+            irt::unreachable();
+            break;
+        }
         break;
+
     case action_type::bit_and:
-        debug::ensure(var_1 && var_2);
-        **var_1 = std::bit_and<>{}(**var_1, **var_2);
+        switch (action.var1) {
+        case variable::none:
+        case variable::port_0:
+        case variable::port_1:
+        case variable::port_2:
+        case variable::port_3:
+            unreachable();
+            break;
+
+        case variable::var_i1:
+            e.i1 = std::bit_and<>{}(e.i1, copy_to_i32(action.var2, action, e));
+            break;
+        case variable::var_i2:
+            e.i2 = std::bit_and<>{}(e.i1, copy_to_i32(action.var2, action, e));
+            break;
+        case variable::var_r1:
+            irt::unreachable();
+            break;
+        case variable::var_r2:
+            irt::unreachable();
+            break;
+        case variable::var_timer:
+            irt::unreachable();
+            break;
+        case variable::constant_i:
+            irt::unreachable();
+            break;
+        case variable::constant_r:
+            irt::unreachable();
+            break;
+        }
         break;
+
     case action_type::bit_or:
-        debug::ensure(var_1 && var_2);
-        **var_1 = std::bit_or<>{}(**var_1, **var_2);
+        switch (action.var1) {
+        case variable::none:
+        case variable::port_0:
+        case variable::port_1:
+        case variable::port_2:
+        case variable::port_3:
+            unreachable();
+            break;
+
+        case variable::var_i1:
+            e.i1 = std::bit_or<>{}(e.i1, copy_to_i32(action.var2, action, e));
+            break;
+        case variable::var_i2:
+            e.i2 = std::bit_or<>{}(e.i1, copy_to_i32(action.var2, action, e));
+            break;
+        case variable::var_r1:
+            irt::unreachable();
+            break;
+        case variable::var_r2:
+            irt::unreachable();
+            break;
+        case variable::var_timer:
+            irt::unreachable();
+            break;
+        case variable::constant_i:
+            irt::unreachable();
+            break;
+        case variable::constant_r:
+            irt::unreachable();
+            break;
+        }
         break;
+
     case action_type::bit_not:
-        debug::ensure(var_1 && var_2);
-        **var_1 = std::bit_not<>{}(**var_2);
+        switch (action.var1) {
+        case variable::none:
+        case variable::port_0:
+        case variable::port_1:
+        case variable::port_2:
+        case variable::port_3:
+            unreachable();
+            break;
+
+        case variable::var_i1:
+            e.i1 = std::bit_not<>{}(copy_to_i32(action.var2, action, e));
+            break;
+        case variable::var_i2:
+            e.i2 = std::bit_not<>{}(copy_to_i32(action.var2, action, e));
+            break;
+        case variable::var_r1:
+            irt::unreachable();
+            break;
+        case variable::var_r2:
+            irt::unreachable();
+            break;
+        case variable::var_timer:
+            irt::unreachable();
+            break;
+        case variable::constant_i:
+            irt::unreachable();
+            break;
+        case variable::constant_r:
+            irt::unreachable();
+            break;
+        }
         break;
+
     case action_type::bit_xor:
-        debug::ensure(var_1 && var_2);
-        **var_1 = std::bit_xor<>{}(**var_1, **var_2);
+        switch (action.var1) {
+        case variable::none:
+        case variable::port_0:
+        case variable::port_1:
+        case variable::port_2:
+        case variable::port_3:
+            unreachable();
+            break;
+
+        case variable::var_i1:
+            e.i1 = std::bit_xor<>{}(e.i1, copy_to_i32(action.var2, action, e));
+            break;
+        case variable::var_i2:
+            e.i2 = std::bit_xor<>{}(e.i2, copy_to_i32(action.var2, action, e));
+            break;
+        case variable::var_r1:
+            irt::unreachable();
+            break;
+        case variable::var_r2:
+            irt::unreachable();
+            break;
+        case variable::var_timer:
+            irt::unreachable();
+            break;
+        case variable::constant_i:
+            irt::unreachable();
+            break;
+        case variable::constant_r:
+            irt::unreachable();
+            break;
+        }
         break;
 
     default:
@@ -333,51 +858,42 @@ void hierarchical_state_machine::affect_action(const state_action& action,
     }
 }
 
-bool hierarchical_state_machine::condition_action::check(u8  port_values,
-                                                         i32 a,
-                                                         i32 b) noexcept
+bool hierarchical_state_machine::condition_action::check(
+  hierarchical_state_machine::execution& e) noexcept
 {
     switch (type) {
     case condition_type::none:
         return true;
-    case condition_type::port:
-        return !((port_values ^ port) & mask);
-    case condition_type::a_equal_to_cst:
-        return a == parameter;
-    case condition_type::a_not_equal_to_cst:
-        return a != parameter;
-    case condition_type::a_greater_cst:
-        return a > parameter;
-    case condition_type::a_less_cst:
-        return a < parameter;
-    case condition_type::a_greater_equal_cst:
-        return a >= parameter;
-    case condition_type::a_less_equal_cst:
-        return a <= parameter;
-    case condition_type::b_equal_to_cst:
-        return b == parameter;
-    case condition_type::b_not_equal_to_cst:
-        return b != parameter;
-    case condition_type::b_greater_cst:
-        return b > parameter;
-    case condition_type::b_less_cst:
-        return b < parameter;
-    case condition_type::b_greater_equal_cst:
-        return b >= parameter;
-    case condition_type::b_less_equal_cst:
-        return b <= parameter;
-    case condition_type::a_equal_to_b:
-        return a == b;
-    case condition_type::a_not_equal_to_b:
-        return a != b;
-    case condition_type::a_greater_b:
-        return a > b;
-    case condition_type::a_less_b:
-        return a < b;
-    case condition_type::a_greater_equal_b:
-        return a >= b;
-    case condition_type::a_less_equal_b:
-        return a <= b;
+
+    case condition_type::port: {
+        u8 port{}, mask{};
+        get(port, mask);
+        std::bitset<4> p(port);
+        std::bitset<4> m(mask);
+
+        return ((e.values ^ p) & m).flip().any();
+    }
+
+    case condition_type::sigma:
+        return e.sigma <= 0.0;
+
+    case condition_type::equal_to:
+        return wrap_var(var1, *this, e) == wrap_var(var2, *this, e);
+
+    case condition_type::not_equal_to:
+        return wrap_var(var1, *this, e) != wrap_var(var2, *this, e);
+
+    case condition_type::greater:
+        return wrap_var(var1, *this, e) > wrap_var(var2, *this, e);
+
+    case condition_type::greater_equal:
+        return wrap_var(var1, *this, e) >= wrap_var(var2, *this, e);
+
+    case condition_type::less:
+        return wrap_var(var1, *this, e) < wrap_var(var2, *this, e);
+
+    case condition_type::less_equal:
+        return wrap_var(var1, *this, e) <= wrap_var(var2, *this, e);
     }
 
     unreachable();
