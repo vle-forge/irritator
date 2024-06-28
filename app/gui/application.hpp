@@ -24,7 +24,7 @@
 namespace irt {
 
 template<class T, class M>
-constexpr std::ptrdiff_t offset_of(const M T::* member)
+constexpr std::ptrdiff_t offset_of(const M T::*member)
 {
     return reinterpret_cast<std::ptrdiff_t>(
       &(reinterpret_cast<T*>(0)->*member));
@@ -44,7 +44,7 @@ constexpr std::ptrdiff_t offset_of(const M T::* member)
 //! }
 //! @endcode
 template<class T, class M>
-constexpr T& container_of(M* ptr, const M T::* member)
+constexpr T& container_of(M* ptr, const M T::*member)
 {
     return *reinterpret_cast<T*>(reinterpret_cast<intptr_t>(ptr) -
                                  offset_of(member));
@@ -520,9 +520,6 @@ struct simulation_editor {
 
     enum class visualization_mode { flat, tree };
 
-    //! 0.1s between each run thread task.
-    static constexpr i64 thread_frame_duration = 100000;
-
     simulation_editor() noexcept;
     ~simulation_editor() noexcept;
 
@@ -579,13 +576,17 @@ struct simulation_editor {
 
     timeline tl;
 
-    real simulation_begin   = 0;
-    real simulation_end     = 100;
-    real simulation_current = 0;
+    real simulation_begin           = 0;
+    real simulation_end             = 100;
+    real simulation_current         = 0;
+    real simulation_display_current = 0;
 
-    //! Number of microsecond to run 1 unit of simulation time
-    //! Default 1 unit of simulation in 1 second.
-    i64 simulation_real_time_relation = 1000000;
+    /** Number of microsecond to run 1 unit of simulation time. The default is
+     * to run 1 unit of simulation per second. */
+    i64 nb_microsecond_per_simulation_time = 1000000;
+
+    /** Simulation duraction between each run task. The default is 100ms. */
+    static inline constexpr i64 thread_frame_duration = 100000;
 
     tree_node_id head    = undefined<tree_node_id>();
     tree_node_id current = undefined<tree_node_id>();

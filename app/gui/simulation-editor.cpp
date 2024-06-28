@@ -93,11 +93,12 @@ void simulation_editor::clear() noexcept
 
     tl.reset();
 
-    simulation_begin   = 0;
-    simulation_end     = 100;
-    simulation_current = 0;
+    simulation_begin           = 0;
+    simulation_end             = 100;
+    simulation_current         = 0;
+    simulation_display_current = 0;
 
-    simulation_real_time_relation = 1000000;
+    nb_microsecond_per_simulation_time = 1000000;
 
     head    = undefined<tree_node_id>();
     current = undefined<tree_node_id>();
@@ -209,7 +210,7 @@ static void show_simulation_action_buttons(simulation_editor& ed,
         ed.start_simulation_advance();
     ImGui::EndDisabled();
 
-    ImGui::TextFormat("Current time {:.6f}", ed.simulation_current);
+    ImGui::TextFormat("Current time {:.6f}", ed.simulation_display_current);
 
     ImGui::SameLine();
 
@@ -240,7 +241,10 @@ static bool show_project_simulation_settings(application& app) noexcept
     is_modified +=
       ImGui::Checkbox("Edit", &app.simulation_ed.allow_user_changes);
 
+    ImGui::BeginDisabled(app.simulation_ed.infinity_simulation);
     is_modified += ImGui::InputReal("End", &app.simulation_ed.simulation_end);
+    ImGui::EndDisabled();
+
     ImGui::SameLine(ImGui::GetContentRegionAvail().x * 0.5f);
     if (ImGui::Checkbox("Debug", &app.simulation_ed.store_all_changes)) {
         is_modified = true;
@@ -250,18 +254,19 @@ static bool show_project_simulation_settings(application& app) noexcept
         }
     }
 
-    ImGui::BeginDisabled(!app.simulation_ed.real_time);
+    ImGui::BeginDisabled(not app.simulation_ed.real_time);
     is_modified +=
       ImGui::InputScalar("Micro second for 1 unit time",
                          ImGuiDataType_S64,
-                         &app.simulation_ed.simulation_real_time_relation);
+                         &app.simulation_ed.nb_microsecond_per_simulation_time);
     ImGui::EndDisabled();
+
     ImGui::SameLine(ImGui::GetContentRegionAvail().x * 0.5f);
     is_modified +=
       ImGui::Checkbox("No time limit", &app.simulation_ed.infinity_simulation);
 
     ImGui::TextFormat("Current time {:.6f}",
-                      app.simulation_ed.simulation_current);
+                      app.simulation_ed.simulation_display_current);
     ImGui::SameLine(ImGui::GetContentRegionAvail().x * 0.5f);
     is_modified += ImGui::Checkbox("Real time", &app.simulation_ed.real_time);
 
@@ -455,8 +460,8 @@ static bool show_local_simulation_plot_observers_table(application& app,
     return is_modified > 0;
 }
 
-static auto get_global_parameter(const auto& tn,
-                                 const u64 uid) noexcept -> global_parameter_id
+static auto get_global_parameter(const auto& tn, const u64 uid) noexcept
+  -> global_parameter_id
 {
     auto* ptr = tn.parameters_ids.get(uid);
     return ptr ? *ptr : undefined<global_parameter_id>();
