@@ -3525,15 +3525,15 @@ public:
     static const u8 max_number_of_state = 254;
     static const u8 invalid_state_id    = 255;
 
-    enum class event_type : u8 { enter, exit, input_changed, wake_up };
-
     struct top_state_error {};
     struct next_state_error {};
 
-    constexpr static int event_type_count     = 3;
-    constexpr static int variable_count       = 8;
+    constexpr static int event_type_count     = 4;
+    constexpr static int variable_count       = 12;
     constexpr static int action_type_count    = 16;
-    constexpr static int condition_type_count = 20;
+    constexpr static int condition_type_count = 9;
+
+    enum class event_type : u8 { enter, exit, input_changed, wake_up };
 
     enum class variable : u8 {
         none = 0,
@@ -3582,7 +3582,7 @@ public:
     };
 
     /** Action available when state is processed during enter, exit or condition
-     * event. @c note Only on action (value set/unset, devs output, etc.) by
+     * event. @c note Only one action (value set/unset, devs output, etc.) by
      * action. To perform more action, use several states. */
     struct state_action {
         variable    var1 = variable::none;
@@ -3591,7 +3591,6 @@ public:
 
         union {
             i32   i;
-            u32   u;
             float f;
         } constant;
 
@@ -3618,6 +3617,8 @@ public:
             u32   u;
             float f;
         } constant;
+
+        void set(u8 port, u8 mask) noexcept { constant.u = (port << 4) | mask; }
 
         bool check(execution& e) noexcept;
         void clear() noexcept;

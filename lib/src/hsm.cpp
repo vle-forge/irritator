@@ -15,14 +15,6 @@ static i32 copy_to_i32(const hsm_t::variable      v,
     switch (v) {
     case hsm_t::variable::none:
         return 0;
-    case hsm_t::variable::port_0:
-        return static_cast<i32>(e.ports[0]);
-    case hsm_t::variable::port_1:
-        return static_cast<i32>(e.ports[1]);
-    case hsm_t::variable::port_2:
-        return static_cast<i32>(e.ports[2]);
-    case hsm_t::variable::port_3:
-        return static_cast<i32>(e.ports[3]);
     case hsm_t::variable::var_i1:
         return e.i1;
     case hsm_t::variable::var_i2:
@@ -38,6 +30,8 @@ static i32 copy_to_i32(const hsm_t::variable      v,
     case hsm_t::variable::constant_r:
         return static_cast<i32>(act.constant.f);
     }
+
+    irt::unreachable();
 }
 
 static real copy_to_real(const hsm_t::variable      v,
@@ -47,14 +41,6 @@ static real copy_to_real(const hsm_t::variable      v,
     switch (v) {
     case hsm_t::variable::none:
         return 0.0;
-    case hsm_t::variable::port_0:
-        return e.ports[0];
-    case hsm_t::variable::port_1:
-        return e.ports[1];
-    case hsm_t::variable::port_2:
-        return e.ports[2];
-    case hsm_t::variable::port_3:
-        return e.ports[3];
     case hsm_t::variable::var_i1:
         return static_cast<real>(e.i1);
     case hsm_t::variable::var_i2:
@@ -70,6 +56,8 @@ static real copy_to_real(const hsm_t::variable      v,
     case hsm_t::variable::constant_r:
         return act.constant.f;
     }
+
+    irt::unreachable();
 }
 
 struct wrap_var {
@@ -99,28 +87,8 @@ struct wrap_var {
         case hsm_t::variable::none:
             irt::unreachable();
             r    = 0.0;
-            i    = 0.0;
+            i    = 0;
             type = none;
-            break;
-        case hsm_t::variable::port_0:
-            r    = e.ports[0];
-            i    = static_cast<i32>(e.ports[0]);
-            type = real;
-            break;
-        case hsm_t::variable::port_1:
-            r    = e.ports[1];
-            i    = static_cast<i32>(e.ports[1]);
-            type = real;
-            break;
-        case hsm_t::variable::port_2:
-            r    = e.ports[2];
-            i    = static_cast<i32>(e.ports[2]);
-            type = real;
-            break;
-        case hsm_t::variable::port_3:
-            r    = e.ports[3];
-            i    = static_cast<i32>(e.ports[3]);
-            type = real;
             break;
         case hsm_t::variable::var_i1:
             r    = static_cast<double>(e.i1);

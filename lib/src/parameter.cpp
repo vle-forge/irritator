@@ -376,15 +376,17 @@ static void model_init(const parameter& param, hsm_wrapper& dyn) noexcept
     dyn.compo_id = static_cast<u64>(param.integers[0]);
     dyn.exec.i1  = static_cast<i32>(param.integers[1]);
     dyn.exec.i2  = static_cast<i32>(param.integers[2]);
-    dyn.exec.r1  = static_cast<i32>(param.reals[0]);
-    dyn.exec.r2  = static_cast<i32>(param.reals[1]);
+    dyn.exec.r1  = param.reals[0];
+    dyn.exec.r2  = param.reals[1];
 }
 
 static void parameter_init(parameter& param, const hsm_wrapper& dyn) noexcept
 {
     param.integers[0] = static_cast<i64>(dyn.compo_id);
-    param.integers[1] = static_cast<i64>(dyn.exec.a);
-    param.integers[2] = static_cast<i64>(dyn.exec.b);
+    param.integers[1] = static_cast<i64>(dyn.exec.i1);
+    param.integers[2] = static_cast<i64>(dyn.exec.i2);
+    param.reals[0] = dyn.exec.r1;
+    param.reals[1] = dyn.exec.r2;
 }
 
 static void model_init(const parameter& param, time_func& dyn) noexcept

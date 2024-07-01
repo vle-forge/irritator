@@ -13,24 +13,22 @@ namespace irt {
 
 using hsm_t = hierarchical_state_machine;
 
-static const char* variable_names[] = { "none",       "port_0",  "port_1",
-                                        "port_2",     "port_3",  "variable a",
-                                        "variable b", "constant" };
+static const char* variable_names[] = {
+    "none",        "port_0",      "port_1",      "port_2",
+    "port_3",      "variable i1", "variable i2", "variable r1",
+    "variable r2", "constant i",  "constant r"
+};
 
 static const char* action_names[] = {
-    "none",        "set port",   "unset port", "reset ports",
-    "output port", "x = y",      "x = x + y",  "x = x - y",
-    "x = -x",      "x = x * y",  "x = x / y",  "x = x % y",
-    "x = x and y", "x = x or y", "x = not x",  "x = x xor y"
+    "none",           "set port",   "unset port", "reset ports",
+    "output message", "x = y",      "x = x + y",  "x = x - y",
+    "x = -x",         "x = x * y",  "x = x / y",  "x = x % y",
+    "x = x and y",    "x = x or y", "x = not x",  "x = x xor y"
 };
 
-static const char* condition_names[] = {
-    "none",          "value on port", "a = constant",  "a != constant",
-    "a > constant",  "a < constant",  "a >= constant", "a <= constant",
-    "b = constant",  "b != constant", "b > constant",  "b < constant",
-    "b >= constant", "b <= constant", "a = b",         "a != b",
-    "a > b",         "a < b",         "a >= b",        "a <= b",
-};
+static const char* condition_names[] = { "none",   "value on port", "x = y",
+                                         "x != y", "x > y",         "x >= y",
+                                         "x < y",  "x <= y" };
 
 static const std::string_view test_status_string[] = { "none",
                                                        "being_processed",
@@ -41,34 +39,42 @@ static void show_only_variable_widget(hsm_t::variable& act) noexcept
 {
     ImGui::PushID(&act);
     int var = static_cast<int>(act) - 5;
-    if (!(0 <= var && var < 2))
+    if (!(0 <= var && var < 6))
         var = 0;
 
     ImGui::PushItemWidth(-1);
-    if (ImGui::Combo("##var", &var, variable_names + 5, 2)) {
-        debug::ensure(0 <= var && var < 2);
+    if (ImGui::Combo("##var", &var, variable_names + 5, 5)) {
+        debug::ensure(0 <= var && var < 6);
         act = enum_cast<hsm_t::variable>(var + 5);
     }
+
     ImGui::PopItemWidth();
     ImGui::PopID();
 }
 
-static void show_variable_widget(hsm_t::variable& act, i32& parameter) noexcept
+static void show_variable_widget(hsm_t::variable&     act,
+                                 hsm_t::state_action& p) noexcept
 {
     ImGui::PushID(&act);
     int var = static_cast<int>(act) - 5;
-    if (!(0 <= var && var < 3))
+    if (!(0 <= var && var < 8))
         var = 0;
 
     ImGui::PushItemWidth(-1);
-    if (ImGui::Combo("##var", &var, variable_names + 5, 3)) {
+    if (ImGui::Combo("##var", &var, variable_names + 5, 7)) {
         debug::ensure(0 <= var && var < 3);
         act = enum_cast<hsm_t::variable>(var + 5);
     }
 
-    if (act == hsm_t::variable::constant) {
+    if (act == hsm_t::variable::constant_i) {
         ImGui::PushItemWidth(-1);
-        ImGui::InputScalar("value", ImGuiDataType_S32, &parameter);
+        ImGui::InputScalar("value", ImGuiDataType_S32, &p.constant.i);
+        ImGui::PopItemWidth();
+    }
+
+    if (act == hsm_t::variable::constant_r) {
+        ImGui::PushItemWidth(-1);
+        ImGui::InputScalar("value", ImGuiDataType_Float, &p.constant.f);
         ImGui::PopItemWidth();
     }
 
@@ -262,14 +268,15 @@ static void show_port_widget(hsm_t::variable& var) noexcept
     ImGui::PopID();
 }
 
-static void show_ports(u8& value, u8& mask) noexcept
+static void show_ports(u32& port_mask) noexcept
 {
-    ImGui::PushID(static_cast<void*>(&value));
+    u8 port = (port_mask >> 4) && 0b1111;
+    u8 mask = port_mask && 0b1111;
 
-    const int sub_value_3 = value & 0b0001 ? 1 : 0;
-    const int sub_value_2 = value & 0b0010 ? 1 : 0;
-    const int sub_value_1 = value & 0b0100 ? 1 : 0;
-    const int sub_value_0 = value & 0b1000 ? 1 : 0;
+    const int sub_value_3 = port & 0b0001 ? 1 : 0;
+    const int sub_value_2 = port & 0b0010 ? 1 : 0;
+    const int sub_value_1 = port & 0b0100 ? 1 : 0;
+    const int sub_value_0 = port & 0b1000 ? 1 : 0;
 
     int value_3 = mask & 0b0001 ? sub_value_3 : -1;
     int value_2 = mask & 0b0010 ? sub_value_2 : -1;
@@ -287,13 +294,13 @@ static void show_ports(u8& value, u8& mask) noexcept
     have_changed = ImGui::CheckBoxTristate("3", &value_3) || have_changed;
 
     if (have_changed) {
-        value = value_0 == 1 ? 1u : 0u;
-        value <<= 1;
-        value |= value_1 == 1 ? 1u : 0u;
-        value <<= 1;
-        value |= value_2 == 1 ? 1u : 0u;
-        value <<= 1;
-        value |= value_3 == 1 ? 1u : 0u;
+        port = value_0 == 1 ? 1u : 0u;
+        port <<= 1;
+        port |= value_1 == 1 ? 1u : 0u;
+        port <<= 1;
+        port |= value_2 == 1 ? 1u : 0u;
+        port <<= 1;
+        port |= value_3 == 1 ? 1u : 0u;
 
         mask = value_0 != -1 ? 1u : 0u;
         mask <<= 1;
@@ -302,9 +309,9 @@ static void show_ports(u8& value, u8& mask) noexcept
         mask |= value_2 != -1 ? 1u : 0u;
         mask <<= 1;
         mask |= value_3 != -1 ? 1u : 0u;
-    }
 
-    ImGui::PopID();
+        port_mask = (port << 8) | mask;
+    }
 }
 
 static void show_state_action(hsm_t::state_action& action) noexcept
@@ -325,7 +332,7 @@ static void show_state_action(hsm_t::state_action& action) noexcept
     case hsm_t::action_type::set:
         show_port_widget(action.var1);
         ImGui::PushItemWidth(-1);
-        ImGui::InputScalar("value", ImGuiDataType_S32, &action.parameter);
+        ImGui::InputScalar("value", ImGuiDataType_S32, &action.constant.i);
         ImGui::PopItemWidth();
         break;
     case hsm_t::action_type::unset:
@@ -336,52 +343,52 @@ static void show_state_action(hsm_t::state_action& action) noexcept
     case hsm_t::action_type::output:
         show_port_widget(action.var1);
         ImGui::PushItemWidth(-1);
-        ImGui::InputScalar("value", ImGuiDataType_S32, &action.parameter);
+        show_variable_widget(action.var2, action);
         ImGui::PopItemWidth();
         break;
     case hsm_t::action_type::affect:
         show_only_variable_widget(action.var1);
-        show_variable_widget(action.var2, action.parameter);
+        show_variable_widget(action.var2, action);
         break;
     case hsm_t::action_type::plus:
         show_only_variable_widget(action.var1);
-        show_variable_widget(action.var2, action.parameter);
+        show_variable_widget(action.var2, action);
         break;
     case hsm_t::action_type::minus:
         show_only_variable_widget(action.var1);
-        show_variable_widget(action.var2, action.parameter);
+        show_variable_widget(action.var2, action);
         break;
     case hsm_t::action_type::negate:
         show_only_variable_widget(action.var1);
-        show_variable_widget(action.var2, action.parameter);
+        show_variable_widget(action.var2, action);
         break;
     case hsm_t::action_type::multiplies:
         show_only_variable_widget(action.var1);
-        show_variable_widget(action.var2, action.parameter);
+        show_variable_widget(action.var2, action);
         break;
     case hsm_t::action_type::divides:
         show_only_variable_widget(action.var1);
-        show_variable_widget(action.var2, action.parameter);
+        show_variable_widget(action.var2, action);
         break;
     case hsm_t::action_type::modulus:
         show_only_variable_widget(action.var1);
-        show_variable_widget(action.var2, action.parameter);
+        show_variable_widget(action.var2, action);
         break;
     case hsm_t::action_type::bit_and:
         show_only_variable_widget(action.var1);
-        show_variable_widget(action.var2, action.parameter);
+        show_variable_widget(action.var2, action);
         break;
     case hsm_t::action_type::bit_or:
         show_only_variable_widget(action.var1);
-        show_variable_widget(action.var2, action.parameter);
+        show_variable_widget(action.var2, action);
         break;
     case hsm_t::action_type::bit_not:
         show_only_variable_widget(action.var1);
-        show_variable_widget(action.var2, action.parameter);
+        show_variable_widget(action.var2, action);
         break;
     case hsm_t::action_type::bit_xor:
         show_only_variable_widget(action.var1);
-        show_variable_widget(action.var2, action.parameter);
+        show_variable_widget(action.var2, action);
         break;
     default:
         break;
@@ -407,79 +414,45 @@ static void show_state_condition(hsm_t::condition_action& condition) noexcept
     case hsm_t::condition_type::none:
         break;
     case hsm_t::condition_type::port:
-        show_ports(condition.port, condition.mask);
+        show_ports(condition.constant.u);
         break;
-    case hsm_t::condition_type::a_equal_to_cst:
+    case hsm_t::condition_type::sigma:
+        break;
+    case hsm_t::condition_type::equal_to:
         ImGui::PushItemWidth(-1);
-        ImGui::InputScalar("value", ImGuiDataType_S32, &condition.parameter);
+        show_only_variable_widget(condition.var1);
+        show_only_variable_widget(condition.var2);
         ImGui::PopItemWidth();
         break;
-    case hsm_t::condition_type::a_not_equal_to_cst:
+    case hsm_t::condition_type::not_equal_to:
         ImGui::PushItemWidth(-1);
-        ImGui::InputScalar("value", ImGuiDataType_S32, &condition.parameter);
+        show_only_variable_widget(condition.var1);
+        show_only_variable_widget(condition.var2);
         ImGui::PopItemWidth();
         break;
-    case hsm_t::condition_type::a_greater_cst:
+    case hsm_t::condition_type::greater:
         ImGui::PushItemWidth(-1);
-        ImGui::InputScalar("value", ImGuiDataType_S32, &condition.parameter);
+        show_only_variable_widget(condition.var1);
+        show_only_variable_widget(condition.var2);
         ImGui::PopItemWidth();
         break;
-    case hsm_t::condition_type::a_less_cst:
+    case hsm_t::condition_type::greater_equal:
         ImGui::PushItemWidth(-1);
-        ImGui::InputScalar("value", ImGuiDataType_S32, &condition.parameter);
+        show_only_variable_widget(condition.var1);
+        show_only_variable_widget(condition.var2);
         ImGui::PopItemWidth();
         break;
-    case hsm_t::condition_type::a_greater_equal_cst:
+    case hsm_t::condition_type::less:
         ImGui::PushItemWidth(-1);
-        ImGui::InputScalar("value", ImGuiDataType_S32, &condition.parameter);
+        show_only_variable_widget(condition.var1);
+        show_only_variable_widget(condition.var2);
         ImGui::PopItemWidth();
         break;
-    case hsm_t::condition_type::a_less_equal_cst:
+    case hsm_t::condition_type::less_equal:
         ImGui::PushItemWidth(-1);
-        ImGui::InputScalar("value", ImGuiDataType_S32, &condition.parameter);
+        show_only_variable_widget(condition.var1);
+        show_only_variable_widget(condition.var2);
         ImGui::PopItemWidth();
-        break;
-    case hsm_t::condition_type::b_equal_to_cst:
-        ImGui::PushItemWidth(-1);
-        ImGui::InputScalar("value", ImGuiDataType_S32, &condition.parameter);
-        ImGui::PopItemWidth();
-        break;
-    case hsm_t::condition_type::b_not_equal_to_cst:
-        ImGui::PushItemWidth(-1);
-        ImGui::InputScalar("value", ImGuiDataType_S32, &condition.parameter);
-        ImGui::PopItemWidth();
-        break;
-    case hsm_t::condition_type::b_greater_cst:
-        ImGui::PushItemWidth(-1);
-        ImGui::InputScalar("value", ImGuiDataType_S32, &condition.parameter);
-        ImGui::PopItemWidth();
-        break;
-    case hsm_t::condition_type::b_less_cst:
-        ImGui::PushItemWidth(-1);
-        ImGui::InputScalar("value", ImGuiDataType_S32, &condition.parameter);
-        ImGui::PopItemWidth();
-        break;
-    case hsm_t::condition_type::b_greater_equal_cst:
-        ImGui::PushItemWidth(-1);
-        ImGui::InputScalar("value", ImGuiDataType_S32, &condition.parameter);
-        ImGui::PopItemWidth();
-        break;
-    case hsm_t::condition_type::b_less_equal_cst:
-        ImGui::PushItemWidth(-1);
-        ImGui::InputScalar("value", ImGuiDataType_S32, &condition.parameter);
-        ImGui::PopItemWidth();
-        break;
-    case hsm_t::condition_type::a_equal_to_b:
-        break;
-    case hsm_t::condition_type::a_not_equal_to_b:
-        break;
-    case hsm_t::condition_type::a_greater_b:
-        break;
-    case hsm_t::condition_type::a_less_b:
-        break;
-    case hsm_t::condition_type::a_greater_equal_b:
-        break;
-    case hsm_t::condition_type::a_less_equal_b:
         break;
     }
     ImGui::PopID();

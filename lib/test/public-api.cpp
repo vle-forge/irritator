@@ -1845,16 +1845,15 @@ int main()
 
         hsmw.states[1u].condition.type =
           irt::hierarchical_state_machine::condition_type::port;
-        hsmw.states[1u].condition.port = 3u;
-        hsmw.states[1u].condition.mask = 7u;
-        hsmw.states[1u].if_transition  = 2u;
+        hsmw.states[1u].condition.set(3u, 7u);
+        hsmw.states[1u].if_transition = 2u;
 
         expect(!!hsmw.set_state(2u, 0u));
         hsmw.states[2u].enter_action.type =
           irt::hsm_wrapper::hsm::action_type::output;
         hsmw.states[2u].enter_action.var1 =
           irt::hierarchical_state_machine::variable::port_0;
-        hsmw.states[2u].enter_action.parameter = 1;
+        hsmw.states[2u].enter_action.constant.f = 1.f;
 
         expect(!!hsmw.start(exec));
 
@@ -1915,16 +1914,15 @@ int main()
         expect(!!hsmw->set_state(1u, 0u));
         hsmw->states[1u].condition.type =
           irt::hierarchical_state_machine::condition_type::port;
-        hsmw->states[1u].condition.port = 0b0011u;
-        hsmw->states[1u].condition.mask = 0b0011u;
-        hsmw->states[1u].if_transition  = 2u;
+        hsmw->states[1u].condition.set(0b0011u, 0b0011u);
+        hsmw->states[1u].if_transition = 2u;
 
         expect(!!hsmw->set_state(2u, 0u));
         hsmw->states[2u].enter_action.type =
           irt::hsm_wrapper::hsm::action_type::output;
         hsmw->states[2u].enter_action.var1 =
           irt::hierarchical_state_machine::variable::port_0;
-        hsmw->states[2u].enter_action.parameter = 1;
+        hsmw->states[2u].enter_action.constant.f = 1.0f;
 
         expect(!!sim.connect(gen, 0, hsm, 0));
         expect(!!sim.connect(gen, 0, hsm, 1));

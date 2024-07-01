@@ -600,8 +600,10 @@ void show_dynamics_inputs(simulation& /*sim*/, logical_invert& /*dyn*/) {}
 
 void show_dynamics_inputs(simulation& /*sim*/, hsm_wrapper& dyn)
 {
-    ImGui::InputInt("a", &dyn.exec.a);
-    ImGui::InputInt("b", &dyn.exec.b);
+    ImGui::InputInt("integer 1", &dyn.exec.i1);
+    ImGui::InputInt("integer 2", &dyn.exec.i2);
+    ImGui::InputDouble("real 1", &dyn.exec.r1);
+    ImGui::InputDouble("real 2", &dyn.exec.r2);
 }
 
 void show_dynamics_inputs(simulation& /*sim*/, time_func& dyn)
