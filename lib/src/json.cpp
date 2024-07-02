@@ -474,8 +474,8 @@ struct reader {
 
     template<size_t N, typename Function>
     bool for_members(const rapidjson::Value& val,
-                     const std::string_view  (&names)[N],
-                     Function&&              fn) noexcept
+                     const std::string_view (&names)[N],
+                     Function&& fn) noexcept
     {
         if (!val.IsObject())
             report_json_error(error_id::value_not_object);
@@ -870,6 +870,21 @@ struct reader {
     {
         dst = temp_u64;
 
+        return true;
+    }
+
+    bool copy_to(std::optional<double>& dst) noexcept
+    {
+        dst = temp_double;
+        return true;
+    }
+
+    bool copy_to(std::optional<u8>& dst) noexcept
+    {
+        if (!(temp_u64 <= UINT8_MAX))
+            report_json_error(error_id::integer_to_i8_error);
+
+        dst = static_cast<u8>(temp_integer);
         return true;
     }
 
@@ -1827,9 +1842,9 @@ struct reader {
                 return read_temp_integer(value) && copy_to(wrapper.exec.i1);
             case 2:
                 return read_temp_integer(value) && copy_to(wrapper.exec.i2);
-            case 2:
+            case 3:
                 return read_temp_real(value) && copy_to(wrapper.exec.r1);
-            case 2:
+            case 4:
                 return read_temp_real(value) && copy_to(wrapper.exec.r2);
             default:
                 report_json_error(error_id::unknown_element);
@@ -2053,8 +2068,8 @@ struct reader {
         return nullptr;
     }
 
-    auto search_dir_in_reg(registred_path& reg, std::string_view name) noexcept
-      -> dir_path*
+    auto search_dir_in_reg(registred_path&  reg,
+                           std::string_view name) noexcept -> dir_path*
     {
         for (auto dir_id : reg.children) {
             if (auto* dir = mod().dir_paths.try_to_get(dir_id); dir) {
@@ -2123,8 +2138,8 @@ struct reader {
         return nullptr;
     }
 
-    auto search_file(dir_path& dir, std::string_view name) noexcept
-      -> file_path*
+    auto search_file(dir_path&        dir,
+                     std::string_view name) noexcept -> file_path*
     {
         for (auto file_id : dir.children)
             if (auto* file = mod().file_paths.try_to_get(file_id); file)
@@ -5017,14 +5032,21 @@ static void write(
 {
     writer.Key(name.data(), static_cast<rapidjson::SizeType>(name.size()));
     writer.StartObject();
-    writer.Key("parameter");
-    writer.Int(state.parameter);
     writer.Key("var-1");
     writer.Int(static_cast<int>(state.var1));
     writer.Key("var-2");
     writer.Int(static_cast<int>(state.var2));
     writer.Key("type");
     writer.Int(static_cast<int>(state.type));
+
+    if (state.var2 == hierarchical_state_machine::variable::constant_i) {
+        writer.Key("constant-i");
+        writer.Int(state.constant.i);
+    } else if (state.var2 == hierarchical_state_machine::variable::constant_r) {
+        writer.Key("constant-r");
+        writer.Double(state.constant.f);
+    }
+
     writer.EndObject();
 }
 
@@ -5036,14 +5058,31 @@ static void write(
 {
     writer.Key(name.data(), static_cast<rapidjson::SizeType>(name.size()));
     writer.StartObject();
-    writer.Key("parameter");
-    writer.Int(state.parameter);
+    writer.Key("var-1");
+    writer.Int(static_cast<int>(state.var1));
+    writer.Key("var-2");
+    writer.Int(static_cast<int>(state.var2));
     writer.Key("type");
     writer.Int(static_cast<int>(state.type));
-    writer.Key("port");
-    writer.Int(static_cast<int>(state.port));
-    writer.Key("mask");
-    writer.Int(static_cast<int>(state.mask));
+
+    if (state.type == hierarchical_state_machine::condition_type::port) {
+        u8 port{}, mask{};
+        state.get(port, mask);
+
+        writer.Key("port");
+        writer.Int(static_cast<int>(port));
+        writer.Key("mask");
+        writer.Int(static_cast<int>(mask));
+    }
+
+    if (state.var2 == hierarchical_state_machine::variable::constant_i) {
+        writer.Key("constant-i");
+        writer.Int(state.constant.i);
+    } else if (state.var2 == hierarchical_state_machine::variable::constant_r) {
+        writer.Key("constant-r");
+        writer.Double(state.constant.f);
+    }
+
     writer.EndObject();
 }
 

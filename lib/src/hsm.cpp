@@ -15,6 +15,14 @@ static i32 copy_to_i32(const hsm_t::variable      v,
     switch (v) {
     case hsm_t::variable::none:
         return 0;
+    case hsm_t::variable::port_0:
+        return static_cast<i32>(e.ports[0]);
+    case hsm_t::variable::port_1:
+        return static_cast<i32>(e.ports[1]);
+    case hsm_t::variable::port_2:
+        return static_cast<i32>(e.ports[2]);
+    case hsm_t::variable::port_3:
+        return static_cast<i32>(e.ports[3]);
     case hsm_t::variable::var_i1:
         return e.i1;
     case hsm_t::variable::var_i2:
@@ -41,6 +49,14 @@ static real copy_to_real(const hsm_t::variable      v,
     switch (v) {
     case hsm_t::variable::none:
         return 0.0;
+    case hsm_t::variable::port_0:
+        return e.ports[0];
+    case hsm_t::variable::port_1:
+        return e.ports[1];
+    case hsm_t::variable::port_2:
+        return e.ports[2];
+    case hsm_t::variable::port_3:
+        return e.ports[3];
     case hsm_t::variable::var_i1:
         return static_cast<real>(e.i1);
     case hsm_t::variable::var_i2:
@@ -85,11 +101,16 @@ struct wrap_var {
     {
         switch (v) {
         case hsm_t::variable::none:
+        case hsm_t::variable::port_0:
+        case hsm_t::variable::port_1:
+        case hsm_t::variable::port_2:
+        case hsm_t::variable::port_3:
             irt::unreachable();
             r    = 0.0;
             i    = 0;
             type = none;
             break;
+
         case hsm_t::variable::var_i1:
             r    = static_cast<double>(e.i1);
             i    = e.i1;
@@ -167,6 +188,9 @@ void hierarchical_state_machine::condition_action::clear() noexcept
 
 status hierarchical_state_machine::start(execution& exec) noexcept
 {
+    exec.sigma     = time_domain<time>::infinity;
+    exec.remaining = time_domain<time>::infinity;
+
     if (states.empty())
         return success();
 
@@ -407,7 +431,14 @@ void hierarchical_state_machine::affect_action(const state_action& action,
         const u8 port = ordinal(action.var1) - 1u;
 
         switch (action.var2) {
-            // TODO Que faire avec les variable port et non ?
+        case variable::none:
+        case variable::port_0:
+        case variable::port_1:
+        case variable::port_2:
+        case variable::port_3:
+            irt::unreachable();
+            break;
+
         case variable::var_i1:
             e.outputs.emplace_back(hierarchical_state_machine::output_message{
               .value = static_cast<real>(e.i1), .port = port });
@@ -441,6 +472,14 @@ void hierarchical_state_machine::affect_action(const state_action& action,
 
     case action_type::affect:
         switch (action.var1) {
+        case variable::none:
+        case variable::port_0:
+        case variable::port_1:
+        case variable::port_2:
+        case variable::port_3:
+            unreachable();
+            break;
+
         case variable::var_i1:
             e.i1 = copy_to_i32(action.var2, action, e);
             break;
@@ -467,6 +506,14 @@ void hierarchical_state_machine::affect_action(const state_action& action,
 
     case action_type::plus:
         switch (action.var1) {
+        case variable::none:
+        case variable::port_0:
+        case variable::port_1:
+        case variable::port_2:
+        case variable::port_3:
+            unreachable();
+            break;
+
         case variable::var_i1:
             e.i1 += copy_to_i32(action.var2, action, e);
             break;
@@ -493,6 +540,14 @@ void hierarchical_state_machine::affect_action(const state_action& action,
 
     case action_type::minus:
         switch (action.var1) {
+        case variable::none:
+        case variable::port_0:
+        case variable::port_1:
+        case variable::port_2:
+        case variable::port_3:
+            unreachable();
+            break;
+
         case variable::var_i1:
             e.i1 -= copy_to_i32(action.var2, action, e);
             break;
@@ -520,6 +575,14 @@ void hierarchical_state_machine::affect_action(const state_action& action,
 
     case action_type::negate:
         switch (action.var1) {
+        case variable::none:
+        case variable::port_0:
+        case variable::port_1:
+        case variable::port_2:
+        case variable::port_3:
+            unreachable();
+            break;
+
         case variable::var_i1:
             e.i1 *= -1;
             break;
@@ -547,6 +610,14 @@ void hierarchical_state_machine::affect_action(const state_action& action,
 
     case action_type::multiplies:
         switch (action.var1) {
+        case variable::none:
+        case variable::port_0:
+        case variable::port_1:
+        case variable::port_2:
+        case variable::port_3:
+            unreachable();
+            break;
+
         case variable::var_i1:
             e.i1 *= copy_to_i32(action.var2, action, e);
             break;
@@ -574,6 +645,14 @@ void hierarchical_state_machine::affect_action(const state_action& action,
 
     case action_type::divides:
         switch (action.var1) {
+        case variable::none:
+        case variable::port_0:
+        case variable::port_1:
+        case variable::port_2:
+        case variable::port_3:
+            unreachable();
+            break;
+
         case variable::var_i1:
             e.i1 /= copy_to_i32(action.var2, action, e);
             break;
@@ -601,6 +680,14 @@ void hierarchical_state_machine::affect_action(const state_action& action,
 
     case action_type::modulus:
         switch (action.var1) {
+        case variable::none:
+        case variable::port_0:
+        case variable::port_1:
+        case variable::port_2:
+        case variable::port_3:
+            unreachable();
+            break;
+
         case variable::var_i1:
             e.i1 = std::modulus<>{}(e.i1, copy_to_i32(action.var2, action, e));
             break;
@@ -627,6 +714,14 @@ void hierarchical_state_machine::affect_action(const state_action& action,
 
     case action_type::bit_and:
         switch (action.var1) {
+        case variable::none:
+        case variable::port_0:
+        case variable::port_1:
+        case variable::port_2:
+        case variable::port_3:
+            unreachable();
+            break;
+
         case variable::var_i1:
             e.i1 = std::bit_and<>{}(e.i1, copy_to_i32(action.var2, action, e));
             break;
@@ -653,6 +748,14 @@ void hierarchical_state_machine::affect_action(const state_action& action,
 
     case action_type::bit_or:
         switch (action.var1) {
+        case variable::none:
+        case variable::port_0:
+        case variable::port_1:
+        case variable::port_2:
+        case variable::port_3:
+            unreachable();
+            break;
+
         case variable::var_i1:
             e.i1 = std::bit_or<>{}(e.i1, copy_to_i32(action.var2, action, e));
             break;
@@ -679,6 +782,14 @@ void hierarchical_state_machine::affect_action(const state_action& action,
 
     case action_type::bit_not:
         switch (action.var1) {
+        case variable::none:
+        case variable::port_0:
+        case variable::port_1:
+        case variable::port_2:
+        case variable::port_3:
+            unreachable();
+            break;
+
         case variable::var_i1:
             e.i1 = std::bit_not<>{}(copy_to_i32(action.var2, action, e));
             break;
@@ -705,6 +816,14 @@ void hierarchical_state_machine::affect_action(const state_action& action,
 
     case action_type::bit_xor:
         switch (action.var1) {
+        case variable::none:
+        case variable::port_0:
+        case variable::port_1:
+        case variable::port_2:
+        case variable::port_3:
+            unreachable();
+            break;
+
         case variable::var_i1:
             e.i1 = std::bit_xor<>{}(e.i1, copy_to_i32(action.var2, action, e));
             break;
@@ -741,10 +860,14 @@ bool hierarchical_state_machine::condition_action::check(
     case condition_type::none:
         return true;
 
-    case condition_type::port:
-        return (((e.values ^ std::bitset<4>(constant.u & 0xff))) &
-                (std::bitset<4>((constant.u >> 8) & 0xff)))
-          .any();
+    case condition_type::port: {
+        u8 port{}, mask{};
+        get(port, mask);
+        std::bitset<4> p(port);
+        std::bitset<4> m(mask);
+
+        return ((e.values ^ p) & m).flip().any();
+    }
 
     case condition_type::sigma:
         return e.remaining == 0.0;

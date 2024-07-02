@@ -1338,52 +1338,38 @@ public:
 
 template<typename T>
 concept has_lambda_function = requires(T t, simulation& sim) {
-    {
-        t.lambda(sim)
-    } -> std::same_as<status>;
+    { t.lambda(sim) } -> std::same_as<status>;
 };
 
 template<typename T>
 concept has_transition_function =
   requires(T t, simulation& sim, time s, time e, time r) {
-      {
-          t.transition(sim, s, e, r)
-      } -> std::same_as<status>;
+      { t.transition(sim, s, e, r) } -> std::same_as<status>;
   };
 
 template<typename T>
 concept has_observation_function = requires(T t, time s, time e) {
-    {
-        t.observation(s, e)
-    } -> std::same_as<observation_message>;
+    { t.observation(s, e) } -> std::same_as<observation_message>;
 };
 
 template<typename T>
 concept has_initialize_function = requires(T t, simulation& sim) {
-    {
-        t.initialize(sim)
-    } -> std::same_as<status>;
+    { t.initialize(sim) } -> std::same_as<status>;
 };
 
 template<typename T>
 concept has_finalize_function = requires(T t, simulation& sim) {
-    {
-        t.finalize(sim)
-    } -> std::same_as<status>;
+    { t.finalize(sim) } -> std::same_as<status>;
 };
 
 template<typename T>
 concept has_input_port = requires(T t) {
-    {
-        t.x
-    };
+    { t.x };
 };
 
 template<typename T>
 concept has_output_port = requires(T t) {
-    {
-        t.y
-    };
+    { t.y };
 };
 
 constexpr observation_message qss_observation(real X,
@@ -3620,6 +3606,12 @@ public:
 
         void set(u8 port, u8 mask) noexcept { constant.u = (port << 4) | mask; }
 
+        void get(u8& port, u8& mask) const noexcept
+        {
+            port = (constant.u >> 4) & 0b1111;
+            mask = constant.u & 0b1111;
+        }
+
         bool check(execution& e) noexcept;
         void clear() noexcept;
     };
@@ -3647,13 +3639,13 @@ public:
     };
 
     struct execution {
-        i32  i1        = 0;
-        i32  i2        = 0;
-        real r1        = 0.0;
-        real r2        = 0.0;
-        time remaining = time_domain<time>::infinity;
-        time sigma     = time_domain<time>::infinity;
-        real ports[4]  = {}; //<! Stores first part of input port message.
+        i32                 i1        = 0;
+        i32                 i2        = 0;
+        real                r1        = 0.0;
+        real                r2        = 0.0;
+        time                remaining = time_domain<time>::infinity;
+        time                sigma     = time_domain<time>::infinity;
+        std::array<real, 4> ports; //<! Stores first part of input message.
         small_vector<output_message, 4> outputs;
         std::bitset<4> values; //<! Bit storage message available on X port.
 
@@ -3672,7 +3664,7 @@ public:
             r2        = 0;
             remaining = time_domain<time>::infinity;
             sigma     = time_domain<time>::infinity;
-            ports[4]  = {};
+            ports.fill(0.0);
             values.reset();
 
             current_state        = invalid_state_id;
@@ -5993,7 +5985,7 @@ inline status hsm_wrapper::initialize(simulation& sim) noexcept
 
     irt_check(machine->start(exec));
 
-    sigma = time_domain<time>::infinity;
+    sigma = exec.sigma;
 
     return success();
 }
@@ -6001,7 +5993,7 @@ inline status hsm_wrapper::initialize(simulation& sim) noexcept
 inline status hsm_wrapper::transition(simulation& sim,
                                       time /*t*/,
                                       time /*e*/,
-                                      time /*r*/) noexcept
+                                      time r) noexcept
 {
     hierarchical_state_machine* machine = nullptr;
     irt_check(get_hierarchical_state_machine(sim, machine, id));
@@ -6011,36 +6003,43 @@ inline status hsm_wrapper::transition(simulation& sim,
     const auto old_values_state = exec.values;
 
     for (int i = 0, e = length(x); i != e; ++i) {
-        if (is_defined(x[i]))
-            exec.values |= static_cast<u8>(1u << i);
+        auto* lst = sim.messages.try_to_get(x[i]);
+        if (lst and not lst->empty()) {
+            exec.values.set(i, true);
 
-        // notice for clear a bit if negative value ? or 0 value ?
-        // for (const auto& msg : span) {
-        //     if (msg[0] != 0)
-        //         machine->values |= 1u << i;
-        //     else
-        //         machine->values &= ~(1u << n);
-        // }
-        //
-        // Setting a bit number |= 1UL << n;
-        // clearing a bit bit number &= ~(1UL << n);
-        // Toggling a bit number ^= 1UL << n;
-        // Checking a bit bit = (number >> n) & 1U;
-        // Changing the nth bit to x
-        //  number = (number & ~(1UL << n)) | (x << n);
+            for (auto& elem : *lst)
+                exec.ports[i] = elem[0];
+        }
     }
 
-    if (old_values_state != exec.values) {
-        exec.previous_state = exec.current_state;
+    if (r == zero) { /* Wake up from a wake event. */
+        debug::ensure(r == zero);
+        exec.remaining = r;
 
         auto ret = machine->dispatch(
-          hierarchical_state_machine::event_type::input_changed, exec);
-
+          hierarchical_state_machine::event_type::wake_up, exec);
         if (!ret)
             return ret.error();
 
-        if (*ret == true && !exec.outputs.empty())
-            sigma = time_domain<time>::zero;
+        if (*ret == true)
+            sigma = exec.sigma;
+    } else {
+        exec.remaining = r;
+
+        if (old_values_state != exec.values) {
+            exec.previous_state = exec.current_state;
+
+            auto ret = machine->dispatch(
+              hierarchical_state_machine::event_type::input_changed, exec);
+
+            if (!ret)
+                return ret.error();
+
+            if (*ret == true and not exec.outputs.empty())
+                sigma = time_domain<time>::zero;
+            else
+                sigma = exec.sigma;
+        }
     }
 
     return success();

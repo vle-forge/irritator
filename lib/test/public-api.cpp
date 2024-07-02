@@ -1853,6 +1853,8 @@ int main()
           irt::hsm_wrapper::hsm::action_type::output;
         hsmw.states[2u].enter_action.var1 =
           irt::hierarchical_state_machine::variable::port_0;
+        hsmw.states[2u].enter_action.var2 =
+          irt::hierarchical_state_machine::variable::constant_r;
         hsmw.states[2u].enter_action.constant.f = 1.f;
 
         expect(!!hsmw.start(exec));
@@ -1922,6 +1924,8 @@ int main()
           irt::hsm_wrapper::hsm::action_type::output;
         hsmw->states[2u].enter_action.var1 =
           irt::hierarchical_state_machine::variable::port_0;
+        hsmw->states[2u].enter_action.var2 =
+          irt::hierarchical_state_machine::variable::constant_r;
         hsmw->states[2u].enter_action.constant.f = 1.0f;
 
         expect(!!sim.connect(gen, 0, hsm, 0));
