@@ -393,12 +393,19 @@ static void show_dynamics_values(simulation& sim, constant& dyn)
     ImGui::InputDouble("value", &dyn.value);
 
     if (ImGui::Button("Send value now")) {
-        auto& mdl = get_model(dyn);
-        sim.sched.remove(mdl);
-        mdl.tl    = sim.t;
-        mdl.tn    = std::nextafter(mdl.tl, mdl.tl + to_real(1.));
-        dyn.sigma = mdl.tn - mdl.tl;
-        sim.sched.reintegrate(mdl, mdl.tn);
+        auto& app    = container_of(&sim, &application::sim);
+        auto& mdl    = get_model(dyn);
+        auto  mdl_id = sim.models.get_id(mdl);
+
+        app.add_simulation_task([&]() noexcept {
+            if_data_exists_do(sim.models, mdl_id, [&](auto& m) noexcept {
+                sim.sched.remove(m);
+                m.tl      = sim.t;
+                m.tn      = std::nextafter(m.tl, m.tl + to_real(1.));
+                dyn.sigma = m.tn - m.tl;
+                sim.sched.reintegrate(m, m.tn);
+            });
+        });
     }
 }
 
