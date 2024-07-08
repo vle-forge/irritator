@@ -9,12 +9,6 @@
 #include "dialog.hpp"
 #include "internal.hpp"
 
-#include <future>
-#include <random>
-#include <thread>
-
-#include <cinttypes>
-
 namespace irt {
 
 static void show_random_distribution_input(random_source& src) noexcept
@@ -183,21 +177,22 @@ static void show_random_distribution_input(random_source& src) noexcept
     }
 }
 
-static void task_try_finalize_source(application&        app,
-                                     u64                 id,
-                                     source::source_type type) noexcept
-{
-    source src;
-    src.id   = id;
-    src.type = type;
+// static void task_try_finalize_source(application&        app,
+//                                      u64                 id,
+//                                      source::source_type type) noexcept
+// {
+//     source src;
+//     src.id   = id;
+//     src.type = type;
 
-    if (auto ret = app.mod.srcs.dispatch(src, source::operation_type::finalize);
-        !ret) {
-        auto& n = app.notifications.alloc(log_level::error);
-        n.title = "Fail to finalize data";
-        app.notifications.enable(n);
-    }
-}
+//     if (auto ret = app.mod.srcs.dispatch(src,
+//     source::operation_type::finalize);
+//         !ret) {
+//         auto& n = app.notifications.alloc(log_level::error);
+//         n.title = "Fail to finalize data";
+//         app.notifications.enable(n);
+//     }
+// }
 
 data_window::data_window() noexcept
   : context{ ImPlot::CreateContext() }
