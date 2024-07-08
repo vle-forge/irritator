@@ -820,8 +820,7 @@ void external_source::realloc(
 {
     destroy();
 
-    const auto size = init.in_bytes();
-    shared.reset(alloc.allocate_bytes(size), size);
+    shared.reset(alloc.allocate_bytes(init.bytes), init.bytes);
 
     if (init.constant_nb > 0)
         constant_sources.reserve(init.constant_nb);

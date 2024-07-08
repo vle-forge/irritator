@@ -469,8 +469,6 @@ struct external_source_memory_requirement {
       const unsigned random,
       const unsigned bin_f_max_client,
       const unsigned random_max_client) noexcept;
-
-    constexpr size_t in_bytes() const noexcept;
 };
 
 //! Helps to calculate the sizes of the `vectors` and `data_array` from a
@@ -6608,32 +6606,6 @@ inline constexpr external_source_memory_requirement::
         random;
 
     bytes = make_divisible_to(estimation << 2);
-}
-
-inline constexpr size_t external_source_memory_requirement::in_bytes()
-  const noexcept
-{
-    return sizeof(data_array<constant_source,
-                             constant_source_id,
-                             freelist_allocator>::internal_value_type) *
-             constant_nb +
-
-           sizeof(data_array<binary_file_source,
-                             binary_file_source_id,
-                             freelist_allocator>::internal_value_type) *
-             text_file_nb +
-
-           (sizeof(data_array<text_file_source,
-                              text_file_source_id,
-                              freelist_allocator>::internal_value_type) +
-            (sizeof(chunk_type) + sizeof(u64)) * binary_file_max_client) *
-             binary_file_nb +
-
-           (sizeof(data_array<random_source,
-                              random_source_id,
-                              freelist_allocator>::internal_value_type) +
-            (sizeof(chunk_type) + sizeof(u64) * 4) * random_max_client) *
-             random_nb;
 }
 
 } // namespace irt
