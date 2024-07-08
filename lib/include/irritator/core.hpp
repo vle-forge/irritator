@@ -6015,9 +6015,6 @@ inline status hsm_wrapper::transition(simulation& sim,
 
 inline status hsm_wrapper::lambda(simulation& sim) noexcept
 {
-    hierarchical_state_machine* machine = nullptr;
-    irt_check(get_hierarchical_state_machine(sim, machine, id));
-
     if (exec.previous_state != hierarchical_state_machine::invalid_state_id &&
         !exec.outputs.empty()) {
         for (int i = 0, e = exec.outputs.ssize(); i != e; ++i) {

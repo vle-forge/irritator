@@ -801,7 +801,7 @@ struct reader {
 
     bool copy_to(u8& dst) noexcept
     {
-        if (!(0 <= temp_integer && temp_integer <= UINT8_MAX))
+        if (!(temp_u64 <= UINT8_MAX))
             report_json_error(error_id::integer_to_u8_error);
 
         dst = static_cast<u8>(temp_integer);
