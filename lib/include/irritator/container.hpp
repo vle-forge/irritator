@@ -5117,7 +5117,7 @@ template<class T, int length>
 constexpr small_ring_buffer<T, length>::small_ring_buffer(
   small_ring_buffer&& rhs) noexcept
 {
-    std::uninitialized_move_n(rhs.data(), rhs.m_size, data());
+    std::uninitialized_move_n(rhs.data(), rhs.size(), data());
 
     m_head = std::exchange(rhs.m_head, 0);
     m_tail = std::exchange(rhs.m_tail, 0);
