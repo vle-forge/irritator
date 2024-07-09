@@ -82,13 +82,13 @@ struct wrap_var {
         i32  i;
     };
 
-    enum { none, real, integer } type;
+    enum type { none, real_t, integer_t } type;
 
     auto operator<=>(const wrap_var& o) const noexcept { return r <=> o.r; }
 
     bool operator==(const wrap_var& o) const noexcept
     {
-        if (type == real)
+        if (type == type::real_t)
             return r == o.r;
         else
             return i == o.i;
@@ -98,6 +98,8 @@ struct wrap_var {
     wrap_var(const hsm_t::variable   v,
              Action&                 act,
              const hsm_t::execution& e) noexcept
+      : r{ 0. }
+      , type{ type::none }
     {
         switch (v) {
         case hsm_t::variable::none:
@@ -108,43 +110,43 @@ struct wrap_var {
             irt::unreachable();
             r    = 0.0;
             i    = 0;
-            type = none;
+            type = type::none;
             break;
 
         case hsm_t::variable::var_i1:
             r    = static_cast<double>(e.i1);
             i    = e.i1;
-            type = integer;
+            type = type::integer_t;
             break;
         case hsm_t::variable::var_i2:
             r    = static_cast<double>(e.i2);
             i    = e.i2;
-            type = integer;
+            type = type::integer_t;
             break;
         case hsm_t::variable::var_r1:
             r    = e.r1;
             i    = static_cast<i32>(e.r1);
-            type = real;
+            type = type::real_t;
             break;
         case hsm_t::variable::var_r2:
             r    = e.r2;
             i    = static_cast<i32>(e.r2);
-            type = real;
+            type = type::real_t;
             break;
         case hsm_t::variable::var_timer:
             r    = e.sigma;
             i    = static_cast<i32>(e.sigma);
-            type = real;
+            type = type::real_t;
             break;
         case hsm_t::variable::constant_i:
             r    = static_cast<double>(act.constant.i);
             i    = act.constant.i;
-            type = integer;
+            type = type::integer_t;
             break;
         case hsm_t::variable::constant_r:
             r    = act.constant.f;
             i    = static_cast<i32>(act.constant.f);
-            type = real;
+            type = type::real_t;
             break;
         }
     }
