@@ -118,49 +118,7 @@ static void show_component_popup_menu(application& app, component& sel) noexcept
 
             if (ImGui::MenuItem("Set as main project model")) {
                 const auto compo_id = app.mod.components.get_id(sel);
-
-                app.add_gui_task([&app, compo_id]() noexcept {
-                    std::scoped_lock lock{ app.sim_mutex,
-                                           app.mod_mutex,
-                                           app.pj_mutex };
-
-                    attempt_all(
-                      [&]() noexcept -> status {
-                          if (auto* c = app.mod.components.try_to_get(compo_id);
-                              c)
-                              return app.pj.set(app.mod, app.sim, *c);
-
-                          return success();
-                      },
-
-                      [&](project::part part, project::error error) noexcept {
-                          auto& n = app.notifications.alloc(log_level::error);
-                          n.title = "Project import error";
-                          format(n.message,
-                                 "Error in {} failed with error: {}",
-                                 to_string(part),
-                                 to_string(error));
-                      },
-
-                      [&](project::part part) noexcept {
-                          auto& n = app.notifications.alloc(log_level::error);
-                          n.title = "Project import error";
-                          format(n.message, "Error in {}", to_string(part));
-                      },
-
-                      [&](project::error error) noexcept {
-                          auto& n = app.notifications.alloc(log_level::error);
-                          n.title = "Project import error";
-                          format(n.message, "Error: {}", to_string(error));
-                      },
-
-                      [&]() noexcept {
-                          auto& n = app.notifications.alloc();
-                          n.level = log_level::error;
-                          n.title = "Fail to build tree";
-                          app.notifications.enable(n);
-                      });
-                });
+                app.library_wnd.try_set_component_as_project(compo_id);
             }
 
             if (auto* file = app.mod.file_paths.try_to_get(sel.file); file) {
@@ -285,7 +243,9 @@ static void open_component(application& app, component_id id) noexcept
 
         case component_type::hsm:
             if (!is_already_open(app.hsms, id) && app.hsms.can_alloc())
-                if (auto* h = app.mod.hsm_components.try_to_get(compo.id.hsm_id); h)
+                if (auto* h =
+                      app.mod.hsm_components.try_to_get(compo.id.hsm_id);
+                    h)
                     app.hsms.alloc(id, compo.id.hsm_id, *h);
             break;
 
@@ -321,8 +281,14 @@ static void show_file_component(application& app,
         format(buffer, "{} ({})", c.name.sv(), file.path.sv());
 
         ImGui::SameLine(75.f);
-        if (ImGui::Selectable(buffer.c_str(), selected))
-            open_component(app, id);
+        if (ImGui::Selectable(buffer.c_str(),
+                              selected,
+                              ImGuiSelectableFlags_AllowDoubleClick)) {
+            if (ImGui::IsMouseDoubleClicked(0))
+                app.library_wnd.try_set_component_as_project(id);
+            else
+                open_component(app, id);
+        }
         ImGui::PopID();
 
         show_component_popup_menu(app, c);
@@ -400,8 +366,13 @@ static void show_notsaved_components(irt::component_editor& ed,
                 app.mod.component_colors[get_index(id)][3] = 1.f;
 
             ImGui::SameLine(50.f);
-            if (ImGui::Selectable(compo.name.c_str(), selected))
-                open_component(app, id);
+            if (ImGui::Selectable(compo.name.c_str(),
+                                  selected,
+                                  ImGuiSelectableFlags_AllowDoubleClick))
+                if (ImGui::IsMouseDoubleClicked(0))
+                    app.library_wnd.try_set_component_as_project(id);
+                else
+                    open_component(app, id);
             ImGui::PopID();
 
             show_component_popup_menu(app, compo);
@@ -506,6 +477,67 @@ static void show_component_library(component_editor& c_editor,
             show_notsaved_components(c_editor, tree);
             ImGui::TreePop();
         }
+    }
+}
+
+void library_window::try_set_component_as_project(
+  const component_id compo_id) noexcept
+{
+    auto& app = container_of(this, &application::library_wnd);
+
+    if (not any_equal(app.simulation_ed.simulation_state,
+                      simulation_status::finished,
+                      simulation_status::not_started)) {
+        app.notifications.try_insert(
+          log_level::error, [&](auto& title, auto& msg) noexcept {
+              title = "Project import error";
+              msg =
+                "A simulation is currently running. Stop the simulation "
+                "before importing a new component as project main component.";
+          });
+    } else {
+        // Perhaps add a new simulation status: to avoid import of a component.
+        app.add_gui_task([&app, compo_id]() noexcept {
+            std::scoped_lock lock{ app.sim_mutex, app.mod_mutex, app.pj_mutex };
+
+            attempt_all(
+              [&]() noexcept -> status {
+                  if (auto* c = app.mod.components.try_to_get(compo_id); c) {
+                      app.simulation_ed.clear();
+                      return app.pj.set(app.mod, app.sim, *c);
+                  }
+
+                  return success();
+              },
+
+              [&](project::part part, project::error error) noexcept {
+                  auto& n = app.notifications.alloc(log_level::error);
+                  n.title = "Project import error";
+                  format(n.message,
+                         "Error in {} failed with error: {}",
+                         to_string(part),
+                         to_string(error));
+              },
+
+              [&](project::part part) noexcept {
+                  auto& n = app.notifications.alloc(log_level::error);
+                  n.title = "Project import error";
+                  format(n.message, "Error in {}", to_string(part));
+              },
+
+              [&](project::error error) noexcept {
+                  auto& n = app.notifications.alloc(log_level::error);
+                  n.title = "Project import error";
+                  format(n.message, "Error: {}", to_string(error));
+              },
+
+              [&]() noexcept {
+                  auto& n = app.notifications.alloc();
+                  n.level = log_level::error;
+                  n.title = "Fail to build tree";
+                  app.notifications.enable(n);
+              });
+        });
     }
 }
 

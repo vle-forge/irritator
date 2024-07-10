@@ -686,6 +686,8 @@ public:
 
     library_window() noexcept = default;
 
+    void try_set_component_as_project(const component_id id) noexcept;
+
     void show() noexcept;
 
     bool is_open = true;
