@@ -659,7 +659,7 @@ static status copy(simulation_editor& ed, const ImVector<int>& nodes) noexcept
         auto  src_mdl_id = app.sim.models.get_id(src_mdl);
         auto  dst_mdl_id = app.sim.models.get_id(dst_mdl);
 
-        irt_check(app.sim.make_initialize(dst_mdl, ed.simulation_current));
+        irt_check(app.sim.make_initialize(dst_mdl, app.sim.t));
 
         mapping.data.emplace_back(src_mdl_id, dst_mdl_id);
     }

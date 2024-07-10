@@ -578,7 +578,6 @@ struct simulation_editor {
 
     real simulation_begin           = 0;
     real simulation_end             = 100;
-    real simulation_current         = 0;
     real simulation_display_current = 0;
 
     /** Number of microsecond to run 1 unit of simulation time. The default is

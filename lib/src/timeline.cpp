@@ -483,7 +483,8 @@ status run(timeline& tl, simulation& sim, time& t) noexcept
 status finalize(timeline& tl, simulation& sim, time t) noexcept
 {
     tl.current_bag = tl.points.tail();
-    return sim.finalize(t);
+    sim.t          = t;
+    return sim.finalize();
 }
 
 bool timeline::can_advance() const noexcept

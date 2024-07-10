@@ -208,11 +208,12 @@ int main()
                 synapses.emplace_back(synapse_model);
             }
         }
-        irt::real t{ 0 };
-        expect(!!sim.initialize(t));
+
+        sim.t = irt::zero;
+        expect(!!sim.initialize());
 
         do {
-            expect(!!sim.run(t));
-        } while (t < 30);
+            expect(!!sim.run());
+        } while (sim.t < 30);
     };
 }

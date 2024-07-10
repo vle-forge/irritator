@@ -270,17 +270,17 @@ void run_simulation(irt::real begin,
           irt_check(mod.init(init));
           irt_check(pj.load(mod, sim, cache, file_name));
 
-          irt::time       t   = begin;
+          sim.t   = begin;
           const irt::time end = begin + duration;
 
           irt_check(sim.srcs.prepare());
-          irt_check(sim.initialize(t));
+          irt_check(sim.initialize());
 
           do {
-              irt_check(sim.run(t));
-          } while (t < end);
+              irt_check(sim.run());
+          } while (sim.t < end);
 
-          irt_check(sim.finalize(t));
+          irt_check(sim.finalize());
 
           return irt::success();
       },

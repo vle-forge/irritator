@@ -95,7 +95,6 @@ void simulation_editor::clear() noexcept
 
     simulation_begin           = 0;
     simulation_end             = 100;
-    simulation_current         = 0;
     simulation_display_current = 0;
 
     nb_microsecond_per_simulation_time = 1000000;

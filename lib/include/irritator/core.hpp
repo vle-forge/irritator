@@ -1297,10 +1297,10 @@ public:
                       model& dst,
                       int    port_dst) noexcept;
 
-    status initialize(time t) noexcept;
-
-    //!
-    status run(time& t) noexcept;
+    /** Call the initialize member function for each model of the simulation an
+     * prepare the simulation class to call the `run` function. */
+    status initialize() noexcept;
+    status run() noexcept;
 
     template<typename Dynamics>
     status make_initialize(model& mdl, Dynamics& dyn, time t) noexcept;
@@ -1315,8 +1315,7 @@ public:
     template<typename Dynamics>
     status make_finalize(Dynamics& dyn, observer* obs, time t) noexcept;
 
-    /**
-     * @brief Finalize and cleanup simulation objects.
+    /** Finalize and cleanup simulation objects.
      *
      * Clean:
      * - the scheduller nodes
@@ -1325,7 +1324,7 @@ public:
      *
      * This function must be call at the end of the simulation.
      */
-    status finalize(time t) noexcept;
+    status finalize() noexcept;
 };
 
 /////////////////////////////////////////////////////////////////////////////
@@ -5795,23 +5794,22 @@ inline status simulation::disconnect(model& src,
     return global_disconnect(*this, src, port_src, get_id(dst), port_dst);
 }
 
-inline status simulation::initialize(time t) noexcept
+inline status simulation::initialize() noexcept
 {
+    debug::ensure(std::isfinite(t));
+
     clean();
-    this->t = t;
 
-    irt::model* mdl = nullptr;
-    while (models.next(mdl))
-        irt_check(make_initialize(*mdl, t));
+    for (auto& mdl : models)
+        irt_check(make_initialize(mdl, t));
 
-    irt::observer* obs = nullptr;
-    while (observers.next(obs)) {
-        obs->reset();
+    for (auto& obs : observers) {
+        obs.reset();
 
-        if (auto* mdl = models.try_to_get(obs->model); mdl) {
-            dispatch(*mdl, [mdl, &obs, t]<typename Dynamics>(Dynamics& dyn) {
+        if (auto* mdl = models.try_to_get(obs.model); mdl) {
+            dispatch(*mdl, [&]<typename Dynamics>(Dynamics& dyn) {
                 if constexpr (has_observation_function<Dynamics>) {
-                    obs->update(dyn.observation(t, t - mdl->tl));
+                    obs.update(dyn.observation(t, t - mdl->tl));
                 }
             });
         }
@@ -5917,18 +5915,18 @@ status simulation::make_finalize(Dynamics& dyn, observer* obs, time t) noexcept
     return success();
 }
 
-inline status simulation::finalize(time t) noexcept
+inline status simulation::finalize() noexcept
 {
-    model* mdl = nullptr;
-    while (models.next(mdl)) {
-        observer* obs = nullptr;
-        if (is_defined(mdl->obs_id))
-            obs = observers.try_to_get(mdl->obs_id);
+    debug::ensure(std::isfinite(t));
 
-        auto ret =
-          dispatch(*mdl, [this, obs, t]<typename Dynamics>(Dynamics& dyn) {
-              return this->make_finalize(dyn, obs, t);
-          });
+    for (auto& mdl : models) {
+        observer* obs = nullptr;
+        if (is_defined(mdl.obs_id))
+            obs = observers.try_to_get(mdl.obs_id);
+
+        auto ret = dispatch(mdl, [&]<typename Dynamics>(Dynamics& dyn) {
+            return this->make_finalize(dyn, obs, t);
+        });
 
         irt_check(ret);
     }
@@ -5936,9 +5934,10 @@ inline status simulation::finalize(time t) noexcept
     return success();
 }
 
-inline status simulation::run(time& t) noexcept
+inline status simulation::run() noexcept
 {
-    this->t = t;
+    debug::ensure(std::isfinite(t));
+
     immediate_models.clear();
     immediate_observers.clear();
 
@@ -5971,7 +5970,7 @@ inline status simulation::run(time& t) noexcept
         auto  port = emitting_output_ports[i].port;
         auto& msg  = emitting_output_ports[i].msg;
 
-        dispatch(*mdl, [this, port, &msg]<typename Dynamics>(Dynamics& dyn) {
+        dispatch(*mdl, [&]<typename Dynamics>(Dynamics& dyn) {
             if constexpr (has_input_port<Dynamics>) {
                 auto* list = messages.try_to_get(dyn.x[port]);
                 if (not list) {

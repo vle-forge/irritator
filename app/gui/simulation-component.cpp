@@ -66,8 +66,7 @@ static void make_init_error_msg(application& app,
 
 static void simulation_copy(application& app) noexcept
 {
-    app.simulation_ed.simulation_state   = simulation_status::initializing;
-    app.simulation_ed.simulation_current = app.simulation_ed.simulation_begin;
+    app.simulation_ed.simulation_state = simulation_status::initializing;
 
     auto  compo_id = app.pj.head();
     auto* compo    = app.mod.components.try_to_get(compo_id);
@@ -83,7 +82,8 @@ static void simulation_copy(application& app) noexcept
       [&]() noexcept -> status {
           irt_check(app.pj.set(app.mod, app.sim, *compo));
           irt_check(app.mod.srcs.prepare());
-          irt_check(app.sim.initialize(app.simulation_ed.simulation_begin));
+          app.sim.t = app.simulation_ed.simulation_begin;
+          irt_check(app.sim.initialize());
           app.simulation_ed.simulation_state = simulation_status::initialized;
           return success();
       },
@@ -106,8 +106,7 @@ static void simulation_copy(application& app) noexcept
 
 static void simulation_init(application& app) noexcept
 {
-    app.simulation_ed.simulation_state   = simulation_status::initializing;
-    app.simulation_ed.simulation_current = app.simulation_ed.simulation_begin;
+    app.simulation_ed.simulation_state = simulation_status::initializing;
 
     app.simulation_ed.tl.reset();
 
@@ -120,9 +119,11 @@ static void simulation_init(application& app) noexcept
 
     attempt_all(
       [&]() noexcept -> status {
+          app.sim.t = app.simulation_ed.simulation_begin;
+          app.simulation_ed.simulation_display_current = app.sim.t;
           irt_check(simulation_init_observation(app));
           irt_check(app.mod.srcs.prepare());
-          irt_check(app.sim.initialize(app.simulation_ed.simulation_begin));
+          irt_check(app.sim.initialize());
           app.simulation_ed.simulation_state = simulation_status::initialized;
           return success();
       },
@@ -142,7 +143,7 @@ static status debug_run(simulation_editor& sim_ed) noexcept
 {
     auto& app = container_of(&sim_ed, &application::simulation_ed);
 
-    if (auto ret = run(sim_ed.tl, app.sim, sim_ed.simulation_current); !ret) {
+    if (auto ret = run(sim_ed.tl, app.sim, app.sim.t); !ret) {
         auto& app = container_of(&sim_ed, &application::simulation_ed);
         auto& n   = app.notifications.alloc(log_level::error);
         n.title   = "Debug run error";
@@ -158,7 +159,7 @@ static status run(simulation_editor& sim_ed) noexcept
 {
     auto& app = container_of(&sim_ed, &application::simulation_ed);
 
-    if (auto ret = app.sim.run(sim_ed.simulation_current); !ret) {
+    if (auto ret = app.sim.run(); !ret) {
         auto& app = container_of(&sim_ed, &application::simulation_ed);
         auto& n   = app.notifications.alloc(log_level::error);
         n.title   = "Run error";
@@ -174,7 +175,7 @@ static status debug_live_run(simulation_editor& sim_ed) noexcept
 {
     auto& app = container_of(&sim_ed, &application::simulation_ed);
 
-    if (auto ret = run(sim_ed.tl, app.sim, sim_ed.simulation_current); !ret) {
+    if (auto ret = run(sim_ed.tl, app.sim, app.sim.t); !ret) {
         app.notifications.try_insert(
           log_level::error, [&](auto& title, auto& msg) {
               title = "Live debug run error";
@@ -191,7 +192,7 @@ static status live_run(simulation_editor& sim_ed) noexcept
 {
     auto& app = container_of(&sim_ed, &application::simulation_ed);
 
-    if (auto ret = app.sim.run(sim_ed.simulation_current); !ret) {
+    if (auto ret = app.sim.run(); !ret) {
         app.notifications.try_insert(
           log_level::error, [&](auto& title, auto& msg) {
               title = "Live run error";
@@ -230,12 +231,14 @@ void simulation_editor::start_simulation_static_run() noexcept
                 if (auto ret = debug_run(app.simulation_ed); !ret) {
                     app.simulation_ed.simulation_state =
                       simulation_status::finish_requiring;
+                    app.simulation_ed.simulation_display_current = app.sim.t;
                     return;
                 }
             } else {
                 if (auto ret = run(app.simulation_ed); !ret) {
                     app.simulation_ed.simulation_state =
                       simulation_status::finish_requiring;
+                    app.simulation_ed.simulation_display_current = app.sim.t;
                     return;
                 }
             }
@@ -244,12 +247,11 @@ void simulation_editor::start_simulation_static_run() noexcept
                 app.simulation_ed.start_simulation_observation();
 
             if (!app.simulation_ed.infinity_simulation &&
-                app.simulation_ed.simulation_current >=
-                  app.simulation_ed.simulation_end) {
-                app.simulation_ed.simulation_current =
-                  app.simulation_ed.simulation_end;
+                app.sim.t >= app.simulation_ed.simulation_end) {
+                app.sim.t = app.simulation_ed.simulation_end;
                 app.simulation_ed.simulation_state =
                   simulation_status::finish_requiring;
+                app.simulation_ed.simulation_display_current = app.sim.t;
                 return;
             }
 
@@ -261,6 +263,8 @@ void simulation_editor::start_simulation_static_run() noexcept
               app.simulation_ed.force_pause || app.simulation_ed.force_stop;
         } while (!stop_or_pause && duration_since_start <
                                      app.simulation_ed.thread_frame_duration);
+
+        app.simulation_ed.simulation_display_current = app.sim.t;
 
         if (app.simulation_ed.force_pause) {
             app.simulation_ed.force_pause = false;
@@ -302,7 +306,7 @@ void simulation_editor::start_simulation_live_run() noexcept
 
         simulation_state = simulation_status::running;
 
-        const auto sim_start_at = simulation_current;
+        const auto sim_start_at = app.sim.t;
         auto       sim_duration = 0.;
         const auto start_at     = stdc::high_resolution_clock::now();
         auto       duration     = stdc::high_resolution_clock::now() - start_at;
@@ -327,9 +331,20 @@ void simulation_editor::start_simulation_live_run() noexcept
                 start_simulation_observation();
 
             duration     = stdc::high_resolution_clock::now() - start_at;
-            sim_duration = app.simulation_ed.simulation_current - sim_start_at;
+            sim_duration = app.sim.t - sim_start_at;
 
-            if (time_domain<time>::is_infinity(sim_duration)) {
+            if (sim_duration >= sim_max_duration) {
+                const auto remaining =
+                  stdc::microseconds(thread_frame_duration) - duration;
+                if (remaining > stdc::nanoseconds::zero()) {
+                    std::this_thread::sleep_for(remaining);
+                    duration = thread_frame_duration_ms;
+                }
+                break;
+            }
+
+            if (infinity_simulation and
+                time_domain<time>::is_infinity(sim_duration)) {
                 const auto remaining =
                   stdc::microseconds(thread_frame_duration) - duration;
                 if (remaining > stdc::nanoseconds::zero()) {
@@ -337,18 +352,19 @@ void simulation_editor::start_simulation_live_run() noexcept
                     duration = thread_frame_duration_ms;
                 }
 
-                simulation_current         = sim_start_at + sim_max_duration;
-                simulation_display_current = simulation_current;
+                app.sim.t = sim_start_at + sim_max_duration;
+                break;
             }
 
-            if (simulation_current >= simulation_end) {
-                simulation_current         = simulation_end;
-                simulation_display_current = simulation_current;
+            if (not infinity_simulation and app.sim.t >= simulation_end) {
+                app.sim.t                  = simulation_end;
+                simulation_display_current = app.sim.t;
                 simulation_state = simulation_status::finish_requiring;
                 return;
             }
         }
 
+        simulation_display_current         = app.sim.t;
         app.simulation_ed.simulation_state = simulation_status::paused;
     });
 }
@@ -576,10 +592,8 @@ void simulation_editor::start_simulation_start_1() noexcept
                 }
 
                 if (!app.simulation_ed.infinity_simulation &&
-                    app.simulation_ed.simulation_current >=
-                      app.simulation_ed.simulation_end) {
-                    app.simulation_ed.simulation_current =
-                      app.simulation_ed.simulation_end;
+                    app.sim.t >= app.simulation_ed.simulation_end) {
+                    app.sim.t = app.simulation_ed.simulation_end;
                     app.simulation_ed.simulation_state =
                       simulation_status::finish_requiring;
                     return;
@@ -641,9 +655,7 @@ void simulation_editor::start_simulation_finish() noexcept
         app.simulation_ed.start_simulation_observation();
 
         if (app.simulation_ed.store_all_changes) {
-            if (auto ret = finalize(app.simulation_ed.tl,
-                                    app.sim,
-                                    app.simulation_ed.simulation_current);
+            if (auto ret = finalize(app.simulation_ed.tl, app.sim, app.sim.t);
                 !ret) {
                 auto& n = app.notifications.alloc();
                 n.title = "Simulation finalizing fail (with store all "
@@ -651,8 +663,8 @@ void simulation_editor::start_simulation_finish() noexcept
                 app.notifications.enable(n);
             }
         } else {
-            if (auto ret = app.sim.finalize(app.simulation_ed.simulation_end);
-                !ret) {
+            app.sim.t = app.simulation_ed.simulation_end;
+            if (auto ret = app.sim.finalize(); !ret) {
                 auto& n = app.notifications.alloc();
                 n.title = "simulation finish fail";
                 app.notifications.enable(n);
@@ -671,9 +683,7 @@ void simulation_editor::start_simulation_advance() noexcept
         if (app.simulation_ed.tl.can_advance()) {
             attempt_all(
               [&]() noexcept -> status {
-                  return advance(app.simulation_ed.tl,
-                                 app.sim,
-                                 app.simulation_ed.simulation_current);
+                  return advance(app.simulation_ed.tl, app.sim, app.sim.t);
               },
 
               [&](const simulation::part s) noexcept -> void {
@@ -701,9 +711,7 @@ void simulation_editor::start_simulation_back() noexcept
         if (app.simulation_ed.tl.can_back()) {
             attempt_all(
               [&]() noexcept -> status {
-                  return back(app.simulation_ed.tl,
-                              app.sim,
-                              app.simulation_ed.simulation_current);
+                  return back(app.simulation_ed.tl, app.sim, app.sim.t);
               },
 
               [&](const simulation::part s) noexcept -> void {
@@ -731,9 +739,7 @@ void simulation_editor::start_enable_or_disable_debug() noexcept
 
         attempt_all(
           [&]() -> status {
-              irt_check(initialize(app.simulation_ed.tl,
-                                   app.sim,
-                                   app.simulation_ed.simulation_current));
+              irt_check(initialize(app.simulation_ed.tl, app.sim, app.sim.t));
 
               return success();
           },
@@ -781,8 +787,7 @@ void simulation_editor::start_simulation_model_add(const dynamics_type type,
 
         attempt_all(
           [&]() noexcept -> status {
-              irt_check(app.sim.make_initialize(
-                mdl, app.simulation_ed.simulation_current));
+              irt_check(app.sim.make_initialize(mdl, app.sim.t));
 
               app.simulation_ed.models_to_move.emplace_enqueue(mdl_id,
                                                                ImVec2(x, y));

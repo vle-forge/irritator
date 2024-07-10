@@ -109,15 +109,14 @@ static irt::status run_simulation(irt::simulation& sim, const double duration_p)
 {
     using namespace boost::ut;
 
-    irt::time t        = 0;
+    sim.t              = 0;
     irt::time duration = static_cast<irt::time>(duration_p);
 
-    expect(!!sim.initialize(t));
+    expect(!!sim.initialize());
 
     do {
-        auto status = sim.run(t);
-        expect(!!status);
-    } while (t < duration);
+        expect(!!sim.run());
+    } while (sim.t < duration);
 
     return irt::success();
 }
@@ -1794,13 +1793,12 @@ int main()
         expect(!!sim.connect(c1, 0, cnt, 0));
         expect(!!sim.connect(c2, 0, cnt, 0));
 
-        irt::time t = 0.0;
-        expect(!!sim.initialize(t));
+        sim.t = irt::zero;
+        expect(!!sim.initialize());
 
         do {
-            fmt::print("time: {}\n", t);
-            expect(!!sim.run(t));
-        } while (!irt::time_domain<irt::time>::is_infinity(t));
+            expect(!!sim.run());
+        } while (not irt::time_domain<irt::time>::is_infinity(sim.t));
 
         expect(eq(cnt.number, static_cast<irt::i64>(2)));
     };
@@ -1824,12 +1822,12 @@ int main()
         expect(!!sim.connect(c1, 0, cross1, 2));
         expect(!!sim.connect(cross1, 0, cnt, 0));
 
-        irt::time t = 0.0;
-        expect(!!sim.initialize(t));
+        sim.t = 0.0;
+        expect(!!sim.initialize());
 
         do {
-            expect(!!sim.run(t));
-        } while (!irt::time_domain<irt::time>::is_infinity(t));
+            expect(!!sim.run());
+        } while (!irt::time_domain<irt::time>::is_infinity(sim.t));
 
         expect(eq(cnt.number, static_cast<decltype(cnt.number)>(1)));
     };
@@ -1983,16 +1981,16 @@ int main()
         expect(!!sim.connect(gen, 0, hsm, 1));
         expect(!!sim.connect(hsm, 0, cnt, 0));
 
-        irt::time t = 0.0;
+        sim.t = 0.0;
         expect(!!sim.srcs.prepare());
-        expect(!!sim.initialize(t));
+        expect(!!sim.initialize());
 
         irt::status st;
 
         do {
-            st = sim.run(t);
+            st = sim.run();
             expect(!!st);
-        } while (t < 10);
+        } while (sim.t < 10);
 
         expect(cnt.number == static_cast<irt::i64>(1));
     };
@@ -2029,16 +2027,16 @@ int main()
 
         expect(!!sim.connect(gen, 0, cnt, 0));
 
-        irt::time t = 0.0;
+        sim.t = 0.0;
         expect(!!sim.srcs.prepare());
-        expect(!!sim.initialize(t));
+        expect(!!sim.initialize());
 
         irt::status st;
 
         do {
-            st = sim.run(t);
+            st = sim.run();
             expect(!!st);
-        } while (t < 10);
+        } while (sim.t < 10.0);
 
         expect(eq(cnt.number, static_cast<irt::i64>(10)));
     };
@@ -2079,15 +2077,15 @@ int main()
         auto& obs = sim.observers.alloc();
         sim.observe(irt::get_model(l_and), obs);
 
-        irt::time t     = 0;
+        sim.t           = 0;
         irt::real value = 0.0;
         expect(!!sim.srcs.prepare());
-        expect(!!sim.initialize(t));
+        expect(!!sim.initialize());
         do {
-            auto old_t = t;
-            expect(!!sim.run(t));
+            auto old_t = sim.t;
+            expect(!!sim.run());
 
-            if (old_t != t) {
+            if (old_t != sim.t) {
                 expect(eq(obs.buffer.ssize(), 1)) << fatal;
                 for (auto v : obs.buffer) {
                     expect(eq(v[0], old_t));
@@ -2096,7 +2094,7 @@ int main()
                 value = value == 0. ? 1.0 : 0.;
                 obs.buffer.clear();
             }
-        } while (t < 10.0);
+        } while (sim.t < 10.0);
     };
 
     "time_func"_test = [] {
@@ -2116,14 +2114,14 @@ int main()
 
         expect(!!sim.connect(time_fun, 0, cnt, 0));
 
-        irt::time t = 0;
         irt::real c = 0;
-        expect(!!sim.initialize(t));
+        sim.t       = 0;
+        expect(!!sim.initialize());
         do {
-            expect(!!sim.run(t));
-            expect(time_fun.value == t * t);
+            expect(!!sim.run());
+            expect(time_fun.value == sim.t * sim.t);
             c++;
-        } while (t < duration);
+        } while (sim.t < duration);
 
         const auto value =
           (irt::real{ 2.0 } * duration / time_fun.default_sigma -
@@ -2154,16 +2152,16 @@ int main()
 
         expect(!!sim.connect(time_fun, 0, cnt, 0));
 
-        irt::time       t        = 0;
+        sim.t                    = 0;
         const irt::real duration = 30;
         irt::real       c        = irt::zero;
 
-        expect(!!sim.initialize(t));
+        expect(!!sim.initialize());
         do {
-            expect(!!sim.run(t) >> fatal);
-            expect(time_fun.value == std::sin(irt::two * pi * f0 * t));
+            expect(!!sim.run() >> fatal);
+            expect(time_fun.value == std::sin(irt::two * pi * f0 * sim.t));
             c++;
-        } while (t < duration);
+        } while (sim.t < duration);
         expect(c == (irt::real{ 2.0 } * duration / time_fun.default_sigma -
                      irt::real{ 1.0 }));
     };
@@ -2216,18 +2214,18 @@ int main()
         sim.observe(irt::get_model(integrator_a), obs_a);
         sim.observe(irt::get_model(integrator_b), obs_b);
 
-        irt::time t = irt::real(0);
+        sim.t = irt::real(0);
 
-        expect(!!sim.initialize(t));
+        expect(!!sim.initialize());
         expect((sim.sched.size() == 5_ul) >> fatal);
 
         do {
-            auto st = sim.run(t);
+            auto st = sim.run();
             expect(!!st);
 
             fo_a.write();
             fo_b.write();
-        } while (t < irt::real(15));
+        } while (sim.t < irt::real(15));
 
         fo_a.flush();
         fo_b.flush();
@@ -2281,18 +2279,18 @@ int main()
         sim.observe(irt::get_model(integrator_a), obs_a);
         sim.observe(irt::get_model(integrator_b), obs_b);
 
-        irt::time t = irt::real(0);
+        sim.t = irt::real(0);
 
-        expect(!!sim.initialize(t));
+        expect(!!sim.initialize());
         expect((sim.sched.size() == 5_ul) >> fatal);
 
         do {
-            auto st = sim.run(t);
+            auto st = sim.run();
             expect(!!st);
 
             fo_a.write();
             fo_b.write();
-        } while (t < irt::real(15));
+        } while (sim.t < irt::real(15));
 
         fo_a.flush();
         fo_b.flush();
@@ -2345,17 +2343,17 @@ int main()
 
         sim.observe(irt::get_model(integrator), obs_a);
 
-        irt::time t = 0.0;
+        sim.t = 0.0;
 
-        expect(!!sim.initialize(t));
+        expect(!!sim.initialize());
         expect((sim.sched.size() == 5_ul) >> fatal);
 
         do {
-            auto st = sim.run(t);
+            auto st = sim.run();
             expect(!!st);
 
             fo_a.write();
-        } while (t < irt::time{ 100.0 });
+        } while (sim.t < irt::time{ 100.0 });
 
         fo_a.flush();
     };
@@ -2410,18 +2408,18 @@ int main()
 
         sim.observe(irt::get_model(integrator), obs_a);
 
-        irt::time t = irt::time(0);
+        sim.t = irt::time(0);
 
-        expect(!!sim.initialize(t));
+        expect(!!sim.initialize());
         expect((sim.sched.size() == 5_ul) >> fatal);
 
         do {
             // printf("--------------------------------------------\n");
-            auto st = sim.run(t);
+            auto st = sim.run();
             expect(!!st);
 
             fo_a.write();
-        } while (t < irt::time(100));
+        } while (sim.t < irt::time(100));
 
         fo_a.flush();
     };
@@ -2520,18 +2518,18 @@ int main()
         sim.observe(irt::get_model(integrator_a), obs_a);
         sim.observe(irt::get_model(integrator_b), obs_b);
 
-        irt::time t = irt::real(0);
+        sim.t = irt::real(0);
 
-        expect(!!sim.initialize(t));
+        expect(!!sim.initialize());
         expect((sim.sched.size() == 12_ul) >> fatal);
 
         do {
-            irt::status st = sim.run(t);
+            irt::status st = sim.run();
             expect(!!st);
 
             fo_a.write();
             fo_b.write();
-        } while (t < irt::time(140));
+        } while (sim.t < irt::time(140));
 
         fo_a.flush();
         fo_b.flush();
@@ -2631,18 +2629,18 @@ int main()
         sim.observe(irt::get_model(integrator_a), obs_a);
         sim.observe(irt::get_model(integrator_b), obs_b);
 
-        irt::time t = irt::zero;
+        sim.t = irt::zero;
 
-        expect(!!sim.initialize(t));
+        expect(!!sim.initialize());
         expect((sim.sched.size() == 12_ul) >> fatal);
 
         do {
-            irt::status st = sim.run(t);
+            irt::status st = sim.run();
             expect(!!st);
 
             fo_a.write();
             fo_b.write();
-        } while (t < irt::time(140));
+        } while (sim.t < irt::time(140));
 
         fo_a.flush();
         fo_b.flush();
@@ -2696,18 +2694,18 @@ int main()
         sim.observe(irt::get_model(integrator_a), obs_a);
         sim.observe(irt::get_model(integrator_b), obs_b);
 
-        irt::time t = irt::zero;
+        sim.t = irt::zero;
 
-        expect(!!sim.initialize(t));
+        expect(!!sim.initialize());
         expect((sim.sched.size() == 5_ul) >> fatal);
 
         do {
-            auto st = sim.run(t);
+            auto st = sim.run();
             expect(!!st);
 
             fo_a.write();
             fo_b.write();
-        } while (t < irt::time(15));
+        } while (sim.t < irt::time(15));
 
         fo_a.flush();
         fo_b.flush();
@@ -2763,17 +2761,17 @@ int main()
 
         sim.observe(irt::get_model(integrator), obs_a);
 
-        irt::time t = irt::zero;
+        sim.t = irt::zero;
 
-        expect(!!sim.initialize(t));
+        expect(!!sim.initialize());
         expect((sim.sched.size() == 5_ul) >> fatal);
 
         do {
             // printf("--------------------------------------------\n");
-            auto st = sim.run(t);
+            auto st = sim.run();
             expect(!!st);
             fo_a.write();
-        } while (t < irt::time(100));
+        } while (sim.t < irt::time(100));
 
         fo_a.flush();
     };
@@ -2872,18 +2870,18 @@ int main()
         sim.observe(irt::get_model(integrator_a), obs_a);
         sim.observe(irt::get_model(integrator_b), obs_b);
 
-        irt::time t = irt::zero;
+        sim.t = irt::zero;
 
-        expect(!!sim.initialize(t));
+        expect(!!sim.initialize());
         expect((sim.sched.size() == 12_ul) >> fatal);
 
         do {
-            irt::status st = sim.run(t);
+            irt::status st = sim.run();
             expect(!!st);
 
             fo_a.write();
             fo_b.write();
-        } while (t < irt::time(140));
+        } while (sim.t < irt::time(140));
 
         fo_a.flush();
         fo_b.flush();
@@ -2938,18 +2936,17 @@ int main()
         sim.observe(irt::get_model(integrator_a), obs_a);
         sim.observe(irt::get_model(integrator_b), obs_b);
 
-        irt::time t(0);
-
-        expect(!!sim.initialize(t));
+        sim.t = 0.0;
+        expect(!!sim.initialize());
         expect((sim.sched.size() == 5_ul) >> fatal);
 
         do {
-            auto st = sim.run(t);
+            auto st = sim.run();
             expect(!!st);
 
             fo_a.write();
             fo_b.write();
-        } while (t < irt::time(1500.0));
+        } while (sim.t < irt::time(1500.0));
 
         fo_a.flush();
         fo_b.flush();
@@ -3005,16 +3002,16 @@ int main()
 
         sim.observe(irt::get_model(integrator), obs_a);
 
-        irt::time t(0);
+        sim.t = 0;
 
-        expect(!!sim.initialize(t));
+        expect(!!sim.initialize());
         expect((sim.sched.size() == 5_ul) >> fatal);
 
         do {
-            auto st = sim.run(t);
+            auto st = sim.run();
             expect(!!st);
             fo_a.write();
-        } while (t < irt::time(100));
+        } while (sim.t < irt::time(100));
 
         fo_a.flush();
     };
@@ -3069,17 +3066,17 @@ int main()
 
         sim.observe(irt::get_model(integrator), obs_a);
 
-        irt::time t(0);
+        sim.t = 0;
 
-        expect(!!sim.initialize(t));
+        expect(!!sim.initialize());
         expect((sim.sched.size() == 5_ul) >> fatal);
 
         do {
-            auto st = sim.run(t);
+            auto st = sim.run();
             expect(!!st);
 
             fo_a.write();
-        } while (t < irt::time(100.0));
+        } while (sim.t < irt::time(100.0));
 
         fo_a.flush();
     };
@@ -3134,16 +3131,16 @@ int main()
 
         sim.observe(irt::get_model(integrator), obs_a);
 
-        irt::time t(0);
+        sim.t = 0;
 
-        expect(!!sim.initialize(t));
+        expect(!!sim.initialize());
         expect((sim.sched.size() == 5_ul) >> fatal);
 
         do {
-            auto st = sim.run(t);
+            auto st = sim.run();
             expect(!!st);
             fo_a.write();
-        } while (t < irt::time(100.0));
+        } while (sim.t < irt::time(100.0));
 
         fo_a.flush();
     };
