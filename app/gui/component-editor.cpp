@@ -206,7 +206,7 @@ static void show_file_access(application& app, component& compo) noexcept
 
 static void show_input_output_ports(component& compo) noexcept
 {
-    if (ImGui::CollapsingHeader("X ports")) {
+    if (ImGui::CollapsingHeader("X ports", ImGuiTreeNodeFlags_DefaultOpen)) {
         if (ImGui::BeginTable("X",
                               3,
                               ImGuiTableFlags_Resizable |
@@ -250,7 +250,7 @@ static void show_input_output_ports(component& compo) noexcept
         }
     }
 
-    if (ImGui::CollapsingHeader("Y ports")) {
+    if (ImGui::CollapsingHeader("Y ports", ImGuiTreeNodeFlags_DefaultOpen)) {
         if (ImGui::BeginTable("Y",
                               3,
                               ImGuiTableFlags_Resizable |
@@ -301,74 +301,73 @@ static void show_data(application&       app,
                       data_array<T, ID>& data,
                       std::string_view /*title*/) noexcept
 {
-    T* del     = nullptr;
-    T* element = nullptr;
-
-    while (data.next(element)) {
-        if (del) {
-            data.free(*del);
-            del = nullptr;
-        }
+    for (auto& element : data) {
+        const auto compo_id = element.get_id();
+        auto&      compo    = app.mod.components.get(compo_id);
 
         auto tab_item_flags = ImGuiTabItemFlags_None;
-        if (auto* c = app.mod.components.try_to_get(element->get_id()); c) {
-            format(ed.title,
-                   "{}##{}",
-                   c->name.c_str(),
-                   get_index(app.mod.components.get_id(c)));
+        format(ed.title, "{}##{}", compo.name.c_str(), get_index(compo_id));
 
-            if (ed.need_to_open(app.mod.components.get_id(c))) {
-                tab_item_flags = ImGuiTabItemFlags_SetSelected;
-                ed.clear_request_to_open();
-            }
+        if (ed.need_to_open(compo_id)) {
+            tab_item_flags = ImGuiTabItemFlags_SetSelected;
+            ed.clear_request_to_open();
+        }
 
-            bool open = true;
-            if (ImGui::BeginTabItem(ed.title.c_str(), &open, tab_item_flags)) {
-                static ImGuiTableFlags flags =
-                  ImGuiTableFlags_SizingFixedFit | ImGuiTableFlags_RowBg |
-                  ImGuiTableFlags_Borders | ImGuiTableFlags_Resizable |
-                  ImGuiTableFlags_Reorderable;
+        auto open = true;
+        if (ImGui::BeginTabItem(ed.title.c_str(), &open, tab_item_flags)) {
+            constexpr auto flags =
+              ImGuiTableFlags_SizingFixedFit | ImGuiTableFlags_RowBg |
+              ImGuiTableFlags_Borders | ImGuiTableFlags_Resizable |
+              ImGuiTableFlags_Reorderable;
 
-                if (ImGui::BeginTable("##ed", 2, flags)) {
-                    ImGui::TableSetupColumn(
-                      "Settings", ImGuiTableColumnFlags_WidthStretch, 0.2f);
-                    ImGui::TableSetupColumn(
-                      "Graph", ImGuiTableColumnFlags_WidthStretch, 0.8f);
-                    ImGui::TableHeadersRow();
+            if (ImGui::BeginTable("##ed", 2, flags)) {
+                ImGui::TableSetupColumn("Component settings",
+                                        ImGuiTableColumnFlags_WidthStretch,
+                                        0.2f);
+                ImGui::TableSetupColumn(
+                  "Graph", ImGuiTableColumnFlags_WidthStretch, 0.8f);
+                ImGui::TableHeadersRow();
 
-                    ImGui::TableNextRow();
+                ImGui::TableNextRow();
 
-                    ImGui::TableSetColumnIndex(0);
-                    auto copy_name = c->name;
-                    if (ImGui::InputFilteredString("Name", copy_name))
-                        c->name = copy_name;
+                ImGui::TableSetColumnIndex(0);
 
-                    if (ImGui::CollapsingHeader("path"))
-                        show_file_access(app, *c);
+                auto copy_name = compo.name;
+                if (ImGui::InputFilteredString("Name", copy_name))
+                    compo.name = copy_name;
 
-                    show_input_output_ports(*c);
-
-                    if (ImGui::CollapsingHeader("selected"))
-                        element->show_selected_nodes(ed);
-
-                    ImGui::TableSetColumnIndex(1);
-                    element->show(ed);
-
-                    ImGui::EndTable();
+                auto flags = ImGuiTabItemFlags_None;
+                if (element.need_show_selected_nodes(ed)) {
+                    flags = ImGuiTabItemFlags_SetSelected;
                 }
-                ImGui::EndTabItem();
-            }
 
-            if (!open) {
-                del = element;
+                if (ImGui::BeginTabBar("Settings", ImGuiTabBarFlags_None)) {
+                    if (ImGui::BeginTabItem("Save")) {
+                        show_file_access(app, compo);
+                        ImGui::EndTabItem();
+                    }
+
+                    if (ImGui::BeginTabItem("In/Out")) {
+                        show_input_output_ports(compo);
+                        ImGui::EndTabItem();
+                    }
+
+                    if (ImGui::BeginTabItem("Specific", nullptr, flags)) {
+                        element.show_selected_nodes(ed);
+                        ImGui::EndTabItem();
+                    }
+
+                    ImGui::EndTabBar();
+                }
+
+                ImGui::TableSetColumnIndex(1);
+                element.show(ed);
+
+                ImGui::EndTable();
             }
-        } else {
-            del = element;
+            ImGui::EndTabItem();
         }
     }
-
-    if (del)
-        data.free(*del);
 }
 
 void component_editor::show() noexcept

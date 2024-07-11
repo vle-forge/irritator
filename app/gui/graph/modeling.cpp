@@ -744,6 +744,12 @@ void graph_component_editor_data::show_selected_nodes(
   component_editor& /*ed*/) noexcept
 {}
 
+bool graph_component_editor_data::need_show_selected_nodes(
+  component_editor& /*ed*/) noexcept
+{
+    return false;
+}
+
 graph_editor_dialog::graph_editor_dialog() noexcept
 {
     graph.resize(30, undefined<component_id>());

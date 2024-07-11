@@ -804,23 +804,7 @@ void hsm_component_editor_data::show(component_editor& ed) noexcept
     ImGui::BeginChild("##table-editor", ImVec2(0, table_heigth), false);
     if (ImGui::BeginTabBar("##hsm-editor")) {
         if (ImGui::BeginTabItem("editor")) {
-            if (ImGui::BeginTable("editor",
-                                  2,
-                                  ImGuiTableFlags_Resizable |
-                                    ImGuiTableFlags_NoSavedSettings |
-                                    ImGuiTableFlags_Borders)) {
-                ImGui::TableSetupColumn("Editor",
-                                        ImGuiTableColumnFlags_WidthStretch);
-                ImGui::TableSetupColumn(
-                  "Parameter", ImGuiTableColumnFlags_WidthFixed, 128.f);
-
-                ImGui::TableNextColumn();
-                show_graph(*hsm);
-                ImGui::TableNextColumn();
-                show_panel(*hsm);
-                ImGui::EndTable();
-            }
-
+            show_graph(*hsm);
             ImGui::EndTabItem();
         }
 
@@ -841,8 +825,22 @@ void hsm_component_editor_data::show(component_editor& ed) noexcept
 }
 
 void hsm_component_editor_data::show_selected_nodes(
+  component_editor& ed) noexcept
+{
+    auto& app = container_of(&ed, &application::component_ed);
+
+    auto* hsm = app.mod.hsm_components.try_to_get(m_hsm_id);
+    if (not hsm)
+        return;
+
+    show_panel(*hsm);
+}
+
+bool hsm_component_editor_data::need_show_selected_nodes(
   component_editor& /*ed*/) noexcept
-{}
+{
+    return not m_selected_nodes.empty();
+}
 
 hsm_component_editor_data::hsm_component_editor_data(
   const component_id     id,

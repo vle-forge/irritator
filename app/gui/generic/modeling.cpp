@@ -1430,4 +1430,10 @@ void generic_component_editor_data::show_selected_nodes(
       });
 }
 
+bool generic_component_editor_data::need_show_selected_nodes(
+  component_editor& /*ed*/) noexcept
+{
+    return not selected_nodes.empty();
+}
+
 } // namespace irt
