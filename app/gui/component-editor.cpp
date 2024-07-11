@@ -353,7 +353,15 @@ static void show_data(application&       app,
                     }
 
                     if (ImGui::BeginTabItem("Specific", nullptr, flags)) {
+                        if (not ImGui::BeginChild(
+                              "##zone", ImGui::GetContentRegionAvail())) {
+                            ImGui::EndChild();
+                            return;
+                        }
+
                         element.show_selected_nodes(ed);
+                        ImGui::EndChild();
+
                         ImGui::EndTabItem();
                     }
 
