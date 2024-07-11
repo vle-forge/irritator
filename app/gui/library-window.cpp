@@ -368,11 +368,12 @@ static void show_notsaved_components(irt::component_editor& ed,
             ImGui::SameLine(50.f);
             if (ImGui::Selectable(compo.name.c_str(),
                                   selected,
-                                  ImGuiSelectableFlags_AllowDoubleClick))
+                                  ImGuiSelectableFlags_AllowDoubleClick)) {
                 if (ImGui::IsMouseDoubleClicked(0))
                     app.library_wnd.try_set_component_as_project(id);
                 else
                     open_component(app, id);
+            }
             ImGui::PopID();
 
             show_component_popup_menu(app, compo);
