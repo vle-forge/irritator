@@ -36,11 +36,6 @@ struct simulation_copy {
     table<hsm_component_id, hsm_id>      hsm_mod_to_sim;
 };
 
-static status simulation_copy_source(simulation_copy& sc,
-                                     const u64        id,
-                                     const u64        type,
-                                     source&          dst) noexcept;
-
 static auto make_tree_recursive(simulation_copy& sc,
                                 tree_node&       parent,
                                 component&       compo,
@@ -221,52 +216,6 @@ static auto make_tree_leaf(simulation_copy&   sc,
               sc.hsm_mod_to_sim.set(compo->id.hsm_id, sim_hsm_id);
 
               dyn.id = sim_hsm_id;
-          }
-
-          if constexpr (std::is_same_v<Dynamics, generator>) {
-              using enum generator_parameter_indices;
-
-              const auto uint = gen.children_parameters[ch_idx].integers[0];
-              const auto enum_flags = enum_cast<generator::option>(uint);
-              dyn.flags             = bitflags<generator::option>(enum_flags);
-              dyn.default_offset    = gen.children_parameters[ch_idx].reals[0];
-
-              if (dyn.flags[generator::option::ta_use_source]) {
-                  irt_check(simulation_copy_source(
-                    sc,
-                    gen.children_parameters[ch_idx].integers[ordinal(ta_id)],
-                    gen.children_parameters[ch_idx].integers[ordinal(ta_type)],
-                    dyn.default_source_ta));
-              }
-
-              if (dyn.flags[generator::option::value_use_source]) {
-                  irt_check(simulation_copy_source(
-                    sc,
-                    gen.children_parameters[ch_idx].integers[ordinal(value_id)],
-                    gen.children_parameters[ch_idx]
-                      .integers[ordinal(value_type)],
-                    dyn.default_source_value));
-              }
-          }
-
-          if constexpr (std::is_same_v<Dynamics, dynamic_queue>) {
-              using enum dynamic_queue_parameter_indices;
-
-              irt_check(simulation_copy_source(
-                sc,
-                gen.children_parameters[ch_idx].integers[ordinal(ta_id)],
-                gen.children_parameters[ch_idx].integers[ordinal(ta_type)],
-                dyn.default_source_ta));
-          }
-
-          if constexpr (std::is_same_v<Dynamics, priority_queue>) {
-              using enum priority_queue_parameter_indices;
-
-              irt_check(simulation_copy_source(
-                sc,
-                gen.children_parameters[ch_idx].integers[ordinal(ta_id)],
-                gen.children_parameters[ch_idx].integers[ordinal(ta_type)],
-                dyn.default_source_ta));
           }
 
           if constexpr (std::is_same_v<Dynamics, constant>) {
@@ -474,41 +423,6 @@ static auto make_tree_recursive(simulation_copy& sc,
     }
 
     return sc.tree_nodes.get_id(new_tree);
-}
-
-static status simulation_copy_source(simulation_copy& sc,
-                                     const u64        id,
-                                     const u64        type,
-                                     source&          dst) noexcept
-{
-    switch (enum_cast<source::source_type>(type)) {
-    case source::source_type::constant:
-        if (auto* ret = sc.cache.constants.get(id); ret) {
-            dst.id = ordinal(*ret);
-            return success();
-        }
-        break;
-    case source::source_type::binary_file:
-        if (auto* ret = sc.cache.binary_files.get(id); ret) {
-            dst.id = ordinal(*ret);
-            return success();
-        }
-        break;
-    case source::source_type::text_file:
-        if (auto* ret = sc.cache.text_files.get(id); ret) {
-            dst.id = ordinal(*ret);
-            return success();
-        }
-        break;
-    case source::source_type::random:
-        if (auto* ret = sc.cache.randoms.get(id); ret) {
-            dst.id = ordinal(*ret);
-            return success();
-        }
-        break;
-    }
-
-    return new_error(project::error::unknown_source, id, type);
 }
 
 void project::clear_cache() noexcept

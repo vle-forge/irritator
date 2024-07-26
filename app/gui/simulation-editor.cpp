@@ -459,8 +459,8 @@ static bool show_local_simulation_plot_observers_table(application& app,
     return is_modified > 0;
 }
 
-static auto get_global_parameter(const auto& tn, const u64 uid) noexcept
-  -> global_parameter_id
+static auto get_global_parameter(const auto& tn,
+                                 const u64 uid) noexcept -> global_parameter_id
 {
     auto* ptr = tn.parameters_ids.get(uid);
     return ptr ? *ptr : undefined<global_parameter_id>();
