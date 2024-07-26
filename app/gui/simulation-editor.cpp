@@ -576,7 +576,10 @@ static bool show_local_simulation_specific_observers(application& app,
               return show_local_simulation_plot_observers_table(app, tn);
 
           default:
-              unreachable();
+              ImGui::TextFormat(
+                "Not yet implemented observers for component {}",
+                component_type_names[ordinal(compo.type)]);
+              return false;
           }
 
           return false;
