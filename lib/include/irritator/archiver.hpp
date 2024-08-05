@@ -120,36 +120,37 @@ private:
 class binary_archiver
 {
 public:
-    struct not_enough_memory {};
-    struct open_file_error {};
-    struct write_file_error {};
-    struct file_format_error {};
-    struct unknown_model_error {};
-    struct unknown_model_port_error {};
-
-    status simulation_save(simulation& sim, file& io) noexcept;
-
-    status simulation_save(simulation& sim, memory& io) noexcept;
-
-    status simulation_load(simulation& sim, file& io) noexcept;
-
-    status simulation_load(simulation& sim, memory& io) noexcept;
-
-    //! @TODO Merge the binary_archiver::cache system with the modeling
-    //! cache_rw.
-    struct cache {
-        table<u32, model_id>              to_models;
-        table<u32, hsm_id>                to_hsms;
-        table<u32, constant_source_id>    to_constant;
-        table<u32, binary_file_source_id> to_binary;
-        table<u32, text_file_source_id>   to_text;
-        table<u32, random_source_id>      to_random;
-
-        void clear() noexcept;
+    enum class error_code {
+        not_enough_memory = 1,
+        write_error,
+        read_error,
+        format_error,
+        header_error,
+        unknown_model_error,
+        unknown_model_port_error,
     };
 
+    bool simulation_save(simulation& sim, file& io) noexcept;
+    bool simulation_save(simulation& sim, memory& io) noexcept;
+    bool simulation_load(simulation& sim, file& io) noexcept;
+    bool simulation_load(simulation& sim, memory& io) noexcept;
+
+    void clear_cache() noexcept;
+
+    error_code ec; //!< If main functions returns false, @c ec variable stores
+                   //!< the error code.
+
 private:
-    cache c;
+    struct impl; //!< Get access to observation attributes without complex code.
+
+    bool report_error(error_code ec) noexcept;
+    bool report_error(error_code ec) const noexcept;
+
+    table<u32, model_id>              to_models;
+    table<u32, constant_source_id>    to_constant;
+    table<u32, binary_file_source_id> to_binary;
+    table<u32, text_file_source_id>   to_text;
+    table<u32, random_source_id>      to_random;
 };
 
 } // namespace irt
