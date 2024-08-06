@@ -21,10 +21,10 @@ target_compile_options(app
         -pipe -march=native
         $<$<CONFIG:Debug>:-O0 -g -Wall -Wextra>>
     $<$<AND:$<CXX_COMPILER_ID:MSVC>,$<VERSION_LESS_EQUAL:${MSVC_TOOLSET_VERSION},142>>:
-        /EHsc /bigobj /Zc:__cplusplus /wd5030 /std:c++latest
+        /utf-8 /EHsc /bigobj /Zc:__cplusplus /wd5030 /std:c++latest
         $<$<CONFIG:Debug>:/Od /W3 /Zi>>
     $<$<AND:$<CXX_COMPILER_ID:MSVC>,$<VERSION_GREATER:${MSVC_TOOLSET_VERSION},142>>:
-        /EHsc /bigobj /Zc:__cplusplus /wd5030 /std:c++20
+        /utf-8 /EHsc /bigobj /Zc:__cplusplus /wd5030 /std:c++20
         $<$<CONFIG:Debug>:/Od /W3 /Zi>>)
 
 target_compile_definitions(app
