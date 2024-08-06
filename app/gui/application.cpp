@@ -432,7 +432,7 @@ static void application_show_windows(application& app) noexcept
 
     ImGuiViewport* viewport = ImGui::GetMainViewport();
     ImGuiID        dockspace_id =
-      ImGui::DockSpaceOverViewport(viewport, dockspace_flags);
+      ImGui::DockSpaceOverViewport(0, viewport, dockspace_flags);
 
     static auto first_time = true;
     if (first_time) {
