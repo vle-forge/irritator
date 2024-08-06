@@ -455,13 +455,13 @@ struct grid_component {
     {
         auto pair = pos(pos_);
 
-        return make_doubleword(static_cast<u32>(pair.first),
-                               static_cast<u32>(pair.second));
+        return u32s_to_u64(static_cast<u32>(pair.first),
+                           static_cast<u32>(pair.second));
     }
 
     constexpr std::pair<int, int> unique_id(u64 id) const noexcept
     {
-        auto unpack = unpack_doubleword(id);
+        auto unpack = u64_to_u32s(id);
 
         return std::make_pair(static_cast<int>(unpack.first),
                               static_cast<int>(unpack.second));
@@ -469,7 +469,7 @@ struct grid_component {
 
     constexpr u64 unique_id(int row, int col) noexcept
     {
-        return make_doubleword(static_cast<u32>(row), static_cast<u32>(col));
+        return u32s_to_u64(static_cast<u32>(row), static_cast<u32>(col));
     }
 
     struct input_connection {

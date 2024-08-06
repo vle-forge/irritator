@@ -30,23 +30,9 @@
 #endif
 
 #include <cmath>
-#include <cstdint>
 #include <cstring>
 
 namespace irt {
-
-using i8  = int8_t;
-using i16 = int16_t;
-using i32 = int32_t;
-using i64 = int64_t;
-using u8  = uint8_t;
-using u16 = uint16_t;
-using u32 = uint32_t;
-using u64 = uint64_t;
-using sz  = size_t;
-using ssz = ptrdiff_t;
-using f32 = float;
-using f64 = double;
 
 //! @brief An helper function to initialize floating point number and
 //! disable warnings the IRRITATOR_REAL_TYPE_F64 is defined.
@@ -85,69 +71,6 @@ constexpr static inline real two   = to_real(2.L);
 constexpr static inline real three = to_real(3.L);
 constexpr static inline real four  = to_real(4.L);
 constexpr static inline real zero  = to_real(0.L);
-
-inline constexpr u16 make_halfword(u8 a, u8 b) noexcept
-{
-    return static_cast<u16>((a << 8) | b);
-}
-
-inline constexpr void unpack_halfword(u16 halfword, u8* a, u8* b) noexcept
-{
-    *a = static_cast<u8>((halfword >> 8) & 0xff);
-    *b = static_cast<u8>(halfword & 0xff);
-}
-
-inline constexpr auto unpack_halfword(u16 halfword) noexcept
-  -> std::pair<u8, u8>
-{
-    return std::make_pair(static_cast<u8>((halfword >> 8) & 0xff),
-                          static_cast<u8>(halfword & 0xff));
-}
-
-inline constexpr u32 make_word(u16 a, u16 b) noexcept
-{
-    return (static_cast<u32>(a) << 16) | static_cast<u32>(b);
-}
-
-inline constexpr void unpack_word(u32 word, u16* a, u16* b) noexcept
-{
-    *a = static_cast<u16>((word >> 16) & 0xffff);
-    *b = static_cast<u16>(word & 0xffff);
-}
-
-inline constexpr auto unpack_word(u32 word) noexcept -> std::pair<u16, u16>
-{
-    return std::make_pair(static_cast<u16>((word >> 16) & 0xffff),
-                          static_cast<u16>(word & 0xffff));
-}
-
-inline constexpr u64 make_doubleword(u32 a, u32 b) noexcept
-{
-    return (static_cast<u64>(a) << 32) | static_cast<u64>(b);
-}
-
-inline constexpr void unpack_doubleword(u64 doubleword, u32* a, u32* b) noexcept
-{
-    *a = static_cast<u32>((doubleword >> 32) & 0xffffffff);
-    *b = static_cast<u32>(doubleword & 0xffffffff);
-}
-
-inline constexpr auto unpack_doubleword(u64 doubleword) noexcept
-  -> std::pair<u32, u32>
-{
-    return std::make_pair(static_cast<u32>((doubleword >> 32) & 0xffffffff),
-                          static_cast<u32>(doubleword & 0xffffffff));
-}
-
-inline constexpr u32 unpack_doubleword_left(u64 doubleword) noexcept
-{
-    return static_cast<u32>((doubleword >> 32) & 0xffffffff);
-}
-
-inline constexpr u32 unpack_doubleword_right(u64 doubleword) noexcept
-{
-    return static_cast<u32>(doubleword & 0xffffffff);
-}
 
 template<typename Integer>
 constexpr typename std::make_unsigned<Integer>::type to_unsigned(Integer value)

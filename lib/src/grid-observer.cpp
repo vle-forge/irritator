@@ -54,7 +54,7 @@ static void build_grid_observer(grid_observer&  grid_obs,
             auto*       mdl    = sim.models.try_to_get(tn_mdl.second);
 
             if (tn && mdl) {
-                const auto w = unpack_doubleword(child->unique_id);
+                const auto w = u64_to_u32s(child->unique_id);
                 debug::ensure(std::cmp_less(w.first, grid_compo.row));
                 debug::ensure(std::cmp_less(w.second, grid_compo.column));
 

@@ -496,10 +496,7 @@ struct binary_archiver::impl {
         return io(dyn.sigma) and io(dyn.number);
     }
 
-    u32 get_source_index(u64 id) noexcept
-    {
-        return unpack_doubleword_right(id);
-    }
+    u32 get_source_index(u64 id) noexcept { return right(id); }
 
     template<typename Stream>
     bool do_serialize_source(Stream& io, source& src) noexcept

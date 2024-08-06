@@ -18,6 +18,7 @@
 #include <utility>
 
 #include <cstddef>
+#include <cstdint>
 
 namespace irt {
 
@@ -26,6 +27,83 @@ namespace irt {
 // Helpers functions................................................. //
 //                                                                    //
 ////////////////////////////////////////////////////////////////////////
+
+using i8  = int8_t;
+using i16 = int16_t;
+using i32 = int32_t;
+using i64 = int64_t;
+using u8  = uint8_t;
+using u16 = uint16_t;
+using u32 = uint32_t;
+using u64 = uint64_t;
+using sz  = size_t;
+using ssz = ptrdiff_t;
+using f32 = float;
+using f64 = double;
+
+inline constexpr auto u8s_to_u16(u8 a, u8 b) noexcept -> u16
+{
+    return static_cast<u16>((static_cast<u16>(a) << 8) | static_cast<u16>(b));
+}
+
+inline constexpr auto u16_to_u8s(u16 halfword) noexcept -> std::pair<u8, u8>
+{
+    return std::make_pair(static_cast<u8>((halfword >> 8) & 0xff),
+                          static_cast<u8>(halfword & 0xff));
+}
+
+inline constexpr auto u16s_to_u32(u16 a, u16 b) noexcept
+{
+    return static_cast<u32>((static_cast<u32>(a) << 16) | static_cast<u32>(b));
+}
+
+inline constexpr auto u32_to_u16s(u32 word) noexcept -> std::pair<u16, u16>
+{
+    return std::make_pair(static_cast<u16>((word >> 16) & 0xffff),
+                          static_cast<u16>(word & 0xffff));
+}
+
+inline constexpr auto u32s_to_u64(u32 a, u32 b) noexcept
+{
+    return static_cast<u64>((static_cast<u64>(a) << 32) | static_cast<u64>(b));
+}
+
+inline constexpr auto u64_to_u32s(u64 doubleword) noexcept
+  -> std::pair<u32, u32>
+{
+    return std::make_pair(static_cast<u32>((doubleword >> 32) & 0xffffffff),
+                          static_cast<u32>(doubleword & 0xffffffff));
+}
+
+inline constexpr auto left(std::unsigned_integral auto v) noexcept
+{
+    using type = std::decay_t<decltype(v)>;
+
+    static_assert(std::is_same_v<u16, type> or std::is_same_v<u32, type> or
+                  std::is_same_v<u64, type>);
+
+    if constexpr (std::is_same_v<type, u16>)
+        return static_cast<u8>(v >> 8);
+    if constexpr (std::is_same_v<type, u32>)
+        return static_cast<u16>(v >> 16);
+    if constexpr (std::is_same_v<type, u64>)
+        return static_cast<u32>(v >> 32);
+}
+
+inline constexpr auto right(std::unsigned_integral auto v) noexcept
+{
+    using type = std::decay_t<decltype(v)>;
+
+    static_assert(std::is_same_v<u16, type> or std::is_same_v<u32, type> or
+                  std::is_same_v<u64, type>);
+
+    if constexpr (std::is_same_v<type, u16>)
+        return static_cast<u8>(v & 0xff);
+    if constexpr (std::is_same_v<type, u32>)
+        return static_cast<u16>(v & 0xffff);
+    if constexpr (std::is_same_v<type, u64>)
+        return static_cast<u32>(v & 0xffffffff);
+}
 
 //! Compute the best size to fit the small storage size.
 //!
@@ -792,31 +870,25 @@ private:
 template<typename Identifier>
 constexpr auto get_index(Identifier id) noexcept
 {
-    static_assert(std::is_enum<Identifier>::value,
-                  "Identifier must be a enumeration");
+    static_assert(std::is_enum_v<Identifier>);
 
-    if constexpr (std::is_same_v<std::uint32_t,
-                                 std::underlying_type_t<Identifier>>)
-        return static_cast<std::uint16_t>(static_cast<std::uint32_t>(id) &
-                                          0xffff);
-    else
-        return static_cast<std::uint32_t>(static_cast<std::uint64_t>(id) &
-                                          0xffffffff);
+    using utype = std::underlying_type_t<Identifier>;
+
+    static_assert(std::is_same_v<utype, u32> or std::is_same_v<utype, u64>);
+
+    return right(static_cast<utype>(id));
 }
 
 template<typename Identifier>
 constexpr auto get_key(Identifier id) noexcept
 {
-    static_assert(std::is_enum<Identifier>::value,
-                  "Identifier must be a enumeration");
+    static_assert(std::is_enum_v<Identifier>);
 
-    if constexpr (std::is_same_v<std::uint32_t,
-                                 std::underlying_type_t<Identifier>>)
-        return static_cast<std::uint16_t>(
-          (static_cast<std::uint32_t>(id) >> 16) & 0xffff);
-    else
-        return static_cast<std::uint32_t>(
-          (static_cast<std::uint64_t>(id) >> 32) & 0xffffffff);
+    using utype = std::underlying_type_t<Identifier>;
+
+    static_assert(std::is_same_v<utype, u32> or std::is_same_v<utype, u64>);
+
+    return left(static_cast<utype>(id));
 }
 
 template<typename Identifier>
