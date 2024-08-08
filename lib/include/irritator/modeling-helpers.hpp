@@ -39,7 +39,11 @@ inline result<file_path&> get_file(modeling& mod, file_path_id id) noexcept
     return new_error(project::error::file_access_error);
 }
 
-inline result<file> open_file(dir_path& dir_p, file_path& file_p) noexcept
+template<typename Fn>
+inline std::optional<file> open_file(
+  dir_path&                                   dir_p,
+  file_path&                                  file_p,
+  std::invocable<Fn, file::error_code> auto&& fn) noexcept
 {
     try {
         std::filesystem::path p = dir_p.path.u8sv();
@@ -48,11 +52,12 @@ inline result<file> open_file(dir_path& dir_p, file_path& file_p) noexcept
         std::u8string u8str = p.u8string();
         const char*   cstr  = reinterpret_cast<const char*>(u8str.c_str());
 
-        return file::open(cstr, open_mode::read);
+        return file::open(cstr, open_mode::read, fn);
     } catch (...) {
+        fn(file::error_code::memory_error);
     }
 
-    return new_error(project::error::file_open_error);
+    return std::nullopt;
 }
 
 /// Checks the type of \c component pointed by the \c tree_node \c.

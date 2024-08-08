@@ -474,8 +474,8 @@ struct reader {
 
     template<size_t N, typename Function>
     bool for_members(const rapidjson::Value& val,
-                     const std::string_view  (&names)[N],
-                     Function&&              fn) noexcept
+                     const std::string_view (&names)[N],
+                     Function&& fn) noexcept
     {
         if (!val.IsObject())
             report_json_error(error_id::value_not_object);
@@ -2070,8 +2070,8 @@ struct reader {
         return nullptr;
     }
 
-    auto search_dir_in_reg(registred_path& reg, std::string_view name) noexcept
-      -> dir_path*
+    auto search_dir_in_reg(registred_path&  reg,
+                           std::string_view name) noexcept -> dir_path*
     {
         for (auto dir_id : reg.children) {
             if (auto* dir = mod().dir_paths.try_to_get(dir_id); dir) {
@@ -2140,8 +2140,8 @@ struct reader {
         return nullptr;
     }
 
-    auto search_file(dir_path& dir, std::string_view name) noexcept
-      -> file_path*
+    auto search_file(dir_path&        dir,
+                     std::string_view name) noexcept -> file_path*
     {
         for (auto file_id : dir.children)
             if (auto* file = mod().file_paths.try_to_get(file_id); file)
@@ -5995,9 +5995,16 @@ status json_archiver::component_save(modeling&                   mod,
                                      const char*                 filename,
                                      json_archiver::print_option print) noexcept
 {
-    auto f = file::open(filename, open_mode::write);
+    json_archiver::part file_error{};
+
+    auto f =
+      file::open(filename, open_mode::write, [&](file::error_code ec) noexcept {
+          debug_log("json_archiver::file::open {} error", filename);
+          file_error = json_archiver::part::read_file_error;
+      });
+
     if (!f)
-        return f.error();
+        return new_error(file_error);
 
     FILE* fp = reinterpret_cast<FILE*>(f->get_handle());
     cache.clear();
@@ -6166,9 +6173,16 @@ status json_archiver::simulation_save(const simulation& sim,
                                       const char*       filename,
                                       print_option      print_options) noexcept
 {
-    auto f = file::open(filename, open_mode::write);
+    json_archiver::part file_error;
+
+    auto f =
+      file::open(filename, open_mode::write, [&](file::error_code ec) noexcept {
+          debug_log("json_archiver::file::open {} error", filename);
+          file_error = json_archiver::part::read_file_error;
+      });
+
     if (!f)
-        return f.error();
+        return new_error(file_error);
 
     FILE* fp = reinterpret_cast<FILE*>(f->get_handle());
     cache.clear();

@@ -3318,41 +3318,43 @@ int main()
     };
 
     "binary-memory-io"_test = [] {
-        irt::memory f(256, irt::open_mode::write);
+        auto f = irt::memory::make(
+          256, irt::open_mode::write, [](irt::memory::error_code) noexcept {});
 
-        expect(eq(f.data.ssize(), 256));
-        expect(eq(f.data.capacity(), 256));
-        expect(eq(f.tell(), 0));
-        expect(eq(f.length(), 256));
+        expect(f.has_value()) << fatal;
+        expect(eq(f->data.ssize(), 256));
+        expect(eq(f->data.capacity(), 256));
+        expect(eq(f->tell(), 0));
+        expect(eq(f->length(), 256));
 
         irt::u8  a = 0xfe;
         irt::u16 b = 0xfedc;
         irt::u32 c = 0xfedcba98;
         irt::u64 d = 0xfedcba9876543210;
 
-        expect(!!f.write(a));
-        expect(!!f.write(b));
-        expect(!!f.write(c));
-        expect(!!f.write(d));
+        expect(!!f->write(a));
+        expect(!!f->write(b));
+        expect(!!f->write(c));
+        expect(!!f->write(d));
 
-        expect(eq(f.data.ssize(), 256));
-        expect(eq(f.data.capacity(), 256));
-        expect(eq(f.tell(), 8 + 4 + 2 + 1));
-        expect(eq(f.length(), 256));
+        expect(eq(f->data.ssize(), 256));
+        expect(eq(f->data.capacity(), 256));
+        expect(eq(f->tell(), 8 + 4 + 2 + 1));
+        expect(eq(f->length(), 256));
 
-        irt::u8  a_w = f.data[0];
-        irt::u16 b_w = *(reinterpret_cast<irt::u16*>(&f.data[1]));
-        irt::u32 c_w = *(reinterpret_cast<irt::u32*>(&f.data[3]));
-        irt::u64 d_w = *(reinterpret_cast<irt::u64*>(&f.data[7]));
+        irt::u8  a_w = f->data[0];
+        irt::u16 b_w = *(reinterpret_cast<irt::u16*>(&f->data[1]));
+        irt::u32 c_w = *(reinterpret_cast<irt::u32*>(&f->data[3]));
+        irt::u64 d_w = *(reinterpret_cast<irt::u64*>(&f->data[7]));
 
         expect(eq(a, a_w));
         expect(eq(b, b_w));
         expect(eq(c, c_w));
         expect(eq(d, d_w));
 
-        f.rewind();
+        f->rewind();
 
-        assert(f.tell() == 0);
+        assert(f->tell() == 0);
     };
 
     "binary-file-io"_test = [] {
@@ -3416,18 +3418,19 @@ int main()
     };
 
     "memory"_test = [] {
-        irt::memory mem(2040, irt::open_mode::write);
-        expect(!!mem.write(0x00112233));
-        expect(!!mem.write(0x44556677));
+        auto mem = irt::memory::make(2040, irt::open_mode::write);
+        expect(mem.has_value());
 
-        expect(mem.data.ssize() == 2040);
-        expect(mem.pos == 8);
+        expect(mem->write(0x00112233));
+        expect(mem->write(0x44556677));
+        expect(eq(mem->data.ssize(), 2040));
+        expect(eq(mem->pos, 8));
 
-        mem.rewind();
+        mem->rewind();
 
         irt::u32 a, b;
-        expect(!!mem.read(a));
-        expect(!!mem.read(b));
+        expect(mem->read(a));
+        expect(mem->read(b));
 
         expect(a == 0x00112233);
         expect(b == 0x44556677);
@@ -3480,7 +3483,9 @@ int main()
     "archive"_test = [] {
         irt::vector<irt::u8> data;
         {
-            irt::memory     m(256 * 8, irt::open_mode::write);
+            auto m = irt::memory::make(256 * 8, irt::open_mode::write);
+            expect(m.has_value()) << fatal;
+
             irt::simulation sim(
               irt::simulation_memory_requirement(1024 * 1024 * 8));
             irt::binary_archiver bin;
@@ -3489,24 +3494,25 @@ int main()
             (void)sim.alloc<irt::qss1_integrator>();
             (void)sim.alloc<irt::qss1_multiplier>();
 
-            expect(!!bin.simulation_save(sim, m));
+            expect(!!bin.simulation_save(sim, *m));
 
-            data.resize(static_cast<int>(m.pos));
-            std::copy_n(m.data.data(), m.pos, data.data());
+            data.resize(static_cast<int>(m->pos));
+            std::copy_n(m->data.data(), m->pos, data.data());
         }
 
         expect(data.size() > 0);
 
         {
-            irt::memory     m(data.size(), irt::open_mode::read);
+            auto m = irt::memory::make(data.size(), irt::open_mode::read);
+            expect(m.has_value()) << fatal;
             irt::simulation sim(
               irt::simulation_memory_requirement(1024 * 1024 * 8));
             irt::binary_archiver bin;
 
-            std::copy_n(data.data(), data.size(), m.data.data());
-            m.pos = 0;
+            std::copy_n(data.data(), data.size(), m->data.data());
+            m->pos = 0;
 
-            expect(!!bin.simulation_load(sim, m));
+            expect(!!bin.simulation_load(sim, *m));
             expect(sim.models.size() == 3u);
             expect(sim.hsms.size() == 0u);
         }

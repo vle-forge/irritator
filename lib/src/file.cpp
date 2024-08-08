@@ -33,17 +33,28 @@
 
 namespace irt {
 
-static auto internal_fopen(const char* filename, const char* mode) noexcept
-  -> result<std::FILE*>
+inline static std::FILE* to_handle(void* f) noexcept
+{
+    return reinterpret_cast<std::FILE*>(f);
+}
+
+inline static void* to_void(std::FILE* f) noexcept
+{
+    return reinterpret_cast<void*>(f);
+}
+
+#if defined(_WIN32)
+void* file::fopen(const char* filename, const char* mode) noexcept
 {
     debug::ensure(filename);
+    debug::ensure(mode);
 
-#ifdef _WIN32
     const auto filname_sz =
       ::MultiByteToWideChar(CP_UTF8, 0, filename, -1, nullptr, 0);
     const auto mode_sz =
       ::MultiByteToWideChar(CP_UTF8, 0, mode, -1, nullptr, 0);
     vector<wchar_t> buf;
+
     buf.resize(filname_sz + mode_sz);
 
     ::MultiByteToWideChar(
@@ -58,43 +69,36 @@ static auto internal_fopen(const char* filename, const char* mode) noexcept
 
     if (err != 0)
         f = nullptr;
+
+    return to_void(f);
+}
 #else
-    auto* f = std::fopen(filename, mode);
+void* file::fopen(const char* filename, const char* mode) noexcept
+{
+    debug::ensure(filename);
+    debug::ensure(mode);
+
+    return to_void(std::fopen(filename, mode));
+}
 #endif
-    if (not f)
-        return new_error(file::error_code::open_error,
-                         e_file_name{ filename },
-                         e_errno{ errno });
-
-    return f;
-}
-
-inline static std::FILE* to_handle(void* f) noexcept
-{
-    return reinterpret_cast<std::FILE*>(f);
-}
-
-inline static void* to_void(std::FILE* f) noexcept
-{
-    return reinterpret_cast<void*>(f);
-}
 
 template<typename File>
-status read_from_file(File& f, i8& value) noexcept
+bool read_from_file(File& f, i8& value) noexcept
 {
     return f.read(&value, 1);
 }
 
 template<typename File>
-status write_to_file(File& f, const i8 value) noexcept
+bool write_to_file(File& f, const i8 value) noexcept
 {
     return f.write(&value, 1);
 }
 
 template<typename File>
-status read_from_file(File& f, i16& value) noexcept
+bool read_from_file(File& f, i16& value) noexcept
 {
-    irt_check(f.read(&value, 2));
+    if (not(f.read(&value, 2)))
+        return false;
 
     if constexpr (std::endian::native == std::endian::big) {
 #if defined(__GNUC__) || defined(__clang__)
@@ -104,11 +108,11 @@ status read_from_file(File& f, i16& value) noexcept
 #endif
     }
 
-    return success();
+    return true;
 }
 
 template<typename File>
-status write_to_file(File& f, const i16 value) noexcept
+bool write_to_file(File& f, const i16 value) noexcept
 {
     if constexpr (std::endian::native == std::endian::big) {
 #if defined(__GNUC__) || defined(__clang__)
@@ -123,9 +127,10 @@ status write_to_file(File& f, const i16 value) noexcept
 }
 
 template<typename File>
-status read_from_file(File& f, i32& value) noexcept
+bool read_from_file(File& f, i32& value) noexcept
 {
-    irt_check(f.read(&value, 4));
+    if (not(f.read(&value, 4)))
+        return false;
 
     if constexpr (std::endian::native == std::endian::big) {
 #if defined(__GNUC__) || defined(__clang__)
@@ -135,11 +140,11 @@ status read_from_file(File& f, i32& value) noexcept
 #endif
     }
 
-    return success();
+    return true;
 }
 
 template<typename File>
-status write_to_file(File& f, const i32 value) noexcept
+bool write_to_file(File& f, const i32 value) noexcept
 {
     if constexpr (std::endian::native == std::endian::big) {
 #if defined(__GNUC__) || defined(__clang__)
@@ -154,9 +159,10 @@ status write_to_file(File& f, const i32 value) noexcept
 }
 
 template<typename File>
-status read_from_file(File& f, i64& value) noexcept
+bool read_from_file(File& f, i64& value) noexcept
 {
-    irt_check(f.read(&value, 8));
+    if (not(f.read(&value, 8)))
+        return false;
 
     if constexpr (std::endian::native == std::endian::big) {
 #if defined(__GNUC__) || defined(__clang__)
@@ -166,11 +172,11 @@ status read_from_file(File& f, i64& value) noexcept
 #endif
     }
 
-    return success();
+    return true;
 }
 
 template<typename File>
-status write_to_file(File& f, const i64 value) noexcept
+bool write_to_file(File& f, const i64 value) noexcept
 {
     if constexpr (std::endian::native == std::endian::big) {
 #if defined(__GNUC__) || defined(__clang__)
@@ -185,21 +191,22 @@ status write_to_file(File& f, const i64 value) noexcept
 }
 
 template<typename File>
-status read_from_file(File& f, u8& value) noexcept
+bool read_from_file(File& f, u8& value) noexcept
 {
     return f.read(&value, 1);
 }
 
 template<typename File>
-status write_to_file(File& f, const u8 value) noexcept
+bool write_to_file(File& f, const u8 value) noexcept
 {
     return f.write(&value, 1);
 }
 
 template<typename File>
-status read_from_file(File& f, u16& value) noexcept
+bool read_from_file(File& f, u16& value) noexcept
 {
-    irt_check(f.read(&value, 2));
+    if (not f.read(&value, 2))
+        return false;
 
     if constexpr (std::endian::native == std::endian::big) {
 #if defined(__GNUC__) || defined(__clang__)
@@ -209,11 +216,11 @@ status read_from_file(File& f, u16& value) noexcept
 #endif
     }
 
-    return success();
+    return true;
 }
 
 template<typename File>
-status write_to_file(File& f, const u16 value) noexcept
+bool write_to_file(File& f, const u16 value) noexcept
 {
     if constexpr (std::endian::native == std::endian::big) {
 #if defined(__GNUC__) || defined(__clang__)
@@ -228,9 +235,10 @@ status write_to_file(File& f, const u16 value) noexcept
 }
 
 template<typename File>
-status read_from_file(File& f, u32& value) noexcept
+bool read_from_file(File& f, u32& value) noexcept
 {
-    irt_check(f.read(&value, 4));
+    if (not f.read(&value, 4))
+        return false;
 
     if constexpr (std::endian::native == std::endian::big) {
 #if defined(__GNUC__) || defined(__clang__)
@@ -240,11 +248,11 @@ status read_from_file(File& f, u32& value) noexcept
 #endif
     }
 
-    return success();
+    return true;
 }
 
 template<typename File>
-status write_to_file(File& f, const u32 value) noexcept
+bool write_to_file(File& f, const u32 value) noexcept
 {
     if constexpr (std::endian::native == std::endian::big) {
 #if defined(__GNUC__) || defined(__clang__)
@@ -259,9 +267,10 @@ status write_to_file(File& f, const u32 value) noexcept
 }
 
 template<typename File>
-status read_from_file(File& f, u64& value) noexcept
+bool read_from_file(File& f, u64& value) noexcept
 {
-    irt_check(f.read(&value, 8));
+    if (not(f.read(&value, 8)))
+        return false;
 
     if constexpr (std::endian::native == std::endian::big) {
 #if defined(__GNUC__) || defined(__clang__)
@@ -271,11 +280,11 @@ status read_from_file(File& f, u64& value) noexcept
 #endif
     }
 
-    return success();
+    return true;
 }
 
 template<typename File>
-status write_to_file(File& f, const u64 value) noexcept
+bool write_to_file(File& f, const u64 value) noexcept
 {
     if constexpr (std::endian::native == std::endian::big) {
 #if defined(__GNUC__) || defined(__clang__)
@@ -290,9 +299,10 @@ status write_to_file(File& f, const u64 value) noexcept
 }
 
 template<typename File>
-status read_from_file(File& f, float& value) noexcept
+bool read_from_file(File& f, float& value) noexcept
 {
-    irt_check(f.read(reinterpret_cast<void*>(&value), 4));
+    if (not(f.read(reinterpret_cast<void*>(&value), 4)))
+        return false;
 
     if constexpr (std::endian::native == std::endian::big) {
 #if defined(__GNUC__) || defined(__clang__)
@@ -302,11 +312,11 @@ status read_from_file(File& f, float& value) noexcept
 #endif
     }
 
-    return success();
+    return true;
 }
 
 template<typename File>
-status write_to_file(File& f, const float value) noexcept
+bool write_to_file(File& f, const float value) noexcept
 {
     if constexpr (std::endian::native == std::endian::big) {
 #if defined(__GNUC__) || defined(__clang__)
@@ -321,9 +331,10 @@ status write_to_file(File& f, const float value) noexcept
 }
 
 template<typename File>
-status read_from_file(File& f, double& value) noexcept
+bool read_from_file(File& f, double& value) noexcept
 {
-    irt_check(f.read(reinterpret_cast<void*>(&value), 8));
+    if (not(f.read(reinterpret_cast<void*>(&value), 8)))
+        return false;
 
     if constexpr (std::endian::native == std::endian::big) {
 #if defined(__GNUC__) || defined(__clang__)
@@ -333,11 +344,11 @@ status read_from_file(File& f, double& value) noexcept
 #endif
     }
 
-    return success();
+    return true;
 }
 
 template<typename File>
-status write_to_file(File& f, const double value) noexcept
+bool write_to_file(File& f, const double value) noexcept
 {
     if constexpr (std::endian::native == std::endian::big) {
 #if defined(__GNUC__) || defined(__clang__)
@@ -351,22 +362,22 @@ status write_to_file(File& f, const double value) noexcept
     }
 }
 
-auto file::open(const char* filename, const open_mode mode_) noexcept
-  -> result<file>
-{
-    if (not filename)
-        return new_error(file::error_code::open_error, argument_error{});
+// auto file::open(const char*     filename,
+//                 const open_mode mode_) noexcept -> result<file>
+// {
+//     if (not filename)
+//         return false;
 
-    errno  = 0;
-    auto f = internal_fopen(filename,
-                            mode_ == open_mode::read    ? "rb"
-                            : mode_ == open_mode::write ? "wb"
-                                                        : "ab");
-    if (not f)
-        return f.error();
+//     errno  = 0;
+//     auto f = internal_fopen(filename,
+//                             mode_ == open_mode::read    ? "rb"
+//                             : mode_ == open_mode::write ? "wb"
+//                                                         : "ab");
+//     if (not f)
+//         return f.error();
 
-    return file{ to_void(*f), mode_ };
-}
+//     return file{ to_void(*f), mode_ };
+// }
 
 bool file::exists(const char* filename) noexcept
 {
@@ -473,132 +484,128 @@ void file::rewind() noexcept
     std::rewind(to_handle(file_handle));
 }
 
-status file::read(bool& value) noexcept
+bool file::read(bool& value) noexcept
 {
     u8 integer_value{};
 
-    irt_check(read_from_file(*this, integer_value));
+    if (read_from_file(*this, integer_value)) {
+        value = integer_value != 0u;
+        return true;
+    }
 
-    value = integer_value != 0u;
-    return success();
+    return false;
 }
 
-status file::read(u8& value) noexcept { return read_from_file(*this, value); }
+bool file::read(u8& value) noexcept { return read_from_file(*this, value); }
 
-status file::read(u16& value) noexcept { return read_from_file(*this, value); }
+bool file::read(u16& value) noexcept { return read_from_file(*this, value); }
 
-status file::read(u32& value) noexcept { return read_from_file(*this, value); }
+bool file::read(u32& value) noexcept { return read_from_file(*this, value); }
 
-status file::read(u64& value) noexcept { return read_from_file(*this, value); }
+bool file::read(u64& value) noexcept { return read_from_file(*this, value); }
 
-status file::read(i8& value) noexcept { return read_from_file(*this, value); }
+bool file::read(i8& value) noexcept { return read_from_file(*this, value); }
 
-status file::read(i16& value) noexcept { return read_from_file(*this, value); }
+bool file::read(i16& value) noexcept { return read_from_file(*this, value); }
 
-status file::read(i32& value) noexcept { return read_from_file(*this, value); }
+bool file::read(i32& value) noexcept { return read_from_file(*this, value); }
 
-status file::read(i64& value) noexcept { return read_from_file(*this, value); }
+bool file::read(i64& value) noexcept { return read_from_file(*this, value); }
 
-status file::read(float& value) noexcept
-{
-    return read_from_file(*this, value);
-}
+bool file::read(float& value) noexcept { return read_from_file(*this, value); }
 
-status file::read(double& value) noexcept
-{
-    return read_from_file(*this, value);
-}
+bool file::read(double& value) noexcept { return read_from_file(*this, value); }
 
-status file::write(const bool value) noexcept
+bool file::write(const bool value) noexcept
 {
     const u8 new_value = value ? 0xff : 0x0;
     return write_to_file(*this, new_value);
 }
 
-status file::write(const u8 value) noexcept
+bool file::write(const u8 value) noexcept
 {
     return write_to_file(*this, value);
 }
 
-status file::write(const u16 value) noexcept
+bool file::write(const u16 value) noexcept
 {
     return write_to_file(*this, value);
 }
 
-status file::write(const u32 value) noexcept
+bool file::write(const u32 value) noexcept
 {
     return write_to_file(*this, value);
 }
 
-status file::write(const u64 value) noexcept
+bool file::write(const u64 value) noexcept
 {
     return write_to_file(*this, value);
 }
 
-status file::write(const i8 value) noexcept
+bool file::write(const i8 value) noexcept
 {
     return write_to_file(*this, value);
 }
 
-status file::write(const i16 value) noexcept
+bool file::write(const i16 value) noexcept
 {
     return write_to_file(*this, value);
 }
 
-status file::write(const i32 value) noexcept
+bool file::write(const i32 value) noexcept
 {
     return write_to_file(*this, value);
 }
 
-status file::write(const i64 value) noexcept
+bool file::write(const i64 value) noexcept
 {
     return write_to_file(*this, value);
 }
 
-status file::write(const float value) noexcept
+bool file::write(const float value) noexcept
 {
     return write_to_file(*this, value);
 }
 
-status file::write(const double value) noexcept
+bool file::write(const double value) noexcept
 {
     return write_to_file(*this, value);
 }
 
-status file::read(void* buffer, i64 length) noexcept
+bool file::read(void* buffer, i64 length) noexcept
 {
     debug::ensure(file_handle);
     debug::ensure(buffer);
     debug::ensure(length > 0);
 
     if (not file_handle or not buffer or length <= 0)
-        return new_error(file::error_code::read_error, argument_error{});
+        return false;
 
     const auto len  = static_cast<size_t>(length);
     const auto read = std::fread(buffer, len, 1, to_handle(file_handle));
 
     if (read != 1)
-        return new_error(file::error_code::read_error, e_errno{ errno });
+        return false;
 
-    return success();
+    return true;
 }
 
-status file::write(const void* buffer, i64 length) noexcept
+bool file::write(const void* buffer, i64 length) noexcept
 {
     debug::ensure(file_handle);
     debug::ensure(buffer);
     debug::ensure(length > 0);
 
     if (not file_handle or not buffer or length <= 0)
-        return new_error(file::error_code::write_error, argument_error{});
+        return false;
 
     const auto len     = static_cast<size_t>(length);
     const auto written = std::fwrite(buffer, len, 1, to_handle(file_handle));
 
     if (written != 1)
-        return new_error(file::error_code::write_error, e_errno{ errno });
+        return false;
 
-    return success();
+    return true;
 }
 
 memory::memory(const i64 length, const open_mode /*mode*/) noexcept
@@ -650,100 +657,94 @@ i64 memory::seek(i64 offset, seek_origin origin) noexcept
 
 void memory::rewind() noexcept { pos = 0; }
 
-status memory::read(bool& value) noexcept
+bool memory::read(bool& value) noexcept { return read(&value, sizeof(value)); }
+
+bool memory::read(u8& value) noexcept { return read(&value, sizeof(value)); }
+
+bool memory::read(u16& value) noexcept { return read(&value, sizeof(value)); }
+
+bool memory::read(u32& value) noexcept { return read(&value, sizeof(value)); }
+
+bool memory::read(u64& value) noexcept { return read(&value, sizeof(value)); }
+
+bool memory::read(i8& value) noexcept { return read(&value, sizeof(value)); }
+
+bool memory::read(i16& value) noexcept { return read(&value, sizeof(value)); }
+
+bool memory::read(i32& value) noexcept { return read(&value, sizeof(value)); }
+
+bool memory::read(i64& value) noexcept { return read(&value, sizeof(value)); }
+
+bool memory::read(float& value) noexcept { return read(&value, sizeof(value)); }
+
+bool memory::read(double& value) noexcept
 {
     return read(&value, sizeof(value));
 }
 
-status memory::read(u8& value) noexcept { return read(&value, sizeof(value)); }
-
-status memory::read(u16& value) noexcept { return read(&value, sizeof(value)); }
-
-status memory::read(u32& value) noexcept { return read(&value, sizeof(value)); }
-
-status memory::read(u64& value) noexcept { return read(&value, sizeof(value)); }
-
-status memory::read(i8& value) noexcept { return read(&value, sizeof(value)); }
-
-status memory::read(i16& value) noexcept { return read(&value, sizeof(value)); }
-
-status memory::read(i32& value) noexcept { return read(&value, sizeof(value)); }
-
-status memory::read(i64& value) noexcept { return read(&value, sizeof(value)); }
-
-status memory::read(float& value) noexcept
-{
-    return read(&value, sizeof(value));
-}
-
-status memory::read(double& value) noexcept
-{
-    return read(&value, sizeof(value));
-}
-
-status memory::write(const bool value) noexcept
+bool memory::write(const bool value) noexcept
 {
     return write(&value, sizeof(value));
 }
 
-status memory::write(const u8 value) noexcept
+bool memory::write(const u8 value) noexcept
 {
     return write(&value, sizeof(value));
 }
 
-status memory::write(const u16 value) noexcept
+bool memory::write(const u16 value) noexcept
 {
     return write(&value, sizeof(value));
 }
 
-status memory::write(const u32 value) noexcept
+bool memory::write(const u32 value) noexcept
 {
     return write(&value, sizeof(value));
 }
 
-status memory::write(const u64 value) noexcept
+bool memory::write(const u64 value) noexcept
 {
     return write(&value, sizeof(value));
 }
 
-status memory::write(const i8 value) noexcept
+bool memory::write(const i8 value) noexcept
 {
     return write(&value, sizeof(value));
 }
 
-status memory::write(const i16 value) noexcept
+bool memory::write(const i16 value) noexcept
 {
     return write(&value, sizeof(value));
 }
 
-status memory::write(const i32 value) noexcept
+bool memory::write(const i32 value) noexcept
 {
     return write(&value, sizeof(value));
 }
 
-status memory::write(const i64 value) noexcept
+bool memory::write(const i64 value) noexcept
 {
     return write(&value, sizeof(value));
 }
 
-status memory::write(const float value) noexcept
+bool memory::write(const float value) noexcept
 {
     return write(&value, sizeof(value));
 }
 
-status memory::write(const double value) noexcept
+bool memory::write(const double value) noexcept
 {
     return write(&value, sizeof(value));
 }
 
-status memory::read(void* buffer, i64 length) noexcept
+bool memory::read(void* buffer, i64 length) noexcept
 {
     debug::ensure(data.ssize() == data.capacity());
     debug::ensure(buffer);
     debug::ensure(length > 0);
 
     if (data.ssize() != data.capacity() or not buffer or length <= 0)
-        return new_error(file::error_code::read_error, argument_error{});
+        return false;
 
     if (std::cmp_less_equal(pos + length, data.capacity())) {
         std::copy_n(data.data() + pos,
@@ -751,20 +752,20 @@ status memory::read(void* buffer, i64 length) noexcept
                     reinterpret_cast<u8*>(buffer));
 
         pos += length;
-        return success();
+        return true;
     }
 
-    return new_error(memory::error_code::read_error);
+    return false;
 }
 
-status memory::write(const void* buffer, i64 length) noexcept
+bool memory::write(const void* buffer, i64 length) noexcept
 {
     debug::ensure(data.ssize() == data.capacity());
     debug::ensure(buffer);
     debug::ensure(length > 0);
 
     if (data.ssize() != data.capacity() or not buffer or length <= 0)
-        return new_error(file::error_code::read_error, argument_error{});
+        return false;
 
     if (std::cmp_less_equal(pos + length, data.capacity())) {
         std::copy_n(reinterpret_cast<const u8*>(buffer),
@@ -772,10 +773,10 @@ status memory::write(const void* buffer, i64 length) noexcept
                     data.data() + pos);
 
         pos += length;
-        return success();
+        return true;
     }
 
-    return new_error(memory::error_code::write_error);
+    return false;
 }
 
 } // namespace irt
