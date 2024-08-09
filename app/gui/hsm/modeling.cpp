@@ -842,6 +842,14 @@ bool hsm_component_editor_data::need_show_selected_nodes(
     return not m_selected_nodes.empty();
 }
 
+void hsm_component_editor_data::clear_selected_nodes() noexcept
+{
+    ImNodes::ClearLinkSelection();
+    ImNodes::ClearNodeSelection();
+    m_selected_nodes.clear();
+    m_selected_links.clear();
+}
+
 hsm_component_editor_data::hsm_component_editor_data(
   const component_id     id,
   const hsm_component_id hid,

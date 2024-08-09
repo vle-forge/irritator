@@ -1436,4 +1436,10 @@ bool generic_component_editor_data::need_show_selected_nodes(
     return not selected_nodes.empty();
 }
 
+void generic_component_editor_data::clear_selected_nodes() noexcept
+{
+    selected_links.clear();
+    selected_nodes.clear();
+}
+
 } // namespace irt

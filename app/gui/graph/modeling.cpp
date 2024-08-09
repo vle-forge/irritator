@@ -750,6 +750,12 @@ bool graph_component_editor_data::need_show_selected_nodes(
     return false;
 }
 
+void graph_component_editor_data::clear_selected_nodes() noexcept
+{
+    selected_edges.clear();
+    selected_nodes.clear();
+}
+
 graph_editor_dialog::graph_editor_dialog() noexcept
 {
     graph.resize(30, undefined<component_id>());

@@ -566,6 +566,11 @@ bool grid_component_editor_data::need_show_selected_nodes(
     return false;
 }
 
+void grid_component_editor_data::clear_selected_nodes() noexcept
+{
+}
+
+
 grid_editor_dialog::grid_editor_dialog() noexcept
 {
     grid.resize(5, 5, undefined<component_id>());

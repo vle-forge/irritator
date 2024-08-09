@@ -24,7 +24,7 @@
 namespace irt {
 
 template<class T, class M>
-constexpr std::ptrdiff_t offset_of(const M T::* member)
+constexpr std::ptrdiff_t offset_of(const M T::*member)
 {
     return reinterpret_cast<std::ptrdiff_t>(
       &(reinterpret_cast<T*>(0)->*member));
@@ -44,7 +44,7 @@ constexpr std::ptrdiff_t offset_of(const M T::* member)
 //! }
 //! @endcode
 template<class T, class M>
-constexpr T& container_of(M* ptr, const M T::* member)
+constexpr T& container_of(M* ptr, const M T::*member)
 {
     return *reinterpret_cast<T*>(reinterpret_cast<intptr_t>(ptr) -
                                  offset_of(member));
@@ -285,6 +285,7 @@ public:
     void show(component_editor& ed) noexcept;
     void show_selected_nodes(component_editor& ed) noexcept;
     bool need_show_selected_nodes(component_editor& ed) noexcept;
+    void clear_selected_nodes() noexcept;
 
     //! Get the underlying component_id.
     component_id get_id() const noexcept { return m_id; }
@@ -316,6 +317,7 @@ public:
     void show(component_editor& ed) noexcept;
     void show_selected_nodes(component_editor& ed) noexcept;
     bool need_show_selected_nodes(component_editor& ed) noexcept;
+    void clear_selected_nodes() noexcept;
 
     //! Get the underlying component_id.
     component_id get_id() const noexcept { return m_id; }
@@ -366,6 +368,7 @@ public:
     void show(component_editor& ed) noexcept;
     void show_selected_nodes(component_editor& ed) noexcept;
     bool need_show_selected_nodes(component_editor& ed) noexcept;
+    void clear_selected_nodes() noexcept;
 
     // void load(component_id c_id, model_id m_id) noexcept;
     // void load(model_id m_id) noexcept;
@@ -405,6 +408,7 @@ public:
     void show(component_editor& ed) noexcept;
     void show_selected_nodes(component_editor& ed) noexcept;
     bool need_show_selected_nodes(component_editor& ed) noexcept;
+    void clear_selected_nodes() noexcept;
 
     //! Before running any ImNodes functions, pre-move all children to force
     //! position for all new children.

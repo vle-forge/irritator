@@ -336,11 +336,6 @@ static void show_data(application&       app,
                 if (ImGui::InputFilteredString("Name", copy_name))
                     compo.name = copy_name;
 
-                auto flags = ImGuiTabItemFlags_None;
-                if (element.need_show_selected_nodes(ed)) {
-                    flags = ImGuiTabItemFlags_SetSelected;
-                }
-
                 if (ImGui::BeginTabBar("Settings", ImGuiTabBarFlags_None)) {
                     if (ImGui::BeginTabItem("Save")) {
                         show_file_access(app, compo);
@@ -348,19 +343,23 @@ static void show_data(application&       app,
                     }
 
                     if (ImGui::BeginTabItem("In/Out")) {
+                        element.clear_selected_nodes();
                         show_input_output_ports(compo);
                         ImGui::EndTabItem();
                     }
+
+                    const auto flags = element.need_show_selected_nodes(ed)
+                                         ? ImGuiTabItemFlags_SetSelected
+                                         : ImGuiTabItemFlags_None;
 
                     if (ImGui::BeginTabItem("Specific", nullptr, flags)) {
                         if (not ImGui::BeginChild(
                               "##zone", ImGui::GetContentRegionAvail())) {
                             ImGui::EndChild();
-                            return;
+                        } else {
+                            element.show_selected_nodes(ed);
+                            ImGui::EndChild();
                         }
-
-                        element.show_selected_nodes(ed);
-                        ImGui::EndChild();
 
                         ImGui::EndTabItem();
                     }
