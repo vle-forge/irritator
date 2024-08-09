@@ -405,7 +405,7 @@ static void show_dirpath_component(irt::component_editor& ed,
 
 static void show_component_library_new_component(application& app) noexcept
 {
-    const ImVec2 button_size = ImGui::ComputeButtonSize(4);
+    const auto button_size = ImGui::ComputeButtonSize(4);
 
     if (ImGui::Button("+generic", button_size))
         add_generic_component_data(app);
@@ -423,61 +423,65 @@ static void show_component_library_new_component(application& app) noexcept
         add_hsm_component_data(app);
 }
 
-static void show_component_library(component_editor& c_editor,
-                                   irt::tree_node*   tree) noexcept
+static void show_repertories_components(irt::application& app,
+                                        irt::tree_node*   tree) noexcept
 {
-    auto& app = container_of(&c_editor, &application::component_ed);
+    for (auto id : app.mod.component_repertories) {
+        small_string<31>  s;
+        small_string<31>* select;
 
-    show_component_library_new_component(app);
+        auto* reg_dir = app.mod.registred_paths.try_to_get(id);
+        if (!reg_dir || reg_dir->status == registred_path::state::error)
+            continue;
 
-    if (ImGui::CollapsingHeader("Components",
-                                ImGuiTreeNodeFlags_CollapsingHeader |
-                                  ImGuiTreeNodeFlags_DefaultOpen)) {
-
-        for (auto id : app.mod.component_repertories) {
-            small_string<31>  s;
-            small_string<31>* select;
-
-            auto* reg_dir = app.mod.registred_paths.try_to_get(id);
-            if (!reg_dir || reg_dir->status == registred_path::state::error)
-                continue;
-
-            if (reg_dir->name.empty()) {
-                format(s, "{}", ordinal(id));
-                select = &s;
-            } else {
-                select = &reg_dir->name;
-            }
-
-            ImGui::PushID(reg_dir);
-            if (ImGui::TreeNodeEx(select->c_str(),
-                                  ImGuiTreeNodeFlags_DefaultOpen)) {
-                int i = 0;
-                while (i != reg_dir->children.ssize()) {
-                    auto  dir_id = reg_dir->children[i];
-                    auto* dir    = app.mod.dir_paths.try_to_get(dir_id);
-
-                    if (dir) {
-                        show_dirpath_component(c_editor, *dir, tree);
-                        ++i;
-                    } else {
-                        reg_dir->children.swap_pop_back(i);
-                    }
-                }
-                ImGui::TreePop();
-            }
-            ImGui::PopID();
+        if (reg_dir->name.empty()) {
+            format(s, "{}", ordinal(id));
+            select = &s;
+        } else {
+            select = &reg_dir->name;
         }
 
-        if (ImGui::TreeNodeEx("Internal", ImGuiTreeNodeFlags_DefaultOpen)) {
-            show_internal_components(c_editor);
+        ImGui::PushID(reg_dir);
+        if (ImGui::TreeNodeEx(select->c_str(),
+                              ImGuiTreeNodeFlags_DefaultOpen)) {
+            int i = 0;
+            while (i != reg_dir->children.ssize()) {
+                auto  dir_id = reg_dir->children[i];
+                auto* dir    = app.mod.dir_paths.try_to_get(dir_id);
+
+                if (dir) {
+                    show_dirpath_component(app.component_ed, *dir, tree);
+                    ++i;
+                } else {
+                    reg_dir->children.swap_pop_back(i);
+                }
+            }
+            ImGui::TreePop();
+        }
+        ImGui::PopID();
+    }
+}
+
+static void show_component_library(application&    app,
+                                   irt::tree_node* tree) noexcept
+{
+    if (not ImGui::BeginChild("##component_library",
+                              ImGui::GetContentRegionAvail())) {
+        ImGui::EndChild();
+    } else {
+        show_repertories_components(app, tree);
+
+        if (ImGui::TreeNodeEx("Internal")) {
+            show_internal_components(app.component_ed);
             ImGui::TreePop();
         }
 
         if (ImGui::TreeNodeEx("Not saved", ImGuiTreeNodeFlags_DefaultOpen)) {
-            show_notsaved_components(c_editor, tree);
+            show_notsaved_components(app.component_ed, tree);
             ImGui::TreePop();
         }
+
+        ImGui::EndChild();
     }
 }
 
@@ -553,7 +557,8 @@ void library_window::show() noexcept
 
     auto* tree = app.pj.tn_head();
 
-    show_component_library(app.component_ed, tree);
+    show_component_library_new_component(app);
+    show_component_library(app, tree);
 
     ImGui::End();
 }

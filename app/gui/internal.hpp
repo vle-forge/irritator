@@ -232,9 +232,12 @@ void TextFormatDisabled(const char* fmt, const Args&... args) noexcept
 
 inline auto ComputeButtonSize(int button_number) noexcept -> ImVec2
 {
-    return ImVec2{ (ImGui::GetContentRegionAvail().x -
-                    ImGui::GetStyle().ItemSpacing.x) /
-                     static_cast<float>(button_number),
+    ::irt::debug::ensure(button_number > 1);
+
+    return ImVec2{ ((ImGui::GetContentRegionAvail().x -
+                     (static_cast<float>(button_number - 1) *
+                      ImGui::GetStyle().ItemSpacing.x)) /
+                    static_cast<float>(button_number)),
                    0.f };
 }
 
