@@ -474,8 +474,8 @@ struct reader {
 
     template<size_t N, typename Function>
     bool for_members(const rapidjson::Value& val,
-                     const std::string_view (&names)[N],
-                     Function&& fn) noexcept
+                     const std::string_view  (&names)[N],
+                     Function&&              fn) noexcept
     {
         if (!val.IsObject())
             report_json_error(error_id::value_not_object);
@@ -2070,8 +2070,8 @@ struct reader {
         return nullptr;
     }
 
-    auto search_dir_in_reg(registred_path&  reg,
-                           std::string_view name) noexcept -> dir_path*
+    auto search_dir_in_reg(registred_path& reg, std::string_view name) noexcept
+      -> dir_path*
     {
         for (auto dir_id : reg.children) {
             if (auto* dir = mod().dir_paths.try_to_get(dir_id); dir) {
@@ -2140,8 +2140,8 @@ struct reader {
         return nullptr;
     }
 
-    auto search_file(dir_path&        dir,
-                     std::string_view name) noexcept -> file_path*
+    auto search_file(dir_path& dir, std::string_view name) noexcept
+      -> file_path*
     {
         for (auto file_id : dir.children)
             if (auto* file = mod().file_paths.try_to_get(file_id); file)
@@ -6722,8 +6722,9 @@ status json_archiver::project_save(project&  pj,
 
     auto length = buffer.GetSize();
     auto str    = buffer.GetString();
-    out.resize(static_cast<int>(length));
+    out.resize(static_cast<int>(length) + 1);
     std::copy_n(str, length, out.data());
+    out.back() = '\0';
 
     return success();
 }
