@@ -1125,50 +1125,6 @@ void project::clear() noexcept
     parameters.clear();
 }
 
-status project::load(modeling&   mod,
-                     simulation& sim,
-                     cache_rw&   cache,
-                     const char* filename) noexcept
-{
-    project::error err;
-
-    auto file =
-      file::open(filename, open_mode::read, [&](file::error_code ec) noexcept {
-          if (ec == file::error_code::memory_error)
-              err = project::error::not_enough_memory;
-          else
-              err = project::error::file_error;
-      });
-
-    if (not file.has_value())
-        return new_error(err);
-
-    json_archiver j;
-    return j.project_load(*this, mod, sim, cache, *file);
-}
-
-status project::save(modeling&   mod,
-                     simulation& sim,
-                     cache_rw&   cache,
-                     const char* filename) noexcept
-{
-    project::error err;
-
-    auto file =
-      file::open(filename, open_mode::write, [&](file::error_code ec) noexcept {
-          if (ec == file::error_code::memory_error)
-              err = project::error::not_enough_memory;
-          else
-              err = project::error::file_error;
-      });
-
-    if (not file.has_value())
-        return new_error(err);
-
-    json_archiver j;
-    return j.project_save(*this, mod, sim, cache, *file);
-}
-
 static void project_build_unique_id_path(const u64       model_unique_id,
                                          unique_id_path& out) noexcept
 {

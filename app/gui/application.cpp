@@ -14,6 +14,7 @@
 
 #include <imgui.h>
 #include <imgui_internal.h>
+#include <irritator/file.hpp>
 #include <mutex>
 
 namespace irt {
@@ -279,7 +280,7 @@ static void application_show_menu(application& app) noexcept
                       return success();
                   },
 
-                  [&app](const json_archiver::part s) noexcept -> void {
+                  [&app](const json_archiver::error_code s) noexcept -> void {
                       auto& n = app.notifications.alloc();
                       n.title = "Fail to load settings";
                       format(n.message, "Error: {}", ordinal(s));
@@ -301,7 +302,7 @@ static void application_show_menu(application& app) noexcept
                       return success();
                   },
 
-                  [&app](const json_archiver::part s) noexcept -> void {
+                  [&app](const json_archiver::error_code s) noexcept -> void {
                       auto& n = app.notifications.alloc();
                       n.title = "Fail to save settings";
                       format(n.message, "Error: {}", ordinal(s));
@@ -350,25 +351,58 @@ static void application_manage_menu_action(application& app) noexcept
 
                     app.add_simulation_task([&app, id]() noexcept {
                         auto* file = app.mod.registred_paths.try_to_get(id);
-                        if (file) {
-                            attempt_all(
-                              [&]() -> status {
-                                  return app.pj.load(app.mod,
-                                                     app.sim,
-                                                     app.cache,
-                                                     file->path.c_str());
-                              },
+                        if (not file)
+                            return;
 
-                              [&]() -> void {
-                                  app.mod.registred_paths.free(*file);
+                        auto f = file::open(
+                          file->path.c_str(),
+                          open_mode::read,
+                          [&](file::error_code ec) noexcept {
+                              app.notifications.try_insert(
+                                log_level::error,
+                                [&](auto& title, auto& msg) noexcept {
+                                    format(title,
+                                           "Fail to open project file {}",
+                                           file->path.c_str());
 
-                                  auto& n = app.notifications.alloc();
-                                  n.title = "Fail to load project";
-                                  format(n.message,
-                                         "Error loading file {}",
-                                         file->path.sv());
-                              });
+                                    switch (ec) {
+                                    case file::error_code::memory_error:
+                                        msg = "Memory allocation error";
+                                        break;
+                                    case file::error_code::eof_error:
+                                        msg = "The end of the file is "
+                                              "reached too quickly.";
+                                        break;
+                                    case file::error_code::arg_error:
+                                        msg = "Internal error";
+                                        break;
+                                    case file::error_code::open_error:
+                                        msg = "Open file error";
+                                        break;
+                                    }
+                                });
+                          });
+
+                        if (not f.has_value()) {
+                            app.mod.registred_paths.free(*file);
+                            return;
                         }
+
+                        json_dearchiver read;
+                        if (not read(app.pj, app.mod, app.sim, *f)) {
+                            // @TODO improve details in notifications from file
+                            // error callback.
+                            app.mod.registred_paths.free(*file);
+                            return;
+                        }
+
+                        app.notifications.try_insert(
+                          log_level::info,
+                          [&](auto& title, auto& msg) noexcept {
+                              format(title,
+                                     "Project file {} read",
+                                     file->path.c_str());
+                          });
                     });
                 }
             }
@@ -620,8 +654,8 @@ static void show_select_model_box_recursive(application&   app,
         show_select_model_box_recursive(app, *sibling, access);
 }
 
-auto build_unique_component_vector(application& app,
-                                   tree_node&   tn) -> vector<component_id>
+auto build_unique_component_vector(application& app, tree_node& tn)
+  -> vector<component_id>
 {
     vector<component_id> ret;
     vector<tree_node*>   stack;

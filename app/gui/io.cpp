@@ -508,7 +508,7 @@ struct settings_parser {
         if (!(get_settings_filename(filename) &&
               open_settings_file(filename, f, open_mode::read) &&
               read_settings_file(filename, f)))
-            return new_error(json_archiver::part::settings_parser);
+            return new_error(json_archiver::error_code::arg_error);
 
         return success();
     }
@@ -521,7 +521,7 @@ struct settings_parser {
         if (!(get_settings_filename(filename) &&
               open_settings_file(filename, f, open_mode::write) &&
               write_settings_file(f)))
-            return new_error(json_archiver::part::settings_parser);
+            return new_error(json_archiver::error_code::arg_error);
 
         return success();
     }

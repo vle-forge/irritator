@@ -107,7 +107,7 @@ void settings_window::show() noexcept
                       return success();
                   },
 
-                  [&app](const json_archiver::part s) noexcept -> void {
+                  [&app](const json_archiver::error_code s) noexcept -> void {
                       auto& n = app.notifications.alloc();
                       n.title = "Refresh components from directory failed";
                       format(n.message, "Error: {}", ordinal(s));

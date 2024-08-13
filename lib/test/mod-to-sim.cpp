@@ -290,7 +290,6 @@ int main()
 
     "grid-3x3"_test = [] {
         irt::vector<char>       buffer;
-        irt::cache_rw           cache;
         irt::registred_path_str temp_path;
 
         expect(get_temp_registred_path(temp_path) == true);
@@ -384,13 +383,12 @@ int main()
             expect(eq(sim.models.ssize(), g.row * g.column * 2));
 
             irt::json_archiver j;
-            expect(!!j.project_save(
-              pj,
-              mod,
-              sim,
-              cache,
-              buffer,
-              irt::json_archiver::print_option::indent_2_one_line_array));
+            expect(
+              j(pj,
+                mod,
+                sim,
+                buffer,
+                irt::json_archiver::print_option::indent_2_one_line_array));
         }
 
         expect(buffer.size() > 0u);
@@ -414,9 +412,8 @@ int main()
             expect(!!mod.fill_components());
             std::exchange(irt::on_error_callback, old_cb);
 
-            irt::json_archiver j;
-            expect(!!j.project_load(
-              pj, mod, sim, cache, std::span(buffer.data(), buffer.size())));
+            irt::json_dearchiver j;
+            expect(j(pj, mod, sim, std::span(buffer.data(), buffer.size())));
         }
     };
 
@@ -504,7 +501,6 @@ int main()
 
     "grid-3x3-constant-model-init-port-all"_test = [] {
         irt::vector<char> buffer;
-        irt::cache_rw     cache;
 
         {
             irt::modeling_initializer mod_init;
@@ -592,7 +588,6 @@ int main()
 
     "grid-3x3-constant-model-init-port-n"_test = [] {
         irt::vector<char> buffer;
-        irt::cache_rw     cache;
 
         {
             irt::modeling_initializer mod_init;

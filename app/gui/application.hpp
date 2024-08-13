@@ -940,8 +940,6 @@ struct application {
 
     modeling_initializer mod_init;
 
-    cache_rw cache;
-
     notification_manager notifications;
 
 #ifdef IRRITATOR_USE_TTF

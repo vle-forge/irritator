@@ -9,18 +9,117 @@
 #include <irritator/file.hpp>
 #include <irritator/modeling.hpp>
 
+#include <variant>
+
 namespace irt {
+
+class json_dearchiver
+{
+private:
+    vector<char> buffer;
+    vector<i32>  stack;
+
+    table<u64, u64>    model_mapping;
+    table<u64, u64>    constant_mapping;
+    table<u64, u64>    binary_file_mapping;
+    table<u64, u64>    random_mapping;
+    table<u64, u64>    text_file_mapping;
+    table<u64, hsm_id> sim_hsms_mapping;
+
+    struct impl;
+
+public:
+    enum class error_code {
+        memory_error = 1,
+        arg_error,
+        file_error,
+        read_error,
+        format_error,
+        dependency_error,
+    };
+
+    using error_cb = function_ref<void(
+      json_dearchiver::error_code,
+      std::variant<std::monostate,
+                   sz,
+                   int,
+                   std::pair<sz, std::string_view>>) noexcept>;
+
+    /** Push the description of the error into the global @c std::cerr. */
+    static void cerr(json_dearchiver::error_code,
+                     std::variant<std::monostate,
+                                  sz,
+                                  int,
+                                  std::pair<sz, std::string_view>>) noexcept;
+
+    json_dearchiver() noexcept = default;
+
+    bool set_buffer(const u32 buffer_size) noexcept;
+
+    //! Load a simulation structure from a json memory buffer. This function is
+    //! mainly used in unit-test to check i/o functions.
+    bool operator()(simulation& sim,
+                    file&       io,
+                    error_cb    err = error_cb{ &cerr }) noexcept;
+
+    //! Load a component structure from a json file.
+    bool operator()(modeling&  mod,
+                    component& compo,
+                    file&      io,
+                    error_cb   err = error_cb{ &cerr }) noexcept;
+
+    //! Load a project from a project json file.
+    bool operator()(project&    pj,
+                    modeling&   mod,
+                    simulation& sim,
+                    file&       io,
+                    error_cb    err = error_cb{ &cerr }) noexcept;
+
+    //! Load a simulation structure from a json memory buffer. This function is
+    //! mainly used in unit-test to check i/o functions.
+    bool operator()(simulation&     sim,
+                    std::span<char> io,
+                    error_cb        err = error_cb{ &cerr }) noexcept;
+
+    //! Load a component structure from a json file.
+    bool operator()(modeling&       mod,
+                    component&      compo,
+                    std::span<char> io,
+                    error_cb        err = error_cb{ &cerr }) noexcept;
+
+    //! Load a project from a project json file.
+    bool operator()(project&        pj,
+                    modeling&       mod,
+                    simulation&     sim,
+                    std::span<char> io,
+                    error_cb        err = error_cb{ &cerr }) noexcept;
+
+    void destroy() noexcept;
+    void clear() noexcept;
+};
 
 class json_archiver
 {
+private:
+    vector<char> buffer;
+
+    table<u64, u64>    model_mapping;
+    table<u64, u64>    constant_mapping;
+    table<u64, u64>    binary_file_mapping;
+    table<u64, u64>    random_mapping;
+    table<u64, u64>    text_file_mapping;
+    table<u64, hsm_id> sim_hsms_mapping;
+
+    struct impl;
+
 public:
-    enum class part {
-        read_file_error,
-        json_format_error, //<! Add a e_json with offset and error code.
-        simulation_parser,
-        component_parser,
-        project_parser,
-        settings_parser
+    enum class error_code {
+        memory_error = 1,
+        arg_error,
+        empty_project,
+        file_error,
+        format_error,
+        dependency_error,
     };
 
     //! Control the json output stream (memory or file) pretty print.
@@ -30,91 +129,59 @@ public:
         indent_2_one_line_array //! idem but merge simple array in one line.
     };
 
-    //! Load a simulation structure from a json file.
-    status simulation_load(simulation& sim, cache_rw& cache, file& io) noexcept;
+    using error_cb =
+      function_ref<void(json_archiver::error_code,
+                        std::variant<std::monostate, sz, int>) noexcept>;
 
-    //! Load a simulation structure from a json memory buffer. This function is
-    //! mainly used in unit-test to check i/o functions.
-    status simulation_load(simulation&     sim,
-                           cache_rw&       cache,
-                           std::span<char> in) noexcept;
+    /** Push the description of the error into the global @c std::cerr. */
+    static void cerr(json_archiver::error_code,
+                     std::variant<std::monostate, sz, int>) noexcept;
 
     //! Save a component structure into a json memory buffer. This function is
     //! mainly used in unit-test to check i/o functions.
-    status simulation_save(
-      const simulation& sim,
-      cache_rw&         cache,
-      vector<char>&     out,
-      print_option      print_options = print_option::off) noexcept;
+    bool operator()(const simulation& sim,
+                    vector<char>&     out,
+                    print_option      print_options = print_option::off,
+                    error_cb          err = error_cb{ &cerr }) noexcept;
 
     //! Save a component structure into a json file.
-    status simulation_save(
-      const simulation& sim,
-      cache_rw&         cache,
-      const char*       filename,
-      print_option      print_options = print_option::off) noexcept;
-
-    //! Load a component structure from a json file.
-    status component_load(modeling&  mod,
-                          component& compo,
-                          cache_rw&  cache,
-                          file&      io) noexcept;
-
-    //! Load a component structure from a json file.
-    status component_load(modeling&       mod,
-                          component&      compo,
-                          cache_rw&       cache,
-                          std::span<char> buffer) noexcept;
+    bool operator()(const simulation& sim,
+                    file&             io,
+                    print_option      print_options = print_option::off,
+                    error_cb          err = error_cb{ &cerr }) noexcept;
 
     //! Save a component structure into a json file.
-    status component_save(
-      modeling&    mod,
-      component&   compo,
-      cache_rw&    cache,
-      const char*  filename,
-      print_option print_options = print_option::off) noexcept;
+    bool operator()(modeling&    mod,
+                    component&   compo,
+                    file&        io,
+                    print_option print_options = print_option::off,
+                    error_cb     err           = error_cb{ &cerr }) noexcept;
 
     //! Save a component structure into a json file.
-    status component_save(
-      modeling&     mod,
-      component&    compo,
-      cache_rw&     cache,
-      vector<char>& out,
-      print_option  print_options = print_option::off) noexcept;
-
-    //! Load a project from a project json file.
-    status project_load(project&    pj,
-                        modeling&   mod,
-                        simulation& sim,
-                        cache_rw&   cache,
-                        file&       io) noexcept;
-
-    //! Load a project from a project json file.
-    status project_load(project&        pj,
-                        modeling&       mod,
-                        simulation&     sim,
-                        cache_rw&       cache,
-                        std::span<char> buffer) noexcept;
+    bool operator()(modeling&     mod,
+                    component&    compo,
+                    vector<char>& out,
+                    print_option  print_options = print_option::off,
+                    error_cb      err           = error_cb{ &cerr }) noexcept;
 
     //! Save a project from the current modeling.
-    status project_save(
-      project&     pj,
-      modeling&    mod,
-      simulation&  sim,
-      cache_rw&    cache,
-      file&        f,
-      print_option print_options = print_option::off) noexcept;
+    bool operator()(project&     pj,
+                    modeling&    mod,
+                    simulation&  sim,
+                    file&        io,
+                    print_option print_options = print_option::off,
+                    error_cb     err           = error_cb{ &cerr }) noexcept;
 
     //! Save a project from the current modeling.
-    status project_save(
-      project&      pj,
-      modeling&     mod,
-      simulation&   sim,
-      cache_rw&     cache,
-      vector<char>& buffer,
-      print_option  print_options = print_option::off) noexcept;
+    bool operator()(project&      pj,
+                    modeling&     mod,
+                    simulation&   sim,
+                    vector<char>& buffer,
+                    print_option  print_options = print_option::off,
+                    error_cb      err           = error_cb{ &cerr }) noexcept;
 
-private:
+    void destroy() noexcept;
+    void clear() noexcept;
 };
 
 class binary_archiver

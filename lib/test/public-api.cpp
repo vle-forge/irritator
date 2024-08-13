@@ -1684,7 +1684,6 @@ int main()
 
     "input-output"_test = [] {
         irt::vector<char> out;
-        irt::cache_rw     cache;
 
         {
             mem.reset();
@@ -1742,11 +1741,10 @@ int main()
             sim.alloc<irt::hsm_wrapper>();
 
             irt::json_archiver j;
-            expect(!!j.simulation_save(
-              sim,
-              cache,
-              out,
-              irt::json_archiver::print_option::indent_2_one_line_array));
+            expect(
+              j(sim,
+                out,
+                irt::json_archiver::print_option::indent_2_one_line_array));
 
             expect(out.size() > 0);
         }
@@ -1769,8 +1767,8 @@ int main()
 
             auto in = std::span(out.data(), out.size());
 
-            irt::json_archiver j;
-            expect(!!j.simulation_load(sim, cache, in));
+            irt::json_dearchiver j;
+            expect(j(sim, in));
             expect(eq(sim.models.size(), 50u));
         }
     };

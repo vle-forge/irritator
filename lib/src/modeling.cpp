@@ -426,12 +426,11 @@ static status load_component(modeling& mod, component& compo) noexcept
                                  e_file_name{ str });
             }
 
-            json_archiver j;
-            cache_rw      cache; // TODO move into modeling or parameter
+            json_dearchiver j;
 
-            if (auto ret = j.component_load(mod, compo, cache, *f); !ret) {
+            if (not j(mod, compo, *f)) {
                 compo.state = component_status::unreadable;
-                return ret.error();
+                return new_error(modeling::part::components);
             }
 
             compo.state = component_status::unmodified;
@@ -1144,12 +1143,24 @@ status modeling::save(component& c) noexcept
         p.replace_extension(".irt");
 
         std::error_code ec;
-        json_archiver   j;
-        cache_rw        cache;
+        project::error  err;
 
-        if (auto ret = j.component_save(*this, c, cache, p.string().c_str());
-            !ret)
-            return ret.error();
+        auto file =
+          file::open(p.string().c_str(),
+                     open_mode::write,
+                     [&](file::error_code ec) noexcept -> project::error {
+                         if (ec == file::error_code::memory_error)
+                             return project::error::not_enough_memory;
+                         else
+                             return project::error::file_error;
+                     });
+
+        if (not file.has_value())
+            return new_error(err);
+
+        json_archiver j;
+        if (not j(*this, c, *file))
+            return new_error(project::file_error);
     }
 
     if (descriptions.exists(c.desc)) {

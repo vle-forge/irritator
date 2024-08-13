@@ -163,33 +163,6 @@ struct parameter {
     std::array<i64, 8>  integers;
 };
 
-/// A structure use to cache data when read or write json component.
-/// - @c buffer is used to store the full file content or output buffer.
-/// - @c string_buffer is used when reading string.
-/// - @c stack is used when parsing project file.
-/// - other variable are used to link file identifier with new identifier.
-struct cache_rw {
-    vector<char> buffer;
-    vector<i32>  stack;
-
-    table<u64, u64>    model_mapping;
-    table<u64, u64>    constant_mapping;
-    table<u64, u64>    binary_file_mapping;
-    table<u64, u64>    random_mapping;
-    table<u64, u64>    text_file_mapping;
-    table<u64, hsm_id> sim_hsms_mapping;
-
-    small_function<1, void(std::string_view, int level)> warning_cb;
-
-    //! Clear @c resize(0) all vector, table and string.
-    //! @attention @c warning_cb and @c error_cb are unmodified.
-    void clear() noexcept;
-
-    //! Delete buffers for all vector, table and string.
-    //! @attention @c warning_cb and @c error_cb are unmodified.
-    void destroy() noexcept;
-};
-
 enum class child_flags : u8 {
     none         = 0,
     configurable = 1 << 0,
@@ -1420,16 +1393,6 @@ public:
     };
 
     status init(const modeling_initializer& init) noexcept;
-
-    status load(modeling&   mod,
-                simulation& sim,
-                cache_rw&   cache,
-                const char* filename) noexcept;
-
-    status save(modeling&   mod,
-                simulation& sim,
-                cache_rw&   cache,
-                const char* filename) noexcept;
 
     struct required_data {
         unsigned tree_node_nb{ 1u };

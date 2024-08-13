@@ -2,6 +2,7 @@
 // Version 1.0. (See accompanying file LICENSE_1_0.txt or copy at
 // http://www.boost.org/LICENSE_1_0.txt)
 
+#include <irritator/archiver.hpp>
 #include <irritator/core.hpp>
 #include <irritator/error.hpp>
 #include <irritator/io.hpp>
@@ -264,23 +265,28 @@ void run_simulation(irt::real begin,
           irt::modeling                      mod;
           irt::simulation_memory_requirement smr{ 1024 * 1024 * 8 };
           irt::simulation                    sim{ smr };
-          irt::cache_rw                      cache;
 
           irt_check(pj.init(init));
           irt_check(mod.init(init));
-          irt_check(pj.load(mod, sim, cache, file_name));
 
-          sim.t   = begin;
-          const irt::time end = begin + duration;
+          auto file = irt::file::open(file_name, irt::open_mode::read);
+          if (file) {
+              irt::json_archiver j;
 
-          irt_check(sim.srcs.prepare());
-          irt_check(sim.initialize());
+              j(pj, mod, sim, *file);
 
-          do {
-              irt_check(sim.run());
-          } while (sim.t < end);
+              sim.t               = begin;
+              const irt::time end = begin + duration;
 
-          irt_check(sim.finalize());
+              irt_check(sim.srcs.prepare());
+              irt_check(sim.initialize());
+
+              do {
+                  irt_check(sim.run());
+              } while (sim.t < end);
+
+              irt_check(sim.finalize());
+          }
 
           return irt::success();
       },

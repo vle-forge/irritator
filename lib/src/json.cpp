@@ -10,6 +10,8 @@
 #include <irritator/io.hpp>
 #include <irritator/modeling.hpp>
 
+#include <fmt/format.h>
+#include <fmt/ostream.h>
 #include <rapidjson/document.h>
 #include <rapidjson/error/en.h>
 #include <rapidjson/filereadstream.h>
@@ -19,20 +21,33 @@
 #include <rapidjson/reader.h>
 #include <rapidjson/writer.h>
 
+#include <iostream>
 #include <limits>
 #include <optional>
 #include <string_view>
 #include <utility>
 
-#ifdef IRRITATOR_ENABLE_DEBUG
-#include <fmt/format.h>
-#endif
-
+#include <cerrno>
 #include <cstdint>
 
 using namespace std::literals;
 
 namespace irt {
+
+template<typename Callback, typename ErrorCode, typename... Args>
+static constexpr bool report_error(Callback  cb,
+                                   ErrorCode ec,
+                                   Args&&... args) noexcept
+{
+    if (cb) {
+        if constexpr (sizeof...(args) == 0)
+            cb(ec, std::monostate{});
+        else
+            cb(ec, std::forward<Args>(args)...);
+    }
+
+    return false;
+}
 
 enum class stack_id {
     child,
@@ -452,7 +467,57 @@ static bool buffer_reserve(std::integral auto len, vector<T>& vec) noexcept
     return true;
 }
 
-struct reader {
+struct json_dearchiver::impl {
+    json_dearchiver&          self;
+    json_dearchiver::error_cb cb;
+
+    impl(json_dearchiver&          self_,
+         modeling&                 mod_,
+         json_dearchiver::error_cb cb_) noexcept
+      : self(self_)
+      , cb(cb_)
+      , m_mod(&mod_)
+    {}
+
+    impl(json_dearchiver&          self_,
+         simulation&               sim_,
+         json_dearchiver::error_cb cb_) noexcept
+      : self(self_)
+      , cb(cb_)
+      , m_sim(&sim_)
+    {}
+
+    impl(json_dearchiver&          self_,
+         modeling&                 mod_,
+         simulation&               sim_,
+         project&                  pj_,
+         json_dearchiver::error_cb cb_) noexcept
+      : self(self_)
+      , cb(cb_)
+      , m_mod(&mod_)
+      , m_sim(&sim_)
+      , m_pj(&pj_)
+    {}
+
+    struct auto_stack {
+        auto_stack(json_dearchiver::impl* r_, const stack_id id) noexcept
+          : r(r_)
+        {
+            debug::ensure(r->stack.can_alloc(1));
+            r->stack.emplace_back(id);
+        }
+
+        ~auto_stack() noexcept
+        {
+            if (!r->have_error()) {
+                debug::ensure(!r->stack.empty());
+                r->stack.pop_back();
+            }
+        }
+
+        json_dearchiver::impl* r = nullptr;
+    };
+
     template<typename Function, typename... Args>
     bool for_each_array(const rapidjson::Value& array,
                         Function&&              f,
@@ -474,8 +539,8 @@ struct reader {
 
     template<size_t N, typename Function>
     bool for_members(const rapidjson::Value& val,
-                     const std::string_view  (&names)[N],
-                     Function&&              fn) noexcept
+                     const std::string_view (&names)[N],
+                     Function&& fn) noexcept
     {
         if (!val.IsObject())
             report_json_error(error_id::value_not_object);
@@ -748,21 +813,21 @@ struct reader {
         return true;
     }
 
-    bool copy_to(bool& dst) noexcept
+    bool copy_to(bool& dst) const noexcept
     {
         dst = temp_bool;
 
         return true;
     }
 
-    bool copy_to(double& dst) noexcept
+    bool copy_to(double& dst) const noexcept
     {
         dst = temp_double;
 
         return true;
     }
 
-    bool copy_to(i64& dst) noexcept
+    bool copy_to(i64& dst) const noexcept
     {
         dst = temp_integer;
 
@@ -866,7 +931,7 @@ struct reader {
         report_json_error(error_id::missing_mandatory_arg);
     }
 
-    bool copy_to(u64& dst) noexcept
+    bool copy_to(u64& dst) const noexcept
     {
         dst = temp_u64;
 
@@ -927,7 +992,7 @@ struct reader {
         return true;
     }
 
-    bool copy_to(source::source_type& dst) noexcept
+    bool copy_to(source::source_type& dst) const noexcept
     {
         dst = enum_cast<source::source_type>(temp_integer);
 
@@ -1047,14 +1112,14 @@ struct reader {
         return true;
     }
 
-    bool affect_configurable_to(bitflags<child_flags>& flag) noexcept
+    bool affect_configurable_to(bitflags<child_flags>& flag) const noexcept
     {
         flag.set(child_flags::configurable, temp_bool);
 
         return true;
     }
 
-    bool affect_observable_to(bitflags<child_flags>& flag) noexcept
+    bool affect_observable_to(bitflags<child_flags>& flag) const noexcept
     {
         flag.set(child_flags::observable, temp_bool);
 
@@ -2070,8 +2135,8 @@ struct reader {
         return nullptr;
     }
 
-    auto search_dir_in_reg(registred_path& reg, std::string_view name) noexcept
-      -> dir_path*
+    auto search_dir_in_reg(registred_path&  reg,
+                           std::string_view name) noexcept -> dir_path*
     {
         for (auto dir_id : reg.children) {
             if (auto* dir = mod().dir_paths.try_to_get(dir_id); dir) {
@@ -2124,7 +2189,7 @@ struct reader {
         report_json_error(error_id::file_not_found);
     }
 
-    auto search_dir(std::string_view name) noexcept -> dir_path*
+    auto search_dir(std::string_view name) const noexcept -> dir_path*
     {
         for (auto reg_id : mod().component_repertories) {
             if (auto* reg = mod().registred_paths.try_to_get(reg_id); reg) {
@@ -2140,8 +2205,8 @@ struct reader {
         return nullptr;
     }
 
-    auto search_file(dir_path& dir, std::string_view name) noexcept
-      -> file_path*
+    auto search_file(dir_path&        dir,
+                     std::string_view name) noexcept -> file_path*
     {
         for (auto file_id : dir.children)
             if (auto* file = mod().file_paths.try_to_get(file_id); file)
@@ -2151,7 +2216,7 @@ struct reader {
         return nullptr;
     }
 
-    auto search_component(std::string_view name) noexcept -> component*
+    auto search_component(std::string_view name) const noexcept -> component*
     {
         component* c = nullptr;
         while (mod().components.next(c)) {
@@ -2321,7 +2386,7 @@ struct reader {
 
     bool cache_model_mapping_sort() noexcept
     {
-        cache().model_mapping.sort();
+        self.model_mapping.sort();
 
         return true;
     }
@@ -2396,9 +2461,9 @@ struct reader {
     }
 
     bool cache_constant_mapping_add(u64                id_in_file,
-                                    constant_source_id id) noexcept
+                                    constant_source_id id) const noexcept
     {
-        cache().constant_mapping.data.emplace_back(id_in_file, ordinal(id));
+        self.constant_mapping.data.emplace_back(id_in_file, ordinal(id));
 
         return true;
     }
@@ -2441,7 +2506,7 @@ struct reader {
     bool cache_text_file_mapping_add(u64                 id_in_file,
                                      text_file_source_id id) noexcept
     {
-        cache().text_file_mapping.data.emplace_back(id_in_file, ordinal(id));
+        self.text_file_mapping.data.emplace_back(id_in_file, ordinal(id));
 
         return true;
     }
@@ -2485,9 +2550,9 @@ struct reader {
     }
 
     bool cache_binary_file_mapping_add(u64                   id_in_file,
-                                       binary_file_source_id id) noexcept
+                                       binary_file_source_id id) const noexcept
     {
-        cache().binary_file_mapping.data.emplace_back(id_in_file, ordinal(id));
+        self.binary_file_mapping.data.emplace_back(id_in_file, ordinal(id));
 
         return true;
     }
@@ -2700,7 +2765,7 @@ struct reader {
 
     bool cache_random_mapping_add(u64 id_in_file, random_source_id id) noexcept
     {
-        cache().random_mapping.data.emplace_back(id_in_file, ordinal(id));
+        self.random_mapping.data.emplace_back(id_in_file, ordinal(id));
 
         return true;
     }
@@ -2803,7 +2868,7 @@ struct reader {
 
     bool cache_model_mapping_to(child_id& dst) noexcept
     {
-        if (auto* elem = cache().model_mapping.get(temp_u64); elem) {
+        if (auto* elem = self.model_mapping.get(temp_u64); elem) {
             dst = enum_cast<child_id>(*elem);
             return true;
         }
@@ -2813,7 +2878,7 @@ struct reader {
 
     bool cache_model_mapping_to(std::optional<child_id>& dst) noexcept
     {
-        if (auto* elem = cache().model_mapping.get(temp_u64); elem) {
+        if (auto* elem = self.model_mapping.get(temp_u64); elem) {
             dst = enum_cast<child_id>(*elem);
             return true;
         }
@@ -3499,27 +3564,28 @@ struct reader {
           });
     }
 
-    bool cache_model_mapping_add(u64 id_in_file, u64 id) noexcept
+    bool cache_model_mapping_add(u64 id_in_file, u64 id) const noexcept
     {
-        cache().model_mapping.data.emplace_back(id_in_file, id);
+        self.model_mapping.data.emplace_back(id_in_file, id);
         return true;
     }
 
     bool sim_hsms_mapping_clear() noexcept
     {
-        cache().sim_hsms_mapping.data.clear();
+        self.sim_hsms_mapping.data.clear();
         return true;
     }
 
-    bool sim_hsms_mapping_add(const u64 id_in_file, const hsm_id id) noexcept
+    bool sim_hsms_mapping_add(const u64    id_in_file,
+                              const hsm_id id) const noexcept
     {
-        cache().sim_hsms_mapping.data.emplace_back(id_in_file, id);
+        self.sim_hsms_mapping.data.emplace_back(id_in_file, id);
         return true;
     }
 
     bool sim_hsms_mapping_get(const u64 id_in_file, hsm_id& id) noexcept
     {
-        if (auto* ptr = cache().sim_hsms_mapping.get(id_in_file); ptr) {
+        if (auto* ptr = self.sim_hsms_mapping.get(id_in_file); ptr) {
             id = *ptr;
             return true;
         }
@@ -3529,7 +3595,7 @@ struct reader {
 
     bool sim_hsms_mapping_sort() noexcept
     {
-        cache().sim_hsms_mapping.sort();
+        self.sim_hsms_mapping.sort();
         return true;
     }
 
@@ -3638,11 +3704,11 @@ struct reader {
     {
         auto_stack s(this, stack_id::simulation_connect);
 
-        auto* mdl_src_id = cache().model_mapping.get(src);
+        auto* mdl_src_id = self.model_mapping.get(src);
         if (!mdl_src_id)
             report_json_error(error_id::simulation_connect_src_unknown);
 
-        auto* mdl_dst_id = cache().model_mapping.get(dst);
+        auto* mdl_dst_id = self.model_mapping.get(dst);
         if (!mdl_dst_id)
             report_json_error(error_id::simulation_connect_dst_unknown);
 
@@ -4180,9 +4246,6 @@ struct reader {
 
     void clear() noexcept
     {
-        if (m_cache)
-            m_cache->clear();
-
         temp_integer = 0;
         temp_u64     = 0;
         temp_double  = 0.0;
@@ -4192,10 +4255,9 @@ struct reader {
         error = error_id::none;
     }
 
-    cache_rw*   m_cache = nullptr;
-    modeling*   m_mod   = nullptr;
-    simulation* m_sim   = nullptr;
-    project*    m_pj    = nullptr;
+    modeling*   m_mod = nullptr;
+    simulation* m_sim = nullptr;
+    project*    m_pj  = nullptr;
 
     vector<component_id> dependencies;
 
@@ -4215,45 +4277,6 @@ struct reader {
     small_vector<stack_id, 16> stack;
 
     error_id error = error_id::none;
-
-    reader(cache_rw& cache_, modeling& mod_) noexcept
-      : m_cache(&cache_)
-      , m_mod(&mod_)
-    {}
-
-    reader(cache_rw& cache_, simulation& mod_) noexcept
-      : m_cache(&cache_)
-      , m_sim(&mod_)
-    {}
-
-    reader(cache_rw&   cache_,
-           modeling&   mod_,
-           simulation& sim_,
-           project&    pj_) noexcept
-      : m_cache(&cache_)
-      , m_mod(&mod_)
-      , m_sim(&sim_)
-      , m_pj(&pj_)
-    {}
-
-    struct auto_stack {
-        auto_stack(reader* r_, const stack_id id) noexcept
-          : r(r_)
-        {
-            debug::ensure(r->stack.can_alloc(1));
-            r->stack.emplace_back(id);
-        }
-
-        ~auto_stack() noexcept
-        {
-            if (!r->have_error()) {
-                debug::ensure(!r->stack.empty());
-                r->stack.pop_back();
-            }
-        }
-
-        reader* r = nullptr;
-    };
 
     bool have_error() const noexcept { return error != error_id::none; }
 
@@ -4292,819 +4315,1996 @@ struct reader {
         return *m_pj;
     }
 
-    cache_rw& cache() const noexcept
-    {
-        debug::ensure(m_cache);
-        return *m_cache;
-    }
-
     bool return_true() const noexcept { return true; }
     bool return_false() const noexcept { return false; }
-    bool can_warning() const noexcept { return !!cache().warning_cb; }
 
-    bool warning(const std::string_view str, const log_level level) noexcept
+    bool warning(const std::string_view str,
+                 const log_level        level) const noexcept
     {
-        if (can_warning())
-            cache().warning_cb(str, ordinal(level));
+        std::clog << log_level_names[ordinal(level)] << ' ' << str << '\n';
+
+        return true;
+    }
+
+    bool parse_simulation(const rapidjson::Document& doc) noexcept
+    {
+        sim().clear();
+
+        if (read_simulation(doc.GetObject()))
+            return true;
+
+        debug_logi(
+          2, "read simulation fail with {}\n", error_id_names[ordinal(error)]);
+
+        for (auto i = 0u; i < stack.size(); ++i)
+            debug_logi(2,
+                       "  {}: {}\n",
+                       static_cast<int>(i),
+                       stack_id_names[ordinal(stack[i])]);
+
+        return report_error(cb, json_dearchiver::error_code::format_error);
+    }
+
+    bool parse_component(const rapidjson::Document& doc,
+                         component&                 compo) noexcept
+    {
+        dependencies.emplace_back(mod().components.get_id(compo));
+
+        while (not dependencies.empty()) {
+            clear();
+
+            const auto id = dependencies.back();
+            auto*      c  = mod().components.try_to_get(id);
+            dependencies.pop_back();
+
+            debug::ensure(c);
+            if (c->state == component_status::unmodified)
+                continue;
+
+            const auto old_size = dependencies.size();
+            if (read_component(doc.GetObject(), *c)) {
+                c->state = component_status::unmodified;
+            } else {
+                c->state = component_status::unread;
+                mod().clear(*c);
+
+                if (old_size != dependencies.size()) {
+                    const auto new_id = dependencies.back();
+                    dependencies.pop_back();
+                    dependencies.emplace_back(id);
+                    dependencies.emplace_back(new_id);
+                }
+
+#ifdef IRRITATOR_ENABLE_DEBUG
+                show_error();
+#endif
+
+                if (not dependencies.empty()) {
+                    compo.state = component_status::unreadable;
+                    return report_error(
+                      cb, json_dearchiver::error_code::dependency_error);
+                }
+            }
+        }
+
+        return true;
+    }
+
+    bool parse_project(const rapidjson::Document& doc) noexcept
+    {
+        pj().clear();
+        sim().clear();
+
+        if (read_project(doc.GetObject()))
+            return true;
+
+        debug_log("read project fail with {}\n",
+                  error_id_names[ordinal(error)]);
+
+        for (auto i = 0u; i < stack.size(); ++i)
+            debug_logi(2,
+                       "  {}: {}\n",
+                       static_cast<int>(i),
+                       stack_id_names[ordinal(stack[i])]);
+
+        return report_error(cb, json_dearchiver::error_code::format_error);
+    }
+};
+
+static bool read_file_to_buffer(vector<char>&             buffer,
+                                file&                     f,
+                                json_dearchiver::error_cb cb) noexcept
+{
+    debug::ensure(f.is_open());
+    debug::ensure(f.get_mode() == open_mode::read);
+
+    if (not f.is_open() or f.get_mode() != open_mode::read)
+        return report_error(cb, json_dearchiver::error_code::arg_error);
+
+    const auto len = f.length();
+    if (std::cmp_less(len, 2))
+        return report_error(
+          cb, json_dearchiver::error_code::file_error, static_cast<sz>(len));
+
+    buffer.resize(len);
+
+    if (std::cmp_less(buffer.size(), len))
+        return report_error(
+          cb, json_dearchiver::error_code::memory_error, static_cast<sz>(len));
+
+    if (not f.read(buffer.data(), len))
+        return report_error(
+          cb, json_dearchiver::error_code::read_error, static_cast<int>(errno));
+
+    return true;
+}
+
+static bool parse_json_data(std::span<char>           buffer,
+                            rapidjson::Document&      doc,
+                            json_dearchiver::error_cb cb) noexcept
+{
+    doc.Parse(buffer.data(), buffer.size());
+
+    if (doc.HasParseError())
+        return report_error(
+          cb,
+          json_dearchiver::error_code::format_error,
+          std::make_pair(doc.GetErrorOffset(),
+                         GetParseError_En(doc.GetParseError())));
+
+    return true;
+}
+
+//
+//
+
+struct json_archiver::impl {
+    json_archiver&          self;
+    json_archiver::error_cb cb;
+
+    impl(json_archiver& self_, json_archiver::error_cb cb_) noexcept
+      : self{ self_ }
+      , cb{ cb_ }
+    {}
+
+    template<typename Writer, int QssLevel>
+    void write(Writer&                              writer,
+               const abstract_integrator<QssLevel>& dyn) noexcept
+    {
+        writer.StartObject();
+        writer.Key("X");
+        writer.Double(dyn.default_X);
+        writer.Key("dQ");
+        writer.Double(dyn.default_dQ);
+        writer.EndObject();
+    }
+
+    template<typename Writer, int QssLevel>
+    void write(Writer& writer,
+               const abstract_multiplier<QssLevel>& /*dyn*/) noexcept
+    {
+        writer.StartObject();
+        writer.EndObject();
+    }
+
+    template<typename Writer>
+    void write(Writer& writer, const qss1_sum_2& dyn) noexcept
+    {
+        writer.StartObject();
+
+        writer.Key("value-0");
+        writer.Double(dyn.default_values[0]);
+        writer.Key("value-1");
+        writer.Double(dyn.default_values[1]);
+
+        writer.EndObject();
+    }
+
+    template<typename Writer>
+    void write(Writer& writer, const qss1_sum_3& dyn) noexcept
+    {
+        writer.StartObject();
+
+        writer.Key("value-0");
+        writer.Double(dyn.default_values[0]);
+        writer.Key("value-1");
+        writer.Double(dyn.default_values[1]);
+        writer.Key("value-2");
+        writer.Double(dyn.default_values[2]);
+
+        writer.EndObject();
+    }
+
+    template<typename Writer>
+    void write(Writer& writer, const qss1_sum_4& dyn) noexcept
+    {
+        writer.StartObject();
+
+        writer.Key("value-0");
+        writer.Double(dyn.default_values[0]);
+        writer.Key("value-1");
+        writer.Double(dyn.default_values[1]);
+        writer.Key("value-2");
+        writer.Double(dyn.default_values[2]);
+        writer.Key("value-3");
+        writer.Double(dyn.default_values[3]);
+
+        writer.EndObject();
+    }
+
+    template<typename Writer>
+    void write(Writer& writer, const qss1_wsum_2& dyn) noexcept
+    {
+        writer.StartObject();
+
+        writer.Key("value-0");
+        writer.Double(dyn.default_values[0]);
+        writer.Key("value-1");
+        writer.Double(dyn.default_values[1]);
+
+        writer.Key("coeff-0");
+        writer.Double(dyn.default_input_coeffs[0]);
+        writer.Key("coeff-1");
+        writer.Double(dyn.default_input_coeffs[1]);
+
+        writer.EndObject();
+    }
+
+    template<typename Writer>
+    void write(Writer& writer, const qss1_wsum_3& dyn) noexcept
+    {
+        writer.StartObject();
+
+        writer.Key("value-0");
+        writer.Double(dyn.default_values[0]);
+        writer.Key("value-1");
+        writer.Double(dyn.default_values[1]);
+        writer.Key("value-2");
+        writer.Double(dyn.default_values[2]);
+
+        writer.Key("coeff-0");
+        writer.Double(dyn.default_input_coeffs[0]);
+        writer.Key("coeff-1");
+        writer.Double(dyn.default_input_coeffs[1]);
+        writer.Key("coeff-2");
+        writer.Double(dyn.default_input_coeffs[2]);
+
+        writer.EndObject();
+    }
+
+    template<typename Writer>
+    void write(Writer& writer, const qss1_wsum_4& dyn) noexcept
+    {
+        writer.StartObject();
+
+        writer.Key("value-0");
+        writer.Double(dyn.default_values[0]);
+        writer.Key("value-1");
+        writer.Double(dyn.default_values[1]);
+        writer.Key("value-2");
+        writer.Double(dyn.default_values[2]);
+        writer.Key("value-3");
+        writer.Double(dyn.default_values[3]);
+
+        writer.Key("coeff-0");
+        writer.Double(dyn.default_input_coeffs[0]);
+        writer.Key("coeff-1");
+        writer.Double(dyn.default_input_coeffs[1]);
+        writer.Key("coeff-2");
+        writer.Double(dyn.default_input_coeffs[2]);
+        writer.Key("coeff-3");
+        writer.Double(dyn.default_input_coeffs[3]);
+
+        writer.EndObject();
+    }
+
+    template<typename Writer>
+    void write(Writer& writer, const qss2_sum_2& dyn) noexcept
+    {
+        writer.StartObject();
+
+        writer.Key("value-0");
+        writer.Double(dyn.default_values[0]);
+        writer.Key("value-1");
+        writer.Double(dyn.default_values[1]);
+
+        writer.EndObject();
+    }
+
+    template<typename Writer>
+    void write(Writer& writer, const qss2_sum_3& dyn) noexcept
+    {
+        writer.StartObject();
+
+        writer.Key("value-0");
+        writer.Double(dyn.default_values[0]);
+        writer.Key("value-1");
+        writer.Double(dyn.default_values[1]);
+        writer.Key("value-2");
+        writer.Double(dyn.default_values[2]);
+
+        writer.EndObject();
+    }
+
+    template<typename Writer>
+    void write(Writer& writer, const qss2_sum_4& dyn) noexcept
+    {
+        writer.StartObject();
+
+        writer.Key("value-0");
+        writer.Double(dyn.default_values[0]);
+        writer.Key("value-1");
+        writer.Double(dyn.default_values[1]);
+        writer.Key("value-2");
+        writer.Double(dyn.default_values[2]);
+        writer.Key("value-3");
+        writer.Double(dyn.default_values[3]);
+
+        writer.EndObject();
+    }
+
+    template<typename Writer>
+    void write(Writer& writer, const qss2_wsum_2& dyn) noexcept
+    {
+        writer.StartObject();
+
+        writer.Key("value-0");
+        writer.Double(dyn.default_values[0]);
+        writer.Key("value-1");
+        writer.Double(dyn.default_values[1]);
+
+        writer.Key("coeff-0");
+        writer.Double(dyn.default_input_coeffs[0]);
+        writer.Key("coeff-1");
+        writer.Double(dyn.default_input_coeffs[1]);
+
+        writer.EndObject();
+    }
+
+    template<typename Writer>
+    void write(Writer& writer, const qss2_wsum_3& dyn) noexcept
+    {
+        writer.StartObject();
+
+        writer.Key("value-0");
+        writer.Double(dyn.default_values[0]);
+        writer.Key("value-1");
+        writer.Double(dyn.default_values[1]);
+        writer.Key("value-2");
+        writer.Double(dyn.default_values[2]);
+
+        writer.Key("coeff-0");
+        writer.Double(dyn.default_input_coeffs[0]);
+        writer.Key("coeff-1");
+        writer.Double(dyn.default_input_coeffs[1]);
+        writer.Key("coeff-2");
+        writer.Double(dyn.default_input_coeffs[2]);
+
+        writer.EndObject();
+    }
+
+    template<typename Writer>
+    void write(Writer& writer, const qss2_wsum_4& dyn) noexcept
+    {
+        writer.StartObject();
+
+        writer.Key("value-0");
+        writer.Double(dyn.default_values[0]);
+        writer.Key("value-1");
+        writer.Double(dyn.default_values[1]);
+        writer.Key("value-2");
+        writer.Double(dyn.default_values[2]);
+        writer.Key("value-3");
+        writer.Double(dyn.default_values[3]);
+
+        writer.Key("coeff-0");
+        writer.Double(dyn.default_input_coeffs[0]);
+        writer.Key("coeff-1");
+        writer.Double(dyn.default_input_coeffs[1]);
+        writer.Key("coeff-2");
+        writer.Double(dyn.default_input_coeffs[2]);
+        writer.Key("coeff-3");
+        writer.Double(dyn.default_input_coeffs[3]);
+
+        writer.EndObject();
+    }
+
+    template<typename Writer>
+    void write(Writer& writer, const qss3_sum_2& dyn) noexcept
+    {
+        writer.StartObject();
+
+        writer.Key("value-0");
+        writer.Double(dyn.default_values[0]);
+        writer.Key("value-1");
+        writer.Double(dyn.default_values[1]);
+
+        writer.EndObject();
+    }
+
+    template<typename Writer>
+    void write(Writer& writer, const qss3_sum_3& dyn) noexcept
+    {
+        writer.StartObject();
+
+        writer.Key("value-0");
+        writer.Double(dyn.default_values[0]);
+        writer.Key("value-1");
+        writer.Double(dyn.default_values[1]);
+        writer.Key("value-2");
+        writer.Double(dyn.default_values[2]);
+
+        writer.EndObject();
+    }
+
+    template<typename Writer>
+    void write(Writer& writer, const qss3_sum_4& dyn) noexcept
+    {
+        writer.StartObject();
+
+        writer.Key("value-0");
+        writer.Double(dyn.default_values[0]);
+        writer.Key("value-1");
+        writer.Double(dyn.default_values[1]);
+        writer.Key("value-2");
+        writer.Double(dyn.default_values[2]);
+        writer.Key("value-3");
+        writer.Double(dyn.default_values[3]);
+
+        writer.EndObject();
+    }
+
+    template<typename Writer>
+    void write(Writer& writer, const qss3_wsum_2& dyn) noexcept
+    {
+        writer.StartObject();
+
+        writer.Key("value-0");
+        writer.Double(dyn.default_values[0]);
+        writer.Key("value-1");
+        writer.Double(dyn.default_values[1]);
+
+        writer.Key("coeff-0");
+        writer.Double(dyn.default_input_coeffs[0]);
+        writer.Key("coeff-1");
+        writer.Double(dyn.default_input_coeffs[1]);
+
+        writer.EndObject();
+    }
+
+    template<typename Writer>
+    void write(Writer& writer, const qss3_wsum_3& dyn) noexcept
+    {
+        writer.StartObject();
+
+        writer.Key("value-0");
+        writer.Double(dyn.default_values[0]);
+        writer.Key("value-1");
+        writer.Double(dyn.default_values[1]);
+        writer.Key("value-2");
+        writer.Double(dyn.default_values[2]);
+
+        writer.Key("coeff-0");
+        writer.Double(dyn.default_input_coeffs[0]);
+        writer.Key("coeff-1");
+        writer.Double(dyn.default_input_coeffs[1]);
+        writer.Key("coeff-2");
+        writer.Double(dyn.default_input_coeffs[2]);
+
+        writer.EndObject();
+    }
+
+    template<typename Writer>
+    void write(Writer& writer, const qss3_wsum_4& dyn) noexcept
+    {
+        writer.StartObject();
+
+        writer.Key("value-0");
+        writer.Double(dyn.default_values[0]);
+        writer.Key("value-1");
+        writer.Double(dyn.default_values[1]);
+        writer.Key("value-2");
+        writer.Double(dyn.default_values[2]);
+        writer.Key("value-3");
+        writer.Double(dyn.default_values[3]);
+
+        writer.Key("coeff-0");
+        writer.Double(dyn.default_input_coeffs[0]);
+        writer.Key("coeff-1");
+        writer.Double(dyn.default_input_coeffs[1]);
+        writer.Key("coeff-2");
+        writer.Double(dyn.default_input_coeffs[2]);
+        writer.Key("coeff-3");
+        writer.Double(dyn.default_input_coeffs[3]);
+
+        writer.EndObject();
+    }
+
+    template<typename Writer>
+    void write(Writer& writer, const counter& /*dyn*/) noexcept
+    {
+        writer.StartObject();
+        writer.EndObject();
+    }
+
+    template<typename Writer>
+    void write(Writer& writer, const queue& dyn) noexcept
+    {
+        writer.StartObject();
+        writer.Key("ta");
+        writer.Double(dyn.default_ta);
+        writer.EndObject();
+    }
+
+    template<typename Writer>
+    void write(Writer& writer, const dynamic_queue& dyn) noexcept
+    {
+        writer.StartObject();
+        writer.Key("source-ta-type");
+        writer.Int(ordinal(dyn.default_source_ta.type));
+        writer.Key("source-ta-id");
+        writer.Uint64(dyn.default_source_ta.id);
+        writer.Key("stop-on-error");
+        writer.Bool(dyn.stop_on_error);
+        writer.EndObject();
+    }
+
+    template<typename Writer>
+    void write(Writer& writer, const priority_queue& dyn) noexcept
+    {
+        writer.StartObject();
+        writer.Key("ta");
+        writer.Double(dyn.default_ta);
+        writer.Key("source-ta-type");
+        writer.Int(ordinal(dyn.default_source_ta.type));
+        writer.Key("source-ta-id");
+        writer.Uint64(dyn.default_source_ta.id);
+        writer.Key("stop-on-error");
+        writer.Bool(dyn.stop_on_error);
+        writer.EndObject();
+    }
+
+    template<typename Writer>
+    void write(Writer& writer, const generator& dyn) noexcept
+    {
+        writer.StartObject();
+
+        writer.Key("stop-on-error");
+        writer.Bool(dyn.flags[generator::option::stop_on_error]);
+
+        if (dyn.flags[generator::option::ta_use_source]) {
+            writer.Key("offset");
+            writer.Double(dyn.default_offset);
+            writer.Key("source-ta-type");
+            writer.Int(ordinal(dyn.default_source_ta.type));
+            writer.Key("source-ta-id");
+            writer.Uint64(dyn.default_source_ta.id);
+        }
+
+        if (dyn.flags[generator::option::value_use_source]) {
+            writer.Key("source-value-type");
+            writer.Int(ordinal(dyn.default_source_value.type));
+            writer.Key("source-value-id");
+            writer.Uint64(dyn.default_source_value.id);
+        }
+
+        writer.EndObject();
+    }
+
+    template<typename Writer>
+    void write(Writer& writer, const constant& dyn) noexcept
+    {
+        writer.StartObject();
+        writer.Key("value");
+        writer.Double(dyn.default_value);
+        writer.Key("offset");
+        writer.Double(dyn.default_offset);
+        writer.Key("type");
+
+        switch (dyn.type) {
+        case constant::init_type::constant:
+            writer.String("constant");
+            break;
+        case constant::init_type::incoming_component_all:
+            writer.String("incoming_component_all");
+            break;
+        case constant::init_type::outcoming_component_all:
+            writer.String("outcoming_component_all");
+            break;
+        case constant::init_type::incoming_component_n:
+            writer.String("incoming_component_n");
+            writer.Key("port");
+            writer.Uint64(dyn.port);
+            break;
+        case constant::init_type::outcoming_component_n:
+            writer.String("outcoming_component_n");
+            writer.Key("port");
+            writer.Uint64(dyn.port);
+            break;
+        }
+        writer.EndObject();
+    }
+
+    template<typename Writer>
+    void write(Writer& writer, const qss1_cross& dyn) noexcept
+    {
+        writer.StartObject();
+        writer.Key("threshold");
+        writer.Double(dyn.default_threshold);
+        writer.Key("detect-up");
+        writer.Bool(dyn.default_detect_up);
+        writer.EndObject();
+    }
+
+    template<typename Writer>
+    void write(Writer& writer, const qss2_cross& dyn) noexcept
+    {
+        writer.StartObject();
+        writer.Key("threshold");
+        writer.Double(dyn.default_threshold);
+        writer.Key("detect-up");
+        writer.Bool(dyn.default_detect_up);
+        writer.EndObject();
+    }
+
+    template<typename Writer>
+    void write(Writer& writer, const qss3_cross& dyn) noexcept
+    {
+        writer.StartObject();
+        writer.Key("threshold");
+        writer.Double(dyn.default_threshold);
+        writer.Key("detect-up");
+        writer.Bool(dyn.default_detect_up);
+        writer.EndObject();
+    }
+
+    template<typename Writer>
+    void write(Writer& writer, const qss1_filter& dyn) noexcept
+    {
+        writer.StartObject();
+        writer.Key("lower-threshold");
+        writer.Double(std::isinf(dyn.default_lower_threshold)
+                        ? std::numeric_limits<double>::max()
+                        : dyn.default_lower_threshold);
+        writer.Key("upper-threshold");
+        writer.Double(std::isinf(dyn.default_upper_threshold)
+                        ? std::numeric_limits<double>::max()
+                        : dyn.default_upper_threshold);
+        writer.EndObject();
+    }
+
+    template<typename Writer>
+    void write(Writer& writer, const qss2_filter& dyn) noexcept
+    {
+        writer.StartObject();
+        writer.Key("lower-threshold");
+        writer.Double(std::isinf(dyn.default_lower_threshold)
+                        ? std::numeric_limits<double>::max()
+                        : dyn.default_lower_threshold);
+        writer.Key("upper-threshold");
+        writer.Double(std::isinf(dyn.default_upper_threshold)
+                        ? std::numeric_limits<double>::max()
+                        : dyn.default_upper_threshold);
+        writer.EndObject();
+    }
+
+    template<typename Writer>
+    void write(Writer& writer, const qss3_filter& dyn) noexcept
+    {
+        writer.StartObject();
+        writer.Key("lower-threshold");
+        writer.Double(std::isinf(dyn.default_lower_threshold)
+                        ? std::numeric_limits<double>::max()
+                        : dyn.default_lower_threshold);
+        writer.Key("upper-threshold");
+        writer.Double(std::isinf(dyn.default_upper_threshold)
+                        ? std::numeric_limits<double>::max()
+                        : dyn.default_upper_threshold);
+        writer.EndObject();
+    }
+
+    template<typename Writer>
+    void write(Writer& writer, const qss1_power& dyn) noexcept
+    {
+        writer.StartObject();
+        writer.Key("n");
+        writer.Double(dyn.default_n);
+        writer.EndObject();
+    }
+
+    template<typename Writer>
+    void write(Writer& writer, const qss2_power& dyn) noexcept
+    {
+        writer.StartObject();
+        writer.Key("n");
+        writer.Double(dyn.default_n);
+        writer.EndObject();
+    }
+
+    template<typename Writer>
+    void write(Writer& writer, const qss3_power& dyn) noexcept
+    {
+        writer.StartObject();
+        writer.Key("n");
+        writer.Double(dyn.default_n);
+        writer.EndObject();
+    }
+
+    template<typename Writer, int QssLevel>
+    void write(Writer& writer,
+               const abstract_square<QssLevel>& /*dyn*/) noexcept
+    {
+        writer.StartObject();
+        writer.EndObject();
+    }
+
+    template<typename Writer, int PortNumber>
+    void write(Writer& writer, const accumulator<PortNumber>& /*dyn*/) noexcept
+    {
+        writer.StartObject();
+        writer.EndObject();
+    }
+
+    template<typename Writer>
+    void write(Writer& writer, const time_func& dyn) noexcept
+    {
+        writer.StartObject();
+        writer.Key("function");
+        writer.String(dyn.default_f == &time_function          ? "time"
+                      : dyn.default_f == &square_time_function ? "square"
+                                                               : "sin");
+        writer.EndObject();
+    }
+
+    template<typename Writer>
+    void write(Writer& writer, const logical_and_2& dyn) noexcept
+    {
+        writer.StartObject();
+        writer.Key("value-0");
+        writer.Bool(dyn.default_values[0]);
+        writer.Key("value-1");
+        writer.Bool(dyn.default_values[1]);
+        writer.EndObject();
+    }
+
+    template<typename Writer>
+    void write(Writer& writer, const logical_and_3& dyn) noexcept
+    {
+        writer.StartObject();
+        writer.Key("value-0");
+        writer.Bool(dyn.default_values[0]);
+        writer.Key("value-1");
+        writer.Bool(dyn.default_values[1]);
+        writer.Key("value-2");
+        writer.Bool(dyn.default_values[2]);
+        writer.EndObject();
+    }
+
+    template<typename Writer>
+    void write(Writer& writer, const logical_or_2& dyn) noexcept
+    {
+        writer.StartObject();
+        writer.Key("value-0");
+        writer.Bool(dyn.default_values[0]);
+        writer.Key("value-1");
+        writer.Bool(dyn.default_values[1]);
+        writer.EndObject();
+    }
+
+    template<typename Writer>
+    void write(Writer& writer, const logical_or_3& dyn) noexcept
+    {
+        writer.StartObject();
+        writer.Key("value-0");
+        writer.Bool(dyn.default_values[0]);
+        writer.Key("value-1");
+        writer.Bool(dyn.default_values[1]);
+        writer.Key("value-2");
+        writer.Bool(dyn.default_values[2]);
+        writer.EndObject();
+    }
+
+    template<typename Writer>
+    void write(Writer& writer, const logical_invert& /*dyn*/) noexcept
+    {
+        writer.StartObject();
+        writer.EndObject();
+    }
+
+    template<typename Writer>
+    void write(Writer& writer, const hsm_wrapper& dyn) noexcept
+    {
+        writer.StartObject();
+        writer.Key("hsm");
+        writer.Uint64(get_index(dyn.id));
+        writer.Key("i1");
+        writer.Int(dyn.exec.i1);
+        writer.Key("i2");
+        writer.Int(dyn.exec.i2);
+        writer.Key("r1");
+        writer.Double(dyn.exec.r1);
+        writer.Key("r2");
+        writer.Double(dyn.exec.r2);
+        writer.EndObject();
+    }
+
+    template<typename Writer>
+    void write(const modeling&    mod,
+               Writer&            writer,
+               const hsm_wrapper& dyn) noexcept
+    {
+        if_data_exists_do(mod.components,
+                          enum_cast<component_id>(dyn.compo_id),
+                          [&](auto& compo) {
+                              writer.StartObject();
+                              writer.Key("hsm");
+                              writer.StartObject();
+                              write_child_component_path(mod, compo, writer);
+                              writer.EndObject();
+                              writer.Key("i1");
+                              writer.Int(dyn.exec.i1);
+                              writer.Key("i2");
+                              writer.Int(dyn.exec.i2);
+                              writer.Key("r1");
+                              writer.Double(dyn.exec.r1);
+                              writer.Key("r2");
+                              writer.Double(dyn.exec.r2);
+                              writer.EndObject();
+                          });
+    }
+
+    template<typename Writer>
+    void write(Writer&                                         writer,
+               std::string_view                                name,
+               const hierarchical_state_machine::state_action& state) noexcept
+    {
+        writer.Key(name.data(), static_cast<rapidjson::SizeType>(name.size()));
+        writer.StartObject();
+        writer.Key("var-1");
+        writer.Int(static_cast<int>(state.var1));
+        writer.Key("var-2");
+        writer.Int(static_cast<int>(state.var2));
+        writer.Key("type");
+        writer.Int(static_cast<int>(state.type));
+
+        if (state.var2 == hierarchical_state_machine::variable::constant_i) {
+            writer.Key("constant-i");
+            writer.Int(state.constant.i);
+        } else if (state.var2 ==
+                   hierarchical_state_machine::variable::constant_r) {
+            writer.Key("constant-r");
+            writer.Double(state.constant.f);
+        }
+
+        writer.EndObject();
+    }
+
+    template<typename Writer>
+    void write(
+      Writer&                                             writer,
+      std::string_view                                    name,
+      const hierarchical_state_machine::condition_action& state) noexcept
+    {
+        writer.Key(name.data(), static_cast<rapidjson::SizeType>(name.size()));
+        writer.StartObject();
+        writer.Key("var-1");
+        writer.Int(static_cast<int>(state.var1));
+        writer.Key("var-2");
+        writer.Int(static_cast<int>(state.var2));
+        writer.Key("type");
+        writer.Int(static_cast<int>(state.type));
+
+        if (state.type == hierarchical_state_machine::condition_type::port) {
+            u8 port{}, mask{};
+            state.get(port, mask);
+
+            writer.Key("port");
+            writer.Int(static_cast<int>(port));
+            writer.Key("mask");
+            writer.Int(static_cast<int>(mask));
+        }
+
+        if (state.var2 == hierarchical_state_machine::variable::constant_i) {
+            writer.Key("constant-i");
+            writer.Int(state.constant.i);
+        } else if (state.var2 ==
+                   hierarchical_state_machine::variable::constant_r) {
+            writer.Key("constant-r");
+            writer.Double(state.constant.f);
+        }
+
+        writer.EndObject();
+    }
+
+    template<typename Writer>
+    void write_constant_sources(const external_source& srcs, Writer& w) noexcept
+    {
+        w.Key("constant-sources");
+        w.StartArray();
+
+        const constant_source* src = nullptr;
+        while (srcs.constant_sources.next(src)) {
+            w.StartObject();
+            w.Key("id");
+            w.Uint64(ordinal(srcs.constant_sources.get_id(*src)));
+            w.Key("parameters");
+
+            w.StartArray();
+            for (const auto elem : src->buffer)
+                w.Double(elem);
+            w.EndArray();
+
+            w.EndObject();
+        }
+
+        w.EndArray();
+    }
+
+    template<typename Writer>
+    void write_binary_file_sources(const external_source& srcs,
+                                   Writer&                w) noexcept
+    {
+        w.Key("binary-file-sources");
+        w.StartArray();
+
+        const binary_file_source* src = nullptr;
+        std::string               filepath;
+
+        while (srcs.binary_file_sources.next(src)) {
+            filepath = src->file_path.string();
+
+            w.StartObject();
+            w.Key("id");
+            w.Uint64(ordinal(srcs.binary_file_sources.get_id(*src)));
+            w.Key("max-clients");
+            w.Uint(src->max_clients);
+            w.Key("path");
+            w.String(filepath.data(),
+                     static_cast<rapidjson::SizeType>(filepath.size()));
+            w.EndObject();
+        }
+
+        w.EndArray();
+    }
+
+    template<typename Writer>
+    void write_text_file_sources(const external_source& srcs,
+                                 Writer&                w) noexcept
+    {
+        w.Key("text-file-sources");
+        w.StartArray();
+
+        const text_file_source* src = nullptr;
+        std::string             filepath;
+
+        while (srcs.text_file_sources.next(src)) {
+            filepath = src->file_path.string();
+
+            w.StartObject();
+            w.Key("id");
+            w.Uint64(ordinal(srcs.text_file_sources.get_id(*src)));
+            w.Key("path");
+            w.String(filepath.data(),
+                     static_cast<rapidjson::SizeType>(filepath.size()));
+            w.EndObject();
+        }
+
+        w.EndArray();
+    }
+
+    template<typename Writer>
+    void write_random_sources(const external_source& srcs, Writer& w) noexcept
+    {
+        w.Key("random-sources");
+        w.StartArray();
+
+        const random_source* src = nullptr;
+        while (srcs.random_sources.next(src)) {
+            w.StartObject();
+            w.Key("id");
+            w.Uint64(ordinal(srcs.random_sources.get_id(*src)));
+            w.Key("type");
+            w.String(distribution_str(src->distribution));
+
+            switch (src->distribution) {
+            case distribution_type::uniform_int:
+                w.Key("a");
+                w.Int(src->a32);
+                w.Key("b");
+                w.Int(src->b32);
+                break;
+
+            case distribution_type::uniform_real:
+                w.Key("a");
+                w.Double(src->a);
+                w.Key("b");
+                w.Double(src->b);
+                break;
+
+            case distribution_type::bernouilli:
+                w.Key("p");
+                w.Double(src->p);
+                ;
+                break;
+
+            case distribution_type::binomial:
+                w.Key("t");
+                w.Int(src->t32);
+                w.Key("p");
+                w.Double(src->p);
+                break;
+
+            case distribution_type::negative_binomial:
+                w.Key("t");
+                w.Int(src->t32);
+                w.Key("p");
+                w.Double(src->p);
+                break;
+
+            case distribution_type::geometric:
+                w.Key("p");
+                w.Double(src->p);
+                break;
+
+            case distribution_type::poisson:
+                w.Key("mean");
+                w.Double(src->mean);
+                break;
+
+            case distribution_type::exponential:
+                w.Key("lambda");
+                w.Double(src->lambda);
+                break;
+
+            case distribution_type::gamma:
+                w.Key("alpha");
+                w.Double(src->alpha);
+                w.Key("beta");
+                w.Double(src->beta);
+                break;
+
+            case distribution_type::weibull:
+                w.Key("a");
+                w.Double(src->a);
+                w.Key("b");
+                w.Double(src->b);
+                break;
+
+            case distribution_type::exterme_value:
+                w.Key("a");
+                w.Double(src->a);
+                w.Key("b");
+                w.Double(src->b);
+                break;
+
+            case distribution_type::normal:
+                w.Key("mean");
+                w.Double(src->mean);
+                w.Key("stddev");
+                w.Double(src->stddev);
+                break;
+
+            case distribution_type::lognormal:
+                w.Key("m");
+                w.Double(src->m);
+                w.Key("s");
+                w.Double(src->s);
+                break;
+
+            case distribution_type::chi_squared:
+                w.Key("n");
+                w.Double(src->n);
+                break;
+
+            case distribution_type::cauchy:
+                w.Key("a");
+                w.Double(src->a);
+                w.Key("b");
+                w.Double(src->b);
+                break;
+
+            case distribution_type::fisher_f:
+                w.Key("m");
+                w.Double(src->m);
+                w.Key("n");
+                w.Double(src->n);
+                break;
+
+            case distribution_type::student_t:
+                w.Key("n");
+                w.Double(src->n);
+                break;
+            }
+
+            w.EndObject();
+        }
+
+        w.EndArray();
+    }
+
+    template<typename Writer>
+    void write_child_component_path(Writer&               w,
+                                    const registred_path& reg,
+                                    const dir_path&       dir,
+                                    const file_path&      file) noexcept
+    {
+        w.Key("name");
+        w.String(reg.name.begin(), reg.name.size());
+
+        w.Key("directory");
+        w.String(dir.path.begin(), dir.path.size());
+
+        w.Key("file");
+        w.String(file.path.begin(), file.path.size());
+    }
+
+    template<typename Writer>
+    void write_child_component_path(const modeling&  mod,
+                                    const component& compo,
+                                    Writer&          w) noexcept
+    {
+        auto* reg = mod.registred_paths.try_to_get(compo.reg_path);
+        debug::ensure(reg);
+        debug::ensure(not reg->path.empty());
+        debug::ensure(not reg->name.empty());
+
+        auto* dir = mod.dir_paths.try_to_get(compo.dir);
+        debug::ensure(dir);
+        debug::ensure(not dir->path.empty());
+
+        auto* file = mod.file_paths.try_to_get(compo.file);
+        debug::ensure(file);
+        debug::ensure(not file->path.empty());
+
+        if (reg and dir and file)
+            write_child_component_path(w, *reg, *dir, *file);
+    }
+
+    template<typename Writer>
+    void write_child_component(const modeling&    mod,
+                               const component_id compo_id,
+                               Writer&            w) noexcept
+    {
+        if (auto* compo = mod.components.try_to_get(compo_id); compo) {
+            w.Key("component-type");
+            w.String(component_type_names[ordinal(compo->type)]);
+
+            switch (compo->type) {
+            case component_type::none:
+                break;
+            case component_type::internal:
+                w.Key("parameter");
+                w.String(
+                  internal_component_names[ordinal(compo->id.internal_id)]);
+                break;
+            case component_type::grid:
+                write_child_component_path(mod, *compo, w);
+                break;
+            case component_type::graph:
+                write_child_component_path(mod, *compo, w);
+                break;
+            case component_type::simple:
+                write_child_component_path(mod, *compo, w);
+                break;
+            case component_type::hsm:
+                write_child_component_path(mod, *compo, w);
+                break;
+            }
+        } else {
+            w.Key("component-type");
+            w.String(component_type_names[ordinal(component_type::none)]);
+        }
+    }
+
+    template<typename Writer>
+    void write_child_model(const modeling& mod, model& mdl, Writer& w) noexcept
+    {
+        w.Key("dynamics");
+
+        dispatch(mdl, [&]<typename Dynamics>(Dynamics& dyn) noexcept {
+            if constexpr (std::is_same_v<Dynamics, hsm_wrapper>) {
+                write(mod, w, dyn);
+            } else {
+                write(w, dyn);
+            }
+        });
+    }
+
+    template<typename Writer>
+    void write_child(const modeling&          mod,
+                     const generic_component& gen,
+                     const child&             ch,
+                     const u64                unique_id,
+                     Writer&                  w) noexcept
+    {
+        const auto child_id  = gen.children.get_id(ch);
+        const auto child_idx = get_index(child_id);
+
+        w.StartObject();
+        w.Key("id");
+        w.Uint64(get_index(child_id));
+
+        if (unique_id != 0) {
+            w.Key("unique-id");
+            w.Uint64(unique_id);
+        }
+
+        w.Key("x");
+        w.Double(gen.children_positions[child_idx].x);
+        w.Key("y");
+        w.Double(gen.children_positions[child_idx].y);
+        w.Key("name");
+        w.String(gen.children_names[child_idx].c_str());
+
+        w.Key("configurable");
+        w.Bool(ch.flags[child_flags::configurable]);
+
+        w.Key("observable");
+        w.Bool(ch.flags[child_flags::observable]);
+
+        if (ch.type == child_type::component) {
+            const auto compo_id = ch.id.compo_id;
+            if (auto* compo = mod.components.try_to_get(compo_id); compo) {
+                w.Key("type");
+                w.String("component");
+
+                write_child_component(mod, compo_id, w);
+            }
+        } else {
+            model mdl;
+            mdl.type = ch.id.mdl_type;
+
+            dispatch(mdl, [&]<typename Dynamics>(Dynamics& dyn) -> void {
+                std::construct_at<Dynamics>(&dyn);
+            });
+
+            gen.children_parameters[child_idx].copy_to(mdl);
+
+            w.Key("type");
+            w.String(dynamics_type_names[ordinal(ch.id.mdl_type)]);
+
+            write_child_model(mod, mdl, w);
+        }
+
+        w.EndObject();
+    }
+
+    template<typename Writer>
+    void write_generic_component_children(const modeling&          mod,
+                                          const generic_component& simple_compo,
+                                          Writer&                  w) noexcept
+    {
+        w.Key("children");
+        w.StartArray();
+
+        for_each_data(simple_compo.children, [&](auto& c) noexcept {
+            write_child(mod,
+                        simple_compo,
+                        c,
+                        c.unique_id == 0 ? simple_compo.make_next_unique_id()
+                                         : c.unique_id,
+                        w);
+        });
+
+        w.EndArray();
+    }
+
+    template<typename Writer>
+    void write_component_ports(const component& compo, Writer& w) noexcept
+    {
+        if (not compo.x.empty()) {
+            w.Key("x");
+            w.StartArray();
+
+            compo.x.for_each([&](auto /*id*/, const auto& str) noexcept {
+                w.String(str.c_str());
+            });
+
+            w.EndArray();
+        }
+
+        if (not compo.y.empty()) {
+            w.Key("y");
+            w.StartArray();
+
+            compo.y.for_each([&](auto /*id*/, const auto& str) noexcept {
+                w.String(str.c_str());
+            });
+
+            w.EndArray();
+        }
+    }
+
+    template<typename Writer>
+    void write_input_connection(const modeling&          mod,
+                                const component&         parent,
+                                const generic_component& gen,
+                                const port_id            x,
+                                const child&             dst,
+                                const connection::port   dst_x,
+                                Writer&                  w) noexcept
+    {
+        w.StartObject();
+        w.Key("type");
+        w.String("input");
+        w.Key("port");
+        w.String(parent.x.get<port_str>(x).c_str());
+        w.Key("destination");
+        w.Uint64(get_index(gen.children.get_id(dst)));
+        w.Key("port-destination");
+
+        if (dst.type == child_type::model) {
+            w.Int(dst_x.model);
+        } else {
+            const auto* compo_child =
+              mod.components.try_to_get(dst.id.compo_id);
+            if (compo_child and compo_child->x.exists(dst_x.compo))
+                w.String(compo_child->x.get<port_str>(dst_x.compo).c_str());
+        }
+
+        w.EndObject();
+    }
+
+    template<typename Writer>
+    void write_output_connection(const modeling&          mod,
+                                 const component&         parent,
+                                 const generic_component& gen,
+                                 const port_id            y,
+                                 const child&             src,
+                                 const connection::port   src_y,
+                                 Writer&                  w) noexcept
+    {
+        w.StartObject();
+        w.Key("type");
+        w.String("output");
+        w.Key("port");
+        w.String(parent.y.get<port_str>(y).c_str());
+        w.Key("source");
+        w.Uint64(get_index(gen.children.get_id(src)));
+        w.Key("port-source");
+
+        if (src.type == child_type::model) {
+            w.Int(src_y.model);
+        } else {
+            const auto* compo_child =
+              mod.components.try_to_get(src.id.compo_id);
+            if (compo_child and compo_child->y.exists(src_y.compo)) {
+                w.String(compo_child->y.get<port_str>(src_y.compo).c_str());
+            }
+        }
+        w.EndObject();
+    }
+
+    template<typename Writer>
+    void write_internal_connection(const modeling&          mod,
+                                   const generic_component& gen,
+                                   const child&             src,
+                                   const connection::port   src_y,
+                                   const child&             dst,
+                                   const connection::port   dst_x,
+                                   Writer&                  w) noexcept
+    {
+        const char* src_str = nullptr;
+        const char* dst_str = nullptr;
+        int         src_int = -1;
+        int         dst_int = -1;
+
+        if (src.type == child_type::component) {
+            auto* compo = mod.components.try_to_get(src.id.compo_id);
+            if (compo and compo->y.exists(src_y.compo))
+                src_str = compo->y.get<port_str>(src_y.compo).c_str();
+        } else
+            src_int = src_y.model;
+
+        if (dst.type == child_type::component) {
+            auto* compo = mod.components.try_to_get(dst.id.compo_id);
+            if (compo and compo->x.exists(dst_x.compo))
+                dst_str = compo->x.get<port_str>(dst_x.compo).c_str();
+        } else
+            dst_int = dst_x.model;
+
+        if ((src_str or src_int >= 0) and (dst_str or dst_int >= 0)) {
+            w.StartObject();
+            w.Key("type");
+            w.String("internal");
+            w.Key("source");
+            w.Uint64(get_index(gen.children.get_id(src)));
+            w.Key("port-source");
+            if (src_str)
+                w.String(src_str);
+            else
+                w.Int(src_int);
+
+            w.Key("destination");
+            w.Uint64(get_index(gen.children.get_id(dst)));
+            w.Key("port-destination");
+            if (dst_str)
+                w.String(dst_str);
+            else
+                w.Int(dst_int);
+            w.EndObject();
+        }
+    }
+
+    template<typename Writer>
+    void write_generic_component_connections(const modeling&          mod,
+                                             const component&         compo,
+                                             const generic_component& gen,
+                                             Writer& w) noexcept
+    {
+        w.Key("connections");
+        w.StartArray();
+
+        for (const auto& con : gen.connections)
+            if (auto* c_src = gen.children.try_to_get(con.src); c_src)
+                if (auto* c_dst = gen.children.try_to_get(con.dst); c_dst)
+                    write_internal_connection(mod,
+                                              gen,
+                                              *c_src,
+                                              con.index_src,
+                                              *c_dst,
+                                              con.index_dst,
+                                              w);
+
+        for (const auto& con : gen.input_connections)
+            if (auto* c = gen.children.try_to_get(con.dst); c)
+                if (compo.x.exists(con.x))
+                    write_input_connection(
+                      mod, compo, gen, con.x, *c, con.port, w);
+
+        for (const auto& con : gen.output_connections)
+            if (auto* c = gen.children.try_to_get(con.src); c)
+                if (compo.y.exists(con.y))
+                    write_output_connection(
+                      mod, compo, gen, con.y, *c, con.port, w);
+
+        w.EndArray();
+    }
+
+    template<typename Writer>
+    void write_generic_component(const modeling&          mod,
+                                 const component&         compo,
+                                 const generic_component& s_compo,
+                                 Writer&                  w) noexcept
+    {
+        w.String("next-unique-id");
+        w.Uint64(s_compo.next_unique_id);
+
+        write_generic_component_children(mod, s_compo, w);
+        write_generic_component_connections(mod, compo, s_compo, w);
+    }
+
+    template<typename Writer>
+    void write_grid_component(const modeling&       mod,
+                              const grid_component& grid,
+                              Writer&               w) noexcept
+    {
+        w.Key("rows");
+        w.Int(grid.row);
+        w.Key("columns");
+        w.Int(grid.column);
+        w.Key("in-connection-type");
+        w.Int(ordinal(grid.in_connection_type));
+        w.Key("out-connection-type");
+        w.Int(ordinal(grid.out_connection_type));
+
+        w.Key("children");
+        w.StartArray();
+        for (auto& elem : grid.children) {
+            w.StartObject();
+            write_child_component(mod, elem, w);
+            w.EndObject();
+        }
+        w.EndArray();
+    }
+
+    template<typename Writer>
+    void write_graph_component_param(const modeling&        mod,
+                                     const graph_component& g,
+                                     Writer&                w) noexcept
+    {
+        switch (g.g_type) {
+        case graph_component::graph_type::dot_file: {
+            w.String("dot-file");
+            auto& p = g.param.dot;
+
+            if (auto* dir = mod.dir_paths.try_to_get(p.dir); dir) {
+                w.Key("dir");
+                w.String(dir->path.begin(), dir->path.size());
+            }
+
+            if (auto* file = mod.file_paths.try_to_get(p.file); file) {
+                w.Key("file");
+                w.String(file->path.begin(), file->path.size());
+            }
+            break;
+        }
+
+        case graph_component::graph_type::scale_free: {
+            w.String("scale-free");
+            w.Key("alpha");
+            w.Double(g.param.scale.alpha);
+            w.Key("beta");
+            w.Double(g.param.scale.beta);
+            break;
+        }
+
+        case graph_component::graph_type::small_world: {
+            w.String("small-world");
+            w.Key("probability");
+            w.Double(g.param.small.probability);
+            w.Key("k");
+            w.Int(g.param.small.k);
+            break;
+        }
+        }
+    }
+
+    template<typename Writer>
+    void write_graph_component(const modeling&        mod,
+                               const graph_component& graph,
+                               Writer&                w) noexcept
+    {
+        w.Key("graph-type");
+        write_graph_component_param(mod, graph, w);
+
+        w.Key("children");
+        w.StartArray();
+        for (auto& elem : graph.children) {
+            w.StartObject();
+            write_child_component(mod, elem.id, w);
+            w.EndObject();
+        }
+        w.EndArray();
+    }
+
+    template<typename Writer>
+    void write_hsm_component(const hierarchical_state_machine& hsm,
+                             Writer&                           w) noexcept
+    {
+        w.Key("states");
+        w.StartArray();
+
+        constexpr auto length = hierarchical_state_machine::max_number_of_state;
+        constexpr auto invalid = hierarchical_state_machine::invalid_state_id;
+
+        std::array<bool, length> states_to_write{};
+        states_to_write.fill(false);
+
+        if (hsm.top_state != invalid)
+            states_to_write[hsm.top_state] = true;
+
+        for (auto i = 0; i != length; ++i) {
+            if (hsm.states[i].if_transition != invalid)
+                states_to_write[hsm.states[i].if_transition] = true;
+            if (hsm.states[i].else_transition != invalid)
+                states_to_write[hsm.states[i].else_transition] = true;
+            if (hsm.states[i].super_id != invalid)
+                states_to_write[hsm.states[i].super_id] = true;
+            if (hsm.states[i].sub_id != invalid)
+                states_to_write[hsm.states[i].sub_id] = true;
+        }
+
+        for (auto i = 0; i != length; ++i) {
+            if (states_to_write[i]) {
+                w.StartObject();
+                w.Key("id");
+                w.Uint(i);
+                write(w, "enter", hsm.states[i].enter_action);
+                write(w, "exit", hsm.states[i].exit_action);
+                write(w, "if", hsm.states[i].if_action);
+                write(w, "else", hsm.states[i].else_action);
+                write(w, "condition", hsm.states[i].condition);
+
+                w.Key("if-transition");
+                w.Int(hsm.states[i].if_transition);
+                w.Key("else-transition");
+                w.Int(hsm.states[i].else_transition);
+                w.Key("super-id");
+                w.Int(hsm.states[i].super_id);
+                w.Key("sub-id");
+                w.Int(hsm.states[i].sub_id);
+                w.EndObject();
+            }
+        }
+        w.EndArray();
+
+        w.Key("top");
+        w.Uint(hsm.top_state);
+    }
+
+    template<typename Writer>
+    void write_internal_component(const modeling& /* mod */,
+                                  const internal_component id,
+                                  Writer&                  w) noexcept
+    {
+        w.Key("component");
+        w.String(internal_component_names[ordinal(id)]);
+    }
+
+    template<typename Writer>
+    void do_component_save(Writer& w, modeling& mod, component& compo) noexcept
+    {
+        w.StartObject();
+
+        w.Key("name");
+        w.String(compo.name.c_str());
+
+        write_constant_sources(mod.srcs, w);
+        write_binary_file_sources(mod.srcs, w);
+        write_text_file_sources(mod.srcs, w);
+        write_random_sources(mod.srcs, w);
+
+        w.Key("colors");
+        w.StartArray();
+        auto& color =
+          mod.component_colors[get_index(mod.components.get_id(compo))];
+        w.Double(color[0]);
+        w.Double(color[1]);
+        w.Double(color[2]);
+        w.Double(color[3]);
+        w.EndArray();
+
+        write_component_ports(compo, w);
+
+        w.Key("type");
+        w.String(component_type_names[ordinal(compo.type)]);
+
+        switch (compo.type) {
+        case component_type::none:
+            break;
+
+        case component_type::internal:
+            write_internal_component(mod, compo.id.internal_id, w);
+            break;
+
+        case component_type::simple: {
+            auto* p = mod.generic_components.try_to_get(compo.id.generic_id);
+            if (p)
+                write_generic_component(mod, compo, *p, w);
+        } break;
+
+        case component_type::grid: {
+            auto* p = mod.grid_components.try_to_get(compo.id.grid_id);
+            if (p)
+                write_grid_component(mod, *p, w);
+        } break;
+
+        case component_type::graph: {
+            auto* p = mod.graph_components.try_to_get(compo.id.graph_id);
+            if (p)
+                write_graph_component(mod, *p, w);
+        } break;
+
+        case component_type::hsm: {
+            auto* p = mod.hsm_components.try_to_get(compo.id.hsm_id);
+            if (p)
+                write_hsm_component(*p, w);
+        } break;
+        }
+
+        w.EndObject();
+    }
+
+    /*****************************************************************************
+     *
+     * Simulation file read part
+     *
+     ****************************************************************************/
+
+    template<typename Writer>
+    void write_simulation_model(const simulation& sim, Writer& w) noexcept
+    {
+        w.Key("hsms");
+        w.StartArray();
+
+        for (auto& machine : sim.hsms) {
+            w.StartObject();
+            w.Key("hsm");
+            w.Uint64(ordinal(sim.hsms.get_id(machine)));
+            write_hsm_component(machine, w);
+            w.EndObject();
+        }
+        w.EndArray();
+
+        w.Key("models");
+        w.StartArray();
+
+        for (auto& mdl : sim.models) {
+            const auto mdl_id = sim.models.get_id(mdl);
+
+            w.StartObject();
+            w.Key("id");
+            w.Uint64(ordinal(mdl_id));
+            w.Key("type");
+            w.String(dynamics_type_names[ordinal(mdl.type)]);
+            w.Key("dynamics");
+
+            dispatch(mdl, [&]<typename Dynamics>(const Dynamics& dyn) noexcept {
+                write(w, dyn);
+            });
+
+            w.EndObject();
+        }
+
+        w.EndArray();
+    }
+
+    template<typename Writer>
+    void write_simulation_connections(const simulation& sim, Writer& w) noexcept
+    {
+        w.Key("connections");
+        w.StartArray();
+
+        const model* mdl = nullptr;
+        while (sim.models.next(mdl)) {
+            dispatch(*mdl, [&sim, &mdl, &w]<typename Dynamics>(Dynamics& dyn) {
+                if constexpr (has_output_port<Dynamics>) {
+                    for (auto i = 0, e = length(dyn.y); i != e; ++i) {
+                        if (auto* lst = sim.nodes.try_to_get(dyn.y[i]); lst) {
+                            for (const auto& cnt : *lst) {
+                                auto* dst = sim.models.try_to_get(cnt.model);
+                                if (dst) {
+                                    w.StartObject();
+                                    w.Key("source");
+                                    w.Uint64(ordinal(sim.models.get_id(*mdl)));
+                                    w.Key("port-source");
+                                    w.Uint64(static_cast<u64>(i));
+                                    w.Key("destination");
+                                    w.Uint64(ordinal(cnt.model));
+                                    w.Key("port-destination");
+                                    w.Uint64(static_cast<u64>(cnt.port_index));
+                                    w.EndObject();
+                                }
+                            }
+                        }
+                    }
+                }
+            });
+        }
+
+        w.EndArray();
+    }
+
+    template<typename Writer>
+    void do_simulation_save(Writer& w, const simulation& sim) noexcept
+    {
+        w.StartObject();
+
+        write_constant_sources(sim.srcs, w);
+        write_binary_file_sources(sim.srcs, w);
+        write_text_file_sources(sim.srcs, w);
+        write_random_sources(sim.srcs, w);
+        write_simulation_model(sim, w);
+        write_simulation_connections(sim, w);
+
+        w.EndObject();
+    }
+
+    /*****************************************************************************
+     *
+     * project file write part
+     *
+     ****************************************************************************/
+
+    template<typename Writer>
+    void write_color(Writer& w, std::array<u8, 4> color) noexcept
+    {
+        w.StartArray();
+        w.Uint(color[0]);
+        w.Uint(color[1]);
+        w.Uint(color[2]);
+        w.Uint(color[3]);
+        w.EndArray();
+    }
+
+    template<typename Writer>
+    void write_project_unique_id_path(Writer&               w,
+                                      const unique_id_path& path) noexcept
+    {
+        w.StartArray();
+        for (auto elem : path)
+            w.Uint64(elem);
+        w.EndArray();
+    }
+
+    constexpr static std::array<u8, 4> color_white{ 255, 255, 255, 0 };
+
+    template<typename Writer>
+    void do_project_save_parameters(Writer& w, project& pj) noexcept
+    {
+        w.Key("parameters");
+
+        w.StartObject();
+        do_project_save_global_parameters(w, pj);
+        w.EndObject();
+    }
+
+    template<typename Writer>
+    void do_project_save_plot_observations(Writer& w, project& pj) noexcept
+    {
+        w.Key("global");
+        w.StartArray();
+
+        for_each_data(pj.variable_observers, [&](auto& plot) noexcept {
+            unique_id_path path;
+
+            w.StartObject();
+            w.Key("name");
+            w.String(plot.name.begin(), plot.name.size());
+
+            plot.for_each([&](const auto id) noexcept {
+                const auto idx = get_index(id);
+                const auto tn  = plot.get_tn_ids()[idx];
+                const auto mdl = plot.get_mdl_ids()[idx];
+
+                w.Key("access");
+                pj.build_unique_id_path(tn, mdl, path);
+                write_project_unique_id_path(w, path);
+            });
+
+            w.Key("color");
+            write_color(w, color_white);
+
+            w.Key("type");
+            w.String("line");
+            w.EndObject();
+        });
+
+        w.EndArray();
+    }
+
+    template<typename Writer>
+    void do_project_save_grid_observations(Writer& w, project& pj) noexcept
+    {
+        w.Key("grid");
+        w.StartArray();
+
+        for_each_data(pj.grid_observers, [&](auto& grid) noexcept {
+            w.StartObject();
+            w.Key("name");
+            w.String(grid.name.begin(), grid.name.size());
+
+            unique_id_path path;
+            w.Key("grid");
+            write_project_unique_id_path(w, path);
+            pj.build_unique_id_path(grid.parent_id, path);
+
+            w.Key("access");
+            pj.build_unique_id_path(grid.tn_id, grid.mdl_id, path);
+
+            w.EndObject();
+        });
+
+        w.EndArray();
+    }
+
+    template<typename Writer>
+    void do_project_save_observations(Writer& w, project& pj) noexcept
+    {
+        w.Key("observations");
+
+        w.StartObject();
+        do_project_save_plot_observations(w, pj);
+        do_project_save_grid_observations(w, pj);
+        w.EndObject();
+    }
+
+    template<typename Writer>
+    void write_parameter(Writer& w, const parameter& param) noexcept
+    {
+        w.Key("parameter");
+        w.StartObject();
+        w.Key("real");
+        w.StartArray();
+        for (auto elem : param.reals)
+            w.Double(elem);
+        w.EndArray();
+        w.Key("integer");
+        w.StartArray();
+        for (auto elem : param.integers)
+            w.Int64(elem);
+        w.EndArray();
+    }
+
+    template<typename Writer>
+    void do_project_save_global_parameters(Writer& w, project& pj) noexcept
+    {
+        w.Key("global");
+        w.StartArray();
+
+        pj.parameters.for_each([&](const auto /*id*/,
+                                   const auto& name,
+                                   const auto  tn_id,
+                                   const auto  mdl_id,
+                                   const auto& p) noexcept {
+            unique_id_path path;
+            w.Key("access");
+            pj.build_unique_id_path(tn_id, mdl_id, path);
+
+            w.StartObject();
+            w.Key("name");
+            w.String(name.begin(), name.size());
+
+            w.Key("access");
+            write_project_unique_id_path(w, path);
+            write_parameter(w, p);
+
+            w.EndObject();
+        });
+
+        w.EndArray();
+    }
+
+    template<typename Writer>
+    void do_project_save_component(Writer&               w,
+                                   component&            compo,
+                                   const registred_path& reg,
+                                   const dir_path&       dir,
+                                   const file_path&      file) noexcept
+    {
+        w.Key("component-type");
+        w.String(component_type_names[ordinal(compo.type)]);
+
+        switch (compo.type) {
+        case component_type::internal:
+            break;
+
+        case component_type::simple:
+        case component_type::grid:
+        case component_type::hsm:
+            w.Key("component-path");
+            w.String(reg.name.c_str(), reg.name.size(), false);
+
+            w.Key("component-directory");
+            w.String(dir.path.c_str(), dir.path.size(), false);
+
+            w.Key("component-file");
+            w.String(file.path.c_str(), file.path.size(), false);
+            break;
+
+        default:
+            break;
+        };
+    }
+
+    template<typename Writer>
+    bool do_project_save(Writer&    w,
+                         project&   pj,
+                         modeling&  mod,
+                         component& compo) noexcept
+    {
+        auto* reg = mod.registred_paths.try_to_get(compo.reg_path);
+        if (!reg)
+            return report_error(cb, json_archiver::error_code::file_error);
+        if (reg->path.empty())
+            return report_error(cb, json_archiver::error_code::file_error);
+        if (reg->name.empty())
+            return report_error(cb, json_archiver::error_code::file_error);
+
+        auto* dir = mod.dir_paths.try_to_get(compo.dir);
+        if (!dir)
+            return report_error(cb, json_archiver::error_code::file_error);
+        if (dir->path.empty())
+            return report_error(cb, json_archiver::error_code::file_error);
+
+        auto* file = mod.file_paths.try_to_get(compo.file);
+        if (!file)
+            return report_error(cb, json_archiver::error_code::file_error);
+        if (file->path.empty())
+            return report_error(cb, json_archiver::error_code::file_error);
+
+        w.StartObject();
+        do_project_save_component(w, compo, *reg, *dir, *file);
+        do_project_save_parameters(w, pj);
+        do_project_save_observations(w, pj);
+        w.EndObject();
 
         return true;
     }
 };
 
-static status read_file_to_buffer(cache_rw& cache, file& f) noexcept
-{
-    debug::ensure(f.is_open());
-    debug::ensure(f.get_mode() == open_mode::read);
-
-    if (const auto len = f.length(); len > 0) {
-        cache.buffer.resize(len);
-
-        if (!f.read(cache.buffer.data(), len))
-            return new_error(json_archiver::part::read_file_error);
-    }
-
-    return success();
-}
-
-static status parse_json_data(const std::span<char>& buffer,
-                              rapidjson::Document&   doc) noexcept
-{
-    doc.Parse(buffer.data(), buffer.size());
-
-    if (doc.HasParseError())
-        return new_error(
-          json_archiver::part::json_format_error,
-          e_json{ doc.GetErrorOffset(),
-                  rapidjson::GetParseError_En(doc.GetParseError()) });
-
-    return success();
-}
-
-//
-//
-
-template<typename Writer, int QssLevel>
-static void write(Writer&                              writer,
-                  const abstract_integrator<QssLevel>& dyn) noexcept
-{
-    writer.StartObject();
-    writer.Key("X");
-    writer.Double(dyn.default_X);
-    writer.Key("dQ");
-    writer.Double(dyn.default_dQ);
-    writer.EndObject();
-}
-
-template<typename Writer, int QssLevel>
-static void write(Writer& writer,
-                  const abstract_multiplier<QssLevel>& /*dyn*/) noexcept
-{
-    writer.StartObject();
-    writer.EndObject();
-}
-
-template<typename Writer>
-static void write(Writer& writer, const qss1_sum_2& dyn) noexcept
-{
-    writer.StartObject();
-
-    writer.Key("value-0");
-    writer.Double(dyn.default_values[0]);
-    writer.Key("value-1");
-    writer.Double(dyn.default_values[1]);
-
-    writer.EndObject();
-}
-
-template<typename Writer>
-static void write(Writer& writer, const qss1_sum_3& dyn) noexcept
-{
-    writer.StartObject();
-
-    writer.Key("value-0");
-    writer.Double(dyn.default_values[0]);
-    writer.Key("value-1");
-    writer.Double(dyn.default_values[1]);
-    writer.Key("value-2");
-    writer.Double(dyn.default_values[2]);
-
-    writer.EndObject();
-}
-
-template<typename Writer>
-static void write(Writer& writer, const qss1_sum_4& dyn) noexcept
-{
-    writer.StartObject();
-
-    writer.Key("value-0");
-    writer.Double(dyn.default_values[0]);
-    writer.Key("value-1");
-    writer.Double(dyn.default_values[1]);
-    writer.Key("value-2");
-    writer.Double(dyn.default_values[2]);
-    writer.Key("value-3");
-    writer.Double(dyn.default_values[3]);
-
-    writer.EndObject();
-}
-
-template<typename Writer>
-static void write(Writer& writer, const qss1_wsum_2& dyn) noexcept
-{
-    writer.StartObject();
-
-    writer.Key("value-0");
-    writer.Double(dyn.default_values[0]);
-    writer.Key("value-1");
-    writer.Double(dyn.default_values[1]);
-
-    writer.Key("coeff-0");
-    writer.Double(dyn.default_input_coeffs[0]);
-    writer.Key("coeff-1");
-    writer.Double(dyn.default_input_coeffs[1]);
-
-    writer.EndObject();
-}
-
-template<typename Writer>
-static void write(Writer& writer, const qss1_wsum_3& dyn) noexcept
-{
-    writer.StartObject();
-
-    writer.Key("value-0");
-    writer.Double(dyn.default_values[0]);
-    writer.Key("value-1");
-    writer.Double(dyn.default_values[1]);
-    writer.Key("value-2");
-    writer.Double(dyn.default_values[2]);
-
-    writer.Key("coeff-0");
-    writer.Double(dyn.default_input_coeffs[0]);
-    writer.Key("coeff-1");
-    writer.Double(dyn.default_input_coeffs[1]);
-    writer.Key("coeff-2");
-    writer.Double(dyn.default_input_coeffs[2]);
-
-    writer.EndObject();
-}
-
-template<typename Writer>
-static void write(Writer& writer, const qss1_wsum_4& dyn) noexcept
-{
-    writer.StartObject();
-
-    writer.Key("value-0");
-    writer.Double(dyn.default_values[0]);
-    writer.Key("value-1");
-    writer.Double(dyn.default_values[1]);
-    writer.Key("value-2");
-    writer.Double(dyn.default_values[2]);
-    writer.Key("value-3");
-    writer.Double(dyn.default_values[3]);
-
-    writer.Key("coeff-0");
-    writer.Double(dyn.default_input_coeffs[0]);
-    writer.Key("coeff-1");
-    writer.Double(dyn.default_input_coeffs[1]);
-    writer.Key("coeff-2");
-    writer.Double(dyn.default_input_coeffs[2]);
-    writer.Key("coeff-3");
-    writer.Double(dyn.default_input_coeffs[3]);
-
-    writer.EndObject();
-}
-
-template<typename Writer>
-static void write(Writer& writer, const qss2_sum_2& dyn) noexcept
-{
-    writer.StartObject();
-
-    writer.Key("value-0");
-    writer.Double(dyn.default_values[0]);
-    writer.Key("value-1");
-    writer.Double(dyn.default_values[1]);
-
-    writer.EndObject();
-}
-
-template<typename Writer>
-static void write(Writer& writer, const qss2_sum_3& dyn) noexcept
-{
-    writer.StartObject();
-
-    writer.Key("value-0");
-    writer.Double(dyn.default_values[0]);
-    writer.Key("value-1");
-    writer.Double(dyn.default_values[1]);
-    writer.Key("value-2");
-    writer.Double(dyn.default_values[2]);
-
-    writer.EndObject();
-}
-
-template<typename Writer>
-static void write(Writer& writer, const qss2_sum_4& dyn) noexcept
-{
-    writer.StartObject();
-
-    writer.Key("value-0");
-    writer.Double(dyn.default_values[0]);
-    writer.Key("value-1");
-    writer.Double(dyn.default_values[1]);
-    writer.Key("value-2");
-    writer.Double(dyn.default_values[2]);
-    writer.Key("value-3");
-    writer.Double(dyn.default_values[3]);
-
-    writer.EndObject();
-}
-
-template<typename Writer>
-static void write(Writer& writer, const qss2_wsum_2& dyn) noexcept
-{
-    writer.StartObject();
-
-    writer.Key("value-0");
-    writer.Double(dyn.default_values[0]);
-    writer.Key("value-1");
-    writer.Double(dyn.default_values[1]);
-
-    writer.Key("coeff-0");
-    writer.Double(dyn.default_input_coeffs[0]);
-    writer.Key("coeff-1");
-    writer.Double(dyn.default_input_coeffs[1]);
-
-    writer.EndObject();
-}
-
-template<typename Writer>
-static void write(Writer& writer, const qss2_wsum_3& dyn) noexcept
-{
-    writer.StartObject();
-
-    writer.Key("value-0");
-    writer.Double(dyn.default_values[0]);
-    writer.Key("value-1");
-    writer.Double(dyn.default_values[1]);
-    writer.Key("value-2");
-    writer.Double(dyn.default_values[2]);
-
-    writer.Key("coeff-0");
-    writer.Double(dyn.default_input_coeffs[0]);
-    writer.Key("coeff-1");
-    writer.Double(dyn.default_input_coeffs[1]);
-    writer.Key("coeff-2");
-    writer.Double(dyn.default_input_coeffs[2]);
-
-    writer.EndObject();
-}
-
-template<typename Writer>
-static void write(Writer& writer, const qss2_wsum_4& dyn) noexcept
-{
-    writer.StartObject();
-
-    writer.Key("value-0");
-    writer.Double(dyn.default_values[0]);
-    writer.Key("value-1");
-    writer.Double(dyn.default_values[1]);
-    writer.Key("value-2");
-    writer.Double(dyn.default_values[2]);
-    writer.Key("value-3");
-    writer.Double(dyn.default_values[3]);
-
-    writer.Key("coeff-0");
-    writer.Double(dyn.default_input_coeffs[0]);
-    writer.Key("coeff-1");
-    writer.Double(dyn.default_input_coeffs[1]);
-    writer.Key("coeff-2");
-    writer.Double(dyn.default_input_coeffs[2]);
-    writer.Key("coeff-3");
-    writer.Double(dyn.default_input_coeffs[3]);
-
-    writer.EndObject();
-}
-
-template<typename Writer>
-static void write(Writer& writer, const qss3_sum_2& dyn) noexcept
-{
-    writer.StartObject();
-
-    writer.Key("value-0");
-    writer.Double(dyn.default_values[0]);
-    writer.Key("value-1");
-    writer.Double(dyn.default_values[1]);
-
-    writer.EndObject();
-}
-
-template<typename Writer>
-static void write(Writer& writer, const qss3_sum_3& dyn) noexcept
-{
-    writer.StartObject();
-
-    writer.Key("value-0");
-    writer.Double(dyn.default_values[0]);
-    writer.Key("value-1");
-    writer.Double(dyn.default_values[1]);
-    writer.Key("value-2");
-    writer.Double(dyn.default_values[2]);
-
-    writer.EndObject();
-}
-
-template<typename Writer>
-static void write(Writer& writer, const qss3_sum_4& dyn) noexcept
-{
-    writer.StartObject();
-
-    writer.Key("value-0");
-    writer.Double(dyn.default_values[0]);
-    writer.Key("value-1");
-    writer.Double(dyn.default_values[1]);
-    writer.Key("value-2");
-    writer.Double(dyn.default_values[2]);
-    writer.Key("value-3");
-    writer.Double(dyn.default_values[3]);
-
-    writer.EndObject();
-}
-
-template<typename Writer>
-static void write(Writer& writer, const qss3_wsum_2& dyn) noexcept
-{
-    writer.StartObject();
-
-    writer.Key("value-0");
-    writer.Double(dyn.default_values[0]);
-    writer.Key("value-1");
-    writer.Double(dyn.default_values[1]);
-
-    writer.Key("coeff-0");
-    writer.Double(dyn.default_input_coeffs[0]);
-    writer.Key("coeff-1");
-    writer.Double(dyn.default_input_coeffs[1]);
-
-    writer.EndObject();
-}
-
-template<typename Writer>
-static void write(Writer& writer, const qss3_wsum_3& dyn) noexcept
-{
-    writer.StartObject();
-
-    writer.Key("value-0");
-    writer.Double(dyn.default_values[0]);
-    writer.Key("value-1");
-    writer.Double(dyn.default_values[1]);
-    writer.Key("value-2");
-    writer.Double(dyn.default_values[2]);
-
-    writer.Key("coeff-0");
-    writer.Double(dyn.default_input_coeffs[0]);
-    writer.Key("coeff-1");
-    writer.Double(dyn.default_input_coeffs[1]);
-    writer.Key("coeff-2");
-    writer.Double(dyn.default_input_coeffs[2]);
-
-    writer.EndObject();
-}
-
-template<typename Writer>
-static void write(Writer& writer, const qss3_wsum_4& dyn) noexcept
-{
-    writer.StartObject();
-
-    writer.Key("value-0");
-    writer.Double(dyn.default_values[0]);
-    writer.Key("value-1");
-    writer.Double(dyn.default_values[1]);
-    writer.Key("value-2");
-    writer.Double(dyn.default_values[2]);
-    writer.Key("value-3");
-    writer.Double(dyn.default_values[3]);
-
-    writer.Key("coeff-0");
-    writer.Double(dyn.default_input_coeffs[0]);
-    writer.Key("coeff-1");
-    writer.Double(dyn.default_input_coeffs[1]);
-    writer.Key("coeff-2");
-    writer.Double(dyn.default_input_coeffs[2]);
-    writer.Key("coeff-3");
-    writer.Double(dyn.default_input_coeffs[3]);
-
-    writer.EndObject();
-}
-
-template<typename Writer>
-static void write(Writer& writer, const counter& /*dyn*/) noexcept
-{
-    writer.StartObject();
-    writer.EndObject();
-}
-
-template<typename Writer>
-static void write(Writer& writer, const queue& dyn) noexcept
-{
-    writer.StartObject();
-    writer.Key("ta");
-    writer.Double(dyn.default_ta);
-    writer.EndObject();
-}
-
-template<typename Writer>
-static void write(Writer& writer, const dynamic_queue& dyn) noexcept
-{
-    writer.StartObject();
-    writer.Key("source-ta-type");
-    writer.Int(ordinal(dyn.default_source_ta.type));
-    writer.Key("source-ta-id");
-    writer.Uint64(dyn.default_source_ta.id);
-    writer.Key("stop-on-error");
-    writer.Bool(dyn.stop_on_error);
-    writer.EndObject();
-}
-
-template<typename Writer>
-static void write(Writer& writer, const priority_queue& dyn) noexcept
-{
-    writer.StartObject();
-    writer.Key("ta");
-    writer.Double(dyn.default_ta);
-    writer.Key("source-ta-type");
-    writer.Int(ordinal(dyn.default_source_ta.type));
-    writer.Key("source-ta-id");
-    writer.Uint64(dyn.default_source_ta.id);
-    writer.Key("stop-on-error");
-    writer.Bool(dyn.stop_on_error);
-    writer.EndObject();
-}
-
-template<typename Writer>
-static void write(Writer& writer, const generator& dyn) noexcept
-{
-    writer.StartObject();
-
-    writer.Key("stop-on-error");
-    writer.Bool(dyn.flags[generator::option::stop_on_error]);
-
-    if (dyn.flags[generator::option::ta_use_source]) {
-        writer.Key("offset");
-        writer.Double(dyn.default_offset);
-        writer.Key("source-ta-type");
-        writer.Int(ordinal(dyn.default_source_ta.type));
-        writer.Key("source-ta-id");
-        writer.Uint64(dyn.default_source_ta.id);
-    }
-
-    if (dyn.flags[generator::option::value_use_source]) {
-        writer.Key("source-value-type");
-        writer.Int(ordinal(dyn.default_source_value.type));
-        writer.Key("source-value-id");
-        writer.Uint64(dyn.default_source_value.id);
-    }
-
-    writer.EndObject();
-}
-
-template<typename Writer>
-static void write(Writer& writer, const constant& dyn) noexcept
-{
-    writer.StartObject();
-    writer.Key("value");
-    writer.Double(dyn.default_value);
-    writer.Key("offset");
-    writer.Double(dyn.default_offset);
-    writer.Key("type");
-
-    switch (dyn.type) {
-    case constant::init_type::constant:
-        writer.String("constant");
-        break;
-    case constant::init_type::incoming_component_all:
-        writer.String("incoming_component_all");
-        break;
-    case constant::init_type::outcoming_component_all:
-        writer.String("outcoming_component_all");
-        break;
-    case constant::init_type::incoming_component_n:
-        writer.String("incoming_component_n");
-        writer.Key("port");
-        writer.Uint64(dyn.port);
-        break;
-    case constant::init_type::outcoming_component_n:
-        writer.String("outcoming_component_n");
-        writer.Key("port");
-        writer.Uint64(dyn.port);
-        break;
-    }
-    writer.EndObject();
-}
-
-template<typename Writer>
-static void write(Writer& writer, const qss1_cross& dyn) noexcept
-{
-    writer.StartObject();
-    writer.Key("threshold");
-    writer.Double(dyn.default_threshold);
-    writer.Key("detect-up");
-    writer.Bool(dyn.default_detect_up);
-    writer.EndObject();
-}
-
-template<typename Writer>
-static void write(Writer& writer, const qss2_cross& dyn) noexcept
-{
-    writer.StartObject();
-    writer.Key("threshold");
-    writer.Double(dyn.default_threshold);
-    writer.Key("detect-up");
-    writer.Bool(dyn.default_detect_up);
-    writer.EndObject();
-}
-
-template<typename Writer>
-static void write(Writer& writer, const qss3_cross& dyn) noexcept
-{
-    writer.StartObject();
-    writer.Key("threshold");
-    writer.Double(dyn.default_threshold);
-    writer.Key("detect-up");
-    writer.Bool(dyn.default_detect_up);
-    writer.EndObject();
-}
-
-template<typename Writer>
-static void write(Writer& writer, const qss1_filter& dyn) noexcept
-{
-    writer.StartObject();
-    writer.Key("lower-threshold");
-    writer.Double(std::isinf(dyn.default_lower_threshold)
-                    ? std::numeric_limits<double>::max()
-                    : dyn.default_lower_threshold);
-    writer.Key("upper-threshold");
-    writer.Double(std::isinf(dyn.default_upper_threshold)
-                    ? std::numeric_limits<double>::max()
-                    : dyn.default_upper_threshold);
-    writer.EndObject();
-}
-
-template<typename Writer>
-static void write(Writer& writer, const qss2_filter& dyn) noexcept
-{
-    writer.StartObject();
-    writer.Key("lower-threshold");
-    writer.Double(std::isinf(dyn.default_lower_threshold)
-                    ? std::numeric_limits<double>::max()
-                    : dyn.default_lower_threshold);
-    writer.Key("upper-threshold");
-    writer.Double(std::isinf(dyn.default_upper_threshold)
-                    ? std::numeric_limits<double>::max()
-                    : dyn.default_upper_threshold);
-    writer.EndObject();
-}
-
-template<typename Writer>
-static void write(Writer& writer, const qss3_filter& dyn) noexcept
-{
-    writer.StartObject();
-    writer.Key("lower-threshold");
-    writer.Double(std::isinf(dyn.default_lower_threshold)
-                    ? std::numeric_limits<double>::max()
-                    : dyn.default_lower_threshold);
-    writer.Key("upper-threshold");
-    writer.Double(std::isinf(dyn.default_upper_threshold)
-                    ? std::numeric_limits<double>::max()
-                    : dyn.default_upper_threshold);
-    writer.EndObject();
-}
-
-template<typename Writer>
-static void write(Writer& writer, const qss1_power& dyn) noexcept
-{
-    writer.StartObject();
-    writer.Key("n");
-    writer.Double(dyn.default_n);
-    writer.EndObject();
-}
-
-template<typename Writer>
-static void write(Writer& writer, const qss2_power& dyn) noexcept
-{
-    writer.StartObject();
-    writer.Key("n");
-    writer.Double(dyn.default_n);
-    writer.EndObject();
-}
-
-template<typename Writer>
-static void write(Writer& writer, const qss3_power& dyn) noexcept
-{
-    writer.StartObject();
-    writer.Key("n");
-    writer.Double(dyn.default_n);
-    writer.EndObject();
-}
-
-template<typename Writer, int QssLevel>
-static void write(Writer& writer,
-                  const abstract_square<QssLevel>& /*dyn*/) noexcept
-{
-    writer.StartObject();
-    writer.EndObject();
-}
-
-template<typename Writer, int PortNumber>
-static void write(Writer& writer,
-                  const accumulator<PortNumber>& /*dyn*/) noexcept
-{
-    writer.StartObject();
-    writer.EndObject();
-}
-
-template<typename Writer>
-static void write(Writer& writer, const time_func& dyn) noexcept
-{
-    writer.StartObject();
-    writer.Key("function");
-    writer.String(dyn.default_f == &time_function          ? "time"
-                  : dyn.default_f == &square_time_function ? "square"
-                                                           : "sin");
-    writer.EndObject();
-}
-
-template<typename Writer>
-static void write(Writer& writer, const logical_and_2& dyn) noexcept
-{
-    writer.StartObject();
-    writer.Key("value-0");
-    writer.Bool(dyn.default_values[0]);
-    writer.Key("value-1");
-    writer.Bool(dyn.default_values[1]);
-    writer.EndObject();
-}
-
-template<typename Writer>
-static void write(Writer& writer, const logical_and_3& dyn) noexcept
-{
-    writer.StartObject();
-    writer.Key("value-0");
-    writer.Bool(dyn.default_values[0]);
-    writer.Key("value-1");
-    writer.Bool(dyn.default_values[1]);
-    writer.Key("value-2");
-    writer.Bool(dyn.default_values[2]);
-    writer.EndObject();
-}
-
-template<typename Writer>
-static void write(Writer& writer, const logical_or_2& dyn) noexcept
-{
-    writer.StartObject();
-    writer.Key("value-0");
-    writer.Bool(dyn.default_values[0]);
-    writer.Key("value-1");
-    writer.Bool(dyn.default_values[1]);
-    writer.EndObject();
-}
-
-template<typename Writer>
-static void write(Writer& writer, const logical_or_3& dyn) noexcept
-{
-    writer.StartObject();
-    writer.Key("value-0");
-    writer.Bool(dyn.default_values[0]);
-    writer.Key("value-1");
-    writer.Bool(dyn.default_values[1]);
-    writer.Key("value-2");
-    writer.Bool(dyn.default_values[2]);
-    writer.EndObject();
-}
-
-template<typename Writer>
-static void write(Writer& writer, const logical_invert& /*dyn*/) noexcept
-{
-    writer.StartObject();
-    writer.EndObject();
-}
-
-template<typename Writer>
-static void write(Writer& writer, const hsm_wrapper& dyn) noexcept
-{
-    writer.StartObject();
-    writer.Key("hsm");
-    writer.Uint64(get_index(dyn.id));
-    writer.Key("i1");
-    writer.Int(dyn.exec.i1);
-    writer.Key("i2");
-    writer.Int(dyn.exec.i2);
-    writer.Key("r1");
-    writer.Double(dyn.exec.r1);
-    writer.Key("r2");
-    writer.Double(dyn.exec.r2);
-    writer.EndObject();
-}
-
-template<typename Writer>
-static void write(const modeling&    mod,
-                  Writer&            writer,
-                  const hsm_wrapper& dyn) noexcept
-{
-    if_data_exists_do(
-      mod.components, enum_cast<component_id>(dyn.compo_id), [&](auto& compo) {
-          writer.StartObject();
-          writer.Key("hsm");
-          writer.StartObject();
-          write_child_component_path(mod, compo, writer);
-          writer.EndObject();
-          writer.Key("i1");
-          writer.Int(dyn.exec.i1);
-          writer.Key("i2");
-          writer.Int(dyn.exec.i2);
-          writer.Key("r1");
-          writer.Double(dyn.exec.r1);
-          writer.Key("r2");
-          writer.Double(dyn.exec.r2);
-          writer.EndObject();
-      });
-}
-
-template<typename Writer>
-static void write(
-  Writer&                                         writer,
-  std::string_view                                name,
-  const hierarchical_state_machine::state_action& state) noexcept
-{
-    writer.Key(name.data(), static_cast<rapidjson::SizeType>(name.size()));
-    writer.StartObject();
-    writer.Key("var-1");
-    writer.Int(static_cast<int>(state.var1));
-    writer.Key("var-2");
-    writer.Int(static_cast<int>(state.var2));
-    writer.Key("type");
-    writer.Int(static_cast<int>(state.type));
-
-    if (state.var2 == hierarchical_state_machine::variable::constant_i) {
-        writer.Key("constant-i");
-        writer.Int(state.constant.i);
-    } else if (state.var2 == hierarchical_state_machine::variable::constant_r) {
-        writer.Key("constant-r");
-        writer.Double(state.constant.f);
-    }
-
-    writer.EndObject();
-}
-
-template<typename Writer>
-static void write(
-  Writer&                                             writer,
-  std::string_view                                    name,
-  const hierarchical_state_machine::condition_action& state) noexcept
-{
-    writer.Key(name.data(), static_cast<rapidjson::SizeType>(name.size()));
-    writer.StartObject();
-    writer.Key("var-1");
-    writer.Int(static_cast<int>(state.var1));
-    writer.Key("var-2");
-    writer.Int(static_cast<int>(state.var2));
-    writer.Key("type");
-    writer.Int(static_cast<int>(state.type));
-
-    if (state.type == hierarchical_state_machine::condition_type::port) {
-        u8 port{}, mask{};
-        state.get(port, mask);
-
-        writer.Key("port");
-        writer.Int(static_cast<int>(port));
-        writer.Key("mask");
-        writer.Int(static_cast<int>(mask));
-    }
-
-    if (state.var2 == hierarchical_state_machine::variable::constant_i) {
-        writer.Key("constant-i");
-        writer.Int(state.constant.i);
-    } else if (state.var2 == hierarchical_state_machine::variable::constant_r) {
-        writer.Key("constant-r");
-        writer.Double(state.constant.f);
-    }
-
-    writer.EndObject();
-}
-
-void cache_rw::clear() noexcept
-{
-    buffer.clear();
-    stack.clear();
-
-    model_mapping.data.clear();
-    constant_mapping.data.clear();
-    binary_file_mapping.data.clear();
-    random_mapping.data.clear();
-    text_file_mapping.data.clear();
-    sim_hsms_mapping.data.clear();
-}
-
-void cache_rw::destroy() noexcept
+void json_dearchiver::destroy() noexcept
 {
     buffer.destroy();
     stack.destroy();
@@ -5117,948 +6317,274 @@ void cache_rw::destroy() noexcept
     sim_hsms_mapping.data.destroy();
 }
 
-static status parse_json_component(modeling&                  mod,
-                                   component&                 compo,
-                                   cache_rw&                  cache,
-                                   const rapidjson::Document& doc) noexcept
+void json_dearchiver::clear() noexcept
 {
-    reader r{ cache, mod };
-    r.dependencies.emplace_back(mod.components.get_id(compo));
+    buffer.clear();
+    stack.clear();
 
-    while (!r.dependencies.empty()) {
-        r.clear();
-
-        const auto id = r.dependencies.back();
-        auto*      c  = mod.components.try_to_get(id);
-        r.dependencies.pop_back();
-
-        debug::ensure(c);
-        if (c->state == component_status::unmodified)
-            continue;
-
-        const auto old_size = r.dependencies.size();
-        if (r.read_component(doc.GetObject(), *c)) {
-            c->state = component_status::unmodified;
-        } else {
-            c->state = component_status::unread;
-            mod.clear(*c);
-
-            if (old_size != r.dependencies.size()) {
-                const auto new_id = r.dependencies.back();
-                r.dependencies.pop_back();
-                r.dependencies.emplace_back(id);
-                r.dependencies.emplace_back(new_id);
-            }
-
-#ifdef IRRITATOR_ENABLE_DEBUG
-            r.show_error();
-#endif
-
-            if (!r.dependencies.empty()) {
-                compo.state = component_status::unreadable;
-                return new_error(project::file_error);
-            }
-        }
-    }
-
-    return success();
+    model_mapping.data.clear();
+    constant_mapping.data.clear();
+    binary_file_mapping.data.clear();
+    random_mapping.data.clear();
+    text_file_mapping.data.clear();
+    sim_hsms_mapping.data.clear();
 }
 
-static status parse_component(modeling&  mod,
-                              component& compo,
-                              cache_rw&  cache,
-                              file&      f) noexcept
+bool irt::json_dearchiver::set_buffer(const u32 buffer_size) noexcept
 {
+    if (std::cmp_less(buffer.capacity(), buffer_size)) {
+        buffer.resize(buffer_size);
+
+        if (std::cmp_less(buffer.capacity(), buffer_size))
+            return false;
+    }
+
+    return true;
+}
+
+bool json_dearchiver::operator()(simulation& sim,
+                                 file&       io,
+                                 error_cb    cb) noexcept
+{
+    debug::ensure(io.is_open());
+    debug::ensure(io.get_mode() == open_mode::read);
+    clear();
+
     rapidjson::Document doc;
 
-    irt_check(read_file_to_buffer(cache, f));
+    if (not(read_file_to_buffer(buffer, io, cb) and
+            parse_json_data(std::span(buffer.data(), buffer.size()), doc, cb)))
+        return false;
 
-    irt_check(parse_json_data(
-      std::span(cache.buffer.data(), cache.buffer.size()), doc));
-    irt_check(parse_json_component(mod, compo, cache, doc));
+    json_dearchiver::impl i(*this, sim, cb);
 
-    return success();
+    return i.parse_simulation(doc);
 }
 
-static status parse_component(modeling&       mod,
-                              component&      compo,
-                              cache_rw&       cache,
-                              std::span<char> buffer) noexcept
+bool json_dearchiver::operator()(modeling&  mod,
+                                 component& compo,
+                                 file&      io,
+                                 error_cb   err) noexcept
 {
+    debug::ensure(io.is_open());
+    debug::ensure(io.get_mode() == open_mode::read);
+    clear();
+
     rapidjson::Document doc;
 
-    irt_check(parse_json_data(buffer, doc));
-    irt_check(parse_json_component(mod, compo, cache, doc));
+    if (not(read_file_to_buffer(buffer, io, err) and
+            parse_json_data(std::span(buffer.data(), buffer.size()), doc, err)))
+        return false;
 
-    return success();
+    json_dearchiver::impl i(*this, mod, err);
+    return i.parse_component(doc, compo);
 }
 
-status json_archiver::component_load(modeling&  mod,
-                                     component& compo,
-                                     cache_rw&  cache,
-                                     file&      f) noexcept
+bool json_dearchiver::operator()(project&    pj,
+                                 modeling&   mod,
+                                 simulation& sim,
+                                 file&       io,
+                                 error_cb    err) noexcept
 {
-    return parse_component(mod, compo, cache, f);
+    debug::ensure(io.is_open());
+    debug::ensure(io.get_mode() == open_mode::read);
+    clear();
+
+    rapidjson::Document doc;
+
+    if (not(read_file_to_buffer(buffer, io, err) and
+            parse_json_data(std::span(buffer.data(), buffer.size()), doc, err)))
+        return false;
+
+    json_dearchiver::impl i(*this, mod, sim, pj, err);
+    return i.parse_project(doc);
 }
 
-status json_archiver::component_load(modeling&       mod,
-                                     component&      compo,
-                                     cache_rw&       cache,
-                                     std::span<char> buffer) noexcept
+bool json_dearchiver::operator()(simulation&     sim,
+                                 std::span<char> io,
+                                 error_cb        err) noexcept
 {
-    return parse_component(mod, compo, cache, buffer);
+    clear();
+    rapidjson::Document doc;
+
+    if (not parse_json_data(io, doc, err))
+        return false;
+
+    json_dearchiver::impl i(*this, sim, err);
+    return i.parse_simulation(doc);
 }
 
-template<typename Writer>
-static void write_constant_sources(cache_rw& /*cache*/,
-                                   const external_source& srcs,
-                                   Writer&                w) noexcept
+bool json_dearchiver::operator()(modeling&       mod,
+                                 component&      compo,
+                                 std::span<char> io,
+                                 error_cb        err) noexcept
 {
-    w.Key("constant-sources");
-    w.StartArray();
+    clear();
+    rapidjson::Document doc;
 
-    const constant_source* src = nullptr;
-    while (srcs.constant_sources.next(src)) {
-        w.StartObject();
-        w.Key("id");
-        w.Uint64(ordinal(srcs.constant_sources.get_id(*src)));
-        w.Key("parameters");
+    if (not parse_json_data(io, doc, err))
+        return false;
 
-        w.StartArray();
-        for (const auto elem : src->buffer)
-            w.Double(elem);
-        w.EndArray();
-
-        w.EndObject();
-    }
-
-    w.EndArray();
+    json_dearchiver::impl i(*this, mod, err);
+    return i.parse_component(doc, compo);
 }
 
-template<typename Writer>
-static void write_binary_file_sources(cache_rw& /*cache*/,
-                                      const external_source& srcs,
-                                      Writer&                w) noexcept
+bool json_dearchiver::operator()(project&        pj,
+                                 modeling&       mod,
+                                 simulation&     sim,
+                                 std::span<char> io,
+                                 error_cb        err) noexcept
 {
-    w.Key("binary-file-sources");
-    w.StartArray();
+    clear();
+    rapidjson::Document doc;
 
-    const binary_file_source* src = nullptr;
-    std::string               filepath;
+    if (not parse_json_data(io, doc, err))
+        return false;
 
-    while (srcs.binary_file_sources.next(src)) {
-        filepath = src->file_path.string();
-
-        w.StartObject();
-        w.Key("id");
-        w.Uint64(ordinal(srcs.binary_file_sources.get_id(*src)));
-        w.Key("max-clients");
-        w.Uint(src->max_clients);
-        w.Key("path");
-        w.String(filepath.data(),
-                 static_cast<rapidjson::SizeType>(filepath.size()));
-        w.EndObject();
-    }
-
-    w.EndArray();
+    json_dearchiver::impl i(*this, mod, sim, pj, err);
+    return i.parse_project(doc);
 }
 
-template<typename Writer>
-static void write_text_file_sources(cache_rw& /*cache*/,
-                                    const external_source& srcs,
-                                    Writer&                w) noexcept
+void json_dearchiver::cerr(
+  json_dearchiver::error_code ec,
+  std::variant<std::monostate, sz, int, std::pair<sz, std::string_view>>
+    v) noexcept
 {
-    w.Key("text-file-sources");
-    w.StartArray();
-
-    const text_file_source* src = nullptr;
-    std::string             filepath;
-
-    while (srcs.text_file_sources.next(src)) {
-        filepath = src->file_path.string();
-
-        w.StartObject();
-        w.Key("id");
-        w.Uint64(ordinal(srcs.text_file_sources.get_id(*src)));
-        w.Key("path");
-        w.String(filepath.data(),
-                 static_cast<rapidjson::SizeType>(filepath.size()));
-        w.EndObject();
-    }
-
-    w.EndArray();
-}
-
-template<typename Writer>
-static void write_random_sources(cache_rw& /*cache*/,
-                                 const external_source& srcs,
-                                 Writer&                w) noexcept
-{
-    w.Key("random-sources");
-    w.StartArray();
-
-    const random_source* src = nullptr;
-    while (srcs.random_sources.next(src)) {
-        w.StartObject();
-        w.Key("id");
-        w.Uint64(ordinal(srcs.random_sources.get_id(*src)));
-        w.Key("type");
-        w.String(distribution_str(src->distribution));
-
-        switch (src->distribution) {
-        case distribution_type::uniform_int:
-            w.Key("a");
-            w.Int(src->a32);
-            w.Key("b");
-            w.Int(src->b32);
-            break;
-
-        case distribution_type::uniform_real:
-            w.Key("a");
-            w.Double(src->a);
-            w.Key("b");
-            w.Double(src->b);
-            break;
-
-        case distribution_type::bernouilli:
-            w.Key("p");
-            w.Double(src->p);
-            ;
-            break;
-
-        case distribution_type::binomial:
-            w.Key("t");
-            w.Int(src->t32);
-            w.Key("p");
-            w.Double(src->p);
-            break;
-
-        case distribution_type::negative_binomial:
-            w.Key("t");
-            w.Int(src->t32);
-            w.Key("p");
-            w.Double(src->p);
-            break;
-
-        case distribution_type::geometric:
-            w.Key("p");
-            w.Double(src->p);
-            break;
-
-        case distribution_type::poisson:
-            w.Key("mean");
-            w.Double(src->mean);
-            break;
-
-        case distribution_type::exponential:
-            w.Key("lambda");
-            w.Double(src->lambda);
-            break;
-
-        case distribution_type::gamma:
-            w.Key("alpha");
-            w.Double(src->alpha);
-            w.Key("beta");
-            w.Double(src->beta);
-            break;
-
-        case distribution_type::weibull:
-            w.Key("a");
-            w.Double(src->a);
-            w.Key("b");
-            w.Double(src->b);
-            break;
-
-        case distribution_type::exterme_value:
-            w.Key("a");
-            w.Double(src->a);
-            w.Key("b");
-            w.Double(src->b);
-            break;
-
-        case distribution_type::normal:
-            w.Key("mean");
-            w.Double(src->mean);
-            w.Key("stddev");
-            w.Double(src->stddev);
-            break;
-
-        case distribution_type::lognormal:
-            w.Key("m");
-            w.Double(src->m);
-            w.Key("s");
-            w.Double(src->s);
-            break;
-
-        case distribution_type::chi_squared:
-            w.Key("n");
-            w.Double(src->n);
-            break;
-
-        case distribution_type::cauchy:
-            w.Key("a");
-            w.Double(src->a);
-            w.Key("b");
-            w.Double(src->b);
-            break;
-
-        case distribution_type::fisher_f:
-            w.Key("m");
-            w.Double(src->m);
-            w.Key("n");
-            w.Double(src->n);
-            break;
-
-        case distribution_type::student_t:
-            w.Key("n");
-            w.Double(src->n);
-            break;
-        }
-
-        w.EndObject();
-    }
-
-    w.EndArray();
-}
-
-template<typename Writer>
-static void write_child_component_path(Writer&               w,
-                                       const registred_path& reg,
-                                       const dir_path&       dir,
-                                       const file_path&      file) noexcept
-{
-    w.Key("name");
-    w.String(reg.name.begin(), reg.name.size());
-
-    w.Key("directory");
-    w.String(dir.path.begin(), dir.path.size());
-
-    w.Key("file");
-    w.String(file.path.begin(), file.path.size());
-}
-
-template<typename Writer>
-static void write_child_component_path(const modeling&  mod,
-                                       const component& compo,
-                                       Writer&          w) noexcept
-{
-    auto* reg = mod.registred_paths.try_to_get(compo.reg_path);
-    debug::ensure(reg);
-    debug::ensure(not reg->path.empty());
-    debug::ensure(not reg->name.empty());
-
-    auto* dir = mod.dir_paths.try_to_get(compo.dir);
-    debug::ensure(dir);
-    debug::ensure(not dir->path.empty());
-
-    auto* file = mod.file_paths.try_to_get(compo.file);
-    debug::ensure(file);
-    debug::ensure(not file->path.empty());
-
-    if (reg and dir and file)
-        write_child_component_path(w, *reg, *dir, *file);
-}
-
-template<typename Writer>
-static void write_child_component(const modeling&    mod,
-                                  const component_id compo_id,
-                                  Writer&            w) noexcept
-{
-    if (auto* compo = mod.components.try_to_get(compo_id); compo) {
-        w.Key("component-type");
-        w.String(component_type_names[ordinal(compo->type)]);
-
-        switch (compo->type) {
-        case component_type::none:
-            break;
-        case component_type::internal:
-            w.Key("parameter");
-            w.String(internal_component_names[ordinal(compo->id.internal_id)]);
-            break;
-        case component_type::grid:
-            write_child_component_path(mod, *compo, w);
-            break;
-        case component_type::graph:
-            write_child_component_path(mod, *compo, w);
-            break;
-        case component_type::simple:
-            write_child_component_path(mod, *compo, w);
-            break;
-        case component_type::hsm:
-            write_child_component_path(mod, *compo, w);
-            break;
-        }
-    } else {
-        w.Key("component-type");
-        w.String(component_type_names[ordinal(component_type::none)]);
-    }
-}
-
-template<typename Writer>
-static void write_child_model(const modeling& mod,
-                              model&          mdl,
-                              Writer&         w) noexcept
-{
-    w.Key("dynamics");
-
-    dispatch(mdl, [&]<typename Dynamics>(Dynamics& dyn) noexcept {
-        if constexpr (std::is_same_v<Dynamics, hsm_wrapper>) {
-            write(mod, w, dyn);
+    switch (ec) {
+    case json_dearchiver::error_code::memory_error:
+        if (auto* ptr = std::get_if<sz>(&v); ptr) {
+            fmt::print(std::cerr,
+                       "json de-archiving memory error: not enough memory "
+                       "(requested: {})\n",
+                       *ptr);
         } else {
-            write(w, dyn);
-        }
-    });
-}
-
-template<typename Writer>
-static void write_child(const modeling&          mod,
-                        const generic_component& gen,
-                        const child&             ch,
-                        const u64                unique_id,
-                        Writer&                  w) noexcept
-{
-    const auto child_id  = gen.children.get_id(ch);
-    const auto child_idx = get_index(child_id);
-
-    w.StartObject();
-    w.Key("id");
-    w.Uint64(get_index(child_id));
-
-    if (unique_id != 0) {
-        w.Key("unique-id");
-        w.Uint64(unique_id);
-    }
-
-    w.Key("x");
-    w.Double(gen.children_positions[child_idx].x);
-    w.Key("y");
-    w.Double(gen.children_positions[child_idx].y);
-    w.Key("name");
-    w.String(gen.children_names[child_idx].c_str());
-
-    w.Key("configurable");
-    w.Bool(ch.flags[child_flags::configurable]);
-
-    w.Key("observable");
-    w.Bool(ch.flags[child_flags::observable]);
-
-    if (ch.type == child_type::component) {
-        const auto compo_id = ch.id.compo_id;
-        if (auto* compo = mod.components.try_to_get(compo_id); compo) {
-            w.Key("type");
-            w.String("component");
-
-            write_child_component(mod, compo_id, w);
-        }
-    } else {
-        model mdl;
-        mdl.type = ch.id.mdl_type;
-
-        dispatch(mdl, [&]<typename Dynamics>(Dynamics& dyn) -> void {
-            std::construct_at<Dynamics>(&dyn);
-        });
-
-        gen.children_parameters[child_idx].copy_to(mdl);
-
-        w.Key("type");
-        w.String(dynamics_type_names[ordinal(ch.id.mdl_type)]);
-
-        write_child_model(mod, mdl, w);
-    }
-
-    w.EndObject();
-}
-
-template<typename Writer>
-static void write_generic_component_children(
-  cache_rw& /*cache*/,
-  const modeling&          mod,
-  const generic_component& simple_compo,
-  Writer&                  w) noexcept
-{
-    w.Key("children");
-    w.StartArray();
-
-    for_each_data(simple_compo.children, [&](auto& c) noexcept {
-        write_child(mod,
-                    simple_compo,
-                    c,
-                    c.unique_id == 0 ? simple_compo.make_next_unique_id()
-                                     : c.unique_id,
-                    w);
-    });
-
-    w.EndArray();
-}
-
-template<typename Writer>
-static void write_component_ports(cache_rw& /*cache*/,
-                                  const component& compo,
-                                  Writer&          w) noexcept
-{
-    if (not compo.x.empty()) {
-        w.Key("x");
-        w.StartArray();
-
-        compo.x.for_each([&](auto /*id*/, const auto& str) noexcept {
-            w.String(str.c_str());
-        });
-
-        w.EndArray();
-    }
-
-    if (not compo.y.empty()) {
-        w.Key("y");
-        w.StartArray();
-
-        compo.y.for_each([&](auto /*id*/, const auto& str) noexcept {
-            w.String(str.c_str());
-        });
-
-        w.EndArray();
-    }
-}
-
-template<typename Writer>
-static void write_input_connection(const modeling&          mod,
-                                   const component&         parent,
-                                   const generic_component& gen,
-                                   const port_id            x,
-                                   const child&             dst,
-                                   const connection::port   dst_x,
-                                   Writer&                  w) noexcept
-{
-    w.StartObject();
-    w.Key("type");
-    w.String("input");
-    w.Key("port");
-    w.String(parent.x.get<port_str>(x).c_str());
-    w.Key("destination");
-    w.Uint64(get_index(gen.children.get_id(dst)));
-    w.Key("port-destination");
-
-    if (dst.type == child_type::model) {
-        w.Int(dst_x.model);
-    } else {
-        const auto* compo_child = mod.components.try_to_get(dst.id.compo_id);
-        if (compo_child and compo_child->x.exists(dst_x.compo))
-            w.String(compo_child->x.get<port_str>(dst_x.compo).c_str());
-    }
-
-    w.EndObject();
-}
-
-template<typename Writer>
-static void write_output_connection(const modeling&          mod,
-                                    const component&         parent,
-                                    const generic_component& gen,
-                                    const port_id            y,
-                                    const child&             src,
-                                    const connection::port   src_y,
-                                    Writer&                  w) noexcept
-{
-    w.StartObject();
-    w.Key("type");
-    w.String("output");
-    w.Key("port");
-    w.String(parent.y.get<port_str>(y).c_str());
-    w.Key("source");
-    w.Uint64(get_index(gen.children.get_id(src)));
-    w.Key("port-source");
-
-    if (src.type == child_type::model) {
-        w.Int(src_y.model);
-    } else {
-        const auto* compo_child = mod.components.try_to_get(src.id.compo_id);
-        if (compo_child and compo_child->y.exists(src_y.compo)) {
-            w.String(compo_child->y.get<port_str>(src_y.compo).c_str());
-        }
-    }
-    w.EndObject();
-}
-
-template<typename Writer>
-static void write_internal_connection(const modeling&          mod,
-                                      const generic_component& gen,
-                                      const child&             src,
-                                      const connection::port   src_y,
-                                      const child&             dst,
-                                      const connection::port   dst_x,
-                                      Writer&                  w) noexcept
-{
-    const char* src_str = nullptr;
-    const char* dst_str = nullptr;
-    int         src_int = -1;
-    int         dst_int = -1;
-
-    if (src.type == child_type::component) {
-        auto* compo = mod.components.try_to_get(src.id.compo_id);
-        if (compo and compo->y.exists(src_y.compo))
-            src_str = compo->y.get<port_str>(src_y.compo).c_str();
-    } else
-        src_int = src_y.model;
-
-    if (dst.type == child_type::component) {
-        auto* compo = mod.components.try_to_get(dst.id.compo_id);
-        if (compo and compo->x.exists(dst_x.compo))
-            dst_str = compo->x.get<port_str>(dst_x.compo).c_str();
-    } else
-        dst_int = dst_x.model;
-
-    if ((src_str or src_int >= 0) and (dst_str or dst_int >= 0)) {
-        w.StartObject();
-        w.Key("type");
-        w.String("internal");
-        w.Key("source");
-        w.Uint64(get_index(gen.children.get_id(src)));
-        w.Key("port-source");
-        if (src_str)
-            w.String(src_str);
-        else
-            w.Int(src_int);
-
-        w.Key("destination");
-        w.Uint64(get_index(gen.children.get_id(dst)));
-        w.Key("port-destination");
-        if (dst_str)
-            w.String(dst_str);
-        else
-            w.Int(dst_int);
-        w.EndObject();
-    }
-}
-
-template<typename Writer>
-static void write_generic_component_connections(cache_rw& /*cache*/,
-                                                const modeling&          mod,
-                                                const component&         compo,
-                                                const generic_component& gen,
-                                                Writer& w) noexcept
-{
-    w.Key("connections");
-    w.StartArray();
-
-    for (const auto& con : gen.connections)
-        if (auto* c_src = gen.children.try_to_get(con.src); c_src)
-            if (auto* c_dst = gen.children.try_to_get(con.dst); c_dst)
-                write_internal_connection(
-                  mod, gen, *c_src, con.index_src, *c_dst, con.index_dst, w);
-
-    for (const auto& con : gen.input_connections)
-        if (auto* c = gen.children.try_to_get(con.dst); c)
-            if (compo.x.exists(con.x))
-                write_input_connection(mod, compo, gen, con.x, *c, con.port, w);
-
-    for (const auto& con : gen.output_connections)
-        if (auto* c = gen.children.try_to_get(con.src); c)
-            if (compo.y.exists(con.y))
-                write_output_connection(
-                  mod, compo, gen, con.y, *c, con.port, w);
-
-    w.EndArray();
-}
-
-template<typename Writer>
-static void write_generic_component(cache_rw&                cache,
-                                    const modeling&          mod,
-                                    const component&         compo,
-                                    const generic_component& s_compo,
-                                    Writer&                  w) noexcept
-{
-    w.String("next-unique-id");
-    w.Uint64(s_compo.next_unique_id);
-
-    write_generic_component_children(cache, mod, s_compo, w);
-    write_generic_component_connections(cache, mod, compo, s_compo, w);
-}
-
-template<typename Writer>
-static void write_grid_component(cache_rw& /*cache*/,
-                                 const modeling&       mod,
-                                 const grid_component& grid,
-                                 Writer&               w) noexcept
-{
-    w.Key("rows");
-    w.Int(grid.row);
-    w.Key("columns");
-    w.Int(grid.column);
-    w.Key("in-connection-type");
-    w.Int(ordinal(grid.in_connection_type));
-    w.Key("out-connection-type");
-    w.Int(ordinal(grid.out_connection_type));
-
-    w.Key("children");
-    w.StartArray();
-    for (auto& elem : grid.children) {
-        w.StartObject();
-        write_child_component(mod, elem, w);
-        w.EndObject();
-    }
-    w.EndArray();
-}
-
-template<typename Writer>
-static void write_graph_component_param(const modeling&        mod,
-                                        const graph_component& g,
-                                        Writer&                w) noexcept
-{
-    switch (g.g_type) {
-    case graph_component::graph_type::dot_file: {
-        w.String("dot-file");
-        auto& p = g.param.dot;
-
-        if (auto* dir = mod.dir_paths.try_to_get(p.dir); dir) {
-            w.Key("dir");
-            w.String(dir->path.begin(), dir->path.size());
-        }
-
-        if (auto* file = mod.file_paths.try_to_get(p.file); file) {
-            w.Key("file");
-            w.String(file->path.begin(), file->path.size());
+            fmt::print(std::cerr,
+                       "json de-archiving memory error: not enough memory\n");
         }
         break;
-    }
 
-    case graph_component::graph_type::scale_free: {
-        w.String("scale-free");
-        w.Key("alpha");
-        w.Double(g.param.scale.alpha);
-        w.Key("beta");
-        w.Double(g.param.scale.beta);
+    case json_dearchiver::error_code::arg_error:
+        fmt::print(std::cerr, "json de-archiving internal error\n");
         break;
-    }
 
-    case graph_component::graph_type::small_world: {
-        w.String("small-world");
-        w.Key("probability");
-        w.Double(g.param.small.probability);
-        w.Key("k");
-        w.Int(g.param.small.k);
-        break;
-    }
-    }
-}
-
-template<typename Writer>
-static void write_graph_component(cache_rw& /*cache*/,
-                                  const modeling&        mod,
-                                  const graph_component& graph,
-                                  Writer&                w) noexcept
-{
-    w.Key("graph-type");
-    write_graph_component_param(mod, graph, w);
-
-    w.Key("children");
-    w.StartArray();
-    for (auto& elem : graph.children) {
-        w.StartObject();
-        write_child_component(mod, elem.id, w);
-        w.EndObject();
-    }
-    w.EndArray();
-}
-
-template<typename Writer>
-static void write_hsm_component(const hierarchical_state_machine& hsm,
-                                Writer&                           w) noexcept
-{
-    w.Key("states");
-    w.StartArray();
-
-    constexpr auto length  = hierarchical_state_machine::max_number_of_state;
-    constexpr auto invalid = hierarchical_state_machine::invalid_state_id;
-
-    std::array<bool, length> states_to_write;
-    states_to_write.fill(false);
-
-    if (hsm.top_state != invalid)
-        states_to_write[hsm.top_state] = true;
-
-    for (auto i = 0; i != length; ++i) {
-        if (hsm.states[i].if_transition != invalid)
-            states_to_write[hsm.states[i].if_transition] = true;
-        if (hsm.states[i].else_transition != invalid)
-            states_to_write[hsm.states[i].else_transition] = true;
-        if (hsm.states[i].super_id != invalid)
-            states_to_write[hsm.states[i].super_id] = true;
-        if (hsm.states[i].sub_id != invalid)
-            states_to_write[hsm.states[i].sub_id] = true;
-    }
-
-    for (auto i = 0; i != length; ++i) {
-        if (states_to_write[i]) {
-            w.StartObject();
-            w.Key("id");
-            w.Uint(i);
-            write(w, "enter", hsm.states[i].enter_action);
-            write(w, "exit", hsm.states[i].exit_action);
-            write(w, "if", hsm.states[i].if_action);
-            write(w, "else", hsm.states[i].else_action);
-            write(w, "condition", hsm.states[i].condition);
-
-            w.Key("if-transition");
-            w.Int(hsm.states[i].if_transition);
-            w.Key("else-transition");
-            w.Int(hsm.states[i].else_transition);
-            w.Key("super-id");
-            w.Int(hsm.states[i].super_id);
-            w.Key("sub-id");
-            w.Int(hsm.states[i].sub_id);
-            w.EndObject();
+    case json_dearchiver::error_code::file_error:
+        if (auto* ptr = std::get_if<sz>(&v); ptr) {
+            fmt::print(std::cerr,
+                       "json de-archiving file error: file too small {}\n",
+                       *ptr);
+        } else {
+            fmt::print(std::cerr,
+                       "json de-archiving memory error: not enough memory\n");
         }
-    }
-    w.EndArray();
-
-    w.Key("top");
-    w.Uint(hsm.top_state);
-}
-
-template<typename Writer>
-static void write_internal_component(cache_rw& /*cache*/,
-                                     const modeling& /* mod */,
-                                     const internal_component id,
-                                     Writer&                  w) noexcept
-{
-    w.Key("component");
-    w.String(internal_component_names[ordinal(id)]);
-}
-
-template<typename Writer>
-static void do_component_save(Writer&    w,
-                              modeling&  mod,
-                              component& compo,
-                              cache_rw&  cache) noexcept
-{
-    w.StartObject();
-
-    w.Key("name");
-    w.String(compo.name.c_str());
-
-    write_constant_sources(cache, mod.srcs, w);
-    write_binary_file_sources(cache, mod.srcs, w);
-    write_text_file_sources(cache, mod.srcs, w);
-    write_random_sources(cache, mod.srcs, w);
-
-    w.Key("colors");
-    w.StartArray();
-    auto& color = mod.component_colors[get_index(mod.components.get_id(compo))];
-    w.Double(color[0]);
-    w.Double(color[1]);
-    w.Double(color[2]);
-    w.Double(color[3]);
-    w.EndArray();
-
-    write_component_ports(cache, compo, w);
-
-    w.Key("type");
-    w.String(component_type_names[ordinal(compo.type)]);
-
-    switch (compo.type) {
-    case component_type::none:
         break;
 
-    case component_type::internal:
-        write_internal_component(cache, mod, compo.id.internal_id, w);
+    case json_dearchiver::error_code::read_error:
+        if (auto* ptr = std::get_if<int>(&v); ptr and *ptr != 0) {
+            fmt::print(
+              std::cerr,
+              "json de-archiving read error: internal system {} ({})\n",
+              *ptr,
+              std::strerror(*ptr));
+        } else {
+            fmt::print(std::cerr, "json de-archiving read error\n");
+        }
         break;
 
-    case component_type::simple: {
-        auto* p = mod.generic_components.try_to_get(compo.id.generic_id);
-        if (p)
-            write_generic_component(cache, mod, compo, *p, w);
-    } break;
+    case json_dearchiver::error_code::format_error:
+        if (auto* ptr = std::get_if<std::pair<sz, std::string_view>>(&v); ptr) {
+            if (ptr->second.empty()) {
+                fmt::print(std::cerr,
+                           "json de-archiving json format error at offset {}\n",
+                           ptr->first);
+            } else {
+                fmt::print(
+                  std::cerr,
+                  "json de-archiving json format error `{}' at offset {}\n",
+                  ptr->second,
+                  ptr->first);
+            }
+        } else {
+            fmt::print(std::cerr, "json de-archiving json format error\n");
+        }
+        break;
 
-    case component_type::grid: {
-        auto* p = mod.grid_components.try_to_get(compo.id.grid_id);
-        if (p)
-            write_grid_component(cache, mod, *p, w);
-    } break;
-
-    case component_type::graph: {
-        auto* p = mod.graph_components.try_to_get(compo.id.graph_id);
-        if (p)
-            write_graph_component(cache, mod, *p, w);
-    } break;
-
-    case component_type::hsm: {
-        auto* p = mod.hsm_components.try_to_get(compo.id.hsm_id);
-        if (p)
-            write_hsm_component(*p, w);
-    } break;
+    default:
+        fmt::print(std::cerr, "json de-archiving unknown error\n");
     }
-
-    w.EndObject();
 }
 
-status json_archiver::component_save(modeling&                   mod,
-                                     component&                  compo,
-                                     cache_rw&                   cache,
-                                     const char*                 filename,
-                                     json_archiver::print_option print) noexcept
+bool json_archiver::operator()(modeling&                   mod,
+                               component&                  compo,
+                               file&                       io,
+                               json_archiver::print_option print,
+                               error_cb                    err) noexcept
 {
-    json_archiver::part file_error{};
+    clear();
 
-    auto f =
-      file::open(filename, open_mode::write, [&](file::error_code ec) noexcept {
-          debug_log("json_archiver::file::open {} error", filename);
-          file_error = json_archiver::part::read_file_error;
-      });
+    debug::ensure(io.is_open());
+    debug::ensure(io.get_mode() == open_mode::write);
 
-    if (!f)
-        return new_error(file_error);
+    if (not(io.is_open() and io.get_mode() == open_mode::write))
+        return report_error(err, json_archiver::error_code::arg_error);
 
-    FILE* fp = reinterpret_cast<FILE*>(f->get_handle());
-    cache.clear();
-    cache.buffer.resize(4096);
+    auto fp = reinterpret_cast<FILE*>(io.get_handle());
+    buffer.resize(4096);
 
-    rapidjson::FileWriteStream os(fp, cache.buffer.data(), cache.buffer.size());
+    rapidjson::FileWriteStream os(fp, buffer.data(), buffer.size());
     rapidjson::PrettyWriter<rapidjson::FileWriteStream> w(os);
+
+    json_archiver::impl i{ *this, err };
 
     switch (print) {
     case json_archiver::print_option::indent_2:
         w.SetIndent(' ', 2);
-        do_component_save(w, mod, compo, cache);
+        i.do_component_save(w, mod, compo);
         break;
 
     case json_archiver::print_option::indent_2_one_line_array:
         w.SetIndent(' ', 2);
         w.SetFormatOptions(rapidjson::kFormatSingleLineArray);
-        do_component_save(w, mod, compo, cache);
+        i.do_component_save(w, mod, compo);
         break;
 
     default:
-        do_component_save(w, mod, compo, cache);
+        i.do_component_save(w, mod, compo);
         break;
     }
 
-    return success();
+    return true;
 }
 
-status json_archiver::component_save(modeling&                   mod,
-                                     component&                  compo,
-                                     cache_rw&                   cache,
-                                     vector<char>&               out,
-                                     json_archiver::print_option print) noexcept
+bool json_archiver::operator()(modeling&                   mod,
+                               component&                  compo,
+                               vector<char>&               out,
+                               json_archiver::print_option print,
+                               error_cb                    err) noexcept
 {
+    clear();
+
     rapidjson::StringBuffer buffer;
     buffer.Reserve(4096u);
+
+    json_archiver::impl i{ *this, err };
 
     switch (print) {
     case json_archiver::print_option::indent_2: {
         rapidjson::PrettyWriter<rapidjson::StringBuffer> w(buffer);
         w.SetIndent(' ', 2);
-        do_component_save(w, mod, compo, cache);
+        i.do_component_save(w, mod, compo);
     } break;
 
     case json_archiver::print_option::indent_2_one_line_array: {
         rapidjson::PrettyWriter<rapidjson::StringBuffer> w(buffer);
         w.SetIndent(' ', 2);
         w.SetFormatOptions(rapidjson::kFormatSingleLineArray);
-        do_component_save(w, mod, compo, cache);
+        i.do_component_save(w, mod, compo);
     } break;
 
     default: {
         rapidjson::Writer<rapidjson::StringBuffer> w(buffer);
-        do_component_save(w, mod, compo, cache);
+        i.do_component_save(w, mod, compo);
     } break;
     }
 
@@ -6067,163 +6593,66 @@ status json_archiver::component_save(modeling&                   mod,
     out.resize(static_cast<int>(length));
     std::copy_n(str, length, out.data());
 
-    return success();
+    return true;
 }
 
-/*****************************************************************************
- *
- * Simulation file read part
- *
- ****************************************************************************/
-
-template<typename Writer>
-static void write_simulation_model(const simulation& sim, Writer& w) noexcept
+bool json_archiver::operator()(const simulation&           sim,
+                               file&                       io,
+                               json_archiver::print_option print,
+                               error_cb                    err) noexcept
 {
-    w.Key("hsms");
-    w.StartArray();
+    clear();
 
-    for (auto& machine : sim.hsms) {
-        w.StartObject();
-        w.Key("hsm");
-        w.Uint64(ordinal(sim.hsms.get_id(machine)));
-        write_hsm_component(machine, w);
-        w.EndObject();
-    }
-    w.EndArray();
+    debug::ensure(io.is_open());
+    debug::ensure(io.get_mode() == open_mode::write);
 
-    w.Key("models");
-    w.StartArray();
+    if (not(io.is_open() and io.get_mode() == open_mode::write))
+        return report_error(err, json_archiver::error_code::arg_error);
 
-    for (auto& mdl : sim.models) {
-        const auto mdl_id = sim.models.get_id(mdl);
+    auto fp = reinterpret_cast<FILE*>(io.get_handle());
+    buffer.resize(4096);
 
-        w.StartObject();
-        w.Key("id");
-        w.Uint64(ordinal(mdl_id));
-        w.Key("type");
-        w.String(dynamics_type_names[ordinal(mdl.type)]);
-        w.Key("dynamics");
-
-        dispatch(mdl, [&w]<typename Dynamics>(const Dynamics& dyn) noexcept {
-            write(w, dyn);
-        });
-
-        w.EndObject();
-    }
-
-    w.EndArray();
-}
-
-template<typename Writer>
-static void write_simulation_connections(const simulation& sim,
-                                         Writer&           w) noexcept
-{
-    w.Key("connections");
-    w.StartArray();
-
-    const model* mdl = nullptr;
-    while (sim.models.next(mdl)) {
-        dispatch(*mdl, [&sim, &mdl, &w]<typename Dynamics>(Dynamics& dyn) {
-            if constexpr (has_output_port<Dynamics>) {
-                for (auto i = 0, e = length(dyn.y); i != e; ++i) {
-                    if (auto* lst = sim.nodes.try_to_get(dyn.y[i]); lst) {
-                        for (const auto& cnt : *lst) {
-                            auto* dst = sim.models.try_to_get(cnt.model);
-                            if (dst) {
-                                w.StartObject();
-                                w.Key("source");
-                                w.Uint64(ordinal(sim.models.get_id(*mdl)));
-                                w.Key("port-source");
-                                w.Uint64(static_cast<u64>(i));
-                                w.Key("destination");
-                                w.Uint64(ordinal(cnt.model));
-                                w.Key("port-destination");
-                                w.Uint64(static_cast<u64>(cnt.port_index));
-                                w.EndObject();
-                            }
-                        }
-                    }
-                }
-            }
-        });
-    }
-
-    w.EndArray();
-}
-
-template<typename Writer>
-static void do_simulation_save(Writer&           w,
-                               const simulation& sim,
-                               cache_rw&         cache) noexcept
-{
-    w.StartObject();
-
-    write_constant_sources(cache, sim.srcs, w);
-    write_binary_file_sources(cache, sim.srcs, w);
-    write_text_file_sources(cache, sim.srcs, w);
-    write_random_sources(cache, sim.srcs, w);
-    write_simulation_model(sim, w);
-    write_simulation_connections(sim, w);
-
-    w.EndObject();
-}
-
-status json_archiver::simulation_save(const simulation& sim,
-                                      cache_rw&         cache,
-                                      const char*       filename,
-                                      print_option      print_options) noexcept
-{
-    json_archiver::part file_error;
-
-    auto f =
-      file::open(filename, open_mode::write, [&](file::error_code ec) noexcept {
-          debug_log("json_archiver::file::open {} error", filename);
-          file_error = json_archiver::part::read_file_error;
-      });
-
-    if (!f)
-        return new_error(file_error);
-
-    FILE* fp = reinterpret_cast<FILE*>(f->get_handle());
-    cache.clear();
-    cache.buffer.resize(4096);
-
-    rapidjson::FileWriteStream os(fp, cache.buffer.data(), cache.buffer.size());
+    rapidjson::FileWriteStream os(fp, buffer.data(), buffer.size());
     rapidjson::PrettyWriter<rapidjson::FileWriteStream> w(os);
+    json_archiver::impl                                 i{ *this, err };
 
-    switch (print_options) {
+    switch (print) {
     case print_option::indent_2:
         w.SetIndent(' ', 2);
-        do_simulation_save(w, sim, cache);
+        i.do_simulation_save(w, sim);
         break;
 
     case print_option::indent_2_one_line_array:
         w.SetIndent(' ', 2);
         w.SetFormatOptions(rapidjson::kFormatSingleLineArray);
-        do_simulation_save(w, sim, cache);
+        i.do_simulation_save(w, sim);
         break;
 
     default:
-        do_simulation_save(w, sim, cache);
+        i.do_simulation_save(w, sim);
         break;
     }
 
-    return success();
+    return true;
 }
 
-status json_archiver::simulation_save(const simulation& sim,
-                                      cache_rw&         cache,
-                                      vector<char>&     out,
-                                      print_option      print_options) noexcept
+bool json_archiver::operator()(const simulation& sim,
+                               vector<char>&     out,
+                               print_option      print_options,
+                               error_cb          err) noexcept
 {
+    clear();
+
     rapidjson::StringBuffer buffer;
     buffer.Reserve(4096u);
+
+    json_archiver::impl i{ *this, err };
 
     switch (print_options) {
     case print_option::indent_2: {
         rapidjson::PrettyWriter<rapidjson::StringBuffer> w(buffer);
         w.SetIndent(' ', 2);
-        do_simulation_save(w, sim, cache);
+        i.do_simulation_save(w, sim);
         break;
     }
 
@@ -6231,13 +6660,13 @@ status json_archiver::simulation_save(const simulation& sim,
         rapidjson::PrettyWriter<rapidjson::StringBuffer> w(buffer);
         w.SetIndent(' ', 2);
         w.SetFormatOptions(rapidjson::kFormatSingleLineArray);
-        do_simulation_save(w, sim, cache);
+        i.do_simulation_save(w, sim);
         break;
     }
 
     default: {
         rapidjson::Writer<rapidjson::StringBuffer> w(buffer);
-        do_simulation_save(w, sim, cache);
+        i.do_simulation_save(w, sim);
         break;
     }
     }
@@ -6247,486 +6676,179 @@ status json_archiver::simulation_save(const simulation& sim,
     out.resize(static_cast<int>(length));
     std::copy_n(str, length, out.data());
 
-    return success();
+    return true;
 }
 
-static status parse_json_simulation(simulation&                sim,
-                                    cache_rw&                  cache,
-                                    const rapidjson::Document& doc) noexcept
+bool json_archiver::operator()(project&  pj,
+                               modeling& mod,
+                               simulation& /* sim */,
+                               file&        io,
+                               print_option print_options,
+                               error_cb     err) noexcept
 {
-    sim.clear();
+    clear();
 
-    reader r{ cache, sim };
-    if (r.read_simulation(doc.GetObject()))
-        return success();
-
-    debug_logi(
-      2, "read simulation fail with {}\n", error_id_names[ordinal(r.error)]);
-
-    for (auto i = 0u; i < r.stack.size(); ++i)
-        debug_logi(2,
-                   "  {}: {}\n",
-                   static_cast<int>(i),
-                   stack_id_names[ordinal(r.stack[i])]);
-
-    return new_error(json_archiver::part::simulation_parser);
-}
-
-static status parse_simulation(simulation& sim,
-                               cache_rw&   cache,
-                               file&       f) noexcept
-{
-    rapidjson::Document doc;
-
-    irt_check(read_file_to_buffer(cache, f));
-    irt_check(parse_json_data(
-      std::span(cache.buffer.data(), cache.buffer.size()), doc));
-
-    irt_check(parse_json_simulation(sim, cache, doc));
-
-    return success();
-}
-
-static status parse_simulation(simulation&     sim,
-                               cache_rw&       cache,
-                               std::span<char> buffer) noexcept
-{
-    rapidjson::Document doc;
-
-    irt_check(parse_json_data(buffer, doc));
-    irt_check(parse_json_simulation(sim, cache, doc));
-
-    return success();
-}
-
-status json_archiver::simulation_load(simulation& sim,
-                                      cache_rw&   cache,
-                                      file&       f) noexcept
-{
-    return parse_simulation(sim, cache, f);
-}
-
-status json_archiver::simulation_load(simulation&     sim,
-                                      cache_rw&       cache,
-                                      std::span<char> buffer) noexcept
-{
-    return parse_simulation(sim, cache, buffer);
-}
-
-/*****************************************************************************
- *
- * Project file read part
- *
- ****************************************************************************/
-
-static status parse_json_project(project&                   pj,
-                                 modeling&                  mod,
-                                 simulation&                sim,
-                                 cache_rw&                  cache,
-                                 const rapidjson::Document& doc) noexcept
-{
-    pj.clear();
-    sim.clear();
-
-    reader r{ cache, mod, sim, pj };
-    if (r.read_project(doc.GetObject()))
-        return success();
-
-    debug_log("read project fail with {}\n", error_id_names[ordinal(r.error)]);
-
-    for (auto i = 0u; i < r.stack.size(); ++i)
-        debug_logi(2,
-                   "  {}: {}\n",
-                   static_cast<int>(i),
-                   stack_id_names[ordinal(r.stack[i])]);
-
-    return new_error(json_archiver::part::project_parser);
-}
-
-static status parse_project(project&    pj,
-                            modeling&   mod,
-                            simulation& sim,
-                            cache_rw&   cache,
-                            file&       f) noexcept
-{
-    rapidjson::Document doc;
-
-    irt_check(read_file_to_buffer(cache, f));
-    irt_check(parse_json_data(
-      std::span(cache.buffer.data(), cache.buffer.size()), doc));
-    irt_check(parse_json_project(pj, mod, sim, cache, doc));
-
-    return success();
-}
-
-static status parse_project(project&        pj,
-                            modeling&       mod,
-                            simulation&     sim,
-                            cache_rw&       cache,
-                            std::span<char> buffer) noexcept
-{
-    rapidjson::Document doc;
-
-    irt_check(parse_json_data(buffer, doc));
-    irt_check(parse_json_project(pj, mod, sim, cache, doc));
-
-    return success();
-}
-
-status json_archiver::project_load(project&    pj,
-                                   modeling&   mod,
-                                   simulation& sim,
-                                   cache_rw&   cache,
-                                   file&       f) noexcept
-{
-    return parse_project(pj, mod, sim, cache, f);
-}
-
-status json_archiver::project_load(project&        pj,
-                                   modeling&       mod,
-                                   simulation&     sim,
-                                   cache_rw&       cache,
-                                   std::span<char> buffer) noexcept
-{
-    return parse_project(pj, mod, sim, cache, buffer);
-}
-
-/*****************************************************************************
- *
- * project file write part
- *
- ****************************************************************************/
-
-template<typename Writer>
-static void write_color(Writer& w, std::array<u8, 4> color) noexcept
-{
-    w.StartArray();
-    w.Uint(color[0]);
-    w.Uint(color[1]);
-    w.Uint(color[2]);
-    w.Uint(color[3]);
-    w.EndArray();
-}
-
-template<typename Writer>
-static void write_project_unique_id_path(Writer&               w,
-                                         const unique_id_path& path) noexcept
-{
-    w.StartArray();
-    for (auto elem : path)
-        w.Uint64(elem);
-    w.EndArray();
-}
-
-constexpr static std::array<u8, 4> color_white{ 255, 255, 255, 0 };
-
-template<typename Writer>
-static status do_project_save_parameters(Writer& w, project& pj) noexcept
-{
-    w.Key("parameters");
-
-    w.StartObject();
-    irt_check(do_project_save_global_parameters(w, pj));
-    w.EndObject();
-
-    return success();
-}
-
-template<typename Writer>
-static status do_project_save_plot_observations(Writer& w, project& pj) noexcept
-{
-    w.Key("global");
-    w.StartArray();
-
-    for_each_data(pj.variable_observers, [&](auto& plot) noexcept {
-        unique_id_path path;
-
-        w.StartObject();
-        w.Key("name");
-        w.String(plot.name.begin(), plot.name.size());
-
-        plot.for_each([&](const auto id) noexcept {
-            const auto idx = get_index(id);
-            const auto tn  = plot.get_tn_ids()[idx];
-            const auto mdl = plot.get_mdl_ids()[idx];
-
-            w.Key("access");
-            pj.build_unique_id_path(tn, mdl, path);
-            write_project_unique_id_path(w, path);
-        });
-
-        w.Key("color");
-        write_color(w, color_white);
-
-        w.Key("type");
-        w.String("line");
-        w.EndObject();
-    });
-
-    w.EndArray();
-
-    return success();
-}
-
-template<typename Writer>
-static status do_project_save_grid_observations(Writer& w, project& pj) noexcept
-{
-    w.Key("grid");
-    w.StartArray();
-
-    for_each_data(pj.grid_observers, [&](auto& grid) noexcept {
-        w.StartObject();
-        w.Key("name");
-        w.String(grid.name.begin(), grid.name.size());
-
-        unique_id_path path;
-        w.Key("grid");
-        write_project_unique_id_path(w, path);
-        pj.build_unique_id_path(grid.parent_id, path);
-
-        w.Key("access");
-        pj.build_unique_id_path(grid.tn_id, grid.mdl_id, path);
-
-        w.EndObject();
-    });
-
-    w.EndArray();
-
-    return success();
-}
-
-template<typename Writer>
-static status do_project_save_observations(Writer& w, project& pj) noexcept
-{
-    w.Key("observations");
-
-    w.StartObject();
-    irt_check(do_project_save_plot_observations(w, pj));
-    irt_check(do_project_save_grid_observations(w, pj));
-    w.EndObject();
-
-    return success();
-}
-
-template<typename Writer>
-static void write_parameter(Writer& w, const parameter& param) noexcept
-{
-    w.Key("parameter");
-    w.StartObject();
-    w.Key("real");
-    w.StartArray();
-    for (auto elem : param.reals)
-        w.Double(elem);
-    w.EndArray();
-    w.Key("integer");
-    w.StartArray();
-    for (auto elem : param.integers)
-        w.Int64(elem);
-    w.EndArray();
-}
-
-template<typename Writer>
-static status do_project_save_global_parameters(Writer& w, project& pj) noexcept
-{
-    w.Key("global");
-    w.StartArray();
-
-    pj.parameters.for_each([&](const auto /*id*/,
-                               const auto& name,
-                               const auto  tn_id,
-                               const auto  mdl_id,
-                               const auto& p) noexcept {
-        unique_id_path path;
-        w.Key("access");
-        pj.build_unique_id_path(tn_id, mdl_id, path);
-
-        w.StartObject();
-        w.Key("name");
-        w.String(name.begin(), name.size());
-
-        w.Key("access");
-        write_project_unique_id_path(w, path);
-        write_parameter(w, p);
-
-        w.EndObject();
-    });
-
-    w.EndArray();
-
-    return success();
-}
-
-template<typename Writer>
-static status do_project_save_component(Writer&               w,
-                                        component&            compo,
-                                        const registred_path& reg,
-                                        const dir_path&       dir,
-                                        const file_path&      file) noexcept
-{
-    w.Key("component-type");
-    w.String(component_type_names[ordinal(compo.type)]);
-
-    switch (compo.type) {
-    case component_type::internal:
-        break;
-
-    case component_type::simple:
-    case component_type::grid:
-    case component_type::hsm:
-        w.Key("component-path");
-        w.String(reg.name.c_str(), reg.name.size(), false);
-
-        w.Key("component-directory");
-        w.String(dir.path.c_str(), dir.path.size(), false);
-
-        w.Key("component-file");
-        w.String(file.path.c_str(), file.path.size(), false);
-        break;
-
-    default:
-        break;
-    };
-
-    return success();
-}
-
-template<typename Writer>
-static status do_project_save(Writer&    w,
-                              project&   pj,
-                              modeling&  mod,
-                              component& compo,
-                              cache_rw& /* cache */) noexcept
-{
-    auto* reg = mod.registred_paths.try_to_get(compo.reg_path);
-    if (!reg)
-        return new_error(project::error::registred_path_access_error);
-    if (reg->path.empty())
-        return new_error(project::error::registred_path_access_error);
-    if (reg->name.empty())
-        return new_error(project::error::registred_path_access_error);
-
-    auto* dir = mod.dir_paths.try_to_get(compo.dir);
-    if (!dir)
-        return new_error(project::error::directory_access_error);
-    if (dir->path.empty())
-        return new_error(project::error::directory_access_error);
-
-    auto* file = mod.file_paths.try_to_get(compo.file);
-    if (!file)
-        return new_error(project::error::file_access_error);
-    if (file->path.empty())
-        return new_error(project::error::file_access_error);
-
-    w.StartObject();
-    irt_check(do_project_save_component(w, compo, *reg, *dir, *file));
-    irt_check(do_project_save_parameters(w, pj));
-    irt_check(do_project_save_observations(w, pj));
-    w.EndObject();
-
-    return success();
-}
-
-status json_archiver::project_save(project&  pj,
-                                   modeling& mod,
-                                   simulation& /* sim */,
-                                   cache_rw&    cache,
-                                   file&        io,
-                                   print_option print_options) noexcept
-{
     debug::ensure(io.is_open());
+    debug::ensure(io.get_mode() == open_mode::write);
+
+    if (not(io.is_open() and io.get_mode() == open_mode::write))
+        return report_error(err, json_archiver::error_code::arg_error);
 
     auto* compo  = mod.components.try_to_get(pj.head());
     auto* parent = pj.tn_head();
 
-    if (!(compo && parent))
-        return new_error(project::error::empty_project);
+    if (not(compo and parent))
+        return report_error(err, json_archiver::error_code::empty_project);
 
     debug::ensure(mod.components.get_id(compo) == parent->id);
 
     auto* reg = mod.registred_paths.try_to_get(compo->reg_path);
     if (!reg)
-        return new_error(project::error::registred_path_access_error);
+        return report_error(err, json_archiver::error_code::file_error);
 
     auto* dir = mod.dir_paths.try_to_get(compo->dir);
     if (!dir)
-        return new_error(project::error::directory_access_error);
+        return report_error(err, json_archiver::error_code::file_error);
 
     auto* file = mod.file_paths.try_to_get(compo->file);
     if (!file)
-        return new_error(project::error::file_access_error);
+        return report_error(err, json_archiver::error_code::file_error);
 
-    auto* fp = reinterpret_cast<FILE*>(io.get_handle());
-    cache.clear();
-    cache.buffer.resize(4096);
+    auto fp = reinterpret_cast<FILE*>(io.get_handle());
+    clear();
+    buffer.resize(4096);
 
-    rapidjson::FileWriteStream os(fp, cache.buffer.data(), cache.buffer.size());
+    rapidjson::FileWriteStream os(fp, buffer.data(), buffer.size());
     rapidjson::PrettyWriter<rapidjson::FileWriteStream> w(os);
+    json_archiver::impl                                 i{ *this, err };
 
     switch (print_options) {
     case print_option::indent_2:
         w.SetIndent(' ', 2);
-        irt_check(do_project_save(w, pj, mod, *compo, cache));
-        break;
+        return i.do_project_save(w, pj, mod, *compo);
 
     case print_option::indent_2_one_line_array:
         w.SetIndent(' ', 2);
         w.SetFormatOptions(rapidjson::kFormatSingleLineArray);
-        irt_check(do_project_save(w, pj, mod, *compo, cache));
-        break;
+        return i.do_project_save(w, pj, mod, *compo);
 
     default:
-        irt_check(do_project_save(w, pj, mod, *compo, cache));
-        break;
+        return i.do_project_save(w, pj, mod, *compo);
     }
-
-    return success();
 }
 
-status json_archiver::project_save(project&  pj,
-                                   modeling& mod,
-                                   simulation& /* sim */,
-                                   cache_rw&     cache,
-                                   vector<char>& out,
-                                   print_option  print_options) noexcept
+bool json_archiver::operator()(project&  pj,
+                               modeling& mod,
+                               simulation& /* sim */,
+                               vector<char>& out,
+                               print_option  print_options,
+                               error_cb      err) noexcept
 {
+    clear();
+
     auto* compo  = mod.components.try_to_get(pj.head());
     auto* parent = pj.tn_head();
 
     if (!(compo && parent))
-        return new_error(project::error::empty_project);
+        return report_error(err, json_archiver::error_code::empty_project);
 
     debug::ensure(mod.components.get_id(compo) == parent->id);
 
-    rapidjson::StringBuffer buffer;
-    buffer.Reserve(4096u);
+    rapidjson::StringBuffer rbuffer;
+    rbuffer.Reserve(4096u);
+    json_archiver::impl i{ *this, err };
 
     switch (print_options) {
     case print_option::indent_2: {
-        rapidjson::PrettyWriter<rapidjson::StringBuffer> w(buffer);
+        rapidjson::PrettyWriter<rapidjson::StringBuffer> w(rbuffer);
         w.SetIndent(' ', 2);
-        irt_check(do_project_save(w, pj, mod, *compo, cache));
+        i.do_project_save(w, pj, mod, *compo);
     } break;
 
     case print_option::indent_2_one_line_array: {
-        rapidjson::PrettyWriter<rapidjson::StringBuffer> w(buffer);
+        rapidjson::PrettyWriter<rapidjson::StringBuffer> w(rbuffer);
         w.SetIndent(' ', 2);
         w.SetFormatOptions(rapidjson::kFormatSingleLineArray);
-        irt_check(do_project_save(w, pj, mod, *compo, cache));
+        i.do_project_save(w, pj, mod, *compo);
     } break;
 
     default: {
-        rapidjson::PrettyWriter<rapidjson::StringBuffer> w(buffer);
-        irt_check(do_project_save(w, pj, mod, *compo, cache));
+        rapidjson::PrettyWriter<rapidjson::StringBuffer> w(rbuffer);
+        i.do_project_save(w, pj, mod, *compo);
     } break;
     }
 
-    auto length = buffer.GetSize();
-    auto str    = buffer.GetString();
-    out.resize(static_cast<int>(length) + 1);
+    auto length = rbuffer.GetSize();
+    auto str    = rbuffer.GetString();
+    out.resize(length + 1);
     std::copy_n(str, length, out.data());
     out.back() = '\0';
 
-    return success();
+    return true;
 }
 
+void json_archiver::cerr(json_archiver::error_code             ec,
+                         std::variant<std::monostate, sz, int> v) noexcept
+{
+    switch (ec) {
+    case json_archiver::error_code::memory_error:
+        if (auto* ptr = std::get_if<sz>(&v); ptr) {
+            fmt::print(std::cerr,
+                       "json archiving memory error: not enough memory "
+                       "(requested: {})\n",
+                       *ptr);
+        } else {
+            fmt::print(std::cerr,
+                       "json archiving memory error: not enough memory\n");
+        }
+        break;
+
+    case json_archiver::error_code::arg_error:
+        fmt::print(std::cerr, "json archiving internal error\n");
+        break;
+
+    case json_archiver::error_code::empty_project:
+        fmt::print(std::cerr, "json archiving empty project error\n");
+        break;
+
+    case json_archiver::error_code::file_error:
+        fmt::print(std::cerr, "json archiving file access error\n");
+        break;
+
+    case json_archiver::error_code::format_error:
+        fmt::print(std::cerr, "json archiving format error\n");
+        break;
+
+    case json_archiver::error_code::dependency_error:
+        fmt::print(std::cerr, "json archiving format error\n");
+        break;
+
+    default:
+        fmt::print(std::cerr, "json de-archiving unknown error\n");
+    }
+}
+
+void json_archiver::destroy() noexcept
+{
+    buffer.destroy();
+
+    model_mapping.data.destroy();
+    constant_mapping.data.destroy();
+    binary_file_mapping.data.destroy();
+    random_mapping.data.destroy();
+    text_file_mapping.data.destroy();
+    sim_hsms_mapping.data.destroy();
+}
+
+void json_archiver::clear() noexcept
+{
+    buffer.clear();
+
+    model_mapping.data.clear();
+    constant_mapping.data.clear();
+    binary_file_mapping.data.clear();
+    random_mapping.data.clear();
+    text_file_mapping.data.clear();
+    sim_hsms_mapping.data.clear();
+}
 } //  irt

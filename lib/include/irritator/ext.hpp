@@ -156,13 +156,13 @@ template<typename Fn>
 class function_ref;
 
 template<typename Ret, typename... Params>
-class function_ref<Ret(Params...)>
+class function_ref<Ret(Params...) noexcept>
 {
     Ret   (*callback)(void* callable, Params... params) = nullptr;
     void* callable                                      = nullptr;
 
     template<typename Callable>
-    static Ret callback_fn(void* callable, Params... params)
+    static Ret callback_fn(void* callable, Params... params) noexcept
     {
         return (*reinterpret_cast<Callable*>(callable))(
           std::forward<Params>(params)...);
