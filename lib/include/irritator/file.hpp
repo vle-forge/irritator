@@ -25,29 +25,29 @@ public:
     };
 
     /**
-     * @brief Try to open a file.
-     *
-     * @example
-     * auto file =  file::open(filename, file::mode::read,
-     *                         [&](file::error_code ec) noexcept{
-     *   if (ec == error_code::open_error) {
-     *       // gui
-     *       app.notifications.try_insert("fail to open file");
-     *
-     *       // cli
-     *       fprintf(stderr, "Fail to open %s", filename);
-     *   });
-     *
-     * if (file) {
-     *   int x, y, z;
-     *   return file.read(x) && file.read(y) && file.read(z);
-     * }
-     * @endexample
-     *
-     * @param  filename File name in utf-8.
-     * @return @c file if success @c error_code otherwise.
+      @brief Try to open a file.
+
+      @example
+      auto file =  file::open(filename, file::mode::read,
+                              [&](file::error_code ec) noexcept{
+        if (ec == error_code::open_error) {
+            // gui
+            app.notifications.try_insert("fail to open file");
+
+            // cli
+            fprintf(stderr, "Fail to open %s", filename);
+        });
+
+      if (file) {
+        int x, y, z;
+        return file.read(x) && file.read(y) && file.read(z);
+      }
+      @endexample
+
+      @param  filename File name in utf-8.
+      @return @c file if success @c error_code otherwise.
      */
-    template<std::invocable<error_code> Fn>
+    template<std::invocable<file::error_code> Fn>
     static std::optional<file> open(const char*     filename,
                                     const open_mode mode,
                                     Fn&&            fn) noexcept;
@@ -153,7 +153,7 @@ public:
 
     ~memory() noexcept = default;
 
-    template<std::invocable<error_code> Fn>
+    template<std::invocable<memory::error_code> Fn>
     static std::optional<memory> make(const i64       length,
                                       const open_mode mode,
                                       Fn&&            fn) noexcept;
