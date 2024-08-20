@@ -47,7 +47,7 @@ public:
      * @param  filename File name in utf-8.
      * @return @c file if success @c error_code otherwise.
      */
-    template<std::invocable<file::error_code> Fn>
+    template<std::invocable<error_code> Fn>
     static std::optional<file> open(const char*     filename,
                                     const open_mode mode,
                                     Fn&&            fn) noexcept;
@@ -153,7 +153,7 @@ public:
 
     ~memory() noexcept = default;
 
-    template<std::invocable<memory::error_code> Fn>
+    template<std::invocable<error_code> Fn>
     static std::optional<memory> make(const i64       length,
                                       const open_mode mode,
                                       Fn&&            fn) noexcept;
@@ -244,9 +244,9 @@ inline void*     file::get_handle() const noexcept { return file_handle; }
 inline open_mode file::get_mode() const noexcept { return mode; }
 
 template<std::invocable<file::error_code> Fn>
-std::optional<file> file::open(const char*     filename,
-                               const open_mode mode,
-                               Fn&&            fn) noexcept
+inline std::optional<file> file::open(const char*     filename,
+                                      const open_mode mode,
+                                      Fn&&            fn) noexcept
 {
     if (not filename) {
         fn(file::error_code::arg_error);
@@ -284,9 +284,9 @@ inline std::optional<file> file::open(const char*     filename,
 }
 
 template<std::invocable<memory::error_code> Fn>
-std::optional<memory> memory::make(const i64       length,
-                                   const open_mode mode,
-                                   Fn&&            fn) noexcept
+inline std::optional<memory> memory::make(const i64       length,
+                                          const open_mode mode,
+                                          Fn&&            fn) noexcept
 {
     if (not(1 <= length and length <= INT32_MAX)) {
         fn(memory::error_code::arg_error);
