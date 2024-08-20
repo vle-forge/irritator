@@ -362,23 +362,6 @@ bool write_to_file(File& f, const double value) noexcept
     }
 }
 
-// auto file::open(const char*     filename,
-//                 const open_mode mode_) noexcept -> result<file>
-// {
-//     if (not filename)
-//         return false;
-
-//     errno  = 0;
-//     auto f = internal_fopen(filename,
-//                             mode_ == open_mode::read    ? "rb"
-//                             : mode_ == open_mode::write ? "wb"
-//                                                         : "ab");
-//     if (not f)
-//         return f.error();
-
-//     return file{ to_void(*f), mode_ };
-// }
-
 bool file::exists(const char* filename) noexcept
 {
 #if defined(_WIN32)
