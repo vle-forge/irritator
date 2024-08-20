@@ -3,13 +3,12 @@
 // http://www.boost.org/LICENSE_1_0.txt)
 
 #include "application.hpp"
-#include "dialog.hpp"
 #include "editor.hpp"
 #include "imgui.h"
-#include "internal.hpp"
 
 #include <irritator/archiver.hpp>
 #include <irritator/file.hpp>
+#include <irritator/format.hpp>
 #include <irritator/io.hpp>
 #include <irritator/modeling.hpp>
 
@@ -155,103 +154,6 @@ void project_window::show() noexcept
 
     if (ImGui::CollapsingHeader("Hierarchy", flags))
         show_project_hierarchy(app, *parent);
-}
-
-void project_window::save(const char* filename) noexcept
-{
-    auto& app = container_of(this, &application::project_wnd);
-
-    auto* head  = app.pj.tn_head();
-    auto* compo = app.mod.components.try_to_get(app.pj.head());
-
-    if (!head || !compo) {
-        auto& n = app.notifications.alloc(log_level::error);
-        n.title = "Empty project";
-        app.notifications.enable(n);
-    } else {
-        json_archiver arc;
-
-        auto f = file::open(filename, open_mode::write, [&](auto ec) noexcept {
-            app.notifications.try_insert(
-              log_level::error, [&](auto& title, auto& msg) noexcept {
-                  format(title, "Opening file `{}` error");
-
-                  switch (ec) {
-                  case file::error_code::memory_error:
-                      msg = "Memory allocation failure";
-                      break;
-                  case file::error_code::eof_error:
-                      msg = "End of file reached";
-                      break;
-                  case file::error_code::arg_error:
-                      msg = "Internal error";
-                      break;
-                  case file::error_code::open_error:
-                      msg = "Open file error";
-                      break;
-                  }
-              });
-        });
-
-        if (not f.has_value())
-            return;
-
-        if (arc(app.pj, app.mod, app.sim, *f)) {
-            auto& n = app.notifications.alloc(log_level::error);
-            n.title = "Save project fail";
-            format(n.message, "Can not access file `{}'", filename);
-            app.notifications.enable(n);
-        } else {
-            app.mod.state = modeling_status::unmodified;
-            auto& n       = app.notifications.alloc(log_level::notice);
-            n.title       = "The file was saved successfully.";
-            app.notifications.enable(n);
-        }
-    }
-}
-
-void project_window::load(const char* filename) noexcept
-{
-    auto& app = container_of(this, &application::project_wnd);
-
-    auto f = file::open(filename, open_mode::read, [&](auto ec) noexcept {
-        app.notifications.try_insert(
-          log_level::error, [&](auto& title, auto& msg) noexcept {
-              format(title, "Reading file `{}` error");
-
-              switch (ec) {
-              case file::error_code::memory_error:
-                  msg = "Memory allocation failure";
-                  break;
-              case file::error_code::eof_error:
-                  msg = "End of file reached";
-                  break;
-              case file::error_code::arg_error:
-                  msg = "Internal error";
-                  break;
-              case file::error_code::open_error:
-                  msg = "Open file error";
-                  break;
-              }
-          });
-    });
-
-    if (not f.has_value())
-        return;
-
-    json_dearchiver dear;
-
-    if (not dear(app.pj, app.mod, app.sim, *f)) {
-        auto& n = app.notifications.alloc(log_level::error);
-        n.title = "Load project fail";
-        format(n.message, "Can not access file `{}'", filename);
-        app.notifications.enable(n);
-    } else {
-        auto& n = app.notifications.alloc(log_level::notice);
-        n.title = "The file was loaded successfully.";
-        app.notifications.enable(n);
-        app.mod.state = modeling_status::unmodified;
-    }
 }
 
 } // namespace irt

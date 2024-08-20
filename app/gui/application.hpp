@@ -6,6 +6,7 @@
 #define ORG_VLEPROJECT_IRRITATOR_APP_APPLICATION_2021
 
 #include <irritator/core.hpp>
+#include <irritator/file.hpp>
 #include <irritator/helpers.hpp>
 #include <irritator/modeling.hpp>
 #include <irritator/observation.hpp>
@@ -24,7 +25,7 @@
 namespace irt {
 
 template<class T, class M>
-constexpr std::ptrdiff_t offset_of(const M T::*member)
+constexpr std::ptrdiff_t offset_of(const M T::* member)
 {
     return reinterpret_cast<std::ptrdiff_t>(
       &(reinterpret_cast<T*>(0)->*member));
@@ -44,7 +45,7 @@ constexpr std::ptrdiff_t offset_of(const M T::*member)
 //! }
 //! @endcode
 template<class T, class M>
-constexpr T& container_of(M* ptr, const M T::*member)
+constexpr T& container_of(M* ptr, const M T::* member)
 {
     return *reinterpret_cast<T*>(reinterpret_cast<intptr_t>(ptr) -
                                  offset_of(member));
@@ -709,10 +710,6 @@ class project_window
 public:
     project_window() noexcept = default;
 
-    void load(const char* filename) noexcept;
-
-    void save(const char* filename) noexcept;
-
     //! Display the window if the @c application::pj head is defined.
     void show() noexcept;
 
@@ -987,6 +984,7 @@ struct application {
     //! list is available.
     unordered_task_list& get_unordered_task_list(int idx) noexcept;
 
+    void start_load_project(const registred_path_id file) noexcept;
     void start_save_project(const registred_path_id file) noexcept;
     void start_save_component(const component_id id) noexcept;
     void start_init_source(const u64                 id,
@@ -998,6 +996,9 @@ struct application {
     void start_file_remove(const registred_path_id r,
                            const dir_path_id       d,
                            const file_path_id      f) noexcept;
+
+    std::optional<file> try_open_file(const char* filename,
+                                      open_mode   mode) noexcept;
 };
 
 /// Display dialog box to choose a @c model in a hierarchy of a @c tree_node
