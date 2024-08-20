@@ -386,10 +386,9 @@ file::file(void* handle, const open_mode m) noexcept
 {}
 
 file::file(file&& other) noexcept
-  : file_handle(other.file_handle)
-{
-    other.file_handle = nullptr;
-}
+  : file_handle(std::exchange(other.file_handle, nullptr))
+  , mode(std::exchange(other.mode, open_mode::read))
+{}
 
 file& file::operator=(file&& other) noexcept
 {
@@ -397,8 +396,8 @@ file& file::operator=(file&& other) noexcept
         if (file_handle)
             std::fclose(to_handle(file_handle));
 
-        file_handle       = other.file_handle;
-        other.file_handle = nullptr;
+        file_handle = std::exchange(other.file_handle, nullptr);
+        mode        = std::exchange(other.mode, open_mode::read);
     }
 
     return *this;
