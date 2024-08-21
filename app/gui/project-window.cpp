@@ -149,11 +149,14 @@ void project_window::show() noexcept
         return;
     }
 
-    constexpr ImGuiTreeNodeFlags flags =
-      ImGuiTreeNodeFlags_CollapsingHeader | ImGuiTreeNodeFlags_DefaultOpen;
-
-    if (ImGui::CollapsingHeader("Hierarchy", flags))
-        show_project_hierarchy(app, *parent);
+    if (ImGui::CollapsingHeader("Hierarchy",
+                                ImGuiTreeNodeFlags_CollapsingHeader |
+                                  ImGuiTreeNodeFlags_DefaultOpen)) {
+        if (ImGui::BeginChild("##zone", ImGui::GetContentRegionAvail())) {
+            show_project_hierarchy(app, *parent);
+        }
+        ImGui::EndChild();
+    }
 }
 
 } // namespace irt
