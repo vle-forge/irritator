@@ -1111,6 +1111,18 @@ status project::rebuild(modeling& mod, simulation& sim) noexcept
     return compo ? set(mod, sim, *compo) : success();
 }
 
+void project::cache::clear() noexcept
+{
+    stack.clear();
+    inputs.clear();
+    outputs.clear();
+
+    constants.data.clear();
+    binary_files.data.clear();
+    text_files.data.clear();
+    randoms.data.clear();
+}
+
 void project::clear() noexcept
 {
     tree_nodes.clear();
@@ -1123,6 +1135,8 @@ void project::clear() noexcept
     grid_observers.clear();
     graph_observers.clear();
     parameters.clear();
+
+    m_cache.clear();
 }
 
 static void project_build_unique_id_path(const u64       model_unique_id,

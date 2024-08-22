@@ -1477,6 +1477,8 @@ public:
             int    port{};
         };
 
+        void clear() noexcept;
+
         vector<tree_node*> stack;
         vector<model_port> inputs;
         vector<model_port> outputs;

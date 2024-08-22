@@ -90,6 +90,13 @@ void simulation_editor::clear() noexcept
     infinity_simulation   = false;
     real_time             = false;
     have_use_back_advance = false;
+    display_graph         = true;
+
+    show_internal_values = false;
+    show_internal_inputs = false;
+    show_identifiers     = false;
+
+    is_open = true;
 
     tl.reset();
 
@@ -104,10 +111,6 @@ void simulation_editor::clear() noexcept
     mode    = visualization_mode::flat;
 
     simulation_state = simulation_status::not_started;
-
-    // @TODO maybe clear project grid and graph obs ?
-    // grid_obs.clear();
-    // graph_obs.clear();
 
     selected_links.clear();
     selected_nodes.clear();
@@ -459,8 +462,8 @@ static bool show_local_simulation_plot_observers_table(application& app,
     return is_modified > 0;
 }
 
-static auto get_global_parameter(const auto& tn,
-                                 const u64 uid) noexcept -> global_parameter_id
+static auto get_global_parameter(const auto& tn, const u64 uid) noexcept
+  -> global_parameter_id
 {
     auto* ptr = tn.parameters_ids.get(uid);
     return ptr ? *ptr : undefined<global_parameter_id>();
