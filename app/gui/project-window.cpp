@@ -30,7 +30,8 @@ static void show_tree_node_children(application& app,
     if (is_selected)
         flags |= ImGuiTreeNodeFlags_Selected;
 
-    bool is_open = ImGui::TreeNodeEx(compo.name.c_str(), flags);
+    bool is_open = ImGui::TreeNodeExWithHint(
+      compo.name.c_str(), component_type_names[ordinal(compo.type)], flags);
 
     if (ImGui::IsItemClicked())
         app.project_wnd.select(parent);
