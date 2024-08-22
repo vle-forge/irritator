@@ -4,13 +4,15 @@
 
 #include "application.hpp"
 #include "editor.hpp"
-#include "imgui.h"
+#include "internal.hpp"
 
 #include <irritator/archiver.hpp>
 #include <irritator/file.hpp>
 #include <irritator/format.hpp>
 #include <irritator/io.hpp>
 #include <irritator/modeling.hpp>
+
+#include "imgui.h"
 
 namespace irt {
 
@@ -19,9 +21,8 @@ static void show_project_hierarchy(application& app,
 
 static void show_tree_node_children(application& app,
                                     tree_node&   parent,
-                                    const char*  str) noexcept
+                                    component&   compo) noexcept
 {
-    debug::ensure(str);
     debug::ensure(parent.tree.get_child() != nullptr);
 
     ImGuiTreeNodeFlags flags = ImGuiTreeNodeFlags_OpenOnArrow;
@@ -29,7 +30,7 @@ static void show_tree_node_children(application& app,
     if (is_selected)
         flags |= ImGuiTreeNodeFlags_Selected;
 
-    bool is_open = ImGui::TreeNodeEx(str, flags);
+    bool is_open = ImGui::TreeNodeEx(compo.name.c_str(), flags);
 
     if (ImGui::IsItemClicked())
         app.project_wnd.select(parent);
@@ -44,14 +45,15 @@ static void show_tree_node_children(application& app,
 
 static void show_tree_node_no_children(application& app,
                                        tree_node&   parent,
-                                       const char*  str) noexcept
+                                       component&   compo) noexcept
 {
-    debug::ensure(str);
     debug::ensure(parent.tree.get_child() == nullptr);
 
     bool is_selected = app.project_wnd.is_selected(app.pj.node(parent));
 
-    if (ImGui::Selectable(str, &is_selected))
+    if (ImGui::SelectableWithHint(compo.name.c_str(),
+                                  component_type_names[ordinal(compo.type)],
+                                  &is_selected))
         app.project_wnd.select(parent);
 }
 
@@ -59,28 +61,13 @@ static void show_project_hierarchy(application& app, tree_node& parent) noexcept
 {
     if (auto* compo = app.mod.components.try_to_get(parent.id); compo) {
         ImGui::PushID(&parent);
-        small_string<64> str;
 
-        switch (compo->type) {
-        case component_type::simple:
-            format(str, "{} generic", compo->name.sv());
-            break;
-        case component_type::grid:
-            format(str, "{} grid", compo->name.sv());
-            break;
-        case component_type::graph:
-            format(str, "{} graph", compo->name.sv());
-            break;
-        default:
-            format(str, "{}", compo->name.sv());
-            break;
-        }
+        const auto have_children = parent.tree.get_child() != nullptr;
 
-        bool have_children = parent.tree.get_child() != nullptr;
         if (have_children)
-            show_tree_node_children(app, parent, str.c_str());
+            show_tree_node_children(app, parent, *compo);
         else
-            show_tree_node_no_children(app, parent, str.c_str());
+            show_tree_node_no_children(app, parent, *compo);
 
         ImGui::PopID();
 
