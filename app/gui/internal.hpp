@@ -230,6 +230,31 @@ void TextFormatDisabled(const char* fmt, const Args&... args) noexcept
     ImGui::PopStyleColor();
 }
 
+inline auto SelectableWithHint(const char*          label,
+                               const char*          hint,
+                               bool*                p_selected,
+                               ImGuiSelectableFlags flags = 0,
+                               const ImVec2& size_arg = ImVec2(0, 0)) noexcept
+  -> bool
+{
+    ::irt::debug::ensure(label);
+    ::irt::debug::ensure(hint);
+
+    bool ret = ImGui::Selectable(label, p_selected, flags, size_arg);
+
+    ImGui::SameLine();
+
+    const auto avail =
+      ImGui::GetContentRegionAvail().x - ImGui::CalcTextSize(hint).x;
+    const auto max_avail = std::max(0.f, avail);
+    const auto pos       = ImGui::GetCursorPosX() + max_avail;
+
+    ImGui::SetCursorPosX(pos);
+    ImGui::TextDisabled("%s", hint);
+
+    return ret;
+}
+
 inline auto ComputeButtonSize(int button_number) noexcept -> ImVec2
 {
     ::irt::debug::ensure(button_number > 1);
