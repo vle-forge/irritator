@@ -255,6 +255,28 @@ inline auto SelectableWithHint(const char*          label,
     return ret;
 }
 
+inline auto TreeNodeExWithHint(const char*        label,
+                               const char*        hint,
+                               ImGuiTreeNodeFlags flags = 0) noexcept -> bool
+{
+    ::irt::debug::ensure(label);
+    ::irt::debug::ensure(hint);
+
+    bool ret = ImGui::TreeNodeEx(label, flags);
+
+    ImGui::SameLine();
+
+    const auto avail =
+      ImGui::GetContentRegionAvail().x - ImGui::CalcTextSize(hint).x;
+    const auto max_avail = std::max(0.f, avail);
+    const auto pos       = ImGui::GetCursorPosX() + max_avail;
+
+    ImGui::SetCursorPosX(pos);
+    ImGui::TextDisabled("%s", hint);
+
+    return ret;
+}
+
 inline auto ComputeButtonSize(int button_number) noexcept -> ImVec2
 {
     ::irt::debug::ensure(button_number > 1);
