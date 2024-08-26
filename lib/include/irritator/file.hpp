@@ -17,12 +17,20 @@ enum class open_mode { read, write, append };
 class file
 {
 public:
-    enum class error_code {
-        memory_error = 1,
-        eof_error,
-        arg_error,
-        open_error,
+    struct memory_error {
+        sz value = 0;
     };
+
+    struct eof_error {};
+
+    struct arg_error {};
+
+    struct open_error {
+        int value = 0;
+    };
+
+    using error_code = std::
+      variant<std::monostate, memory_error, eof_error, arg_error, open_error>;
 
     /**
       @brief Try to open a file.
@@ -30,7 +38,7 @@ public:
       @example
       auto file =  file::open(filename, file::mode::read,
                               [&](file::error_code ec) noexcept{
-        if (ec == error_code::open_error) {
+        if (const auto e = std::get_if<file::open_error>(&ec)) {
             // gui
             app.notifications.try_insert("fail to open file");
 
@@ -149,7 +157,14 @@ private:
 class memory
 {
 public:
-    enum class error_code { memory_error = 1, eof_error, arg_error };
+    struct memory_error {
+        sz value = 0;
+    };
+    struct eof_error {};
+    struct arg_error {};
+
+    using error_code =
+      std::variant<std::monostate, memory_error, eof_error, arg_error>;
 
     ~memory() noexcept = default;
 
@@ -249,7 +264,7 @@ inline std::optional<file> file::open(const char*     filename,
                                       Fn&&            fn) noexcept
 {
     if (not filename) {
-        fn(file::error_code::arg_error);
+        fn(arg_error{});
         return std::nullopt;
     }
 
@@ -259,7 +274,7 @@ inline std::optional<file> file::open(const char*     filename,
                                                  : "ab");
 
     if (not ptr) {
-        fn(file::error_code::open_error);
+        fn(open_error{ .value = errno });
         return std::nullopt;
     }
 
@@ -289,13 +304,13 @@ inline std::optional<memory> memory::make(const i64       length,
                                           Fn&&            fn) noexcept
 {
     if (not(1 <= length and length <= INT32_MAX)) {
-        fn(memory::error_code::arg_error);
+        fn(arg_error{});
         return std::nullopt;
     }
 
     memory mem(length, mode);
     if (not std::cmp_equal(mem.data.size(), length)) {
-        fn(memory::error_code::memory_error);
+        fn(memory_error{ .value = static_cast<sz>(length) });
         return std::nullopt;
     }
 

@@ -54,7 +54,7 @@ inline std::optional<file> open_file(
 
         return file::open(cstr, open_mode::read, fn);
     } catch (...) {
-        fn(file::error_code::memory_error);
+        fn(file::memory_error{ 0 });
     }
 
     return std::nullopt;

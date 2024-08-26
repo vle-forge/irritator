@@ -743,26 +743,34 @@ std::optional<file> application::try_open_file(const char* filename,
         return std::nullopt;
 
     auto f = file::open(filename, mode, [&](file::error_code ec) noexcept {
-        notifications.try_insert(log_level::error,
-                                 [&](auto& title, auto& msg) noexcept {
-                                     format(title, "Open file {}", filename);
-                                     switch (ec) {
-                                     case file::error_code::memory_error:
-                                         msg = "Memory allocation error";
-                                         break;
-                                     case file::error_code::eof_error:
-                                         msg = "End of file reached to quickly";
-                                         break;
+        notifications.try_insert(
+          log_level::error, [&](auto& title, auto& msg) noexcept {
+              format(title, "Open file {}", filename);
 
-                                     case file::error_code::arg_error:
-                                         msg = "Internal error (bad argument)";
-                                         break;
+              std::visit(
+                [&](auto&& arg) {
+                    using T = std::decay_t<decltype(arg)>;
 
-                                     case file::error_code::open_error:
-                                         msg = "Filesystem error";
-                                         break;
-                                     };
-                                 });
+                    if constexpr (std::is_same_v<T, file::memory_error>) {
+                        format(msg,
+                               "Memory allocation error (requires {})",
+                               arg.value);
+                    } else if constexpr (std::is_same_v<T, file::arg_error>) {
+                        msg = "Internal error (bad argument)";
+                    } else if constexpr (std::is_same_v<T, file::eof_error>) {
+                        msg = "End of file reached to quickly";
+                    } else if constexpr (std::is_same_v<T, file::open_error>) {
+                        if (arg.value)
+                            format(msg,
+                                   "Filesystem error ({})",
+                                   std::strerror(arg.value));
+                        else
+                            msg = "Filesystem error";
+                    } else
+                        msg = "Internal error (non-exhaustive error report";
+                },
+                ec);
+          });
     });
 
     return f;
@@ -899,60 +907,59 @@ void application::start_save_project(const registred_path_id id) noexcept
             return;
 
         json_archiver arc;
-        arc(
-          pj,
-          mod,
-          sim,
-          *f_opt,
-          json_archiver::print_option::indent_2_one_line_array,
-          [&](json_archiver::error_code             ec,
-              std::variant<std::monostate, sz, int> v) noexcept {
-              notifications.try_insert(
-                log_level::error, [&](auto& title, auto& msg) noexcept {
-                    format(title,
-                           "Saving project file {} error",
-                           file->path.c_str());
+        arc(pj,
+            mod,
+            sim,
+            *f_opt,
+            json_archiver::print_option::indent_2_one_line_array,
+            [&](json_archiver::error_code             ec,
+                std::variant<std::monostate, sz, int> v) noexcept {
+                notifications.try_insert(
+                  log_level::error, [&](auto& title, auto& msg) noexcept {
+                      format(title,
+                             "Saving project file {} error",
+                             file->path.c_str());
 
-                    switch (ec) {
-                    case json_archiver::error_code::memory_error:
-                        if (auto* ptr = std::get_if<sz>(&v); ptr) {
-                            format(
-                              msg,
-                              "json archiving memory error: not enough memory "
-                              "(requested: {})\n",
-                              *ptr);
-                        } else {
-                            format(msg,
-                                   "json archiving memory error: not "
-                                   "enough memory\n");
-                        }
-                        break;
+                      switch (ec) {
+                      case json_archiver::error_code::memory_error:
+                          if (auto* ptr = std::get_if<sz>(&v); ptr) {
+                              format(msg,
+                                     "json archiving memory error: not "
+                                     "enough memory "
+                                     "(requested: {})\n",
+                                     *ptr);
+                          } else {
+                              format(msg,
+                                     "json archiving memory error: not "
+                                     "enough memory\n");
+                          }
+                          break;
 
-                    case json_archiver::error_code::arg_error:
-                        format(msg, "json archiving internal error\n");
-                        break;
+                      case json_archiver::error_code::arg_error:
+                          format(msg, "json archiving internal error\n");
+                          break;
 
-                    case json_archiver::error_code::empty_project:
-                        format(msg, "json archiving empty project error\n");
-                        break;
+                      case json_archiver::error_code::empty_project:
+                          format(msg, "json archiving empty project error\n");
+                          break;
 
-                    case json_archiver::error_code::file_error:
-                        format(msg, "json archiving file access error\n");
-                        break;
+                      case json_archiver::error_code::file_error:
+                          format(msg, "json archiving file access error\n");
+                          break;
 
-                    case json_archiver::error_code::format_error:
-                        format(msg, "json archiving format error\n");
-                        break;
+                      case json_archiver::error_code::format_error:
+                          format(msg, "json archiving format error\n");
+                          break;
 
-                    case json_archiver::error_code::dependency_error:
-                        format(msg, "json archiving format error\n");
-                        break;
+                      case json_archiver::error_code::dependency_error:
+                          format(msg, "json archiving format error\n");
+                          break;
 
-                    default:
-                        format(msg, "json de-archiving unknown error\n");
-                    }
-                });
-          });
+                      default:
+                          format(msg, "json de-archiving unknown error\n");
+                      }
+                  });
+            });
 
         notifications.try_insert(
           log_level::info, [&](auto& title, auto& /*msg*/) noexcept {

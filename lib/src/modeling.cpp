@@ -1145,15 +1145,15 @@ status modeling::save(component& c) noexcept
         std::error_code ec;
         project::error  err;
 
-        auto file =
-          file::open(p.string().c_str(),
-                     open_mode::write,
-                     [&](file::error_code ec) noexcept -> project::error {
-                         if (ec == file::error_code::memory_error)
-                             return project::error::not_enough_memory;
-                         else
-                             return project::error::file_error;
-                     });
+        auto file = file::open(
+          p.string().c_str(),
+          open_mode::write,
+          [&](file::error_code ec) noexcept -> project::error {
+              if (const auto ptr = std::get_if<file::memory_error>(&ec); ptr)
+                  return project::error::not_enough_memory;
+              else
+                  return project::error::file_error;
+          });
 
         if (not file.has_value())
             return new_error(err);
