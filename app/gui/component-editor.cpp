@@ -320,6 +320,10 @@ static void show_data(application&       app,
               ImGuiTableFlags_Borders | ImGuiTableFlags_Resizable |
               ImGuiTableFlags_Reorderable;
 
+            if (compo.is_file_defined() and
+                ImGui::Shortcut(ImGuiMod_Ctrl | ImGuiKey_S))
+                app.start_save_component(compo_id);
+
             if (ImGui::BeginTable("##ed", 2, flags)) {
                 ImGui::TableSetupColumn("Component settings",
                                         ImGuiTableColumnFlags_WidthStretch,

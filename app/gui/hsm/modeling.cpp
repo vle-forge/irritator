@@ -804,6 +804,7 @@ void hsm_component_editor_data::show(component_editor& ed) noexcept
                               ImGui::GetStyle().ItemSpacing.y;
 
     ImGui::BeginChild("##table-editor", ImVec2(0, table_heigth), false);
+
     if (ImGui::BeginTabBar("##hsm-editor")) {
         if (ImGui::BeginTabItem("editor")) {
             show_graph(*hsm);
