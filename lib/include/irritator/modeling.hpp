@@ -762,6 +762,17 @@ struct component {
     file_path_id      file     = file_path_id{ 0 };
     name_str          name;
 
+    /**
+      Checks if the component have registred_path, dir_path and file_path
+      defined. @attention This function does not check if the file can be saved.
+
+      @return True paths attributes are defined.
+     */
+    constexpr bool is_file_defined() const noexcept
+    {
+        return is_defined(reg_path) and is_defined(dir) and is_defined(file);
+    }
+
     union id {
         internal_component   internal_id;
         generic_component_id generic_id;
