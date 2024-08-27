@@ -703,7 +703,7 @@ void hsm_component_editor_data::show_panel(hsm_component& hsm) noexcept
             ImGui::PushID(i);
 
             ImGui::InputSmallString("Name", hsm.names[id]);
-            ImGui::LabelText("Id", "%u", static_cast<unsigned>(id));
+            ImGui::LabelFormat("Id", "{}", static_cast<unsigned>(id));
 
             const auto old_state_0 = hsm.top_state == id;
             auto       state_0     = hsm.top_state == id;
