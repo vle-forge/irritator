@@ -512,7 +512,7 @@ void hsm_component_editor_data::show_hsm(hsm_component& hsm) noexcept
 
         ImNodes::BeginNode(make_state(i));
         ImNodes::BeginNodeTitleBar();
-        ImGui::TextFormat("{}", i);
+        ImGui::TextFormat("{} (id: {})", hsm.names[i].sv(), i);
         ImNodes::EndNodeTitleBar();
 
         ImNodes::BeginInputAttribute(make_input(i),
@@ -701,7 +701,9 @@ void hsm_component_editor_data::show_panel(hsm_component& hsm) noexcept
             auto&      state = hsm.states[id];
 
             ImGui::PushID(i);
-            ImGui::TextFormat("State {}", m_selected_nodes[i]);
+
+            ImGui::InputSmallString("Name", hsm.names[id]);
+            ImGui::LabelText("Id", "%u", static_cast<unsigned>(id));
 
             const auto old_state_0 = hsm.top_state == id;
             auto       state_0     = hsm.top_state == id;
