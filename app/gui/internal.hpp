@@ -230,6 +230,16 @@ void TextFormatDisabled(const char* fmt, const Args&... args) noexcept
     ImGui::PopStyleColor();
 }
 
+template<typename... Args>
+void LabelFormat(const char* label,
+                 const char* fmt,
+                 const Args&... args) noexcept
+{
+    irt::small_string<256> buffer;
+    irt::format(buffer, fmt, args...);
+    ImGui::LabelText(label, "%s", buffer.c_str());
+}
+
 inline auto SelectableWithHint(const char*          label,
                                const char*          hint,
                                bool*                p_selected,
