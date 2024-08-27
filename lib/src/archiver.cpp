@@ -81,6 +81,21 @@ struct input_stream {
         return !!stream.read(buffer, size);
     }
 
+    template<std::integral auto Size>
+    bool operator()(small_string<Size>& str) noexcept
+    {
+        if (auto ret = stream.read(str.data(), Size); ret) {
+            if (auto ptr = std::strchr(str.data(), '\0'); ptr) {
+                auto dif = ptr - str.data();
+                str.resize(dif);
+                return true;
+            }
+        }
+
+        str.assign(std::string_view());
+        return false;
+    }
+
     Support& stream;
     int      errno;
 };
@@ -129,6 +144,20 @@ struct output_stream {
     bool operator()(const T* buffer, std::integral auto size) noexcept
     {
         return !!stream.write(buffer, size);
+    }
+
+    template<std::integral auto Size>
+    bool operator()(const small_string<Size>& str) noexcept
+    {
+        if (auto ret = stream.write(str.data(), str.size()); ret) {
+            for (auto i = str.size(); i < Size; ++i)
+                if (not stream.write(static_cast<i8>('\0')))
+                    return false;
+
+            return true;
+        }
+
+        return false;
     }
 
     Support& stream;
@@ -754,7 +783,8 @@ struct binary_archiver::impl {
     bool do_serialize(Stream& io, hierarchical_state_machine& hsm) noexcept
     {
         for (int i = 0, e = length(hsm.states); i != e; ++i) {
-            if (not(do_serialize(io, hsm.states[i].enter_action) and
+            if (not((io(hsm.names[i])) and
+                    do_serialize(io, hsm.states[i].enter_action) and
                     do_serialize(io, hsm.states[i].exit_action) and
                     do_serialize(io, hsm.states[i].if_action) and
                     do_serialize(io, hsm.states[i].else_action) and

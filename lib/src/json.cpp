@@ -1755,20 +1755,27 @@ struct json_dearchiver::impl {
     }
 
     bool read_hsm_state(
-      const rapidjson::Value& val,
+      const rapidjson::Value&                                      val,
       std::array<hierarchical_state_machine::state,
+                 hierarchical_state_machine::max_number_of_state>& states,
+      std::array<small_string<15>,
                  hierarchical_state_machine::max_number_of_state>&
-        states) noexcept
+        names) noexcept
     {
-        auto_stack                        a(this, stack_id::dynamics_hsm_state);
+        auto_stack a(this, stack_id::dynamics_hsm_state);
+
         std::optional<int>                id;
         hierarchical_state_machine::state s;
+        small_string<15>                  state_name;
 
         if (not for_each_member(
               val,
               [&](const auto name, const auto& value) noexcept -> bool {
                   if ("id"sv == name)
                       return read_temp_integer(value) and copy_to(id);
+
+                  if ("name"sv == name)
+                      return read_temp_string(value) and copy_to(state_name);
 
                   if ("enter"sv == name)
                       return read_hsm_state_action(value, s.enter_action);
@@ -1807,21 +1814,24 @@ struct json_dearchiver::impl {
             return false;
 
         states[*id] = s;
+        names[*id]  = state_name;
 
         return true;
     }
 
     bool read_hsm_states(
-      const rapidjson::Value& val,
+      const rapidjson::Value&                                      val,
       std::array<hierarchical_state_machine::state,
+                 hierarchical_state_machine::max_number_of_state>& states,
+      std::array<small_string<15>,
                  hierarchical_state_machine::max_number_of_state>&
-        states) noexcept
+        names) noexcept
     {
         auto_stack a(this, stack_id::dynamics_hsm_states);
 
         return for_each_array(
           val, [&](const auto /*i*/, const auto& value) noexcept -> bool {
-              return read_hsm_state(value, states);
+              return read_hsm_state(value, states, names);
           });
     }
 
@@ -3424,7 +3434,7 @@ struct json_dearchiver::impl {
         return for_each_member(
           val, [&](const auto name, const auto& value) noexcept -> bool {
               if ("states"sv == name)
-                  return read_hsm_states(value, hsm.states);
+                  return read_hsm_states(value, hsm.states, hsm.names);
 
               if ("top"sv == name)
                   return read_temp_unsigned_integer(value) &&
@@ -3639,7 +3649,7 @@ struct json_dearchiver::impl {
               }
 
               if ("states"sv == name)
-                  return read_hsm_states(value, machine.states);
+                  return read_hsm_states(value, machine.states, machine.names);
 
               if ("top"sv == name)
                   return read_temp_unsigned_integer(value) &&
@@ -5890,6 +5900,12 @@ struct json_archiver::impl {
                 w.StartObject();
                 w.Key("id");
                 w.Uint(i);
+
+                if (not hsm.names[i].empty()) {
+                    w.Key("name");
+                    w.String(hsm.names[i].c_str());
+                }
+
                 write(w, "enter", hsm.states[i].enter_action);
                 write(w, "exit", hsm.states[i].exit_action);
                 write(w, "if", hsm.states[i].if_action);
