@@ -305,6 +305,8 @@ status hierarchical_state_machine::set_state(state_id id,
            states[super_id].sub_id != invalid_state_id)))
         return new_error(top_state_error{});
 
+    names[id].clear();
+
     return success();
 }
 

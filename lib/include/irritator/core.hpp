@@ -3619,7 +3619,9 @@ public:
 
     void clear() noexcept
     {
-        states    = {};
+        states = {};
+        names  = {};
+
         top_state = invalid_state_id;
     }
 
@@ -3661,7 +3663,8 @@ public:
 
     void affect_action(const state_action& action, execution& exec) noexcept;
 
-    std::array<state, max_number_of_state> states;
+    std::array<state, max_number_of_state>            states;
+    std::array<small_string<15>, max_number_of_state> names;
 
     state_id top_state = invalid_state_id;
 };
