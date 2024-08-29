@@ -235,59 +235,66 @@ static inline constexpr std::string_view simulation_status_names[] = {
 
 static bool show_project_simulation_settings(application& app) noexcept
 {
-    int is_modified = 0;
+    auto& sim_ed = app.simulation_ed;
+    auto  up     = 0;
 
-    ImGui::PushItemWidth(100.f);
-    is_modified +=
-      ImGui::InputReal("Begin", &app.simulation_ed.simulation_begin);
-    ImGui::SameLine(ImGui::GetContentRegionAvail().x * 0.5f);
-    is_modified +=
-      ImGui::Checkbox("Edit", &app.simulation_ed.allow_user_changes);
+    up += ImGui::InputReal("Begin", &sim_ed.simulation_begin);
 
-    ImGui::BeginDisabled(app.simulation_ed.infinity_simulation);
-    is_modified += ImGui::InputReal("End", &app.simulation_ed.simulation_end);
+    ImGui::BeginDisabled(sim_ed.infinity_simulation);
+    up += ImGui::InputReal("End", &sim_ed.simulation_end);
     ImGui::EndDisabled();
 
-    ImGui::SameLine(ImGui::GetContentRegionAvail().x * 0.5f);
-    if (ImGui::Checkbox("Debug", &app.simulation_ed.store_all_changes)) {
-        is_modified = true;
-        if (app.simulation_ed.store_all_changes &&
-            app.simulation_ed.simulation_state == simulation_status::running) {
-            app.simulation_ed.start_enable_or_disable_debug();
-        }
-    }
+    ImGui::BeginDisabled(not sim_ed.real_time);
 
-    ImGui::BeginDisabled(not app.simulation_ed.real_time);
     {
-        i64 value = app.simulation_ed.simulation_time_duration.count();
+        i64 value = sim_ed.simulation_time_duration.count();
 
         if (ImGui::InputScalar(
               "ms per unit time simulation", ImGuiDataType_S64, &value)) {
             if (value > 1) {
-                app.simulation_ed.simulation_time_duration =
+                sim_ed.simulation_time_duration =
                   std::chrono::milliseconds(value);
-                is_modified = true;
+                ++up;
             }
         }
     }
+
+    {
+        i64 value = sim_ed.simulation_task_duration.count();
+
+        if (ImGui::InputScalar(
+              "ms per simulation task", ImGuiDataType_S64, &value)) {
+            if (value > 1) {
+                sim_ed.simulation_task_duration =
+                  std::chrono::milliseconds(value);
+                up = true;
+            }
+        }
+    }
+
     ImGui::EndDisabled();
 
-    ImGui::SameLine(ImGui::GetContentRegionAvail().x * 0.5f);
-    is_modified +=
-      ImGui::Checkbox("No time limit", &app.simulation_ed.infinity_simulation);
+    up += ImGui::Checkbox("Enable live edition", &sim_ed.allow_user_changes);
+    if (ImGui::Checkbox("Store simulation", &sim_ed.store_all_changes)) {
+        ++up;
+        if (sim_ed.store_all_changes and
+            sim_ed.simulation_state == simulation_status::running) {
+            sim_ed.start_enable_or_disable_debug();
+        }
+    }
 
-    ImGui::TextFormat("Current time {:.6f}",
-                      app.simulation_ed.simulation_display_current);
-    ImGui::SameLine(ImGui::GetContentRegionAvail().x * 0.5f);
-    is_modified += ImGui::Checkbox("Real time", &app.simulation_ed.real_time);
+    up += ImGui::Checkbox("No time limit", &sim_ed.infinity_simulation);
+    up += ImGui::Checkbox("Real time", &sim_ed.real_time);
 
-    ImGui::TextFormat(
-      "Simulation phase: {}",
-      simulation_status_names[ordinal(app.simulation_ed.simulation_state)]);
+    ImGui::LabelFormat(
+      "current time", "{:.6f}", sim_ed.simulation_display_current);
 
-    ImGui::PopItemWidth();
+    ImGui::LabelFormat(
+      "simulation phase",
+      "{}",
+      simulation_status_names[ordinal(sim_ed.simulation_state)]);
 
-    return is_modified > 0;
+    return up > 0;
 }
 
 static bool select_variable_observer(project&              pj,
