@@ -585,16 +585,32 @@ struct simulation_editor {
 
     timeline tl;
 
+    real simulation_last_finite_t   = 0;
     real simulation_begin           = 0;
     real simulation_end             = 100;
     real simulation_display_current = 0;
 
-    /** Number of microsecond to run 1 unit of simulation time. The default is
-     * to run 1 unit of simulation per second. */
+    //! Number of microsecond to run 1 unit of simulation time. The default is
+    //! to run 1 unit of simulation per second.
     i64 nb_microsecond_per_simulation_time = 1000000;
 
-    /** Simulation duraction between each run task. The default is 100ms. */
+    //! The duration of a simulation run task. The default is to run one task in
+    //! 100ms.
     static inline constexpr i64 thread_frame_duration = 100000;
+
+    using time_point =
+      std::chrono::time_point<std::chrono::high_resolution_clock>;
+
+    std::chrono::milliseconds simulation_time_duration{ 1000 };
+    std::chrono::milliseconds simulation_task_duration{ 10 };
+
+    //! Use in live modeling to store the time-point of the start of the
+    //! simulation and allow to compute the next wakeup of the simulation task.
+    time_point start;
+
+    //! Use in live modeling to store the time-point of the next wakeup of the
+    //! simulation.
+    time_point wakeup;
 
     tree_node_id head    = undefined<tree_node_id>();
     tree_node_id current = undefined<tree_node_id>();

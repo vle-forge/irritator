@@ -4,6 +4,8 @@
 
 #include <irritator/io.hpp>
 
+#include <fmt/chrono.h>
+
 #include "application.hpp"
 #include "irritator/core.hpp"
 #include "irritator/format.hpp"
@@ -120,7 +122,9 @@ static void simulation_init(application& app) noexcept
     attempt_all(
       [&]() noexcept -> status {
           app.sim.t = app.simulation_ed.simulation_begin;
+          app.simulation_ed.simulation_last_finite_t   = app.sim.t;
           app.simulation_ed.simulation_display_current = app.sim.t;
+
           irt_check(simulation_init_observation(app));
           irt_check(app.mod.srcs.prepare());
           irt_check(app.sim.initialize());
@@ -144,10 +148,11 @@ static status debug_run(simulation_editor& sim_ed) noexcept
     auto& app = container_of(&sim_ed, &application::simulation_ed);
 
     if (auto ret = run(sim_ed.tl, app.sim, app.sim.t); !ret) {
-        auto& app = container_of(&sim_ed, &application::simulation_ed);
-        auto& n   = app.notifications.alloc(log_level::error);
-        n.title   = "Debug run error";
-        app.notifications.enable(n);
+        app.notifications.try_insert(log_level::error,
+                                     [&](auto& t, auto&) noexcept {
+                                         t = "Simulation debug task run error";
+                                     });
+
         sim_ed.simulation_state = simulation_status::finish_requiring;
         return ret.error();
     }
@@ -160,44 +165,10 @@ static status run(simulation_editor& sim_ed) noexcept
     auto& app = container_of(&sim_ed, &application::simulation_ed);
 
     if (auto ret = app.sim.run(); !ret) {
-        auto& app = container_of(&sim_ed, &application::simulation_ed);
-        auto& n   = app.notifications.alloc(log_level::error);
-        n.title   = "Run error";
-        app.notifications.enable(n);
-        sim_ed.simulation_state = simulation_status::finish_requiring;
-        return ret.error();
-    }
-
-    return success();
-}
-
-static status debug_live_run(simulation_editor& sim_ed) noexcept
-{
-    auto& app = container_of(&sim_ed, &application::simulation_ed);
-
-    if (auto ret = run(sim_ed.tl, app.sim, app.sim.t); !ret) {
         app.notifications.try_insert(
-          log_level::error, [&](auto& title, auto& msg) {
-              title = "Live debug run error";
-              msg   = "Error during the simulation bag run";
-          });
-        sim_ed.simulation_state = simulation_status::finish_requiring;
-        return ret.error();
-    }
+          log_level::error,
+          [&](auto& t, auto&) noexcept { t = "Simulation task run error"; });
 
-    return success();
-}
-
-static status live_run(simulation_editor& sim_ed) noexcept
-{
-    auto& app = container_of(&sim_ed, &application::simulation_ed);
-
-    if (auto ret = app.sim.run(); !ret) {
-        app.notifications.try_insert(
-          log_level::error, [&](auto& title, auto& msg) {
-              title = "Live run error";
-              msg   = "Error during the simulation bag run";
-          });
         sim_ed.simulation_state = simulation_status::finish_requiring;
         return ret.error();
     }
@@ -280,92 +251,102 @@ void simulation_editor::start_simulation_static_run() noexcept
     });
 }
 
+static bool is_simulation_state_not_running(simulation_status s) noexcept
+{
+    return s == simulation_status::running;
+}
+
+static bool is_simulation_force_pause(simulation_status& s, bool pause) noexcept
+{
+    if (pause)
+        s = simulation_status::pause_forced;
+
+    return pause;
+}
+
+static bool is_simulation_force_stop(simulation_status& s, bool stop) noexcept
+{
+    if (stop)
+        s = simulation_status::finish_requiring;
+
+    return stop;
+}
+
 void simulation_editor::start_simulation_live_run() noexcept
 {
-    auto& app = container_of(this, &application::simulation_ed);
-
     namespace stdc = std::chrono;
 
+    auto& app = container_of(this, &application::simulation_ed);
+
     app.add_simulation_task([&]() noexcept {
-        if (force_pause) {
-            force_pause      = false;
-            simulation_state = simulation_status::pause_forced;
-            return;
-        } else if (force_stop) {
-            force_stop       = false;
-            simulation_state = simulation_status::finish_requiring;
-            return;
-        }
+        const auto start_task_rt = stdc::high_resolution_clock::now();
+        const auto end_task_rt   = start_task_rt + simulation_task_duration;
 
-        constexpr stdc::microseconds thread_frame_duration_ms(
-          thread_frame_duration);
-
-        const auto sim_max_duration =
-          static_cast<time>(thread_frame_duration) /
-          static_cast<time>(nb_microsecond_per_simulation_time);
-
-        simulation_state = simulation_status::running;
-
-        const auto sim_start_at = app.sim.t;
-        auto       sim_duration = 0.;
-        const auto start_at     = stdc::high_resolution_clock::now();
-        auto       duration     = stdc::high_resolution_clock::now() - start_at;
-
-        while (duration < thread_frame_duration_ms) {
-            if (simulation_state != simulation_status::running)
+        for (;;) {
+            if (is_simulation_state_not_running(simulation_state) or
+                is_simulation_force_pause(simulation_state, force_pause) or
+                is_simulation_force_stop(simulation_state, force_stop))
                 return;
 
+            auto sim_t      = app.sim.t;
+            auto sim_next_t = app.sim.sched.tn();
+
+            if (time_domain<time>::is_infinity(sim_t)) {
+                sim_t      = simulation_last_finite_t;
+                sim_next_t = sim_t + 1.0;
+            } else {
+                if (time_domain<time>::is_infinity(sim_next_t)) {
+                    sim_next_t = sim_t + 1.0;
+                }
+            }
+
+            const auto current_rt   = stdc::high_resolution_clock::now();
+            const auto diff_rt      = current_rt - start_task_rt;
+            const auto remaining_rt = simulation_task_duration - diff_rt;
+
+            simulation_display_current =
+              (current_rt - start) / simulation_time_duration;
+
+            // There is no real time available for this simulation task. Program
+            // the next.
+            if (remaining_rt.count() < 0) {
+                app.simulation_ed.simulation_state = simulation_status::paused;
+                return;
+            }
+
+            const auto wakeup_rt =
+              start + (sim_next_t * simulation_time_duration);
+
+            // If the next wakeup exceed the simulation frame, do nothing.
+            if (wakeup_rt > end_task_rt) {
+                simulation_state = simulation_status::paused;
+                return;
+            }
+
+            if (wakeup_rt >= start_task_rt + std::chrono::milliseconds{ 1 })
+                std::this_thread::sleep_until(wakeup_rt);
+
+            simulation_last_finite_t = sim_t;
+            app.sim.t                = sim_t;
+
             if (store_all_changes) {
-                if (auto ret = debug_live_run(app.simulation_ed); !ret) {
+                if (auto ret = debug_run(app.simulation_ed); !ret) {
                     simulation_state = simulation_status::finish_requiring;
                     return;
                 }
             } else {
-                if (auto ret = live_run(app.simulation_ed); !ret) {
+                if (auto ret = run(app.simulation_ed); !ret) {
                     simulation_state = simulation_status::finish_requiring;
                     return;
                 }
             }
 
+            if (time_domain<time>::is_infinity(app.sim.t))
+                simulation_last_finite_t = sim_next_t;
+
             if (!app.sim.immediate_observers.empty())
                 start_simulation_observation();
-
-            duration     = stdc::high_resolution_clock::now() - start_at;
-            sim_duration = app.sim.t - sim_start_at;
-
-            if (sim_duration >= sim_max_duration) {
-                const auto remaining =
-                  stdc::microseconds(thread_frame_duration) - duration;
-                if (remaining > stdc::nanoseconds::zero()) {
-                    std::this_thread::sleep_for(remaining);
-                    duration = thread_frame_duration_ms;
-                }
-                break;
-            }
-
-            if (infinity_simulation and
-                time_domain<time>::is_infinity(sim_duration)) {
-                const auto remaining =
-                  stdc::microseconds(thread_frame_duration) - duration;
-                if (remaining > stdc::nanoseconds::zero()) {
-                    std::this_thread::sleep_for(remaining);
-                    duration = thread_frame_duration_ms;
-                }
-
-                app.sim.t = sim_start_at + sim_max_duration;
-                break;
-            }
-
-            if (not infinity_simulation and app.sim.t >= simulation_end) {
-                app.sim.t                  = simulation_end;
-                simulation_display_current = app.sim.t;
-                simulation_state = simulation_status::finish_requiring;
-                return;
-            }
         }
-
-        simulation_display_current         = app.sim.t;
-        app.simulation_ed.simulation_state = simulation_status::paused;
     });
 }
 
@@ -482,18 +463,19 @@ void simulation_editor::start_simulation_delete() noexcept
 
 void simulation_editor::start_simulation_start() noexcept
 {
-    bool state = any_equal(simulation_state,
-                           simulation_status::initialized,
-                           simulation_status::pause_forced);
+    const auto state = any_equal(simulation_state,
+                                 simulation_status::initialized,
+                                 simulation_status::pause_forced);
 
     debug::ensure(state);
 
     if (state) {
-        if (real_time) {
+        start = std::chrono::high_resolution_clock::now();
+
+        if (real_time)
             start_simulation_live_run();
-        } else {
+        else
             start_simulation_static_run();
-        }
     }
 }
 

@@ -100,6 +100,7 @@ void simulation_editor::clear() noexcept
 
     tl.reset();
 
+    simulation_last_finite_t   = 0;
     simulation_begin           = 0;
     simulation_end             = 100;
     simulation_display_current = 0;
@@ -257,10 +258,18 @@ static bool show_project_simulation_settings(application& app) noexcept
     }
 
     ImGui::BeginDisabled(not app.simulation_ed.real_time);
-    is_modified +=
-      ImGui::InputScalar("Micro second for 1 unit time",
-                         ImGuiDataType_S64,
-                         &app.simulation_ed.nb_microsecond_per_simulation_time);
+    {
+        i64 value = app.simulation_ed.simulation_time_duration.count();
+
+        if (ImGui::InputScalar(
+              "ms per unit time simulation", ImGuiDataType_S64, &value)) {
+            if (value > 1) {
+                app.simulation_ed.simulation_time_duration =
+                  std::chrono::milliseconds(value);
+                is_modified = true;
+            }
+        }
+    }
     ImGui::EndDisabled();
 
     ImGui::SameLine(ImGui::GetContentRegionAvail().x * 0.5f);
