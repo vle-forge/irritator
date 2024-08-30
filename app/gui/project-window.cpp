@@ -77,6 +77,79 @@ static void show_project_hierarchy(application& app, tree_node& parent) noexcept
     }
 }
 
+static inline constexpr std::string_view simulation_status_names[] = {
+    "not_started", "initializing", "initialized",  "run_requiring",
+    "running",     "paused",       "pause_forced", "finish_requiring",
+    "finishing",   "finished",     "debugged",
+};
+
+static bool show_project_simulation_settings(application& app) noexcept
+{
+    auto& sim_ed = app.simulation_ed;
+    auto  up     = 0;
+
+    up += ImGui::InputReal("Begin", &sim_ed.simulation_begin);
+
+    ImGui::BeginDisabled(sim_ed.infinity_simulation);
+    up += ImGui::InputReal("End", &sim_ed.simulation_end);
+    ImGui::EndDisabled();
+
+    ImGui::BeginDisabled(not sim_ed.real_time);
+    {
+        i64 value = sim_ed.simulation_time_duration.count();
+
+        if (ImGui::InputScalar("ms/u.t.", ImGuiDataType_S64, &value)) {
+            if (value > 1) {
+                sim_ed.simulation_time_duration =
+                  std::chrono::milliseconds(value);
+                ++up;
+            }
+        }
+        ImGui::SameLine();
+        HelpMarker(
+          "Duration in milliseconds per unit of simulation time. Default is to "
+          "run 1 unit time of simulation in one second.");
+    }
+    ImGui::EndDisabled();
+
+    {
+        i64 value = sim_ed.simulation_task_duration.count();
+
+        if (ImGui::InputScalar("ms/task", ImGuiDataType_S64, &value)) {
+            if (value > 1) {
+                sim_ed.simulation_task_duration =
+                  std::chrono::milliseconds(value);
+                up = true;
+            }
+        }
+        ImGui::SameLine();
+        HelpMarker("Duration in milliseconds per simulation task. Lower "
+                   "value may increase CPU load.");
+    }
+
+    up += ImGui::Checkbox("Enable live edition", &sim_ed.allow_user_changes);
+    if (ImGui::Checkbox("Store simulation", &sim_ed.store_all_changes)) {
+        ++up;
+        if (sim_ed.store_all_changes and
+            sim_ed.simulation_state == simulation_status::running) {
+            sim_ed.start_enable_or_disable_debug();
+        }
+    }
+
+    up += ImGui::Checkbox("No time limit", &sim_ed.infinity_simulation);
+    up += ImGui::Checkbox("Real time", &sim_ed.real_time);
+
+    ImGui::LabelFormat(
+      "current time", "{:.6f}", sim_ed.simulation_display_current);
+
+    ImGui::LabelFormat(
+      "simulation phase",
+      "{}",
+      simulation_status_names[ordinal(sim_ed.simulation_state)]);
+
+    return up > 0;
+}
+
 void project_window::clear() noexcept
 {
     auto& app = container_of(this, &application::project_wnd);
@@ -137,13 +210,20 @@ void project_window::show() noexcept
         return;
     }
 
-    if (ImGui::CollapsingHeader("Hierarchy",
-                                ImGuiTreeNodeFlags_CollapsingHeader |
-                                  ImGuiTreeNodeFlags_DefaultOpen)) {
-        if (ImGui::BeginChild("##zone", ImGui::GetContentRegionAvail())) {
-            show_project_hierarchy(app, *parent);
+    if (ImGui::BeginTabBar("Project")) {
+        if (ImGui::BeginTabItem("Settings")) {
+            show_project_simulation_settings(app);
+            ImGui::EndTabItem();
         }
-        ImGui::EndChild();
+
+        if (ImGui::BeginTabItem("Hierarchy")) {
+            if (ImGui::BeginChild("##zone", ImGui::GetContentRegionAvail())) {
+                show_project_hierarchy(app, *parent);
+            }
+            ImGui::EndChild();
+            ImGui::EndTabItem();
+        }
+        ImGui::EndTabBar();
     }
 }
 

@@ -227,76 +227,6 @@ static void show_simulation_action_buttons(simulation_editor& ed,
     ImGui::EndDisabled();
 }
 
-static inline constexpr std::string_view simulation_status_names[] = {
-    "not_started", "initializing", "initialized",  "run_requiring",
-    "running",     "paused",       "pause_forced", "finish_requiring",
-    "finishing",   "finished",     "debugged",
-};
-
-static bool show_project_simulation_settings(application& app) noexcept
-{
-    auto& sim_ed = app.simulation_ed;
-    auto  up     = 0;
-
-    up += ImGui::InputReal("Begin", &sim_ed.simulation_begin);
-
-    ImGui::BeginDisabled(sim_ed.infinity_simulation);
-    up += ImGui::InputReal("End", &sim_ed.simulation_end);
-    ImGui::EndDisabled();
-
-    ImGui::BeginDisabled(not sim_ed.real_time);
-
-    {
-        i64 value = sim_ed.simulation_time_duration.count();
-
-        if (ImGui::InputScalar(
-              "ms per unit time simulation", ImGuiDataType_S64, &value)) {
-            if (value > 1) {
-                sim_ed.simulation_time_duration =
-                  std::chrono::milliseconds(value);
-                ++up;
-            }
-        }
-    }
-
-    {
-        i64 value = sim_ed.simulation_task_duration.count();
-
-        if (ImGui::InputScalar(
-              "ms per simulation task", ImGuiDataType_S64, &value)) {
-            if (value > 1) {
-                sim_ed.simulation_task_duration =
-                  std::chrono::milliseconds(value);
-                up = true;
-            }
-        }
-    }
-
-    ImGui::EndDisabled();
-
-    up += ImGui::Checkbox("Enable live edition", &sim_ed.allow_user_changes);
-    if (ImGui::Checkbox("Store simulation", &sim_ed.store_all_changes)) {
-        ++up;
-        if (sim_ed.store_all_changes and
-            sim_ed.simulation_state == simulation_status::running) {
-            sim_ed.start_enable_or_disable_debug();
-        }
-    }
-
-    up += ImGui::Checkbox("No time limit", &sim_ed.infinity_simulation);
-    up += ImGui::Checkbox("Real time", &sim_ed.real_time);
-
-    ImGui::LabelFormat(
-      "current time", "{:.6f}", sim_ed.simulation_display_current);
-
-    ImGui::LabelFormat(
-      "simulation phase",
-      "{}",
-      simulation_status_names[ordinal(sim_ed.simulation_state)]);
-
-    return up > 0;
-}
-
 static bool select_variable_observer(project&              pj,
                                      variable_observer_id& current) noexcept
 {
@@ -1082,8 +1012,7 @@ void simulation_editor::show() noexcept
                 auto*      selected    = app.pj.node(selected_tn);
 
                 if (ImGui::BeginTabBar("##SimulationTabBar")) {
-                    if (ImGui::BeginTabItem("Project parameters")) {
-                        show_project_simulation_settings(app);
+                    if (ImGui::BeginTabItem("Parameters")) {
                         show_project_parameters(app);
                         ImGui::EndTabItem();
                     }
