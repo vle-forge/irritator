@@ -1108,7 +1108,7 @@ void simulation_editor::show() noexcept
                     if (ImGui::BeginTabItem("Simulation graph")) {
                         if (app.simulation_ed.can_display_graph_editor() and
                             app.sim.models.ssize() <
-                              512) { // @TODO We need to update this value
+                              256) { // @TODO We need to update this value
                                      // with a constant build and available
                                      // in the application class.
                             show_simulation_editor(app);
