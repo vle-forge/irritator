@@ -946,6 +946,28 @@ static void show_component_observations(application&       app,
     }
 }
 
+static void show_simulation_editor_treenode(application& app,
+                                            tree_node&   tn) noexcept
+{
+    if (auto* compo = app.mod.components.try_to_get(tn.id); compo) {
+        dispatch_component(app.mod, *compo, [&](auto& c) noexcept {
+            using T = std::decay_t<decltype(c)>;
+
+            if constexpr (std::is_same_v<T, grid_component>) {
+                app.simulation_ed.grid_sim.show_observations(tn, *compo, c);
+            } else if constexpr (std::is_same_v<T, graph_component>) {
+                app.simulation_ed.graph_sim.show_observations(tn, *compo, c);
+            } else if constexpr (std::is_same_v<T, generic_component>) {
+                app.simulation_ed.generic_sim.show_observations(tn, *compo, c);
+            } else if constexpr (std::is_same_v<T, hsm_component>) {
+                app.simulation_ed.hsm_sim.show_observations(tn, *compo, c);
+            } else
+                ImGui::TextFormatDisabled(
+                  "Undefined simulation editor for this component");
+        });
+    }
+}
+
 void simulation_editor::show() noexcept
 {
     auto& app = container_of(this, &application::simulation_ed);
@@ -1035,12 +1057,12 @@ void simulation_editor::show() noexcept
                     }
 
                     if (ImGui::BeginTabItem("Simulation graph")) {
-                        if (app.simulation_ed.can_display_graph_editor() and
-                            app.sim.models.ssize() <
-                              256) { // @TODO We need to update this value
-                                     // with a constant build and available
-                                     // in the application class.
-                            show_simulation_editor(app);
+                        if (app.simulation_ed.can_display_graph_editor()) {
+                            if (selected) {
+                                show_simulation_editor_treenode(app, *selected);
+                            } else {
+                                show_simulation_editor(app);
+                            }
                         }
                         ImGui::EndTabItem();
                     }

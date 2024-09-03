@@ -378,6 +378,29 @@ void if_tree_node_is_graph_do(project&     pj,
     }
 }
 
+template<typename Function>
+void dispatch_component(modeling& mod, component& compo, Function&& f) noexcept
+{
+    switch (compo.type) {
+    case component_type::none:
+        break;
+    case component_type::internal:
+        break;
+    case component_type::simple:
+        if_data_exists_do(mod.generic_components, compo.id.generic_id, f);
+        break;
+    case component_type::grid:
+        if_data_exists_do(mod.grid_components, compo.id.grid_id, f);
+        break;
+    case component_type::graph:
+        if_data_exists_do(mod.graph_components, compo.id.graph_id, f);
+        break;
+    case component_type::hsm:
+        if_data_exists_do(mod.hsm_components, compo.id.hsm_id, f);
+        break;
+    }
+}
+
 } // namespace irt
 
 #endif

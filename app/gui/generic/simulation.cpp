@@ -1101,6 +1101,13 @@ void try_create_connection(application& app) noexcept
 
 void show_simulation_editor(application& app) noexcept
 {
+    if (app.sim.models.size() > 256u) {
+        ImGui::TextFormatDisabled(
+          "Internal error: too many models to draw ({})",
+          app.sim.models.size());
+        return;
+    }
+
     ImNodes::EditorContextSet(app.simulation_ed.context);
 
     ImNodes::BeginNodeEditor();
@@ -1227,6 +1234,28 @@ void show_simulation_editor(application& app) noexcept
             ImNodes::ClearLinkSelection();
         }
     }
+}
+
+bool generic_simulation_editor::show_observations(
+  tree_node& /*tn*/,
+  component& /*compo*/,
+  generic_component& generic) noexcept
+{
+    if (generic.children.size() > 256u) {
+        ImGui::TextFormatDisabled("Too many model in this component ({})",
+                                  generic.children.size());
+        return false;
+    }
+
+    auto& sim_ed = container_of(this, &simulation_editor::generic_sim);
+    auto& app    = container_of(&sim_ed, &application::simulation_ed);
+
+    ImNodes::EditorContextSet(app.simulation_ed.context);
+
+    ImNodes::BeginNodeEditor();
+    ImNodes::EndNodeEditor();
+
+    return false;
 }
 
 } // namespace irt

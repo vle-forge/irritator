@@ -435,6 +435,18 @@ private:
     component_id m_id = undefined<component_id>();
 };
 
+struct generic_simulation_editor {
+
+    ImNodesEditorContext* context = nullptr;
+
+    ImVector<int> selected_links;
+    ImVector<int> selected_nodes;
+
+    bool show_observations(tree_node&         tn,
+                           component&         compo,
+                           generic_component& grid) noexcept;
+};
+
 struct grid_simulation_editor {
     ImVec2            show_position{ 0.f, 0.f };
     ImVec2            disp{ 1000.f, 1000.f };
@@ -490,6 +502,14 @@ struct graph_simulation_editor {
     bool show_observations(tree_node&       tn,
                            component&       compo,
                            graph_component& graph) noexcept;
+};
+
+struct hsm_simulation_editor {
+    bool show_observations(tree_node&     tn,
+                           component&     compo,
+                           hsm_component& hsm) noexcept;
+
+    hsm_component_id current_id = undefined<hsm_component_id>();
 };
 
 struct grid_editor_dialog {
@@ -626,8 +646,10 @@ struct simulation_editor {
 
     plot_copy_widget plot_copy_wgt;
 
-    grid_simulation_editor  grid_sim;
-    graph_simulation_editor graph_sim;
+    generic_simulation_editor generic_sim;
+    grid_simulation_editor    grid_sim;
+    graph_simulation_editor   graph_sim;
+    hsm_simulation_editor     hsm_sim;
 
     ImNodesEditorContext* context        = nullptr;
     ImPlotContext*        output_context = nullptr;
