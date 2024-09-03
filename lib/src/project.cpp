@@ -13,8 +13,6 @@
 #include <optional>
 #include <utility>
 
-#include "parameter.hpp"
-
 namespace irt {
 
 struct simulation_copy {
@@ -26,7 +24,23 @@ struct simulation_copy {
       , mod(mod_)
       , sim(sim_)
       , tree_nodes(tree_nodes_)
-    {}
+    {
+        /* For all hsm component, make a copy from modeling::hsm into
+         * simulation::hsm to ensure link between simulation and modeling. */
+        for (auto& modhsm : mod.hsm_components) {
+            if (not sim.hsms.can_alloc())
+                break;
+
+            auto& sim_hsm = sim.hsms.alloc(modhsm);
+
+            const auto hsm_id = mod.hsm_components.get_id(modhsm);
+            const auto sim_id = sim.hsms.get_id(sim_hsm);
+
+            hsm_mod_to_sim.data.emplace_back(hsm_id, sim_id);
+        }
+
+        hsm_mod_to_sim.sort();
+    }
 
     project::cache& cache;
     modeling&       mod;
@@ -189,33 +203,18 @@ static auto make_tree_leaf(simulation_copy&   sc,
 
           if constexpr (std::is_same_v<Dynamics, hsm_wrapper>) {
               const auto child_index = get_index(ch_id);
-              const auto compo_id    = enum_cast<component_id>(
+              const auto hsm_id      = enum_cast<hsm_component_id>(
                 gen.children_parameters[child_index].integers[0]);
 
-              auto* compo = sc.mod.components.try_to_get(compo_id);
-              if (not compo or compo->type != component_type::hsm)
-                  return new_error(project::hsm_error{}, unknown_error{});
-
-              auto* chsm = sc.mod.hsm_components.try_to_get(compo->id.hsm_id);
+              auto* chsm = sc.mod.hsm_components.try_to_get(hsm_id);
               if (not chsm)
                   return new_error(project::hsm_error{}, unknown_error{});
 
-              auto* sim_hsm_id_ptr = sc.hsm_mod_to_sim.get(compo->id.hsm_id);
-              auto  sim_hsm_id     = undefined<hsm_id>();
+              auto* sim_hsm_id_ptr = sc.hsm_mod_to_sim.get(hsm_id);
+              if (not sim_hsm_id_ptr)
+                  return new_error(project::hsm_error{}, unknown_error{});
 
-              if (not sim_hsm_id_ptr) {
-                  if (not sc.sim.hsms.can_alloc())
-                      return new_error(project::hsm_error{},
-                                       container_full_error{});
-                  auto& hsm  = sc.sim.hsms.alloc(*chsm);
-                  sim_hsm_id = sc.sim.hsms.get_id(hsm);
-              } else {
-                  sim_hsm_id = *sim_hsm_id_ptr;
-              }
-
-              sc.hsm_mod_to_sim.set(compo->id.hsm_id, sim_hsm_id);
-
-              dyn.id = sim_hsm_id;
+              dyn.id = *sim_hsm_id_ptr;
           }
 
           if constexpr (std::is_same_v<Dynamics, constant>) {
@@ -1093,10 +1092,32 @@ status project::set(modeling& mod, simulation& sim, component& compo) noexcept
 
     simulation_copy sc(m_cache, mod, sim, tree_nodes);
 
-    irt_auto(id, make_tree_from(sc, tree_nodes, compo));
+    if (compo.type == component_type::hsm) {
+        if (not(mod.components.can_alloc() and
+                mod.generic_components.can_alloc()))
+            return new_error(project::part::tree_nodes);
 
-    m_head    = mod.components.get_id(compo);
-    m_tn_head = id;
+        auto* sim_hsm_id = sc.hsm_mod_to_sim.get(compo.id.hsm_id);
+        if (not sim_hsm_id)
+            return new_error(project::part::tree_nodes);
+
+        auto& c       = mod.alloc_generic_component();
+        auto& g       = mod.generic_components.get(c.id.generic_id);
+        auto& w       = g.children.alloc(dynamics_type::hsm_wrapper);
+        auto  w_index = get_index(g.children.get_id(w));
+        auto& p       = g.children_parameters[w_index];
+
+        p.init_from(dynamics_type::hsm_wrapper);
+        p.integers[0] = ordinal(*sim_hsm_id);
+
+        irt_auto(id, make_tree_from(sc, tree_nodes, c));
+        m_tn_head = id;
+        m_head    = mod.components.get_id(c);
+    } else {
+        irt_auto(id, make_tree_from(sc, tree_nodes, compo));
+        m_tn_head = id;
+        m_head    = mod.components.get_id(compo);
+    }
 
     irt_check(simulation_copy_sources(m_cache, mod, sim));
     irt_check(simulation_copy_connections(sc, *tn_head()));
