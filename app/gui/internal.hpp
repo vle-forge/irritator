@@ -287,6 +287,36 @@ inline auto TreeNodeExWithHint(const char*        label,
     return ret;
 }
 
+inline auto TreeNodeExSelectableWithHint(const char*        label,
+                                         const char*        hint,
+                                         bool*              p_selected,
+                                         ImGuiTreeNodeFlags flags = 0) noexcept
+  -> bool
+{
+    ::irt::debug::ensure(label);
+    ::irt::debug::ensure(hint);
+
+    if (*p_selected)
+        flags |= ImGuiTreeNodeFlags_Selected;
+
+    bool ret = ImGui::TreeNodeEx(label, flags);
+
+    if (ImGui::IsItemClicked())
+        *p_selected = !*p_selected;
+
+    ImGui::SameLine();
+
+    const auto avail =
+      ImGui::GetContentRegionAvail().x - ImGui::CalcTextSize(hint).x;
+    const auto max_avail = std::max(0.f, avail);
+    const auto pos       = ImGui::GetCursorPosX() + max_avail;
+
+    ImGui::SetCursorPosX(pos);
+    ImGui::TextDisabled("%s", hint);
+
+    return ret;
+}
+
 inline auto ComputeButtonSize(int button_number) noexcept -> ImVec2
 {
     ::irt::debug::ensure(button_number > 1);
