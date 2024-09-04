@@ -304,8 +304,12 @@ void simulation_editor::start_simulation_live_run() noexcept
             const auto diff_rt      = current_rt - start_task_rt;
             const auto remaining_rt = simulation_task_duration - diff_rt;
 
-            simulation_display_current =
-              (current_rt - start) / simulation_time_duration;
+            const std::chrono::duration<double, std::nano> x =
+              current_rt - start;
+            const std::chrono::duration<double, std::nano> y =
+              simulation_time_duration;
+
+            simulation_display_current = x / y;
 
             // There is no real time available for this simulation task. Program
             // the next.
