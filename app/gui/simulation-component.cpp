@@ -253,7 +253,7 @@ void simulation_editor::start_simulation_static_run() noexcept
 
 static bool is_simulation_state_not_running(simulation_status s) noexcept
 {
-    return s == simulation_status::running;
+    return s != simulation_status::running;
 }
 
 static bool is_simulation_force_pause(simulation_status& s, bool pause) noexcept
@@ -279,8 +279,9 @@ void simulation_editor::start_simulation_live_run() noexcept
     auto& app = container_of(this, &application::simulation_ed);
 
     app.add_simulation_task([&]() noexcept {
-        const auto start_task_rt = stdc::high_resolution_clock::now();
-        const auto end_task_rt   = start_task_rt + simulation_task_duration;
+        app.simulation_ed.simulation_state = simulation_status::running;
+        const auto start_task_rt           = stdc::high_resolution_clock::now();
+        const auto end_task_rt = start_task_rt + simulation_task_duration;
 
         for (;;) {
             if (is_simulation_state_not_running(simulation_state) or
@@ -360,7 +361,9 @@ void simulation_editor::start_simulation_update_state() noexcept
 
     if (std::unique_lock lock(app.sim_mutex, std::try_to_lock);
         lock.owns_lock()) {
-        if (simulation_state == simulation_status::paused) {
+        if (any_equal(simulation_state,
+                      simulation_status::paused,
+                      simulation_status::run_requiring)) {
             simulation_state = simulation_status::run_requiring;
 
             if (real_time)
@@ -469,7 +472,8 @@ void simulation_editor::start_simulation_start() noexcept
 {
     const auto state = any_equal(simulation_state,
                                  simulation_status::initialized,
-                                 simulation_status::pause_forced);
+                                 simulation_status::pause_forced,
+                                 simulation_status::run_requiring);
 
     debug::ensure(state);
 

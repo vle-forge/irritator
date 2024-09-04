@@ -177,6 +177,8 @@ static void show_simulation_action_buttons(simulation_editor& ed,
 
     ImGui::BeginDisabled(can_be_restarted);
     if (ImGui::Button("continue", button)) {
+        ed.simulation_state = simulation_status::run_requiring;
+        ed.force_pause      = false;
         ed.start_simulation_start();
     }
     ImGui::EndDisabled();
