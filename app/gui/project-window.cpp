@@ -172,13 +172,14 @@ static bool show_project_simulation_settings(application& app) noexcept
     up += ImGui::Checkbox("No time limit", &sim_ed.infinity_simulation);
     up += ImGui::Checkbox("Real time", &sim_ed.real_time);
 
-    ImGui::LabelFormat(
-      "current time", "{:.6f}", sim_ed.simulation_display_current);
+    ImGui::LabelFormat("time", "{:.6f}", sim_ed.simulation_display_current);
+    ImGui::SameLine();
+    HelpMarker("Display the simulation current time.");
 
     ImGui::LabelFormat(
-      "simulation phase",
-      "{}",
-      simulation_status_names[ordinal(sim_ed.simulation_state)]);
+      "phase", "{}", simulation_status_names[ordinal(sim_ed.simulation_state)]);
+    ImGui::SameLine();
+    HelpMarker("Display the simulation phase. Only for debug.");
 
     return up > 0;
 }
