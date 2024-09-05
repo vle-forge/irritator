@@ -565,11 +565,6 @@ static bool show_simulation_table_grid_observers(application& app) noexcept
     auto to_delete   = undefined<grid_observer_id>();
     bool is_modified = false;
 
-    ImGui::BeginChild("c-show-table-grid",
-                      ImVec2(ImGui::GetContentRegionAvail().x, 260.f),
-                      ImGuiChildFlags_None,
-                      ImGuiWindowFlags_HorizontalScrollbar);
-
     if (ImGui::BeginTable("Grid observers", 5)) {
         ImGui::TableSetupColumn("id");
         ImGui::TableSetupColumn("name");
@@ -618,8 +613,6 @@ static bool show_simulation_table_grid_observers(application& app) noexcept
         ImGui::EndTable();
     }
 
-    ImGui::EndChild();
-
     if (is_defined(to_delete)) {
         app.pj.grid_observers.free(to_delete);
         is_modified = true;
@@ -632,11 +625,6 @@ static bool show_simulation_table_graph_observers(application& app) noexcept
 {
     auto to_delete   = undefined<graph_observer_id>();
     bool is_modified = false;
-
-    ImGui::BeginChild("c-show-table-graph",
-                      ImVec2(ImGui::GetContentRegionAvail().x, 260.f),
-                      ImGuiChildFlags_None,
-                      ImGuiWindowFlags_HorizontalScrollbar);
 
     if (ImGui::BeginTable("Graph observers", 5)) {
         ImGui::TableSetupColumn("id");
@@ -683,8 +671,6 @@ static bool show_simulation_table_graph_observers(application& app) noexcept
 
         ImGui::EndTable();
     }
-
-    ImGui::EndChild();
 
     if (is_defined(to_delete)) {
         app.pj.graph_observers.free(to_delete);
