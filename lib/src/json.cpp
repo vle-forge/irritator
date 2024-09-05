@@ -1869,9 +1869,8 @@ struct json_dearchiver::impl {
     {
         auto_stack a(this, stack_id::dynamics_hsm);
 
-        static constexpr std::string_view n[] = {
-            "hsm", "i1", "i2", "r1", "r2"
-        };
+        static constexpr std::string_view n[] = { "hsm", "i1", "i2",
+                                                  "r1",  "r2", "timeout" };
 
         return for_members(val, n, [&](auto idx, const auto& value) noexcept {
             switch (idx) {
@@ -1893,6 +1892,8 @@ struct json_dearchiver::impl {
                 return read_temp_real(value) && copy_to(wrapper.exec.r1);
             case 4:
                 return read_temp_real(value) && copy_to(wrapper.exec.r2);
+            case 5:
+                return read_temp_real(value) && copy_to(wrapper.exec.sigma);
             default:
                 report_json_error(error_id::unknown_element);
             }
@@ -1904,9 +1905,8 @@ struct json_dearchiver::impl {
     {
         auto_stack a(this, stack_id::dynamics_hsm);
 
-        static constexpr std::string_view n[] = {
-            "hsm", "i1", "i2", "r1", "r2"
-        };
+        static constexpr std::string_view n[] = { "hsm", "i1", "i2",
+                                                  "r1",  "r2", "timeout" };
 
         return for_members(val, n, [&](auto idx, const auto& value) noexcept {
             switch (idx) {
@@ -1923,6 +1923,8 @@ struct json_dearchiver::impl {
                 return read_temp_real(value) && copy_to(wrapper.exec.r1);
             case 4:
                 return read_temp_real(value) && copy_to(wrapper.exec.r2);
+            case 5:
+                return read_temp_real(value) && copy_to(wrapper.exec.sigma);
             default:
                 report_json_error(error_id::unknown_element);
             }
@@ -2145,8 +2147,8 @@ struct json_dearchiver::impl {
         return nullptr;
     }
 
-    auto search_dir_in_reg(registred_path&  reg,
-                           std::string_view name) noexcept -> dir_path*
+    auto search_dir_in_reg(registred_path& reg, std::string_view name) noexcept
+      -> dir_path*
     {
         for (auto dir_id : reg.children) {
             if (auto* dir = mod().dir_paths.try_to_get(dir_id); dir) {
@@ -2215,8 +2217,8 @@ struct json_dearchiver::impl {
         return nullptr;
     }
 
-    auto search_file(dir_path&        dir,
-                     std::string_view name) noexcept -> file_path*
+    auto search_file(dir_path& dir, std::string_view name) noexcept
+      -> file_path*
     {
         for (auto file_id : dir.children)
             if (auto* file = mod().file_paths.try_to_get(file_id); file)
@@ -3434,11 +3436,28 @@ struct json_dearchiver::impl {
         return for_each_member(
           val, [&](const auto name, const auto& value) noexcept -> bool {
               if ("states"sv == name)
-                  return read_hsm_states(value, hsm.states, hsm.names);
+                  return read_hsm_states(
+                    value, hsm.machine.states, hsm.machine.names);
 
               if ("top"sv == name)
                   return read_temp_unsigned_integer(value) &&
-                         copy_to(hsm.top_state);
+                         copy_to(hsm.machine.top_state);
+
+              if ("i1"sv == name)
+                  return read_temp_integer(value) && copy_to(hsm.i1);
+
+              if ("i2"sv == name)
+                  return read_temp_integer(value) && copy_to(hsm.i2);
+
+              if ("r1"sv == name)
+                  return read_temp_real(value) && copy_to(hsm.r1);
+
+              if ("r2"sv == name)
+                  return read_temp_real(value) && copy_to(hsm.r2);
+
+              if ("timeout"sv == name)
+                  return read_temp_real(value) && copy_to(hsm.timeout);
+
               return true;
           });
     }
@@ -4453,7 +4472,7 @@ static bool parse_json_data(std::span<char>           buffer,
                             rapidjson::Document&      doc,
                             json_dearchiver::error_cb cb) noexcept
 {
-    doc.Parse(buffer.data(), buffer.size());
+    doc.Parse<rapidjson::kParseNanAndInfFlag>(buffer.data(), buffer.size());
 
     if (doc.HasParseError())
         return report_error(
@@ -5122,7 +5141,8 @@ struct json_archiver::impl {
     }
 
     template<typename Writer>
-    void write(Writer& writer, const hsm_wrapper& dyn) noexcept
+    void write_simulation_dynamics(Writer&            writer,
+                                   const hsm_wrapper& dyn) noexcept
     {
         writer.StartObject();
         writer.Key("hsm");
@@ -5135,32 +5155,37 @@ struct json_archiver::impl {
         writer.Double(dyn.exec.r1);
         writer.Key("r2");
         writer.Double(dyn.exec.r2);
+        writer.Key("timeout");
+        writer.Double(dyn.exec.sigma);
         writer.EndObject();
     }
 
     template<typename Writer>
-    void write(const modeling&    mod,
-               Writer&            writer,
-               const hsm_wrapper& dyn) noexcept
+    void write_modeling_dynamics(const modeling&    mod,
+                                 Writer&            writer,
+                                 const hsm_wrapper& dyn) noexcept
     {
-        if_data_exists_do(mod.components,
-                          enum_cast<component_id>(dyn.compo_id),
-                          [&](auto& compo) {
-                              writer.StartObject();
-                              writer.Key("hsm");
-                              writer.StartObject();
-                              write_child_component_path(mod, compo, writer);
-                              writer.EndObject();
-                              writer.Key("i1");
-                              writer.Int(dyn.exec.i1);
-                              writer.Key("i2");
-                              writer.Int(dyn.exec.i2);
-                              writer.Key("r1");
-                              writer.Double(dyn.exec.r1);
-                              writer.Key("r2");
-                              writer.Double(dyn.exec.r2);
-                              writer.EndObject();
-                          });
+        writer.StartObject();
+
+        writer.Key("hsm");
+        writer.StartObject();
+        if_data_exists_do(
+          mod.components,
+          enum_cast<component_id>(dyn.compo_id),
+          [&](auto& compo) { write_child_component_path(mod, compo, writer); });
+        writer.EndObject();
+
+        writer.Key("i1");
+        writer.Int(dyn.exec.i1);
+        writer.Key("i2");
+        writer.Int(dyn.exec.i2);
+        writer.Key("r1");
+        writer.Double(dyn.exec.r1);
+        writer.Key("r2");
+        writer.Double(dyn.exec.r2);
+        writer.Key("timeout");
+        writer.Double(dyn.exec.sigma);
+        writer.EndObject();
     }
 
     template<typename Writer>
@@ -5513,7 +5538,7 @@ struct json_archiver::impl {
 
         dispatch(mdl, [&]<typename Dynamics>(Dynamics& dyn) noexcept {
             if constexpr (std::is_same_v<Dynamics, hsm_wrapper>) {
-                write(mod, w, dyn);
+                write_modeling_dynamics(mod, w, dyn);
             } else {
                 write(w, dyn);
             }
@@ -5869,8 +5894,8 @@ struct json_archiver::impl {
     }
 
     template<typename Writer>
-    void write_hsm_component(const hierarchical_state_machine& hsm,
-                             Writer&                           w) noexcept
+    void write_hierarchical_state_machine(const hierarchical_state_machine& hsm,
+                                          Writer& w) noexcept
     {
         w.Key("states");
         w.StartArray();
@@ -5927,6 +5952,23 @@ struct json_archiver::impl {
 
         w.Key("top");
         w.Uint(hsm.top_state);
+    }
+
+    template<typename Writer>
+    void write_hsm_component(const hsm_component& hsm, Writer& w) noexcept
+    {
+        write_hierarchical_state_machine(hsm.machine, w);
+
+        w.Key("i1");
+        w.Double(hsm.i1);
+        w.Key("i2");
+        w.Double(hsm.i2);
+        w.Key("r1");
+        w.Double(hsm.r1);
+        w.Key("r2");
+        w.Double(hsm.r2);
+        w.Key("timeout");
+        w.Double(hsm.timeout);
     }
 
     template<typename Writer>
@@ -6018,7 +6060,7 @@ struct json_archiver::impl {
             w.StartObject();
             w.Key("hsm");
             w.Uint64(ordinal(sim.hsms.get_id(machine)));
-            write_hsm_component(machine, w);
+            write_hierarchical_state_machine(machine, w);
             w.EndObject();
         }
         w.EndArray();
@@ -6037,7 +6079,10 @@ struct json_archiver::impl {
             w.Key("dynamics");
 
             dispatch(mdl, [&]<typename Dynamics>(const Dynamics& dyn) noexcept {
-                write(w, dyn);
+                if constexpr (std::is_same_v<Dynamics, hsm_wrapper>)
+                    write_simulation_dynamics(w, dyn);
+                else
+                    write(w, dyn);
             });
 
             w.EndObject();
@@ -6586,20 +6631,35 @@ bool json_archiver::operator()(modeling&                   mod,
 
     switch (print) {
     case json_archiver::print_option::indent_2: {
-        rapidjson::PrettyWriter<rapidjson::StringBuffer> w(buffer);
+        rapidjson::PrettyWriter<rapidjson::StringBuffer,
+                                rapidjson::UTF8<>,
+                                rapidjson::UTF8<>,
+                                rapidjson::CrtAllocator,
+                                rapidjson::kWriteNanAndInfFlag>
+          w(buffer);
         w.SetIndent(' ', 2);
         i.do_component_save(w, mod, compo);
     } break;
 
     case json_archiver::print_option::indent_2_one_line_array: {
-        rapidjson::PrettyWriter<rapidjson::StringBuffer> w(buffer);
+        rapidjson::PrettyWriter<rapidjson::StringBuffer,
+                                rapidjson::UTF8<>,
+                                rapidjson::UTF8<>,
+                                rapidjson::CrtAllocator,
+                                rapidjson::kWriteNanAndInfFlag>
+          w(buffer);
         w.SetIndent(' ', 2);
         w.SetFormatOptions(rapidjson::kFormatSingleLineArray);
         i.do_component_save(w, mod, compo);
     } break;
 
     default: {
-        rapidjson::Writer<rapidjson::StringBuffer> w(buffer);
+        rapidjson::Writer<rapidjson::StringBuffer,
+                          rapidjson::UTF8<>,
+                          rapidjson::UTF8<>,
+                          rapidjson::CrtAllocator,
+                          rapidjson::kWriteNanAndInfFlag>
+          w(buffer);
         i.do_component_save(w, mod, compo);
     } break;
     }
@@ -6629,8 +6689,13 @@ bool json_archiver::operator()(const simulation&           sim,
     buffer.resize(4096);
 
     rapidjson::FileWriteStream os(fp, buffer.data(), buffer.size());
-    rapidjson::PrettyWriter<rapidjson::FileWriteStream> w(os);
-    json_archiver::impl                                 i{ *this, err };
+    rapidjson::PrettyWriter<rapidjson::FileWriteStream,
+                            rapidjson::UTF8<>,
+                            rapidjson::UTF8<>,
+                            rapidjson::CrtAllocator,
+                            rapidjson::kWriteNanAndInfFlag>
+                        w(os);
+    json_archiver::impl i{ *this, err };
 
     switch (print) {
     case print_option::indent_2:
@@ -6666,14 +6731,24 @@ bool json_archiver::operator()(const simulation& sim,
 
     switch (print_options) {
     case print_option::indent_2: {
-        rapidjson::PrettyWriter<rapidjson::StringBuffer> w(buffer);
+        rapidjson::PrettyWriter<rapidjson::StringBuffer,
+                                rapidjson::UTF8<>,
+                                rapidjson::UTF8<>,
+                                rapidjson::CrtAllocator,
+                                rapidjson::kWriteNanAndInfFlag>
+          w(buffer);
         w.SetIndent(' ', 2);
         i.do_simulation_save(w, sim);
         break;
     }
 
     case print_option::indent_2_one_line_array: {
-        rapidjson::PrettyWriter<rapidjson::StringBuffer> w(buffer);
+        rapidjson::PrettyWriter<rapidjson::StringBuffer,
+                                rapidjson::UTF8<>,
+                                rapidjson::UTF8<>,
+                                rapidjson::CrtAllocator,
+                                rapidjson::kWriteNanAndInfFlag>
+          w(buffer);
         w.SetIndent(' ', 2);
         w.SetFormatOptions(rapidjson::kFormatSingleLineArray);
         i.do_simulation_save(w, sim);
@@ -6681,7 +6756,12 @@ bool json_archiver::operator()(const simulation& sim,
     }
 
     default: {
-        rapidjson::Writer<rapidjson::StringBuffer> w(buffer);
+        rapidjson::Writer<rapidjson::StringBuffer,
+                          rapidjson::UTF8<>,
+                          rapidjson::UTF8<>,
+                          rapidjson::CrtAllocator,
+                          rapidjson::kWriteNanAndInfFlag>
+          w(buffer);
         i.do_simulation_save(w, sim);
         break;
     }
@@ -6735,8 +6815,13 @@ bool json_archiver::operator()(project&  pj,
     buffer.resize(4096);
 
     rapidjson::FileWriteStream os(fp, buffer.data(), buffer.size());
-    rapidjson::PrettyWriter<rapidjson::FileWriteStream> w(os);
-    json_archiver::impl                                 i{ *this, err };
+    rapidjson::PrettyWriter<rapidjson::FileWriteStream,
+                            rapidjson::UTF8<>,
+                            rapidjson::UTF8<>,
+                            rapidjson::CrtAllocator,
+                            rapidjson::kWriteNanAndInfFlag>
+                        w(os);
+    json_archiver::impl i{ *this, err };
 
     switch (print_options) {
     case print_option::indent_2:
@@ -6776,20 +6861,35 @@ bool json_archiver::operator()(project&  pj,
 
     switch (print_options) {
     case print_option::indent_2: {
-        rapidjson::PrettyWriter<rapidjson::StringBuffer> w(rbuffer);
+        rapidjson::PrettyWriter<rapidjson::StringBuffer,
+                                rapidjson::UTF8<>,
+                                rapidjson::UTF8<>,
+                                rapidjson::CrtAllocator,
+                                rapidjson::kWriteNanAndInfFlag>
+          w(rbuffer);
         w.SetIndent(' ', 2);
         i.do_project_save(w, pj, mod, *compo);
     } break;
 
     case print_option::indent_2_one_line_array: {
-        rapidjson::PrettyWriter<rapidjson::StringBuffer> w(rbuffer);
+        rapidjson::PrettyWriter<rapidjson::StringBuffer,
+                                rapidjson::UTF8<>,
+                                rapidjson::UTF8<>,
+                                rapidjson::CrtAllocator,
+                                rapidjson::kWriteNanAndInfFlag>
+          w(rbuffer);
         w.SetIndent(' ', 2);
         w.SetFormatOptions(rapidjson::kFormatSingleLineArray);
         i.do_project_save(w, pj, mod, *compo);
     } break;
 
     default: {
-        rapidjson::PrettyWriter<rapidjson::StringBuffer> w(rbuffer);
+        rapidjson::Writer<rapidjson::StringBuffer,
+                          rapidjson::UTF8<>,
+                          rapidjson::UTF8<>,
+                          rapidjson::CrtAllocator,
+                          rapidjson::kWriteNanAndInfFlag>
+          w(rbuffer);
         i.do_project_save(w, pj, mod, *compo);
     } break;
     }

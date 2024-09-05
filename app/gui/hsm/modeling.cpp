@@ -500,7 +500,6 @@ void hsm_component_editor_data::clear(hsm_component& hsm) noexcept
     m_enabled[0] = true;
 
     hsm.clear();
-    (void)hsm.set_state(0); // @TODO Vraiment necessaire?!?
 }
 
 void hsm_component_editor_data::show_hsm(hsm_component& hsm) noexcept
@@ -512,7 +511,7 @@ void hsm_component_editor_data::show_hsm(hsm_component& hsm) noexcept
 
         ImNodes::BeginNode(make_state(i));
         ImNodes::BeginNodeTitleBar();
-        ImGui::TextFormat("{} (id: {})", hsm.names[i].sv(), i);
+        ImGui::TextFormat("{} (id: {})", hsm.machine.names[i].sv(), i);
         ImNodes::EndNodeTitleBar();
 
         ImNodes::BeginInputAttribute(make_input(i),
@@ -520,7 +519,7 @@ void hsm_component_editor_data::show_hsm(hsm_component& hsm) noexcept
         ImGui::TextUnformatted("in");
         ImNodes::EndInputAttribute();
 
-        show_condition(hsm.states[i].condition);
+        show_condition(hsm.machine.states[i].condition);
 
         // ImNodes::BeginOutputAttribute(
         //   make_output(i, transition_type::super_transition),
@@ -553,23 +552,23 @@ void hsm_component_editor_data::show_hsm(hsm_component& hsm) noexcept
         //                   make_output(i, transition_type::super_transition),
         //                   make_input(hsm.states[i].super_id));
 
-        if (hsm.states[i].if_transition != hsm_t::invalid_state_id)
+        if (hsm.machine.states[i].if_transition != hsm_t::invalid_state_id)
             ImNodes::Link(make_transition(i,
-                                          hsm.states[i].if_transition,
+                                          hsm.machine.states[i].if_transition,
                                           transition_type::if_transition),
                           make_output(i, transition_type::if_transition),
-                          make_input(hsm.states[i].if_transition));
+                          make_input(hsm.machine.states[i].if_transition));
 
-        if (hsm.states[i].else_transition != hsm_t::invalid_state_id)
+        if (hsm.machine.states[i].else_transition != hsm_t::invalid_state_id)
             ImNodes::Link(make_transition(i,
-                                          hsm.states[i].else_transition,
+                                          hsm.machine.states[i].else_transition,
                                           transition_type::else_transition),
                           make_output(i, transition_type::else_transition),
-                          make_input(hsm.states[i].else_transition));
+                          make_input(hsm.machine.states[i].else_transition));
     }
 }
 
-static void is_link_created(hsm_t& hsm) noexcept
+static void is_link_created(hsm_component& hsm) noexcept
 {
     int output_idx, input_idx;
     if (ImNodes::IsLinkCreated(&output_idx, &input_idx)) {
@@ -583,10 +582,10 @@ static void is_link_created(hsm_t& hsm) noexcept
         //         hsm.states[in].sub_id = out.output;
         //     break;
         case transition_type::if_transition:
-            hsm.states[out.output].if_transition = in;
+            hsm.machine.states[out.output].if_transition = in;
             break;
         case transition_type::else_transition:
-            hsm.states[out.output].else_transition = in;
+            hsm.machine.states[out.output].else_transition = in;
             break;
         }
     }
@@ -609,13 +608,15 @@ void hsm_component_editor_data::show_menu(hsm_component& hsm) noexcept
             if (ImGui::MenuItem("new state")) {
                 m_enabled[id.value()] = true;
 
-                if (hsm.top_state == hsm_t::invalid_state_id)
-                    (void)hsm.set_state(id.value());
+                if (hsm.machine.top_state == hsm_t::invalid_state_id)
+                    (void)hsm.machine.set_state(id.value());
                 else {
-                    if (hsm.states[hsm.top_state].sub_id ==
+                    if (hsm.machine.states[hsm.machine.top_state].sub_id ==
                         hsm_t::invalid_state_id)
-                        hsm.states[hsm.top_state].sub_id = id.value();
-                    (void)hsm.set_state(id.value(), hsm.top_state);
+                        hsm.machine.states[hsm.machine.top_state].sub_id =
+                          id.value();
+                    (void)hsm.machine.set_state(id.value(),
+                                                hsm.machine.top_state);
                 }
 
                 // if (hsm.states[0].sub_id == hsm_t::invalid_state_id) {
@@ -665,7 +666,7 @@ void hsm_component_editor_data::show_graph(hsm_component& hsm) noexcept
         if (ImGui::IsKeyReleased(ImGuiKey_Delete)) {
             for (auto idx : m_selected_nodes) {
                 if (idx != 0)
-                    remove_state(hsm, get_state(idx), m_enabled);
+                    remove_state(hsm.machine, get_state(idx), m_enabled);
             }
         }
     }
@@ -679,7 +680,7 @@ void hsm_component_editor_data::show_graph(hsm_component& hsm) noexcept
 
             for (auto idx : m_selected_links) {
                 if (idx != 0) {
-                    remove_link(hsm, get_transition(idx));
+                    remove_link(hsm.machine, get_transition(idx));
                     need_clear = true;
                 }
             }
@@ -698,21 +699,21 @@ void hsm_component_editor_data::show_panel(hsm_component& hsm) noexcept
                                 ImGuiTreeNodeFlags_DefaultOpen)) {
         for (int i = 0, e = m_selected_nodes.Size; i != e; ++i) {
             const auto id    = get_state(m_selected_nodes[i]);
-            auto&      state = hsm.states[id];
+            auto&      state = hsm.machine.states[id];
 
             ImGui::PushID(i);
 
-            ImGui::InputSmallString("Name", hsm.names[id]);
+            ImGui::InputSmallString("Name", hsm.machine.names[id]);
             ImGui::LabelFormat("Id", "{}", static_cast<unsigned>(id));
 
-            const auto old_state_0 = hsm.top_state == id;
-            auto       state_0     = hsm.top_state == id;
+            const auto old_state_0 = hsm.machine.top_state == id;
+            auto       state_0     = hsm.machine.top_state == id;
 
             if (ImGui::Checkbox("initial state", &state_0)) {
                 if (old_state_0)
-                    hsm.top_state = hsm_t::invalid_state_id;
+                    hsm.machine.top_state = hsm_t::invalid_state_id;
                 if (state_0)
-                    hsm.top_state = id;
+                    hsm.machine.top_state = id;
             }
 
             ImGui::SeparatorText("Condition");
@@ -759,10 +760,10 @@ bool hsm_component_editor_data::valid(hsm_component& hsm) noexcept
         read.fill(false);
         read[0] = true;
 
-        if (hsm.states[0].if_transition != hsm_t::invalid_state_id)
-            stack.emplace_back(hsm.states[0].if_transition);
-        if (hsm.states[0].else_transition != hsm_t::invalid_state_id)
-            stack.emplace_back(hsm.states[0].else_transition);
+        if (hsm.machine.states[0].if_transition != hsm_t::invalid_state_id)
+            stack.emplace_back(hsm.machine.states[0].if_transition);
+        if (hsm.machine.states[0].else_transition != hsm_t::invalid_state_id)
+            stack.emplace_back(hsm.machine.states[0].else_transition);
 
         while (!stack.empty()) {
             auto top = stack.back();
@@ -770,12 +771,14 @@ bool hsm_component_editor_data::valid(hsm_component& hsm) noexcept
 
             read[top] = true;
 
-            if (hsm.states[top].if_transition != hsm_t::invalid_state_id &&
-                read[hsm.states[top].if_transition] == false)
-                stack.emplace_back(hsm.states[top].if_transition);
-            if (hsm.states[top].else_transition != hsm_t::invalid_state_id &&
-                read[hsm.states[top].else_transition] == false)
-                stack.emplace_back(hsm.states[top].else_transition);
+            if (hsm.machine.states[top].if_transition !=
+                  hsm_t::invalid_state_id &&
+                read[hsm.machine.states[top].if_transition] == false)
+                stack.emplace_back(hsm.machine.states[top].if_transition);
+            if (hsm.machine.states[top].else_transition !=
+                  hsm_t::invalid_state_id &&
+                read[hsm.machine.states[top].else_transition] == false)
+                stack.emplace_back(hsm.machine.states[top].else_transition);
         }
 
         if (read != m_enabled) {
@@ -812,10 +815,10 @@ void hsm_component_editor_data::show(component_editor& ed) noexcept
         }
 
         if (ImGui::BeginTabItem("log")) {
-            if (hsm->top_state == hsm_t::invalid_state_id) {
+            if (hsm->machine.top_state == hsm_t::invalid_state_id) {
                 ImGui::TextUnformatted("Top state is undefined");
             } else {
-                ImGui::TextFormat("Top state: {}", hsm->top_state);
+                ImGui::TextFormat("Top state: {}", hsm->machine.top_state);
             }
 
             ImGui::TextFormatDisabled("Not yet implemented.");
@@ -875,29 +878,29 @@ hsm_component_editor_data::hsm_component_editor_data(
 
     m_enabled.fill(false);
 
-    if (hsm.top_state != hierarchical_state_machine::invalid_state_id)
-        m_enabled[hsm.top_state] = true;
+    if (hsm.machine.top_state != hierarchical_state_machine::invalid_state_id)
+        m_enabled[hsm.machine.top_state] = true;
 
-    for (auto i = 0, e = length(hsm.states); i != e; ++i) {
-        if (hsm.states[i].if_transition !=
+    for (auto i = 0, e = length(hsm.machine.states); i != e; ++i) {
+        if (hsm.machine.states[i].if_transition !=
             hierarchical_state_machine::invalid_state_id) {
-            m_enabled[hsm.states[i].if_transition] = true;
-            m_enabled[i]                           = true;
+            m_enabled[hsm.machine.states[i].if_transition] = true;
+            m_enabled[i]                                   = true;
         }
-        if (hsm.states[i].else_transition !=
+        if (hsm.machine.states[i].else_transition !=
             hierarchical_state_machine::invalid_state_id) {
-            m_enabled[hsm.states[i].else_transition] = true;
-            m_enabled[i]                             = true;
+            m_enabled[hsm.machine.states[i].else_transition] = true;
+            m_enabled[i]                                     = true;
         }
-        if (hsm.states[i].super_id !=
+        if (hsm.machine.states[i].super_id !=
             hierarchical_state_machine::invalid_state_id) {
-            m_enabled[hsm.states[i].super_id] = true;
-            m_enabled[i]                      = true;
+            m_enabled[hsm.machine.states[i].super_id] = true;
+            m_enabled[i]                              = true;
         }
-        if (hsm.states[i].sub_id !=
+        if (hsm.machine.states[i].sub_id !=
             hierarchical_state_machine::invalid_state_id) {
-            m_enabled[hsm.states[i].sub_id] = true;
-            m_enabled[i]                    = true;
+            m_enabled[hsm.machine.states[i].sub_id] = true;
+            m_enabled[i]                            = true;
         }
     }
 }

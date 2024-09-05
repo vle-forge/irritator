@@ -239,7 +239,33 @@ struct connection {
 /// hierarchical_state_machine is copied into the simulation HSM data array. The
 /// parameter @c a and @c b are store into the @c children_parameters of the @c
 /// generic_component.
-using hsm_component = hierarchical_state_machine;
+
+class hsm_component
+{
+public:
+    /** Clear the @c machine state and reinit constants. */
+    void clear() noexcept;
+
+    hierarchical_state_machine machine;
+
+    i32  i1      = 0;
+    i32  i2      = 0;
+    real r1      = 0.0;
+    real r2      = 0.0;
+    time timeout = time_domain<time>::infinity;
+};
+
+inline void hsm_component::clear() noexcept
+{
+    machine.clear();
+    (void)machine.set_state(0); // @TODO Is it really necessary?
+
+    i1      = 0;
+    i2      = 0;
+    r1      = 0.0;
+    r2      = 0.0;
+    timeout = time_domain<time>::infinity;
+}
 
 class generic_component
 {

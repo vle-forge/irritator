@@ -31,7 +31,7 @@ struct simulation_copy {
             if (not sim.hsms.can_alloc())
                 break;
 
-            auto& sim_hsm = sim.hsms.alloc(modhsm);
+            auto& sim_hsm = sim.hsms.alloc(modhsm.machine);
 
             const auto hsm_id = mod.hsm_components.get_id(modhsm);
             const auto sim_id = sim.hsms.get_id(sim_hsm);
