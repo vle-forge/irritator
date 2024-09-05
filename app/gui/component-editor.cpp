@@ -301,6 +301,8 @@ static void show_data(application&       app,
                       data_array<T, ID>& data,
                       std::string_view /*title*/) noexcept
 {
+    std::optional<ID> to_del;
+
     for (auto& element : data) {
         const auto compo_id = element.get_id();
         auto&      compo    = app.mod.components.get(compo_id);
@@ -378,7 +380,13 @@ static void show_data(application&       app,
             }
             ImGui::EndTabItem();
         }
+
+        if (open == false)
+            to_del = data.get_id(element);
     }
+
+    if (to_del.has_value())
+        data.free(*to_del);
 }
 
 void component_editor::show() noexcept
