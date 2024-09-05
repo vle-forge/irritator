@@ -817,26 +817,6 @@ static bool show_project_parameters(application& app) noexcept
     return is_modified;
 }
 
-static bool show_project_observations(application& app) noexcept
-{
-    constexpr static auto flags = ImGuiTreeNodeFlags_DefaultOpen;
-
-    auto updated = 0;
-
-    if (ImGui::CollapsingHeader("Plots", flags))
-        updated += show_simulation_table_variable_observers(app);
-
-    if (not app.pj.grid_observers.empty() &&
-        ImGui::CollapsingHeader("Grid observers", flags))
-        updated += show_simulation_table_grid_observers(app);
-
-    if (not app.pj.graph_observers.empty() &&
-        ImGui::CollapsingHeader("Graph observers", flags))
-        updated += show_simulation_table_graph_observers(app);
-
-    return updated;
-}
-
 static void show_component_observations_actions(
   simulation_editor& sim_ed) noexcept
 {
@@ -877,6 +857,82 @@ static void show_component_observations_actions(
         if (sim_ed.tree_node_observation_height <= 0.f)
             sim_ed.tree_node_observation_height = 10.f;
     }
+}
+
+static bool show_project_observations(application& app) noexcept
+{
+    constexpr static auto flags = ImGuiTreeNodeFlags_DefaultOpen;
+
+    auto updated = 0;
+
+    if (ImGui::CollapsingHeader("Plots", flags))
+        updated += show_simulation_table_variable_observers(app);
+
+    if (not app.pj.grid_observers.empty() and
+        ImGui::CollapsingHeader("Grid observers", flags))
+        updated += show_simulation_table_grid_observers(app);
+
+    if (not app.pj.graph_observers.empty() and
+        ImGui::CollapsingHeader("Graph observers", flags))
+        updated += show_simulation_table_graph_observers(app);
+
+    auto& sim_ed = app.simulation_ed;
+    show_component_observations_actions(sim_ed);
+
+    const auto sub_obs_size =
+      ImVec2(ImGui::GetContentRegionAvail().x / *sim_ed.tree_node_observation,
+             sim_ed.tree_node_observation_height);
+
+    auto pos = 0;
+    if (ImGui::BeginTable("##obs-table", *sim_ed.tree_node_observation)) {
+        ImGui::TableHeadersRow();
+        ImGui::TableNextRow();
+        ImGui::TableNextColumn();
+
+        for_each_data(app.pj.grid_observers, [&](auto& grid) noexcept {
+            app.simulation_ed.grid_obs.show(grid, sub_obs_size);
+
+            ++pos;
+
+            if (pos >= *sim_ed.tree_node_observation) {
+                pos = 0;
+                ImGui::TableNextRow();
+            }
+            ImGui::TableNextColumn();
+        });
+
+        for (auto& vobs : app.pj.variable_observers) {
+            ImGui::PushID(&vobs);
+            if (ImPlot::BeginPlot(vobs.name.c_str(), ImVec2(-1, 200))) {
+                ImPlot::PushStyleVar(ImPlotStyleVar_LineWeight, 1.f);
+                ImPlot::PushStyleVar(ImPlotStyleVar_MarkerSize, 1.f);
+
+                vobs.for_each([&](const auto id) noexcept {
+                    const auto  idx = get_index(id);
+                    const auto* obs =
+                      app.sim.observers.try_to_get(vobs.get_obs_ids()[idx]);
+
+                    if (obs)
+                        app.simulation_ed.plot_obs.show_plot_line(
+                          *obs, vobs.get_options()[idx], vobs.get_names()[idx]);
+                });
+
+                ImPlot::PopStyleVar(2);
+                ImPlot::EndPlot();
+            }
+            ImGui::PopID();
+
+            ++pos;
+            if (pos >= *sim_ed.tree_node_observation) {
+                pos = 0;
+                ImGui::TableNextRow();
+            }
+            ImGui::TableNextColumn();
+        }
+        ImGui::EndTable();
+    }
+
+    return updated;
 }
 
 static void show_component_observations(application&       app,
@@ -1018,49 +1074,48 @@ void simulation_editor::show() noexcept
                                            can_be_restarted,
                                            can_be_stopped);
 
-            if (ImGui::BeginChild("##s-c", ImVec2(0, 0), false)) {
-                // {
-                const auto selected_tn = app.project_wnd.selected_tn();
-                auto*      selected    = app.pj.node(selected_tn);
+            // if (ImGui::BeginChild("##s-c", ImVec2(0, 0), false)) {
+            const auto selected_tn = app.project_wnd.selected_tn();
+            auto*      selected    = app.pj.node(selected_tn);
 
-                if (ImGui::BeginTabBar("##SimulationTabBar")) {
-                    if (ImGui::BeginTabItem("Parameters")) {
-                        show_project_parameters(app);
-                        ImGui::EndTabItem();
-                    }
-
-                    if (ImGui::BeginTabItem("Observations")) {
-                        show_project_observations(app);
-                        ImGui::EndTabItem();
-                    }
-
-                    if (selected) {
-                        if (ImGui::BeginTabItem("Component parameters")) {
-                            show_local_simulation_settings(app, *selected);
-                            ImGui::EndTabItem();
-                        }
-
-                        if (ImGui::BeginTabItem("Component observations")) {
-                            show_component_observations(app, *this, *selected);
-                            ImGui::EndTabItem();
-                        }
-                    }
-
-                    if (ImGui::BeginTabItem("Simulation graph")) {
-                        if (app.simulation_ed.can_display_graph_editor()) {
-                            if (selected) {
-                                show_simulation_editor_treenode(app, *selected);
-                            } else {
-                                show_simulation_editor(app);
-                            }
-                        }
-                        ImGui::EndTabItem();
-                    }
-
-                    ImGui::EndTabBar();
+            if (ImGui::BeginTabBar("##SimulationTabBar")) {
+                if (ImGui::BeginTabItem("Parameters")) {
+                    show_project_parameters(app);
+                    ImGui::EndTabItem();
                 }
+
+                if (ImGui::BeginTabItem("Observations")) {
+                    show_project_observations(app);
+                    ImGui::EndTabItem();
+                }
+
+                if (selected) {
+                    if (ImGui::BeginTabItem("Component parameters")) {
+                        show_local_simulation_settings(app, *selected);
+                        ImGui::EndTabItem();
+                    }
+
+                    if (ImGui::BeginTabItem("Component observations")) {
+                        show_component_observations(app, *this, *selected);
+                        ImGui::EndTabItem();
+                    }
+                }
+
+                if (ImGui::BeginTabItem("Simulation graph")) {
+                    if (app.simulation_ed.can_display_graph_editor()) {
+                        if (selected) {
+                            show_simulation_editor_treenode(app, *selected);
+                        } else {
+                            show_simulation_editor(app);
+                        }
+                    }
+                    ImGui::EndTabItem();
+                }
+
+                ImGui::EndTabBar();
             }
-            ImGui::EndChild();
+            // }
+            // ImGui::EndChild();
 
             ImGui::EndTable();
         }
