@@ -316,6 +316,7 @@ static bool show_local_simulation_plot_observers_table(application& app,
                 ImGui::TableNextRow();
                 ImGui::TableNextColumn();
 
+                ImGui::BeginDisabled(app.simulation_ed.is_simulation_running());
                 if (ImGui::Checkbox("##enable", &enable)) {
                     if (enable) {
                         auto& vobs =
@@ -349,6 +350,7 @@ static bool show_local_simulation_plot_observers_table(application& app,
                         tn.variable_observer_ids.erase(uid);
                     }
                 }
+                ImGui::EndDisabled();
 
                 ImGui::TableNextColumn();
 
@@ -447,6 +449,7 @@ static bool show_local_simulation_settings(application& app,
                 ImGui::TableNextRow();
                 ImGui::TableNextColumn();
 
+                ImGui::BeginDisabled(app.simulation_ed.is_simulation_running());
                 if (ImGui::Checkbox("##enable", &enable)) {
                     if (enable and app.pj.parameters.can_alloc(1)) {
                         const auto gp_id =
@@ -470,6 +473,7 @@ static bool show_local_simulation_settings(application& app,
                         enable  = false;
                     }
                 }
+                ImGui::EndDisabled();
 
                 ImGui::TableNextColumn();
 
@@ -658,7 +662,9 @@ static bool show_simulation_table_graph_observers(application& app) noexcept
 
             bool enable = true;
             ImGui::PushItemWidth(-1.0f);
+            ImGui::BeginDisabled(app.simulation_ed.is_simulation_running());
             ImGui::Checkbox("##button", &enable);
+            ImGui::EndDisabled();
             ImGui::PopItemWidth();
 
             ImGui::TableNextColumn();
@@ -722,7 +728,9 @@ static bool show_simulation_table_variable_observers(application& app) noexcept
 
             bool enable = true;
             ImGui::PushItemWidth(-1.0f);
+            ImGui::BeginDisabled(app.simulation_ed.is_simulation_running());
             ImGui::Checkbox("##button", &enable);
+            ImGui::EndDisabled();
             ImGui::PopItemWidth();
 
             ImGui::TableNextColumn();
