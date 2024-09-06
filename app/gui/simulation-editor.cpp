@@ -244,7 +244,7 @@ static bool select_variable_observer(project&              pj,
             const auto id       = pj.variable_observers.get_id(v_obs);
             const auto selected = id == current;
 
-            ImGui::PushID(ordinal(id));
+            ImGui::PushID(static_cast<int>(get_index(id)));
             if (ImGui::Selectable(v_obs.name.c_str(), selected)) {
                 current = id;
                 ret     = true;
