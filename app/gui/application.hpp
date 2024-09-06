@@ -603,6 +603,13 @@ struct simulation_editor {
 
     bool is_open = true;
 
+    /** Return true if a simulation is currently running.
+     *
+     * A simulation is running if and only if the simulation status is in state:
+     * running, running_required or paused.
+     */
+    bool is_simulation_running() const noexcept;
+
     timeline tl;
 
     real simulation_last_finite_t   = 0;
@@ -669,6 +676,14 @@ struct simulation_editor {
       models_to_move; /**< Online simulation created models need to use ImNodes
                          API to move into the canvas. */
 };
+
+inline bool simulation_editor::is_simulation_running() const noexcept
+{
+    return any_equal(simulation_state,
+                     simulation_status::paused,
+                     simulation_status::running,
+                     simulation_status::run_requiring);
+}
 
 struct data_window {
     constexpr static inline const char* name = "Data";
