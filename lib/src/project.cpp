@@ -1466,6 +1466,57 @@ auto project::tree_nodes_size() const noexcept -> std::pair<int, int>
     return std::make_pair(tree_nodes.ssize(), tree_nodes.capacity());
 }
 
+template<typename T>
+static auto already_name_exists(const T& obs, std::string_view str) noexcept
+  -> bool
+{
+    for (const auto& o : obs)
+        if (o.name == str)
+            return true;
+
+    return false;
+};
+
+template<typename T>
+static void assign_name(const T& obs, name_str& str) noexcept
+{
+    for (auto i = 0; i < INT32_MAX; ++i) {
+        format(str, "New {}", i);
+
+        if (not already_name_exists(obs, str.sv()))
+            return;
+    }
+
+    str = "New";
+};
+
+variable_observer& project::alloc_variable_observer() noexcept
+{
+    debug::ensure(variable_observers.can_alloc());
+
+    auto& obs = variable_observers.alloc();
+    assign_name(variable_observers, obs.name);
+    return obs;
+}
+
+grid_observer& project::alloc_grid_observer() noexcept
+{
+    debug::ensure(grid_observers.can_alloc());
+
+    auto& obs = grid_observers.alloc();
+    assign_name(grid_observers, obs.name);
+    return obs;
+}
+
+graph_observer& project::alloc_graph_observer() noexcept
+{
+    debug::ensure(graph_observers.can_alloc());
+
+    auto& obs = graph_observers.alloc();
+    assign_name(graph_observers, obs.name);
+    return obs;
+}
+
 std::string_view to_string(const project::part p) noexcept
 {
     using integer = std::underlying_type_t<project::part>;

@@ -1574,6 +1574,27 @@ public:
                   parameter>
       parameters;
 
+    /**
+       @brief Alloc a new variable observer and assign a name.
+       @return The new instance. Be carreful, use `can_alloc()` before running
+       this function to ensure allocation is possible.
+     */
+    variable_observer& alloc_variable_observer() noexcept;
+
+    /**
+       @brief Alloc a new grid observer and assign a name.
+       @return The new instance. Be carreful, use `can_alloc()` before running
+       this function to ensure allocation is possible.
+     */
+    grid_observer& alloc_grid_observer() noexcept;
+
+    /**
+       @brief Alloc a new graph observer and assign a name.
+       @return The new instance. Be carreful, use `can_alloc()` before running
+       this function to ensure allocation is possible.
+     */
+    graph_observer& alloc_graph_observer() noexcept;
+
 private:
     component_id m_head    = undefined<component_id>();
     tree_node_id m_tn_head = undefined<tree_node_id>();

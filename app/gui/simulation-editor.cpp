@@ -745,9 +745,9 @@ static bool show_simulation_table_variable_observers(application& app) noexcept
     }
 
     if (app.pj.variable_observers.can_alloc(1)) {
-        if (ImGui::Button("New group")) {
-            auto& v     = app.pj.variable_observers.alloc();
-            v.name      = "New";
+        if (ImGui::Button("new plot")) {
+            auto& o = app.pj.alloc_variable_observer();
+            o.clear();
             is_modified = true;
         }
     }

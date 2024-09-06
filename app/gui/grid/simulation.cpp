@@ -394,16 +394,13 @@ bool grid_simulation_editor::show_observations(tree_node& tn,
 
 void alloc_grid_observer(irt::application& app, irt::tree_node& tn)
 {
-    auto& grid = app.pj.grid_observers.alloc();
+    auto& grid = app.pj.alloc_grid_observer();
 
     grid.parent_id = app.pj.tree_nodes.get_id(tn);
     grid.compo_id  = undefined<component_id>();
     grid.tn_id     = undefined<tree_node_id>();
     grid.mdl_id    = undefined<model_id>();
     tn.grid_observer_ids.emplace_back(app.pj.grid_observers.get_id(grid));
-
-    format(
-      grid.name, "rename-{}", get_index(app.pj.grid_observers.get_id(grid)));
 }
 
 bool show_local_observers(application& app,

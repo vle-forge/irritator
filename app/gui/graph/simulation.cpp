@@ -28,7 +28,7 @@ bool show_local_observers(application& app,
 {
     if (ImGui::CollapsingHeader("Local graph observation")) {
         if (app.pj.graph_observers.can_alloc() && ImGui::Button("+##graph")) {
-            auto& graph = app.pj.graph_observers.alloc();
+            auto& graph = app.pj.alloc_graph_observer();
 
             graph.parent_id = app.pj.tree_nodes.get_id(tn);
             graph.compo_id  = undefined<component_id>();
@@ -37,10 +37,6 @@ bool show_local_observers(application& app,
 
             tn.graph_observer_ids.emplace_back(
               app.pj.graph_observers.get_id(graph));
-
-            format(graph.name,
-                   "rename-{}",
-                   get_index(app.pj.graph_observers.get_id(graph)));
         }
 
         std::optional<graph_observer_id> to_delete;
