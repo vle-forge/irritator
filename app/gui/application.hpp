@@ -444,7 +444,7 @@ struct generic_simulation_editor {
 
     bool show_observations(tree_node&         tn,
                            component&         compo,
-                           generic_component& grid) noexcept;
+                           generic_component& generic) noexcept;
 };
 
 struct grid_simulation_editor {

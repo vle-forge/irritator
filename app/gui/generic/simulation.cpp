@@ -2,8 +2,6 @@
 // Version 1.0. (See accompanying file LICENSE_1_0.txt or copy at
 // http://www.boost.org/LICENSE_1_0.txt)
 
-#include <optional>
-
 #define IMGUI_DEFINE_MATH_OPERATORS
 #include <imgui.h>
 #include <imgui_internal.h>
@@ -26,12 +24,6 @@
 #include "internal.hpp"
 
 #include "imnodes.h"
-#include "implot.h"
-
-#include <chrono>
-#include <filesystem>
-#include <fstream>
-#include <string>
 
 namespace irt {
 
@@ -1236,8 +1228,157 @@ void show_simulation_editor(application& app) noexcept
     }
 }
 
+template<typename Dynamics>
+static void show_input_attribute(const Dynamics& dyn,
+                                 const model_id  id) noexcept
+{
+    if constexpr (has_input_port<Dynamics>) {
+        const auto** names = get_input_port_names<Dynamics>();
+        const auto   e     = length(dyn.x);
+
+        debug::ensure(names != nullptr);
+        debug::ensure(0 <= e && e < 8);
+
+        for (int i = 0; i != e; ++i) {
+            ImNodes::BeginInputAttribute(make_input_node_id(id, i),
+                                         ImNodesPinShape_TriangleFilled);
+            ImGui::TextUnformatted(names[i]);
+            ImNodes::EndInputAttribute();
+        }
+    }
+}
+
+template<typename Dynamics>
+static void show_output_attribute(const Dynamics& dyn,
+                                  const model_id  id) noexcept
+{
+    if constexpr (has_output_port<Dynamics>) {
+        const auto** names = get_output_port_names<Dynamics>();
+        const auto   e     = length(dyn.y);
+
+        debug::ensure(names != nullptr);
+        debug::ensure(0 <= e && e < 8);
+
+        for (int i = 0; i != e; ++i) {
+            ImNodes::BeginOutputAttribute(make_output_node_id(id, i),
+                                          ImNodesPinShape_TriangleFilled);
+            ImGui::TextUnformatted(names[i]);
+            ImNodes::EndOutputAttribute();
+        }
+    }
+}
+
+template<typename Dynamics>
+static void show_node_values(Dynamics& dyn, simulation& sim) noexcept
+{
+    ImGui::PushID(0);
+    ImGui::PushItemWidth(120.0f);
+    show_dynamics_values(sim, dyn);
+    ImGui::PopItemWidth();
+    ImGui::PopID();
+}
+
+static void show_nodes(simulation& sim, tree_node& tn) noexcept
+{
+    for (auto i = 0, e = tn.children.ssize(); i != e; ++i) {
+        switch (tn.children[i].type) {
+        case tree_node::child_node::type::empty:
+            break;
+
+        case tree_node::child_node::type::model:
+            if (tn.children[i].mdl) {
+                auto&      mdl = *tn.children[i].mdl;
+                const auto id  = sim.models.get_id(mdl);
+
+                ImNodes::BeginNode(i);
+                ImNodes::BeginNodeTitleBar();
+                ImGui::TextUnformatted(dynamics_type_names[ordinal(mdl.type)]);
+                ImNodes::EndNodeTitleBar();
+
+                dispatch(*tn.children[i].mdl,
+                         [&]<typename Dynamics>(Dynamics& dyn) {
+                             show_input_attribute(dyn, id);
+                             show_node_values(dyn, sim);
+                             show_output_attribute(dyn, id);
+                         });
+
+                ImNodes::EndNode();
+            }
+            break;
+
+        case tree_node::child_node::type::tree_node:
+            break;
+        }
+    }
+}
+
+static bool exists_model_in_tree_node(tree_node& tn, model& to_check) noexcept
+{
+    for (auto i = 0, e = tn.children.ssize(); i != e; ++i)
+        if (tn.children[i].type == tree_node::child_node::type::model)
+            if (tn.children[i].mdl == &to_check)
+                return true;
+
+    return false;
+}
+
+static int show_connection(simulation& sim,
+                           tree_node&  tn,
+                           model&      mdl,
+                           int         con_id) noexcept
+{
+    dispatch(mdl, [&]<typename Dynamics>(Dynamics& dyn) noexcept -> void {
+        if constexpr (has_output_port<Dynamics>) {
+            for (int i = 0, e = length(dyn.y); i != e; ++i) {
+                if (auto* list = sim.nodes.try_to_get(dyn.y[i]); list) {
+                    auto it = list->begin();
+                    auto et = list->end();
+
+                    while (it != et) {
+                        if (auto* mdl_dst = sim.models.try_to_get(it->model);
+                            mdl_dst and
+                            exists_model_in_tree_node(tn, *mdl_dst)) {
+                            int out = make_output_node_id(sim.get_id(dyn), i);
+                            int in =
+                              make_input_node_id(it->model, it->port_index);
+                            ImNodes::Link(con_id++, out, in);
+                            ++it;
+                        } else {
+                            it = list->erase(it);
+                        }
+                    }
+                }
+            }
+        }
+    });
+
+    return con_id;
+}
+
+static void show_connections(simulation& sim, tree_node& tn) noexcept
+{
+    auto con_id = 0;
+
+    for (auto i = 0, e = tn.children.ssize(); i != e; ++i) {
+        switch (tn.children[i].type) {
+        case tree_node::child_node::type::empty:
+            break;
+
+        case tree_node::child_node::type::model:
+            if (tn.children[i].mdl) {
+                auto& mdl = *tn.children[i].mdl;
+                con_id    = show_connection(sim, tn, mdl, con_id);
+            }
+            break;
+
+        case tree_node::child_node::type::tree_node:
+            break;
+        }
+    }
+}
+
 bool generic_simulation_editor::show_observations(
-  tree_node& /*tn*/,
+  tree_node& tn,
   component& /*compo*/,
   generic_component& generic) noexcept
 {
@@ -1253,6 +1394,8 @@ bool generic_simulation_editor::show_observations(
     ImNodes::EditorContextSet(app.simulation_ed.context);
 
     ImNodes::BeginNodeEditor();
+    show_nodes(app.sim, tn);
+    show_connections(app.sim, tn);
     ImNodes::EndNodeEditor();
 
     return false;

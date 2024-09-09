@@ -1082,7 +1082,6 @@ void simulation_editor::show() noexcept
                                            can_be_restarted,
                                            can_be_stopped);
 
-            // if (ImGui::BeginChild("##s-c", ImVec2(0, 0), false)) {
             const auto selected_tn = app.project_wnd.selected_tn();
             auto*      selected    = app.pj.node(selected_tn);
 
@@ -1122,8 +1121,6 @@ void simulation_editor::show() noexcept
 
                 ImGui::EndTabBar();
             }
-            // }
-            // ImGui::EndChild();
 
             ImGui::EndTable();
         }
