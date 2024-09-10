@@ -942,7 +942,7 @@ struct output_message {
 
 static inline constexpr u32 invalid_heap_handle = 0xffffffff;
 
-//! @brief Pairing heap implementation.
+//! @brief .
 //!
 //! A pairing heap is a type of heap data structure with relatively simple
 //! implementation and excellent practical amortized performance, introduced
@@ -997,7 +997,9 @@ public:
     //! Call @c destroy() then allocate the new_capacity.
     constexpr bool reserve(std::integral auto new_capacity) noexcept;
 
-    constexpr handle insert(time tn, model_id id) noexcept;
+    /** Allocate a new node into the heap and insert the @c model_id and the @c
+     * time into the three. */
+    constexpr handle alloc(time tn, model_id id) noexcept;
 
     constexpr void   destroy(handle elem) noexcept;
     constexpr void   insert(handle elem) noexcept;
@@ -1014,6 +1016,7 @@ public:
 
     constexpr bool full() const noexcept;
     constexpr bool empty() const noexcept;
+    constexpr bool is_in_tree(handle h) const noexcept;
 
     constexpr handle top() const noexcept;
 
@@ -1062,7 +1065,7 @@ public:
 
     void destroy() noexcept;
 
-    void insert(model& mdl, model_id id, time tn) noexcept;
+    void alloc(model& mdl, model_id id, time tn) noexcept;
 
     void reintegrate(model& mdl, time tn) noexcept;
 
@@ -1070,14 +1073,20 @@ public:
     void erase(model& mdl) noexcept;
 
     void update(model& mdl, time tn) noexcept;
+    void increase(model& mdl, time tn) noexcept;
+    void decrease(model& mdl, time tn) noexcept;
 
     void pop(vector<model_id, freelist_allocator>& out) noexcept;
 
-    //! Returns the top event @c time-next in the heap.
+    /** Returns the top event @c time-next in the heap. */
     time tn() const noexcept;
 
-    //! Returns the @c time-next event for handle.
+    /** Returns the @c time-next event for handle. */
     time tn(handle h) const noexcept;
+
+    /** Checks if the node @c h is a valid heap handle and if it exists in the
+     * three of the heap. */
+    bool is_in_tree(handle h) const noexcept;
 
     bool empty() const noexcept;
 
@@ -1258,38 +1267,52 @@ public:
 
 template<typename T>
 concept has_lambda_function = requires(T t, simulation& sim) {
-    { t.lambda(sim) } -> std::same_as<status>;
+    {
+        t.lambda(sim)
+    } -> std::same_as<status>;
 };
 
 template<typename T>
 concept has_transition_function =
   requires(T t, simulation& sim, time s, time e, time r) {
-      { t.transition(sim, s, e, r) } -> std::same_as<status>;
+      {
+          t.transition(sim, s, e, r)
+      } -> std::same_as<status>;
   };
 
 template<typename T>
 concept has_observation_function = requires(T t, time s, time e) {
-    { t.observation(s, e) } -> std::same_as<observation_message>;
+    {
+        t.observation(s, e)
+    } -> std::same_as<observation_message>;
 };
 
 template<typename T>
 concept has_initialize_function = requires(T t, simulation& sim) {
-    { t.initialize(sim) } -> std::same_as<status>;
+    {
+        t.initialize(sim)
+    } -> std::same_as<status>;
 };
 
 template<typename T>
 concept has_finalize_function = requires(T t, simulation& sim) {
-    { t.finalize(sim) } -> std::same_as<status>;
+    {
+        t.finalize(sim)
+    } -> std::same_as<status>;
 };
 
 template<typename T>
 concept has_input_port = requires(T t) {
-    { t.x };
+    {
+        t.x
+    };
 };
 
 template<typename T>
 concept has_output_port = requires(T t) {
-    { t.y };
+    {
+        t.y
+    };
 };
 
 constexpr observation_message qss_observation(real X,
@@ -5061,8 +5084,7 @@ constexpr bool heap<A>::reserve(std::integral auto new_capacity) noexcept
 }
 
 template<typename A>
-constexpr typename heap<A>::handle heap<A>::insert(time     tn,
-                                                   model_id id) noexcept
+constexpr typename heap<A>::handle heap<A>::alloc(time tn, model_id id) noexcept
 {
     u32 new_node;
 
@@ -5114,9 +5136,7 @@ constexpr void heap<A>::reintegrate(time tn, handle elem) noexcept
 template<typename A>
 constexpr void heap<A>::insert(handle elem) noexcept
 {
-    nodes[elem].prev  = invalid_heap_handle;
-    nodes[elem].next  = invalid_heap_handle;
-    nodes[elem].child = invalid_heap_handle;
+    debug::ensure(not is_in_tree(elem));
 
     ++m_size;
 
@@ -5138,12 +5158,18 @@ constexpr void heap<A>::remove(handle elem) noexcept
 
     debug::ensure(m_size > 0);
 
-    m_size--;
-    detach_subheap(elem);
-
-    if (nodes[elem].prev) { /* Not use pop() before. Use in interactive code */
+    /* If the node `elem` is not already `pop()`, we detach the node and merge
+     * children. */
+    if (is_in_tree(elem)) {
+        m_size--;
+        const auto old_elem = elem;
+        detach_subheap(elem);
         elem = merge_subheaps(elem);
         root = merge(root, elem);
+
+        nodes[old_elem].child = invalid_heap_handle;
+        nodes[old_elem].prev  = invalid_heap_handle;
+        nodes[old_elem].next  = invalid_heap_handle;
     }
 }
 
@@ -5154,18 +5180,17 @@ constexpr typename heap<A>::handle heap<A>::pop() noexcept
 
     m_size--;
 
-    auto top = root;
-
-    if (nodes[top].child == invalid_heap_handle)
+    if (nodes[root].child == invalid_heap_handle) {
         root = invalid_heap_handle;
-    else
-        root = merge_subheaps(top);
-
-    nodes[top].child = invalid_heap_handle;
-    nodes[top].next  = invalid_heap_handle;
-    nodes[top].prev  = invalid_heap_handle;
-
-    return top;
+        return root;
+    } else {
+        const auto top   = root;
+        root             = merge_subheaps(top);
+        nodes[top].child = invalid_heap_handle;
+        nodes[top].next  = invalid_heap_handle;
+        nodes[top].prev  = invalid_heap_handle;
+        return top;
+    }
 }
 
 template<typename A>
@@ -5217,6 +5242,20 @@ template<typename A>
 constexpr bool heap<A>::empty() const noexcept
 {
     return root == invalid_heap_handle;
+}
+
+template<typename A>
+constexpr bool heap<A>::is_in_tree(handle h) const noexcept
+{
+    if (h == invalid_heap_handle)
+        return false;
+
+    if (h == root)
+        return true;
+
+    return nodes[h].child != invalid_heap_handle or
+           nodes[h].prev != invalid_heap_handle or
+           nodes[h].next != invalid_heap_handle;
 }
 
 template<typename A>
@@ -5366,11 +5405,11 @@ inline void scheduller<A>::destroy() noexcept
 }
 
 template<typename A>
-inline void scheduller<A>::insert(model& mdl, model_id id, time tn) noexcept
+inline void scheduller<A>::alloc(model& mdl, model_id id, time tn) noexcept
 {
     debug::ensure(mdl.handle == invalid_heap_handle);
 
-    mdl.handle = m_heap.insert(tn, id);
+    mdl.handle = m_heap.alloc(tn, id);
 }
 
 template<typename A>
@@ -5403,11 +5442,34 @@ inline void scheduller<A>::update(model& mdl, time tn) noexcept
 {
     debug::ensure(mdl.handle != invalid_heap_handle);
     debug::ensure(tn <= mdl.tn);
+    debug::ensure(not time_domain<real>::is_infinity(tn));
 
-    if (tn < mdl.tn)
-        m_heap.decrease(tn, mdl.handle);
-    else if (tn > mdl.tn)
-        m_heap.increase(tn, mdl.handle);
+    if (time_domain<real>::is_infinity(tn)) {
+        remove(mdl);
+    } else {
+        if (tn < mdl.tn)
+            m_heap.decrease(tn, mdl.handle);
+        else if (tn > mdl.tn)
+            m_heap.increase(tn, mdl.handle);
+    }
+}
+
+template<typename A>
+inline void scheduller<A>::decrease(model& mdl, time tn) noexcept
+{
+    debug::ensure(mdl.handle != invalid_heap_handle);
+    debug::ensure(tn <= mdl.tn);
+
+    m_heap.decrease(tn, mdl.handle);
+}
+
+template<typename A>
+inline void scheduller<A>::increase(model& mdl, time tn) noexcept
+{
+    debug::ensure(mdl.handle != invalid_heap_handle);
+    debug::ensure(tn <= mdl.tn);
+
+    m_heap.increase(tn, mdl.handle);
 }
 
 template<typename A>
@@ -5433,6 +5495,12 @@ template<typename A>
 inline time scheduller<A>::tn(handle h) const noexcept
 {
     return m_heap[h].tn;
+}
+
+template<typename A>
+inline bool scheduller<A>::is_in_tree(handle h) const noexcept
+{
+    return m_heap.is_in_tree(h);
 }
 
 template<typename A>
@@ -5747,7 +5815,7 @@ status simulation::make_initialize(model& mdl, Dynamics& dyn, time t) noexcept
     mdl.tn     = t + dyn.sigma;
     mdl.handle = invalid_heap_handle;
 
-    sched.insert(mdl, models.get_id(mdl), mdl.tn);
+    sched.alloc(mdl, models.get_id(mdl), mdl.tn);
 
     return success();
 }
@@ -5799,6 +5867,7 @@ status simulation::make_transition(model& mdl, Dynamics& dyn, time t) noexcept
     if (dyn.sigma != 0 && mdl.tn == t)
         mdl.tn = std::nextafter(t, t + irt::one);
 
+    debug::ensure(not sched.is_in_tree(mdl.handle));
     sched.reintegrate(mdl, mdl.tn);
 
     return success();
@@ -5873,6 +5942,7 @@ inline status simulation::run() noexcept
         if (!mdl)
             continue;
 
+        debug::ensure(sched.is_in_tree(mdl->handle));
         sched.update(*mdl, t);
 
         if (!messages.can_alloc(1))

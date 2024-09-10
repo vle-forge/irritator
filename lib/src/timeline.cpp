@@ -241,10 +241,10 @@ static status apply(simulation& sim, simulation_point& sim_pt) noexcept
                         sizeof(model),
                         reinterpret_cast<std::byte*>(sim_model));
 
-            if (sim_model->handle) {
+            if (sim_model->handle == invalid_heap_handle) {
                 sim.sched.update(*sim_model, sim_model->tn);
             } else {
-                sim.sched.insert(
+                sim.sched.alloc(
                   *sim_model, sim.models.get_id(*sim_model), sim_model->tn);
             }
         }

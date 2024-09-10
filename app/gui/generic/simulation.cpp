@@ -381,23 +381,16 @@ static void show_dynamics_values(simulation& /*sim*/, const generator& dyn)
 
 static void show_dynamics_values(simulation& sim, constant& dyn)
 {
+    auto& app = container_of(&sim, &application::sim);
+
     ImGui::TextFormat("next ta {}", dyn.sigma);
     ImGui::InputDouble("value", &dyn.value);
 
-    if (ImGui::Button("Send value now")) {
-        auto& app    = container_of(&sim, &application::sim);
-        auto& mdl    = get_model(dyn);
-        auto  mdl_id = sim.models.get_id(mdl);
-
-        app.add_simulation_task([&]() noexcept {
-            if_data_exists_do(sim.models, mdl_id, [&](auto& m) noexcept {
-                sim.sched.remove(m);
-                m.tl      = sim.t;
-                m.tn      = std::nextafter(m.tl, m.tl + to_real(1.));
-                dyn.sigma = m.tn - m.tl;
-                sim.sched.reintegrate(m, m.tn);
-            });
-        });
+    if (not app.simulation_ed.have_send_message.has_value() and
+        ImGui::Button("Send value now")) {
+        auto& mdl                           = get_model(dyn);
+        auto  mdl_id                        = sim.models.get_id(mdl);
+        app.simulation_ed.have_send_message = mdl_id;
     }
 }
 

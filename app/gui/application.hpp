@@ -672,6 +672,12 @@ struct simulation_editor {
     int              automatic_layout_iteration = 0;
     ImVector<ImVec2> displacements;
 
+    /**
+     * @brief A live modeling tool to force a `constant` model to produce an
+     * internal event.
+     */
+    std::optional<model_id> have_send_message;
+
     small_ring_buffer<std::pair<model_id, ImVec2>, 8>
       models_to_move; /**< Online simulation created models need to use ImNodes
                          API to move into the canvas. */

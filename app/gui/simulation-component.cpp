@@ -289,8 +289,15 @@ void simulation_editor::start_simulation_live_run() noexcept
                 is_simulation_force_stop(simulation_state, force_stop))
                 return;
 
-            auto sim_t      = app.sim.t;
-            auto sim_next_t = app.sim.sched.tn();
+            time sim_t;
+            time sim_next_t;
+
+            {
+                std::scoped_lock lock(app.sim_mutex);
+
+                sim_t      = app.sim.t;
+                sim_next_t = app.sim.sched.tn();
+            }
 
             if (time_domain<time>::is_infinity(sim_t)) {
                 sim_t      = simulation_last_finite_t;
@@ -331,18 +338,21 @@ void simulation_editor::start_simulation_live_run() noexcept
             if (wakeup_rt >= start_task_rt + std::chrono::milliseconds{ 1 })
                 std::this_thread::sleep_until(wakeup_rt);
 
-            simulation_last_finite_t = sim_t;
-            app.sim.t                = sim_t;
+            {
+                std::scoped_lock lock(app.sim_mutex);
+                simulation_last_finite_t = sim_t;
+                app.sim.t                = sim_t;
 
-            if (store_all_changes) {
-                if (auto ret = debug_run(app.simulation_ed); !ret) {
-                    simulation_state = simulation_status::finish_requiring;
-                    return;
-                }
-            } else {
-                if (auto ret = run(app.simulation_ed); !ret) {
-                    simulation_state = simulation_status::finish_requiring;
-                    return;
+                if (store_all_changes) {
+                    if (auto ret = debug_run(app.simulation_ed); !ret) {
+                        simulation_state = simulation_status::finish_requiring;
+                        return;
+                    }
+                } else {
+                    if (auto ret = run(app.simulation_ed); !ret) {
+                        simulation_state = simulation_status::finish_requiring;
+                        return;
+                    }
                 }
             }
 
@@ -359,33 +369,55 @@ void simulation_editor::start_simulation_update_state() noexcept
 {
     auto& app = container_of(this, &application::simulation_ed);
 
-    if (std::unique_lock lock(app.sim_mutex, std::try_to_lock);
-        lock.owns_lock()) {
-        if (any_equal(simulation_state,
-                      simulation_status::paused,
-                      simulation_status::run_requiring)) {
-            simulation_state = simulation_status::run_requiring;
+    if (any_equal(simulation_state,
+                  simulation_status::paused,
+                  simulation_status::run_requiring)) {
 
-            if (real_time)
-                start_simulation_live_run();
-            else
-                start_simulation_static_run();
+        if (have_send_message) {
+            const auto mdl_id = *have_send_message;
+
+            if_data_exists_do(app.sim.models, mdl_id, [&](auto& m) noexcept {
+                if (m.type == dynamics_type::constant) {
+                    auto& dyn = get_dyn<constant>(m);
+
+                    if (m.handle == invalid_heap_handle) {
+                        app.sim.sched.alloc(m, mdl_id, app.sim.t);
+                    } else {
+                        if (app.sim.sched.is_in_tree(m.handle)) {
+                            app.sim.sched.update(m, app.sim.t);
+                        } else {
+                            app.sim.sched.reintegrate(m, app.sim.t);
+                        }
+                    }
+
+                    m.tn = app.sim.t;
+                }
+            });
+
+            have_send_message.reset();
         }
 
-        if (simulation_state == simulation_status::finish_requiring) {
-            simulation_state = simulation_status::finishing;
-            start_simulation_finish();
-        }
+        simulation_state = simulation_status::run_requiring;
 
-        auto       it = models_to_move.begin();
-        const auto et = models_to_move.end();
+        if (real_time)
+            start_simulation_live_run();
+        else
+            start_simulation_static_run();
+    }
 
-        for (; it != et; ++it) {
-            const auto index   = get_index(it->first);
-            const auto index_i = static_cast<int>(index);
+    if (simulation_state == simulation_status::finish_requiring) {
+        simulation_state = simulation_status::finishing;
+        start_simulation_finish();
+    }
 
-            ImNodes::SetNodeScreenSpacePos(index_i, it->second);
-        }
+    auto       it = models_to_move.begin();
+    const auto et = models_to_move.end();
+
+    for (; it != et; ++it) {
+        const auto index   = get_index(it->first);
+        const auto index_i = static_cast<int>(index);
+
+        ImNodes::SetNodeScreenSpacePos(index_i, it->second);
     }
 }
 

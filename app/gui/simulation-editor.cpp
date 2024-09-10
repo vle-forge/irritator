@@ -1024,106 +1024,100 @@ static void show_simulation_editor_treenode(application& app,
 
 void simulation_editor::show() noexcept
 {
-    auto& app = container_of(this, &application::simulation_ed);
-
     if (!ImGui::Begin(simulation_editor::name, &is_open)) {
         ImGui::End();
         return;
     }
 
-    if (std::unique_lock lock(app.sim_mutex, std::try_to_lock);
-        lock.owns_lock()) {
-        constexpr ImGuiTableFlags flags =
-          ImGuiTableFlags_SizingFixedFit | ImGuiTableFlags_RowBg |
-          ImGuiTableFlags_Borders | ImGuiTableFlags_Resizable |
-          ImGuiTableFlags_Reorderable;
+    constexpr ImGuiTableFlags flags =
+      ImGuiTableFlags_SizingFixedFit | ImGuiTableFlags_RowBg |
+      ImGuiTableFlags_Borders | ImGuiTableFlags_Resizable |
+      ImGuiTableFlags_Reorderable;
 
-        const bool can_be_initialized =
-          !any_equal(simulation_state,
-                     simulation_status::not_started,
-                     simulation_status::finished,
-                     simulation_status::initialized,
-                     simulation_status::not_started);
+    const bool can_be_initialized = !any_equal(simulation_state,
+                                               simulation_status::not_started,
+                                               simulation_status::finished,
+                                               simulation_status::initialized,
+                                               simulation_status::not_started);
 
-        const bool can_be_started =
-          !any_equal(simulation_state, simulation_status::initialized);
+    const bool can_be_started =
+      !any_equal(simulation_state, simulation_status::initialized);
 
-        const bool can_be_paused = !any_equal(simulation_state,
-                                              simulation_status::running,
-                                              simulation_status::run_requiring,
-                                              simulation_status::paused);
+    const bool can_be_paused = !any_equal(simulation_state,
+                                          simulation_status::running,
+                                          simulation_status::run_requiring,
+                                          simulation_status::paused);
 
-        const bool can_be_restarted =
-          !any_equal(simulation_state, simulation_status::pause_forced);
+    const bool can_be_restarted =
+      !any_equal(simulation_state, simulation_status::pause_forced);
 
-        const bool can_be_stopped = !any_equal(simulation_state,
-                                               simulation_status::running,
-                                               simulation_status::run_requiring,
-                                               simulation_status::paused,
-                                               simulation_status::pause_forced);
+    const bool can_be_stopped = !any_equal(simulation_state,
+                                           simulation_status::running,
+                                           simulation_status::run_requiring,
+                                           simulation_status::paused,
+                                           simulation_status::pause_forced);
 
-        if (ImGui::BeginTable("##ed", 2, flags)) {
-            ImGui::TableSetupColumn(
-              "Hierarchy", ImGuiTableColumnFlags_WidthStretch, 0.2f);
-            ImGui::TableSetupColumn(
-              "Graph", ImGuiTableColumnFlags_WidthStretch, 0.8f);
+    if (ImGui::BeginTable("##ed", 2, flags)) {
+        ImGui::TableSetupColumn(
+          "Hierarchy", ImGuiTableColumnFlags_WidthStretch, 0.2f);
+        ImGui::TableSetupColumn(
+          "Graph", ImGuiTableColumnFlags_WidthStretch, 0.8f);
 
-            auto& app = container_of(this, &application::simulation_ed);
+        auto& app = container_of(this, &application::simulation_ed);
 
-            ImGui::TableNextRow();
-            ImGui::TableSetColumnIndex(0);
-            app.project_wnd.show();
+        ImGui::TableNextRow();
+        ImGui::TableSetColumnIndex(0);
+        app.project_wnd.show();
 
-            ImGui::TableSetColumnIndex(1);
-            show_simulation_action_buttons(*this,
-                                           can_be_initialized,
-                                           can_be_started,
-                                           can_be_paused,
-                                           can_be_restarted,
-                                           can_be_stopped);
+        ImGui::TableSetColumnIndex(1);
+        show_simulation_action_buttons(*this,
+                                       can_be_initialized,
+                                       can_be_started,
+                                       can_be_paused,
+                                       can_be_restarted,
+                                       can_be_stopped);
 
-            const auto selected_tn = app.project_wnd.selected_tn();
-            auto*      selected    = app.pj.node(selected_tn);
+        const auto selected_tn = app.project_wnd.selected_tn();
+        auto*      selected    = app.pj.node(selected_tn);
 
-            if (ImGui::BeginTabBar("##SimulationTabBar")) {
-                if (ImGui::BeginTabItem("Parameters")) {
-                    show_project_parameters(app);
-                    ImGui::EndTabItem();
-                }
-
-                if (ImGui::BeginTabItem("Observations")) {
-                    show_project_observations(app);
-                    ImGui::EndTabItem();
-                }
-
-                if (selected) {
-                    if (ImGui::BeginTabItem("Component parameters")) {
-                        show_local_simulation_settings(app, *selected);
-                        ImGui::EndTabItem();
-                    }
-
-                    if (ImGui::BeginTabItem("Component observations")) {
-                        show_component_observations(app, *this, *selected);
-                        ImGui::EndTabItem();
-                    }
-                }
-
-                if (ImGui::BeginTabItem("Simulation graph")) {
-                    if (app.simulation_ed.can_display_graph_editor()) {
-                        if (selected) {
-                            show_simulation_editor_treenode(app, *selected);
-                        } else {
-                            show_simulation_editor(app);
-                        }
-                    }
-                    ImGui::EndTabItem();
-                }
-
-                ImGui::EndTabBar();
+        if (ImGui::BeginTabBar("##SimulationTabBar")) {
+            if (ImGui::BeginTabItem("Parameters")) {
+                show_project_parameters(app);
+                ImGui::EndTabItem();
             }
 
-            ImGui::EndTable();
+            if (ImGui::BeginTabItem("Observations")) {
+                show_project_observations(app);
+                ImGui::EndTabItem();
+            }
+
+            if (selected) {
+                if (ImGui::BeginTabItem("Component parameters")) {
+                    show_local_simulation_settings(app, *selected);
+                    ImGui::EndTabItem();
+                }
+
+                if (ImGui::BeginTabItem("Component observations")) {
+                    show_component_observations(app, *this, *selected);
+                    ImGui::EndTabItem();
+                }
+            }
+
+            if (ImGui::BeginTabItem("Simulation graph")) {
+                if (app.simulation_ed.can_display_graph_editor()) {
+                    if (selected) {
+                        show_simulation_editor_treenode(app, *selected);
+                    } else {
+                        show_simulation_editor(app);
+                    }
+                }
+                ImGui::EndTabItem();
+            }
+
+            ImGui::EndTabBar();
         }
+
+        ImGui::EndTable();
     }
 
     ImGui::End();

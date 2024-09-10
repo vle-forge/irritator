@@ -1508,10 +1508,10 @@ int main()
         irt::heap h;
         expect(h.reserve(4u));
 
-        auto i1 = h.insert(0.0, irt::model_id{ 0 });
-        auto i2 = h.insert(1.0, irt::model_id{ 1 });
-        auto i3 = h.insert(-1.0, irt::model_id{ 2 });
-        auto i4 = h.insert(2.0, irt::model_id{ 3 });
+        auto i1 = h.alloc(0.0, irt::model_id{ 0 });
+        auto i2 = h.alloc(1.0, irt::model_id{ 1 });
+        auto i3 = h.alloc(-1.0, irt::model_id{ 2 });
+        auto i4 = h.alloc(2.0, irt::model_id{ 3 });
         expect(h.full());
 
         expect(h[i1].tn == 0);
@@ -1536,10 +1536,10 @@ int main()
         irt::heap h;
         expect(h.reserve(4u));
 
-        auto i1 = h.insert(0, irt::model_id{ 0 });
-        auto i2 = h.insert(1, irt::model_id{ 1 });
-        auto i3 = h.insert(-1, irt::model_id{ 2 });
-        auto i4 = h.insert(2, irt::model_id{ 3 });
+        auto i1 = h.alloc(0, irt::model_id{ 0 });
+        auto i2 = h.alloc(1, irt::model_id{ 1 });
+        auto i3 = h.alloc(-1, irt::model_id{ 2 });
+        auto i4 = h.alloc(2, irt::model_id{ 3 });
 
         expect(i1 != irt::invalid_heap_handle);
         expect(i2 != irt::invalid_heap_handle);
@@ -1587,13 +1587,13 @@ int main()
         expect(h.reserve(256u));
 
         for (int t = 0; t < 100; ++t)
-            h.insert(irt::to_real(t), static_cast<irt::model_id>(t));
+            h.alloc(irt::to_real(t), static_cast<irt::model_id>(t));
 
         expect(h.size() == 100_ul);
 
-        h.insert(50, irt::model_id{ 502 });
-        h.insert(50, irt::model_id{ 503 });
-        h.insert(50, irt::model_id{ 504 });
+        h.alloc(50, irt::model_id{ 502 });
+        h.alloc(50, irt::model_id{ 503 });
+        h.alloc(50, irt::model_id{ 504 });
 
         expect(h.size() == 103_ul);
 
@@ -1615,6 +1615,58 @@ int main()
             expect(h[h.top()].tn == t);
             h.pop();
         }
+    };
+
+    "heap_remove"_test = [] {
+        using namespace irt::literals;
+
+        irt::heap h;
+        expect(h.reserve(256u));
+
+        for (int t = 0; t < 100; ++t)
+            h.alloc(irt::to_real(t), static_cast<irt::model_id>(t));
+
+        expect(h.size() == 100_ul);
+
+        for (irt::u32 i = 0u; i < 100u; i += 2u)
+            h.remove(i);
+
+        expect(h[h.top()].tn == 1.0);
+
+        for (irt::u32 i = 0u; i < 100u; i += 2u)
+            h.reintegrate(irt::to_real(i), i);
+
+        expect(h.size() == 100_u) << fatal;
+
+        for (int t = 0; t < 100; ++t) {
+            expect(h[h.top()].tn == static_cast<irt::real>(t));
+            h.pop();
+        }
+    };
+
+    "heap-middle-decrease"_test = [] {
+        using namespace irt::literals;
+
+        irt::heap<irt::default_allocator> h;
+
+        expect(h.reserve(256u));
+
+        for (int t = 0; t < 100; ++t)
+            h.alloc(irt::to_real(t), static_cast<irt::model_id>(t));
+
+        expect(h.size() == 100_ul);
+
+        for (irt::time t = 0, e = 50; t < e; ++t) {
+            expect(h[h.top()].tn == t);
+            h.pop();
+        }
+
+        expect(h[h.top()].tn == 50.0);
+        constexpr irt::u32 move = 99u;
+
+        h.decrease(0.0, move);
+        expect(eq(h.top(), move));
+        expect(eq(h[h.top()].tn, 0.0));
     };
 
     "hierarchy-simple"_test = [] {
