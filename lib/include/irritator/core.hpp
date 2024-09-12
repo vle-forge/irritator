@@ -942,14 +942,11 @@ struct output_message {
 
 static inline constexpr u32 invalid_heap_handle = 0xffffffff;
 
-//! @brief .
-//!
-//! A pairing heap is a type of heap data structure with relatively simple
-//! implementation and excellent practical amortized performance, introduced
-//! by Michael Fredman, Robert Sedgewick, Daniel Sleator, and Robert Tarjan
-//! in 1986.
-//!
-//! https://en.wikipedia.org/wiki/Pairing_heap
+/**
+   A pairing heap is a type of heap data structure with relatively simple
+   implementation and excellent practical amortized performance, introduced by
+   Michael Fredman, Robert Sedgewick, Daniel Sleator, and Robert Tarjan in 1986.
+ */
 template<typename A = default_allocator>
 class heap
 {
@@ -988,17 +985,26 @@ public:
 
     constexpr ~heap() noexcept;
 
-    //! clear then destroy buffer.
+    /** Clear and free the allocated buffer. */
     constexpr void destroy() noexcept;
 
-    //! Clear the buffer.
+    /** Clear the buffer. Root equals null. */
     constexpr void clear() noexcept;
 
-    //! Call @c destroy() then allocate the new_capacity.
+    /**
+       Try to allocate a new buffer, copy the old buffer into the new one assign
+       the new buffer.
+
+       This function returns false and to nothing on the buffer if the @c
+       new_capacity can hold the current capacity and if a new buffer can be
+       allocate.
+     */
     constexpr bool reserve(std::integral auto new_capacity) noexcept;
 
-    /** Allocate a new node into the heap and insert the @c model_id and the @c
-     * time into the three. */
+    /**
+       Allocate a new node into the heap and insert the @c model_id and the @c
+       time into the tree.
+     */
     constexpr handle alloc(time tn, model_id id) noexcept;
 
     constexpr void   destroy(handle elem) noexcept;
@@ -1039,6 +1045,18 @@ private:
  *
  ****************************************************************************/
 
+/**
+   The heap nodes are only allocated and freed using the @c heap::alloc() and @c
+   heap::destroy() functions. These functions make a link between @c model and
+   @c heap::node via the @c heap::node::id and the @c model::handle attributes.
+   Make sure you check model and node at the same time. If a model is allocate,
+   you must allocate a node before using the scheduler. If a model is delete,
+   you must free the node to free memory.
+
+   A node is detached from the heap if the handle `node::child`, `node::next`
+   and `node::prev` are null (`irt::invalid_heap_handle`). To detach a node, you
+   can use the `heap::pop()` or `heap::remove()` functions.
+ */
 template<typename A = default_allocator>
 class scheduller
 {
@@ -1060,22 +1078,51 @@ public:
         requires(!std::is_empty_v<A>);
 
     bool reserve(std::integral auto new_capacity) noexcept;
-
     void clear() noexcept;
-
     void destroy() noexcept;
 
+    /**
+       Allocate a new @c heap::node and makes a link between @c heap::node and
+       @c model (@c heap::node::id equal @c id and @c mdl.handle equal to the
+       newly @c handle.
+
+       This function @c abort if the scheduller fail to allocate more nodes. Use
+       the @c can_alloc() before use.
+       */
     void alloc(model& mdl, model_id id, time tn) noexcept;
 
+    /**
+       Unlink the @c model and the @c heap::node if it exists and free memory
+       used by the @c heap::node.
+     */
+    void free(model& mdl) noexcept;
+
+    /**
+       Insert or reinsert the node into the @c heap. Use this function only and
+       only if the node is detached via the @c remove() or the @c pop()
+       functions.
+     */
     void reintegrate(model& mdl, time tn) noexcept;
 
+    /**
+       Remove the @c node from the tree of the heap. The @c node can be reuse
+       with the @c reintegrate() function.
+     */
     void remove(model& mdl) noexcept;
-    void erase(model& mdl) noexcept;
 
+    /**
+       According to the @c tn parameter, @c update function call the @c increase
+       or @c decrease function. You can you this function only if the node is in
+       the tree.
+     */
     void update(model& mdl, time tn) noexcept;
     void increase(model& mdl, time tn) noexcept;
     void decrease(model& mdl, time tn) noexcept;
 
+    /**
+       Remove all @c node with the same @c tn from the tree of the heap. The @c
+       node can be reuse with the @c reintegrate() function.
+     */
     void pop(vector<model_id, freelist_allocator>& out) noexcept;
 
     /** Returns the top event @c time-next in the heap. */
@@ -1084,8 +1131,10 @@ public:
     /** Returns the @c time-next event for handle. */
     time tn(handle h) const noexcept;
 
-    /** Checks if the node @c h is a valid heap handle and if it exists in the
-     * three of the heap. */
+    /**
+       Return true if the node @c h is a valid heap handle and if `h` is equal
+       to `root` or if the node prev, next or child handle are not null.
+     */
     bool is_in_tree(handle h) const noexcept;
 
     bool empty() const noexcept;
@@ -1267,52 +1316,38 @@ public:
 
 template<typename T>
 concept has_lambda_function = requires(T t, simulation& sim) {
-    {
-        t.lambda(sim)
-    } -> std::same_as<status>;
+    { t.lambda(sim) } -> std::same_as<status>;
 };
 
 template<typename T>
 concept has_transition_function =
   requires(T t, simulation& sim, time s, time e, time r) {
-      {
-          t.transition(sim, s, e, r)
-      } -> std::same_as<status>;
+      { t.transition(sim, s, e, r) } -> std::same_as<status>;
   };
 
 template<typename T>
 concept has_observation_function = requires(T t, time s, time e) {
-    {
-        t.observation(s, e)
-    } -> std::same_as<observation_message>;
+    { t.observation(s, e) } -> std::same_as<observation_message>;
 };
 
 template<typename T>
 concept has_initialize_function = requires(T t, simulation& sim) {
-    {
-        t.initialize(sim)
-    } -> std::same_as<status>;
+    { t.initialize(sim) } -> std::same_as<status>;
 };
 
 template<typename T>
 concept has_finalize_function = requires(T t, simulation& sim) {
-    {
-        t.finalize(sim)
-    } -> std::same_as<status>;
+    { t.finalize(sim) } -> std::same_as<status>;
 };
 
 template<typename T>
 concept has_input_port = requires(T t) {
-    {
-        t.x
-    };
+    { t.x };
 };
 
 template<typename T>
 concept has_output_port = requires(T t) {
-    {
-        t.y
-    };
+    { t.y };
 };
 
 constexpr observation_message qss_observation(real X,
@@ -5054,6 +5089,11 @@ constexpr void heap<A>::destroy() noexcept
 template<typename A>
 constexpr void heap<A>::clear() noexcept
 {
+    if (nodes) {
+        constexpr node node_empty{};
+        std::fill_n(nodes, capacity, node_empty);
+    }
+
     m_size    = 0;
     max_size  = 0;
     free_list = invalid_heap_handle;
@@ -5069,13 +5109,17 @@ constexpr bool heap<A>::reserve(std::integral auto new_capacity) noexcept
     if (std::cmp_less_equal(new_capacity, capacity))
         return true;
 
-    auto* new_data = m_alloc.template allocate<node>(new_capacity);
-    if (!new_data)
+    if (std::cmp_less_equal(new_capacity, max_size))
         return false;
 
-    std::uninitialized_copy_n(nodes, max_size, new_data);
-    if (nodes)
+    auto* new_data = m_alloc.template allocate<node>(new_capacity);
+    if (not new_data)
+        return false;
+
+    if (nodes) {
+        std::uninitialized_copy_n(nodes, max_size, new_data);
         m_alloc.template deallocate<node>(nodes, capacity);
+    }
 
     nodes    = new_data;
     capacity = static_cast<index_type>(new_capacity);
@@ -5428,7 +5472,7 @@ inline void scheduller<A>::remove(model& mdl) noexcept
 }
 
 template<typename A>
-inline void scheduller<A>::erase(model& mdl) noexcept
+inline void scheduller<A>::free(model& mdl) noexcept
 {
     if (mdl.handle) {
         m_heap.remove(mdl.handle);
@@ -5682,7 +5726,7 @@ inline void simulation::deallocate(model_id id) noexcept
         this->do_deallocate<Dynamics>(dyn);
     });
 
-    sched.erase(*mdl);
+    sched.free(*mdl);
     models.free(*mdl);
 }
 

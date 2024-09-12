@@ -378,8 +378,6 @@ void simulation_editor::start_simulation_update_state() noexcept
 
             if_data_exists_do(app.sim.models, mdl_id, [&](auto& m) noexcept {
                 if (m.type == dynamics_type::constant) {
-                    auto& dyn = get_dyn<constant>(m);
-
                     if (m.handle == invalid_heap_handle) {
                         app.sim.sched.alloc(m, mdl_id, app.sim.t);
                     } else {
