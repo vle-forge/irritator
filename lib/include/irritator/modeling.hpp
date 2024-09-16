@@ -190,7 +190,7 @@ struct child {
     bitflags<child_flags> flags = child_flags::none;
 };
 
-struct child_position {
+struct position {
     float x = 0.f;
     float y = 0.f;
 };
@@ -317,9 +317,9 @@ public:
     data_array<input_connection, input_connection_id>   input_connections;
     data_array<output_connection, output_connection_id> output_connections;
 
-    vector<child_position> children_positions;
-    vector<name_str>       children_names;
-    vector<parameter>      children_parameters;
+    vector<position>  children_positions;
+    vector<name_str>  children_names;
+    vector<parameter> children_parameters;
 
     //! Use to affect @c child::unique_id when the component is saved. The value
     //! 0 means unique_id is undefined. Mutable variable to allow function @c
@@ -383,7 +383,7 @@ public:
     /// `modeling::child_error`.
     status import(const data_array<child, child_id>&           children,
                   const data_array<connection, connection_id>& connections,
-                  const std::span<child_position>              positions = {},
+                  const std::span<position>                    positions = {},
                   const std::span<name_str>                    names     = {},
                   const std::span<parameter> parameters = {}) noexcept;
 
@@ -700,7 +700,7 @@ public:
 
     data_array<child, child_id>           cache;
     data_array<connection, connection_id> cache_connections;
-    vector<child_position>                positions;
+    vector<position>                      positions;
 
     int space_x     = 100;
     int space_y     = 100;

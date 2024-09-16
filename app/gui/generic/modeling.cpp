@@ -449,7 +449,7 @@ static void show_graph_node(application&     app,
 }
 
 static void update_editor_position(const child_id        id,
-                                   const child_position& pos) noexcept
+                                   const position& pos) noexcept
 {
     ImNodes::SetNodeScreenSpacePos(pack_node_child(id), ImVec2(pos.x, pos.y));
 }

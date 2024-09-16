@@ -189,7 +189,7 @@ status generic_component::connect_output(const port_id          y,
 status generic_component::import(
   const data_array<child, child_id>&           children,
   const data_array<connection, connection_id>& connections,
-  const std::span<child_position>              positions,
+  const std::span<position>                    positions,
   const std::span<name_str>                    names,
   const std::span<parameter>                   parameters) noexcept
 {
