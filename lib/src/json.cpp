@@ -539,8 +539,8 @@ struct json_dearchiver::impl {
 
     template<size_t N, typename Function>
     bool for_members(const rapidjson::Value& val,
-                     const std::string_view (&names)[N],
-                     Function&& fn) noexcept
+                     const std::string_view  (&names)[N],
+                     Function&&              fn) noexcept
     {
         if (!val.IsObject())
             report_json_error(error_id::value_not_object);
@@ -1758,15 +1758,17 @@ struct json_dearchiver::impl {
       const rapidjson::Value&                                      val,
       std::array<hierarchical_state_machine::state,
                  hierarchical_state_machine::max_number_of_state>& states,
-      std::array<small_string<15>,
-                 hierarchical_state_machine::max_number_of_state>&
-        names) noexcept
+      std::array<name_str, hierarchical_state_machine::max_number_of_state>&
+        names,
+      std::array<position, hierarchical_state_machine::max_number_of_state>&
+        positions) noexcept
     {
         auto_stack a(this, stack_id::dynamics_hsm_state);
 
         std::optional<int>                id;
         hierarchical_state_machine::state s;
-        small_string<15>                  state_name;
+        name_str                          state_name;
+        position                          pos;
 
         if (not for_each_member(
               val,
@@ -1808,13 +1810,78 @@ struct json_dearchiver::impl {
                       return read_temp_unsigned_integer(value) &&
                              copy_to(s.sub_id);
 
+                  if ("x"sv == name)
+                      return read_temp_real(value) && copy_to(pos.x);
+
+                  if ("y"sv == name)
+                      return read_temp_real(value) && copy_to(pos.y);
+
+                  report_json_error(error_id::unknown_element);
+              }) or
+            not id.has_value())
+            return false;
+
+        states[*id]    = s;
+        names[*id]     = state_name;
+        positions[*id] = pos;
+
+        return true;
+    }
+
+    bool read_hsm_state(
+      const rapidjson::Value& val,
+      std::array<hierarchical_state_machine::state,
+                 hierarchical_state_machine::max_number_of_state>&
+        states) noexcept
+    {
+        auto_stack a(this, stack_id::dynamics_hsm_state);
+
+        std::optional<int>                id;
+        hierarchical_state_machine::state s;
+
+        if (not for_each_member(
+              val,
+              [&](const auto name, const auto& value) noexcept -> bool {
+                  if ("id"sv == name)
+                      return read_temp_integer(value) and copy_to(id);
+
+                  if ("enter"sv == name)
+                      return read_hsm_state_action(value, s.enter_action);
+
+                  if ("exit"sv == name)
+                      return read_hsm_state_action(value, s.exit_action);
+
+                  if ("if"sv == name)
+                      return read_hsm_state_action(value, s.if_action);
+
+                  if ("else"sv == name)
+                      return read_hsm_state_action(value, s.else_action);
+
+                  if ("condition"sv == name)
+                      return read_hsm_condition_action(value, s.condition);
+
+                  if ("if-transition"sv == name)
+                      return read_temp_unsigned_integer(value) &&
+                             copy_to(s.if_transition);
+
+                  if ("else-transition"sv == name)
+                      return read_temp_unsigned_integer(value) &&
+                             copy_to(s.else_transition);
+
+                  if ("super-id"sv == name)
+                      return read_temp_unsigned_integer(value) &&
+                             copy_to(s.super_id);
+
+                  if ("sub-id"sv == name)
+                      return read_temp_unsigned_integer(value) &&
+                             copy_to(s.sub_id);
+
                   report_json_error(error_id::unknown_element);
               }) or
             not id.has_value())
             return false;
 
         states[*id] = s;
-        names[*id]  = state_name;
 
         return true;
     }
@@ -1823,15 +1890,30 @@ struct json_dearchiver::impl {
       const rapidjson::Value&                                      val,
       std::array<hierarchical_state_machine::state,
                  hierarchical_state_machine::max_number_of_state>& states,
-      std::array<small_string<15>,
-                 hierarchical_state_machine::max_number_of_state>&
-        names) noexcept
+      std::array<name_str, hierarchical_state_machine::max_number_of_state>&
+        names,
+      std::array<position, hierarchical_state_machine::max_number_of_state>&
+        positions) noexcept
     {
         auto_stack a(this, stack_id::dynamics_hsm_states);
 
         return for_each_array(
           val, [&](const auto /*i*/, const auto& value) noexcept -> bool {
-              return read_hsm_state(value, states, names);
+              return read_hsm_state(value, states, names, positions);
+          });
+    }
+
+    bool read_hsm_states(
+      const rapidjson::Value& val,
+      std::array<hierarchical_state_machine::state,
+                 hierarchical_state_machine::max_number_of_state>&
+        states) noexcept
+    {
+        auto_stack a(this, stack_id::dynamics_hsm_states);
+
+        return for_each_array(
+          val, [&](const auto /*i*/, const auto& value) noexcept -> bool {
+              return read_hsm_state(value, states);
           });
     }
 
@@ -3437,7 +3519,7 @@ struct json_dearchiver::impl {
           val, [&](const auto name, const auto& value) noexcept -> bool {
               if ("states"sv == name)
                   return read_hsm_states(
-                    value, hsm.machine.states, hsm.machine.names);
+                    value, hsm.machine.states, hsm.names, hsm.positions);
 
               if ("top"sv == name)
                   return read_temp_unsigned_integer(value) &&
@@ -3668,7 +3750,7 @@ struct json_dearchiver::impl {
               }
 
               if ("states"sv == name)
-                  return read_hsm_states(value, machine.states, machine.names);
+                  return read_hsm_states(value, machine.states);
 
               if ("top"sv == name)
                   return read_temp_unsigned_integer(value) &&
@@ -5894,8 +5976,51 @@ struct json_archiver::impl {
     }
 
     template<typename Writer>
+    void write_hierarchical_state_machine_state(
+      const hierarchical_state_machine::state& state,
+      const std::string_view&                  name,
+      const position&                          pos,
+      const std::integral auto                 index,
+      Writer&                                  w) noexcept
+    {
+        w.StartObject();
+        w.Key("id");
+        w.Uint(static_cast<u32>(index));
+
+        if (not name.empty()) {
+            w.Key("name");
+            w.String(name.data(),
+                     static_cast<rapidjson::SizeType>(name.size()));
+        }
+
+        write(w, "enter", state.enter_action);
+        write(w, "exit", state.exit_action);
+        write(w, "if", state.if_action);
+        write(w, "else", state.else_action);
+        write(w, "condition", state.condition);
+
+        w.Key("if-transition");
+        w.Int(state.if_transition);
+        w.Key("else-transition");
+        w.Int(state.else_transition);
+        w.Key("super-id");
+        w.Int(state.super_id);
+        w.Key("sub-id");
+        w.Int(state.sub_id);
+
+        w.Key("x");
+        w.Double(pos.x);
+        w.Key("y");
+        w.Double(pos.y);
+
+        w.EndObject();
+    }
+
+    template<typename Writer>
     void write_hierarchical_state_machine(const hierarchical_state_machine& hsm,
-                                          Writer& w) noexcept
+                                          std::span<const name_str> names,
+                                          std::span<const position> positions,
+                                          Writer&                   w) noexcept
     {
         w.Key("states");
         w.StartArray();
@@ -5920,32 +6045,12 @@ struct json_archiver::impl {
                 states_to_write[hsm.states[i].sub_id] = true;
         }
 
-        for (auto i = 0; i != length; ++i) {
-            if (states_to_write[i]) {
-                w.StartObject();
-                w.Key("id");
-                w.Uint(i);
-
-                if (not hsm.names[i].empty()) {
-                    w.Key("name");
-                    w.String(hsm.names[i].c_str());
+        if (not positions.empty()) {
+            for (auto i = 0; i != length; ++i) {
+                if (states_to_write[i]) {
+                    write_hierarchical_state_machine_state(
+                      hsm.states[i], names[i].sv(), positions[i], i, w);
                 }
-
-                write(w, "enter", hsm.states[i].enter_action);
-                write(w, "exit", hsm.states[i].exit_action);
-                write(w, "if", hsm.states[i].if_action);
-                write(w, "else", hsm.states[i].else_action);
-                write(w, "condition", hsm.states[i].condition);
-
-                w.Key("if-transition");
-                w.Int(hsm.states[i].if_transition);
-                w.Key("else-transition");
-                w.Int(hsm.states[i].else_transition);
-                w.Key("super-id");
-                w.Int(hsm.states[i].super_id);
-                w.Key("sub-id");
-                w.Int(hsm.states[i].sub_id);
-                w.EndObject();
             }
         }
         w.EndArray();
@@ -5957,12 +6062,16 @@ struct json_archiver::impl {
     template<typename Writer>
     void write_hsm_component(const hsm_component& hsm, Writer& w) noexcept
     {
-        write_hierarchical_state_machine(hsm.machine, w);
+        write_hierarchical_state_machine(
+          hsm.machine,
+          std::span{ hsm.names.begin(), hsm.names.size() },
+          std::span{ hsm.positions.begin(), hsm.positions.size() },
+          w);
 
         w.Key("i1");
-        w.Double(hsm.i1);
+        w.Int(hsm.i1);
         w.Key("i2");
-        w.Double(hsm.i2);
+        w.Int(hsm.i2);
         w.Key("r1");
         w.Double(hsm.r1);
         w.Key("r2");
@@ -6060,7 +6169,8 @@ struct json_archiver::impl {
             w.StartObject();
             w.Key("hsm");
             w.Uint64(ordinal(sim.hsms.get_id(machine)));
-            write_hierarchical_state_machine(machine, w);
+            write_hierarchical_state_machine(
+              machine, std::span<name_str>(), std::span<position>(), w);
             w.EndObject();
         }
         w.EndArray();

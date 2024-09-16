@@ -371,9 +371,13 @@ public:
     bool need_show_selected_nodes(component_editor& ed) noexcept;
     void clear_selected_nodes() noexcept;
 
-    // void load(component_id c_id, model_id m_id) noexcept;
-    // void load(model_id m_id) noexcept;
-    // void save() noexcept;
+    /**
+       Stores the @c hsm_component_editor_data hidden attributes into hsm
+       component. For example the position of nodes (in ImNodes). This function
+       is called before switching to another component or before saving the
+       component.
+     */
+    void store(component_editor& ed) noexcept;
 
 private:
     void show_hsm(hsm_component& hsm) noexcept;
@@ -385,13 +389,12 @@ private:
 
     ImNodesEditorContext* m_context = nullptr;
 
-    ImVector<int>                                  m_selected_links;
-    ImVector<int>                                  m_selected_nodes;
+    ImVector<int> m_selected_links;
+    ImVector<int> m_selected_nodes;
+
     ImVector<hierarchical_state_machine::state_id> m_stack;
 
-    std::array<ImVec2, max_number_of_state>  m_position;
-    std::array<bool, max_number_of_state>    m_enabled;
-    small_ring_buffer<small_string<127>, 10> m_messages;
+    std::array<bool, max_number_of_state> m_enabled;
 
     test_status m_test = test_status::none;
 

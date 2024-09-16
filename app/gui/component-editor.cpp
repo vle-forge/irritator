@@ -295,6 +295,11 @@ static void show_input_output_ports(component& compo) noexcept
     }
 }
 
+template<typename T>
+concept has_store_function = requires(T t, component_editor& ed) {
+    { t.store(ed) } -> std::same_as<void>;
+};
+
 template<typename T, typename ID>
 static void show_data(application&       app,
                       component_editor&  ed,
@@ -323,8 +328,12 @@ static void show_data(application&       app,
               ImGuiTableFlags_Reorderable;
 
             if (compo.is_file_defined() and
-                ImGui::Shortcut(ImGuiMod_Ctrl | ImGuiKey_S))
+                ImGui::Shortcut(ImGuiMod_Ctrl | ImGuiKey_S)) {
+                if constexpr (has_store_function<T>) {
+                    element.store(ed);
+                }
                 app.start_save_component(compo_id);
+            }
 
             if (ImGui::BeginTable("##ed", 2, flags)) {
                 ImGui::TableSetupColumn("Component settings",

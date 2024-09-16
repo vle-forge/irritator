@@ -285,34 +285,32 @@ static constexpr auto get_first_available(
 
 /** After removing a state or a link between a child and his parent, we need to
  * search a new children to assign otherwise, parent child is set to invalid. */
-static void update_super_sub_id(hsm_t&          hsm,
+static void update_super_sub_id(hsm_component&  hsm,
                                 hsm_t::state_id super,
                                 hsm_t::state_id old_sub) noexcept
 {
-    using hsm_t = hsm_t;
-
-    hsm.states[super].sub_id = hsm_t::invalid_state_id;
+    hsm.machine.states[super].sub_id = hsm_t::invalid_state_id;
 
     for (u8 i = 0; i != hsm_t::max_number_of_state; ++i) {
         if (i != super && i != old_sub) {
-            if (hsm.states[i].super_id == super) {
-                hsm.states[super].sub_id = i;
+            if (hsm.machine.states[i].super_id == super) {
+                hsm.machine.states[super].sub_id = i;
                 break;
             }
         }
     }
 }
 
-static void remove_state(hsm_t&          hsm,
+static void remove_state(hsm_component&  hsm,
                          hsm_t::state_id id,
                          std::span<bool> enabled) noexcept
 {
     using hsm_t = hsm_t;
 
-    if (hsm.states[id].super_id != hsm_t::invalid_state_id)
-        update_super_sub_id(hsm, hsm.states[id].super_id, id);
+    if (hsm.machine.states[id].super_id != hsm_t::invalid_state_id)
+        update_super_sub_id(hsm, hsm.machine.states[id].super_id, id);
 
-    for (auto& elem : hsm.states) {
+    for (auto& elem : hsm.machine.states) {
         if (elem.super_id == id)
             elem.super_id = hsm_t::invalid_state_id;
         if (elem.sub_id == id)
@@ -323,7 +321,9 @@ static void remove_state(hsm_t&          hsm,
             elem.else_transition = hsm_t::invalid_state_id;
     }
 
-    hsm.clear_state(id);
+    hsm.machine.clear_state(id);
+    hsm.names[id].clear();
+    hsm.positions[id].reset();
     enabled[id] = false;
 }
 
@@ -511,7 +511,7 @@ void hsm_component_editor_data::show_hsm(hsm_component& hsm) noexcept
 
         ImNodes::BeginNode(make_state(i));
         ImNodes::BeginNodeTitleBar();
-        ImGui::TextFormat("{} (id: {})", hsm.machine.names[i].sv(), i);
+        ImGui::TextFormat("{} (id: {})", hsm.names[i].sv(), i);
         ImNodes::EndNodeTitleBar();
 
         ImNodes::BeginInputAttribute(make_input(i),
@@ -625,7 +625,9 @@ void hsm_component_editor_data::show_menu(hsm_component& hsm) noexcept
 
                 // hsm.states[id.value()].super_id = 0u;
                 // hsm.states[id.value()].sub_id   = hsm_t::invalid_state_id;
-                m_position[id.value()] = click_pos;
+                hsm.positions[id.value()].x = click_pos.x;
+                hsm.positions[id.value()].y = click_pos.y;
+                hsm.names[id.value()].clear();
                 ImNodes::SetNodeScreenSpacePos(id.value(), click_pos);
             }
         }
@@ -666,7 +668,7 @@ void hsm_component_editor_data::show_graph(hsm_component& hsm) noexcept
         if (ImGui::IsKeyReleased(ImGuiKey_Delete)) {
             for (auto idx : m_selected_nodes) {
                 if (idx != 0)
-                    remove_state(hsm.machine, get_state(idx), m_enabled);
+                    remove_state(hsm, get_state(idx), m_enabled);
             }
         }
     }
@@ -703,7 +705,7 @@ void hsm_component_editor_data::show_panel(hsm_component& hsm) noexcept
 
             ImGui::PushID(i);
 
-            ImGui::InputSmallString("Name", hsm.machine.names[id]);
+            ImGui::InputSmallString("Name", hsm.names[id]);
             ImGui::LabelFormat("Id", "{}", static_cast<unsigned>(id));
 
             const auto old_state_0 = hsm.machine.top_state == id;
@@ -856,6 +858,21 @@ void hsm_component_editor_data::clear_selected_nodes() noexcept
     m_selected_links.clear();
 }
 
+void hsm_component_editor_data::store(component_editor& ed) noexcept
+{
+    auto& app = container_of(&ed, &application::component_ed);
+
+    if (auto* hsm = app.mod.hsm_components.try_to_get(m_hsm_id); hsm) {
+        for (auto i = 0, e = length(hsm->machine.states); i != e; ++i) {
+            if (m_enabled[i]) {
+                const auto pos = ImNodes::GetNodeEditorSpacePos(get_state(i));
+                hsm->positions[i].x = pos.x;
+                hsm->positions[i].y = pos.y;
+            }
+        }
+    }
+}
+
 hsm_component_editor_data::hsm_component_editor_data(
   const component_id     id,
   const hsm_component_id hid,
@@ -903,6 +920,11 @@ hsm_component_editor_data::hsm_component_editor_data(
             m_enabled[i]                            = true;
         }
     }
+
+    for (auto i = 0, e = length(hsm.machine.states); i != e; ++i)
+        if (m_enabled[i])
+            ImNodes::SetNodeEditorSpacePos(
+              get_state(i), ImVec2(hsm.positions[i].x, hsm.positions[i].y));
 }
 
 hsm_component_editor_data::~hsm_component_editor_data() noexcept

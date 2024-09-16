@@ -193,7 +193,11 @@ struct child {
 struct position {
     float x = 0.f;
     float y = 0.f;
+
+    void reset() noexcept;
 };
+
+inline void position::reset() noexcept { x = y = 0.f; }
 
 struct connection {
     struct port {
@@ -243,10 +247,19 @@ struct connection {
 class hsm_component
 {
 public:
-    /** Clear the @c machine state and reinit constants. */
+    static constexpr auto max_size =
+      hierarchical_state_machine::max_number_of_state;
+    static constexpr auto invalid =
+      hierarchical_state_machine::invalid_state_id;
+
+    /**
+      Clear the @c machine state, reinit constants, and reset the positions.
+     */
     void clear() noexcept;
 
-    hierarchical_state_machine machine;
+    hierarchical_state_machine     machine;
+    std::array<position, max_size> positions;
+    std::array<name_str, max_size> names;
 
     i32  i1      = 0;
     i32  i2      = 0;
@@ -259,6 +272,12 @@ inline void hsm_component::clear() noexcept
 {
     machine.clear();
     (void)machine.set_state(0); // @TODO Is it really necessary?
+
+    std::fill_n(
+      positions.begin(), positions.size(), position{ .x = 0.f, .y = 0.f });
+
+    for (auto& str : names)
+        str.clear();
 
     i1      = 0;
     i2      = 0;

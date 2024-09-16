@@ -783,8 +783,7 @@ struct binary_archiver::impl {
     bool do_serialize(Stream& io, hierarchical_state_machine& hsm) noexcept
     {
         for (int i = 0, e = length(hsm.states); i != e; ++i) {
-            if (not((io(hsm.names[i])) and
-                    do_serialize(io, hsm.states[i].enter_action) and
+            if (not(do_serialize(io, hsm.states[i].enter_action) and
                     do_serialize(io, hsm.states[i].exit_action) and
                     do_serialize(io, hsm.states[i].if_action) and
                     do_serialize(io, hsm.states[i].else_action) and
