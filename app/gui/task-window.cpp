@@ -11,11 +11,8 @@ void task_window::show_widgets() noexcept
 {
     auto& app = container_of(this, &application::task_wnd);
 
-    int workers = app.task_mgr.temp_workers.ssize();
-    ImGui::InputInt("workers", &workers, 1, 100, ImGuiInputTextFlags_ReadOnly);
-
-    int lists = app.task_mgr.temp_task_lists.ssize();
-    ImGui::InputInt("lists", &lists, 1, 100, ImGuiInputTextFlags_ReadOnly);
+    ImGui::LabelFormat("workers", "{}", app.task_mgr.temp_workers.ssize());
+    ImGui::LabelFormat("lists", "{}", app.task_mgr.temp_task_lists.ssize());
 
     if (ImGui::CollapsingHeader("Tasks list", ImGuiTreeNodeFlags_DefaultOpen)) {
         if (ImGui::BeginTable("Main Tasks", 3)) {
