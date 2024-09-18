@@ -214,7 +214,12 @@ static auto make_tree_leaf(simulation_copy&   sc,
               if (not sim_hsm_id_ptr)
                   return new_error(project::hsm_error{}, unknown_error{});
 
-              dyn.id = *sim_hsm_id_ptr;
+              dyn.id            = *sim_hsm_id_ptr;
+              dyn.exec.i1       = chsm->i1;
+              dyn.exec.i2       = chsm->i2;
+              dyn.exec.r1       = chsm->r1;
+              dyn.exec.r2       = chsm->r2;
+              dyn.exec.sigma    = chsm->timeout;
           }
 
           if constexpr (std::is_same_v<Dynamics, constant>) {

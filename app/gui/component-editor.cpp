@@ -81,7 +81,17 @@ static bool is_valid_irt_filename(std::string_view v) noexcept
            end_with_irt(v);
 }
 
-static void show_file_access(application& app, component& compo) noexcept
+template<typename T>
+concept has_store_function = requires(T t, component_editor& ed) {
+    {
+        t.store(ed)
+    } -> std::same_as<void>;
+};
+
+template<typename ComponentEditor>
+static void show_file_access(application&     app,
+                             ComponentEditor& ed,
+                             component&       compo) noexcept
 {
     static constexpr const char* empty = "";
 
@@ -197,8 +207,12 @@ static void show_file_access(application& app, component& compo) noexcept
             }
 
             ImGui::BeginDisabled(!is_save_enabled);
-            if (ImGui::Button("Save"))
+            if (ImGui::Button("Save")) {
+                if constexpr (has_store_function<ComponentEditor>) {
+                    ed.store(app.component_ed);
+                }
                 app.start_save_component(app.mod.components.get_id(compo));
+            }
             ImGui::EndDisabled();
         }
     }
@@ -295,11 +309,6 @@ static void show_input_output_ports(component& compo) noexcept
     }
 }
 
-template<typename T>
-concept has_store_function = requires(T t, component_editor& ed) {
-    { t.store(ed) } -> std::same_as<void>;
-};
-
 template<typename T, typename ID>
 static void show_data(application&       app,
                       component_editor&  ed,
@@ -353,7 +362,7 @@ static void show_data(application&       app,
 
                 if (ImGui::BeginTabBar("Settings", ImGuiTabBarFlags_None)) {
                     if (ImGui::BeginTabItem("Save")) {
-                        show_file_access(app, compo);
+                        show_file_access(app, element, compo);
                         ImGui::EndTabItem();
                     }
 

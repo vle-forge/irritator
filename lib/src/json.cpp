@@ -6702,7 +6702,12 @@ bool json_archiver::operator()(modeling&                   mod,
     buffer.resize(4096);
 
     rapidjson::FileWriteStream os(fp, buffer.data(), buffer.size());
-    rapidjson::PrettyWriter<rapidjson::FileWriteStream> w(os);
+    rapidjson::PrettyWriter<rapidjson::FileWriteStream,
+                            rapidjson::UTF8<>,
+                            rapidjson::UTF8<>,
+                            rapidjson::CrtAllocator,
+                            rapidjson::kWriteNanAndInfFlag>
+      w(os);
 
     json_archiver::impl i{ *this, err };
 
