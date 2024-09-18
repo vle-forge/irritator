@@ -1480,11 +1480,15 @@ static auto already_name_exists(const T& obs, std::string_view str) noexcept
 template<typename T>
 static void assign_name(const T& obs, name_str& str) noexcept
 {
-    for (auto i = 0; i < INT32_MAX; ++i) {
-        format(str, "New {}", i);
+    name_str temp;
 
-        if (not already_name_exists(obs, str.sv()))
+    for (auto i = 0; i < INT32_MAX; ++i) {
+        format(temp, "New {}", i);
+
+        if (not already_name_exists(obs, temp.sv())) {
+            str = temp;
             return;
+        }
     }
 
     str = "New";
