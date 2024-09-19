@@ -203,23 +203,39 @@ static auto make_tree_leaf(simulation_copy&   sc,
 
           if constexpr (std::is_same_v<Dynamics, hsm_wrapper>) {
               const auto child_index = get_index(ch_id);
-              const auto hsm_id      = enum_cast<hsm_component_id>(
+              const auto compo_id    = enum_cast<component_id>(
                 gen.children_parameters[child_index].integers[0]);
 
-              auto* chsm = sc.mod.hsm_components.try_to_get(hsm_id);
-              if (not chsm)
-                  return new_error(project::hsm_error{}, unknown_error{});
+              if (const auto* compo = sc.mod.components.try_to_get(compo_id)) {
+                  debug::ensure(compo->type == component_type::hsm);
 
-              auto* sim_hsm_id_ptr = sc.hsm_mod_to_sim.get(hsm_id);
-              if (not sim_hsm_id_ptr)
-                  return new_error(project::hsm_error{}, unknown_error{});
-
-              dyn.id            = *sim_hsm_id_ptr;
-              dyn.exec.i1       = chsm->i1;
-              dyn.exec.i2       = chsm->i2;
-              dyn.exec.r1       = chsm->r1;
-              dyn.exec.r2       = chsm->r2;
-              dyn.exec.sigma    = chsm->timeout;
+                  const auto hsm_id = compo->id.hsm_id;
+                  if (const auto* hsm =
+                        sc.mod.hsm_components.try_to_get(hsm_id)) {
+                      const auto* shsm = sc.hsm_mod_to_sim.get(hsm_id);
+                      if (shsm) {
+                          dyn.id = *shsm;
+                          dyn.exec.i1 =
+                            gen.children_parameters[child_index].integers[1];
+                          dyn.exec.i2 =
+                            gen.children_parameters[child_index].integers[2];
+                          dyn.exec.r1 =
+                            gen.children_parameters[child_index].reals[0];
+                          dyn.exec.r2 =
+                            gen.children_parameters[child_index].reals[1];
+                          dyn.exec.sigma =
+                            gen.children_parameters[child_index].reals[2];
+                      } else {
+                          return new_error(project::hsm_error{},
+                                           undefined_error{});
+                      }
+                  } else {
+                      return new_error(project::hsm_error{}, unknown_error{});
+                  }
+              } else {
+                  return new_error(project::hsm_error{},
+                                   incompatibility_error{});
+              }
           }
 
           if constexpr (std::is_same_v<Dynamics, constant>) {
