@@ -214,11 +214,11 @@ static auto make_tree_leaf(simulation_copy&   sc,
                         sc.mod.hsm_components.try_to_get(hsm_id)) {
                       const auto* shsm = sc.hsm_mod_to_sim.get(hsm_id);
                       if (shsm) {
-                          dyn.id = *shsm;
-                          dyn.exec.i1 =
-                            gen.children_parameters[child_index].integers[1];
-                          dyn.exec.i2 =
-                            gen.children_parameters[child_index].integers[2];
+                          dyn.id      = *shsm;
+                          dyn.exec.i1 = static_cast<i32>(
+                            gen.children_parameters[child_index].integers[1]);
+                          dyn.exec.i2 = static_cast<i32>(
+                            gen.children_parameters[child_index].integers[2]);
                           dyn.exec.r1 =
                             gen.children_parameters[child_index].reals[0];
                           dyn.exec.r2 =
@@ -1075,6 +1075,43 @@ project::required_data project::compute_memory_required(
     return tn.compute(mod, c);
 }
 
+static result<std::pair<tree_node_id, component_id>> set_project_from_hsm(
+  simulation_copy& sc,
+  const component& compo) noexcept
+{
+    const auto compo_id = sc.mod.components.get_id(compo);
+
+    if (not sc.tree_nodes.can_alloc())
+        return new_error(project::part::tree_nodes, container_full_error{});
+
+    auto& tn = sc.tree_nodes.alloc(compo_id, 0);
+    tn.tree.set_id(&tn);
+
+    auto* com_hsm = sc.mod.hsm_components.try_to_get(compo.id.hsm_id);
+    if (not com_hsm)
+        return new_error(project::part::tree_nodes);
+
+    auto* sim_hsm_id = sc.hsm_mod_to_sim.get(compo.id.hsm_id);
+    if (not sim_hsm_id)
+        return new_error(project::part::tree_nodes);
+
+    auto* sim_hsm = sc.sim.hsms.try_to_get(*sim_hsm_id);
+    if (not sim_hsm)
+        return new_error(project::part::tree_nodes);
+
+    auto& dyn    = sc.sim.alloc<hsm_wrapper>();
+    dyn.compo_id = ordinal(sc.mod.components.get_id(compo));
+    dyn.id       = (*sim_hsm_id);
+
+    dyn.exec.i1    = com_hsm->i1;
+    dyn.exec.i2    = com_hsm->i2;
+    dyn.exec.r1    = com_hsm->r1;
+    dyn.exec.r2    = com_hsm->r2;
+    dyn.exec.sigma = com_hsm->timeout;
+
+    return std::make_pair(sc.tree_nodes.get_id(tn), compo_id);
+}
+
 status project::set(modeling& mod, simulation& sim, component& compo) noexcept
 {
     clear();
@@ -1114,30 +1151,14 @@ status project::set(modeling& mod, simulation& sim, component& compo) noexcept
     simulation_copy sc(m_cache, mod, sim, tree_nodes);
 
     if (compo.type == component_type::hsm) {
-        if (not(mod.components.can_alloc() and
-                mod.generic_components.can_alloc()))
-            return new_error(project::part::tree_nodes);
-
-        auto* sim_hsm_id = sc.hsm_mod_to_sim.get(compo.id.hsm_id);
-        if (not sim_hsm_id)
-            return new_error(project::part::tree_nodes);
-
-        auto& c       = mod.alloc_generic_component();
-        auto& g       = mod.generic_components.get(c.id.generic_id);
-        auto& w       = g.children.alloc(dynamics_type::hsm_wrapper);
-        auto  w_index = get_index(g.children.get_id(w));
-        auto& p       = g.children_parameters[w_index];
-
-        p.init_from(dynamics_type::hsm_wrapper);
-        p.integers[0] = ordinal(*sim_hsm_id);
-
-        irt_auto(id, make_tree_from(sc, tree_nodes, c));
-        m_tn_head = id;
-        m_head    = mod.components.get_id(c);
+        irt_auto(tn_compo, set_project_from_hsm(sc, compo));
+        m_tn_head = tn_compo.first;
+        m_head    = tn_compo.second;
     } else {
         irt_auto(id, make_tree_from(sc, tree_nodes, compo));
-        m_tn_head = id;
-        m_head    = mod.components.get_id(compo);
+        const auto compo_id = sc.mod.components.get_id(compo);
+        m_tn_head           = id;
+        m_head              = compo_id;
     }
 
     irt_check(simulation_copy_sources(m_cache, mod, sim));
