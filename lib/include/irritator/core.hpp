@@ -1190,6 +1190,13 @@ public:
 
     time t = time_domain<time>::infinity;
 
+    /**
+       The latest not infinity simulation time. At begin of the simulation, @c
+       last_valid_t equals the begin date. During simulation @c last_valid_t
+       stores the latest valid simulation time (neither infinity.
+     */
+    time last_valid_t = 0.0;
+
     model_id get_id(const model& mdl) const;
 
     template<typename Dynamics>
@@ -3566,6 +3573,36 @@ public:
             float f;
         } constant;
 
+        void affect(variable v1, i32 i) noexcept
+        {
+            debug::ensure(any_equal(v1,
+                                    variable::var_i1,
+                                    variable::var_i2,
+                                    variable::var_r1,
+                                    variable::var_r2,
+                                    variable::var_timer));
+
+            var1       = v1;
+            type       = action_type::affect;
+            var2       = variable::constant_i;
+            constant.i = i;
+        }
+
+        void affect(variable v1, float f) noexcept
+        {
+            debug::ensure(any_equal(v1,
+                                    variable::var_i1,
+                                    variable::var_i2,
+                                    variable::var_r1,
+                                    variable::var_r2,
+                                    variable::var_timer));
+
+            var1       = v1;
+            type       = action_type::affect;
+            var2       = variable::constant_r;
+            constant.f = f;
+        }
+
         void clear() noexcept;
     };
 
@@ -3590,7 +3627,13 @@ public:
             float f;
         } constant;
 
-        void set(u8 port, u8 mask) noexcept { constant.u = (port << 4) | mask; }
+        void set(u8 port, u8 mask) noexcept
+        {
+            type       = condition_type::port;
+            constant.u = (port << 4) | mask;
+        }
+
+        void set_timer() noexcept { type = condition_type::sigma; }
 
         void get(u8& port, u8& mask) const noexcept
         {
@@ -5200,8 +5243,8 @@ constexpr void heap<A>::remove(handle elem) noexcept
 
     debug::ensure(m_size > 0);
 
-    /* If the node `elem` is not already `pop()`, we detach the node and merge
-     * children. */
+    /* If the node `elem` is not already `pop()`, we detach the node and
+     * merge children. */
     if (is_in_tree(elem)) {
         m_size--;
         const auto old_elem = elem;
@@ -5820,6 +5863,8 @@ inline status simulation::initialize() noexcept
 {
     debug::ensure(std::isfinite(t));
 
+    last_valid_t = t;
+
     clean();
 
     for (auto& mdl : models)
@@ -5969,6 +6014,7 @@ inline status simulation::run() noexcept
         return success();
     }
 
+    last_valid_t = t;
     if (t = sched.tn(); time_domain<time>::is_infinity(t))
         return success();
 
@@ -6089,8 +6135,8 @@ inline status hsm_wrapper::transition(simulation& sim,
         exec.previous_state = exec.current_state;
         irt_check(machine->dispatch(
           hierarchical_state_machine::event_type::wake_up, exec));
-        // New message are stored in exec.values and exec.ports. HSM needs to
-        // handle input event.
+        // New message are stored in exec.values and exec.ports. HSM needs
+        // to handle input event.
     } else if (wait_msg) {
         if (have_x_msg) {
             exec.previous_state = exec.current_state;

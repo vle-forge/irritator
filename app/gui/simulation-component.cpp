@@ -375,20 +375,23 @@ void simulation_editor::start_simulation_update_state() noexcept
 
         if (have_send_message) {
             const auto mdl_id = *have_send_message;
+            const auto t      = irt::time_domain<time>::is_infinity(app.sim.t)
+                                  ? app.sim.last_valid_t
+                                  : app.sim.t;
 
             if_data_exists_do(app.sim.models, mdl_id, [&](auto& m) noexcept {
                 if (m.type == dynamics_type::constant) {
                     if (m.handle == invalid_heap_handle) {
-                        app.sim.sched.alloc(m, mdl_id, app.sim.t);
+                        app.sim.sched.alloc(m, mdl_id, t);
                     } else {
                         if (app.sim.sched.is_in_tree(m.handle)) {
-                            app.sim.sched.update(m, app.sim.t);
+                            app.sim.sched.update(m, t);
                         } else {
-                            app.sim.sched.reintegrate(m, app.sim.t);
+                            app.sim.sched.reintegrate(m, t);
                         }
                     }
 
-                    m.tn = app.sim.t;
+                    m.tn = t;
                 }
             });
 

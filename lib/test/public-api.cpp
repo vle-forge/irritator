@@ -2045,6 +2045,294 @@ int main()
         expect(cnt.number == static_cast<irt::i64>(1));
     };
 
+    "hsm_enter_exit_simulation"_test = [] {
+        mem.reset();
+        irt::simulation sim(&mem, mem.capacity());
+
+        expect((sim.can_alloc(3)) >> fatal);
+        expect((sim.hsms.can_alloc(1)) >> fatal);
+        expect(sim.srcs.constant_sources.can_alloc(2u) >> fatal);
+        auto& cst_value  = sim.srcs.constant_sources.alloc();
+        cst_value.length = 10;
+        cst_value.buffer = { 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0 };
+
+        auto& cst_ta  = sim.srcs.constant_sources.alloc();
+        cst_ta.length = 10;
+        cst_ta.buffer = { 1., 1., 1., 1., 1., 1., 1., 1., 1., 1., 1. };
+
+        auto& cst_1         = sim.alloc<irt::constant>();
+        cst_1.default_value = 1.0;
+
+        auto& cnt = sim.alloc<irt::counter>();
+
+        auto& gen          = sim.alloc<irt::generator>();
+        gen.default_offset = 0;
+        gen.flags.set(irt::generator::option::ta_use_source);
+        gen.flags.set(irt::generator::option::value_use_source);
+        gen.default_source_value.id =
+          irt::ordinal(sim.srcs.constant_sources.get_id(cst_value));
+        gen.default_source_value.type = irt::source::source_type::constant;
+        gen.default_source_ta.id =
+          irt::ordinal(sim.srcs.constant_sources.get_id(cst_ta));
+        gen.default_source_ta.type = irt::source::source_type::constant;
+
+        expect(sim.hsms.can_alloc());
+        expect(sim.models.can_alloc());
+
+        auto& hsm  = sim.alloc<irt::hsm_wrapper>();
+        auto* hsmw = sim.hsms.try_to_get(hsm.id);
+        expect((hsmw != nullptr) >> fatal);
+
+        expect(!!hsmw->set_state(
+          0u, irt::hierarchical_state_machine::invalid_state_id, 1u));
+
+        expect(!!hsmw->set_state(1u, 0u));
+        hsmw->states[1u].enter_action.type =
+          irt::hsm_wrapper::hsm::action_type::affect;
+        hsmw->states[1u].enter_action.var1 =
+          irt::hierarchical_state_machine::variable::var_i1;
+        hsmw->states[1u].enter_action.var2 =
+          irt::hierarchical_state_machine::variable::constant_i;
+        hsmw->states[1u].enter_action.constant.i = 1.0f;
+        hsmw->states[1u].exit_action.type =
+          irt::hsm_wrapper::hsm::action_type::plus;
+        hsmw->states[1u].exit_action.var1 =
+          irt::hierarchical_state_machine::variable::var_i1;
+        hsmw->states[1u].exit_action.var2 =
+          irt::hierarchical_state_machine::variable::constant_i;
+        hsmw->states[1u].exit_action.constant.i = 10.0f;
+
+        hsmw->states[1u].condition.type =
+          irt::hierarchical_state_machine::condition_type::port;
+        hsmw->states[1u].condition.set(0b0011u, 0b0011u);
+        hsmw->states[1u].if_transition = 2u;
+
+        expect(!!hsmw->set_state(2u, 0u));
+        hsmw->states[2u].enter_action.type =
+          irt::hsm_wrapper::hsm::action_type::output;
+        hsmw->states[2u].enter_action.var1 =
+          irt::hierarchical_state_machine::variable::port_0;
+        hsmw->states[2u].enter_action.var2 =
+          irt::hierarchical_state_machine::variable::constant_r;
+        hsmw->states[2u].enter_action.constant.f = 1.0f;
+
+        expect(!!sim.connect(gen, 0, hsm, 0));
+        expect(!!sim.connect(gen, 0, hsm, 1));
+        expect(!!sim.connect(hsm, 0, cnt, 0));
+
+        sim.t = 0.0;
+        expect(!!sim.srcs.prepare());
+        expect(!!sim.initialize());
+
+        irt::status st;
+
+        do {
+            st = sim.run();
+            expect(!!st);
+        } while (sim.t < 10);
+
+        expect(eq(hsm.exec.i1, 11));
+
+        expect(cnt.number == static_cast<irt::i64>(1));
+    };
+
+    "hsm_timer_simulation"_test = [] {
+        mem.reset();
+        irt::simulation sim(&mem, mem.capacity());
+
+        expect((sim.can_alloc(3)) >> fatal);
+        expect((sim.hsms.can_alloc(1)) >> fatal);
+
+        auto& cnt          = sim.alloc<irt::counter>();
+        auto& gen          = sim.alloc<irt::constant>();
+        gen.default_offset = 5.0;
+        gen.default_value  = 1.0;
+        gen.type           = irt::constant::init_type::constant;
+
+        expect(sim.hsms.can_alloc());
+        expect(sim.models.can_alloc());
+
+        auto& hsm  = sim.alloc<irt::hsm_wrapper>();
+        auto* hsmw = sim.hsms.try_to_get(hsm.id);
+        expect((hsmw != nullptr) >> fatal);
+
+        expect(!!hsmw->set_state(
+          0u, irt::hierarchical_state_machine::invalid_state_id, 1u));
+
+        expect(!!hsmw->set_state(1u, 0u));
+        hsmw->states[1u].condition.type =
+          irt::hierarchical_state_machine::condition_type::port;
+        hsmw->states[1u].condition.set(0b0011u, 0b0011u);
+        hsmw->states[1u].if_transition = 2u;
+
+        expect(!!hsmw->set_state(2u, 0u));
+        hsmw->states[2u].enter_action.affect(
+          irt::hierarchical_state_machine::variable::var_timer, 10.f);
+        hsmw->states[2u].condition.set_timer();
+        hsmw->states[2u].if_transition = 3u;
+
+        expect(!!hsmw->set_state(3u, 0u));
+        hsmw->states[3u].enter_action.type =
+          irt::hsm_wrapper::hsm::action_type::output;
+        hsmw->states[3u].enter_action.var1 =
+          irt::hierarchical_state_machine::variable::port_0;
+        hsmw->states[3u].enter_action.var2 =
+          irt::hierarchical_state_machine::variable::constant_r;
+        hsmw->states[3u].enter_action.constant.f = 1.0f;
+
+        expect(!!sim.connect(gen, 0, hsm, 0));
+        expect(!!sim.connect(gen, 0, hsm, 1));
+        expect(!!sim.connect(hsm, 0, cnt, 0));
+
+        sim.t = 0.0;
+        expect(!!sim.srcs.prepare());
+        expect(!!sim.initialize());
+
+        irt::status st;
+
+        do {
+            st = sim.run();
+            expect(!!st);
+        } while (sim.t < 20.);
+
+        expect(eq(cnt.number, static_cast<irt::i64>(1)));
+    };
+
+    "hsm_timer_stop_and_restart_simulation"_test = [] {
+        mem.reset();
+        irt::simulation sim(&mem, mem.capacity());
+
+        expect((sim.can_alloc(3)) >> fatal);
+        expect((sim.hsms.can_alloc(1)) >> fatal);
+
+        auto& cnt           = sim.alloc<irt::counter>();
+        auto& gen1          = sim.alloc<irt::constant>();
+        gen1.default_offset = 5.0;
+        gen1.default_value  = 1.0;
+        gen1.type           = irt::constant::init_type::constant;
+        auto& gen2          = sim.alloc<irt::constant>();
+        gen2.default_offset = 12.0;
+        gen2.default_value  = 1.0;
+        gen2.type           = irt::constant::init_type::constant;
+
+        expect(sim.hsms.can_alloc());
+        expect(sim.models.can_alloc());
+
+        auto& hsm  = sim.alloc<irt::hsm_wrapper>();
+        auto* hsmw = sim.hsms.try_to_get(hsm.id);
+        expect((hsmw != nullptr) >> fatal);
+
+        expect(!!hsmw->set_state(
+          0u, irt::hierarchical_state_machine::invalid_state_id, 1u));
+
+        expect(!!hsmw->set_state(1u, 0u));
+        hsmw->states[1u].condition.type =
+          irt::hierarchical_state_machine::condition_type::port;
+        hsmw->states[1u].condition.set(0b0011u, 0b0011u);
+        hsmw->states[1u].if_transition = 2u;
+
+        expect(!!hsmw->set_state(2u, 0u));
+        hsmw->states[2u].enter_action.affect(
+          irt::hierarchical_state_machine::variable::var_timer, 10.f);
+        hsmw->states[2u].condition.set_timer();
+        hsmw->states[2u].if_transition = 3u;
+
+        expect(!!hsmw->set_state(3u, 0u));
+        hsmw->states[3u].enter_action.type =
+          irt::hsm_wrapper::hsm::action_type::output;
+        hsmw->states[3u].enter_action.var1 =
+          irt::hierarchical_state_machine::variable::port_0;
+        hsmw->states[3u].enter_action.var2 =
+          irt::hierarchical_state_machine::variable::constant_r;
+        hsmw->states[3u].enter_action.constant.f = 1.0f;
+
+        expect(!!sim.connect(gen1, 0, hsm, 0));
+        expect(!!sim.connect(gen2, 0, hsm, 1));
+        expect(!!sim.connect(hsm, 0, cnt, 0));
+
+        sim.t = 0.0;
+        expect(!!sim.srcs.prepare());
+        expect(!!sim.initialize());
+
+        irt::status st;
+
+        do {
+            st = sim.run();
+            expect(!!st);
+        } while (sim.t < 20.);
+
+        expect(eq(cnt.number, static_cast<irt::i64>(1)));
+    };
+
+    "hsm_timer_stop_simulation"_test = [] {
+        mem.reset();
+        irt::simulation sim(&mem, mem.capacity());
+
+        expect((sim.can_alloc(3)) >> fatal);
+        expect((sim.hsms.can_alloc(1)) >> fatal);
+
+        auto& cnt           = sim.alloc<irt::counter>();
+        auto& gen1          = sim.alloc<irt::constant>();
+        gen1.default_offset = 5.0;
+        gen1.default_value  = 1.0;
+        gen1.type           = irt::constant::init_type::constant;
+        auto& gen2          = sim.alloc<irt::constant>();
+        gen2.default_offset = 12.0;
+        gen2.default_value  = 1.0;
+        gen2.type           = irt::constant::init_type::constant;
+
+        expect(sim.hsms.can_alloc());
+        expect(sim.models.can_alloc());
+
+        auto& hsm  = sim.alloc<irt::hsm_wrapper>();
+        auto* hsmw = sim.hsms.try_to_get(hsm.id);
+        expect((hsmw != nullptr) >> fatal);
+
+        expect(!!hsmw->set_state(
+          0u, irt::hierarchical_state_machine::invalid_state_id, 1u));
+
+        expect(!!hsmw->set_state(1u, 0u));
+        hsmw->states[1u].condition.type =
+          irt::hierarchical_state_machine::condition_type::port;
+        hsmw->states[1u].condition.set(0b0011u, 0b0011u);
+        hsmw->states[1u].if_transition = 2u;
+
+        expect(!!hsmw->set_state(2u, 0u));
+        hsmw->states[2u].enter_action.affect(
+          irt::hierarchical_state_machine::variable::var_timer, 10.f);
+        hsmw->states[2u].condition.set_timer();
+        hsmw->states[2u].if_transition = 3u;
+        hsmw->states[2u].if_transition = 4u;
+
+        expect(!!hsmw->set_state(3u, 0u));
+        hsmw->states[3u].enter_action.type =
+          irt::hsm_wrapper::hsm::action_type::output;
+        hsmw->states[3u].enter_action.var1 =
+          irt::hierarchical_state_machine::variable::port_0;
+        hsmw->states[3u].enter_action.var2 =
+          irt::hierarchical_state_machine::variable::constant_r;
+        hsmw->states[3u].enter_action.constant.f = 1.0f;
+
+        expect(!!hsmw->set_state(4u, 0u));
+
+        expect(!!sim.connect(gen1, 0, hsm, 0));
+        expect(!!sim.connect(gen2, 0, hsm, 1));
+        expect(!!sim.connect(hsm, 0, cnt, 0));
+
+        sim.t = 0.0;
+        expect(!!sim.srcs.prepare());
+        expect(!!sim.initialize());
+
+        irt::status st;
+
+        do {
+            st = sim.run();
+            expect(!!st);
+        } while (sim.t < 20.);
+
+        expect(eq(cnt.number, static_cast<irt::i64>(0)));
+    };
+
     "generator_counter_simluation"_test = [] {
         fmt::print("generator_counter_simluation\n");
         mem.reset();
