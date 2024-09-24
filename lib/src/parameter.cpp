@@ -378,7 +378,7 @@ static void model_init(const parameter& param, hsm_wrapper& dyn) noexcept
     dyn.exec.i2    = static_cast<i32>(param.integers[2]);
     dyn.exec.r1    = param.reals[0];
     dyn.exec.r2    = param.reals[1];
-    dyn.exec.sigma = param.reals[2];
+    dyn.exec.timer = param.reals[2];
 }
 
 static void parameter_init(parameter& param, const hsm_wrapper& dyn) noexcept
@@ -388,7 +388,7 @@ static void parameter_init(parameter& param, const hsm_wrapper& dyn) noexcept
     param.integers[2] = static_cast<i64>(dyn.exec.i2);
     param.reals[0]    = dyn.exec.r1;
     param.reals[1]    = dyn.exec.r2;
-    param.reals[2]    = dyn.exec.sigma;
+    param.reals[2]    = dyn.exec.timer;
 }
 
 static void model_init(const parameter& param, time_func& dyn) noexcept

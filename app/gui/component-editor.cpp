@@ -83,9 +83,7 @@ static bool is_valid_irt_filename(std::string_view v) noexcept
 
 template<typename T>
 concept has_store_function = requires(T t, component_editor& ed) {
-    {
-        t.store(ed)
-    } -> std::same_as<void>;
+    { t.store(ed) } -> std::same_as<void>;
 };
 
 template<typename ComponentEditor>

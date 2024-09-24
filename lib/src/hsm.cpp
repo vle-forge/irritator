@@ -32,7 +32,7 @@ static constexpr i32 copy_to_i32(const hsm_t::variable      v,
     case hsm_t::variable::var_r2:
         return static_cast<i32>(e.r2);
     case hsm_t::variable::var_timer:
-        return static_cast<i32>(e.sigma);
+        return static_cast<i32>(e.timer);
     case hsm_t::variable::constant_i:
         return act.constant.i;
     case hsm_t::variable::constant_r:
@@ -66,7 +66,7 @@ static constexpr real copy_to_real(const hsm_t::variable      v,
     case hsm_t::variable::var_r2:
         return e.r2;
     case hsm_t::variable::var_timer:
-        return e.sigma;
+        return e.timer;
     case hsm_t::variable::constant_i:
         return static_cast<real>(act.constant.i);
     case hsm_t::variable::constant_r:
@@ -164,8 +164,8 @@ struct wrap_var {
             break;
 
         case hsm_t::variable::var_timer:
-            r    = e.sigma;
-            i    = static_cast<i32>(e.sigma);
+            r    = e.timer;
+            i    = static_cast<i32>(e.timer);
             type = type::real_t;
             break;
 
@@ -743,7 +743,7 @@ void hierarchical_state_machine::condition_action::clear() noexcept
 
 status hierarchical_state_machine::start(execution& exec) noexcept
 {
-    exec.sigma = time_domain<time>::infinity;
+    exec.timer = time_domain<time>::infinity;
 
     if (states.empty() or top_state == invalid_state_id)
         return new_error(top_state_error{});
@@ -1034,7 +1034,7 @@ void hierarchical_state_machine::affect_action(const state_action& action,
             break;
         case variable::var_timer:
             e.outputs.emplace_back(hierarchical_state_machine::output_message{
-              .value = e.sigma, .port = port });
+              .value = e.timer, .port = port });
             break;
         case variable::constant_i:
             e.outputs.emplace_back(hierarchical_state_machine::output_message{
@@ -1070,7 +1070,7 @@ void hierarchical_state_machine::affect_action(const state_action& action,
             e.r2 = copy_to_real(action.var2, action, e);
             break;
         case variable::var_timer:
-            e.sigma = copy_to_real(action.var2, action, e);
+            e.timer = copy_to_real(action.var2, action, e);
             break;
         case variable::constant_i:
             irt::unreachable();
@@ -1104,7 +1104,7 @@ void hierarchical_state_machine::affect_action(const state_action& action,
             e.r2 += copy_to_real(action.var2, action, e);
             break;
         case variable::var_timer:
-            e.sigma += copy_to_real(action.var2, action, e);
+            e.timer += copy_to_real(action.var2, action, e);
             break;
         case variable::constant_i:
             irt::unreachable();
@@ -1138,8 +1138,8 @@ void hierarchical_state_machine::affect_action(const state_action& action,
             e.r2 -= copy_to_real(action.var2, action, e);
             break;
         case variable::var_timer:
-            e.sigma -= copy_to_real(action.var2, action, e);
-            e.sigma = e.sigma < 0.0 ? 0.0 : e.sigma;
+            e.timer -= copy_to_real(action.var2, action, e);
+            e.timer = e.timer < 0.0 ? 0.0 : e.timer;
             break;
         case variable::constant_i:
             irt::unreachable();
@@ -1173,8 +1173,8 @@ void hierarchical_state_machine::affect_action(const state_action& action,
             e.r2 = -1.0 * copy_to_real(action.var2, action, e);
             break;
         case variable::var_timer:
-            e.sigma = -1.0 * copy_to_real(action.var2, action, e);
-            e.sigma = e.sigma < 0.0 ? 0.0 : e.sigma;
+            e.timer = -1.0 * copy_to_real(action.var2, action, e);
+            e.timer = e.timer < 0.0 ? 0.0 : e.timer;
             break;
         case variable::constant_i:
             irt::unreachable();
@@ -1208,8 +1208,8 @@ void hierarchical_state_machine::affect_action(const state_action& action,
             e.r2 *= copy_to_real(action.var2, action, e);
             break;
         case variable::var_timer:
-            e.sigma *= copy_to_real(action.var2, action, e);
-            e.sigma = e.sigma < 0.0 ? 0.0 : e.sigma;
+            e.timer *= copy_to_real(action.var2, action, e);
+            e.timer = e.timer < 0.0 ? 0.0 : e.timer;
             break;
         case variable::constant_i:
             irt::unreachable();
@@ -1256,11 +1256,11 @@ void hierarchical_state_machine::affect_action(const state_action& action,
         } break;
         case variable::var_timer: {
             if (auto val = copy_to_real(action.var2, action, e); val)
-                e.sigma /= val;
+                e.timer /= val;
             else
-                e.sigma = std::numeric_limits<double>::infinity();
+                e.timer = std::numeric_limits<double>::infinity();
 
-            e.sigma = e.sigma < 0.0 ? 0.0 : e.sigma;
+            e.timer = e.timer < 0.0 ? 0.0 : e.timer;
         } break;
         case variable::constant_i:
             irt::unreachable();
@@ -1463,7 +1463,7 @@ bool hierarchical_state_machine::condition_action::check(
     }
 
     case condition_type::sigma:
-        return e.sigma <= 0.0;
+        return e.timer <= 0.0;
 
     case condition_type::equal_to:
         return wrap_var(var1, *this, e) == wrap_var(var2, *this, e);

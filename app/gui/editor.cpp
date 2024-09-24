@@ -604,7 +604,7 @@ void show_dynamics_inputs(simulation& /*sim*/, hsm_wrapper& dyn)
     ImGui::InputInt("integer 2", &dyn.exec.i2);
     ImGui::InputDouble("real 1", &dyn.exec.r1);
     ImGui::InputDouble("real 2", &dyn.exec.r2);
-    ImGui::InputDouble("timer", &dyn.exec.sigma);
+    ImGui::InputDouble("timer", &dyn.exec.timer);
 }
 
 void show_dynamics_inputs(simulation& /*sim*/, time_func& dyn)

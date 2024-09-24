@@ -1975,7 +1975,7 @@ struct json_dearchiver::impl {
             case 4:
                 return read_temp_real(value) && copy_to(wrapper.exec.r2);
             case 5:
-                return read_temp_real(value) && copy_to(wrapper.exec.sigma);
+                return read_temp_real(value) && copy_to(wrapper.exec.timer);
             default:
                 report_json_error(error_id::unknown_element);
             }
@@ -2006,7 +2006,7 @@ struct json_dearchiver::impl {
             case 4:
                 return read_temp_real(value) && copy_to(wrapper.exec.r2);
             case 5:
-                return read_temp_real(value) && copy_to(wrapper.exec.sigma);
+                return read_temp_real(value) && copy_to(wrapper.exec.timer);
             default:
                 report_json_error(error_id::unknown_element);
             }
@@ -5238,7 +5238,7 @@ struct json_archiver::impl {
         writer.Key("r2");
         writer.Double(dyn.exec.r2);
         writer.Key("timeout");
-        writer.Double(dyn.exec.sigma);
+        writer.Double(dyn.exec.timer);
         writer.EndObject();
     }
 
@@ -5266,7 +5266,7 @@ struct json_archiver::impl {
         writer.Key("r2");
         writer.Double(dyn.exec.r2);
         writer.Key("timeout");
-        writer.Double(dyn.exec.sigma);
+        writer.Double(dyn.exec.timer);
         writer.EndObject();
     }
 

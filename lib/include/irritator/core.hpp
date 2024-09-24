@@ -3695,7 +3695,7 @@ public:
         i32                 i2    = 0;
         real                r1    = 0.0;
         real                r2    = 0.0;
-        time                sigma = time_domain<time>::infinity;
+        time                timer = time_domain<time>::infinity;
         std::array<real, 4> ports; //<! Stores first part of input message.
         small_vector<output_message, 4> outputs;
         std::bitset<4> values; //<! Bit storage message available on X port.
@@ -3713,7 +3713,7 @@ public:
             i2    = 0;
             r1    = 0;
             r2    = 0;
-            sigma = time_domain<time>::infinity;
+            timer = time_domain<time>::infinity;
 
             ports.fill(0.0);
             values.reset();
@@ -6099,7 +6099,7 @@ inline status hsm_wrapper::initialize(simulation& sim) noexcept
         not machine->states[exec.current_state].is_terminal()) {
         switch (machine->states[exec.current_state].condition.type) {
         case hierarchical_state_machine::condition_type::sigma:
-            sigma = exec.sigma;
+            sigma = exec.timer;
             break;
         case irt::hierarchical_state_machine::condition_type::port:
             sigma = time_domain<time>::infinity;
@@ -6147,7 +6147,7 @@ inline status hsm_wrapper::transition(simulation& sim,
     // Wake up from a timer event. The timer event takes precedence over
     // internal and external events.
     if (wait_timer) {
-        exec.sigma = r;
+        exec.timer = r;
 
         exec.previous_state = exec.current_state;
         irt_check(machine->dispatch(
@@ -6172,7 +6172,7 @@ inline status hsm_wrapper::transition(simulation& sim,
         not machine->states[exec.current_state].is_terminal()) {
         switch (machine->states[exec.current_state].condition.type) {
         case hierarchical_state_machine::condition_type::sigma:
-            sigma = exec.sigma;
+            sigma = exec.timer;
             break;
         case irt::hierarchical_state_machine::condition_type::port:
             sigma = time_domain<time>::infinity;

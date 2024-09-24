@@ -223,7 +223,7 @@ static auto make_tree_leaf(simulation_copy&   sc,
                             gen.children_parameters[child_index].reals[0];
                           dyn.exec.r2 =
                             gen.children_parameters[child_index].reals[1];
-                          dyn.exec.sigma =
+                          dyn.exec.timer =
                             gen.children_parameters[child_index].reals[2];
                       } else {
                           return new_error(project::hsm_error{},
@@ -1107,7 +1107,7 @@ static result<std::pair<tree_node_id, component_id>> set_project_from_hsm(
     dyn.exec.i2    = com_hsm->i2;
     dyn.exec.r1    = com_hsm->r1;
     dyn.exec.r2    = com_hsm->r2;
-    dyn.exec.sigma = com_hsm->timeout;
+    dyn.exec.timer = com_hsm->timeout;
 
     return std::make_pair(sc.tree_nodes.get_id(tn), compo_id);
 }
