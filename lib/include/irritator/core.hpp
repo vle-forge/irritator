@@ -3530,22 +3530,22 @@ public:
     };
 
     enum class action_type : u8 {
-        none,   // do nothing.
-        set,    // port identifer + a variable.
-        unset,  // port identifier to clear.
-        reset,  // all port to reset
-        output, // port identifier + a variable.
-        affect,
-        plus,
-        minus,
-        negate,
-        multiplies,
-        divides,
-        modulus,
-        bit_and,
-        bit_or,
-        bit_not,
-        bit_xor
+        none,       //!< do nothing.
+        set,        //!< port identifer + a variable.
+        unset,      //!< port identifier to clear.
+        reset,      //!< all port to reset
+        output,     //!< port identifier + a variable.
+        affect,     //!< x = y
+        plus,       //!< x = x + y
+        minus,      //!< x = x - y
+        negate,     //!< x = -y
+        multiplies, //!< x = x * y
+        divides,    //!< x = x / y (if y is nul, x equals infinity)
+        modulus,    //!< x = x % y (if y is nul, x equals infinity)
+        bit_and,    //!< x = x & y (only if y is integer)
+        bit_or,     //!< x = x | y (only if y is integer)
+        bit_not,    //!< x = !y (only if y is integer)
+        bit_xor     //!< x = x ^ y (only if y is integer)
     };
 
     enum class condition_type : u8 {
@@ -3560,9 +3560,11 @@ public:
         less_equal,
     };
 
-    /** Action available when state is processed during enter, exit or condition
-     * event. @c note Only one action (value set/unset, devs output, etc.) by
-     * action. To perform more action, use several states. */
+    /**
+       Action available when state is processed during enter, exit or DEVS
+       condition event. @note Only one action (value set/unset, devs output,
+       etc.) by action. To perform more action, use several states.
+     */
     struct state_action {
         variable    var1 = variable::none;
         variable    var2 = variable::none;
@@ -3573,49 +3575,53 @@ public:
             float f;
         } constant;
 
-        void affect(variable v1, i32 i) noexcept
-        {
-            debug::ensure(any_equal(v1,
-                                    variable::var_i1,
-                                    variable::var_i2,
-                                    variable::var_r1,
-                                    variable::var_r2,
-                                    variable::var_timer));
+        void set_setport(variable v1) noexcept;
+        void set_unsetport(variable v1) noexcept;
+        void set_reset() noexcept;
+        void set_output(variable v1, variable v2) noexcept;
+        void set_output(variable v1, i32 i) noexcept;
+        void set_output(variable v1, float f) noexcept;
 
-            var1       = v1;
-            type       = action_type::affect;
-            var2       = variable::constant_i;
-            constant.i = i;
-        }
-
-        void affect(variable v1, float f) noexcept
-        {
-            debug::ensure(any_equal(v1,
-                                    variable::var_i1,
-                                    variable::var_i2,
-                                    variable::var_r1,
-                                    variable::var_r2,
-                                    variable::var_timer));
-
-            var1       = v1;
-            type       = action_type::affect;
-            var2       = variable::constant_r;
-            constant.f = f;
-        }
+        void set_affect(variable v1, variable v2) noexcept;
+        void set_affect(variable v1, i32 i) noexcept;
+        void set_affect(variable v1, float f) noexcept;
+        void set_plus(variable v1, variable v2) noexcept;
+        void set_plus(variable v1, i32 i) noexcept;
+        void set_plus(variable v1, float f) noexcept;
+        void set_minus(variable v1, variable v2) noexcept;
+        void set_minus(variable v1, i32 i) noexcept;
+        void set_minus(variable v1, float f) noexcept;
+        void set_negate(variable v1, variable v2) noexcept;
+        void set_multiplies(variable v1, variable v2) noexcept;
+        void set_multiplies(variable v1, i32 i) noexcept;
+        void set_multiplies(variable v1, float f) noexcept;
+        void set_divides(variable v1, variable v2) noexcept;
+        void set_divides(variable v1, i32 i) noexcept;
+        void set_divides(variable v1, float f) noexcept;
+        void set_modulus(variable v1, variable v2) noexcept;
+        void set_modulus(variable v1, i32 i) noexcept;
+        void set_modulus(variable v1, float f) noexcept;
+        void set_bit_and(variable v1, variable v2) noexcept;
+        void set_bit_and(variable v1, i32 i) noexcept;
+        void set_bit_or(variable v1, variable v2) noexcept;
+        void set_bit_or(variable v1, i32 i) noexcept;
+        void set_bit_not(variable v1, variable v2) noexcept;
+        void set_bit_not(variable v1, i32 i) noexcept;
+        void set_bit_xor(variable v1, variable v2) noexcept;
+        void set_bit_xor(variable v1, i32 i) noexcept;
 
         void clear() noexcept;
     };
 
-    //! \note
-    //! 1. \c value_condition stores the bit for input value
-    //! corresponding to the user request to satisfy the condition. \c
-    //! value_mask stores the bit useful in value_condition. If
-    //! value_mask equal \c 0x0 then, the condition is always true. If
-    //! \c value_mask equals \c 0xff the \c value_condition bit are
-    //! mandatory.
-    //! 2. \c condition_state_action stores transition or action
-    //! conditions. Condition can use input port state or condition on
-    //! integer a or b.
+    /**
+       1. @c value_condition stores the bit for input value corresponding to the
+       user request to satisfy the condition. @c value_mask stores the bit
+       useful in value_condition. If value_mask equal @c 0x0 then, the condition
+       is always true. If @c value_mask equals @c 0xff the @c value_condition
+       bit are mandatory.
+       2. @c condition_state_action stores transition or action conditions.
+       Condition can use input port state or condition on integer a or b.
+     */
     struct condition_action {
         variable       var1 = variable::none;
         variable       var2 = variable::none;
@@ -3627,22 +3633,33 @@ public:
             float f;
         } constant;
 
-        void set(u8 port, u8 mask) noexcept
-        {
-            type       = condition_type::port;
-            constant.u = (port << 4) | mask;
-        }
+        void set(u8 port, u8 mask) noexcept;
+        void get(u8& port, u8& mask) const noexcept;
 
-        void set_timer() noexcept { type = condition_type::sigma; }
-
-        void get(u8& port, u8& mask) const noexcept
-        {
-            port = (constant.u >> 4) & 0b1111;
-            mask = constant.u & 0b1111;
-        }
+        void set_timer() noexcept;
+        void set_equal_to(variable v1, variable v2) noexcept;
+        void set_equal_to(variable v1, i32 i) noexcept;
+        void set_equal_to(variable v1, float i) noexcept;
+        void set_not_equal_to(variable v1, variable v2) noexcept;
+        void set_not_equal_to(variable v1, i32 i) noexcept;
+        void set_not_equal_to(variable v1, float i) noexcept;
+        void set_greater(variable v1, variable v2) noexcept;
+        void set_greater(variable v1, i32 i) noexcept;
+        void set_greater(variable v1, float i) noexcept;
+        void set_greater_equal(variable v1, variable v2) noexcept;
+        void set_greater_equal(variable v1, i32 i) noexcept;
+        void set_greater_equal(variable v1, float i) noexcept;
+        void set_less(variable v1, variable v2) noexcept;
+        void set_less(variable v1, i32 i) noexcept;
+        void set_less(variable v1, float i) noexcept;
+        void set_less_equal(variable v1, variable v2) noexcept;
+        void set_less_equal(variable v1, i32 i) noexcept;
+        void set_less_equal(variable v1, float i) noexcept;
 
         bool check(execution& e) noexcept;
         void clear() noexcept;
+
+    private:
     };
 
     struct state {

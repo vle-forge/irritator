@@ -8,9 +8,9 @@ namespace irt {
 
 using hsm_t = hierarchical_state_machine;
 
-static i32 copy_to_i32(const hsm_t::variable      v,
-                       const hsm_t::state_action& act,
-                       const hsm_t::execution&    e) noexcept
+static constexpr i32 copy_to_i32(const hsm_t::variable      v,
+                                 const hsm_t::state_action& act,
+                                 const hsm_t::execution&    e) noexcept
 {
     switch (v) {
     case hsm_t::variable::none:
@@ -42,9 +42,9 @@ static i32 copy_to_i32(const hsm_t::variable      v,
     irt::unreachable();
 }
 
-static real copy_to_real(const hsm_t::variable      v,
-                         const hsm_t::state_action& act,
-                         const hsm_t::execution&    e) noexcept
+static constexpr real copy_to_real(const hsm_t::variable      v,
+                                   const hsm_t::state_action& act,
+                                   const hsm_t::execution&    e) noexcept
 {
     switch (v) {
     case hsm_t::variable::none:
@@ -82,35 +82,61 @@ struct wrap_var {
         i32  i;
     };
 
-    enum type { none, real_t, integer_t } type;
+    enum type { real_t, integer_t } type;
 
-    auto operator<=>(const wrap_var& o) const noexcept { return r <=> o.r; }
-
-    bool operator==(const wrap_var& o) const noexcept
+    constexpr bool operator==(const wrap_var& o) const noexcept
     {
         if (type == type::real_t)
-            return r == o.r;
-        else
-            return i == o.i;
+            return r ==
+                   ((o.type == type::real_t) ? o.r : static_cast<real>(o.i));
+
+        return i == ((o.type == type::real_t) ? static_cast<i32>(o.r) : o.i);
+    }
+
+    constexpr std::partial_ordering operator<=>(
+      const wrap_var& o) const noexcept
+    {
+        return (type == type::real_t)
+                 ? r <=>
+                     ((o.type == type::real_t) ? o.r : static_cast<real>(o.i))
+                 : i <=>
+                     ((o.type == type::real_t) ? static_cast<i32>(o.r) : o.i);
     }
 
     template<typename Action>
-    wrap_var(const hsm_t::variable   v,
-             Action&                 act,
-             const hsm_t::execution& e) noexcept
-      : r{ 0. }
-      , type{ type::none }
+    constexpr wrap_var(const hsm_t::variable   v,
+                       Action&                 act,
+                       const hsm_t::execution& e) noexcept
     {
         switch (v) {
         case hsm_t::variable::none:
-        case hsm_t::variable::port_0:
-        case hsm_t::variable::port_1:
-        case hsm_t::variable::port_2:
-        case hsm_t::variable::port_3:
-            irt::unreachable();
-            r    = 0.0;
+            r    = 0;
             i    = 0;
-            type = type::none;
+            type = type::integer_t;
+            break;
+
+        case hsm_t::variable::port_0:
+            r    = e.ports[0];
+            i    = static_cast<i32>(e.ports[0]);
+            type = type::real_t;
+            break;
+
+        case hsm_t::variable::port_1:
+            r    = e.ports[1];
+            i    = static_cast<i32>(e.ports[1]);
+            type = type::real_t;
+            break;
+
+        case hsm_t::variable::port_2:
+            r    = e.ports[2];
+            i    = static_cast<i32>(e.ports[2]);
+            type = type::real_t;
+            break;
+
+        case hsm_t::variable::port_3:
+            r    = e.ports[3];
+            i    = static_cast<i32>(e.ports[3]);
+            type = type::real_t;
             break;
 
         case hsm_t::variable::var_i1:
@@ -118,31 +144,37 @@ struct wrap_var {
             i    = e.i1;
             type = type::integer_t;
             break;
+
         case hsm_t::variable::var_i2:
             r    = static_cast<double>(e.i2);
             i    = e.i2;
             type = type::integer_t;
             break;
+
         case hsm_t::variable::var_r1:
             r    = e.r1;
             i    = static_cast<i32>(e.r1);
             type = type::real_t;
             break;
+
         case hsm_t::variable::var_r2:
             r    = e.r2;
             i    = static_cast<i32>(e.r2);
             type = type::real_t;
             break;
+
         case hsm_t::variable::var_timer:
             r    = e.sigma;
             i    = static_cast<i32>(e.sigma);
             type = type::real_t;
             break;
+
         case hsm_t::variable::constant_i:
             r    = static_cast<double>(act.constant.i);
             i    = act.constant.i;
             type = type::integer_t;
             break;
+
         case hsm_t::variable::constant_r:
             r    = act.constant.f;
             i    = static_cast<i32>(act.constant.f);
@@ -157,18 +189,556 @@ bool hierarchical_state_machine::is_dispatching(execution& exec) const noexcept
     return exec.current_source_state != invalid_state_id;
 }
 
+static constexpr bool is_port(const hsm_t::variable v) noexcept
+{
+    return irt::any_equal(v,
+                          hsm_t::variable::port_0,
+                          hsm_t::variable::port_1,
+                          hsm_t::variable::port_2,
+                          hsm_t::variable::port_3);
+}
+
+static constexpr bool is_affectable(const hsm_t::variable v) noexcept
+{
+    return irt::any_equal(v,
+                          hsm_t::variable::port_0,
+                          hsm_t::variable::port_1,
+                          hsm_t::variable::port_2,
+                          hsm_t::variable::port_3,
+                          hsm_t::variable::var_i1,
+                          hsm_t::variable::var_i2,
+                          hsm_t::variable::var_r1,
+                          hsm_t::variable::var_r2,
+                          hsm_t::variable::var_timer);
+}
+
+static constexpr bool is_bit_operable(const hsm_t::variable v) noexcept
+{
+    return irt::any_equal(v,
+                          hsm_t::variable::port_0,
+                          hsm_t::variable::port_1,
+                          hsm_t::variable::port_2,
+                          hsm_t::variable::port_3,
+                          hsm_t::variable::var_i1,
+                          hsm_t::variable::var_i2,
+                          hsm_t::variable::constant_i);
+}
+
+static constexpr hsm_t::state_action do_affect(hsm_t::action_type type,
+                                               hsm_t::variable    v1,
+                                               hsm_t::variable    v2) noexcept
+{
+    return hsm_t::state_action{
+        .var1 = v1, .var2 = v2, .type = type, .constant = { .i = 0 }
+    };
+}
+
+static constexpr hsm_t::state_action do_affect(hsm_t::action_type type,
+                                               hsm_t::variable    v1,
+                                               i32                i) noexcept
+{
+    return hsm_t::state_action{ .var1     = v1,
+                                .var2     = hsm_t::variable::constant_i,
+                                .type     = type,
+                                .constant = { .i = i } };
+}
+
+static constexpr hsm_t::state_action do_affect(hsm_t::action_type type,
+                                               hsm_t::variable    v1,
+                                               float              f) noexcept
+{
+    return hsm_t::state_action{ .var1     = v1,
+                                .var2     = hsm_t::variable::constant_r,
+                                .type     = type,
+                                .constant = { .f = f } };
+}
+
+static constexpr hsm_t::state_action do_affect(hsm_t::action_type type,
+                                               hsm_t::variable    v1) noexcept
+{
+    return hsm_t::state_action{ .var1     = v1,
+                                .var2     = hsm_t::variable::none,
+                                .type     = type,
+                                .constant = { .i = 0 } };
+}
+
+void hierarchical_state_machine::state_action::set_setport(variable v1) noexcept
+{
+    debug::ensure(is_port(v1));
+
+    if (is_port(v1))
+        do_affect(hsm_t::action_type::set, v1);
+}
+
+void hierarchical_state_machine::state_action::set_unsetport(
+  variable v1) noexcept
+{
+    debug::ensure(is_port(v1));
+
+    if (is_port(v1))
+        do_affect(hsm_t::action_type::unset, v1);
+}
+
+void hierarchical_state_machine::state_action::set_affect(variable v1,
+                                                          variable v2) noexcept
+{
+    debug::ensure(is_affectable(v1));
+
+    if (is_affectable(v1))
+        *this = do_affect(hsm_t::action_type::affect, v1, v2);
+}
+
+void hierarchical_state_machine::state_action::set_reset() noexcept
+{
+    *this = do_affect(hsm_t::action_type::reset, hsm_t::variable::none);
+}
+
+void hierarchical_state_machine::state_action::set_output(variable v1,
+                                                          variable v2) noexcept
+{
+    debug::ensure(is_affectable(v1));
+
+    *this = do_affect(hsm_t::action_type::output, v1, v2);
+}
+
+void hierarchical_state_machine::state_action::set_output(variable v1,
+                                                          i32      i) noexcept
+{
+    debug::ensure(is_affectable(v1));
+
+    *this = do_affect(hsm_t::action_type::output, v1, i);
+}
+
+void hierarchical_state_machine::state_action::set_output(variable v1,
+                                                          float    f) noexcept
+{
+    debug::ensure(is_affectable(v1));
+
+    *this = do_affect(hsm_t::action_type::output, v1, f);
+}
+
+void hierarchical_state_machine::state_action::set_affect(variable v1,
+
+                                                          i32 i) noexcept
+{
+    debug::ensure(is_affectable(v1));
+
+    if (is_affectable(v1))
+        *this = do_affect(hsm_t::action_type::affect, v1, i);
+}
+
+void hierarchical_state_machine::state_action::set_affect(variable v1,
+                                                          float    f) noexcept
+{
+    debug::ensure(is_affectable(v1));
+
+    if (is_affectable(v1))
+        *this = do_affect(hsm_t::action_type::affect, v1, f);
+}
+
+void hierarchical_state_machine::state_action::set_plus(variable v1,
+                                                        variable v2) noexcept
+{
+    debug::ensure(is_affectable(v1));
+
+    if (is_affectable(v1))
+        *this = do_affect(hsm_t::action_type::plus, v1, v2);
+}
+
+void hierarchical_state_machine::state_action::set_plus(variable v1,
+
+                                                        i32 i) noexcept
+{
+    debug::ensure(is_affectable(v1));
+
+    if (is_affectable(v1))
+        *this = do_affect(hsm_t::action_type::plus, v1, i);
+}
+
+void hierarchical_state_machine::state_action::set_plus(variable v1,
+                                                        float    f) noexcept
+{
+    debug::ensure(is_affectable(v1));
+
+    if (is_affectable(v1))
+        *this = do_affect(hsm_t::action_type::plus, v1, f);
+}
+
+void hierarchical_state_machine::state_action::set_minus(variable v1,
+                                                         variable v2) noexcept
+{
+    debug::ensure(is_affectable(v1));
+
+    if (is_affectable(v1))
+        *this = do_affect(hsm_t::action_type::minus, v1, v2);
+}
+
+void hierarchical_state_machine::state_action::set_minus(variable v1,
+
+                                                         i32 i) noexcept
+{
+    debug::ensure(is_affectable(v1));
+
+    if (is_affectable(v1))
+        *this = do_affect(hsm_t::action_type::minus, v1, i);
+}
+
+void hierarchical_state_machine::state_action::set_minus(variable v1,
+                                                         float    f) noexcept
+{
+    debug::ensure(is_affectable(v1));
+
+    if (is_affectable(v1))
+        *this = do_affect(hsm_t::action_type::minus, v1, f);
+}
+
+void hierarchical_state_machine::state_action::set_negate(variable v1,
+                                                          variable v2) noexcept
+{
+    debug::ensure(is_affectable(v1));
+
+    if (is_affectable(v1))
+        *this = do_affect(hsm_t::action_type::negate, v1, v2);
+}
+
+void hierarchical_state_machine::state_action::set_multiplies(
+  variable v1,
+  variable v2) noexcept
+{
+    debug::ensure(is_affectable(v1));
+
+    if (is_affectable(v1))
+        *this = do_affect(hsm_t::action_type::multiplies, v1, v2);
+}
+
+void hierarchical_state_machine::state_action::set_multiplies(variable v1,
+
+                                                              i32 i) noexcept
+{
+    debug::ensure(is_affectable(v1));
+
+    if (is_affectable(v1))
+        *this = do_affect(hsm_t::action_type::multiplies, v1, i);
+}
+
+void hierarchical_state_machine::state_action::set_multiplies(variable v1,
+                                                              float f) noexcept
+{
+    debug::ensure(is_affectable(v1));
+
+    if (is_affectable(v1))
+        *this = do_affect(hsm_t::action_type::multiplies, v1, f);
+}
+
+void hierarchical_state_machine::state_action::set_divides(variable v1,
+                                                           variable v2) noexcept
+{
+    debug::ensure(is_affectable(v1));
+
+    if (is_affectable(v1))
+        *this = do_affect(hsm_t::action_type::divides, v1, v2);
+}
+
+void hierarchical_state_machine::state_action::set_divides(variable v1,
+
+                                                           i32 i) noexcept
+{
+    debug::ensure(is_affectable(v1));
+
+    if (is_affectable(v1))
+        *this = do_affect(hsm_t::action_type::divides, v1, i);
+}
+
+void hierarchical_state_machine::state_action::set_divides(variable v1,
+                                                           float    f) noexcept
+{
+    debug::ensure(is_affectable(v1));
+
+    if (is_affectable(v1))
+        *this = do_affect(hsm_t::action_type::divides, v1, f);
+}
+
+void hierarchical_state_machine::state_action::set_modulus(variable v1,
+                                                           variable v2) noexcept
+{
+    debug::ensure(is_affectable(v1));
+
+    if (is_affectable(v1))
+        *this = do_affect(hsm_t::action_type::modulus, v1, v2);
+}
+
+void hierarchical_state_machine::state_action::set_modulus(variable v1,
+
+                                                           i32 i) noexcept
+{
+    debug::ensure(is_affectable(v1));
+
+    if (is_affectable(v1))
+        *this = do_affect(hsm_t::action_type::modulus, v1, i);
+}
+
+void hierarchical_state_machine::state_action::set_modulus(variable v1,
+                                                           float    f) noexcept
+{
+    debug::ensure(is_affectable(v1));
+
+    if (is_affectable(v1))
+        *this = do_affect(hsm_t::action_type::modulus, v1, f);
+}
+
+void hierarchical_state_machine::state_action::set_bit_and(variable v1,
+                                                           variable v2) noexcept
+{
+    debug::ensure(is_bit_operable(v1));
+
+    if (is_bit_operable(v1))
+        *this = do_affect(hsm_t::action_type::bit_and, v1, v2);
+}
+
+void hierarchical_state_machine::state_action::set_bit_and(variable v1,
+
+                                                           i32 i) noexcept
+{
+    debug::ensure(is_bit_operable(v1));
+
+    if (is_bit_operable(v1))
+        *this = do_affect(hsm_t::action_type::bit_and, v1, i);
+}
+
+void hierarchical_state_machine::state_action::set_bit_or(variable v1,
+                                                          variable v2) noexcept
+{
+    debug::ensure(is_bit_operable(v1));
+
+    if (is_bit_operable(v1))
+        *this = do_affect(hsm_t::action_type::bit_or, v1, v2);
+}
+
+void hierarchical_state_machine::state_action::set_bit_or(variable v1,
+
+                                                          i32 i) noexcept
+{
+    debug::ensure(is_bit_operable(v1));
+
+    if (is_bit_operable(v1))
+        *this = do_affect(hsm_t::action_type::bit_or, v1, i);
+}
+
+void hierarchical_state_machine::state_action::set_bit_not(variable v1,
+                                                           variable v2) noexcept
+{
+    debug::ensure(is_bit_operable(v1));
+
+    if (is_bit_operable(v1))
+        *this = do_affect(hsm_t::action_type::bit_not, v1, v2);
+}
+
+void hierarchical_state_machine::state_action::set_bit_not(variable v1,
+
+                                                           i32 i) noexcept
+{
+    debug::ensure(is_bit_operable(v1));
+
+    if (is_bit_operable(v1))
+        *this = do_affect(hsm_t::action_type::bit_not, v1, i);
+}
+
+void hierarchical_state_machine::state_action::set_bit_xor(variable v1,
+                                                           variable v2) noexcept
+{
+    debug::ensure(is_bit_operable(v1));
+
+    if (is_bit_operable(v1))
+        *this = do_affect(hsm_t::action_type::bit_xor, v1, v2);
+}
+
+void hierarchical_state_machine::state_action::set_bit_xor(variable v1,
+
+                                                           i32 i) noexcept
+{
+    debug::ensure(is_bit_operable(v1));
+
+    if (is_bit_operable(v1))
+        *this = do_affect(hsm_t::action_type::bit_xor, v1, i);
+}
+
 void hierarchical_state_machine::state_action::clear() noexcept
 {
-    var1 = variable::none;
-    var2 = variable::none;
-    type = action_type::none;
+    *this = do_affect(hsm_t::action_type::none, variable::none, variable::none);
+}
+
+void hierarchical_state_machine::condition_action::set(u8 port,
+                                                       u8 mask) noexcept
+{
+    type       = condition_type::port;
+    constant.u = (port << 4) | mask;
+}
+
+void hierarchical_state_machine::condition_action::get(u8& port,
+                                                       u8& mask) const noexcept
+{
+    port = (constant.u >> 4) & 0b1111;
+    mask = constant.u & 0b1111;
+}
+
+void hierarchical_state_machine::condition_action::set_timer() noexcept
+{
+    type = condition_type::sigma;
+}
+
+static hsm_t::condition_action do_affect(hsm_t::condition_type type,
+                                         hsm_t::variable       v1,
+                                         hsm_t::variable       v2) noexcept
+{
+    return hsm_t::condition_action{
+        .var1 = v1, .var2 = v2, .type = type, .constant{ .i = 0 }
+    };
+}
+
+static hsm_t::condition_action do_affect(hsm_t::condition_type type,
+                                         hsm_t::variable       v1,
+                                         i32                   i) noexcept
+{
+    return hsm_t::condition_action{ .var1 = v1,
+                                    .var2 = hsm_t::variable::constant_i,
+                                    .type = type,
+                                    .constant{ .i = i } };
+}
+
+static hsm_t::condition_action do_affect(hsm_t::condition_type type,
+                                         hsm_t::variable       v1,
+                                         float                 f) noexcept
+{
+    return hsm_t::condition_action{ .var1 = v1,
+                                    .var2 = hsm_t::variable::constant_r,
+                                    .type = type,
+                                    .constant{ .f = f } };
+}
+
+void hierarchical_state_machine::condition_action::set_equal_to(
+  variable v1,
+  variable v2) noexcept
+{
+    *this = do_affect(hsm_t::condition_type::equal_to, v1, v2);
+}
+
+void hierarchical_state_machine::condition_action::set_equal_to(variable v1,
+                                                                i32 i) noexcept
+{
+    *this = do_affect(hsm_t::condition_type::equal_to, v1, i);
+}
+
+void hierarchical_state_machine::condition_action::set_equal_to(
+  variable v1,
+  float    f) noexcept
+{
+    *this = do_affect(hsm_t::condition_type::equal_to, v1, f);
+}
+
+void hierarchical_state_machine::condition_action::set_not_equal_to(
+  variable v1,
+  variable v2) noexcept
+{
+    *this = do_affect(hsm_t::condition_type::not_equal_to, v1, v2);
+}
+
+void hierarchical_state_machine::condition_action::set_not_equal_to(
+  variable v1,
+  i32      i) noexcept
+{
+    *this = do_affect(hsm_t::condition_type::not_equal_to, v1, i);
+}
+
+void hierarchical_state_machine::condition_action::set_not_equal_to(
+  variable v1,
+  float    f) noexcept
+{
+    *this = do_affect(hsm_t::condition_type::not_equal_to, v1, f);
+}
+
+void hierarchical_state_machine::condition_action::set_greater(
+  variable v1,
+  variable v2) noexcept
+{
+    *this = do_affect(hsm_t::condition_type::equal_to, v1, v2);
+}
+
+void hierarchical_state_machine::condition_action::set_greater(variable v1,
+                                                               i32 i) noexcept
+{
+    *this = do_affect(hsm_t::condition_type::equal_to, v1, i);
+}
+
+void hierarchical_state_machine::condition_action::set_greater(variable v1,
+                                                               float f) noexcept
+{
+    *this = do_affect(hsm_t::condition_type::equal_to, v1, f);
+}
+
+void hierarchical_state_machine::condition_action::set_greater_equal(
+  variable v1,
+  variable v2) noexcept
+{
+    *this = do_affect(hsm_t::condition_type::not_equal_to, v1, v2);
+}
+
+void hierarchical_state_machine::condition_action::set_greater_equal(
+  variable v1,
+  i32      i) noexcept
+{
+    *this = do_affect(hsm_t::condition_type::not_equal_to, v1, i);
+}
+
+void hierarchical_state_machine::condition_action::set_greater_equal(
+  variable v1,
+  float    f) noexcept
+{
+    *this = do_affect(hsm_t::condition_type::not_equal_to, v1, f);
+}
+
+void hierarchical_state_machine::condition_action::set_less(
+  variable v1,
+  variable v2) noexcept
+{
+    *this = do_affect(hsm_t::condition_type::equal_to, v1, v2);
+}
+
+void hierarchical_state_machine::condition_action::set_less(variable v1,
+                                                            i32      i) noexcept
+{
+    *this = do_affect(hsm_t::condition_type::equal_to, v1, i);
+}
+
+void hierarchical_state_machine::condition_action::set_less(variable v1,
+                                                            float    f) noexcept
+{
+    *this = do_affect(hsm_t::condition_type::equal_to, v1, f);
+}
+
+void hierarchical_state_machine::condition_action::set_less_equal(
+  variable v1,
+  variable v2) noexcept
+{
+    *this = do_affect(hsm_t::condition_type::not_equal_to, v1, v2);
+}
+
+void hierarchical_state_machine::condition_action::set_less_equal(
+  variable v1,
+  i32      i) noexcept
+{
+    *this = do_affect(hsm_t::condition_type::not_equal_to, v1, i);
+}
+
+void hierarchical_state_machine::condition_action::set_less_equal(
+  variable v1,
+  float    f) noexcept
+{
+    *this = do_affect(hsm_t::condition_type::not_equal_to, v1, f);
 }
 
 void hierarchical_state_machine::condition_action::clear() noexcept
 {
-    var1 = variable::none;
-    var2 = variable::none;
-    type = condition_type::none;
+    *this = do_affect(condition_type::none, variable::none, variable::none);
 }
 
 status hierarchical_state_machine::start(execution& exec) noexcept
@@ -591,19 +1161,19 @@ void hierarchical_state_machine::affect_action(const state_action& action,
             break;
 
         case variable::var_i1:
-            e.i1 *= -1;
+            e.i1 = -1 * copy_to_i32(action.var2, action, e);
             break;
         case variable::var_i2:
-            e.i2 *= -1;
+            e.i2 = -1 * copy_to_i32(action.var2, action, e);
             break;
         case variable::var_r1:
-            e.r1 *= -1.0;
+            e.r1 = -1.0 * copy_to_real(action.var2, action, e);
             break;
         case variable::var_r2:
-            e.r2 *= -1.0;
+            e.r2 = -1.0 * copy_to_real(action.var2, action, e);
             break;
         case variable::var_timer:
-            e.sigma *= -1.0;
+            e.sigma = -1.0 * copy_to_real(action.var2, action, e);
             e.sigma = e.sigma < 0.0 ? 0.0 : e.sigma;
             break;
         case variable::constant_i:
@@ -660,22 +1230,38 @@ void hierarchical_state_machine::affect_action(const state_action& action,
             unreachable();
             break;
 
-        case variable::var_i1:
-            e.i1 /= copy_to_i32(action.var2, action, e);
-            break;
-        case variable::var_i2:
-            e.i2 /= copy_to_i32(action.var2, action, e);
-            break;
-        case variable::var_r1:
-            e.r1 /= copy_to_real(action.var2, action, e);
-            break;
-        case variable::var_r2:
-            e.r2 /= copy_to_real(action.var2, action, e);
-            break;
-        case variable::var_timer:
-            e.sigma /= copy_to_real(action.var2, action, e);
+        case variable::var_i1: {
+            if (auto val = copy_to_i32(action.var2, action, e); val)
+                e.i1 /= val;
+            else
+                e.i1 = INT32_MAX;
+        } break;
+        case variable::var_i2: {
+            if (auto val = copy_to_i32(action.var2, action, e); val)
+                e.i2 /= val;
+            else
+                e.i2 = INT32_MAX;
+        } break;
+        case variable::var_r1: {
+            if (auto val = copy_to_real(action.var2, action, e); val)
+                e.r1 /= val;
+            else
+                e.r1 = std::numeric_limits<double>::infinity();
+        } break;
+        case variable::var_r2: {
+            if (auto val = copy_to_real(action.var2, action, e); val)
+                e.r2 /= val;
+            else
+                e.r2 = std::numeric_limits<double>::infinity();
+        } break;
+        case variable::var_timer: {
+            if (auto val = copy_to_real(action.var2, action, e); val)
+                e.sigma /= val;
+            else
+                e.sigma = std::numeric_limits<double>::infinity();
+
             e.sigma = e.sigma < 0.0 ? 0.0 : e.sigma;
-            break;
+        } break;
         case variable::constant_i:
             irt::unreachable();
             break;

@@ -1891,19 +1891,12 @@ int main()
 
         expect(!!hsmw.set_state(1u, 0u));
 
-        hsmw.states[1u].condition.type =
-          irt::hierarchical_state_machine::condition_type::port;
         hsmw.states[1u].condition.set(3u, 7u);
         hsmw.states[1u].if_transition = 2u;
 
         expect(!!hsmw.set_state(2u, 0u));
-        hsmw.states[2u].enter_action.type =
-          irt::hsm_wrapper::hsm::action_type::output;
-        hsmw.states[2u].enter_action.var1 =
-          irt::hierarchical_state_machine::variable::port_0;
-        hsmw.states[2u].enter_action.var2 =
-          irt::hierarchical_state_machine::variable::constant_r;
-        hsmw.states[2u].enter_action.constant.f = 1.f;
+        hsmw.states[2u].enter_action.set_output(
+          irt::hierarchical_state_machine::variable::port_0, 1.f);
 
         expect(!!hsmw.start(exec));
 
@@ -1935,25 +1928,14 @@ int main()
         hsmw.states[1u].if_transition = 2u;
 
         expect(!!hsmw.set_state(2u, 0u));
-        hsmw.states[2u].enter_action.type =
-          irt::hsm_wrapper::hsm::action_type::affect;
-        hsmw.states[2u].enter_action.var1 =
-          irt::hierarchical_state_machine::variable::var_timer;
-        hsmw.states[2u].enter_action.var2 =
-          irt::hierarchical_state_machine::variable::constant_r;
-        hsmw.states[2u].enter_action.constant.f = 1.f;
-        hsmw.states[2u].condition.type =
-          irt::hierarchical_state_machine::condition_type::sigma;
+        hsmw.states[2u].enter_action.set_affect(
+          irt::hierarchical_state_machine::variable::var_timer, 1.f);
+        hsmw.states[2u].condition.set_timer();
         hsmw.states[2u].if_transition = 3u;
 
         expect(!!hsmw.set_state(3u, 0u));
-        hsmw.states[2u].enter_action.type =
-          irt::hsm_wrapper::hsm::action_type::output;
-        hsmw.states[2u].enter_action.var1 =
-          irt::hierarchical_state_machine::variable::port_0;
-        hsmw.states[2u].enter_action.var2 =
-          irt::hierarchical_state_machine::variable::constant_r;
-        hsmw.states[2u].enter_action.constant.f = 1.f;
+        hsmw.states[2u].enter_action.set_output(
+          irt::hierarchical_state_machine::variable::port_0, 1.f);
 
         expect(!!hsmw.start(exec));
 
@@ -2013,19 +1995,12 @@ int main()
           0u, irt::hierarchical_state_machine::invalid_state_id, 1u));
 
         expect(!!hsmw->set_state(1u, 0u));
-        hsmw->states[1u].condition.type =
-          irt::hierarchical_state_machine::condition_type::port;
         hsmw->states[1u].condition.set(0b0011u, 0b0011u);
         hsmw->states[1u].if_transition = 2u;
 
         expect(!!hsmw->set_state(2u, 0u));
-        hsmw->states[2u].enter_action.type =
-          irt::hsm_wrapper::hsm::action_type::output;
-        hsmw->states[2u].enter_action.var1 =
-          irt::hierarchical_state_machine::variable::port_0;
-        hsmw->states[2u].enter_action.var2 =
-          irt::hierarchical_state_machine::variable::constant_r;
-        hsmw->states[2u].enter_action.constant.f = 1.0f;
+        hsmw->states[2u].enter_action.set_output(
+          irt::hierarchical_state_machine::variable::port_0, 1.0f);
 
         expect(!!sim.connect(gen, 0, hsm, 0));
         expect(!!sim.connect(gen, 0, hsm, 1));
@@ -2087,34 +2062,17 @@ int main()
           0u, irt::hierarchical_state_machine::invalid_state_id, 1u));
 
         expect(!!hsmw->set_state(1u, 0u));
-        hsmw->states[1u].enter_action.type =
-          irt::hsm_wrapper::hsm::action_type::affect;
-        hsmw->states[1u].enter_action.var1 =
-          irt::hierarchical_state_machine::variable::var_i1;
-        hsmw->states[1u].enter_action.var2 =
-          irt::hierarchical_state_machine::variable::constant_i;
-        hsmw->states[1u].enter_action.constant.i = 1.0f;
-        hsmw->states[1u].exit_action.type =
-          irt::hsm_wrapper::hsm::action_type::plus;
-        hsmw->states[1u].exit_action.var1 =
-          irt::hierarchical_state_machine::variable::var_i1;
-        hsmw->states[1u].exit_action.var2 =
-          irt::hierarchical_state_machine::variable::constant_i;
-        hsmw->states[1u].exit_action.constant.i = 10.0f;
+        hsmw->states[1u].enter_action.set_affect(
+          irt::hierarchical_state_machine::variable::var_i1, 1.0f);
+        hsmw->states[1u].exit_action.set_plus(
+          irt::hierarchical_state_machine::variable::var_i1, 10.0f);
 
-        hsmw->states[1u].condition.type =
-          irt::hierarchical_state_machine::condition_type::port;
         hsmw->states[1u].condition.set(0b0011u, 0b0011u);
         hsmw->states[1u].if_transition = 2u;
 
         expect(!!hsmw->set_state(2u, 0u));
-        hsmw->states[2u].enter_action.type =
-          irt::hsm_wrapper::hsm::action_type::output;
-        hsmw->states[2u].enter_action.var1 =
-          irt::hierarchical_state_machine::variable::port_0;
-        hsmw->states[2u].enter_action.var2 =
-          irt::hierarchical_state_machine::variable::constant_r;
-        hsmw->states[2u].enter_action.constant.f = 1.0f;
+        hsmw->states[2u].enter_action.set_output(
+          irt::hierarchical_state_machine::variable::port_0, 1.0f);
 
         expect(!!sim.connect(gen, 0, hsm, 0));
         expect(!!sim.connect(gen, 0, hsm, 1));
@@ -2160,25 +2118,18 @@ int main()
           0u, irt::hierarchical_state_machine::invalid_state_id, 1u));
 
         expect(!!hsmw->set_state(1u, 0u));
-        hsmw->states[1u].condition.type =
-          irt::hierarchical_state_machine::condition_type::port;
         hsmw->states[1u].condition.set(0b0011u, 0b0011u);
         hsmw->states[1u].if_transition = 2u;
 
         expect(!!hsmw->set_state(2u, 0u));
-        hsmw->states[2u].enter_action.affect(
+        hsmw->states[2u].enter_action.set_affect(
           irt::hierarchical_state_machine::variable::var_timer, 10.f);
         hsmw->states[2u].condition.set_timer();
         hsmw->states[2u].if_transition = 3u;
 
         expect(!!hsmw->set_state(3u, 0u));
-        hsmw->states[3u].enter_action.type =
-          irt::hsm_wrapper::hsm::action_type::output;
-        hsmw->states[3u].enter_action.var1 =
-          irt::hierarchical_state_machine::variable::port_0;
-        hsmw->states[3u].enter_action.var2 =
-          irt::hierarchical_state_machine::variable::constant_r;
-        hsmw->states[3u].enter_action.constant.f = 1.0f;
+        hsmw->states[3u].enter_action.set_output(
+          irt::hierarchical_state_machine::variable::port_0, 1.f);
 
         expect(!!sim.connect(gen, 0, hsm, 0));
         expect(!!sim.connect(gen, 0, hsm, 1));
@@ -2226,25 +2177,18 @@ int main()
           0u, irt::hierarchical_state_machine::invalid_state_id, 1u));
 
         expect(!!hsmw->set_state(1u, 0u));
-        hsmw->states[1u].condition.type =
-          irt::hierarchical_state_machine::condition_type::port;
         hsmw->states[1u].condition.set(0b0011u, 0b0011u);
         hsmw->states[1u].if_transition = 2u;
 
         expect(!!hsmw->set_state(2u, 0u));
-        hsmw->states[2u].enter_action.affect(
+        hsmw->states[2u].enter_action.set_affect(
           irt::hierarchical_state_machine::variable::var_timer, 10.f);
         hsmw->states[2u].condition.set_timer();
         hsmw->states[2u].if_transition = 3u;
 
         expect(!!hsmw->set_state(3u, 0u));
-        hsmw->states[3u].enter_action.type =
-          irt::hsm_wrapper::hsm::action_type::output;
-        hsmw->states[3u].enter_action.var1 =
-          irt::hierarchical_state_machine::variable::port_0;
-        hsmw->states[3u].enter_action.var2 =
-          irt::hierarchical_state_machine::variable::constant_r;
-        hsmw->states[3u].enter_action.constant.f = 1.0f;
+        hsmw->states[3u].enter_action.set_output(
+          irt::hierarchical_state_machine::variable::port_0, 1.f);
 
         expect(!!sim.connect(gen1, 0, hsm, 0));
         expect(!!sim.connect(gen2, 0, hsm, 1));
@@ -2292,26 +2236,19 @@ int main()
           0u, irt::hierarchical_state_machine::invalid_state_id, 1u));
 
         expect(!!hsmw->set_state(1u, 0u));
-        hsmw->states[1u].condition.type =
-          irt::hierarchical_state_machine::condition_type::port;
         hsmw->states[1u].condition.set(0b0011u, 0b0011u);
         hsmw->states[1u].if_transition = 2u;
 
         expect(!!hsmw->set_state(2u, 0u));
-        hsmw->states[2u].enter_action.affect(
+        hsmw->states[2u].enter_action.set_affect(
           irt::hierarchical_state_machine::variable::var_timer, 10.f);
         hsmw->states[2u].condition.set_timer();
         hsmw->states[2u].if_transition = 3u;
         hsmw->states[2u].if_transition = 4u;
 
         expect(!!hsmw->set_state(3u, 0u));
-        hsmw->states[3u].enter_action.type =
-          irt::hsm_wrapper::hsm::action_type::output;
-        hsmw->states[3u].enter_action.var1 =
-          irt::hierarchical_state_machine::variable::port_0;
-        hsmw->states[3u].enter_action.var2 =
-          irt::hierarchical_state_machine::variable::constant_r;
-        hsmw->states[3u].enter_action.constant.f = 1.0f;
+        hsmw->states[3u].enter_action.set_output(
+          irt::hierarchical_state_machine::variable::port_0, 1.0f);
 
         expect(!!hsmw->set_state(4u, 0u));
 
