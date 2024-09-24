@@ -367,8 +367,16 @@ static void show_data(application&       app,
                     }
 
                     if (ImGui::BeginTabItem("In/Out")) {
-                        element.clear_selected_nodes();
-                        show_input_output_ports(compo);
+                        if (compo.type == component_type::hsm) {
+                            ImGui::TextWrapped(
+                              "HSM component have four input and four output "
+                              "ports. You can select input ports from the "
+                              "state conditions and the output ports from the "
+                              "state actions.");
+                        } else {
+                            element.clear_selected_nodes();
+                            show_input_output_ports(compo);
+                        }
                         ImGui::EndTabItem();
                     }
 
