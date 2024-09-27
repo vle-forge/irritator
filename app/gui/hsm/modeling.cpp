@@ -757,32 +757,29 @@ void hsm_component_editor_data::show_panel(hsm_component& hsm) noexcept
             show_state_condition(state.condition);
 
             ImGui::SeparatorText("Actions");
-            ImGui::TextUnformatted("if condition is true");
-            show_state_action(state.if_action);
-            ImGui::Separator();
+            if (ImGui::CollapsingHeader("Enter action"))
+                show_state_action(state.enter_action);
 
-            ImGui::TextUnformatted("else");
-            show_state_action(state.else_action);
-            ImGui::Separator();
+            if (ImGui::CollapsingHeader("If condition is true"))
+                show_state_action(state.if_action);
 
-            ImGui::SeparatorText("Enter/Exit actions");
-            ImGui::TextUnformatted("enter state run:");
-            show_state_action(state.enter_action);
+            if (ImGui::CollapsingHeader("Else"))
+                show_state_action(state.else_action);
 
-            ImGui::TextUnformatted("exit state run:");
-            show_state_action(state.exit_action);
+            if (ImGui::CollapsingHeader("Exit action"))
+                show_state_action(state.exit_action);
 
             ImGui::PopID();
             ImGui::Separator();
         }
     }
 
-    ImGui::TextFormat("status: {}", test_status_string[ordinal(m_test)]);
+    ImGui::LabelFormat("status", "{}", test_status_string[ordinal(m_test)]);
+
     ImGui::BeginDisabled(any_equal(m_test, test_status::being_processed));
     if (ImGui::Button("test")) {
         // app.start_hsm_test_start();
     }
-
     ImGui::EndDisabled();
 }
 
