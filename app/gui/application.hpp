@@ -440,10 +440,35 @@ private:
 
 struct generic_simulation_editor {
 
+    struct link {
+        model_id out;
+        model_id in;
+        int      port_out;
+        int      port_in;
+    };
+
+    struct geometry_attribute {
+        ImVec2 pos;
+        ImVec2 size;
+        u32    color;
+    };
+
     ImNodesEditorContext* context = nullptr;
 
-    ImVector<int> selected_links;
-    ImVector<int> selected_nodes;
+    ImVec2 scrolling = ImVec2(0.0f, 0.0f);
+
+    float  NODE_SLOT_RADIUS = 4.0f;
+    ImVec2 NODE_WINDOW_PADDING{ 8.0f, 8.0f };
+    ImU32  GRID_COLOR = IM_COL32(200, 200, 200, 40);
+    float  GRID_SZ    = 64.0f;
+    bool   show_grid  = true;
+
+    vector<geometry_attribute> g_attributes;
+
+    vector<model_id> nodes_selected;
+    vector<link>     links_selected;
+
+    void display() noexcept;
 
     bool show_observations(tree_node&         tn,
                            component&         compo,

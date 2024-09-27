@@ -845,7 +845,8 @@ public:
 
     constexpr reference push_back(const T& args) noexcept;
 
-    constexpr int find(const T& t) const noexcept;
+    constexpr int  find(const T& t) const noexcept;
+    constexpr bool exists(const T& t) const noexcept;
 
     constexpr void pop_back() noexcept;
     constexpr void swap_pop_back(std::integral auto index) noexcept;
@@ -3638,6 +3639,16 @@ inline constexpr int vector<T, A>::find(const T& t) const noexcept
             return i;
 
     return m_size;
+}
+
+template<typename T, typename A>
+inline constexpr bool vector<T, A>::exists(const T& t) const noexcept
+{
+    for (auto i = 0, e = ssize(); i != e; ++i)
+        if (m_data[i] == t)
+            return true;
+
+    return false;
 }
 
 template<typename T, typename A>

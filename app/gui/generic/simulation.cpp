@@ -1370,6 +1370,281 @@ static void show_connections(simulation& sim, tree_node& tn) noexcept
     }
 }
 
+inline ImVec2 get_input_slot_pos(const ImVec2& pos,
+                                 const ImVec2& size,
+                                 const int     slot_count,
+                                 const int     slot_no) noexcept
+{
+    return ImVec2(pos.x,
+                  pos.y + size.y * static_cast<float>(slot_no + 1) /
+                            static_cast<float>(slot_count + 1));
+}
+
+inline ImVec2 get_output_slot_pos(const ImVec2& pos,
+                                  const ImVec2& size,
+                                  const int     slot_count,
+                                  int           slot_no) noexcept
+{
+    return ImVec2(pos.x + size.x,
+                  pos.y + size.y * static_cast<float>(slot_no + 1) /
+                            static_cast<float>(slot_count + 1));
+}
+
+void generic_simulation_editor::display() noexcept
+{
+    auto& sim_ed = container_of(this, &simulation_editor::generic_sim);
+    auto& app    = container_of(&sim_ed, &application::simulation_ed);
+
+    ImGuiIO& io                    = ImGui::GetIO();
+    bool     open_context_menu     = false;
+    model_id node_hovered_in_list  = undefined<model_id>();
+    model_id node_hovered_in_scene = undefined<model_id>();
+
+    ImGui::BeginGroup();
+
+    ImGui::Text("Hold middle mouse button to scroll (%.2f,%.2f)",
+                scrolling.x,
+                scrolling.y);
+    ImGui::SameLine(ImGui::GetWindowWidth() - 100);
+    ImGui::Checkbox("Show grid", &show_grid);
+    ImGui::PushStyleVar(ImGuiStyleVar_FramePadding, ImVec2(1, 1));
+
+    {
+        ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(0, 0));
+        ImGui::PushStyleColor(ImGuiCol_ChildBg, IM_COL32(60, 60, 70, 200));
+        ImGui::BeginChild("scrolling_region",
+                          ImVec2(0, 0),
+                          true,
+                          ImGuiWindowFlags_NoScrollbar |
+                            ImGuiWindowFlags_NoMove);
+        ImGui::PopStyleVar(); // WindowPadding
+    }
+
+    ImGui::PushItemWidth(120.0f);
+
+    const ImVec2 offset    = ImGui::GetCursorScreenPos() + scrolling;
+    ImDrawList*  draw_list = ImGui::GetWindowDrawList();
+
+    // Display grid
+    if (show_grid) {
+        ImVec2 win_pos   = ImGui::GetCursorScreenPos();
+        ImVec2 canvas_sz = ImGui::GetWindowSize();
+        for (float x = fmodf(scrolling.x, GRID_SZ); x < canvas_sz.x;
+             x += GRID_SZ)
+            draw_list->AddLine(ImVec2(x, 0.0f) + win_pos,
+                               ImVec2(x, canvas_sz.y) + win_pos,
+                               GRID_COLOR);
+        for (float y = fmodf(scrolling.y, GRID_SZ); y < canvas_sz.y;
+             y += GRID_SZ)
+            draw_list->AddLine(ImVec2(0.0f, y) + win_pos,
+                               ImVec2(canvas_sz.x, y) + win_pos,
+                               GRID_COLOR);
+    }
+
+    // Display links
+    draw_list->ChannelsSplit(2);
+    draw_list->ChannelsSetCurrent(0); // Background
+
+    // Display nodes
+    for (auto& mdl : app.sim.models) {
+        const auto id  = app.sim.models.get_id(mdl);
+        const auto idx = get_index(id);
+
+        ImGui::PushID(&mdl);
+        dispatch(mdl, [&]<typename Dynamics>(Dynamics& dyn) noexcept {
+            ImVec2 node_rect_min = offset + g_attributes[idx].pos;
+
+            draw_list->ChannelsSetCurrent(1); // Foreground
+            bool old_any_active = ImGui::IsAnyItemActive();
+            ImGui::SetCursorScreenPos(node_rect_min + NODE_WINDOW_PADDING);
+            ImGui::BeginGroup(); // Lock horizontal position
+
+            ImGui::TextUnformatted(dynamics_type_names[ordinal(mdl.type)]);
+
+            // add_input_attribute(ed, dyn);
+            // if (ed.show_internal_values) {
+            //     ImGui::PushID(0);
+            //     ImGui::PushItemWidth(120.0f);
+            //     show_dynamics_values(app.sim, dyn);
+            //     ImGui::PopItemWidth();
+            //     ImGui::PopID();
+            // }
+
+            // if (ed.allow_user_changes) {
+            //     auto& app = container_of(&ed, &application::simulation_ed);
+            //     ImGui::PushID(1);
+            //     ImGui::PushItemWidth(120.0f);
+            show_dynamics_inputs(app.sim, dyn);
+            // ImGui::PopItemWidth();
+            // ImGui::PopID();
+
+            // add_output_attribute(ed, dyn);
+
+            ImGui::EndGroup();
+
+            // Save the size of what we have emitted and whether any of the
+            // widgets are being used
+            bool node_widgets_active =
+              (!old_any_active && ImGui::IsAnyItemActive());
+            g_attributes[idx].size = ImGui::GetItemRectSize() +
+                                     NODE_WINDOW_PADDING + NODE_WINDOW_PADDING;
+            ImVec2 node_rect_max = node_rect_min + g_attributes[idx].size;
+
+            // Display node box
+            draw_list->ChannelsSetCurrent(0); // Background
+            ImGui::SetCursorScreenPos(node_rect_min);
+            ImGui::InvisibleButton("node", g_attributes[idx].size);
+            if (ImGui::IsItemHovered()) {
+                node_hovered_in_scene = id;
+                open_context_menu |= ImGui::IsMouseClicked(1);
+            }
+            bool node_moving_active = ImGui::IsItemActive();
+            if (node_widgets_active || node_moving_active) {
+                nodes_selected.clear();
+                nodes_selected.emplace_back(id);
+            }
+
+            if (node_moving_active &&
+                ImGui::IsMouseDragging(ImGuiMouseButton_Left))
+                g_attributes[idx].pos += io.MouseDelta;
+
+            ImU32 node_bg_color =
+              (node_hovered_in_list == id || node_hovered_in_scene == id ||
+               (is_undefined(node_hovered_in_list) &&
+                nodes_selected.exists(id)))
+                ? IM_COL32(75, 75, 75, 255)
+                : IM_COL32(60, 60, 60, 255);
+
+            draw_list->AddRectFilled(
+              node_rect_min, node_rect_max, node_bg_color, 4.0f);
+            draw_list->AddRect(
+              node_rect_min, node_rect_max, IM_COL32(100, 100, 100, 255), 4.0f);
+
+            if constexpr (has_input_port<Dynamics>) {
+                for (int i = 0, e = length(dyn.x); i != e; ++i) {
+                    draw_list->AddCircleFilled(
+                      offset +
+                        get_input_slot_pos(
+                          g_attributes[idx].pos, g_attributes[idx].size, e, i),
+                      NODE_SLOT_RADIUS,
+                      IM_COL32(150, 150, 150, 150));
+                }
+            }
+
+            if constexpr (has_output_port<Dynamics>) {
+                for (int i = 0, e = length(dyn.y); i != e; ++i) {
+                    draw_list->AddCircleFilled(
+                      offset +
+                        get_output_slot_pos(
+                          g_attributes[idx].pos, g_attributes[idx].size, e, i),
+                      NODE_SLOT_RADIUS,
+                      IM_COL32(150, 150, 150, 150));
+
+                    if (auto* list = app.sim.nodes.try_to_get(dyn.y[i]); list) {
+                        auto it = list->begin();
+                        auto et = list->end();
+
+                        while (it != et) {
+                            if (auto* mdl_dst =
+                                  app.sim.models.try_to_get(it->model);
+                                mdl_dst) {
+                                const auto dst_id =
+                                  app.sim.models.get_id(*mdl_dst);
+                                const auto dst_idx = get_index(dst_id);
+
+                                const auto p1 =
+                                  offset +
+                                  get_output_slot_pos(
+                                    g_attributes[dst_idx].pos,
+                                    g_attributes[dst_idx].size,
+                                    mdl_dst.x.port, // @TODO get dynamics
+                                    it->port_index);
+
+                                const auto p2 =
+                                  offset +
+                                  get_input_slot_pos(g_attributes[idx].pos,
+                                                     g_attributes[idx].size,
+                                                     e,
+                                                     i);
+
+                                draw_list->AddBezierCubic(
+                                  p1,
+                                  p1 + ImVec2(+50, 0),
+                                  p2 + ImVec2(-50, 0),
+                                  p2,
+                                  IM_COL32(200, 200, 100, 255),
+                                  3.0f);
+                            } else {
+                                it = list->erase(it);
+                            }
+                        }
+                    }
+                }
+            }
+        });
+        ImGui::PopID();
+    }
+
+    draw_list->ChannelsMerge();
+
+    // Open context menu
+    if (ImGui::IsMouseReleased(ImGuiMouseButton_Right))
+        if (ImGui::IsWindowHovered(ImGuiHoveredFlags_AllowWhenBlockedByPopup) ||
+            !ImGui::IsAnyItemHovered()) {
+            node_selected = node_hovered_in_list = node_hovered_in_scene = -1;
+            open_context_menu                                            = true;
+        }
+    if (open_context_menu) {
+        ImGui::OpenPopup("context_menu");
+        if (node_hovered_in_list != -1)
+            node_selected = node_hovered_in_list;
+        if (node_hovered_in_scene != -1)
+            node_selected = node_hovered_in_scene;
+    }
+
+    // Draw context menu
+    ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(8, 8));
+    if (ImGui::BeginPopup("context_menu")) {
+        Node*  node      = node_selected != -1 ? &nodes[node_selected] : NULL;
+        ImVec2 scene_pos = ImGui::GetMousePosOnOpeningCurrentPopup() - offset;
+        if (node) {
+            ImGui::Text("Node '%s'", node->Name);
+            ImGui::Separator();
+            if (ImGui::MenuItem("Rename..", NULL, false, false)) {
+            }
+            if (ImGui::MenuItem("Delete", NULL, false, false)) {
+            }
+            if (ImGui::MenuItem("Copy", NULL, false, false)) {
+            }
+        } else {
+            if (ImGui::MenuItem("Add")) {
+                nodes.push_back(Node(nodes.Size,
+                                     "New node",
+                                     scene_pos,
+                                     0.5f,
+                                     ImColor(100, 100, 200),
+                                     2,
+                                     2));
+            }
+            if (ImGui::MenuItem("Paste", NULL, false, false)) {
+            }
+        }
+        ImGui::EndPopup();
+    }
+    ImGui::PopStyleVar();
+
+    // Scrolling
+    if (ImGui::IsWindowHovered() && !ImGui::IsAnyItemActive() &&
+        ImGui::IsMouseDragging(ImGuiMouseButton_Middle, 0.0f))
+        scrolling = scrolling + io.MouseDelta;
+
+    ImGui::PopItemWidth();
+    ImGui::EndChild();
+    ImGui::PopStyleColor();
+    ImGui::PopStyleVar();
+    ImGui::EndGroup();
+}
+
 bool generic_simulation_editor::show_observations(
   tree_node& tn,
   component& /*compo*/,
