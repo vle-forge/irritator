@@ -35,21 +35,57 @@ static const std::string_view test_status_string[] = { "none",
                                                        "done",
                                                        "failed" };
 
-/** Display a combobox for input port 1, 2, 3 and 4, variables i1, i2, r1, r1,
- * timer and constants i and r. */
-template<typename Action>
-static void show_ports_variables_constants_combobox(hsm_t::variable& act,
-                                                    Action&          a) noexcept
+/* Display a combobox for input port 1, 2, 3 and 4, variables i1, i2, r1, r1,
+ * timer but not integer and real constants */
+static void show_ports_variables_combobox(hsm_t::variable& act) noexcept
 {
     ImGui::PushID(&act);
 
-    auto var = static_cast<int>(act);
-    debug::ensure(0 <= var and var < hsm_t::variable_count);
+    constexpr auto p0    = (int)ordinal(hsm_t::variable::port_0);
+    constexpr auto pn    = (int)ordinal(hsm_t::variable::var_timer);
+    constexpr auto nb    = pn - p0 + 1;
+    auto           p_act = (int)ordinal(act);
 
+    if (not(p0 <= p_act and p_act <= pn)) {
+        act   = enum_cast<hsm_t::variable>(hsm_t::variable::var_i1);
+        p_act = p0;
+    }
+
+    p_act -= p0;
     ImGui::PushItemWidth(-1);
-    if (ImGui::Combo("##var", &var, variable_names, length(variable_names))) {
-        debug::ensure(0 <= var and var < hsm_t::variable_count);
-        act = enum_cast<hsm_t::variable>(var);
+    if (ImGui::Combo("##var", &p_act, variable_names + p0, nb)) {
+        debug::ensure(0 <= p_act && p_act < nb);
+        act = enum_cast<hsm_t::variable>(p_act + p0);
+    }
+
+    ImGui::PopItemWidth();
+    ImGui::PopID();
+}
+
+/* Display a combobox for input port 1, 2, 3 and 4, variables i1, i2, r1, r1,
+ * timer and integer and real constants. */
+template<typename ConditionOrAction>
+static void show_ports_variables_constants_combobox(
+  hsm_t::variable&   act,
+  ConditionOrAction& a) noexcept
+{
+    ImGui::PushID(&act);
+
+    constexpr auto p0    = (int)ordinal(hsm_t::variable::port_0);
+    constexpr auto pn    = (int)ordinal(hsm_t::variable::constant_r);
+    constexpr auto nb    = pn - p0 + 1;
+    auto           p_act = (int)ordinal(act);
+
+    if (not(p0 <= p_act and p_act <= pn)) {
+        act   = enum_cast<hsm_t::variable>(hsm_t::variable::var_i1);
+        p_act = p0;
+    }
+
+    p_act -= p0;
+    ImGui::PushItemWidth(-1);
+    if (ImGui::Combo("##var", &p_act, variable_names + p0, nb)) {
+        debug::ensure(0 <= p_act && p_act < nb);
+        act = enum_cast<hsm_t::variable>(p_act + p0);
     }
 
     if (act == hsm_t::variable::constant_i) {
@@ -68,7 +104,7 @@ static void show_ports_variables_constants_combobox(hsm_t::variable& act,
     ImGui::PopID();
 }
 
-/** Display a combobox for variables i1, i2, r1, r1 and timer. */
+/* Display a combobox only for variables i1, i2, r1, r1, timer. */
 static void show_variables_combobox(hsm_t::variable& act) noexcept
 {
     ImGui::PushID(&act);
@@ -94,8 +130,7 @@ static void show_variables_combobox(hsm_t::variable& act) noexcept
     ImGui::PopID();
 }
 
-/** Display a combobox for variables i1, i2, r1, r1, timer and constants i and
- * r. */
+/* Display a combobox for variables i1, i2, r1, r1, timer but for ports. */
 static void show_variables_and_constants_combobox(
   hsm_t::variable&     act,
   hsm_t::state_action& p) noexcept
@@ -454,38 +489,38 @@ static void show_state_condition(hsm_t::condition_action& condition) noexcept
         break;
     case hsm_t::condition_type::equal_to:
         ImGui::PushItemWidth(-1);
-        show_variables_combobox(condition.var1);
-        show_variables_combobox(condition.var2);
+        show_ports_variables_combobox(condition.var1);
+        show_ports_variables_constants_combobox(condition.var2, condition);
         ImGui::PopItemWidth();
         break;
     case hsm_t::condition_type::not_equal_to:
         ImGui::PushItemWidth(-1);
-        show_variables_combobox(condition.var1);
-        show_variables_combobox(condition.var2);
+        show_ports_variables_combobox(condition.var1);
+        show_ports_variables_constants_combobox(condition.var2, condition);
         ImGui::PopItemWidth();
         break;
     case hsm_t::condition_type::greater:
         ImGui::PushItemWidth(-1);
-        show_variables_combobox(condition.var1);
-        show_variables_combobox(condition.var2);
+        show_ports_variables_combobox(condition.var1);
+        show_ports_variables_constants_combobox(condition.var2, condition);
         ImGui::PopItemWidth();
         break;
     case hsm_t::condition_type::greater_equal:
         ImGui::PushItemWidth(-1);
-        show_variables_combobox(condition.var1);
-        show_variables_combobox(condition.var2);
+        show_ports_variables_combobox(condition.var1);
+        show_ports_variables_constants_combobox(condition.var2, condition);
         ImGui::PopItemWidth();
         break;
     case hsm_t::condition_type::less:
         ImGui::PushItemWidth(-1);
-        show_variables_combobox(condition.var1);
-        show_variables_combobox(condition.var2);
+        show_ports_variables_combobox(condition.var1);
+        show_ports_variables_constants_combobox(condition.var2, condition);
         ImGui::PopItemWidth();
         break;
     case hsm_t::condition_type::less_equal:
         ImGui::PushItemWidth(-1);
-        show_variables_combobox(condition.var1);
-        show_variables_combobox(condition.var2);
+        show_ports_variables_combobox(condition.var1);
+        show_ports_variables_constants_combobox(condition.var2, condition);
         ImGui::PopItemWidth();
         break;
     }
