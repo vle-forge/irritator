@@ -3685,11 +3685,6 @@ public:
         }
     };
 
-    struct output_message {
-        real value{};
-        u8   port{};
-    };
-
     struct execution {
         i32                 i1    = 0;
         i32                 i2    = 0;
@@ -3697,7 +3692,11 @@ public:
         real                r2    = 0.0;
         time                timer = time_domain<time>::infinity;
         std::array<real, 4> ports; //<! Stores first part of input message.
-        small_vector<output_message, 4> outputs;
+
+        std::array<real, 4> message_values;
+        std::array<u8, 4>   message_ports;
+        int                 messages = 0;
+
         std::bitset<4> values; //<! Bit storage message available on X port.
 
         state_id current_state        = invalid_state_id;
@@ -3706,6 +3705,21 @@ public:
         state_id current_source_state = invalid_state_id;
         state_id previous_state       = invalid_state_id;
         bool     disallow_transition  = false;
+
+        constexpr void push_message(real               value,
+                                    std::integral auto port) noexcept
+        {
+            debug::ensure(not(messages >= 4 or std::cmp_less(port, 0) or
+                              std::cmp_greater(port, 4)));
+
+            if (messages >= 4 or std::cmp_less(port, 0) or
+                std::cmp_greater(port, 4))
+                return;
+
+            message_values[messages] = value;
+            message_ports[messages]  = port;
+            ++messages;
+        }
 
         void clear() noexcept
         {
@@ -3725,7 +3739,7 @@ public:
             previous_state       = invalid_state_id;
             disallow_transition  = false;
 
-            outputs.clear();
+            messages = 0;
         }
     };
 
@@ -6110,7 +6124,7 @@ inline status hsm_wrapper::initialize(simulation& sim) noexcept
         }
     }
 
-    if (not exec.outputs.empty())
+    if (exec.messages > 0)
         sigma = time_domain<time>::zero;
 
     return success();
@@ -6135,7 +6149,7 @@ inline status hsm_wrapper::transition(simulation& sim,
         }
     }
 
-    exec.outputs.clear();
+    exec.messages = 0;
 
     const auto wait_timer =
       machine->states[exec.current_state].condition.type ==
@@ -6183,7 +6197,7 @@ inline status hsm_wrapper::transition(simulation& sim,
         }
     }
 
-    if (not exec.outputs.empty())
+    if (exec.messages > 0)
         sigma = time_domain<time>::zero;
 
     return success();
@@ -6191,12 +6205,9 @@ inline status hsm_wrapper::transition(simulation& sim,
 
 inline status hsm_wrapper::lambda(simulation& sim) noexcept
 {
-    if (not exec.outputs.empty()) {
-        for (int i = 0, e = exec.outputs.ssize(); i != e; ++i) {
-            irt_check(send_message(
-              sim, y[exec.outputs[i].port], exec.outputs[i].value));
-        }
-    }
+    for (auto i = 0; i < exec.messages; ++i)
+        irt_check(
+          send_message(sim, y[exec.message_ports[i]], exec.message_values[i]));
 
     return success();
 }

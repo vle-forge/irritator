@@ -539,8 +539,8 @@ struct json_dearchiver::impl {
 
     template<size_t N, typename Function>
     bool for_members(const rapidjson::Value& val,
-                     const std::string_view  (&names)[N],
-                     Function&&              fn) noexcept
+                     const std::string_view (&names)[N],
+                     Function&& fn) noexcept
     {
         if (!val.IsObject())
             report_json_error(error_id::value_not_object);
@@ -1914,35 +1914,6 @@ struct json_dearchiver::impl {
         return for_each_array(
           val, [&](const auto /*i*/, const auto& value) noexcept -> bool {
               return read_hsm_state(value, states);
-          });
-    }
-
-    bool read_hsm_outputs(
-      const rapidjson::Value& val,
-      small_vector<hierarchical_state_machine::output_message, 4>&
-        outputs) noexcept
-    {
-        auto_stack a(this, stack_id::dynamics_hsm_outputs);
-
-        return for_each_array(
-          val, [&](const auto i, const auto& value) noexcept -> bool {
-              auto_stack a(this, stack_id::dynamics_hsm_output);
-
-              return for_each_member(
-                value,
-                [&](const auto name, const auto& value) noexcept -> bool {
-                    if ("port"sv == name)
-                        return read_temp_integer(value) &&
-                               is_int_greater_equal_than(0) &&
-                               is_int_less_than(UINT8_MAX) &&
-                               copy_to(outputs[i].port);
-
-                    if ("value"sv == name)
-                        return read_temp_integer(value) &&
-                               copy_to(outputs[i].value);
-
-                    report_json_error(error_id::unknown_element);
-                });
           });
     }
 

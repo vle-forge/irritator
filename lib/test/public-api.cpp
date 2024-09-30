@@ -1903,14 +1903,14 @@ int main()
         expect((int)exec.current_state == 1);
         exec.values = 0b00000011;
 
-        expect(exec.outputs.ssize() == 0);
+        expect(eq(exec.messages, 0));
 
         const auto processed = hsmw.dispatch(
           irt::hierarchical_state_machine::event_type::input_changed, exec);
         expect(!!processed);
         expect(processed.value() == true);
 
-        expect(exec.outputs.ssize() == 1);
+        expect(eq(exec.messages, 1));
     };
 
     "hsm_automata_timer"_test = [] {
@@ -1942,7 +1942,7 @@ int main()
         expect((int)exec.current_state == 1);
         exec.values = 0b00000011;
 
-        expect(exec.outputs.ssize() == 0);
+        expect(eq(exec.messages, 0));
 
         const auto processed = hsmw.dispatch(
           irt::hierarchical_state_machine::event_type::input_changed, exec);
@@ -1950,7 +1950,7 @@ int main()
         expect(processed.value() == true);
         expect((int)exec.current_state == 2);
 
-        expect(exec.outputs.ssize() == 1);
+        expect(eq(exec.messages, 1));
     };
 
     "hsm_simulation"_test = [] {

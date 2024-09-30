@@ -1004,45 +1004,50 @@ void hierarchical_state_machine::affect_action(const state_action& action,
         break;
 
     case action_type::output: {
+        // @TODO May returns a buffer full.
+        debug::ensure(0 <= e.messages and e.messages < 4);
         debug::ensure(1 <= ordinal(action.var1) and ordinal(action.var1) <= 4);
+
         const u8 port = ordinal(action.var1) - 1u;
 
         switch (action.var2) {
         case variable::none:
-        case variable::port_0:
-        case variable::port_1:
-        case variable::port_2:
-        case variable::port_3:
             irt::unreachable();
             break;
 
+        case variable::port_0:
+            e.push_message(e.ports[0], port);
+            break;
+        case variable::port_1:
+            e.push_message(e.ports[1], port);
+            break;
+        case variable::port_2:
+            e.push_message(e.ports[2], port);
+            break;
+        case variable::port_3:
+            e.push_message(e.ports[3], port);
+            break;
+
         case variable::var_i1:
-            e.outputs.emplace_back(hierarchical_state_machine::output_message{
-              .value = static_cast<real>(e.i1), .port = port });
+            e.push_message(static_cast<real>(e.i1), port);
             break;
         case variable::var_i2:
-            e.outputs.emplace_back(hierarchical_state_machine::output_message{
-              .value = static_cast<real>(e.i2), .port = port });
+            e.push_message(static_cast<real>(e.i2), port);
             break;
         case variable::var_r1:
-            e.outputs.emplace_back(hierarchical_state_machine::output_message{
-              .value = e.r1, .port = port });
+            e.push_message(e.r1, port);
             break;
         case variable::var_r2:
-            e.outputs.emplace_back(hierarchical_state_machine::output_message{
-              .value = e.r2, .port = port });
+            e.push_message(e.r2, port);
             break;
         case variable::var_timer:
-            e.outputs.emplace_back(hierarchical_state_machine::output_message{
-              .value = e.timer, .port = port });
+            e.push_message(e.timer, port);
             break;
         case variable::constant_i:
-            e.outputs.emplace_back(hierarchical_state_machine::output_message{
-              .value = static_cast<real>(action.constant.i), .port = port });
+            e.push_message(static_cast<real>(action.constant.i), port);
             break;
         case variable::constant_r:
-            e.outputs.emplace_back(hierarchical_state_machine::output_message{
-              .value = action.constant.f, .port = port });
+            e.push_message(action.constant.f, port);
             break;
         }
     } break;
