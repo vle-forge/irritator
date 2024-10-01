@@ -445,18 +445,12 @@ static void application_show_windows(application& app) noexcept
     }
 
     if (app.component_ed.is_open)
-        // if (std::unique_lock l(app.component_ed.mutex, std::try_to_lock);
-        //     l.owns_lock())
-        app.component_ed.show();
+        app.component_ed.display();
 
     if (app.simulation_ed.is_open)
-        // if (std::unique_lock l(app.simulation_ed.mutex, std::try_to_lock);
-        //     l.owns_lock())
         app.simulation_ed.show();
 
     if (app.output_ed.is_open)
-        // if (std::unique_lock l(app.output_ed.mutex, std::try_to_lock);
-        //     l.owns_lock())
         app.output_ed.show();
 
     if (app.data_ed.is_open)
@@ -466,8 +460,6 @@ static void application_show_windows(application& app) noexcept
         app.log_wnd.show();
 
     if (app.library_wnd.is_open)
-        // if (std::unique_lock l(app.library_wnd.mutex, std::try_to_lock);
-        //     l.owns_lock())
         app.library_wnd.show();
 }
 
@@ -600,8 +592,8 @@ static void show_select_model_box_recursive(application&   app,
         show_select_model_box_recursive(app, *sibling, access);
 }
 
-auto build_unique_component_vector(application& app,
-                                   tree_node&   tn) -> vector<component_id>
+auto build_unique_component_vector(application& app, tree_node& tn)
+  -> vector<component_id>
 {
     vector<component_id> ret;
     vector<tree_node*>   stack;

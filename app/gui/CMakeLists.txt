@@ -1,7 +1,7 @@
 cmake_minimum_required(VERSION 3.5 FATAL_ERROR)
 project(irritator-gui VERSION 0.1.0.0 LANGUAGES CXX)
 
-set(gui_sources application.cpp application.hpp component.cpp
+set(gui_sources application.cpp application.hpp
     component-editor.cpp component-model-selector.cpp component-selector.cpp
     data-window.cpp dialog.cpp dialog.hpp editor.cpp editor.hpp imnodes.cpp
     imnodes.h imnodes_internal.h implot.cpp implot.h implot_demo.cpp

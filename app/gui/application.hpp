@@ -734,9 +734,8 @@ class component_editor
 public:
     constexpr static inline const char* name = "Component editor";
 
-    void show() noexcept;
-    void add_generic_component() noexcept;
-    void add_grid_component() noexcept;
+    /** Draw the editor into a ImGui::Begin/ImGui::End window. */
+    void display() noexcept;
 
     void request_to_open(const component_id id) noexcept;
     bool need_to_open(const component_id id) const noexcept;
@@ -747,7 +746,12 @@ public:
     bool             is_open = true;
 
 private:
-    component_id m_request_to_open = undefined<component_id>();
+    struct impl;
+
+    enum { tabitem_open_save, tabitem_open_in_out };
+
+    std::bitset<2> tabitem_open;
+    component_id   m_request_to_open = undefined<component_id>();
 };
 
 class library_window

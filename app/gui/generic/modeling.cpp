@@ -448,7 +448,7 @@ static void show_graph_node(application&     app,
     ImNodes::PopColorStyle();
 }
 
-static void update_editor_position(const child_id        id,
+static void update_editor_position(const child_id  id,
                                    const position& pos) noexcept
 {
     ImNodes::SetNodeScreenSpacePos(pack_node_child(id), ImVec2(pos.x, pos.y));
@@ -1438,6 +1438,9 @@ bool generic_component_editor_data::need_show_selected_nodes(
 
 void generic_component_editor_data::clear_selected_nodes() noexcept
 {
+    ImNodes::ClearNodeSelection();
+    ImNodes::ClearLinkSelection();
+
     selected_links.clear();
     selected_nodes.clear();
 }
