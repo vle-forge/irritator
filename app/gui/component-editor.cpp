@@ -331,8 +331,10 @@ struct component_editor::impl {
             ImGui::TableSetColumnIndex(0);
 
             auto copy_name = compo.name;
-            if (ImGui::InputFilteredString("Name", copy_name))
+            if (ImGui::InputFilteredString("Name", copy_name)) {
+                ed.request_to_open(app.mod.components.get_id(compo));
                 compo.name = copy_name;
+            }
 
             if (ImGui::BeginTabBar("Settings", ImGuiTabBarFlags_None)) {
                 if (ImGui::BeginTabItem("Save")) {
