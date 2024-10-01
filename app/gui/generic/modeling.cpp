@@ -1144,17 +1144,38 @@ static void is_link_created(application& app,
     }
 }
 
+static void delete_link(component&         compo,
+                        generic_component& gen,
+                        int                link_id) noexcept
+{
+    if (link_id >= 8192) {
+        const auto id = static_cast<u32>(link_id - 8192);
+        if (auto* con = gen.output_connections.try_to_get(id); con) {
+            gen.output_connections.free(*con);
+            compo.state = component_status::modified;
+        }
+    } else if (link_id >= 4096) {
+        const auto id = static_cast<u32>(link_id - 4096);
+        if (auto* con = gen.input_connections.try_to_get(id); con) {
+            gen.input_connections.free(*con);
+            compo.state = component_status::modified;
+        }
+    } else {
+        const auto id = static_cast<u32>(link_id);
+        if (auto* con = gen.connections.try_to_get(id); con) {
+            gen.connections.free(*con);
+            compo.state = component_status::modified;
+        }
+    }
+}
+
 static void is_link_destroyed(component&         parent,
                               generic_component& s_parent) noexcept
 {
     int link_id;
-    if (ImNodes::IsLinkDestroyed(&link_id)) {
-        const auto link_id_correct = static_cast<u32>(link_id);
-        if (auto* con = s_parent.connections.try_to_get(link_id_correct); con) {
-            s_parent.connections.free(*con);
-            parent.state = component_status::modified;
-        }
-    }
+
+    if (ImNodes::IsLinkDestroyed(&link_id))
+        delete_link(parent, s_parent, link_id);
 }
 
 static void remove_nodes(modeling&                      mod,
@@ -1192,14 +1213,8 @@ static void remove_links(generic_component_editor_data& data,
               data.selected_links.end(),
               std::greater<int>());
 
-    for (i32 i = 0, e = data.selected_links.size(); i != e; ++i) {
-        const auto link_id = static_cast<u32>(data.selected_links[i]);
-
-        if (auto* con = s_parent.connections.try_to_get(link_id); con) {
-            s_parent.connections.free(*con);
-            parent.state = component_status::modified;
-        }
-    }
+    for (i32 i = 0, e = data.selected_links.size(); i != e; ++i)
+        delete_link(parent, s_parent, data.selected_links[i]);
 
     data.selected_links.clear();
     ImNodes::ClearLinkSelection();
