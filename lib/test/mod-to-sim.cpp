@@ -417,6 +417,50 @@ int main()
         }
     };
 
+    "hsm"_test = [] {
+        irt::modeling_initializer mod_init;
+        irt::project              pj;
+        irt::modeling             mod;
+
+        expect(!!mod.init(mod_init)) << fatal;
+        expect(!!pj.init(mod_init)) << fatal;
+
+        expect(mod.hsm_components.can_alloc(1)) << fatal;
+        expect(mod.components.can_alloc(1)) << fatal;
+
+        auto& compo = mod.alloc_hsm_component();
+        auto& hsmw  = mod.hsm_components.get(compo.id.hsm_id);
+
+        expect(!!hsmw.machine.set_state(
+          0u, irt::hierarchical_state_machine::invalid_state_id, 1u));
+
+        expect(!!hsmw.machine.set_state(1u, 0u));
+        hsmw.machine.states[1u].condition.set(0b0011u, 0b0011u);
+        hsmw.machine.states[1u].if_transition = 2u;
+
+        expect(!!hsmw.machine.set_state(2u, 0u));
+        hsmw.machine.states[2u].enter_action.set_output(
+          irt::hierarchical_state_machine::variable::port_0, 1.0f);
+
+        irt::simulation sim(1024 * 1024 * 8);
+
+        expect(!!mod.init(mod_init));
+        expect(!!pj.init(mod_init));
+
+        expect(!!pj.set(mod, sim, compo));
+
+        sim.t = 0.0;
+        expect(!!sim.srcs.prepare());
+        expect(!!sim.initialize());
+
+        irt::status st;
+
+        do {
+            st = sim.run();
+            expect(!!st);
+        } while (sim.t < 10);
+    };
+
     "internal_component_io"_test = [] {
         irt::modeling_initializer mod_init;
 

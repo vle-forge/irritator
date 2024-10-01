@@ -5296,17 +5296,18 @@ constexpr typename heap<A>::handle heap<A>::pop() noexcept
 
     m_size--;
 
+    const auto old_root = root;
+
     if (nodes[root].child == invalid_heap_handle) {
         root = invalid_heap_handle;
-        return root;
     } else {
-        const auto top   = root;
-        root             = merge_subheaps(top);
-        nodes[top].child = invalid_heap_handle;
-        nodes[top].next  = invalid_heap_handle;
-        nodes[top].prev  = invalid_heap_handle;
-        return top;
+        root                  = merge_subheaps(old_root);
+        nodes[old_root].child = invalid_heap_handle;
+        nodes[old_root].next  = invalid_heap_handle;
+        nodes[old_root].prev  = invalid_heap_handle;
     }
+
+    return old_root;
 }
 
 template<typename A>
