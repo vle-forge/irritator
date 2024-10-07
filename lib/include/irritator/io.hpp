@@ -15,6 +15,14 @@
 
 namespace irt {
 
+template<int Size>
+std::istream& operator>>(std::istream& is, small_string<Size>& s)
+{
+    is >> s.m_buffer;
+
+    return is;
+}
+
 static inline constexpr const std::string_view log_level_names[] = {
     "emergency", "alert",  "critical", "error",
     "warning",   "notice", "info",     "debug",

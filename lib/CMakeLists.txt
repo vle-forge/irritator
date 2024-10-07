@@ -10,6 +10,7 @@ set(public_irritator_header
     include/irritator/ext.hpp
     include/irritator/file.hpp
     include/irritator/format.hpp
+    include/irritator/global.hpp
     include/irritator/helpers.hpp
     include/irritator/io.hpp
     include/irritator/macros.hpp
@@ -26,6 +27,7 @@ set(private_irritator_sources
     src/error.cpp
     src/external_source.cpp
     src/file.cpp
+    src/global.cpp
     src/graph-observer.cpp
     src/grid-observer.cpp
     src/hsm.cpp
@@ -65,7 +67,11 @@ target_compile_definitions(libirritator PRIVATE
       $<$<BOOL:${WITH_DEBUG}>:IRRITATOR_ENABLE_DEBUG>
       $<$<CXX_COMPILER_ID:MSVC>:_CRT_SECURE_NO_WARNINGS>
       $<$<CXX_COMPILER_ID:MSVC>:_SCL_SECURE_NO_WARNINGS>
-      $<$<CXX_COMPILER_ID:MSVC>:BOOST_UT_DISABLE_MODULE>)
+      $<$<CXX_COMPILER_ID:MSVC>:BOOST_UT_DISABLE_MODULE>
+      VERSION_MAJOR=${PROJECT_VERSION_MAJOR}
+      VERSION_MINOR=${PROJECT_VERSION_MINOR}
+      VERSION_PATCH=${PROJECT_VERSION_PATCH}
+      VERSION_TWEAK=${PROJECT_VERSION_TWEAK})
 
 target_include_directories(libirritator PUBLIC
     ${CMAKE_CURRENT_SOURCE_DIR}/include

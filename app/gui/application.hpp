@@ -7,6 +7,7 @@
 
 #include <irritator/core.hpp>
 #include <irritator/file.hpp>
+#include <irritator/global.hpp>
 #include <irritator/helpers.hpp>
 #include <irritator/modeling.hpp>
 #include <irritator/observation.hpp>
@@ -1004,6 +1005,8 @@ struct application {
     modeling_initializer mod_init;
 
     notification_manager notifications;
+
+    config_manager config;
 
 #ifdef IRRITATOR_USE_TTF
     ImFont* ttf = nullptr;

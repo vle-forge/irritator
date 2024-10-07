@@ -22,6 +22,7 @@ namespace irt {
 application::application() noexcept
   : sim(simulation_memory_requirement(4096, 128))
   , task_mgr{}
+  , config(get_config_home(true))
 {
     settings_wnd.update();
     settings_wnd.apply_default_style();
