@@ -311,9 +311,7 @@ static void show(component_editor& ed,
 
     const auto type = c.id.mdl_type;
 
-    ImNodes::PushColorStyle(
-      ImNodesCol_TitleBar,
-      ImGui::ColorConvertFloat4ToU32(settings.gui_model_color));
+    ImNodes::PushColorStyle(ImNodesCol_TitleBar, settings.gui_model_color);
 
     ImNodes::PushColorStyle(ImNodesCol_TitleBarHovered,
                             settings.gui_hovered_model_color);
@@ -374,9 +372,8 @@ static void show_generic_node(application&       app,
 {
     const auto c_id = s_compo.children.get_id(c);
 
-    ImNodes::PushColorStyle(
-      ImNodesCol_TitleBar,
-      ImGui::ColorConvertFloat4ToU32(app.settings_wnd.gui_component_color));
+    ImNodes::PushColorStyle(ImNodesCol_TitleBar,
+                            app.settings_wnd.gui_component_color);
 
     ImNodes::PushColorStyle(ImNodesCol_TitleBarHovered,
                             app.settings_wnd.gui_hovered_component_color);
@@ -400,9 +397,8 @@ static void show_grid_node(application&     app,
                            grid_component&  grid,
                            child_id         c_id) noexcept
 {
-    ImNodes::PushColorStyle(
-      ImNodesCol_TitleBar,
-      ImGui::ColorConvertFloat4ToU32(app.settings_wnd.gui_component_color));
+    ImNodes::PushColorStyle(ImNodesCol_TitleBar,
+                            app.settings_wnd.gui_component_color);
 
     ImNodes::PushColorStyle(ImNodesCol_TitleBarHovered,
                             app.settings_wnd.gui_hovered_component_color);
@@ -427,9 +423,8 @@ static void show_graph_node(application&     app,
                             graph_component& graph,
                             child_id         c_id) noexcept
 {
-    ImNodes::PushColorStyle(
-      ImNodesCol_TitleBar,
-      ImGui::ColorConvertFloat4ToU32(app.settings_wnd.gui_component_color));
+    ImNodes::PushColorStyle(ImNodesCol_TitleBar,
+                            app.settings_wnd.gui_component_color);
 
     ImNodes::PushColorStyle(ImNodesCol_TitleBarHovered,
                             app.settings_wnd.gui_hovered_component_color);
@@ -548,9 +543,8 @@ static void show_graph(component_editor&              ed,
 
     if (data.show_input_output) {
         parent.x.for_each<port_str>([&](auto id, const auto& name) noexcept {
-            ImNodes::PushColorStyle(
-              ImNodesCol_TitleBar,
-              ImGui::ColorConvertFloat4ToU32(settings.gui_component_color));
+            ImNodes::PushColorStyle(ImNodesCol_TitleBar,
+                                    settings.gui_component_color);
 
             ImNodes::PushColorStyle(ImNodesCol_TitleBarHovered,
                                     settings.gui_hovered_component_color);
@@ -566,9 +560,8 @@ static void show_graph(component_editor&              ed,
         });
 
         parent.y.for_each<port_str>([&](auto id, const auto& name) noexcept {
-            ImNodes::PushColorStyle(
-              ImNodesCol_TitleBar,
-              ImGui::ColorConvertFloat4ToU32(settings.gui_component_color));
+            ImNodes::PushColorStyle(ImNodesCol_TitleBar,
+                                    settings.gui_component_color);
 
             ImNodes::PushColorStyle(ImNodesCol_TitleBarHovered,
                                     settings.gui_hovered_component_color);

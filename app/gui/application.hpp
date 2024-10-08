@@ -814,19 +814,15 @@ struct settings_window {
 
     settings_window() noexcept = default;
 
-    //! @brief Compute selected and hovered colours from gui_model_color and
-    //! gui_component_color.
-    void update() noexcept;
-
     void show() noexcept;
-    void apply_default_style() noexcept;
+    void apply_style(gui_theme_id id) noexcept;
 
-    ImVec4 gui_model_color{ .27f, .27f, .54f, 1.f };
-    ImVec4 gui_component_color{ .54f, .27f, .27f, 1.f };
-    ImU32  gui_hovered_model_color;
-    ImU32  gui_selected_model_color;
-    ImU32  gui_hovered_component_color;
-    ImU32  gui_selected_component_color;
+    u32 gui_model_color;
+    u32 gui_component_color;
+    u32 gui_hovered_model_color;
+    u32 gui_selected_model_color;
+    u32 gui_hovered_component_color;
+    u32 gui_selected_component_color;
 
     int   style_selector                   = 0;
     int   automatic_layout_iteration_limit = 200;

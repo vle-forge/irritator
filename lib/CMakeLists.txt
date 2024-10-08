@@ -26,6 +26,7 @@ set(private_irritator_sources
     src/dot-parser.hpp
     src/error.cpp
     src/external_source.cpp
+    src/filesystem.cpp
     src/file.cpp
     src/global.cpp
     src/graph-observer.cpp

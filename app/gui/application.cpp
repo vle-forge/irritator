@@ -24,8 +24,7 @@ application::application() noexcept
   , task_mgr{}
   , config(get_config_home(true))
 {
-    settings_wnd.update();
-    settings_wnd.apply_default_style();
+    settings_wnd.apply_style(undefined<gui_theme_id>());
 
     log_w(*this, log_level::info, "Irritator start\n");
 
