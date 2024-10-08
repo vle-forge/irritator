@@ -7,24 +7,59 @@
 #include "application.hpp"
 #include "internal.hpp"
 
+#include <imgui.h>
+#include <imnodes.h>
+
 namespace irt {
 
-static ImVec4 operator*(const ImVec4& lhs, const float rhs) noexcept
+constexpr auto to_C(const rgba_color x) noexcept -> int
 {
-    return ImVec4(lhs.x * rhs, lhs.y * rhs, lhs.z * rhs, lhs.w * rhs);
+    return IM_COL32(x.r, x.g, x.b, x.a);
 }
 
-void settings_window::update() noexcept
+constexpr auto to(const rgba_color x) noexcept -> int
 {
-    gui_hovered_model_color =
-      ImGui::ColorConvertFloat4ToU32(gui_model_color * 1.25f);
-    gui_selected_model_color =
-      ImGui::ColorConvertFloat4ToU32(gui_model_color * 1.5f);
+    return IM_COL32(x.r, x.g, x.b, 255);
+}
 
-    gui_hovered_component_color =
-      ImGui::ColorConvertFloat4ToU32(gui_component_color * 1.25f);
-    gui_selected_component_color =
-      ImGui::ColorConvertFloat4ToU32(gui_component_color * 1.5f);
+static auto display_themes_selector(application& app) noexcept -> bool
+{
+    auto theme_id     = undefined<gui_theme_id>();
+    auto old_theme_id = undefined<gui_theme_id>();
+
+    {
+        auto config               = app.config.get();
+        old_theme_id              = config.vars().g_themes.selected;
+        theme_id                  = old_theme_id;
+        const char* previous_name = "-";
+
+        if (config.vars().g_themes.ids.exists(old_theme_id)) {
+            const auto selected_idx = get_index(old_theme_id);
+            previous_name = config.vars().g_themes.names[selected_idx].c_str();
+        } else {
+            theme_id = undefined<gui_theme_id>();
+        }
+
+        if (ImGui::BeginCombo("Choose style", previous_name)) {
+            for (const auto id : config.vars().g_themes.ids) {
+                const auto  idx  = get_index(id);
+                const auto& name = config.vars().g_themes.names[idx];
+
+                if (ImGui::Selectable(name.c_str(), id == theme_id)) {
+                    theme_id = id;
+                }
+            }
+            ImGui::EndCombo();
+        }
+    }
+
+    if (old_theme_id != theme_id) {
+        auto config_rw                     = app.config.get_rw();
+        config_rw.vars().g_themes.selected = theme_id;
+        return true;
+    }
+
+    return false;
 }
 
 void settings_window::show() noexcept
@@ -162,42 +197,8 @@ void settings_window::show() noexcept
     ImGui::Separator();
     ImGui::Text("Graphics");
 
-    if (ImGui::Combo("Style selector",
-                     &style_selector,
-                     "Default\0Dark\0Light\0Classic\0")) {
-        switch (style_selector) {
-        case 0:
-            apply_default_style();
-            break;
-
-        case 1:
-            ImGui::StyleColorsDark();
-            ImNodes::StyleColorsDark();
-            break;
-
-        case 2:
-            ImGui::StyleColorsLight();
-            ImNodes::StyleColorsLight();
-            break;
-
-        case 3:
-            ImGui::StyleColorsClassic();
-            ImNodes::StyleColorsClassic();
-            break;
-
-        default:
-            break;
-        }
-    }
-
-    if (ImGui::ColorEdit3(
-          "model", (float*)&gui_model_color, ImGuiColorEditFlags_NoOptions))
-        update();
-
-    if (ImGui::ColorEdit3("component",
-                          (float*)&gui_component_color,
-                          ImGuiColorEditFlags_NoOptions))
-        update();
+    if (display_themes_selector(app))
+        apply_style(undefined<gui_theme_id>());
 
     ImGui::Separator();
     ImGui::Text("Automatic layout parameters");
@@ -218,63 +219,95 @@ void settings_window::show() noexcept
     ImGui::End();
 }
 
-void settings_window::apply_default_style() noexcept
+void settings_window::apply_style(gui_theme_id id) noexcept
 {
+    auto& app = container_of(this, &application::settings_wnd);
+
+    const auto& config = app.config.get();
+    if (not config.vars().g_themes.ids.exists(id)) {
+        id = config.vars().g_themes.selected;
+
+        if (not config.vars().g_themes.ids.exists(id)) {
+            debug::ensure(config.vars().g_themes.ids.size() > 0);
+
+            id = config.vars().g_themes.ids.begin().id;
+        }
+    }
+
+    const auto  idx = get_index(id);
+    const auto& src = config.vars().g_themes.colors[idx];
+
+    debug::ensure(config.vars().g_themes.ids.exists(id));
+    ImVec4* colors = ImGui::GetStyle().Colors;
+
+    for (int i = 0; i < ImGuiCol_COUNT; ++i) {
+        colors[i].x = static_cast<float>(src[i].r) / 255.f;
+        colors[i].y = static_cast<float>(src[i].g) / 255.f;
+        colors[i].z = static_cast<float>(src[i].b) / 255.f;
+        colors[i].w = static_cast<float>(src[i].a) / 255.f;
+    }
+
+    auto* c = ImNodes::GetStyle().Colors;
+    c[0]    = to_C(src[ImGuiCol_ScrollbarGrabHovered]);
+    c[1]    = to_C(src[ImGuiCol_ScrollbarGrab]);
+    c[2]    = to_C(src[ImGuiCol_ScrollbarGrab]);
+    c[3]    = to_C(src[ImGuiCol_ScrollbarBg]);
+    c[4]    = to_C(src[ImGuiCol_TitleBg]);
+    c[5]    = to_C(src[ImGuiCol_TitleBgActive]);
+    c[6]    = to_C(src[ImGuiCol_TitleBgCollapsed]);
+    c[7]    = to_C(src[ImGuiCol_SliderGrab]);
+    c[8]    = to_C(src[ImGuiCol_SliderGrabActive]);
+    c[9]    = to_C(src[ImGuiCol_SliderGrabActive]);
+    c[10]   = to_C(src[ImGuiCol_Button]);
+    c[11]   = to_C(src[ImGuiCol_ButtonHovered]);
+    c[12]   = to_C(src[ImGuiCol_ResizeGripHovered]);
+    c[13]   = to_C(src[ImGuiCol_ResizeGrip]);
+    c[14]   = to_C(lerp(src[ImGuiCol_WindowBg], src[ImGuiCol_Text], 0.10f));
+    c[15]   = to_C(lerp(src[ImGuiCol_WindowBg], src[ImGuiCol_Text], 0.20f));
+    c[16]   = to_C(lerp(src[ImGuiCol_WindowBg], src[ImGuiCol_Text], 0.30f));
+
+    c[17] = to_C(src[ImGuiCol_ModalWindowDimBg]);
+    c[18] = to_C(src[ImGuiCol_NavWindowingHighlight]);
+    c[19] = to_C(src[ImGuiCol_TableRowBg]);
+    c[20] = to_C(src[ImGuiCol_TableRowBgAlt]);
+    c[21] = to_C(src[ImGuiCol_ResizeGripHovered]);
+    c[22] = to_C(src[ImGuiCol_ResizeGripActive]);
+    c[23] = to_C(src[ImGuiCol_TabHovered]);
+    c[24] = to_C(src[ImGuiCol_Tab]);
+    c[25] = to_C(src[ImGuiCol_TabSelected]);
+    c[26] = to_C(src[ImGuiCol_TabSelectedOverline]);
+    c[27] = to_C(src[ImGuiCol_TextSelectedBg]);
+    c[28] = to_C(src[ImGuiCol_TextLink]);
+
     ImGui::GetStyle().FrameRounding = 0.0f;
     ImGui::GetStyle().GrabRounding  = 20.0f;
     ImGui::GetStyle().GrabMinSize   = 10.0f;
 
-    ImVec4* colors                         = ImGui::GetStyle().Colors;
-    colors[ImGuiCol_Text]                  = ImVec4(0.95f, 0.96f, 0.98f, 1.00f);
-    colors[ImGuiCol_TextDisabled]          = ImVec4(0.36f, 0.42f, 0.47f, 1.00f);
-    colors[ImGuiCol_WindowBg]              = ImVec4(0.11f, 0.15f, 0.17f, 1.00f);
-    colors[ImGuiCol_ChildBg]               = ImVec4(0.15f, 0.18f, 0.22f, 1.00f);
-    colors[ImGuiCol_PopupBg]               = ImVec4(0.08f, 0.08f, 0.08f, 0.94f);
-    colors[ImGuiCol_Border]                = ImVec4(0.08f, 0.10f, 0.12f, 1.00f);
-    colors[ImGuiCol_BorderShadow]          = ImVec4(0.00f, 0.00f, 0.00f, 0.00f);
-    colors[ImGuiCol_FrameBg]               = ImVec4(0.20f, 0.25f, 0.29f, 1.00f);
-    colors[ImGuiCol_FrameBgHovered]        = ImVec4(0.12f, 0.20f, 0.28f, 1.00f);
-    colors[ImGuiCol_FrameBgActive]         = ImVec4(0.09f, 0.12f, 0.14f, 1.00f);
-    colors[ImGuiCol_TitleBg]               = ImVec4(0.09f, 0.12f, 0.14f, 0.65f);
-    colors[ImGuiCol_TitleBgActive]         = ImVec4(0.08f, 0.10f, 0.12f, 1.00f);
-    colors[ImGuiCol_TitleBgCollapsed]      = ImVec4(0.00f, 0.00f, 0.00f, 0.51f);
-    colors[ImGuiCol_MenuBarBg]             = ImVec4(0.15f, 0.18f, 0.22f, 1.00f);
-    colors[ImGuiCol_ScrollbarBg]           = ImVec4(0.02f, 0.02f, 0.02f, 0.39f);
-    colors[ImGuiCol_ScrollbarGrab]         = ImVec4(0.20f, 0.25f, 0.29f, 1.00f);
-    colors[ImGuiCol_ScrollbarGrabHovered]  = ImVec4(0.18f, 0.22f, 0.25f, 1.00f);
-    colors[ImGuiCol_ScrollbarGrabActive]   = ImVec4(0.09f, 0.21f, 0.31f, 1.00f);
-    colors[ImGuiCol_CheckMark]             = ImVec4(0.28f, 0.56f, 1.00f, 1.00f);
-    colors[ImGuiCol_SliderGrab]            = ImVec4(0.28f, 0.56f, 1.00f, 1.00f);
-    colors[ImGuiCol_SliderGrabActive]      = ImVec4(0.37f, 0.61f, 1.00f, 1.00f);
-    colors[ImGuiCol_Button]                = ImVec4(0.20f, 0.25f, 0.29f, 1.00f);
-    colors[ImGuiCol_ButtonHovered]         = ImVec4(0.28f, 0.56f, 1.00f, 1.00f);
-    colors[ImGuiCol_ButtonActive]          = ImVec4(0.06f, 0.53f, 0.98f, 1.00f);
-    colors[ImGuiCol_Header]                = ImVec4(0.20f, 0.25f, 0.29f, 0.55f);
-    colors[ImGuiCol_HeaderHovered]         = ImVec4(0.26f, 0.59f, 0.98f, 0.80f);
-    colors[ImGuiCol_HeaderActive]          = ImVec4(0.26f, 0.59f, 0.98f, 1.00f);
-    colors[ImGuiCol_Separator]             = ImVec4(0.20f, 0.25f, 0.29f, 1.00f);
-    colors[ImGuiCol_SeparatorHovered]      = ImVec4(0.10f, 0.40f, 0.75f, 0.78f);
-    colors[ImGuiCol_SeparatorActive]       = ImVec4(0.10f, 0.40f, 0.75f, 1.00f);
-    colors[ImGuiCol_ResizeGrip]            = ImVec4(0.26f, 0.59f, 0.98f, 0.25f);
-    colors[ImGuiCol_ResizeGripHovered]     = ImVec4(0.26f, 0.59f, 0.98f, 0.67f);
-    colors[ImGuiCol_ResizeGripActive]      = ImVec4(0.26f, 0.59f, 0.98f, 0.95f);
-    colors[ImGuiCol_Tab]                   = ImVec4(0.11f, 0.15f, 0.17f, 1.00f);
-    colors[ImGuiCol_TabHovered]            = ImVec4(0.26f, 0.59f, 0.98f, 0.80f);
-    colors[ImGuiCol_TabActive]             = ImVec4(0.20f, 0.25f, 0.29f, 1.00f);
-    colors[ImGuiCol_TabUnfocused]          = ImVec4(0.11f, 0.15f, 0.17f, 1.00f);
-    colors[ImGuiCol_TabUnfocusedActive]    = ImVec4(0.11f, 0.15f, 0.17f, 1.00f);
-    colors[ImGuiCol_PlotLines]             = ImVec4(0.61f, 0.61f, 0.61f, 1.00f);
-    colors[ImGuiCol_PlotLinesHovered]      = ImVec4(1.00f, 0.43f, 0.35f, 1.00f);
-    colors[ImGuiCol_PlotHistogram]         = ImVec4(0.90f, 0.70f, 0.00f, 1.00f);
-    colors[ImGuiCol_PlotHistogramHovered]  = ImVec4(1.00f, 0.60f, 0.00f, 1.00f);
-    colors[ImGuiCol_TextSelectedBg]        = ImVec4(0.26f, 0.59f, 0.98f, 0.35f);
-    colors[ImGuiCol_DragDropTarget]        = ImVec4(1.00f, 1.00f, 0.00f, 0.90f);
-    colors[ImGuiCol_NavHighlight]          = ImVec4(0.26f, 0.59f, 0.98f, 1.00f);
-    colors[ImGuiCol_NavWindowingHighlight] = ImVec4(1.00f, 1.00f, 1.00f, 0.70f);
-    colors[ImGuiCol_NavWindowingDimBg]     = ImVec4(0.80f, 0.80f, 0.80f, 0.20f);
-    colors[ImGuiCol_ModalWindowDimBg]      = ImVec4(0.80f, 0.80f, 0.80f, 0.35f);
+    constexpr rgba_color red1(u8{ 16 }, u8{ 0 }, u8{ 0 }, u8{ 255 });
+    constexpr rgba_color red2(u8{ 32 }, u8{ 0 }, u8{ 0 }, u8{ 255 });
+    constexpr rgba_color red3(u8{ 48 }, u8{ 0 }, u8{ 0 }, u8{ 255 });
+    constexpr rgba_color green1(u8{ 0 }, u8{ 16 }, u8{ 0 }, u8{ 255 });
+    constexpr rgba_color green2(u8{ 0 }, u8{ 32 }, u8{ 0 }, u8{ 255 });
+    constexpr rgba_color green3(u8{ 0 }, u8{ 48 }, u8{ 0 }, u8{ 255 });
 
-    ImNodes::StyleColorsDark();
+    gui_model_color =
+      to_C(lerp(src[ImGuiCol_TitleBg], src[ImNodesCol_TitleBarHovered], 0.50f) +
+           red1);
+    gui_hovered_model_color =
+      to_C(lerp(src[ImGuiCol_TitleBg], src[ImNodesCol_TitleBarHovered], 0.50f) +
+           red2);
+    gui_selected_model_color =
+      to_C(lerp(src[ImGuiCol_TitleBg], src[ImNodesCol_TitleBarHovered], 0.50f) +
+           red3);
+    gui_component_color =
+      to_C(lerp(src[ImGuiCol_TitleBg], src[ImNodesCol_TitleBarHovered], 0.50f) +
+           green1);
+    gui_hovered_component_color =
+      to_C(lerp(src[ImGuiCol_TitleBg], src[ImNodesCol_TitleBarHovered], 0.50f) +
+           green2);
+    gui_selected_component_color =
+      to_C(lerp(src[ImGuiCol_TitleBg], src[ImNodesCol_TitleBarHovered], 0.50f) +
+           green3);
 }
 
 } // irt

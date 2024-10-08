@@ -54,8 +54,17 @@ struct undefined_error {};
 //! code.
 struct argument_error {};
 
+enum class fs_error {
+    user_directory_access_fail,
+    user_directory_file_access_fail,
+    user_component_directory_access_fail,
+    executable_access_fail,
+};
+
 //! Report an error in the @c std::filesystem library.
-struct filesystem_error {};
+struct filesystem_error {
+    fs_error type = fs_error::executable_access_fail;
+};
 
 struct e_file_name {
     e_file_name() noexcept = default;
