@@ -26,7 +26,7 @@
 namespace irt {
 
 template<class T, class M>
-constexpr std::ptrdiff_t offset_of(const M T::* member)
+constexpr std::ptrdiff_t offset_of(const M T::*member)
 {
     return reinterpret_cast<std::ptrdiff_t>(
       &(reinterpret_cast<T*>(0)->*member));
@@ -46,7 +46,7 @@ constexpr std::ptrdiff_t offset_of(const M T::* member)
 //! }
 //! @endcode
 template<class T, class M>
-constexpr T& container_of(M* ptr, const M T::* member)
+constexpr T& container_of(M* ptr, const M T::*member)
 {
     return *reinterpret_cast<T*>(reinterpret_cast<intptr_t>(ptr) -
                                  offset_of(member));
@@ -824,7 +824,6 @@ struct settings_window {
     u32 gui_hovered_component_color;
     u32 gui_selected_component_color;
 
-    int   style_selector                   = 0;
     int   automatic_layout_iteration_limit = 200;
     float automatic_layout_x_distance      = 350.f;
     float automatic_layout_y_distance      = 350.f;
