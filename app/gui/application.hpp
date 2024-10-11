@@ -809,7 +809,9 @@ private:
     child_id     m_selected_child     = undefined<child_id>();
 };
 
-struct settings_window {
+class settings_window
+{
+public:
     constexpr static inline const char* name = "Settings";
 
     settings_window() noexcept = default;

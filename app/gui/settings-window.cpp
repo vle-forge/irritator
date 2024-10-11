@@ -12,14 +12,9 @@
 
 namespace irt {
 
-constexpr auto to_C(const rgba_color x) noexcept -> int
+static constexpr auto to_C(const rgba_color x) noexcept -> int
 {
     return IM_COL32(x.r, x.g, x.b, x.a);
-}
-
-constexpr auto to(const rgba_color x) noexcept -> int
-{
-    return IM_COL32(x.r, x.g, x.b, 255);
 }
 
 static auto display_themes_selector(application& app) noexcept -> bool

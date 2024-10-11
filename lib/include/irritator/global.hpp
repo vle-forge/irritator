@@ -38,10 +38,10 @@ struct rgba_color {
 
     template<std::floating_point T>
     constexpr rgba_color(T r_, T g_, T b_, T a_ = 255) noexcept
-      : r{ static_cast<u8>(std::clamp(r_* T{ 255 }, T{ 0 }, T{ 255 })) }
-      , g{ static_cast<u8>(std::clamp(g_* T{ 255 }, T{ 0 }, T{ 255 })) }
-      , b{ static_cast<u8>(std::clamp(b_* T{ 255 }, T{ 0 }, T{ 255 })) }
-      , a{ static_cast<u8>(std::clamp(a_* T{ 255 }, T{ 0 }, T{ 255 })) }
+      : r{ static_cast<u8>(std::clamp(r_ * T{ 255 }, T{ 0 }, T{ 255 })) }
+      , g{ static_cast<u8>(std::clamp(g_ * T{ 255 }, T{ 0 }, T{ 255 })) }
+      , b{ static_cast<u8>(std::clamp(b_ * T{ 255 }, T{ 0 }, T{ 255 })) }
+      , a{ static_cast<u8>(std::clamp(a_ * T{ 255 }, T{ 0 }, T{ 255 })) }
     {}
 
     std::uint8_t r, g, b, a;
@@ -129,25 +129,7 @@ struct recorded_paths {
     vector<small_string<31>>           names;
     vector<int>                        priorities;
 
-    vector<recorded_path_id> sort_by_priorities() const noexcept
-    {
-        vector<recorded_path_id> ret(ids.size());
-
-        if (ids.capacity() >= ids.ssize()) {
-            for (auto id : ids)
-                ret.emplace_back(id);
-
-            std::sort(
-              ret.begin(), ret.end(), [&](const auto a, const auto b) noexcept {
-                  const auto idx_a = get_index(a);
-                  const auto idx_b = get_index(b);
-
-                  return idx_a < idx_b;
-              });
-        }
-
-        return ret;
-    }
+    vector<recorded_path_id> sort_by_priorities() const noexcept;
 };
 
 struct variables {

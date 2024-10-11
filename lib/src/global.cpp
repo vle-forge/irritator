@@ -670,6 +670,26 @@ static std::error_code do_load(const char*                 filename,
     return do_parse(vars, latest);
 }
 
+vector<recorded_path_id> recorded_paths::sort_by_priorities() const noexcept
+{
+    vector<recorded_path_id> ret(ids.size());
+
+    if (ids.capacity() >= ids.ssize()) {
+        for (auto id : ids)
+            ret.emplace_back(id);
+
+        std::sort(
+          ret.begin(), ret.end(), [&](const auto a, const auto b) noexcept {
+              const auto idx_a = get_index(a);
+              const auto idx_b = get_index(b);
+
+              return priorities[idx_a] < priorities[idx_b];
+          });
+    }
+
+    return ret;
+}
+
 config_manager::config_manager() noexcept
   : m_vars{ do_build_default() }
 {}
