@@ -83,7 +83,10 @@ constexpr static int compute_grid_connections_size(
         break;
     }
 
-    return children * children_mult + grid.column * col_mult +
+    // Replace 8x with the number of input/output connections for each children
+    // components.
+
+    return 8 * children * children_mult + grid.column * col_mult +
            grid.row * row_mult;
 }
 
@@ -126,6 +129,23 @@ static auto build_grid_children(modeling& mod, grid_component& grid) noexcept
     return ret;
 }
 
+struct split_name {
+    split_name(std::string_view str) noexcept
+    {
+        const auto pos = str.find_last_of('_');
+        if (pos != std::string_view::npos and
+            std::cmp_less(pos + 1, str.size())) {
+            left  = str.substr(0, pos);
+            right = str.substr(pos + 1, std::string::npos);
+        } else {
+            left = str;
+        }
+    }
+
+    std::string_view left;
+    std::string_view right;
+};
+
 static void connection_add(modeling&        mod,
                            grid_component&  grid,
                            child_id         src,
@@ -133,39 +153,37 @@ static void connection_add(modeling&        mod,
                            child_id         dst,
                            std::string_view port_dst) noexcept
 {
-    auto port_src_real = undefined<port_id>();
-    if_data_exists_do(grid.cache, src, [&](auto& child) noexcept {
-        debug::ensure(child.type == child_type::component);
+    auto* child_src = grid.cache.try_to_get(src);
+    auto* child_dst = grid.cache.try_to_get(dst);
+    debug::ensure(child_src and child_src->type == child_type::component);
+    debug::ensure(child_dst and child_dst->type == child_type::component);
 
-        if (child.type == child_type::component) {
-            if_data_exists_do(
-              mod.components, child.id.compo_id, [&](auto& compo) noexcept {
-                  port_src_real = compo.get_y(port_src);
-              });
-        }
-    });
+    auto* compo_src = mod.components.try_to_get(child_src->id.compo_id);
+    auto* compo_dst = mod.components.try_to_get(child_dst->id.compo_id);
+    debug::ensure(compo_src and compo_dst);
 
-    auto port_dst_real = undefined<port_id>();
-    if_data_exists_do(grid.cache, dst, [&](auto& child) noexcept {
-        debug::ensure(child.type == child_type::component);
+    compo_src->y.for_each<port_str>(
+      [&](const auto sid, const auto& sname) noexcept {
+          split_name p_src(sname.sv());
+          if (port_src == p_src.left) {
+              compo_dst->x.for_each<port_str>(
+                [&](const auto did, const auto dname) noexcept {
+                    split_name p_dst(dname.sv());
 
-        if (child.type == child_type::component) {
-            if_data_exists_do(
-              mod.components, child.id.compo_id, [&](auto& compo) noexcept {
-                  port_dst_real = compo.get_x(port_dst);
-              });
-        }
-    });
-
-    if (is_defined(port_src_real) && is_defined(port_dst_real))
-        grid.cache_connections.alloc(src, port_src_real, dst, port_dst_real);
+                    if (port_dst == p_dst.left) {
+                        if (p_src.right == p_dst.right)
+                            grid.cache_connections.alloc(src, sid, dst, did);
+                    }
+                });
+          }
+      });
 }
 
-void build_grid_connections(modeling&               mod,
-                            grid_component&         grid,
-                            const vector<child_id>& ids,
-                            const int               row,
-                            const int               col) noexcept
+static void build_grid_connections(modeling&               mod,
+                                   grid_component&         grid,
+                                   const vector<child_id>& ids,
+                                   const int               row,
+                                   const int               col) noexcept
 {
     struct destination {
         int  r; // row index [0..grid.row[
