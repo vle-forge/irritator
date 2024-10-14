@@ -1681,10 +1681,10 @@ struct json_dearchiver::impl {
               if ("mask"sv == name)
                   return read_temp_integer(value) && copy_to(mask);
 
-              if ("contant-i"sv == name)
+              if ("constant-i"sv == name)
                   return read_temp_integer(value) && copy_to(i);
 
-              if ("contant-f"sv == name)
+              if ("constant-r"sv == name)
                   return read_temp_real(value) && copy_to(f);
 
               report_json_error(error_id::unknown_element);
