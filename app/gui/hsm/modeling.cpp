@@ -383,6 +383,169 @@ static void show_condition(hsm_t::condition_action& act) noexcept
     ImGui::TextUnformatted(condition_names[ordinal(act.type)]);
 }
 
+template<typename ConditionOrAction>
+static void display_condition_2_var(ConditionOrAction& act,
+                                    std::string_view   op) noexcept
+{
+    if (act.var2 == hsm_t::variable::constant_i)
+        ImGui::TextFormatDisabled(
+          "{} {} {}", variable_names[ordinal(act.var1)], op, act.constant.i);
+    else if (act.var2 == hsm_t::variable::constant_r)
+        ImGui::TextFormatDisabled(
+          "{} {} {}", variable_names[ordinal(act.var1)], op, act.constant.f);
+    else
+        ImGui::TextFormatDisabled("{} {} {}",
+                                  variable_names[ordinal(act.var1)],
+                                  op,
+                                  variable_names[ordinal(act.var2)]);
+}
+
+template<typename ConditionOrAction>
+static void display_condition_2_var(ConditionOrAction& act,
+                                    std::string_view   op,
+                                    std::string_view   section) noexcept
+{
+    if (act.var2 == hsm_t::variable::constant_i)
+        ImGui::TextFormatDisabled("{} {} {} {}",
+                                  section,
+                                  variable_names[ordinal(act.var1)],
+                                  op,
+                                  act.constant.i);
+    else if (act.var2 == hsm_t::variable::constant_r)
+        ImGui::TextFormatDisabled("{} {} {} {}",
+                                  section,
+                                  variable_names[ordinal(act.var1)],
+                                  op,
+                                  act.constant.f);
+    else
+        ImGui::TextFormatDisabled("{} {} {} {}",
+                                  section,
+                                  variable_names[ordinal(act.var1)],
+                                  op,
+                                  variable_names[ordinal(act.var2)]);
+}
+
+static void display_condition_port(hsm_t::condition_action& act) noexcept
+{
+    u8 port, mask;
+    act.get(port, mask);
+
+    ImGui::TextFormatDisabled("{:b} - {:b}", port, mask);
+}
+
+static void display_condition_timer(hsm_t::condition_action& /*act*/) noexcept
+{
+    ImGui::TextFormatDisabled("waiting R-timer");
+}
+
+static void show_complete_condition(hsm_t::condition_action& act) noexcept
+{
+    switch (act.type) {
+    case hsm_t::condition_type::none:
+        break;
+
+    case hsm_t::condition_type::port:
+        display_condition_port(act);
+        break;
+
+    case hsm_t::condition_type::sigma:
+        display_condition_timer(act);
+        break;
+
+    case hsm_t::condition_type::equal_to:
+        display_condition_2_var(act, "=");
+        break;
+
+    case hsm_t::condition_type::not_equal_to:
+        display_condition_2_var(act, "!=");
+        break;
+
+    case hsm_t::condition_type::greater:
+        display_condition_2_var(act, ">");
+        break;
+
+    case hsm_t::condition_type::greater_equal:
+        display_condition_2_var(act, ">=");
+        break;
+
+    case hsm_t::condition_type::less:
+        display_condition_2_var(act, "<");
+        break;
+
+    case hsm_t::condition_type::less_equal:
+        display_condition_2_var(act, "<=");
+        break;
+    }
+}
+
+static void display_action(hsm_t::state_action& act,
+                           std::string_view     name) noexcept
+{
+    switch (act.type) {
+    case hsm_t::action_type::none:
+        break;
+
+    case hsm_t::action_type::set:
+        break;
+
+    case hsm_t::action_type::unset:
+        break;
+
+    case hsm_t::action_type::reset:
+        break;
+
+    case hsm_t::action_type::output:
+        break;
+
+    case hsm_t::action_type::affect:
+        display_condition_2_var(act, "=", name);
+        break;
+
+    case hsm_t::action_type::plus:
+        display_condition_2_var(act, "+", name);
+        break;
+
+    case hsm_t::action_type::minus:
+        display_condition_2_var(act, "-", name);
+        break;
+
+    case hsm_t::action_type::negate:
+        display_condition_2_var(act, "-", name);
+        break;
+
+    case hsm_t::action_type::multiplies:
+        display_condition_2_var(act, "*", name);
+        break;
+
+    case hsm_t::action_type::divides:
+        display_condition_2_var(act, "/", name);
+        break;
+
+    case hsm_t::action_type::modulus:
+        display_condition_2_var(act, "%", name);
+        break;
+
+    case hsm_t::action_type::bit_and:
+        display_condition_2_var(act, "bit-and", name);
+        break;
+
+    case hsm_t::action_type::bit_or:
+        display_condition_2_var(act, "bit-or", name);
+        break;
+
+    case hsm_t::action_type::bit_not:
+        display_condition_2_var(act, "bit-not", name);
+        break;
+
+    case hsm_t::action_type::bit_xor:
+        display_condition_2_var(act, "bit-xor", name);
+        break;
+
+    default:
+        break;
+    }
+}
+
 static void show_state_action(hsm_t::state_action& action) noexcept
 {
     ImGui::PushID(static_cast<void*>(&action));
@@ -539,6 +702,9 @@ void hsm_component_editor_data::clear(hsm_component& hsm) noexcept
 
 void hsm_component_editor_data::show_hsm(hsm_component& hsm) noexcept
 {
+    const auto with_details =
+      m_options.test(hsm_component_editor_data::display_action_label);
+
     for (u8 i = 0, e = static_cast<u8>(hsm_t::max_number_of_state); i != e;
          ++i) {
         if (m_enabled[i] == false)
@@ -554,23 +720,44 @@ void hsm_component_editor_data::show_hsm(hsm_component& hsm) noexcept
         ImGui::TextUnformatted("in");
         ImNodes::EndInputAttribute();
 
+        if (with_details and
+            hsm.machine.states[i].enter_action.type != hsm_t::action_type::none)
+            display_action(hsm.machine.states[i].enter_action, "on enter");
+
         show_condition(hsm.machine.states[i].condition);
+        if (m_options.test(hsm_component_editor_data::display_condition_label))
+            show_complete_condition(hsm.machine.states[i].condition);
 
         // ImNodes::BeginOutputAttribute(
         //   make_output(i, transition_type::super_transition),
         //   ImNodesPinShape_CircleFilled);
         // ImGui::TextUnformatted("super");
         // ImNodes::EndOutputAttribute();
+
         ImNodes::BeginOutputAttribute(
           make_output(i, transition_type::if_transition),
           ImNodesPinShape_CircleFilled);
-        ImGui::TextUnformatted("if");
+        ImGui::TextUnformatted("if condition is valid do");
         ImNodes::EndOutputAttribute();
+
+        if (with_details and
+            hsm.machine.states[i].if_action.type != hsm_t::action_type::none)
+            display_action(hsm.machine.states[i].if_action, "");
+
         ImNodes::BeginOutputAttribute(
           make_output(i, transition_type::else_transition),
           ImNodesPinShape_CircleFilled);
-        ImGui::TextUnformatted("else");
+        ImGui::TextUnformatted("Otherwise do");
         ImNodes::EndOutputAttribute();
+
+        if (with_details) {
+            if (hsm.machine.states[i].else_action.type !=
+                hsm_t::action_type::none)
+                display_action(hsm.machine.states[i].else_action, "");
+            if (hsm.machine.states[i].exit_action.type !=
+                hsm_t::action_type::none)
+                display_action(hsm.machine.states[i].exit_action, "on exit");
+        }
 
         ImNodes::EndNode();
     }
@@ -665,6 +852,15 @@ void hsm_component_editor_data::show_menu(hsm_component& hsm) noexcept
                 hsm.names[id.value()].clear();
                 ImNodes::SetNodeScreenSpacePos(id.value(), click_pos);
             }
+
+            auto action_lbl = m_options.test(display_action_label);
+            if (ImGui::MenuItem("Enable action labels", nullptr, &action_lbl))
+                m_options.set(display_action_label, action_lbl);
+
+            auto condition_lbl = m_options.test(display_condition_label);
+            if (ImGui::MenuItem(
+                  "Enable action labels", nullptr, &condition_lbl))
+                m_options.set(display_condition_label, condition_lbl);
         }
 
         ImGui::EndPopup();
@@ -909,7 +1105,8 @@ hsm_component_editor_data::hsm_component_editor_data(
   const component_id     id,
   const hsm_component_id hid,
   hsm_component&         hsm) noexcept
-  : m_id(id)
+  : m_options(3)
+  , m_id(id)
   , m_hsm_id(hid)
 {
     m_context = ImNodes::EditorContextCreate();
