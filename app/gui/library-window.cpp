@@ -15,7 +15,10 @@ static void add_generic_component_data(application& app) noexcept
 {
     auto& compo    = app.mod.alloc_generic_component();
     auto  compo_id = app.mod.components.get_id(compo);
-    app.generics.alloc(compo_id);
+    app.generics.alloc(compo_id,
+                       compo,
+                       compo.id.generic_id,
+                       app.mod.generic_components.get(compo.id.generic_id));
     app.component_ed.request_to_open(compo_id);
 
     app.add_gui_task([&app]() noexcept {
@@ -225,8 +228,10 @@ static void open_component(application& app, component_id id) noexcept
 
         case component_type::simple:
             if (!is_already_open(app.generics, id) && app.generics.can_alloc())
-                if (app.mod.generic_components.try_to_get(compo.id.generic_id))
-                    app.generics.alloc(id);
+                if (auto* gen = app.mod.generic_components.try_to_get(
+                      compo.id.generic_id);
+                    gen)
+                    app.generics.alloc(id, compo, compo.id.generic_id, *gen);
             break;
 
         case component_type::grid:

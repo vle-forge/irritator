@@ -443,59 +443,59 @@ static void show_graph_node(application&     app,
     ImNodes::PopColorStyle();
 }
 
-static void update_editor_position(const child_id  id,
-                                   const position& pos) noexcept
-{
-    ImNodes::SetNodeScreenSpacePos(pack_node_child(id), ImVec2(pos.x, pos.y));
-}
+//static void update_editor_position(const child_id  id,
+//                                   const position& pos) noexcept
+//{
+//    ImNodes::SetNodeScreenSpacePos(pack_node_child(id), ImVec2(pos.x, pos.y));
+//}
 
-static void update_editor_all_positions(generic_component& generic) noexcept
-{
-    for_each_data(generic.children, [&](auto& child) noexcept {
-        const auto id  = generic.children.get_id(child);
-        const auto idx = get_index(id);
+//static void update_editor_all_positions(generic_component& generic) noexcept
+//{
+//    for_each_data(generic.children, [&](auto& child) noexcept {
+//        const auto id  = generic.children.get_id(child);
+//        const auto idx = get_index(id);
+//
+//        update_editor_position(id, generic.children_positions[idx]);
+//    });
+//}
 
-        update_editor_position(id, generic.children_positions[idx]);
-    });
-}
+//static void update_editor_list_positions(generic_component&  generic,
+//                                         std::span<child_id> ids) noexcept
+//{
+//    for (const auto id : ids) {
+//        if_data_exists_do(generic.children, id, [&](auto& /*child*/) noexcept {
+//            const auto idx = get_index(id);
+//
+//            update_editor_position(id, generic.children_positions[idx]);
+//        });
+//    }
+//}
 
-static void update_editor_list_positions(generic_component&  generic,
-                                         std::span<child_id> ids) noexcept
-{
-    for (const auto id : ids) {
-        if_data_exists_do(generic.children, id, [&](auto& /*child*/) noexcept {
-            const auto idx = get_index(id);
+//static void update_editor_positions(generic_component_editor_data& data,
+//                                    generic_component& generic) noexcept
+//{
+//    if (data.update_position_list.empty()) {
+//        update_editor_all_positions(generic);
+//    } else {
+//        update_editor_list_positions(
+//          generic, std::span<child_id>(data.update_position_list));
+//        data.update_position_list.clear();
+//    }
+//
+//    // data.force_update_position = false;
+//}
 
-            update_editor_position(id, generic.children_positions[idx]);
-        });
-    }
-}
-
-static void update_editor_positions(generic_component_editor_data& data,
-                                    generic_component& generic) noexcept
-{
-    if (data.update_position_list.empty()) {
-        update_editor_all_positions(generic);
-    } else {
-        update_editor_list_positions(
-          generic, std::span<child_id>(data.update_position_list));
-        data.update_position_list.clear();
-    }
-
-    data.force_update_position = false;
-}
-
-static void update_input_output_draggable(component& parent,
-                                          bool       draggable) noexcept
-{
-    parent.x.for_each_id([&](auto id) noexcept {
-        ImNodes::SetNodeDraggable(pack_node_X(id), draggable);
-    });
-
-    parent.y.for_each_id([&](auto id) noexcept {
-        ImNodes::SetNodeDraggable(pack_node_Y(id), draggable);
-    });
-}
+//static void update_input_output_draggable(component& parent,
+//                                          bool       draggable) noexcept
+//{
+//    parent.x.for_each_id([&](auto id) noexcept {
+//        ImNodes::SetNodeDraggable(pack_node_X(id), draggable);
+//    });
+//
+//    parent.y.for_each_id([&](auto id) noexcept {
+//        ImNodes::SetNodeDraggable(pack_node_Y(id), draggable);
+//    });
+//}
 
 static void update_input_output_position(component&                     parent,
                                          generic_component_editor_data& data,
@@ -503,19 +503,19 @@ static void update_input_output_position(component&                     parent,
                                          float                          x2,
                                          float y) noexcept
 {
-    int i = 0;
-    parent.x.for_each_id([&](auto id) noexcept {
-        ImNodes::SetNodeEditorSpacePos(
-          pack_node_X(id), ImVec2(x1, static_cast<float>(i++) * 50.f + y));
-    });
+    // int i = 0;
+    // parent.x.for_each_id([&](auto id) noexcept {
+    //     ImNodes::SetNodeEditorSpacePos(
+    //       pack_node_X(id), ImVec2(x1, static_cast<float>(i++) * 50.f + y));
+    // });
 
-    i = 0;
-    parent.y.for_each_id([&](auto id) noexcept {
-        ImNodes::SetNodeEditorSpacePos(
-          pack_node_Y(id), ImVec2(x2, static_cast<float>(i++) * 50.f + y));
-    });
+    // i = 0;
+    // parent.y.for_each_id([&](auto id) noexcept {
+    //     ImNodes::SetNodeEditorSpacePos(
+    //       pack_node_Y(id), ImVec2(x2, static_cast<float>(i++) * 50.f + y));
+    // });
 
-    data.first_show_input_output = false;
+    // data.first_show_input_output = false;
 }
 
 static void show_graph(component_editor&              ed,
@@ -531,51 +531,52 @@ static void show_graph(component_editor&              ed,
     const auto pos_x1 = pos.x + 10.f;
     const auto pos_x2 = pos.x + width - 50.f;
 
-    if (data.force_update_position)
-        update_editor_positions(data, s_parent);
+    // if (data.force_update_position)
+    // update_editor_positions(data, s_parent);
 
-    if (data.show_input_output) {
-        update_input_output_draggable(parent, data.fix_input_output);
+    // if (data.show_input_output) {
+    //     // update_input_output_draggable(parent, data.fix_input_output);
 
-        if (data.first_show_input_output)
-            update_input_output_position(parent, data, pos_x1, pos_x2, pos.y);
-    }
+    //    if (data.first_show_input_output)
+    //        update_input_output_position(parent, data, pos_x1, pos_x2, pos.y);
+    //}
 
-    if (data.show_input_output) {
-        parent.x.for_each<port_str>([&](auto id, const auto& name) noexcept {
-            ImNodes::PushColorStyle(ImNodesCol_TitleBar,
-                                    settings.gui_component_color);
+    // if (data.options.test(generic_component_editor_data::show_input_output))
+    // {
+    parent.x.for_each<port_str>([&](auto id, const auto& name) noexcept {
+        ImNodes::PushColorStyle(ImNodesCol_TitleBar,
+                                settings.gui_component_color);
 
-            ImNodes::PushColorStyle(ImNodesCol_TitleBarHovered,
-                                    settings.gui_hovered_component_color);
-            ImNodes::PushColorStyle(ImNodesCol_TitleBarSelected,
-                                    settings.gui_selected_component_color);
+        ImNodes::PushColorStyle(ImNodesCol_TitleBarHovered,
+                                settings.gui_hovered_component_color);
+        ImNodes::PushColorStyle(ImNodesCol_TitleBarSelected,
+                                settings.gui_selected_component_color);
 
-            ImNodes::BeginNode(pack_node_X(id));
-            ImNodes::BeginOutputAttribute(pack_X(id),
-                                          ImNodesPinShape_TriangleFilled);
-            ImGui::TextUnformatted(name.c_str());
-            ImNodes::EndOutputAttribute();
-            ImNodes::EndNode();
-        });
+        ImNodes::BeginNode(pack_node_X(id));
+        ImNodes::BeginOutputAttribute(pack_X(id),
+                                      ImNodesPinShape_TriangleFilled);
+        ImGui::TextUnformatted(name.c_str());
+        ImNodes::EndOutputAttribute();
+        ImNodes::EndNode();
+    });
 
-        parent.y.for_each<port_str>([&](auto id, const auto& name) noexcept {
-            ImNodes::PushColorStyle(ImNodesCol_TitleBar,
-                                    settings.gui_component_color);
+    parent.y.for_each<port_str>([&](auto id, const auto& name) noexcept {
+        ImNodes::PushColorStyle(ImNodesCol_TitleBar,
+                                settings.gui_component_color);
 
-            ImNodes::PushColorStyle(ImNodesCol_TitleBarHovered,
-                                    settings.gui_hovered_component_color);
-            ImNodes::PushColorStyle(ImNodesCol_TitleBarSelected,
-                                    settings.gui_selected_component_color);
+        ImNodes::PushColorStyle(ImNodesCol_TitleBarHovered,
+                                settings.gui_hovered_component_color);
+        ImNodes::PushColorStyle(ImNodesCol_TitleBarSelected,
+                                settings.gui_selected_component_color);
 
-            ImNodes::BeginNode(pack_node_Y(id));
-            ImNodes::BeginInputAttribute(pack_Y(id),
-                                         ImNodesPinShape_TriangleFilled);
-            ImGui::TextUnformatted(name.c_str());
-            ImNodes::EndInputAttribute();
-            ImNodes::EndNode();
-        });
-    }
+        ImNodes::BeginNode(pack_node_Y(id));
+        ImNodes::BeginInputAttribute(pack_Y(id),
+                                     ImNodesPinShape_TriangleFilled);
+        ImGui::TextUnformatted(name.c_str());
+        ImNodes::EndInputAttribute();
+        ImNodes::EndNode();
+    });
+    //}
 
     for_each_data(s_parent.children, [&](auto& c) noexcept {
         const auto cid  = s_parent.children.get_id(c);
@@ -678,10 +679,12 @@ static void add_popup_menuitem(component_editor&              ed,
         s_parent.children_positions[idx].x = click_pos.x;
         s_parent.children_positions[idx].y = click_pos.y;
         s_parent.children_parameters[idx].init_from(type);
+        ImNodes::SetNodeEditorSpacePos(pack_node_child(id),
+                                       ImVec2(click_pos.x, click_pos.y));
 
         parent.state = component_status::modified;
-        data.update_position_list.emplace_back(id);
-        data.update_position();
+        // data.update_position_list.emplace_back(id);
+        // data.update_position();
 
         auto& app = container_of(&ed, &application::component_ed);
         app.notifications.try_insert(
@@ -735,8 +738,8 @@ static void compute_grid_layout(settings_window&               settings,
         }
     });
 
-    data.update_position_list.clear();
-    data.update_position();
+    // data.update_position_list.clear();
+    // data.update_position();
 }
 
 static void add_component_to_current(component_editor&              ed,
@@ -764,9 +767,11 @@ static void add_component_to_current(component_editor&              ed,
 
     parent_compo.children_positions[c_idx].x = click_pos.x;
     parent_compo.children_positions[c_idx].y = click_pos.y;
+    ImNodes::SetNodeEditorSpacePos(pack_node_child(c_id), click_pos);
 
-    data.update_position_list.emplace_back(c_id);
-    data.update_position();
+
+    // data.update_position_list.emplace_back(c_id);
+    // data.update_position();
 }
 
 static void show_popup_menuitem(component_editor&              ed,
@@ -785,14 +790,15 @@ static void show_popup_menuitem(component_editor&              ed,
     if (ImGui::BeginPopup("Context menu")) {
         const auto click_pos = ImGui::GetMousePosOnOpeningCurrentPopup();
 
-        if (ImGui::MenuItem("Show component input/output ports",
-                            nullptr,
-                            &data.show_input_output)) {
-            data.first_show_input_output = true;
-        }
+        // if (ImGui::MenuItem("Show component input/output ports",
+        //                     nullptr,
+        //                     &data.show_input_output)) {
+        //     data.first_show_input_output = true;
+        // }
 
-        ImGui::MenuItem(
-          "Fix component input/output ports", nullptr, &data.fix_input_output);
+        // ImGui::MenuItem(
+        //   "Fix component input/output ports", nullptr,
+        //   &data.fix_input_output);
 
         ImGui::Separator();
 
@@ -1236,47 +1242,47 @@ static void show_component_editor(component_editor&              ed,
     ImNodes::EditorContextSet(data.context);
     ImNodes::BeginNodeEditor();
 
-    if (app.grid_dlg.is_running) {
-        app.grid_dlg.show();
+    //if (app.grid_dlg.is_running) {
+    //    app.grid_dlg.show();
 
-        if (app.grid_dlg.is_ok && !app.grid_dlg.is_running) {
-            app.grid_dlg.save();
-            app.grid_dlg.is_ok = false;
-            data.update_position_list.clear();
-            data.update_position();
+    //    if (app.grid_dlg.is_ok && !app.grid_dlg.is_running) {
+    //        app.grid_dlg.save();
+    //        app.grid_dlg.is_ok = false;
+    //        // data.update_position_list.clear();
+    //        // data.update_position();
 
-            for_each_data(s_compo.children, [&](auto& c) noexcept {
-                const auto id  = s_compo.children.get_id(c);
-                const auto idx = get_index(id);
+    //        for_each_data(s_compo.children, [&](auto& c) noexcept {
+    //            const auto id  = s_compo.children.get_id(c);
+    //            const auto idx = get_index(id);
 
-                s_compo.children_positions[idx] = {
-                    static_cast<float>(idx) * 30.f,
-                    static_cast<float>(idx) * 10.f
-                };
-            });
-        }
-    }
+    //            s_compo.children_positions[idx] = {
+    //                static_cast<float>(idx) * 30.f,
+    //                static_cast<float>(idx) * 10.f
+    //            };
+    //        });
+    //    }
+    //}
 
-    if (app.graph_dlg.is_running) {
-        app.graph_dlg.show();
+    //if (app.graph_dlg.is_running) {
+    //    app.graph_dlg.show();
 
-        if (app.graph_dlg.is_ok && !app.graph_dlg.is_running) {
-            app.graph_dlg.save();
-            app.graph_dlg.is_ok = false;
-            data.update_position_list.clear();
-            data.update_position();
+    //    if (app.graph_dlg.is_ok && !app.graph_dlg.is_running) {
+    //        app.graph_dlg.save();
+    //        app.graph_dlg.is_ok = false;
+    //        // data.update_position_list.clear();
+    //        // data.update_position();
 
-            for_each_data(s_compo.children, [&](auto& c) noexcept {
-                const auto id  = s_compo.children.get_id(c);
-                const auto idx = get_index(id);
+    //        for_each_data(s_compo.children, [&](auto& c) noexcept {
+    //            const auto id  = s_compo.children.get_id(c);
+    //            const auto idx = get_index(id);
 
-                s_compo.children_positions[idx] = {
-                    static_cast<float>(idx) * 30.f,
-                    static_cast<float>(idx) * 10.f
-                };
-            });
-        }
-    }
+    //            s_compo.children_positions[idx] = {
+    //                static_cast<float>(idx) * 30.f,
+    //                static_cast<float>(idx) * 10.f
+    //            };
+    //        });
+    //    }
+    //}
 
     show_popup_menuitem(ed, data, compo, s_compo);
     show_graph(ed, data, compo, s_compo);
@@ -1315,10 +1321,15 @@ static void show_component_editor(component_editor&              ed,
 }
 
 generic_component_editor_data::generic_component_editor_data(
-  const component_id id) noexcept
-  : m_id{ id }
+  const component_id         id,
+  component&                 compo,
+  const generic_component_id gid,
+  generic_component&         gen) noexcept
+  : options(5u)
+  , m_id{ id }
 {
     context = ImNodes::EditorContextCreate();
+    ImNodes::EditorContextSet(context);
     ImNodes::PushAttributeFlag(
       ImNodesAttributeFlags_EnableLinkDetachWithDragClick);
 
@@ -1330,9 +1341,36 @@ generic_component_editor_data::generic_component_editor_data(
     style.Flags |=
       ImNodesStyleFlags_GridLinesPrimary | ImNodesStyleFlags_GridSnapping;
 
-    first_show_input_output = true;
-    update_position_list.reserve(8);
-    update_position();
+    ImVec2 top_left(FLT_MAX, FLT_MAX), bottom_right(FLT_MIN, FLT_MIN);
+
+    for (auto& c : gen.children) {
+        const auto id  = gen.children.get_id(c);
+        const auto idx = get_index(id);
+        const auto x   = gen.children_positions[idx].x;
+        const auto y   = gen.children_positions[idx].y;
+
+        top_left.x     = std::min(x, top_left.x);
+        top_left.y     = std::min(y, top_left.y);
+        bottom_right.x = std::max(x, bottom_right.x);
+        bottom_right.y = std::max(y, bottom_right.y);
+
+        ImNodes::SetNodeEditorSpacePos(pack_node_child(id), ImVec2(x, y));
+    }
+
+    compo.x.for_each_id([&](auto id) noexcept {
+        const auto idx = get_index(id);
+
+        ImNodes::SetNodeEditorSpacePos(
+          pack_node_X(id), ImVec2(top_left.x + 20.f, top_left.y + 50.f * idx));
+    });
+
+    compo.y.for_each_id([&](auto id) noexcept {
+        const auto idx = get_index(id);
+
+        ImNodes::SetNodeEditorSpacePos(
+          pack_node_Y(id),
+          ImVec2(bottom_right.x - 20.f, top_left.y + 50.f * idx));
+    });
 }
 
 generic_component_editor_data::~generic_component_editor_data() noexcept
@@ -1342,11 +1380,6 @@ generic_component_editor_data::~generic_component_editor_data() noexcept
         ImNodes::PopAttributeFlag();
         ImNodes::EditorContextFree(context);
     }
-}
-
-void generic_component_editor_data::update_position() noexcept
-{
-    force_update_position = true;
 }
 
 void generic_component_editor_data::show(component_editor& ed) noexcept
@@ -1451,6 +1484,28 @@ void generic_component_editor_data::clear_selected_nodes() noexcept
 
     selected_links.clear();
     selected_nodes.clear();
+}
+
+void generic_component_editor_data::store(component_editor& ed) noexcept
+{
+    auto& app = container_of(&ed, &application::component_ed);
+
+    auto* compo = app.mod.components.try_to_get(m_id);
+    if (not compo or compo->type != component_type::simple)
+        return;
+
+    auto* gen = app.mod.generic_components.try_to_get(compo->id.generic_id);
+    if (not gen)
+        return;
+
+    for (auto& c : gen->children) {
+        const auto id  = gen->children.get_id(c);
+        const auto idx = get_index(id);
+
+        const auto pos = ImNodes::GetNodeEditorSpacePos(pack_node_child(id));
+        gen->children_positions[idx].x = pos.x;
+        gen->children_positions[idx].y = pos.y;
+    }
 }
 
 } // namespace irt

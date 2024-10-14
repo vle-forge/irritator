@@ -26,7 +26,7 @@
 namespace irt {
 
 template<class T, class M>
-constexpr std::ptrdiff_t offset_of(const M T::* member)
+constexpr std::ptrdiff_t offset_of(const M T::*member)
 {
     return reinterpret_cast<std::ptrdiff_t>(
       &(reinterpret_cast<T*>(0)->*member));
@@ -46,7 +46,7 @@ constexpr std::ptrdiff_t offset_of(const M T::* member)
 //! }
 //! @endcode
 template<class T, class M>
-constexpr T& container_of(M* ptr, const M T::* member)
+constexpr T& container_of(M* ptr, const M T::*member)
 {
     return *reinterpret_cast<T*>(reinterpret_cast<intptr_t>(ptr) -
                                  offset_of(member));
@@ -413,7 +413,10 @@ private:
 class generic_component_editor_data
 {
 public:
-    generic_component_editor_data(const component_id id) noexcept;
+    generic_component_editor_data(const component_id         id,
+                                  component&                 compo,
+                                  const generic_component_id gid,
+                                  generic_component&         gen) noexcept;
     ~generic_component_editor_data() noexcept;
 
     void show(component_editor& ed) noexcept;
@@ -421,9 +424,15 @@ public:
     bool need_show_selected_nodes(component_editor& ed) noexcept;
     void clear_selected_nodes() noexcept;
 
+    /** Stores the @c generic_component_editor_data hidden attributes into
+     * generic_component. For example the position of nodes (in ImNodes). This
+     * function is called before switching to another component or before saving
+     * the component. */
+    void store(component_editor& ed) noexcept;
+
     //! Before running any ImNodes functions, pre-move all children to force
     //! position for all new children.
-    void update_position() noexcept;
+    // void update_position() noexcept;
 
     //! Get the underlying component_id.
     component_id get_id() const noexcept { return m_id; }
@@ -431,11 +440,15 @@ public:
     ImNodesEditorContext* context = nullptr;
 
 public:
-    bool show_minimap            = true;
-    bool show_input_output       = true;
-    bool first_show_input_output = true;
-    bool fix_input_output        = false;
-    bool force_update_position   = false;
+    enum {
+        show_minimap,
+        show_input_output,
+        first_show_input_output,
+        fix_input_output,
+        force_update_position,
+    };
+
+    std::bitset<6> options;
 
     ImVector<int>    selected_links;
     ImVector<int>    selected_nodes;
