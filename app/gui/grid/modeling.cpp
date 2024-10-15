@@ -26,8 +26,14 @@ static const char* grid_options[] = {
 
 constexpr auto grid_options_count = 4;
 
-static const char* grid_type[] = {
-    "in-out (in - out port)",
+static const char* in_grid_type[] = {
+    "in (in[_*] ports)",
+    "name (N, W, S, E, NW, ... port)",
+    "number (4, 6, 44, 45, .., 66, port)",
+};
+
+static const char* out_grid_type[] = {
+    "out (out[_*] ports)",
     "name (N, W, S, E, NW, ... port)",
     "number (4, 6, 44, 45, .., 66, port)",
 };
@@ -80,7 +86,7 @@ static void show_grid_component_options(grid_component& grid) noexcept
         int selected_type = ordinal(grid.out_connection_type);
         if (ImGui::Combo("Output connection type",
                          &selected_type,
-                         grid_type,
+                         out_grid_type,
                          grid_type_count)) {
             if (selected_type != ordinal(grid.out_connection_type))
                 grid.out_connection_type =
@@ -92,7 +98,7 @@ static void show_grid_component_options(grid_component& grid) noexcept
         int selected_type = ordinal(grid.in_connection_type);
         if (ImGui::Combo("Input connection type",
                          &selected_type,
-                         grid_type,
+                         in_grid_type,
                          grid_type_count)) {
             if (selected_type != ordinal(grid.in_connection_type))
                 grid.in_connection_type =

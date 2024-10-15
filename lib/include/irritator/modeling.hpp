@@ -565,7 +565,7 @@ struct grid_component {
 
     options      opts                = options::none;
     type         in_connection_type  = type::name;
-    type         out_connection_type = type::name;
+    type         out_connection_type = type::in_out;
     neighborhood neighbors           = neighborhood::four;
 
     static auto build_error_handlers(log_manager& l) noexcept;
