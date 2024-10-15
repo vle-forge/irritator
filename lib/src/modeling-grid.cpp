@@ -155,12 +155,17 @@ static void connection_add(modeling&        mod,
 {
     auto* child_src = grid.cache.try_to_get(src);
     auto* child_dst = grid.cache.try_to_get(dst);
-    debug::ensure(child_src and child_src->type == child_type::component);
-    debug::ensure(child_dst and child_dst->type == child_type::component);
+
+    if (not child_src or not child_dst)
+        return;
+
+    debug::ensure(child_src->type == child_type::component);
+    debug::ensure(child_dst->type == child_type::component);
 
     auto* compo_src = mod.components.try_to_get(child_src->id.compo_id);
     auto* compo_dst = mod.components.try_to_get(child_dst->id.compo_id);
-    debug::ensure(compo_src and compo_dst);
+    if (not compo_src or not compo_dst)
+        return;
 
     compo_src->y.for_each<port_str>(
       [&](const auto sid, const auto& sname) noexcept {
