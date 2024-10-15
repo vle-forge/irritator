@@ -3511,6 +3511,18 @@ struct json_dearchiver::impl {
               if ("timeout"sv == name)
                   return read_temp_real(value) && copy_to(hsm.timeout);
 
+              if ("constants"sv == name)
+                  return value.IsArray() and
+                           std::cmp_less_equal(
+                             value.GetArray().Size(),
+                             hierarchical_state_machine::max_constants),
+                         for_each_array(
+                           value,
+                           [&](const auto i, const auto& val) noexcept -> bool {
+                               return read_temp_real(val) &&
+                                      copy_to(hsm.machine.constants[i]);
+                           });
+
               return true;
           });
     }
@@ -6106,6 +6118,12 @@ struct json_archiver::impl {
         w.Double(hsm.r2);
         w.Key("timeout");
         w.Double(hsm.timeout);
+
+        w.Key("constants");
+        w.StartArray();
+        for (const auto& c : hsm.machine.constants)
+            w.Double(c);
+        w.EndArray();
     }
 
     template<typename Writer>

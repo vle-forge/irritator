@@ -3501,7 +3501,7 @@ public:
     struct next_state_error {};
 
     constexpr static int event_type_count     = 5;
-    constexpr static int variable_count       = 12;
+    constexpr static int variable_count       = 20;
     constexpr static int action_type_count    = 16;
     constexpr static int condition_type_count = 9;
 
