@@ -14,9 +14,11 @@ namespace irt {
 using hsm_t = hierarchical_state_machine;
 
 static const char* variable_names[] = {
-    "none",        "port_0",         "port_1",      "port_2",
-    "port_3",      "variable i1",    "variable i2", "variable r1",
-    "variable r2", "variable timer", "constant i",  "constant r"
+    "none",           "port_0",         "port_1",         "port_2",
+    "port_3",         "variable i1",    "variable i2",    "variable r1",
+    "variable r2",    "variable timer", "constant i",     "constant r",
+    "hsm constant 0", "hsm constant 1", "hsm constant 2", "hsm constant 3",
+    "hsm constant 4", "hsm constant 5", "hsm constant 6", "hsm constant 7",
 };
 
 static const char* action_names[] = {
@@ -72,7 +74,7 @@ static void show_ports_variables_constants_combobox(
     ImGui::PushID(&act);
 
     constexpr auto p0    = (int)ordinal(hsm_t::variable::port_0);
-    constexpr auto pn    = (int)ordinal(hsm_t::variable::constant_r);
+    constexpr auto pn    = (int)ordinal(hsm_t::variable::hsm_constant_7);
     constexpr auto nb    = pn - p0 + 1;
     auto           p_act = (int)ordinal(act);
 
@@ -138,7 +140,7 @@ static void show_variables_and_constants_combobox(
     ImGui::PushID(&act);
 
     constexpr auto p0    = (int)ordinal(hsm_t::variable::var_i1);
-    constexpr auto pn    = (int)ordinal(hsm_t::variable::constant_r);
+    constexpr auto pn    = (int)ordinal(hsm_t::variable::hsm_constant_7);
     constexpr auto nb    = pn - p0 + 1;
     auto           p_act = (int)ordinal(act);
 
@@ -928,6 +930,17 @@ void hsm_component_editor_data::show_graph(hsm_component& hsm) noexcept
 
 void hsm_component_editor_data::show_panel(hsm_component& hsm) noexcept
 {
+    if (ImGui::CollapsingHeader("constants settings")) {
+        ImGui::InputReal("constant 0", &hsm.machine.constants[0]);
+        ImGui::InputReal("constant 1", &hsm.machine.constants[1]);
+        ImGui::InputReal("constant 2", &hsm.machine.constants[2]);
+        ImGui::InputReal("constant 3", &hsm.machine.constants[3]);
+        ImGui::InputReal("constant 4", &hsm.machine.constants[4]);
+        ImGui::InputReal("constant 5", &hsm.machine.constants[5]);
+        ImGui::InputReal("constant 6", &hsm.machine.constants[6]);
+        ImGui::InputReal("constant 7", &hsm.machine.constants[7]);
+    }
+
     if (ImGui::CollapsingHeader("selected states",
                                 ImGuiTreeNodeFlags_DefaultOpen)) {
         for (int i = 0, e = m_selected_nodes.Size; i != e; ++i) {
