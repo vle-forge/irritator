@@ -3551,9 +3551,43 @@ struct json_dearchiver::impl {
         report_json_error(error_id::missing_component_type);
     }
 
+    bool read_port(
+      const rapidjson::Value& val,
+      id_data_array<port_id, default_allocator, port_str, position>&
+        port) noexcept
+    {
+        port_str port_name;
+        double   x = 0, y = 0;
+
+        if (not for_each_member(
+              val, [&](const auto name, const auto& value) noexcept -> bool {
+                  if ("name"sv == name)
+                      return read_temp_string(value) && copy_to(port_name);
+                  if ("x"sv == name)
+                      return read_temp_real(value) && copy_to(x);
+                  if ("y"sv == name)
+                      return read_temp_real(value) && copy_to(y);
+
+                  return true;
+              }))
+            return false;
+
+        if (not port.can_alloc(1))
+            return false;
+
+        port.alloc([&](auto /*id*/, auto& str, auto& position) noexcept {
+            str        = port_name.sv();
+            position.x = static_cast<float>(x);
+            position.y = static_cast<float>(y);
+        });
+
+        return true;
+    }
+
     bool read_ports(
-      const rapidjson::Value&                              val,
-      id_data_array<port_id, default_allocator, port_str>& port) noexcept
+      const rapidjson::Value& val,
+      id_data_array<port_id, default_allocator, port_str, position>&
+        port) noexcept
     {
         auto_stack s(this, stack_id::component_ports);
 
@@ -3561,11 +3595,18 @@ struct json_dearchiver::impl {
                for_each_array(
                  val,
                  [&](const auto /*i*/, const auto& value) noexcept -> bool {
-                     if (read_temp_string(value)) {
-                         port.alloc([&](auto /*id*/, auto& str) noexcept {
-                             str = temp_string;
-                         });
-                         return true;
+                     if (value.IsString()) {
+                         if (read_temp_string(value)) {
+                             port.alloc(
+                               [&](auto /*id*/, auto& str, auto& pos) noexcept {
+                                   str = temp_string;
+                                   pos.reset();
+                               });
+                             return true;
+                         }
+                         return false;
+                     } else if (value.IsObject()) {
+                         return read_port(value, port);
                      }
 
                      report_json_error(error_id::missing_string);
@@ -5684,9 +5725,17 @@ struct json_archiver::impl {
             w.Key("x");
             w.StartArray();
 
-            compo.x.for_each([&](auto /*id*/, const auto& str) noexcept {
-                w.String(str.c_str());
-            });
+            compo.x.for_each(
+              [&](auto /*id*/, const auto& str, auto& pos) noexcept {
+                  w.StartObject();
+                  w.Key("name");
+                  w.String(str.c_str());
+                  w.Key("x");
+                  w.Double(pos.x);
+                  w.Key("y");
+                  w.Double(pos.y);
+                  w.EndObject();
+              });
 
             w.EndArray();
         }
@@ -5695,9 +5744,17 @@ struct json_archiver::impl {
             w.Key("y");
             w.StartArray();
 
-            compo.y.for_each([&](auto /*id*/, const auto& str) noexcept {
-                w.String(str.c_str());
-            });
+            compo.y.for_each(
+              [&](auto /*id*/, const auto& str, auto& pos) noexcept {
+                  w.StartObject();
+                  w.Key("name");
+                  w.String(str.c_str());
+                  w.Key("x");
+                  w.Double(pos.x);
+                  w.Key("y");
+                  w.Double(pos.y);
+                  w.EndObject();
+              });
 
             w.EndArray();
         }

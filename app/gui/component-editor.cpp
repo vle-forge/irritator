@@ -263,7 +263,10 @@ struct component_editor::impl {
 
                 if (compo.x.can_alloc(1) && ImGui::Button("+##in-port")) {
                     compo.x.alloc(
-                      [&](auto /*id*/, auto& name) noexcept { name = "-"; });
+                      [&](auto /*id*/, auto& name, auto& pos) noexcept {
+                          name = "-";
+                          pos.reset();
+                      });
                 }
             }
         }
@@ -282,24 +285,25 @@ struct component_editor::impl {
                 ImGui::TableHeadersRow();
 
                 std::optional<port_id> to_del;
-                compo.y.for_each([&](auto id, auto& name) noexcept {
-                    ImGui::TableNextRow();
-                    ImGui::TableNextColumn();
-                    ImGui::TextFormat("{}", ordinal(id));
+                compo.y.for_each(
+                  [&](auto id, auto& name, auto& /*pos*/) noexcept {
+                      ImGui::TableNextRow();
+                      ImGui::TableNextColumn();
+                      ImGui::TextFormat("{}", ordinal(id));
 
-                    ImGui::TableNextColumn();
-                    ImGui::PushItemWidth(-1.f);
-                    ImGui::PushID(ordinal(id));
+                      ImGui::TableNextColumn();
+                      ImGui::PushItemWidth(-1.f);
+                      ImGui::PushID(ordinal(id));
 
-                    ImGui::InputFilteredString("##out-name", name);
+                      ImGui::InputFilteredString("##out-name", name);
 
-                    ImGui::PopID();
-                    ImGui::PopItemWidth();
+                      ImGui::PopID();
+                      ImGui::PopItemWidth();
 
-                    ImGui::TableNextColumn();
-                    if (ImGui::Button("del"))
-                        to_del = id;
-                });
+                      ImGui::TableNextColumn();
+                      if (ImGui::Button("del"))
+                          to_del = id;
+                  });
 
                 if (to_del.has_value())
                     compo.y.free(*to_del);
@@ -308,7 +312,10 @@ struct component_editor::impl {
 
                 if (compo.y.can_alloc(1) && ImGui::Button("+##out-port")) {
                     compo.y.alloc(
-                      [&](auto /*id*/, auto& name) noexcept { name = "-"; });
+                      [&](auto /*id*/, auto& name, auto& pos) noexcept {
+                          name = "-";
+                          pos.reset();
+                      });
                 }
             }
         }

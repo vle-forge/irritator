@@ -117,7 +117,10 @@ static bool get_or_add_x(component& compo, std::string_view name) noexcept
         return true;
 
     if (compo.x.can_alloc(1)) {
-        compo.x.alloc([&](auto /*id*/, auto& str) { str = name; });
+        compo.x.alloc([&](auto /*id*/, auto& str, auto& pos) {
+            str = name;
+            pos.reset();
+        });
         return true;
     }
 
@@ -130,7 +133,10 @@ static bool get_or_add_y(component& compo, std::string_view name) noexcept
         return true;
 
     if (compo.y.can_alloc(1)) {
-        compo.y.alloc([&](auto /*id*/, auto& str) { str = name; });
+        compo.y.alloc([&](auto /*id*/, auto& str, auto& pos) {
+            str = name;
+            pos.reset();
+        });
         return true;
     }
 
@@ -403,68 +409,70 @@ static void show_grid(application&                app,
         if (ImGui::BeginMenu("Menu##compo")) {
             if (ImGui::BeginMenu("Connect to grid input port")) {
                 if (ed.hovered_component) {
-                    ed.hovered_component->x.for_each([&](auto  s_id,
-                                                         auto& s_name) {
-                        ImGui::PushID(ordinal(s_id));
+                    ed.hovered_component->x.for_each<port_str>(
+                      [&](const auto s_id, const auto& s_name) noexcept {
+                          ImGui::PushID(ordinal(s_id));
 
-                        compo.x.for_each([&](auto id, auto& name) noexcept {
-                            ImGui::PushID(ordinal(id));
-                            small_string<128> str;
+                          compo.x.for_each<port_str>(
+                            [&](auto id, auto& name) noexcept {
+                                ImGui::PushID(ordinal(id));
+                                small_string<128> str;
 
-                            format(str,
-                                   "grid port {} to {}",
-                                   name.sv(),
-                                   s_name.sv());
+                                format(str,
+                                       "grid port {} to {}",
+                                       name.sv(),
+                                       s_name.sv());
 
-                            if (ImGui::MenuItem(str.c_str())) {
-                                auto ret =
-                                  data.connect_input(s_id, ed.row, ed.col, id);
-                                if (!ret) {
-                                    auto& n = app.notifications.alloc();
-                                    n.title = "Fail to connect input";
-                                    app.notifications.enable(n);
+                                if (ImGui::MenuItem(str.c_str())) {
+                                    auto ret = data.connect_input(
+                                      s_id, ed.row, ed.col, id);
+                                    if (!ret) {
+                                        auto& n = app.notifications.alloc();
+                                        n.title = "Fail to connect input";
+                                        app.notifications.enable(n);
+                                    }
+                                    deselect = true;
                                 }
-                                deselect = true;
-                            }
-                            ImGui::PopID();
-                        });
+                                ImGui::PopID();
+                            });
 
-                        ImGui::PopID();
-                    });
+                          ImGui::PopID();
+                      });
                 }
                 ImGui::EndMenu();
             }
 
             if (ImGui::BeginMenu("Connect to grid output port")) {
                 if (ed.hovered_component) {
-                    ed.hovered_component->y.for_each([&](auto  s_id,
-                                                         auto& s_name) {
-                        ImGui::PushID(ordinal(s_id));
+                    ed.hovered_component->y.for_each<port_str>(
+                      [&](const auto s_id, const auto& s_name) noexcept {
+                          ImGui::PushID(ordinal(s_id));
 
-                        compo.y.for_each([&](auto id, auto& name) noexcept {
-                            ImGui::PushID(ordinal(id));
-                            small_string<128> str;
+                          compo.y.for_each<port_str>(
+                            [&](const auto id, const auto& name) noexcept {
+                                ImGui::PushID(ordinal(id));
+                                small_string<128> str;
 
-                            format(str,
-                                   "{} to grid port {}",
-                                   s_name.sv(),
-                                   name.sv());
+                                format(str,
+                                       "{} to grid port {}",
+                                       s_name.sv(),
+                                       name.sv());
 
-                            if (ImGui::MenuItem(str.c_str())) {
-                                auto ret =
-                                  data.connect_output(s_id, ed.row, ed.col, id);
-                                if (!ret) {
-                                    auto& n = app.notifications.alloc();
-                                    n.title = "Fail to connect output";
-                                    app.notifications.enable(n);
+                                if (ImGui::MenuItem(str.c_str())) {
+                                    auto ret = data.connect_output(
+                                      s_id, ed.row, ed.col, id);
+                                    if (!ret) {
+                                        auto& n = app.notifications.alloc();
+                                        n.title = "Fail to connect output";
+                                        app.notifications.enable(n);
+                                    }
+                                    deselect = true;
                                 }
-                                deselect = true;
-                            }
-                            ImGui::PopID();
-                        });
+                                ImGui::PopID();
+                            });
 
-                        ImGui::PopID();
-                    });
+                          ImGui::PopID();
+                      });
                 }
 
                 ImGui::EndMenu();
@@ -566,10 +574,7 @@ bool grid_component_editor_data::need_show_selected_nodes(
     return false;
 }
 
-void grid_component_editor_data::clear_selected_nodes() noexcept
-{
-}
-
+void grid_component_editor_data::clear_selected_nodes() noexcept {}
 
 grid_editor_dialog::grid_editor_dialog() noexcept
 {

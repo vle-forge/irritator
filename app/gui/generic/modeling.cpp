@@ -347,21 +347,24 @@ static void show(component_editor& ed,
 static void show_input_an_output_ports(component&     compo,
                                        const child_id c_id) noexcept
 {
-    compo.x.for_each([&](const auto id, const auto& name) noexcept {
-        const auto pack_id = pack_in(c_id, id);
+    compo.x.for_each(
+      [&](const auto id, const auto& name, const auto& /*pos*/) noexcept {
+          const auto pack_id = pack_in(c_id, id);
 
-        ImNodes::BeginInputAttribute(pack_id, ImNodesPinShape_TriangleFilled);
-        ImGui::TextUnformatted(name.c_str());
-        ImNodes::EndInputAttribute();
-    });
+          ImNodes::BeginInputAttribute(pack_id, ImNodesPinShape_TriangleFilled);
+          ImGui::TextUnformatted(name.c_str());
+          ImNodes::EndInputAttribute();
+      });
 
-    compo.y.for_each([&](const auto id, const auto& name) noexcept {
-        const auto pack_id = pack_out(c_id, id);
+    compo.y.for_each(
+      [&](const auto id, const auto& name, const auto& /*pos*/) noexcept {
+          const auto pack_id = pack_out(c_id, id);
 
-        ImNodes::BeginOutputAttribute(pack_id, ImNodesPinShape_TriangleFilled);
-        ImGui::TextUnformatted(name.c_str());
-        ImNodes::EndOutputAttribute();
-    });
+          ImNodes::BeginOutputAttribute(pack_id,
+                                        ImNodesPinShape_TriangleFilled);
+          ImGui::TextUnformatted(name.c_str());
+          ImNodes::EndOutputAttribute();
+      });
 }
 
 static void show_generic_node(application&       app,
@@ -443,59 +446,61 @@ static void show_graph_node(application&     app,
     ImNodes::PopColorStyle();
 }
 
-//static void update_editor_position(const child_id  id,
-//                                   const position& pos) noexcept
+// static void update_editor_position(const child_id  id,
+//                                    const position& pos) noexcept
 //{
-//    ImNodes::SetNodeScreenSpacePos(pack_node_child(id), ImVec2(pos.x, pos.y));
-//}
+//     ImNodes::SetNodeScreenSpacePos(pack_node_child(id), ImVec2(pos.x,
+//     pos.y));
+// }
 
-//static void update_editor_all_positions(generic_component& generic) noexcept
+// static void update_editor_all_positions(generic_component& generic) noexcept
 //{
-//    for_each_data(generic.children, [&](auto& child) noexcept {
-//        const auto id  = generic.children.get_id(child);
-//        const auto idx = get_index(id);
+//     for_each_data(generic.children, [&](auto& child) noexcept {
+//         const auto id  = generic.children.get_id(child);
+//         const auto idx = get_index(id);
 //
-//        update_editor_position(id, generic.children_positions[idx]);
-//    });
-//}
+//         update_editor_position(id, generic.children_positions[idx]);
+//     });
+// }
 
-//static void update_editor_list_positions(generic_component&  generic,
-//                                         std::span<child_id> ids) noexcept
+// static void update_editor_list_positions(generic_component&  generic,
+//                                          std::span<child_id> ids) noexcept
 //{
-//    for (const auto id : ids) {
-//        if_data_exists_do(generic.children, id, [&](auto& /*child*/) noexcept {
-//            const auto idx = get_index(id);
+//     for (const auto id : ids) {
+//         if_data_exists_do(generic.children, id, [&](auto& /*child*/) noexcept
+//         {
+//             const auto idx = get_index(id);
 //
-//            update_editor_position(id, generic.children_positions[idx]);
-//        });
-//    }
-//}
+//             update_editor_position(id, generic.children_positions[idx]);
+//         });
+//     }
+// }
 
-//static void update_editor_positions(generic_component_editor_data& data,
-//                                    generic_component& generic) noexcept
+// static void update_editor_positions(generic_component_editor_data& data,
+//                                     generic_component& generic) noexcept
 //{
-//    if (data.update_position_list.empty()) {
-//        update_editor_all_positions(generic);
-//    } else {
-//        update_editor_list_positions(
-//          generic, std::span<child_id>(data.update_position_list));
-//        data.update_position_list.clear();
-//    }
+//     if (data.update_position_list.empty()) {
+//         update_editor_all_positions(generic);
+//     } else {
+//         update_editor_list_positions(
+//           generic, std::span<child_id>(data.update_position_list));
+//         data.update_position_list.clear();
+//     }
 //
-//    // data.force_update_position = false;
-//}
+//     // data.force_update_position = false;
+// }
 
-//static void update_input_output_draggable(component& parent,
-//                                          bool       draggable) noexcept
+// static void update_input_output_draggable(component& parent,
+//                                           bool       draggable) noexcept
 //{
-//    parent.x.for_each_id([&](auto id) noexcept {
-//        ImNodes::SetNodeDraggable(pack_node_X(id), draggable);
-//    });
+//     parent.x.for_each_id([&](auto id) noexcept {
+//         ImNodes::SetNodeDraggable(pack_node_X(id), draggable);
+//     });
 //
-//    parent.y.for_each_id([&](auto id) noexcept {
-//        ImNodes::SetNodeDraggable(pack_node_Y(id), draggable);
-//    });
-//}
+//     parent.y.for_each_id([&](auto id) noexcept {
+//         ImNodes::SetNodeDraggable(pack_node_Y(id), draggable);
+//     });
+// }
 
 static void update_input_output_position(component&                     parent,
                                          generic_component_editor_data& data,
@@ -768,7 +773,6 @@ static void add_component_to_current(component_editor&              ed,
     parent_compo.children_positions[c_idx].x = click_pos.x;
     parent_compo.children_positions[c_idx].y = click_pos.y;
     ImNodes::SetNodeEditorSpacePos(pack_node_child(c_id), click_pos);
-
 
     // data.update_position_list.emplace_back(c_id);
     // data.update_position();
@@ -1242,8 +1246,8 @@ static void show_component_editor(component_editor&              ed,
     ImNodes::EditorContextSet(data.context);
     ImNodes::BeginNodeEditor();
 
-    //if (app.grid_dlg.is_running) {
-    //    app.grid_dlg.show();
+    // if (app.grid_dlg.is_running) {
+    //     app.grid_dlg.show();
 
     //    if (app.grid_dlg.is_ok && !app.grid_dlg.is_running) {
     //        app.grid_dlg.save();
@@ -1263,8 +1267,8 @@ static void show_component_editor(component_editor&              ed,
     //    }
     //}
 
-    //if (app.graph_dlg.is_running) {
-    //    app.graph_dlg.show();
+    // if (app.graph_dlg.is_running) {
+    //     app.graph_dlg.show();
 
     //    if (app.graph_dlg.is_ok && !app.graph_dlg.is_running) {
     //        app.graph_dlg.save();
@@ -1357,19 +1361,12 @@ generic_component_editor_data::generic_component_editor_data(
         ImNodes::SetNodeEditorSpacePos(pack_node_child(id), ImVec2(x, y));
     }
 
-    compo.x.for_each_id([&](auto id) noexcept {
-        const auto idx = get_index(id);
-
-        ImNodes::SetNodeEditorSpacePos(
-          pack_node_X(id), ImVec2(top_left.x + 20.f, top_left.y + 50.f * idx));
+    compo.x.for_each<position>([&](auto id, const position& pos) noexcept {
+        ImNodes::SetNodeEditorSpacePos(pack_node_X(id), ImVec2(pos.x, pos.y));
     });
 
-    compo.y.for_each_id([&](auto id) noexcept {
-        const auto idx = get_index(id);
-
-        ImNodes::SetNodeEditorSpacePos(
-          pack_node_Y(id),
-          ImVec2(bottom_right.x - 20.f, top_left.y + 50.f * idx));
+    compo.y.for_each<position>([&](auto id, const position& pos) noexcept {
+        ImNodes::SetNodeEditorSpacePos(pack_node_Y(id), ImVec2(pos.x, pos.y));
     });
 }
 
@@ -1506,6 +1503,18 @@ void generic_component_editor_data::store(component_editor& ed) noexcept
         gen->children_positions[idx].x = pos.x;
         gen->children_positions[idx].y = pos.y;
     }
+
+    compo->x.for_each<position>([&](const auto id, auto& position) noexcept {
+        const auto pos = ImNodes::GetNodeEditorSpacePos(pack_node_X(id));
+        position.x     = pos.x;
+        position.y     = pos.y;
+    });
+
+    compo->y.for_each<position>([&](const auto id, auto& position) noexcept {
+        const auto pos = ImNodes::GetNodeEditorSpacePos(pack_node_Y(id));
+        position.x     = pos.x;
+        position.y     = pos.y;
+    });
 }
 
 } // namespace irt

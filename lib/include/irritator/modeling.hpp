@@ -750,8 +750,8 @@ public:
 struct component {
     component() noexcept;
 
-    id_data_array<port_id, default_allocator, port_str> x;
-    id_data_array<port_id, default_allocator, port_str> y;
+    id_data_array<port_id, default_allocator, port_str, position> x;
+    id_data_array<port_id, default_allocator, port_str, position> y;
 
     port_id get_x(std::string_view str) const noexcept
     {
@@ -786,7 +786,10 @@ struct component {
         if (not x.can_alloc(1))
             return undefined<port_id>();
 
-        return x.alloc([&](auto /*id*/, auto& name) noexcept { name = str; });
+        return x.alloc([&](auto /*id*/, auto& name, auto& pos) noexcept {
+            name = str;
+            pos.reset();
+        });
     }
 
     port_id get_or_add_y(std::string_view str) noexcept
@@ -798,7 +801,10 @@ struct component {
         if (not y.can_alloc(1))
             return undefined<port_id>();
 
-        return y.alloc([&](auto /*id*/, auto& name) noexcept { name = str; });
+        return y.alloc([&](auto /*id*/, auto& name, auto& pos) noexcept {
+            name = str;
+            pos.reset();
+        });
     }
 
     description_id    desc     = description_id{ 0 };

@@ -1017,15 +1017,19 @@ status modeling::copy(const component& src, component& dst) noexcept
     if (not(dst.x.can_alloc(src.x.size()) and dst.y.can_alloc(src.y.size())))
         return new_error(part::components, container_full_error{});
 
-    src.x.for_each([&](auto /*id*/, const auto& name) noexcept {
-        auto new_id                 = dst.x.alloc();
-        dst.x.get<port_str>(new_id) = name;
-    });
+    src.x.for_each(
+      [&](auto /*id*/, const auto& name, const auto& pos) noexcept {
+          auto new_id                 = dst.x.alloc();
+          dst.x.get<port_str>(new_id) = name;
+          dst.x.get<position>(new_id) = pos;
+      });
 
-    src.y.for_each([&](auto /*id*/, const auto& name) noexcept {
-        auto new_id                 = dst.y.alloc();
-        dst.y.get<port_str>(new_id) = name;
-    });
+    src.y.for_each(
+      [&](auto /*id*/, const auto& name, const auto& pos) noexcept {
+          auto new_id                 = dst.y.alloc();
+          dst.y.get<port_str>(new_id) = name;
+          dst.y.get<position>(new_id) = pos;
+      });
 
     dst.name  = src.name;
     dst.id    = src.id;
