@@ -497,6 +497,7 @@ static void display_action(hsm_t::state_action& act,
         break;
 
     case hsm_t::action_type::output:
+        display_condition_2_var(act, "output", name);
         break;
 
     case hsm_t::action_type::affect:
