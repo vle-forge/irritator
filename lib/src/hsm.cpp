@@ -8,43 +8,69 @@ namespace irt {
 
 using hsm_t = hierarchical_state_machine;
 
-static constexpr i32 copy_to_i32(const hsm_t::variable      v,
-                                 const hsm_t::state_action& act,
-                                 const hsm_t::execution&    e) noexcept
+static constexpr i32 copy_to_i32(
+  const std::span<const real, hsm_t::max_constants> c,
+  const hsm_t::variable                             v,
+  const hsm_t::state_action&                        act,
+  const hsm_t::execution&                           e) noexcept
 {
     switch (v) {
     case hsm_t::variable::none:
         return 0;
+
     case hsm_t::variable::port_0:
         return static_cast<i32>(e.ports[0]);
+
     case hsm_t::variable::port_1:
         return static_cast<i32>(e.ports[1]);
+
     case hsm_t::variable::port_2:
         return static_cast<i32>(e.ports[2]);
+
     case hsm_t::variable::port_3:
         return static_cast<i32>(e.ports[3]);
+
     case hsm_t::variable::var_i1:
         return e.i1;
+
     case hsm_t::variable::var_i2:
         return e.i2;
+
     case hsm_t::variable::var_r1:
         return static_cast<i32>(e.r1);
+
     case hsm_t::variable::var_r2:
         return static_cast<i32>(e.r2);
+
     case hsm_t::variable::var_timer:
         return static_cast<i32>(e.timer);
+
     case hsm_t::variable::constant_i:
         return act.constant.i;
+
     case hsm_t::variable::constant_r:
         return static_cast<i32>(act.constant.f);
+
+    case hsm_t::variable::hsm_constant_0:
+    case hsm_t::variable::hsm_constant_1:
+    case hsm_t::variable::hsm_constant_2:
+    case hsm_t::variable::hsm_constant_3:
+    case hsm_t::variable::hsm_constant_4:
+    case hsm_t::variable::hsm_constant_5:
+    case hsm_t::variable::hsm_constant_6:
+    case hsm_t::variable::hsm_constant_7:
+        return static_cast<i32>(
+          c[ordinal(v) - ordinal(hsm_t::variable::hsm_constant_0)]);
     }
 
     irt::unreachable();
 }
 
-static constexpr real copy_to_real(const hsm_t::variable      v,
-                                   const hsm_t::state_action& act,
-                                   const hsm_t::execution&    e) noexcept
+static constexpr real copy_to_real(
+  const std::span<const real, hsm_t::max_constants> c,
+  const hsm_t::variable                             v,
+  const hsm_t::state_action&                        act,
+  const hsm_t::execution&                           e) noexcept
 {
     switch (v) {
     case hsm_t::variable::none:
@@ -71,6 +97,15 @@ static constexpr real copy_to_real(const hsm_t::variable      v,
         return static_cast<real>(act.constant.i);
     case hsm_t::variable::constant_r:
         return act.constant.f;
+    case hsm_t::variable::hsm_constant_0:
+    case hsm_t::variable::hsm_constant_1:
+    case hsm_t::variable::hsm_constant_2:
+    case hsm_t::variable::hsm_constant_3:
+    case hsm_t::variable::hsm_constant_4:
+    case hsm_t::variable::hsm_constant_5:
+    case hsm_t::variable::hsm_constant_6:
+    case hsm_t::variable::hsm_constant_7:
+        return c[ordinal(v) - ordinal(hsm_t::variable::hsm_constant_0)];
     }
 
     irt::unreachable();
@@ -104,8 +139,9 @@ struct wrap_var {
     }
 
     template<typename Action>
-    constexpr wrap_var(const hsm_t::variable   v,
-                       Action&                 act,
+    constexpr wrap_var(const std::span<const real, hsm_t::max_constants> c,
+                       const hsm_t::variable                             v,
+                       Action&                                           act,
                        const hsm_t::execution& e) noexcept
     {
         switch (v) {
@@ -177,6 +213,19 @@ struct wrap_var {
 
         case hsm_t::variable::constant_r:
             r    = act.constant.f;
+            i    = static_cast<i32>(act.constant.f);
+            type = type::real_t;
+            break;
+
+        case hsm_t::variable::hsm_constant_0:
+        case hsm_t::variable::hsm_constant_1:
+        case hsm_t::variable::hsm_constant_2:
+        case hsm_t::variable::hsm_constant_3:
+        case hsm_t::variable::hsm_constant_4:
+        case hsm_t::variable::hsm_constant_5:
+        case hsm_t::variable::hsm_constant_6:
+        case hsm_t::variable::hsm_constant_7:
+            r    = c[ordinal(v) - ordinal(hsm_t::variable::hsm_constant_0)];
             i    = static_cast<i32>(act.constant.f);
             type = type::real_t;
             break;
@@ -468,8 +517,7 @@ void hierarchical_state_machine::state_action::set_modulus(variable v1,
 }
 
 void hierarchical_state_machine::state_action::set_modulus(variable v1,
-
-                                                           i32 i) noexcept
+                                                           i32      i) noexcept
 {
     debug::ensure(is_affectable(v1));
 
@@ -926,7 +974,7 @@ bool hierarchical_state_machine::handle(const state_id   state,
                       condition_type::port))
             return false;
 
-        if (states[state].condition.check(exec)) {
+        if (states[state].condition.check(constants, exec)) {
             affect_action(states[state].if_action, exec);
             if (states[state].if_transition != invalid_state_id)
                 transition(states[state].if_transition, exec);
@@ -946,7 +994,7 @@ bool hierarchical_state_machine::handle(const state_id   state,
                 transition(states[state].else_transition, exec);
             return true;
         } else {
-            if (states[state].condition.check(exec)) {
+            if (states[state].condition.check(constants, exec)) {
                 affect_action(states[state].if_action, exec);
                 if (states[state].if_transition != invalid_state_id)
                     transition(states[state].if_transition, exec);
@@ -961,7 +1009,7 @@ bool hierarchical_state_machine::handle(const state_id   state,
         break;
 
     case event_type::wake_up:
-        if (states[state].condition.check(exec)) {
+        if (states[state].condition.check(constants, exec)) {
             affect_action(states[state].if_action, exec);
             if (states[state].if_transition != invalid_state_id)
                 transition(states[state].if_transition, exec);
@@ -1011,10 +1059,6 @@ void hierarchical_state_machine::affect_action(const state_action& action,
         const u8 port = ordinal(action.var1) - 1u;
 
         switch (action.var2) {
-        case variable::none:
-            irt::unreachable();
-            break;
-
         case variable::port_0:
             e.push_message(e.ports[0], port);
             break;
@@ -1049,72 +1093,64 @@ void hierarchical_state_machine::affect_action(const state_action& action,
         case variable::constant_r:
             e.push_message(action.constant.f, port);
             break;
+        case variable::hsm_constant_0:
+        case variable::hsm_constant_1:
+        case variable::hsm_constant_2:
+        case variable::hsm_constant_3:
+        case variable::hsm_constant_4:
+        case variable::hsm_constant_5:
+        case variable::hsm_constant_6:
+        case variable::hsm_constant_7:
+            e.push_message(constants[ordinal(action.var2)] -
+                             ordinal(variable::hsm_constant_0),
+                           port);
+            break;
+        default:
+            irt::unreachable();
+            break;
         }
     } break;
 
     case action_type::affect:
         switch (action.var1) {
-        case variable::none:
-        case variable::port_0:
-        case variable::port_1:
-        case variable::port_2:
-        case variable::port_3:
-            unreachable();
-            break;
-
         case variable::var_i1:
-            e.i1 = copy_to_i32(action.var2, action, e);
+            e.i1 = copy_to_i32(constants, action.var2, action, e);
             break;
         case variable::var_i2:
-            e.i2 = copy_to_i32(action.var2, action, e);
+            e.i2 = copy_to_i32(constants, action.var2, action, e);
             break;
         case variable::var_r1:
-            e.r1 = copy_to_real(action.var2, action, e);
+            e.r1 = copy_to_real(constants, action.var2, action, e);
             break;
         case variable::var_r2:
-            e.r2 = copy_to_real(action.var2, action, e);
+            e.r2 = copy_to_real(constants, action.var2, action, e);
             break;
         case variable::var_timer:
-            e.timer = copy_to_real(action.var2, action, e);
+            e.timer = copy_to_real(constants, action.var2, action, e);
             break;
-        case variable::constant_i:
+        default:
             irt::unreachable();
-            break;
-        case variable::constant_r:
-            irt::unreachable();
-            break;
         }
         break;
 
     case action_type::plus:
         switch (action.var1) {
-        case variable::none:
-        case variable::port_0:
-        case variable::port_1:
-        case variable::port_2:
-        case variable::port_3:
-            unreachable();
-            break;
-
         case variable::var_i1:
-            e.i1 += copy_to_i32(action.var2, action, e);
+            e.i1 += copy_to_i32(constants, action.var2, action, e);
             break;
         case variable::var_i2:
-            e.i2 += copy_to_i32(action.var2, action, e);
+            e.i2 += copy_to_i32(constants, action.var2, action, e);
             break;
         case variable::var_r1:
-            e.r1 += copy_to_real(action.var2, action, e);
+            e.r1 += copy_to_real(constants, action.var2, action, e);
             break;
         case variable::var_r2:
-            e.r2 += copy_to_real(action.var2, action, e);
+            e.r2 += copy_to_real(constants, action.var2, action, e);
             break;
         case variable::var_timer:
-            e.timer += copy_to_real(action.var2, action, e);
+            e.timer += copy_to_real(constants, action.var2, action, e);
             break;
-        case variable::constant_i:
-            irt::unreachable();
-            break;
-        case variable::constant_r:
+        default:
             irt::unreachable();
             break;
         }
@@ -1122,34 +1158,23 @@ void hierarchical_state_machine::affect_action(const state_action& action,
 
     case action_type::minus:
         switch (action.var1) {
-        case variable::none:
-        case variable::port_0:
-        case variable::port_1:
-        case variable::port_2:
-        case variable::port_3:
-            unreachable();
-            break;
-
         case variable::var_i1:
-            e.i1 -= copy_to_i32(action.var2, action, e);
+            e.i1 -= copy_to_i32(constants, action.var2, action, e);
             break;
         case variable::var_i2:
-            e.i2 -= copy_to_i32(action.var2, action, e);
+            e.i2 -= copy_to_i32(constants, action.var2, action, e);
             break;
         case variable::var_r1:
-            e.r1 -= copy_to_real(action.var2, action, e);
+            e.r1 -= copy_to_real(constants, action.var2, action, e);
             break;
         case variable::var_r2:
-            e.r2 -= copy_to_real(action.var2, action, e);
+            e.r2 -= copy_to_real(constants, action.var2, action, e);
             break;
         case variable::var_timer:
-            e.timer -= copy_to_real(action.var2, action, e);
+            e.timer -= copy_to_real(constants, action.var2, action, e);
             e.timer = e.timer < 0.0 ? 0.0 : e.timer;
             break;
-        case variable::constant_i:
-            irt::unreachable();
-            break;
-        case variable::constant_r:
+        default:
             irt::unreachable();
             break;
         }
@@ -1157,34 +1182,23 @@ void hierarchical_state_machine::affect_action(const state_action& action,
 
     case action_type::negate:
         switch (action.var1) {
-        case variable::none:
-        case variable::port_0:
-        case variable::port_1:
-        case variable::port_2:
-        case variable::port_3:
-            unreachable();
-            break;
-
         case variable::var_i1:
-            e.i1 = -1 * copy_to_i32(action.var2, action, e);
+            e.i1 = -1 * copy_to_i32(constants, action.var2, action, e);
             break;
         case variable::var_i2:
-            e.i2 = -1 * copy_to_i32(action.var2, action, e);
+            e.i2 = -1 * copy_to_i32(constants, action.var2, action, e);
             break;
         case variable::var_r1:
-            e.r1 = -1.0 * copy_to_real(action.var2, action, e);
+            e.r1 = -1.0 * copy_to_real(constants, action.var2, action, e);
             break;
         case variable::var_r2:
-            e.r2 = -1.0 * copy_to_real(action.var2, action, e);
+            e.r2 = -1.0 * copy_to_real(constants, action.var2, action, e);
             break;
         case variable::var_timer:
-            e.timer = -1.0 * copy_to_real(action.var2, action, e);
+            e.timer = -1.0 * copy_to_real(constants, action.var2, action, e);
             e.timer = e.timer < 0.0 ? 0.0 : e.timer;
             break;
-        case variable::constant_i:
-            irt::unreachable();
-            break;
-        case variable::constant_r:
+        default:
             irt::unreachable();
             break;
         }
@@ -1192,34 +1206,23 @@ void hierarchical_state_machine::affect_action(const state_action& action,
 
     case action_type::multiplies:
         switch (action.var1) {
-        case variable::none:
-        case variable::port_0:
-        case variable::port_1:
-        case variable::port_2:
-        case variable::port_3:
-            unreachable();
-            break;
-
         case variable::var_i1:
-            e.i1 *= copy_to_i32(action.var2, action, e);
+            e.i1 *= copy_to_i32(constants, action.var2, action, e);
             break;
         case variable::var_i2:
-            e.i2 *= copy_to_i32(action.var2, action, e);
+            e.i2 *= copy_to_i32(constants, action.var2, action, e);
             break;
         case variable::var_r1:
-            e.r1 *= copy_to_real(action.var2, action, e);
+            e.r1 *= copy_to_real(constants, action.var2, action, e);
             break;
         case variable::var_r2:
-            e.r2 *= copy_to_real(action.var2, action, e);
+            e.r2 *= copy_to_real(constants, action.var2, action, e);
             break;
         case variable::var_timer:
-            e.timer *= copy_to_real(action.var2, action, e);
+            e.timer *= copy_to_real(constants, action.var2, action, e);
             e.timer = e.timer < 0.0 ? 0.0 : e.timer;
             break;
-        case variable::constant_i:
-            irt::unreachable();
-            break;
-        case variable::constant_r:
+        default:
             irt::unreachable();
             break;
         }
@@ -1227,50 +1230,39 @@ void hierarchical_state_machine::affect_action(const state_action& action,
 
     case action_type::divides:
         switch (action.var1) {
-        case variable::none:
-        case variable::port_0:
-        case variable::port_1:
-        case variable::port_2:
-        case variable::port_3:
-            unreachable();
-            break;
-
         case variable::var_i1: {
-            if (auto val = copy_to_i32(action.var2, action, e); val)
+            if (auto val = copy_to_i32(constants, action.var2, action, e); val)
                 e.i1 /= val;
             else
                 e.i1 = INT32_MAX;
         } break;
         case variable::var_i2: {
-            if (auto val = copy_to_i32(action.var2, action, e); val)
+            if (auto val = copy_to_i32(constants, action.var2, action, e); val)
                 e.i2 /= val;
             else
                 e.i2 = INT32_MAX;
         } break;
         case variable::var_r1: {
-            if (auto val = copy_to_real(action.var2, action, e); val)
+            if (auto val = copy_to_real(constants, action.var2, action, e); val)
                 e.r1 /= val;
             else
                 e.r1 = std::numeric_limits<double>::infinity();
         } break;
         case variable::var_r2: {
-            if (auto val = copy_to_real(action.var2, action, e); val)
+            if (auto val = copy_to_real(constants, action.var2, action, e); val)
                 e.r2 /= val;
             else
                 e.r2 = std::numeric_limits<double>::infinity();
         } break;
         case variable::var_timer: {
-            if (auto val = copy_to_real(action.var2, action, e); val)
+            if (auto val = copy_to_real(constants, action.var2, action, e); val)
                 e.timer /= val;
             else
                 e.timer = std::numeric_limits<double>::infinity();
 
             e.timer = e.timer < 0.0 ? 0.0 : e.timer;
         } break;
-        case variable::constant_i:
-            irt::unreachable();
-            break;
-        case variable::constant_r:
+        default:
             irt::unreachable();
             break;
         }
@@ -1278,33 +1270,15 @@ void hierarchical_state_machine::affect_action(const state_action& action,
 
     case action_type::modulus:
         switch (action.var1) {
-        case variable::none:
-        case variable::port_0:
-        case variable::port_1:
-        case variable::port_2:
-        case variable::port_3:
-            unreachable();
-            break;
-
         case variable::var_i1:
-            e.i1 = std::modulus<>{}(e.i1, copy_to_i32(action.var2, action, e));
+            e.i1 = std::modulus<>{}(
+              e.i1, copy_to_i32(constants, action.var2, action, e));
             break;
         case variable::var_i2:
-            e.i2 = std::modulus<>{}(e.i1, copy_to_i32(action.var2, action, e));
+            e.i2 = std::modulus<>{}(
+              e.i1, copy_to_i32(constants, action.var2, action, e));
             break;
-        case variable::var_r1:
-            irt::unreachable();
-            break;
-        case variable::var_r2:
-            irt::unreachable();
-            break;
-        case variable::var_timer:
-            irt::unreachable();
-            break;
-        case variable::constant_i:
-            irt::unreachable();
-            break;
-        case variable::constant_r:
+        default:
             irt::unreachable();
             break;
         }
@@ -1312,33 +1286,15 @@ void hierarchical_state_machine::affect_action(const state_action& action,
 
     case action_type::bit_and:
         switch (action.var1) {
-        case variable::none:
-        case variable::port_0:
-        case variable::port_1:
-        case variable::port_2:
-        case variable::port_3:
-            unreachable();
-            break;
-
         case variable::var_i1:
-            e.i1 = std::bit_and<>{}(e.i1, copy_to_i32(action.var2, action, e));
+            e.i1 = std::bit_and<>{}(
+              e.i1, copy_to_i32(constants, action.var2, action, e));
             break;
         case variable::var_i2:
-            e.i2 = std::bit_and<>{}(e.i1, copy_to_i32(action.var2, action, e));
+            e.i2 = std::bit_and<>{}(
+              e.i1, copy_to_i32(constants, action.var2, action, e));
             break;
-        case variable::var_r1:
-            irt::unreachable();
-            break;
-        case variable::var_r2:
-            irt::unreachable();
-            break;
-        case variable::var_timer:
-            irt::unreachable();
-            break;
-        case variable::constant_i:
-            irt::unreachable();
-            break;
-        case variable::constant_r:
+        default:
             irt::unreachable();
             break;
         }
@@ -1346,103 +1302,46 @@ void hierarchical_state_machine::affect_action(const state_action& action,
 
     case action_type::bit_or:
         switch (action.var1) {
-        case variable::none:
-        case variable::port_0:
-        case variable::port_1:
-        case variable::port_2:
-        case variable::port_3:
-            unreachable();
-            break;
-
         case variable::var_i1:
-            e.i1 = std::bit_or<>{}(e.i1, copy_to_i32(action.var2, action, e));
+            e.i1 = std::bit_or<>{}(
+              e.i1, copy_to_i32(constants, action.var2, action, e));
             break;
         case variable::var_i2:
-            e.i2 = std::bit_or<>{}(e.i1, copy_to_i32(action.var2, action, e));
+            e.i2 = std::bit_or<>{}(
+              e.i1, copy_to_i32(constants, action.var2, action, e));
             break;
-        case variable::var_r1:
+        default:
             irt::unreachable();
-            break;
-        case variable::var_r2:
-            irt::unreachable();
-            break;
-        case variable::var_timer:
-            irt::unreachable();
-            break;
-        case variable::constant_i:
-            irt::unreachable();
-            break;
-        case variable::constant_r:
-            irt::unreachable();
-            break;
         }
         break;
 
     case action_type::bit_not:
         switch (action.var1) {
-        case variable::none:
-        case variable::port_0:
-        case variable::port_1:
-        case variable::port_2:
-        case variable::port_3:
-            unreachable();
-            break;
-
         case variable::var_i1:
-            e.i1 = std::bit_not<>{}(copy_to_i32(action.var2, action, e));
+            e.i1 =
+              std::bit_not<>{}(copy_to_i32(constants, action.var2, action, e));
             break;
         case variable::var_i2:
-            e.i2 = std::bit_not<>{}(copy_to_i32(action.var2, action, e));
+            e.i2 =
+              std::bit_not<>{}(copy_to_i32(constants, action.var2, action, e));
             break;
-        case variable::var_r1:
+        default:
             irt::unreachable();
-            break;
-        case variable::var_r2:
-            irt::unreachable();
-            break;
-        case variable::var_timer:
-            irt::unreachable();
-            break;
-        case variable::constant_i:
-            irt::unreachable();
-            break;
-        case variable::constant_r:
-            irt::unreachable();
-            break;
         }
         break;
 
     case action_type::bit_xor:
         switch (action.var1) {
-        case variable::none:
-        case variable::port_0:
-        case variable::port_1:
-        case variable::port_2:
-        case variable::port_3:
-            unreachable();
-            break;
-
         case variable::var_i1:
-            e.i1 = std::bit_xor<>{}(e.i1, copy_to_i32(action.var2, action, e));
+            e.i1 = std::bit_xor<>{}(
+              e.i1, copy_to_i32(constants, action.var2, action, e));
             break;
         case variable::var_i2:
-            e.i2 = std::bit_xor<>{}(e.i2, copy_to_i32(action.var2, action, e));
+            e.i2 = std::bit_xor<>{}(
+              e.i2, copy_to_i32(constants, action.var2, action, e));
             break;
-        case variable::var_r1:
+        default:
             irt::unreachable();
-            break;
-        case variable::var_r2:
-            irt::unreachable();
-            break;
-        case variable::var_timer:
-            irt::unreachable();
-            break;
-        case variable::constant_i:
-            irt::unreachable();
-            break;
-        case variable::constant_r:
-            irt::unreachable();
-            break;
         }
         break;
 
@@ -1452,7 +1351,8 @@ void hierarchical_state_machine::affect_action(const state_action& action,
 }
 
 bool hierarchical_state_machine::condition_action::check(
-  hierarchical_state_machine::execution& e) noexcept
+  const std::span<const real, hsm_t::max_constants> constants,
+  hierarchical_state_machine::execution&            e) noexcept
 {
     switch (type) {
     case condition_type::none:
@@ -1471,22 +1371,28 @@ bool hierarchical_state_machine::condition_action::check(
         return e.timer <= 0.0;
 
     case condition_type::equal_to:
-        return wrap_var(var1, *this, e) == wrap_var(var2, *this, e);
+        return wrap_var(constants, var1, *this, e) ==
+               wrap_var(constants, var2, *this, e);
 
     case condition_type::not_equal_to:
-        return wrap_var(var1, *this, e) != wrap_var(var2, *this, e);
+        return wrap_var(constants, var1, *this, e) !=
+               wrap_var(constants, var2, *this, e);
 
     case condition_type::greater:
-        return wrap_var(var1, *this, e) > wrap_var(var2, *this, e);
+        return wrap_var(constants, var1, *this, e) >
+               wrap_var(constants, var2, *this, e);
 
     case condition_type::greater_equal:
-        return wrap_var(var1, *this, e) >= wrap_var(var2, *this, e);
+        return wrap_var(constants, var1, *this, e) >=
+               wrap_var(constants, var2, *this, e);
 
     case condition_type::less:
-        return wrap_var(var1, *this, e) < wrap_var(var2, *this, e);
+        return wrap_var(constants, var1, *this, e) <
+               wrap_var(constants, var2, *this, e);
 
     case condition_type::less_equal:
-        return wrap_var(var1, *this, e) <= wrap_var(var2, *this, e);
+        return wrap_var(constants, var1, *this, e) <=
+               wrap_var(constants, var2, *this, e);
     }
 
     unreachable();

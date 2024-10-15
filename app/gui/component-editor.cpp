@@ -45,19 +45,15 @@ constexpr bool exist(data_array<T, Identifier>& data,
     return find(data, container, name) != nullptr;
 }
 
-static void add_extension(file_path& file) noexcept
+static void add_extension(file_path_str& file) noexcept
 {
-    const auto          sv = file.path.sv();
-    decltype(file.path) tmp;
+    const std::decay_t<decltype(file)> tmp(file);
 
-    if (auto last = sv.find_last_of('.'); last == std::string_view::npos) {
-        debug::ensure(last != 0);
-        tmp.assign(sv.substr(0, last - 1));
+    if (auto dot = tmp.sv().find_last_of('.'); dot == std::string_view::npos) {
+        format(file, "{}.irt", tmp.sv().substr(0, dot));
     } else {
-        tmp.assign(sv);
+        format(file, "{}.irt", tmp.sv());
     }
-
-    format(file.path, "{}.irt", tmp.sv());
 }
 
 static bool all_char_valid(std::string_view v) noexcept
@@ -177,9 +173,11 @@ struct component_editor::impl {
                     file = &f;
                 }
 
-                if (ImGui::InputFilteredString("File##text", file->path))
-                    if (!end_with_irt(file->path.sv()))
-                        add_extension(*file);
+                if (ImGui::InputFilteredString("File##text", file->path)) {
+                    if (not end_with_irt(file->path.sv())) {
+                        add_extension(file->path);
+                    }
+                }
 
                 is_save_enabled = is_valid_irt_filename(file->path.sv());
 

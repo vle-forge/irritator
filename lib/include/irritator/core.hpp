@@ -3493,8 +3493,9 @@ public:
     using state_id = u8;
     struct execution;
 
-    static const u8 max_number_of_state = 254;
-    static const u8 invalid_state_id    = 255;
+    static constexpr const u8 max_number_of_state = 254;
+    static constexpr const u8 invalid_state_id    = 255;
+    static constexpr const u8 max_constants       = 8;
 
     struct top_state_error {};
     struct next_state_error {};
@@ -3527,6 +3528,14 @@ public:
         var_timer,
         constant_i,
         constant_r,
+        hsm_constant_0,
+        hsm_constant_1,
+        hsm_constant_2,
+        hsm_constant_3,
+        hsm_constant_4,
+        hsm_constant_5,
+        hsm_constant_6,
+        hsm_constant_7,
     };
 
     enum class action_type : u8 {
@@ -3656,7 +3665,8 @@ public:
         void set_less_equal(variable v1, i32 i) noexcept;
         void set_less_equal(variable v1, float i) noexcept;
 
-        bool check(execution& e) noexcept;
+        bool check(const std::span<const real, max_constants> c,
+                   execution&                                 e) noexcept;
         void clear() noexcept;
 
     private:
@@ -3795,6 +3805,10 @@ public:
     void affect_action(const state_action& action, execution& exec) noexcept;
 
     std::array<state, max_number_of_state> states;
+
+    /** @c constants array are real and can be use in the @c state_action or @c
+     * condition_action to perform easy initilization and quick test. */
+    std::array<real, 8> constants;
 
     state_id top_state = invalid_state_id;
 };
