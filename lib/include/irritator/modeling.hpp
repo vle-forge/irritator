@@ -1656,8 +1656,8 @@ inline connection::connection(child_id src_,
                               port_id  p_dst_) noexcept
   : src{ src_ }
   , dst{ dst_ }
-  , index_src{ .compo = p_src_ }
-  , index_dst{ .compo = p_dst_ }
+  , index_src{ .compo = p_src_, .model = 0 }
+  , index_dst{ .compo = p_dst_, .model = 0 }
 {}
 
 inline connection::connection(child_id src_,
@@ -1666,8 +1666,8 @@ inline connection::connection(child_id src_,
                               port_id  p_dst_) noexcept
   : src{ src_ }
   , dst{ dst_ }
-  , index_src{ .model = p_src_ }
-  , index_dst{ .compo = p_dst_ }
+  , index_src{ .compo = {}, .model = p_src_ }
+  , index_dst{ .compo = p_dst_, .model = 0 }
 {}
 
 inline connection::connection(child_id src_,
@@ -1676,8 +1676,8 @@ inline connection::connection(child_id src_,
                               int      p_dst_) noexcept
   : src{ src_ }
   , dst{ dst_ }
-  , index_src{ .compo = p_src_ }
-  , index_dst{ .model = p_dst_ }
+  , index_src{ .compo = p_src_, .model = 0 }
+  , index_dst{ .compo = {}, .model = p_dst_ }
 {}
 
 inline connection::connection(child_id src_,
@@ -1686,8 +1686,8 @@ inline connection::connection(child_id src_,
                               int      p_dst_) noexcept
   : src{ src_ }
   , dst{ dst_ }
-  , index_src{ .model = p_src_ }
-  , index_dst{ .model = p_dst_ }
+  , index_src{ .compo = {}, .model = p_src_ }
+  , index_dst{ .compo = {}, .model = p_dst_ }
 {}
 
 inline child::child() noexcept

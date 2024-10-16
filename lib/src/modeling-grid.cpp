@@ -156,6 +156,8 @@ static void connection_add(modeling&        mod,
     auto* child_src = grid.cache.try_to_get(src);
     auto* child_dst = grid.cache.try_to_get(dst);
 
+    debug::ensure(child_src and child_dst);
+
     if (not child_src or not child_dst)
         return;
 
@@ -170,6 +172,7 @@ static void connection_add(modeling&        mod,
     compo_src->y.for_each<port_str>(
       [&](const auto sid, const auto& sname) noexcept {
           split_name p_src(sname.sv());
+
           if (port_src == p_src.left) {
               compo_dst->x.for_each<port_str>(
                 [&](const auto did, const auto dname) noexcept {
@@ -304,25 +307,30 @@ static void build_grid_connections(modeling&               mod,
                 valids[i] = 0 <= dests[i].r and dests[i].r < grid.row;
     }
 
-    const auto c_src = ids[grid.pos(row, col)];
-    for (std::size_t i = 0; i < valids.size(); ++i) {
-        if (valids[i]) {
-            debug::ensure(0 <= dests[i].r and dests[i].r < grid.row);
-            debug::ensure(0 <= dests[i].c and dests[i].c < grid.column);
+    if (const auto c_src = ids[grid.pos(row, col)]; is_defined(c_src)) {
+        for (std::size_t i = 0; i < valids.size(); ++i) {
+            if (valids[i]) {
+                debug::ensure(0 <= dests[i].r and dests[i].r < grid.row);
+                debug::ensure(0 <= dests[i].c and dests[i].c < grid.column);
 
-            connection_add(mod,
-                           grid,
-                           c_src,
-                           p_names[ordinal(srcs[i])],
-                           ids[grid.pos(dests[i].r, dests[i].c)],
-                           p_names[ordinal(dests[i].p)]);
+                if (const auto c_dst = ids[grid.pos(dests[i].r, dests[i].c)];
+                    is_defined(c_dst)) {
+
+                    connection_add(mod,
+                                   grid,
+                                   c_src,
+                                   p_names[ordinal(srcs[i])],
+                                   c_dst,
+                                   p_names[ordinal(dests[i].p)]);
+                }
+            }
         }
     }
 }
 
-void build_grid_connections(modeling&               mod,
-                            grid_component&         grid,
-                            const vector<child_id>& ids) noexcept
+static void build_grid_connections(modeling&               mod,
+                                   grid_component&         grid,
+                                   const vector<child_id>& ids) noexcept
 {
     for (int row = 0; row < grid.row; ++row)
         for (int col = 0; col < grid.column; ++col)

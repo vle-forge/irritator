@@ -474,11 +474,13 @@ static status simulation_copy_connections(
   const vector<project::cache::model_port>& outputs,
   simulation&                               sim) noexcept
 {
-    for (auto src : outputs)
-        for (auto dst : inputs)
+    for (auto src : outputs) {
+        for (auto dst : inputs) {
             if (auto ret = sim.connect(*src.mdl, src.port, *dst.mdl, dst.port);
                 !ret)
                 return new_error(project::error::impossible_connection);
+        }
+    }
 
     return success();
 }
@@ -656,7 +658,7 @@ static void get_output_models(vector<project::cache::model_port>& outputs,
             continue;
 
         debug::ensure(tn.children[idx].tn);
-        get_input_models(outputs, mod, *tn.children[idx].tn, con.id);
+        get_output_models(outputs, mod, *tn.children[idx].tn, con.id);
     }
 }
 
@@ -705,6 +707,8 @@ static status simulation_copy_connections(
 
         auto* src = children.try_to_get(cnx.src);
         auto* dst = children.try_to_get(cnx.dst);
+
+        debug::ensure(src and dst);
 
         if (not src or not dst)
             continue;
