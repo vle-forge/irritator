@@ -79,7 +79,9 @@ static bool is_valid_irt_filename(std::string_view v) noexcept
 
 template<typename T>
 concept has_store_function = requires(T t, component_editor& ed) {
-    { t.store(ed) } -> std::same_as<void>;
+    {
+        t.store(ed)
+    } -> std::same_as<void>;
 };
 
 struct component_editor::impl {
@@ -466,6 +468,43 @@ void component_editor::display() noexcept
     }
 
     ImGui::End();
+}
+
+template<typename T, typename ID>
+static void close_component(data_array<T, ID>& data,
+                            const component_id id) noexcept
+{
+    auto it = std::find_if(
+      data.begin(), data.end(), [&](const auto& d) noexcept -> bool {
+          return id == d.get_id();
+      });
+
+    if (it != data.end())
+        data.free(*it);
+}
+
+void component_editor::close(const component_id id) noexcept
+{
+    auto& app = container_of(this, &application::component_ed);
+
+    if_data_exists_do(app.mod.components, id, [&](auto& compo) noexcept {
+        switch (compo.type) {
+        case component_type::simple:
+            close_component(app.generics, id);
+            break;
+        case component_type::grid:
+            close_component(app.grids, id);
+            break;
+        case component_type::graph:
+            close_component(app.graphs, id);
+            break;
+        case component_type::hsm:
+            close_component(app.hsms, id);
+            break;
+        default:
+            break;
+        }
+    });
 }
 
 } // namespace irt

@@ -761,6 +761,9 @@ public:
     bool need_to_open(const component_id id) const noexcept;
     void clear_request_to_open() noexcept;
 
+    /** Force to close the opened component @c id. */
+    void close(const component_id id) noexcept;
+
     small_string<31> title;
     small_string<31> component_name;
     bool             is_open = true;

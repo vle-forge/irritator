@@ -126,6 +126,8 @@ static void show_component_popup_menu(application& app, component& sel) noexcept
 
             if (auto* file = app.mod.file_paths.try_to_get(sel.file); file) {
                 if (ImGui::MenuItem("Delete file")) {
+                    app.component_ed.close(app.mod.components.get_id(sel));
+
                     app.add_gui_task([&app,
                                       r = sel.reg_path,
                                       d = sel.dir,
@@ -156,6 +158,8 @@ static void show_component_popup_menu(application& app, component& sel) noexcept
                 }
             } else {
                 if (ImGui::MenuItem("Delete component")) {
+                    app.component_ed.close(app.mod.components.get_id(sel));
+
                     app.add_gui_task([&]() noexcept {
                         const auto compo_id = app.mod.components.get_id(sel);
                         auto& n = app.notifications.alloc(log_level::notice);
