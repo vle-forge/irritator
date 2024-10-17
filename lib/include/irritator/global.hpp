@@ -8,116 +8,19 @@
 #include <irritator/container.hpp>
 #include <irritator/error.hpp>
 
-#include <array>
 #include <filesystem>
 #include <mutex>
 #include <shared_mutex>
 
 namespace irt {
 
-struct rgba_color {
-    constexpr rgba_color() noexcept = default;
-
-    template<std::integral T>
-        requires(std::is_same_v<u8, T>)
-    constexpr rgba_color(T r_, T g_, T b_, T a_ = 255) noexcept
-      : r{ r_ }
-      , g{ g_ }
-      , b{ b_ }
-      , a{ a_ }
-    {}
-
-    template<std::integral T>
-        requires(not std::is_same_v<u8, T>)
-    constexpr rgba_color(T r_, T g_, T b_, T a_ = 255) noexcept
-      : r{ static_cast<u8>(std::clamp(r_, 0, 255)) }
-      , g{ static_cast<u8>(std::clamp(g_, 0, 255)) }
-      , b{ static_cast<u8>(std::clamp(b_, 0, 255)) }
-      , a{ static_cast<u8>(std::clamp(a_, 0, 255)) }
-    {}
-
-    template<std::floating_point T>
-    constexpr rgba_color(T r_, T g_, T b_, T a_ = 255) noexcept
-      : r{ static_cast<u8>(std::clamp(r_ * T{ 255 }, T{ 0 }, T{ 255 })) }
-      , g{ static_cast<u8>(std::clamp(g_ * T{ 255 }, T{ 0 }, T{ 255 })) }
-      , b{ static_cast<u8>(std::clamp(b_ * T{ 255 }, T{ 0 }, T{ 255 })) }
-      , a{ static_cast<u8>(std::clamp(a_ * T{ 255 }, T{ 0 }, T{ 255 })) }
-    {}
-
-    std::uint8_t r, g, b, a;
-};
-
-constexpr inline rgba_color operator*(const rgba_color& lhs,
-                                      const rgba_color& rhs)
-{
-    const auto r = static_cast<int>(lhs.r) * static_cast<int>(rhs.r);
-    const auto g = static_cast<int>(lhs.g) * static_cast<int>(rhs.g);
-    const auto b = static_cast<int>(lhs.b) * static_cast<int>(rhs.b);
-    const auto a = static_cast<int>(lhs.a) * static_cast<int>(rhs.a);
-
-    return rgba_color(r, g, b, a);
-}
-
-constexpr inline rgba_color operator*(const rgba_color& lhs, const float t)
-{
-    const auto r = static_cast<int>(static_cast<float>(lhs.r) * t);
-    const auto g = static_cast<int>(static_cast<float>(lhs.g) * t);
-    const auto b = static_cast<int>(static_cast<float>(lhs.b) * t);
-    const auto a = static_cast<int>(static_cast<float>(lhs.a) * t);
-
-    return rgba_color(r, g, b, a);
-}
-
-constexpr inline rgba_color operator-(const rgba_color& lhs,
-                                      const rgba_color& rhs)
-{
-    const auto r = static_cast<int>(lhs.r) - static_cast<int>(rhs.r);
-    const auto g = static_cast<int>(lhs.g) - static_cast<int>(rhs.g);
-    const auto b = static_cast<int>(lhs.b) - static_cast<int>(rhs.b);
-    const auto a = static_cast<int>(lhs.a) - static_cast<int>(rhs.a);
-
-    return rgba_color(r, g, b, a);
-}
-
-constexpr inline rgba_color operator+(const rgba_color& lhs,
-                                      const rgba_color& rhs)
-{
-    const auto r = static_cast<int>(lhs.r) + static_cast<int>(rhs.r);
-    const auto g = static_cast<int>(lhs.g) + static_cast<int>(rhs.g);
-    const auto b = static_cast<int>(lhs.b) + static_cast<int>(rhs.b);
-    const auto a = static_cast<int>(lhs.a) + static_cast<int>(rhs.a);
-
-    return rgba_color(r, g, b, a);
-}
-
-constexpr inline rgba_color lerp(const rgba_color& a,
-                                 const rgba_color& b,
-                                 const float       t) noexcept
-{
-    const auto rr = static_cast<int>(
-      (static_cast<float>(a.r) +
-       (static_cast<float>(b.r) - static_cast<float>(a.r)) * t));
-    const auto rg = static_cast<int>(
-      (static_cast<float>(a.g) +
-       (static_cast<float>(b.g) - static_cast<float>(a.g)) * t));
-    const auto rb = static_cast<int>(
-      (static_cast<float>(a.b) +
-       (static_cast<float>(b.b) - static_cast<float>(a.b)) * t));
-    const auto ra = static_cast<int>(
-      (static_cast<float>(a.a) +
-       (static_cast<float>(b.a) - static_cast<float>(a.a)) * t));
-
-    return rgba_color{ rr, rg, rb, ra };
-}
-
-enum class gui_theme_id : u32;
 enum class recorded_path_id : u32 {};
+enum class gui_theme_id : u32 {};
 
 struct gui_themes {
     id_array<gui_theme_id> ids;
 
-    vector<std::array<rgba_color, 60>> colors;
-    vector<small_string<31>>           names;
+    vector<small_string<31>> names;
 
     gui_theme_id selected{ 0 };
 };
