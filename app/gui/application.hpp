@@ -892,45 +892,55 @@ class component_selector
 public:
     component_selector() noexcept = default;
 
-    //! @brief Update the component cache with added/removed component.
+    /** Update the components cache with added/renamed/removed component. This
+       function lock the mutex to write new data.
+     */
     void update() noexcept;
 
-    //! @brief Show @c ImGui::ComboBox for all @c component_id
-    //! @details Show all @c component_id in @c modeling.
-    //!
-    //! @param label The ImGui::ComboBox label.
-    //! @param new_selected Output parameters.
-    //! @return The underlying ImGui::ComboBox return.
-    bool combobox(const char* label, component_id* new_selected) noexcept;
+    /** Show @c ImGui::ComboBox for all @c component_id.
 
-    //! @brief Show @c ImGui::ComboBox for all @c component_id plus hyphen.
-    //! @details Show all @c component_id in @c modeling plus the hyphen symbol.
-    //! This symbol means user let the @c component_id value untouch.
-    //!
-    //! @param label The ImGui::ComboBox label.
-    //! @param[out] new_selected Store the selected @c component_id.
-    //! @param[out] hyphen Store if the user select the hyphen
-    //! @return The underlying ImGui::ComboBox return.
+       Show all @c component_id in @c modeling. This function can lock the mutex
+       if an update is in progress.
+
+       @param label The ImGui::ComboBox label.
+       @param new_selected Output parameters.
+       @return The underlying ImGui::ComboBox return.
+    */
+    bool combobox(const char* label, component_id* new_selected) const noexcept;
+
+    /** Show @c ImGui::ComboBox for all @c component_id plus hyphen. This symbol
+       means user let the @c component_id value untouch.
+
+       Show all @c component_id in @c modeling. This function can lock the mutex
+       if an update is in progress.
+
+       @param label The ImGui::ComboBox label.
+       @param[out] new_selected Store the selected @c component_id.
+       @param[out] hyphen Store if the user select the hyphen
+       @return The underlying ImGui::ComboBox return.
+    */
     bool combobox(const char*   label,
                   component_id* new_selected,
-                  bool*         hyphen) noexcept;
+                  bool*         hyphen) const noexcept;
 
-    //! @brief Display a @c ImGui::Menu for all @c component_id.
-    bool menu(const char* label, component_id* new_selected) noexcept;
+    /** Display a @c ImGui::Menu for all @c component_id.
+
+      Show all @c component_id in @c modeling. This function can lock the mutex
+      if an update is in progress.
+
+    */
+    bool menu(const char* label, component_id* new_selected) const noexcept;
 
 private:
     vector<component_id>      ids;
     vector<small_string<254>> names;
 
-    component_id      selected_id   = undefined<component_id>();
-    small_string<254> selected_name = "undefined";
-
     int files   = 0; //! Number of component in registred directories
     int unsaved = 0; //! Number of unsaved component
 
-    spin_mutex m_mutex; /** @c update() lock the class to read modeling data and
-                           build the @c ids and @c names vectors. Other
-                           functions try to lock. */
+    mutable std::shared_mutex m_mutex; /**< @c update() lock the class to read
+                           modeling data and build the @c ids and @c names
+                           vectors. Other functions try to lock. */
 };
 
 class component_model_selector
