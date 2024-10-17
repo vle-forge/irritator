@@ -22,7 +22,6 @@ static void add_generic_component_data(application& app) noexcept
     app.component_ed.request_to_open(compo_id);
 
     app.add_gui_task([&app]() noexcept {
-        std::scoped_lock lock(app.mod_mutex);
         app.component_sel.update();
     });
 }
@@ -34,7 +33,6 @@ static void add_grid_component_data(application& app) noexcept
     app.grids.alloc(compo_id, compo.id.grid_id);
     app.component_ed.request_to_open(compo_id);
     app.add_gui_task([&app]() noexcept {
-        std::scoped_lock lock(app.mod_mutex);
         app.component_sel.update();
     });
 }
@@ -47,7 +45,6 @@ static void add_graph_component_data(application& app) noexcept
     app.component_ed.request_to_open(compo_id);
 
     app.add_gui_task([&app]() noexcept {
-        std::scoped_lock lock(app.mod_mutex);
         app.component_sel.update();
     });
 }
@@ -61,7 +58,6 @@ static void add_hsm_component_data(application& app) noexcept
     app.component_ed.request_to_open(compo_id);
 
     app.add_gui_task([&app]() noexcept {
-        std::scoped_lock lock(app.mod_mutex);
         app.component_sel.update();
     });
 }
@@ -105,7 +101,6 @@ static void show_component_popup_menu(application& app, component& sel) noexcept
                     }
 
                     app.add_gui_task([&app]() noexcept {
-                        std::scoped_lock lock(app.mod_mutex);
                         app.component_sel.update();
                     });
                 } else {

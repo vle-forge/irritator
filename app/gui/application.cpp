@@ -60,20 +60,6 @@ bool application::init() noexcept
         return false;
     }
 
-    // if (auto ret = load_settings(); !ret) {
-    //     log_w(*this,
-    //           log_level::alert,
-    //           "Fail to read settings files. Default parameters used\n");
-
-    //    mod_init = modeling_initializer{};
-
-    //    if (auto ret = save_settings(); !ret) {
-    //        log_w(*this,
-    //              log_level::alert,
-    //              "Fail to save settings files. Default parameters used\n");
-    //    }
-    //}
-
     if (mod.registred_paths.size() == 0) {
         attempt_all(
           [&]() -> result<void> {
@@ -195,7 +181,9 @@ bool application::init() noexcept
     if (auto ret = mod.fill_components(); !ret)
         log_w(*this, log_level::error, "Fail to read all components\n");
 
-    component_sel.update();
+    // Update the component selector in task.
+    add_gui_task([&]() noexcept { this->component_sel.update(); });
+
 
     // @TODO at beggining, open a default generic component ?
     // auto id = component_ed.add_generic_component();

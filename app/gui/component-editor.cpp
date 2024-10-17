@@ -215,6 +215,9 @@ struct component_editor::impl {
                         ed.store(app.component_ed);
                     }
                     app.start_save_component(app.mod.components.get_id(compo));
+
+                    app.add_gui_task(
+                      [&]() noexcept { app.component_sel.update(); });
                 }
                 ImGui::EndDisabled();
             }
@@ -365,7 +368,8 @@ struct component_editor::impl {
                     if (compo.type == component_type::hsm) {
                         ImGui::TextWrapped(
                           "HSM component have four input and four output "
-                          "ports. You can select input ports from the state "
+                          "ports. You can select input ports from the "
+                          "state "
                           "conditions and the output ports from the state "
                           "actions.");
                     } else {

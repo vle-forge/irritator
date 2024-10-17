@@ -17,12 +17,12 @@ static void cs_make_selected_name(small_string<254>& name) noexcept
     name = std::string_view("undefined");
 }
 
-static void cs_make_selected_name(std::string_view   reg,
-                                  std::string_view   dir,
-                                  std::string_view   file,
-                                  component&         compo,
-                                  component_id       id,
-                                  small_string<254>& name) noexcept
+static void cs_make_selected_name(const std::string_view reg,
+                                  const std::string_view dir,
+                                  const std::string_view file,
+                                  const component&       compo,
+                                  const component_id     id,
+                                  small_string<254>&     name) noexcept
 {
     if (compo.name.empty()) {
         format(name, "{}/{}/{}/unamed {}", reg, dir, file, ordinal(id));
@@ -31,15 +31,15 @@ static void cs_make_selected_name(std::string_view   reg,
     }
 }
 
-static void cs_make_selected_name(std::string_view   component_name,
-                                  small_string<254>& name) noexcept
+static void cs_make_selected_name(const std::string_view component_name,
+                                  small_string<254>&     name) noexcept
 {
     format(name, "internal {}", component_name);
 }
 
-static void cs_make_selected_name(std::string_view   component_name,
-                                  component_id       id,
-                                  small_string<254>& name) noexcept
+static void cs_make_selected_name(const std::string_view component_name,
+                                  const component_id     id,
+                                  small_string<254>&     name) noexcept
 {
     if (component_name.empty()) {
         format(name, "unamed {} (unsaved)", ordinal(id));
@@ -48,8 +48,8 @@ static void cs_make_selected_name(std::string_view   component_name,
     }
 }
 
-static void cs_select(modeling&          mod,
-                      component_id       id,
+static void cs_select(const modeling&    mod,
+                      const component_id id,
                       small_string<254>& name) noexcept
 {
     cs_make_selected_name(name);
@@ -79,68 +79,85 @@ static void cs_select(modeling&          mod,
     }
 }
 
-void component_selector::update() noexcept
+struct update_t {
+    vector<component_id>      ids;
+    vector<small_string<254>> names;
+
+    int files   = 0;
+    int unsaved = 0;
+};
+
+static update_t update_lists(const modeling& mod) noexcept
 {
-    std::scoped_lock lock(m_mutex);
+    update_t ret;
+    ret.ids.clear();
+    ret.names.clear();
+    ret.files   = 0;
+    ret.unsaved = 0;
 
-    auto& app = container_of(this, &application::component_sel);
-    auto& mod = app.mod;
+    ret.ids.emplace_back(undefined<component_id>());
+    cs_make_selected_name(ret.names.emplace_back());
 
-    ids.clear();
-    names.clear();
+    for_each_component(mod,
+                       mod.component_repertories,
+                       [&](const auto& reg,
+                           const auto& dir,
+                           const auto& file,
+                           const auto& compo) noexcept {
+                           ret.ids.emplace_back(file.component);
+                           auto& str = ret.names.emplace_back();
 
-    files = 0;
-    // internals = 0;
-    unsaved = 0;
+                           cs_make_selected_name(reg.name.sv(),
+                                                 dir.path.sv(),
+                                                 file.path.sv(),
+                                                 compo,
+                                                 file.component,
+                                                 str);
+                       });
 
-    ids.emplace_back(undefined<component_id>());
-    cs_make_selected_name(names.emplace_back());
-
-    for_each_component(
-      mod,
-      mod.component_repertories,
-      [&](auto& reg, auto& dir, auto& file, auto& compo) noexcept {
-          ids.emplace_back(file.component);
-          auto& str = names.emplace_back();
-
-          cs_make_selected_name(reg.name.sv(),
-                                dir.path.sv(),
-                                file.path.sv(),
-                                compo,
-                                file.component,
-                                str);
-      });
-
-    files = ids.size();
+    ret.files = ret.ids.ssize();
 
     for_each_data(mod.components, [&](auto& compo) noexcept {
         if (compo.type != component_type::internal &&
             mod.file_paths.try_to_get(compo.file) == nullptr) {
 
             const auto id = mod.components.get_id(compo);
-            ids.emplace_back(id);
-            auto& str = names.emplace_back();
+            ret.ids.emplace_back(id);
+            auto& str = ret.names.emplace_back();
 
             cs_make_selected_name(compo.name.sv(), id, str);
         }
     });
 
-    unsaved = ids.size();
+    ret.unsaved = ret.ids.size();
+
+    return ret;
+}
+
+void component_selector::update() noexcept
+{
+    const auto& app = container_of(this, &application::component_sel);
+    const auto& mod = app.mod;
+
+    auto ret = update_lists(mod);
+
+    std::shared_lock lock{ m_mutex };
+    ids     = std::move(ret.ids);
+    names   = std::move(ret.names);
+    files   = ret.files;
+    unsaved = ret.unsaved;
 }
 
 bool component_selector::combobox(const char*   label,
-                                  component_id* new_selected) noexcept
+                                  component_id* new_selected) const noexcept
 {
     bool ret = false;
 
-    if (std::unique_lock lock(m_mutex, std::try_to_lock); lock.owns_lock()) {
-        auto& mod = container_of(this, &application::component_sel).mod;
+    if (std::shared_lock lock(m_mutex, std::try_to_lock); lock.owns_lock()) {
+        const auto&       app = container_of(this, &application::component_sel);
+        small_string<254> selected_name = "undefined";
 
-        if (*new_selected != selected_id) {
-            auto& app   = container_of(this, &application::component_sel);
-            selected_id = *new_selected;
-            cs_select(app.mod, selected_id, selected_name);
-        }
+        cs_select(app.mod, *new_selected, selected_name);
 
         if (ImGui::BeginCombo(label, selected_name.c_str())) {
             ImGui::ColorButton("Undefined color", to_ImVec4(black_color));
@@ -153,7 +170,7 @@ bool component_selector::combobox(const char*   label,
             for (sz i = 1, e = ids.size(); i != e; ++i) {
                 ImGui::ColorButton(
                   "Component",
-                  to_ImVec4(mod.component_colors[get_index(ids[i])]));
+                  to_ImVec4(app.mod.component_colors[get_index(ids[i])]));
                 ImGui::SameLine(50.f);
                 if (ImGui::Selectable(names[i].c_str(),
                                       ids[i] == *new_selected)) {
@@ -171,12 +188,15 @@ bool component_selector::combobox(const char*   label,
 
 bool component_selector::combobox(const char*   label,
                                   component_id* new_selected,
-                                  bool*         hyphen) noexcept
+                                  bool*         hyphen) const noexcept
 {
     bool ret = false;
 
-    if (std::unique_lock lock(m_mutex, std::try_to_lock); lock.owns_lock()) {
-        auto& mod = container_of(this, &application::component_sel).mod;
+    if (std::shared_lock lock(m_mutex, std::try_to_lock); lock.owns_lock()) {
+        const auto&       app = container_of(this, &application::component_sel);
+        small_string<254> selected_name = "undefined";
+
+        cs_select(app.mod, *new_selected, selected_name);
 
         if (ImGui::BeginCombo(label, selected_name.c_str())) {
             ImGui::ColorButton("Undefined color", to_ImVec4(black_color));
@@ -191,7 +211,8 @@ bool component_selector::combobox(const char*   label,
 
             for (sz i = 1, e = ids.size(); i != e; ++i) {
                 ImGui::ColorButton(
-                  "#color", to_ImVec4(mod.component_colors[get_index(ids[i])]));
+                  "#color",
+                  to_ImVec4(app.mod.component_colors[get_index(ids[i])]));
                 ImGui::SameLine(50.f);
                 if (ImGui::Selectable(names[i].c_str(),
                                       *hyphen == false &&
@@ -214,18 +235,17 @@ bool component_selector::combobox(const char*   label,
 }
 
 bool component_selector::menu(const char*   label,
-                              component_id* new_selected) noexcept
+                              component_id* new_selected) const noexcept
 {
-    bool ret = false;
+    auto ret = false;
 
-    if (std::unique_lock lock(m_mutex, std::try_to_lock); lock.owns_lock()) {
-        if (*new_selected != selected_id) {
-            auto& app   = container_of(this, &application::component_sel);
-            selected_id = *new_selected;
-            cs_select(app.mod, selected_id, selected_name);
-        }
-
+    if (std::shared_lock lock(m_mutex, std::try_to_lock); lock.owns_lock()) {
         if (ImGui::BeginMenu(label)) {
+            const auto& app = container_of(this, &application::component_sel);
+            small_string<254> selected_name = "undefined";
+
+            cs_select(app.mod, *new_selected, selected_name);
+
             if (ImGui::BeginMenu("Files components")) {
                 for (int i = 0, e = files; i < e; ++i) {
                     if (ImGui::MenuItem(names[i].c_str())) {
