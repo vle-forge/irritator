@@ -909,7 +909,7 @@ public:
                   bool*         hyphen) noexcept;
 
     //! @brief Display a @c ImGui::Menu for all @c component_id.
-    bool menu(const char* label, component_id* new_selected) noexcept;
+    bool menu(const char* label, component_id* new_selected) const noexcept;
 
 private:
     vector<component_id>      ids;
@@ -921,8 +921,8 @@ private:
     int files   = 0; //! Number of component in registred directories
     int unsaved = 0; //! Number of unsaved component
 
-    spin_mutex m_mutex; /** @c update() lock the class to read modeling data and
-                           build the @c ids and @c names vectors. Other
+    std::shared_mutex m_mutex; /** @c update() lock the class to read modeling
+                           data and build the @c ids and @c names vectors. Other
                            functions try to lock. */
 };
 

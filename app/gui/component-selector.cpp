@@ -79,39 +79,43 @@ static void cs_select(modeling&          mod,
     }
 }
 
-void component_selector::update() noexcept
+struct update_t {
+    vector<component_id>      ids;
+    vector<small_string<256>> names;
+
+    int files   = 0;
+    int unsaved = 0;
+};
+
+static update_t update(const application& app, const modeling& mod) noexcept
 {
-    std::scoped_lock lock(m_mutex);
+    update_t ret;
+    ret.ids.clear();
+    ret.names.clear();
+    ret.files   = 0;
+    ret.unsaved = 0;
 
-    auto& app = container_of(this, &application::component_sel);
-    auto& mod = app.mod;
+    ret.ids.emplace_back(undefined<component_id>());
+    cs_make_selected_name(ret.names.emplace_back());
 
-    ids.clear();
-    names.clear();
+    for_each_component(mod,
+                       mod.component_repertories,
+                       [&](const auto& reg,
+                           const auto& dir,
+                           const auto& file,
+                           const auto& compo) noexcept {
+                           ret.ids.emplace_back(file.component);
+                           auto& str = ret.names.emplace_back();
 
-    files = 0;
-    // internals = 0;
-    unsaved = 0;
+                           cs_make_selected_name(reg.name.sv(),
+                                                 dir.path.sv(),
+                                                 file.path.sv(),
+                                                 compo,
+                                                 file.component,
+                                                 str);
+                       });
 
-    ids.emplace_back(undefined<component_id>());
-    cs_make_selected_name(names.emplace_back());
-
-    for_each_component(
-      mod,
-      mod.component_repertories,
-      [&](auto& reg, auto& dir, auto& file, auto& compo) noexcept {
-          ids.emplace_back(file.component);
-          auto& str = names.emplace_back();
-
-          cs_make_selected_name(reg.name.sv(),
-                                dir.path.sv(),
-                                file.path.sv(),
-                                compo,
-                                file.component,
-                                str);
-      });
-
-    files = ids.size();
+    ret.files = ret.ids.ssize();
 
     for_each_data(mod.components, [&](auto& compo) noexcept {
         if (compo.type != component_type::internal &&
@@ -125,7 +129,17 @@ void component_selector::update() noexcept
         }
     });
 
-    unsaved = ids.size();
+    ret.unsaved = ret.ids.size();
+
+    return ret;
+}
+
+void component_selector::update() noexcept
+{
+    const auto& app = container_of(this, &application::component_sel);
+    const auto& mod = app.mod;
+
+    auto new
 }
 
 bool component_selector::combobox(const char*   label,
@@ -214,11 +228,11 @@ bool component_selector::combobox(const char*   label,
 }
 
 bool component_selector::menu(const char*   label,
-                              component_id* new_selected) noexcept
+                              component_id* new_selected) const noexcept
 {
     bool ret = false;
 
-    if (std::unique_lock lock(m_mutex, std::try_to_lock); lock.owns_lock()) {
+    if (std::shared_lock lock(m_mutex, std::try_to_lock); lock.owns_lock()) {
         if (*new_selected != selected_id) {
             auto& app   = container_of(this, &application::component_sel);
             selected_id = *new_selected;
