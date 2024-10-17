@@ -76,10 +76,10 @@ inline bool component_is_grid_or_graph(const modeling&  mod,
 }
 
 template<typename Function>
-void for_each_component(modeling&       mod,
-                        registred_path& reg_path,
-                        dir_path&       dir_path,
-                        Function&&      f) noexcept
+void for_each_component(const modeling&       mod,
+                        const registred_path& reg_path,
+                        const dir_path&       dir_path,
+                        Function&&            f) noexcept
 {
     for_specified_data(
       mod.file_paths, dir_path.children, [&](auto& file_path) noexcept {
@@ -87,6 +87,22 @@ void for_each_component(modeling&       mod,
             mod.components, file_path.component, [&](auto& compo) noexcept {
                 f(reg_path, dir_path, file_path, compo);
             });
+      });
+}
+
+template<typename Function>
+void for_each_component(modeling&       mod,
+                        registred_path& reg_path,
+                        dir_path&       dir_path,
+                        Function&&      f) noexcept
+{
+    for_specified_data(
+      mod.file_paths, dir_path.children, [&](const auto& file_path) noexcept {
+          if_data_exists_do(mod.components,
+                            file_path.component,
+                            [&](const auto& compo) noexcept {
+                                f(reg_path, dir_path, file_path, compo);
+                            });
       });
 }
 
@@ -105,12 +121,37 @@ void for_each_component(modeling&  mod,
 }
 
 template<typename Function>
+void for_each_component(const modeling& mod,
+                        const dir_path& dir_path,
+                        Function&&      f) noexcept
+{
+    for_specified_data(
+      mod.file_paths, dir_path.children, [&](const auto& file_path) noexcept {
+          if_data_exists_do(
+            mod.components,
+            file_path.component,
+            [&](const auto& compo) noexcept { f(dir_path, file_path, compo); });
+      });
+}
+
+template<typename Function>
 void for_each_component(modeling&       mod,
                         registred_path& reg_path,
                         Function&&      f) noexcept
 {
     for_specified_data(
       mod.dir_paths, reg_path.children, [&](auto& dir_path) noexcept {
+          return for_each_component(mod, reg_path, dir_path, f);
+      });
+}
+
+template<typename Function>
+void for_each_component(const modeling&       mod,
+                        const registred_path& reg_path,
+                        Function&&            f) noexcept
+{
+    for_specified_data(
+      mod.dir_paths, reg_path.children, [&](const auto& dir_path) noexcept {
           return for_each_component(mod, reg_path, dir_path, f);
       });
 }
@@ -123,6 +164,17 @@ void for_each_component(modeling&                  mod,
     for_specified_data(mod.registred_paths, dirs, [&](auto& reg_path) noexcept {
         return for_each_component(mod, reg_path, f);
     });
+}
+
+template<typename Function>
+void for_each_component(const modeling&                  mod,
+                        const vector<registred_path_id>& dirs,
+                        Function&&                       f) noexcept
+{
+    for_specified_data(
+      mod.registred_paths, dirs, [&](const auto& reg_path) noexcept {
+          return for_each_component(mod, reg_path, f);
+      });
 }
 
 /// \brief Call `f` function if `id` reference a generic component.
