@@ -60,46 +60,76 @@ static void build_component_list(
     }
 }
 
-void component_model_selector::select(const tree_node_id parent_id) noexcept
+struct update_t {
+    vector<std::pair<tree_node_id, component_id>> components;
+    vector<small_string<254>>                     names;
+    tree_node_id current_tree_node  = undefined<tree_node_id>();
+    int          component_selected = -1;
+};
+
+static update_t update_lists(const application& app,
+                             const tree_node_id parent_id) noexcept
 {
+    update_t           ret;
+    vector<tree_node*> stack_tree_nodes;
 
-    if (parent_id != current_tree_node) {
-        auto& app = container_of(this, &application::component_model_sel);
+    if (auto* tn = app.pj.tree_nodes.try_to_get(parent_id); tn) {
+        build_component_list(
+          app, *tn, stack_tree_nodes, ret.components, ret.names);
+        ret.current_tree_node = parent_id;
+    }
 
-        components.clear();
-        names.clear();
-        stack_tree_nodes.clear();
+    return ret;
+}
+
+void component_model_selector::update(const tree_node_id parent_id) noexcept
+{
+    const auto& app = container_of(this, &application::component_model_sel);
+
+    auto ret = update_lists(app, parent_id);
+
+    {
+        std::shared_lock lock{ m_mutex };
+
+        components         = std::move(ret.components);
+        names              = std::move(ret.names);
+        current_tree_node  = ret.current_tree_node;
         component_selected = -1;
-        current_tree_node  = parent_id;
-
-        if (auto* tn = app.pj.tree_nodes.try_to_get(parent_id); tn) {
-            build_component_list(app, *tn, stack_tree_nodes, components, names);
-        } else {
-            current_tree_node = undefined<tree_node_id>();
-        }
     }
 }
 
-void component_model_selector::select(const tree_node_id parent_id,
+void component_model_selector::update(const tree_node_id parent_id,
                                       const component_id compo_id,
                                       const tree_node_id tn_id,
                                       const model_id /*mdl_id*/) noexcept
 
 {
-    select(parent_id);
+    const auto& app = container_of(this, &application::component_model_sel);
 
-    component_selected = -1;
+    auto ret = update_lists(app, parent_id);
+
+    ret.component_selected = -1;
     for (int i = 0, e = components.ssize(); i != e; ++i) {
         if (components[i].second == compo_id && components[i].first == tn_id) {
-            component_selected = i;
+            ret.component_selected = i;
             break;
         }
     }
+
+    {
+        std::shared_lock lock{ m_mutex };
+
+        components         = std::move(ret.components);
+        names              = std::move(ret.names);
+        current_tree_node  = ret.current_tree_node;
+        component_selected = -1;
+    }
 }
 
-bool component_model_selector::component_comboxbox(const char*   label,
-                                                   component_id& compo_id,
-                                                   tree_node_id& tn_id) noexcept
+bool component_model_selector::component_comboxbox(
+  const char*   label,
+  component_id& compo_id,
+  tree_node_id& tn_id) const noexcept
 {
     static constexpr const char* empty = "undefined";
 
@@ -133,7 +163,7 @@ bool component_model_selector::observable_model_treenode(
   tree_node& tn,
   component_id& /*compo_id*/,
   tree_node_id& tn_id,
-  model_id&     mdl_id) noexcept
+  model_id&     mdl_id) const noexcept
 {
     auto& app = container_of(this, &application::component_model_sel);
     bool  ret = false;
@@ -191,7 +221,7 @@ bool component_model_selector::observable_model_treenode(
 bool component_model_selector::observable_model_treenode(
   component_id& compo_id,
   tree_node_id& tn_id,
-  model_id&     mdl_id) noexcept
+  model_id&     mdl_id) const noexcept
 {
     debug::ensure(0 <= component_selected);
     debug::ensure(component_selected < names.ssize());
@@ -239,13 +269,13 @@ bool component_model_selector::combobox(const char*   label,
                                         tree_node_id& parent_id,
                                         component_id& compo_id,
                                         tree_node_id& tn_id,
-                                        model_id&     mdl_id) noexcept
+                                        model_id&     mdl_id) const noexcept
 {
     debug::ensure(components.ssize() == names.ssize());
     debug::ensure(component_selected < names.ssize());
     debug::ensure(parent_id == current_tree_node);
 
-    bool ret = component_comboxbox(label, compo_id, tn_id);
+    auto ret = component_comboxbox(label, compo_id, tn_id);
 
     if (is_defined(compo_id))
         if (observable_model_treenode(compo_id, tn_id, mdl_id))
