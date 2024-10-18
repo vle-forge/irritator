@@ -184,7 +184,6 @@ bool application::init() noexcept
     // Update the component selector in task.
     add_gui_task([&]() noexcept { this->component_sel.update(); });
 
-
     // @TODO at beggining, open a default generic component ?
     // auto id = component_ed.add_generic_component();
     // component_ed.open_as_main(id);
@@ -615,16 +614,14 @@ bool show_select_model_box(const char*    button_label,
                            tree_node&     tn,
                            grid_observer& access) noexcept
 {
-    static grid_observer copy;
-    // static vector<component_id> selectable_components;
-
     auto ret = false;
 
+    ImGui::BeginDisabled(app.component_model_sel.update_in_progress());
     if (ImGui::Button(button_label)) {
         debug::ensure(app.pj.tree_nodes.get_id(tn) == access.parent_id);
-        app.component_model_sel.select(
+        app.component_model_sel.start_update(
           access.parent_id, access.compo_id, access.tn_id, access.mdl_id);
-        copy = access;
+
         ImGui::OpenPopup(popup_label);
     }
 
@@ -633,11 +630,15 @@ bool show_select_model_box(const char*    button_label,
     if (ImGui::BeginPopupModal(
           popup_label, nullptr, ImGuiWindowFlags_AlwaysAutoResize)) {
 
-        app.component_model_sel.combobox("Select model to grid-observe",
-                                         access.parent_id,
-                                         access.compo_id,
-                                         access.tn_id,
-                                         access.mdl_id);
+        if (not app.component_model_sel.update_in_progress()) {
+            app.component_model_sel.combobox("Select model to observe grid",
+                                             access.parent_id,
+                                             access.compo_id,
+                                             access.tn_id,
+                                             access.mdl_id);
+        } else {
+            ImGui::Text("Computing observable children");
+        }
 
         if (ImGui::Button("OK", ImVec2(120, 0))) {
             ImGui::CloseCurrentPopup();
@@ -647,12 +648,18 @@ bool show_select_model_box(const char*    button_label,
         ImGui::SetItemDefaultFocus();
         ImGui::SameLine();
         if (ImGui::Button("Cancel", ImVec2(120, 0))) {
-            access = copy;
+            const auto& old_access =
+              app.component_model_sel.get_update_access();
+            access.parent_id = old_access.parent_id;
+            access.compo_id  = old_access.compo_id;
+            access.tn_id     = old_access.tn_id;
+            access.mdl_id    = old_access.mdl_id;
             ImGui::CloseCurrentPopup();
         }
 
         ImGui::EndPopup();
     }
+    ImGui::EndDisabled();
 
     return ret;
 }
@@ -663,15 +670,14 @@ bool show_select_model_box(const char*     button_label,
                            tree_node&      tn,
                            graph_observer& access) noexcept
 {
-    static graph_observer copy;
-
     auto ret = false;
 
+    ImGui::BeginDisabled(app.component_model_sel.update_in_progress());
     if (ImGui::Button(button_label)) {
         debug::ensure(app.pj.tree_nodes.get_id(tn) == access.parent_id);
-        app.component_model_sel.select(
+        app.component_model_sel.start_update(
           access.parent_id, access.compo_id, access.tn_id, access.mdl_id);
-        copy = access;
+
         ImGui::OpenPopup(popup_label);
     }
 
@@ -680,11 +686,15 @@ bool show_select_model_box(const char*     button_label,
     if (ImGui::BeginPopupModal(
           popup_label, nullptr, ImGuiWindowFlags_AlwaysAutoResize)) {
 
-        app.component_model_sel.combobox("Select model to graph-observe",
-                                         access.parent_id,
-                                         access.compo_id,
-                                         access.tn_id,
-                                         access.mdl_id);
+        if (not app.component_model_sel.update_in_progress()) {
+            app.component_model_sel.combobox("Select model to observe graph",
+                                             access.parent_id,
+                                             access.compo_id,
+                                             access.tn_id,
+                                             access.mdl_id);
+        } else {
+            ImGui::Text("Computing observable children");
+        }
 
         if (ImGui::Button("OK", ImVec2(120, 0))) {
             ImGui::CloseCurrentPopup();
@@ -694,7 +704,12 @@ bool show_select_model_box(const char*     button_label,
         ImGui::SetItemDefaultFocus();
         ImGui::SameLine();
         if (ImGui::Button("Cancel", ImVec2(120, 0))) {
-            access = copy;
+            const auto& old_access =
+              app.component_model_sel.get_update_access();
+            access.parent_id = old_access.parent_id;
+            access.compo_id  = old_access.compo_id;
+            access.tn_id     = old_access.tn_id;
+            access.mdl_id    = old_access.mdl_id;
             ImGui::CloseCurrentPopup();
         }
 

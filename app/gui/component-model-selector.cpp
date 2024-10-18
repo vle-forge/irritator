@@ -3,10 +3,9 @@
 // http://www.boost.org/LICENSE_1_0.txt)
 
 #include "application.hpp"
-#include "internal.hpp"
-#include "irritator/core.hpp"
-#include "irritator/file.hpp"
 
+#include <irritator/core.hpp>
+#include <irritator/format.hpp>
 #include <irritator/helpers.hpp>
 #include <irritator/io.hpp>
 #include <irritator/modeling-helpers.hpp>
@@ -60,46 +59,31 @@ static void build_component_list(
     }
 }
 
-void component_model_selector::select(const tree_node_id parent_id) noexcept
+struct update_t {
+    vector<std::pair<tree_node_id, component_id>> components;
+    vector<small_string<254>>                     names;
+    tree_node_id current_tree_node = undefined<tree_node_id>();
+};
+
+static update_t update_lists(const application& app,
+                             const tree_node_id parent_id) noexcept
 {
+    update_t           ret;
+    vector<tree_node*> stack_tree_nodes;
 
-    if (parent_id != current_tree_node) {
-        auto& app = container_of(this, &application::component_model_sel);
-
-        components.clear();
-        names.clear();
-        stack_tree_nodes.clear();
-        component_selected = -1;
-        current_tree_node  = parent_id;
-
-        if (auto* tn = app.pj.tree_nodes.try_to_get(parent_id); tn) {
-            build_component_list(app, *tn, stack_tree_nodes, components, names);
-        } else {
-            current_tree_node = undefined<tree_node_id>();
-        }
+    if (auto* tn = app.pj.tree_nodes.try_to_get(parent_id); tn) {
+        build_component_list(
+          app, *tn, stack_tree_nodes, ret.components, ret.names);
+        ret.current_tree_node = parent_id;
     }
+
+    return ret;
 }
 
-void component_model_selector::select(const tree_node_id parent_id,
-                                      const component_id compo_id,
-                                      const tree_node_id tn_id,
-                                      const model_id /*mdl_id*/) noexcept
-
-{
-    select(parent_id);
-
-    component_selected = -1;
-    for (int i = 0, e = components.ssize(); i != e; ++i) {
-        if (components[i].second == compo_id && components[i].first == tn_id) {
-            component_selected = i;
-            break;
-        }
-    }
-}
-
-bool component_model_selector::component_comboxbox(const char*   label,
-                                                   component_id& compo_id,
-                                                   tree_node_id& tn_id) noexcept
+bool component_model_selector::component_comboxbox(
+  const char*   label,
+  component_id& compo_id,
+  tree_node_id& tn_id) const noexcept
 {
     static constexpr const char* empty = "undefined";
 
@@ -133,7 +117,7 @@ bool component_model_selector::observable_model_treenode(
   tree_node& tn,
   component_id& /*compo_id*/,
   tree_node_id& tn_id,
-  model_id&     mdl_id) noexcept
+  model_id&     mdl_id) const noexcept
 {
     auto& app = container_of(this, &application::component_model_sel);
     bool  ret = false;
@@ -161,7 +145,7 @@ bool component_model_selector::observable_model_treenode(
             if (ImGui::TreeNodeEx(str.c_str(),
                                   ImGuiTreeNodeFlags_DefaultOpen)) {
                 for_each_model(
-                  app.sim, tn, [&](u64 /*uid*/, auto& mdl) noexcept {
+                  app.sim, tn, [&](u64 /*uid*/, const auto& mdl) noexcept {
                       const auto current_mdl_id = app.sim.models.get_id(mdl);
                       ImGui::PushID(get_index(current_mdl_id));
 
@@ -191,7 +175,7 @@ bool component_model_selector::observable_model_treenode(
 bool component_model_selector::observable_model_treenode(
   component_id& compo_id,
   tree_node_id& tn_id,
-  model_id&     mdl_id) noexcept
+  model_id&     mdl_id) const noexcept
 {
     debug::ensure(0 <= component_selected);
     debug::ensure(component_selected < names.ssize());
@@ -199,38 +183,41 @@ bool component_model_selector::observable_model_treenode(
     debug::ensure(compo_id == components[component_selected].second);
     debug::ensure(is_defined(tn_id));
     debug::ensure(tn_id == components[component_selected].first);
+    bool ret = false;
 
-    stack_tree_nodes.clear();
+    if (std::shared_lock lock(m_mutex, std::try_to_lock); lock.owns_lock()) {
+        small_vector<tree_node*, max_component_stack_size> stack_tree_nodes;
 
-    auto& app = container_of(this, &application::component_model_sel);
-    bool  ret = false;
+        auto& app = container_of(this, &application::component_model_sel);
 
-    if_data_exists_do(app.pj.tree_nodes, tn_id, [&](auto& tn_grid) noexcept {
-        auto selected =
-          observable_model_treenode(tn_grid, compo_id, tn_id, mdl_id);
-        if (!ret)
-            ret = selected;
+        if_data_exists_do(
+          app.pj.tree_nodes, tn_id, [&](auto& tn_grid) noexcept {
+              auto selected =
+                observable_model_treenode(tn_grid, compo_id, tn_id, mdl_id);
+              if (!ret)
+                  ret = selected;
 
-        if (auto* top = tn_grid.tree.get_child(); top) {
-            stack_tree_nodes.emplace_back(top);
+              if (auto* top = tn_grid.tree.get_child(); top) {
+                  stack_tree_nodes.emplace_back(top);
 
-            while (!stack_tree_nodes.empty()) {
-                auto cur = stack_tree_nodes.back();
-                stack_tree_nodes.pop_back();
+                  while (!stack_tree_nodes.empty()) {
+                      auto cur = stack_tree_nodes.back();
+                      stack_tree_nodes.pop_back();
 
-                auto selected =
-                  observable_model_treenode(*cur, compo_id, tn_id, mdl_id);
-                if (!ret)
-                    ret = selected;
+                      auto selected = observable_model_treenode(
+                        *cur, compo_id, tn_id, mdl_id);
+                      if (!ret)
+                          ret = selected;
 
-                if (auto* sibling = cur->tree.get_sibling(); sibling)
-                    stack_tree_nodes.emplace_back(sibling);
+                      if (auto* sibling = cur->tree.get_sibling(); sibling)
+                          stack_tree_nodes.emplace_back(sibling);
 
-                if (auto* child = cur->tree.get_child(); child)
-                    stack_tree_nodes.emplace_back(child);
-            }
-        }
-    });
+                      if (auto* child = cur->tree.get_child(); child)
+                          stack_tree_nodes.emplace_back(child);
+                  }
+              }
+          });
+    }
 
     return ret;
 }
@@ -239,19 +226,66 @@ bool component_model_selector::combobox(const char*   label,
                                         tree_node_id& parent_id,
                                         component_id& compo_id,
                                         tree_node_id& tn_id,
-                                        model_id&     mdl_id) noexcept
+                                        model_id&     mdl_id) const noexcept
 {
-    debug::ensure(components.ssize() == names.ssize());
-    debug::ensure(component_selected < names.ssize());
-    debug::ensure(parent_id == current_tree_node);
+    auto ret = false;
 
-    bool ret = component_comboxbox(label, compo_id, tn_id);
+    if (std::shared_lock lock(m_mutex, std::try_to_lock); lock.owns_lock()) {
+        debug::ensure(components.ssize() == names.ssize());
+        debug::ensure(component_selected < names.ssize());
+        debug::ensure(parent_id == m_access.parent_id);
 
-    if (is_defined(compo_id))
-        if (observable_model_treenode(compo_id, tn_id, mdl_id))
-            ret = true;
+        ret = component_comboxbox(label, compo_id, tn_id);
+
+        if (is_defined(compo_id))
+            if (observable_model_treenode(compo_id, tn_id, mdl_id))
+                ret = true;
+    }
 
     return ret;
+}
+
+void component_model_selector::start_update(const tree_node_id parent_id,
+                                            const component_id compo_id,
+                                            const tree_node_id tn_id,
+                                            const model_id     mdl_id) noexcept
+{
+    auto& app = container_of(this, &application::component_model_sel);
+
+    debug::ensure(task_in_progress == false);
+
+    if (task_in_progress)
+        return;
+
+    task_in_progress   = true;
+    m_access.parent_id = parent_id;
+    m_access.compo_id  = compo_id;
+    m_access.tn_id     = tn_id;
+    m_access.mdl_id    = mdl_id;
+
+    app.add_gui_task([this]() {
+        auto& app = container_of(this, &application::component_model_sel);
+        debug::ensure(app.pj.tree_nodes.try_to_get(m_access.parent_id));
+
+        auto ret = update_lists(app, m_access.parent_id);
+
+        component_selected = -1;
+        for (int i = 0, e = components.ssize(); i != e; ++i) {
+            if (components[i].second == m_access.compo_id &&
+                components[i].first == m_access.tn_id) {
+                component_selected = i;
+                break;
+            }
+        }
+
+        {
+            std::unique_lock lock{ m_mutex };
+
+            components       = std::move(ret.components);
+            names            = std::move(ret.names);
+            task_in_progress = false;
+        }
+    });
 }
 
 } // namespace irt

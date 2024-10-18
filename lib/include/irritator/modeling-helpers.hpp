@@ -386,6 +386,18 @@ void for_each_model(simulation& sim, tree_node& tn, Function&& f) noexcept
 }
 
 template<typename Function>
+void for_each_model(const simulation& sim,
+                    const tree_node&  tn,
+                    Function&&        f) noexcept
+{
+    for (int i = 0, e = tn.unique_id_to_model_id.data.ssize(); i < e; ++i) {
+        const auto mdl_id = tn.unique_id_to_model_id.data[i].value;
+        if (const auto* mdl = sim.models.try_to_get(mdl_id); mdl)
+            f(tn.unique_id_to_model_id.data[i].id, *mdl);
+    }
+}
+
+template<typename Function>
 void if_tree_node_is_grid_do(project&     pj,
                              modeling&    mod,
                              tree_node_id tn_id,

@@ -26,7 +26,7 @@
 namespace irt {
 
 template<class T, class M>
-constexpr std::ptrdiff_t offset_of(const M T::*member)
+constexpr std::ptrdiff_t offset_of(const M T::* member)
 {
     return reinterpret_cast<std::ptrdiff_t>(
       &(reinterpret_cast<T*>(0)->*member));
@@ -46,14 +46,14 @@ constexpr std::ptrdiff_t offset_of(const M T::*member)
 //! }
 //! @endcode
 template<class T, class M>
-constexpr T& container_of(M* ptr, const M T::*member) noexcept
+constexpr T& container_of(M* ptr, const M T::* member) noexcept
 {
     return *reinterpret_cast<T*>(reinterpret_cast<intptr_t>(ptr) -
                                  offset_of(member));
 }
 
 template<class T, class M>
-constexpr const T& container_of(const M* ptr, const M T::*member) noexcept
+constexpr const T& container_of(const M* ptr, const M T::* member) noexcept
 {
     return *reinterpret_cast<const T*>(reinterpret_cast<intptr_t>(ptr) -
                                        offset_of(member));
@@ -946,49 +946,67 @@ private:
 class component_model_selector
 {
 public:
+    struct access {
+        tree_node_id parent_id;
+        component_id compo_id;
+        tree_node_id tn_id;
+        model_id     mdl_id;
+    };
+
     component_model_selector() noexcept = default;
 
-    /// If @c id is not equal to @c current_tree_node the clear and rebuild
-    /// vector and cache from the @c tree_node @c id.
-    void select(const tree_node_id parent_id) noexcept;
-
-    /// If @c id is not equal to @c current_tree_node the clear and rebuild
-    /// vector and cache from the @c tree_node @c id. Component selected are
-    /// read from the @c g_obs.
-    void select(const tree_node_id parent_id,
-                const component_id compo_id,
-                const tree_node_id tn_id,
-                const model_id     mdl_id) noexcept;
+    /** Get the parent, component, treenode and model identifiers store in
+     * the last call to the @c update function. */
+    const access& get_update_access() noexcept { return m_access; }
 
     bool combobox(const char*   label,
                   tree_node_id& parent_id,
                   component_id& compo_id,
                   tree_node_id& tn_id,
-                  model_id&     mdl_id) noexcept;
+                  model_id&     mdl_id) const noexcept;
+
+    /** A boolean to indicate that an update task is in progress. To be use to
+     * disable control to avoid double update. */
+    bool update_in_progress() const noexcept { return task_in_progress; }
+
+    void start_update(const tree_node_id parent_id,
+                      const component_id compo_id,
+                      const tree_node_id tn_id,
+                      const model_id     mdl_id) noexcept;
 
 private:
     // Used in the component ComboBox to select the grid element.
     vector<std::pair<tree_node_id, component_id>> components;
     vector<small_string<254>>                     names;
 
-    // A cache to proceed recursive search.
-    vector<tree_node*> stack_tree_nodes;
+    access m_access;
 
-    tree_node_id current_tree_node;
-    int          component_selected = -1;
+    mutable int component_selected = -1;
+    bool        task_in_progress   = false;
+
+    /** Clean and rebuild the components and names vector to be used with the @c
+     * combobox function. */
+    void update(const tree_node_id parent_id,
+                const component_id compo_id,
+                const tree_node_id tn_id,
+                const model_id     mdl_id) noexcept;
 
     bool component_comboxbox(const char*   label,
                              component_id& compo_id,
-                             tree_node_id& tn_id) noexcept;
+                             tree_node_id& tn_id) const noexcept;
 
     bool observable_model_treenode(component_id& compo_id,
                                    tree_node_id& tn_id,
-                                   model_id&     mdl_id) noexcept;
+                                   model_id&     mdl_id) const noexcept;
 
     bool observable_model_treenode(tree_node&    tn,
                                    component_id& compo_id,
                                    tree_node_id& tn_id,
-                                   model_id&     mdl_id) noexcept;
+                                   model_id&     mdl_id) const noexcept;
+
+    mutable std::shared_mutex m_mutex; /**< @c update() lock the class to read
+                           modeling data and build the @c ids and @c names
+                           vectors. Other functions try to lock. */
 };
 
 struct application {
