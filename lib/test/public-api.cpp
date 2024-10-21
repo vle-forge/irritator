@@ -2017,7 +2017,7 @@ int main()
             expect(!!st);
         } while (sim.t < 10);
 
-        expect(cnt.number == static_cast<irt::i64>(1));
+        expect(eq(cnt.number, static_cast<irt::i64>(1)));
     };
 
     "hsm_enter_exit_simulation"_test = [] {
@@ -2091,7 +2091,7 @@ int main()
 
         expect(eq(hsm.exec.i1, 11));
 
-        expect(cnt.number == static_cast<irt::i64>(1));
+        expect(eq(cnt.number, static_cast<irt::i64>(1)));
     };
 
     "hsm_timer_simulation"_test = [] {

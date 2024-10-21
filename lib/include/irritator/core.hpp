@@ -1323,38 +1323,52 @@ public:
 
 template<typename T>
 concept has_lambda_function = requires(T t, simulation& sim) {
-    { t.lambda(sim) } -> std::same_as<status>;
+    {
+        t.lambda(sim)
+    } -> std::same_as<status>;
 };
 
 template<typename T>
 concept has_transition_function =
   requires(T t, simulation& sim, time s, time e, time r) {
-      { t.transition(sim, s, e, r) } -> std::same_as<status>;
+      {
+          t.transition(sim, s, e, r)
+      } -> std::same_as<status>;
   };
 
 template<typename T>
 concept has_observation_function = requires(T t, time s, time e) {
-    { t.observation(s, e) } -> std::same_as<observation_message>;
+    {
+        t.observation(s, e)
+    } -> std::same_as<observation_message>;
 };
 
 template<typename T>
 concept has_initialize_function = requires(T t, simulation& sim) {
-    { t.initialize(sim) } -> std::same_as<status>;
+    {
+        t.initialize(sim)
+    } -> std::same_as<status>;
 };
 
 template<typename T>
 concept has_finalize_function = requires(T t, simulation& sim) {
-    { t.finalize(sim) } -> std::same_as<status>;
+    {
+        t.finalize(sim)
+    } -> std::same_as<status>;
 };
 
 template<typename T>
 concept has_input_port = requires(T t) {
-    { t.x };
+    {
+        t.x
+    };
 };
 
 template<typename T>
 concept has_output_port = requires(T t) {
-    { t.y };
+    {
+        t.y
+    };
 };
 
 constexpr observation_message qss_observation(real X,
@@ -3509,9 +3523,9 @@ public:
         enter,
         exit,
         input_changed, /**< HSM receives an expected input message. */
-        internal,      /**< Can HSM move to the next state. */
-        wake_up, /**< HSM receives an end of a timer message with or without
-                    input message (priority to timer event). */
+        internal, /**< HSM move to the next state if @c check() is valid. */
+        wake_up,  /**< HSM receives an end of a timer message with or without
+                     input message (priority to timer event). */
 
     };
 
@@ -6170,7 +6184,7 @@ inline status hsm_wrapper::transition(simulation& sim,
       machine->states[exec.current_state].condition.type ==
       hierarchical_state_machine::condition_type::sigma;
 
-    const auto wait_msg = machine->states[exec.current_state].condition.type ==
+    const auto have_msg = machine->states[exec.current_state].condition.type ==
                           hierarchical_state_machine::condition_type::port;
 
     // Wake up from a timer event. The timer event takes precedence over
@@ -6183,7 +6197,7 @@ inline status hsm_wrapper::transition(simulation& sim,
           hierarchical_state_machine::event_type::wake_up, exec));
         // New message are stored in exec.values and exec.ports. HSM needs
         // to handle input event.
-    } else if (wait_msg) {
+    } else if (have_msg) {
         if (have_x_msg) {
             exec.previous_state = exec.current_state;
             irt_check(machine->dispatch(
@@ -6195,25 +6209,34 @@ inline status hsm_wrapper::transition(simulation& sim,
           hierarchical_state_machine::event_type::internal, exec));
     }
 
-    sigma = time_domain<time>::infinity;
+    for (;;) {
+        sigma = time_domain<time>::infinity;
 
-    if (exec.current_state != hierarchical_state_machine::invalid_state_id and
-        not machine->states[exec.current_state].is_terminal()) {
+        if (exec.messages > 0) {
+            sigma = time_domain<time>::zero;
+            return success();
+        }
+
+        if (exec.current_state ==
+              hierarchical_state_machine::invalid_state_id or
+            machine->states[exec.current_state].is_terminal())
+            return success();
+
         switch (machine->states[exec.current_state].condition.type) {
         case hierarchical_state_machine::condition_type::sigma:
             sigma = exec.timer;
-            break;
+            return success();
+
         case irt::hierarchical_state_machine::condition_type::port:
             sigma = time_domain<time>::infinity;
-            break;
+            return success();
+
         default:
-            sigma = time_domain<time>::zero;
+            irt_check(machine->dispatch(
+              hierarchical_state_machine::event_type::internal, exec));
             break;
         }
     }
-
-    if (exec.messages > 0)
-        sigma = time_domain<time>::zero;
 
     return success();
 }
@@ -6230,7 +6253,9 @@ inline status hsm_wrapper::lambda(simulation& sim) noexcept
 inline observation_message hsm_wrapper::observation(time t,
                                                     time /*e*/) const noexcept
 {
-    return { t, static_cast<real>(exec.current_state) };
+    return {
+        t, static_cast<real>(exec.current_state), exec.r1, exec.r2, exec.timer
+    };
 }
 
 inline bool simulation::can_alloc(std::integral auto place) const noexcept

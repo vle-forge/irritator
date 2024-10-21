@@ -969,57 +969,70 @@ bool hierarchical_state_machine::handle(const state_id   state,
         return true;
 
     case event_type::internal:
-        if (any_equal(states[state].condition.type,
-                      condition_type::sigma,
-                      condition_type::port))
-            return false;
-
         if (states[state].condition.check(constants, exec)) {
             affect_action(states[state].if_action, exec);
-            if (states[state].if_transition != invalid_state_id)
+            if (states[state].if_transition != invalid_state_id) {
                 transition(states[state].if_transition, exec);
-            return true;
+                return true;
+            }
+            return false;
         } else {
             affect_action(states[state].else_action, exec);
-            if (states[state].else_transition != invalid_state_id)
+            if (states[state].else_transition != invalid_state_id) {
                 transition(states[state].else_transition, exec);
-            return true;
+                return true;
+            }
+            return false;
         }
         break;
 
     case event_type::input_changed:
         if (states[state].condition.type == condition_type::sigma) {
             affect_action(states[state].else_action, exec);
-            if (states[state].else_transition != invalid_state_id)
+            if (states[state].else_transition != invalid_state_id) {
                 transition(states[state].else_transition, exec);
-            return true;
+                return true;
+            }
+            return false;
         } else {
+            debug::ensure(states[state].condition.type == condition_type::port);
+
             if (states[state].condition.check(constants, exec)) {
                 affect_action(states[state].if_action, exec);
-                if (states[state].if_transition != invalid_state_id)
+                if (states[state].if_transition != invalid_state_id) {
                     transition(states[state].if_transition, exec);
-                return true;
+                    return true;
+                }
+                return false;
             } else {
                 affect_action(states[state].else_action, exec);
-                if (states[state].else_transition != invalid_state_id)
+                if (states[state].else_transition != invalid_state_id) {
                     transition(states[state].else_transition, exec);
-                return true;
+                    return true;
+                }
+                return false;
             }
         }
         break;
 
     case event_type::wake_up:
+        debug::ensure(states[state].condition.type == condition_type::sigma);
+
         if (states[state].condition.check(constants, exec)) {
             affect_action(states[state].if_action, exec);
-            if (states[state].if_transition != invalid_state_id)
+            if (states[state].if_transition != invalid_state_id) {
                 transition(states[state].if_transition, exec);
-            return true;
+                return true;
+            }
+            return false;
         } else {
             affect_action(states[state].else_action, exec);
             if (states[state].else_transition != invalid_state_id)
                 transition(states[state].else_transition, exec);
-            return true;
+            return true; // If the use does not assign an else transition, he
+                         // want to wait until the real wake up.
         }
+        break;
 
     default:
         break;

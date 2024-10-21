@@ -2319,7 +2319,7 @@ struct json_dearchiver::impl {
             const auto id = mod().components.get_id(*c);
             if (c->state == component_status::unread) {
                 append_dependency(id);
-                report_json_error(error_id::unknown_element);
+                // report_json_error(error_id::unknown_element);
             }
 
             c_id = id;
