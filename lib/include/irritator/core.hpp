@@ -1323,52 +1323,38 @@ public:
 
 template<typename T>
 concept has_lambda_function = requires(T t, simulation& sim) {
-    {
-        t.lambda(sim)
-    } -> std::same_as<status>;
+    { t.lambda(sim) } -> std::same_as<status>;
 };
 
 template<typename T>
 concept has_transition_function =
   requires(T t, simulation& sim, time s, time e, time r) {
-      {
-          t.transition(sim, s, e, r)
-      } -> std::same_as<status>;
+      { t.transition(sim, s, e, r) } -> std::same_as<status>;
   };
 
 template<typename T>
 concept has_observation_function = requires(T t, time s, time e) {
-    {
-        t.observation(s, e)
-    } -> std::same_as<observation_message>;
+    { t.observation(s, e) } -> std::same_as<observation_message>;
 };
 
 template<typename T>
 concept has_initialize_function = requires(T t, simulation& sim) {
-    {
-        t.initialize(sim)
-    } -> std::same_as<status>;
+    { t.initialize(sim) } -> std::same_as<status>;
 };
 
 template<typename T>
 concept has_finalize_function = requires(T t, simulation& sim) {
-    {
-        t.finalize(sim)
-    } -> std::same_as<status>;
+    { t.finalize(sim) } -> std::same_as<status>;
 };
 
 template<typename T>
 concept has_input_port = requires(T t) {
-    {
-        t.x
-    };
+    { t.x };
 };
 
 template<typename T>
 concept has_output_port = requires(T t) {
-    {
-        t.y
-    };
+    { t.y };
 };
 
 constexpr observation_message qss_observation(real X,
@@ -6209,9 +6195,8 @@ inline status hsm_wrapper::transition(simulation& sim,
           hierarchical_state_machine::event_type::internal, exec));
     }
 
-    for (;;) {
-        sigma = time_domain<time>::infinity;
-
+    auto old_state = exec.current_state;
+    while (old_state != exec.current_state) {
         if (exec.messages > 0) {
             sigma = time_domain<time>::zero;
             return success();
@@ -6236,9 +6221,12 @@ inline status hsm_wrapper::transition(simulation& sim,
               hierarchical_state_machine::event_type::internal, exec));
             break;
         }
+
+        old_state = exec.current_state;
     }
 
-    return success();
+    sigma = time_domain<time>::infinity;
+    return new_error(simulation::part::hsms, simulation::model_error{});
 }
 
 inline status hsm_wrapper::lambda(simulation& sim) noexcept

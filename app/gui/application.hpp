@@ -364,8 +364,6 @@ public:
     constexpr static inline auto max_number_of_state =
       hierarchical_state_machine::max_number_of_state;
 
-    enum class test_status { none, being_processed, done, failed };
-
     hsm_component_editor_data(const component_id     id,
                               const hsm_component_id hid,
                               hsm_component&         hsm) noexcept;
@@ -410,7 +408,6 @@ private:
     };
 
     std::bitset<2> m_options;
-    test_status    m_test = test_status::none;
 
 private:
     component_id     m_id     = undefined<component_id>();
