@@ -19,7 +19,7 @@ static ImVec4 operator*(const ImVec4& vec, float val) noexcept
 
 static ImVec4 alpha(const ImVec4& vec, const float f) noexcept
 {
-    return ImVec4(vec.x, vec.y, vec.z, vec.w * f);
+    return ImVec4(vec.x, vec.y, vec.z, f);
 }
 
 static auto display_themes_selector(application& app) noexcept -> bool
@@ -306,7 +306,7 @@ void apply_imnodes_theme_colors() noexcept
       ImGui::ColorConvertFloat4ToU32(colors[ImGuiCol_SeparatorHovered]);
 
     c[ImNodesCol_BoxSelector] =
-      ImGui::ColorConvertFloat4ToU32(colors[ImGuiCol_Header]); //?
+      ImGui::ColorConvertFloat4ToU32(alpha(colors[ImGuiCol_Header], 0.5f)); //?
     c[ImNodesCol_BoxSelectorOutline] =
       ImGui::ColorConvertFloat4ToU32(colors[ImGuiCol_Header]); //?
 
@@ -334,7 +334,7 @@ void apply_imnodes_theme_colors() noexcept
       ImGui::ColorConvertFloat4ToU32(
         alpha(colors[ImGuiCol_TabSelected] * 0.66f, 0.8f));
     c[ImNodesCol_MiniMapNodeOutline] = ImGui::ColorConvertFloat4ToU32(
-      alpha(colors[ImGuiCol_TabSelectedOverline] * 0.66f, 0.8f));
+      alpha(colors[ImGuiCol_TabSelectedOverline] * 0.66f, 0.1f));
 
     c[ImNodesCol_MiniMapLink] =
       ImGui::ColorConvertFloat4ToU32(alpha(colors[ImGuiCol_Tab], 0.8f));
