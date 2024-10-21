@@ -6136,25 +6136,75 @@ inline status hsm_wrapper::initialize(simulation& sim) noexcept
     irt_auto(machine, get_hierarchical_state_machine(sim, id));
     irt_check(machine->start(exec));
 
+    const auto wait_timer =
+      machine->states[exec.current_state].condition.type ==
+      hierarchical_state_machine::condition_type::sigma;
+
+    const auto wait_message =
+      machine->states[exec.current_state].condition.type ==
+      hierarchical_state_machine::condition_type::port;
+
     sigma = time_domain<time>::infinity;
 
-    if (exec.current_state != hierarchical_state_machine::invalid_state_id and
-        not machine->states[exec.current_state].is_terminal()) {
+    if (wait_timer) {
+        exec.previous_state = exec.current_state;
+        irt_check(machine->dispatch(
+          hierarchical_state_machine::event_type::wake_up, exec));
+        // New message are stored in exec.values and exec.ports. HSM needs
+        // to handle input event.
+    } else if (not wait_message) {
+        exec.previous_state = exec.current_state;
+        irt_check(machine->dispatch(
+          hierarchical_state_machine::event_type::internal, exec));
+    }
+
+    for (;;) {
+        sigma = time_domain<time>::infinity;
+
+        if (exec.messages > 0) {
+            sigma = time_domain<time>::zero;
+            return success();
+        }
+
+        if (exec.current_state ==
+              hierarchical_state_machine::invalid_state_id or
+            machine->states[exec.current_state].is_terminal())
+            return success();
+
         switch (machine->states[exec.current_state].condition.type) {
         case hierarchical_state_machine::condition_type::sigma:
             sigma = exec.timer;
-            break;
+            return success();
+
         case irt::hierarchical_state_machine::condition_type::port:
             sigma = time_domain<time>::infinity;
-            break;
+            return success();
+
         default:
-            sigma = time_domain<time>::zero;
+            irt_check(machine->dispatch(
+              hierarchical_state_machine::event_type::internal, exec));
             break;
         }
     }
 
-    if (exec.messages > 0)
-        sigma = time_domain<time>::zero;
+    // if (exec.current_state !=
+    // hierarchical_state_machine::invalid_state_id and
+    //     not machine->states[exec.current_state].is_terminal()) {
+    //     switch (machine->states[exec.current_state].condition.type) {
+    //     case hierarchical_state_machine::condition_type::sigma:
+    //         sigma = exec.timer;
+    //         break;
+    //     case irt::hierarchical_state_machine::condition_type::port:
+    //         sigma = time_domain<time>::infinity;
+    //         break;
+    //     default:
+    //         sigma = time_domain<time>::zero;
+    //         break;
+    //     }
+    // }
+
+    // if (exec.messages > 0)
+    //     sigma = time_domain<time>::zero;
 
     return success();
 }

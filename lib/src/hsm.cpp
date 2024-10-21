@@ -798,13 +798,14 @@ status hierarchical_state_machine::start(execution& exec) noexcept
 
     exec.current_state = top_state;
     exec.next_state    = invalid_state_id;
+    exec.messages      = 0;
 
     handle(exec.current_state, event_type::enter, exec);
 
-    while ((exec.next_state = states[exec.current_state].sub_id) !=
-           invalid_state_id) {
-        irt_check(on_enter_sub_state(exec));
-    }
+    //while ((exec.next_state = states[exec.current_state].sub_id) !=
+    //       invalid_state_id) {
+    //    irt_check(on_enter_sub_state(exec));
+    //}
 
     return success();
 }
@@ -1006,11 +1007,10 @@ bool hierarchical_state_machine::handle(const state_id   state,
                 return false;
             } else {
                 affect_action(states[state].else_action, exec);
-                if (states[state].else_transition != invalid_state_id) {
+                if (states[state].else_transition != invalid_state_id)
                     transition(states[state].else_transition, exec);
-                    return true;
-                }
-                return false;
+                return true; // If the use does not assign an else transition,
+                             // he want to wait until the real wake up.
             }
         }
         break;
