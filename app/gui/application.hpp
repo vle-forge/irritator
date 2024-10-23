@@ -493,6 +493,11 @@ struct grid_simulation_editor {
     vector<bool>         selected;
     vector<component_id> children_class;
 
+    ImVec2 zoom{ 1.f, 1.f };
+    ImVec2 scrolling{ 1.f, 1.f };
+    ImVec2 size{ 30.f, 30.f };
+    ImVec2 distance{ 5.f, 5.f };
+
     void clear() noexcept;
 
     bool show_settings(tree_node&      tn,

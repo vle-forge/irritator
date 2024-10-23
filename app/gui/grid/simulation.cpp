@@ -104,98 +104,91 @@ static bool grid_simulation_show_settings(application&            app,
           app, grid_sim, grid_sim.selected_setting_component))
         ret = true;
 
-    ImGui::BeginChild("Settings",
-                      ImVec2(0, 0),
-                      false,
-                      ImGuiWindowFlags_NoScrollWithMouse |
-                        ImGuiWindowFlags_AlwaysVerticalScrollbar |
-                        ImGuiWindowFlags_AlwaysHorizontalScrollbar);
+    // if (zoom_changed) {
+    //     zoom         = new_zoom;
+    //     zoom_changed = false;
+    // } else {
+    //     if (ImGui::IsWindowHovered()) {
+    //         const float zoom_step = 2.0f;
 
-    if (zoom_changed) {
-        zoom         = new_zoom;
-        zoom_changed = false;
-    } else {
-        if (ImGui::IsWindowHovered()) {
-            const float zoom_step = 2.0f;
+    //         auto& io = ImGui::GetIO();
+    //         if (io.MouseWheel > 0.0f) {
+    //             new_zoom     = zoom * zoom_step * io.MouseWheel;
+    //             zoom_changed = true;
+    //         } else if (io.MouseWheel < 0.0f) {
+    //             new_zoom     = zoom / (zoom_step * -io.MouseWheel);
+    //             zoom_changed = true;
+    //         }
+    //     }
 
-            auto& io = ImGui::GetIO();
-            if (io.MouseWheel > 0.0f) {
-                new_zoom     = zoom * zoom_step * io.MouseWheel;
-                zoom_changed = true;
-            } else if (io.MouseWheel < 0.0f) {
-                new_zoom     = zoom / (zoom_step * -io.MouseWheel);
-                zoom_changed = true;
-            }
-        }
+    //     if (zoom_changed) {
+    //         auto mouse_position_on_window =
+    //           ImGui::GetMousePos() - ImGui::GetWindowPos();
 
-        if (zoom_changed) {
-            auto mouse_position_on_window =
-              ImGui::GetMousePos() - ImGui::GetWindowPos();
+    //         auto mouse_position_on_list =
+    //           (ImVec2(ImGui::GetScrollX(), ImGui::GetScrollY()) +
+    //            mouse_position_on_window) /
+    //           (grid.row * zoom);
 
-            auto mouse_position_on_list =
-              (ImVec2(ImGui::GetScrollX(), ImGui::GetScrollY()) +
-               mouse_position_on_window) /
-              (grid.row * zoom);
+    //         {
+    //             auto origin = ImGui::GetCursorScreenPos();
+    //             ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing,
+    //                                 ImVec2(0.0f, 0.0f));
+    //             ImGui::Dummy(
+    //               ImVec2(grid.row * ImFloor(item_width * new_zoom),
+    //                      grid.column * ImFloor(item_height * new_zoom)));
+    //             ImGui::PopStyleVar();
+    //             ImGui::SetCursorScreenPos(origin);
+    //         }
 
-            {
-                auto origin = ImGui::GetCursorScreenPos();
-                ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing,
-                                    ImVec2(0.0f, 0.0f));
-                ImGui::Dummy(
-                  ImVec2(grid.row * ImFloor(item_width * new_zoom),
-                         grid.column * ImFloor(item_height * new_zoom)));
-                ImGui::PopStyleVar();
-                ImGui::SetCursorScreenPos(origin);
-            }
+    //         auto new_mouse_position_on_list =
+    //           mouse_position_on_list * (item_height * new_zoom);
+    //         auto new_scroll =
+    //           new_mouse_position_on_list - mouse_position_on_window;
 
-            auto new_mouse_position_on_list =
-              mouse_position_on_list * (item_height * new_zoom);
-            auto new_scroll =
-              new_mouse_position_on_list - mouse_position_on_window;
+    //         ImGui::SetScrollX(new_scroll.x);
+    //         ImGui::SetScrollY(new_scroll.y);
+    //     }
+    // }
 
-            ImGui::SetScrollX(new_scroll.x);
-            ImGui::SetScrollY(new_scroll.y);
-        }
-    }
+    // ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, ImVec2(0.0f, 0.0f));
+    // std::optional<tree_node*> selected_child;
 
-    ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, ImVec2(0.0f, 0.0f));
-    std::optional<tree_node*> selected_child;
+    // if (tree_node* child = tn.tree.get_child(); child) {
+    //     do {
+    //         if (child->id == grid_sim.selected_setting_component) {
+    //             const auto pos = grid.unique_id(child->unique_id);
 
-    if (tree_node* child = tn.tree.get_child(); child) {
-        do {
-            if (child->id == grid_sim.selected_setting_component) {
-                const auto pos = grid.unique_id(child->unique_id);
+    //             ImGui::SetCursorPos(
+    //               ImFloor(ImVec2(item_width, item_height) * zoom) *
+    //               ImVec2(static_cast<float>(pos.first),
+    //                      static_cast<float>(pos.second)));
 
-                ImGui::SetCursorPos(
-                  ImFloor(ImVec2(item_width, item_height) * zoom) *
-                  ImVec2(static_cast<float>(pos.first),
-                         static_cast<float>(pos.second)));
+    //             ImGui::PushStyleColor(
+    //               ImGuiCol_Button,
+    //               to_ImVec4(app.mod.component_colors[get_index(
+    //                 grid.children[grid.pos(pos.first, pos.second)])]));
 
-                ImGui::PushStyleColor(
-                  ImGuiCol_Button,
-                  to_ImVec4(app.mod.component_colors[get_index(
-                    grid.children[grid.pos(pos.first, pos.second)])]));
+    //             small_string<32> x;
+    //             format(x, "{}x{}", pos.first, pos.second);
 
-                small_string<32> x;
-                format(x, "{}x{}", pos.first, pos.second);
+    //             if (ImGui::Button(x.c_str(),
+    //                               ImVec2(ImFloor(item_width * zoom),
+    //                                      ImFloor(item_height * zoom)))) {
+    //                 selected_child = child;
+    //             }
 
-                if (ImGui::Button(x.c_str(),
-                                  ImVec2(ImFloor(item_width * zoom),
-                                         ImFloor(item_height * zoom)))) {
-                    selected_child = child;
-                }
+    //             ImGui::PopStyleColor();
+    //         }
+    //         child = child->tree.get_sibling();
+    //     } while (child);
+    // }
 
-                ImGui::PopStyleColor();
-            }
-            child = child->tree.get_sibling();
-        } while (child);
-    }
+    // ImGui::PopStyleVar();
+    // ImGui::EndChild();
 
-    ImGui::PopStyleVar();
-    ImGui::EndChild();
-
-    if (selected_child.has_value())
-        app.project_wnd.select(**selected_child);
+    // if (selected_child.has_value())
+    //     app.project_wnd.select(**selected_child);
 
     return ret;
 }
@@ -205,145 +198,256 @@ static bool grid_simulation_show_observations(application&            app,
                                               tree_node&              tn,
                                               grid_component& grid) noexcept
 {
-    static const float item_width  = 100.0f;
-    static const float item_height = 100.0f;
+    if (ImGui::InputFloat2("Zoom", &grid_sim.zoom.x)) {
+        grid_sim.zoom[0] = ImClamp(grid_sim.zoom[0], 0.1f, 10.f);
+        grid_sim.zoom[1] = ImClamp(grid_sim.zoom[1], 0.1f, 10.f);
+    }
 
-    static float zoom         = 1.0f;
-    static float new_zoom     = 1.0f;
-    static bool  zoom_changed = false;
-    bool         ret          = false;
+    ImVec2 canvas_p0 = ImGui::GetCursorScreenPos();
+    ImVec2 canvas_sz = ImGui::GetContentRegionAvail();
 
-    if (grid_simulation_combobox_component(
-          app, grid_sim, grid_sim.selected_observation_component))
-        ret = true;
+    if (canvas_sz.x < 50.0f)
+        canvas_sz.x = 50.0f;
+    if (canvas_sz.y < 50.0f)
+        canvas_sz.y = 50.0f;
 
-    ImGui::BeginChild("Observations",
-                      ImVec2(0, 0),
-                      true,
-                      ImGuiWindowFlags_NoScrollWithMouse |
-                        ImGuiWindowFlags_AlwaysVerticalScrollbar |
-                        ImGuiWindowFlags_AlwaysHorizontalScrollbar);
+    ImVec2 canvas_p1 =
+      ImVec2(canvas_p0.x + canvas_sz.x, canvas_p0.y + canvas_sz.y);
 
-    if (zoom_changed) {
-        zoom         = new_zoom;
-        zoom_changed = false;
-    } else {
-        if (ImGui::IsWindowHovered()) {
-            const float zoom_step = 2.0f;
+    ImGuiIO&    io        = ImGui::GetIO();
+    ImDrawList* draw_list = ImGui::GetWindowDrawList();
 
-            auto& io = ImGui::GetIO();
-            if (io.MouseWheel > 0.0f) {
-                new_zoom     = zoom * zoom_step * io.MouseWheel;
-                zoom_changed = true;
-            } else if (io.MouseWheel < 0.0f) {
-                new_zoom     = zoom / (zoom_step * -io.MouseWheel);
-                zoom_changed = true;
-            }
-        }
+    draw_list->AddRect(canvas_p0, canvas_p1, IM_COL32(255, 255, 255, 255));
+    ImGui::InvisibleButton("Canvas",
+                           canvas_sz,
+                           ImGuiButtonFlags_MouseButtonLeft |
+                             ImGuiButtonFlags_MouseButtonRight);
 
-        if (zoom_changed) {
-            auto mouse_position_on_window =
-              ImGui::GetMousePos() - ImGui::GetWindowPos();
+    const bool is_hovered = ImGui::IsItemHovered();
+    const bool is_active  = ImGui::IsItemActive();
 
-            auto mouse_position_on_list =
-              (ImVec2(ImGui::GetScrollX(), ImGui::GetScrollY()) +
-               mouse_position_on_window) /
-              (grid.row * zoom);
+    const ImVec2 origin(canvas_p0.x + grid_sim.scrolling.x,
+                        canvas_p0.y + grid_sim.scrolling.y);
+    const ImVec2 mouse_pos_in_canvas(io.MousePos.x - origin.x,
+                                     io.MousePos.y - origin.y);
 
-            {
-                auto origin = ImGui::GetCursorScreenPos();
-                ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing,
-                                    ImVec2(0.0f, 0.0f));
-                ImGui::Dummy(
-                  ImVec2(grid.row * ImFloor(item_width * new_zoom),
-                         grid.column * ImFloor(item_height * new_zoom)));
-                ImGui::PopStyleVar();
-                ImGui::SetCursorScreenPos(origin);
-            }
+    const float mouse_threshold_for_pan = -1.f;
+    if (is_active && ImGui::IsMouseDragging(ImGuiMouseButton_Right,
+                                            mouse_threshold_for_pan)) {
+        grid_sim.scrolling.x += io.MouseDelta.x;
+        grid_sim.scrolling.y += io.MouseDelta.y;
+    }
 
-            auto new_mouse_position_on_list =
-              mouse_position_on_list * (item_height * new_zoom);
-            auto new_scroll =
-              new_mouse_position_on_list - mouse_position_on_window;
+    if (is_hovered and io.MouseWheel != 0.f) {
+        grid_sim.zoom[0] =
+          grid_sim.zoom[0] + (io.MouseWheel * grid_sim.zoom[0] * 0.1f);
+        grid_sim.zoom[1] =
+          grid_sim.zoom[1] + (io.MouseWheel * grid_sim.zoom[1] * 0.1f);
+        grid_sim.zoom[0] = ImClamp(grid_sim.zoom[0], 0.1f, 10.f);
+        grid_sim.zoom[1] = ImClamp(grid_sim.zoom[1], 0.1f, 10.f);
+    }
 
-            ImGui::SetScrollX(new_scroll.x);
-            ImGui::SetScrollY(new_scroll.y);
+    ImVec2 drag_delta = ImGui::GetMouseDragDelta(ImGuiMouseButton_Right);
+
+    if (drag_delta.x == 0.0f && drag_delta.y == 0.0f/* and
+         grid_sim.hovered_component == nullptr*/) {
+        grid.column = static_cast<int>(
+          ImFloor((io.MousePos.x - origin.x) / grid_sim.zoom[0]));
+        grid.row = static_cast<int>(
+          ImFloor((io.MousePos.y - origin.y) / grid_sim.zoom[1]));
+
+        if (0 <= grid.row and grid.row < grid.row and 0 <= grid.column and
+            grid.column < grid.column) {
+            // grid_sim.hovered_component = app.mod.components.try_to_get(
+            //   grid.children[grid.pos(grid.row, grid.column)]);
         }
     }
 
-    ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, ImVec2(0.0f, 0.0f));
+    draw_list->PushClipRect(canvas_p0, canvas_p1, true);
+    const float GRID_STEP = 64.0f;
 
-    if (tree_node* child = tn.tree.get_child(); child) {
-        do {
-            if (child->id == grid_sim.selected_observation_component) {
-                const auto pos = grid.unique_id(child->unique_id);
+    for (float x = fmodf(grid_sim.scrolling.x, GRID_STEP); x < canvas_sz.x;
+         x += GRID_STEP)
+        draw_list->AddLine(ImVec2(canvas_p0.x + x, canvas_p0.y),
+                           ImVec2(canvas_p0.x + x, canvas_p1.y),
+                           IM_COL32(200, 200, 200, 40));
 
-                ImGui::SetCursorPos(
-                  ImFloor(ImVec2(item_width, item_height) * zoom) *
-                  ImVec2(static_cast<float>(pos.first),
-                         static_cast<float>(pos.second)));
+    for (float y = fmodf(grid_sim.scrolling.y, GRID_STEP); y < canvas_sz.y;
+         y += GRID_STEP)
+        draw_list->AddLine(ImVec2(canvas_p0.x, canvas_p0.y + y),
+                           ImVec2(canvas_p1.x, canvas_p0.y + y),
+                           IM_COL32(200, 200, 200, 40));
 
-                ImGui::PushStyleColor(
-                  ImGuiCol_Button,
-                  to_ImVec4(app.mod.component_colors[get_index(
-                    grid.children[grid.pos(pos.first, pos.second)])]));
+    for (int row = 0; row < grid.row; ++row) {
+        for (int col = 0; col < grid.column; ++col) {
+            ImVec2 p_min(
+              origin.x + (col * (grid_sim.distance.x + grid_sim.size.x) *
+                          grid_sim.zoom[0]),
+              origin.y + (row * (grid_sim.distance.y + grid_sim.size.y) *
+                          grid_sim.zoom[1]));
 
-                small_string<32> x;
-                format(x, "{}x{}", pos.first, pos.second);
+            ImVec2 p_max(p_min.x + grid_sim.zoom[0] * grid_sim.size.x,
+                         p_min.y + grid_sim.zoom[1] * grid_sim.size.y);
 
-                if (ImGui::Button(x.c_str(),
-                                  ImVec2(ImFloor(item_width * zoom),
-                                         ImFloor(item_height * zoom)))) {
-                    grid_sim.selected_position          = pos;
-                    grid_sim.selected_observation_model = undefined<model_id>();
-                    grid_sim.selected_tn                = child;
-                }
-
-                ImGui::PopStyleColor();
+            if (p_min.x <= io.MousePos.x && io.MousePos.x < p_max.x &&
+                p_min.y <= io.MousePos.y && io.MousePos.y < p_max.y &&
+                ImGui::IsMouseReleased(0)) {
+                // grid.children[grid.pos(row, col)] = ed.selected_id;
             }
-            child = child->tree.get_sibling();
-        } while (child);
+
+            draw_list->AddRectFilled(
+              p_min,
+              p_max,
+              to_ImU32(app.mod.component_colors[get_index(
+                grid.children[grid.pos(row, col)])]));
+        }
     }
 
-    ImGui::PopStyleVar();
-    ImGui::EndChild();
+    draw_list->PopClipRect();
 
-    if (grid_sim.selected_position.has_value())
-        ImGui::OpenPopup("Choose model to observe");
+    // static const float item_width  = 100.0f;
+    // static const float item_height = 100.0f;
 
-    ImVec2 center = ImGui::GetMainViewport()->GetCenter();
-    ImGui::SetNextWindowPos(center, ImGuiCond_Appearing, ImVec2(0.5f, 0.5f));
-    if (grid_sim.selected_position.has_value() &&
-        ImGui::BeginPopupModal("Choose model to observe",
-                               nullptr,
-                               ImGuiWindowFlags_AlwaysAutoResize)) {
+    // static float zoom         = 1.0f;
+    // static float new_zoom     = 1.0f;
+    // static bool  zoom_changed = false;
+    // bool         ret          = false;
 
-        ImGui::Text("Select the model to observe");
+    // if (grid_simulation_combobox_component(
+    //       app, grid_sim, grid_sim.selected_observation_component))
+    //     ret = true;
 
-        debug::ensure(grid_sim.selected_tn != nullptr);
-        // show_select_observation_model(app,
-        //                               grid_sim,
-        //                               *grid_sim.selected_tn,
-        //                               &grid_sim.selected_observation_model);
+    // if (ImGui::BeginChild("Observations",
+    //                       ImVec2(0, 0),
+    //                       true,
+    //                       ImGuiWindowFlags_NoScrollWithMouse |
+    //                         ImGuiWindowFlags_AlwaysVerticalScrollbar |
+    //                         ImGuiWindowFlags_AlwaysHorizontalScrollbar)) {
 
-        if (ImGui::Button("OK", ImVec2(120, 0))) {
-            grid_sim.selected_position.reset();
-            ImGui::CloseCurrentPopup();
-        }
+    //     if (zoom_changed) {
+    //         zoom         = new_zoom;
+    //         zoom_changed = false;
+    //     } else {
+    //         if (ImGui::IsWindowHovered()) {
+    //             const float zoom_step = 2.0f;
 
-        ImGui::SetItemDefaultFocus();
-        ImGui::SameLine();
-        if (ImGui::Button("Cancel", ImVec2(120, 0))) {
-            grid_sim.selected_position.reset();
-            grid_sim.selected_tn                = nullptr;
-            grid_sim.selected_observation_model = undefined<model_id>();
-            ImGui::CloseCurrentPopup();
-        }
+    //             auto& io = ImGui::GetIO();
+    //             if (io.MouseWheel > 0.0f) {
+    //                 new_zoom     = zoom * zoom_step * io.MouseWheel;
+    //                 zoom_changed = true;
+    //             } else if (io.MouseWheel < 0.0f) {
+    //                 new_zoom     = zoom / (zoom_step * -io.MouseWheel);
+    //                 zoom_changed = true;
+    //             }
+    //         }
 
-        ImGui::EndPopup();
-    }
+    //         if (zoom_changed) {
+    //             auto mouse_position_on_window =
+    //               ImGui::GetMousePos() - ImGui::GetWindowPos();
 
-    return ret;
+    //             auto mouse_position_on_list =
+    //               (ImVec2(ImGui::GetScrollX(), ImGui::GetScrollY()) +
+    //                mouse_position_on_window) /
+    //               (grid.row * zoom);
+
+    //             {
+    //                 auto origin = ImGui::GetCursorScreenPos();
+    //                 ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing,
+    //                                     ImVec2(0.0f, 0.0f));
+    //                 ImGui::Dummy(
+    //                   ImVec2(grid.row * ImFloor(item_width * new_zoom),
+    //                          grid.column * ImFloor(item_height * new_zoom)));
+    //                 ImGui::PopStyleVar();
+    //                 ImGui::SetCursorScreenPos(origin);
+    //             }
+
+    //             auto new_mouse_position_on_list =
+    //               mouse_position_on_list * (item_height * new_zoom);
+    //             auto new_scroll =
+    //               new_mouse_position_on_list - mouse_position_on_window;
+
+    //             ImGui::SetScrollX(new_scroll.x);
+    //             ImGui::SetScrollY(new_scroll.y);
+    //         }
+    //     }
+
+    //     ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, ImVec2(0.0f, 0.0f));
+
+    //     if (tree_node* child = tn.tree.get_child(); child) {
+    //         do {
+    //             if (child->id == grid_sim.selected_observation_component) {
+    //                 const auto pos = grid.unique_id(child->unique_id);
+
+    //                 ImGui::SetCursorPos(
+    //                   ImFloor(ImVec2(item_width, item_height) * zoom) *
+    //                   ImVec2(static_cast<float>(pos.first),
+    //                          static_cast<float>(pos.second)));
+
+    //                 ImGui::PushStyleColor(
+    //                   ImGuiCol_Button,
+    //                   to_ImVec4(app.mod.component_colors[get_index(
+    //                     grid.children[grid.pos(pos.first, pos.second)])]));
+
+    //                 small_string<32> x;
+    //                 format(x, "{}x{}", pos.first, pos.second);
+
+    //                 if (ImGui::Button(x.c_str(),
+    //                                   ImVec2(ImFloor(item_width * zoom),
+    //                                          ImFloor(item_height * zoom)))) {
+    //                     grid_sim.selected_position = pos;
+    //                     grid_sim.selected_observation_model =
+    //                       undefined<model_id>();
+    //                     grid_sim.selected_tn = child;
+    //                 }
+
+    //                 ImGui::PopStyleColor();
+    //             }
+    //             child = child->tree.get_sibling();
+    //         } while (child);
+    //     }
+
+    //     ImGui::PopStyleVar();
+    // }
+
+    // ImGui::EndChild();
+
+    // if (grid_sim.selected_position.has_value())
+    //     ImGui::OpenPopup("Choose model to observe");
+
+    // ImVec2 center = ImGui::GetMainViewport()->GetCenter();
+    // ImGui::SetNextWindowPos(center, ImGuiCond_Appearing, ImVec2(0.5f, 0.5f));
+    // if (grid_sim.selected_position.has_value() &&
+    //     ImGui::BeginPopupModal("Choose model to observe",
+    //                            nullptr,
+    //                            ImGuiWindowFlags_AlwaysAutoResize)) {
+
+    //     ImGui::Text("Select the model to observe");
+
+    //     debug::ensure(grid_sim.selected_tn != nullptr);
+    //     show_select_model_box
+    //     // show_select_observation_model(app,
+    //     //                               grid_sim,
+    //     //                               *grid_sim.selected_tn,
+    //     // &grid_sim.selected_observation_model);
+
+    //     if (ImGui::Button("OK", ImVec2(120, 0))) {
+    //         grid_sim.selected_position.reset();
+    //         ImGui::CloseCurrentPopup();
+    //     }
+
+    //     ImGui::SetItemDefaultFocus();
+    //     ImGui::SameLine();
+    //     if (ImGui::Button("Cancel", ImVec2(120, 0))) {
+    //         grid_sim.selected_position.reset();
+    //         grid_sim.selected_tn                = nullptr;
+    //         grid_sim.selected_observation_model = undefined<model_id>();
+    //         ImGui::CloseCurrentPopup();
+    //     }
+
+    //     ImGui::EndPopup();
+    // }
+
+    return true;
 }
 
 void grid_simulation_editor::clear() noexcept
