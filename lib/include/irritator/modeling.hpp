@@ -485,7 +485,7 @@ struct grid_component {
                               static_cast<int>(unpack.second));
     }
 
-    constexpr u64 unique_id(int row, int col) noexcept
+    constexpr u64 unique_id(int row, int col) const noexcept
     {
         return u32s_to_u64(static_cast<u32>(row), static_cast<u32>(col));
     }

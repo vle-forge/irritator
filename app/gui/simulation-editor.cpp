@@ -1008,7 +1008,7 @@ static void show_simulation_editor_treenode(application& app,
             using T = std::decay_t<decltype(c)>;
 
             if constexpr (std::is_same_v<T, grid_component>) {
-                app.simulation_ed.grid_sim.show_observations(tn, *compo, c);
+                app.simulation_ed.grid_sim.display(tn, *compo, c);
             } else if constexpr (std::is_same_v<T, graph_component>) {
                 app.simulation_ed.graph_sim.show_observations(tn, *compo, c);
             } else if constexpr (std::is_same_v<T, generic_component>) {

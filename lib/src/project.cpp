@@ -410,6 +410,7 @@ static auto make_tree_recursive(simulation_copy& sc,
 
     auto& new_tree =
       sc.tree_nodes.alloc(sc.mod.components.get_id(compo), unique_id);
+    const auto tn_id = sc.tree_nodes.get_id(new_tree);
     new_tree.tree.set_id(&new_tree);
     new_tree.tree.parent_to(parent.tree);
 
@@ -418,18 +419,21 @@ static auto make_tree_recursive(simulation_copy& sc,
         auto s_id = compo.id.generic_id;
         if (auto* s = sc.mod.generic_components.try_to_get(s_id); s)
             irt_check(make_tree_recursive(sc, new_tree, *s));
+        parent.unique_id_to_tree_node_id.data.emplace_back(unique_id, tn_id);
     } break;
 
     case component_type::grid: {
         auto g_id = compo.id.grid_id;
         if (auto* g = sc.mod.grid_components.try_to_get(g_id); g)
             irt_check(make_tree_recursive(sc, new_tree, *g));
+        parent.unique_id_to_tree_node_id.data.emplace_back(unique_id, tn_id);
     } break;
 
     case component_type::graph: {
         auto g_id = compo.id.graph_id;
         if (auto* g = sc.mod.graph_components.try_to_get(g_id); g)
             irt_check(make_tree_recursive(sc, new_tree, *g));
+        parent.unique_id_to_tree_node_id.data.emplace_back(unique_id, tn_id);
     } break;
 
     case component_type::internal:

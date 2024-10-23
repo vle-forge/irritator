@@ -26,7 +26,7 @@
 namespace irt {
 
 template<class T, class M>
-constexpr std::ptrdiff_t offset_of(const M T::* member)
+constexpr std::ptrdiff_t offset_of(const M T::*member)
 {
     return reinterpret_cast<std::ptrdiff_t>(
       &(reinterpret_cast<T*>(0)->*member));
@@ -46,14 +46,14 @@ constexpr std::ptrdiff_t offset_of(const M T::* member)
 //! }
 //! @endcode
 template<class T, class M>
-constexpr T& container_of(M* ptr, const M T::* member) noexcept
+constexpr T& container_of(M* ptr, const M T::*member) noexcept
 {
     return *reinterpret_cast<T*>(reinterpret_cast<intptr_t>(ptr) -
                                  offset_of(member));
 }
 
 template<class T, class M>
-constexpr const T& container_of(const M* ptr, const M T::* member) noexcept
+constexpr const T& container_of(const M* ptr, const M T::*member) noexcept
 {
     return *reinterpret_cast<const T*>(reinterpret_cast<intptr_t>(ptr) -
                                        offset_of(member));
@@ -474,34 +474,22 @@ struct generic_simulation_editor {
                            generic_component& generic) noexcept;
 };
 
-struct grid_simulation_editor {
-    ImVec2            show_position{ 0.f, 0.f };
-    ImVec2            disp{ 1000.f, 1000.f };
-    float             scale           = 10.f;
-    bool              start_selection = false;
-    grid_component_id current_id      = undefined<grid_component_id>();
+class grid_simulation_editor
+{
+public:
+    /** Restore the variable to the default value. */
+    void reset() noexcept;
 
-    component_id selected_setting_component = undefined<component_id>();
-    model_id     selected_setting_model     = undefined<model_id>();
+    bool display(tree_node&      tn,
+                 component&      compo,
+                 grid_component& grid) noexcept;
 
-    component_id selected_observation_component = undefined<component_id>();
-    model_id     selected_observation_model     = undefined<model_id>();
-    tree_node*   selected_tn                    = nullptr;
+    grid_component_id   current_id = undefined<grid_component_id>();
 
-    std::optional<std::pair<int, int>> selected_position;
-
-    vector<bool>         selected;
-    vector<component_id> children_class;
-
-    void clear() noexcept;
-
-    bool show_settings(tree_node&      tn,
-                       component&      compo,
-                       grid_component& grid) noexcept;
-
-    bool show_observations(tree_node&      tn,
-                           component&      compo,
-                           grid_component& grid) noexcept;
+    ImVec2 zoom{ 1.f, 1.f };
+    ImVec2 scrolling{ 1.f, 1.f };
+    ImVec2 size{ 30.f, 30.f };
+    ImVec2 distance{ 5.f, 5.f };
 };
 
 struct graph_simulation_editor {
