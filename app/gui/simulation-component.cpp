@@ -14,6 +14,11 @@
 
 namespace irt {
 
+static constexpr std::string_view simulation_part_names[] = {
+    "messages", "nodes",     "dated_messages", "models",
+    "hsms",     "observers", "scheduler",      "external_sources"
+};
+
 static status simulation_init_observation(application& app) noexcept
 {
     for (auto& grid_obs : app.pj.grid_observers)
@@ -143,37 +148,92 @@ static void simulation_init(application& app) noexcept
       });
 }
 
-static status debug_run(simulation_editor& sim_ed) noexcept
+static bool debug_run(simulation_editor& sim_ed) noexcept
 {
-    auto& app = container_of(&sim_ed, &application::simulation_ed);
+    auto success = true;
 
-    if (auto ret = run(sim_ed.tl, app.sim, app.sim.t); !ret) {
-        app.notifications.try_insert(log_level::error,
-                                     [&](auto& t, auto&) noexcept {
-                                         t = "Simulation debug task run error";
-                                     });
+    attempt_all(
+      [&] {
+          auto& app = container_of(&sim_ed, &application::simulation_ed);
+          return run(sim_ed.tl, app.sim, app.sim.t);
+      },
 
-        sim_ed.simulation_state = simulation_status::finish_requiring;
-        return ret.error();
-    }
+      [&](simulation::part type, simulation::model_error* ptr) noexcept {
+          auto& app = container_of(&sim_ed, &application::simulation_ed);
+          sim_ed.simulation_state = simulation_status::finish_requiring;
+          success                 = false;
 
-    return success();
+          app.notifications.try_insert(
+            log_level::error, [&](auto& t, auto& msg) noexcept {
+                t = "Simulation debug task run error";
+
+                if (ptr)
+                    format(msg,
+                           "Model error in part {}",
+                           simulation_part_names[ordinal(type)]);
+                else
+                    format(msg,
+                           "Error in part {}",
+                           simulation_part_names[ordinal(type)]);
+            });
+      },
+
+      [&] {
+          auto& app = container_of(&sim_ed, &application::simulation_ed);
+          sim_ed.simulation_state = simulation_status::finish_requiring;
+          success                 = false;
+
+          app.notifications.try_insert(
+            log_level::error, [&](auto& t, auto& /*msg*/) noexcept {
+                t = "Simulation debug task run error";
+            });
+      });
+
+    return success;
 }
 
-static status run(simulation_editor& sim_ed) noexcept
+static bool run(simulation_editor& sim_ed) noexcept
 {
-    auto& app = container_of(&sim_ed, &application::simulation_ed);
+    auto success = true;
 
-    if (auto ret = app.sim.run(); !ret) {
-        app.notifications.try_insert(
-          log_level::error,
-          [&](auto& t, auto&) noexcept { t = "Simulation task run error"; });
+    attempt_all(
+      [&] {
+          auto& app = container_of(&sim_ed, &application::simulation_ed);
+          return app.sim.run();
+      },
 
-        sim_ed.simulation_state = simulation_status::finish_requiring;
-        return ret.error();
-    }
+      [&](simulation::part type, simulation::model_error* ptr) noexcept {
+          auto& app = container_of(&sim_ed, &application::simulation_ed);
+          sim_ed.simulation_state = simulation_status::finish_requiring;
+          success                 = false;
 
-    return success();
+          app.notifications.try_insert(
+            log_level::error, [&](auto& t, auto& msg) noexcept {
+                t = "Simulation task run error";
+
+                if (ptr)
+                    format(msg,
+                           "Model error in part {}",
+                           simulation_part_names[ordinal(type)]);
+                else
+                    format(msg,
+                           "Error in part {}",
+                           simulation_part_names[ordinal(type)]);
+            });
+      },
+
+      [&] {
+          auto& app = container_of(&sim_ed, &application::simulation_ed);
+          sim_ed.simulation_state = simulation_status::finish_requiring;
+          success                 = false;
+
+          app.notifications.try_insert(log_level::error,
+                                       [&](auto& t, auto& /*msg*/) noexcept {
+                                           t = "Simulation  task run error";
+                                       });
+      });
+
+    return success;
 }
 
 void simulation_editor::start_simulation_static_run() noexcept

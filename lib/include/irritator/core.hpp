@@ -6195,38 +6195,38 @@ inline status hsm_wrapper::transition(simulation& sim,
           hierarchical_state_machine::event_type::internal, exec));
     }
 
-    auto old_state = exec.current_state;
-    while (old_state != exec.current_state) {
-        if (exec.messages > 0) {
-            sigma = time_domain<time>::zero;
-            return success();
-        }
-
-        if (exec.current_state ==
-              hierarchical_state_machine::invalid_state_id or
-            machine->states[exec.current_state].is_terminal())
-            return success();
-
-        switch (machine->states[exec.current_state].condition.type) {
-        case hierarchical_state_machine::condition_type::sigma:
-            sigma = exec.timer;
-            return success();
-
-        case irt::hierarchical_state_machine::condition_type::port:
-            sigma = time_domain<time>::infinity;
-            return success();
-
-        default:
-            irt_check(machine->dispatch(
-              hierarchical_state_machine::event_type::internal, exec));
-            break;
-        }
-
-        old_state = exec.current_state;
+    // for (;;) {
+    if (exec.messages > 0) {
+        sigma = time_domain<time>::zero;
+        return success();
     }
 
     sigma = time_domain<time>::infinity;
-    return new_error(simulation::part::hsms, simulation::model_error{});
+    if (exec.current_state == hierarchical_state_machine::invalid_state_id or
+        machine->states[exec.current_state].is_terminal())
+        return success();
+
+    switch (machine->states[exec.current_state].condition.type) {
+    case hierarchical_state_machine::condition_type::sigma:
+        sigma = exec.timer;
+        return success();
+
+    case irt::hierarchical_state_machine::condition_type::port:
+        sigma = time_domain<time>::infinity;
+        return success();
+
+    default: {
+        const auto old = exec.current_state;
+        irt_check(machine->dispatch(
+          hierarchical_state_machine::event_type::internal, exec));
+
+        if (old == exec.current_state)
+            return new_error(simulation::part::hsms, simulation::model_error{});
+    } break;
+    }
+    // }
+
+    return success();
 }
 
 inline status hsm_wrapper::lambda(simulation& sim) noexcept
