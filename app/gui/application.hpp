@@ -484,7 +484,7 @@ public:
                  component&      compo,
                  grid_component& grid) noexcept;
 
-    grid_component_id   current_id = undefined<grid_component_id>();
+    grid_component_id current_id = undefined<grid_component_id>();
 
     ImVec2 zoom{ 1.f, 1.f };
     ImVec2 scrolling{ 1.f, 1.f };
@@ -998,9 +998,8 @@ struct application {
     application() noexcept;
     ~application() noexcept;
 
-    modeling   mod;
-    simulation sim;
-    project    pj;
+    modeling mod;
+    project  pj;
 
     spin_mutex mod_mutex;
     spin_mutex sim_mutex;

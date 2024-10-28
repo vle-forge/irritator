@@ -31,7 +31,7 @@ void plot_observation_widget::show(application& app) noexcept
             v_obs.for_each([&](const auto id) noexcept {
                 const auto idx    = get_index(id);
                 const auto obs_id = v_obs.get_obs_ids()[idx];
-                auto*      obs    = app.sim.observers.try_to_get(obs_id);
+                auto*      obs    = app.pj.sim.observers.try_to_get(obs_id);
 
                 if (obs->linearized_buffer.size() > 0) {
                     switch (v_obs.get_options()[idx]) {

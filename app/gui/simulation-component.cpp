@@ -22,13 +22,13 @@ static constexpr std::string_view simulation_part_names[] = {
 static status simulation_init_observation(application& app) noexcept
 {
     for (auto& grid_obs : app.pj.grid_observers)
-        grid_obs.init(app.pj, app.mod, app.sim);
+        grid_obs.init(app.pj, app.mod, app.pj.sim);
 
     for (auto& graph_obs : app.pj.graph_observers)
-        graph_obs.init(app.pj, app.mod, app.sim);
+        graph_obs.init(app.pj, app.mod, app.pj.sim);
 
     for (auto& v_obs : app.pj.variable_observers)
-        irt_check(v_obs.init(app.pj, app.sim));
+        irt_check(v_obs.init(app.pj, app.pj.sim));
 
     return success();
 }
@@ -87,10 +87,10 @@ static void simulation_copy(application& app) noexcept
 
     attempt_all(
       [&]() noexcept -> status {
-          irt_check(app.pj.set(app.mod, app.sim, *compo));
+          irt_check(app.pj.set(app.mod, *compo));
           irt_check(app.mod.srcs.prepare());
-          app.sim.t = app.simulation_ed.simulation_begin;
-          irt_check(app.sim.initialize());
+          app.pj.sim.t = app.simulation_ed.simulation_begin;
+          irt_check(app.pj.sim.initialize());
           app.simulation_ed.simulation_state = simulation_status::initialized;
           return success();
       },
@@ -126,13 +126,13 @@ static void simulation_init(application& app) noexcept
 
     attempt_all(
       [&]() noexcept -> status {
-          app.sim.t = app.simulation_ed.simulation_begin;
-          app.simulation_ed.simulation_last_finite_t   = app.sim.t;
-          app.simulation_ed.simulation_display_current = app.sim.t;
+          app.pj.sim.t = app.simulation_ed.simulation_begin;
+          app.simulation_ed.simulation_last_finite_t   = app.pj.sim.t;
+          app.simulation_ed.simulation_display_current = app.pj.sim.t;
 
           irt_check(simulation_init_observation(app));
           irt_check(app.mod.srcs.prepare());
-          irt_check(app.sim.initialize());
+          irt_check(app.pj.sim.initialize());
           app.simulation_ed.simulation_state = simulation_status::initialized;
           return success();
       },
@@ -155,7 +155,7 @@ static bool debug_run(simulation_editor& sim_ed) noexcept
     attempt_all(
       [&] {
           auto& app = container_of(&sim_ed, &application::simulation_ed);
-          return run(sim_ed.tl, app.sim, app.sim.t);
+          return run(sim_ed.tl, app.pj.sim, app.pj.sim.t);
       },
 
       [&](simulation::part type, simulation::model_error* ptr) noexcept {
@@ -199,7 +199,7 @@ static bool run(simulation_editor& sim_ed) noexcept
     attempt_all(
       [&] {
           auto& app = container_of(&sim_ed, &application::simulation_ed);
-          return app.sim.run();
+          return app.pj.sim.run();
       },
 
       [&](simulation::part type, simulation::model_error* ptr) noexcept {
@@ -262,27 +262,27 @@ void simulation_editor::start_simulation_static_run() noexcept
                 if (auto ret = debug_run(app.simulation_ed); !ret) {
                     app.simulation_ed.simulation_state =
                       simulation_status::finish_requiring;
-                    app.simulation_ed.simulation_display_current = app.sim.t;
+                    app.simulation_ed.simulation_display_current = app.pj.sim.t;
                     return;
                 }
             } else {
                 if (auto ret = run(app.simulation_ed); !ret) {
                     app.simulation_ed.simulation_state =
                       simulation_status::finish_requiring;
-                    app.simulation_ed.simulation_display_current = app.sim.t;
+                    app.simulation_ed.simulation_display_current = app.pj.sim.t;
                     return;
                 }
             }
 
-            if (!app.sim.immediate_observers.empty())
+            if (!app.pj.sim.immediate_observers.empty())
                 app.simulation_ed.start_simulation_observation();
 
             if (!app.simulation_ed.infinity_simulation &&
-                app.sim.t >= app.simulation_ed.simulation_end) {
-                app.sim.t = app.simulation_ed.simulation_end;
+                app.pj.sim.t >= app.simulation_ed.simulation_end) {
+                app.pj.sim.t = app.simulation_ed.simulation_end;
                 app.simulation_ed.simulation_state =
                   simulation_status::finish_requiring;
-                app.simulation_ed.simulation_display_current = app.sim.t;
+                app.simulation_ed.simulation_display_current = app.pj.sim.t;
                 return;
             }
 
@@ -295,7 +295,7 @@ void simulation_editor::start_simulation_static_run() noexcept
         } while (!stop_or_pause && duration_since_start <
                                      app.simulation_ed.thread_frame_duration);
 
-        app.simulation_ed.simulation_display_current = app.sim.t;
+        app.simulation_ed.simulation_display_current = app.pj.sim.t;
 
         if (app.simulation_ed.force_pause) {
             app.simulation_ed.force_pause = false;
@@ -355,8 +355,8 @@ void simulation_editor::start_simulation_live_run() noexcept
             {
                 std::scoped_lock lock(app.sim_mutex);
 
-                sim_t      = app.sim.t;
-                sim_next_t = app.sim.sched.tn();
+                sim_t      = app.pj.sim.t;
+                sim_next_t = app.pj.sim.sched.tn();
             }
 
             if (time_domain<time>::is_infinity(sim_t)) {
@@ -401,7 +401,7 @@ void simulation_editor::start_simulation_live_run() noexcept
             {
                 std::scoped_lock lock(app.sim_mutex);
                 simulation_last_finite_t = sim_t;
-                app.sim.t                = sim_t;
+                app.pj.sim.t             = sim_t;
 
                 if (store_all_changes) {
                     if (auto ret = debug_run(app.simulation_ed); !ret) {
@@ -416,10 +416,10 @@ void simulation_editor::start_simulation_live_run() noexcept
                 }
             }
 
-            if (time_domain<time>::is_infinity(app.sim.t))
+            if (time_domain<time>::is_infinity(app.pj.sim.t))
                 simulation_last_finite_t = sim_next_t;
 
-            if (!app.sim.immediate_observers.empty())
+            if (!app.pj.sim.immediate_observers.empty())
                 start_simulation_observation();
         }
     });
@@ -435,19 +435,19 @@ void simulation_editor::start_simulation_update_state() noexcept
 
         if (have_send_message) {
             const auto mdl_id = *have_send_message;
-            const auto t      = irt::time_domain<time>::is_infinity(app.sim.t)
-                                  ? app.sim.last_valid_t
-                                  : app.sim.t;
+            const auto t = irt::time_domain<time>::is_infinity(app.pj.sim.t)
+                             ? app.pj.sim.last_valid_t
+                             : app.pj.sim.t;
 
-            if_data_exists_do(app.sim.models, mdl_id, [&](auto& m) noexcept {
+            if_data_exists_do(app.pj.sim.models, mdl_id, [&](auto& m) noexcept {
                 if (m.type == dynamics_type::constant) {
                     if (m.handle == invalid_heap_handle) {
-                        app.sim.sched.alloc(m, mdl_id, t);
+                        app.pj.sim.sched.alloc(m, mdl_id, t);
                     } else {
-                        if (app.sim.sched.is_in_tree(m.handle)) {
-                            app.sim.sched.update(m, t);
+                        if (app.pj.sim.sched.is_in_tree(m.handle)) {
+                            app.pj.sim.sched.update(m, t);
                         } else {
-                            app.sim.sched.reintegrate(m, t);
+                            app.pj.sim.sched.reintegrate(m, t);
                         }
                     }
 
@@ -556,7 +556,7 @@ void simulation_editor::start_simulation_delete() noexcept
     app.add_simulation_task([&app]() noexcept {
         std::scoped_lock lock(app.sim_mutex);
         app.pj.clear();
-        app.sim.clear();
+        app.pj.sim.clear();
         app.simulation_ed.clear();
     });
 }
@@ -587,19 +587,19 @@ void simulation_editor::start_simulation_observation() noexcept
 
     constexpr int capacity = 255;
 
-    if (app.sim.immediate_observers.empty()) {
-        int       obs_max = app.sim.observers.ssize();
+    if (app.pj.sim.immediate_observers.empty()) {
+        int       obs_max = app.pj.sim.observers.ssize();
         observer* obs     = nullptr;
 
-        while (app.sim.observers.next(obs)) {
+        while (app.pj.sim.observers.next(obs)) {
             int loop = std::min(obs_max, capacity);
 
             for (int i = 0; i != loop; ++i) {
-                auto obs_id = app.sim.observers.get_id(*obs);
-                app.sim.observers.next(obs);
+                auto obs_id = app.pj.sim.observers.get_id(*obs);
+                app.pj.sim.observers.next(obs);
 
                 task_list.add([&app, obs_id]() noexcept {
-                    if_data_exists_do(app.sim.observers,
+                    if_data_exists_do(app.pj.sim.observers,
                                       obs_id,
                                       [&](observer& obs) noexcept -> void {
                                           while (obs.buffer.ssize() > 2)
@@ -621,17 +621,17 @@ void simulation_editor::start_simulation_observation() noexcept
         debug::ensure(app.simulation_ed.simulation_state !=
                       simulation_status::finished);
 
-        int obs_max = app.sim.immediate_observers.ssize();
+        int obs_max = app.pj.sim.immediate_observers.ssize();
         int current = 0;
 
         while (obs_max > 0) {
             int loop = std::min(obs_max, capacity);
 
             for (int i = 0; i != loop; ++i) {
-                auto obs_id = app.sim.immediate_observers[i + current];
+                auto obs_id = app.pj.sim.immediate_observers[i + current];
 
                 task_list.add([&app, obs_id]() noexcept {
-                    if_data_exists_do(app.sim.observers,
+                    if_data_exists_do(app.pj.sim.observers,
                                       obs_id,
                                       [&](observer& obs) noexcept -> void {
                                           while (obs.buffer.ssize() > 2)
@@ -675,8 +675,8 @@ void simulation_editor::start_simulation_start_1() noexcept
                 }
 
                 if (!app.simulation_ed.infinity_simulation &&
-                    app.sim.t >= app.simulation_ed.simulation_end) {
-                    app.sim.t = app.simulation_ed.simulation_end;
+                    app.pj.sim.t >= app.simulation_ed.simulation_end) {
+                    app.pj.sim.t = app.simulation_ed.simulation_end;
                     app.simulation_ed.simulation_state =
                       simulation_status::finish_requiring;
                     return;
@@ -734,11 +734,12 @@ void simulation_editor::start_simulation_finish() noexcept
         std::scoped_lock lock{ app.sim_mutex };
 
         app.simulation_ed.simulation_state = simulation_status::finishing;
-        app.sim.immediate_observers.clear();
+        app.pj.sim.immediate_observers.clear();
         app.simulation_ed.start_simulation_observation();
 
         if (app.simulation_ed.store_all_changes) {
-            if (auto ret = finalize(app.simulation_ed.tl, app.sim, app.sim.t);
+            if (auto ret =
+                  finalize(app.simulation_ed.tl, app.pj.sim, app.pj.sim.t);
                 !ret) {
                 auto& n = app.notifications.alloc();
                 n.title = "Simulation finalizing fail (with store all "
@@ -746,8 +747,8 @@ void simulation_editor::start_simulation_finish() noexcept
                 app.notifications.enable(n);
             }
         } else {
-            app.sim.t = app.simulation_ed.simulation_end;
-            if (auto ret = app.sim.finalize(); !ret) {
+            app.pj.sim.t = app.simulation_ed.simulation_end;
+            if (auto ret = app.pj.sim.finalize(); !ret) {
                 auto& n = app.notifications.alloc();
                 n.title = "simulation finish fail";
                 app.notifications.enable(n);
@@ -766,7 +767,8 @@ void simulation_editor::start_simulation_advance() noexcept
         if (app.simulation_ed.tl.can_advance()) {
             attempt_all(
               [&]() noexcept -> status {
-                  return advance(app.simulation_ed.tl, app.sim, app.sim.t);
+                  return advance(
+                    app.simulation_ed.tl, app.pj.sim, app.pj.sim.t);
               },
 
               [&](const simulation::part s) noexcept -> void {
@@ -794,7 +796,7 @@ void simulation_editor::start_simulation_back() noexcept
         if (app.simulation_ed.tl.can_back()) {
             attempt_all(
               [&]() noexcept -> status {
-                  return back(app.simulation_ed.tl, app.sim, app.sim.t);
+                  return back(app.simulation_ed.tl, app.pj.sim, app.pj.sim.t);
               },
 
               [&](const simulation::part s) noexcept -> void {
@@ -822,7 +824,8 @@ void simulation_editor::start_enable_or_disable_debug() noexcept
 
         attempt_all(
           [&]() -> status {
-              irt_check(initialize(app.simulation_ed.tl, app.sim, app.sim.t));
+              irt_check(
+                initialize(app.simulation_ed.tl, app.pj.sim, app.pj.sim.t));
 
               return success();
           },
@@ -858,19 +861,19 @@ void simulation_editor::start_simulation_model_add(const dynamics_type type,
     app.add_simulation_task([&app, type, x, y]() noexcept {
         std::scoped_lock lock{ app.sim_mutex };
 
-        if (!app.sim.can_alloc(1)) {
+        if (!app.pj.sim.can_alloc(1)) {
             auto& n = app.notifications.alloc(log_level::error);
             n.title = "To many model in simulation editor";
             app.notifications.enable(n);
             return;
         }
 
-        auto& mdl    = app.sim.alloc(type);
-        auto  mdl_id = app.sim.models.get_id(mdl);
+        auto& mdl    = app.pj.sim.alloc(type);
+        auto  mdl_id = app.pj.sim.models.get_id(mdl);
 
         attempt_all(
           [&]() noexcept -> status {
-              irt_check(app.sim.make_initialize(mdl, app.sim.t));
+              irt_check(app.pj.sim.make_initialize(mdl, app.pj.sim.t));
 
               app.simulation_ed.models_to_move.emplace_enqueue(mdl_id,
                                                                ImVec2(x, y));
@@ -879,7 +882,7 @@ void simulation_editor::start_simulation_model_add(const dynamics_type type,
           },
 
           [&](const simulation::part s) noexcept -> void {
-              app.sim.deallocate(mdl_id);
+              app.pj.sim.deallocate(mdl_id);
 
               auto& n = app.notifications.alloc(log_level::error);
               n.title = "Fail to initialize model";
@@ -888,7 +891,7 @@ void simulation_editor::start_simulation_model_add(const dynamics_type type,
           },
 
           [&]() noexcept -> void {
-              app.sim.deallocate(mdl_id);
+              app.pj.sim.deallocate(mdl_id);
 
               auto& n = app.notifications.alloc(log_level::error);
               n.title = "Fail to initialize model";
@@ -904,7 +907,7 @@ void simulation_editor::start_simulation_model_del(const model_id id) noexcept
 
     app.add_simulation_task([&app, id]() noexcept {
         std::scoped_lock lock{ app.sim_mutex };
-        app.sim.deallocate(id);
+        app.pj.sim.deallocate(id);
     });
 }
 
@@ -917,8 +920,8 @@ void simulation_editor::remove_simulation_observation_from(
         std::scoped_lock _(app.sim_mutex);
 
         if_data_exists_do(
-          app.sim.models, mdl_id, [&](auto& mdl) noexcept -> void {
-              app.sim.unobserve(mdl);
+          app.pj.sim.models, mdl_id, [&](auto& mdl) noexcept -> void {
+              app.pj.sim.unobserve(mdl);
           });
     });
 }
@@ -932,17 +935,17 @@ void simulation_editor::add_simulation_observation_for(
         std::scoped_lock _(app.sim_mutex);
 
         if_data_exists_do(
-          app.sim.models, mdl_id, [&](auto& mdl) noexcept -> void {
-              if (app.sim.observers.can_alloc(1)) {
-                  auto& obs = app.sim.observers.alloc();
-                  app.sim.observe(mdl, obs);
+          app.pj.sim.models, mdl_id, [&](auto& mdl) noexcept -> void {
+              if (app.pj.sim.observers.can_alloc(1)) {
+                  auto& obs = app.pj.sim.observers.alloc();
+                  app.pj.sim.observe(mdl, obs);
               } else {
                   app.notifications.try_insert(
                     log_level::error, [&](auto& title, auto& msg) noexcept {
                         title = "Simulation editor";
                         format(msg,
                                "Too many observers ({}) in simulation",
-                               app.sim.observers.capacity());
+                               app.pj.sim.observers.capacity());
                     });
               }
           });

@@ -3952,7 +3952,7 @@ struct json_dearchiver::impl {
         auto_stack s(this, stack_id::project_set_components);
 
         if (auto* compo = mod().components.try_to_get(c_id); compo) {
-            if (auto ret = pj().set(mod(), sim(), *compo); ret)
+            if (auto ret = pj().set(mod(), *compo); ret)
                 return true;
             else
                 report_json_error(error_id::project_set_error);

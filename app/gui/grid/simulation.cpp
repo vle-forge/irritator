@@ -240,7 +240,7 @@ bool show_local_observers(application& app,
                 "Select model", "Choose model to observe", app, tn, grid);
 
               if_data_exists_do(
-                app.sim.models, grid.mdl_id, [&](auto& mdl) noexcept {
+                app.pj.sim.models, grid.mdl_id, [&](auto& mdl) noexcept {
                     ImGui::SameLine();
                     ImGui::TextUnformatted(
                       dynamics_type_names[ordinal(mdl.type)]);

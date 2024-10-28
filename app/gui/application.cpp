@@ -20,8 +20,7 @@
 namespace irt {
 
 application::application() noexcept
-  : sim(simulation_memory_requirement(4096, 128))
-  , task_mgr{}
+  : task_mgr{}
   , config(get_config_home(true))
 {
     settings_wnd.apply_style(undefined<gui_theme_id>());
@@ -550,8 +549,8 @@ static void show_select_model_box_recursive(application&   app,
         ImGui::PushID(&tn);
         if (ImGui::TreeNodeEx(str.c_str(), flags)) {
             for_each_model(
-              app.sim, tn, [&](u64 /*unique_id*/, auto& mdl) noexcept {
-                  const auto mdl_id = app.sim.models.get_id(mdl);
+              app.pj.sim, tn, [&](u64 /*unique_id*/, auto& mdl) noexcept {
+                  const auto mdl_id = app.pj.sim.models.get_id(mdl);
                   ImGui::PushID(get_index(mdl_id));
 
                   const auto current_tn_id = app.pj.node(tn);
@@ -790,7 +789,7 @@ void application::start_load_project(const registred_path_id id) noexcept
         dearc(
           pj,
           mod,
-          sim,
+          pj.sim,
           *f_opt,
           [&](
             json_dearchiver::error_code ec,
@@ -904,7 +903,7 @@ void application::start_save_project(const registred_path_id id) noexcept
         json_archiver arc;
         arc(pj,
             mod,
-            sim,
+            pj.sim,
             *f_opt,
             json_archiver::print_option::indent_2_one_line_array,
             [&](json_archiver::error_code             ec,

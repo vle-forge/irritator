@@ -17,7 +17,7 @@ void grid_observation_widget::show(grid_observer& grid,
 
     ImGui::PushID(reinterpret_cast<void*>(&grid));
 
-    grid.update(app.sim);
+    grid.update(app.pj.sim);
 
     if (not grid.values.empty()) {
         ImPlot::PushColormap(grid.color_map);

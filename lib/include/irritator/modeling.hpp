@@ -1457,6 +1457,8 @@ public:
         file_parameters_init_error,
     };
 
+    project(const std::size_t default_memory_size = 1024 * 1024 * 8) noexcept;
+
     status init(const modeling_initializer& init) noexcept;
 
     struct required_data {
@@ -1499,10 +1501,10 @@ public:
 
     /// Assign a new @c component head. The previously allocated tree_node
     /// hierarchy is removed and a newly one is allocated.
-    status set(modeling& mod, simulation& sim, component& compo) noexcept;
+    status set(modeling& mod, component& compo) noexcept;
 
     /// Build the complete @c tree_node hierarchy from the @c component head.
-    status rebuild(modeling& mod, simulation& sim) noexcept;
+    status rebuild(modeling& mod) noexcept;
 
     /// Remove @c tree_node hierarchy and clear the @c component head.
     void clear() noexcept;
@@ -1587,6 +1589,8 @@ public:
 
     auto get_tn_id(const unique_id_path& path) const noexcept
       -> std::optional<tree_node_id>;
+
+    simulation sim;
 
     data_array<tree_node, tree_node_id> tree_nodes;
 
