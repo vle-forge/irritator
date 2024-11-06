@@ -1029,6 +1029,12 @@ void simulation_editor::show() noexcept
         return;
     }
 
+    auto& app = container_of(this, &application::simulation_ed);
+    if (app.sim.models.empty()) {
+        ImGui::End();
+        return;
+    }
+
     constexpr ImGuiTableFlags flags =
       ImGuiTableFlags_SizingFixedFit | ImGuiTableFlags_RowBg |
       ImGuiTableFlags_Borders | ImGuiTableFlags_Resizable |
@@ -1062,8 +1068,6 @@ void simulation_editor::show() noexcept
           "Hierarchy", ImGuiTableColumnFlags_WidthStretch, 0.2f);
         ImGui::TableSetupColumn(
           "Graph", ImGuiTableColumnFlags_WidthStretch, 0.8f);
-
-        auto& app = container_of(this, &application::simulation_ed);
 
         ImGui::TableNextRow();
         ImGui::TableSetColumnIndex(0);

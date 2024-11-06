@@ -463,7 +463,11 @@ void component_editor::display() noexcept
 
     component_editor::impl impl{ .app = app, .ed = *this };
 
-    if (ImGui::BeginTabBar("Editors")) {
+    const auto have_component = not app.generics.empty() or
+                                not app.grids.empty() or
+                                not app.graphs.empty() or not app.hsms.empty();
+
+    if (have_component and ImGui::BeginTabBar("Editors")) {
         impl.display_component_editor(app.generics, "generic");
         impl.display_component_editor(app.grids, "grid");
         impl.display_component_editor(app.graphs, "graph");
