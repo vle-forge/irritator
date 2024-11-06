@@ -52,6 +52,25 @@ void plot_observation_widget::show(application& app) noexcept
                     default:
                         unreachable();
                     }
+                } else if (obs->buffer.size() > 0) {
+                    switch (v_obs.get_options()[idx]) {
+                    case variable_observer::type_options::line:
+                        ImPlot::PlotLineG(name.c_str(),
+                                          ring_buffer_getter,
+                                          &obs->buffer,
+                                          obs->buffer.ssize());
+                        break;
+
+                    case variable_observer::type_options::dash:
+                        ImPlot::PlotScatterG(name.c_str(),
+                                             ring_buffer_getter,
+                                             &obs->buffer,
+                                             obs->buffer.ssize());
+                        break;
+
+                    default:
+                        unreachable();
+                    }
                 }
             });
 
