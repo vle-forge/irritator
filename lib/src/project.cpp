@@ -280,8 +280,8 @@ static auto make_tree_leaf(simulation_copy&   sc,
           return success();
       }));
 
-    if (unique_id != 0 and ch.flags[child_flags::configurable] and
-        ch.flags[child_flags::observable])
+    if (unique_id != 0 and (ch.flags[child_flags::configurable] or
+        ch.flags[child_flags::observable]))
         parent.unique_id_to_model_id.data.emplace_back(unique_id, new_mdl_id);
 
     return new_mdl_id;
