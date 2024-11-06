@@ -115,15 +115,17 @@ void grid_observer::update(const simulation& sim) noexcept
             if (is_undefined(id))
                 continue;
 
-            const auto* obs = sim.observers.try_to_get(observers[pos]);
-            if (not obs) {
-                observers[pos] = undefined<observer_id>();
-                continue;
+            if (const auto* obs = sim.observers.try_to_get(observers[pos]);
+                obs) {
+                if (obs->states[observer_flags::use_linear_buffer]) {
+                    values[pos] = not obs->linearized_buffer.empty()
+                                    ? obs->linearized_buffer.back().y
+                                    : zero;
+                } else {
+                    values[pos] =
+                      not obs->buffer.empty() ? obs->buffer.back()[1] : zero;
+                }
             }
-
-            values[pos] = not obs->linearized_buffer.empty()
-                            ? obs->linearized_buffer.back().y
-                            : zero;
         }
     }
 }

@@ -88,11 +88,16 @@ void graph_observer::update(const simulation& sim) noexcept
     debug::ensure(values.ssize() == observers.ssize());
 
     for (int i = 0; i < nodes; ++i) {
-        const auto* obs = sim.observers.try_to_get(observers[i]);
-
-        values[i] = obs && !obs->linearized_buffer.empty()
-                      ? obs->linearized_buffer.back().y
-                      : zero;
+        if (const auto* obs = sim.observers.try_to_get(observers[i]); obs) {
+            if (obs->states[observer_flags::use_linear_buffer]) {
+                values[i] = not obs->linearized_buffer.empty()
+                              ? obs->linearized_buffer.back().y
+                              : zero;
+            } else {
+                values[i] =
+                  not obs->buffer.empty() ? obs->buffer.back()[1] : zero;
+            }
+        }
     }
 }
 
