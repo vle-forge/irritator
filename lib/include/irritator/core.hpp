@@ -905,7 +905,7 @@ struct observer {
 
     void reset() noexcept;
     void clear() noexcept;
-    void update(observation_message msg) noexcept;
+    void update(const observation_message& msg) noexcept;
     bool full() const noexcept;
     void push_back(const observation& vec) noexcept;
 
@@ -5056,7 +5056,7 @@ inline void observer::clear() noexcept
         states.set(observer_flags::data_lost);
 }
 
-inline void observer::update(observation_message msg) noexcept
+inline void observer::update(const observation_message& msg) noexcept
 {
     bitflags<observer_flags> new_states(observer_flags::data_available);
     if (states[observer_flags::data_lost])
