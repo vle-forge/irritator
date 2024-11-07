@@ -1336,6 +1336,9 @@ public:
     //! Add internal components to component lists.
     status fill_internal_components() noexcept;
 
+    //! Reads the component @c compo and all dependencies recursively.
+    status load_component(component& compo) noexcept;
+
     //! Reads all registered paths and search component files.
     status fill_components() noexcept;
 

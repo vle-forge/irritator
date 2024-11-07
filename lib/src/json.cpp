@@ -2312,20 +2312,24 @@ struct json_dearchiver::impl {
 
         if (file_ptr) {
             c_id = file_ptr->component;
-            return true;
-        }
+            debug::ensure(mod().components.try_to_get(c_id) != nullptr);
 
-        if (auto* c = search_component(file.sv()); c) {
-            const auto id = mod().components.get_id(*c);
-            if (c->state == component_status::unread) {
-                append_dependency(id);
-                // report_json_error(error_id::unknown_element);
+            if (auto* c = mod().components.try_to_get(c_id); c) {
+                if (c->state == component_status::unmodified)
+                    return true;
+
+                if (auto ret = mod().load_component(*c); ret)
+                    return true;
             }
-
-            c_id = id;
-
-            return true;
         }
+
+        // @TODO Really necessary?
+        // if (auto* c = search_component(file.sv()); c) {
+        //     c_id = mod().components.get_id(*c);
+        //     if (c->state == component_status::unmodified)
+        //         return true;
+        //     append_dependency(c_id);
+        // }
 
         report_json_error(error_id::modeling_component_missing);
     }
@@ -4394,15 +4398,6 @@ struct json_dearchiver::impl {
     simulation* m_sim = nullptr;
     project*    m_pj  = nullptr;
 
-    vector<component_id> dependencies;
-
-    void append_dependency(component_id id) noexcept
-    {
-        if (auto i = std::find(dependencies.begin(), dependencies.end(), id);
-            i == dependencies.end())
-            dependencies.emplace_back(id);
-    }
-
     i64         temp_integer = 0;
     u64         temp_u64     = 0;
     double      temp_double  = 0.0;
@@ -4483,43 +4478,20 @@ struct json_dearchiver::impl {
     bool parse_component(const rapidjson::Document& doc,
                          component&                 compo) noexcept
     {
-        dependencies.emplace_back(mod().components.get_id(compo));
+        debug::ensure(compo.state != component_status::unmodified);
 
-        while (not dependencies.empty()) {
-            clear();
-
-            const auto id = dependencies.back();
-            auto*      c  = mod().components.try_to_get(id);
-            dependencies.pop_back();
-
-            debug::ensure(c);
-            if (c->state == component_status::unmodified)
-                continue;
-
-            const auto old_size = dependencies.size();
-            if (read_component(doc.GetObject(), *c)) {
-                c->state = component_status::unmodified;
-            } else {
-                c->state = component_status::unread;
-                mod().clear(*c);
-
-                if (old_size != dependencies.size()) {
-                    const auto new_id = dependencies.back();
-                    dependencies.pop_back();
-                    dependencies.emplace_back(id);
-                    dependencies.emplace_back(new_id);
-                }
+        if (read_component(doc.GetObject(), compo)) {
+            compo.state = component_status::unmodified;
+        } else {
+            compo.state = component_status::unreadable;
+            mod().clear(compo);
 
 #ifdef IRRITATOR_ENABLE_DEBUG
-                show_error();
+            show_error();
 #endif
 
-                if (not dependencies.empty()) {
-                    compo.state = component_status::unreadable;
-                    return report_error(
-                      cb, json_dearchiver::error_code::dependency_error);
-                }
-            }
+            return report_error(cb,
+                                json_dearchiver::error_code::dependency_error);
         }
 
         return true;

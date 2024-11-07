@@ -399,16 +399,16 @@ static void prepare_component_loading(modeling& mod) noexcept
     }
 }
 
-static status load_component(modeling& mod, component& compo) noexcept
+status modeling::load_component(component& compo) noexcept
 {
-    auto* reg  = mod.registred_paths.try_to_get(compo.reg_path);
-    auto* dir  = mod.dir_paths.try_to_get(compo.dir);
-    auto* file = mod.file_paths.try_to_get(compo.file);
+    auto* reg  = registred_paths.try_to_get(compo.reg_path);
+    auto* dir  = dir_paths.try_to_get(compo.dir);
+    auto* file = file_paths.try_to_get(compo.file);
 
     if (!(reg && dir && file))
         return new_error(modeling::part::components,
                          undefined_error{},
-                         e_ulong_id{ ordinal(mod.components.get_id(compo)) });
+                         e_ulong_id{ ordinal(components.get_id(compo)) });
 
     try {
         std::filesystem::path p{ reg->path.sv() };
@@ -428,7 +428,7 @@ static status load_component(modeling& mod, component& compo) noexcept
 
             json_dearchiver j;
 
-            if (not j(mod, compo, *f)) {
+            if (not j(*this, compo, *f)) {
                 compo.state = component_status::unreadable;
                 return new_error(modeling::part::components);
             }
@@ -441,19 +441,19 @@ static status load_component(modeling& mod, component& compo) noexcept
 
         if (file::exists(str.c_str())) {
             if (auto f = file::open(str.c_str(), open_mode::read); f) {
-                if (not mod.descriptions.exists(compo.desc))
-                    if (mod.descriptions.can_alloc(1))
-                        compo.desc = mod.descriptions.alloc(
+                if (not descriptions.exists(compo.desc))
+                    if (descriptions.can_alloc(1))
+                        compo.desc = descriptions.alloc(
                           [](auto /*id*/, auto& str, auto& status) noexcept {
                               str.clear();
                               status = description_status::modified;
                           });
 
-                if (mod.descriptions.exists(compo.desc)) {
-                    auto& str = mod.descriptions.get<0>(compo.desc);
+                if (descriptions.exists(compo.desc)) {
+                    auto& str = descriptions.get<0>(compo.desc);
 
                     if (not f->read(str.data(), str.capacity())) {
-                        mod.descriptions.free(compo.desc);
+                        descriptions.free(compo.desc);
                         compo.desc = undefined<description_id>();
                     }
                 }
@@ -502,14 +502,15 @@ status modeling::fill_components() noexcept
         have_unread_component = false;
 
         for_each_data(components, [&](auto& compo) {
-            if (compo.type == component_type::internal)
+            if (compo.type == component_type::internal or
+                compo.state == component_status::unmodified)
                 return;
 
-            if (auto ret = load_component(*this, compo); !ret) {
+            if (auto ret = load_component(compo); !ret) {
                 if (compo.state == component_status::unread) {
                     log_entries.push(log_level::warning, [&](auto& e) noexcept {
                         format(e.buffer,
-                               "Need to read dependecy for component {} ({})",
+                               "Need to read dependency for component {} ({})",
                                compo.name.sv(),
                                static_cast<u64>(components.get_id(compo)));
                     });
