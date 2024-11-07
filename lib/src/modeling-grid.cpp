@@ -374,8 +374,20 @@ result<input_connection_id> grid_component::connect_input(
   const i32     col,
   const port_id id) noexcept
 {
-    if (exists_input_connection(x, row, col, id))
-        return new_error(input_connection_error{}, already_exist_error{});
+    for (const auto& con : input_connections)
+        if (x == con.x and row == con.row and col == con.col and id == con.id)
+            return input_connections.get_id(con);
+
+    if (not input_connections.can_alloc()) {
+        const auto capacity = input_connections.capacity();
+        const auto request  = capacity == 0 ? 8 : capacity * 2;
+
+        input_connections.reserve(request);
+
+        if (input_connections.capacity() == capacity)
+            return new_error(input_connection_error{},
+                             e_memory{ request, capacity });
+    }
 
     return input_connections.get_id(input_connections.alloc(x, row, col, id));
 }
@@ -386,8 +398,20 @@ result<output_connection_id> grid_component::connect_output(
   const i32     col,
   const port_id id) noexcept
 {
-    if (exists_output_connection(y, row, col, id))
-        return new_error(input_connection_error{}, already_exist_error{});
+    for (const auto& con : output_connections)
+        if (y == con.y and row == con.row and col == con.col and id == con.id)
+            return output_connections.get_id(con);
+
+    if (not output_connections.can_alloc()) {
+        const auto capacity = output_connections.capacity();
+        const auto request  = capacity == 0 ? 8 : capacity * 2;
+
+        output_connections.reserve(request);
+
+        if (output_connections.capacity() == capacity)
+            return new_error(input_connection_error{},
+                             e_memory{ request, capacity });
+    }
 
     return output_connections.get_id(output_connections.alloc(y, row, col, id));
 }

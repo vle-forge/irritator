@@ -369,6 +369,7 @@ static void show_grid(application&                app,
     ImGui::InvisibleButton("Canvas",
                            canvas_sz,
                            ImGuiButtonFlags_MouseButtonLeft |
+                             ImGuiButtonFlags_MouseButtonMiddle |
                              ImGuiButtonFlags_MouseButtonRight);
 
     const bool is_hovered = ImGui::IsItemHovered();
@@ -380,7 +381,7 @@ static void show_grid(application&                app,
                                      io.MousePos.y - origin.y);
 
     const float mouse_threshold_for_pan = -1.f;
-    if (is_active && ImGui::IsMouseDragging(ImGuiMouseButton_Right,
+    if (is_active && ImGui::IsMouseDragging(ImGuiMouseButton_Middle,
                                             mouse_threshold_for_pan)) {
         ed.scrolling.x += io.MouseDelta.x;
         ed.scrolling.y += io.MouseDelta.y;
@@ -392,108 +393,6 @@ static void show_grid(application&                app,
         ed.zoom[0] = ImClamp(ed.zoom[0], 0.1f, 10.f);
         ed.zoom[1] = ImClamp(ed.zoom[1], 0.1f, 10.f);
     }
-
-    ImVec2 drag_delta = ImGui::GetMouseDragDelta(ImGuiMouseButton_Right);
-
-    if (drag_delta.x == 0.0f && drag_delta.y == 0.0f and
-        ed.hovered_component == nullptr) {
-        ed.col =
-          static_cast<int>(ImFloor((io.MousePos.x - origin.x) / ed.zoom[0]));
-        ed.row =
-          static_cast<int>(ImFloor((io.MousePos.y - origin.y) / ed.zoom[1]));
-
-        if (0 <= ed.row and ed.row < data.row and 0 <= ed.col and
-            ed.col < data.column) {
-            ed.hovered_component = app.mod.components.try_to_get(
-              data.children[data.pos(ed.row, ed.col)]);
-        }
-    }
-
-    if (ImGui::BeginPopupContextItem("Canvas-Context")) {
-        auto deselect = false;
-
-        if (ImGui::BeginMenu("Menu##compo")) {
-            if (ImGui::BeginMenu("Connect to grid input port")) {
-                if (ed.hovered_component) {
-                    ed.hovered_component->x.for_each<port_str>(
-                      [&](const auto s_id, const auto& s_name) noexcept {
-                          ImGui::PushID(ordinal(s_id));
-
-                          compo.x.for_each<port_str>(
-                            [&](auto id, auto& name) noexcept {
-                                ImGui::PushID(ordinal(id));
-                                small_string<128> str;
-
-                                format(str,
-                                       "grid port {} to {}",
-                                       name.sv(),
-                                       s_name.sv());
-
-                                if (ImGui::MenuItem(str.c_str())) {
-                                    auto ret = data.connect_input(
-                                      s_id, ed.row, ed.col, id);
-                                    if (!ret) {
-                                        auto& n = app.notifications.alloc();
-                                        n.title = "Fail to connect input";
-                                        app.notifications.enable(n);
-                                    }
-                                    deselect = true;
-                                }
-                                ImGui::PopID();
-                            });
-
-                          ImGui::PopID();
-                      });
-                }
-                ImGui::EndMenu();
-            }
-
-            if (ImGui::BeginMenu("Connect to grid output port")) {
-                if (ed.hovered_component) {
-                    ed.hovered_component->y.for_each<port_str>(
-                      [&](const auto s_id, const auto& s_name) noexcept {
-                          ImGui::PushID(ordinal(s_id));
-
-                          compo.y.for_each<port_str>(
-                            [&](const auto id, const auto& name) noexcept {
-                                ImGui::PushID(ordinal(id));
-                                small_string<128> str;
-
-                                format(str,
-                                       "{} to grid port {}",
-                                       s_name.sv(),
-                                       name.sv());
-
-                                if (ImGui::MenuItem(str.c_str())) {
-                                    auto ret = data.connect_output(
-                                      s_id, ed.row, ed.col, id);
-                                    if (!ret) {
-                                        auto& n = app.notifications.alloc();
-                                        n.title = "Fail to connect output";
-                                        app.notifications.enable(n);
-                                    }
-                                    deselect = true;
-                                }
-                                ImGui::PopID();
-                            });
-
-                          ImGui::PopID();
-                      });
-                }
-
-                ImGui::EndMenu();
-            }
-
-            if (deselect)
-                ed.hovered_component = nullptr;
-            ImGui::EndMenu();
-        }
-
-        ImGui::EndPopup();
-    }
-
-    ImGui::OpenPopupOnItemClick("Canvas-Context",
-                                ImGuiPopupFlags_MouseButtonRight);
 
     draw_list->PushClipRect(canvas_p0, canvas_p1, true);
     const float GRID_STEP = 64.0f;
@@ -513,8 +412,8 @@ static void show_grid(application&                app,
     for (int row = 0; row < data.row; ++row) {
         for (int col = 0; col < data.column; ++col) {
             ImVec2 p_min(
-              origin.x + (col * (ed.distance.x + ed.size.x) * ed.zoom[0]),
-              origin.y + (row * (ed.distance.y + ed.size.y) * ed.zoom[1]));
+              origin.x + (row * (ed.distance.x + ed.size.x) * ed.zoom[0]),
+              origin.y + (col * (ed.distance.y + ed.size.y) * ed.zoom[1]));
 
             ImVec2 p_max(p_min.x + ed.zoom[0] * ed.size.x,
                          p_min.y + ed.zoom[1] * ed.size.y);
@@ -534,6 +433,93 @@ static void show_grid(application&                app,
     }
 
     draw_list->PopClipRect();
+
+    if (ImGui::BeginPopupContextItem("Canvas-Context")) {
+        const auto click_pos = ImGui::GetMousePosOnOpeningCurrentPopup();
+        ed.row =
+          (click_pos.x - origin.x) / ((ed.distance.x + ed.size.x) * ed.zoom[0]);
+        ed.col =
+          (click_pos.y - origin.y) / ((ed.distance.y + ed.size.y) * ed.zoom[1]);
+
+        if (0 <= ed.row and ed.row < data.row and 0 <= ed.col and
+            ed.col < data.column)
+            ed.hovered_component = app.mod.components.try_to_get(
+              data.children[data.pos(ed.row, ed.col)]);
+
+        if (ed.hovered_component and ImGui::BeginMenu("Menu##compo")) {
+            if (ImGui::BeginMenu("Connect to grid input port")) {
+                compo.x.for_each<port_str>(
+                  [&](const auto s_id, const auto& s_name) noexcept {
+                      ImGui::PushID(ordinal(s_id));
+
+                      ed.hovered_component->x.for_each<port_str>(
+                        [&](auto id, auto& name) noexcept {
+                            ImGui::PushID(ordinal(id));
+                            small_string<128> str;
+
+                            format(str,
+                                   "Connect X port {} grid input port {}",
+                                   s_name.sv(),
+                                   name.sv());
+
+                            if (ImGui::MenuItem(str.c_str())) {
+                                auto ret =
+                                  data.connect_input(s_id, ed.row, ed.col, id);
+                                if (!ret) {
+                                    auto& n = app.notifications.alloc();
+                                    n.title = "Fail to connect input ";
+                                    app.notifications.enable(n);
+                                }
+                                ed.hovered_component = nullptr;
+                            }
+                            ImGui::PopID();
+                        });
+
+                      ImGui::PopID();
+                  });
+                ImGui::EndMenu();
+            }
+
+            if (ImGui::BeginMenu("Connect from grid output port")) {
+                ed.hovered_component->y.for_each<port_str>(
+                  [&](const auto s_id, const auto& s_name) noexcept {
+                      ImGui::PushID(ordinal(s_id));
+
+                      compo.y.for_each<port_str>(
+                        [&](const auto id, const auto& name) noexcept {
+                            ImGui::PushID(ordinal(id));
+                            small_string<128> str;
+
+                            format(str,
+                                   "{} to grid port {}",
+                                   s_name.sv(),
+                                   name.sv());
+
+                            if (ImGui::MenuItem(str.c_str())) {
+                                auto ret =
+                                  data.connect_output(s_id, ed.row, ed.col, id);
+                                if (!ret) {
+                                    auto& n = app.notifications.alloc();
+                                    n.title = "Fail to connect output ";
+                                    app.notifications.enable(n);
+                                }
+                            }
+                            ImGui::PopID();
+                        });
+
+                      ImGui::PopID();
+                  });
+
+                ImGui::EndMenu();
+            }
+
+            ImGui::EndMenu();
+        }
+
+        ImGui::EndPopup();
+    } else {
+        ed.hovered_component = nullptr;
+    }
 }
 
 grid_component_editor_data::grid_component_editor_data(
