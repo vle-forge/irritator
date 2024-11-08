@@ -361,8 +361,8 @@ static void show_grid(application&                app,
     ImVec2 canvas_p1 =
       ImVec2(canvas_p0.x + canvas_sz.x, canvas_p0.y + canvas_sz.y);
 
-    ImGuiIO&    io        = ImGui::GetIO();
-    ImDrawList* draw_list = ImGui::GetWindowDrawList();
+    const ImGuiIO& io        = ImGui::GetIO();
+    ImDrawList*    draw_list = ImGui::GetWindowDrawList();
 
     draw_list->AddRect(canvas_p0, canvas_p1, IM_COL32(255, 255, 255, 255));
 
@@ -447,7 +447,8 @@ static void show_grid(application&                app,
               data.children[data.pos(ed.row, ed.col)]);
 
         if (ed.hovered_component and ImGui::BeginMenu("Menu##compo")) {
-            if (ImGui::BeginMenu("Connect to grid input port")) {
+            if (ed.hovered_component and
+                ImGui::BeginMenu("Connect to grid input port")) {
                 compo.x.for_each<port_str>(
                   [&](const auto s_id, const auto& s_name) noexcept {
                       ImGui::PushID(ordinal(s_id));
@@ -470,7 +471,6 @@ static void show_grid(application&                app,
                                     n.title = "Fail to connect input ";
                                     app.notifications.enable(n);
                                 }
-                                ed.hovered_component = nullptr;
                             }
                             ImGui::PopID();
                         });
@@ -480,7 +480,8 @@ static void show_grid(application&                app,
                 ImGui::EndMenu();
             }
 
-            if (ImGui::BeginMenu("Connect from grid output port")) {
+            if (ed.hovered_component and
+                ImGui::BeginMenu("Connect from grid output port")) {
                 ed.hovered_component->y.for_each<port_str>(
                   [&](const auto s_id, const auto& s_name) noexcept {
                       ImGui::PushID(ordinal(s_id));
@@ -497,7 +498,7 @@ static void show_grid(application&                app,
 
                             if (ImGui::MenuItem(str.c_str())) {
                                 auto ret =
-                                  data.connect_output(s_id, ed.row, ed.col, id);
+                                  data.connect_output(id, ed.row, ed.col, s_id);
                                 if (!ret) {
                                     auto& n = app.notifications.alloc();
                                     n.title = "Fail to connect output ";
@@ -547,18 +548,152 @@ void grid_component_editor_data::show(component_editor& ed) noexcept
 
     debug::ensure(compo && grid);
 
-    if (show_row_column_widgets(*grid)) {
-        grid->resize(grid->row, grid->column, get_default_component_id(*grid));
+    if (compo and grid) {
+        if (show_row_column_widgets(*grid)) {
+            grid->resize(
+              grid->row, grid->column, get_default_component_id(*grid));
+        }
+
+        show_grid_component_options(*grid);
+        show_grid_editor_options(app, *this, *grid);
+        show_grid(app, *compo, *this, *grid);
+    }
+}
+
+static void display_input_output_connections(modeling&       mod,
+                                             component&      compo,
+                                             grid_component& grid) noexcept
+{
+    if (not grid.input_connections.empty()) {
+        if (ImGui::CollapsingHeader("Input connections",
+                                    ImGuiTreeNodeFlags_DefaultOpen)) {
+            if (ImGui::BeginTable("In", 4)) {
+                ImGui::TableSetupColumn("Grid port");
+                ImGui::TableSetupColumn("Cell");
+                ImGui::TableSetupColumn("Cell port");
+                ImGui::TableSetupColumn("Action");
+                ImGui::TableHeadersRow();
+
+                auto to_del = undefined<input_connection_id>();
+
+                for (const auto& con : grid.input_connections) {
+                    const auto con_id = grid.input_connections.get_id(con);
+                    std::optional<std::string_view> grid_port;
+                    std::optional<std::string_view> child_port;
+
+                    if (compo.x.exists(con.x))
+                        grid_port =
+                          compo.x.get<port_str>()[get_index(con.x)].sv();
+
+                    auto id = grid.children[grid.pos(con.row, con.col)];
+                    if (auto* c = mod.components.try_to_get(id); c) {
+                        if (c->x.exists(con.id)) {
+                            child_port =
+                              c->x.get<port_str>()[get_index(con.id)].sv();
+                        }
+                    }
+
+                    if (not(grid_port.has_value() and child_port.has_value())) {
+                        to_del = con_id;
+                    } else {
+                        ImGui::PushID(ordinal(con_id));
+                        ImGui::TableNextRow();
+                        ImGui::TableNextColumn();
+                        ImGui::TextFormat("{}", grid_port.value());
+
+                        ImGui::TableNextColumn();
+                        ImGui::TextFormat("({},{})", con.row, con.col);
+
+                        ImGui::TableNextColumn();
+                        ImGui::TextFormat("{}", child_port.value());
+
+                        ImGui::TableNextColumn();
+                        if (ImGui::Button("del"))
+                            to_del = grid.input_connections.get_id(con);
+                        ImGui::PopID();
+                    }
+                }
+
+                if (is_defined(to_del))
+                    grid.input_connections.free(to_del);
+
+                ImGui::EndTable();
+            }
+        }
     }
 
-    show_grid_component_options(*grid);
-    show_grid_editor_options(app, *this, *grid);
-    show_grid(app, *compo, *this, *grid);
+    if (not grid.output_connections.empty()) {
+        if (ImGui::CollapsingHeader("Output connections",
+                                    ImGuiTreeNodeFlags_DefaultOpen)) {
+            if (ImGui::BeginTable("Out", 4)) {
+                ImGui::TableSetupColumn("Grid port");
+                ImGui::TableSetupColumn("Cell");
+                ImGui::TableSetupColumn("Cell port");
+                ImGui::TableSetupColumn("Action");
+                ImGui::TableHeadersRow();
+
+                auto to_del = undefined<output_connection_id>();
+
+                for (const auto& con : grid.output_connections) {
+                    const auto con_id = grid.output_connections.get_id(con);
+                    std::optional<std::string_view> grid_port;
+                    std::optional<std::string_view> child_port;
+
+                    if (compo.y.exists(con.y))
+                        grid_port =
+                          compo.y.get<port_str>()[get_index(con.y)].sv();
+
+                    auto id = grid.children[grid.pos(con.row, con.col)];
+                    if (auto* c = mod.components.try_to_get(id); c) {
+                        if (c->y.exists(con.id)) {
+                            child_port =
+                              c->y.get<port_str>()[get_index(con.id)].sv();
+                        }
+                    }
+
+                    if (not(grid_port.has_value() and child_port.has_value())) {
+                        to_del = con_id;
+                    } else {
+                        ImGui::PushID(ordinal(con_id));
+                        ImGui::TableNextRow();
+                        ImGui::TableNextColumn();
+                        ImGui::TextFormat("{}", grid_port.value());
+
+                        ImGui::TableNextColumn();
+                        ImGui::TextFormat("({},{})", con.row, con.col);
+
+                        ImGui::TableNextColumn();
+                        ImGui::TextFormat("{}", child_port.value());
+
+                        ImGui::TableNextColumn();
+                        if (ImGui::Button("del"))
+                            to_del = grid.output_connections.get_id(con);
+                        ImGui::PopID();
+                    }
+                }
+
+                if (is_defined(to_del))
+                    grid.output_connections.free(to_del);
+
+                ImGui::EndTable();
+            }
+        }
+    }
 }
 
 void grid_component_editor_data::show_selected_nodes(
-  component_editor& /*ed*/) noexcept
-{}
+  component_editor& ed) noexcept
+{
+    auto& app = container_of(&ed, &application::component_ed);
+
+    if (auto* compo = app.mod.components.try_to_get(m_id);
+        compo and compo->type == component_type::grid) {
+        if (auto* grid = app.mod.grid_components.try_to_get(compo->id.grid_id);
+            grid) {
+            display_input_output_connections(app.mod, *compo, *grid);
+        }
+    }
+}
 
 bool grid_component_editor_data::need_show_selected_nodes(
   component_editor& /*ed*/) noexcept

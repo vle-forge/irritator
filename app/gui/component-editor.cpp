@@ -79,9 +79,7 @@ static bool is_valid_irt_filename(std::string_view v) noexcept
 
 template<typename T>
 concept has_store_function = requires(T t, component_editor& ed) {
-    {
-        t.store(ed)
-    } -> std::same_as<void>;
+    { t.store(ed) } -> std::same_as<void>;
 };
 
 struct component_editor::impl {
@@ -241,22 +239,22 @@ struct component_editor::impl {
 
                 std::optional<port_id> to_del;
                 compo.x.for_each<port_str>([&](auto id, auto& name) noexcept {
+                    ImGui::PushID(ordinal(id));
                     ImGui::TableNextRow();
                     ImGui::TableNextColumn();
                     ImGui::TextFormat("{}", ordinal(id));
 
                     ImGui::TableNextColumn();
                     ImGui::PushItemWidth(-1.f);
-                    ImGui::PushID(ordinal(id));
 
                     ImGui::InputFilteredString("##in-name", name);
 
-                    ImGui::PopID();
                     ImGui::PopItemWidth();
 
                     ImGui::TableNextColumn();
                     if (ImGui::Button("del"))
                         to_del = id;
+                    ImGui::PopID();
                 });
 
                 if (to_del.has_value())
@@ -291,21 +289,21 @@ struct component_editor::impl {
                 compo.y.for_each(
                   [&](auto id, auto& name, auto& /*pos*/) noexcept {
                       ImGui::TableNextRow();
+                      ImGui::PushID(ordinal(id));
                       ImGui::TableNextColumn();
                       ImGui::TextFormat("{}", ordinal(id));
 
                       ImGui::TableNextColumn();
                       ImGui::PushItemWidth(-1.f);
-                      ImGui::PushID(ordinal(id));
 
                       ImGui::InputFilteredString("##out-name", name);
 
-                      ImGui::PopID();
                       ImGui::PopItemWidth();
 
                       ImGui::TableNextColumn();
                       if (ImGui::Button("del"))
                           to_del = id;
+                      ImGui::PopID();
                   });
 
                 if (to_del.has_value())
@@ -379,11 +377,11 @@ struct component_editor::impl {
                     ImGui::EndTabItem();
                 }
 
-                const auto flags = element.need_show_selected_nodes(ed)
-                                     ? ImGuiTabItemFlags_SetSelected
-                                     : ImGuiTabItemFlags_None;
+                const auto specific_flags = element.need_show_selected_nodes(ed)
+                                              ? ImGuiTabItemFlags_SetSelected
+                                              : ImGuiTabItemFlags_None;
 
-                if (ImGui::BeginTabItem("Specific", nullptr, flags)) {
+                if (ImGui::BeginTabItem("Specific", nullptr, specific_flags)) {
                     ed.tabitem_open.reset();
 
                     if (ImGui::BeginChild("##zone",
