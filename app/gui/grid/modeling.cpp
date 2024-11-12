@@ -412,15 +412,15 @@ static void show_grid(application&                app,
     for (int row = 0; row < data.row; ++row) {
         for (int col = 0; col < data.column; ++col) {
             ImVec2 p_min(
-              origin.x + (row * (ed.distance.x + ed.size.x) * ed.zoom[0]),
-              origin.y + (col * (ed.distance.y + ed.size.y) * ed.zoom[1]));
+              origin.x + (col * (ed.distance.x + ed.size.x) * ed.zoom[0]),
+              origin.y + (row * (ed.distance.y + ed.size.y) * ed.zoom[1]));
 
             ImVec2 p_max(p_min.x + ed.zoom[0] * ed.size.x,
                          p_min.y + ed.zoom[1] * ed.size.y);
 
             if (p_min.x <= io.MousePos.x && io.MousePos.x < p_max.x &&
                 p_min.y <= io.MousePos.y && io.MousePos.y < p_max.y &&
-                ImGui::IsMouseReleased(0)) {
+                ImGui::IsMouseReleased(ImGuiMouseButton_Left)) {
                 data.children[data.pos(row, col)] = ed.selected_id;
             }
 

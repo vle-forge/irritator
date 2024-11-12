@@ -42,13 +42,14 @@ static bool display_grid_simulation(application&            app,
     ImVec2 canvas_p1 =
       ImVec2(canvas_p0.x + canvas_sz.x, canvas_p0.y + canvas_sz.y);
 
-    ImGuiIO&    io        = ImGui::GetIO();
-    ImDrawList* draw_list = ImGui::GetWindowDrawList();
+    const ImGuiIO& io        = ImGui::GetIO();
+    ImDrawList*    draw_list = ImGui::GetWindowDrawList();
 
     draw_list->AddRect(canvas_p0, canvas_p1, IM_COL32(255, 255, 255, 255));
     ImGui::InvisibleButton("Canvas",
                            canvas_sz,
                            ImGuiButtonFlags_MouseButtonLeft |
+                             ImGuiButtonFlags_MouseButtonMiddle |
                              ImGuiButtonFlags_MouseButtonRight);
 
     const bool is_hovered = ImGui::IsItemHovered();
@@ -60,7 +61,7 @@ static bool display_grid_simulation(application&            app,
                                      io.MousePos.y - origin.y);
 
     const float mouse_threshold_for_pan = -1.f;
-    if (is_active && ImGui::IsMouseDragging(ImGuiMouseButton_Right,
+    if (is_active && ImGui::IsMouseDragging(ImGuiMouseButton_Middle,
                                             mouse_threshold_for_pan)) {
         grid_sim.scrolling.x += io.MouseDelta.x;
         grid_sim.scrolling.y += io.MouseDelta.y;
@@ -90,7 +91,6 @@ static bool display_grid_simulation(application&            app,
                            ImVec2(canvas_p1.x, canvas_p0.y + y),
                            IM_COL32(200, 200, 200, 40));
 
-    std::pair<int, int> selected_position{ -1, -1 };
     for (int row = 0; row < grid.row; ++row) {
         for (int col = 0; col < grid.column; ++col) {
             ImVec2 p_min(
@@ -105,7 +105,8 @@ static bool display_grid_simulation(application&            app,
             if (p_min.x <= io.MousePos.x && io.MousePos.x < p_max.x &&
                 p_min.y <= io.MousePos.y && io.MousePos.y < p_max.y &&
                 ImGui::IsMouseClicked(ImGuiMouseButton_Left)) {
-                selected_position = std::make_pair(row, col);
+
+                // @TODO Adding action on user left mouse button click.
             }
 
             draw_list->AddRectFilled(
@@ -118,16 +119,31 @@ static bool display_grid_simulation(application&            app,
 
     draw_list->PopClipRect();
 
-    ImVec2 center = ImGui::GetMainViewport()->GetCenter();
-    ImGui::SetNextWindowPos(center, ImGuiCond_Appearing, ImVec2(0.5f, 0.5f));
-    if (selected_position.first != -1 and selected_position.second != -1) {
-        const auto uid =
-          grid.unique_id(selected_position.first, selected_position.second);
+    if (ImGui::BeginPopupContextItem("Canvas-Context")) {
+        const auto click_pos = ImGui::GetMousePosOnOpeningCurrentPopup();
+        const auto row =
+          (click_pos.x - origin.x) /
+          ((grid_sim.distance.x + grid_sim.size.x) * grid_sim.zoom[0]);
+        const auto col =
+          (click_pos.y - origin.y) /
+          ((grid_sim.distance.y + grid_sim.size.y) * grid_sim.zoom[1]);
 
-        const auto tn_id_opt = tn.get_tree_node_id(uid);
-        if (tn_id_opt.has_value()) {
-            app.project_wnd.select(app.pj.tree_nodes.get(*tn_id_opt));
+        if (0 <= row and row < grid.row and 0 <= col and col < grid.column) {
+            const auto irow      = static_cast<int>(row);
+            const auto icol      = static_cast<int>(col);
+            const auto uid       = grid.unique_id(irow, icol);
+            const auto tn_id_opt = tn.get_tree_node_id(uid);
+
+            if (tn_id_opt.has_value()) {
+                if (ImGui::BeginMenu("Action")) {
+                    if (ImGui::MenuItem("open"))
+                        app.project_wnd.select(
+                          app.pj.tree_nodes.get(*tn_id_opt));
+                    ImGui::EndMenu();
+                }
+            }
         }
+        ImGui::EndPopup();
     }
 
     return true;
