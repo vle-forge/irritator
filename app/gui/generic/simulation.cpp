@@ -1328,16 +1328,18 @@ static int show_connection(simulation& sim,
                     auto et = list->end();
 
                     while (it != et) {
-                        if (auto* mdl_dst = sim.models.try_to_get(it->model);
-                            mdl_dst and
-                            exists_model_in_tree_node(tn, *mdl_dst)) {
-                            int out = make_output_node_id(sim.get_id(dyn), i);
-                            int in =
-                              make_input_node_id(it->model, it->port_index);
-                            ImNodes::Link(con_id++, out, in);
-                            ++it;
-                        } else {
+                        auto* mdl_dst = sim.models.try_to_get(it->model);
+                        if (not mdl_dst) {
                             it = list->erase(it);
+                        } else {
+                            if (exists_model_in_tree_node(tn, *mdl_dst)) {
+                                auto out =
+                                  make_output_node_id(sim.get_id(dyn), i);
+                                auto in =
+                                  make_input_node_id(it->model, it->port_index);
+                                ImNodes::Link(con_id++, out, in);
+                            }
+                            ++it;
                         }
                     }
                 }
