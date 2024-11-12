@@ -6221,6 +6221,9 @@ inline status hsm_wrapper::transition(simulation& sim,
 
         if (old == exec.current_state)
             return new_error(simulation::part::hsms, simulation::model_error{});
+
+        if (exec.messages > 0)
+            sigma = time_domain<time>::zero;
     } break;
     }
     // }
