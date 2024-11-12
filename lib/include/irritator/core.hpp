@@ -6195,7 +6195,6 @@ inline status hsm_wrapper::transition(simulation& sim,
           hierarchical_state_machine::event_type::internal, exec));
     }
 
-    // for (;;) {
     if (exec.messages > 0) {
         sigma = time_domain<time>::zero;
         return success();
