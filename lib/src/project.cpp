@@ -547,8 +547,8 @@ static void get_input_models(vector<project::cache::model_port>& inputs,
                              const grid_component&               grid,
                              const port_id                       p) noexcept
 {
-    for (const auto& con : grid.output_connections) {
-        if (con.y != p)
+    for (const auto& con : grid.input_connections) {
+        if (con.x != p)
             continue;
 
         const auto idx = grid.pos(con.row, con.col);
@@ -737,7 +737,7 @@ static status simulation_copy_connections(
             get_output_models(sc.cache.outputs,
                               sc.mod,
                               *tree.children[src_idx].tn,
-                              cnx.index_dst.compo);
+                              cnx.index_src.compo);
 
             if (tree.is_model(cnx.dst)) {
                 sc.cache.inputs.emplace_back(tree.children[dst_idx].mdl,
