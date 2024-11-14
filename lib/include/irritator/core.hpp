@@ -6225,6 +6225,10 @@ inline status hsm_wrapper::transition(simulation& sim,
 
         if (exec.messages > 0)
             sigma = time_domain<time>::zero;
+        else if (machine->states[exec.current_state].condition.type ==
+                 hierarchical_state_machine::condition_type::sigma)
+            sigma = exec.timer;
+
     } break;
     }
     // }
