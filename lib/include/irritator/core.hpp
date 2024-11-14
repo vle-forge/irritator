@@ -4891,6 +4891,7 @@ inline bool is_ports_compatible(const dynamics_type mdl_src,
         if (o_port_index == 2) {
             return any_equal(mdl_dst,
                              dynamics_type::counter,
+                             dynamics_type::hsm_wrapper,
                              dynamics_type::logical_and_2,
                              dynamics_type::logical_and_3,
                              dynamics_type::logical_or_2,
