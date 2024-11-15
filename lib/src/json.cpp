@@ -3413,10 +3413,138 @@ struct json_dearchiver::impl {
 
     bool is_grid_valid(const grid_component& grid) noexcept
     {
-        if (grid.row * grid.column == grid.children.ssize())
-            return true;
+        return grid.row * grid.column == grid.children.ssize();
+    }
 
-        report_json_error(error_id::grid_component_size_error);
+    bool read_grid_input_connection(const rapidjson::Value& val,
+                                    const component&        compo,
+                                    grid_component&         grid) noexcept
+    {
+        auto_stack s(this, stack_id::component_grid);
+
+        std::optional<int>         row, col;
+        std::optional<std::string> id;
+        std::optional<std::string> x;
+
+        if (not for_each_member(
+              val,
+              [&](const auto name, const auto& value) noexcept -> bool {
+                  if ("row"sv == name)
+                      return read_temp_integer(value) and copy_to(row);
+
+                  if ("col"sv == name)
+                      return read_temp_integer(value) and copy_to(col);
+
+                  if ("id"sv == name)
+                      return read_temp_string(value) and copy_to(id);
+
+                  if ("x"sv == name)
+                      return read_temp_string(value) and copy_to(x);
+
+                  return true;
+              }) and
+            optional_has_value(row) and optional_has_value(col) and
+            optional_has_value(id) and optional_has_value(x))
+            report_json_error(error_id::grid_component_size_error);
+
+        if (const auto pos = grid.pos(*row, *col);
+            0 <= pos and pos < grid.children.ssize()) {
+            const auto c_compo_id = grid.children[pos];
+            if (const auto* c = mod().components.try_to_get(c_compo_id); c) {
+                const auto con_id = c->get_x(*id);
+                const auto con_x  = compo.get_x(*x);
+
+                if (is_defined(con_id) and is_defined(con_x)) {
+                    if (auto ret =
+                          grid.connect_input(con_x, *row, *col, con_id);
+                        !!ret)
+                        return true;
+                }
+            }
+        }
+
+        return false;
+    }
+
+    bool read_grid_output_connection(const rapidjson::Value& val,
+                                     const component&        compo,
+                                     grid_component&         grid) noexcept
+    {
+        auto_stack s(this, stack_id::component_grid);
+
+        std::optional<int>         row, col;
+        std::optional<std::string> id;
+        std::optional<std::string> y;
+
+        if (not for_each_member(
+              val,
+              [&](const auto name, const auto& value) noexcept -> bool {
+                  if ("row"sv == name)
+                      return read_temp_integer(value) and copy_to(row);
+
+                  if ("col"sv == name)
+                      return read_temp_integer(value) and copy_to(col);
+
+                  if ("id"sv == name)
+                      return read_temp_string(value) and copy_to(id);
+
+                  if ("y"sv == name)
+                      return read_temp_string(value) and copy_to(y);
+
+                  return true;
+              }) and
+            optional_has_value(row) and optional_has_value(col) and
+            optional_has_value(id) and optional_has_value(y))
+            report_json_error(error_id::grid_component_size_error);
+
+        if (const auto pos = grid.pos(*row, *col);
+            0 <= pos and pos < grid.children.ssize()) {
+            const auto c_compo_id = grid.children[pos];
+            if (const auto* c = mod().components.try_to_get(c_compo_id); c) {
+                const auto con_id = c->get_x(*id);
+                const auto con_y  = compo.get_y(*y);
+
+                if (is_defined(con_id) and is_defined(con_y)) {
+                    if (auto ret =
+                          grid.connect_output(con_y, *row, *col, con_id);
+                        !!ret)
+                        return true;
+                }
+            }
+        }
+
+        return false;
+    }
+
+    bool read_grid_connection(const rapidjson::Value& val,
+                              const component&        compo,
+                              grid_component&         grid) noexcept
+    {
+        auto_stack s(this, stack_id::component_grid);
+
+        return for_first_member(
+          val, "type", [&](const auto& value) noexcept -> bool {
+              return read_temp_string(value) and
+                     ((temp_string == "input" and
+                       read_grid_input_connection(val, compo, grid)) or
+                      (temp_string == "output" and
+                       read_grid_output_connection(val, compo, grid)));
+          });
+    }
+
+    bool read_grid_connections(const rapidjson::Value& val,
+                               const component&        compo,
+                               grid_component&         grid) noexcept
+    {
+        auto_stack s(this, stack_id::component_grid);
+
+        return is_value_array(val) and
+               for_each_array(
+                 val,
+                 [&](const auto /*i*/, const auto& value) noexcept -> bool {
+                     return is_value_object(value) and
+                            read_grid_connection(value, compo, grid);
+                 });
     }
 
     bool read_grid_component(const rapidjson::Value& val,
@@ -3453,6 +3581,9 @@ struct json_dearchiver::impl {
 
                      if ("children"sv == name)
                          return read_grid_children(value, grid);
+
+                     if ("connections"sv == name)
+                         return read_grid_connections(value, compo, grid);
 
                      return true;
                  }) &&
@@ -5905,6 +6036,7 @@ struct json_archiver::impl {
 
     template<typename Writer>
     void write_grid_component(const modeling&       mod,
+                              const component&      compo,
                               const grid_component& grid,
                               Writer&               w) noexcept
     {
@@ -5924,6 +6056,54 @@ struct json_archiver::impl {
             write_child_component(mod, elem, w);
             w.EndObject();
         }
+        w.EndArray();
+
+        w.Key("connections");
+        w.StartArray();
+        for (const auto& con : grid.input_connections) {
+            const auto pos            = grid.pos(con.row, con.col);
+            const auto child_compo_id = grid.children[pos];
+
+            if (const auto* c = mod.components.try_to_get(child_compo_id); c) {
+                if (c->x.exists(con.id)) {
+                    w.StartObject();
+                    w.Key("type");
+                    w.String("input");
+                    w.Key("row");
+                    w.Int(con.row);
+                    w.Key("col");
+                    w.Int(con.col);
+                    w.Key("id");
+                    w.String(c->x.get<port_str>(con.id).c_str());
+                    w.Key("x");
+                    w.String(compo.x.get<port_str>(con.x).c_str());
+                    w.EndObject();
+                }
+            }
+        }
+
+        for (const auto& con : grid.output_connections) {
+            const auto pos            = grid.pos(con.row, con.col);
+            const auto child_compo_id = grid.children[pos];
+
+            if (const auto* c = mod.components.try_to_get(child_compo_id); c) {
+                if (c->x.exists(con.id)) {
+                    w.StartObject();
+                    w.Key("type");
+                    w.String("output");
+                    w.Key("row");
+                    w.Int(con.row);
+                    w.Key("col");
+                    w.Int(con.col);
+                    w.Key("id");
+                    w.String(c->y.get<port_str>(con.id).c_str());
+                    w.Key("y");
+                    w.String(compo.x.get<port_str>(con.y).c_str());
+                    w.EndObject();
+                }
+            }
+        }
+
         w.EndArray();
     }
 
@@ -6152,7 +6332,7 @@ struct json_archiver::impl {
         case component_type::grid: {
             auto* p = mod.grid_components.try_to_get(compo.id.grid_id);
             if (p)
-                write_grid_component(mod, *p, w);
+                write_grid_component(mod, compo, *p, w);
         } break;
 
         case component_type::graph: {
