@@ -6153,11 +6153,9 @@ inline status hsm_wrapper::transition(simulation& sim,
 {
     irt_auto(machine, get_hierarchical_state_machine(sim, id));
 
-    auto have_x_msg = false;
     for (int i = 0, e = length(x); i != e; ++i) {
         auto* lst = sim.messages.try_to_get(x[i]);
         if (lst and not lst->empty()) {
-            have_x_msg = true;
             exec.values.set(i, true);
 
             for (auto& elem : *lst)
@@ -6166,72 +6164,49 @@ inline status hsm_wrapper::transition(simulation& sim,
     }
 
     exec.messages = 0;
+    bool wait_timer, wait_msg, is_terminal;
 
-    const auto wait_timer =
-      machine->states[exec.current_state].condition.type ==
-      hierarchical_state_machine::condition_type::sigma;
-
-    const auto have_msg = machine->states[exec.current_state].condition.type ==
-                          hierarchical_state_machine::condition_type::port;
-
-    // Wake up from a timer event. The timer event takes precedence over
-    // internal and external events.
-    if (wait_timer) {
-        exec.timer = r;
-
+    do {
         exec.previous_state = exec.current_state;
-        irt_check(machine->dispatch(
-          hierarchical_state_machine::event_type::wake_up, exec));
-        // New message are stored in exec.values and exec.ports. HSM needs
-        // to handle input event.
-    } else if (have_msg) {
-        if (have_x_msg) {
-            exec.previous_state = exec.current_state;
+
+        switch (machine->states[exec.current_state].condition.type) {
+        case irt::hierarchical_state_machine::condition_type::sigma:
+            exec.timer = r;
             irt_check(machine->dispatch(
-              hierarchical_state_machine::event_type::input_changed, exec));
+              hierarchical_state_machine::event_type::wake_up, exec));
+            break;
+
+        case irt::hierarchical_state_machine::condition_type::port:
+            if (exec.values.any()) {
+                irt_check(machine->dispatch(
+                  hierarchical_state_machine::event_type::input_changed, exec));
+            }
+            break;
+
+        default:
+            irt_check(machine->dispatch(
+              hierarchical_state_machine::event_type::internal, exec));
+            break;
         }
-    } else {
-        exec.previous_state = exec.current_state;
-        irt_check(machine->dispatch(
-          hierarchical_state_machine::event_type::internal, exec));
-    }
 
-    if (exec.messages > 0) {
-        sigma = time_domain<time>::zero;
-        return success();
-    }
+        debug::ensure(exec.current_state !=
+                      hierarchical_state_machine::invalid_state_id);
 
-    sigma = time_domain<time>::infinity;
-    if (exec.current_state == hierarchical_state_machine::invalid_state_id or
-        machine->states[exec.current_state].is_terminal())
-        return success();
+        wait_timer = machine->states[exec.current_state].condition.type ==
+                     hierarchical_state_machine::condition_type::sigma;
 
-    switch (machine->states[exec.current_state].condition.type) {
-    case hierarchical_state_machine::condition_type::sigma:
-        sigma = exec.timer;
-        return success();
+        wait_msg = machine->states[exec.current_state].condition.type ==
+                   hierarchical_state_machine::condition_type::port;
 
-    case irt::hierarchical_state_machine::condition_type::port:
-        sigma = time_domain<time>::infinity;
-        return success();
+        is_terminal = machine->states[exec.current_state].is_terminal();
 
-    default: {
-        const auto old = exec.current_state;
-        irt_check(machine->dispatch(
-          hierarchical_state_machine::event_type::internal, exec));
+    } while (not(wait_timer or wait_msg or is_terminal));
 
-        if (old == exec.current_state)
-            return new_error(simulation::part::hsms, simulation::model_error{});
-
-        if (exec.messages > 0)
-            sigma = time_domain<time>::zero;
-        else if (machine->states[exec.current_state].condition.type ==
-                 hierarchical_state_machine::condition_type::sigma)
-            sigma = exec.timer;
-
-    } break;
-    }
-    // }
+    sigma = exec.messages ? 0.0
+            : wait_timer  ? exec.timer
+            : wait_msg    ? time_domain<time>::infinity
+            : is_terminal ? time_domain<time>::infinity
+                          : 0.0;
 
     return success();
 }
