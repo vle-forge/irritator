@@ -314,9 +314,11 @@ static void application_show_menu(application& app) noexcept
 static void application_manage_menu_action(application& app) noexcept
 {
     if (app.menu_new_project_file) {
-        app.project_wnd.clear();
-        // auto id = app.component_ed.add_generic_component();
-        // app.project_wnd.open_as_main(id);
+        app.add_gui_task([&]() noexcept {
+            app.simulation_ed.clear();
+            app.pj.clear();
+        });
+
         app.menu_new_project_file = false;
     }
 

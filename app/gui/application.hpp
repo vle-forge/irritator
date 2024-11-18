@@ -484,7 +484,7 @@ public:
                  component&      compo,
                  grid_component& grid) noexcept;
 
-    grid_component_id   current_id = undefined<grid_component_id>();
+    grid_component_id current_id = undefined<grid_component_id>();
 
     ImVec2 zoom{ 1.f, 1.f };
     ImVec2 scrolling{ 1.f, 1.f };
@@ -805,9 +805,6 @@ public:
     //! Select a @C child in the modeling tree node. The existence of the
     //! underlying component is tested before assignment.
     void select(child_id id) noexcept;
-
-    //! Clear the selected component and child.
-    void clear() noexcept;
 
     //! @return true if @c id is the selected @c tree_node.
     bool is_selected(tree_node_id id) const noexcept;

@@ -184,13 +184,6 @@ static bool show_project_simulation_settings(application& app) noexcept
     return up > 0;
 }
 
-void project_window::clear() noexcept
-{
-    auto& app = container_of(this, &application::project_wnd);
-
-    app.pj.clear();
-}
-
 bool project_window::is_selected(tree_node_id id) const noexcept
 {
     return m_selected_tree_node == id;
@@ -245,10 +238,8 @@ void project_window::show() noexcept
     auto& app = container_of(this, &application::project_wnd);
 
     auto* parent = app.pj.tn_head();
-    if (!parent) {
-        clear();
+    if (!parent)
         return;
-    }
 
     auto next_selection = m_selected_tree_node;
 
