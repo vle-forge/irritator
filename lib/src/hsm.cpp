@@ -12,7 +12,7 @@ static constexpr i32 copy_to_i32(
   const std::span<const real, hsm_t::max_constants> c,
   const hsm_t::variable                             v,
   const hsm_t::state_action&                        act,
-  const hsm_t::execution&                           e) noexcept
+  hsm_t::execution&                                 e) noexcept
 {
     switch (v) {
     case hsm_t::variable::none:
@@ -61,6 +61,9 @@ static constexpr i32 copy_to_i32(
     case hsm_t::variable::hsm_constant_7:
         return static_cast<i32>(
           c[ordinal(v) - ordinal(hsm_t::variable::hsm_constant_0)]);
+
+    case hsm_t::variable::source:
+        return static_cast<i32>(e.source_value.next());
     }
 
     irt::unreachable();
@@ -70,7 +73,7 @@ static constexpr real copy_to_real(
   const std::span<const real, hsm_t::max_constants> c,
   const hsm_t::variable                             v,
   const hsm_t::state_action&                        act,
-  const hsm_t::execution&                           e) noexcept
+  hsm_t::execution&                                 e) noexcept
 {
     switch (v) {
     case hsm_t::variable::none:
@@ -106,6 +109,8 @@ static constexpr real copy_to_real(
     case hsm_t::variable::hsm_constant_6:
     case hsm_t::variable::hsm_constant_7:
         return c[ordinal(v) - ordinal(hsm_t::variable::hsm_constant_0)];
+    case hsm_t::variable::source:
+        return e.source_value.next();
     }
 
     irt::unreachable();
@@ -142,7 +147,7 @@ struct wrap_var {
     constexpr wrap_var(const std::span<const real, hsm_t::max_constants> c,
                        const hsm_t::variable                             v,
                        Action&                                           act,
-                       const hsm_t::execution& e) noexcept
+                       hsm_t::execution& e) noexcept
     {
         switch (v) {
         case hsm_t::variable::none:
@@ -227,6 +232,12 @@ struct wrap_var {
         case hsm_t::variable::hsm_constant_7:
             r    = c[ordinal(v) - ordinal(hsm_t::variable::hsm_constant_0)];
             i    = static_cast<i32>(act.constant.f);
+            type = type::real_t;
+            break;
+
+        case hsm_t::variable::source:
+            r    = e.source_value.next();
+            i    = static_cast<i32>(r);
             type = type::real_t;
             break;
         }
@@ -367,8 +378,7 @@ void hierarchical_state_machine::state_action::set_output(variable v1,
 }
 
 void hierarchical_state_machine::state_action::set_affect(variable v1,
-
-                                                          i32 i) noexcept
+                                                          i32      i) noexcept
 {
     debug::ensure(is_affectable(v1));
 
@@ -789,7 +799,8 @@ void hierarchical_state_machine::condition_action::clear() noexcept
     *this = do_affect(condition_type::none, variable::none, variable::none);
 }
 
-status hierarchical_state_machine::start(execution& exec) noexcept
+status hierarchical_state_machine::start(execution&       exec,
+                                         external_source& srcs) noexcept
 {
     exec.timer = time_domain<time>::infinity;
 
@@ -800,18 +811,20 @@ status hierarchical_state_machine::start(execution& exec) noexcept
     exec.next_state    = invalid_state_id;
     exec.messages      = 0;
 
-    handle(exec.current_state, event_type::enter, exec);
+    irt_check(handle(exec.current_state, event_type::enter, exec, srcs));
 
     while ((exec.next_state = states[exec.current_state].sub_id) !=
            invalid_state_id) {
-        irt_check(on_enter_sub_state(exec));
+        irt_check(on_enter_sub_state(exec, srcs));
     }
 
     return success();
 }
 
-result<bool> hierarchical_state_machine::dispatch(const event_type event,
-                                                  execution& exec) noexcept
+result<bool> hierarchical_state_machine::dispatch(
+  const event_type event,
+  execution&       exec,
+  external_source& srcs) noexcept
 {
     debug::ensure(!is_dispatching(exec));
 
@@ -821,10 +834,10 @@ result<bool> hierarchical_state_machine::dispatch(const event_type event,
         auto& state               = states[sid];
         exec.current_source_state = sid;
 
-        if (handle(sid, event, exec)) {
+        if (handle(sid, event, exec, srcs)) {
             if (exec.next_state != invalid_state_id) {
                 do {
-                    if (auto ret = on_enter_sub_state(exec); !ret)
+                    if (auto ret = on_enter_sub_state(exec, srcs); !ret)
                         return ret.error();
                 } while (
                   (exec.next_state = states[exec.current_state].sub_id) !=
@@ -842,7 +855,9 @@ result<bool> hierarchical_state_machine::dispatch(const event_type event,
     return is_processed;
 }
 
-status hierarchical_state_machine::on_enter_sub_state(execution& exec) noexcept
+status hierarchical_state_machine::on_enter_sub_state(
+  execution&       exec,
+  external_source& srcs) noexcept
 {
     if (exec.next_state == invalid_state_id)
         return new_error(next_state_error{});
@@ -861,7 +876,7 @@ status hierarchical_state_machine::on_enter_sub_state(execution& exec) noexcept
     while (!entry_path.empty()) {
         exec.disallow_transition = true;
 
-        handle(entry_path.back(), event_type::enter, exec);
+        irt_check(handle(entry_path.back(), event_type::enter, exec, srcs));
 
         exec.disallow_transition = false;
         entry_path.pop_back();
@@ -873,15 +888,16 @@ status hierarchical_state_machine::on_enter_sub_state(execution& exec) noexcept
     return success();
 }
 
-void hierarchical_state_machine::transition(state_id   target,
-                                            execution& exec) noexcept
+status hierarchical_state_machine::transition(state_id         target,
+                                              execution&       exec,
+                                              external_source& srcs) noexcept
 {
     debug::ensure(target < max_number_of_state);
     debug::ensure(exec.disallow_transition == false);
     debug::ensure(is_dispatching(exec));
 
     if (exec.disallow_transition)
-        return;
+        return success();
 
     if (exec.current_source_state != invalid_state_id)
         exec.source_state = exec.current_source_state;
@@ -889,7 +905,7 @@ void hierarchical_state_machine::transition(state_id   target,
     exec.disallow_transition = true;
     state_id sid;
     for (sid = exec.source_state; sid != exec.source_state;) {
-        handle(sid, event_type::exit, exec);
+        irt_check(handle(sid, event_type::exit, exec, srcs));
         sid = states[sid].super_id;
     }
 
@@ -897,7 +913,7 @@ void hierarchical_state_machine::transition(state_id   target,
     debug::ensure(stepsToCommonRoot >= 0);
 
     while (stepsToCommonRoot--) {
-        handle(sid, event_type::exit, exec);
+        irt_check(handle(sid, event_type::exit, exec, srcs));
         sid = states[sid].super_id;
     }
 
@@ -905,6 +921,8 @@ void hierarchical_state_machine::transition(state_id   target,
 
     exec.current_state = sid;
     exec.next_state    = target;
+
+    return success();
 }
 
 status hierarchical_state_machine::set_state(state_id id,
@@ -956,10 +974,20 @@ bool hierarchical_state_machine::is_in_state(execution& exec,
     return false;
 }
 
-bool hierarchical_state_machine::handle(const state_id   state,
-                                        const event_type event,
-                                        execution&       exec) noexcept
+result<bool> hierarchical_state_machine::handle(const state_id   state,
+                                                const event_type event,
+                                                execution&       exec,
+                                                external_source& srcs) noexcept
 {
+    if (is_using_source()) { /* If this HSM use an external source and if the
+                                underlying buffer is empty, we update the
+                                buffer. This function can only eat one value
+                                from the buffer of the source. */
+        if (exec.source_value.is_empty())
+            irt_check(
+              srcs.dispatch(exec.source_value, source::operation_type::update));
+    }
+
     switch (event) {
     case event_type::enter:
         affect_action(states[state].enter_action, exec);
@@ -973,12 +1001,13 @@ bool hierarchical_state_machine::handle(const state_id   state,
         if (states[state].condition.check(constants, exec)) {
             affect_action(states[state].if_action, exec);
             if (states[state].if_transition != invalid_state_id)
-                transition(states[state].if_transition, exec);
+                irt_check(transition(states[state].if_transition, exec, srcs));
             return true;
         } else {
             affect_action(states[state].else_action, exec);
             if (states[state].else_transition != invalid_state_id)
-                transition(states[state].else_transition, exec);
+                irt_check(
+                  transition(states[state].else_transition, exec, srcs));
             return true;
         }
         break;
@@ -987,7 +1016,8 @@ bool hierarchical_state_machine::handle(const state_id   state,
         if (states[state].condition.type == condition_type::sigma) {
             affect_action(states[state].else_action, exec);
             if (states[state].else_transition != invalid_state_id)
-                transition(states[state].else_transition, exec);
+                irt_check(
+                  transition(states[state].else_transition, exec, srcs));
             return true;
         } else {
             debug::ensure(states[state].condition.type == condition_type::port);
@@ -995,13 +1025,15 @@ bool hierarchical_state_machine::handle(const state_id   state,
                 exec.values.reset();
                 affect_action(states[state].if_action, exec);
                 if (states[state].if_transition != invalid_state_id)
-                    transition(states[state].if_transition, exec);
+                    irt_check(
+                      transition(states[state].if_transition, exec, srcs));
                 return true;
             } else {
                 exec.values.reset();
                 affect_action(states[state].else_action, exec);
                 if (states[state].else_transition != invalid_state_id)
-                    transition(states[state].else_transition, exec);
+                    irt_check(
+                      transition(states[state].else_transition, exec, srcs));
                 return true; // If the use does not assign an else transition,
                              // he want to wait until the real wake up.
             }
@@ -1014,14 +1046,15 @@ bool hierarchical_state_machine::handle(const state_id   state,
         if (states[state].condition.check(constants, exec)) {
             affect_action(states[state].if_action, exec);
             if (states[state].if_transition != invalid_state_id) {
-                transition(states[state].if_transition, exec);
+                irt_check(transition(states[state].if_transition, exec, srcs));
                 return true;
             }
             return false;
         } else {
             affect_action(states[state].else_action, exec);
             if (states[state].else_transition != invalid_state_id)
-                transition(states[state].else_transition, exec);
+                irt_check(
+                  transition(states[state].else_transition, exec, srcs));
             return true; // If the use does not assign an else transition, he
                          // want to wait until the real wake up.
         }
@@ -1358,7 +1391,7 @@ void hierarchical_state_machine::affect_action(const state_action& action,
 
 bool hierarchical_state_machine::condition_action::check(
   const std::span<const real, hsm_t::max_constants> constants,
-  hierarchical_state_machine::execution&            e) noexcept
+  hierarchical_state_machine::execution&            e) const noexcept
 {
     switch (type) {
     case condition_type::none:

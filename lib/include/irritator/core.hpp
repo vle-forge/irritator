@@ -3499,11 +3499,19 @@ public:
 
     struct top_state_error {};
     struct next_state_error {};
+    struct empty_value_error {};
 
     constexpr static int event_type_count     = 5;
     constexpr static int variable_count       = 20;
     constexpr static int action_type_count    = 16;
     constexpr static int condition_type_count = 9;
+
+    enum class option : u8 {
+        none = 0,
+        use_source =
+          1 << 0 /**< HSM can use external data in the action part. */,
+        Count
+    };
 
     enum class event_type : u8 {
         enter,
@@ -3528,7 +3536,7 @@ public:
         var_timer,
         constant_i,
         constant_r,
-        hsm_constant_0,
+        hsm_constant_0, //!< Real from the HSM component not HSM wrapper.
         hsm_constant_1,
         hsm_constant_2,
         hsm_constant_3,
@@ -3536,6 +3544,9 @@ public:
         hsm_constant_5,
         hsm_constant_6,
         hsm_constant_7,
+        source, //!< A value read from external source. The
+                //!< hsm_t::option::use_value must be defined to receives
+                //!< external data.
     };
 
     enum class action_type : u8 {
@@ -3666,10 +3677,8 @@ public:
         void set_less_equal(variable v1, float i) noexcept;
 
         bool check(const std::span<const real, max_constants> c,
-                   execution&                                 e) noexcept;
+                   execution&                                 e) const noexcept;
         void clear() noexcept;
-
-    private:
     };
 
     struct state {
@@ -3706,6 +3715,7 @@ public:
         std::array<real, 4> message_values;
         std::array<u8, 4>   message_ports;
         int                 messages = 0;
+        source              source_value;
 
         std::bitset<4> values; //<! Bit storage message available on X port.
 
@@ -3757,7 +3767,13 @@ public:
     hierarchical_state_machine(const hierarchical_state_machine&) noexcept =
       default;
 
-    status start(execution& state) noexcept;
+    //! Initialize the @c execution object from the HSM and start the automate.
+    //! During the handle of the automate, @c srcs may be use to read value from
+    //! external source buffer.
+    //!
+    //! @c return @c empty_value_error{} if the external source fail to update
+    //! the buffer.
+    status start(execution& state, external_source& srcs) noexcept;
 
     void clear() noexcept
     {
@@ -3766,18 +3782,27 @@ public:
         top_state = invalid_state_id;
     }
 
-    /// Dispatches an event.
-    /// @return return true if the event was processed, otherwise false.
-    /// If the automata is badly defined, return an modeling error.
-    result<bool> dispatch(const event_type e, execution& exec) noexcept;
+    //! Dispatches an event.
+    //!
+    //! @return return true if the event was processed, otherwise false.
+    //! If the automata is badly defined, return an modeling error or @c
+    //! empty_value_error if the external source fail to update the buffer.
+    result<bool> dispatch(const event_type e,
+                          execution&       exec,
+                          external_source& srcs) noexcept;
 
     /// Return true if the state machine is currently dispatching an
     /// event.
     bool is_dispatching(execution& state) const noexcept;
 
-    /// Transitions the state machine. This function can not be called
-    /// from Enter / Exit events in the state handler.
-    void transition(state_id target, execution& exec) noexcept;
+    //! Transitions the state machine. This function can not be called
+    //! from Enter / Exit events in the state handler.
+    //!
+    //! @c return @c empty_value_error if the external source fail to update
+    //! the buffer.
+    status transition(state_id         target,
+                      execution&       exec,
+                      external_source& srcs) noexcept;
 
     /// Set a handler for a state ID. This function will overwrite the
     /// current state handler. \param id state id from 0 to
@@ -3795,22 +3820,35 @@ public:
 
     bool is_in_state(execution& state, state_id id) const noexcept;
 
-    bool handle(const state_id   state,
-                const event_type event,
-                execution&       exec) noexcept;
+    //! Handle the @c event_type @event for the @c state_id @c state. If a
+    //! underlying action use external source, @c external_source functions may
+    //! be use to update the buffer.
+    //!
+    //! @c return empty_value_error if the external source fail to update the
+    //! buffer.
+    result<bool> handle(const state_id   state,
+                        const event_type event,
+                        execution&       exec,
+                        external_source& srcs) noexcept;
 
     int    steps_to_common_root(state_id source, state_id target) noexcept;
-    status on_enter_sub_state(execution& state) noexcept;
+    status on_enter_sub_state(execution& state, external_source& srcs) noexcept;
 
     void affect_action(const state_action& action, execution& exec) noexcept;
 
     std::array<state, max_number_of_state> states;
 
+    constexpr bool is_using_source() const noexcept
+    {
+        return flags[option::use_source];
+    }
+
     /** @c constants array are real and can be use in the @c state_action or @c
      * condition_action to perform easy initilization and quick test. */
     std::array<real, 8> constants;
 
-    state_id top_state = invalid_state_id;
+    state_id         top_state = invalid_state_id;
+    bitflags<option> flags;
 };
 
 auto get_hierarchical_state_machine(simulation& sim, hsm_id id) noexcept
@@ -3835,6 +3873,7 @@ struct hsm_wrapper {
     status initialize(simulation& sim) noexcept;
     status transition(simulation& sim, time t, time e, time r) noexcept;
     status lambda(simulation& sim) noexcept;
+    status finalize(simulation& sim) noexcept;
     observation_message observation(time t, time e) const noexcept;
 };
 
@@ -6121,7 +6160,12 @@ inline status hsm_wrapper::initialize(simulation& sim) noexcept
     exec.clear();
 
     irt_auto(machine, get_hierarchical_state_machine(sim, id));
-    irt_check(machine->start(exec));
+
+    if (machine->flags[hierarchical_state_machine::option::use_source]) {
+        irt_check(initialize_source(sim, exec.source_value));
+    }
+
+    irt_check(machine->start(exec, sim.srcs));
 
     sigma = time_domain<time>::infinity;
 
@@ -6173,19 +6217,23 @@ inline status hsm_wrapper::transition(simulation& sim,
         case irt::hierarchical_state_machine::condition_type::sigma:
             exec.timer = r;
             irt_check(machine->dispatch(
-              hierarchical_state_machine::event_type::wake_up, exec));
+              hierarchical_state_machine::event_type::wake_up, exec, sim.srcs));
             break;
 
         case irt::hierarchical_state_machine::condition_type::port:
             if (exec.values.any()) {
                 irt_check(machine->dispatch(
-                  hierarchical_state_machine::event_type::input_changed, exec));
+                  hierarchical_state_machine::event_type::input_changed,
+                  exec,
+                  sim.srcs));
             }
             break;
 
         default:
             irt_check(machine->dispatch(
-              hierarchical_state_machine::event_type::internal, exec));
+              hierarchical_state_machine::event_type::internal,
+              exec,
+              sim.srcs));
             break;
         }
 
@@ -6216,6 +6264,16 @@ inline status hsm_wrapper::lambda(simulation& sim) noexcept
     for (auto i = 0; i < exec.messages; ++i)
         irt_check(
           send_message(sim, y[exec.message_ports[i]], exec.message_values[i]));
+
+    return success();
+}
+
+inline status hsm_wrapper::finalize(simulation& sim) noexcept
+{
+    irt_auto(machine, get_hierarchical_state_machine(sim, id));
+
+    if (machine->flags[hierarchical_state_machine::option::use_source])
+        irt_check(finalize_source(sim, exec.source_value));
 
     return success();
 }

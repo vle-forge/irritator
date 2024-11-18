@@ -1885,6 +1885,7 @@ int main()
     "hsm_automata"_test = [] {
         irt::hierarchical_state_machine            hsmw;
         irt::hierarchical_state_machine::execution exec;
+        irt::external_source                       srcs;
 
         expect(!!hsmw.set_state(
           0u, irt::hierarchical_state_machine::invalid_state_id, 1u));
@@ -1898,7 +1899,7 @@ int main()
         hsmw.states[2u].enter_action.set_output(
           irt::hierarchical_state_machine::variable::port_0, 1.f);
 
-        expect(!!hsmw.start(exec));
+        expect(!!hsmw.start(exec, srcs));
 
         expect((int)exec.current_state == 1);
         exec.values = 0b00000011;
@@ -1906,7 +1907,9 @@ int main()
         expect(eq(exec.messages, 0));
 
         const auto processed = hsmw.dispatch(
-          irt::hierarchical_state_machine::event_type::input_changed, exec);
+          irt::hierarchical_state_machine::event_type::input_changed,
+          exec,
+          srcs);
         expect(!!processed);
         expect(processed.value() == true);
 
@@ -1916,6 +1919,7 @@ int main()
     "hsm_automata_timer"_test = [] {
         irt::hierarchical_state_machine            hsmw;
         irt::hierarchical_state_machine::execution exec;
+        irt::external_source                       srcs;
 
         expect(!!hsmw.set_state(
           0u, irt::hierarchical_state_machine::invalid_state_id, 1u));
@@ -1937,7 +1941,7 @@ int main()
         hsmw.states[2u].enter_action.set_output(
           irt::hierarchical_state_machine::variable::port_0, 1.f);
 
-        expect(!!hsmw.start(exec));
+        expect(!!hsmw.start(exec, srcs));
 
         expect((int)exec.current_state == 1);
         exec.values = 0b00000011;
@@ -1945,7 +1949,9 @@ int main()
         expect(eq(exec.messages, 0));
 
         const auto processed = hsmw.dispatch(
-          irt::hierarchical_state_machine::event_type::input_changed, exec);
+          irt::hierarchical_state_machine::event_type::input_changed,
+          exec,
+          srcs);
         expect(!!processed);
         expect(processed.value() == true);
         expect((int)exec.current_state == 2);
