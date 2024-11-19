@@ -1323,38 +1323,52 @@ public:
 
 template<typename T>
 concept has_lambda_function = requires(T t, simulation& sim) {
-    { t.lambda(sim) } -> std::same_as<status>;
+    {
+        t.lambda(sim)
+    } -> std::same_as<status>;
 };
 
 template<typename T>
 concept has_transition_function =
   requires(T t, simulation& sim, time s, time e, time r) {
-      { t.transition(sim, s, e, r) } -> std::same_as<status>;
+      {
+          t.transition(sim, s, e, r)
+      } -> std::same_as<status>;
   };
 
 template<typename T>
 concept has_observation_function = requires(T t, time s, time e) {
-    { t.observation(s, e) } -> std::same_as<observation_message>;
+    {
+        t.observation(s, e)
+    } -> std::same_as<observation_message>;
 };
 
 template<typename T>
 concept has_initialize_function = requires(T t, simulation& sim) {
-    { t.initialize(sim) } -> std::same_as<status>;
+    {
+        t.initialize(sim)
+    } -> std::same_as<status>;
 };
 
 template<typename T>
 concept has_finalize_function = requires(T t, simulation& sim) {
-    { t.finalize(sim) } -> std::same_as<status>;
+    {
+        t.finalize(sim)
+    } -> std::same_as<status>;
 };
 
 template<typename T>
 concept has_input_port = requires(T t) {
-    { t.x };
+    {
+        t.x
+    };
 };
 
 template<typename T>
 concept has_output_port = requires(T t) {
-    { t.y };
+    {
+        t.y
+    };
 };
 
 constexpr observation_message qss_observation(real X,
@@ -3848,7 +3862,7 @@ public:
     //! Linear traversal of all valid states to detect if @c if_action,
     //! @c else_action, @c enter_action or @c exit_action actions use a
     //! variable::source.
-    constexpr bool compute_is_using_source() const noexcept;
+    bool compute_is_using_source() const noexcept;
 
     /** @c constants array are real and can be use in the @c state_action or @c
      * condition_action to perform easy initilization and quick test. */
@@ -5959,6 +5973,10 @@ inline status simulation::initialize() noexcept
     last_valid_t = t;
 
     clean();
+
+    for (auto& h : hsms)
+        h.flags.set(hierarchical_state_machine::option::use_source,
+                    h.compute_is_using_source());
 
     for (auto& mdl : models)
         irt_check(make_initialize(mdl, t));

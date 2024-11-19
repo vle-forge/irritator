@@ -250,25 +250,35 @@ struct wrap_var {
     }
 };
 
-constexpr auto compute_is_using_source(const hsm_t& h) noexcept -> bool
+static auto is_action_using_source(const hsm_t::state_action& act) noexcept
+  -> bool
 {
-    for (auto i = 0, e = length(h.states); i != e; ++i) {
+    return any_equal(act.type,
+                     hsm_t::action_type::affect,
+                     hsm_t::action_type::plus,
+                     hsm_t::action_type::minus,
+                     hsm_t::action_type::negate,
+                     hsm_t::action_type::multiplies,
+                     hsm_t::action_type::divides,
+                     hsm_t::action_type::modulus,
+                     hsm_t::action_type::output) and
+           act.var2 == hsm_t::variable::source;
+}
+
+auto hierarchical_state_machine::compute_is_using_source() const noexcept
+  -> bool
+{
+    for (auto i = 0, e = length(states); i != e; ++i) {
         if (not all_equal(hierarchical_state_machine::invalid_state_id,
-                          h.states[i].if_transition,
-                          h.states[i].else_transition,
-                          h.states[i].super_id,
-                          h.states[i].sub_id))
-            if (any_equal(h.states[i].else_action.type,
-                          hsm_t::action_type::affect,
-                          hsm_t::action_type::plus,
-                          hsm_t::action_type::minus,
-                          hsm_t::action_type::negate,
-                          hsm_t::action_type::multiplies,
-                          hsm_t::action_type::divides,
-                          hsm_t::action_type::modulus,
-                          hsm_t::action_type::output))
-                if (h.states[i].else_action.var2 == hsm_t::variable::source)
-                    return true;
+                          states[i].if_transition,
+                          states[i].else_transition,
+                          states[i].super_id,
+                          states[i].sub_id) and
+            (is_action_using_source(states[i].if_action) or
+             is_action_using_source(states[i].else_action) or
+             is_action_using_source(states[i].enter_action) or
+             is_action_using_source(states[i].exit_action)))
+            return true;
     }
 
     return false;

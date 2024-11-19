@@ -261,11 +261,12 @@ public:
     std::array<position, max_size> positions;
     std::array<name_str, max_size> names;
 
-    i32  i1      = 0;
-    i32  i2      = 0;
-    real r1      = 0.0;
-    real r2      = 0.0;
-    time timeout = time_domain<time>::infinity;
+    i32    i1      = 0;
+    i32    i2      = 0;
+    real   r1      = 0.0;
+    real   r2      = 0.0;
+    time   timeout = time_domain<time>::infinity;
+    source src;
 };
 
 inline void hsm_component::clear() noexcept
@@ -284,6 +285,7 @@ inline void hsm_component::clear() noexcept
     r1      = 0.0;
     r2      = 0.0;
     timeout = time_domain<time>::infinity;
+    src.clear();
 }
 
 class generic_component

@@ -95,6 +95,11 @@ void show_menu_external_sources(external_source& srcs,
                                 const char*      title,
                                 source&          src) noexcept;
 
+/** Display two combox, one per line. The first to select the source type,
+ * second to select the source identifier. */
+void show_combobox_external_sources(external_source& srcs,
+                                    source&          src) noexcept;
+
 struct notification {
     static inline constexpr int title_length   = 127;
     static inline constexpr int message_length = 510;
@@ -389,7 +394,7 @@ private:
     void show_hsm(hsm_component& hsm) noexcept;
     void show_menu(hsm_component& hsm) noexcept;
     void show_graph(hsm_component& hsm) noexcept;
-    void show_panel(hsm_component& hsm) noexcept;
+    void show_panel(application& app, hsm_component& hsm) noexcept;
     void clear(hsm_component& hsm) noexcept;
     bool valid(hsm_component& hsm) noexcept;
 

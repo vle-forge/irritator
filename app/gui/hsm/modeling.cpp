@@ -911,7 +911,8 @@ void hsm_component_editor_data::show_graph(hsm_component& hsm) noexcept
     }
 }
 
-void hsm_component_editor_data::show_panel(hsm_component& hsm) noexcept
+void hsm_component_editor_data::show_panel(application&   app,
+                                           hsm_component& hsm) noexcept
 {
     if (ImGui::CollapsingHeader("constants settings")) {
         ImGui::InputReal("constant 0", &hsm.machine.constants[0]);
@@ -922,6 +923,18 @@ void hsm_component_editor_data::show_panel(hsm_component& hsm) noexcept
         ImGui::InputReal("constant 5", &hsm.machine.constants[5]);
         ImGui::InputReal("constant 6", &hsm.machine.constants[6]);
         ImGui::InputReal("constant 7", &hsm.machine.constants[7]);
+    }
+
+    if (ImGui::CollapsingHeader("External sources")) {
+        if (ImGui::Button("Refresh source"))
+            hsm.machine.flags.set(hsm_t::option::use_source,
+                                  hsm.machine.compute_is_using_source());
+
+        if (hsm.machine.flags[hsm_t::option::use_source]) {
+            show_combobox_external_sources(app.mod.srcs, hsm.src);
+        } else {
+            ImGui::TextDisabled("HSM does not use external source");
+        }
     }
 
     if (ImGui::CollapsingHeader("selected states",
@@ -1089,7 +1102,7 @@ void hsm_component_editor_data::show_selected_nodes(
     auto& app = container_of(&ed, &application::component_ed);
 
     if (auto* hsm = app.mod.hsm_components.try_to_get(m_hsm_id); hsm)
-        show_panel(*hsm);
+        show_panel(app, *hsm);
 }
 
 bool hsm_component_editor_data::need_show_selected_nodes(

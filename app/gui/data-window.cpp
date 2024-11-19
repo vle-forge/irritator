@@ -725,6 +725,128 @@ void data_window::show() noexcept
     ImGui::End();
 }
 
+void show_combobox_external_sources(external_source& srcs, source& src) noexcept
+{
+    const char* preview_t = external_source_type_string[ordinal(src.type)];
+
+    if (ImGui::BeginCombo("type", preview_t)) {
+        if (ImGui::Selectable(external_source_type_string[ordinal(
+                                source::source_type::constant)],
+                              src.type == source::source_type::constant)) {
+            src.clear();
+            src.type = source::source_type::constant;
+        }
+
+        if (ImGui::Selectable(external_source_type_string[ordinal(
+                                source::source_type::binary_file)],
+                              src.type == source::source_type::binary_file)) {
+            src.clear();
+            src.type = source::source_type::binary_file;
+        }
+
+        if (ImGui::Selectable(external_source_type_string[ordinal(
+                                source::source_type::text_file)],
+                              src.type == source::source_type::text_file)) {
+            src.clear();
+            src.type = source::source_type::text_file;
+        }
+
+        if (ImGui::Selectable(
+              external_source_type_string[ordinal(source::source_type::random)],
+              src.type == source::source_type::random)) {
+            src.clear();
+            src.type = source::source_type::random;
+        }
+
+        ImGui::EndCombo();
+    }
+
+    auto get_source_name = [](const external_source& srcs,
+                              const source& src) noexcept -> const char* {
+        switch (src.type) {
+        case source::source_type::binary_file:
+            if (const auto* s = srcs.binary_file_sources.try_to_get(
+                  enum_cast<binary_file_source_id>(src.id));
+                s)
+                return s->name.c_str();
+            break;
+
+        case source::source_type::constant:
+            if (const auto* s = srcs.constant_sources.try_to_get(
+                  enum_cast<constant_source_id>(src.id));
+                s)
+                return s->name.c_str();
+            break;
+        case source::source_type::text_file:
+            if (const auto* s = srcs.text_file_sources.try_to_get(
+                  enum_cast<text_file_source_id>(src.id));
+                s)
+                return s->name.c_str();
+            break;
+
+        case source::source_type::random:
+            if (const auto* s = srcs.random_sources.try_to_get(
+                  enum_cast<random_source_id>(src.id));
+                s)
+                return s->name.c_str();
+            break;
+        }
+
+        return "-";
+    };
+
+    const char* preview_s = get_source_name(srcs, src);
+
+    if (ImGui::BeginCombo("source", preview_s)) {
+        switch (src.type) {
+        case source::source_type::binary_file:
+            for (auto& s : srcs.binary_file_sources) {
+                const auto id = ordinal(srcs.binary_file_sources.get_id(s));
+                ImGui::PushID(&s);
+                if (ImGui::Selectable(s.name.c_str(), id == src.id))
+                    src.id = id;
+                ImGui::PopID();
+            }
+            break;
+
+        case source::source_type::constant:
+            for (auto& s : srcs.constant_sources) {
+                const auto id = ordinal(srcs.constant_sources.get_id(s));
+
+                ImGui::PushID(&s);
+                if (ImGui::Selectable(s.name.c_str(), id == src.id))
+                    src.id = id;
+                ImGui::PopID();
+            }
+            break;
+
+        case source::source_type::text_file:
+            for (auto& s : srcs.text_file_sources) {
+                const auto id = ordinal(srcs.text_file_sources.get_id(s));
+
+                ImGui::PushID(&s);
+                if (ImGui::Selectable(s.name.c_str(), id == src.id))
+                    src.id = id;
+                ImGui::PopID();
+            }
+            break;
+
+        case source::source_type::random:
+            for (auto& s : srcs.random_sources) {
+                const auto id = ordinal(srcs.random_sources.get_id(s));
+
+                ImGui::PushID(&s);
+                if (ImGui::Selectable(s.name.c_str(), id == src.id))
+                    src.id = id;
+                ImGui::PopID();
+            }
+            break;
+        }
+
+        ImGui::EndCombo();
+    }
+}
+
 void show_menu_external_sources(application&     app,
                                 external_source& srcs,
                                 const char*      title,
@@ -885,29 +1007,27 @@ void data_window::selection::select(random_source_id id) noexcept
 
 bool data_window::selection::is(constant_source_id id) const noexcept
 {
-    return type_sel.has_value() and * type_sel ==
-             source::source_type::constant and
-           id_sel == ordinal(id);
+    return type_sel.has_value() and
+           *type_sel == source::source_type::constant and id_sel == ordinal(id);
 }
 
 bool data_window::selection::is(text_file_source_id id) const noexcept
 {
-    return type_sel.has_value() and * type_sel ==
-             source::source_type::text_file and
+    return type_sel.has_value() and
+           *type_sel == source::source_type::text_file and
            id_sel == ordinal(id);
 }
 
 bool data_window::selection::is(binary_file_source_id id) const noexcept
 {
-    return type_sel.has_value() and * type_sel ==
-             source::source_type::binary_file and
+    return type_sel.has_value() and
+           *type_sel == source::source_type::binary_file and
            id_sel == ordinal(id);
 }
 
 bool data_window::selection::is(random_source_id id) const noexcept
 {
-    return type_sel.has_value() and * type_sel ==
-             source::source_type::random and
+    return type_sel.has_value() and *type_sel == source::source_type::random and
            id_sel == ordinal(id);
 }
 
