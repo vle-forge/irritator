@@ -3536,7 +3536,7 @@ public:
         var_timer,
         constant_i,
         constant_r,
-        hsm_constant_0, //!< Real from the HSM component not HSM wrapper.
+        hsm_constant_0, /**< Real from the HSM component not HSM wrapper. */
         hsm_constant_1,
         hsm_constant_2,
         hsm_constant_3,
@@ -3544,9 +3544,9 @@ public:
         hsm_constant_5,
         hsm_constant_6,
         hsm_constant_7,
-        source, //!< A value read from external source. The
-                //!< hsm_t::option::use_value must be defined to receives
-                //!< external data.
+        source, /**< A value read from external source. The
+                    hsm_t::option::use_value must be defined to receives
+                    external data. */
     };
 
     enum class action_type : u8 {
@@ -3842,6 +3842,13 @@ public:
     {
         return flags[option::use_source];
     }
+
+    //! Return true if at least one action use the variable::source.
+    //!
+    //! Linear traversal of all valid states to detect if @c if_action,
+    //! @c else_action, @c enter_action or @c exit_action actions use a
+    //! variable::source.
+    constexpr bool compute_is_using_source() const noexcept;
 
     /** @c constants array are real and can be use in the @c state_action or @c
      * condition_action to perform easy initilization and quick test. */

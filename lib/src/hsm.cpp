@@ -8,6 +8,12 @@ namespace irt {
 
 using hsm_t = hierarchical_state_machine;
 
+template<typename T, typename... Args>
+constexpr bool all_equal(const T& s, Args... args) noexcept
+{
+    return ((s == args) && ... && true);
+}
+
 static constexpr i32 copy_to_i32(
   const std::span<const real, hsm_t::max_constants> c,
   const hsm_t::variable                             v,
@@ -243,6 +249,30 @@ struct wrap_var {
         }
     }
 };
+
+constexpr auto compute_is_using_source(const hsm_t& h) noexcept -> bool
+{
+    for (auto i = 0, e = length(h.states); i != e; ++i) {
+        if (not all_equal(hierarchical_state_machine::invalid_state_id,
+                          h.states[i].if_transition,
+                          h.states[i].else_transition,
+                          h.states[i].super_id,
+                          h.states[i].sub_id))
+            if (any_equal(h.states[i].else_action.type,
+                          hsm_t::action_type::affect,
+                          hsm_t::action_type::plus,
+                          hsm_t::action_type::minus,
+                          hsm_t::action_type::negate,
+                          hsm_t::action_type::multiplies,
+                          hsm_t::action_type::divides,
+                          hsm_t::action_type::modulus,
+                          hsm_t::action_type::output))
+                if (h.states[i].else_action.var2 == hsm_t::variable::source)
+                    return true;
+    }
+
+    return false;
+}
 
 bool hierarchical_state_machine::is_dispatching(execution& exec) const noexcept
 {

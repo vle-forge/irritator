@@ -29,6 +29,7 @@ static const char* variable_names[] = {
     "variable r2",    "variable timer", "constant i",     "constant r",
     "hsm constant 0", "hsm constant 1", "hsm constant 2", "hsm constant 3",
     "hsm constant 4", "hsm constant 5", "hsm constant 6", "hsm constant 7",
+    "external source"
 };
 
 static const char* action_names[] = {
@@ -42,58 +43,94 @@ static const char* condition_names[] = { "none",   "value on port", "timeout",
                                          "x = y",  "x != y",        "x > y",
                                          "x >= y", "x < y",         "x <= y" };
 
-/* Display a combobox for input port 1, 2, 3 and 4, variables i1, i2, r1, r1,
- * timer but not integer and real constants */
-static void show_ports_variables_combobox(hsm_t::variable& act) noexcept
+static auto select(hsm_t::variable act, hsm_t::variable cur) noexcept
+  -> hsm_t::variable
+{
+    return ImGui::Selectable(variable_names[ordinal(act)], cur == act) ? act
+                                                                       : cur;
+}
+
+static auto select_port(hsm_t::variable cur) noexcept -> hsm_t::variable
+{
+    cur = select(hsm_t::variable::port_0, cur);
+    cur = select(hsm_t::variable::port_1, cur);
+    cur = select(hsm_t::variable::port_2, cur);
+    cur = select(hsm_t::variable::port_3, cur);
+    return cur;
+}
+
+static auto select_variable(hsm_t::variable cur) noexcept -> hsm_t::variable
+{
+    cur = select(hsm_t::variable::var_i1, cur);
+    cur = select(hsm_t::variable::var_i2, cur);
+    cur = select(hsm_t::variable::var_r1, cur);
+    cur = select(hsm_t::variable::var_r2, cur);
+    cur = select(hsm_t::variable::var_timer, cur);
+
+    return cur;
+}
+
+static auto select_source_var(hsm_t::variable cur) noexcept -> hsm_t::variable
+{
+    return select(hsm_t::variable::source, cur);
+}
+
+static auto select_local_constant(hsm_t::variable cur) noexcept
+  -> hsm_t::variable
+{
+    cur = select(hsm_t::variable::constant_i, cur);
+    cur = select(hsm_t::variable::constant_r, cur);
+
+    return cur;
+}
+
+static auto select_hsm_constant(hsm_t::variable cur) noexcept -> hsm_t::variable
+{
+    cur = select(hsm_t::variable::hsm_constant_0, cur);
+    cur = select(hsm_t::variable::hsm_constant_1, cur);
+    cur = select(hsm_t::variable::hsm_constant_2, cur);
+    cur = select(hsm_t::variable::hsm_constant_3, cur);
+    cur = select(hsm_t::variable::hsm_constant_4, cur);
+    cur = select(hsm_t::variable::hsm_constant_5, cur);
+    cur = select(hsm_t::variable::hsm_constant_6, cur);
+    cur = select(hsm_t::variable::hsm_constant_7, cur);
+
+    return cur;
+}
+
+static void show_readable_vars(hsm_t::variable& act) noexcept
 {
     ImGui::PushID(&act);
-
-    constexpr auto p0    = (int)ordinal(hsm_t::variable::port_0);
-    constexpr auto pn    = (int)ordinal(hsm_t::variable::var_timer);
-    constexpr auto nb    = pn - p0 + 1;
-    auto           p_act = (int)ordinal(act);
-
-    if (not(p0 <= p_act and p_act <= pn)) {
-        act   = enum_cast<hsm_t::variable>(hsm_t::variable::var_i1);
-        p_act = p0;
-    }
-
-    p_act -= p0;
     ImGui::PushItemWidth(-1);
-    if (ImGui::Combo("##var", &p_act, variable_names + p0, nb)) {
-        debug::ensure(0 <= p_act && p_act < nb);
-        act = enum_cast<hsm_t::variable>(p_act + p0);
+
+    const char* preview = variable_names[ordinal(act)];
+    if (ImGui::BeginCombo("##var", preview)) {
+        act = select_variable(act);
+        act = select_port(act);
+        act = select_source_var(act);
+        ImGui::EndCombo();
     }
 
     ImGui::PopItemWidth();
     ImGui::PopID();
 }
 
-/* Display a combobox for input port 1, 2, 3 and 4, variables i1, i2, r1, r1,
- * timer and integer and real constants. */
 template<typename ConditionOrAction>
-static void show_ports_variables_constants_combobox(
-  hsm_t::variable&   act,
-  ConditionOrAction& a) noexcept
+static void show_all_vars(hsm_t::variable& act, ConditionOrAction& a) noexcept
 {
     ImGui::PushID(&act);
-
-    constexpr auto p0    = (int)ordinal(hsm_t::variable::port_0);
-    constexpr auto pn    = (int)ordinal(hsm_t::variable::hsm_constant_7);
-    constexpr auto nb    = pn - p0 + 1;
-    auto           p_act = (int)ordinal(act);
-
-    if (not(p0 <= p_act and p_act <= pn)) {
-        act   = enum_cast<hsm_t::variable>(hsm_t::variable::var_i1);
-        p_act = p0;
-    }
-
-    p_act -= p0;
     ImGui::PushItemWidth(-1);
-    if (ImGui::Combo("##var", &p_act, variable_names + p0, nb)) {
-        debug::ensure(0 <= p_act && p_act < nb);
-        act = enum_cast<hsm_t::variable>(p_act + p0);
+
+    const char* preview = variable_names[ordinal(act)];
+    if (ImGui::BeginCombo("##var", preview)) {
+        act = select_port(act);
+        act = select_variable(act);
+        act = select_source_var(act);
+        act = select_local_constant(act);
+        act = select_hsm_constant(act);
+        ImGui::EndCombo();
     }
+    ImGui::PopItemWidth();
 
     if (act == hsm_t::variable::constant_i) {
         ImGui::PushItemWidth(-1);
@@ -107,98 +144,42 @@ static void show_ports_variables_constants_combobox(
         ImGui::PopItemWidth();
     }
 
-    ImGui::PopItemWidth();
     ImGui::PopID();
 }
 
-/* Display a combobox only for variables i1, i2, r1, r1, timer. */
-static void show_variables_combobox(hsm_t::variable& act) noexcept
+static void show_affactable_vars(hsm_t::variable& act) noexcept
 {
     ImGui::PushID(&act);
-
-    constexpr auto p0    = (int)ordinal(hsm_t::variable::var_i1);
-    constexpr auto pn    = (int)ordinal(hsm_t::variable::var_timer);
-    constexpr auto nb    = pn - p0 + 1;
-    auto           p_act = (int)ordinal(act);
-
-    if (not(p0 <= p_act and p_act <= pn)) {
-        act   = enum_cast<hsm_t::variable>(p0);
-        p_act = p0;
-    }
-
-    p_act -= p0;
     ImGui::PushItemWidth(-1);
-    if (ImGui::Combo("##var", &p_act, variable_names + p0, nb)) {
-        debug::ensure(0 <= p_act && p_act < nb);
-        act = enum_cast<hsm_t::variable>(p_act + p0);
+
+    const char* preview = variable_names[ordinal(act)];
+
+    if (ImGui::BeginCombo("##var", preview)) {
+        act = select_variable(act);
+        act = select_port(act);
+        ImGui::EndCombo();
     }
 
     ImGui::PopItemWidth();
     ImGui::PopID();
 }
 
-/* Display a combobox for variables i1, i2, r1, r1, timer but for ports. */
-static void show_variables_and_constants_combobox(
-  hsm_t::variable&     act,
-  hsm_t::state_action& p) noexcept
-{
-    ImGui::PushID(&act);
-
-    constexpr auto p0    = (int)ordinal(hsm_t::variable::var_i1);
-    constexpr auto pn    = (int)ordinal(hsm_t::variable::hsm_constant_7);
-    constexpr auto nb    = pn - p0 + 1;
-    auto           p_act = (int)ordinal(act);
-
-    if (not(p0 <= p_act and p_act <= pn)) {
-        act   = enum_cast<hsm_t::variable>(p0);
-        p_act = p0;
-    }
-
-    p_act -= p0;
-    ImGui::PushItemWidth(-1);
-    if (ImGui::Combo("##var", &p_act, variable_names + p0, nb)) {
-        debug::ensure(0 <= p_act && p_act < nb);
-        act = enum_cast<hsm_t::variable>(p_act + p0);
-    }
-
-    if (act == hsm_t::variable::constant_i) {
-        ImGui::PushItemWidth(-1);
-        ImGui::InputScalar("value", ImGuiDataType_S32, &p.constant.i);
-        ImGui::PopItemWidth();
-    }
-
-    if (act == hsm_t::variable::constant_r) {
-        ImGui::PushItemWidth(-1);
-        ImGui::InputScalar("value", ImGuiDataType_Float, &p.constant.f);
-        ImGui::PopItemWidth();
-    }
-
-    ImGui::PopItemWidth();
-    ImGui::PopID();
-}
-
-static void show_port_widget(hsm_t::variable& var) noexcept
+static void show_port_vars(hsm_t::variable& var) noexcept
 {
     ImGui::PushID(&var);
 
-    constexpr auto p0    = (int)ordinal(hsm_t::variable::port_0);
-    constexpr auto pn    = (int)ordinal(hsm_t::variable::port_3);
-    constexpr auto nb    = pn - p0 + 1;
-    auto           p_var = (int)ordinal(var);
+    const char* preview = variable_names[ordinal(var)];
 
-    if (not(p0 <= p_var and p_var <= pn)) {
-        var   = enum_cast<hsm_t::variable>(p0);
-        p_var = p0;
+    if (ImGui::BeginCombo("##var", preview)) {
+        ImGui::PushItemWidth(-1);
+        var = select(hsm_t::variable::port_0, var);
+        var = select(hsm_t::variable::port_1, var);
+        var = select(hsm_t::variable::port_2, var);
+        var = select(hsm_t::variable::port_3, var);
+        ImGui::PopItemWidth();
+        ImGui::EndCombo();
     }
 
-    p_var -= p0;
-    ImGui::PushItemWidth(-1);
-    if (ImGui::Combo("##port", &p_var, variable_names + p0, nb)) {
-        debug::ensure(0 <= p_var && p_var < nb);
-        var = enum_cast<hsm_t::variable>(p_var + p0);
-    }
-
-    ImGui::PopItemWidth();
     ImGui::PopID();
 }
 
@@ -566,65 +547,65 @@ static void show_state_action(hsm_t::state_action& action) noexcept
     case hsm_t::action_type::none:
         break;
     case hsm_t::action_type::set:
-        show_port_widget(action.var1);
+        show_port_vars(action.var1);
         ImGui::PushItemWidth(-1);
         ImGui::InputScalar("value", ImGuiDataType_S32, &action.constant.i);
         ImGui::PopItemWidth();
         break;
     case hsm_t::action_type::unset:
-        show_port_widget(action.var1);
+        show_port_vars(action.var1);
         break;
     case hsm_t::action_type::reset:
         break;
     case hsm_t::action_type::output:
-        show_port_widget(action.var1);
+        show_port_vars(action.var1);
         ImGui::PushItemWidth(-1);
-        show_variables_and_constants_combobox(action.var2, action);
+        show_all_vars(action.var2, action);
         ImGui::PopItemWidth();
         break;
     case hsm_t::action_type::affect:
-        show_variables_combobox(action.var1);
-        show_ports_variables_constants_combobox(action.var2, action);
+        show_affactable_vars(action.var1);
+        show_all_vars(action.var2, action);
         break;
     case hsm_t::action_type::plus:
-        show_variables_combobox(action.var1);
-        show_ports_variables_constants_combobox(action.var2, action);
+        show_affactable_vars(action.var1);
+        show_all_vars(action.var2, action);
         break;
     case hsm_t::action_type::minus:
-        show_variables_combobox(action.var1);
-        show_ports_variables_constants_combobox(action.var2, action);
+        show_affactable_vars(action.var1);
+        show_all_vars(action.var2, action);
         break;
     case hsm_t::action_type::negate:
-        show_variables_combobox(action.var1);
-        show_ports_variables_constants_combobox(action.var2, action);
+        show_affactable_vars(action.var1);
+        show_all_vars(action.var2, action);
         break;
     case hsm_t::action_type::multiplies:
-        show_variables_combobox(action.var1);
-        show_ports_variables_constants_combobox(action.var2, action);
+        show_affactable_vars(action.var1);
+        show_all_vars(action.var2, action);
         break;
     case hsm_t::action_type::divides:
-        show_variables_combobox(action.var1);
-        show_ports_variables_constants_combobox(action.var2, action);
+        show_affactable_vars(action.var1);
+        show_all_vars(action.var2, action);
         break;
     case hsm_t::action_type::modulus:
-        show_variables_combobox(action.var1);
-        show_ports_variables_constants_combobox(action.var2, action);
+        show_affactable_vars(action.var1);
+        show_all_vars(action.var2, action);
         break;
     case hsm_t::action_type::bit_and:
-        show_variables_combobox(action.var1);
-        show_ports_variables_constants_combobox(action.var2, action);
+        show_affactable_vars(action.var1);
+        show_all_vars(action.var2, action);
         break;
     case hsm_t::action_type::bit_or:
-        show_variables_combobox(action.var1);
-        show_ports_variables_constants_combobox(action.var2, action);
+        show_affactable_vars(action.var1);
+        show_all_vars(action.var2, action);
         break;
     case hsm_t::action_type::bit_not:
-        show_variables_combobox(action.var1);
-        show_ports_variables_constants_combobox(action.var2, action);
+        show_affactable_vars(action.var1);
+        show_all_vars(action.var2, action);
         break;
     case hsm_t::action_type::bit_xor:
-        show_variables_combobox(action.var1);
-        show_ports_variables_constants_combobox(action.var2, action);
+        show_affactable_vars(action.var1);
+        show_all_vars(action.var2, action);
         break;
     default:
         break;
@@ -656,38 +637,38 @@ static void show_state_condition(hsm_t::condition_action& condition) noexcept
         break;
     case hsm_t::condition_type::equal_to:
         ImGui::PushItemWidth(-1);
-        show_ports_variables_combobox(condition.var1);
-        show_ports_variables_constants_combobox(condition.var2, condition);
+        show_readable_vars(condition.var1);
+        show_all_vars(condition.var2, condition);
         ImGui::PopItemWidth();
         break;
     case hsm_t::condition_type::not_equal_to:
         ImGui::PushItemWidth(-1);
-        show_ports_variables_combobox(condition.var1);
-        show_ports_variables_constants_combobox(condition.var2, condition);
+        show_readable_vars(condition.var1);
+        show_all_vars(condition.var2, condition);
         ImGui::PopItemWidth();
         break;
     case hsm_t::condition_type::greater:
         ImGui::PushItemWidth(-1);
-        show_ports_variables_combobox(condition.var1);
-        show_ports_variables_constants_combobox(condition.var2, condition);
+        show_readable_vars(condition.var1);
+        show_all_vars(condition.var2, condition);
         ImGui::PopItemWidth();
         break;
     case hsm_t::condition_type::greater_equal:
         ImGui::PushItemWidth(-1);
-        show_ports_variables_combobox(condition.var1);
-        show_ports_variables_constants_combobox(condition.var2, condition);
+        show_readable_vars(condition.var1);
+        show_all_vars(condition.var2, condition);
         ImGui::PopItemWidth();
         break;
     case hsm_t::condition_type::less:
         ImGui::PushItemWidth(-1);
-        show_ports_variables_combobox(condition.var1);
-        show_ports_variables_constants_combobox(condition.var2, condition);
+        show_readable_vars(condition.var1);
+        show_all_vars(condition.var2, condition);
         ImGui::PopItemWidth();
         break;
     case hsm_t::condition_type::less_equal:
         ImGui::PushItemWidth(-1);
-        show_ports_variables_combobox(condition.var1);
-        show_ports_variables_constants_combobox(condition.var2, condition);
+        show_readable_vars(condition.var1);
+        show_all_vars(condition.var2, condition);
         ImGui::PopItemWidth();
         break;
     }
