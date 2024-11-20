@@ -823,29 +823,35 @@ static status simulation_copy_sources(project::cache& cache,
 {
     sim.srcs.clear();
 
-    if (mod.srcs.constant_sources.capacity()) {
+    if (mod.srcs.constant_sources.can_alloc(
+          mod.srcs.constant_sources.capacity())) {
         sim.srcs.constant_sources.reserve(mod.srcs.constant_sources.capacity());
-        if (not sim.srcs.constant_sources.capacity())
+        if (not sim.srcs.constant_sources.can_alloc(
+              mod.srcs.constant_sources.capacity()))
             return new_error(external_source::part::constant_source);
     }
 
-    if (mod.srcs.binary_file_sources.capacity()) {
-        sim.srcs.binary_file_sources.reserve(
-          mod.srcs.binary_file_sources.capacity());
-        if (not sim.srcs.binary_file_sources.capacity())
+    if (mod.srcs.binary_file_sources.can_alloc(
+          mod.srcs.binary_file_sources.capacity())) {
+        sim.srcs.binary_file_sources.reserve(mod.srcs.binary_file_sources.capacity());
+        if (not sim.srcs.binary_file_sources.can_alloc(
+              mod.srcs.binary_file_sources.capacity()))
             return new_error(external_source::part::binary_file_source);
     }
 
-    if (mod.srcs.text_file_sources.capacity()) {
-        sim.srcs.text_file_sources.reserve(
-          mod.srcs.text_file_sources.capacity());
-        if (not sim.srcs.text_file_sources.capacity())
+    if (mod.srcs.text_file_sources.can_alloc(
+          mod.srcs.text_file_sources.capacity())) {
+        sim.srcs.text_file_sources.reserve(mod.srcs.text_file_sources.capacity());
+        if (not sim.srcs.text_file_sources.can_alloc(
+              mod.srcs.text_file_sources.capacity()))
             return new_error(external_source::part::text_file_source);
     }
 
-    if (mod.srcs.random_sources.capacity()) {
+    if (mod.srcs.random_sources.can_alloc(
+          mod.srcs.random_sources.capacity())) {
         sim.srcs.random_sources.reserve(mod.srcs.random_sources.capacity());
-        if (not sim.srcs.random_sources.capacity())
+        if (not sim.srcs.random_sources.can_alloc(
+              mod.srcs.random_sources.capacity()))
             return new_error(external_source::part::random_source);
     }
 
