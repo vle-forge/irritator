@@ -28,11 +28,8 @@ enum class graph_component_id : u64;
 enum class grid_component_id : u64;
 enum class tree_node_id : u64;
 enum class description_id : u64;
-enum class dir_path_id : u64;
-enum class file_path_id : u64;
 enum class child_id : u32;
 enum class connection_id : u64;
-enum class registred_path_id : u64;
 enum class variable_observer_id : u64;
 enum class grid_observer_id : u64;
 enum class graph_observer_id : u64;
@@ -836,6 +833,9 @@ struct component {
 
     component_type   type  = component_type::none;
     component_status state = component_status::unread;
+
+    external_source
+      srcs; /**<! Each component stores potential external source. */
 };
 
 struct registred_path {
@@ -919,7 +919,7 @@ struct file_path {
         Count,
     };
 
-    enum class file_type { undefined_file, irt_file, dot_file };
+    enum class file_type { undefined_file, irt_file, dot_file, txt_file, data_file };
 
     file_path_str path; /**< stores the file name as utf8 string. */
     dir_path_id   parent{ 0 };
@@ -1327,7 +1327,6 @@ public:
     vector<component_color> component_colors;
 
     vector<registred_path_id> component_repertories;
-    external_source           srcs;
 
     modeling_status state = modeling_status::unmodified;
 
@@ -1643,6 +1642,11 @@ inline component::component() noexcept
 {
     x.reserve(16);
     y.reserve(16);
+
+    srcs.constant_sources.reserve(4);
+    srcs.binary_file_sources.reserve(4);
+    srcs.text_file_sources.reserve(4);
+    srcs.random_sources.reserve(4);
 }
 
 inline connection::connection(child_id src_,

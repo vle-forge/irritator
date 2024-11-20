@@ -86,6 +86,268 @@ struct component_editor::impl {
     application&      app;
     component_editor& ed;
 
+    void display_external_source(component& compo) noexcept
+    {
+        const auto button_size = ImGui::ComputeButtonSize(4);
+
+        if (ImGui::Button("+constant", button_size)) {
+            if (not compo.srcs.constant_sources.can_alloc(1))
+                compo.srcs.constant_sources.grow();
+
+            if (compo.srcs.constant_sources.can_alloc(1))
+                (void)compo.srcs.constant_sources.alloc();
+        }
+
+        ImGui::SameLine();
+        if (ImGui::Button("+binary", button_size)) {
+            if (not compo.srcs.binary_file_sources.can_alloc(1))
+                compo.srcs.binary_file_sources.grow();
+
+            if (compo.srcs.binary_file_sources.can_alloc(1))
+                (void)compo.srcs.binary_file_sources.alloc();
+        }
+
+        ImGui::SameLine();
+        if (ImGui::Button("+text", button_size)) {
+            if (not compo.srcs.text_file_sources.can_alloc(1))
+                compo.srcs.text_file_sources.grow();
+
+            if (compo.srcs.text_file_sources.can_alloc(1))
+                (void)compo.srcs.text_file_sources.alloc();
+        }
+
+        ImGui::SameLine();
+        if (ImGui::Button("+random", button_size)) {
+            if (not compo.srcs.random_sources.can_alloc(1))
+                compo.srcs.random_sources.grow();
+
+            if (compo.srcs.random_sources.can_alloc(1))
+                (void)compo.srcs.random_sources.alloc();
+        }
+
+        if (ImGui::TreeNode("Constants")) {
+            static decltype(constant_source::name) name_tmp;
+
+            for (auto& s : compo.srcs.constant_sources) {
+                const auto id = compo.srcs.constant_sources.get_id(s);
+                ImGui::PushID(&s);
+                if (ImGui::TreeNode(s.name.c_str())) {
+                    ImGui::LabelFormat("id", "{}", ordinal(id));
+                    ImGui::LabelFormat("name", "{}", s.name.sv());
+                    ImGui::LabelFormat("value",
+                                       "{} {} {}...",
+                                       s.buffer[0],
+                                       s.buffer[1],
+                                       s.buffer[2]);
+
+                    if (ImGui::Button("Edit")) {
+                        ImGui::OpenPopup("Change constant values");
+                        name_tmp = s.name;
+                    }
+
+                    ImVec2 center = ImGui::GetMainViewport()->GetCenter();
+                    ImGui::SetNextWindowPos(
+                      center, ImGuiCond_Appearing, ImVec2(0.5f, 0.5f));
+
+                    if (ImGui::BeginPopupModal(
+                          "Change constant values",
+                          NULL,
+                          ImGuiWindowFlags_AlwaysAutoResize)) {
+
+                        ImGui::InputFilteredString("name", name_tmp);
+
+                        u32 len = s.length;
+                        if (ImGui::InputScalar(
+                              "length", ImGuiDataType_U32, &len)) {
+                            if (len > 0 and len < external_source_chunk_size)
+                                s.length = len;
+                        }
+
+                        s.length          = s.length == 0 ? 1 : s.length;
+                        const int columns = 4 < s.length ? 4 : s.length;
+                        const int rows    = (s.length / columns) +
+                                         ((s.length % columns) > 0 ? 1 : 0);
+                        if (ImGui::BeginChild(
+                              "##zone",
+                              ImVec2(ImGui::GetContentRegionAvail().x,
+                                     200.f))) {
+
+                            if (ImGui::BeginTable("Values", columns)) {
+                                for (int j = 0; j < columns; ++j)
+                                    ImGui::TableSetupColumn(
+                                      "",
+                                      ImGuiTableColumnFlags_WidthFixed,
+                                      60.f);
+
+                                for (int i = 0; i < rows; ++i) {
+                                    ImGui::TableNextRow();
+                                    for (int j = 0; j < columns; ++j) {
+                                        ImGui::TableSetColumnIndex(j);
+                                        ImGui::PushID(i * columns + j);
+                                        ImGui::PushItemWidth(-1);
+                                        ImGui::InputDouble("",
+                                                           s.buffer.data() +
+                                                             (i * columns + j));
+                                        ImGui::PopItemWidth();
+                                        ImGui::PopID();
+                                    }
+                                }
+                                ImGui::EndTable();
+                            }
+                        }
+                        ImGui::EndChild();
+
+                        if (ImGui::Button("OK", ImVec2(120, 0))) {
+                            s.name = name_tmp;
+                            ImGui::CloseCurrentPopup();
+                        }
+                        ImGui::SetItemDefaultFocus();
+                        ImGui::EndPopup();
+                    }
+
+                    ImGui::TreePop();
+                }
+                ImGui::PopID();
+            }
+
+            ImGui::TreePop();
+        }
+        if (ImGui::TreeNode("Binary files")) {
+            static decltype(constant_source::name) name_tmp;
+
+            for (auto& s : compo.srcs.binary_file_sources) {
+                const auto id = compo.srcs.binary_file_sources.get_id(s);
+                ImGui::PushID(&s);
+                if (ImGui::TreeNode(s.name.c_str())) {
+                    ImGui::LabelFormat("id", "{}", ordinal(id));
+                    ImGui::LabelFormat("name", "{}", s.name.sv());
+                    ImGui::LabelFormat(
+                      "path", "{}", (const char*)s.file_path.c_str());
+
+                    if (ImGui::Button("Edit")) {
+                        ImGui::OpenPopup("Change binary values");
+                        name_tmp = s.name;
+                    }
+
+                    ImVec2 center = ImGui::GetMainViewport()->GetCenter();
+                    ImGui::SetNextWindowPos(
+                      center, ImGuiCond_Appearing, ImVec2(0.5f, 0.5f));
+
+                    if (ImGui::BeginPopupModal(
+                          "Change binary values",
+                          NULL,
+                          ImGuiWindowFlags_AlwaysAutoResize)) {
+
+                        ImGui::InputFilteredString("name", name_tmp);
+                        show_data_file_input(app.mod, compo, s.file_id);
+
+                        if (ImGui::Button("OK", ImVec2(120, 0))) {
+                            s.name = name_tmp;
+                            ImGui::CloseCurrentPopup();
+                        }
+                        ImGui::SetItemDefaultFocus();
+                        ImGui::EndPopup();
+                    }
+
+                    ImGui::TreePop();
+                }
+                ImGui::PopID();
+            }
+
+            ImGui::TreePop();
+        }
+        if (ImGui::TreeNode("Text files")) {
+            static decltype(constant_source::name) name_tmp;
+
+            for (auto& s : compo.srcs.text_file_sources) {
+                const auto id = compo.srcs.text_file_sources.get_id(s);
+                ImGui::PushID(&s);
+                if (ImGui::TreeNode(s.name.c_str())) {
+                    ImGui::LabelFormat("id", "{}", ordinal(id));
+                    ImGui::LabelFormat("name", "{}", s.name.sv());
+                    ImGui::LabelFormat(
+                      "path", "{}", (const char*)s.file_path.c_str());
+
+                    if (ImGui::Button("Edit")) {
+                        ImGui::OpenPopup("Change binary values");
+                        name_tmp = s.name;
+                    }
+
+                    ImVec2 center = ImGui::GetMainViewport()->GetCenter();
+                    ImGui::SetNextWindowPos(
+                      center, ImGuiCond_Appearing, ImVec2(0.5f, 0.5f));
+
+                    if (ImGui::BeginPopupModal(
+                          "Change binary values",
+                          NULL,
+                          ImGuiWindowFlags_AlwaysAutoResize)) {
+
+                        ImGui::InputFilteredString("name", name_tmp);
+                        show_data_file_input(app.mod, compo, s.file_id);
+
+                        if (ImGui::Button("OK", ImVec2(120, 0))) {
+                            s.name = name_tmp;
+                            ImGui::CloseCurrentPopup();
+                        }
+                        ImGui::SetItemDefaultFocus();
+                        ImGui::EndPopup();
+                    }
+
+                    ImGui::TreePop();
+                }
+                ImGui::PopID();
+            }
+
+            ImGui::TreePop();
+        }
+        if (ImGui::TreeNode("Random")) {
+            static decltype(constant_source::name) name_tmp;
+
+            for (auto& s : compo.srcs.random_sources) {
+                const auto id = compo.srcs.random_sources.get_id(s);
+                ImGui::PushID(&s);
+                if (ImGui::TreeNode(s.name.c_str())) {
+                    ImGui::LabelFormat("id", "{}", ordinal(id));
+                    ImGui::LabelFormat("name", "{}", s.name.sv());
+                    ImGui::LabelFormat(
+                      "name",
+                      "{}",
+                      distribution_type_string[ordinal(s.distribution)]);
+
+                    if (ImGui::Button("Edit")) {
+                        ImGui::OpenPopup("Change constant values");
+                        name_tmp = s.name;
+                    }
+
+                    ImVec2 center = ImGui::GetMainViewport()->GetCenter();
+                    ImGui::SetNextWindowPos(
+                      center, ImGuiCond_Appearing, ImVec2(0.5f, 0.5f));
+
+                    if (ImGui::BeginPopupModal(
+                          "Change constant values",
+                          NULL,
+                          ImGuiWindowFlags_AlwaysAutoResize)) {
+
+                        ImGui::InputFilteredString("name", name_tmp);
+                        show_random_distribution_input(s);
+
+                        if (ImGui::Button("OK", ImVec2(120, 0))) {
+                            s.name = name_tmp;
+                            ImGui::CloseCurrentPopup();
+                        }
+                        ImGui::SetItemDefaultFocus();
+                        ImGui::EndPopup();
+                    }
+
+                    ImGui::TreePop();
+                }
+                ImGui::PopID();
+            }
+
+            ImGui::TreePop();
+        }
+    }
+
     template<typename ComponentEditor>
     void show_file_access(application&     app,
                           ComponentEditor& ed,
@@ -94,8 +356,7 @@ struct component_editor::impl {
         static constexpr const char* empty = "";
 
         auto* reg_dir = app.mod.registred_paths.try_to_get(compo.reg_path);
-        const char* reg_preview     = reg_dir ? reg_dir->path.c_str() : empty;
-        bool        is_save_enabled = false;
+        const char* reg_preview = reg_dir ? reg_dir->path.c_str() : empty;
 
         if (ImGui::BeginCombo("Path", reg_preview)) {
             registred_path* list = nullptr;
@@ -179,8 +440,8 @@ struct component_editor::impl {
                     }
                 }
 
-                is_save_enabled = is_valid_irt_filename(file->path.sv());
-
+                const auto is_save_enabled =
+                  is_valid_irt_filename(file->path.sv());
                 if (not app.mod.descriptions.exists(compo.desc)) {
                     if (app.mod.descriptions.can_alloc(1) &&
                         ImGui::Button("Add description")) {
@@ -353,6 +614,11 @@ struct component_editor::impl {
                     }
 
                     show_file_access(app, element, compo);
+                    ImGui::EndTabItem();
+                }
+
+                if (ImGui::BeginTabItem("External source")) {
+                    display_external_source(compo);
                     ImGui::EndTabItem();
                 }
 

@@ -8,6 +8,7 @@
 #include <irritator/format.hpp>
 #include <irritator/helpers.hpp>
 #include <irritator/io.hpp>
+#include <irritator/modeling-helpers.hpp>
 #include <irritator/modeling.hpp>
 
 #include <fmt/format.h>
@@ -539,8 +540,8 @@ struct json_dearchiver::impl {
 
     template<size_t N, typename Function>
     bool for_members(const rapidjson::Value& val,
-                     const std::string_view  (&names)[N],
-                     Function&&              fn) noexcept
+                     const std::string_view (&names)[N],
+                     Function&& fn) noexcept
     {
         if (!val.IsObject())
             report_json_error(error_id::value_not_object);
@@ -2585,6 +2586,57 @@ struct json_dearchiver::impl {
         return true;
     }
 
+    bool search_file_from_dir_component(const component& compo,
+                                        file_path_id&    out) noexcept
+    {
+        out = get_file_from_component(mod(), compo, temp_string);
+
+        return is_defined(out);
+    }
+
+    bool read_text_file_sources(const rapidjson::Value& val,
+                                component&              compo) noexcept
+    {
+        auto_stack s(this, stack_id::srcs_text_file_sources);
+
+        i64 len = 0;
+
+        return is_value_array(val) && copy_array_size(val, len) &&
+               text_file_sources_can_alloc(compo.srcs, len) &&
+               for_each_array(
+                 val,
+                 [&](const auto /*i*/, const auto& value) noexcept -> bool {
+                     auto& text = compo.srcs.text_file_sources.alloc();
+                     auto  id   = compo.srcs.text_file_sources.get_id(text);
+                     std::optional<u64> id_in_file;
+
+                     auto_stack s(this, stack_id::srcs_text_file_source);
+
+                     return for_each_member(
+                              value,
+                              [&](const auto  name,
+                                  const auto& value) noexcept -> bool {
+                                  if ("id"sv == name)
+                                      return read_temp_unsigned_integer(
+                                               value) &&
+                                             copy_to(id_in_file);
+
+                                  if ("name"sv == name)
+                                      return read_temp_string(value) &&
+                                             copy_to(text.name);
+
+                                  if ("path"sv == name)
+                                      return read_temp_string(value) &&
+                                             search_file_from_dir_component(
+                                               compo, text.file_id);
+
+                                  return true;
+                              }) &&
+                            optional_has_value(id_in_file) &&
+                            cache_text_file_mapping_add(*id_in_file, id);
+                 });
+    }
+
     bool read_text_file_sources(const rapidjson::Value& val,
                                 external_source&        srcs) noexcept
     {
@@ -2633,6 +2685,49 @@ struct json_dearchiver::impl {
         self.binary_file_mapping.data.emplace_back(id_in_file, ordinal(id));
 
         return true;
+    }
+
+    bool read_binary_file_sources(const rapidjson::Value& val,
+                                  component&              compo) noexcept
+    {
+        auto_stack s(this, stack_id::srcs_binary_file_sources);
+
+        i64 len = 0;
+
+        return is_value_array(val) && copy_array_size(val, len) &&
+               binary_file_sources_can_alloc(compo.srcs, len) &&
+               for_each_array(
+                 val,
+                 [&](const auto /*i*/, const auto& value) noexcept -> bool {
+                     auto& bin = compo.srcs.binary_file_sources.alloc();
+                     auto  id  = compo.srcs.binary_file_sources.get_id(bin);
+                     std::optional<u64> id_in_file;
+
+                     auto_stack s(this, stack_id::srcs_binary_file_source);
+
+                     return for_each_member(
+                              value,
+                              [&](const auto  name,
+                                  const auto& value) noexcept -> bool {
+                                  if ("id"sv == name)
+                                      return read_temp_unsigned_integer(
+                                               value) &&
+                                             copy_to(id_in_file);
+
+                                  if ("name"sv == name)
+                                      return read_temp_string(value) &&
+                                             copy_to(bin.name);
+
+                                  if ("path"sv == name)
+                                      return read_temp_string(value) &&
+                                             search_file_from_dir_component(
+                                               compo, bin.file_id);
+
+                                  return true;
+                              }) &&
+                            optional_has_value(id_in_file) &&
+                            cache_binary_file_mapping_add(*id_in_file, id);
+                 });
     }
 
     bool read_binary_file_sources(const rapidjson::Value& val,
@@ -3798,13 +3893,13 @@ struct json_dearchiver::impl {
               if ("name"sv == name)
                   return read_temp_string(value) && copy_to(compo.name);
               if ("constant-sources"sv == name)
-                  return read_constant_sources(value, mod().srcs);
+                  return read_constant_sources(value, compo.srcs);
               if ("binary-file-sources"sv == name)
-                  return read_binary_file_sources(value, mod().srcs);
+                  return read_binary_file_sources(value, compo);
               if ("text-file-sources"sv == name)
-                  return read_text_file_sources(value, mod().srcs);
+                  return read_text_file_sources(value, compo);
               if ("random-sources"sv == name)
-                  return read_random_sources(value, mod().srcs);
+                  return read_random_sources(value, compo.srcs);
               if ("x"sv == name)
                   return read_ports(value, compo.x);
               if ("y"sv == name)
@@ -5504,6 +5599,64 @@ struct json_archiver::impl {
     }
 
     template<typename Writer>
+    void write_binary_file_sources(
+      const external_source&                     srcs,
+      const data_array<file_path, file_path_id>& files,
+      Writer&                                    w) noexcept
+    {
+        w.Key("binary-file-sources");
+        w.StartArray();
+
+        const binary_file_source* src = nullptr;
+        while (srcs.binary_file_sources.next(src)) {
+            if (const auto* f = files.try_to_get(src->file_id); f) {
+                w.StartObject();
+                w.Key("id");
+                w.Uint64(ordinal(srcs.binary_file_sources.get_id(*src)));
+                w.Key("name");
+                w.String(src->name.c_str());
+                w.Key("max-clients");
+                w.Uint(src->max_clients);
+                w.Key("path");
+                w.String(f->path.data(),
+                         static_cast<rapidjson::SizeType>(f->path.size()));
+                w.EndObject();
+            }
+        }
+
+        w.EndArray();
+    }
+
+    template<typename Writer>
+    void write_text_file_sources(
+      const external_source&                     srcs,
+      const data_array<file_path, file_path_id>& files,
+      Writer&                                    w) noexcept
+    {
+        w.Key("text-file-sources");
+        w.StartArray();
+
+        const text_file_source* src = nullptr;
+        std::string             filepath;
+
+        while (srcs.text_file_sources.next(src)) {
+            if (const auto* f = files.try_to_get(src->file_id); f) {
+                w.StartObject();
+                w.Key("id");
+                w.Uint64(ordinal(srcs.text_file_sources.get_id(*src)));
+                w.Key("name");
+                w.String(src->name.c_str());
+                w.Key("path");
+                w.String(f->path.data(),
+                         static_cast<rapidjson::SizeType>(f->path.size()));
+                w.EndObject();
+            }
+        }
+
+        w.EndArray();
+    }
+
+    template<typename Writer>
     void write_binary_file_sources(const external_source& srcs,
                                    Writer&                w) noexcept
     {
@@ -5511,10 +5664,8 @@ struct json_archiver::impl {
         w.StartArray();
 
         const binary_file_source* src = nullptr;
-        std::string               filepath;
-
         while (srcs.binary_file_sources.next(src)) {
-            filepath = src->file_path.string();
+            const auto str = src->file_path.string();
 
             w.StartObject();
             w.Key("id");
@@ -5524,8 +5675,7 @@ struct json_archiver::impl {
             w.Key("max-clients");
             w.Uint(src->max_clients);
             w.Key("path");
-            w.String(filepath.data(),
-                     static_cast<rapidjson::SizeType>(filepath.size()));
+            w.String(str.data(), static_cast<rapidjson::SizeType>(str.size()));
             w.EndObject();
         }
 
@@ -5540,19 +5690,15 @@ struct json_archiver::impl {
         w.StartArray();
 
         const text_file_source* src = nullptr;
-        std::string             filepath;
-
         while (srcs.text_file_sources.next(src)) {
-            filepath = src->file_path.string();
-
+            const auto str = src->file_path.string();
             w.StartObject();
             w.Key("id");
             w.Uint64(ordinal(srcs.text_file_sources.get_id(*src)));
             w.Key("name");
             w.String(src->name.c_str());
             w.Key("path");
-            w.String(filepath.data(),
-                     static_cast<rapidjson::SizeType>(filepath.size()));
+            w.String(str.data(), static_cast<rapidjson::SizeType>(str.size()));
             w.EndObject();
         }
 
@@ -6320,10 +6466,10 @@ struct json_archiver::impl {
         w.Key("name");
         w.String(compo.name.c_str());
 
-        write_constant_sources(mod.srcs, w);
-        write_binary_file_sources(mod.srcs, w);
-        write_text_file_sources(mod.srcs, w);
-        write_random_sources(mod.srcs, w);
+        write_constant_sources(compo.srcs, w);
+        write_binary_file_sources(compo.srcs, mod.file_paths, w);
+        write_text_file_sources(compo.srcs, mod.file_paths, w);
+        write_random_sources(compo.srcs, w);
 
         w.Key("colors");
         w.StartArray();

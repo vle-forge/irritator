@@ -346,6 +346,10 @@ class simulation;
 class hierarchical_state_machine;
 class source;
 
+enum class registred_path_id : u32;
+enum class dir_path_id : u32;
+enum class file_path_id : u32;
+
 enum class hsm_id : u64;
 enum class model_id : u64;
 enum class dynamics_id : u64;
@@ -505,7 +509,7 @@ class constant_source
 public:
     small_string<23> name;
     chunk_type       buffer;
-    u32              length = 0u;
+    u32              length = 8u;
 
     constant_source() noexcept = default;
     constant_source(const constant_source& src) noexcept;
@@ -543,6 +547,7 @@ public:
 
     std::filesystem::path file_path;
     std::ifstream         ifs;
+    file_path_id          file_id;
     u32                   next_client = 0;
     u64                   next_offset = 0;
 
@@ -581,6 +586,7 @@ public:
 
     std::filesystem::path file_path;
     std::ifstream         ifs;
+    file_path_id          file_id;
 
     text_file_source() noexcept = default;
     text_file_source(const text_file_source& other) noexcept;
@@ -712,36 +718,18 @@ public:
         random_source,
     };
 
-    mr_allocator<memory_resource> alloc;
-    freelist_memory_resource      shared;
+    data_array<constant_source, constant_source_id>       constant_sources;
+    data_array<binary_file_source, binary_file_source_id> binary_file_sources;
+    data_array<text_file_source, text_file_source_id>     text_file_sources;
+    data_array<random_source, random_source_id>           random_sources;
 
-    data_array<constant_source, constant_source_id, freelist_allocator>
-      constant_sources;
-    data_array<binary_file_source, binary_file_source_id, freelist_allocator>
-      binary_file_sources;
-    data_array<text_file_source, text_file_source_id, freelist_allocator>
-      text_file_sources;
-    data_array<random_source, random_source_id, freelist_allocator>
-      random_sources;
+    /** Build empty data-array. Use the @c realloc function after this
+     * constructor to allocate memory. */
+    external_source() noexcept = default;
 
-    /** Use the global `malloc_memory_resource` to prepare the
-     * `free_list_allocator` to allocate memory. Use the `realloc` function
-     * after this constructor to allocate memory. */
-    external_source() noexcept;
-
-    /** Use the specified memory resource `mem` to prepare the
-     * `free_list_allocator` to allocate memory. Use the `realloc` function
-     * after this constructor to allocate memory. */
-    external_source(memory_resource* mem) noexcept;
-
-    /** Use the global `malloc_memory_resource` to prepare `free_list_allocator`
-     * and allocate memory according to the `init` values. */
+    /** Build data-array according to the @c init structure. Use the @c realloc
+     * function after this constructor to allocate memory. */
     external_source(const external_source_memory_requirement& init) noexcept;
-
-    /** Use the specified memory resource `mem` to prepare `free_list_allocator`
-     * and allocate memory according to the `init` values. */
-    external_source(memory_resource*                          mem,
-                    const external_source_memory_requirement& init) noexcept;
 
     ~external_source() noexcept;
 
@@ -1323,52 +1311,38 @@ public:
 
 template<typename T>
 concept has_lambda_function = requires(T t, simulation& sim) {
-    {
-        t.lambda(sim)
-    } -> std::same_as<status>;
+    { t.lambda(sim) } -> std::same_as<status>;
 };
 
 template<typename T>
 concept has_transition_function =
   requires(T t, simulation& sim, time s, time e, time r) {
-      {
-          t.transition(sim, s, e, r)
-      } -> std::same_as<status>;
+      { t.transition(sim, s, e, r) } -> std::same_as<status>;
   };
 
 template<typename T>
 concept has_observation_function = requires(T t, time s, time e) {
-    {
-        t.observation(s, e)
-    } -> std::same_as<observation_message>;
+    { t.observation(s, e) } -> std::same_as<observation_message>;
 };
 
 template<typename T>
 concept has_initialize_function = requires(T t, simulation& sim) {
-    {
-        t.initialize(sim)
-    } -> std::same_as<status>;
+    { t.initialize(sim) } -> std::same_as<status>;
 };
 
 template<typename T>
 concept has_finalize_function = requires(T t, simulation& sim) {
-    {
-        t.finalize(sim)
-    } -> std::same_as<status>;
+    { t.finalize(sim) } -> std::same_as<status>;
 };
 
 template<typename T>
 concept has_input_port = requires(T t) {
-    {
-        t.x
-    };
+    { t.x };
 };
 
 template<typename T>
 concept has_output_port = requires(T t) {
-    {
-        t.y
-    };
+    { t.y };
 };
 
 constexpr observation_message qss_observation(real X,
@@ -5736,7 +5710,6 @@ inline simulation::simulation(
   , messages(&shared)
   , dated_messages(&shared)
   , sched(&shared)
-  , srcs{ mem }
 {
     do_realloc(init);
 }
@@ -5757,7 +5730,7 @@ inline void simulation::do_realloc(
         models.reserve(init.model_nb);
         observers.reserve(init.model_nb);
         nodes.reserve(init.model_nb * 4); // Max 4 output port by models
-        messages.reserve(init.model_nb);
+        messages.reserve(init.model_nb * 4);
         dated_messages.reserve(init.model_nb);
 
         emitting_output_ports.reserve(init.model_nb);

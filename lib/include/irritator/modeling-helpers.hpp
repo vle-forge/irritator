@@ -39,6 +39,22 @@ inline result<file_path&> get_file(modeling& mod, file_path_id id) noexcept
     return new_error(project::error::file_access_error);
 }
 
+inline file_path_id get_file_from_component(const modeling&        mod,
+                                            const component&       compo,
+                                            const std::string_view str) noexcept
+{
+    if (const auto* dir = mod.dir_paths.try_to_get(compo.dir); dir) {
+        for (const auto f_id : dir->children) {
+            if (const auto* f = mod.file_paths.try_to_get(f_id); f) {
+                if (f->path.sv() == str)
+                    return f_id;
+            }
+        }
+    }
+
+    return undefined<file_path_id>();
+}
+
 template<typename Fn>
 inline std::optional<file> open_file(
   dir_path&                                   dir_p,
