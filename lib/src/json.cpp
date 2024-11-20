@@ -539,8 +539,8 @@ struct json_dearchiver::impl {
 
     template<size_t N, typename Function>
     bool for_members(const rapidjson::Value& val,
-                     const std::string_view (&names)[N],
-                     Function&& fn) noexcept
+                     const std::string_view  (&names)[N],
+                     Function&&              fn) noexcept
     {
         if (!val.IsObject())
             report_json_error(error_id::value_not_object);
@@ -2507,7 +2507,7 @@ struct json_dearchiver::impl {
     bool constant_buffer_size_can_alloc(std::integral auto i) noexcept
     {
         if (std::cmp_greater_equal(i, 0) &&
-            std::cmp_less(i, external_source_chunk_size))
+            std::cmp_less_equal(i, external_source_chunk_size))
             return true;
 
         report_json_error(error_id::srcs_constant_sources_buffer_not_enough);
@@ -2552,6 +2552,7 @@ struct json_dearchiver::impl {
                        auto& cst = srcs.constant_sources.alloc();
                        auto  id  = srcs.constant_sources.get_id(cst);
                        std::optional<u64> id_in_file;
+                       std::string        name;
 
                        return for_each_member(
                                 value,
@@ -2561,6 +2562,10 @@ struct json_dearchiver::impl {
                                         return read_temp_unsigned_integer(
                                                  value) &&
                                                copy_to(id_in_file);
+
+                                    if ("name"sv == name)
+                                        return read_temp_string(value) &&
+                                               copy_to(cst.name);
 
                                     if ("parameters"sv == name)
                                         return read_constant_source(value, cst);
@@ -2607,6 +2612,10 @@ struct json_dearchiver::impl {
                                                value) &&
                                              copy_to(id_in_file);
 
+                                  if ("name"sv == name)
+                                      return read_temp_string(value) &&
+                                             copy_to(text.name);
+
                                   if ("path"sv == name)
                                       return read_temp_string(value) &&
                                              copy_to(text);
@@ -2652,6 +2661,10 @@ struct json_dearchiver::impl {
                                       return read_temp_unsigned_integer(
                                                value) &&
                                              copy_to(id_in_file);
+
+                                  if ("name"sv == name)
+                                      return read_temp_string(value) &&
+                                             copy_to(text.name);
 
                                   if ("path"sv == name)
                                       return read_temp_string(value) &&
@@ -2866,6 +2879,10 @@ struct json_dearchiver::impl {
                                       return read_temp_unsigned_integer(
                                                value) &&
                                              copy_to(id_in_file);
+
+                                  if ("name"sv == name)
+                                      return read_temp_string(value) &&
+                                             copy_to(r.name);
 
                                   if ("type"sv == name) {
                                       return read_temp_string(value) &&
@@ -5471,11 +5488,13 @@ struct json_archiver::impl {
             w.StartObject();
             w.Key("id");
             w.Uint64(ordinal(srcs.constant_sources.get_id(*src)));
+            w.Key("name");
+            w.String(src->name.c_str());
             w.Key("parameters");
 
             w.StartArray();
-            for (const auto elem : src->buffer)
-                w.Double(elem);
+            for (auto e = src->length, i = 0u; i != e; ++i)
+                w.Double(src->buffer[i]);
             w.EndArray();
 
             w.EndObject();
@@ -5500,6 +5519,8 @@ struct json_archiver::impl {
             w.StartObject();
             w.Key("id");
             w.Uint64(ordinal(srcs.binary_file_sources.get_id(*src)));
+            w.Key("name");
+            w.String(src->name.c_str());
             w.Key("max-clients");
             w.Uint(src->max_clients);
             w.Key("path");
@@ -5527,6 +5548,8 @@ struct json_archiver::impl {
             w.StartObject();
             w.Key("id");
             w.Uint64(ordinal(srcs.text_file_sources.get_id(*src)));
+            w.Key("name");
+            w.String(src->name.c_str());
             w.Key("path");
             w.String(filepath.data(),
                      static_cast<rapidjson::SizeType>(filepath.size()));
@@ -5547,6 +5570,8 @@ struct json_archiver::impl {
             w.StartObject();
             w.Key("id");
             w.Uint64(ordinal(srcs.random_sources.get_id(*src)));
+            w.Key("name");
+            w.String(src->name.c_str());
             w.Key("type");
             w.String(distribution_str(src->distribution));
 
