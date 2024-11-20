@@ -18,8 +18,7 @@
 namespace irt {
 
 modeling::modeling() noexcept
-  : srcs(external_source_memory_requirement(16, 16, 16, 16, 256, 256))
-  , log_entries{ 16 }
+  : log_entries{ 16 }
 {}
 
 status modeling::init(modeling_initializer& p) noexcept
@@ -68,11 +67,6 @@ status modeling::init(modeling_initializer& p) noexcept
         return new_error(modeling::part::hsms);
 
     component_colors.resize(components.capacity());
-
-    srcs.constant_sources.reserve(8);
-    srcs.binary_file_sources.reserve(8);
-    srcs.text_file_sources.reserve(6);
-    srcs.random_sources.reserve(16);
 
     return success();
 }
@@ -136,6 +130,12 @@ static auto detect_file_type(const std::filesystem::path& file) noexcept
     if (ext == ".dot")
         return file_path::file_type::dot_file;
 
+    if (ext == ".txt")
+        return file_path::file_type::txt_file;
+
+    if (ext == ".data")
+        return file_path::file_type::data_file;
+
     return file_path::file_type::undefined_file;
 }
 
@@ -192,12 +192,7 @@ auto dir_path::refresh(modeling& mod) noexcept -> vector<file_path_id>
                 while (it != et) {
                     if (it->is_regular_file()) {
                         const auto type = detect_file_type(it->path());
-                        const auto is_irt_or_dot =
-                          any_equal(type,
-                                    file_path::file_type::irt_file,
-                                    file_path::file_type::dot_file);
-
-                        if (is_irt_or_dot) {
+                        if (type != file_path::file_type::undefined_file) {
                             const auto id_opt = push_back_if_not_exists(
                               mod, *this, it->path(), type);
 
@@ -236,12 +231,8 @@ static void prepare_component_loading(modeling&             mod,
         while (it != et) {
             if (it->is_regular_file()) {
                 const auto type = detect_file_type(it->path());
-                const auto is_irt_or_dot =
-                  any_equal(type,
-                            file_path::file_type::irt_file,
-                            file_path::file_type::dot_file);
 
-                if (is_irt_or_dot) {
+                if (type != file_path::file_type::undefined_file) {
                     debug_logi(6, "found file {}\n", it->path().string());
 
                     if (mod.file_paths.can_alloc() &&

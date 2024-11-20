@@ -821,87 +821,91 @@ static status simulation_copy_sources(project::cache& cache,
                                       modeling&       mod,
                                       simulation&     sim) noexcept
 {
-    sim.srcs.clear();
+    (void)cache;
+    (void)mod;
+    (void)sim;
 
-    if (mod.srcs.constant_sources.can_alloc(
-          mod.srcs.constant_sources.capacity())) {
-        sim.srcs.constant_sources.reserve(mod.srcs.constant_sources.capacity());
-        if (not sim.srcs.constant_sources.can_alloc(
-              mod.srcs.constant_sources.capacity()))
-            return new_error(external_source::part::constant_source);
-    }
+    // sim.srcs.clear();
 
-    if (mod.srcs.binary_file_sources.can_alloc(
-          mod.srcs.binary_file_sources.capacity())) {
-        sim.srcs.binary_file_sources.reserve(mod.srcs.binary_file_sources.capacity());
-        if (not sim.srcs.binary_file_sources.can_alloc(
-              mod.srcs.binary_file_sources.capacity()))
-            return new_error(external_source::part::binary_file_source);
-    }
+    // if (mod.srcs.constant_sources.can_alloc(
+    //       mod.srcs.constant_sources.capacity())) {
+    //     sim.srcs.constant_sources.reserve(mod.srcs.constant_sources.capacity());
+    //     if (not sim.srcs.constant_sources.can_alloc(
+    //           mod.srcs.constant_sources.capacity()))
+    //         return new_error(external_source::part::constant_source);
+    // }
 
-    if (mod.srcs.text_file_sources.can_alloc(
-          mod.srcs.text_file_sources.capacity())) {
-        sim.srcs.text_file_sources.reserve(mod.srcs.text_file_sources.capacity());
-        if (not sim.srcs.text_file_sources.can_alloc(
-              mod.srcs.text_file_sources.capacity()))
-            return new_error(external_source::part::text_file_source);
-    }
+    // if (mod.srcs.binary_file_sources.can_alloc(
+    //       mod.srcs.binary_file_sources.capacity())) {
+    //     sim.srcs.binary_file_sources.reserve(mod.srcs.binary_file_sources.capacity());
+    //     if (not sim.srcs.binary_file_sources.can_alloc(
+    //           mod.srcs.binary_file_sources.capacity()))
+    //         return new_error(external_source::part::binary_file_source);
+    // }
 
-    if (mod.srcs.random_sources.can_alloc(
-          mod.srcs.random_sources.capacity())) {
-        sim.srcs.random_sources.reserve(mod.srcs.random_sources.capacity());
-        if (not sim.srcs.random_sources.can_alloc(
-              mod.srcs.random_sources.capacity()))
-            return new_error(external_source::part::random_source);
-    }
+    // if (mod.srcs.text_file_sources.can_alloc(
+    //       mod.srcs.text_file_sources.capacity())) {
+    //     sim.srcs.text_file_sources.reserve(mod.srcs.text_file_sources.capacity());
+    //     if (not sim.srcs.text_file_sources.can_alloc(
+    //           mod.srcs.text_file_sources.capacity()))
+    //         return new_error(external_source::part::text_file_source);
+    // }
 
-    {
-        constant_source* src = nullptr;
-        while (mod.srcs.constant_sources.next(src)) {
-            auto& n_src    = mod.srcs.constant_sources.alloc(*src);
-            auto  src_id   = mod.srcs.constant_sources.get_id(*src);
-            auto  n_src_id = mod.srcs.constant_sources.get_id(n_src);
-            cache.constants.data.emplace_back(ordinal(src_id), n_src_id);
-        }
+    // if (mod.srcs.random_sources.can_alloc(
+    //       mod.srcs.random_sources.capacity())) {
+    //     sim.srcs.random_sources.reserve(mod.srcs.random_sources.capacity());
+    //     if (not sim.srcs.random_sources.can_alloc(
+    //           mod.srcs.random_sources.capacity()))
+    //         return new_error(external_source::part::random_source);
+    // }
 
-        cache.constants.sort();
-    }
+    //{
+    //    constant_source* src = nullptr;
+    //    while (mod.srcs.constant_sources.next(src)) {
+    //        auto& n_src    = mod.srcs.constant_sources.alloc(*src);
+    //        auto  src_id   = mod.srcs.constant_sources.get_id(*src);
+    //        auto  n_src_id = mod.srcs.constant_sources.get_id(n_src);
+    //        cache.constants.data.emplace_back(ordinal(src_id), n_src_id);
+    //    }
 
-    {
-        binary_file_source* src = nullptr;
-        while (mod.srcs.binary_file_sources.next(src)) {
-            auto& n_src    = mod.srcs.binary_file_sources.alloc(*src);
-            auto  src_id   = mod.srcs.binary_file_sources.get_id(*src);
-            auto  n_src_id = mod.srcs.binary_file_sources.get_id(n_src);
-            cache.binary_files.data.emplace_back(ordinal(src_id), n_src_id);
-        }
+    //    cache.constants.sort();
+    //}
 
-        cache.binary_files.sort();
-    }
+    //{
+    //    binary_file_source* src = nullptr;
+    //    while (mod.srcs.binary_file_sources.next(src)) {
+    //        auto& n_src    = mod.srcs.binary_file_sources.alloc(*src);
+    //        auto  src_id   = mod.srcs.binary_file_sources.get_id(*src);
+    //        auto  n_src_id = mod.srcs.binary_file_sources.get_id(n_src);
+    //        cache.binary_files.data.emplace_back(ordinal(src_id), n_src_id);
+    //    }
 
-    {
-        text_file_source* src = nullptr;
-        while (mod.srcs.text_file_sources.next(src)) {
-            auto& n_src    = mod.srcs.text_file_sources.alloc(*src);
-            auto  src_id   = mod.srcs.text_file_sources.get_id(*src);
-            auto  n_src_id = mod.srcs.text_file_sources.get_id(n_src);
-            cache.text_files.data.emplace_back(ordinal(src_id), n_src_id);
-        }
+    //    cache.binary_files.sort();
+    //}
 
-        cache.text_files.sort();
-    }
+    //{
+    //    text_file_source* src = nullptr;
+    //    while (mod.srcs.text_file_sources.next(src)) {
+    //        auto& n_src    = mod.srcs.text_file_sources.alloc(*src);
+    //        auto  src_id   = mod.srcs.text_file_sources.get_id(*src);
+    //        auto  n_src_id = mod.srcs.text_file_sources.get_id(n_src);
+    //        cache.text_files.data.emplace_back(ordinal(src_id), n_src_id);
+    //    }
 
-    {
-        random_source* src = nullptr;
-        while (mod.srcs.random_sources.next(src)) {
-            auto& n_src    = mod.srcs.random_sources.alloc(*src);
-            auto  src_id   = mod.srcs.random_sources.get_id(*src);
-            auto  n_src_id = mod.srcs.random_sources.get_id(n_src);
-            cache.randoms.data.emplace_back(ordinal(src_id), n_src_id);
-        }
+    //    cache.text_files.sort();
+    //}
 
-        cache.randoms.sort();
-    }
+    //{
+    //    random_source* src = nullptr;
+    //    while (mod.srcs.random_sources.next(src)) {
+    //        auto& n_src    = mod.srcs.random_sources.alloc(*src);
+    //        auto  src_id   = mod.srcs.random_sources.get_id(*src);
+    //        auto  n_src_id = mod.srcs.random_sources.get_id(n_src);
+    //        cache.randoms.data.emplace_back(ordinal(src_id), n_src_id);
+    //    }
+
+    //    cache.randoms.sort();
+    //}
 
     return success();
 }

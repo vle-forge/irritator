@@ -91,6 +91,18 @@ enum class simulation_status {
 
 enum class simulation_plot_type { none, plotlines, plotscatters };
 
+/** Display ComboBox to select a file (not `.irt` or `.txt` from the component
+ * @c compo directory @c compo::dir.
+ * @return True if the file path si selected.*/
+auto show_data_file_input(const modeling&  mod,
+                          const component& compo,
+                          file_path_id&    id) noexcept -> bool;
+
+/** Display combobox and input real, input integer for each type of random
+ * distribution. The @c random_source @c src is updated according to user
+ * selection */
+void show_random_distribution_input(random_source& src) noexcept;
+
 void show_menu_external_sources(external_source& srcs,
                                 const char*      title,
                                 source&          src) noexcept;

@@ -3798,13 +3798,13 @@ struct json_dearchiver::impl {
               if ("name"sv == name)
                   return read_temp_string(value) && copy_to(compo.name);
               if ("constant-sources"sv == name)
-                  return read_constant_sources(value, mod().srcs);
+                  return read_constant_sources(value, compo.srcs);
               if ("binary-file-sources"sv == name)
-                  return read_binary_file_sources(value, mod().srcs);
+                  return read_binary_file_sources(value, compo.srcs);
               if ("text-file-sources"sv == name)
-                  return read_text_file_sources(value, mod().srcs);
+                  return read_text_file_sources(value, compo.srcs);
               if ("random-sources"sv == name)
-                  return read_random_sources(value, mod().srcs);
+                  return read_random_sources(value, compo.srcs);
               if ("x"sv == name)
                   return read_ports(value, compo.x);
               if ("y"sv == name)
@@ -6320,10 +6320,10 @@ struct json_archiver::impl {
         w.Key("name");
         w.String(compo.name.c_str());
 
-        write_constant_sources(mod.srcs, w);
-        write_binary_file_sources(mod.srcs, w);
-        write_text_file_sources(mod.srcs, w);
-        write_random_sources(mod.srcs, w);
+        write_constant_sources(compo.srcs, w);
+        write_binary_file_sources(compo.srcs, w);
+        write_text_file_sources(compo.srcs, w);
+        write_random_sources(compo.srcs, w);
 
         w.Key("colors");
         w.StartArray();

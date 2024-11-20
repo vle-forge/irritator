@@ -88,7 +88,7 @@ static void simulation_copy(application& app) noexcept
     attempt_all(
       [&]() noexcept -> status {
           irt_check(app.pj.set(app.mod, app.sim, *compo));
-          irt_check(app.mod.srcs.prepare());
+          irt_check(app.sim.srcs.prepare());
           app.sim.t = app.simulation_ed.simulation_begin;
           irt_check(app.sim.initialize());
           app.simulation_ed.simulation_state = simulation_status::initialized;
@@ -131,7 +131,7 @@ static void simulation_init(application& app) noexcept
           app.simulation_ed.simulation_display_current = app.sim.t;
 
           irt_check(simulation_init_observation(app));
-          irt_check(app.mod.srcs.prepare());
+          irt_check(app.sim.srcs.prepare());
           irt_check(app.sim.initialize());
           app.simulation_ed.simulation_state = simulation_status::initialized;
           return success();

@@ -876,10 +876,13 @@ static bool show_parameter_editor(application& app,
         is_changed    = true;
     }
 
-    if (show_external_sources_combo(
-          app.mod.srcs, "time", p.integers[1], p.integers[2])) {
-        is_changed = true;
-    }
+    debug::breakpoint(); /* Here, we need to get the component external source
+                            list or the simulation source list. */
+
+    // if (show_external_sources_combo(
+    //       app.mod.srcs, "time", p.integers[1], p.integers[2])) {
+    //     is_changed = true;
+    // }
 
     return is_changed;
 }
@@ -896,10 +899,13 @@ static bool show_parameter_editor(application& app,
         is_changed    = true;
     }
 
-    if (show_external_sources_combo(
-          app.mod.srcs, "time", p.integers[1], p.integers[2])) {
-        is_changed = true;
-    }
+    debug::breakpoint(); /* Here, we need to get the component external source
+                    list or the simulation source list. */
+
+    // if (show_external_sources_combo(
+    //       app.mod.srcs, "time", p.integers[1], p.integers[2])) {
+    //     is_changed = true;
+    // }
 
     return is_changed;
 }
@@ -950,9 +956,12 @@ static bool show_parameter_editor(application& app,
     if (flags[generator::option::ta_use_source]) {
         auto stop_on_error = flags[generator::option::stop_on_error];
 
-        if (show_external_sources_combo(
-              app.mod.srcs, "time", p.integers[1], p.integers[2]))
-            is_changed = true;
+        debug::breakpoint(); /* Here, we need to get the component external
+                    source list or the simulation source list. */
+
+        // if (show_external_sources_combo(
+        //       app.mod.srcs, "time", p.integers[1], p.integers[2]))
+        //     is_changed = true;
 
         if (ImGui::InputReal("offset", &p.reals[0])) {
             p.reals[0] = p.reals[0] < 0.0 ? 0.0 : p.reals[0];
@@ -970,10 +979,13 @@ static bool show_parameter_editor(application& app,
           "empty or undefined. Checked, the simulation will stop.");
     }
 
-    if (flags[generator::option::value_use_source])
-        if (show_external_sources_combo(
-              app.mod.srcs, "source", p.integers[3], p.integers[4]))
-            is_changed = true;
+    debug::breakpoint(); /* Here, we need to get the component external source
+                    list or the simulation source list. */
+
+    // if (flags[generator::option::value_use_source])
+    //     if (show_external_sources_combo(
+    //           app.mod.srcs, "source", p.integers[3], p.integers[4]))
+    //         is_changed = true;
 
     return is_changed;
 }
@@ -1574,10 +1586,13 @@ bool show_parameter(dynamics_priority_queue_tag,
         is_changed    = true;
     }
 
-    if (show_external_sources_combo(
-          app.mod.srcs, "time", p.integers[1], p.integers[2])) {
-        is_changed = true;
-    }
+    debug::breakpoint(); /* Here, we need to get the component external source
+                    list or the simulation source list. */
+
+    // if (show_external_sources_combo(
+    //       app.mod.srcs, "time", p.integers[1], p.integers[2])) {
+    //     is_changed = true;
+    // }
 
     return is_changed;
 }
@@ -1628,9 +1643,12 @@ bool show_parameter(dynamics_generator_tag,
     if (flags[generator::option::ta_use_source]) {
         auto stop_on_error = flags[generator::option::stop_on_error];
 
-        if (show_external_sources_combo(
-              app.mod.srcs, "time", p.integers[1], p.integers[2]))
-            is_changed = true;
+        debug::breakpoint(); /* Here, we need to get the component external
+                    source list or the simulation source list. */
+
+        // if (show_external_sources_combo(
+        //       app.mod.srcs, "time", p.integers[1], p.integers[2]))
+        //     is_changed = true;
 
         if (ImGui::InputReal("offset", &p.reals[0])) {
             p.reals[0] = p.reals[0] < 0.0 ? 0.0 : p.reals[0];
@@ -1648,10 +1666,13 @@ bool show_parameter(dynamics_generator_tag,
           "empty or undefined. Checked, the simulation will stop.");
     }
 
-    if (flags[generator::option::value_use_source])
-        if (show_external_sources_combo(
-              app.mod.srcs, "source", p.integers[3], p.integers[4]))
-            is_changed = true;
+    debug::breakpoint(); /* Here, we need to get the component external
+                 source list or the simulation source list. */
+
+    // if (flags[generator::option::value_use_source])
+    //     if (show_external_sources_combo(
+    //           app.mod.srcs, "source", p.integers[3], p.integers[4]))
+    //         is_changed = true;
 
     return is_changed;
 }

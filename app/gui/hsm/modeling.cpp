@@ -930,11 +930,14 @@ void hsm_component_editor_data::show_panel(application&   app,
             hsm.machine.flags.set(hsm_t::option::use_source,
                                   hsm.machine.compute_is_using_source());
 
-        if (hsm.machine.flags[hsm_t::option::use_source]) {
-            show_combobox_external_sources(app.mod.srcs, hsm.src);
-        } else {
-            ImGui::TextDisabled("HSM does not use external source");
-        }
+        debug::breakpoint(); /* We need to get the component external sources
+                                list. */
+
+        // if (hsm.machine.flags[hsm_t::option::use_source]) {
+        //     show_combobox_external_sources(app.mod.srcs, hsm.src);
+        // } else {
+        //     ImGui::TextDisabled("HSM does not use external source");
+        // }
     }
 
     if (ImGui::CollapsingHeader("selected states",

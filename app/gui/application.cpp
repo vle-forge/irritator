@@ -1008,7 +1008,7 @@ void application::start_init_source(const u64                 id,
 
         attempt_all(
           [&]() noexcept -> status {
-              if (mod.srcs.dispatch(src, source::operation_type::initialize)) {
+              if (sim.srcs.dispatch(src, source::operation_type::initialize)) {
                   data_ed.plot.clear();
                   for (sz i = 0, e = src.buffer.size(); i != e; ++i)
                       data_ed.plot.push_back(
@@ -1016,7 +1016,7 @@ void application::start_init_source(const u64                 id,
                                 static_cast<float>(src.buffer[i]) });
                   data_ed.plot_available = true;
 
-                  if (!mod.srcs.prepare())
+                  if (!sim.srcs.prepare())
                       notifications.try_insert(
                         log_level::error, [](auto& title, auto& msg) noexcept {
                             title = "Data error";

@@ -793,6 +793,12 @@ status external_source::dispatch(source&                      src,
     unreachable();
 }
 
+external_source::external_source(
+    const external_source_memory_requirement& init) noexcept
+{
+    realloc(init);
+}
+
 void external_source::clear() noexcept
 {
     constant_sources.clear();
@@ -807,19 +813,12 @@ void external_source::destroy() noexcept
     binary_file_sources.destroy();
     text_file_sources.destroy();
     random_sources.destroy();
-
-    if (shared.head())
-        alloc.deallocate_bytes(shared.head(), shared.capacity());
-
-    shared.destroy();
 }
 
 void external_source::realloc(
   const external_source_memory_requirement& init) noexcept
 {
     destroy();
-
-    shared.reset(alloc.allocate_bytes(init.bytes), init.bytes);
 
     if (init.constant_nb > 0)
         constant_sources.reserve(init.constant_nb);
@@ -832,35 +831,6 @@ void external_source::realloc(
 
     if (init.random_nb > 0)
         random_sources.reserve(init.random_nb);
-}
-
-external_source::external_source() noexcept
-  : external_source(get_malloc_memory_resource())
-{}
-
-external_source::external_source(memory_resource* mem) noexcept
-  : alloc(mem)
-  , constant_sources(&shared)
-  , binary_file_sources(&shared)
-  , text_file_sources(&shared)
-  , random_sources(&shared)
-{}
-
-external_source::external_source(
-  const external_source_memory_requirement& init) noexcept
-  : external_source(get_malloc_memory_resource(), init)
-{}
-
-external_source::external_source(
-  memory_resource*                          mem,
-  const external_source_memory_requirement& init) noexcept
-  : alloc(mem)
-  , constant_sources(&shared)
-  , binary_file_sources(&shared)
-  , text_file_sources(&shared)
-  , random_sources(&shared)
-{
-    realloc(init);
 }
 
 external_source::~external_source() noexcept { destroy(); }
