@@ -736,8 +736,7 @@ struct data_window {
     data_window() noexcept;
     ~data_window() noexcept;
 
-    void show_widgets() noexcept;
-    void show() noexcept;
+    void show(project_window& ed) noexcept;
 
     ImVector<ImVec2> plot;
 

@@ -3910,9 +3910,9 @@ struct json_dearchiver::impl {
               if ("constant-sources"sv == name)
                   return read_constant_sources(value, compo.srcs);
               if ("binary-file-sources"sv == name)
-                  return read_binary_file_sources(value, compo);
+                  return read_binary_file_sources(value, compo.srcs);
               if ("text-file-sources"sv == name)
-                  return read_text_file_sources(value, compo);
+                  return read_text_file_sources(value, compo.srcs);
               if ("random-sources"sv == name)
                   return read_random_sources(value, compo.srcs);
               if ("x"sv == name)

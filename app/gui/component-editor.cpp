@@ -79,7 +79,9 @@ static bool is_valid_irt_filename(std::string_view v) noexcept
 
 template<typename T>
 concept has_store_function = requires(T t, component_editor& ed) {
-    { t.store(ed) } -> std::same_as<void>;
+    {
+        t.store(ed)
+    } -> std::same_as<void>;
 };
 
 struct component_editor::impl {
@@ -127,6 +129,7 @@ struct component_editor::impl {
 
         if (ImGui::TreeNode("Constants")) {
             static decltype(constant_source::name) name_tmp;
+            static bool                            edit = false;
 
             for (auto& s : compo.srcs.constant_sources) {
                 const auto id = compo.srcs.constant_sources.get_id(s);
@@ -143,6 +146,7 @@ struct component_editor::impl {
                     if (ImGui::Button("Edit")) {
                         ImGui::OpenPopup("Change constant values");
                         name_tmp = s.name;
+                        edit     = true;
                     }
 
                     ImVec2 center = ImGui::GetMainViewport()->GetCenter();
@@ -198,6 +202,7 @@ struct component_editor::impl {
                         ImGui::EndChild();
 
                         if (ImGui::Button("OK", ImVec2(120, 0))) {
+                            edit   = false;
                             s.name = name_tmp;
                             ImGui::CloseCurrentPopup();
                         }
@@ -214,6 +219,7 @@ struct component_editor::impl {
         }
         if (ImGui::TreeNode("Binary files")) {
             static decltype(constant_source::name) name_tmp;
+            static bool                            edit = false;
 
             for (auto& s : compo.srcs.binary_file_sources) {
                 const auto id = compo.srcs.binary_file_sources.get_id(s);
@@ -227,6 +233,7 @@ struct component_editor::impl {
                     if (ImGui::Button("Edit")) {
                         ImGui::OpenPopup("Change binary values");
                         name_tmp = s.name;
+                        edit     = true;
                     }
 
                     ImVec2 center = ImGui::GetMainViewport()->GetCenter();
@@ -242,6 +249,7 @@ struct component_editor::impl {
                         show_data_file_input(app.mod, compo, s.file_id);
 
                         if (ImGui::Button("OK", ImVec2(120, 0))) {
+                            edit   = false;
                             s.name = name_tmp;
                             ImGui::CloseCurrentPopup();
                         }
@@ -258,6 +266,7 @@ struct component_editor::impl {
         }
         if (ImGui::TreeNode("Text files")) {
             static decltype(constant_source::name) name_tmp;
+            static bool                            edit = false;
 
             for (auto& s : compo.srcs.text_file_sources) {
                 const auto id = compo.srcs.text_file_sources.get_id(s);
@@ -271,6 +280,7 @@ struct component_editor::impl {
                     if (ImGui::Button("Edit")) {
                         ImGui::OpenPopup("Change binary values");
                         name_tmp = s.name;
+                        edit     = true;
                     }
 
                     ImVec2 center = ImGui::GetMainViewport()->GetCenter();
@@ -286,6 +296,7 @@ struct component_editor::impl {
                         show_data_file_input(app.mod, compo, s.file_id);
 
                         if (ImGui::Button("OK", ImVec2(120, 0))) {
+                            edit   = false;
                             s.name = name_tmp;
                             ImGui::CloseCurrentPopup();
                         }
@@ -302,6 +313,7 @@ struct component_editor::impl {
         }
         if (ImGui::TreeNode("Random")) {
             static decltype(constant_source::name) name_tmp;
+            static bool                            edit = false;
 
             for (auto& s : compo.srcs.random_sources) {
                 const auto id = compo.srcs.random_sources.get_id(s);
@@ -317,6 +329,7 @@ struct component_editor::impl {
                     if (ImGui::Button("Edit")) {
                         ImGui::OpenPopup("Change constant values");
                         name_tmp = s.name;
+                        edit     = true;
                     }
 
                     ImVec2 center = ImGui::GetMainViewport()->GetCenter();
@@ -332,6 +345,7 @@ struct component_editor::impl {
                         show_random_distribution_input(s);
 
                         if (ImGui::Button("OK", ImVec2(120, 0))) {
+                            edit   = false;
                             s.name = name_tmp;
                             ImGui::CloseCurrentPopup();
                         }

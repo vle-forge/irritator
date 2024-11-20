@@ -1262,6 +1262,11 @@ void project_window::show(application& app) noexcept
                 ImGui::EndTabItem();
             }
 
+            if (ImGui::BeginTabItem("Input data")) {
+                app.data_ed.show(*this);
+                ImGui::EndTabItem();
+            }
+
             ImGui::EndTabBar();
         }
 

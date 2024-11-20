@@ -453,9 +453,6 @@ static void application_show_windows(application& app) noexcept
     if (app.output_ed.is_open)
         app.output_ed.show();
 
-    if (app.data_ed.is_open)
-        app.data_ed.show();
-
     if (app.log_wnd.is_open)
         app.log_wnd.show();
 
