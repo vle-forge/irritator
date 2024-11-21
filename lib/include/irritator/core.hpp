@@ -1062,9 +1062,6 @@ public:
 
     constexpr scheduller() = default;
 
-    constexpr scheduller(memory_resource* mem) noexcept
-        requires(!std::is_empty_v<A>);
-
     bool reserve(std::integral auto new_capacity) noexcept;
     void clear() noexcept;
     void destroy() noexcept;
@@ -1111,7 +1108,7 @@ public:
        Remove all @c node with the same @c tn from the tree of the heap. The @c
        node can be reuse with the @c reintegrate() function.
      */
-    void pop(vector<model_id, freelist_allocator>& out) noexcept;
+    void pop(vector<model_id>& out) noexcept;
 
     /** Returns the top event @c time-next in the heap. */
     time tn() const noexcept;
@@ -1149,30 +1146,19 @@ public:
 
     struct model_error {};
 
-    mr_allocator<memory_resource> m_alloc;
+    vector<output_message> emitting_output_ports;
+    vector<model_id>       immediate_models;
+    vector<observer_id>    immediate_observers;
 
-    freelist_memory_resource shared;
-    freelist_memory_resource nodes_alloc;
-    freelist_memory_resource dated_messages_alloc;
+    data_array<model, model_id>                      models;
+    data_array<hierarchical_state_machine, hsm_id>   hsms;
+    data_array<observer, observer_id>                observers;
+    data_array<vector<node>, node_id>                nodes;
+    data_array<small_vector<message, 8>, message_id> messages;
 
-    vector<output_message, freelist_allocator> emitting_output_ports;
-    vector<model_id, freelist_allocator>       immediate_models;
-    vector<observer_id, freelist_allocator>    immediate_observers;
+    data_array<ring_buffer<dated_message>, dated_message_id> dated_messages;
 
-    data_array<model, model_id, freelist_allocator>                    models;
-    data_array<hierarchical_state_machine, hsm_id, freelist_allocator> hsms;
-    data_array<observer, observer_id, freelist_allocator> observers;
-    data_array<vector<node, freelist_allocator>, node_id, freelist_allocator>
-      nodes;
-    data_array<small_vector<message, 8>, message_id, freelist_allocator>
-      messages;
-
-    data_array<ring_buffer<dated_message, freelist_allocator>,
-               dated_message_id,
-               freelist_allocator>
-      dated_messages;
-
-    scheduller<freelist_allocator> sched;
+    scheduller<> sched;
 
     external_source srcs;
 
@@ -1200,14 +1186,6 @@ public:
     //! Use the default malloc memory resource to allocate all memory need
     //! by sub-containers.
     simulation(const simulation_memory_requirement& init) noexcept;
-
-    //! Use the memory resource to allocate all memory need by
-    //! sub-containers. This constructor alloc to allocate in heap or in
-    //! stack for example.
-    //!
-    //! @param mem Must be no-null.
-    simulation(memory_resource*                     mem,
-               const simulation_memory_requirement& init) noexcept;
 
     /** Call the @C destroy function to free allocated memory */
     ~simulation() noexcept;
@@ -5547,12 +5525,6 @@ constexpr void heap<A>::detach_subheap(handle elem) noexcept
 //
 
 template<typename A>
-constexpr scheduller<A>::scheduller(memory_resource* mem) noexcept
-    requires(!std::is_empty_v<A>)
-  : m_heap{ mem }
-{}
-
-template<typename A>
 inline bool scheduller<A>::reserve(std::integral auto new_capacity) noexcept
 {
     return m_heap.reserve(new_capacity);
@@ -5639,8 +5611,7 @@ inline void scheduller<A>::increase(model& mdl, time tn) noexcept
 }
 
 template<typename A>
-inline void scheduller<A>::pop(
-  vector<model_id, freelist_allocator>& out) noexcept
+inline void scheduller<A>::pop(vector<model_id>& out) noexcept
 {
     time t = tn();
 
@@ -5693,23 +5664,6 @@ inline int scheduller<A>::ssize() const noexcept
 
 inline simulation::simulation(
   const simulation_memory_requirement& init) noexcept
-  : simulation::simulation(get_malloc_memory_resource(), init)
-{}
-
-inline simulation::simulation(
-  memory_resource*                     mem,
-  const simulation_memory_requirement& init) noexcept
-  : m_alloc(mem)
-  , emitting_output_ports(&shared)
-  , immediate_models(&shared)
-  , immediate_observers(&shared)
-  , models(&shared)
-  , hsms(&shared)
-  , observers(&shared)
-  , nodes(&shared)
-  , messages(&shared)
-  , dated_messages(&shared)
-  , sched(&shared)
 {
     do_realloc(init);
 }
@@ -5719,12 +5673,6 @@ inline void simulation::do_realloc(
 {
     debug::ensure(init.valid());
     destroy();
-
-    shared.reset(m_alloc.allocate_bytes(init.simulation_b), init.simulation_b);
-    nodes_alloc.reset(m_alloc.allocate_bytes(init.connections_b),
-                      init.connections_b);
-    dated_messages_alloc.reset(m_alloc.allocate_bytes(init.dated_messages_b),
-                               init.dated_messages_b);
 
     if (init.model_nb > 0) {
         models.reserve(init.model_nb);
@@ -5765,21 +5713,6 @@ inline void simulation::destroy() noexcept
     immediate_observers.destroy();
     sched.destroy();
     hsms.destroy();
-    srcs.destroy();
-
-    if (nodes_alloc.head())
-        m_alloc.deallocate_bytes(nodes_alloc.head(), nodes_alloc.capacity());
-
-    if (dated_messages_alloc.head())
-        m_alloc.deallocate_bytes(dated_messages_alloc.head(),
-                                 dated_messages_alloc.capacity());
-
-    if (shared.head())
-        m_alloc.deallocate_bytes(shared.head(), shared.capacity());
-
-    nodes_alloc.destroy();
-    dated_messages_alloc.destroy();
-    shared.destroy();
     srcs.destroy();
 }
 
@@ -6423,36 +6356,36 @@ inline status global_connect(simulation& sim,
                              model_id    dst,
                              int         port_dst) noexcept
 {
-    return dispatch(
-      src,
-      [&sim, port_src, dst, port_dst]<typename Dynamics>(
-        Dynamics& dyn) -> status {
-          if constexpr (has_output_port<Dynamics>) {
-              auto* list = sim.nodes.try_to_get(dyn.y[port_src]);
+    return dispatch(src,
+                    [&sim, port_src, dst, port_dst]<typename Dynamics>(
+                      Dynamics& dyn) -> status {
+                        if constexpr (has_output_port<Dynamics>) {
+                            auto* list = sim.nodes.try_to_get(dyn.y[port_src]);
 
-              if (not list) {
-                  auto& new_node  = sim.nodes.alloc(&sim.nodes_alloc, 4);
-                  dyn.y[port_src] = sim.nodes.get_id(new_node);
-                  list            = &new_node;
-              }
+                            if (not list) {
+                                auto& new_node  = sim.nodes.alloc(4);
+                                dyn.y[port_src] = sim.nodes.get_id(new_node);
+                                list            = &new_node;
+                            }
 
-              for (const auto& elem : *list) {
-                  if (elem.model == dst && elem.port_index == port_dst)
-                      return new_error(simulation::part::nodes,
-                                       already_exist_error{});
-              }
+                            for (const auto& elem : *list) {
+                                if (elem.model == dst &&
+                                    elem.port_index == port_dst)
+                                    return new_error(simulation::part::nodes,
+                                                     already_exist_error{});
+                            }
 
-              // if (not list->can_alloc(1))
-              //     return new_error(simulation::part::nodes,
-              //                      container_full_error{});
+                            // if (not list->can_alloc(1))
+                            //     return new_error(simulation::part::nodes,
+                            //                      container_full_error{});
 
-              list->emplace_back(dst, static_cast<i8>(port_dst));
+                            list->emplace_back(dst, static_cast<i8>(port_dst));
 
-              return success();
-          }
+                            return success();
+                        }
 
-          unreachable();
-      });
+                        unreachable();
+                    });
 }
 
 inline status global_disconnect(simulation& sim,
@@ -6777,19 +6710,16 @@ inline constexpr bool simulation_memory_requirement::valid() const noexcept
 inline constexpr size_t simulation_memory_requirement::estimate_model() noexcept
 {
     return sizeof(output_message) + sizeof(model_id) + sizeof(observer_id) +
-           sizeof(data_array<model, model_id, freelist_allocator>::
+           sizeof(data_array<model, model_id>::internal_value_type) +
+           sizeof(data_array<observer, observer_id>::internal_value_type) +
+           sizeof(data_array<vector<node>, node_id, freelist_allocator>::
                     internal_value_type) +
-           sizeof(data_array<observer, observer_id, freelist_allocator>::
-                    internal_value_type) +
-           sizeof(data_array<vector<node, freelist_allocator>,
-                             node_id,
-                             freelist_allocator>::internal_value_type) +
            sizeof(node) * 8 +
            sizeof(data_array<small_vector<message, 8>,
                              message_id,
                              freelist_allocator>::internal_value_type) *
-             8 +
-           sizeof(data_array<ring_buffer<dated_message, freelist_allocator>,
+             4 +
+           sizeof(data_array<ring_buffer<dated_message>,
                              dated_message_id,
                              freelist_allocator>::internal_value_type) +
            sizeof(heap<mr_allocator<freelist_memory_resource>>::node);
@@ -6845,8 +6775,8 @@ inline constexpr external_source_memory_requirement::
                          freelist_allocator>::internal_value_type) +
        (sizeof(chunk_type) + sizeof(u64)) * bin_f_max_client) *
         bin_f +
-      (sizeof(data_array<random_source, random_source_id, freelist_allocator>::
-                internal_value_type) +
+      (sizeof(
+         data_array<random_source, random_source_id>::internal_value_type) +
        (sizeof(chunk_type) + sizeof(u64) * 4) * random_max_client) *
         random;
 
