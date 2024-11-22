@@ -3816,6 +3816,9 @@ public:
     //! variable::source.
     bool compute_is_using_source() const noexcept;
 
+    //! Return the biggest state index used in the HSM.
+    int compute_max_state_used() const noexcept;
+
     /** @c constants array are real and can be use in the @c state_action or @c
      * condition_action to perform easy initilization and quick test. */
     std::array<real, 8> constants;

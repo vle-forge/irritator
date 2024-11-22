@@ -284,6 +284,21 @@ auto hierarchical_state_machine::compute_is_using_source() const noexcept
     return false;
 }
 
+int hierarchical_state_machine::compute_max_state_used() const noexcept
+{
+    int biggest = 0;
+
+    for (auto i = 0, e = length(states); i != e; ++i)
+        if (not all_equal(hierarchical_state_machine::invalid_state_id,
+                          states[i].if_transition,
+                          states[i].else_transition,
+                          states[i].super_id,
+                          states[i].sub_id))
+            biggest = i;
+
+    return biggest;
+}
+
 bool hierarchical_state_machine::is_dispatching(execution& exec) const noexcept
 {
     return exec.current_source_state != invalid_state_id;

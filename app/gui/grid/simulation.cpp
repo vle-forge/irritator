@@ -236,15 +236,26 @@ bool show_local_observers(application& app,
               }
 
               ImGui::TableNextColumn();
-              show_select_model_box(
-                "Select model", "Choose model to observe", app, tn, grid);
+              if (show_select_model_box(
+                    "Select model", "Choose model to observe", app, tn, grid)) {
+                  if (auto* mdl = app.sim.models.try_to_get(grid.mdl_id); mdl) {
+                      if (mdl->type == dynamics_type::hsm_wrapper) {
+                          if (auto* hsm =
+                                app.sim.hsms.try_to_get(enum_cast<hsm_id>(
+                                  get_dyn<hsm_wrapper>(*mdl).id));
+                              hsm) {
+                              grid.scale_min = 0.f;
+                              grid.scale_max = (float)hsm->compute_max_state_used();
+                          }
+                      }
+                  }
+              }
 
-              if_data_exists_do(
-                app.sim.models, grid.mdl_id, [&](auto& mdl) noexcept {
-                    ImGui::SameLine();
-                    ImGui::TextUnformatted(
-                      dynamics_type_names[ordinal(mdl.type)]);
-                });
+              if (auto* mdl = app.sim.models.try_to_get(grid.mdl_id); mdl) {
+                  ImGui::SameLine();
+                  ImGui::TextUnformatted(
+                    dynamics_type_names[ordinal(mdl->type)]);
+              }
 
               ImGui::TableNextColumn();
 
