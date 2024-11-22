@@ -122,7 +122,6 @@ static bool show_project_simulation_settings(application& app) noexcept
     auto  up     = 0;
 
     up += ImGui::InputReal("Begin", &sim_ed.simulation_begin);
-
     ImGui::BeginDisabled(sim_ed.infinity_simulation);
     up += ImGui::InputReal("End", &sim_ed.simulation_end);
     ImGui::EndDisabled();
@@ -152,7 +151,7 @@ static bool show_project_simulation_settings(application& app) noexcept
             if (value > 1) {
                 sim_ed.simulation_task_duration =
                   std::chrono::milliseconds(value);
-                up = true;
+                ++up;
             }
         }
         ImGui::SameLine();
@@ -160,6 +159,7 @@ static bool show_project_simulation_settings(application& app) noexcept
                    "value may increase CPU load.");
     }
 
+    ImGui::BeginDisabled(sim_ed.is_simulation_running());
     up += ImGui::Checkbox("Enable live edition", &sim_ed.allow_user_changes);
     if (ImGui::Checkbox("Store simulation", &sim_ed.store_all_changes)) {
         ++up;
@@ -171,6 +171,7 @@ static bool show_project_simulation_settings(application& app) noexcept
 
     up += ImGui::Checkbox("No time limit", &sim_ed.infinity_simulation);
     up += ImGui::Checkbox("Real time", &sim_ed.real_time);
+    ImGui::EndDisabled();
 
     ImGui::LabelFormat("time", "{:.6f}", sim_ed.simulation_display_current);
     ImGui::SameLine();
