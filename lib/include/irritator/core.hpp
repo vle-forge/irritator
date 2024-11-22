@@ -6150,8 +6150,19 @@ inline status hsm_wrapper::transition(simulation& sim,
         switch (machine->states[exec.current_state].condition.type) {
         case irt::hierarchical_state_machine::condition_type::sigma:
             exec.timer = r;
-            irt_check(machine->dispatch(
-              hierarchical_state_machine::event_type::wake_up, exec, sim.srcs));
+            if (r == 0.0) {
+                irt_check(machine->dispatch(
+                  hierarchical_state_machine::event_type::wake_up,
+                  exec,
+                  sim.srcs));
+            } else {
+                debug::ensure(exec.values.any());
+
+                irt_check(machine->dispatch(
+                  hierarchical_state_machine::event_type::input_changed,
+                  exec,
+                  sim.srcs));
+            }
             break;
 
         case irt::hierarchical_state_machine::condition_type::port:
