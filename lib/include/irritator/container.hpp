@@ -124,6 +124,40 @@ using small_storage_size_t = std::conditional_t<
                          uint64_t,
                          size_t>>>>;
 
+template<class T, class M>
+constexpr std::ptrdiff_t offset_of(const M T::* member)
+{
+    return reinterpret_cast<std::ptrdiff_t>(
+      &(reinterpret_cast<T*>(0)->*member));
+}
+
+//! A helper function to get a pointer to the parent container from a member.
+//! @code
+//! struct point { float x; float y; };
+//! struct line { point p1, p2; };
+//! ...
+//! line l;
+//! ..
+//!
+//! void fn(point& p) {
+//!     line& ptr = container_of(&p, &line::p1);
+//!     ...
+//! }
+//! @endcode
+template<class T, class M>
+constexpr T& container_of(M* ptr, const M T::* member) noexcept
+{
+    return *reinterpret_cast<T*>(reinterpret_cast<intptr_t>(ptr) -
+                                 offset_of(member));
+}
+
+template<class T, class M>
+constexpr const T& container_of(const M* ptr, const M T::* member) noexcept
+{
+    return *reinterpret_cast<const T*>(reinterpret_cast<intptr_t>(ptr) -
+                                       offset_of(member));
+}
+
 ////////////////////////////////////////////////////////////////////////
 //                                                                    //
 // Allocator: default menory_resource or specific................... //
