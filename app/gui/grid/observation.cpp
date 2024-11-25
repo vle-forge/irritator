@@ -17,20 +17,25 @@ void grid_observation_widget::show(grid_observer& grid,
 
     ImGui::PushID(reinterpret_cast<void*>(&grid));
 
+    // @todo: must be call in another task not the GUI thread.
     grid.update(app.sim);
 
     if (not grid.values.empty()) {
-        ImPlot::PushColormap(grid.color_map);
-        if (ImPlot::BeginPlot(grid.name.c_str(),
-                              size,
-                              ImPlotFlags_NoLegend | ImPlotFlags_NoMouseText)) {
-            ImPlot::PlotHeatmap(grid.name.c_str(),
-                                grid.values.data(),
-                                grid.rows,
-                                grid.cols,
-                                grid.scale_min,
-                                grid.scale_max);
-            ImPlot::EndPlot();
+        if (std::shared_lock lock(grid.mutex, std::try_to_lock);
+            lock.owns_lock()) {
+            ImPlot::PushColormap(grid.color_map);
+            if (ImPlot::BeginPlot(grid.name.c_str(),
+                                  size,
+                                  ImPlotFlags_NoLegend |
+                                    ImPlotFlags_NoMouseText)) {
+                ImPlot::PlotHeatmap(grid.name.c_str(),
+                                    grid.values.data(),
+                                    grid.rows,
+                                    grid.cols,
+                                    grid.scale_min,
+                                    grid.scale_max);
+                ImPlot::EndPlot();
+            }
         }
     }
 

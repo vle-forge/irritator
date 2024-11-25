@@ -90,6 +90,7 @@ void grid_observer::init(project& pj, modeling& mod, simulation& sim) noexcept
 
           observers.resize(len);
           values.resize(len);
+          values_2nd.resize(len);
 
           std::fill_n(observers.data(), len, undefined<observer_id>());
           std::fill_n(values.data(), len, zero);
@@ -102,6 +103,7 @@ void grid_observer::clear() noexcept
 {
     observers.clear();
     values.clear();
+    values_2nd.clear();
 }
 
 void grid_observer::update(const simulation& sim) noexcept
@@ -109,6 +111,7 @@ void grid_observer::update(const simulation& sim) noexcept
     if (rows * cols != observers.ssize() or values.ssize() != observers.ssize())
         return;
 
+    std::fill_n(values_2nd.data(), values_2nd.capacity(), 0.0);
     for (int row = 0; row < rows; ++row) {
         for (int col = 0; col < cols; ++col) {
             const auto pos = col * rows + row;
@@ -130,6 +133,10 @@ void grid_observer::update(const simulation& sim) noexcept
             }
         }
     }
+
+    // Finally, swaps the buffer under a protected write access.
+    std::unique_lock lock{ mutex };
+    std::swap(values, values_2nd);
 }
 
 } // namespace irt

@@ -16,6 +16,7 @@
 
 #include <mutex>
 #include <optional>
+#include <shared_mutex>
 
 namespace irt {
 
@@ -1057,6 +1058,8 @@ struct tree_node {
 class grid_observer
 {
 public:
+    std::shared_mutex mutex;
+
     name_str name;
 
     tree_node_id parent_id; //!< @c tree_node identifier ancestor of the model a
@@ -1067,6 +1070,7 @@ public:
 
     vector<observer_id> observers;
     vector<real>        values;
+    vector<real>        values_2nd;
 
     // Build or reuse existing observer for each pair `tn_id`, `mdl_id` and
     // reinitialize all buffers.
