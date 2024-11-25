@@ -8,7 +8,48 @@
 #include <irritator/core.hpp>
 #include <irritator/ext.hpp>
 
+#include <cstdio>
+
 namespace irt {
+
+/** Determine the file access of the buffered_buffer.
+ *
+ * - read, Open a file for reading, read from start.
+ * - write, Create a file for writing, destroy contents.
+ * - append, Append to a file, write to end.
+ */
+enum class buffered_file_mode {
+    text_or_binary = 0,      //!< Binary or text file mode.
+    read           = 1 << 0, //!< Open a file for reading, read from start.
+    write          = 1 << 1, //!< Create a file for writing, destroy contents.
+    append         = 1 << 2, //!< Append to a file, write to end.
+    Count
+};
+
+namespace details {
+
+/** A wrapper to reduce the size of the buffered_file pointer. */
+struct buffered_file_deleter {
+    void operator()(std::FILE* fd) noexcept { std::fclose(fd); }
+};
+
+} // namespace details
+
+using buffered_file =
+  std::unique_ptr<std::FILE, details::buffered_file_deleter>;
+
+/** Return a @c std::FILE pointer wrapped into a @c std::unique_ptr. This
+ * function neither returns a nullptr.
+ *
+ * This function uses the buffered standard API @c std::fopen/std::fclose to
+ * read/write in a text/binary format.
+ *
+ * This function uses a specific Win32 code to convert path in Win32 code
+ * page.
+ */
+result<buffered_file> open_buffered_file(
+  const std::filesystem::path&       path,
+  const bitflags<buffered_file_mode> mode) noexcept;
 
 enum class seek_origin { current, end, set };
 
@@ -148,7 +189,6 @@ public:
 
 private:
     file(void* handle, const open_mode mode) noexcept;
-    static void* fopen(const char* filename, const char* mode) noexcept;
 
     void*     file_handle = nullptr;
     open_mode mode        = open_mode::read;

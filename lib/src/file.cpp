@@ -42,45 +42,50 @@ inline static void* to_void(std::FILE* f) noexcept
 {
     return reinterpret_cast<void*>(f);
 }
-
+result<buffered_file> open_buffered_file(
+  const std::filesystem::path&       path,
+  const bitflags<buffered_file_mode> mode) noexcept
+{
 #if defined(_WIN32)
-void* file::fopen(const char* filename, const char* mode) noexcept
-{
-    debug::ensure(filename);
-    debug::ensure(mode);
+    try {
+        const auto m  = mode[buffered_file_mode::text_or_binary]
+                          ? mode[buffered_file_mode::read]    ? L"rb"
+                            : mode[buffered_file_mode::write] ? L"wb"
+                                                              : L"ab"
+                        : mode[buffered_file_mode::read]  ? L"r"
+                        : mode[buffered_file_mode::write] ? L"w"
+                                                          : L"a";
+        std::FILE* fp = nullptr;
 
-    const auto filname_sz =
-      ::MultiByteToWideChar(CP_UTF8, 0, filename, -1, nullptr, 0);
-    const auto mode_sz =
-      ::MultiByteToWideChar(CP_UTF8, 0, mode, -1, nullptr, 0);
-    vector<wchar_t> buf;
+        if (::_wfopen_s(&fp, path.c_str(), m) == 0) {
+            return buffered_file(fp);
+        } else {
+            return new_error(file::open_error{});
+        }
+    } catch (...) {
+        return new_error(file::memory_error{});
+    }
 
-    buf.resize(filname_sz + mode_sz);
-
-    ::MultiByteToWideChar(
-      CP_UTF8, 0, filename, -1, (wchar_t*)&buf[0], filname_sz);
-    ::MultiByteToWideChar(
-      CP_UTF8, 0, mode, -1, (wchar_t*)&buf[filname_sz], mode_sz);
-
-    FILE* f = nullptr;
-
-    const auto err = ::_wfopen_s(
-      &f, (const wchar_t*)&buf[0], (const wchar_t*)&buf[filname_sz]);
-
-    if (err != 0)
-        f = nullptr;
-
-    return to_void(f);
-}
 #else
-void* file::fopen(const char* filename, const char* mode) noexcept
-{
-    debug::ensure(filename);
-    debug::ensure(mode);
+    try {
+        const auto m = mode[buffered_file_mode::text_or_binary]
+                         ? mode[buffered_file_mode::read]    ? "rb"
+                           : mode[buffered_file_mode::write] ? "wb"
+                                                             : "ab"
+                       : mode[buffered_file_mode::read]  ? "r"
+                       : mode[buffered_file_mode::write] ? "w"
+                                                         : "a";
 
-    return to_void(std::fopen(filename, mode));
-}
+        if (auto* fp = std::fopen(path.c_str(), m); fp) {
+            return buffered_file(fp);
+        } else {
+            return new_error(file::open_error{});
+        }
+    } catch (...) {
+        return new_error(file::memory_error{});
+    }
 #endif
+}
 
 template<typename File>
 bool read_from_file(File& f, i8& value) noexcept
