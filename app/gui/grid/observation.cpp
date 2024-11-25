@@ -21,7 +21,7 @@ void grid_observation_widget::show(grid_observer& grid,
     grid.update(app.sim);
 
     if (not grid.values.empty()) {
-        if (std::shared_lock lock(grid.mutex, std::try_to_lock);
+        if (std::unique_lock lock(grid.mutex, std::try_to_lock);
             lock.owns_lock()) {
             ImPlot::PushColormap(grid.color_map);
             if (ImPlot::BeginPlot(grid.name.c_str(),

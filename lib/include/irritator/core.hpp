@@ -1289,38 +1289,52 @@ public:
 
 template<typename T>
 concept has_lambda_function = requires(T t, simulation& sim) {
-    { t.lambda(sim) } -> std::same_as<status>;
+    {
+        t.lambda(sim)
+    } -> std::same_as<status>;
 };
 
 template<typename T>
 concept has_transition_function =
   requires(T t, simulation& sim, time s, time e, time r) {
-      { t.transition(sim, s, e, r) } -> std::same_as<status>;
+      {
+          t.transition(sim, s, e, r)
+      } -> std::same_as<status>;
   };
 
 template<typename T>
 concept has_observation_function = requires(T t, time s, time e) {
-    { t.observation(s, e) } -> std::same_as<observation_message>;
+    {
+        t.observation(s, e)
+    } -> std::same_as<observation_message>;
 };
 
 template<typename T>
 concept has_initialize_function = requires(T t, simulation& sim) {
-    { t.initialize(sim) } -> std::same_as<status>;
+    {
+        t.initialize(sim)
+    } -> std::same_as<status>;
 };
 
 template<typename T>
 concept has_finalize_function = requires(T t, simulation& sim) {
-    { t.finalize(sim) } -> std::same_as<status>;
+    {
+        t.finalize(sim)
+    } -> std::same_as<status>;
 };
 
 template<typename T>
 concept has_input_port = requires(T t) {
-    { t.x };
+    {
+        t.x
+    };
 };
 
 template<typename T>
 concept has_output_port = requires(T t) {
-    { t.y };
+    {
+        t.y
+    };
 };
 
 constexpr observation_message qss_observation(real X,
@@ -5078,6 +5092,9 @@ inline void observer::update(const observation_message& msg) noexcept
     if (states[observer_flags::data_lost])
         new_states.set(observer_flags::data_lost);
 
+    if (buffer.available() == 1)
+        new_states.set(observer_flags::buffer_full);
+
     if (states[observer_flags::buffer_full])
         states.set(observer_flags::data_lost);
 
@@ -5092,9 +5109,6 @@ inline void observer::update(const observation_message& msg) noexcept
             limits.second = linearized_buffer.back().y;
         }
     }
-
-    if (buffer.full())
-        new_states.set(observer_flags::buffer_full);
 
     states = new_states;
 }

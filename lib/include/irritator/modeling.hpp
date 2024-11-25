@@ -1058,7 +1058,8 @@ struct tree_node {
 class grid_observer
 {
 public:
-    std::shared_mutex mutex;
+    irt::spin_mutex mutex; //!< To write-protect the swap between buffers
+                           //!< (values and values_2nd).
 
     name_str name;
 

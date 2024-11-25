@@ -79,6 +79,7 @@ void grid_observer::init(project& pj, modeling& mod, simulation& sim) noexcept
 {
     observers.clear();
     values.clear();
+    values_2nd.clear();
 
     if_tree_node_is_grid_do(
       pj, mod, parent_id, [&](auto& tn, auto& compo, auto& g_compo) noexcept {
@@ -108,7 +109,9 @@ void grid_observer::clear() noexcept
 
 void grid_observer::update(const simulation& sim) noexcept
 {
-    if (rows * cols != observers.ssize() or values.ssize() != observers.ssize())
+    if (rows * cols != observers.ssize() or
+        values.ssize() != observers.ssize() or
+        values_2nd.ssize() != observers.ssize())
         return;
 
     std::fill_n(values_2nd.data(), values_2nd.capacity(), 0.0);
@@ -123,11 +126,11 @@ void grid_observer::update(const simulation& sim) noexcept
             if (const auto* obs = sim.observers.try_to_get(observers[pos]);
                 obs) {
                 if (obs->states[observer_flags::use_linear_buffer]) {
-                    values[pos] = not obs->linearized_buffer.empty()
-                                    ? obs->linearized_buffer.back().y
-                                    : zero;
+                    values_2nd[pos] = not obs->linearized_buffer.empty()
+                                        ? obs->linearized_buffer.back().y
+                                        : zero;
                 } else {
-                    values[pos] =
+                    values_2nd[pos] =
                       not obs->buffer.empty() ? obs->buffer.back()[1] : zero;
                 }
             }
