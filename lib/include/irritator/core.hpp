@@ -5093,7 +5093,7 @@ inline void observer::update(const observation_message& msg) noexcept
         }
     }
 
-    if (buffer.full())
+    if (buffer.available() <= 1)
         new_states.set(observer_flags::buffer_full);
 
     states = new_states;

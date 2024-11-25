@@ -12,25 +12,24 @@ namespace irt {
 void grid_observation_widget::show(grid_observer& grid,
                                    const ImVec2&  size) noexcept
 {
-    auto& sim_ed = container_of(this, &simulation_editor::grid_obs);
-    auto& app    = container_of(&sim_ed, &application::simulation_ed);
-
     ImGui::PushID(reinterpret_cast<void*>(&grid));
 
-    grid.update(app.sim);
-
     if (not grid.values.empty()) {
-        ImPlot::PushColormap(grid.color_map);
-        if (ImPlot::BeginPlot(grid.name.c_str(),
-                              size,
-                              ImPlotFlags_NoLegend | ImPlotFlags_NoMouseText)) {
-            ImPlot::PlotHeatmap(grid.name.c_str(),
-                                grid.values.data(),
-                                grid.rows,
-                                grid.cols,
-                                grid.scale_min,
-                                grid.scale_max);
-            ImPlot::EndPlot();
+        if (std::unique_lock lock(grid.mutex, std::try_to_lock);
+            lock.owns_lock()) {
+            ImPlot::PushColormap(grid.color_map);
+            if (ImPlot::BeginPlot(grid.name.c_str(),
+                                  size,
+                                  ImPlotFlags_NoLegend |
+                                    ImPlotFlags_NoMouseText)) {
+                ImPlot::PlotHeatmap(grid.name.c_str(),
+                                    grid.values.data(),
+                                    grid.rows,
+                                    grid.cols,
+                                    grid.scale_min,
+                                    grid.scale_max);
+                ImPlot::EndPlot();
+            }
         }
     }
 

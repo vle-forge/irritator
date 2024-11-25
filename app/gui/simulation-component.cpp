@@ -256,9 +256,6 @@ void simulation_editor::start_simulation_static_run() noexcept
         bool stop_or_pause;
 
         do {
-            if (app.pj.file_obs.can_update(app.sim.t))
-                app.pj.file_obs.update(app.sim, app.pj);
-
             if (app.simulation_ed.simulation_state !=
                 simulation_status::running)
                 return;
@@ -279,8 +276,7 @@ void simulation_editor::start_simulation_static_run() noexcept
                 }
             }
 
-            if (!app.sim.immediate_observers.empty())
-                app.simulation_ed.start_simulation_observation();
+            app.simulation_ed.start_simulation_observation();
 
             if (!app.simulation_ed.infinity_simulation &&
                 app.sim.t >= app.simulation_ed.simulation_end) {
@@ -427,8 +423,7 @@ void simulation_editor::start_simulation_live_run() noexcept
             if (time_domain<time>::is_infinity(app.sim.t))
                 simulation_last_finite_t = sim_next_t;
 
-            if (!app.sim.immediate_observers.empty())
-                start_simulation_observation();
+            start_simulation_observation();
         }
     });
 }
@@ -588,77 +583,126 @@ void simulation_editor::start_simulation_start() noexcept
     }
 }
 
+void simulation_editor::stop_simulation_observation() noexcept
+{
+    auto& app       = container_of(this, &application::simulation_ed);
+    auto& task_list = app.get_unordered_task_list(0);
+
+    debug::ensure(app.simulation_ed.simulation_state ==
+                  simulation_status::finishing);
+
+    constexpr int capacity = 255;
+    int           obs_max  = app.sim.observers.ssize();
+    observer*     obs      = nullptr;
+
+    while (app.sim.observers.next(obs)) {
+        int loop = std::min(obs_max, capacity);
+
+        for (int i = 0; i != loop; ++i) {
+            auto obs_id = app.sim.observers.get_id(*obs);
+            app.sim.observers.next(obs);
+
+            task_list.add([&app, obs_id]() noexcept {
+                if_data_exists_do(app.sim.observers,
+                                  obs_id,
+                                  [&](observer& obs) noexcept -> void {
+                                      while (obs.buffer.ssize() > 2)
+                                          flush_interpolate_data(obs,
+                                                                 obs.time_step);
+                                  });
+            });
+        }
+
+        task_list.submit();
+        task_list.wait();
+
+        if (obs_max >= capacity)
+            obs_max -= capacity;
+        else
+            obs_max = 0;
+    }
+
+    app.pj.file_obs.finalize();
+}
+
 void simulation_editor::start_simulation_observation() noexcept
 {
     auto& app       = container_of(this, &application::simulation_ed);
     auto& task_list = app.get_unordered_task_list(0);
 
+    debug::ensure(app.simulation_ed.simulation_state !=
+                  simulation_status::finished);
+
     constexpr int capacity = 255;
+    int           obs_max  = app.sim.immediate_observers.ssize();
+    int           current  = 0;
 
-    if (app.sim.immediate_observers.empty()) {
-        int       obs_max = app.sim.observers.ssize();
-        observer* obs     = nullptr;
+    while (obs_max > 0) {
+        int loop = std::min(obs_max, capacity);
 
-        while (app.sim.observers.next(obs)) {
-            int loop = std::min(obs_max, capacity);
+        for (int i = 0; i != loop; ++i) {
+            auto obs_id = app.sim.immediate_observers[i + current];
 
-            for (int i = 0; i != loop; ++i) {
-                auto obs_id = app.sim.observers.get_id(*obs);
-                app.sim.observers.next(obs);
-
-                task_list.add([&app, obs_id]() noexcept {
-                    if_data_exists_do(app.sim.observers,
-                                      obs_id,
-                                      [&](observer& obs) noexcept -> void {
-                                          while (obs.buffer.ssize() > 2)
-                                              flush_interpolate_data(
-                                                obs, obs.time_step);
-                                      });
-                });
-            }
-
-            task_list.submit();
-            task_list.wait();
-
-            if (obs_max >= capacity)
-                obs_max -= capacity;
-            else
-                obs_max = 0;
+            task_list.add([&app, obs_id]() noexcept {
+                if_data_exists_do(app.sim.observers,
+                                  obs_id,
+                                  [&](observer& obs) noexcept -> void {
+                                      while (obs.buffer.ssize() > 2)
+                                          write_interpolate_data(obs,
+                                                                 obs.time_step);
+                                  });
+            });
         }
-    } else {
-        debug::ensure(app.simulation_ed.simulation_state !=
-                      simulation_status::finished);
 
-        int obs_max = app.sim.immediate_observers.ssize();
-        int current = 0;
+        task_list.submit();
+        task_list.wait();
 
-        while (obs_max > 0) {
-            int loop = std::min(obs_max, capacity);
+        current += loop;
+        if (obs_max > capacity)
+            obs_max -= capacity;
+        else
+            obs_max = 0;
+    }
 
-            for (int i = 0; i != loop; ++i) {
-                auto obs_id = app.sim.immediate_observers[i + current];
+    current = 0;
+    for (auto& g : app.pj.grid_observers) {
+        const auto g_id = app.pj.grid_observers.get_id(g);
+        task_list.add([&app, g_id]() noexcept {
+            if (auto* g = app.pj.grid_observers.try_to_get(g_id); g)
+                if (g->can_update(app.sim.t))
+                    g->update(app.sim);
+        });
 
-                task_list.add([&app, obs_id]() noexcept {
-                    if_data_exists_do(app.sim.observers,
-                                      obs_id,
-                                      [&](observer& obs) noexcept -> void {
-                                          while (obs.buffer.ssize() > 2)
-                                              write_interpolate_data(
-                                                obs, obs.time_step);
-                                      });
-                });
-            }
-
+        ++current;
+        if (current == obs_max) {
             task_list.submit();
             task_list.wait();
-
-            current += loop;
-            if (obs_max > capacity)
-                obs_max -= capacity;
-            else
-                obs_max = 0;
+            current = 0;
         }
     }
+
+    for (auto& g : app.pj.graph_observers) {
+        const auto g_id = app.pj.graph_observers.get_id(g);
+        task_list.add([&app, g_id]() noexcept {
+            if (auto* g = app.pj.graph_observers.try_to_get(g_id); g)
+                if (g->can_update(app.sim.t))
+                    g->update(app.sim);
+        });
+        ++current;
+        if (current == obs_max) {
+            task_list.submit();
+            task_list.wait();
+            current = 0;
+        }
+    }
+
+    if (current > 0) {
+        task_list.submit();
+        task_list.wait();
+    }
+
+    if (app.pj.file_obs.can_update(app.sim.t))
+        app.pj.file_obs.update(app.sim, app.pj);
 }
 
 void simulation_editor::start_simulation_start_1() noexcept
@@ -746,8 +790,7 @@ void simulation_editor::start_simulation_finish() noexcept
 
         app.simulation_ed.simulation_state = simulation_status::finishing;
         app.sim.immediate_observers.clear();
-        app.simulation_ed.start_simulation_observation();
-        app.pj.file_obs.finalize();
+        app.simulation_ed.stop_simulation_observation();
 
         if (app.simulation_ed.store_all_changes) {
             if (auto ret = finalize(app.simulation_ed.tl, app.sim, app.sim.t);

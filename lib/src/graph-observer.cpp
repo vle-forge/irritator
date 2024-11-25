@@ -56,30 +56,38 @@ void graph_observer::init(project& pj, modeling& mod, simulation& sim) noexcept
 {
     observers.clear();
     values.clear();
+    values_2nd.clear();
 
-    if_tree_node_is_graph_do(
-      pj,
-      mod,
-      parent_id,
-      [&](auto& graph_parent_tn, auto& compo, auto& graph) noexcept {
-          debug::ensure(compo.type == component_type::graph);
+    if (auto* tn = pj.tree_nodes.try_to_get(parent_id); tn) {
+        if (auto* compo = mod.components.try_to_get(tn->id);
+            compo and compo->type == component_type::graph) {
+            if (auto* graph =
+                  mod.graph_components.try_to_get(compo->id.graph_id);
+                graph) {
+                const auto len = graph->children.ssize();
 
-          const auto len = graph.children.ssize();
+                observers.resize(len);
+                values.resize(len);
 
-          observers.resize(len);
-          values.resize(len);
+                std::fill_n(observers.data(), len, undefined<observer_id>());
+                std::fill_n(values.data(), len, zero);
+                std::fill_n(values_2nd.data(), len, zero);
 
-          std::fill_n(observers.data(), len, undefined<observer_id>());
-          std::fill_n(values.data(), len, zero);
+                build_graph(*this, pj, sim, *tn, *graph);
+            }
+        }
+    }
 
-          build_graph(*this, pj, sim, graph_parent_tn, graph);
-      });
+    tn = sim.t;
 }
 
 void graph_observer::clear() noexcept
 {
     observers.clear();
     values.clear();
+    values_2nd.clear();
+
+    tn = 0;
 }
 
 void graph_observer::update(const simulation& sim) noexcept
@@ -87,18 +95,24 @@ void graph_observer::update(const simulation& sim) noexcept
     debug::ensure(nodes == observers.ssize());
     debug::ensure(values.ssize() == observers.ssize());
 
+    std::fill_n(values_2nd.data(), values_2nd.capacity(), 0.0);
     for (int i = 0; i < nodes; ++i) {
         if (const auto* obs = sim.observers.try_to_get(observers[i]); obs) {
             if (obs->states[observer_flags::use_linear_buffer]) {
-                values[i] = not obs->linearized_buffer.empty()
-                              ? obs->linearized_buffer.back().y
-                              : zero;
+                values_2nd[i] = not obs->linearized_buffer.empty()
+                                  ? obs->linearized_buffer.back().y
+                                  : zero;
             } else {
-                values[i] =
+                values_2nd[i] =
                   not obs->buffer.empty() ? obs->buffer.back()[1] : zero;
             }
         }
     }
+
+    tn = sim.t + time_step;
+
+    std::unique_lock lock{ mutex };
+    std::swap(values, values_2nd);
 }
 
 } // namespace irt

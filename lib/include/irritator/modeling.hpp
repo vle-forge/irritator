@@ -1057,6 +1057,9 @@ struct tree_node {
 class grid_observer
 {
 public:
+    spin_mutex mutex; //!< To write-protect the swap between buffers
+                      //!< (values and values_2nd).
+
     name_str name;
 
     tree_node_id parent_id; //!< @c tree_node identifier ancestor of the model a
@@ -1067,6 +1070,11 @@ public:
 
     vector<observer_id> observers;
     vector<real>        values;
+    vector<real>        values_2nd;
+
+    time tn = 0;
+
+    floating_point_limiter<float, 1, 100, 1, 1> time_step = 0.1f;
 
     // Build or reuse existing observer for each pair `tn_id`, `mdl_id` and
     // reinitialize all buffers.
@@ -1074,6 +1082,9 @@ public:
 
     // Clear the `observers` and `values` vectors.
     void clear() noexcept;
+
+    /** Check if the simulation time is greater than wake up time @c tn. */
+    bool can_update(const time t) const noexcept { return t > tn; }
 
     // For each `observer`, get the latest observation value and fill the values
     // vector.
@@ -1089,6 +1100,9 @@ public:
 class graph_observer
 {
 public:
+    spin_mutex mutex; //!< To write-protect the swap between buffers
+                      //!< (values and values_2nd).
+
     name_str name;
 
     tree_node_id parent_id; ///< @c tree_node identifier ancestor of the model.
@@ -1099,6 +1113,11 @@ public:
 
     vector<observer_id> observers;
     vector<real>        values;
+    vector<real>        values_2nd;
+
+    time tn = 0;
+
+    floating_point_limiter<float, 1, 100, 1, 1> time_step = 0.1f;
 
     // Build or reuse existing observer for each pair `tn_id`, `mdl_id` and
     // reinitialize all buffers.
@@ -1106,6 +1125,9 @@ public:
 
     // Clear the `observers` and `values` vectors.
     void clear() noexcept;
+
+    /** Check if the simulation time is greater than wake up time @c tn. */
+    bool can_update(const time t) const noexcept { return t > tn; }
 
     // For each `observer`, get the latest observation value and fill the values
     // vector.
@@ -1119,17 +1141,20 @@ public:
 class variable_observer
 {
 public:
+    spin_mutex mutex; //!< To write-protect the swap between buffers
+                      //!< (values and values_2nd).
+
     enum class type_options {
         none,
         line,
         dash,
     };
 
-    name_str                         name;
-    static_limiter<i32, 8, 64>       max_observers           = 8;
-    static_limiter<i32, 8, 512>      raw_buffer_size         = 64;
-    static_limiter<i32, 1024, 65536> linearized_buffer_size  = 32768;
-    floating_point_limiter<float, 1, 10000, 1, 10> time_step = .01f;
+    name_str                                     name;
+    static_limiter<i32, 8, 64>                   max_observers          = 8;
+    static_limiter<i32, 8, 512>                  raw_buffer_size        = 64;
+    static_limiter<i32, 1024, 65536>             linearized_buffer_size = 32768;
+    floating_point_limiter<float, 1, 100, 1, 10> time_step              = .01f;
 
     time tn = 0;
 
@@ -1144,6 +1169,7 @@ private:
     vector<type_options> m_options; //!< Line, dash etc. for observers.
     vector<name_str>     m_names;   //!< Name of the observation.
     vector<double>       m_values;  //!< The last value of the observation.
+    vector<double>       m_values_2nd;
 
 public:
     //! @brief Fill the `observer_id` vector and initialize buffers.

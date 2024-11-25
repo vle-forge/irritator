@@ -79,36 +79,51 @@ void grid_observer::init(project& pj, modeling& mod, simulation& sim) noexcept
 {
     observers.clear();
     values.clear();
+    values_2nd.clear();
 
-    if_tree_node_is_grid_do(
-      pj, mod, parent_id, [&](auto& tn, auto& compo, auto& g_compo) noexcept {
-          debug::ensure(compo.type == component_type::grid);
+    if (auto* tn = pj.tree_nodes.try_to_get(parent_id); tn) {
+        if (auto* compo = mod.components.try_to_get(tn->id);
+            compo and compo->type == component_type::grid) {
+            if (auto* grid = mod.grid_components.try_to_get(compo->id.grid_id);
+                grid) {
 
-          const auto len = g_compo.row * g_compo.column;
-          rows           = g_compo.row;
-          cols           = g_compo.column;
+                const auto len = grid->row * grid->column;
+                rows           = grid->row;
+                cols           = grid->column;
 
-          observers.resize(len);
-          values.resize(len);
+                observers.resize(len);
+                values.resize(len);
+                values_2nd.resize(len);
 
-          std::fill_n(observers.data(), len, undefined<observer_id>());
-          std::fill_n(values.data(), len, zero);
+                std::fill_n(observers.data(), len, undefined<observer_id>());
+                std::fill_n(values.data(), len, zero);
+                std::fill_n(values_2nd.data(), len, zero);
 
-          build_grid_observer(*this, pj, sim, tn, g_compo);
-      });
+                build_grid_observer(*this, pj, sim, *tn, *grid);
+            }
+        }
+    }
+
+    tn = sim.t = time_step;
 }
 
 void grid_observer::clear() noexcept
 {
     observers.clear();
     values.clear();
+    values_2nd.clear();
+
+    tn = 0;
 }
 
 void grid_observer::update(const simulation& sim) noexcept
 {
-    if (rows * cols != observers.ssize() or values.ssize() != observers.ssize())
+    if (rows * cols != observers.ssize() or
+        values.ssize() != observers.ssize() or
+        values_2nd.ssize() != observers.ssize())
         return;
 
+    std::fill_n(values_2nd.data(), values_2nd.capacity(), 0.0);
     for (int row = 0; row < rows; ++row) {
         for (int col = 0; col < cols; ++col) {
             const auto pos = col * rows + row;
@@ -120,16 +135,22 @@ void grid_observer::update(const simulation& sim) noexcept
             if (const auto* obs = sim.observers.try_to_get(observers[pos]);
                 obs) {
                 if (obs->states[observer_flags::use_linear_buffer]) {
-                    values[pos] = not obs->linearized_buffer.empty()
-                                    ? obs->linearized_buffer.back().y
-                                    : zero;
+                    values_2nd[pos] = not obs->linearized_buffer.empty()
+                                        ? obs->linearized_buffer.back().y
+                                        : zero;
                 } else {
-                    values[pos] =
+                    values_2nd[pos] =
                       not obs->buffer.empty() ? obs->buffer.back()[1] : zero;
                 }
             }
         }
     }
+
+    tn = sim.t + time_step;
+
+    // Finally, swaps the buffer under a protected write access.
+    std::unique_lock lock{ mutex };
+    std::swap(values, values_2nd);
 }
 
 } // namespace irt

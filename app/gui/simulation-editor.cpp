@@ -2,13 +2,6 @@
 // Version 1.0. (See accompanying file LICENSE_1_0.txt or copy at
 // http://www.boost.org/LICENSE_1_0.txt)
 
-#include <mutex>
-#include <optional>
-
-#define IMGUI_DEFINE_MATH_OPERATORS
-#include <imgui.h>
-#include <imgui_internal.h>
-
 #include <irritator/core.hpp>
 #include <irritator/helpers.hpp>
 #include <irritator/io.hpp>
@@ -18,9 +11,15 @@
 #include <irritator/observation.hpp>
 #include <irritator/timeline.hpp>
 
+#include <optional>
+
 #include "application.hpp"
 #include "editor.hpp"
 #include "internal.hpp"
+
+#define IMGUI_DEFINE_MATH_OPERATORS
+#include <imgui.h>
+#include <imgui_internal.h>
 
 namespace irt {
 
@@ -569,15 +568,16 @@ static bool show_simulation_table_grid_observers(application& app) noexcept
     auto to_delete   = undefined<grid_observer_id>();
     bool is_modified = false;
 
-    if (ImGui::BeginTable("Grid observers", 5)) {
+    if (ImGui::BeginTable("Grid observers", 6)) {
         ImGui::TableSetupColumn("id");
         ImGui::TableSetupColumn("name");
         ImGui::TableSetupColumn("scale");
         ImGui::TableSetupColumn("color");
+        ImGui::TableSetupColumn("time-step");
         ImGui::TableSetupColumn("delete");
         ImGui::TableHeadersRow();
 
-        for_each_data(app.pj.grid_observers, [&](auto& grid) noexcept {
+        for (auto& grid : app.pj.grid_observers) {
             ImGui::PushID(&grid);
 
             ImGui::TableNextRow();
@@ -607,12 +607,20 @@ static bool show_simulation_table_grid_observers(application& app) noexcept
             }
 
             ImGui::TableNextColumn();
+            float time_step = grid.time_step;
+            if (ImGui::DragFloat("time-step",
+                                 &time_step,
+                                 1.0f,
+                                 grid.time_step.lower,
+                                 grid.time_step.upper))
+                grid.time_step.set(time_step);
 
+            ImGui::TableNextColumn();
             if (ImGui::Button("del"))
                 to_delete = app.pj.grid_observers.get_id(grid);
 
             ImGui::PopID();
-        });
+        }
 
         ImGui::EndTable();
     }
@@ -630,11 +638,12 @@ static bool show_simulation_table_graph_observers(application& app) noexcept
     auto to_delete   = undefined<graph_observer_id>();
     bool is_modified = false;
 
-    if (ImGui::BeginTable("Graph observers", 5)) {
+    if (ImGui::BeginTable("Graph observers", 6)) {
         ImGui::TableSetupColumn("id");
         ImGui::TableSetupColumn("name");
         ImGui::TableSetupColumn("child");
         ImGui::TableSetupColumn("enable");
+        ImGui::TableSetupColumn("time-step");
         ImGui::TableSetupColumn("delete");
         ImGui::TableHeadersRow();
 
@@ -668,7 +677,15 @@ static bool show_simulation_table_graph_observers(application& app) noexcept
             ImGui::PopItemWidth();
 
             ImGui::TableNextColumn();
+            float time_step = graph.time_step;
+            if (ImGui::DragFloat("time-step",
+                                 &time_step,
+                                 1.0f,
+                                 graph.time_step.lower,
+                                 graph.time_step.upper))
+                graph.time_step.set(time_step);
 
+            ImGui::TableNextColumn();
             if (ImGui::Button("del"))
                 to_delete = app.pj.graph_observers.get_id(graph);
 
@@ -696,11 +713,12 @@ static bool show_simulation_table_variable_observers(application& app) noexcept
           "Can not allocate more multi-plot observers (max reached: {})",
           app.pj.variable_observers.capacity());
 
-    if (ImGui::BeginTable("Plot observers", 5)) {
+    if (ImGui::BeginTable("Plot observers", 6)) {
         ImGui::TableSetupColumn("id");
         ImGui::TableSetupColumn("name");
         ImGui::TableSetupColumn("child");
         ImGui::TableSetupColumn("enable");
+        ImGui::TableSetupColumn("time-step");
         ImGui::TableSetupColumn("delete");
         ImGui::TableHeadersRow();
 
@@ -734,7 +752,15 @@ static bool show_simulation_table_variable_observers(application& app) noexcept
             ImGui::PopItemWidth();
 
             ImGui::TableNextColumn();
+            float time_step = variable.time_step;
+            if (ImGui::DragFloat("time-step",
+                                 &time_step,
+                                 1.0f,
+                                 variable.time_step.lower,
+                                 variable.time_step.upper))
+                variable.time_step.set(time_step);
 
+            ImGui::TableNextColumn();
             if (ImGui::Button("del"))
                 to_delete = app.pj.variable_observers.get_id(variable);
 

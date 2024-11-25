@@ -564,6 +564,7 @@ struct simulation_editor {
     void start_simulation_clear() noexcept;
     void start_simulation_start() noexcept;
     void start_simulation_observation() noexcept;
+    void stop_simulation_observation() noexcept;
     void start_simulation_live_run() noexcept;
     void start_simulation_static_run() noexcept;
     void start_simulation_start_1() noexcept;
