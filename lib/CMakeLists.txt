@@ -28,6 +28,7 @@ set(private_irritator_sources
     src/external_source.cpp
     src/filesystem.cpp
     src/file.cpp
+    src/file-observer.cpp
     src/global.cpp
     src/graph-observer.cpp
     src/grid-observer.cpp

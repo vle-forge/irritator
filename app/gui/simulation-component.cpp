@@ -30,6 +30,8 @@ static status simulation_init_observation(application& app) noexcept
     for (auto& v_obs : app.pj.variable_observers)
         irt_check(v_obs.init(app.pj, app.sim));
 
+    app.pj.file_obs.initialize(app.sim, app.pj);
+
     return success();
 }
 
@@ -254,6 +256,9 @@ void simulation_editor::start_simulation_static_run() noexcept
         bool stop_or_pause;
 
         do {
+            if (app.pj.file_obs.can_update(app.sim.t))
+                app.pj.file_obs.update(app.sim, app.pj);
+
             if (app.simulation_ed.simulation_state !=
                 simulation_status::running)
                 return;
@@ -367,6 +372,9 @@ void simulation_editor::start_simulation_live_run() noexcept
                     sim_next_t = sim_t + 1.0;
                 }
             }
+
+            if (app.pj.file_obs.can_update(app.sim.t))
+                app.pj.file_obs.update(app.sim, app.pj);
 
             const auto current_rt   = stdc::high_resolution_clock::now();
             const auto diff_rt      = current_rt - start_task_rt;
@@ -674,6 +682,9 @@ void simulation_editor::start_simulation_start_1() noexcept
                     return;
                 }
 
+                if (app.pj.file_obs.can_update(app.sim.t))
+                    app.pj.file_obs.update(app.sim, app.pj);
+
                 if (!app.simulation_ed.infinity_simulation &&
                     app.sim.t >= app.simulation_ed.simulation_end) {
                     app.sim.t = app.simulation_ed.simulation_end;
@@ -736,6 +747,7 @@ void simulation_editor::start_simulation_finish() noexcept
         app.simulation_ed.simulation_state = simulation_status::finishing;
         app.sim.immediate_observers.clear();
         app.simulation_ed.start_simulation_observation();
+        app.pj.file_obs.finalize();
 
         if (app.simulation_ed.store_all_changes) {
             if (auto ret = finalize(app.simulation_ed.tl, app.sim, app.sim.t);

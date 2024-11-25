@@ -6,6 +6,8 @@
 #include <irritator/modeling-helpers.hpp>
 #include <irritator/modeling.hpp>
 
+#include <fmt/format.h>
+
 namespace irt {
 
 static auto init_or_reuse_observer(simulation& sim,

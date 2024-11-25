@@ -8,17 +8,18 @@
 
 namespace irt {
 
-static bool check(vector<tree_node_id>&                    tn_ids,
-                  vector<model_id>&                        mdl_ids,
-                  vector<observer_id>&                     obs_ids,
-                  vector<color>&                           colors,
-                  vector<variable_observer::type_options>& options) noexcept
+static bool check(const vector<tree_node_id>&                    tn_ids,
+                  const vector<model_id>&                        mdl_ids,
+                  const vector<observer_id>&                     obs_ids,
+                  const vector<color>&                           colors,
+                  const vector<variable_observer::type_options>& options,
+                  const vector<double>& values) noexcept
 {
     const auto len = tn_ids.ssize();
 
     return len == tn_ids.ssize() and len == mdl_ids.ssize() and
            len == obs_ids.ssize() and len == colors.ssize() and
-           len == options.ssize();
+           len == options.ssize() and len == values.ssize();
 }
 
 status variable_observer::init(project& pj, simulation& sim) noexcept
@@ -62,8 +63,8 @@ void variable_observer::clear() noexcept
     std::fill_n(m_obs_ids.data(), m_obs_ids.size(), undefined<observer_id>());
 }
 
-auto variable_observer::find(const tree_node_id tn,
-                             const model_id     mdl) noexcept -> sub_id
+auto variable_observer::find(const tree_node_id tn, const model_id mdl) noexcept
+  -> sub_id
 {
     for (const auto id : m_ids) {
         const auto idx = get_index(id);
@@ -110,7 +111,7 @@ variable_observer::sub_id variable_observer::push_back(
   const color        c,
   const type_options t) noexcept
 {
-    check(m_tn_ids, m_mdl_ids, m_obs_ids, m_colors, m_options);
+    check(m_tn_ids, m_mdl_ids, m_obs_ids, m_colors, m_options, m_values);
 
     if (not m_ids.capacity()) {
         m_ids.reserve(max_observers.value());
@@ -120,6 +121,7 @@ variable_observer::sub_id variable_observer::push_back(
         m_colors.resize(max_observers.value());
         m_options.resize(max_observers.value());
         m_names.resize(max_observers.value());
+        m_values.resize(max_observers.value());
     }
 
     for (auto id : m_ids) {
@@ -138,6 +140,7 @@ variable_observer::sub_id variable_observer::push_back(
     m_obs_ids[idx] = undefined<observer_id>();
     m_colors[idx]  = c;
     m_options[idx] = t;
+    m_values[idx]  = 0.0;
     m_names[idx].clear();
 
     return id;

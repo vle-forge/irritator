@@ -1,0 +1,272 @@
+// Copyright (c) 2020 INRA Distributed under the Boost Software License,
+// Version 1.0. (See accompanying file LICENSE_1_0.txt or copy at
+// http://www.boost.org/LICENSE_1_0.txt)
+
+#include <irritator/modeling.hpp>
+
+#include <filesystem>
+
+#include <fmt/format.h>
+
+namespace irt {
+
+inline void file_observers::grow() noexcept
+{
+    const auto capacity     = ids.capacity();
+    const auto new_capacity = capacity == 0 ? 8 : capacity * 3 / 2;
+
+    ids.reserve(new_capacity);
+    files.resize(new_capacity);
+    subids.resize(new_capacity);
+    types.resize(new_capacity);
+    enables.resize(new_capacity);
+}
+
+inline void file_observers::clear() noexcept
+{
+    for (const auto id : ids)
+        files[get_index(id)].reset();
+
+    ids.clear();
+}
+
+static result<buffered_file> open_buffered_file(
+  const std::integral auto idx,
+  const std::string_view   name) noexcept
+{
+    try {
+        auto ec = std::error_code{};
+
+        if (auto p = std::filesystem::current_path(ec); not ec) {
+            const auto filename =
+              name.empty() ? fmt::format("{}-empty-observer-name.csv", idx)
+                           : fmt::format("{}-{}.csv", idx, name);
+
+            p /= filename;
+            return open_buffered_file(
+              p, bitflags<buffered_file_mode>(buffered_file_mode::write));
+        }
+        return new_error(file::open_error{});
+
+    } catch (...) {
+        return new_error(file::memory_error{});
+    }
+}
+
+static void do_initialize(const variable_observer& vars,
+                          std::FILE*               file) noexcept
+{
+    std::fputs("t,", file);
+
+    const auto names = vars.get_names();
+    const auto nb    = vars.ssize();
+    auto       i     = 0;
+
+    vars.for_each([&](const auto id) noexcept {
+        const auto idx = get_index(id);
+
+        if (i + 1 < nb)
+            fmt::print("{}-{},", names[idx].sv(), i++);
+        else
+            fmt::print("{}-{}\n", names[idx].sv(), i);
+    });
+}
+
+static void do_update(const simulation&        sim,
+                      const variable_observer& vars,
+                      std::FILE*               file) noexcept
+{
+    const auto number = vars.ssize();
+    auto       i      = 0;
+
+    if (number > 0)
+        fmt::print(file, "{:e},", sim.t);
+    else
+        fmt::print(file, "{:e}\n", sim.t);
+
+    const auto values = vars.get_values();
+
+    vars.for_each([&](const auto id) noexcept {
+        if (i + 1 < number)
+            fmt::print(file, "{:e},", values[get_index(id)]);
+        else
+            fmt::print(file, "{:e}\n", values[get_index(id)]);
+    });
+}
+
+static void do_initialize(const grid_observer& grid, std::FILE* file) noexcept
+{
+    std::fputs("t,", file);
+
+    for (int row = 0; row < grid.rows; ++row) {
+        for (int col = 0; col < grid.cols; ++col) {
+            if (row + 1 < grid.rows and col + 1 < grid.cols)
+                fmt::print(file, "{}-{},", row, col);
+            else
+                fmt::print(file, "{}-{}", row, col);
+        }
+    }
+
+    std::fputc('\n', file);
+}
+
+static void do_update(const simulation&    sim,
+                      const grid_observer& grid,
+                      std::FILE*           file) noexcept
+{
+    fmt::print(file, "{},", sim.t);
+
+    for (int row = 0; row < grid.rows; ++row) {
+        for (int col = 0; col < grid.cols; ++col) {
+            const auto pos = col * grid.rows + row;
+
+            if (auto obs = sim.observers.try_to_get(grid.observers[pos]); obs) {
+                if (row + 1 < grid.rows and col + 1 < grid.cols)
+                    fmt::print(file, "{:e},", grid.values[pos]);
+                else
+                    fmt::print(file, "{:e}", grid.values[pos]);
+            } else {
+                if (row + 1 < grid.rows and col + 1 < grid.cols)
+                    std::fputs("NA,", file);
+                else
+                    std::fputs("NA", file);
+            }
+        }
+    }
+
+    std::fputc('\n', file);
+}
+
+static void do_initialize(const graph_observer& vars, std::FILE* file) noexcept
+{
+    (void)vars;
+    (void)file;
+}
+
+static void do_update(const simulation&     sim,
+                      const graph_observer& vars,
+                      std::FILE*            file) noexcept
+{
+    (void)sim;
+    (void)vars;
+    (void)file;
+}
+
+void file_observers::initialize(const simulation& sim, project& pj) noexcept
+{
+    tn = sim.t + time_step;
+
+    for (const auto& vars : pj.variable_observers) {
+        if (not ids.can_alloc(1))
+            grow();
+
+        if (not ids.can_alloc(1))
+            return;
+
+        const auto new_id  = ids.alloc();
+        const auto new_idx = get_index(new_id);
+
+        if (auto f = open_buffered_file(new_idx, vars.name.sv()); f) {
+            files[new_idx]      = std::move(*f);
+            subids[new_idx].var = pj.variable_observers.get_id(vars);
+            types[new_idx]      = type::variables;
+            enables[new_idx]    = false;
+            do_initialize(vars, files[new_idx].get());
+        } else {
+            ids.free(new_id);
+        }
+    }
+
+    for (const auto& vars : pj.grid_observers) {
+        if (not ids.can_alloc(1))
+            grow();
+
+        if (not ids.can_alloc(1))
+            return;
+
+        const auto new_id  = ids.alloc();
+        const auto new_idx = get_index(new_id);
+
+        if (auto f = open_buffered_file(new_idx, vars.name.sv()); f) {
+            files[new_idx]       = std::move(*f);
+            subids[new_idx].grid = pj.grid_observers.get_id(vars);
+            types[new_idx]       = type::grid;
+            enables[new_idx]     = false;
+            do_initialize(vars, files[new_idx].get());
+        } else {
+            ids.free(new_id);
+        }
+    }
+
+    for (const auto& vars : pj.graph_observers) {
+        if (not ids.can_alloc(1))
+            grow();
+
+        if (not ids.can_alloc(1))
+            return;
+
+        const auto new_id  = ids.alloc();
+        const auto new_idx = get_index(new_id);
+
+        if (auto f = open_buffered_file(new_idx, vars.name.sv()); f) {
+            files[new_idx]        = std::move(*f);
+            subids[new_idx].graph = pj.graph_observers.get_id(vars);
+            types[new_idx]        = type::graph;
+            enables[new_idx]      = false;
+            do_initialize(vars, files[new_idx].get());
+        } else {
+            ids.free(new_id);
+        }
+    }
+}
+
+bool file_observers::can_update(const time t) const noexcept { return t > tn; }
+
+void file_observers::update(const simulation& sim, const project& pj) noexcept
+{
+    if (can_update(sim.t)) {
+        tn = sim.t + time_step;
+
+        for (auto id : ids) {
+            const auto idx = get_index(id);
+
+            switch (types[idx]) {
+            case type::variables:
+                if (auto* vars =
+                      pj.variable_observers.try_to_get(subids[idx].var);
+                    vars)
+                    do_update(sim, *vars, files[idx].get());
+                break;
+
+            case type::grid:
+                if (auto* vars = pj.grid_observers.try_to_get(subids[idx].grid);
+                    vars)
+                    do_update(sim, *vars, files[idx].get());
+                break;
+
+            case type::graph:
+                if (auto* vars =
+                      pj.graph_observers.try_to_get(subids[idx].graph);
+                    vars)
+                    do_update(sim, *vars, files[idx].get());
+                break;
+            }
+        }
+    }
+}
+
+void file_observers::finalize() noexcept
+{
+    for (auto id : ids) {
+        const auto idx = get_index(id);
+
+        if (enables[idx]) {
+            files[idx].reset();
+            enables[idx] = false;
+        }
+    }
+
+    clear();
+}
+
+} // namespace irt

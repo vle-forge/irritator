@@ -9,6 +9,7 @@
 #include <irritator/core.hpp>
 #include <irritator/error.hpp>
 #include <irritator/ext.hpp>
+#include <irritator/file.hpp>
 #include <irritator/helpers.hpp>
 #include <irritator/macros.hpp>
 #include <irritator/thread.hpp>
@@ -34,6 +35,7 @@ enum class variable_observer_id : u64;
 enum class grid_observer_id : u64;
 enum class graph_observer_id : u64;
 enum class global_parameter_id : u64;
+enum class file_observer_id : u32;
 
 using port_str           = small_string<7>;
 using name_str           = small_string<31>;
@@ -919,7 +921,13 @@ struct file_path {
         Count,
     };
 
-    enum class file_type { undefined_file, irt_file, dot_file, txt_file, data_file };
+    enum class file_type {
+        undefined_file,
+        irt_file,
+        dot_file,
+        txt_file,
+        data_file
+    };
 
     file_path_str path; /**< stores the file name as utf8 string. */
     dir_path_id   parent{ 0 };
@@ -1123,6 +1131,8 @@ public:
     static_limiter<i32, 1024, 65536> linearized_buffer_size  = 32768;
     floating_point_limiter<float, 1, 10000, 1, 10> time_step = .01f;
 
+    time tn = 0;
+
     enum class sub_id : u32;
 
 private:
@@ -1133,6 +1143,7 @@ private:
     vector<color>        m_colors;  //!< Colors used for observers.
     vector<type_options> m_options; //!< Line, dash etc. for observers.
     vector<name_str>     m_names;   //!< Name of the observation.
+    vector<double>       m_values;  //!< The last value of the observation.
 
 public:
     //! @brief Fill the `observer_id` vector and initialize buffers.
@@ -1201,6 +1212,8 @@ public:
     std::span<const color>        get_colors() const noexcept;
     std::span<type_options>       get_options() noexcept;
     std::span<const type_options> get_options() const noexcept;
+    std::span<double>             get_values() noexcept;
+    std::span<const double>       get_values() const noexcept;
 };
 
 struct log_entry {
@@ -1420,6 +1433,48 @@ public:
     spin_mutex file_paths_mutex;
 };
 
+class file_observers
+{
+public:
+    /** Increases size of the @c id_array and all sub vectors. */
+    void grow() noexcept;
+
+    /** Clears the id_array and all buffers. After this function @c ids.size()
+     * equals zero and all sub vector too. */
+    void clear() noexcept;
+
+    /** For each variable_observers, grid_observers and graph_observers from @c
+     * project try to initialize the @c buffered_file in @c files. */
+    void initialize(const simulation& sim, project& pj) noexcept;
+
+    /** Check if the @c tn is lower than @c t. */
+    bool can_update(const time t) const noexcept;
+
+    /** For each @c file_observer_id, flush data into the open files */
+    void update(const simulation& sim, const project& pj) noexcept;
+
+    /** For each @c buffered_file in @c files, close the opening file. */
+    void finalize() noexcept;
+
+    union id_type {
+        variable_observer_id var;
+        grid_observer_id     grid;
+        graph_observer_id    graph;
+    };
+
+    enum class type { variables, grid, graph };
+
+    id_array<file_observer_id> ids;
+    vector<buffered_file>      files;
+    vector<id_type>            subids;
+    vector<type>               types;
+    vector<bool>               enables;
+
+    floating_point_limiter<float, 1, 10000, 1, 1> time_step = 1.f;
+
+    time tn = 0;
+};
+
 class project
 {
 public:
@@ -1594,6 +1649,8 @@ public:
     data_array<variable_observer, variable_observer_id> variable_observers;
     data_array<grid_observer, grid_observer_id>         grid_observers;
     data_array<graph_observer, graph_observer_id>       graph_observers;
+
+    file_observers file_obs;
 
     id_data_array<global_parameter_id,
                   default_allocator,
@@ -1776,6 +1833,16 @@ inline std::span<const variable_observer::type_options>
 variable_observer::get_options() const noexcept
 {
     return m_options;
+}
+
+inline std::span<double> variable_observer::get_values() noexcept
+{
+    return m_values;
+}
+
+inline std::span<const double> variable_observer::get_values() const noexcept
+{
+    return m_values;
 }
 
 inline tree_node::tree_node(component_id id_, u64 unique_id_) noexcept
