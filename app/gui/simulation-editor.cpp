@@ -505,42 +505,32 @@ static bool show_local_simulation_settings(application& app,
 static bool show_local_simulation_specific_observers(application& app,
                                                      tree_node&   tn) noexcept
 {
-    return if_data_exists_do(
-      app.mod.components,
-      tn.id,
-      [&](auto& compo) noexcept -> bool {
-          switch (compo.type) {
-          case component_type::graph:
-              return if_data_exists_do(
-                app.mod.graph_components,
-                compo.id.graph_id,
-                [&](auto& graph) noexcept -> bool {
-                    return show_local_observers(app, tn, compo, graph);
-                },
-                []() noexcept -> bool { return false; });
+    auto& mod = app.mod;
 
-          case component_type::grid:
-              return if_data_exists_do(
-                app.mod.grid_components,
-                compo.id.grid_id,
-                [&](auto& grid) noexcept {
-                    return show_local_observers(app, tn, compo, grid);
-                },
-                []() noexcept -> bool { return false; });
+    if (auto* compo = mod.components.try_to_get(tn.id); compo) {
+        switch (compo->type) {
+        case component_type::graph:
+            if (auto* g = mod.graph_components.try_to_get(compo->id.graph_id);
+                g)
+                return show_local_observers(app, tn, *compo, *g);
+            break;
 
-          case component_type::simple:
-              return show_local_simulation_plot_observers_table(app, tn);
+        case component_type::grid:
+            if (auto* g = mod.grid_components.try_to_get(compo->id.grid_id); g)
+                return show_local_observers(app, tn, *compo, *g);
+            break;
 
-          default:
-              ImGui::TextFormat(
-                "Not yet implemented observers for component {}",
-                component_type_names[ordinal(compo.type)]);
-              return false;
-          }
+        case component_type::simple:
+            return show_local_simulation_plot_observers_table(app, tn);
 
-          return false;
-      },
-      []() noexcept -> bool { return false; });
+        default:
+            ImGui::TextFormat("Not yet implemented observers for component {}",
+                              component_type_names[ordinal(compo->type)]);
+            break;
+        }
+    }
+
+    return false;
 }
 
 static void show_local_variables_plot(application&       app,
@@ -568,8 +558,7 @@ static bool show_simulation_table_grid_observers(application& app) noexcept
     auto to_delete   = undefined<grid_observer_id>();
     bool is_modified = false;
 
-    if (ImGui::BeginTable("Grid observers", 6)) {
-        ImGui::TableSetupColumn("id");
+    if (ImGui::BeginTable("Grid observers", 5)) {
         ImGui::TableSetupColumn("name");
         ImGui::TableSetupColumn("scale");
         ImGui::TableSetupColumn("color");
@@ -581,11 +570,6 @@ static bool show_simulation_table_grid_observers(application& app) noexcept
             ImGui::PushID(&grid);
 
             ImGui::TableNextRow();
-            ImGui::TableNextColumn();
-
-            ImGui::TextFormat("{}",
-                              ordinal(app.pj.grid_observers.get_id(grid)));
-
             ImGui::TableNextColumn();
 
             ImGui::PushItemWidth(-1.0f);
@@ -608,12 +592,14 @@ static bool show_simulation_table_grid_observers(application& app) noexcept
 
             ImGui::TableNextColumn();
             float time_step = grid.time_step;
+            ImGui::PushItemWidth(-1.0f);
             if (ImGui::DragFloat("time-step",
                                  &time_step,
-                                 1.0f,
+                                 0.01f,
                                  grid.time_step.lower,
                                  grid.time_step.upper))
                 grid.time_step.set(time_step);
+            ImGui::PopItemWidth();
 
             ImGui::TableNextColumn();
             if (ImGui::Button("del"))
@@ -638,8 +624,7 @@ static bool show_simulation_table_graph_observers(application& app) noexcept
     auto to_delete   = undefined<graph_observer_id>();
     bool is_modified = false;
 
-    if (ImGui::BeginTable("Graph observers", 6)) {
-        ImGui::TableSetupColumn("id");
+    if (ImGui::BeginTable("Graph observers", 5)) {
         ImGui::TableSetupColumn("name");
         ImGui::TableSetupColumn("child");
         ImGui::TableSetupColumn("enable");
@@ -651,11 +636,6 @@ static bool show_simulation_table_graph_observers(application& app) noexcept
             ImGui::PushID(&graph);
 
             ImGui::TableNextRow();
-            ImGui::TableNextColumn();
-
-            ImGui::TextFormat("{}",
-                              ordinal(app.pj.graph_observers.get_id(graph)));
-
             ImGui::TableNextColumn();
 
             ImGui::PushItemWidth(-1.0f);
@@ -678,12 +658,14 @@ static bool show_simulation_table_graph_observers(application& app) noexcept
 
             ImGui::TableNextColumn();
             float time_step = graph.time_step;
+            ImGui::PushItemWidth(-1);
             if (ImGui::DragFloat("time-step",
                                  &time_step,
-                                 1.0f,
+                                 0.01f,
                                  graph.time_step.lower,
                                  graph.time_step.upper))
                 graph.time_step.set(time_step);
+            ImGui::PopItemWidth();
 
             ImGui::TableNextColumn();
             if (ImGui::Button("del"))
@@ -713,8 +695,7 @@ static bool show_simulation_table_variable_observers(application& app) noexcept
           "Can not allocate more multi-plot observers (max reached: {})",
           app.pj.variable_observers.capacity());
 
-    if (ImGui::BeginTable("Plot observers", 6)) {
-        ImGui::TableSetupColumn("id");
+    if (ImGui::BeginTable("Plot observers", 5)) {
         ImGui::TableSetupColumn("name");
         ImGui::TableSetupColumn("child");
         ImGui::TableSetupColumn("enable");
@@ -726,11 +707,6 @@ static bool show_simulation_table_variable_observers(application& app) noexcept
             ImGui::PushID(&variable);
 
             ImGui::TableNextRow();
-            ImGui::TableNextColumn();
-
-            ImGui::TextFormat(
-              "{}", ordinal(app.pj.variable_observers.get_id(variable)));
-
             ImGui::TableNextColumn();
 
             ImGui::PushItemWidth(-1.0f);
@@ -753,12 +729,14 @@ static bool show_simulation_table_variable_observers(application& app) noexcept
 
             ImGui::TableNextColumn();
             float time_step = variable.time_step;
+            ImGui::PushItemWidth(-1);
             if (ImGui::DragFloat("time-step",
                                  &time_step,
-                                 1.0f,
+                                 0.01f,
                                  variable.time_step.lower,
                                  variable.time_step.upper))
                 variable.time_step.set(time_step);
+            ImGui::PopItemWidth();
 
             ImGui::TableNextColumn();
             if (ImGui::Button("del"))
@@ -893,6 +871,66 @@ static void show_component_observations_actions(
     }
 }
 
+static int show_simulation_table_file_observers(application& app) noexcept
+{
+    auto is_modified = 0;
+
+    if (ImGui::BeginTable("File observers", 3)) {
+        ImGui::TableSetupColumn("type");
+        ImGui::TableSetupColumn("name");
+        ImGui::TableSetupColumn("enable");
+
+        for (const auto id : app.pj.file_obs.ids) {
+            ImGui::TableHeadersRow();
+            ImGui::TableNextColumn();
+
+            const auto idx = get_index(id);
+            switch (app.pj.file_obs.types[idx]) {
+            case file_observers::type::variables:
+                ImGui::TextUnformatted("plot");
+                ImGui::TableNextColumn();
+                if (auto* sub = app.pj.variable_observers.try_to_get(
+                      app.pj.file_obs.subids[idx].var);
+                    sub)
+                    ImGui::TextUnformatted(sub->name.c_str());
+                else
+                    ImGui::TextUnformatted("-");
+                break;
+            case file_observers::type::grid:
+                ImGui::TextUnformatted("grid");
+                ImGui::TableNextColumn();
+                if (auto* sub = app.pj.grid_observers.try_to_get(
+                      app.pj.file_obs.subids[idx].grid);
+                    sub)
+                    ImGui::TextUnformatted(sub->name.c_str());
+                else
+                    ImGui::TextUnformatted("-");
+                break;
+            case file_observers::type::graph:
+                ImGui::TextUnformatted("graph");
+                ImGui::TableNextColumn();
+                if (auto* sub = app.pj.graph_observers.try_to_get(
+                      app.pj.file_obs.subids[idx].graph);
+                    sub)
+                    ImGui::TextUnformatted(sub->name.c_str());
+                else
+                    ImGui::TextUnformatted("-");
+                break;
+            }
+
+            ImGui::TableNextColumn();
+            ImGui::PushItemWidth(-1);
+            if (ImGui::Checkbox("##enable", &app.pj.file_obs.enables[idx]))
+                ++is_modified;
+            ImGui::PopItemWidth();
+        }
+
+        ImGui::EndTable();
+    }
+
+    return is_modified;
+}
+
 static bool show_project_observations(application& app) noexcept
 {
     constexpr static auto flags = ImGuiTreeNodeFlags_DefaultOpen;
@@ -909,6 +947,10 @@ static bool show_project_observations(application& app) noexcept
     if (not app.pj.graph_observers.empty() and
         ImGui::CollapsingHeader("Graph observers", flags))
         updated += show_simulation_table_graph_observers(app);
+
+    if (not app.pj.file_obs.ids.empty() and
+        ImGui::CollapsingHeader("File observers", flags))
+        updated += show_simulation_table_file_observers(app);
 
     auto& sim_ed = app.simulation_ed;
     show_component_observations_actions(sim_ed);

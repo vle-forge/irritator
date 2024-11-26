@@ -1207,6 +1207,7 @@ void project::clear() noexcept
     variable_observers.clear();
     grid_observers.clear();
     graph_observers.clear();
+    file_obs.clear();
     parameters.clear();
 
     m_cache.clear();

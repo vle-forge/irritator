@@ -10,26 +10,6 @@
 
 namespace irt {
 
-inline void file_observers::grow() noexcept
-{
-    const auto capacity     = ids.capacity();
-    const auto new_capacity = capacity == 0 ? 8 : capacity * 3 / 2;
-
-    ids.reserve(new_capacity);
-    files.resize(new_capacity);
-    subids.resize(new_capacity);
-    types.resize(new_capacity);
-    enables.resize(new_capacity);
-}
-
-inline void file_observers::clear() noexcept
-{
-    for (const auto id : ids)
-        files[get_index(id)].reset();
-
-    ids.clear();
-}
-
 static result<buffered_file> open_buffered_file(
   const std::integral auto idx,
   const std::string_view   name) noexcept
@@ -152,70 +132,64 @@ static void do_update(const simulation&     sim,
     (void)file;
 }
 
+void file_observers::grow() noexcept
+{
+    const auto capacity     = ids.capacity();
+    const auto new_capacity = capacity == 0 ? 8 : capacity * 3 / 2;
+
+    ids.reserve(new_capacity);
+    files.resize(new_capacity);
+    subids.resize(new_capacity);
+    types.resize(new_capacity);
+    enables.resize(new_capacity);
+}
+
+void file_observers::clear() noexcept
+{
+    for (const auto id : ids)
+        files[get_index(id)].reset();
+
+    ids.clear();
+}
+
 void file_observers::initialize(const simulation& sim, project& pj) noexcept
 {
     tn = sim.t + time_step;
 
-    for (const auto& vars : pj.variable_observers) {
-        if (not ids.can_alloc(1))
-            grow();
+    for (const auto file_id : ids) {
+        const auto idx = get_index(file_id);
 
-        if (not ids.can_alloc(1))
-            return;
+        if (enables[idx] == false)
+            continue;
 
-        const auto new_id  = ids.alloc();
-        const auto new_idx = get_index(new_id);
+        switch (types[idx]) {
+        case type::variables:
+            if (auto* v = pj.variable_observers.try_to_get(subids[idx].var);
+                v) {
+                if (auto f = open_buffered_file(idx, v->name.sv()); f) {
+                    files[idx] = std::move(*f);
+                    do_initialize(*v, files[idx].get());
+                }
+            }
+            break;
 
-        if (auto f = open_buffered_file(new_idx, vars.name.sv()); f) {
-            files[new_idx]      = std::move(*f);
-            subids[new_idx].var = pj.variable_observers.get_id(vars);
-            types[new_idx]      = type::variables;
-            enables[new_idx]    = false;
-            do_initialize(vars, files[new_idx].get());
-        } else {
-            ids.free(new_id);
-        }
-    }
+        case type::grid:
+            if (auto* v = pj.grid_observers.try_to_get(subids[idx].grid); v) {
+                if (auto f = open_buffered_file(idx, v->name.sv()); f) {
+                    files[idx] = std::move(*f);
+                    do_initialize(*v, files[idx].get());
+                }
+            }
+            break;
 
-    for (const auto& vars : pj.grid_observers) {
-        if (not ids.can_alloc(1))
-            grow();
-
-        if (not ids.can_alloc(1))
-            return;
-
-        const auto new_id  = ids.alloc();
-        const auto new_idx = get_index(new_id);
-
-        if (auto f = open_buffered_file(new_idx, vars.name.sv()); f) {
-            files[new_idx]       = std::move(*f);
-            subids[new_idx].grid = pj.grid_observers.get_id(vars);
-            types[new_idx]       = type::grid;
-            enables[new_idx]     = false;
-            do_initialize(vars, files[new_idx].get());
-        } else {
-            ids.free(new_id);
-        }
-    }
-
-    for (const auto& vars : pj.graph_observers) {
-        if (not ids.can_alloc(1))
-            grow();
-
-        if (not ids.can_alloc(1))
-            return;
-
-        const auto new_id  = ids.alloc();
-        const auto new_idx = get_index(new_id);
-
-        if (auto f = open_buffered_file(new_idx, vars.name.sv()); f) {
-            files[new_idx]        = std::move(*f);
-            subids[new_idx].graph = pj.graph_observers.get_id(vars);
-            types[new_idx]        = type::graph;
-            enables[new_idx]      = false;
-            do_initialize(vars, files[new_idx].get());
-        } else {
-            ids.free(new_id);
+        case type::graph:
+            if (auto* v = pj.graph_observers.try_to_get(subids[idx].graph); v) {
+                if (auto f = open_buffered_file(idx, v->name.sv()); f) {
+                    files[idx] = std::move(*f);
+                    do_initialize(*v, files[idx].get());
+                }
+            }
+            break;
         }
     }
 }
@@ -224,33 +198,31 @@ bool file_observers::can_update(const time t) const noexcept { return t > tn; }
 
 void file_observers::update(const simulation& sim, const project& pj) noexcept
 {
-    if (can_update(sim.t)) {
-        tn = sim.t + time_step;
+    tn = sim.t + time_step;
 
-        for (auto id : ids) {
-            const auto idx = get_index(id);
+    for (auto id : ids) {
+        const auto idx = get_index(id);
+        if (enables[idx] == false)
+            continue;
 
-            switch (types[idx]) {
-            case type::variables:
-                if (auto* vars =
-                      pj.variable_observers.try_to_get(subids[idx].var);
-                    vars)
-                    do_update(sim, *vars, files[idx].get());
-                break;
+        switch (types[idx]) {
+        case type::variables:
+            if (auto* vars = pj.variable_observers.try_to_get(subids[idx].var);
+                vars)
+                do_update(sim, *vars, files[idx].get());
+            break;
 
-            case type::grid:
-                if (auto* vars = pj.grid_observers.try_to_get(subids[idx].grid);
-                    vars)
-                    do_update(sim, *vars, files[idx].get());
-                break;
+        case type::grid:
+            if (auto* vars = pj.grid_observers.try_to_get(subids[idx].grid);
+                vars)
+                do_update(sim, *vars, files[idx].get());
+            break;
 
-            case type::graph:
-                if (auto* vars =
-                      pj.graph_observers.try_to_get(subids[idx].graph);
-                    vars)
-                    do_update(sim, *vars, files[idx].get());
-                break;
-            }
+        case type::graph:
+            if (auto* vars = pj.graph_observers.try_to_get(subids[idx].graph);
+                vars)
+                do_update(sim, *vars, files[idx].get());
+            break;
         }
     }
 }
@@ -260,13 +232,9 @@ void file_observers::finalize() noexcept
     for (auto id : ids) {
         const auto idx = get_index(id);
 
-        if (enables[idx]) {
+        if (enables[idx])
             files[idx].reset();
-            enables[idx] = false;
-        }
     }
-
-    clear();
 }
 
 } // namespace irt

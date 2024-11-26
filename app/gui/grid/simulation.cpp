@@ -174,17 +174,6 @@ bool grid_simulation_editor::display(tree_node& tn,
     return display_grid_simulation(app, *this, tn, grid);
 }
 
-void alloc_grid_observer(irt::application& app, irt::tree_node& tn)
-{
-    auto& grid = app.pj.alloc_grid_observer();
-
-    grid.parent_id = app.pj.tree_nodes.get_id(tn);
-    grid.compo_id  = undefined<component_id>();
-    grid.tn_id     = undefined<tree_node_id>();
-    grid.mdl_id    = undefined<model_id>();
-    tn.grid_observer_ids.emplace_back(app.pj.grid_observers.get_id(grid));
-}
-
 bool show_local_observers(application& app,
                           tree_node&   tn,
                           component& /*compo*/,
@@ -273,14 +262,32 @@ bool show_local_observers(application& app,
               ImGui::PopID();
           });
 
-        ImGui::TableNextRow();
-        ImGui::TableNextColumn();
+        ImGui::EndTable();
+    }
 
-        if (app.pj.grid_observers.can_alloc() && ImGui::Button("+##grid")) {
-            alloc_grid_observer(app, tn);
+    if (app.pj.grid_observers.can_alloc() && ImGui::Button("+##grid")) {
+        auto&      grid    = app.pj.alloc_grid_observer();
+        const auto grid_id = app.pj.grid_observers.get_id(grid);
+
+        grid.parent_id = app.pj.tree_nodes.get_id(tn);
+        grid.compo_id  = undefined<component_id>();
+        grid.tn_id     = undefined<tree_node_id>();
+        grid.mdl_id    = undefined<model_id>();
+        tn.grid_observer_ids.emplace_back(grid_id);
+
+        if (not app.pj.file_obs.ids.can_alloc(1))
+            app.pj.file_obs.grow();
+
+        if (app.pj.file_obs.ids.can_alloc(1)) {
+            const auto file_obs_id = app.pj.file_obs.ids.alloc();
+            const auto idx         = get_index(file_obs_id);
+
+            app.pj.file_obs.subids[idx].grid = grid_id;
+            app.pj.file_obs.types[idx]       = file_observers::type::grid;
+            app.pj.file_obs.enables[idx]     = false;
         }
 
-        ImGui::EndTable();
+        is_modified = true;
     }
 
     if (to_del.has_value()) {
