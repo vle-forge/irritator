@@ -1032,6 +1032,7 @@ public:
 
     constexpr bool next(const Identifier*& idx) const noexcept;
 
+    constexpr bool       empty() const noexcept;
     constexpr bool       full() const noexcept;
     constexpr unsigned   size() const noexcept;
     constexpr int        ssize() const noexcept;
@@ -2420,6 +2421,12 @@ constexpr bool id_array<Identifier, A>::next(
     }
 
     return false;
+}
+
+template<typename Identifier, typename A>
+constexpr bool id_array<Identifier, A>::empty() const noexcept
+{
+    return m_items.ssize() == 0;
 }
 
 template<typename Identifier, typename A>
