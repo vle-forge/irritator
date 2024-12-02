@@ -5,34 +5,76 @@
 #include <irritator/archiver.hpp>
 #include <irritator/core.hpp>
 #include <irritator/error.hpp>
+#include <irritator/global.hpp>
 #include <irritator/io.hpp>
 
-#include <fstream>
+#include <filesystem>
+#include <string_view>
 
+#include <fmt/color.h>
 #include <fmt/format.h>
 
 #include <cstdio>
-#include <string_view>
 
-enum action_type { action_nothing, action_help, action_run, action_version };
+enum class ac { nothing, help, run, version };
 
-enum status_type {
-    status_success,
-    status_unknown_action,
-    status_missing_run_arguments,
-    status_bad_begin_time_argument,
-    status_bad_duration_time_argument,
-    status_bad_models_argument,
-    status_bad_messages_argument
+struct param {
+    std::string_view str;
+    int              arg;
 };
 
-struct main_action {
-    main_action(action_type      type_,
-                std::string_view short_string_,
-                std::string_view long_string_,
-                int              argument_) noexcept;
+enum class ec {
+    success,
+    arg_missing,
+    bad_parsing,
+    registred_path_empty,
+    unknown_action,
+    bad_real,
+    bad_int,
+    bad_dir,
+    open_file,
+};
 
-    action_type      type;
+static constexpr param report_parameters[] = {
+    { "success", 0 },
+    { "argument missing for {}", 1 },
+    { "fail to parse argument", 0 },
+    { "not global path", 0 },
+    { "unknwon action {}", 1 },
+    { "parameter `{}' is not a real", 1 },
+    { "parameter `{}' is not an integer", 1 },
+    { "directory `{}' can not be read", 1 },
+    { "open file `{}' error: {}", 2 }
+};
+
+template<ec Index, typename... Args>
+static constexpr void warning(Args&&... args) noexcept
+{
+    constexpr auto idx = static_cast<std::underlying_type_t<ec>>(Index);
+
+    assert(sizeof...(args) == report_parameters[idx].arg);
+
+    fmt::vprint(
+      stderr, report_parameters[idx].str, fmt::make_format_args(args...));
+}
+
+template<ec Index, typename Ret, typename... Args>
+static constexpr auto error(Ret&& ret, Args&&... args) noexcept -> Ret
+{
+    constexpr auto idx = static_cast<std::underlying_type_t<ec>>(Index);
+
+    assert(sizeof...(args) == report_parameters[idx].arg);
+
+    fmt::vprint(stderr,
+                fg(fmt::terminal_color::red),
+                report_parameters[idx].str,
+                fmt::make_format_args(args...));
+
+    return ret;
+}
+
+struct main_action {
+    ac               type;
     std::string_view short_string;
     std::string_view long_string;
     int              argument;
@@ -41,19 +83,9 @@ struct main_action {
     bool operator==(const std::string_view other) const noexcept;
 };
 
-main_action actions[] = { { action_help, "h", "help", 0 },
-                          { action_run, "r", "run", 2 },
-                          { action_version, "v", "version", 0 } };
-
-static inline std::string_view main_status_str[] = {
-    "success",
-    "unknown action",
-    "missing run arguments",
-    "bad begin time argument",
-    "bad duration time argument",
-    "status bad models argument",
-    "status bad messages argument"
-};
+static constexpr main_action actions[] = { { ac::help, "h", "help", 0 },
+                                           { ac::run, "r", "run", 0 },
+                                           { ac::version, "v", "version", 0 } };
 
 //! Show help message in console.
 void show_help() noexcept;
@@ -62,72 +94,44 @@ void show_help() noexcept;
 void show_version() noexcept;
 
 //! Run simulation from simulation file.
-void run_simulation(irt::real   begin,
-                    irt::real   duration,
-                    int         models,
-                    int         messages,
-                    const char* file_name) noexcept;
+void run_simulations(std::span<char*> filenames) noexcept;
 
 struct main_parameters {
-    irt::real   begin    = irt::zero;
-    irt::real   duration = irt::one;
-    int         models   = 2048;
-    int         messages = 4096;
-    status_type status   = status_success;
-    action_type action   = action_nothing;
-    int         files    = 0;
-
-    main_parameters() = default;
+    ac  action = ac::nothing;
+    int files  = 0;
 
     static bool parse_real(const char* param, irt::real& out) noexcept;
     static bool parse_integer(const char* param, int& out) noexcept;
-    bool        parse(int argc, char* argv[]) noexcept;
+    static std::optional<main_parameters> parse(int   argc,
+                                                char* argv[]) noexcept;
 };
 
 int main(int argc, char* argv[])
 {
-    main_parameters params;
+    if (auto params = main_parameters::parse(argc, argv); params.has_value()) {
+        switch (params->action) {
+        case ac::nothing:
+            break;
 
-    if (!params.parse(argc, argv)) {
-        fmt::print(stderr,
-                   "Fail to parse arguments. Error: {}\n",
-                   main_status_str[irt::ordinal(params.status)]);
+        case ac::help:
+            show_help();
+            break;
 
-        return 0;
-    }
+        case ac::run:
+            run_simulations(
+              std::span(argv + params->files, argc - params->files));
+            break;
 
-    switch (params.action) {
-    case action_nothing:
-        break;
-    case action_help:
-        show_help();
-        break;
-    case action_run:
-        for (; params.files < argc; ++params.files)
-            run_simulation(params.begin,
-                           params.duration,
-                           params.models,
-                           params.messages,
-                           argv[params.files]);
-        fmt::print("\n\n");
-        break;
-    case action_version:
-        show_version();
-        break;
+        case ac::version:
+            show_version();
+            break;
+        }
+    } else {
+        return error<ec::bad_parsing>(0);
     }
 
     return 0;
 }
-
-main_action::main_action(action_type      type_,
-                         std::string_view short_string_,
-                         std::string_view long_string_,
-                         int              argument_) noexcept
-  : type(type_)
-  , short_string(short_string_)
-  , long_string(long_string_)
-  , argument(argument_)
-{}
 
 bool main_action::operator<(const std::string_view other) const noexcept
 {
@@ -147,7 +151,7 @@ bool main_parameters::parse_real(const char* param, irt::real& out) noexcept
         return true;
     }
 
-    return false;
+    return error<ec::bad_real>(false, std::string_view{ param });
 }
 
 bool main_parameters::parse_integer(const char* param, int& out) noexcept
@@ -158,73 +162,44 @@ bool main_parameters::parse_integer(const char* param, int& out) noexcept
         return true;
     }
 
-    return false;
+    return error<ec::bad_int>(false, std::string_view{ param });
 }
 
-bool main_parameters::parse(int argc, char* argv[]) noexcept
+std::optional<main_parameters> main_parameters::parse(int   argc,
+                                                      char* argv[]) noexcept
 {
-    if (argc <= 1)
-        return true;
+    ac  action = ac::nothing;
+    int files  = 0;
 
-    std::string_view str{ argv[1] };
+    if (argc == 1) {
+        action = ac::help;
+    } else {
+        std::string_view str{ argv[1] };
 
-    auto it = irt::binary_find(
-      std::begin(actions),
-      std::end(actions),
-      str,
-      [](auto left, auto right) noexcept -> bool {
-          if constexpr (std::is_same_v<decltype(left), std::string_view>)
-              return left < right.long_string;
-          else
-              return left.long_string < right;
-      });
+        auto it = irt::binary_find(
+          std::begin(actions),
+          std::end(actions),
+          str,
+          [](auto left, auto right) noexcept -> bool {
+              if constexpr (std::is_same_v<decltype(left), std::string_view>)
+                  return left < right.long_string;
+              else
+                  return left.long_string < right;
+          });
 
-    if (it == std::end(actions)) {
-        status = status_unknown_action;
-        return false;
+        if (it == std::end(actions))
+            return error<ec::unknown_action>(std::nullopt);
+
+        action = it->type;
     }
 
-    action = it->type;
-
-    if (it->argument == 0)
-        return true;
-
-    if (it->type == action_run) {
-        if (5 < argc) {
-            if (!parse_real(argv[2], begin)) {
-                status = status_bad_begin_time_argument;
-                return false;
-            }
-
-            if (!parse_real(argv[3], duration)) {
-                status = status_bad_duration_time_argument;
-                return false;
-            }
-
-            if (!parse_integer(argv[4], models) || models < 0) {
-                status = status_bad_models_argument;
-                return false;
-            }
-
-            if (!parse_integer(argv[5], messages) || messages < 0) {
-                status = status_bad_messages_argument;
-                return false;
-            }
-        } else {
-            status = status_missing_run_arguments;
-            return false;
-        }
-    }
-
-    files = 6;
-    return true;
+    return main_parameters{ .action = action, .files = files };
 }
 
 void show_help() noexcept
 {
     fmt::print(
-      "irritator-cli action-name action-argument [files...]\n"
-      "\n\n"
+      "irritator-cli action-name action-argument [files...]\n\n"
       "help        This help message\n"
       "version     Version of irritator-cli\n"
       "information Information about simulation files\n"
@@ -233,8 +208,6 @@ void show_help() noexcept
       "	Need parameters:\n"
       "	- [real] The begin date of the begin date of the simulation\n"
       "	- [real] The duration of the simulation\n"
-      " - [integer] The number of models to pre-allocate\n"
-      " - [integer] The number of messages to pre-allocate\n"
       "\n\n");
 }
 
@@ -247,45 +220,119 @@ void show_version() noexcept
                VERSION_TWEAK);
 }
 
-void run_simulation(irt::real begin,
-                    irt::real duration,
-                    int /* models */,
-                    int /* messages */,
-                    const char* file_name) noexcept
+/** Try to add a new global path in @c modeling. This function only test if the
+ * directory exists in the filesystem.
+ * @return 1 if the function succeded, 0 otherwise.
+ */
+static int registred_path_add(irt::modeling&               mod,
+                              const std::filesystem::path& path,
+                              const std::string_view       name) noexcept
 {
-    fmt::print("Run simulation from `{}' to `{}' for file {}\n",
-               begin,
-               duration,
-               file_name);
+    std::error_code ec;
+    if (std::filesystem::exists(path, ec) and ec == std::errc{}) {
+        auto&      dir    = mod.registred_paths.alloc();
+        const auto dir_id = mod.registred_paths.get_id(dir);
+        dir.name          = name;
+        dir.path          = path.string().c_str();
+        mod.component_repertories.emplace_back(dir_id);
+        return 1;
+    }
 
+    warning<ec::bad_dir>(path.string());
+    return 0;
+}
+
+/** Try to add generic global paths in @c c modeling: from the system, from the
+ * prefix system and from the user.
+ *
+ * @return @c status_type::status_registred_path_empty if all path does not
+ * exists.
+ */
+static int registred_path_add(irt::modeling& mod) noexcept
+{
+    int i = 0;
+
+    if (auto path = irt::get_system_component_dir(); path)
+        i += registred_path_add(mod, *path, "System directory");
+    if (auto path = irt::get_system_prefix_component_dir(); path)
+        i += registred_path_add(mod, *path, "System prefix directory");
+    if (auto path = irt::get_default_user_component_dir(); path)
+        i += registred_path_add(mod, *path, "User directory");
+
+    if (i == 0)
+        warning<ec::registred_path_empty>();
+
+    return i;
+}
+
+static void run_simulation(irt::json_dearchiver& json,
+                           irt::modeling&        mod,
+                           irt::file&            f) noexcept
+{
     irt::attempt_all(
       [&]() noexcept -> irt::status {
-          irt::project                       pj;
-          irt::modeling_initializer          init;
-          irt::modeling                      mod;
           irt::simulation_memory_requirement smr{ 1024 * 1024 * 8 };
           irt::simulation                    sim{ smr };
+          irt::project                       pj;
 
-          irt_check(pj.init(init));
-          irt_check(mod.init(init));
-
-          auto file = irt::file::open(file_name, irt::open_mode::read);
-          if (file) {
-              irt::json_archiver j;
-
-              j(pj, mod, sim, *file);
-
-              sim.t               = begin;
-              const irt::time end = begin + duration;
-
+          if (json(pj, mod, sim, f)) {
               irt_check(sim.srcs.prepare());
               irt_check(sim.initialize());
+              sim.t = 0; // @TODO waiting to stores begin, end or
+                         // duration into the irt::project class.
+              irt::real end = 100.0;
+
+              fmt::print("file-observers: {}\n", pj.file_obs.ids.ssize());
 
               do {
                   irt_check(sim.run());
               } while (sim.t < end);
 
               irt_check(sim.finalize());
+          }
+
+          return irt::success();
+      },
+      [](const irt::project::part s) noexcept -> void {
+          fmt::print(stderr, "Fail to initialize project: {}\n", ordinal(s));
+      },
+
+      [](const irt::modeling::part s) noexcept -> void {
+          fmt::print(stderr, "Fail to initialize modeling: {}\n", ordinal(s));
+      },
+
+      [](const irt::simulation::part s) noexcept -> void {
+          fmt::print(stderr, "Fail to initialize simulation: {}\n", ordinal(s));
+      },
+
+      []() noexcept -> void { fmt::print(stderr, "Unknown error\n"); });
+}
+
+void run_simulations(std::span<char*> filenames) noexcept
+{
+    irt::attempt_all(
+      [&]() noexcept -> irt::status {
+          irt::modeling_initializer init;
+          irt::modeling             mod;
+          irt::json_dearchiver      j;
+
+          irt_check(mod.init(init));
+          registred_path_add(mod);
+          irt_check(mod.fill_components());
+
+          for (auto filename : filenames) {
+              irt::project pj;
+              irt_check(pj.init(init));
+              irt::simulation_memory_requirement smr{ 1024 * 1024 * 8 };
+              irt::simulation                    sim{ smr };
+
+              fmt::print("Run simulation for file {}\n", filename);
+              if (auto file = irt::file::open(filename, irt::open_mode::read);
+                  file.has_value())
+                  run_simulation(j, mod, *file);
+              else
+                  warning<ec::open_file>(filename,
+                                         std::string_view{ "unknown" });
           }
 
           return irt::success();
