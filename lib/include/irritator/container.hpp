@@ -41,6 +41,17 @@ using ssz = ptrdiff_t;
 using f32 = float;
 using f64 = double;
 
+/** Returns true if the integer @c t is greater or equal to @c min_include and
+ * less or equal to @c max_include. */
+template<std::integral T, std::integral R1, std::integral R2>
+constexpr bool is_included(const T  t,
+                           const R1 min_include,
+                           const R2 max_include) noexcept
+{
+    return std::cmp_greater_equal(t, min_include) and
+           std::cmp_less_equal(t, max_include);
+}
+
 inline constexpr auto u8s_to_u16(u8 a, u8 b) noexcept -> u16
 {
     return static_cast<u16>((static_cast<u16>(a) << 8) | static_cast<u16>(b));
