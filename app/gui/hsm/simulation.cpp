@@ -22,7 +22,7 @@ bool hsm_simulation_editor::show_observations(tree_node& tn,
     ImGui::LabelFormat("project", "tns {}", app.pj.tree_nodes.size());
     ImGui::LabelFormat("simulation", "models {}", app.sim.models.size());
     ImGui::LabelFormat(
-      "tn", "uid {} children: {}", tn.unique_id, tn.children.size());
+      "tn", "uid {} children: {}", tn.unique_id.sv(), tn.children.size());
 
     const auto hsm_id = app.mod.hsm_components.get_id(hsm);
     if (hsm_id != current_id)

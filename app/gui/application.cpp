@@ -552,7 +552,9 @@ static void show_select_model_box_recursive(application&   app,
         ImGui::PushID(&tn);
         if (ImGui::TreeNodeEx(str.c_str(), flags)) {
             for_each_model(
-              app.sim, tn, [&](u64 /*unique_id*/, auto& mdl) noexcept {
+              app.sim,
+              tn,
+              [&](const std::string_view /*unique_id*/, auto& mdl) noexcept {
                   const auto mdl_id = app.sim.models.get_id(mdl);
                   ImGui::PushID(get_index(mdl_id));
 

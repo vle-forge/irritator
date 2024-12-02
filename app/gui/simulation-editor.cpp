@@ -330,11 +330,15 @@ static bool show_local_simulation_plot_observers_table(application& app,
                                   c->id.generic_id);
                                 g) {
                                 for (auto& ch : g->children) {
-                                    if (ch.unique_id == uid) {
+                                    const auto ch_id  = g->children.get_id(ch);
+                                    const auto ch_idx = get_index(ch_id);
+                                    const auto ch_uid =
+                                      g->children_names[ch_idx].sv();
+
+                                    if (ch_uid == uid) {
                                         vobs
                                           .get_names()[get_index(sub_obs_id)] =
-                                          g->children_names[get_index(
-                                            g->children.get_id(ch))];
+                                          ch_uid;
                                         break;
                                     }
                                 }
@@ -413,7 +417,8 @@ static bool show_local_simulation_plot_observers_table(application& app,
     return is_modified > 0;
 }
 
-static auto get_global_parameter(const auto& tn, const u64 uid) noexcept
+static auto get_global_parameter(const auto&            tn,
+                                 const std::string_view uid) noexcept
   -> global_parameter_id
 {
     auto* ptr = tn.parameters_ids.get(uid);

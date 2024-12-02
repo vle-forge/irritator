@@ -2053,6 +2053,20 @@ struct json_dearchiver::impl {
         report_json_error(error_id::missing_integer);
     }
 
+    bool fix_child_name(generic_component& generic, child& c) noexcept
+    {
+        if (c.flags[child_flags::configurable] or
+            c.flags[child_flags::observable]) {
+            const auto id  = generic.children.get_id(c);
+            const auto idx = get_index(id);
+
+            if (generic.children_names[idx].empty())
+                generic.children_names[idx] = generic.make_unique_name_id(id);
+        }
+
+        return true;
+    }
+
     bool read_child(const rapidjson::Value& val,
                     generic_component&      generic,
                     child&                  c,
@@ -2061,7 +2075,6 @@ struct json_dearchiver::impl {
         auto_stack a(this, stack_id::child);
 
         std::optional<u64> id;
-        std::optional<u64> unique_id;
 
         return for_each_member(
                  val,
@@ -2069,11 +2082,6 @@ struct json_dearchiver::impl {
                      if ("id"sv == name)
                          return read_temp_unsigned_integer(value) &&
                                 copy_to(id);
-                     if ("unique-id"sv == name)
-                         return read_temp_unsigned_integer(value) &&
-                                copy_to(unique_id) &&
-                                std::cmp_greater(unique_id.value(), 0) &&
-                                copy(unique_id, c.unique_id);
                      if ("x"sv == name)
                          return read_temp_real(value) and
                                 copy_to(
@@ -2098,7 +2106,8 @@ struct json_dearchiver::impl {
                      return true;
                  }) &&
                optional_has_value(id) &&
-               cache_model_mapping_add(*id, ordinal(c_id));
+               cache_model_mapping_add(*id, ordinal(c_id)) &&
+               fix_child_name(generic, c);
     }
 
     bool read_child_model_dynamics(const rapidjson::Value& val,
@@ -3365,10 +3374,6 @@ struct json_dearchiver::impl {
 
         return for_each_member(
           val, [&](const auto name, const auto& value) noexcept -> bool {
-              if ("next-unique-id"sv == name)
-                  return read_temp_unsigned_integer(value) &&
-                         copy_to(generic.next_unique_id);
-
               if ("children"sv == name)
                   return read_children(value, generic);
 
@@ -4249,7 +4254,7 @@ struct json_dearchiver::impl {
     {
         auto_stack s(this, stack_id::project_real_parameter);
 
-        return is_value_array(val) && is_value_array_size_equal(val, 4) &&
+        return is_value_array(val) && is_value_array_size_equal(val, 8) &&
                for_each_array(
                  val, [&](const auto i, const auto& value) noexcept -> bool {
                      return read_temp_real(value) && copy_to(reals[i]);
@@ -4261,7 +4266,7 @@ struct json_dearchiver::impl {
     {
         auto_stack s(this, stack_id::project_integer_parameter);
 
-        return is_value_array(val) && is_value_array_size_equal(val, 4) &&
+        return is_value_array(val) && is_value_array_size_equal(val, 8) &&
                for_each_array(
                  val, [&](const auto i, const auto& value) noexcept -> bool {
                      return read_temp_unsigned_integer(value) &&
@@ -4284,71 +4289,57 @@ struct json_dearchiver::impl {
           });
     }
 
-    bool read_global_parameter(const rapidjson::Value& val) noexcept
+    bool global_parameter_init(const global_parameter_id id,
+                               const tree_node_id        tn_id,
+                               const model_id            mdl_id,
+                               const parameter&          p) noexcept
+    {
+        pj().parameters.get<tree_node_id>(id) = tn_id;
+        pj().parameters.get<model_id>(id)     = mdl_id;
+        pj().parameters.get<parameter>(id)    = p;
+
+        return true;
+    }
+
+    bool read_global_parameter(const rapidjson::Value&   val,
+                               const global_parameter_id id) noexcept
     {
         auto_stack s(this, stack_id::project_global_parameter);
 
-        std::optional<std::string>  name_opt;
         std::optional<tree_node_id> tn_id_opt;
         std::optional<model_id>     mdl_id_opt;
         std::optional<parameter>    parameter_opt;
 
-        bool success = for_each_member(
-          val, [&](const auto name, const auto& value) noexcept -> bool {
-              if ("name"sv == name) {
-                  if (not read_temp_string(value))
-                      return false;
+        return for_each_member(
+                 val,
+                 [&](const auto name, const auto& value) noexcept -> bool {
+                     unique_id_path path;
 
-                  name_opt = temp_string;
+                     if ("name"sv == name)
+                         return read_temp_string(value) &&
+                                copy_to(pj().parameters.get<name_str>(id));
 
-                  return true;
-              }
+                     if ("access"sv == name)
+                         return read_project_unique_id_path(value, path) &&
+                                convert_to_tn_model_ids(
+                                  path, tn_id_opt, mdl_id_opt);
 
-              if ("access"sv == name) {
-                  unique_id_path path;
-                  if (not read_project_unique_id_path(val, path))
-                      return false;
+                     if ("parameter"sv == name) {
+                         parameter p;
+                         if (not read_parameter(value, p))
+                             return false;
 
-                  tree_node_id tn_id;
-                  model_id     mdl_id;
-                  if (not convert_to_tn_model_ids(path, tn_id, mdl_id))
-                      return false;
+                         parameter_opt = p;
+                         return true;
+                     }
 
-                  tn_id_opt  = tn_id;
-                  mdl_id_opt = mdl_id;
-
-                  return true;
-              }
-
-              if ("parameter"sv == name) {
-                  parameter p;
-                  if (not read_parameter(value, p))
-                      return false;
-
-                  parameter_opt = p;
-                  return true;
-              }
-
-              return true;
-          });
-
-        if (success and name_opt.has_value() and tn_id_opt.has_value() and
-            mdl_id_opt.has_value() and parameter_opt.has_value()) {
-            pj().parameters.alloc([&](auto /*id*/,
-                                      auto& name,
-                                      auto& tn_id,
-                                      auto& mdl_id,
-                                      auto& p) noexcept {
-                name   = *name_opt;
-                tn_id  = *tn_id_opt;
-                mdl_id = *mdl_id_opt;
-                p      = *parameter_opt;
-            });
-
-            return true;
-        }
-
-        return false;
+                     return true;
+                 }) and
+               optional_has_value(tn_id_opt) and
+               optional_has_value(mdl_id_opt) and
+               optional_has_value(parameter_opt) and
+               global_parameter_init(
+                 id, *tn_id_opt, *mdl_id_opt, *parameter_opt);
     }
 
     bool read_global_parameters(const rapidjson::Value& val) noexcept
@@ -4362,7 +4353,8 @@ struct json_dearchiver::impl {
                for_each_array(
                  val,
                  [&](const auto /*i*/, const auto& value) noexcept -> bool {
-                     return read_global_parameter(value);
+                     const auto id = pj().parameters.alloc();
+                     return read_global_parameter(value, id);
                  });
     }
 
@@ -4395,9 +4387,9 @@ struct json_dearchiver::impl {
           });
     }
 
-    bool convert_to_tn_model_ids(const unique_id_path& path,
-                                 tree_node_id&         parent_id,
-                                 model_id&             mdl_id) noexcept
+    bool convert_to_tn_model_ids(const unique_id_path&        path,
+                                 std::optional<tree_node_id>& parent_id,
+                                 std::optional<model_id>&     mdl_id) noexcept
     {
         auto_stack s(this, stack_id::project_convert_to_tn_model_ids);
 
@@ -4427,17 +4419,36 @@ struct json_dearchiver::impl {
           error_id::project_fail_convert_access_to_tn_model_ids);
     }
 
-    bool convert_to_tn_id(const unique_id_path& path,
-                          tree_node_id&         tn_id) noexcept
+    bool convert_to_tn_id(const unique_id_path&        path,
+                          std::optional<tree_node_id>& tn_id) noexcept
     {
         auto_stack s(this, stack_id::project_convert_to_tn_id);
 
-        if (auto ret_opt = pj().get_tn_id(path); ret_opt.has_value()) {
-            tn_id = *ret_opt;
+        if (const auto id = pj().get_tn_id(path); is_defined(id)) {
+            tn_id = id;
             return true;
         }
 
         report_json_error(error_id::project_fail_convert_access_to_tn_id);
+    }
+
+    template<typename T, int L>
+    bool clear(small_vector<T, L>& out) noexcept
+    {
+        out.clear();
+
+        return true;
+    }
+
+    template<typename T, int L>
+    bool push_back_string(small_vector<T, L>& out) noexcept
+    {
+        if (out.ssize() + 1 < out.capacity()) {
+            out.emplace_back(
+              std::string_view{ temp_string.data(), temp_string.size() });
+            return true;
+        }
+        return false;
     }
 
     bool read_project_unique_id_path(const rapidjson::Value& val,
@@ -4446,11 +4457,11 @@ struct json_dearchiver::impl {
         auto_stack s(this, stack_id::project_unique_id_path);
 
         return is_value_array(val) &&
-               is_value_array_size_less(val, length(out) + 1) &&
+               is_value_array_size_less(val, out.capacity()) && clear(out) &&
                for_each_array(
-                 val, [&](const auto i, const auto& value) noexcept -> bool {
-                     return read_temp_unsigned_integer(value) &&
-                            copy_to(out[i]);
+                 val,
+                 [&](const auto /*i*/, const auto& value) noexcept -> bool {
+                     return read_temp_string(value) && push_back_string(out);
                  });
     }
 
@@ -4478,14 +4489,30 @@ struct json_dearchiver::impl {
                copy(cc, c);
     }
 
+    bool plot_observation_init(variable_observer&                    plot,
+                               const tree_node_id                    parent_id,
+                               const model_id                        mdl_id,
+                               const color                           c,
+                               const variable_observer::type_options t) noexcept
+    {
+        if (auto* tn = pj().tree_nodes.try_to_get(parent_id); tn) {
+            plot.push_back(parent_id, mdl_id, c, t);
+            return true;
+        }
+
+        return false;
+    }
+
     bool read_project_plot_observation_child(const rapidjson::Value& val,
                                              variable_observer& plot) noexcept
     {
         auto_stack s(this, stack_id::project_plot_observation_child);
-        auto       tn_id  = undefined<tree_node_id>();
-        auto       mdl_id = undefined<model_id>();
-        auto       c      = color(0xff0ff);
-        auto       t      = variable_observer::type_options::line;
+
+        std::optional<tree_node_id> parent_id;
+        std::optional<model_id>     mdl_id;
+
+        auto c = color(0xff0ff);
+        auto t = variable_observer::type_options::line;
 
         return for_each_member(
                  val,
@@ -4496,8 +4523,9 @@ struct json_dearchiver::impl {
                          return read_temp_string(value) && copy_to(plot.name);
 
                      if ("access"sv == name)
-                         return read_project_unique_id_path(val, path) &&
-                                convert_to_tn_model_ids(path, tn_id, mdl_id);
+                         return read_project_unique_id_path(value, path) &&
+                                convert_to_tn_model_ids(
+                                  path, parent_id, mdl_id);
 
                      if ("color"sv == name)
                          return read_color(value, c);
@@ -4507,13 +4535,9 @@ struct json_dearchiver::impl {
 
                      report_json_error(error_id::unknown_element);
                  }) &&
-                 [&]() noexcept -> bool {
-            if (is_defined(tn_id) and is_defined(mdl_id)) {
-                plot.push_back(tn_id, mdl_id, c, t);
-                return true;
-            }
-            return false;
-        }();
+               optional_has_value(parent_id) and optional_has_value(mdl_id) and
+               plot_observation_init(plot, *parent_id, *mdl_id, c, t);
+        return false;
     }
 
     bool copy_to(variable_observer::type_options& type) noexcept
@@ -4569,28 +4593,55 @@ struct json_dearchiver::impl {
                  });
     }
 
+    bool grid_observation_init(grid_observer& grid,
+                               tree_node_id   parent_id,
+                               tree_node_id   grid_tn_id,
+                               model_id       mdl_id)
+    {
+        if (auto* tn = pj().tree_nodes.try_to_get(parent_id); tn) {
+            grid.parent_id = parent_id;
+            grid.tn_id     = grid_tn_id;
+            grid.mdl_id    = mdl_id;
+            grid.compo_id  = tn->id;
+            tn->grid_observer_ids.emplace_back(
+              pj().grid_observers.get_id(grid));
+            return true;
+        }
+
+        return false;
+    }
+
     bool read_project_grid_observation(const rapidjson::Value& val,
                                        grid_observer&          grid) noexcept
     {
         auto_stack s(this, stack_id::project_grid_observation);
 
+        std::optional<tree_node_id> parent_id;
+        std::optional<tree_node_id> grid_tn_id;
+        std::optional<model_id>     mdl_id;
+
         return for_each_member(
-          val, [&](const auto name, const auto& value) noexcept -> bool {
-              unique_id_path path;
+                 val,
+                 [&](const auto name, const auto& value) noexcept -> bool {
+                     unique_id_path path;
 
-              if ("name"sv == name)
-                  return read_temp_string(value) && copy_to(grid.name);
+                     if ("name"sv == name)
+                         return read_temp_string(value) && copy_to(grid.name);
 
-              if ("grid"sv == name)
-                  return read_project_unique_id_path(val, path) &&
-                         convert_to_tn_id(path, grid.parent_id);
+                     if ("grid"sv == name)
+                         return read_project_unique_id_path(value, path) &&
+                                convert_to_tn_id(path, parent_id);
 
-              if ("access"sv == name)
-                  return read_project_unique_id_path(val, path) &&
-                         convert_to_tn_model_ids(path, grid.tn_id, grid.mdl_id);
+                     if ("access"sv == name)
+                         return read_project_unique_id_path(value, path) &&
+                                convert_to_tn_model_ids(
+                                  path, grid_tn_id, mdl_id);
 
-              return true;
-          });
+                     return true;
+                 }) and
+               optional_has_value(parent_id) and
+               optional_has_value(grid_tn_id) and optional_has_value(mdl_id) and
+               grid_observation_init(grid, *parent_id, *grid_tn_id, *mdl_id);
     }
 
     bool read_project_grid_observations(const rapidjson::Value& val) noexcept
@@ -5843,7 +5894,7 @@ struct json_archiver::impl {
                                     const dir_path&       dir,
                                     const file_path&      file) noexcept
     {
-        w.Key("name");
+        w.Key("path");
         w.String(reg.name.begin(), reg.name.size());
 
         w.Key("directory");
@@ -5929,7 +5980,6 @@ struct json_archiver::impl {
     void write_child(const modeling&          mod,
                      const generic_component& gen,
                      const child&             ch,
-                     const u64                unique_id,
                      Writer&                  w) noexcept
     {
         const auto child_id  = gen.children.get_id(ch);
@@ -5938,11 +5988,6 @@ struct json_archiver::impl {
         w.StartObject();
         w.Key("id");
         w.Uint64(get_index(child_id));
-
-        if (unique_id != 0) {
-            w.Key("unique-id");
-            w.Uint64(unique_id);
-        }
 
         w.Key("x");
         w.Double(gen.children_positions[child_idx].x);
@@ -5992,14 +6037,8 @@ struct json_archiver::impl {
         w.Key("children");
         w.StartArray();
 
-        for_each_data(simple_compo.children, [&](auto& c) noexcept {
-            write_child(mod,
-                        simple_compo,
-                        c,
-                        c.unique_id == 0 ? simple_compo.make_next_unique_id()
-                                         : c.unique_id,
-                        w);
-        });
+        for (const auto& c : simple_compo.children)
+            write_child(mod, simple_compo, c, w);
 
         w.EndArray();
     }
@@ -6198,9 +6237,6 @@ struct json_archiver::impl {
                                  const generic_component& s_compo,
                                  Writer&                  w) noexcept
     {
-        w.String("next-unique-id");
-        w.Uint64(s_compo.next_unique_id);
-
         write_generic_component_children(mod, s_compo, w);
         write_generic_component_connections(mod, compo, s_compo, w);
     }
@@ -6643,8 +6679,8 @@ struct json_archiver::impl {
                                       const unique_id_path& path) noexcept
     {
         w.StartArray();
-        for (auto elem : path)
-            w.Uint64(elem);
+        for (const auto& elem : path)
+            w.String(elem.data(), elem.size());
         w.EndArray();
     }
 
@@ -6707,11 +6743,12 @@ struct json_archiver::impl {
 
             unique_id_path path;
             w.Key("grid");
-            write_project_unique_id_path(w, path);
             pj.build_unique_id_path(grid.parent_id, path);
+            write_project_unique_id_path(w, path);
 
             w.Key("access");
             pj.build_unique_id_path(grid.tn_id, grid.mdl_id, path);
+            write_project_unique_id_path(w, path);
 
             w.EndObject();
         });
@@ -6733,7 +6770,6 @@ struct json_archiver::impl {
     template<typename Writer>
     void write_parameter(Writer& w, const parameter& param) noexcept
     {
-        w.Key("parameter");
         w.StartObject();
         w.Key("real");
         w.StartArray();
@@ -6745,6 +6781,7 @@ struct json_archiver::impl {
         for (auto elem : param.integers)
             w.Int64(elem);
         w.EndArray();
+        w.EndObject();
     }
 
     template<typename Writer>
@@ -6758,16 +6795,16 @@ struct json_archiver::impl {
                                    const auto  tn_id,
                                    const auto  mdl_id,
                                    const auto& p) noexcept {
-            unique_id_path path;
-            w.Key("access");
-            pj.build_unique_id_path(tn_id, mdl_id, path);
-
             w.StartObject();
             w.Key("name");
             w.String(name.begin(), name.size());
 
+            unique_id_path path;
             w.Key("access");
+            pj.build_unique_id_path(tn_id, mdl_id, path);
             write_project_unique_id_path(w, path);
+
+            w.Key("parameter");
             write_parameter(w, p);
 
             w.EndObject();

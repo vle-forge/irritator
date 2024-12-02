@@ -6,6 +6,8 @@
 #include <irritator/modeling-helpers.hpp>
 #include <irritator/modeling.hpp>
 
+#include <charconv>
+
 namespace irt {
 
 static void build_graph(graph_observer&  graph_obs,
@@ -31,23 +33,28 @@ static void build_graph(graph_observer&  graph_obs,
             const auto* tn     = pj.tree_nodes.try_to_get(tn_mdl.first);
             auto*       mdl    = sim.models.try_to_get(tn_mdl.second);
 
-            if (tn && mdl) {
-                debug::ensure(is_numeric_castable<i32>(child->unique_id));
+            if (tn and mdl) {
+                auto index = 0;
 
-                const auto index = static_cast<i32>(child->unique_id);
-                debug::ensure(0 <= index);
-                debug::ensure(graph_obs.observers.ssize() ==
-                              graph_compo.children.ssize());
-                debug::ensure(index < graph_obs.observers.ssize());
+                if (auto ret = std::from_chars(
+                      child->unique_id.begin(), child->unique_id.end(), index);
+                    ret.ec == std::errc{}) {
+                    debug::ensure(0 <= index);
+                    debug::ensure(graph_obs.observers.ssize() ==
+                                  graph_compo.children.ssize());
+                    debug::ensure(index < graph_obs.observers.ssize());
 
-                auto&      obs    = sim.observers.alloc();
-                const auto obs_id = sim.observers.get_id(obs);
-                sim.observe(*mdl, obs);
+                    auto&      obs    = sim.observers.alloc();
+                    const auto obs_id = sim.observers.get_id(obs);
+                    sim.observe(*mdl, obs);
 
-                graph_obs.observers[index] = obs_id;
+                    graph_obs.observers[index] = obs_id;
+                } else {
+                    debug::log("unique_id {} is not found",
+                               child->unique_id.sv());
+                }
             }
         }
-
         child = child->tree.get_sibling();
     }
 }

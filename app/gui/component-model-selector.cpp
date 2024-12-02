@@ -145,7 +145,7 @@ bool component_model_selector::observable_model_treenode(
             if (ImGui::TreeNodeEx(str.c_str(),
                                   ImGuiTreeNodeFlags_DefaultOpen)) {
                 for_each_model(
-                  app.sim, tn, [&](u64 /*uid*/, const auto& mdl) noexcept {
+                  app.sim, tn, [&](const std::string_view /*uid*/, const auto& mdl) noexcept {
                       const auto current_mdl_id = app.sim.models.get_id(mdl);
                       ImGui::PushID(get_index(current_mdl_id));
 

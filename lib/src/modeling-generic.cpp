@@ -48,14 +48,16 @@ result<child_id> generic_component::copy_to(
 
     new_c.type = c.type;
     new_c.id   = c.id;
-    if (c.unique_id)
-        new_c.unique_id = dst.make_next_unique_id();
 
     debug::ensure(std::cmp_less(new_c_idx, dst.children_names.size()));
     debug::ensure(std::cmp_less(new_c_idx, dst.children_positions.size()));
     debug::ensure(std::cmp_less(new_c_idx, dst.children_parameters.size()));
 
-    dst.children_names[new_c_idx]      = children_names[src_idx];
+    dst.children_names[new_c_idx] =
+      dst.exists_child(children_names[src_idx].sv())
+        ? dst.make_unique_name_id(new_c_id)
+        : children_names[src_idx];
+
     dst.children_positions[new_c_idx]  = children_positions[new_c_idx];
     dst.children_parameters[new_c_idx] = children_parameters[src_idx];
 
@@ -199,10 +201,9 @@ status generic_component::import(
         return new_error(children_error{}, container_full_error{});
 
     for (const auto& c : children) {
-        auto& new_c     = this->children.alloc();
-        new_c.type      = c.type;
-        new_c.id        = c.id;
-        new_c.unique_id = c.unique_id ? this->make_next_unique_id() : 0;
+        auto& new_c = this->children.alloc();
+        new_c.type  = c.type;
+        new_c.id    = c.id;
 
         src_to_this.data.emplace_back(children.get_id(c),
                                       this->children.get_id(new_c));
@@ -242,7 +243,9 @@ status generic_component::import(
                 const auto src_idx = get_index(children.get_id(*src));
                 const auto dst_idx = get_index(this->children.get_id(*dst));
 
-                children_names[dst_idx] = names[src_idx];
+                children_names[dst_idx] = exists_child(names[src_idx].sv())
+                                            ? make_unique_name_id(pair.value)
+                                            : names[src_idx].sv();
             }
         }
     }
@@ -262,6 +265,31 @@ status generic_component::import(
     }
 
     return success();
+}
+
+bool generic_component::exists_child(const std::string_view str) const noexcept
+{
+    for (const auto& c : children)
+        if (children_names[get_index(children.get_id(c))].sv() == str)
+            return true;
+
+    return false;
+}
+
+name_str generic_component::make_unique_name_id(
+  const child_id from_id) const noexcept
+{
+    const auto idx = get_index(from_id);
+
+    name_str ret;
+
+    for (auto i = idx; i < std::numeric_limits<decltype(idx)>::max(); ++i) {
+        format(ret, "child-{}", i, idx);
+        if (not exists_child(ret.sv()))
+            break;
+    }
+
+    return ret;
 }
 
 void generic_component::format_connection_error(log_entry& e) noexcept

@@ -396,7 +396,7 @@ void for_each_model(simulation& sim, tree_node& tn, Function&& f) noexcept
     for (int i = 0, e = tn.unique_id_to_model_id.data.ssize(); i < e; ++i) {
         if_data_exists_do(
           sim.models, tn.unique_id_to_model_id.data[i].value, [&](auto& mdl) {
-              f(tn.unique_id_to_model_id.data[i].id, mdl);
+              f(tn.unique_id_to_model_id.data[i].id.sv(), mdl);
           });
     }
 }
@@ -409,7 +409,7 @@ void for_each_model(const simulation& sim,
     for (int i = 0, e = tn.unique_id_to_model_id.data.ssize(); i < e; ++i) {
         const auto mdl_id = tn.unique_id_to_model_id.data[i].value;
         if (const auto* mdl = sim.models.try_to_get(mdl_id); mdl)
-            f(tn.unique_id_to_model_id.data[i].id, *mdl);
+            f(tn.unique_id_to_model_id.data[i].id.sv(), *mdl);
     }
 }
 

@@ -1211,13 +1211,11 @@ static void update_unique_id(generic_component& gen, child& ch) noexcept
     const auto configurable = ch.flags[child_flags::configurable];
     const auto observable   = ch.flags[child_flags::observable];
 
-    if (ch.unique_id == 0) {
-        if (configurable || observable)
-            ch.unique_id = gen.make_next_unique_id();
-    } else {
-        if (!configurable && !observable)
-            ch.unique_id = 0;
-    }
+    const auto ch_id  = gen.children.get_id(ch);
+    const auto ch_idx = get_index(ch_id);
+
+    if ((configurable or observable) and gen.children_names[ch_idx].empty())
+        gen.children_names[ch_idx] = gen.make_unique_name_id(ch_id);
 }
 
 static bool show_selected_node(component&         compo,

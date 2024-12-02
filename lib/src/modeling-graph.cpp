@@ -31,7 +31,6 @@
 #pragma GCC diagnostic pop
 #endif
 
-
 namespace irt {
 
 struct local_rng {
@@ -83,10 +82,29 @@ struct local_rng {
     sz           last_elem;
 };
 
+bool graph_component::exists_child(const std::string_view name) const noexcept
+{
+    return std::any_of(
+      children.begin(), children.end(), [name](const auto& v) noexcept -> bool {
+          return v.name.sv() == name;
+      });
+}
+
+name_str graph_component::make_unique_name_id(const vertex_id v) const noexcept
+{
+    debug::ensure(is_included(get_index(v), 0, children.capacity()));
+
+    name_str ret;
+    format(ret, "{}", get_index(v));
+
+    return ret;
+}
+
 static auto build_graph_children(modeling& mod, graph_component& graph) noexcept
   -> table<graph_component::vertex_id, child_id>
 {
     graph.positions.resize(graph.children.size());
+    graph.cache_names.resize(graph.children.size());
     table<graph_component::vertex_id, child_id> tr;
     tr.data.reserve(graph.children.ssize());
 
@@ -100,14 +118,16 @@ static auto build_graph_children(modeling& mod, graph_component& graph) noexcept
         child_id new_id = undefined<child_id>();
 
         if (auto* c = mod.components.try_to_get(vertex.id); c) {
-            auto& new_ch     = graph.cache.alloc(vertex.id);
-            new_id           = graph.cache.get_id(new_ch);
-            new_ch.unique_id = static_cast<u64>(graph.children.get_id(vertex));
+            auto& new_ch   = graph.cache.alloc(vertex.id);
+            new_id         = graph.cache.get_id(new_ch);
+            const auto idx = get_index(new_id);
 
-            graph.positions[get_index(new_id)].x =
+            graph.positions[idx].x =
               static_cast<float>(((graph.space_x * x) + graph.left_limit));
-            graph.positions[get_index(new_id)].y =
+            graph.positions[idx].y =
               static_cast<float>(((graph.space_y * y) + graph.upper_limit));
+            graph.cache_names[idx] =
+              graph.make_unique_name_id(graph.children.get_id(vertex));
         }
 
         if (x++ > gr) {

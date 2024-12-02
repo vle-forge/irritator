@@ -112,15 +112,19 @@ static auto build_grid_children(modeling& mod, grid_component& grid) noexcept
 
     ret.resize(children_nb);
     grid.cache.reserve(children_nb);
+    grid.cache_names.resize(children_nb);
 
     for (int i = 0, e = grid.children.ssize(); i != e; ++i) {
         auto id = undefined<child_id>();
 
         if (mod.components.try_to_get(grid.children[i])) {
-            auto& new_ch     = grid.cache.alloc(grid.children[i]);
-            id               = grid.cache.get_id(new_ch);
-            const auto pos   = grid.pos(i);
-            new_ch.unique_id = grid.unique_id(pos.first, pos.second);
+            auto& new_ch   = grid.cache.alloc(grid.children[i]);
+            id             = grid.cache.get_id(new_ch);
+            const auto idx = get_index(id);
+            const auto r_c = grid.pos(i);
+
+            grid.cache_names[idx] =
+              grid.make_unique_name_id(r_c.first, r_c.second);
         };
 
         ret[i] = id;
@@ -342,6 +346,17 @@ status modeling::copy(grid_component& grid, generic_component& s) noexcept
     irt_check(grid.build_cache(*this));
 
     return s.import(grid.cache, grid.cache_connections);
+}
+
+name_str grid_component::make_unique_name_id(int row, int col) const noexcept
+{
+    debug::ensure(0 <= row and row < row_max);
+    debug::ensure(0 <= col and col < column_max);
+
+    name_str ret;
+    format(ret, "{},{}", row, col);
+
+    return ret;
 }
 
 bool grid_component::exists_input_connection(const port_id x,

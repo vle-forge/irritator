@@ -131,8 +131,8 @@ static bool display_grid_simulation(application&            app,
         if (0 <= row and row < grid.row and 0 <= col and col < grid.column) {
             const auto irow      = static_cast<int>(row);
             const auto icol      = static_cast<int>(col);
-            const auto uid       = grid.unique_id(irow, icol);
-            const auto tn_id_opt = tn.get_tree_node_id(uid);
+            const auto uid       = grid.make_unique_name_id(irow, icol);
+            const auto tn_id_opt = tn.get_tree_node_id(uid.sv());
 
             if (tn_id_opt.has_value()) {
                 if (ImGui::BeginMenu("Action")) {

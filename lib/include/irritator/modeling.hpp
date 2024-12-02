@@ -52,7 +52,7 @@ constexpr i32 max_component_stack_size = 16;
 
 /// Stores the path from the head of the project to the model by following
 /// the path of tree_node and/or component @c unique_id.
-using unique_id_path = small_vector<u64, max_component_stack_size>;
+using unique_id_path = small_vector<name_str, max_component_stack_size>;
 
 /// Stores the path from the @c tree_node_id @c tn to the model.
 /// Use the function in class project to easily build instances:
@@ -171,19 +171,13 @@ enum class child_flags : u8 {
 
 struct child {
     child() noexcept;
-    child(dynamics_type type) noexcept;
-    child(component_id component) noexcept;
+    explicit child(dynamics_type type) noexcept;
+    explicit child(component_id component) noexcept;
 
     union {
         dynamics_type mdl_type;
         component_id  compo_id;
     } id;
-
-    /// An identifier provided by the component parent to easily found a child
-    /// in project. The value 0 means unique_id is undefined. @c grid-component
-    /// stores a double word (row x column), graph-component stores the nth
-    /// vertex, @c generic-component stores a incremental integer.
-    u64 unique_id = 0;
 
     child_type            type  = child_type::model;
     bitflags<child_flags> flags = child_flags::none;
@@ -341,11 +335,6 @@ public:
     vector<name_str>  children_names;
     vector<parameter> children_parameters;
 
-    //! Use to affect @c child::unique_id when the component is saved. The value
-    //! 0 means unique_id is undefined. Mutable variable to allow function @c
-    //! make_next_unique_id to be const and called in json const functions.
-    mutable u64 next_unique_id = 1;
-
     bool exists_input_connection(const port_id          x,
                                  const child&           dst,
                                  const connection::port port) const noexcept;
@@ -407,7 +396,8 @@ public:
                   const std::span<name_str>                    names     = {},
                   const std::span<parameter> parameters = {}) noexcept;
 
-    u64 make_next_unique_id() const noexcept { return next_unique_id++; }
+    bool     exists_child(const std::string_view name) const noexcept;
+    name_str make_unique_name_id(const child_id from_id) const noexcept;
 
     static auto build_error_handlers(log_manager& l) noexcept;
     static void format_connection_error(log_entry& e) noexcept;
@@ -460,6 +450,8 @@ struct grid_component {
 
     static inline constexpr auto type_count = 2;
 
+    name_str make_unique_name_id(int row, int col) const noexcept;
+
     constexpr int pos(int row_, int col_) const noexcept
     {
         return col_ * row + row_;
@@ -484,11 +476,6 @@ struct grid_component {
 
         return std::make_pair(static_cast<int>(unpack.first),
                               static_cast<int>(unpack.second));
-    }
-
-    constexpr u64 unique_id(int row, int col) const noexcept
-    {
-        return u32s_to_u64(static_cast<u32>(row), static_cast<u32>(col));
     }
 
     struct input_connection {
@@ -551,6 +538,7 @@ struct grid_component {
 
     data_array<child, child_id>           cache;
     data_array<connection, connection_id> cache_connections;
+    vector<name_str>                      cache_names;
 
     //! clear the @c cache and @c cache_connection data_array.
     void clear_cache() noexcept;
@@ -674,17 +662,15 @@ public:
 
     graph_component() noexcept;
 
+    bool     exists_child(const std::string_view name) const noexcept;
+    name_str make_unique_name_id(const vertex_id v) const noexcept;
+
     //! Resize `children` vector and clear the `edges`, `input_connections` and
     //! `output_connection`.
     void resize(const i32 children_size, const component_id id) noexcept;
 
     //! Update `edges` according to parameters.
     void update() noexcept;
-
-    constexpr u64 unique_id(int pos_) noexcept
-    {
-        return static_cast<u64>(pos_);
-    }
 
     //! @brief Check if the input connection already exits.
     bool exists_input_connection(const port_id   x,
@@ -720,6 +706,7 @@ public:
 
     data_array<child, child_id>           cache;
     data_array<connection, connection_id> cache_connections;
+    vector<name_str>                      cache_names;
     vector<position>                      positions;
 
     int space_x     = 100;
@@ -961,7 +948,7 @@ struct modeling_initializer {
 };
 
 struct tree_node {
-    tree_node(component_id id_, u64 unique_id_) noexcept;
+    tree_node(component_id id_, const std::string_view unique_id_) noexcept;
 
     /// Intrusive hierarchy to the children, sibling and parent @c tree_node.
     hierarchy<tree_node> tree;
@@ -1007,25 +994,26 @@ struct tree_node {
     }
 
     /// A unique identifier provided by component parent.
-    u64 unique_id = 0;
+    name_str unique_id;
 
-    table<u64, tree_node_id> unique_id_to_tree_node_id;
-    table<u64, model_id>     unique_id_to_model_id;
+    table<name_str, tree_node_id> unique_id_to_tree_node_id;
+    table<name_str, model_id>     unique_id_to_model_id;
 
-    table<u64, global_parameter_id>  parameters_ids;
-    table<u64, variable_observer_id> variable_observer_ids;
+    table<name_str, global_parameter_id>  parameters_ids;
+    table<name_str, variable_observer_id> variable_observer_ids;
 
     vector<graph_observer_id> graph_observer_ids;
     vector<grid_observer_id>  grid_observer_ids;
 
-    auto get_model_id(const u64 u_id) const noexcept -> std::optional<model_id>
+    auto get_model_id(const std::string_view u_id) const noexcept
+      -> std::optional<model_id>
     {
         auto* ptr = unique_id_to_model_id.get(u_id);
 
         return ptr ? std::make_optional(*ptr) : std::nullopt;
     }
 
-    auto get_tree_node_id(const u64 u_id) const noexcept
+    auto get_tree_node_id(const std::string_view u_id) const noexcept
       -> std::optional<tree_node_id>
     {
         auto* ptr = unique_id_to_tree_node_id.get(u_id);
@@ -1033,24 +1021,27 @@ struct tree_node {
         return ptr ? std::make_optional(*ptr) : std::nullopt;
     }
 
-    auto get_unique_id(const model_id mdl_id) const noexcept -> u64
+    auto get_unique_id(const model_id mdl_id) const noexcept -> std::string_view
     {
         auto it = std::find_if(
           unique_id_to_model_id.data.begin(),
           unique_id_to_model_id.data.end(),
           [mdl_id](const auto& elem) noexcept { return elem.value == mdl_id; });
 
-        return it == unique_id_to_model_id.data.end() ? 0u : it->id;
+        return it == unique_id_to_model_id.data.end() ? std::string_view{}
+                                                      : it->id.sv();
     }
 
-    auto get_unique_id(const tree_node_id tn_id) const noexcept -> u64
+    auto get_unique_id(const tree_node_id tn_id) const noexcept
+      -> std::string_view
     {
         auto it = std::find_if(
           unique_id_to_tree_node_id.data.begin(),
           unique_id_to_tree_node_id.data.end(),
           [tn_id](const auto& elem) noexcept { return elem.value == tn_id; });
 
-        return it == unique_id_to_tree_node_id.data.end() ? 0u : it->id;
+        return it == unique_id_to_tree_node_id.data.end() ? std::string_view{}
+                                                          : it->id.sv();
     }
 };
 
@@ -1437,7 +1428,7 @@ public:
     /// Checks if the child can be added to the parent to avoid recursive loop
     /// (ie. a component child which need the same component in sub-child).
     bool can_add(const component& parent,
-                 const component& child) const noexcept;
+                 const component& other) const noexcept;
 
     child& alloc(generic_component& parent, dynamics_type type) noexcept;
     child& alloc(generic_component& parent, component_id id) noexcept;
@@ -1657,18 +1648,22 @@ public:
     void build_unique_id_path(const tree_node_id tn_id,
                               unique_id_path&    out) noexcept;
 
-    void build_unique_id_path(const tree_node& model_unique_id_parent,
-                              const u64        model_unique_id,
-                              unique_id_path&  out) noexcept;
+    void build_unique_id_path(const tree_node&       model_unique_id_parent,
+                              const std::string_view model_unique_id,
+                              unique_id_path&        out) noexcept;
 
-    auto get_model_path(u64 id) const noexcept
+    /** Search a model with name attribute equals to @c id from the root
+     * tree-node (the top of the hierarchy). */
+    auto get_model_path(const std::string_view id) const noexcept
       -> std::optional<std::pair<tree_node_id, model_id>>;
 
+    /** Search a model from the @c path. The first element is the root node (top
+     * of the hierarchy), next element are tree nodes and finally, at the last
+     * position in the @c unique_id_path, the name of the model. */
     auto get_model_path(const unique_id_path& path) const noexcept
       -> std::optional<std::pair<tree_node_id, model_id>>;
 
-    auto get_tn_id(const unique_id_path& path) const noexcept
-      -> std::optional<tree_node_id>;
+    auto get_tn_id(const unique_id_path& path) const noexcept -> tree_node_id;
 
     data_array<tree_node, tree_node_id> tree_nodes;
 
@@ -1871,9 +1866,10 @@ inline std::span<const double> variable_observer::get_values() const noexcept
     return m_values;
 }
 
-inline tree_node::tree_node(component_id id_, u64 unique_id_) noexcept
+inline tree_node::tree_node(component_id           id_,
+                            const std::string_view uid) noexcept
   : id(id_)
-  , unique_id(unique_id_)
+  , unique_id(uid)
 {}
 
 /*

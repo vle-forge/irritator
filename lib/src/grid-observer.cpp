@@ -6,6 +6,8 @@
 #include <irritator/modeling-helpers.hpp>
 #include <irritator/modeling.hpp>
 
+#include <charconv>
+
 #include <fmt/format.h>
 
 namespace irt {
@@ -35,6 +37,27 @@ static auto init_or_reuse_observer(simulation& sim,
     return mdl.obs_id;
 }
 
+std::optional<std::pair<int, int>> get_row_column(
+  const std::string_view str) noexcept
+{
+    int row = 0, col = 0;
+
+    const auto begin = str.data();
+    const auto end   = str.data() + str.size();
+
+    if (const auto ret_1 = std::from_chars(begin, end, row);
+        ret_1.ec == std::errc{} and ret_1.ptr != str.data() + str.size()) {
+        const auto begin_2 = ret_1.ptr + 1;
+
+        if (const auto ret_2 = std::from_chars(begin_2, end, col);
+            ret_2.ec == std ::errc{}) {
+            return std::make_pair(row, col);
+        }
+    }
+
+    return std::nullopt;
+}
+
 static void build_grid_observer(grid_observer&  grid_obs,
                                 project&        pj,
                                 simulation&     sim,
@@ -55,19 +78,26 @@ static void build_grid_observer(grid_observer&  grid_obs,
             const auto* tn     = pj.tree_nodes.try_to_get(tn_mdl.first);
             auto*       mdl    = sim.models.try_to_get(tn_mdl.second);
 
-            if (tn && mdl) {
-                const auto w = u64_to_u32s(child->unique_id);
-                debug::ensure(std::cmp_less(w.first, grid_compo.row));
-                debug::ensure(std::cmp_less(w.second, grid_compo.column));
+            if (tn and mdl) {
+                if (const auto w_opt = get_row_column(child->unique_id.sv());
+                    w_opt.has_value()) {
+                    const auto& w = *w_opt;
+                    debug::ensure(std::cmp_less(w.first, grid_compo.row));
+                    debug::ensure(std::cmp_less(w.second, grid_compo.column));
 
-                const auto index = static_cast<i32>(w.second) * grid_compo.row +
-                                   static_cast<i32>(w.first);
+                    const auto index =
+                      static_cast<i32>(w.second) * grid_compo.row +
+                      static_cast<i32>(w.first);
 
-                debug::ensure(0 <= index);
-                debug::ensure(index < grid_obs.observers.ssize());
+                    debug::ensure(0 <= index);
+                    debug::ensure(index < grid_obs.observers.ssize());
 
-                grid_obs.observers[index] =
-                  init_or_reuse_observer(sim, *mdl, w.first, w.second);
+                    grid_obs.observers[index] =
+                      init_or_reuse_observer(sim, *mdl, w.first, w.second);
+                } else {
+                    debug::log("unique_id {} is not found",
+                               child->unique_id.sv());
+                }
             }
         }
 

@@ -797,34 +797,32 @@ component& modeling::alloc_generic_component() noexcept
     return new_compo;
 }
 
-static bool fill_child(const modeling&       mod,
-                       const child&          c,
-                       vector<component_id>& out,
-                       component_id          search) noexcept
+static bool can_add_component(const modeling&       mod,
+                              const component_id    c,
+                              vector<component_id>& out,
+                              component_id          search) noexcept
 {
-    if (c.type == child_type::component) {
-        if (c.id.compo_id == search)
-            return true;
+    if (c == search)
+        return false;
 
-        if (auto* compo = mod.components.try_to_get(c.id.compo_id); compo)
-            out.emplace_back(c.id.compo_id);
-    }
+    if (auto* compo = mod.components.try_to_get(c); compo)
+        out.emplace_back(c);
 
-    return false;
+    return true;
 }
 
-static bool fill_children(const modeling&       mod,
-                          const component&      compo,
-                          vector<component_id>& out,
-                          component_id          search) noexcept
+static bool can_add_component(const modeling&       mod,
+                              const component&      compo,
+                              vector<component_id>& out,
+                              component_id          search) noexcept
 {
     switch (compo.type) {
     case component_type::grid: {
         auto id = compo.id.grid_id;
         if (auto* g = mod.grid_components.try_to_get(id); g) {
-            for (const auto& ch : g->children)
-                if (fill_child(mod, ch, out, search))
-                    return true;
+            for (const auto ch : g->children)
+                if (not can_add_component(mod, ch, out, search))
+                    return false;
         }
     } break;
 
@@ -832,8 +830,8 @@ static bool fill_children(const modeling&       mod,
         auto id = compo.id.graph_id;
         if (auto* g = mod.graph_components.try_to_get(id); g) {
             for (const auto& vertex : g->children)
-                if (fill_child(mod, vertex.id, out, search))
-                    return true;
+                if (not can_add_component(mod, vertex.id, out, search))
+                    return false;
         }
     } break;
 
@@ -841,8 +839,9 @@ static bool fill_children(const modeling&       mod,
         auto id = compo.id.generic_id;
         if (auto* s = mod.generic_components.try_to_get(id); s) {
             for (const auto& ch : s->children)
-                if (fill_child(mod, ch, out, search))
-                    return true;
+                if (ch.type == child_type::component)
+                    if (not can_add_component(mod, ch.id.compo_id, out, search))
+                        return false;
         }
         break;
     }
@@ -851,33 +850,33 @@ static bool fill_children(const modeling&       mod,
         break;
     }
 
-    return false;
+    return true;
 }
 
 bool modeling::can_add(const component& parent,
-                       const component& child) const noexcept
+                       const component& other) const noexcept
 {
     vector<component_id> stack;
     component_id         parent_id = components.get_id(parent);
-    component_id         child_id  = components.get_id(child);
+    component_id         other_id  = components.get_id(other);
 
-    if (parent_id == child_id)
+    if (parent_id == other_id)
         return false;
 
-    if (fill_children(*this, child, stack, parent_id))
-        return true;
+    if (not can_add_component(*this, other, stack, parent_id))
+        return false;
 
     while (!stack.empty()) {
         auto id = stack.back();
         stack.pop_back();
 
         if (auto* compo = components.try_to_get(id); compo) {
-            if (fill_children(*this, *compo, stack, parent_id))
-                return true;
+            if (not can_add_component(*this, *compo, stack, parent_id))
+                return false;
         }
     }
 
-    return false;
+    return true;
 }
 
 void modeling::clear(component& compo) noexcept
@@ -968,11 +967,10 @@ child& modeling::alloc(generic_component& parent, component_id id) noexcept
     auto&      child    = parent.children.alloc(id);
     const auto child_id = parent.children.get_id(child);
     const auto index    = get_index(child_id);
-    child.unique_id     = parent.make_next_unique_id();
     child.type          = child_type::component;
     child.id.compo_id   = id;
 
-    parent.children_names[index].clear();
+    parent.children_names[index] = parent.make_unique_name_id(child_id);
     parent.children_parameters[index].clear();
     parent.children_positions[index].x = 0.f;
     parent.children_positions[index].y = 0.f;
@@ -987,7 +985,6 @@ child& modeling::alloc(generic_component& parent, dynamics_type type) noexcept
     auto&      child  = parent.children.alloc(type);
     const auto id     = parent.children.get_id(child);
     const auto index  = get_index(id);
-    child.unique_id   = parent.make_next_unique_id();
     child.type        = child_type::model;
     child.id.mdl_type = type;
 
@@ -996,7 +993,7 @@ child& modeling::alloc(generic_component& parent, dynamics_type type) noexcept
     debug::ensure(index < parent.children_positions.size());
     debug::ensure(index < parent.children_positions.size());
 
-    parent.children_names[index].clear();
+    parent.children_names[index] = parent.make_unique_name_id(id);
     parent.children_parameters[index].clear();
     parent.children_positions[index].x = 0.f;
     parent.children_positions[index].y = 0.f;
