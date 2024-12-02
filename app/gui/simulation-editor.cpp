@@ -436,67 +436,77 @@ static bool show_local_simulation_settings(application& app,
                           ImGuiChildFlags_None,
                           ImGuiWindowFlags_HorizontalScrollbar);
 
-        if (ImGui::BeginTable("Parameter table", 4)) {
-            ImGui::TableSetupColumn("enable");
-            ImGui::TableSetupColumn("unique id");
-            ImGui::TableSetupColumn("model type");
-            ImGui::TableSetupColumn("parameter");
+        constexpr auto tflags = ImGuiTableFlags_SizingStretchProp;
+        constexpr auto fflags = ImGuiTableColumnFlags_WidthFixed;
+        constexpr auto sflags = ImGuiTableColumnFlags_WidthStretch;
+
+        if (ImGui::BeginTable("Parameter table", 5, tflags)) {
+            ImGui::TableSetupColumn("enable", fflags, 30.f);
+            ImGui::TableSetupColumn("name", fflags, 100.f);
+            ImGui::TableSetupColumn("model type", fflags, 120.f);
+            ImGui::TableSetupColumn("parameter", sflags);
+            ImGui::TableSetupColumn("action", fflags, 30.f);
             ImGui::TableHeadersRow();
 
-            for_each_model(app.sim, tn, [&](auto uid, auto& mdl) noexcept {
-                const auto mdl_id  = app.sim.get_id(mdl);
-                auto       current = get_global_parameter(tn, uid);
-                auto       enable  = is_defined(current);
+            auto to_del = undefined<global_parameter_id>();
 
-                ImGui::PushID(static_cast<int>(get_index(mdl_id)));
+            for_each_model(app.sim, tn, [&](auto uid, auto& mdl) noexcept {
+                const auto param_id  = get_global_parameter(tn, uid);
+                const auto is_enable = app.pj.parameters.exists(param_id);
+                const auto param_idx = get_index(param_id);
+
+                ImGui::PushID(param_idx);
 
                 ImGui::TableNextRow();
                 ImGui::TableNextColumn();
 
-                ImGui::BeginDisabled(app.simulation_ed.is_simulation_running());
-                if (ImGui::Checkbox("##enable", &enable)) {
-                    if (enable and app.pj.parameters.can_alloc(1)) {
-                        const auto gp_id =
-                          app.pj.parameters.alloc([&](auto  id,
-                                                      auto& name,
-                                                      auto& tn_id,
-                                                      auto& mdl_id,
-                                                      auto& p) noexcept {
-                              format(name, "{}", ordinal(id));
-                              tn_id  = app.pj.tree_nodes.get_id(tn);
-                              mdl_id = app.sim.models.get_id(mdl);
-                              p.copy_from(mdl);
-                          });
-
-                        tn.parameters_ids.set(uid, gp_id);
-                        current = gp_id;
+                auto is_enable_copy = is_enable;
+                if (ImGui::Checkbox("##enable", &is_enable_copy)) {
+                    if (is_enable_copy) {
+                        auto new_id = app.pj.parameters.alloc();
+                        app.pj.parameters.get<name_str>(new_id) = "New";
+                        app.pj.parameters.get<tree_node_id>(new_id) =
+                          app.pj.tree_nodes.get_id(tn);
+                        app.pj.parameters.get<model_id>(new_id) =
+                          app.sim.models.get_id(mdl);
+                        app.pj.parameters.get<parameter>(new_id).clear();
+                        tn.parameters_ids.data.emplace_back(uid, new_id);
+                        tn.parameters_ids.sort();
                     } else {
-                        app.pj.parameters.free(current);
                         tn.parameters_ids.erase(uid);
-                        current = undefined<global_parameter_id>();
-                        enable  = false;
+                        to_del = param_id;
                     }
                 }
-                ImGui::EndDisabled();
 
                 ImGui::TableNextColumn();
-
-                ImGui::TextFormat("{}", ordinal(mdl_id));
-                ImGui::TableNextColumn();
-
-                ImGui::TextUnformatted(dynamics_type_names[ordinal(mdl.type)]);
-                ImGui::TableNextColumn();
-
-                if (enable) {
-                    app.pj.parameters.if_exists_do<irt::parameter>(
-                      current, [&](auto /*id*/, auto& param) noexcept {
-                          show_parameter_editor(app, mdl, param);
-                      });
+                if (is_enable) {
+                    ImGui::PushItemWidth(-1);
+                    ImGui::InputSmallString(
+                      "##name", app.pj.parameters.get<name_str>(param_id));
+                    ImGui::PopItemWidth();
+                } else {
+                    ImGui::TextUnformatted("-");
                 }
 
                 ImGui::TableNextColumn();
+                ImGui::TextUnformatted(dynamics_type_names[ordinal(mdl.type)]);
+
+                ImGui::TableNextColumn();
+                if (is_enable)
+                    show_parameter_editor(
+                      app,
+                      mdl.type,
+                      app.pj.parameters.get<parameter>(param_id));
+
+                ImGui::TableNextColumn();
+                if (ImGui::Button("del"))
+                    to_del = param_id;
+
                 ImGui::PopID();
             });
+
+            if (is_defined(to_del))
+                app.pj.parameters.free(to_del);
 
             ImGui::EndTable();
         }
@@ -779,11 +789,10 @@ static bool show_project_parameters(application& app) noexcept
     auto is_modified = 0;
 
     if (ImGui::BeginTable("Parameter table", 5, tflags)) {
-        ImGui::TableSetupColumn("id", fflags, 80.f);
         ImGui::TableSetupColumn("name", fflags, 100.f);
-        ImGui::TableSetupColumn("action", fflags, 60.f);
         ImGui::TableSetupColumn("model type", fflags, 120.f);
         ImGui::TableSetupColumn("parameters", sflags);
+        ImGui::TableSetupColumn("action", fflags, 60.f);
         ImGui::TableHeadersRow();
 
         app.pj.parameters.for_each([&](auto  id,
@@ -796,16 +805,10 @@ static bool show_project_parameters(application& app) noexcept
 
             ImGui::TableNextRow();
             ImGui::TableNextColumn();
-            ImGui::TextFormat("{}", ordinal(id));
-            ImGui::TableNextColumn();
             ImGui::PushItemWidth(-1.f);
             if (ImGui::InputFilteredString("name", name))
                 is_modified++;
             ImGui::PopItemWidth();
-
-            ImGui::TableNextColumn();
-            if (ImGui::SmallButton("del"))
-                to_del = id;
 
             if (mdl) {
                 ImGui::TableNextColumn();
@@ -817,8 +820,12 @@ static bool show_project_parameters(application& app) noexcept
                 ImGui::TableNextColumn();
                 ImGui::TextUnformatted("deleted model");
                 ImGui::TableNextColumn();
-                ImGui::TextUnformatted("");
+                ImGui::TableNextColumn();
             }
+
+            ImGui::TableNextColumn();
+            if (ImGui::Button("del"))
+                to_del = id;
 
             ImGui::PopID();
         });
