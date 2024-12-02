@@ -1941,6 +1941,13 @@ public:
 
     constexpr auto operator<=>(const small_string& rhs) const noexcept;
 
+    constexpr bool operator==(const small_string<length>& rhs) const noexcept;
+    constexpr bool operator!=(const small_string<length>& rhs) const noexcept;
+    constexpr bool operator>(const small_string<length>& rhs) const noexcept;
+    constexpr bool operator>=(const small_string<length>& rhs) const noexcept;
+    constexpr bool operator<(const small_string<length>& rhs) const noexcept;
+    constexpr bool operator<=(const small_string<length>& rhs) const noexcept;
+
     constexpr bool operator==(const std::string_view rhs) const noexcept;
     constexpr bool operator!=(const std::string_view rhs) const noexcept;
     constexpr bool operator>(const std::string_view rhs) const noexcept;
@@ -4460,6 +4467,48 @@ inline constexpr auto small_string<length>::operator<=>(
   const small_string& rhs) const noexcept
 {
     return sv() <=> rhs.sv();
+}
+
+template<int length>
+inline constexpr bool small_string<length>::operator==(
+  const small_string<length>& rhs) const noexcept
+{
+    return sv().compare(rhs.sv()) == 0;
+}
+
+template<int length>
+inline constexpr bool small_string<length>::operator!=(
+  const small_string<length>& rhs) const noexcept
+{
+    return sv().compare(rhs.sv()) != 0;
+}
+
+template<int length>
+inline constexpr bool small_string<length>::operator>(
+  const small_string<length>& rhs) const noexcept
+{
+    return sv().compare(rhs.sv()) > 0;
+}
+
+template<int length>
+inline constexpr bool small_string<length>::operator>=(
+  const small_string<length>& rhs) const noexcept
+{
+    return sv().compare(rhs.sv()) >= 0;
+}
+
+template<int length>
+inline constexpr bool small_string<length>::operator<(
+  const small_string<length>& rhs) const noexcept
+{
+    return sv().compare(rhs.sv()) < 0;
+}
+
+template<int length>
+inline constexpr bool small_string<length>::operator<=(
+  const small_string<length>& rhs) const noexcept
+{
+    return sv().compare(rhs.sv()) <= 0;
 }
 
 template<int length>
