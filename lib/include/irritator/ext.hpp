@@ -11,8 +11,6 @@
 #include <type_traits>
 #include <utility>
 
-#include <cstdint>
-
 namespace irt {
 
 /// An efficient, type-erasing, onwning callable. This is intended for use as
@@ -117,7 +115,7 @@ public:
 private:
     enum class Operation { Clone, Destroy };
 
-    using Invoker = Ret  (*)(void*, Params&&...);
+    using Invoker = Ret (*)(void*, Params&&...);
     using Manager = void (*)(void*, const void*, Operation);
     using Storage = std::byte[Size];
 
@@ -158,8 +156,8 @@ class function_ref;
 template<typename Ret, typename... Params>
 class function_ref<Ret(Params...) noexcept>
 {
-    Ret   (*callback)(void* callable, Params... params) = nullptr;
-    void* callable                                      = nullptr;
+    Ret (*callback)(void* callable, Params... params) = nullptr;
+    void* callable                                    = nullptr;
 
     template<typename Callable>
     static Ret callback_fn(void* callable, Params... params) noexcept
@@ -200,19 +198,20 @@ public:
 //! @tparam Identifier Any integer or enum type.
 //! @tparam T Any type (trivial or not).
 template<typename Identifier, typename T>
+    requires(std::three_way_comparable<Identifier>)
 class table
 {
 public:
-    static_assert(
-      std::is_enum_v<Identifier> || std::is_integral_v<Identifier>,
-      "Identifier must be a enumeration: enum class id : unsigned {};");
-
     struct value_type {
         value_type() noexcept = default;
         value_type(Identifier id, const T& value) noexcept;
 
         Identifier id;
         T          value;
+
+        auto operator<=>(const value_type&) const = default;
+
+        auto operator<=>(const Identifier& other) const { return id <=> other; }
     };
 
     using container_type  = vector<value_type>;
@@ -282,6 +281,7 @@ private:
  ****************************************************************************/
 
 template<typename Identifier, typename T>
+    requires(std::three_way_comparable<Identifier>)
 table<Identifier, T>::value_type::value_type(Identifier id_,
                                              const T&   value_) noexcept
   : id(id_)
@@ -289,7 +289,9 @@ table<Identifier, T>::value_type::value_type(Identifier id_,
 {}
 
 template<typename Identifier, typename T>
-constexpr void table<Identifier, T>::set(Identifier id, const T& value) noexcept
+    requires(std::three_way_comparable<Identifier>)
+constexpr void table<Identifier, T>::set(const Identifier id,
+                                         const T&         value) noexcept
 {
     if (auto* value_found = get(id); value_found) {
         *value_found = value;
@@ -300,6 +302,7 @@ constexpr void table<Identifier, T>::set(Identifier id, const T& value) noexcept
 }
 
 template<typename Identifier, typename T>
+    requires(std::three_way_comparable<Identifier>)
 constexpr T* table<Identifier, T>::get(Identifier id) noexcept
 {
     auto it = binary_find(
@@ -314,6 +317,7 @@ constexpr T* table<Identifier, T>::get(Identifier id) noexcept
 }
 
 template<typename Identifier, typename T>
+    requires(std::three_way_comparable<Identifier>)
 constexpr const T* table<Identifier, T>::get(Identifier id) const noexcept
 {
     auto it = binary_find(
@@ -328,6 +332,7 @@ constexpr const T* table<Identifier, T>::get(Identifier id) const noexcept
 }
 
 template<typename Identifier, typename T>
+    requires(std::three_way_comparable<Identifier>)
 constexpr void table<Identifier, T>::erase(Identifier id) noexcept
 {
     auto it = binary_find(
@@ -345,6 +350,7 @@ constexpr void table<Identifier, T>::erase(Identifier id) noexcept
 }
 
 template<typename Identifier, typename T>
+    requires(std::three_way_comparable<Identifier>)
 constexpr void table<Identifier, T>::sort() noexcept
 {
     if (data.size() > 1)
@@ -356,12 +362,14 @@ constexpr void table<Identifier, T>::sort() noexcept
 }
 
 template<typename Identifier, typename T>
+    requires(std::three_way_comparable<Identifier>)
 constexpr unsigned table<Identifier, T>::size() const noexcept
 {
     return data.size();
 }
 
 template<typename Identifier, typename T>
+    requires(std::three_way_comparable<Identifier>)
 constexpr int table<Identifier, T>::ssize() const noexcept
 {
     return data.ssize();
