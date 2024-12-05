@@ -2210,8 +2210,8 @@ struct json_dearchiver::impl {
         return nullptr;
     }
 
-    auto search_dir_in_reg(registred_path& reg, std::string_view name) noexcept
-      -> dir_path*
+    auto search_dir_in_reg(registred_path&  reg,
+                           std::string_view name) noexcept -> dir_path*
     {
         for (auto dir_id : reg.children) {
             if (auto* dir = mod().dir_paths.try_to_get(dir_id); dir) {
@@ -2280,8 +2280,8 @@ struct json_dearchiver::impl {
         return nullptr;
     }
 
-    auto search_file(dir_path& dir, std::string_view name) noexcept
-      -> file_path*
+    auto search_file(dir_path&        dir,
+                     std::string_view name) noexcept -> file_path*
     {
         for (auto file_id : dir.children)
             if (auto* file = mod().file_paths.try_to_get(file_id); file)
@@ -4660,13 +4660,30 @@ struct json_dearchiver::impl {
                  });
     }
 
+
+    bool project_time_limit_affect(const double b, const double e) noexcept
+    {
+        pj().t_limit.set_bound(b, e);
+
+        return true;
+    }
+
     bool read_project(const rapidjson::Value& val) noexcept
     {
         auto_stack s(this, stack_id::project);
 
+        double begin = { 0 };
+        double end   = { 100 };
+
         return read_project_top_component(val) &&
                for_each_member(
                  val, [&](const auto name, const auto& value) noexcept -> bool {
+                     if ("begin"sv == name)
+                         return read_temp_real(value) and copy_to(begin);
+
+                     if ("end"sv == name)
+                         return read_temp_real(value) and copy_to(end);
+
                      if ("parameters"sv == name)
                          return read_project_parameters(value);
 
@@ -6872,6 +6889,12 @@ struct json_archiver::impl {
             return report_error(cb, json_archiver::error_code::file_error);
 
         w.StartObject();
+
+        w.Key("begin");
+        w.Double(pj.t_limit.begin());
+        w.Key("end");
+        w.Double(pj.t_limit.end());
+
         do_project_save_component(w, compo, *reg, *dir, *file);
         do_project_save_parameters(w, pj);
         do_project_save_observations(w, pj);
