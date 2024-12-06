@@ -1230,6 +1230,8 @@ void project::clear() noexcept
     file_obs.clear();
     parameters.clear();
 
+    t_limit.clear();
+
     m_cache.clear();
 }
 

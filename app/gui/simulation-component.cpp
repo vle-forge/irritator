@@ -91,7 +91,7 @@ static void simulation_copy(application& app) noexcept
       [&]() noexcept -> status {
           irt_check(app.pj.set(app.mod, app.sim, *compo));
           irt_check(app.sim.srcs.prepare());
-          app.sim.t = app.simulation_ed.simulation_begin;
+          app.sim.t = app.pj.t_limit.begin();
           irt_check(app.sim.initialize());
           app.simulation_ed.simulation_state = simulation_status::initialized;
           return success();
@@ -128,7 +128,7 @@ static void simulation_init(application& app) noexcept
 
     attempt_all(
       [&]() noexcept -> status {
-          app.sim.t = app.simulation_ed.simulation_begin;
+          app.sim.t                                    = app.pj.t_limit.begin();
           app.simulation_ed.simulation_last_finite_t   = app.sim.t;
           app.simulation_ed.simulation_display_current = app.sim.t;
 
@@ -278,9 +278,9 @@ void simulation_editor::start_simulation_static_run() noexcept
 
             app.simulation_ed.start_simulation_observation();
 
-            if (!app.simulation_ed.infinity_simulation &&
-                app.sim.t >= app.simulation_ed.simulation_end) {
-                app.sim.t = app.simulation_ed.simulation_end;
+            if (not time_domain<time>::is_infinity(app.pj.t_limit.begin()) &&
+                app.sim.t >= app.pj.t_limit.end()) {
+                app.sim.t = app.pj.t_limit.end();
                 app.simulation_ed.simulation_state =
                   simulation_status::finish_requiring;
                 app.simulation_ed.simulation_display_current = app.sim.t;
@@ -729,9 +729,10 @@ void simulation_editor::start_simulation_start_1() noexcept
                 if (app.pj.file_obs.can_update(app.sim.t))
                     app.pj.file_obs.update(app.sim, app.pj);
 
-                if (!app.simulation_ed.infinity_simulation &&
-                    app.sim.t >= app.simulation_ed.simulation_end) {
-                    app.sim.t = app.simulation_ed.simulation_end;
+                if (not time_domain<time>::is_infinity(
+                      app.pj.t_limit.begin()) &&
+                    app.sim.t >= app.pj.t_limit.end()) {
+                    app.sim.t = app.pj.t_limit.end();
                     app.simulation_ed.simulation_state =
                       simulation_status::finish_requiring;
                     return;
@@ -801,7 +802,7 @@ void simulation_editor::start_simulation_finish() noexcept
                 app.notifications.enable(n);
             }
         } else {
-            app.sim.t = app.simulation_ed.simulation_end;
+            app.sim.t = app.pj.t_limit.end();
             if (auto ret = app.sim.finalize(); !ret) {
                 auto& n = app.notifications.alloc();
                 n.title = "simulation finish fail";

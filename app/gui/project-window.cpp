@@ -121,9 +121,20 @@ static bool show_project_simulation_settings(application& app) noexcept
     auto& sim_ed = app.simulation_ed;
     auto  up     = 0;
 
-    up += ImGui::InputReal("Begin", &sim_ed.simulation_begin);
-    ImGui::BeginDisabled(sim_ed.infinity_simulation);
-    up += ImGui::InputReal("End", &sim_ed.simulation_end);
+    auto begin  = app.pj.t_limit.begin();
+    auto end    = app.pj.t_limit.end();
+    auto is_inf = std::isinf(end);
+
+    if (ImGui::InputReal("Begin", &begin))
+        app.pj.t_limit.set_bound(begin, end);
+
+    if (ImGui::Checkbox("No time limit", &is_inf))
+        app.pj.t_limit.set_bound(begin,
+                                 is_inf ? time_domain<time>::infinity : 100.);
+
+    ImGui::BeginDisabled(is_inf);
+    if (ImGui::InputReal("End", &end))
+        app.pj.t_limit.set_bound(begin, end);
     ImGui::EndDisabled();
 
     ImGui::BeginDisabled(not sim_ed.real_time);
@@ -169,7 +180,6 @@ static bool show_project_simulation_settings(application& app) noexcept
         }
     }
 
-    up += ImGui::Checkbox("No time limit", &sim_ed.infinity_simulation);
     up += ImGui::Checkbox("Real time", &sim_ed.real_time);
     ImGui::EndDisabled();
 

@@ -591,7 +591,6 @@ struct simulation_editor {
     bool show_minimap          = true;
     bool allow_user_changes    = true;
     bool store_all_changes     = false;
-    bool infinity_simulation   = false;
     bool real_time             = false;
     bool have_use_back_advance = false;
     bool display_graph         = true;
@@ -612,8 +611,6 @@ struct simulation_editor {
     timeline tl;
 
     real simulation_last_finite_t   = 0;
-    real simulation_begin           = 0;
-    real simulation_end             = 100;
     real simulation_display_current = 0;
 
     //! Number of microsecond to run 1 unit of simulation time. The default is

@@ -1505,6 +1505,8 @@ public:
     constexpr void set_bound(const double begin_, const double end_) noexcept;
     constexpr void set_duration(const double begin_,
                                 const double end_) noexcept;
+    constexpr void clear() noexcept;
+
     constexpr time duration() const noexcept;
     constexpr time begin() const noexcept;
     constexpr time end() const noexcept;
@@ -1531,6 +1533,12 @@ inline constexpr void time_limit::set_duration(const double begin_,
             m_end   = begin_ + duration_;
         }
     }
+}
+
+inline constexpr void time_limit::clear() noexcept
+{
+    m_begin = 0;
+    m_end   = 100;
 }
 
 inline constexpr time time_limit::duration() const noexcept

@@ -86,7 +86,6 @@ void simulation_editor::clear() noexcept
     show_minimap          = true;
     allow_user_changes    = true;
     store_all_changes     = false;
-    infinity_simulation   = false;
     real_time             = false;
     have_use_back_advance = false;
     display_graph         = true;
@@ -100,8 +99,6 @@ void simulation_editor::clear() noexcept
     tl.reset();
 
     simulation_last_finite_t   = 0;
-    simulation_begin           = 0;
-    simulation_end             = 100;
     simulation_display_current = 0;
 
     nb_microsecond_per_simulation_time = 1000000;
