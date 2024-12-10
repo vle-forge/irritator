@@ -80,14 +80,12 @@ static void do_initialize(const grid_observer& grid, std::FILE* file) noexcept
 
     for (int row = 0; row < grid.rows; ++row) {
         for (int col = 0; col < grid.cols; ++col) {
-            if (row + 1 < grid.rows and col + 1 < grid.cols)
-                fmt::print(file, "{}-{},", row, col);
+            if (row + 1 == grid.rows and col + 1 == grid.cols)
+                fmt::print(file, "{}-{}\n", row, col);
             else
-                fmt::print(file, "{}-{}", row, col);
+                fmt::print(file, "{}-{},", row, col);
         }
     }
-
-    std::fputc('\n', file);
 }
 
 static void do_update(const simulation&    sim,
@@ -101,20 +99,18 @@ static void do_update(const simulation&    sim,
             const auto pos = col * grid.rows + row;
 
             if (auto obs = sim.observers.try_to_get(grid.observers[pos]); obs) {
-                if (row + 1 < grid.rows and col + 1 < grid.cols)
+                if (row + 1 == grid.rows and col + 1 == grid.cols)
+                    fmt::print(file, "{:e}\n,", grid.values[pos]);
+                else
                     fmt::print(file, "{:e},", grid.values[pos]);
-                else
-                    fmt::print(file, "{:e}", grid.values[pos]);
             } else {
-                if (row + 1 < grid.rows and col + 1 < grid.cols)
-                    std::fputs("NA,", file);
+                if (row + 1 == grid.rows and col + 1 == grid.cols)
+                    std::fputs("NA\n,", file);
                 else
-                    std::fputs("NA", file);
+                    std::fputs("NA,", file);
             }
         }
     }
-
-    std::fputc('\n', file);
 }
 
 static void do_initialize(const graph_observer& vars, std::FILE* file) noexcept
