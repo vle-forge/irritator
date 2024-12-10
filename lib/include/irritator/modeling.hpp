@@ -1189,8 +1189,9 @@ public:
     //! already exists.
     sub_id push_back(const tree_node_id tn,
                      const model_id     mdl,
-                     const color          = 0xFe1a0Fe,
-                     const type_options t = type_options::line) noexcept;
+                     const color                 = 0xFe1a0Fe,
+                     const type_options     t    = type_options::line,
+                     const std::string_view name = std::string_view{}) noexcept;
 
     bool     exists(const sub_id id) const noexcept { return m_ids.exists(id); }
     unsigned size() const noexcept { return m_ids.size(); }

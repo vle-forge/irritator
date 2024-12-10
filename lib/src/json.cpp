@@ -2210,8 +2210,8 @@ struct json_dearchiver::impl {
         return nullptr;
     }
 
-    auto search_dir_in_reg(registred_path& reg, std::string_view name) noexcept
-      -> dir_path*
+    auto search_dir_in_reg(registred_path&  reg,
+                           std::string_view name) noexcept -> dir_path*
     {
         for (auto dir_id : reg.children) {
             if (auto* dir = mod().dir_paths.try_to_get(dir_id); dir) {
@@ -2280,8 +2280,8 @@ struct json_dearchiver::impl {
         return nullptr;
     }
 
-    auto search_file(dir_path& dir, std::string_view name) noexcept
-      -> file_path*
+    auto search_file(dir_path&        dir,
+                     std::string_view name) noexcept -> file_path*
     {
         for (auto file_id : dir.children)
             if (auto* file = mod().file_paths.try_to_get(file_id); file)
@@ -4493,10 +4493,11 @@ struct json_dearchiver::impl {
                                const tree_node_id                    parent_id,
                                const model_id                        mdl_id,
                                const color                           c,
-                               const variable_observer::type_options t) noexcept
+                               const variable_observer::type_options t,
+                               const std::string_view name) noexcept
     {
         if (auto* tn = pj().tree_nodes.try_to_get(parent_id); tn) {
-            plot.push_back(parent_id, mdl_id, c, t);
+            plot.push_back(parent_id, mdl_id, c, t, name);
             return true;
         }
 
@@ -4508,6 +4509,7 @@ struct json_dearchiver::impl {
     {
         auto_stack s(this, stack_id::project_plot_observation_child);
 
+        name_str                    str;
         std::optional<tree_node_id> parent_id;
         std::optional<model_id>     mdl_id;
 
@@ -4518,9 +4520,8 @@ struct json_dearchiver::impl {
                  val,
                  [&](const auto name, const auto& value) noexcept -> bool {
                      unique_id_path path;
-
                      if ("name"sv == name)
-                         return read_temp_string(value) && copy_to(plot.name);
+                         return read_temp_string(value) && copy_to(str);
 
                      if ("access"sv == name)
                          return read_project_unique_id_path(value, path) &&
@@ -4536,7 +4537,7 @@ struct json_dearchiver::impl {
                      report_json_error(error_id::unknown_element);
                  }) &&
                optional_has_value(parent_id) and optional_has_value(mdl_id) and
-               plot_observation_init(plot, *parent_id, *mdl_id, c, t);
+               plot_observation_init(plot, *parent_id, *mdl_id, c, t, str.sv());
         return false;
     }
 
@@ -4557,7 +4558,16 @@ struct json_dearchiver::impl {
     {
         auto_stack s(this, stack_id::project_plot_observation_children);
 
-        return read_project_plot_observation_child(val, plot);
+        i64 size = 0;
+
+        return is_value_array(val) and
+               copy_array_size(val, size) and // @TODO check un can-alloc
+               for_each_array(
+                 val,
+                 [&](const auto /*i*/, const auto& value) noexcept -> bool {
+                     return is_value_object(value) and
+                            read_project_plot_observation_child(value, plot);
+                 });
     }
 
     bool read_project_plot_observation(const rapidjson::Value& val,
@@ -4598,12 +4608,17 @@ struct json_dearchiver::impl {
                                tree_node_id   grid_tn_id,
                                model_id       mdl_id)
     {
-        if (auto* tn = pj().tree_nodes.try_to_get(parent_id); tn) {
+        auto* parent     = pj().tree_nodes.try_to_get(parent_id);
+        auto* mdl_parent = pj().tree_nodes.try_to_get(grid_tn_id);
+
+        debug::ensure(parent and mdl_parent);
+
+        if (parent and mdl_parent) {
             grid.parent_id = parent_id;
             grid.tn_id     = grid_tn_id;
             grid.mdl_id    = mdl_id;
-            grid.compo_id  = tn->id;
-            tn->grid_observer_ids.emplace_back(
+            grid.compo_id  = mdl_parent->id;
+            parent->grid_observer_ids.emplace_back(
               pj().grid_observers.get_id(grid));
             return true;
         }
@@ -6727,21 +6742,33 @@ struct json_archiver::impl {
             w.Key("name");
             w.String(plot.name.begin(), plot.name.size());
 
+            w.Key("models");
+            w.StartArray();
             plot.for_each([&](const auto id) noexcept {
+                w.StartObject();
                 const auto idx = get_index(id);
                 const auto tn  = plot.get_tn_ids()[idx];
                 const auto mdl = plot.get_mdl_ids()[idx];
+                const auto str = plot.get_names()[idx];
+
+                if (not str.empty()) {
+                    w.Key("name");
+                    w.String(str.data(), static_cast<int>(str.size()));
+                }
 
                 w.Key("access");
                 pj.build_unique_id_path(tn, mdl, path);
                 write_project_unique_id_path(w, path);
+
+                w.Key("color");
+                write_color(w, color_white);
+
+                w.Key("type");
+                w.String("line");
+                w.EndObject();
             });
+            w.EndArray();
 
-            w.Key("color");
-            write_color(w, color_white);
-
-            w.Key("type");
-            w.String("line");
             w.EndObject();
         });
 

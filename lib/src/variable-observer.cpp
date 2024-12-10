@@ -63,8 +63,8 @@ void variable_observer::clear() noexcept
     std::fill_n(m_obs_ids.data(), m_obs_ids.size(), undefined<observer_id>());
 }
 
-auto variable_observer::find(const tree_node_id tn, const model_id mdl) noexcept
-  -> sub_id
+auto variable_observer::find(const tree_node_id tn,
+                             const model_id     mdl) noexcept -> sub_id
 {
     for (const auto id : m_ids) {
         const auto idx = get_index(id);
@@ -106,10 +106,11 @@ void variable_observer::erase(const sub_id i) noexcept
 }
 
 variable_observer::sub_id variable_observer::push_back(
-  const tree_node_id tn,
-  const model_id     mdl,
-  const color        c,
-  const type_options t) noexcept
+  const tree_node_id     tn,
+  const model_id         mdl,
+  const color            c,
+  const type_options     t,
+  const std::string_view name) noexcept
 {
     check(m_tn_ids, m_mdl_ids, m_obs_ids, m_colors, m_options, m_values);
 
@@ -141,7 +142,7 @@ variable_observer::sub_id variable_observer::push_back(
     m_colors[idx]  = c;
     m_options[idx] = t;
     m_values[idx]  = 0.0;
-    m_names[idx].clear();
+    m_names[idx]   = name;
 
     return id;
 }
