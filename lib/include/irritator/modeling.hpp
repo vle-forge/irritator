@@ -1473,6 +1473,12 @@ public:
     /** For each @c buffered_file in @c files, close the opening file. */
     void finalize() noexcept;
 
+    template<typename T>
+        requires(std::is_same_v<T, grid_observer_id> or
+                 std::is_same_v<T, graph_observer_id> or
+                 std::is_same_v<T, variable_observer_id>)
+    bool alloc(const T id, bool enable = true) noexcept;
+
     union id_type {
         variable_observer_id var;
         grid_observer_id     grid;
@@ -1491,6 +1497,41 @@ public:
 
     time tn = 0;
 };
+
+template<typename T>
+    requires(std::is_same_v<T, grid_observer_id> or
+             std::is_same_v<T, graph_observer_id> or
+             std::is_same_v<T, variable_observer_id>)
+inline bool file_observers::alloc(const T subobs_id, bool enable) noexcept
+{
+    if (not ids.can_alloc(1))
+        grow();
+
+    if (not ids.can_alloc(1))
+        return false;
+
+    const auto id  = ids.alloc();
+    const auto idx = get_index(id);
+
+    enables[idx] = enable;
+
+    if constexpr (std::is_same_v<T, grid_observer_id>) {
+        subids[idx].grid = subobs_id;
+        types[idx]       = file_observers::type::grid;
+    }
+
+    if constexpr (std::is_same_v<T, graph_observer_id>) {
+        subids[idx].graph = subobs_id;
+        types[idx]        = file_observers::type::graph;
+    }
+
+    if constexpr (std::is_same_v<T, variable_observer_id>) {
+        subids[idx].var = subobs_id;
+        types[idx]      = file_observers::type::variables;
+    }
+
+    return true;
+}
 
 /** Stores two simulation time values, the begin `]-oo, +oo[` and the end value
  * `]begin, +oo]`. This function take care to keep @c begin less than @c end
