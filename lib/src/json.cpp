@@ -2210,8 +2210,8 @@ struct json_dearchiver::impl {
         return nullptr;
     }
 
-    auto search_dir_in_reg(registred_path&  reg,
-                           std::string_view name) noexcept -> dir_path*
+    auto search_dir_in_reg(registred_path& reg, std::string_view name) noexcept
+      -> dir_path*
     {
         for (auto dir_id : reg.children) {
             if (auto* dir = mod().dir_paths.try_to_get(dir_id); dir) {
@@ -2280,8 +2280,8 @@ struct json_dearchiver::impl {
         return nullptr;
     }
 
-    auto search_file(dir_path&        dir,
-                     std::string_view name) noexcept -> file_path*
+    auto search_file(dir_path& dir, std::string_view name) noexcept
+      -> file_path*
     {
         for (auto file_id : dir.children)
             if (auto* file = mod().file_paths.try_to_get(file_id); file)
@@ -4660,7 +4660,6 @@ struct json_dearchiver::impl {
                  });
     }
 
-
     bool project_time_limit_affect(const double b, const double e) noexcept
     {
         pj().t_limit.set_bound(b, e);
@@ -4677,7 +4676,8 @@ struct json_dearchiver::impl {
 
         return read_project_top_component(val) &&
                for_each_member(
-                 val, [&](const auto name, const auto& value) noexcept -> bool {
+                 val,
+                 [&](const auto name, const auto& value) noexcept -> bool {
                      if ("begin"sv == name)
                          return read_temp_real(value) and copy_to(begin);
 
@@ -4691,7 +4691,8 @@ struct json_dearchiver::impl {
                          return read_project_observations(value);
 
                      return true;
-                 });
+                 }) and
+               project_time_limit_affect(begin, end);
     }
 
     void clear() noexcept
