@@ -444,6 +444,7 @@ public:
         return true;
     }
 
+#if !defined(__APPLE__)
     /** Parse a real from @c front and if it empty, front args. */
     bool parse_real() noexcept
     {
@@ -457,6 +458,24 @@ public:
 
         return true;
     }
+#else
+    /** Parse a real from @c front and if it empty, front args. */
+    bool parse_real() noexcept
+    {
+        const std::string str(front.data(), front.size());
+        char*             str_end = nullptr;
+
+        const auto dbl = std::strtod(str.c_str(), &str_end);
+        if (dbl == 0.0 and str_end == str.c_str()) {
+            warning<ec::bad_real>(str);
+        } else {
+            front = front.substr(str_end - str.c_str());
+            r     = dbl;
+        }
+
+        return true;
+    }
+#endif
 
     /** Parse a real or the string "inf" from @c front and if it empty,
      * front args. */
