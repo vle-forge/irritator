@@ -21,8 +21,9 @@ public:
 
     string_buffer(const string_buffer&) noexcept            = delete;
     string_buffer& operator=(const string_buffer&) noexcept = delete;
-    string_buffer(string_buffer&&) noexcept                 = delete;
-    string_buffer& operator=(string_buffer&&) noexcept      = delete;
+
+    string_buffer(string_buffer&&) noexcept            = default;
+    string_buffer& operator=(string_buffer&&) noexcept = default;
 
     //! Appends a `std::string_view` into the buffer and returns a new
     //! `std::string_view` to this new chunck of characters. If necessary, a new
