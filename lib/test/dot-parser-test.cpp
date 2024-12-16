@@ -25,6 +25,7 @@ enum class msg_id {
     missing_comma,
     parse_real,
     unknown_graph_type,
+    undefined_slash_symbol,
 };
 
 constexpr std::string_view msg_fmt[] = {
@@ -36,6 +37,7 @@ constexpr std::string_view msg_fmt[] = {
     "missing comma character in `{}'",
     "fail to parse `{}' to read a float",
     "unknown graph type at line {}"
+    "undefined `/{}' sequence at line {}"
 };
 
 template<msg_id Index, typename... Args>
@@ -99,7 +101,7 @@ static auto to_float_str(std::string_view str) noexcept
 {
     auto f = 0.f;
     if (auto ret = std::from_chars(str.data(), str.data() + str.size(), f);
-        ret.ec != std::errc{})
+        ret.ec == std::errc{})
         return std::make_pair(f, str.substr(ret.ptr - str.data()));
 
     return std::nullopt;
@@ -109,7 +111,7 @@ static auto to_float(std::string_view str) noexcept -> float
 {
     auto f = 0.f;
     if (auto ret = std::from_chars(str.data(), str.data() + str.size(), f);
-        ret.ec != std::errc{})
+        ret.ec == std::errc{})
         return f;
 
     return 0.f;
@@ -296,6 +298,28 @@ private:
         strings.resize(strings_ids.capacity());
     }
 
+    token read_negative_integer() noexcept
+    {
+        if (not strings_ids.can_alloc(1))
+            grow_strings();
+
+        const auto id  = strings_ids.alloc();
+        auto&      str = strings[irt::get_index(id)];
+        str.clear();
+        str += '-';
+
+        for (auto c = is.get(); is.good(); c = is.get()) {
+            if (c == '.' or c == '-' or ('0' <= c and c <= '9'))
+                str += static_cast<char>(c);
+            else {
+                is.unget();
+                break;
+            }
+        }
+
+        return token{ .type = element_type::string, .str = id };
+    }
+
     token read_integer() noexcept
     {
         if (not strings_ids.can_alloc(1))
@@ -399,7 +423,13 @@ private:
     }
 
     /** Return true if the token ring buffer have element. */
-    bool can_pop_token() const noexcept { return not tokens.empty(); }
+    bool can_pop_token() noexcept
+    {
+        if (tokens.empty())
+            fill_tokens();
+
+        return not tokens.empty();
+    }
 
     /** Returns the element of token ring buffer. If the buffer is empty, read
      * the @c std::istream. If the @c std::istream is empty and token ring
@@ -420,9 +450,15 @@ private:
 
     /** Returns true if the next element in the ring buffer is @c type.
      * otherwise returns false. */
-    bool next_token_is(const element_type type) const noexcept
+    bool next_token_is(const element_type type) noexcept
     {
-        return tokens.empty() ? false : tokens.head()->type == type;
+        if (tokens.empty())
+            fill_tokens();
+
+        if (tokens.empty())
+            return false;
+
+        return tokens.head()->type == type;
     }
 
     bool have_at_least(const std::integral auto nb) noexcept
@@ -438,7 +474,29 @@ private:
         for (auto c = is.get(); is.good() and not tokens.full(); c = is.get()) {
             if (c == '\n') {
                 line++;
+            } else if (c == '#') {
+                forget_line();
+            } else if (c == '/') {
+                const auto c2 = is.get();
+                if (c2 == '*')
+                    forget_c_comment();
+                else if (c2 == '/')
+                    forget_cpp_comment();
+                else {
+                    is.unget();
+                    warning<msg_id::undefined_slash_symbol>(c2, line);
+                }
             } else if (c == '\t' or c == ' ') {
+            } else if (c == '-') {
+                const auto c2 = is.get();
+                if (c2 == '-')
+                    tokens.emplace_tail(element_type::undirected_edge);
+                else if (c2 == '>')
+                    tokens.emplace_tail(element_type::directed_edge);
+                else {
+                    is.unget();
+                    tokens.emplace_tail(read_negative_integer());
+                }
             } else if (starts_as_id(c)) {
                 is.unget();
                 tokens.emplace_tail(read_id());
@@ -462,14 +520,6 @@ private:
                 tokens.emplace_tail(element_type::comma);
             } else if (c == '=') {
                 tokens.emplace_tail(element_type::equals);
-            } else if (c == '#') {
-                forget_line();
-            } else if (c == '/') {
-                const auto c2 = is.get();
-                if (c2 == '*')
-                    forget_c_comment();
-                else if (c2 == '/')
-                    forget_cpp_comment();
             }
         }
     }
@@ -479,14 +529,26 @@ private:
         return tokens.empty() and (is.eof() or is.bad());
     }
 
+    void print_ring(const std::string_view title) const noexcept
+    {
+        fmt::print("{}\n", title);
+        for (auto it = tokens.head(), et = tokens.tail(); it != et; ++it) {
+            fmt::print("- type: {}", irt::ordinal(it->type));
+            if (it->type == element_type::string)
+                fmt::print("  - value `{}'\n",
+                           strings[irt::get_index(it->str)]);
+            else
+                fmt::print("\n");
+        }
+    }
+
     bool next_is_edge() noexcept
     {
-        if (tokens.size() < 2) {
+        if (tokens.size() < 2)
             fill_tokens();
 
-            if (tokens.size() < 2)
-                return false;
-        }
+        if (tokens.size() < 2)
+            return false;
 
         auto it = tokens.head();
 
@@ -500,12 +562,11 @@ private:
 
     bool next_is_attributes() noexcept
     {
-        if (tokens.size() < 2) {
+        if (tokens.size() < 2)
             fill_tokens();
 
-            if (tokens.size() < 2)
-                return false;
-        }
+        if (tokens.size() < 2)
+            return false;
 
         auto it = tokens.head();
 
@@ -541,8 +602,8 @@ private:
         if (right.type != element_type::string)
             return false;
 
-        const auto left_str  = std::move(strings[irt::get_index(left.str)]);
-        const auto right_str = std::move(strings[irt::get_index(right.str)]);
+        const auto left_str  = get_and_free_string(left);
+        const auto right_str = get_and_free_string(right);
 
         auto close_backet = pop_token();
         if (close_backet.type != element_type::closing_bracket)
@@ -553,9 +614,6 @@ private:
         } else if (left_str == "pos") {
             node_positions[irt::get_index(id)] = to_2float(right_str);
         }
-
-        strings_ids.free(left.str);
-        strings_ids.free(right.str);
 
         return true;
     }
@@ -568,7 +626,7 @@ private:
         if (from.type != element_type::string)
             return false;
 
-        const auto from_str = std::move(strings[irt::get_index(from.str)]);
+        const auto from_str = get_and_free_string(from);
         const auto from_id  = find_or_add_node(from_str);
 
         const auto type = pop_token();
@@ -580,14 +638,17 @@ private:
         if (to.type != element_type::string)
             return false;
 
-        const auto to_str = std::move(strings[irt::get_index(to.str)]);
+        const auto to_str = get_and_free_string(to);
         const auto to_id  = find_or_add_node(to_str);
+
+        if (not edges.can_alloc(1)) {
+            const auto c = edges.capacity() == 0 ? 64 : edges.capacity() * 2;
+            edges.reserve(c);
+            edges_nodes.resize(c);
+        }
 
         const auto new_edge_id                   = edges.alloc();
         edges_nodes[irt::get_index(new_edge_id)] = { from_id, to_id };
-
-        strings_ids.free(from.str);
-        strings_ids.free(to.str);
 
         return next_is_attributes() ? parse_attributes(new_edge_id) : true;
     }
@@ -598,19 +659,24 @@ private:
         if (node_id.type != element_type::string)
             return false;
 
-        const auto str = std::move(strings[irt::get_index(node_id.str)]);
+        const auto str = get_and_free_string(node_id);
         const auto id  = find_or_add_node(str);
-
-        strings_ids.free(node_id.str);
 
         return next_is_attributes() ? parse_attributes(id) : true;
     }
 
     bool parse_stmt_list() noexcept
     {
+        if (not next_token_is(element_type::opening_brace))
+            return false;
+
+        pop_token();
+
         while (can_pop_token()) {
-            if (next_token_is(element_type::closing_brace))
+            if (next_token_is(element_type::closing_brace)) {
+                pop_token();
                 return true;
+            }
 
             const auto success = next_is_edge() ? parse_edge() : parse_node();
             if (not success)
@@ -670,7 +736,15 @@ private:
                 return false;
         }
 
-        return parse_stmt_list();
+        if (not can_pop_token())
+            return true;
+
+        if (next_token_is(element_type::string)) {
+            const auto m_id = pop_token();
+            main_id         = get_and_free_string(m_id);
+        }
+
+        return can_pop_token() ? parse_stmt_list() : true;
     }
 
     std::string get_and_free_string(const token t) noexcept
@@ -823,7 +897,7 @@ int main()
         expect(ret.has_value() >> fatal);
 
         expect(eq(ret->nodes.ssize(), 4));
-        expect(eq(ret->edges.ssize(), 4));
+        expect(eq(ret->edges.ssize(), 3));
     };
 
     "small-and-simple-with-attributes"_test = [] {
@@ -836,19 +910,17 @@ int main()
             A -> D
         })";
 
-        dot_graph g;
-
         auto ret = parse_dot_buffer(buf);
         expect(ret.has_value() >> fatal);
 
-        expect(eq(g.nodes.size(), 3u));
+        expect(eq(ret->nodes.size(), 4u));
 
-        const auto table = g.make_toc();
-        expect(eq(table.ssize(), 3));
+        const auto table = ret->make_toc();
+        expect(eq(table.ssize(), 4));
 
-        expect(table.get("A"));
-        expect(table.get("B"));
-        expect(table.get("C"));
+        expect(table.get("A") >> fatal);
+        expect(table.get("B") >> fatal);
+        expect(table.get("C") >> fatal);
         const auto id_A  = *table.get("A");
         const auto id_B  = *table.get("B");
         const auto id_C  = *table.get("C");
@@ -856,8 +928,8 @@ int main()
         const auto idx_B = irt::get_index(id_B);
         const auto idx_C = irt::get_index(id_C);
 
-        expect(eq(g.node_names[idx_A], "A"sv));
-        expect(eq(g.node_names[idx_B], "B"sv));
-        expect(eq(g.node_names[idx_C], "C"sv));
+        expect(eq(ret->node_names[idx_A], "A"sv));
+        expect(eq(ret->node_names[idx_B], "B"sv));
+        expect(eq(ret->node_names[idx_C], "C"sv));
     };
 }
