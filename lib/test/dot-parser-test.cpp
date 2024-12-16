@@ -106,7 +106,7 @@ constexpr static auto find_node(dot_graph&       g,
     return found ? *found : irt::undefined<node_id>();
 }
 
-constexpr static auto to_float_str(std::string_view str) noexcept
+static auto to_float_str(std::string_view str) noexcept
   -> std::optional<std::pair<float, std::string_view>>
 {
     auto f = 0.f;
@@ -425,6 +425,11 @@ private:
         }
     }
 
+    bool next_token_is(const element_type type) noexcept
+    {
+        return views.empty() ? false : views.head()->type == type;
+    }
+
     void fill_tokens() noexcept
     {
         for (auto c = is.get(); is.good() and not views.full(); c = is.get()) {
@@ -459,7 +464,18 @@ private:
         return views.empty() and (is.eof() or is.bad());
     }
 
-    std::optional<dot_graph&> parse_stmt_list(dot_graph& g) noexcept {}
+    bool parse_stmt_list(dot_graph& g) noexcept
+    {
+        if (const auto id = next_token();
+            id.has_value() and id->type == element_type::id) {
+            if (next_token_is(element_type::undirected_edge) or
+                next_token_is(element_type::directed_edge)) {
+                read_edge(*id);
+            } else {
+                read_node(*id;)
+            }
+        }
+    }
 
     std::optional<dot_graph&> parse_graph(dot_graph& g) noexcept
     {
