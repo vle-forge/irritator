@@ -20,23 +20,23 @@ enum class msg_id {
     missing_token,
     missing_strict_or_graph,
     missing_graph_type,
+    unknown_graph_type,
     missing_open_brace,
     unknown_attribute,
     missing_comma,
     parse_real,
-    unknown_graph_type,
     undefined_slash_symbol,
 };
 
-constexpr std::string_view msg_fmt[] = {
+static constexpr std::string_view msg_fmt[] = {
     "missing token at line {}",
-    "missing index or graph at line {}",
-    "missing unknown graph type `{}' at line {}",
+    "missing strict or graph type at line {}",
+    "missing graph type at line {}",
+    "unknown graph type `{}' at line {}",
     "missing open brace at line {}",
     "unknwon attribute {}",
     "missing comma character in `{}'",
     "fail to parse `{}' to read a float",
-    "unknown graph type at line {}"
     "undefined `/{}' sequence at line {}"
 };
 
@@ -44,6 +44,7 @@ template<msg_id Index, typename... Args>
 static constexpr void warning(Args&&... args) noexcept
 {
     constexpr auto idx = static_cast<std::underlying_type_t<msg_id>>(Index);
+    static_assert(0 <= idx and idx < std::size(msg_fmt));
 
     fmt::vprint(stderr, msg_fmt[idx], fmt::make_format_args(args...));
 }
@@ -52,6 +53,7 @@ template<msg_id Index, typename Ret, typename... Args>
 static constexpr auto error(Ret&& ret, Args&&... args) noexcept -> Ret
 {
     constexpr auto idx = static_cast<std::underlying_type_t<msg_id>>(Index);
+    static_assert(0 <= idx and idx < std::size(msg_fmt));
 
     fmt::vprint(stderr,
                 fg(fmt::terminal_color::red),
@@ -139,21 +141,25 @@ static auto to_2float(std::string_view str) noexcept -> std::array<float, 2>
 
 enum class element_type : irt::u16 {
     none,
-    opening_brace, // {
-    closing_brace, // }
-    // strict,
-    // graph,
-    // digraph,
-    // subgraph,
-    comma,     // ,
-    semicolon, // ;
-    equals,    // =
-    // node,
-    // edge,
+
+    digraph,
+    edge,
+    graph,
+    node,
+    strict,
+    subgraph,
+
+    opening_brace,   // {
+    closing_brace,   // }
+    colon,           // :
+    comma,           // ,
+    semicolon,       // ;
+    equals,          // =
     opening_bracket, // [
     closing_bracket, // ]
     directed_edge,   // ->
     undirected_edge, // --
+
     string,
 };
 
@@ -168,6 +174,24 @@ struct token {
         return type == element_type::string;
     }
 };
+
+static element_type convert_to_element_type(const std::string_view str) noexcept
+{
+    static constexpr std::string_view strs[] = {
+        "digraph", "edge", "graph", "node", "strict", "subgraph",
+    };
+
+    static constexpr element_type types[] = {
+        element_type::digraph, element_type::edge,   element_type::graph,
+        element_type::node,    element_type::strict, element_type::subgraph,
+    };
+
+    const auto beg = std::begin(strs);
+    const auto end = std::end(strs);
+    const auto it  = irt::binary_find(beg, end, str);
+
+    return it != end ? types[std::distance(beg, it)] : element_type::string;
+}
 
 static constexpr bool starts_as_id(int c) noexcept
 {
@@ -515,6 +539,8 @@ private:
             } else if (c == ']') {
                 tokens.emplace_tail(element_type::closing_bracket);
             } else if (c == ';') {
+                tokens.emplace_tail(element_type::semicolon);
+            } else if (c == ':') {
                 tokens.emplace_tail(element_type::semicolon);
             } else if (c == ',') {
                 tokens.emplace_tail(element_type::comma);
