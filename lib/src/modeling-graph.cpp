@@ -212,9 +212,9 @@ static void build_dot_file_edges(
   graph_component& graph,
   const graph_component::dot_file_param& /*params*/) noexcept
 {
-    if (auto ret = parse_dot_file(graph); not ret) {
-        debug_log("parse_dot_file error");
-    }
+    // if (auto ret = parse_dot_file(graph); not ret) {
+    debug_log("parse_dot_file error");
+    //}
 }
 
 static void build_scale_free_edges(

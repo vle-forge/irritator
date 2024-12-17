@@ -47,64 +47,37 @@ private:
     std::size_t    m_position = { 0 };
 };
 
-class dot_parser
-{
-public:
-    struct memory_error {}; //! Report allocation memory error.
-    struct file_error {};   //! Report an error during read the file.
-    struct syntax_error {}; //! Report an error in the file format.
+struct dot_graph {
+    enum class node_id : irt::u32;
+    enum class edge_id : irt::u32;
 
-    struct read_main_id_error {};
-    struct read_graph_or_digraph_error {};
-    struct missing_curly_brace_error {};
-    struct read_edgeop_error {};
-    struct read_id_error {};
+    id_array<node_id, default_allocator> nodes;
+    id_array<edge_id, default_allocator> edges;
 
-    enum class graph { graph, digraph };
+    vector<std::string_view>       node_names;
+    vector<int>                    node_ids;
+    vector<std::array<float, 2>>   node_positions;
+    vector<float>                  node_areas;
+    vector<std::array<node_id, 2>> edges_nodes;
 
-    enum class edgeop {
-        directed,
-        undirected,
-    };
+    string_buffer buffer;
 
-    struct node {
-        node() noexcept = default;
+    std::string main_id;
 
-        node(std::string_view name_, graph_component::vertex_id id_) noexcept
-          : name(name_)
-          , id(id_)
-        {}
+    bool is_strict  = false;
+    bool is_graph   = false;
+    bool is_digraph = false;
 
-        std::string_view           name;
-        graph_component::vertex_id id =
-          undefined<typename graph_component::vertex_id>();
-    };
-
-    struct edge {
-        int src;
-        int dst;
-    };
-
-    string_buffer    buffer;
-    std::string_view id;
-    graph            type = graph::graph;
-
-    vector<node> nodes;
-    vector<edge> edges;
-
-    auto search_node_linear(std::string_view name) const noexcept
-      -> std::optional<graph_component::vertex_id>;
-
-    auto search_node(std::string_view name) const noexcept
-      -> std::optional<graph_component::vertex_id>;
-
-    void sort() noexcept;
+    /** Build a @c irt::table from node name to node identifier. This function
+     * use the @c node_names and @c nodes object, do not change this object
+     * after building a toc. */
+    table<std::string_view, node_id> make_toc() const noexcept;
 };
 
-status parse_dot_file(graph_component& graph) noexcept;
+std::optional<dot_graph> parse_dot_buffer(std::string_view buffer) noexcept;
 
-status parse_dot_buffer(graph_component&       graph,
-                        const std::string_view buffer) noexcept;
+std::optional<dot_graph> parse_dot_file(
+  const std::filesystem::path& p) noexcept;
 
 } // irt
 
