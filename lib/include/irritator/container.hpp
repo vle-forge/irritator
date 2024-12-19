@@ -1389,6 +1389,7 @@ public:
 
     void clear() noexcept;
     void reserve(std::integral auto len) noexcept;
+    void grow() noexcept;
 
     bool     exists(const identifier_type id) const noexcept;
     bool     can_alloc(std::integral auto nb = 1) const noexcept;
@@ -2726,6 +2727,16 @@ void id_data_array<Identifier, A, Ts...>::reserve(
         m_ids.reserve(len);
         do_resize(std::index_sequence_for<Ts...>(), len);
     }
+}
+
+template<typename Identifier, typename A, class... Ts>
+void id_data_array<Identifier, A, Ts...>::grow() noexcept
+{
+    const auto c     = capacity();
+    const auto new_c = std::cmp_equal(c, 0) ? 64 : c * 2;
+
+    m_ids.reserve(new_c);
+    do_resize(std::index_sequence_for<Ts...>(), new_c);
 }
 
 template<typename Identifier, typename A, class... Ts>
