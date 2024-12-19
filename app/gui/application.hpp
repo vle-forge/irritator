@@ -27,6 +27,7 @@ namespace irt {
 
 struct application;
 class component_editor;
+struct simulation_editor;
 
 enum class notification_id : u32;
 enum class plot_copy_id : u32;
@@ -38,6 +39,8 @@ enum class grid_editor_data_id : u32;
 enum class graph_editor_data_id : u32;
 enum class generic_editor_data_id : u32;
 enum class hsm_editor_data_id : u32;
+
+enum class project_id : u32;
 
 enum class task_status { not_started, started, finished };
 
@@ -184,7 +187,7 @@ public:
      * ImPlot::PlotBarG for discrete data into and ImPlot::BeginPlot() /
      * ImPlot::EndPlot().
      */
-    void show(application& app) noexcept;
+    void show(project& app) noexcept;
 
     /** Display the observer data using an ImPlot::PlotLineG or
      * ImPlot::PlotScatterG for continuous data or ImPlot::PlotStairsG or
@@ -250,7 +253,8 @@ public:
 
     bool is_open = true;
 
-    void save_obs(const variable_observer_id      vobs,
+    void save_obs(const project_id                pj_id,
+                  const variable_observer_id      vobs,
                   const variable_observer::sub_id svobs) noexcept;
     void save_copy(const plot_copy_id id) noexcept;
 
@@ -260,6 +264,7 @@ private:
     std::filesystem::path m_file;
 
     plot_copy_id              m_copy_id = undefined<plot_copy_id>();
+    project_id                m_pj_id   = undefined<project_id>();
     variable_observer_id      m_vobs_id = undefined<variable_observer_id>();
     variable_observer::sub_id m_sub_id = undefined<variable_observer::sub_id>();
 
@@ -463,9 +468,11 @@ public:
     /** Restore the variable to the default value. */
     void reset() noexcept;
 
-    bool display(tree_node&      tn,
-                 component&      compo,
-                 grid_component& grid) noexcept;
+    bool display(application&       app,
+                 simulation_editor& ed,
+                 tree_node&         tn,
+                 component&         compo,
+                 grid_component&    grid) noexcept;
 
     grid_component_id current_id = undefined<grid_component_id>();
 
@@ -503,9 +510,11 @@ struct graph_simulation_editor {
 };
 
 struct hsm_simulation_editor {
-    bool show_observations(tree_node&     tn,
-                           component&     compo,
-                           hsm_component& hsm) noexcept;
+    bool show_observations(application&       app,
+                           simulation_editor& ed,
+                           tree_node&         tn,
+                           component&         compo,
+                           hsm_component&     hsm) noexcept;
 
     hsm_component_id current_id = undefined<hsm_component_id>();
 };
@@ -550,38 +559,45 @@ struct simulation_editor {
     simulation_editor() noexcept;
     ~simulation_editor() noexcept;
 
-    void show() noexcept;
+    simulation_editor(simulation_editor&&)            = default;
+    simulation_editor& operator=(simulation_editor&&) = default;
+
+    void show(application& app) noexcept;
 
     void select(tree_node_id id) noexcept;
     void unselect() noexcept;
     void clear() noexcept;
 
-    void start_simulation_update_state() noexcept;
+    void start_simulation_update_state(application& app) noexcept;
 
-    void start_simulation_copy_modeling() noexcept;
-    void start_simulation_init() noexcept;
-    void start_simulation_delete() noexcept;
-    void start_simulation_clear() noexcept;
-    void start_simulation_start() noexcept;
-    void start_simulation_observation() noexcept;
-    void stop_simulation_observation() noexcept;
-    void start_simulation_live_run() noexcept;
-    void start_simulation_static_run() noexcept;
-    void start_simulation_start_1() noexcept;
-    void start_simulation_pause() noexcept;
-    void start_simulation_stop() noexcept;
-    void start_simulation_finish() noexcept;
-    void start_simulation_advance() noexcept;
-    void start_simulation_back() noexcept;
-    void start_enable_or_disable_debug() noexcept;
+    void start_simulation_copy_modeling(application& app) noexcept;
+    void start_simulation_init(application& app) noexcept;
+    void start_simulation_delete(application& app) noexcept;
+    void start_simulation_clear(application& app) noexcept;
+    void start_simulation_start(application& app) noexcept;
+    void start_simulation_observation(application& app) noexcept;
+    void stop_simulation_observation(application& app) noexcept;
+    void start_simulation_live_run(application& app) noexcept;
+    void start_simulation_static_run(application& app) noexcept;
+    void start_simulation_start_1(application& app) noexcept;
+    void start_simulation_pause(application& app) noexcept;
+    void start_simulation_stop(application& app) noexcept;
+    void start_simulation_finish(application& app) noexcept;
+    void start_simulation_advance(application& app) noexcept;
+    void start_simulation_back(application& app) noexcept;
+    void start_enable_or_disable_debug(application& app) noexcept;
 
-    void start_simulation_model_add(const dynamics_type type,
+    void start_simulation_model_add(application&        app,
+                                    const dynamics_type type,
                                     const float         x,
                                     const float         y) noexcept;
-    void start_simulation_model_del(const model_id id) noexcept;
+    void start_simulation_model_del(application&   app,
+                                    const model_id id) noexcept;
 
-    void remove_simulation_observation_from(const model_id id) noexcept;
-    void add_simulation_observation_for(const model_id id) noexcept;
+    void remove_simulation_observation_from(application&   app,
+                                            const model_id id) noexcept;
+    void add_simulation_observation_for(application&   app,
+                                        const model_id id) noexcept;
 
     bool can_edit() const noexcept;
     bool can_display_graph_editor() const noexcept;
@@ -677,6 +693,32 @@ struct simulation_editor {
     small_ring_buffer<std::pair<model_id, ImVec2>, 8>
       models_to_move; /**< Online simulation created models need to use ImNodes
                          API to move into the canvas. */
+
+    project pj;
+
+    //! Select a @c tree_node node in the modeling tree node. The existence of
+    //! the underlying component is tested before assignment.
+    void select(const modeling& mod, tree_node_id id) noexcept;
+
+    //! Select a @c tree_node node in the modeling tree node. The existence of
+    //! the underlying component is tested before assignment.
+    void select(const modeling& mod, tree_node& node) noexcept;
+
+    //! Select a @C child in the modeling tree node. The existence of the
+    //! underlying component is tested before assignment.
+    void select(const modeling& mod, child_id id) noexcept;
+
+    //! @return true if @c id is the selected @c tree_node.
+    bool is_selected(tree_node_id id) const noexcept;
+
+    //! @return true if @c id is the selected @c child.
+    bool is_selected(child_id id) const noexcept;
+
+    tree_node_id selected_tn() noexcept;
+    child_id     selected_child() noexcept;
+
+    tree_node_id m_selected_tree_node = undefined<tree_node_id>();
+    child_id     m_selected_child     = undefined<child_id>();
 };
 
 inline bool simulation_editor::is_simulation_running() const noexcept
@@ -757,7 +799,8 @@ public:
 
     library_window() noexcept = default;
 
-    void try_set_component_as_project(const component_id id) noexcept;
+    void try_set_component_as_project(application&       app,
+                                      const component_id id) noexcept;
 
     void show() noexcept;
 
@@ -772,33 +815,9 @@ class project_window
 public:
     project_window() noexcept = default;
 
-    //! Display the window if the @c application::pj head is defined.
-    void show() noexcept;
-
-    //! Select a @c tree_node node in the modeling tree node. The existence of
-    //! the underlying component is tested before assignment.
-    void select(tree_node_id id) noexcept;
-
-    //! Select a @c tree_node node in the modeling tree node. The existence of
-    //! the underlying component is tested before assignment.
-    void select(tree_node& node) noexcept;
-
-    //! Select a @C child in the modeling tree node. The existence of the
-    //! underlying component is tested before assignment.
-    void select(child_id id) noexcept;
-
-    //! @return true if @c id is the selected @c tree_node.
-    bool is_selected(tree_node_id id) const noexcept;
-
-    //! @return true if @c id is the selected @c child.
-    bool is_selected(child_id id) const noexcept;
-
-    tree_node_id selected_tn() noexcept;
-    child_id     selected_child() noexcept;
+    void show(simulation_editor& ed) noexcept;
 
 private:
-    tree_node_id m_selected_tree_node = undefined<tree_node_id>();
-    child_id     m_selected_child     = undefined<child_id>();
 };
 
 class settings_window
@@ -923,6 +942,7 @@ public:
     const access& get_update_access() noexcept { return m_access; }
 
     bool combobox(const char*   label,
+                  project&      pj,
                   tree_node_id& parent_id,
                   component_id& compo_id,
                   tree_node_id& tn_id,
@@ -932,7 +952,8 @@ public:
      * disable control to avoid double update. */
     bool update_in_progress() const noexcept { return task_in_progress; }
 
-    void start_update(const tree_node_id parent_id,
+    void start_update(const project&     pj,
+                      const tree_node_id parent_id,
                       const component_id compo_id,
                       const tree_node_id tn_id,
                       const model_id     mdl_id) noexcept;
@@ -958,14 +979,16 @@ private:
                              component_id& compo_id,
                              tree_node_id& tn_id) const noexcept;
 
-    bool observable_model_treenode(component_id& compo_id,
-                                   tree_node_id& tn_id,
-                                   model_id&     mdl_id) const noexcept;
+    bool observable_model_treenode(const project& pj,
+                                   component_id&  compo_id,
+                                   tree_node_id&  tn_id,
+                                   model_id&      mdl_id) const noexcept;
 
-    bool observable_model_treenode(tree_node&    tn,
-                                   component_id& compo_id,
-                                   tree_node_id& tn_id,
-                                   model_id&     mdl_id) const noexcept;
+    bool observable_model_treenode(const project& pj,
+                                   tree_node&     tn,
+                                   component_id&  compo_id,
+                                   tree_node_id&  tn_id,
+                                   model_id&      mdl_id) const noexcept;
 
     mutable std::shared_mutex m_mutex; /**< @c update() lock the class to read
                            modeling data and build the @c ids and @c names
@@ -977,7 +1000,9 @@ struct application {
     ~application() noexcept;
 
     modeling mod;
-    project  pj;
+
+    // @TODO Rename simulation_editor into project editor.
+    data_array<simulation_editor, project_id> pjs;
 
     spin_mutex mod_mutex;
     spin_mutex sim_mutex;
@@ -988,10 +1013,9 @@ struct application {
 
     project_window project_wnd;
 
-    component_editor  component_ed;
-    simulation_editor simulation_ed;
-    output_editor     output_ed;
-    data_window       data_ed;
+    component_editor component_ed;
+    output_editor    output_ed;
+    data_window      data_ed;
 
     grid_editor_dialog  grid_dlg;
     graph_editor_dialog graph_dlg;
@@ -1069,10 +1093,13 @@ struct application {
     //! list is available.
     unordered_task_list& get_unordered_task_list(int idx) noexcept;
 
-    void start_load_project(const registred_path_id file) noexcept;
-    void start_save_project(const registred_path_id file) noexcept;
+    void start_load_project(const registred_path_id file,
+                            const project_id        pj_id) noexcept;
+    void start_save_project(const registred_path_id file,
+                            const project_id        pj_id) noexcept;
     void start_save_component(const component_id id) noexcept;
-    void start_init_source(const u64                 id,
+    void start_init_source(const project_id          pj_id,
+                           const u64                 id,
                            const source::source_type type) noexcept;
     void start_hsm_test_start() noexcept;
     void start_dir_path_refresh(const dir_path_id id) noexcept;
@@ -1088,33 +1115,37 @@ struct application {
 
 /// Display dialog box to choose a @c model in a hierarchy of a @c tree_node
 /// build from the @c tree_node @c tn that reference a grid component.
-bool show_select_model_box(const char*    button_label,
-                           const char*    popup_label,
-                           application&   app,
-                           tree_node&     tn,
-                           grid_observer& access) noexcept;
+bool show_select_model_box(const char*        button_label,
+                           const char*        popup_label,
+                           application&       app,
+                           simulation_editor& ed,
+                           tree_node&         tn,
+                           grid_observer&     access) noexcept;
 
 /// Display dialog box to choose a @c model in a hierarchy of a @c tree_node
 /// build from the @c tree_node @c tn that reference a graph component.
-bool show_select_model_box(const char*     button_label,
-                           const char*     popup_label,
-                           application&    app,
-                           tree_node&      tn,
-                           graph_observer& access) noexcept;
+bool show_select_model_box(const char*        button_label,
+                           const char*        popup_label,
+                           application&       app,
+                           simulation_editor& ed,
+                           tree_node&         tn,
+                           graph_observer&    access) noexcept;
 
-bool show_local_observers(application&     app,
-                          tree_node&       tn,
-                          component&       compo,
-                          graph_component& graph) noexcept;
+bool show_local_observers(application&       app,
+                          simulation_editor& ed,
+                          tree_node&         tn,
+                          component&         compo,
+                          graph_component&   graph) noexcept;
 
 void alloc_grid_observer(irt::application& app, irt::tree_node& tn);
 
-bool show_local_observers(application&    app,
-                          tree_node&      tn,
-                          component&      compo,
-                          grid_component& grid) noexcept;
+bool show_local_observers(application&       app,
+                          simulation_editor& ed,
+                          tree_node&         tn,
+                          component&         compo,
+                          grid_component&    grid) noexcept;
 
-void show_simulation_editor(application& app) noexcept;
+void show_simulation_editor(application& app, simulation_editor& ed) noexcept;
 
 //! @brief Get the file path of the @c imgui.ini file saved in $HOME.
 //! @return A pointer to a newly allocated memory.
@@ -1136,12 +1167,12 @@ void application::add_gui_task(Fn&& fn) noexcept
 
 /* * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * */
 
-inline tree_node_id project_window::selected_tn() noexcept
+inline tree_node_id simulation_editor::selected_tn() noexcept
 {
     return m_selected_tree_node;
 }
 
-inline child_id project_window::selected_child() noexcept
+inline child_id simulation_editor::selected_child() noexcept
 {
     return m_selected_child;
 }

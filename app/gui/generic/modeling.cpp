@@ -330,7 +330,7 @@ static void show(component_editor& ed,
 
           add_input_attribute(X, id);
           ImGui::PushItemWidth(120.0f);
-          bool updated = show_parameter(tag, app, p);
+          bool updated = show_parameter(tag, app, ed, p);
           ImGui::PopItemWidth();
           add_output_attribute(Y, id);
 

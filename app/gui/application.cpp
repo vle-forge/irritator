@@ -54,10 +54,7 @@ bool application::init() noexcept
         return false;
     }
 
-    if (auto ret = pj.init(mod_init); !ret) {
-        log_w(*this, log_level::error, "Fail to initialize project: {}\n");
-        return false;
-    }
+    pjs.reserve(8);
 
     if (mod.registred_paths.size() == 0) {
         attempt_all(
@@ -150,22 +147,6 @@ bool application::init() noexcept
         log_w(*this, log_level::error, "Fail to save settings files.\n");
     }
 
-    // if (auto ret =
-    //       sim.init(mod_init.model_capacity, mod_init.model_capacity * 256);
-    //     !ret) {
-    //     log_w(*this,
-    //           log_level::error,
-    //           "Fail to initialize simulation components\n");
-    //     return false;
-    // }
-
-    simulation_ed.displacements.resize(mod_init.model_capacity);
-    // @TODO Maybe clear or reinit pj.grid_obs_system and pj.graph_obs_system ?
-    // simulation_ed.plot_obs.clear();
-    // simulation_ed.grid_obs.resize(pj.grid_observers.size());
-
-    simulation_ed.copy_obs.reserve(16);
-
     if (auto ret = mod.fill_internal_components(); !ret) {
         log_w(*this,
               log_level::error,
@@ -237,8 +218,6 @@ static void application_show_menu(application& app) noexcept
         if (ImGui::BeginMenu("View")) {
             ImGui::MenuItem(
               "Show modeling editor", nullptr, &app.component_ed.is_open);
-            ImGui::MenuItem(
-              "Show simulation editor", nullptr, &app.simulation_ed.is_open);
             ImGui::MenuItem(
               "Show output editor", nullptr, &app.output_ed.is_open);
             ImGui::MenuItem("Show data editor", nullptr, &app.data_ed.is_open);
@@ -312,13 +291,26 @@ static void application_show_menu(application& app) noexcept
 
 static void application_manage_menu_action(application& app) noexcept
 {
-    if (app.menu_new_project_file) {
-        app.add_gui_task([&]() noexcept {
-            app.simulation_ed.clear();
-            app.pj.clear();
-        });
+    if (not app.pjs.can_alloc(1)) {
+        app.pjs.grow();
+        if (not app.pjs.can_alloc(1)) {
+            app.notifications.try_insert(
+              irt::log_level::error, [&](auto& title, auto& msg) noexcept {
+                  title = "Fail to allocate new project";
+                  format(msg,
+                         "There is {} project opened. Close on before opening "
+                         "a new project",
+                         app.pjs.size());
+              });
+        }
 
+        return;
+    }
+
+    if (app.menu_new_project_file) {
+        auto& pj                  = app.pjs.alloc();
         app.menu_new_project_file = false;
+        return;
     }
 
     if (app.menu_load_project_file) {
@@ -337,7 +329,10 @@ static void application_manage_menu_action(application& app) noexcept
                     auto  id   = app.mod.registred_paths.get_id(path);
                     path.path  = str;
 
-                    app.start_load_project(id);
+                    auto&      sim_ed = app.pjs.alloc();
+                    const auto pj_id  = app.pjs.get_id(sim_ed);
+
+                    app.start_load_project(id, pj_id);
                 }
             }
 
@@ -358,7 +353,9 @@ static void application_manage_menu_action(application& app) noexcept
                 auto  id   = app.mod.registred_paths.get_id(path);
                 path.path  = str;
 
-                app.start_save_project(id);
+                debug::breakpoint();
+                project_id pj_id;
+                app.start_save_project(id, pj_id);
             }
         } else {
             app.menu_save_project_file    = false;
@@ -383,7 +380,9 @@ static void application_manage_menu_action(application& app) noexcept
                     auto  id   = app.mod.registred_paths.get_id(path);
                     path.path  = str;
 
-                    app.start_save_project(id);
+                    debug::breakpoint();
+                    project_id pj_id;
+                    app.start_save_project(id, pj_id);
                 }
             }
 
@@ -435,8 +434,10 @@ static void application_show_windows(application& app) noexcept
     if (app.component_ed.is_open)
         app.component_ed.display();
 
-    if (app.simulation_ed.is_open)
-        app.simulation_ed.show();
+    for (auto& ed : app.pjs) {
+        ed.start_simulation_update_state(app);
+        ed.show(app);
+    }
 
     if (app.output_ed.is_open)
         app.output_ed.show();
@@ -473,8 +474,6 @@ void application::show() noexcept
 
     application_show_menu(*this);
     application_manage_menu_action(*this);
-
-    simulation_ed.start_simulation_update_state();
 
     if (show_imgui_demo)
         ImGui::ShowDemoWindow(&show_imgui_demo);
@@ -524,9 +523,10 @@ void application::show() noexcept
 #endif
 }
 
-static void show_select_model_box_recursive(application&   app,
-                                            tree_node&     tn,
-                                            grid_observer& access) noexcept
+static void show_select_model_box_recursive(application&       app,
+                                            simulation_editor& ed,
+                                            tree_node&         tn,
+                                            grid_observer&     access) noexcept
 {
     constexpr auto flags = ImGuiTreeNodeFlags_DefaultOpen;
 
@@ -551,13 +551,13 @@ static void show_select_model_box_recursive(application&   app,
         ImGui::PushID(&tn);
         if (ImGui::TreeNodeEx(str.c_str(), flags)) {
             for_each_model(
-              app.pj.sim,
+              ed.pj.sim,
               tn,
               [&](const std::string_view /*unique_id*/, auto& mdl) noexcept {
-                  const auto mdl_id = app.pj.sim.models.get_id(mdl);
+                  const auto mdl_id = ed.pj.sim.models.get_id(mdl);
                   ImGui::PushID(get_index(mdl_id));
 
-                  const auto current_tn_id = app.pj.node(tn);
+                  const auto current_tn_id = ed.pj.node(tn);
                   str = dynamics_type_names[ordinal(mdl.type)];
                   if (ImGui::Selectable(str.c_str(),
                                         access.tn_id == current_tn_id &&
@@ -571,7 +571,7 @@ static void show_select_model_box_recursive(application&   app,
               });
 
             if (auto* child = tn.tree.get_child(); child)
-                show_select_model_box_recursive(app, *child, access);
+                show_select_model_box_recursive(app, ed, *child, access);
 
             ImGui::TreePop();
         }
@@ -579,11 +579,11 @@ static void show_select_model_box_recursive(application&   app,
     });
 
     if (auto* sibling = tn.tree.get_sibling(); sibling)
-        show_select_model_box_recursive(app, *sibling, access);
+        show_select_model_box_recursive(app, ed, *sibling, access);
 }
 
-auto build_unique_component_vector(application& app, tree_node& tn)
-  -> vector<component_id>
+auto build_unique_component_vector(application& app,
+                                   tree_node&   tn) -> vector<component_id>
 {
     vector<component_id> ret;
     vector<tree_node*>   stack;
@@ -611,19 +611,23 @@ auto build_unique_component_vector(application& app, tree_node& tn)
     return ret;
 }
 
-bool show_select_model_box(const char*    button_label,
-                           const char*    popup_label,
-                           application&   app,
-                           tree_node&     tn,
-                           grid_observer& access) noexcept
+bool show_select_model_box(const char*        button_label,
+                           const char*        popup_label,
+                           application&       app,
+                           simulation_editor& ed,
+                           tree_node&         tn,
+                           grid_observer&     access) noexcept
 {
     auto ret = false;
 
     ImGui::BeginDisabled(app.component_model_sel.update_in_progress());
     if (ImGui::Button(button_label)) {
-        debug::ensure(app.pj.tree_nodes.get_id(tn) == access.parent_id);
-        app.component_model_sel.start_update(
-          access.parent_id, access.compo_id, access.tn_id, access.mdl_id);
+        debug::ensure(ed.pj.tree_nodes.get_id(tn) == access.parent_id);
+        app.component_model_sel.start_update(ed.pj,
+                                             access.parent_id,
+                                             access.compo_id,
+                                             access.tn_id,
+                                             access.mdl_id);
 
         ImGui::OpenPopup(popup_label);
     }
@@ -635,6 +639,7 @@ bool show_select_model_box(const char*    button_label,
 
         if (not app.component_model_sel.update_in_progress()) {
             app.component_model_sel.combobox("Select model to observe grid",
+                                             ed.pj,
                                              access.parent_id,
                                              access.compo_id,
                                              access.tn_id,
@@ -667,19 +672,23 @@ bool show_select_model_box(const char*    button_label,
     return ret;
 }
 
-bool show_select_model_box(const char*     button_label,
-                           const char*     popup_label,
-                           application&    app,
-                           tree_node&      tn,
-                           graph_observer& access) noexcept
+bool show_select_model_box(const char*        button_label,
+                           const char*        popup_label,
+                           application&       app,
+                           simulation_editor& ed,
+                           tree_node&         tn,
+                           graph_observer&    access) noexcept
 {
     auto ret = false;
 
     ImGui::BeginDisabled(app.component_model_sel.update_in_progress());
     if (ImGui::Button(button_label)) {
-        debug::ensure(app.pj.tree_nodes.get_id(tn) == access.parent_id);
-        app.component_model_sel.start_update(
-          access.parent_id, access.compo_id, access.tn_id, access.mdl_id);
+        debug::ensure(ed.pj.tree_nodes.get_id(tn) == access.parent_id);
+        app.component_model_sel.start_update(ed.pj,
+                                             access.parent_id,
+                                             access.compo_id,
+                                             access.tn_id,
+                                             access.mdl_id);
 
         ImGui::OpenPopup(popup_label);
     }
@@ -691,6 +700,7 @@ bool show_select_model_box(const char*     button_label,
 
         if (not app.component_model_sel.update_in_progress()) {
             app.component_model_sel.combobox("Select model to observe graph",
+                                             ed.pj,
                                              access.parent_id,
                                              access.compo_id,
                                              access.tn_id,
@@ -774,7 +784,8 @@ std::optional<file> application::try_open_file(const char* filename,
     return f;
 }
 
-void application::start_load_project(const registred_path_id id) noexcept
+void application::start_load_project(const registred_path_id id,
+                                     const project_id        pj_id) noexcept
 {
     add_gui_task([&, id]() noexcept {
         std::scoped_lock _(mod.reg_paths_mutex);
@@ -789,11 +800,15 @@ void application::start_load_project(const registred_path_id id) noexcept
         if (not f_opt)
             return;
 
+        auto* sim_ed = pjs.try_to_get(pj_id);
+        if (not sim_ed)
+            return;
+
         json_dearchiver dearc;
         dearc(
-          pj,
+          sim_ed->pj,
           mod,
-          pj.sim,
+          sim_ed->pj.sim,
           *f_opt,
           [&](
             json_dearchiver::error_code ec,
@@ -889,7 +904,8 @@ void application::start_load_project(const registred_path_id id) noexcept
     });
 }
 
-void application::start_save_project(const registred_path_id id) noexcept
+void application::start_save_project(const registred_path_id id,
+                                     const project_id        pj_id) noexcept
 {
     add_gui_task([&, id]() noexcept {
         std::scoped_lock _(mod.reg_paths_mutex);
@@ -904,10 +920,14 @@ void application::start_save_project(const registred_path_id id) noexcept
         if (not f_opt)
             return;
 
+        auto* sim_ed = pjs.try_to_get(pj_id);
+        if (not sim_ed)
+            return;
+
         json_archiver arc;
-        arc(pj,
+        arc(sim_ed->pj,
             mod,
-            pj.sim,
+            sim_ed->pj.sim,
             *f_opt,
             json_archiver::print_option::indent_2_one_line_array,
             [&](json_archiver::error_code             ec,
@@ -999,18 +1019,23 @@ void application::start_save_component(const component_id id) noexcept
     });
 }
 
-void application::start_init_source(const u64                 id,
+void application::start_init_source(const project_id          pj_id,
+                                    const u64                 id,
                                     const source::source_type type) noexcept
 {
     add_gui_task([&, id, type]() noexcept {
+        auto* sim_ed = pjs.try_to_get(pj_id);
+        if (not sim_ed)
+            return;
+
         source src;
         src.id   = id;
         src.type = type;
 
         attempt_all(
           [&]() noexcept -> status {
-              if (pj.sim.srcs.dispatch(src,
-                                       source::operation_type::initialize)) {
+              if (sim_ed->pj.sim.srcs.dispatch(
+                    src, source::operation_type::initialize)) {
                   data_ed.plot.clear();
                   for (sz i = 0, e = src.buffer.size(); i != e; ++i)
                       data_ed.plot.push_back(
@@ -1018,7 +1043,7 @@ void application::start_init_source(const u64                 id,
                                 static_cast<float>(src.buffer[i]) });
                   data_ed.plot_available = true;
 
-                  if (!pj.sim.srcs.prepare())
+                  if (!sim_ed->pj.sim.srcs.prepare())
                       notifications.try_insert(
                         log_level::error, [](auto& title, auto& msg) noexcept {
                             title = "Data error";

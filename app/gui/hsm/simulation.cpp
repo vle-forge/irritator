@@ -12,15 +12,14 @@ static void reinit(hsm_simulation_editor& hsm_ed, hsm_component_id id) noexcept
     hsm_ed.current_id = id;
 }
 
-bool hsm_simulation_editor::show_observations(tree_node& tn,
+bool hsm_simulation_editor::show_observations(application&       app,
+                                              simulation_editor& ed,
+                                              tree_node&         tn,
                                               component& /*compo*/,
                                               hsm_component& hsm) noexcept
 {
-    auto& ed  = container_of(this, &simulation_editor::hsm_sim);
-    auto& app = container_of(&ed, &application::simulation_ed);
-
-    ImGui::LabelFormat("project", "tns {}", app.pj.tree_nodes.size());
-    ImGui::LabelFormat("simulation", "models {}", app.pj.sim.models.size());
+    ImGui::LabelFormat("project", "tns {}", ed.pj.tree_nodes.size());
+    ImGui::LabelFormat("simulation", "models {}", ed.pj.sim.models.size());
     ImGui::LabelFormat(
       "tn", "uid {} children: {}", tn.unique_id.sv(), tn.children.size());
 

@@ -1620,7 +1620,7 @@ public:
         file_parameters_init_error,
     };
 
-    project()
+    project() noexcept
       : sim{ simulation_memory_requirement{ 1024 * 1024 * 8 } }
     {}
 
@@ -1657,6 +1657,7 @@ public:
         }
     };
 
+    name_str   name;
     simulation sim;
 
     /** Compute the number of @c tree_node required to load the component @c

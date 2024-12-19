@@ -10,10 +10,10 @@
 
 namespace irt {
 
-void plot_observation_widget::show(application& app) noexcept
+void plot_observation_widget::show(project& pj) noexcept
 {
-    for (auto& v_obs : app.pj.variable_observers) {
-        const auto id  = app.pj.variable_observers.get_id(v_obs);
+    for (auto& v_obs : pj.variable_observers) {
+        const auto id  = pj.variable_observers.get_id(v_obs);
         const auto idx = get_index(id);
 
         small_string<32> name;
@@ -31,7 +31,7 @@ void plot_observation_widget::show(application& app) noexcept
             v_obs.for_each([&](const auto id) noexcept {
                 const auto idx    = get_index(id);
                 const auto obs_id = v_obs.get_obs_ids()[idx];
-                auto*      obs    = app.pj.sim.observers.try_to_get(obs_id);
+                auto*      obs    = pj.sim.observers.try_to_get(obs_id);
 
                 if (obs->linearized_buffer.size() > 0) {
                     switch (v_obs.get_options()[idx]) {

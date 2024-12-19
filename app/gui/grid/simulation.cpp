@@ -22,6 +22,7 @@
 namespace irt {
 
 static bool display_grid_simulation(application&            app,
+                                    simulation_editor&      ed,
                                     grid_simulation_editor& grid_sim,
                                     tree_node&              tn,
                                     const grid_component&   grid) noexcept
@@ -137,8 +138,9 @@ static bool display_grid_simulation(application&            app,
             if (tn_id_opt.has_value()) {
                 if (ImGui::BeginMenu("Action")) {
                     if (ImGui::MenuItem("open"))
-                        app.project_wnd.select(
-                          app.pj.tree_nodes.get(*tn_id_opt));
+                        debug::breakpoint();
+                    // app.project_wnd.select(pj,
+                    //                        pj.tree_nodes.get(*tn_id_opt));
                     ImGui::EndMenu();
                 }
             }
@@ -158,24 +160,24 @@ void grid_simulation_editor::reset() noexcept
     distance   = ImVec2{ 5.f, 5.f };
 }
 
-bool grid_simulation_editor::display(tree_node& tn,
+bool grid_simulation_editor::display(application&       app,
+                                     simulation_editor& ed,
+                                     tree_node&         tn,
                                      component& /*compo*/,
                                      grid_component& grid) noexcept
 {
-    auto& ed  = container_of(this, &simulation_editor::grid_sim);
-    auto& app = container_of(&ed, &application::simulation_ed);
-
     const auto grid_id = app.mod.grid_components.get_id(grid);
     if (grid_id != current_id) {
         reset();
         current_id = grid_id;
     }
 
-    return display_grid_simulation(app, *this, tn, grid);
+    return display_grid_simulation(app, ed, *this, tn, grid);
 }
 
-bool show_local_observers(application& app,
-                          tree_node&   tn,
+bool show_local_observers(application&       app,
+                          simulation_editor& ed,
+                          tree_node&         tn,
                           component& /*compo*/,
                           grid_component& /*grid*/) noexcept
 {
@@ -192,10 +194,8 @@ bool show_local_observers(application& app,
         ImGui::TableHeadersRow();
 
         for_specified_data(
-          app.pj.grid_observers,
-          tn.grid_observer_ids,
-          [&](auto& grid) noexcept {
-              const auto id = app.pj.grid_observers.get_id(grid);
+          ed.pj.grid_observers, tn.grid_observer_ids, [&](auto& grid) noexcept {
+              const auto id = ed.pj.grid_observers.get_id(grid);
               ImGui::PushID(&grid);
 
               ImGui::TableNextRow();
@@ -232,13 +232,17 @@ bool show_local_observers(application& app,
               ImGui::PopItemWidth();
 
               ImGui::TableNextColumn();
-              if (show_select_model_box(
-                    "Select model", "Choose model to observe", app, tn, grid)) {
-                  if (auto* mdl = app.pj.sim.models.try_to_get(grid.mdl_id);
+              if (show_select_model_box("Select model",
+                                        "Choose model to observe",
+                                        app,
+                                        ed,
+                                        tn,
+                                        grid)) {
+                  if (auto* mdl = ed.pj.sim.models.try_to_get(grid.mdl_id);
                       mdl) {
                       if (mdl->type == dynamics_type::hsm_wrapper) {
                           if (auto* hsm =
-                                app.pj.sim.hsms.try_to_get(enum_cast<hsm_id>(
+                                ed.pj.sim.hsms.try_to_get(enum_cast<hsm_id>(
                                   get_dyn<hsm_wrapper>(*mdl).id));
                               hsm) {
                               grid.scale_min = 0.f;
@@ -249,7 +253,7 @@ bool show_local_observers(application& app,
                   }
               }
 
-              if (auto* mdl = app.pj.sim.models.try_to_get(grid.mdl_id); mdl) {
+              if (auto* mdl = ed.pj.sim.models.try_to_get(grid.mdl_id); mdl) {
                   ImGui::SameLine();
                   ImGui::TextUnformatted(
                     dynamics_type_names[ordinal(mdl->type)]);
@@ -266,26 +270,26 @@ bool show_local_observers(application& app,
         ImGui::EndTable();
     }
 
-    if (app.pj.grid_observers.can_alloc() && ImGui::Button("+##grid")) {
-        auto&      grid    = app.pj.alloc_grid_observer();
-        const auto grid_id = app.pj.grid_observers.get_id(grid);
+    if (ed.pj.grid_observers.can_alloc() && ImGui::Button("+##grid")) {
+        auto&      grid    = ed.pj.alloc_grid_observer();
+        const auto grid_id = ed.pj.grid_observers.get_id(grid);
 
-        grid.parent_id = app.pj.tree_nodes.get_id(tn);
+        grid.parent_id = ed.pj.tree_nodes.get_id(tn);
         grid.compo_id  = undefined<component_id>();
         grid.tn_id     = undefined<tree_node_id>();
         grid.mdl_id    = undefined<model_id>();
         tn.grid_observer_ids.emplace_back(grid_id);
 
-        if (not app.pj.file_obs.ids.can_alloc(1))
-            app.pj.file_obs.grow();
+        if (not ed.pj.file_obs.ids.can_alloc(1))
+            ed.pj.file_obs.grow();
 
-        if (app.pj.file_obs.ids.can_alloc(1)) {
-            const auto file_obs_id = app.pj.file_obs.ids.alloc();
+        if (ed.pj.file_obs.ids.can_alloc(1)) {
+            const auto file_obs_id = ed.pj.file_obs.ids.alloc();
             const auto idx         = get_index(file_obs_id);
 
-            app.pj.file_obs.subids[idx].grid = grid_id;
-            app.pj.file_obs.types[idx]       = file_observers::type::grid;
-            app.pj.file_obs.enables[idx]     = false;
+            ed.pj.file_obs.subids[idx].grid = grid_id;
+            ed.pj.file_obs.types[idx]       = file_observers::type::grid;
+            ed.pj.file_obs.enables[idx]     = false;
         }
 
         is_modified = true;
@@ -293,7 +297,7 @@ bool show_local_observers(application& app,
 
     if (to_del.has_value()) {
         is_modified = true;
-        app.pj.grid_observers.free(*to_del);
+        ed.pj.grid_observers.free(*to_del);
     }
 
     return is_modified;

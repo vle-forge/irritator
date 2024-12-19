@@ -17,10 +17,10 @@ enum class timeline_point_type {
 };
 
 struct simulation_point {
-     simulation_point() noexcept = default;
+    simulation_point() noexcept = default;
 
-     simulation_point(const simulation_point& rhs) noexcept = delete;
-     simulation_point(simulation_point&& rhs) noexcept      = default;
+    simulation_point(const simulation_point& rhs) noexcept = delete;
+    simulation_point(simulation_point&& rhs) noexcept      = default;
 
     time t;
 
@@ -79,7 +79,7 @@ struct timeline_point {
     timeline_point_type type = timeline_point_type::simulation;
 };
 
-struct  timeline {
+struct timeline {
     bool can_alloc(timeline_point_type type,
                    i32                 models   = 0,
                    i32                 messages = 0) noexcept;
@@ -95,8 +95,8 @@ struct  timeline {
              i32 model_number,
              i32 message_number) noexcept;
 
-    timeline(const timeline& other) noexcept = delete;
-    timeline(timeline&& other) noexcept      = delete;
+    timeline(const timeline& other) noexcept = default;
+    timeline(timeline&& other) noexcept      = default;
 
     void reset() noexcept;
     void cleanup_after_current_bag() noexcept;
@@ -119,19 +119,19 @@ struct  timeline {
 };
 
 //! @brief Initialize simulation and store first state.
- status initialize(timeline& tl, simulation&, time t) noexcept;
+status initialize(timeline& tl, simulation&, time t) noexcept;
 
 //! @brief Run one step of simulation and store state.
- status run(timeline& tl, simulation&, time& t) noexcept;
+status run(timeline& tl, simulation&, time& t) noexcept;
 
 //! @brief Finalize the simulation.
- status finalize(timeline& tl, simulation&, time t) noexcept;
+status finalize(timeline& tl, simulation&, time t) noexcept;
 
 //! @brief  Advance the simulation by one step.
- status advance(timeline& tl, simulation& sim, time& t) noexcept;
+status advance(timeline& tl, simulation& sim, time& t) noexcept;
 
 //! @brief  Back the simulation by one step.
- status back(timeline& tl, simulation& sim, time& t) noexcept;
+status back(timeline& tl, simulation& sim, time& t) noexcept;
 
 } // namespace irt
 
