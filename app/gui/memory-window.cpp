@@ -44,30 +44,30 @@ void memory_window::show() noexcept
 
     if (ImGui::CollapsingHeader("Simulation usage",
                                 ImGuiTreeNodeFlags_DefaultOpen)) {
-        ImGui::TextFormat("models: {}", app.sim.models.size());
-        ImGui::TextFormat("hsms: {}", app.sim.hsms.size());
-        ImGui::TextFormat("observers: {}", app.sim.observers.size());
+        ImGui::TextFormat("models: {}", app.pj.sim.models.size());
+        ImGui::TextFormat("hsms: {}", app.pj.sim.hsms.size());
+        ImGui::TextFormat("observers: {}", app.pj.sim.observers.size());
 
         ImGui::TextFormat("immediate_models: {}",
-                          app.sim.immediate_models.size());
+                          app.pj.sim.immediate_models.size());
         ImGui::TextFormat("immediate_observers: {}",
-                          app.sim.immediate_observers.size());
+                          app.pj.sim.immediate_observers.size());
 
-        ImGui::TextFormat("message_alloc: {}", app.sim.messages.size());
-        ImGui::TextFormat("node: {}", app.sim.nodes.size());
+        ImGui::TextFormat("message_alloc: {}", app.pj.sim.messages.size());
+        ImGui::TextFormat("node: {}", app.pj.sim.nodes.size());
         ImGui::TextFormat("dated_message_alloc: {}",
-                          app.sim.dated_messages.size());
+                          app.pj.sim.dated_messages.size());
         ImGui::TextFormat("emitting_output_ports: {}",
-                          app.sim.emitting_output_ports.size());
+                          app.pj.sim.emitting_output_ports.size());
 
         ImGui::TextFormat("contant sources: {}",
-                          app.sim.srcs.constant_sources.size());
+                          app.pj.sim.srcs.constant_sources.size());
         ImGui::TextFormat("text sources: {}",
-                          app.sim.srcs.text_file_sources.size());
+                          app.pj.sim.srcs.text_file_sources.size());
         ImGui::TextFormat("binary sources: {}",
-                          app.sim.srcs.binary_file_sources.size());
+                          app.pj.sim.srcs.binary_file_sources.size());
         ImGui::TextFormat("random sources: {}",
-                          app.sim.srcs.random_sources.size());
+                          app.pj.sim.srcs.random_sources.size());
     }
 
     if (ImGui::CollapsingHeader("Components")) {

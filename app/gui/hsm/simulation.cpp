@@ -20,7 +20,7 @@ bool hsm_simulation_editor::show_observations(tree_node& tn,
     auto& app = container_of(&ed, &application::simulation_ed);
 
     ImGui::LabelFormat("project", "tns {}", app.pj.tree_nodes.size());
-    ImGui::LabelFormat("simulation", "models {}", app.sim.models.size());
+    ImGui::LabelFormat("simulation", "models {}", app.pj.sim.models.size());
     ImGui::LabelFormat(
       "tn", "uid {} children: {}", tn.unique_id.sv(), tn.children.size());
 

@@ -25,7 +25,7 @@ static void show_obervers_table(application& app) noexcept
         vobs.for_each([&](const auto id) noexcept {
             const auto  idx    = get_index(id);
             const auto  obs_id = vobs.get_obs_ids()[idx];
-            const auto* obs    = app.sim.observers.try_to_get(obs_id);
+            const auto* obs    = app.pj.sim.observers.try_to_get(obs_id);
             ImGui::PushID(idx);
 
             ImGui::TableNextColumn();
@@ -74,7 +74,7 @@ static void show_obervers_table(application& app) noexcept
 
         if (to_copy.has_value()) {
             const auto obs_id = vobs.get_obs_ids()[get_index(*to_copy)];
-            const auto obs    = app.sim.observers.try_to_get(obs_id);
+            const auto obs    = app.pj.sim.observers.try_to_get(obs_id);
 
             auto& new_obs          = app.simulation_ed.copy_obs.alloc();
             new_obs.name           = vobs.get_names()[get_index(*to_copy)].sv();
@@ -159,7 +159,7 @@ static void write(application&             app,
                   const variable_observer& vobs,
                   const unsigned           idx) noexcept
 {
-    const auto* obs = app.sim.observers.try_to_get(vobs.get_obs_ids()[idx]);
+    const auto* obs = app.pj.sim.observers.try_to_get(vobs.get_obs_ids()[idx]);
 
     ofs.imbue(std::locale::classic());
     ofs << "t," << vobs.get_names()[idx].sv() << '\n';
@@ -283,7 +283,7 @@ void output_editor::show() noexcept
                     const auto idx = get_index(id);
 
                     const auto  obs_id = vobs.get_obs_ids()[idx];
-                    const auto* obs    = app.sim.observers.try_to_get(obs_id);
+                    const auto* obs = app.pj.sim.observers.try_to_get(obs_id);
 
                     if (not obs)
                         return;

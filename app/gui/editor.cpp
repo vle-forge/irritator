@@ -1569,7 +1569,7 @@ bool show_parameter(dynamics_dynamic_queue_tag,
       "empty or undefined. Checked, the simulation will stop.");
 
     const auto b2 = show_external_sources_combo(
-      app.sim.srcs, "time", p.integers[1], p.integers[2]);
+      app.pj.sim.srcs, "time", p.integers[1], p.integers[2]);
 
     return b1 or b2;
 }

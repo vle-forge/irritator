@@ -976,9 +976,8 @@ struct application {
     application() noexcept;
     ~application() noexcept;
 
-    modeling   mod;
-    simulation sim;
-    project    pj;
+    modeling mod;
+    project  pj;
 
     spin_mutex mod_mutex;
     spin_mutex sim_mutex;
