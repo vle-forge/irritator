@@ -89,7 +89,7 @@ static void simulation_copy(application& app) noexcept
 
     attempt_all(
       [&]() noexcept -> status {
-          irt_check(app.pj.set(app.mod, app.sim, *compo));
+          irt_check(app.pj.set(app.mod, *compo));
           irt_check(app.sim.srcs.prepare());
           app.sim.t = app.pj.t_limit.begin();
           irt_check(app.sim.initialize());
