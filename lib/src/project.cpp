@@ -1151,7 +1151,7 @@ static result<std::pair<tree_node_id, component_id>> set_project_from_hsm(
     return std::make_pair(sc.tree_nodes.get_id(tn), compo_id);
 }
 
-status project::set(modeling& mod, simulation& sim, component& compo) noexcept
+status project::set(modeling& mod, component& compo) noexcept
 {
     clear();
     clear_cache();
@@ -1198,11 +1198,11 @@ status project::set(modeling& mod, simulation& sim, component& compo) noexcept
     return success();
 }
 
-status project::rebuild(modeling& mod, simulation& sim) noexcept
+status project::rebuild(modeling& mod) noexcept
 {
     auto* compo = mod.components.try_to_get(head());
 
-    return compo ? set(mod, sim, *compo) : success();
+    return compo ? set(mod, *compo) : success();
 }
 
 void project::cache::clear() noexcept

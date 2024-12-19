@@ -21,9 +21,7 @@ static void add_generic_component_data(application& app) noexcept
                        app.mod.generic_components.get(compo.id.generic_id));
     app.component_ed.request_to_open(compo_id);
 
-    app.add_gui_task([&app]() noexcept {
-        app.component_sel.update();
-    });
+    app.add_gui_task([&app]() noexcept { app.component_sel.update(); });
 }
 
 static void add_grid_component_data(application& app) noexcept
@@ -32,9 +30,7 @@ static void add_grid_component_data(application& app) noexcept
     auto  compo_id = app.mod.components.get_id(compo);
     app.grids.alloc(compo_id, compo.id.grid_id);
     app.component_ed.request_to_open(compo_id);
-    app.add_gui_task([&app]() noexcept {
-        app.component_sel.update();
-    });
+    app.add_gui_task([&app]() noexcept { app.component_sel.update(); });
 }
 
 static void add_graph_component_data(application& app) noexcept
@@ -44,9 +40,7 @@ static void add_graph_component_data(application& app) noexcept
     app.graphs.alloc(compo_id, compo.id.graph_id);
     app.component_ed.request_to_open(compo_id);
 
-    app.add_gui_task([&app]() noexcept {
-        app.component_sel.update();
-    });
+    app.add_gui_task([&app]() noexcept { app.component_sel.update(); });
 }
 
 static void add_hsm_component_data(application& app) noexcept
@@ -57,9 +51,7 @@ static void add_hsm_component_data(application& app) noexcept
       compo_id, compo.id.hsm_id, app.mod.hsm_components.get(compo.id.hsm_id));
     app.component_ed.request_to_open(compo_id);
 
-    app.add_gui_task([&app]() noexcept {
-        app.component_sel.update();
-    });
+    app.add_gui_task([&app]() noexcept { app.component_sel.update(); });
 }
 
 static void show_component_popup_menu(application& app, component& sel) noexcept
@@ -100,9 +92,8 @@ static void show_component_popup_menu(application& app, component& sel) noexcept
                           });
                     }
 
-                    app.add_gui_task([&app]() noexcept {
-                        app.component_sel.update();
-                    });
+                    app.add_gui_task(
+                      [&app]() noexcept { app.component_sel.update(); });
                 } else {
                     app.notifications.try_insert(
                       log_level::error, [&](auto& title, auto& msg) noexcept {
@@ -513,7 +504,7 @@ void library_window::try_set_component_as_project(
               [&]() noexcept -> status {
                   if (auto* c = app.mod.components.try_to_get(compo_id); c) {
                       app.simulation_ed.clear();
-                      return app.pj.set(app.mod, app.sim, *c);
+                      return app.pj.set(app.mod, *c);
                   }
 
                   return success();

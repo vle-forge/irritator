@@ -58,9 +58,9 @@ std::optional<std::pair<int, int>> get_row_column(
     return std::nullopt;
 }
 
-static void build_grid_observer(grid_observer&  grid_obs,
-                                project&        pj,
-                                modeling&       mod,
+static void build_grid_observer(grid_observer& grid_obs,
+                                project&       pj,
+                                modeling& /*mod*/,
                                 simulation&     sim,
                                 tree_node&      grid_parent,
                                 grid_component& grid_compo) noexcept

@@ -2210,8 +2210,8 @@ struct json_dearchiver::impl {
         return nullptr;
     }
 
-    auto search_dir_in_reg(registred_path&  reg,
-                           std::string_view name) noexcept -> dir_path*
+    auto search_dir_in_reg(registred_path& reg, std::string_view name) noexcept
+      -> dir_path*
     {
         for (auto dir_id : reg.children) {
             if (auto* dir = mod().dir_paths.try_to_get(dir_id); dir) {
@@ -2280,8 +2280,8 @@ struct json_dearchiver::impl {
         return nullptr;
     }
 
-    auto search_file(dir_path&        dir,
-                     std::string_view name) noexcept -> file_path*
+    auto search_file(dir_path& dir, std::string_view name) noexcept
+      -> file_path*
     {
         for (auto file_id : dir.children)
             if (auto* file = mod().file_paths.try_to_get(file_id); file)
@@ -4210,7 +4210,7 @@ struct json_dearchiver::impl {
         auto_stack s(this, stack_id::project_set_components);
 
         if (auto* compo = mod().components.try_to_get(c_id); compo) {
-            if (auto ret = pj().set(mod(), sim(), *compo); ret)
+            if (auto ret = pj().set(mod(), *compo); ret)
                 return true;
             else
                 report_json_error(error_id::project_set_error);

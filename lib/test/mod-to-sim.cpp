@@ -42,7 +42,6 @@ int main()
         irt::modeling_initializer mod_init;
         irt::modeling             mod;
         irt::project              pj;
-        irt::simulation           sim(1024 * 1024 * 8);
 
         expect(!!mod.init(mod_init));
         expect(!!pj.init(mod_init));
@@ -78,20 +77,20 @@ int main()
         expect(eq(s2.connections.ssize(), 0));
         expect(eq(s3.connections.ssize(), 1));
 
-        expect(!!pj.set(mod, sim, c3));
+        expect(!!pj.set(mod, c3));
         expect(eq(pj.tree_nodes_size().first, 3));
 
-        expect(eq(sim.models.ssize(), 2));
-        auto* m1 = sim.models.try_to_get(0);
+        expect(eq(pj.sim.models.ssize(), 2));
+        auto* m1 = pj.sim.models.try_to_get(0);
         expect(neq(m1, nullptr));
-        auto* m2 = sim.models.try_to_get(1);
+        auto* m2 = pj.sim.models.try_to_get(1);
         expect(neq(m2, nullptr));
-        expect(sim.can_connect(1));
+        expect(pj.sim.can_connect(1));
 
         if (m1->type == irt::dynamics_type::counter) {
-            expect(!sim.can_connect(*m2, 0, *m1, 0));
+            expect(!pj.sim.can_connect(*m2, 0, *m1, 0));
         } else {
-            expect(!sim.can_connect(*m1, 0, *m2, 0));
+            expect(!pj.sim.can_connect(*m1, 0, *m2, 0));
         }
     };
 
@@ -99,7 +98,6 @@ int main()
         irt::modeling_initializer mod_init;
         irt::modeling             mod;
         irt::project              pj;
-        irt::simulation           sim(1024 * 1024 * 8);
 
         expect(!!mod.init(mod_init));
         expect(!!pj.init(mod_init));
@@ -117,14 +115,14 @@ int main()
         mod.alloc(s3, mod.components.get_id(c2));
         mod.alloc(s3, mod.components.get_id(c1));
 
-        expect(!!pj.set(mod, sim, c3));
+        expect(!!pj.set(mod, c3));
         expect(eq(pj.tree_nodes_size().first, 3));
 
-        expect(eq(sim.models.ssize(), 2));
+        expect(eq(pj.sim.models.ssize(), 2));
 
-        auto* m1 = sim.models.try_to_get(0);
+        auto* m1 = pj.sim.models.try_to_get(0);
         expect(neq(m1, nullptr));
-        auto* m2 = sim.models.try_to_get(1);
+        auto* m2 = pj.sim.models.try_to_get(1);
         expect(neq(m2, nullptr));
     };
 
@@ -132,7 +130,6 @@ int main()
         irt::modeling_initializer mod_init;
         irt::modeling             mod;
         irt::project              pj;
-        irt::simulation           sim(1024 * 1024 * 8);
 
         expect(!!mod.init(mod_init));
         expect(!!pj.init(mod_init));
@@ -174,20 +171,20 @@ int main()
                             ch32,
                             irt::connection::port{ .compo = p11_id }));
 
-        expect(!!pj.set(mod, sim, c3));
+        expect(!!pj.set(mod, c3));
         expect(eq(pj.tree_nodes_size().first, 5));
 
-        expect(eq(sim.models.ssize(), 2));
+        expect(eq(pj.sim.models.ssize(), 2));
 
-        auto* m1 = sim.models.try_to_get(0);
+        auto* m1 = pj.sim.models.try_to_get(0);
         expect(neq(m1, nullptr));
-        auto* m2 = sim.models.try_to_get(1);
+        auto* m2 = pj.sim.models.try_to_get(1);
         expect(neq(m2, nullptr));
 
         if (m1->type == irt::dynamics_type::counter) {
-            expect(sim.can_connect(*m2, 0, *m1, 0));
+            expect(pj.sim.can_connect(*m2, 0, *m1, 0));
         } else {
-            expect(sim.can_connect(*m1, 0, *m2, 0));
+            expect(pj.sim.can_connect(*m1, 0, *m2, 0));
         }
     };
 
@@ -195,7 +192,6 @@ int main()
         irt::modeling_initializer mod_init;
         irt::modeling             mod;
         irt::project              pj;
-        irt::simulation           sim(1024 * 1024 * 8);
 
         expect(!!mod.init(mod_init));
         expect(!!pj.init(mod_init));
@@ -210,16 +206,15 @@ int main()
         g.param.small = irt::graph_component::small_world_param{};
         g.g_type      = irt::graph_component::graph_type::small_world;
 
-        expect(!!pj.set(mod, sim, cg));
+        expect(!!pj.set(mod, cg));
         expect(eq(pj.tree_nodes_size().first, g.nodes.ssize() + 1));
-        expect(eq(sim.models.ssize(), g.nodes.ssize()));
+        expect(eq(pj.sim.models.ssize(), g.nodes.ssize()));
     };
 
     "graph-scale-free"_test = [] {
         irt::modeling_initializer mod_init;
         irt::modeling             mod;
         irt::project              pj;
-        irt::simulation           sim(1024 * 1024 * 8);
 
         expect(!!mod.init(mod_init));
         expect(!!pj.init(mod_init));
@@ -234,16 +229,15 @@ int main()
         g.param.scale = irt::graph_component::scale_free_param{};
         g.g_type      = irt::graph_component::graph_type::scale_free;
 
-        expect(!!pj.set(mod, sim, cg));
+        expect(!!pj.set(mod, cg));
         expect(eq(pj.tree_nodes_size().first, g.nodes.ssize() + 1));
-        expect(eq(sim.models.ssize(), g.nodes.ssize()));
+        expect(eq(pj.sim.models.ssize(), g.nodes.ssize()));
     };
 
     "grid-3x3-empty-con"_test = [] {
         irt::modeling_initializer mod_init;
         irt::modeling             mod;
         irt::project              pj;
-        irt::simulation           sim(1024 * 1024 * 8);
 
         expect(!!mod.init(mod_init));
         expect(!!pj.init(mod_init));
@@ -256,16 +250,15 @@ int main()
         auto& g  = mod.grid_components.get(cg.id.grid_id);
         g.resize(5, 5, mod.components.get_id(c));
 
-        expect(!!pj.set(mod, sim, cg));
+        expect(!!pj.set(mod, cg));
         expect(eq(pj.tree_nodes_size().first, g.row * g.column + 1));
-        expect(eq(sim.models.ssize(), g.row * g.column));
+        expect(eq(pj.sim.models.ssize(), g.row * g.column));
     };
 
     "grid-3x3-empty-con-middle"_test = [] {
         irt::modeling_initializer mod_init;
         irt::modeling             mod;
         irt::project              pj;
-        irt::simulation           sim(1024 * 1024 * 8);
 
         expect(!!mod.init(mod_init));
         expect(!!pj.init(mod_init));
@@ -282,10 +275,10 @@ int main()
             for (int j = 1; j < 4; ++j)
                 g.children[g.pos(i, j)] = mod.components.get_id(c);
 
-        expect(!!pj.set(mod, sim, cg));
+        expect(!!pj.set(mod, cg));
         expect(
           eq(pj.tree_nodes_size().first, (g.row - 2) * (g.column - 2) + 1));
-        expect(eq(sim.models.ssize(), (g.row - 2) * (g.column - 2)));
+        expect(eq(pj.sim.models.ssize(), (g.row - 2) * (g.column - 2)));
     };
 
     "grid-3x3"_test = [] {
@@ -298,7 +291,6 @@ int main()
             irt::modeling_initializer mod_init;
             irt::modeling             mod;
             irt::project              pj;
-            irt::simulation           sim(1024 * 1024 * 8);
 
             expect(!!mod.init(mod_init));
             expect(!!pj.init(mod_init));
@@ -377,16 +369,16 @@ int main()
             expect(!!mod.save(c3));
             expect(!!mod.save(cg));
 
-            expect(!!pj.set(mod, sim, cg));
+            expect(!!pj.set(mod, cg));
             expect(eq(pj.tree_nodes_size().first, g.row * g.column * 3 + 1));
 
-            expect(eq(sim.models.ssize(), g.row * g.column * 2));
+            expect(eq(pj.sim.models.ssize(), g.row * g.column * 2));
 
             irt::json_archiver j;
             expect(
               j(pj,
                 mod,
-                sim,
+                pj.sim,
                 buffer,
                 irt::json_archiver::print_option::indent_2_one_line_array));
         }
@@ -398,7 +390,6 @@ int main()
             irt::modeling_initializer mod_init;
             irt::modeling             mod;
             irt::project              pj;
-            irt::simulation           sim(1024 * 1024 * 8);
 
             expect(!!mod.init(mod_init));
             expect(!!pj.init(mod_init));
@@ -413,7 +404,7 @@ int main()
             std::exchange(irt::on_error_callback, old_cb);
 
             irt::json_dearchiver j;
-            expect(j(pj, mod, sim, std::span(buffer.data(), buffer.size())));
+            expect(j(pj, mod, pj.sim, std::span(buffer.data(), buffer.size())));
         }
     };
 
@@ -442,23 +433,21 @@ int main()
         hsmw.machine.states[2u].enter_action.set_output(
           irt::hierarchical_state_machine::variable::port_0, 1.0f);
 
-        irt::simulation sim(1024 * 1024 * 8);
-
         expect(!!mod.init(mod_init));
         expect(!!pj.init(mod_init));
 
-        expect(!!pj.set(mod, sim, compo));
+        expect(!!pj.set(mod, compo));
 
-        sim.t = 0.0;
-        expect(!!sim.srcs.prepare());
-        expect(!!sim.initialize());
+        pj.sim.t = 0.0;
+        expect(!!pj.sim.srcs.prepare());
+        expect(!!pj.sim.initialize());
 
         irt::status st;
 
         do {
-            st = sim.run();
+            st = pj.sim.run();
             expect(!!st);
-        } while (sim.t < 10);
+        } while (pj.sim.t < 10);
     };
 
     "internal_component_io"_test = [] {
@@ -550,7 +539,6 @@ int main()
             irt::modeling_initializer mod_init;
             irt::modeling             mod;
             irt::project              pj;
-            irt::simulation           sim(1024 * 1024 * 8);
 
             expect(!!mod.init(mod_init));
             expect(!!pj.init(mod_init));
@@ -605,15 +593,15 @@ int main()
             g.out_connection_type = irt::grid_component::type::in_out;
             g.neighbors           = irt::grid_component::neighborhood::four;
 
-            expect(!!pj.set(mod, sim, cg));
+            expect(!!pj.set(mod, cg));
             expect(gt(g.cache_connections.ssize(), 0));
             expect(eq(pj.tree_nodes_size().first, g.row * g.column * 3 + 1));
 
-            expect(eq(sim.models.ssize(), g.row * g.column * 3));
+            expect(eq(pj.sim.models.ssize(), g.row * g.column * 3));
 
             int         nb_constant_model = 0;
             irt::model* cst_mdl           = nullptr;
-            while (sim.models.next(cst_mdl)) {
+            while (pj.sim.models.next(cst_mdl)) {
                 if (cst_mdl->type == irt::dynamics_type::constant) {
                     ++nb_constant_model;
                     auto& dyn = irt::get_dyn<irt::constant>(*cst_mdl);
@@ -637,7 +625,6 @@ int main()
             irt::modeling_initializer mod_init;
             irt::modeling             mod;
             irt::project              pj;
-            irt::simulation           sim(1024 * 1024 * 8);
 
             expect(!!mod.init(mod_init));
             expect(!!pj.init(mod_init));
@@ -704,14 +691,14 @@ int main()
             g.in_connection_type  = irt::grid_component::type::in_out;
             g.out_connection_type = irt::grid_component::type::in_out;
 
-            expect(!!pj.set(mod, sim, cg));
+            expect(!!pj.set(mod, cg));
             expect(eq(pj.tree_nodes_size().first, g.row * g.column * 3 + 1));
 
-            expect(eq(sim.models.ssize(), g.row * g.column * 3));
+            expect(eq(pj.sim.models.ssize(), g.row * g.column * 3));
 
             int         nb_constant_model = 0;
             irt::model* cst_mdl           = nullptr;
-            while (sim.models.next(cst_mdl)) {
+            while (pj.sim.models.next(cst_mdl)) {
                 if (cst_mdl->type == irt::dynamics_type::constant) {
                     ++nb_constant_model;
                     auto& dyn = irt::get_dyn<irt::constant>(*cst_mdl);
@@ -733,7 +720,6 @@ int main()
         irt::modeling_initializer mod_init;
         irt::modeling             mod;
         irt::project              pj;
-        irt::simulation           sim(1024 * 1024 * 8);
 
         expect(!!mod.init(mod_init));
         expect(!!pj.init(mod_init));
@@ -777,7 +763,6 @@ int main()
 
         expect(!pj.set(
           mod,
-          sim,
           cg)); /* Fail to build the project since the constant
                    models can not be initialized with dyn.port equals to 17. */
 

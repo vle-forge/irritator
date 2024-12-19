@@ -1620,6 +1620,10 @@ public:
         file_parameters_init_error,
     };
 
+    project()
+      : sim{ simulation_memory_requirement{ 1024 * 1024 * 8 } }
+    {}
+
     status init(const modeling_initializer& init) noexcept;
 
     struct required_data {
@@ -1653,6 +1657,8 @@ public:
         }
     };
 
+    simulation sim;
+
     /** Compute the number of @c tree_node required to load the component @c
      * into the @c project and the number of @c irt::model and @c
      * irt::hierarchical_state_machine to fill the @C irt::simulation
@@ -1662,10 +1668,10 @@ public:
 
     /// Assign a new @c component head. The previously allocated tree_node
     /// hierarchy is removed and a newly one is allocated.
-    status set(modeling& mod, simulation& sim, component& compo) noexcept;
+    status set(modeling& mod, component& compo) noexcept;
 
     /// Build the complete @c tree_node hierarchy from the @c component head.
-    status rebuild(modeling& mod, simulation& sim) noexcept;
+    status rebuild(modeling& mod) noexcept;
 
     /// Remove @c tree_node hierarchy and clear the @c component head.
     void clear() noexcept;
