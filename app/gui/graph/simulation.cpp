@@ -49,7 +49,7 @@ bool show_local_observers(application& app,
             ordinal(graph.mdl_id));
 
           if_data_exists_do(
-            app.sim.models, graph.mdl_id, [&](auto& mdl) noexcept {
+            app.pj.sim.models, graph.mdl_id, [&](auto& mdl) noexcept {
                 ImGui::TextUnformatted(dynamics_type_names[ordinal(mdl.type)]);
             });
 

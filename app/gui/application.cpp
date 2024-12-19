@@ -20,8 +20,7 @@
 namespace irt {
 
 application::application() noexcept
-  : sim(simulation_memory_requirement(4096, 128))
-  , task_mgr{}
+  : task_mgr{}
   , config(get_config_home(true))
 {
     settings_wnd.apply_style(undefined<gui_theme_id>());
@@ -552,10 +551,10 @@ static void show_select_model_box_recursive(application&   app,
         ImGui::PushID(&tn);
         if (ImGui::TreeNodeEx(str.c_str(), flags)) {
             for_each_model(
-              app.sim,
+              app.pj.sim,
               tn,
               [&](const std::string_view /*unique_id*/, auto& mdl) noexcept {
-                  const auto mdl_id = app.sim.models.get_id(mdl);
+                  const auto mdl_id = app.pj.sim.models.get_id(mdl);
                   ImGui::PushID(get_index(mdl_id));
 
                   const auto current_tn_id = app.pj.node(tn);
@@ -794,7 +793,7 @@ void application::start_load_project(const registred_path_id id) noexcept
         dearc(
           pj,
           mod,
-          sim,
+          pj.sim,
           *f_opt,
           [&](
             json_dearchiver::error_code ec,
@@ -908,7 +907,7 @@ void application::start_save_project(const registred_path_id id) noexcept
         json_archiver arc;
         arc(pj,
             mod,
-            sim,
+            pj.sim,
             *f_opt,
             json_archiver::print_option::indent_2_one_line_array,
             [&](json_archiver::error_code             ec,
@@ -1010,7 +1009,8 @@ void application::start_init_source(const u64                 id,
 
         attempt_all(
           [&]() noexcept -> status {
-              if (sim.srcs.dispatch(src, source::operation_type::initialize)) {
+              if (pj.sim.srcs.dispatch(src,
+                                       source::operation_type::initialize)) {
                   data_ed.plot.clear();
                   for (sz i = 0, e = src.buffer.size(); i != e; ++i)
                       data_ed.plot.push_back(
@@ -1018,7 +1018,7 @@ void application::start_init_source(const u64                 id,
                                 static_cast<float>(src.buffer[i]) });
                   data_ed.plot_available = true;
 
-                  if (!sim.srcs.prepare())
+                  if (!pj.sim.srcs.prepare())
                       notifications.try_insert(
                         log_level::error, [](auto& title, auto& msg) noexcept {
                             title = "Data error";

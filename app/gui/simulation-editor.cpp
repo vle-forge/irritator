@@ -290,8 +290,8 @@ static bool show_local_simulation_plot_observers_table(application& app,
             ImGui::TableSetupColumn("plot name");
             ImGui::TableHeadersRow();
 
-            for_each_model(app.sim, tn, [&](auto uid, auto& mdl) noexcept {
-                const auto mdl_id = app.sim.get_id(mdl);
+            for_each_model(app.pj.sim, tn, [&](auto uid, auto& mdl) noexcept {
+                const auto mdl_id = app.pj.sim.get_id(mdl);
                 const auto tn_id  = app.pj.tree_nodes.get_id(tn);
 
                 auto vobs_id    = undefined<variable_observer_id>();
@@ -447,7 +447,7 @@ static bool show_local_simulation_settings(application& app,
 
             auto to_del = undefined<global_parameter_id>();
 
-            for_each_model(app.sim, tn, [&](auto uid, auto& mdl) noexcept {
+            for_each_model(app.pj.sim, tn, [&](auto uid, auto& mdl) noexcept {
                 const auto param_id  = get_global_parameter(tn, uid);
                 const auto is_enable = app.pj.parameters.exists(param_id);
                 const auto param_idx = get_index(param_id);
@@ -465,7 +465,7 @@ static bool show_local_simulation_settings(application& app,
                         app.pj.parameters.get<tree_node_id>(new_id) =
                           app.pj.tree_nodes.get_id(tn);
                         app.pj.parameters.get<model_id>(new_id) =
-                          app.sim.models.get_id(mdl);
+                          app.pj.sim.models.get_id(mdl);
                         app.pj.parameters.get<parameter>(new_id).clear();
                         tn.parameters_ids.data.emplace_back(uid, new_id);
                         tn.parameters_ids.sort();
@@ -551,7 +551,7 @@ static void show_local_variables_plot(application&       app,
 {
     v_obs.for_each([&](const auto id) noexcept {
         const auto idx = get_index(id);
-        auto*      obs = app.sim.observers.try_to_get(v_obs.get_obs_ids()[idx]);
+        auto* obs = app.pj.sim.observers.try_to_get(v_obs.get_obs_ids()[idx]);
 
         if (obs and v_obs.get_tn_ids()[idx] == tn_id)
             app.simulation_ed.plot_obs.show_plot_line(
@@ -797,7 +797,7 @@ static bool show_project_parameters(application& app) noexcept
                                        auto& /*tn_id*/,
                                        auto& mdl_id,
                                        auto& p) noexcept {
-            const auto* mdl = app.sim.models.try_to_get(mdl_id);
+            const auto* mdl = app.pj.sim.models.try_to_get(mdl_id);
             ImGui::PushID(get_index(id));
 
             ImGui::TableNextRow();
@@ -995,7 +995,7 @@ static bool show_project_observations(application& app) noexcept
                 vobs.for_each([&](const auto id) noexcept {
                     const auto  idx = get_index(id);
                     const auto* obs =
-                      app.sim.observers.try_to_get(vobs.get_obs_ids()[idx]);
+                      app.pj.sim.observers.try_to_get(vobs.get_obs_ids()[idx]);
 
                     if (obs)
                         app.simulation_ed.plot_obs.show_plot_line(
@@ -1107,7 +1107,7 @@ void simulation_editor::show() noexcept
     }
 
     auto& app = container_of(this, &application::simulation_ed);
-    if (app.sim.models.empty()) {
+    if (app.pj.sim.models.empty()) {
         ImGui::End();
         return;
     }
