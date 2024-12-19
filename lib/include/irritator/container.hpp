@@ -1275,6 +1275,9 @@ private:
     }
 
 public:
+    using iterator       = id_array<identifier_type, A>::iterator;
+    using const_iterator = id_array<identifier_type, A>::const_iterator;
+
     identifier_type alloc() noexcept;
 
     template<typename Function>
@@ -1386,6 +1389,11 @@ public:
     //! The function take one vector from Index (integer or type).
     template<typename Function>
     void for_each(Function&& fn) const noexcept;
+
+    constexpr iterator       begin() noexcept;
+    constexpr const_iterator begin() const noexcept;
+    constexpr iterator       end() noexcept;
+    constexpr const_iterator end() const noexcept;
 
     void clear() noexcept;
     void reserve(std::integral auto len) noexcept;
@@ -2711,6 +2719,34 @@ void id_data_array<Identifier, A, Ts...>::for_each_id(
 {
     for (const auto id : m_ids)
         fn(id);
+}
+
+template<typename Identifier, typename A, class... Ts>
+constexpr typename id_data_array<Identifier, A, Ts...>::iterator
+id_data_array<Identifier, A, Ts...>::begin() noexcept
+{
+    return m_ids.begin();
+}
+
+template<typename Identifier, typename A, class... Ts>
+constexpr typename id_data_array<Identifier, A, Ts...>::const_iterator
+id_data_array<Identifier, A, Ts...>::begin() const noexcept
+{
+    return m_ids.begin();
+}
+
+template<typename Identifier, typename A, class... Ts>
+constexpr typename id_data_array<Identifier, A, Ts...>::iterator
+id_data_array<Identifier, A, Ts...>::end() noexcept
+{
+    return m_ids.end();
+}
+
+template<typename Identifier, typename A, class... Ts>
+constexpr typename id_data_array<Identifier, A, Ts...>::const_iterator
+id_data_array<Identifier, A, Ts...>::end() const noexcept
+{
+    return m_ids.end();
 }
 
 template<typename Identifier, typename A, class... Ts>
