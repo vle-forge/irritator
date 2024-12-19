@@ -13,57 +13,59 @@
 namespace irt {
 
 struct application;
+struct simulation_editor;
+class component_editor;
 
-void show_dynamics_inputs(simulation& sim, qss1_integrator& dyn);
-void show_dynamics_inputs(simulation& sim, qss2_integrator& dyn);
-void show_dynamics_inputs(simulation& sim, qss3_integrator& dyn);
-void show_dynamics_inputs(simulation& sim, qss1_multiplier& dyn);
-void show_dynamics_inputs(simulation& sim, qss1_sum_2& dyn);
-void show_dynamics_inputs(simulation& sim, qss1_sum_3& dyn);
-void show_dynamics_inputs(simulation& sim, qss1_sum_4& dyn);
-void show_dynamics_inputs(simulation& sim, qss1_wsum_2& dyn);
-void show_dynamics_inputs(simulation& sim, qss1_wsum_3& dyn);
-void show_dynamics_inputs(simulation& sim, qss1_wsum_4& dyn);
-void show_dynamics_inputs(simulation& sim, qss2_multiplier& dyn);
-void show_dynamics_inputs(simulation& sim, qss2_sum_2& dyn);
-void show_dynamics_inputs(simulation& sim, qss2_sum_3& dyn);
-void show_dynamics_inputs(simulation& sim, qss2_sum_4& dyn);
-void show_dynamics_inputs(simulation& sim, qss2_wsum_2& dyn);
-void show_dynamics_inputs(simulation& sim, qss2_wsum_3& dyn);
-void show_dynamics_inputs(simulation& sim, qss2_wsum_4& dyn);
-void show_dynamics_inputs(simulation& sim, qss3_multiplier& dyn);
-void show_dynamics_inputs(simulation& sim, qss3_sum_2& dyn);
-void show_dynamics_inputs(simulation& sim, qss3_sum_3& dyn);
-void show_dynamics_inputs(simulation& sim, qss3_sum_4& dyn);
-void show_dynamics_inputs(simulation& sim, qss3_wsum_2& dyn);
-void show_dynamics_inputs(simulation& sim, qss3_wsum_3& dyn);
-void show_dynamics_inputs(simulation& sim, qss3_wsum_4& dyn);
-void show_dynamics_inputs(simulation& sim, counter& dyn);
-void show_dynamics_inputs(simulation& sim, queue& dyn);
-void show_dynamics_inputs(simulation& sim, dynamic_queue& dyn);
-void show_dynamics_inputs(simulation& sim, priority_queue& dyn);
-void show_dynamics_inputs(simulation& sim, generator& dyn);
-void show_dynamics_inputs(simulation& sim, constant& dyn);
-void show_dynamics_inputs(simulation& sim, qss1_cross& dyn);
-void show_dynamics_inputs(simulation& sim, qss2_cross& dyn);
-void show_dynamics_inputs(simulation& sim, qss3_cross& dyn);
-void show_dynamics_inputs(simulation& sim, qss1_filter& dyn);
-void show_dynamics_inputs(simulation& sim, qss2_filter& dyn);
-void show_dynamics_inputs(simulation& sim, qss3_filter& dyn);
-void show_dynamics_inputs(simulation& sim, qss1_power& dyn);
-void show_dynamics_inputs(simulation& sim, qss2_power& dyn);
-void show_dynamics_inputs(simulation& sim, qss3_power& dyn);
-void show_dynamics_inputs(simulation& sim, qss1_square& dyn);
-void show_dynamics_inputs(simulation& sim, qss2_square& dyn);
-void show_dynamics_inputs(simulation& sim, qss3_square& dyn);
-void show_dynamics_inputs(simulation& sim, accumulator_2& dyn);
-void show_dynamics_inputs(simulation& sim, logical_and_2& dyn);
-void show_dynamics_inputs(simulation& sim, logical_or_2& dyn);
-void show_dynamics_inputs(simulation& sim, logical_and_3& dyn);
-void show_dynamics_inputs(simulation& sim, logical_or_3& dyn);
-void show_dynamics_inputs(simulation& sim, logical_invert& dyn);
-void show_dynamics_inputs(simulation& sim, hsm_wrapper& dyn);
-void show_dynamics_inputs(simulation& sim, time_func& dyn);
+void show_dynamics_inputs(simulation_editor& sim, qss1_integrator& dyn);
+void show_dynamics_inputs(simulation_editor& sim, qss2_integrator& dyn);
+void show_dynamics_inputs(simulation_editor& sim, qss3_integrator& dyn);
+void show_dynamics_inputs(simulation_editor& sim, qss1_multiplier& dyn);
+void show_dynamics_inputs(simulation_editor& sim, qss1_sum_2& dyn);
+void show_dynamics_inputs(simulation_editor& sim, qss1_sum_3& dyn);
+void show_dynamics_inputs(simulation_editor& sim, qss1_sum_4& dyn);
+void show_dynamics_inputs(simulation_editor& sim, qss1_wsum_2& dyn);
+void show_dynamics_inputs(simulation_editor& sim, qss1_wsum_3& dyn);
+void show_dynamics_inputs(simulation_editor& sim, qss1_wsum_4& dyn);
+void show_dynamics_inputs(simulation_editor& sim, qss2_multiplier& dyn);
+void show_dynamics_inputs(simulation_editor& sim, qss2_sum_2& dyn);
+void show_dynamics_inputs(simulation_editor& sim, qss2_sum_3& dyn);
+void show_dynamics_inputs(simulation_editor& sim, qss2_sum_4& dyn);
+void show_dynamics_inputs(simulation_editor& sim, qss2_wsum_2& dyn);
+void show_dynamics_inputs(simulation_editor& sim, qss2_wsum_3& dyn);
+void show_dynamics_inputs(simulation_editor& sim, qss2_wsum_4& dyn);
+void show_dynamics_inputs(simulation_editor& sim, qss3_multiplier& dyn);
+void show_dynamics_inputs(simulation_editor& sim, qss3_sum_2& dyn);
+void show_dynamics_inputs(simulation_editor& sim, qss3_sum_3& dyn);
+void show_dynamics_inputs(simulation_editor& sim, qss3_sum_4& dyn);
+void show_dynamics_inputs(simulation_editor& sim, qss3_wsum_2& dyn);
+void show_dynamics_inputs(simulation_editor& sim, qss3_wsum_3& dyn);
+void show_dynamics_inputs(simulation_editor& sim, qss3_wsum_4& dyn);
+void show_dynamics_inputs(simulation_editor& sim, counter& dyn);
+void show_dynamics_inputs(simulation_editor& sim, queue& dyn);
+void show_dynamics_inputs(simulation_editor& sim, dynamic_queue& dyn);
+void show_dynamics_inputs(simulation_editor& sim, priority_queue& dyn);
+void show_dynamics_inputs(simulation_editor& sim, generator& dyn);
+void show_dynamics_inputs(simulation_editor& sim, constant& dyn);
+void show_dynamics_inputs(simulation_editor& sim, qss1_cross& dyn);
+void show_dynamics_inputs(simulation_editor& sim, qss2_cross& dyn);
+void show_dynamics_inputs(simulation_editor& sim, qss3_cross& dyn);
+void show_dynamics_inputs(simulation_editor& sim, qss1_filter& dyn);
+void show_dynamics_inputs(simulation_editor& sim, qss2_filter& dyn);
+void show_dynamics_inputs(simulation_editor& sim, qss3_filter& dyn);
+void show_dynamics_inputs(simulation_editor& sim, qss1_power& dyn);
+void show_dynamics_inputs(simulation_editor& sim, qss2_power& dyn);
+void show_dynamics_inputs(simulation_editor& sim, qss3_power& dyn);
+void show_dynamics_inputs(simulation_editor& sim, qss1_square& dyn);
+void show_dynamics_inputs(simulation_editor& sim, qss2_square& dyn);
+void show_dynamics_inputs(simulation_editor& sim, qss3_square& dyn);
+void show_dynamics_inputs(simulation_editor& sim, accumulator_2& dyn);
+void show_dynamics_inputs(simulation_editor& sim, logical_and_2& dyn);
+void show_dynamics_inputs(simulation_editor& sim, logical_or_2& dyn);
+void show_dynamics_inputs(simulation_editor& sim, logical_and_3& dyn);
+void show_dynamics_inputs(simulation_editor& sim, logical_or_3& dyn);
+void show_dynamics_inputs(simulation_editor& sim, logical_invert& dyn);
+void show_dynamics_inputs(simulation_editor& sim, hsm_wrapper& dyn);
+void show_dynamics_inputs(simulation_editor& sim, time_func& dyn);
 
 /**
  * @brief Display ImGui widgets acconding to the dynamics in model.
@@ -75,11 +77,15 @@ void show_dynamics_inputs(simulation& sim, time_func& dyn);
  *
  * @return true is data under the parameter @c p are changed.
  */
-bool show_parameter_editor(application& app, model& mdl, parameter& p) noexcept;
+bool show_parameter_editor(application&       app,
+                           simulation_editor& ed,
+                           model&             mdl,
+                           parameter&         p) noexcept;
 
-bool show_parameter_editor(application&  app,
-                           dynamics_type type,
-                           parameter&    p) noexcept;
+bool show_parameter_editor(application&       app,
+                           simulation_editor& ed,
+                           dynamics_type      type,
+                           parameter&         p) noexcept;
 
 bool show_external_sources_combo(external_source& srcs,
                                  const char*      title,
@@ -360,154 +366,205 @@ constexpr auto dispatcher(Function&& f, Args&&... args) noexcept
 }
 
 auto show_parameter(dynamics_qss1_integrator_tag,
-                    application& app,
-                    parameter&   p) noexcept -> bool;
+                    application&      app,
+                    component_editor& ed,
+                    parameter&        p) noexcept -> bool;
 auto show_parameter(dynamics_qss1_multiplier_tag,
-                    application& app,
-                    parameter&   p) noexcept -> bool;
+                    application&      app,
+                    component_editor& ed,
+                    parameter&        p) noexcept -> bool;
 auto show_parameter(dynamics_qss1_cross_tag,
-                    application& app,
-                    parameter&   p) noexcept -> bool;
+                    application&      app,
+                    component_editor& ed,
+                    parameter&        p) noexcept -> bool;
 auto show_parameter(dynamics_qss1_filter_tag,
-                    application& app,
-                    parameter&   p) noexcept -> bool;
+                    application&      app,
+                    component_editor& ed,
+                    parameter&        p) noexcept -> bool;
 auto show_parameter(dynamics_qss1_power_tag,
-                    application& app,
-                    parameter&   p) noexcept -> bool;
+                    application&      app,
+                    component_editor& ed,
+                    parameter&        p) noexcept -> bool;
 auto show_parameter(dynamics_qss1_square_tag,
-                    application& app,
-                    parameter&   p) noexcept -> bool;
+                    application&      app,
+                    component_editor& ed,
+                    parameter&        p) noexcept -> bool;
 auto show_parameter(dynamics_qss1_sum_2_tag,
-                    application& app,
-                    parameter&   p) noexcept -> bool;
+                    application&      app,
+                    component_editor& ed,
+                    parameter&        p) noexcept -> bool;
 auto show_parameter(dynamics_qss1_sum_3_tag,
-                    application& app,
-                    parameter&   p) noexcept -> bool;
+                    application&      app,
+                    component_editor& ed,
+                    parameter&        p) noexcept -> bool;
 auto show_parameter(dynamics_qss1_sum_4_tag,
-                    application& app,
-                    parameter&   p) noexcept -> bool;
+                    application&      app,
+                    component_editor& ed,
+                    parameter&        p) noexcept -> bool;
 auto show_parameter(dynamics_qss1_wsum_2_tag,
-                    application& app,
-                    parameter&   p) noexcept -> bool;
+                    application&      app,
+                    component_editor& ed,
+                    parameter&        p) noexcept -> bool;
 auto show_parameter(dynamics_qss1_wsum_3_tag,
-                    application& app,
-                    parameter&   p) noexcept -> bool;
+                    application&      app,
+                    component_editor& ed,
+                    parameter&        p) noexcept -> bool;
 auto show_parameter(dynamics_qss1_wsum_4_tag,
-                    application& app,
-                    parameter&   p) noexcept -> bool;
+                    application&      app,
+                    component_editor& ed,
+                    parameter&        p) noexcept -> bool;
 auto show_parameter(dynamics_qss2_integrator_tag,
-                    application& app,
-                    parameter&   p) noexcept -> bool;
+                    application&      app,
+                    component_editor& ed,
+                    parameter&        p) noexcept -> bool;
 auto show_parameter(dynamics_qss2_multiplier_tag,
-                    application& app,
-                    parameter&   p) noexcept -> bool;
+                    application&      app,
+                    component_editor& ed,
+                    parameter&        p) noexcept -> bool;
 auto show_parameter(dynamics_qss2_cross_tag,
-                    application& app,
-                    parameter&   p) noexcept -> bool;
+                    application&      app,
+                    component_editor& ed,
+                    parameter&        p) noexcept -> bool;
 auto show_parameter(dynamics_qss2_filter_tag,
-                    application& app,
-                    parameter&   p) noexcept -> bool;
+                    application&      app,
+                    component_editor& ed,
+                    parameter&        p) noexcept -> bool;
 auto show_parameter(dynamics_qss2_power_tag,
-                    application& app,
-                    parameter&   p) noexcept -> bool;
+                    application&      app,
+                    component_editor& ed,
+                    parameter&        p) noexcept -> bool;
 auto show_parameter(dynamics_qss2_square_tag,
-                    application& app,
-                    parameter&   p) noexcept -> bool;
+                    application&      app,
+                    component_editor& ed,
+                    parameter&        p) noexcept -> bool;
 auto show_parameter(dynamics_qss2_sum_2_tag,
-                    application& app,
-                    parameter&   p) noexcept -> bool;
+                    application&      app,
+                    component_editor& ed,
+                    parameter&        p) noexcept -> bool;
 auto show_parameter(dynamics_qss2_sum_3_tag,
-                    application& app,
-                    parameter&   p) noexcept -> bool;
+                    application&      app,
+                    component_editor& ed,
+                    parameter&        p) noexcept -> bool;
 auto show_parameter(dynamics_qss2_sum_4_tag,
-                    application& app,
-                    parameter&   p) noexcept -> bool;
+                    application&      app,
+                    component_editor& ed,
+                    parameter&        p) noexcept -> bool;
 auto show_parameter(dynamics_qss2_wsum_2_tag,
-                    application& app,
-                    parameter&   p) noexcept -> bool;
+                    application&      app,
+                    component_editor& ed,
+                    parameter&        p) noexcept -> bool;
 auto show_parameter(dynamics_qss2_wsum_3_tag,
-                    application& app,
-                    parameter&   p) noexcept -> bool;
+                    application&      app,
+                    component_editor& ed,
+                    parameter&        p) noexcept -> bool;
 auto show_parameter(dynamics_qss2_wsum_4_tag,
-                    application& app,
-                    parameter&   p) noexcept -> bool;
+                    application&      app,
+                    component_editor& ed,
+                    parameter&        p) noexcept -> bool;
 auto show_parameter(dynamics_qss3_integrator_tag,
-                    application& app,
-                    parameter&   p) noexcept -> bool;
+                    application&      app,
+                    component_editor& ed,
+                    parameter&        p) noexcept -> bool;
 auto show_parameter(dynamics_qss3_multiplier_tag,
-                    application& app,
-                    parameter&   p) noexcept -> bool;
+                    application&      app,
+                    component_editor& ed,
+                    parameter&        p) noexcept -> bool;
 auto show_parameter(dynamics_qss3_cross_tag,
-                    application& app,
-                    parameter&   p) noexcept -> bool;
+                    application&      app,
+                    component_editor& ed,
+                    parameter&        p) noexcept -> bool;
 auto show_parameter(dynamics_qss3_filter_tag,
-                    application& app,
-                    parameter&   p) noexcept -> bool;
+                    application&      app,
+                    component_editor& ed,
+                    parameter&        p) noexcept -> bool;
 auto show_parameter(dynamics_qss3_power_tag,
-                    application& app,
-                    parameter&   p) noexcept -> bool;
+                    application&      app,
+                    component_editor& ed,
+                    parameter&        p) noexcept -> bool;
 auto show_parameter(dynamics_qss3_square_tag,
-                    application& app,
-                    parameter&   p) noexcept -> bool;
+                    application&      app,
+                    component_editor& ed,
+                    parameter&        p) noexcept -> bool;
 auto show_parameter(dynamics_qss3_sum_2_tag,
-                    application& app,
-                    parameter&   p) noexcept -> bool;
+                    application&      app,
+                    component_editor& ed,
+                    parameter&        p) noexcept -> bool;
 auto show_parameter(dynamics_qss3_sum_3_tag,
-                    application& app,
-                    parameter&   p) noexcept -> bool;
+                    application&      app,
+                    component_editor& ed,
+                    parameter&        p) noexcept -> bool;
 auto show_parameter(dynamics_qss3_sum_4_tag,
-                    application& app,
-                    parameter&   p) noexcept -> bool;
+                    application&      app,
+                    component_editor& ed,
+                    parameter&        p) noexcept -> bool;
 auto show_parameter(dynamics_qss3_wsum_2_tag,
-                    application& app,
-                    parameter&   p) noexcept -> bool;
+                    application&      app,
+                    component_editor& ed,
+                    parameter&        p) noexcept -> bool;
 auto show_parameter(dynamics_qss3_wsum_3_tag,
-                    application& app,
-                    parameter&   p) noexcept -> bool;
+                    application&      app,
+                    component_editor& ed,
+                    parameter&        p) noexcept -> bool;
 auto show_parameter(dynamics_qss3_wsum_4_tag,
-                    application& app,
-                    parameter&   p) noexcept -> bool;
+                    application&      app,
+                    component_editor& ed,
+                    parameter&        p) noexcept -> bool;
 auto show_parameter(dynamics_counter_tag,
-                    application& app,
-                    parameter&   p) noexcept -> bool;
-auto show_parameter(dynamics_queue_tag, application& app, parameter& p) noexcept
-  -> bool;
+                    application&      app,
+                    component_editor& ed,
+                    parameter&        p) noexcept -> bool;
+auto show_parameter(dynamics_queue_tag,
+                    application&      app,
+                    component_editor& ed,
+                    parameter&        p) noexcept -> bool;
 auto show_parameter(dynamics_dynamic_queue_tag,
-                    application& app,
-                    parameter&   p) noexcept -> bool;
+                    application&      app,
+                    component_editor& ed,
+                    parameter&        p) noexcept -> bool;
 auto show_parameter(dynamics_priority_queue_tag,
-                    application& app,
-                    parameter&   p) noexcept -> bool;
+                    application&      app,
+                    component_editor& ed,
+                    parameter&        p) noexcept -> bool;
 auto show_parameter(dynamics_generator_tag,
-                    application& app,
-                    parameter&   p) noexcept -> bool;
+                    application&      app,
+                    component_editor& ed,
+                    parameter&        p) noexcept -> bool;
 auto show_parameter(dynamics_constant_tag,
-                    application& app,
-                    parameter&   p) noexcept -> bool;
+                    application&      app,
+                    component_editor& ed,
+                    parameter&        p) noexcept -> bool;
 auto show_parameter(dynamics_accumulator_2_tag,
-                    application& app,
-                    parameter&   p) noexcept -> bool;
+                    application&      app,
+                    component_editor& ed,
+                    parameter&        p) noexcept -> bool;
 auto show_parameter(dynamics_time_func_tag,
-                    application& app,
-                    parameter&   p) noexcept -> bool;
+                    application&      app,
+                    component_editor& ed,
+                    parameter&        p) noexcept -> bool;
 auto show_parameter(dynamics_logical_and_2_tag,
-                    application& app,
-                    parameter&   p) noexcept -> bool;
+                    application&      app,
+                    component_editor& ed,
+                    parameter&        p) noexcept -> bool;
 auto show_parameter(dynamics_logical_and_3_tag,
-                    application& app,
-                    parameter&   p) noexcept -> bool;
+                    application&      app,
+                    component_editor& ed,
+                    parameter&        p) noexcept -> bool;
 auto show_parameter(dynamics_logical_or_2_tag,
-                    application& app,
-                    parameter&   p) noexcept -> bool;
+                    application&      app,
+                    component_editor& ed,
+                    parameter&        p) noexcept -> bool;
 auto show_parameter(dynamics_logical_or_3_tag,
-                    application& app,
-                    parameter&   p) noexcept -> bool;
+                    application&      app,
+                    component_editor& ed,
+                    parameter&        p) noexcept -> bool;
 auto show_parameter(dynamics_logical_invert_tag,
-                    application& app,
-                    parameter&   p) noexcept -> bool;
+                    application&      app,
+                    component_editor& ed,
+                    parameter&        p) noexcept -> bool;
 auto show_parameter(dynamics_hsm_wrapper_tag,
-                    application& app,
-                    parameter&   p) noexcept -> bool;
+                    application&      app,
+                    component_editor& ed,
+                    parameter&        p) noexcept -> bool;
 
 auto get_dynamics_input_names(dynamics_qss1_integrator_tag) noexcept
   -> std::span<const std::string_view>;

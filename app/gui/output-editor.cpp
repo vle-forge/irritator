@@ -17,15 +17,16 @@ constexpr static inline const char* plot_type_str[] = { "None",
                                                         "Plot line",
                                                         "Plot dot" };
 
-static void show_obervers_table(application& app) noexcept
+static void show_observers_table(application&       app,
+                                 simulation_editor& ed) noexcept
 {
-    for (auto& vobs : app.pj.variable_observers) {
+    for (auto& vobs : ed.pj.variable_observers) {
         auto to_copy = std::optional<variable_observer::sub_id>();
 
         vobs.for_each([&](const auto id) noexcept {
             const auto  idx    = get_index(id);
             const auto  obs_id = vobs.get_obs_ids()[idx];
-            const auto* obs    = app.pj.sim.observers.try_to_get(obs_id);
+            const auto* obs    = ed.pj.sim.observers.try_to_get(obs_id);
             ImGui::PushID(idx);
 
             ImGui::TableNextColumn();
@@ -58,7 +59,7 @@ static void show_obervers_table(application& app) noexcept
                   enum_cast<variable_observer::type_options>(plot_type);
 
             ImGui::TableNextColumn();
-            const bool can_copy = app.simulation_ed.copy_obs.can_alloc(1);
+            const bool can_copy = ed.copy_obs.can_alloc(1);
             ImGui::BeginDisabled(!can_copy);
             if (ImGui::Button("copy"))
                 to_copy = id;
@@ -66,7 +67,8 @@ static void show_obervers_table(application& app) noexcept
 
             ImGui::SameLine();
             if (ImGui::Button("write"))
-                app.output_ed.save_obs(app.pj.variable_observers.get_id(vobs),
+                app.output_ed.save_obs(app.pjs.get_id(ed),
+                                       ed.pj.variable_observers.get_id(vobs),
                                        id);
 
             ImGui::PopID();
@@ -74,21 +76,21 @@ static void show_obervers_table(application& app) noexcept
 
         if (to_copy.has_value()) {
             const auto obs_id = vobs.get_obs_ids()[get_index(*to_copy)];
-            const auto obs    = app.pj.sim.observers.try_to_get(obs_id);
+            const auto obs    = ed.pj.sim.observers.try_to_get(obs_id);
 
-            auto& new_obs          = app.simulation_ed.copy_obs.alloc();
+            auto& new_obs          = ed.copy_obs.alloc();
             new_obs.name           = vobs.get_names()[get_index(*to_copy)].sv();
             new_obs.linear_outputs = obs->linearized_buffer;
         }
     }
 }
 
-static void show_copy_table(irt::application& app) noexcept
+static void show_copy_table(application& app, simulation_editor& ed) noexcept
 {
     auto to_del = std::optional<plot_copy_id>();
 
-    for (auto& copy : app.simulation_ed.copy_obs) {
-        const auto id = app.simulation_ed.copy_obs.get_id(copy);
+    for (auto& copy : ed.copy_obs) {
+        const auto id = ed.copy_obs.get_id(copy);
 
         ImGui::PushID(&copy);
         ImGui::TableNextRow();
@@ -125,7 +127,7 @@ static void show_copy_table(irt::application& app) noexcept
     }
 
     if (to_del.has_value())
-        app.simulation_ed.copy_obs.free(*to_del);
+        ed.copy_obs.free(*to_del);
 }
 
 static void show_observation_table(application& app) noexcept
@@ -147,19 +149,24 @@ static void show_observation_table(application& app) noexcept
 
         ImGui::TableHeadersRow();
 
-        show_obervers_table(app);
-        show_copy_table(app);
+        for (auto& pj : app.pjs) {
+            const auto id = app.pjs.get_id(pj);
+            ImGui::PushID(get_index(id));
+            show_observers_table(app, pj);
+            show_copy_table(app, pj);
+            ImGui::PopID();
+        }
 
         ImGui::EndTable();
     }
 }
 
-static void write(application&             app,
+static void write(project&                 pj,
                   std::ofstream&           ofs,
                   const variable_observer& vobs,
                   const unsigned           idx) noexcept
 {
-    const auto* obs = app.pj.sim.observers.try_to_get(vobs.get_obs_ids()[idx]);
+    const auto* obs = pj.sim.observers.try_to_get(vobs.get_obs_ids()[idx]);
 
     ofs.imbue(std::locale::classic());
     ofs << "t," << vobs.get_names()[idx].sv() << '\n';
@@ -168,15 +175,16 @@ static void write(application&             app,
 }
 
 static void write(application&                    app,
+                  project&                        pj,
                   std::ofstream&                  ofs,
                   const variable_observer_id      vobs_id,
                   const variable_observer::sub_id obs_id) noexcept
 {
     ofs.imbue(std::locale::classic());
 
-    if (const auto* vobs = app.pj.variable_observers.try_to_get(vobs_id);
+    if (const auto* vobs = pj.variable_observers.try_to_get(vobs_id);
         vobs and vobs->exists(obs_id))
-        write(app, ofs, *vobs, get_index(obs_id));
+        write(pj, ofs, *vobs, get_index(obs_id));
     else
         app.notifications.try_insert(log_level::error,
                                      [](auto& title, auto& msg) noexcept {
@@ -186,12 +194,13 @@ static void write(application&                    app,
 }
 
 static void write(application&                    app,
+                  project&                        pj,
                   const std::filesystem::path&    file_path,
                   const variable_observer_id      vobs_id,
                   const variable_observer::sub_id obs_id) noexcept
 {
     if (auto ofs = std::ofstream{ file_path }; ofs.is_open())
-        write(app, ofs, vobs_id, obs_id);
+        write(app, pj, ofs, vobs_id, obs_id);
     else
         app.notifications.try_insert(
           log_level::error, [&](auto& title, auto& msg) noexcept {
@@ -213,10 +222,11 @@ static void write(std::ofstream& ofs, const plot_copy& p) noexcept
 }
 
 static void write(application&       app,
+                  simulation_editor& ed,
                   std::ofstream&     ofs,
                   const plot_copy_id id) noexcept
 {
-    if (auto* p = app.simulation_ed.copy_obs.try_to_get(id); p)
+    if (auto* p = ed.copy_obs.try_to_get(id); p)
         write(ofs, *p);
     else
         app.notifications.try_insert(log_level::error,
@@ -227,11 +237,12 @@ static void write(application&       app,
 }
 
 static void write(application&                 app,
+                  simulation_editor&           ed,
                   const std::filesystem::path& file_path,
                   const plot_copy_id           id) noexcept
 {
     if (auto ofs = std::ofstream{ file_path }; ofs.is_open())
-        write(app, ofs, id);
+        write(app, ed, ofs, id);
     else
         app.notifications.try_insert(
           log_level::error, [&](auto& title, auto& msg) noexcept {
@@ -278,26 +289,37 @@ void output_editor::show() noexcept
                               ImPlotAxisFlags_AutoFit,
                               ImPlotAxisFlags_AutoFit);
 
-            for (auto& vobs : app.pj.variable_observers) {
-                vobs.for_each([&](const auto id) noexcept {
-                    const auto idx = get_index(id);
+            for (auto& pj : app.pjs) {
+                const auto id = app.pjs.get_id(pj);
+                ImGui::PushID(get_index(id));
 
-                    const auto  obs_id = vobs.get_obs_ids()[idx];
-                    const auto* obs = app.pj.sim.observers.try_to_get(obs_id);
+                for (auto& vobs : pj.pj.variable_observers) {
+                    vobs.for_each([&](const auto id) noexcept {
+                        const auto idx = get_index(id);
 
-                    if (not obs)
-                        return;
+                        const auto  obs_id = vobs.get_obs_ids()[idx];
+                        const auto* obs =
+                          pj.pj.sim.observers.try_to_get(obs_id);
 
-                    if (vobs.get_options()[idx] !=
-                        variable_observer::type_options::none)
-                        app.simulation_ed.plot_obs.show_plot_line(
-                          *obs, vobs.get_options()[idx], vobs.get_names()[idx]);
-                });
+                        if (not obs)
+                            return;
+
+                        if (vobs.get_options()[idx] !=
+                            variable_observer::type_options::none)
+                            pj.plot_obs.show_plot_line(*obs,
+                                                       vobs.get_options()[idx],
+                                                       vobs.get_names()[idx]);
+                    });
+                }
+
+                ImGui::PopID();
             }
 
-            for (auto& p : app.simulation_ed.copy_obs)
-                if (p.plot_type != simulation_plot_type::none)
-                    app.simulation_ed.plot_copy_wgt.show_plot_line(p);
+            for (auto& pj : app.pjs) {
+                for (auto& p : pj.copy_obs)
+                    if (p.plot_type != simulation_plot_type::none)
+                        pj.plot_copy_wgt.show_plot_line(p);
+            }
 
             ImPlot::PopStyleVar(2);
             ImPlot::EndPlot();
@@ -315,10 +337,13 @@ void output_editor::show() noexcept
         if (app.f_dialog.show_save_file(title, default_filename, filters)) {
             if (app.f_dialog.state == file_dialog::status::ok) {
                 m_file = app.f_dialog.result;
-                if (m_need_save == save_option::copy)
-                    write(app, m_file, m_copy_id);
-                else if (m_need_save == save_option::obs)
-                    write(app, m_file, m_vobs_id, m_sub_id);
+                if (m_need_save == save_option::copy) {
+                    if (auto* pj = app.pjs.try_to_get(m_pj_id); pj)
+                        write(app, *pj, m_file, m_copy_id);
+                } else if (m_need_save == save_option::obs) {
+                    if (auto* pj = app.pjs.try_to_get(m_pj_id); pj)
+                        write(app, pj->pj, m_file, m_vobs_id, m_sub_id);
+                }
             }
 
             app.f_dialog.clear();
@@ -327,9 +352,11 @@ void output_editor::show() noexcept
     }
 }
 
-void output_editor::save_obs(const variable_observer_id      vobs,
+void output_editor::save_obs(const project_id                pj_id,
+                             const variable_observer_id      vobs,
                              const variable_observer::sub_id svobs) noexcept
 {
+    m_pj_id     = pj_id;
     m_vobs_id   = vobs;
     m_sub_id    = svobs;
     m_need_save = save_option::obs;

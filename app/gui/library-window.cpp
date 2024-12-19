@@ -107,7 +107,7 @@ static void show_component_popup_menu(application& app, component& sel) noexcept
 
             if (ImGui::MenuItem("Set as main project model")) {
                 const auto compo_id = app.mod.components.get_id(sel);
-                app.library_wnd.try_set_component_as_project(compo_id);
+                app.library_wnd.try_set_component_as_project(app, compo_id);
             }
 
             if (auto* file = app.mod.file_paths.try_to_get(sel.file); file) {
@@ -252,14 +252,23 @@ static void open_component(application& app, component_id id) noexcept
     });
 }
 
+static bool is_component_open(const application& app,
+                              const component_id id) noexcept
+{
+    for (const auto& pj : app.pjs)
+        if (pj.pj.head() == id)
+            return true;
+
+    return false;
+}
+
 static void show_file_component(application& app,
                                 file_path&   file,
-                                component&   c,
-                                tree_node*   head) noexcept
+                                component&   c) noexcept
 {
     if (std::unique_lock lock(file.mutex, std::try_to_lock); lock.owns_lock()) {
         const auto id       = app.mod.components.get_id(c);
-        const bool selected = head ? id == head->id : false;
+        const bool selected = is_component_open(app, id);
         const auto state    = c.state;
 
         small_string<254> buffer;
@@ -280,7 +289,7 @@ static void show_file_component(application& app,
                               selected,
                               ImGuiSelectableFlags_AllowDoubleClick)) {
             if (ImGui::IsMouseDoubleClicked(0))
-                app.library_wnd.try_set_component_as_project(id);
+                app.library_wnd.try_set_component_as_project(app, id);
             else
                 open_component(app, id);
         }
@@ -338,8 +347,7 @@ static void show_internal_components(component_editor& ed) noexcept
     });
 }
 
-static void show_notsaved_components(irt::component_editor& ed,
-                                     irt::tree_node*        head) noexcept
+static void show_notsaved_components(irt::component_editor& ed) noexcept
 {
     auto& app = container_of(&ed, &application::component_ed);
 
@@ -350,7 +358,7 @@ static void show_notsaved_components(irt::component_editor& ed,
 
         if (is_not_saved) {
             const auto id       = app.mod.components.get_id(compo);
-            const bool selected = head ? id == head->id : false;
+            const bool selected = is_component_open(app, id);
 
             ImGui::PushID(reinterpret_cast<const void*>(&compo));
             if (ImGui::ColorEdit4(
@@ -365,7 +373,7 @@ static void show_notsaved_components(irt::component_editor& ed,
                                   selected,
                                   ImGuiSelectableFlags_AllowDoubleClick)) {
                 if (ImGui::IsMouseDoubleClicked(0))
-                    app.library_wnd.try_set_component_as_project(id);
+                    app.library_wnd.try_set_component_as_project(app, id);
                 else
                     open_component(app, id);
             }
@@ -377,8 +385,7 @@ static void show_notsaved_components(irt::component_editor& ed,
 }
 
 static void show_dirpath_component(irt::component_editor& ed,
-                                   dir_path&              dir,
-                                   irt::tree_node*        head) noexcept
+                                   dir_path&              dir) noexcept
 {
     if (std::unique_lock lock(dir.mutex, std::try_to_lock); lock.owns_lock()) {
         auto& app = container_of(&ed, &application::component_ed);
@@ -388,7 +395,7 @@ static void show_dirpath_component(irt::component_editor& ed,
               app.mod,
               dir,
               [&](auto& /*dir*/, auto& file, auto& compo) noexcept {
-                  show_file_component(app, file, compo, head);
+                  show_file_component(app, file, compo);
               });
 
             ImGui::TreePop();
@@ -418,8 +425,7 @@ static void show_component_library_new_component(application& app) noexcept
         add_hsm_component_data(app);
 }
 
-static void show_repertories_components(irt::application& app,
-                                        irt::tree_node*   tree) noexcept
+static void show_repertories_components(irt::application& app) noexcept
 {
     for (auto id : app.mod.component_repertories) {
         small_string<31>  s;
@@ -445,7 +451,7 @@ static void show_repertories_components(irt::application& app,
                 auto* dir    = app.mod.dir_paths.try_to_get(dir_id);
 
                 if (dir) {
-                    show_dirpath_component(app.component_ed, *dir, tree);
+                    show_dirpath_component(app.component_ed, *dir);
                     ++i;
                 } else {
                     reg_dir->children.swap_pop_back(i);
@@ -457,14 +463,13 @@ static void show_repertories_components(irt::application& app,
     }
 }
 
-static void show_component_library(application&    app,
-                                   irt::tree_node* tree) noexcept
+static void show_component_library(application& app) noexcept
 {
     if (not ImGui::BeginChild("##component_library",
                               ImGui::GetContentRegionAvail())) {
         ImGui::EndChild();
     } else {
-        show_repertories_components(app, tree);
+        show_repertories_components(app);
 
         if (ImGui::TreeNodeEx("Internal")) {
             show_internal_components(app.component_ed);
@@ -472,7 +477,7 @@ static void show_component_library(application&    app,
         }
 
         if (ImGui::TreeNodeEx("Not saved", ImGuiTreeNodeFlags_DefaultOpen)) {
-            show_notsaved_components(app.component_ed, tree);
+            show_notsaved_components(app.component_ed);
             ImGui::TreePop();
         }
 
@@ -481,64 +486,60 @@ static void show_component_library(application&    app,
 }
 
 void library_window::try_set_component_as_project(
+  application&       app,
   const component_id compo_id) noexcept
 {
-    auto& app = container_of(this, &application::library_wnd);
+    // Perhaps add a new simulation status: to avoid import of a
+    // component.
+    app.add_gui_task([&app, compo_id]() noexcept {
+        std::scoped_lock lock{ app.sim_mutex, app.mod_mutex, app.pj_mutex };
 
-    if (not any_equal(app.simulation_ed.simulation_state,
-                      simulation_status::finished,
-                      simulation_status::not_started)) {
-        app.notifications.try_insert(
-          log_level::error, [&](auto& title, auto& msg) noexcept {
-              title = "Project import error";
-              msg =
-                "A simulation is currently running. Stop the simulation "
-                "before importing a new component as project main component.";
+        attempt_all(
+          [&]() noexcept -> status {
+              if (not app.pjs.can_alloc(1))
+                  app.pjs.grow();
+
+              if (not app.pjs.can_alloc(1))
+                  return new_error(project::not_enough_memory);
+
+              auto&      pj    = app.pjs.alloc();
+              const auto pj_id = app.pjs.get_id(pj);
+
+              if (auto* c = app.mod.components.try_to_get(compo_id); c) {
+                  return pj.pj.set(app.mod, *c);
+              }
+
+              return success();
+          },
+
+          [&](project::part part, project::error error) noexcept {
+              auto& n = app.notifications.alloc(log_level::error);
+              n.title = "Project import error";
+              format(n.message,
+                     "Error in {} failed with error: {}",
+                     to_string(part),
+                     to_string(error));
+          },
+
+          [&](project::part part) noexcept {
+              auto& n = app.notifications.alloc(log_level::error);
+              n.title = "Project import error";
+              format(n.message, "Error in {}", to_string(part));
+          },
+
+          [&](project::error error) noexcept {
+              auto& n = app.notifications.alloc(log_level::error);
+              n.title = "Project import error";
+              format(n.message, "Error: {}", to_string(error));
+          },
+
+          [&]() noexcept {
+              auto& n = app.notifications.alloc();
+              n.level = log_level::error;
+              n.title = "Fail to build tree";
+              app.notifications.enable(n);
           });
-    } else {
-        // Perhaps add a new simulation status: to avoid import of a component.
-        app.add_gui_task([&app, compo_id]() noexcept {
-            std::scoped_lock lock{ app.sim_mutex, app.mod_mutex, app.pj_mutex };
-
-            attempt_all(
-              [&]() noexcept -> status {
-                  if (auto* c = app.mod.components.try_to_get(compo_id); c) {
-                      app.simulation_ed.clear();
-                      return app.pj.set(app.mod, *c);
-                  }
-
-                  return success();
-              },
-
-              [&](project::part part, project::error error) noexcept {
-                  auto& n = app.notifications.alloc(log_level::error);
-                  n.title = "Project import error";
-                  format(n.message,
-                         "Error in {} failed with error: {}",
-                         to_string(part),
-                         to_string(error));
-              },
-
-              [&](project::part part) noexcept {
-                  auto& n = app.notifications.alloc(log_level::error);
-                  n.title = "Project import error";
-                  format(n.message, "Error in {}", to_string(part));
-              },
-
-              [&](project::error error) noexcept {
-                  auto& n = app.notifications.alloc(log_level::error);
-                  n.title = "Project import error";
-                  format(n.message, "Error: {}", to_string(error));
-              },
-
-              [&]() noexcept {
-                  auto& n = app.notifications.alloc();
-                  n.level = log_level::error;
-                  n.title = "Fail to build tree";
-                  app.notifications.enable(n);
-              });
-        });
-    }
+    });
 }
 
 void library_window::show() noexcept
@@ -550,10 +551,8 @@ void library_window::show() noexcept
         return;
     }
 
-    auto* tree = app.pj.tn_head();
-
     show_component_library_new_component(app);
-    show_component_library(app, tree);
+    show_component_library(app);
 
     ImGui::End();
 }

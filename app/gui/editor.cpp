@@ -10,40 +10,41 @@
 
 namespace irt {
 
-void show_dynamics_inputs(simulation& /*sim*/, qss1_integrator& dyn)
+void show_dynamics_inputs(simulation_editor& /*sim*/, qss1_integrator& dyn)
 {
     ImGui::InputReal("value", &dyn.default_X);
     ImGui::InputReal("dQ", &dyn.default_dQ);
 }
 
-void show_dynamics_inputs(simulation& /*sim*/, qss2_integrator& dyn)
+void show_dynamics_inputs(simulation_editor& /*sim*/, qss2_integrator& dyn)
 {
     ImGui::InputReal("value", &dyn.default_X);
     ImGui::InputReal("dQ", &dyn.default_dQ);
 }
 
-void show_dynamics_inputs(simulation& /*sim*/, qss3_integrator& dyn)
+void show_dynamics_inputs(simulation_editor& /*sim*/, qss3_integrator& dyn)
 {
     ImGui::InputReal("value", &dyn.default_X);
     ImGui::InputReal("dQ", &dyn.default_dQ);
 }
 
-void show_dynamics_inputs(simulation& /*sim*/, qss1_multiplier& /*dyn*/) {}
+void show_dynamics_inputs(simulation_editor& /*sim*/, qss1_multiplier& /*dyn*/)
+{}
 
-void show_dynamics_inputs(simulation& /*sim*/, qss1_sum_2& dyn)
+void show_dynamics_inputs(simulation_editor& /*sim*/, qss1_sum_2& dyn)
 {
     ImGui::InputReal("value-0", &dyn.default_values[0]);
     ImGui::InputReal("value-1", &dyn.default_values[1]);
 }
 
-void show_dynamics_inputs(simulation& /*sim*/, qss1_sum_3& dyn)
+void show_dynamics_inputs(simulation_editor& /*sim*/, qss1_sum_3& dyn)
 {
     ImGui::InputReal("value-0", &dyn.default_values[0]);
     ImGui::InputReal("value-1", &dyn.default_values[1]);
     ImGui::InputReal("value-2", &dyn.default_values[2]);
 }
 
-void show_dynamics_inputs(simulation& /*sim*/, qss1_sum_4& dyn)
+void show_dynamics_inputs(simulation_editor& /*sim*/, qss1_sum_4& dyn)
 {
     ImGui::InputReal("value-0", &dyn.default_values[0]);
     ImGui::InputReal("value-1", &dyn.default_values[1]);
@@ -51,7 +52,7 @@ void show_dynamics_inputs(simulation& /*sim*/, qss1_sum_4& dyn)
     ImGui::InputReal("value-3", &dyn.default_values[3]);
 }
 
-void show_dynamics_inputs(simulation& /*sim*/, qss1_wsum_2& dyn)
+void show_dynamics_inputs(simulation_editor& /*sim*/, qss1_wsum_2& dyn)
 {
     ImGui::InputReal("value-0", &dyn.default_values[0]);
     ImGui::InputReal("value-1", &dyn.default_values[1]);
@@ -60,7 +61,7 @@ void show_dynamics_inputs(simulation& /*sim*/, qss1_wsum_2& dyn)
     ImGui::InputReal("coeff-1", &dyn.default_input_coeffs[1]);
 }
 
-void show_dynamics_inputs(simulation& /*sim*/, qss1_wsum_3& dyn)
+void show_dynamics_inputs(simulation_editor& /*sim*/, qss1_wsum_3& dyn)
 {
     ImGui::InputReal("value-0", &dyn.default_values[0]);
     ImGui::InputReal("value-1", &dyn.default_values[1]);
@@ -71,7 +72,7 @@ void show_dynamics_inputs(simulation& /*sim*/, qss1_wsum_3& dyn)
     ImGui::InputReal("coeff-2", &dyn.default_input_coeffs[2]);
 }
 
-void show_dynamics_inputs(simulation& /*sim*/, qss1_wsum_4& dyn)
+void show_dynamics_inputs(simulation_editor& /*sim*/, qss1_wsum_4& dyn)
 {
     ImGui::InputReal("value-0", &dyn.default_values[0]);
     ImGui::InputReal("value-1", &dyn.default_values[1]);
@@ -84,22 +85,23 @@ void show_dynamics_inputs(simulation& /*sim*/, qss1_wsum_4& dyn)
     ImGui::InputReal("coeff-3", &dyn.default_input_coeffs[3]);
 }
 
-void show_dynamics_inputs(simulation& /*sim*/, qss2_multiplier& /*dyn*/) {}
+void show_dynamics_inputs(simulation_editor& /*sim*/, qss2_multiplier& /*dyn*/)
+{}
 
-void show_dynamics_inputs(simulation& /*sim*/, qss2_sum_2& dyn)
+void show_dynamics_inputs(simulation_editor& /*sim*/, qss2_sum_2& dyn)
 {
     ImGui::InputReal("value-0", &dyn.default_values[0]);
     ImGui::InputReal("value-1", &dyn.default_values[1]);
 }
 
-void show_dynamics_inputs(simulation& /*sim*/, qss2_sum_3& dyn)
+void show_dynamics_inputs(simulation_editor& /*sim*/, qss2_sum_3& dyn)
 {
     ImGui::InputReal("value-0", &dyn.default_values[0]);
     ImGui::InputReal("value-1", &dyn.default_values[1]);
     ImGui::InputReal("value-2", &dyn.default_values[2]);
 }
 
-void show_dynamics_inputs(simulation& /*sim*/, qss2_sum_4& dyn)
+void show_dynamics_inputs(simulation_editor& /*sim*/, qss2_sum_4& dyn)
 {
     ImGui::InputReal("value-0", &dyn.default_values[0]);
     ImGui::InputReal("value-1", &dyn.default_values[1]);
@@ -107,7 +109,7 @@ void show_dynamics_inputs(simulation& /*sim*/, qss2_sum_4& dyn)
     ImGui::InputReal("value-3", &dyn.default_values[3]);
 }
 
-void show_dynamics_inputs(simulation& /*sim*/, qss2_wsum_2& dyn)
+void show_dynamics_inputs(simulation_editor& /*sim*/, qss2_wsum_2& dyn)
 {
     ImGui::InputReal("value-0", &dyn.default_values[0]);
     ImGui::InputReal("value-1", &dyn.default_values[1]);
@@ -116,7 +118,7 @@ void show_dynamics_inputs(simulation& /*sim*/, qss2_wsum_2& dyn)
     ImGui::InputReal("coeff-1", &dyn.default_input_coeffs[1]);
 }
 
-void show_dynamics_inputs(simulation& /*sim*/, qss2_wsum_3& dyn)
+void show_dynamics_inputs(simulation_editor& /*sim*/, qss2_wsum_3& dyn)
 {
     ImGui::InputReal("value-0", &dyn.default_values[0]);
     ImGui::InputReal("value-1", &dyn.default_values[1]);
@@ -127,63 +129,7 @@ void show_dynamics_inputs(simulation& /*sim*/, qss2_wsum_3& dyn)
     ImGui::InputReal("coeff-2", &dyn.default_input_coeffs[2]);
 }
 
-void show_dynamics_inputs(simulation& /*sim*/, qss2_wsum_4& dyn)
-{
-    ImGui::InputReal("value-0", &dyn.default_values[0]);
-    ImGui::InputReal("value-1", &dyn.default_values[1]);
-    ImGui::InputReal("value-2", &dyn.default_values[2]);
-    ImGui::InputReal("value-3", &dyn.default_values[3]);
-
-    ImGui::InputReal("coeff-0", &dyn.default_input_coeffs[0]);
-    ImGui::InputReal("coeff-1", &dyn.default_input_coeffs[1]);
-    ImGui::InputReal("coeff-2", &dyn.default_input_coeffs[2]);
-    ImGui::InputReal("coeff-3", &dyn.default_input_coeffs[3]);
-}
-
-void show_dynamics_inputs(simulation& /*sim*/, qss3_multiplier& /*dyn*/) {}
-
-void show_dynamics_inputs(simulation& /*sim*/, qss3_sum_2& dyn)
-{
-    ImGui::InputReal("value-0", &dyn.default_values[0]);
-    ImGui::InputReal("value-1", &dyn.default_values[1]);
-}
-
-void show_dynamics_inputs(simulation& /*sim*/, qss3_sum_3& dyn)
-{
-    ImGui::InputReal("value-0", &dyn.default_values[0]);
-    ImGui::InputReal("value-1", &dyn.default_values[1]);
-    ImGui::InputReal("value-2", &dyn.default_values[2]);
-}
-
-void show_dynamics_inputs(simulation& /*sim*/, qss3_sum_4& dyn)
-{
-    ImGui::InputReal("value-0", &dyn.default_values[0]);
-    ImGui::InputReal("value-1", &dyn.default_values[1]);
-    ImGui::InputReal("value-2", &dyn.default_values[2]);
-    ImGui::InputReal("value-3", &dyn.default_values[3]);
-}
-
-void show_dynamics_inputs(simulation& /*sim*/, qss3_wsum_2& dyn)
-{
-    ImGui::InputReal("value-0", &dyn.default_values[0]);
-    ImGui::InputReal("value-1", &dyn.default_values[1]);
-
-    ImGui::InputReal("coeff-0", &dyn.default_input_coeffs[0]);
-    ImGui::InputReal("coeff-1", &dyn.default_input_coeffs[1]);
-}
-
-void show_dynamics_inputs(simulation& /*sim*/, qss3_wsum_3& dyn)
-{
-    ImGui::InputReal("value-0", &dyn.default_values[0]);
-    ImGui::InputReal("value-1", &dyn.default_values[1]);
-    ImGui::InputReal("value-2", &dyn.default_values[2]);
-
-    ImGui::InputReal("coeff-0", &dyn.default_input_coeffs[0]);
-    ImGui::InputReal("coeff-1", &dyn.default_input_coeffs[1]);
-    ImGui::InputReal("coeff-2", &dyn.default_input_coeffs[2]);
-}
-
-void show_dynamics_inputs(simulation& /*sim*/, qss3_wsum_4& dyn)
+void show_dynamics_inputs(simulation_editor& /*sim*/, qss2_wsum_4& dyn)
 {
     ImGui::InputReal("value-0", &dyn.default_values[0]);
     ImGui::InputReal("value-1", &dyn.default_values[1]);
@@ -196,9 +142,66 @@ void show_dynamics_inputs(simulation& /*sim*/, qss3_wsum_4& dyn)
     ImGui::InputReal("coeff-3", &dyn.default_input_coeffs[3]);
 }
 
-void show_dynamics_inputs(simulation& /*sim*/, counter& /*dyn*/) {}
+void show_dynamics_inputs(simulation_editor& /*sim*/, qss3_multiplier& /*dyn*/)
+{}
 
-void show_dynamics_inputs(simulation& /*sim*/, queue& dyn)
+void show_dynamics_inputs(simulation_editor& /*sim*/, qss3_sum_2& dyn)
+{
+    ImGui::InputReal("value-0", &dyn.default_values[0]);
+    ImGui::InputReal("value-1", &dyn.default_values[1]);
+}
+
+void show_dynamics_inputs(simulation_editor& /*sim*/, qss3_sum_3& dyn)
+{
+    ImGui::InputReal("value-0", &dyn.default_values[0]);
+    ImGui::InputReal("value-1", &dyn.default_values[1]);
+    ImGui::InputReal("value-2", &dyn.default_values[2]);
+}
+
+void show_dynamics_inputs(simulation_editor& /*sim*/, qss3_sum_4& dyn)
+{
+    ImGui::InputReal("value-0", &dyn.default_values[0]);
+    ImGui::InputReal("value-1", &dyn.default_values[1]);
+    ImGui::InputReal("value-2", &dyn.default_values[2]);
+    ImGui::InputReal("value-3", &dyn.default_values[3]);
+}
+
+void show_dynamics_inputs(simulation_editor& /*sim*/, qss3_wsum_2& dyn)
+{
+    ImGui::InputReal("value-0", &dyn.default_values[0]);
+    ImGui::InputReal("value-1", &dyn.default_values[1]);
+
+    ImGui::InputReal("coeff-0", &dyn.default_input_coeffs[0]);
+    ImGui::InputReal("coeff-1", &dyn.default_input_coeffs[1]);
+}
+
+void show_dynamics_inputs(simulation_editor& /*sim*/, qss3_wsum_3& dyn)
+{
+    ImGui::InputReal("value-0", &dyn.default_values[0]);
+    ImGui::InputReal("value-1", &dyn.default_values[1]);
+    ImGui::InputReal("value-2", &dyn.default_values[2]);
+
+    ImGui::InputReal("coeff-0", &dyn.default_input_coeffs[0]);
+    ImGui::InputReal("coeff-1", &dyn.default_input_coeffs[1]);
+    ImGui::InputReal("coeff-2", &dyn.default_input_coeffs[2]);
+}
+
+void show_dynamics_inputs(simulation_editor& /*sim*/, qss3_wsum_4& dyn)
+{
+    ImGui::InputReal("value-0", &dyn.default_values[0]);
+    ImGui::InputReal("value-1", &dyn.default_values[1]);
+    ImGui::InputReal("value-2", &dyn.default_values[2]);
+    ImGui::InputReal("value-3", &dyn.default_values[3]);
+
+    ImGui::InputReal("coeff-0", &dyn.default_input_coeffs[0]);
+    ImGui::InputReal("coeff-1", &dyn.default_input_coeffs[1]);
+    ImGui::InputReal("coeff-2", &dyn.default_input_coeffs[2]);
+    ImGui::InputReal("coeff-3", &dyn.default_input_coeffs[3]);
+}
+
+void show_dynamics_inputs(simulation_editor& /*sim*/, counter& /*dyn*/) {}
+
+void show_dynamics_inputs(simulation_editor& /*sim*/, queue& dyn)
 {
     ImGui::InputReal("delay", &dyn.default_ta);
     ImGui::SameLine();
@@ -417,7 +420,7 @@ bool show_external_sources_combo(external_source&     srcs,
     return is_changed;
 }
 
-void show_dynamics_inputs(simulation& sim, dynamic_queue& dyn)
+void show_dynamics_inputs(simulation_editor& sim, dynamic_queue& dyn)
 {
     ImGui::Checkbox("Stop on error", &dyn.stop_on_error);
     ImGui::SameLine();
@@ -425,10 +428,10 @@ void show_dynamics_inputs(simulation& sim, dynamic_queue& dyn)
       "Unchecked, the dynamic queue stops to send data if the source are "
       "empty or undefined. Checked, the simulation will stop.");
 
-    show_external_sources_combo(sim.srcs, "time", dyn.default_source_ta);
+    show_external_sources_combo(sim.pj.sim.srcs, "time", dyn.default_source_ta);
 }
 
-void show_dynamics_inputs(simulation& sim, priority_queue& dyn)
+void show_dynamics_inputs(simulation_editor& sim, priority_queue& dyn)
 {
     ImGui::Checkbox("Stop on error", &dyn.stop_on_error);
     ImGui::SameLine();
@@ -436,10 +439,10 @@ void show_dynamics_inputs(simulation& sim, priority_queue& dyn)
       "Unchecked, the priority queue stops to send data if the source are "
       "empty or undefined. Checked, the simulation will stop.");
 
-    show_external_sources_combo(sim.srcs, "time", dyn.default_source_ta);
+    show_external_sources_combo(sim.pj.sim.srcs, "time", dyn.default_source_ta);
 }
 
-void show_dynamics_inputs(simulation& sim, generator& dyn)
+void show_dynamics_inputs(simulation_editor& sim, generator& dyn)
 {
     const char* menu[] = { "source", "external events" };
 
@@ -474,7 +477,8 @@ void show_dynamics_inputs(simulation& sim, generator& dyn)
     if (dyn.flags[generator::option::ta_use_source]) {
         auto stop_on_error = dyn.flags[generator::option::stop_on_error];
 
-        show_external_sources_combo(sim.srcs, "time", dyn.default_source_ta);
+        show_external_sources_combo(
+          sim.pj.sim.srcs, "time", dyn.default_source_ta);
         ImGui::InputReal("offset", &dyn.default_offset);
         if (ImGui::Checkbox("Stop on error", &stop_on_error))
             dyn.flags.set(generator::option::stop_on_error);
@@ -486,10 +490,10 @@ void show_dynamics_inputs(simulation& sim, generator& dyn)
 
     if (dyn.flags[generator::option::value_use_source])
         show_external_sources_combo(
-          sim.srcs, "source", dyn.default_source_value);
+          sim.pj.sim.srcs, "source", dyn.default_source_value);
 }
 
-void show_dynamics_inputs(simulation& /*sim*/, constant& dyn)
+void show_dynamics_inputs(simulation_editor& /*sim*/, constant& dyn)
 {
     static const char* type_names[] = { "constant",
                                         "incoming_component_all",
@@ -511,94 +515,95 @@ void show_dynamics_inputs(simulation& /*sim*/, constant& dyn)
     }
 }
 
-void show_dynamics_inputs(simulation& /*sim*/, qss1_cross& dyn)
+void show_dynamics_inputs(simulation_editor& /*sim*/, qss1_cross& dyn)
 {
     ImGui::InputReal("threshold", &dyn.default_threshold);
     ImGui::Checkbox("up detection", &dyn.default_detect_up);
 }
 
-void show_dynamics_inputs(simulation& /*sim*/, qss2_cross& dyn)
+void show_dynamics_inputs(simulation_editor& /*sim*/, qss2_cross& dyn)
 {
     ImGui::InputReal("threshold", &dyn.default_threshold);
     ImGui::Checkbox("up detection", &dyn.default_detect_up);
 }
 
-void show_dynamics_inputs(simulation& /*sim*/, qss3_cross& dyn)
+void show_dynamics_inputs(simulation_editor& /*sim*/, qss3_cross& dyn)
 {
     ImGui::InputReal("threshold", &dyn.default_threshold);
     ImGui::Checkbox("up detection", &dyn.default_detect_up);
 }
 
-void show_dynamics_inputs(simulation& /*sim*/, qss1_filter& dyn)
+void show_dynamics_inputs(simulation_editor& /*sim*/, qss1_filter& dyn)
 {
     ImGui::InputReal("lowe threshold", &dyn.default_lower_threshold);
     ImGui::InputReal("upper threshold", &dyn.default_upper_threshold);
 }
 
-void show_dynamics_inputs(simulation& /*sim*/, qss2_filter& dyn)
+void show_dynamics_inputs(simulation_editor& /*sim*/, qss2_filter& dyn)
 {
     ImGui::InputReal("lower threshold", &dyn.default_lower_threshold);
     ImGui::InputReal("upper threshold", &dyn.default_upper_threshold);
 }
 
-void show_dynamics_inputs(simulation& /*sim*/, qss3_filter& dyn)
+void show_dynamics_inputs(simulation_editor& /*sim*/, qss3_filter& dyn)
 {
     ImGui::InputReal("lower threshold", &dyn.default_lower_threshold);
     ImGui::InputReal("upper threshold", &dyn.default_upper_threshold);
 }
 
-void show_dynamics_inputs(simulation& /*sim*/, qss1_power& dyn)
+void show_dynamics_inputs(simulation_editor& /*sim*/, qss1_power& dyn)
 {
     ImGui::InputReal("n", &dyn.default_n);
 }
 
-void show_dynamics_inputs(simulation& /*sim*/, qss2_power& dyn)
+void show_dynamics_inputs(simulation_editor& /*sim*/, qss2_power& dyn)
 {
     ImGui::InputReal("n", &dyn.default_n);
 }
 
-void show_dynamics_inputs(simulation& /*sim*/, qss3_power& dyn)
+void show_dynamics_inputs(simulation_editor& /*sim*/, qss3_power& dyn)
 {
     ImGui::InputReal("n", &dyn.default_n);
 }
 
-void show_dynamics_inputs(simulation& /*sim*/, qss1_square& /*dyn*/) {}
+void show_dynamics_inputs(simulation_editor& /*sim*/, qss1_square& /*dyn*/) {}
 
-void show_dynamics_inputs(simulation& /*sim*/, qss2_square& /*dyn*/) {}
+void show_dynamics_inputs(simulation_editor& /*sim*/, qss2_square& /*dyn*/) {}
 
-void show_dynamics_inputs(simulation& /*sim*/, qss3_square& /*dyn*/) {}
+void show_dynamics_inputs(simulation_editor& /*sim*/, qss3_square& /*dyn*/) {}
 
-void show_dynamics_inputs(simulation& /*sim*/, accumulator_2& /*dyn*/) {}
+void show_dynamics_inputs(simulation_editor& /*sim*/, accumulator_2& /*dyn*/) {}
 
-void show_dynamics_inputs(simulation& /*sim*/, logical_and_2& dyn)
+void show_dynamics_inputs(simulation_editor& /*sim*/, logical_and_2& dyn)
 {
     ImGui::Checkbox("value 1", &dyn.default_values[0]);
     ImGui::Checkbox("value 2", &dyn.default_values[1]);
 }
 
-void show_dynamics_inputs(simulation& /*sim*/, logical_or_2& dyn)
+void show_dynamics_inputs(simulation_editor& /*sim*/, logical_or_2& dyn)
 {
     ImGui::Checkbox("value 1", &dyn.default_values[0]);
     ImGui::Checkbox("value 2", &dyn.default_values[1]);
 }
 
-void show_dynamics_inputs(simulation& /*sim*/, logical_and_3& dyn)
+void show_dynamics_inputs(simulation_editor& /*sim*/, logical_and_3& dyn)
 {
     ImGui::Checkbox("value 1", &dyn.default_values[0]);
     ImGui::Checkbox("value 2", &dyn.default_values[1]);
     ImGui::Checkbox("value 3", &dyn.default_values[2]);
 }
 
-void show_dynamics_inputs(simulation& /*sim*/, logical_or_3& dyn)
+void show_dynamics_inputs(simulation_editor& /*sim*/, logical_or_3& dyn)
 {
     ImGui::Checkbox("value 1", &dyn.default_values[0]);
     ImGui::Checkbox("value 2", &dyn.default_values[1]);
     ImGui::Checkbox("value 3", &dyn.default_values[2]);
 }
 
-void show_dynamics_inputs(simulation& /*sim*/, logical_invert& /*dyn*/) {}
+void show_dynamics_inputs(simulation_editor& /*sim*/, logical_invert& /*dyn*/)
+{}
 
-void show_dynamics_inputs(simulation& /*sim*/, hsm_wrapper& dyn)
+void show_dynamics_inputs(simulation_editor& /*sim*/, hsm_wrapper& dyn)
 {
     ImGui::InputInt("integer 1", &dyn.exec.i1);
     ImGui::InputInt("integer 2", &dyn.exec.i2);
@@ -607,7 +612,7 @@ void show_dynamics_inputs(simulation& /*sim*/, hsm_wrapper& dyn)
     ImGui::InputDouble("timer", &dyn.exec.timer);
 }
 
-void show_dynamics_inputs(simulation& /*sim*/, time_func& dyn)
+void show_dynamics_inputs(simulation_editor& /*sim*/, time_func& dyn)
 {
     static const char* items[] = { "time", "square", "sin" };
 
@@ -628,7 +633,7 @@ void show_dynamics_inputs(simulation& /*sim*/, time_func& dyn)
 //
 //
 
-static bool show_parameter_editor(application& /*app*/,
+static bool show_parameter_editor(simulation_editor& /*app*/,
                                   qss1_integrator& /*dyn*/,
                                   parameter& p) noexcept
 {
@@ -636,7 +641,7 @@ static bool show_parameter_editor(application& /*app*/,
            ImGui::InputReal("dQ", &p.reals[1]);
 }
 
-static bool show_parameter_editor(application& /*app*/,
+static bool show_parameter_editor(simulation_editor& /*app*/,
                                   qss2_integrator& /*dyn*/,
                                   parameter& p) noexcept
 {
@@ -644,7 +649,7 @@ static bool show_parameter_editor(application& /*app*/,
            ImGui::InputReal("dQ", &p.reals[1]);
 }
 
-static bool show_parameter_editor(application& /*app*/,
+static bool show_parameter_editor(simulation_editor& /*app*/,
                                   qss3_integrator& /*dyn*/,
                                   parameter& p) noexcept
 {
@@ -652,14 +657,14 @@ static bool show_parameter_editor(application& /*app*/,
            ImGui::InputReal("dQ", &p.reals[1]);
 }
 
-static bool show_parameter_editor(application& /*app*/,
+static bool show_parameter_editor(simulation_editor& /*app*/,
                                   qss1_multiplier& /*dyn*/,
                                   parameter& /*p*/) noexcept
 {
     return false;
 }
 
-static bool show_parameter_editor(application& /*app*/,
+static bool show_parameter_editor(simulation_editor& /*app*/,
                                   qss1_sum_2& /*dyn*/,
                                   parameter& p) noexcept
 {
@@ -667,7 +672,7 @@ static bool show_parameter_editor(application& /*app*/,
            ImGui::InputReal("value-2", &p.reals[1]);
 }
 
-static bool show_parameter_editor(application& /*app*/,
+static bool show_parameter_editor(simulation_editor& /*app*/,
                                   qss1_sum_3& /*dyn*/,
                                   parameter& p) noexcept
 {
@@ -676,7 +681,7 @@ static bool show_parameter_editor(application& /*app*/,
            ImGui::InputReal("value-3", &p.reals[2]);
 }
 
-static bool show_parameter_editor(application& /*app*/,
+static bool show_parameter_editor(simulation_editor& /*app*/,
                                   qss1_sum_4& /*dyn*/,
                                   parameter& p) noexcept
 {
@@ -686,7 +691,7 @@ static bool show_parameter_editor(application& /*app*/,
            ImGui::InputReal("value-4", &p.reals[3]);
 }
 
-static bool show_parameter_editor(application& /*app*/,
+static bool show_parameter_editor(simulation_editor& /*app*/,
                                   qss1_wsum_2& /*dyn*/,
                                   parameter& p) noexcept
 {
@@ -696,7 +701,7 @@ static bool show_parameter_editor(application& /*app*/,
            ImGui::InputReal("coeff-2", &p.reals[3]);
 }
 
-static bool show_parameter_editor(application& /*app*/,
+static bool show_parameter_editor(simulation_editor& /*app*/,
                                   qss1_wsum_3& /*dyn*/,
                                   parameter& p) noexcept
 {
@@ -708,7 +713,7 @@ static bool show_parameter_editor(application& /*app*/,
            ImGui::InputReal("coeff-3", &p.reals[5]);
 }
 
-static bool show_parameter_editor(application& /*app*/,
+static bool show_parameter_editor(simulation_editor& /*app*/,
                                   qss1_wsum_4& /*dyn*/,
                                   parameter& p) noexcept
 {
@@ -722,35 +727,35 @@ static bool show_parameter_editor(application& /*app*/,
            ImGui::InputReal("coeff-4", &p.reals[7]);
 }
 
-static bool show_parameter_editor(application& /*app*/,
+static bool show_parameter_editor(simulation_editor& /*app*/,
                                   qss2_multiplier& /*dyn*/,
                                   parameter& /*p*/) noexcept
 {
     return false;
 }
 
-static bool show_parameter_editor(application& /*app*/,
+static bool show_parameter_editor(simulation_editor& /*app*/,
                                   qss2_sum_2& /*dyn*/,
                                   parameter& /*p*/) noexcept
 {
     return false;
 }
 
-static bool show_parameter_editor(application& /*app*/,
+static bool show_parameter_editor(simulation_editor& /*app*/,
                                   qss2_sum_3& /*dyn*/,
                                   parameter& /*p*/) noexcept
 {
     return false;
 }
 
-static bool show_parameter_editor(application& /*app*/,
+static bool show_parameter_editor(simulation_editor& /*app*/,
                                   qss2_sum_4& /*dyn*/,
                                   parameter& /*p*/) noexcept
 {
     return false;
 }
 
-static bool show_parameter_editor(application& /*app*/,
+static bool show_parameter_editor(simulation_editor& /*app*/,
                                   qss2_wsum_2& /*dyn*/,
                                   parameter& p) noexcept
 {
@@ -760,7 +765,7 @@ static bool show_parameter_editor(application& /*app*/,
            ImGui::InputReal("coeff-2", &p.reals[3]);
 }
 
-static bool show_parameter_editor(application& /*app*/,
+static bool show_parameter_editor(simulation_editor& /*app*/,
                                   qss2_wsum_3& /*dyn*/,
                                   parameter& p) noexcept
 {
@@ -772,7 +777,7 @@ static bool show_parameter_editor(application& /*app*/,
            ImGui::InputReal("coeff-3", &p.reals[5]);
 }
 
-static bool show_parameter_editor(application& /*app*/,
+static bool show_parameter_editor(simulation_editor& /*app*/,
                                   qss2_wsum_4& /*dyn*/,
                                   parameter& p) noexcept
 {
@@ -786,35 +791,35 @@ static bool show_parameter_editor(application& /*app*/,
            ImGui::InputReal("coeff-4", &p.reals[7]);
 }
 
-static bool show_parameter_editor(application& /*app*/,
+static bool show_parameter_editor(simulation_editor& /*app*/,
                                   qss3_multiplier& /*dyn*/,
                                   parameter& /*p*/) noexcept
 {
     return false;
 }
 
-static bool show_parameter_editor(application& /*app*/,
+static bool show_parameter_editor(simulation_editor& /*app*/,
                                   qss3_sum_2& /*dyn*/,
                                   parameter& /*p*/) noexcept
 {
     return false;
 }
 
-static bool show_parameter_editor(application& /*app*/,
+static bool show_parameter_editor(simulation_editor& /*app*/,
                                   qss3_sum_3& /*dyn*/,
                                   parameter& /*p*/) noexcept
 {
     return false;
 }
 
-static bool show_parameter_editor(application& /*app*/,
+static bool show_parameter_editor(simulation_editor& /*app*/,
                                   qss3_sum_4& /*dyn*/,
                                   parameter& /*p*/) noexcept
 {
     return false;
 }
 
-static bool show_parameter_editor(application& /*app*/,
+static bool show_parameter_editor(simulation_editor& /*app*/,
                                   qss3_wsum_2& /*dyn*/,
                                   parameter& p) noexcept
 {
@@ -824,7 +829,7 @@ static bool show_parameter_editor(application& /*app*/,
            ImGui::InputReal("coeff-2", &p.reals[3]);
 }
 
-static bool show_parameter_editor(application& /*app*/,
+static bool show_parameter_editor(simulation_editor& /*app*/,
                                   qss3_wsum_3& /*dyn*/,
                                   parameter& p) noexcept
 {
@@ -836,7 +841,7 @@ static bool show_parameter_editor(application& /*app*/,
            ImGui::InputReal("coeff-3", &p.reals[5]);
 }
 
-static bool show_parameter_editor(application& /*app*/,
+static bool show_parameter_editor(simulation_editor& /*app*/,
                                   qss3_wsum_4& /*dyn*/,
                                   parameter& p) noexcept
 {
@@ -850,21 +855,21 @@ static bool show_parameter_editor(application& /*app*/,
            ImGui::InputReal("coeff-4", &p.reals[7]);
 }
 
-static bool show_parameter_editor(application& /*app*/,
+static bool show_parameter_editor(simulation_editor& /*app*/,
                                   counter& /*dyn*/,
                                   parameter& /*p*/) noexcept
 {
     return false;
 }
 
-static bool show_parameter_editor(application& /*app*/,
+static bool show_parameter_editor(simulation_editor& /*app*/,
                                   queue& /*dyn*/,
                                   parameter& p) noexcept
 {
     return ImGui::InputReal("delay", &p.reals[0]);
 }
 
-static bool show_parameter_editor(application& app,
+static bool show_parameter_editor(simulation_editor& /*app*/,
                                   dynamic_queue& /*dyn*/,
                                   parameter& p) noexcept
 {
@@ -887,7 +892,7 @@ static bool show_parameter_editor(application& app,
     return is_changed;
 }
 
-static bool show_parameter_editor(application& app,
+static bool show_parameter_editor(simulation_editor& /*app*/,
                                   priority_queue& /*dyn*/,
                                   parameter& p) noexcept
 {
@@ -910,7 +915,7 @@ static bool show_parameter_editor(application& app,
     return is_changed;
 }
 
-static bool show_parameter_editor(application& app,
+static bool show_parameter_editor(simulation_editor& /*app*/,
                                   generator& /* dyn */,
                                   parameter& p) noexcept
 {
@@ -990,7 +995,7 @@ static bool show_parameter_editor(application& app,
     return is_changed;
 }
 
-static bool show_parameter_editor(application& /*app*/,
+static bool show_parameter_editor(simulation_editor& /*app*/,
                                   constant& /*dyn*/,
                                   parameter& p) noexcept
 {
@@ -1033,7 +1038,7 @@ static bool show_parameter_editor(application& /*app*/,
     return is_changed;
 }
 
-static bool show_parameter_editor(application& /*app*/,
+static bool show_parameter_editor(simulation_editor& /*app*/,
                                   qss1_cross& /*dyn*/,
                                   parameter& p) noexcept
 {
@@ -1048,7 +1053,7 @@ static bool show_parameter_editor(application& /*app*/,
     return is_changed;
 }
 
-static bool show_parameter_editor(application& /*app*/,
+static bool show_parameter_editor(simulation_editor& /*app*/,
                                   qss2_cross& /*dyn*/,
                                   parameter& p) noexcept
 {
@@ -1063,7 +1068,7 @@ static bool show_parameter_editor(application& /*app*/,
     return is_changed;
 }
 
-static bool show_parameter_editor(application& /*app*/,
+static bool show_parameter_editor(simulation_editor& /*app*/,
                                   qss3_cross& /*dyn*/,
                                   parameter& p) noexcept
 {
@@ -1078,7 +1083,7 @@ static bool show_parameter_editor(application& /*app*/,
     return is_changed;
 }
 
-static bool show_parameter_editor(application& /*app*/,
+static bool show_parameter_editor(simulation_editor& /*app*/,
                                   qss1_filter& /*dyn*/,
                                   parameter& p) noexcept
 {
@@ -1086,7 +1091,7 @@ static bool show_parameter_editor(application& /*app*/,
            ImGui::InputReal("upper threshold", &p.reals[1]);
 }
 
-static bool show_parameter_editor(application& /*app*/,
+static bool show_parameter_editor(simulation_editor& /*app*/,
                                   qss2_filter& /*dyn*/,
                                   parameter& p) noexcept
 {
@@ -1094,7 +1099,7 @@ static bool show_parameter_editor(application& /*app*/,
            ImGui::InputReal("upper threshold", &p.reals[1]);
 }
 
-static bool show_parameter_editor(application& /*app*/,
+static bool show_parameter_editor(simulation_editor& /*app*/,
                                   qss3_filter& /*dyn*/,
                                   parameter& p) noexcept
 {
@@ -1102,56 +1107,56 @@ static bool show_parameter_editor(application& /*app*/,
            ImGui::InputReal("upper threshold", &p.reals[1]);
 }
 
-static bool show_parameter_editor(application& /*app*/,
+static bool show_parameter_editor(simulation_editor& /*app*/,
                                   qss1_power& /*dyn*/,
                                   parameter& p) noexcept
 {
     return ImGui::InputReal("n", &p.reals[0]);
 }
 
-static bool show_parameter_editor(application& /*app*/,
+static bool show_parameter_editor(simulation_editor& /*app*/,
                                   qss2_power& /*dyn*/,
                                   parameter& p) noexcept
 {
     return ImGui::InputReal("n", &p.reals[0]);
 }
 
-static bool show_parameter_editor(application& /*app*/,
+static bool show_parameter_editor(simulation_editor& /*app*/,
                                   qss3_power& /*dyn*/,
                                   parameter& p) noexcept
 {
     return ImGui::InputReal("n", &p.reals[0]);
 }
 
-static bool show_parameter_editor(application& /*app*/,
+static bool show_parameter_editor(simulation_editor& /*app*/,
                                   qss1_square& /*dyn*/,
                                   parameter& /*p*/) noexcept
 {
     return false;
 }
 
-static bool show_parameter_editor(application& /*app*/,
+static bool show_parameter_editor(simulation_editor& /*app*/,
                                   qss2_square& /*dyn*/,
                                   parameter& /*p*/) noexcept
 {
     return false;
 }
 
-static bool show_parameter_editor(application& /*app*/,
+static bool show_parameter_editor(simulation_editor& /*app*/,
                                   qss3_square& /*dyn*/,
                                   parameter& /*p*/) noexcept
 {
     return false;
 }
 
-static bool show_parameter_editor(application& /*app*/,
+static bool show_parameter_editor(simulation_editor& /*app*/,
                                   accumulator_2& /*dyn*/,
                                   parameter& /*p*/) noexcept
 {
     return false;
 }
 
-static bool show_parameter_editor(application& /*app*/,
+static bool show_parameter_editor(simulation_editor& /*app*/,
                                   logical_and_2& /*dyn*/,
                                   parameter& p) noexcept
 {
@@ -1172,7 +1177,7 @@ static bool show_parameter_editor(application& /*app*/,
     return is_changed;
 }
 
-static bool show_parameter_editor(application& /*app*/,
+static bool show_parameter_editor(simulation_editor& /*app*/,
                                   logical_or_2& /*dyn*/,
                                   parameter& p) noexcept
 {
@@ -1193,7 +1198,7 @@ static bool show_parameter_editor(application& /*app*/,
     return is_changed;
 }
 
-static bool show_parameter_editor(application& /*app*/,
+static bool show_parameter_editor(simulation_editor& /*app*/,
                                   logical_and_3& /*dyn*/,
                                   parameter& p) noexcept
 {
@@ -1220,7 +1225,7 @@ static bool show_parameter_editor(application& /*app*/,
     return is_changed;
 }
 
-static bool show_parameter_editor(application& /*app*/,
+static bool show_parameter_editor(simulation_editor& /*app*/,
                                   logical_or_3& /*dyn*/,
                                   parameter& p) noexcept
 {
@@ -1247,21 +1252,21 @@ static bool show_parameter_editor(application& /*app*/,
     return is_changed;
 }
 
-static bool show_parameter_editor(application& /*app*/,
+static bool show_parameter_editor(simulation_editor& /*app*/,
                                   logical_invert& /*dyn*/,
                                   parameter& /*p*/) noexcept
 {
     return false;
 }
 
-static bool show_parameter_editor(application& /*app*/,
+static bool show_parameter_editor(simulation_editor& /*app*/,
                                   hsm_wrapper /*dyn*/,
                                   parameter& /*p*/) noexcept
 {
     return false;
 }
 
-static bool show_parameter_editor(application& /*app*/,
+static bool show_parameter_editor(simulation_editor& /*app*/,
                                   time_func& /*dyn*/,
                                   parameter& p) noexcept
 {
@@ -1286,7 +1291,9 @@ static bool show_parameter_editor(application& /*app*/,
     return is_changed;
 }
 
-bool show_parameter_editor(application& app, model& mdl, parameter& p) noexcept
+bool show_parameter_editor(simulation_editor& app,
+                           model&             mdl,
+                           parameter&         p) noexcept
 {
     return dispatch(
       mdl, [&app, &p]<typename Dynamics>(Dynamics& dyn) noexcept -> bool {
@@ -1298,6 +1305,7 @@ bool show_parameter_editor(application& app, model& mdl, parameter& p) noexcept
 
 bool show_parameter(dynamics_qss1_integrator_tag,
                     application& /*app*/,
+                    component_editor& /*app*/,
                     parameter& p) noexcept
 {
     const auto b1 = ImGui::InputReal("value", &p.reals[0]);
@@ -1308,6 +1316,7 @@ bool show_parameter(dynamics_qss1_integrator_tag,
 
 bool show_parameter(dynamics_qss2_integrator_tag,
                     application& /*app*/,
+                    component_editor& /*app*/,
                     parameter& p) noexcept
 {
     const auto b1 = ImGui::InputReal("value", &p.reals[0]);
@@ -1318,6 +1327,7 @@ bool show_parameter(dynamics_qss2_integrator_tag,
 
 bool show_parameter(dynamics_qss3_integrator_tag,
                     application& /*app*/,
+                    component_editor& /*app*/,
                     parameter& p) noexcept
 {
     const auto b1 = ImGui::InputReal("value", &p.reals[0]);
@@ -1327,7 +1337,8 @@ bool show_parameter(dynamics_qss3_integrator_tag,
 }
 
 bool show_parameter(dynamics_qss1_multiplier_tag,
-                    application& /* app */,
+                    application& /*app*/,
+                    component_editor& /* app */,
                     parameter& /* p */) noexcept
 {
     return false;
@@ -1335,6 +1346,7 @@ bool show_parameter(dynamics_qss1_multiplier_tag,
 
 bool show_parameter(dynamics_qss1_sum_2_tag,
                     application& /*app*/,
+                    component_editor& /*app*/,
                     parameter& /*p*/) noexcept
 {
     return false;
@@ -1342,6 +1354,7 @@ bool show_parameter(dynamics_qss1_sum_2_tag,
 
 bool show_parameter(dynamics_qss1_sum_3_tag,
                     application& /*app*/,
+                    component_editor& /*app*/,
                     parameter& /*p*/) noexcept
 {
     return false;
@@ -1349,6 +1362,7 @@ bool show_parameter(dynamics_qss1_sum_3_tag,
 
 bool show_parameter(dynamics_qss1_sum_4_tag,
                     application& /*app*/,
+                    component_editor& /*app*/,
                     parameter& /*p*/) noexcept
 {
     return false;
@@ -1356,6 +1370,7 @@ bool show_parameter(dynamics_qss1_sum_4_tag,
 
 bool show_parameter(dynamics_qss1_wsum_2_tag,
                     application& /*app*/,
+                    component_editor& /*app*/,
                     parameter& p) noexcept
 {
     auto ret = ImGui::InputReal("value-0", &p.reals[0]);
@@ -1368,6 +1383,7 @@ bool show_parameter(dynamics_qss1_wsum_2_tag,
 
 bool show_parameter(dynamics_qss1_wsum_3_tag,
                     application& /*app*/,
+                    component_editor& /*app*/,
                     parameter& p) noexcept
 {
     auto ret = ImGui::InputReal("value-0", &p.reals[0]);
@@ -1382,6 +1398,7 @@ bool show_parameter(dynamics_qss1_wsum_3_tag,
 
 bool show_parameter(dynamics_qss1_wsum_4_tag,
                     application& /*app*/,
+                    component_editor& /*app*/,
                     parameter& p) noexcept
 {
     auto ret = ImGui::InputReal("value-0", &p.reals[0]);
@@ -1398,6 +1415,7 @@ bool show_parameter(dynamics_qss1_wsum_4_tag,
 
 bool show_parameter(dynamics_qss2_multiplier_tag,
                     application& /*app*/,
+                    component_editor& /*app*/,
                     parameter& /*p*/) noexcept
 {
     return false;
@@ -1405,6 +1423,7 @@ bool show_parameter(dynamics_qss2_multiplier_tag,
 
 bool show_parameter(dynamics_qss2_sum_2_tag,
                     application& /*app*/,
+                    component_editor& /*app*/,
                     parameter& /*p*/) noexcept
 {
     return false;
@@ -1412,6 +1431,7 @@ bool show_parameter(dynamics_qss2_sum_2_tag,
 
 bool show_parameter(dynamics_qss2_sum_3_tag,
                     application& /*app*/,
+                    component_editor& /*app*/,
                     parameter& /*p*/) noexcept
 {
     return false;
@@ -1419,13 +1439,15 @@ bool show_parameter(dynamics_qss2_sum_3_tag,
 
 bool show_parameter(dynamics_qss2_sum_4_tag,
                     application& /*app*/,
+                    component_editor& /*app*/,
                     parameter& /*p*/) noexcept
 {
     return false;
 }
 
 bool show_parameter(dynamics_qss2_wsum_2_tag,
-                    application& /* app*/,
+                    application& /*app*/,
+                    component_editor& /* app*/,
                     parameter& p) noexcept
 {
     auto ret = ImGui::InputReal("value-0", &p.reals[0]);
@@ -1438,6 +1460,7 @@ bool show_parameter(dynamics_qss2_wsum_2_tag,
 
 bool show_parameter(dynamics_qss2_wsum_3_tag,
                     application& /*app*/,
+                    component_editor& /*app*/,
                     parameter& p) noexcept
 {
     auto ret = ImGui::InputReal("value-0", &p.reals[0]);
@@ -1452,6 +1475,7 @@ bool show_parameter(dynamics_qss2_wsum_3_tag,
 
 bool show_parameter(dynamics_qss2_wsum_4_tag,
                     application& /*app*/,
+                    component_editor& /*app*/,
                     parameter& p) noexcept
 {
     auto ret = ImGui::InputReal("value-0", &p.reals[0]);
@@ -1468,6 +1492,7 @@ bool show_parameter(dynamics_qss2_wsum_4_tag,
 
 bool show_parameter(dynamics_qss3_multiplier_tag,
                     application& /*app*/,
+                    component_editor& /*app*/,
                     parameter& /*p*/) noexcept
 {
     return false;
@@ -1475,6 +1500,7 @@ bool show_parameter(dynamics_qss3_multiplier_tag,
 
 bool show_parameter(dynamics_qss3_sum_2_tag,
                     application& /*app*/,
+                    component_editor& /*app*/,
                     parameter& /*p*/) noexcept
 {
     return false;
@@ -1482,6 +1508,7 @@ bool show_parameter(dynamics_qss3_sum_2_tag,
 
 bool show_parameter(dynamics_qss3_sum_3_tag,
                     application& /*app*/,
+                    component_editor& /*app*/,
                     parameter& /*p*/) noexcept
 {
     return false;
@@ -1489,13 +1516,15 @@ bool show_parameter(dynamics_qss3_sum_3_tag,
 
 bool show_parameter(dynamics_qss3_sum_4_tag,
                     application& /*app*/,
+                    component_editor& /*app*/,
                     parameter& /*p*/) noexcept
 {
     return false;
 }
 
 bool show_parameter(dynamics_qss3_wsum_2_tag,
-                    application& /* app*/,
+                    application& /*app*/,
+                    component_editor& /* app*/,
                     parameter& p) noexcept
 {
     auto ret = ImGui::InputReal("value-0", &p.reals[0]);
@@ -1508,6 +1537,7 @@ bool show_parameter(dynamics_qss3_wsum_2_tag,
 
 bool show_parameter(dynamics_qss3_wsum_3_tag,
                     application& /*app*/,
+                    component_editor& /*app*/,
                     parameter& p) noexcept
 {
     auto ret = ImGui::InputReal("value-0", &p.reals[0]);
@@ -1522,6 +1552,7 @@ bool show_parameter(dynamics_qss3_wsum_3_tag,
 
 bool show_parameter(dynamics_qss3_wsum_4_tag,
                     application& /*app*/,
+                    component_editor& /*app*/,
                     parameter& p) noexcept
 {
     auto ret = ImGui::InputReal("value-0", &p.reals[0]);
@@ -1538,13 +1569,15 @@ bool show_parameter(dynamics_qss3_wsum_4_tag,
 
 bool show_parameter(dynamics_counter_tag,
                     application& /*app*/,
+                    component_editor& /*app*/,
                     parameter& /*p*/) noexcept
 {
     return false;
 }
 
 bool show_parameter(dynamics_queue_tag,
-                    application& /* app */,
+                    application& /*app*/,
+                    component_editor& /* app */,
                     parameter& p) noexcept
 {
     const auto b1 = ImGui::InputReal("delay", &p.reals[0]);
@@ -1555,8 +1588,9 @@ bool show_parameter(dynamics_queue_tag,
 }
 
 bool show_parameter(dynamics_dynamic_queue_tag,
-                    application& app,
-                    parameter&   p) noexcept
+                    application&      app,
+                    component_editor& ed,
+                    parameter&        p) noexcept
 {
     auto       stop_on_error = p.integers[0] != 0;
     const auto b1            = ImGui::Checkbox("Stop on error", &stop_on_error);
@@ -1568,15 +1602,19 @@ bool show_parameter(dynamics_dynamic_queue_tag,
       "Unchecked, the dynamic queue stops to send data if the source are "
       "empty or undefined. Checked, the simulation will stop.");
 
-    const auto b2 = show_external_sources_combo(
-      app.pj.sim.srcs, "time", p.integers[1], p.integers[2]);
+    debug::breakpoint(); /* Here, we need to get the component external source
+                    list or the simulation source list. */
+    return false;
+    // const auto b2 = show_external_sources_combo(
+    //   app.mod.srcs, "time", p.integers[1], p.integers[2]);
 
-    return b1 or b2;
+    // return b1 or b2;
 }
 
 bool show_parameter(dynamics_priority_queue_tag,
-                    application& app,
-                    parameter&   p) noexcept
+                    application& /*app*/,
+                    component_editor& app,
+                    parameter&        p) noexcept
 {
     bool is_changed = false;
     bool value      = p.integers[0] != 0;
@@ -1598,8 +1636,9 @@ bool show_parameter(dynamics_priority_queue_tag,
 }
 
 bool show_parameter(dynamics_generator_tag,
-                    application& app,
-                    parameter&   p) noexcept
+                    application&      app,
+                    component_editor& pj,
+                    parameter&        p) noexcept
 {
     static const char* items[] = { "source", "external events" };
 
@@ -1679,6 +1718,7 @@ bool show_parameter(dynamics_generator_tag,
 
 bool show_parameter(dynamics_constant_tag,
                     application& /*app*/,
+                    component_editor& /*app*/,
                     parameter& p) noexcept
 {
     static const char* type_names[] = { "constant",
@@ -1720,6 +1760,7 @@ bool show_parameter(dynamics_constant_tag,
 
 bool show_parameter(dynamics_qss1_cross_tag,
                     application& /*app*/,
+                    component_editor& /*app*/,
                     parameter& p) noexcept
 {
     bool is_changed = ImGui::InputReal("threshold", &p.reals[0]);
@@ -1735,6 +1776,7 @@ bool show_parameter(dynamics_qss1_cross_tag,
 
 bool show_parameter(dynamics_qss2_cross_tag,
                     application& /*app*/,
+                    component_editor& /*app*/,
                     parameter& p) noexcept
 
 {
@@ -1751,6 +1793,7 @@ bool show_parameter(dynamics_qss2_cross_tag,
 
 bool show_parameter(dynamics_qss3_cross_tag,
                     application& /*app*/,
+                    component_editor& /*app*/,
                     parameter& p) noexcept
 {
     bool is_changed = ImGui::InputReal("threshold", &p.reals[0]);
@@ -1766,6 +1809,7 @@ bool show_parameter(dynamics_qss3_cross_tag,
 
 bool show_parameter(dynamics_qss1_filter_tag,
                     application& /*app*/,
+                    component_editor& /*app*/,
                     parameter& p) noexcept
 {
     const auto b1 = ImGui::InputReal("lowe threshold", &p.reals[0]);
@@ -1776,6 +1820,7 @@ bool show_parameter(dynamics_qss1_filter_tag,
 
 bool show_parameter(dynamics_qss2_filter_tag,
                     application& /*app*/,
+                    component_editor& /*app*/,
                     parameter& p) noexcept
 {
     const auto b1 = ImGui::InputReal("lowe threshold", &p.reals[0]);
@@ -1786,6 +1831,7 @@ bool show_parameter(dynamics_qss2_filter_tag,
 
 bool show_parameter(dynamics_qss3_filter_tag,
                     application& /*app*/,
+                    component_editor& /*app*/,
                     parameter& p) noexcept
 {
     const auto b1 = ImGui::InputReal("lowe threshold", &p.reals[0]);
@@ -1796,6 +1842,7 @@ bool show_parameter(dynamics_qss3_filter_tag,
 
 bool show_parameter(dynamics_qss1_power_tag,
                     application& /*app*/,
+                    component_editor& /*app*/,
                     parameter& p) noexcept
 {
     return ImGui::InputReal("n", &p.reals[0]);
@@ -1803,6 +1850,7 @@ bool show_parameter(dynamics_qss1_power_tag,
 
 bool show_parameter(dynamics_qss2_power_tag,
                     application& /*app*/,
+                    component_editor& /*app*/,
                     parameter& p) noexcept
 {
     return ImGui::InputReal("n", &p.reals[0]);
@@ -1810,6 +1858,7 @@ bool show_parameter(dynamics_qss2_power_tag,
 
 bool show_parameter(dynamics_qss3_power_tag,
                     application& /*app*/,
+                    component_editor& /*app*/,
                     parameter& p) noexcept
 {
     return ImGui::InputReal("n", &p.reals[0]);
@@ -1817,6 +1866,7 @@ bool show_parameter(dynamics_qss3_power_tag,
 
 bool show_parameter(dynamics_qss1_square_tag,
                     application& /*app*/,
+                    component_editor& /*app*/,
                     parameter& /*p*/) noexcept
 {
     return false;
@@ -1824,6 +1874,7 @@ bool show_parameter(dynamics_qss1_square_tag,
 
 bool show_parameter(dynamics_qss2_square_tag,
                     application& /*app*/,
+                    component_editor& /*app*/,
                     parameter& /*p*/) noexcept
 {
     return false;
@@ -1831,6 +1882,7 @@ bool show_parameter(dynamics_qss2_square_tag,
 
 bool show_parameter(dynamics_qss3_square_tag,
                     application& /*app*/,
+                    component_editor& /*app*/,
                     parameter& /*p*/) noexcept
 {
     return false;
@@ -1838,13 +1890,15 @@ bool show_parameter(dynamics_qss3_square_tag,
 
 bool show_parameter(dynamics_accumulator_2_tag,
                     application& /*app*/,
+                    component_editor& /*app*/,
                     parameter& /*p*/) noexcept
 {
     return false;
 }
 
 bool show_parameter(dynamics_time_func_tag,
-                    application& /* app */,
+                    application& /*app*/,
+                    component_editor& /* app */,
                     parameter& p) noexcept
 {
     static const char* items[] = { "time", "square", "sin" };
@@ -1867,6 +1921,7 @@ bool show_parameter(dynamics_time_func_tag,
 
 bool show_parameter(dynamics_logical_and_2_tag,
                     application& /*app*/,
+                    component_editor& /*app*/,
                     parameter& p) noexcept
 {
     bool is_changed = false;
@@ -1888,6 +1943,7 @@ bool show_parameter(dynamics_logical_and_2_tag,
 
 bool show_parameter(dynamics_logical_or_2_tag,
                     application& /*app*/,
+                    component_editor& /*app*/,
                     parameter& p) noexcept
 {
     bool is_changed = false;
@@ -1909,6 +1965,7 @@ bool show_parameter(dynamics_logical_or_2_tag,
 
 bool show_parameter(dynamics_logical_and_3_tag,
                     application& /*app*/,
+                    component_editor& /*app*/,
                     parameter& p) noexcept
 {
     bool is_changed = false;
@@ -1936,6 +1993,7 @@ bool show_parameter(dynamics_logical_and_3_tag,
 
 bool show_parameter(dynamics_logical_or_3_tag,
                     application& /*app*/,
+                    component_editor& /*app*/,
                     parameter& p) noexcept
 {
     bool is_changed = false;
@@ -1963,18 +2021,20 @@ bool show_parameter(dynamics_logical_or_3_tag,
 
 bool show_parameter(dynamics_logical_invert_tag,
                     application& /*app*/,
+                    component_editor& /*app*/,
                     parameter& /*p*/) noexcept
 {
     return false;
 }
 
-static auto get_current_component_name(application& app, parameter& p) noexcept
-  -> const char*
+static auto get_current_component_name(modeling& mod,
+                                       component_editor& /*pj*/,
+                                       parameter& p) noexcept -> const char*
 {
     static constexpr auto undefined_name = "-";
 
     const auto* compo =
-      app.mod.components.try_to_get(enum_cast<component_id>(p.integers[0]));
+      mod.components.try_to_get(enum_cast<component_id>(p.integers[0]));
     if (not compo or compo->type != component_type::hsm) {
         p.integers[0] = 0;
         compo         = nullptr;
@@ -1984,13 +2044,14 @@ static auto get_current_component_name(application& app, parameter& p) noexcept
 }
 
 bool show_parameter(dynamics_hsm_wrapper_tag,
-                    application& app,
-                    parameter&   p) noexcept
+                    application&      app,
+                    component_editor& pj,
+                    parameter&        p) noexcept
 {
     auto up = false;
 
     if (ImGui::BeginCombo("hsm component",
-                          get_current_component_name(app, p))) {
+                          get_current_component_name(app.mod, pj, p))) {
         auto imgui_id = 0;
 
         ImGui::PushID(imgui_id++);
@@ -2024,16 +2085,23 @@ bool show_parameter(dynamics_hsm_wrapper_tag,
     return up;
 }
 
-bool show_parameter_editor(application&  app,
-                           dynamics_type type,
-                           parameter&    p) noexcept
+bool show_parameter_editor(application&       app,
+                           simulation_editor& ed,
+                           dynamics_type      type,
+                           parameter&         p) noexcept
 {
     return dispatcher(
       type,
-      [](auto tag, application& app, parameter& p) noexcept -> bool {
-          return show_parameter(tag, app, p);
+      [](auto               tag,
+         application&       app,
+         simulation_editor& ed,
+         parameter&         p) noexcept -> bool {
+          debug::breakpoint();
+          return true;
+          // return show_parameter_editor(tag, app, ed, p);
       },
       app,
+      ed,
       p);
 }
 

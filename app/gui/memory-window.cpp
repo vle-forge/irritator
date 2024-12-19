@@ -44,30 +44,40 @@ void memory_window::show() noexcept
 
     if (ImGui::CollapsingHeader("Simulation usage",
                                 ImGuiTreeNodeFlags_DefaultOpen)) {
-        ImGui::TextFormat("models: {}", app.pj.sim.models.size());
-        ImGui::TextFormat("hsms: {}", app.pj.sim.hsms.size());
-        ImGui::TextFormat("observers: {}", app.pj.sim.observers.size());
+        for (const auto& p : app.pjs) {
+            const auto id  = app.pjs.get_id(p);
+            const auto idx = get_index(id);
+            name_str   temp;
+            format(temp, "{}", idx);
 
-        ImGui::TextFormat("immediate_models: {}",
-                          app.pj.sim.immediate_models.size());
-        ImGui::TextFormat("immediate_observers: {}",
-                          app.pj.sim.immediate_observers.size());
+            if (ImGui::TreeNode(temp.c_str())) {
+                ImGui::TextFormat("models: {}", p.pj.sim.models.size());
+                ImGui::TextFormat("hsms: {}", p.pj.sim.hsms.size());
+                ImGui::TextFormat("observers: {}", p.pj.sim.observers.size());
 
-        ImGui::TextFormat("message_alloc: {}", app.pj.sim.messages.size());
-        ImGui::TextFormat("node: {}", app.pj.sim.nodes.size());
-        ImGui::TextFormat("dated_message_alloc: {}",
-                          app.pj.sim.dated_messages.size());
-        ImGui::TextFormat("emitting_output_ports: {}",
-                          app.pj.sim.emitting_output_ports.size());
+                ImGui::TextFormat("immediate_models: {}",
+                                  p.pj.sim.immediate_models.size());
+                ImGui::TextFormat("immediate_observers: {}",
+                                  p.pj.sim.immediate_observers.size());
 
-        ImGui::TextFormat("contant sources: {}",
-                          app.pj.sim.srcs.constant_sources.size());
-        ImGui::TextFormat("text sources: {}",
-                          app.pj.sim.srcs.text_file_sources.size());
-        ImGui::TextFormat("binary sources: {}",
-                          app.pj.sim.srcs.binary_file_sources.size());
-        ImGui::TextFormat("random sources: {}",
-                          app.pj.sim.srcs.random_sources.size());
+                ImGui::TextFormat("message_alloc: {}",
+                                  p.pj.sim.messages.size());
+                ImGui::TextFormat("node: {}", p.pj.sim.nodes.size());
+                ImGui::TextFormat("dated_message_alloc: {}",
+                                  p.pj.sim.dated_messages.size());
+                ImGui::TextFormat("emitting_output_ports: {}",
+                                  p.pj.sim.emitting_output_ports.size());
+
+                ImGui::TextFormat("contant sources: {}",
+                                  p.pj.sim.srcs.constant_sources.size());
+                ImGui::TextFormat("text sources: {}",
+                                  p.pj.sim.srcs.text_file_sources.size());
+                ImGui::TextFormat("binary sources: {}",
+                                  p.pj.sim.srcs.binary_file_sources.size());
+                ImGui::TextFormat("random sources: {}",
+                                  p.pj.sim.srcs.random_sources.size());
+            }
+        }
     }
 
     if (ImGui::CollapsingHeader("Components")) {
