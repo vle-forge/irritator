@@ -587,18 +587,6 @@ public:
 
     enum class graph_type { dot_file, scale_free, small_world };
 
-    id_array<graph_node_id, default_allocator> nodes;
-    id_array<graph_edge_id, default_allocator> edges;
-
-    vector<std::string_view>             node_names;
-    vector<int>                          node_ids;
-    vector<std::array<float, 2>>         node_positions;
-    vector<float>                        node_areas;
-    vector<component_id>                 node_components;
-    vector<std::array<graph_node_id, 2>> edges_nodes;
-
-    string_buffer buffer;
-
     struct input_connection {
         input_connection(port_id x_, graph_node_id v_, port_id id_) noexcept
           : x(x_)
@@ -649,6 +637,37 @@ public:
         small_world_param small;
     };
 
+    id_array<graph_node_id, default_allocator> nodes;
+    id_array<graph_edge_id, default_allocator> edges;
+
+    vector<std::string_view>             node_names;
+    vector<int>                          node_ids;
+    vector<std::array<float, 2>>         node_positions;
+    vector<float>                        node_areas;
+    vector<component_id>                 node_components;
+    vector<std::array<graph_node_id, 2>> edges_nodes;
+
+    string_buffer buffer;
+
+    data_array<input_connection, input_connection_id>   input_connections;
+    data_array<output_connection, output_connection_id> output_connections;
+
+    random_graph_param param   = { .scale = scale_free_param{} };
+    graph_type         g_type  = graph_type::scale_free;
+    u64                seed[4] = { 0u, 0u, 0u, 0u };
+    u64                key[2]  = { 0u, 0u };
+
+    data_array<child, child_id>           cache;
+    data_array<connection, connection_id> cache_connections;
+    vector<name_str>                      cache_names;
+    vector<position>                      positions;
+
+    int             space_x     = 100;
+    int             space_y     = 100;
+    int             left_limit  = 0;
+    int             upper_limit = 0;
+    connection_type type        = connection_type::name;
+
     graph_component() noexcept = default;
     graph_component(const graph_component& other) noexcept;
 
@@ -684,24 +703,6 @@ public:
                                                 const graph_node_id v,
                                                 const port_id id) noexcept;
 
-    data_array<input_connection, input_connection_id>   input_connections;
-    data_array<output_connection, output_connection_id> output_connections;
-
-    random_graph_param param   = { .scale = scale_free_param{} };
-    graph_type         g_type  = graph_type::scale_free;
-    u64                seed[4] = { 0u, 0u, 0u, 0u };
-    u64                key[2]  = { 0u, 0u };
-
-    data_array<child, child_id>           cache;
-    data_array<connection, connection_id> cache_connections;
-    vector<name_str>                      cache_names;
-    vector<position>                      positions;
-
-    int space_x     = 100;
-    int space_y     = 100;
-    int left_limit  = 0;
-    int upper_limit = 0;
-
     //! clear the @c cache and @c cache_connection data_array.
     void clear_cache() noexcept;
 
@@ -712,8 +713,6 @@ public:
     //! connections.
     //! @return success() or @c project::error::not_enough_memory.
     status build_cache(modeling& mod) noexcept;
-
-    connection_type type = connection_type::name;
 
     static auto build_error_handlers(log_manager& l) noexcept;
     static void format_input_connection_error(log_entry& e) noexcept;

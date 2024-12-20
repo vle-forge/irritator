@@ -3393,17 +3393,13 @@ struct json_dearchiver::impl {
     }
 
     bool grid_children_add(
-      data_array<graph_component::vertex, graph_component::vertex_id>& out,
+      graph_component& graph,
       component_id c_id) noexcept
     {
-        if (not out.can_alloc()) {
-            out.reserve(out.capacity() * 2);
+        const auto id = graph.nodes.alloc();
+        const auto idx = get_index(id);
 
-            if (not out.can_alloc())
-                return false;
-        }
-
-        out.alloc(c_id);
+        graph.node_components[idx] = c_id;
 
         return true;
     }

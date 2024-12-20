@@ -228,20 +228,16 @@ static void build_scale_free_edges(
   graph_component&                         graph,
   const graph_component::scale_free_param& params) noexcept
 {
-    using vertex = graph_component::vertex;
-
     graph.edges.clear();
 
-    if (const unsigned n = graph.children.max_used(); n > 1) {
+    if (const unsigned n = graph.nodes.max_used(); n > 1) {
         local_rng r(std::span<const u64>(graph.seed),
                     std::span<const u64>(graph.key));
         std::uniform_int_distribution<unsigned> d(0u, n - 1);
 
-        vertex* first  = nullptr;
-        vertex* second = nullptr;
-        bool    stop   = false;
-
-        graph.children.next(first);
+        auto first  = graph.nodes.begin();
+        auto second = graph.nodes.end();
+        bool stop   = false;
 
         while (not stop) {
             unsigned xv = d(r);
@@ -250,7 +246,8 @@ static void build_scale_free_edges(
                        : unsigned(params.beta * std::pow(xv, -params.alpha)));
 
             while (degree == 0) {
-                if (not graph.children.next(first)) {
+                ++first;
+                if (first == graph.nodes.end()) {
                     stop = true;
                     break;
                 }
@@ -265,20 +262,23 @@ static void build_scale_free_edges(
             if (stop)
                 break;
 
+            auto second = undefined<graph_node_id>();
             do {
-                second = graph.children.try_to_get(d(r));
-            } while (second == nullptr or first == second);
+                const auto idx = d(r);
+                second         = graph.nodes.get_from_index(idx);
+            } while (not is_defined(second) or *first == second);
             --degree;
 
-            if (not graph.edges.can_alloc()) {
+            if (not graph.edges.can_alloc(1)) {
                 graph.edges.reserve(graph.edges.capacity() * 2);
 
-                if (not graph.edges.can_alloc())
+                if (not graph.edges.can_alloc(1))
                     return;
             }
 
-            graph.edges.alloc(graph.children.get_id(first),
-                              graph.children.get_id(second));
+            auto new_edge_id = graph.edges.alloc();
+
+            graph.edges_nodes[get_index(new_edge_id)] = { *first, second };
         }
     }
 }
@@ -287,13 +287,12 @@ static void build_small_world_edges(
   graph_component&                          graph,
   const graph_component::small_world_param& params) noexcept
 {
-    using vertex = graph_component::vertex;
-
     graph.edges.clear();
 
-    if (const auto n = graph.children.ssize(); n > 1) {
-        local_rng                          r(std::span<const u64>(graph.seed),
+    if (const auto n = graph.nodes.ssize(); n > 1) {
+        local_rng r(std::span<const u64>(graph.seed),
                     std::span<const u64>(graph.key));
+
         std::uniform_real_distribution<>   dr(0.0, 1.0);
         std::uniform_int_distribution<int> di(0, n - 1);
 
@@ -326,33 +325,25 @@ static void build_small_world_edges(
             debug::ensure(first >= 0 && first < n);
             debug::ensure(second >= 0 && second < n);
 
-            vertex* vertex_first = nullptr;
-            {
-                int i = 0;
-                do {
-                    graph.children.next(vertex_first);
-                    ++i;
-                } while (i <= first);
-            }
+            auto vertex_first = graph.nodes.begin();
+            for (int i = 0; i <= first; ++i)
+                ++vertex_first;
 
-            vertex* vertex_second = nullptr;
-            {
-                int i = 0;
-                do {
-                    graph.children.next(vertex_second);
-                    ++i;
-                } while (i <= second);
-            }
+            auto vertex_second = graph.nodes.begin();
+            for (int i = 0; i <= second; ++i)
+                ++vertex_second;
 
-            if (not graph.edges.can_alloc()) {
+            if (not graph.edges.can_alloc(1)) {
                 graph.edges.reserve(graph.edges.capacity() * 2);
 
-                if (not graph.edges.can_alloc())
+                if (not graph.edges.can_alloc(1))
                     return;
             }
 
-            graph.edges.alloc(graph.children.get_id(vertex_first),
-                              graph.children.get_id(vertex_second));
+            const auto new_edge_id  = graph.edges.alloc();
+            const auto new_edge_idx = get_index(new_edge_id);
+
+            graph.edges_nodes[new_edge_idx] = { *vertex_first, *vertex_second };
         } while (source + 1 < n);
     }
 }
@@ -392,17 +383,25 @@ void graph_component::update() noexcept
 }
 
 void graph_component::resize(const i32          children_size,
-                             const component_id id) noexcept
+                             const component_id cid) noexcept
 {
-    children.clear();
-    children.reserve(children_size);
-
-    for (int i = 0; i < children_size; ++i)
-        children.alloc(id);
-
+    nodes.clear();
     edges.clear();
+    nodes.reserve(children_size);
+    edges.reserve(children_size);
     input_connections.clear();
     output_connections.clear();
+
+    node_ids.resize(children_size);
+    node_positions.resize(children_size);
+    node_areas.resize(children_size);
+    node_components.resize(children_size);
+
+    for (auto i = 0; i < children_size; ++i) {
+        const auto id        = nodes.alloc();
+        const auto idx       = get_index(id);
+        node_components[idx] = cid;
+    }
 }
 
 static void build_graph_connections(
@@ -428,12 +427,12 @@ status graph_component::build_cache(modeling& mod) noexcept
 {
     clear_cache();
 
-    cache.reserve(children.size());
-    if (not cache.can_alloc(children.size()))
+    cache.reserve(nodes.size());
+    if (not cache.can_alloc(nodes.size()))
         return new_error(
           graph_component::children_error{},
-          e_memory{ children.size(),
-                    static_cast<unsigned>(children.capacity()) });
+          e_memory{ nodes.size(),
+                    static_cast<unsigned>(nodes.capacity()) });
 
     const auto vec = build_graph_children(mod, *this);
     build_graph_connections(mod, *this, vec);
