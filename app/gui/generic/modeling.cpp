@@ -436,7 +436,8 @@ static void show_graph_node(application&     app,
     ImNodes::BeginNode(pack_node_child(c_id));
     ImNodes::BeginNodeTitleBar();
     ImGui::TextFormat("{}\n{}", name, compo.name.sv());
-    ImGui::TextFormat("{}", graph.children.size());
+    ImGui::TextFormat("{}v {}e", graph.nodes.size(), graph.edges.size());
+
     ImNodes::EndNodeTitleBar();
     show_input_an_output_ports(compo, c_id);
     ImNodes::EndNode();

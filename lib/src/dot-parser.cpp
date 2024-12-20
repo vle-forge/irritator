@@ -6,9 +6,9 @@
 
 #include "dot-parser.hpp"
 
+#include <charconv>
 #include <fstream>
 #include <istream>
-#include <numeric>
 #include <streambuf>
 #include <string_view>
 
@@ -16,37 +16,6 @@
 #include <fmt/format.h>
 
 namespace irt {
-
-std::string_view string_buffer::append(std::string_view str) noexcept
-{
-    debug::ensure(not str.empty());
-    debug::ensure(str.size() < string_buffer_node_length);
-
-    if (m_container.empty() ||
-        str.size() + m_position > string_buffer_node_length)
-        do_alloc();
-
-    std::size_t position = m_position;
-    m_position += str.size();
-
-    char* buffer = m_container.front().data() + position;
-
-    std::copy_n(str.data(), str.size(), buffer);
-
-    return std::string_view(buffer, str.size());
-}
-
-std::size_t string_buffer::size() const noexcept
-{
-    return static_cast<std::size_t>(
-      std::distance(m_container.cbegin(), m_container.cend()));
-}
-
-void string_buffer::do_alloc() noexcept
-{
-    m_container.emplace_front();
-    m_position = 0;
-}
 
 //
 // dot-parser
@@ -253,17 +222,17 @@ public:
     std::istream& is;
     irt::i64      line = 0;
 
-    irt::id_array<dot_graph::node_id, irt::default_allocator> nodes;
-    irt::id_array<dot_graph::edge_id, irt::default_allocator> edges;
+    irt::id_array<graph_node_id, irt::default_allocator> nodes;
+    irt::id_array<graph_edge_id, irt::default_allocator> edges;
 
-    irt::vector<std::string_view>                  node_names;
-    irt::vector<int>                               node_ids;
-    irt::vector<std::array<float, 2>>              node_positions;
-    irt::vector<float>                             node_areas;
-    irt::vector<std::array<dot_graph::node_id, 2>> edges_nodes;
+    irt::vector<std::string_view>             node_names;
+    irt::vector<int>                          node_ids;
+    irt::vector<std::array<float, 2>>         node_positions;
+    irt::vector<float>                        node_areas;
+    irt::vector<std::array<graph_node_id, 2>> edges_nodes;
 
-    irt::table<std::string_view, dot_graph::node_id> name_to_node_id;
-    bool                                             sort_before_search = false;
+    irt::table<std::string_view, graph_node_id> name_to_node_id;
+    bool                                        sort_before_search = false;
 
     irt::string_buffer buffer;
 
@@ -290,7 +259,7 @@ public:
 
 private:
     constexpr auto find_or_add_node(std::string_view name) noexcept
-      -> dot_graph::node_id
+      -> graph_node_id
     {
         if (sort_before_search) {
             name_to_node_id.sort();
@@ -322,8 +291,7 @@ private:
         return id;
     }
 
-    constexpr auto find_node(std::string_view name) noexcept
-      -> dot_graph::node_id
+    constexpr auto find_node(std::string_view name) noexcept -> graph_node_id
     {
         if (sort_before_search) {
             name_to_node_id.sort();
@@ -331,7 +299,7 @@ private:
         }
 
         const auto* found = name_to_node_id.get(name);
-        return found ? *found : irt::undefined<dot_graph::node_id>();
+        return found ? *found : irt::undefined<graph_node_id>();
     }
 
     void grow_strings() noexcept
@@ -399,8 +367,9 @@ private:
 
         while (is.get(c)) {
             if (('a' <= c and c <= 'z') or ('A' <= c and c <= 'Z') or
-                ('\200' <= c and c <= '\377') or ('0' <= c and c <= '9') or
-                (c == '_')) {
+                ('\200' <= static_cast<int>(c) and
+                 static_cast<int>(c) <= '\377') or
+                ('0' <= c and c <= '9') or (c == '_')) {
                 str += static_cast<char>(c);
             } else {
                 is.unget();
@@ -623,7 +592,7 @@ private:
                (second[element_type::closing_bracket] or second.is_string());
     }
 
-    bool parse_attributes(const dot_graph::node_id id) noexcept
+    bool parse_attributes(const graph_node_id id) noexcept
     {
         if (not check_minimum_tokens(1))
             return false;
@@ -677,10 +646,7 @@ private:
         }
     }
 
-    bool parse_attributes(const dot_graph::edge_id /*id*/) noexcept
-    {
-        return true;
-    }
+    bool parse_attributes(const graph_edge_id /*id*/) noexcept { return true; }
 
     bool parse_edge() noexcept
     {
@@ -929,10 +895,9 @@ std::optional<dot_graph> parse_dot_file(const std::filesystem::path& p) noexcept
     return sb.parse();
 }
 
-irt::table<std::string_view, dot_graph::node_id> dot_graph::make_toc()
-  const noexcept
+irt::table<std::string_view, graph_node_id> dot_graph::make_toc() const noexcept
 {
-    irt::table<std::string_view, dot_graph::node_id> ret;
+    irt::table<std::string_view, graph_node_id> ret;
     ret.data.reserve(nodes.size());
 
     for (const auto id : nodes) {

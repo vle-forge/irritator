@@ -27,7 +27,7 @@ static bool compute_automatic_layout(const graph_component& graph,
                                      vector<ImVec2>&        positions,
                                      vector<ImVec2>& displacements) noexcept
 {
-    const auto size = graph.children.size();
+    const auto size = graph.nodes.size();
     if (size < 2)
         return false;
 
@@ -44,14 +44,22 @@ static bool compute_automatic_layout(const graph_component& graph,
       (1.f -
        (static_cast<float>(iteration) / static_cast<float>(iteration_limit)));
 
-    for (const auto& i_v : graph.edges) {
-        const auto v       = get_index(i_v.v);
+    for (const auto v_edge_id : graph.edges) {
+        const auto& v_edge = graph.edges_nodes[get_index(v_edge_id)];
+
+        if (not graph.nodes.exists(v_edge[1]))
+            continue;
+
+        const auto v       = get_index(v_edge[1]);
         displacements[v].x = 0.f;
         displacements[v].y = 0.f;
 
-        for (const auto& i_u : graph.edges) {
-            const auto u = get_index(i_u.u);
+        for (const auto u_edge_id : graph.edges) {
+            const auto& u_edge = graph.edges_nodes[get_index(u_edge_id)];
+            if (not graph.nodes.exists(u_edge[0]))
+                continue;
 
+            const auto u = get_index(u_edge[0]);
             if (u != v) {
                 const auto delta = ImVec2{ positions[v].x - positions[u].x,
                                            positions[v].y - positions[u].y };
@@ -69,9 +77,11 @@ static bool compute_automatic_layout(const graph_component& graph,
         }
     }
 
-    for (const auto& edge : graph.edges) {
-        const auto  u  = get_index(edge.u);
-        const auto  v  = get_index(edge.v);
+    for (const auto edge_id : graph.edges) {
+        const auto& edge = graph.edges_nodes[get_index(edge_id)];
+
+        const auto  u  = get_index(edge[0]);
+        const auto  v  = get_index(edge[1]);
         const float dx = positions[v].x - positions[u].x;
         const float dy = positions[v].y - positions[u].y;
 
@@ -95,8 +105,10 @@ static bool compute_automatic_layout(const graph_component& graph,
     }
 
     bool have_big_displacement = false;
-    for (const auto& edge : graph.edges) {
-        const auto  v = get_index(edge.v);
+    for (const auto edge_id : graph.edges) {
+        const auto& edge = graph.edges_nodes[get_index(edge_id)];
+
+        const auto  v = get_index(edge[1]);
         const float d = std::sqrt((displacements[v].x * displacements[v].x) +
                                   (displacements[v].y * displacements[v].y));
 

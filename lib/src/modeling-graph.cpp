@@ -84,41 +84,48 @@ struct local_rng {
 
 bool graph_component::exists_child(const std::string_view name) const noexcept
 {
-    return std::any_of(
-      children.begin(), children.end(), [name](const auto& v) noexcept -> bool {
-          return v.name.sv() == name;
-      });
+    for (const auto id : nodes)
+        if (node_names[get_index(id)] == name)
+            return true;
+
+    return false;
 }
 
-name_str graph_component::make_unique_name_id(const vertex_id v) const noexcept
+name_str graph_component::make_unique_name_id(
+  const graph_node_id v) const noexcept
 {
-    debug::ensure(is_included(get_index(v), 0, children.capacity()));
+    debug::ensure(nodes.exists(v));
 
     name_str ret;
-    format(ret, "{}", get_index(v));
+
+    if (g_type == graph_type::dot_file) {
+        format(ret, "{}", node_names[get_index(v)]);
+    } else {
+        format(ret, "{}", get_index(v));
+    }
 
     return ret;
 }
 
 static auto build_graph_children(modeling& mod, graph_component& graph) noexcept
-  -> table<graph_component::vertex_id, child_id>
+  -> table<graph_node_id, child_id>
 {
-    graph.positions.resize(graph.children.size());
-    graph.cache_names.resize(graph.children.size());
-    table<graph_component::vertex_id, child_id> tr;
-    tr.data.reserve(graph.children.ssize());
+    graph.positions.resize(graph.nodes.size());
+    table<graph_node_id, child_id> tr;
+    tr.data.reserve(graph.nodes.ssize());
 
-    const auto sq = std::sqrt(static_cast<float>(graph.children.size()));
+    const auto sq = std::sqrt(static_cast<float>(graph.nodes.size()));
     const auto gr = static_cast<i32>(sq);
 
     i32 x = 0;
     i32 y = 0;
 
-    for (const auto& vertex : graph.children) {
-        child_id new_id = undefined<child_id>();
+    for (const auto node_id : graph.nodes) {
+        child_id   new_id   = undefined<child_id>();
+        const auto compo_id = graph.node_components[get_index(node_id)];
 
-        if (auto* c = mod.components.try_to_get(vertex.id); c) {
-            auto& new_ch   = graph.cache.alloc(vertex.id);
+        if (auto* c = mod.components.try_to_get(compo_id); c) {
+            auto& new_ch   = graph.cache.alloc(compo_id);
             new_id         = graph.cache.get_id(new_ch);
             const auto idx = get_index(new_id);
 
@@ -126,8 +133,8 @@ static auto build_graph_children(modeling& mod, graph_component& graph) noexcept
               static_cast<float>(((graph.space_x * x) + graph.left_limit));
             graph.positions[idx].y =
               static_cast<float>(((graph.space_y * y) + graph.upper_limit));
-            graph.cache_names[idx] =
-              graph.make_unique_name_id(graph.children.get_id(vertex));
+            // graph.cache_names[idx] =
+            // graph.make_unique_name_id(graph.children.get_id(vertex));
         }
 
         if (x++ > gr) {
@@ -135,7 +142,7 @@ static auto build_graph_children(modeling& mod, graph_component& graph) noexcept
             y++;
         }
 
-        tr.data.emplace_back(graph.children.get_id(vertex), new_id);
+        tr.data.emplace_back(node_id, new_id);
     }
 
     tr.sort();
@@ -350,10 +357,22 @@ static void build_small_world_edges(
     }
 }
 
-graph_component::graph_component() noexcept
-  : children{ 16 }
-  , edges{ 32 }
-{}
+graph_component::graph_component(const graph_component& other) noexcept
+  : nodes{ other.nodes }
+  , edges{ other.edges }
+  , node_ids{ other.node_ids }
+  , node_positions{ other.node_positions }
+  , node_areas{ other.node_areas }
+  , node_components{ other.node_components }
+  , edges_nodes{ other.edges_nodes }
+{
+    node_names.resize(other.node_names.capacity());
+
+    for (const auto id : other.nodes) {
+        const auto idx  = get_index(id);
+        node_names[idx] = buffer.append(other.node_names[idx]);
+    }
+}
 
 void graph_component::update() noexcept
 {

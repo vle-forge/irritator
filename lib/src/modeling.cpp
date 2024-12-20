@@ -829,8 +829,9 @@ static bool can_add_component(const modeling&       mod,
     case component_type::graph: {
         auto id = compo.id.graph_id;
         if (auto* g = mod.graph_components.try_to_get(id); g) {
-            for (const auto& vertex : g->children)
-                if (not can_add_component(mod, vertex.id, out, search))
+            for (const auto edge_id : g->nodes)
+                if (not can_add_component(
+                      mod, g->node_components[get_index(edge_id)], out, search))
                     return false;
         }
     } break;
@@ -1052,11 +1053,10 @@ status modeling::copy(const component& src, component& dst) noexcept
             if (!generic_components.can_alloc())
                 return new_error(part::grid_components, container_full_error{});
 
-            auto& d        = grid_components.alloc();
+            auto& d        = grid_components.alloc(*s);
             auto  d_id     = grid_components.get_id(d);
             dst.id.grid_id = d_id;
             dst.type       = component_type::grid;
-            d              = *s;
         }
         break;
 
@@ -1066,11 +1066,10 @@ status modeling::copy(const component& src, component& dst) noexcept
                 return new_error(part::graph_components,
                                  container_full_error{});
 
-            auto& d         = graph_components.alloc();
+            auto& d         = graph_components.alloc(*s);
             auto  d_id      = graph_components.get_id(d);
             dst.id.graph_id = d_id;
             dst.type        = component_type::graph;
-            d               = *s;
         }
         break;
 
