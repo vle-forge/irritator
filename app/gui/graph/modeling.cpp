@@ -158,12 +158,12 @@ static std::pair<bool, int> show_size_widget(
   graph_component_editor_data& /*graph_ed*/,
   graph_component& graph) noexcept
 {
-    auto size = graph.children.ssize();
+    auto size = graph.nodes.ssize();
 
     if (ImGui::InputInt(
           "size", &size, 1, 100, ImGuiInputTextFlags_EnterReturnsTrue)) {
         size = std::clamp(size, 1, graph_component::children_max);
-        if (size != graph.children.ssize())
+        if (size != graph.nodes.ssize())
             return std::make_pair(true, size);
     }
 
@@ -367,8 +367,10 @@ static bool show_default_component_widgets(graph_component_editor_data& ed,
         is_changed = true;
 
     if (app.component_sel.combobox("Default component", &ed.selected_id)) {
-        for (auto& vertex : graph.children)
-            vertex.id = ed.selected_id;
+        for (const auto node_id : graph.nodes) {
+            const auto node_idx             = get_index(node_id);
+            graph.node_components[node_idx] = ed.selected_id;
+        }
 
         is_changed = true;
     }
@@ -473,17 +475,18 @@ static void show_graph(application& app,
         if (ImGui::BeginMenu("Actions")) {
             if (not ed.selected_nodes.empty() and
                 ImGui::MenuItem("Delete selected nodes?")) {
-                for (auto id : ed.selected_nodes)
-                    if (auto* vertex = data.children.try_to_get(id); vertex)
-                        data.children.free(*vertex);
+                for (auto id : ed.selected_nodes) {
+                    if (data.nodes.exists(id))
+                        data.nodes.free(id);
+                }
                 ed.selected_nodes.clear();
             }
 
             if (not ed.selected_edges.empty() and
                 ImGui::MenuItem("Delete selected edges?")) {
                 for (auto id : ed.selected_edges)
-                    if (auto* edge = data.edges.try_to_get(id); edge)
-                        data.edges.free(*edge);
+                    if (data.edges.exists(id))
+                        data.edges.free(id);
                 ed.selected_edges.clear();
             }
 
@@ -521,9 +524,8 @@ static void show_graph(application& app,
                 ed.selected_edges.clear();
                 ed.selected_nodes.clear();
 
-                for (auto& vertex : data.children) {
-                    const auto id = data.children.get_id(vertex);
-                    const auto i  = get_index(id);
+                for (const auto id : data.nodes) {
+                    const auto i = get_index(id);
 
                     ImVec2 p_min(origin.x + (ed.positions[i].x * ed.zoom[0]),
                                  origin.y + (ed.positions[i].y * ed.zoom[1]));
@@ -539,31 +541,29 @@ static void show_graph(application& app,
                     }
                 }
 
-                for (auto& edge : data.edges) {
-                    auto* us = data.children.try_to_get(edge.u);
-                    auto* vs = data.children.try_to_get(edge.v);
+                for (const auto id : data.edges) {
+                    const auto us = data.edges_nodes[get_index(id)][0];
+                    const auto vs = data.edges_nodes[get_index(id)][1];
 
-                    if (us and vs) {
+                    if (data.nodes.exists(us) and data.nodes.exists(vs)) {
                         ImVec2 p1(
-                          origin.x + ((ed.positions[get_index(edge.u)].x +
-                                       ed.size.x / 2.f) *
-                                      ed.zoom[0]),
-                          origin.y + ((ed.positions[get_index(edge.u)].y +
-                                       ed.size.y / 2.f) *
-                                      ed.zoom[1]));
+                          origin.x +
+                            ((ed.positions[get_index(us)].x + ed.size.x / 2.f) *
+                             ed.zoom[0]),
+                          origin.y +
+                            ((ed.positions[get_index(us)].y + ed.size.y / 2.f) *
+                             ed.zoom[1]));
 
                         ImVec2 p2(
-                          origin.x + ((ed.positions[get_index(edge.v)].x +
-                                       ed.size.x / 2.f) *
-                                      ed.zoom[0]),
-                          origin.y + ((ed.positions[get_index(edge.v)].y +
-                                       ed.size.y / 2.f) *
-                                      ed.zoom[1]));
+                          origin.x +
+                            ((ed.positions[get_index(vs)].x + ed.size.x / 2.f) *
+                             ed.zoom[0]),
+                          origin.y +
+                            ((ed.positions[get_index(vs)].y + ed.size.y / 2.f) *
+                             ed.zoom[1]));
 
-                        if (is_line_intersects_box(p1, p2, bmin, bmax)) {
-                            ed.selected_edges.emplace_back(
-                              data.edges.get_id(edge));
-                        }
+                        if (is_line_intersects_box(p1, p2, bmin, bmax))
+                            ed.selected_edges.emplace_back(id);
                     }
                 }
             }
@@ -585,9 +585,8 @@ static void show_graph(application& app,
                            ImVec2(canvas_p1.x, canvas_p0.y + y),
                            IM_COL32(200, 200, 200, 40));
 
-    for (auto& vertex : data.children) {
-        const auto id = data.children.get_id(vertex);
-        const auto i  = get_index(id);
+    for (const auto id : data.nodes) {
+        const auto i = get_index(id);
 
         ImVec2 p_min(origin.x + (ed.positions[i].x * ed.zoom[0]),
                      origin.y + (ed.positions[i].y * ed.zoom[1]));
@@ -596,14 +595,11 @@ static void show_graph(application& app,
                      origin.y + ((ed.positions[i].y + ed.size.y) * ed.zoom[1]));
 
         draw_list->AddRectFilled(
-          p_min,
-          p_max,
-          to_ImU32(app.mod.component_colors[get_index(vertex.id)]));
+          p_min, p_max, to_ImU32(app.mod.component_colors[i]));
     }
 
-    for_specified_data(data.children, ed.selected_nodes, [&](auto& vertex) {
-        const auto id = data.children.get_id(vertex);
-        const auto i  = get_index(id);
+    for (const auto id : ed.selected_nodes) {
+        const auto i = get_index(id);
 
         ImVec2 p_min(origin.x + (ed.positions[i].x * ed.zoom[0]),
                      origin.y + (ed.positions[i].y * ed.zoom[1]));
@@ -613,17 +609,18 @@ static void show_graph(application& app,
 
         draw_list->AddRect(
           p_min, p_max, IM_COL32(255, 255, 255, 255), 0.f, 0, 4.f);
-    });
+    }
 
-    for (const auto& edge : data.edges) {
-        auto* u_c = data.children.try_to_get(edge.u);
-        auto* v_c = data.children.try_to_get(edge.v);
+    for (const auto id : data.edges) {
+        const auto i   = get_index(id);
+        const auto u_c = data.edges_nodes[i][0];
+        const auto v_c = data.edges_nodes[i][0];
 
-        if (u_c == nullptr or v_c == nullptr)
+        if (not(data.nodes.exists(u_c) and data.nodes.exists(v_c)))
             continue;
 
-        const auto p_src = get_index(edge.u);
-        const auto p_dst = get_index(edge.v);
+        const auto p_src = get_index(u_c);
+        const auto p_dst = get_index(v_c);
 
         ImVec2 src(
           origin.x + ((ed.positions[p_src].x + ed.size.x / 2.f) * ed.zoom[0]),
@@ -636,15 +633,16 @@ static void show_graph(application& app,
         draw_list->AddLine(src, dst, IM_COL32(200, 200, 200, 40), 1.0f);
     }
 
-    for_specified_data(data.edges, ed.selected_edges, [&](auto& edge) noexcept {
-        auto* u_c = data.children.try_to_get(edge.u);
-        auto* v_c = data.children.try_to_get(edge.v);
+    for (const auto id : ed.selected_edges) {
+        const auto idx = get_index(id);
+        const auto u_c = data.edges_nodes[idx][0];
+        const auto v_c = data.edges_nodes[idx][1];
 
-        if (u_c == nullptr or v_c == nullptr)
-            return;
+        if (not(data.nodes.exists(u_c) and data.nodes.exists(v_c)))
+            continue;
 
-        const auto p_src = get_index(edge.u);
-        const auto p_dst = get_index(edge.v);
+        const auto p_src = get_index(u_c);
+        const auto p_dst = get_index(v_c);
 
         ImVec2 src(
           origin.x + ((ed.positions[p_src].x + ed.size.x / 2.f) * ed.zoom[0]),
@@ -655,7 +653,7 @@ static void show_graph(application& app,
           origin.y + ((ed.positions[p_dst].y + ed.size.y / 2.f) * ed.zoom[1]));
 
         draw_list->AddLine(src, dst, IM_COL32(255, 0, 0, 255), 1.0f);
-    });
+    }
 
     if (ed.run_selection) {
         ed.end_selection = io.MousePos;
@@ -704,13 +702,13 @@ void graph_component_editor_data::show(component_editor& ed) noexcept
     debug::ensure(graph);
 
     if (positions.empty())
-        positions.resize(graph->children.capacity());
+        positions.resize(graph->nodes.size());
 
     if (displacements.empty())
-        positions.resize(graph->children.capacity());
+        positions.resize(graph->nodes.size());
 
     ImGui::TextFormatDisabled("graph-editor-data size: {}",
-                              graph->children.size());
+                              graph->nodes.size());
     ImGui::TextFormatDisabled("edges: {}", graph->edges.size());
     ImGui::TextFormatDisabled("positions: {} displacements: {}",
                               positions.size(),
@@ -724,8 +722,8 @@ void graph_component_editor_data::show(component_editor& ed) noexcept
         graph->resize(b1.second, selected_id);
         graph->update();
 
-        positions.resize(graph->children.capacity());
-        displacements.resize(graph->children.capacity());
+        positions.resize(graph->nodes.size());
+        displacements.resize(graph->nodes.size());
 
         selected_nodes.clear();
         selected_edges.clear();

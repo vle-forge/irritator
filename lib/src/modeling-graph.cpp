@@ -405,19 +405,25 @@ void graph_component::resize(const i32          children_size,
 }
 
 static void build_graph_connections(
-  modeling&                                          mod,
-  graph_component&                                   graph,
-  const table<graph_component::vertex_id, child_id>& vertex) noexcept
+  modeling&                             mod,
+  graph_component&                      graph,
+  const table<graph_node_id, child_id>& vertex) noexcept
 {
-    for (const auto& edge : graph.edges) {
-        const auto u = vertex.get(edge.u);
-        const auto v = vertex.get(edge.v);
+    for (const auto id : graph.edges) {
+        const auto idx  = get_index(id);
+        const auto u_id = graph.edges_nodes[idx][0];
+        const auto v_id = graph.edges_nodes[idx][1];
 
-        if (v and u) {
-            if (graph.type == graph_component::connection_type::name) {
-                named_connection_add(mod, graph, *u, *v);
-            } else {
-                in_out_connection_add(mod, graph, *u, *v);
+        if (graph.nodes.exists(u_id) and graph.nodes.exists(v_id)) {
+            const auto u = vertex.get(u_id);
+            const auto v = vertex.get(v_id);
+
+            if (u and v) {
+                if (graph.type == graph_component::connection_type::name) {
+                    named_connection_add(mod, graph, *u, *v);
+                } else {
+                    in_out_connection_add(mod, graph, *u, *v);
+                }
             }
         }
     }
@@ -431,8 +437,7 @@ status graph_component::build_cache(modeling& mod) noexcept
     if (not cache.can_alloc(nodes.size()))
         return new_error(
           graph_component::children_error{},
-          e_memory{ nodes.size(),
-                    static_cast<unsigned>(nodes.capacity()) });
+          e_memory{ nodes.size(), static_cast<unsigned>(nodes.capacity()) });
 
     const auto vec = build_graph_children(mod, *this);
     build_graph_connections(mod, *this, vec);
@@ -491,9 +496,9 @@ status modeling::copy(graph_component&   graph,
     return success();
 }
 
-bool graph_component::exists_input_connection(const port_id   x,
-                                              const vertex_id v,
-                                              const port_id   id) const noexcept
+bool graph_component::exists_input_connection(const port_id       x,
+                                              const graph_node_id v,
+                                              const port_id id) const noexcept
 {
     for (const auto& con : input_connections)
         if (con.id == id and con.x == x and con.v == v)
@@ -502,8 +507,8 @@ bool graph_component::exists_input_connection(const port_id   x,
     return false;
 }
 
-bool graph_component::exists_output_connection(const port_id   y,
-                                               const vertex_id v,
+bool graph_component::exists_output_connection(const port_id       y,
+                                               const graph_node_id v,
                                                const port_id id) const noexcept
 {
     for (const auto& con : output_connections)
@@ -514,9 +519,9 @@ bool graph_component::exists_output_connection(const port_id   y,
 }
 
 result<input_connection_id> graph_component::connect_input(
-  const port_id   x,
-  const vertex_id v,
-  const port_id   id) noexcept
+  const port_id       x,
+  const graph_node_id v,
+  const port_id       id) noexcept
 {
     if (exists_input_connection(x, v, id))
         return new_error(input_connection_error{}, already_exist_error{});
@@ -528,9 +533,9 @@ result<input_connection_id> graph_component::connect_input(
 }
 
 result<output_connection_id> graph_component::connect_output(
-  const port_id   y,
-  const vertex_id v,
-  const port_id   id) noexcept
+  const port_id       y,
+  const graph_node_id v,
+  const port_id       id) noexcept
 {
     if (exists_output_connection(y, v, id))
         return new_error(input_connection_error{}, already_exist_error{});
