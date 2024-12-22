@@ -215,13 +215,51 @@ static void named_connection_add(modeling&        mod,
     }
 }
 
-static void build_dot_file_edges(
-  graph_component& graph,
-  const graph_component::dot_file_param& /*params*/) noexcept
+static std::optional<std::filesystem::path> build_dot_filename(
+  const modeling&    mod,
+  const file_path_id id) noexcept
 {
-    // if (auto ret = parse_dot_file(graph); not ret) {
-    debug_log("parse_dot_file error");
-    //}
+    try {
+        if (auto* f = mod.file_paths.try_to_get(id); f) {
+            if (auto* d = mod.dir_paths.try_to_get(f->parent); d) {
+                if (auto* r = mod.registred_paths.try_to_get(d->parent); r) {
+                    return std::filesystem::path(r->path.sv()) / d->path.sv() /
+                           f->path.sv();
+                } else
+                    debug_log("registred_path not found");
+            } else
+                debug_log("dir_path not found");
+        } else
+            debug_log("file_path not found");
+    } catch (...) {
+        debug_log("not enough memory");
+    }
+
+    return std::nullopt;
+}
+
+static void build_dot_file_edges(
+  graph_component&                       graph,
+  const graph_component::dot_file_param& params) noexcept
+{
+    modeling mod;
+    if (auto file_opt = build_dot_filename(mod, params.file);
+        file_opt.has_value()) {
+        if (auto dot_graph = parse_dot_file(*file_opt); dot_graph.has_value()) {
+            graph.nodes = std::move(dot_graph->nodes);
+            graph.edges = std::move(dot_graph->edges);
+
+            graph.node_names     = std::move(dot_graph->node_names);
+            graph.node_ids       = std::move(dot_graph->node_ids);
+            graph.node_positions = std::move(dot_graph->node_positions);
+            graph.node_areas     = std::move(dot_graph->node_areas);
+            graph.edges_nodes    = std::move(dot_graph->edges_nodes);
+
+            graph.buffer = std::move(dot_graph->buffer);
+        } else
+            debug_log("parse_dot_file error");
+    } else
+        debug_log("file_dot_file error");
 }
 
 static void build_scale_free_edges(
