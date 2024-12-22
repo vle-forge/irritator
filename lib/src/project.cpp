@@ -549,8 +549,7 @@ static void get_input_models(vector<project::cache::model_port>& inputs,
         if (con.x != p)
             continue;
 
-        auto* vertex = graph.children.try_to_get(con.v);
-        if (not vertex)
+        if (not graph.nodes.exists(con.v))
             continue;
 
         const auto idx = get_index(con.v);
@@ -655,8 +654,7 @@ static void get_output_models(vector<project::cache::model_port>& outputs,
         if (con.y != p)
             continue;
 
-        auto* vertex = graph.children.try_to_get(con.v);
-        if (not vertex)
+        if (not graph.nodes.exists(con.v))
             continue;
 
         const auto idx = get_index(con.v);
@@ -1049,8 +1047,11 @@ public:
     {
         project::required_data ret;
 
-        for (const auto& v : g.children) {
-            const auto* sub_c = mod.components.try_to_get(v.id);
+        for (const auto id : g.nodes) {
+            const auto  idx = get_index(id);
+            const auto* sub_c =
+              mod.components.try_to_get(g.node_components[idx]);
+
             if (sub_c)
                 ret += compute(mod, *sub_c);
         }

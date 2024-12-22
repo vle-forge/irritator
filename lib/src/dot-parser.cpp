@@ -6,219 +6,187 @@
 
 #include "dot-parser.hpp"
 
+#include <charconv>
 #include <fstream>
 #include <istream>
-#include <numeric>
 #include <streambuf>
 #include <string_view>
 
+#include <fmt/color.h>
+#include <fmt/format.h>
+
 namespace irt {
-
-class streambuf_view : public std::streambuf
-{
-private:
-    using ios_base = std::ios_base;
-
-protected:
-    pos_type seekoff(off_type                            off,
-                     ios_base::seekdir                   dir,
-                     [[maybe_unused]] ios_base::openmode which =
-                       ios_base::in | ios_base::out) override
-    {
-        if (dir == ios_base::cur)
-            gbump(static_cast<int>(off));
-        else if (dir == ios_base::end)
-            setg(eback(), egptr() + off, egptr());
-        else if (dir == ios_base::beg)
-            setg(eback(), eback() + off, egptr());
-        return gptr() - eback();
-    }
-
-    pos_type seekpos(pos_type sp, ios_base::openmode which) override
-    {
-        return seekoff(sp - pos_type(off_type(0)), ios_base::beg, which);
-    }
-
-public:
-    streambuf_view(const char* s, std::size_t count) noexcept
-    {
-        auto p = const_cast<char*>(s);
-        setg(p, p, p + count);
-    }
-
-    streambuf_view(std::string_view str) noexcept
-      : streambuf_view(str.data(), str.size())
-    {}
-};
-
-class istring_view_stream
-  : private virtual streambuf_view
-  , public std::istream
-{
-public:
-    istring_view_stream(const std::string_view str)
-      : streambuf_view(str)
-      , std::istream(static_cast<std::streambuf*>(this))
-    {}
-};
-
-std::string_view string_buffer::append(std::string_view str) noexcept
-{
-    debug::ensure(not str.empty());
-    debug::ensure(str.size() < string_buffer_node_length);
-
-    if (m_container.empty() ||
-        str.size() + m_position > string_buffer_node_length)
-        do_alloc();
-
-    std::size_t position = m_position;
-    m_position += str.size();
-
-    char* buffer = m_container.front().data() + position;
-
-    std::copy_n(str.data(), str.size(), buffer);
-
-    return std::string_view(buffer, str.size());
-}
-
-std::size_t string_buffer::size() const noexcept
-{
-    return static_cast<std::size_t>(
-      std::distance(m_container.cbegin(), m_container.cend()));
-}
-
-void string_buffer::do_alloc() noexcept
-{
-    m_container.emplace_front();
-    m_position = 0;
-}
 
 //
 // dot-parser
 //
 
-auto dot_parser::search_node_linear(std::string_view name) const noexcept
-  -> std::optional<graph_component::vertex_id>
+enum class msg_id {
+    missing_token,
+    missing_strict_or_graph,
+    missing_graph_type,
+    unknown_graph_type,
+    missing_open_brace,
+    unknown_attribute,
+    missing_comma,
+    parse_real,
+    undefined_slash_symbol,
+};
+
+static constexpr std::string_view msg_fmt[] = {
+    "missing token at line {}",
+    "missing strict or graph type at line {}",
+    "missing graph type at line {}",
+    "unknown graph type `{}' at line {}",
+    "missing open brace at line {}",
+    "unknwon attribute `{}' = `{}' at line {}",
+    "missing comma character in `{}'",
+    "fail to parse `{}' to read a float",
+    "undefined `/{}' sequence at line {}"
+};
+
+template<msg_id Index, typename... Args>
+static constexpr void warning(Args&&... args) noexcept
 {
-    for (auto i = 0, e = nodes.ssize(); i != e; ++i)
-        if (nodes[i].name == name)
-            return nodes[i].id;
+    constexpr auto idx = static_cast<std::underlying_type_t<msg_id>>(Index);
+    static_assert(0 <= idx and idx < std::size(msg_fmt));
+
+    fmt::vprint(stderr, msg_fmt[idx], fmt::make_format_args(args...));
+}
+
+template<msg_id Index, typename Ret, typename... Args>
+static constexpr auto error(Ret&& ret, Args&&... args) noexcept -> Ret
+{
+    constexpr auto idx = static_cast<std::underlying_type_t<msg_id>>(Index);
+    static_assert(0 <= idx and idx < std::size(msg_fmt));
+
+    fmt::vprint(stderr,
+                fg(fmt::terminal_color::red),
+                msg_fmt[idx],
+                fmt::make_format_args(args...));
+
+    return ret;
+}
+
+static auto to_float_str(std::string_view str) noexcept
+  -> std::optional<std::pair<float, std::string_view>>
+{
+    auto f = 0.f;
+    if (auto ret = std::from_chars(str.data(), str.data() + str.size(), f);
+        ret.ec == std::errc{})
+        return std::make_pair(f, str.substr(ret.ptr - str.data()));
 
     return std::nullopt;
 }
 
-auto dot_parser::search_node(std::string_view name) const noexcept
-  -> std::optional<graph_component::vertex_id>
+static auto to_float(std::string_view str) noexcept -> float
 {
-    auto it = binary_find(
-      nodes.begin(),
-      nodes.end(),
-      name,
-      [](auto left, auto right) noexcept -> bool {
-          if constexpr (std::is_same_v<decltype(left), std::string_view>)
-              return left < right.name;
-          else
-              return left.name < right;
-      });
+    auto f = 0.f;
+    if (auto ret = std::from_chars(str.data(), str.data() + str.size(), f);
+        ret.ec == std::errc{})
+        return f;
 
-    return it == nodes.end() ? std::nullopt : std::make_optional(it->id);
+    return 0.f;
 }
 
-void dot_parser::sort() noexcept
+static auto to_2float(std::string_view str) noexcept -> std::array<float, 2>
 {
-    std::sort(nodes.begin(),
-              nodes.end(),
-              [](const auto& left, const auto& right) noexcept {
-                  return left.name < right.name;
-              });
-}
+    if (const auto first = to_float_str(str); first.has_value()) {
+        const auto& [first_float, substr] = *first;
 
-//
-// parsing function
-//
+        if (not substr.empty() and substr[0] == ',') {
+            const auto second = substr.substr(1u, std::string_view::npos);
 
-static constexpr bool are_equal(const std::string_view lhs,
-                                const std::string_view rhs) noexcept
-{
-    if (rhs.size() != lhs.size())
-        return false;
-
-    std::string_view::size_type i = 0;
-    std::string_view::size_type e = lhs.size();
-
-    for (; i != e; ++i)
-        if (std::tolower(lhs[i]) != std::tolower(rhs[i]))
-            return false;
-
-    return true;
-}
-
-// static const std::string_view keywords[] = {
-//     "digraph", "edge", "graph", "node", "strict", "subgraph",
-// };
-
-// static constexpr bool is_keyword(const std::string_view str) noexcept
-// {
-//     return std::binary_search(
-//       std::begin(keywords), std::end(keywords), str, are_equal);
-// }
-
-static constexpr bool is_separator(const int c) noexcept
-{
-    switch (c) {
-    case '[':
-    case ']':
-    case ';':
-    case ',':
-    case ':':
-    case '=':
-    case '-':
-    case '>':
-    case '{':
-    case '}':
-        return true;
-
-    default:
-        return false;
+            if (const auto second_float = to_float(second))
+                return std::array<float, 2>{ first_float, second_float };
+            else
+                warning<msg_id::parse_real>(second);
+        } else {
+            warning<msg_id::missing_comma>(substr);
+        }
     }
+
+    return std::array<float, 2>{};
 }
 
-static constexpr bool starts_as_id(const int c) noexcept
+enum class element_type : irt::u16 {
+    none,
+
+    digraph,
+    edge,
+    graph,
+    node,
+    strict,
+    subgraph,
+
+    id,
+    integer,
+    double_quote,
+
+    opening_brace,   // {
+    closing_brace,   // }
+    colon,           // :
+    comma,           // ,
+    semicolon,       // ;
+    equals,          // =
+    opening_bracket, // [
+    closing_bracket, // ]
+    directed_edge,   // ->
+    undirected_edge, // --
+};
+
+static constexpr std::string_view element_type_string[] = {
+    "{}",     "digraph",  "edge", "graph",   "node",
+    "strict", "subgraph", "id",   "integer", "double_quote",
+    "{",      "}",        ":",    ".",       ";",
+    "=",      "[",        "]",    "->",      "--",
+};
+
+enum class str_id : irt::u32;
+
+struct token {
+    element_type type = element_type::none;
+    str_id       str  = irt::undefined<str_id>();
+
+    constexpr bool is_string() const noexcept
+    {
+        return irt::any_equal(type,
+                              element_type::id,
+                              element_type::integer,
+                              element_type::double_quote);
+    }
+
+    constexpr bool operator[](const element_type t) const noexcept
+    {
+        return type == t;
+    }
+};
+
+static element_type convert_to_element_type(const std::string_view str) noexcept
+{
+    static constexpr std::string_view strs[] = {
+        "digraph", "edge", "graph", "node", "strict", "subgraph",
+    };
+
+    static constexpr element_type types[] = {
+        element_type::digraph, element_type::edge,   element_type::graph,
+        element_type::node,    element_type::strict, element_type::subgraph,
+    };
+
+    const auto beg = std::begin(strs);
+    const auto end = std::end(strs);
+    const auto it  = irt::binary_find(beg, end, str);
+
+    return it != end ? types[std::distance(beg, it)] : element_type::id;
+}
+
+static constexpr bool starts_as_id(int c) noexcept
 {
     return ('a' <= c and c <= 'z') or ('A' <= c and c <= 'Z') or
            ('\200' <= c and c <= '\377') or (c == '_');
 }
 
-static constexpr bool starts_as_id(const std::string_view str) noexcept
-{
-    return not str.empty() and starts_as_id(str[0]);
-}
-
-static constexpr bool next_char_is_id(const int c) noexcept
-{
-    return ('a' <= c and c <= 'z') or ('A' <= c and c <= 'Z') or
-           ('\200' <= c and c <= '\377') or ('0' <= c and c <= '9') or
-           (c == '_');
-}
-
-static constexpr bool next_is_id(const std::string_view str) noexcept
-{
-    const auto len = str.size();
-
-    if (len == 0)
-        return false;
-
-    if (not starts_as_id(str[0]))
-        return false;
-
-    for (std::size_t i = 1; i < len; ++i)
-        if (not next_char_is_id(str[i]))
-            return false;
-
-    return true;
-}
-
-static constexpr bool starts_as_number(const int c) noexcept
+static constexpr bool starts_as_number(int c) noexcept
 {
     switch (c) {
     case '-':
@@ -240,369 +208,706 @@ static constexpr bool starts_as_number(const int c) noexcept
     }
 }
 
-// static constexpr bool starts_as_number(const std::string_view str) noexcept
-// {
-//     return not str.empty() and starts_as_number(str[0]);
-// }
-
-static constexpr bool next_char_is_number(const int c) noexcept
-{
-    switch (c) {
-    case '.':
-    case '0':
-    case '1':
-    case '2':
-    case '3':
-    case '4':
-    case '5':
-    case '6':
-    case '7':
-    case '8':
-    case '9':
-        return true;
-
-    default:
-        return false;
-    }
-}
-
-// static constexpr bool next_is_number(const std::string_view str) noexcept
-// {
-//     const auto len = str.size();
-
-//     if (len == 0)
-//         return false;
-
-//     if (not starts_as_number(str[0]))
-//         return false;
-
-//     for (std::size_t i = 1; i < len; ++i)
-//         if (not next_char_is_number(str[i]))
-//             return false;
-
-//     return true;
-// }
-
-class stream_buffer
+class input_stream_buffer
 {
 public:
-    constexpr static int stream_buffer_size = 10;
+    static constexpr int ring_length = 32;
 
-    using string_view_array = std::array<std::string_view, stream_buffer_size>;
+    using token_ring_t = irt::small_ring_buffer<token, ring_length>;
 
-    stream_buffer(std::istream& is_)
-      : is(is_)
+    irt::id_array<str_id, irt::default_allocator> strings_ids;
+    irt::vector<std::string>                      strings;
+
+    token_ring_t  tokens;
+    std::istream& is;
+    irt::i64      line = 0;
+
+    irt::id_array<graph_node_id, irt::default_allocator> nodes;
+    irt::id_array<graph_edge_id, irt::default_allocator> edges;
+
+    irt::vector<std::string_view>             node_names;
+    irt::vector<int>                          node_ids;
+    irt::vector<std::array<float, 2>>         node_positions;
+    irt::vector<float>                        node_areas;
+    irt::vector<std::array<graph_node_id, 2>> edges_nodes;
+
+    irt::table<std::string_view, graph_node_id> name_to_node_id;
+    bool                                        sort_before_search = false;
+
+    irt::string_buffer buffer;
+
+    std::string main_id;
+    bool        is_strict  = false;
+    bool        is_graph   = false;
+    bool        is_digraph = false;
+
+    /** Default is to fill the token ring buffer from the @c std::istream.
+     *  @param stream The default input stream.
+     *  @param start_fill_tokens Start the parsing/tokenizing in constructor.
+     */
+    explicit input_stream_buffer(std::istream& stream,
+                                 bool start_fill_tokens = true) noexcept
+      : strings_ids(64)
+      , strings(64)
+      , is(stream)
     {
-        for (int i = 0; i != stream_buffer_size; ++i)
-            buffer_ptr[i] = next_token();
+        strings.resize(strings_ids.capacity());
+
+        if (start_fill_tokens)
+            fill_tokens();
     }
-
-    void pop_front()
-    {
-        auto tmp = buffer_ptr[0];
-
-        buffer_ptr[0] = buffer_ptr[1];
-        buffer_ptr[1] = buffer_ptr[2];
-        buffer_ptr[2] = buffer_ptr[3];
-        buffer_ptr[3] = buffer_ptr[4];
-        buffer_ptr[4] = buffer_ptr[5];
-        buffer_ptr[5] = buffer_ptr[6];
-        buffer_ptr[6] = buffer_ptr[7];
-        buffer_ptr[7] = buffer_ptr[8];
-        buffer_ptr[8] = buffer_ptr[9];
-        buffer_ptr[9] = tmp;
-
-        do_push_back(1);
-    }
-
-    void pop_front(int size)
-    {
-        debug::ensure(size >= 1 && size < stream_buffer_size);
-
-        auto tmp = buffer_ptr[0];
-
-        buffer_ptr[0] = buffer_ptr[(size + 0) % stream_buffer_size];
-        buffer_ptr[1] = buffer_ptr[(size + 1) % stream_buffer_size];
-        buffer_ptr[2] = buffer_ptr[(size + 2) % stream_buffer_size];
-        buffer_ptr[3] = buffer_ptr[(size + 3) % stream_buffer_size];
-        buffer_ptr[4] = buffer_ptr[(size + 4) % stream_buffer_size];
-        buffer_ptr[5] = buffer_ptr[(size + 5) % stream_buffer_size];
-        buffer_ptr[6] = buffer_ptr[(size + 6) % stream_buffer_size];
-        buffer_ptr[7] = buffer_ptr[(size + 7) % stream_buffer_size];
-        buffer_ptr[8] = buffer_ptr[(size + 8) % stream_buffer_size];
-        buffer_ptr[9] = tmp;
-
-        do_push_back(size);
-    }
-
-    void print(const std::string_view msg) const
-    {
-        debug_log(msg);
-        for (int i = 0; i < stream_buffer_size; ++i)
-            debug_log("[{}: ({})]", i, buffer_ptr[i]);
-        debug_log("\n");
-    }
-
-    const std::array<std::string_view, stream_buffer_size> array()
-      const noexcept
-    {
-        return buffer_ptr;
-    }
-
-    bool empty() const noexcept { return buffer_ptr[0].empty(); }
-
-    constexpr std::string_view first() const noexcept { return buffer_ptr[0]; }
-
-    constexpr std::string_view second() const noexcept { return buffer_ptr[1]; }
-
-    constexpr std::string_view third() const noexcept { return buffer_ptr[2]; }
-
-    constexpr std::string_view fourth() const noexcept { return buffer_ptr[3]; }
 
 private:
-    struct stream_token {
-        char        buffer[512] = { '\0' };
-        std::size_t current     = 0;
-    };
-
-    std::array<std::string_view, stream_buffer_size> buffer_ptr;
-    std::array<stream_token, stream_buffer_size>     token;
-    std::istream&                                    is;
-    int                                              current_token_buffer = 0;
-
-    void do_push_back(int size)
+    constexpr auto find_or_add_node(std::string_view name) noexcept
+      -> graph_node_id
     {
-        debug::ensure(size > 0 && size <= stream_buffer_size);
-
-        for (int i = stream_buffer_size - size; i < stream_buffer_size; ++i)
-            buffer_ptr[i] = next_token();
-    }
-
-    std::string_view next_token() noexcept
-    {
-        if (token[current_token_buffer]
-              .buffer[token[current_token_buffer].current] == '\0') {
-            current_token_buffer =
-              (current_token_buffer + 1) % stream_buffer_size;
-            if (!is.good())
-                return std::string_view();
-
-            token[current_token_buffer].buffer[0] = '\0';
-            while (is >> token[current_token_buffer].buffer) {
-                if (token[current_token_buffer].buffer[0] == '\\') {
-                    is.ignore(std::numeric_limits<std::streamsize>::max(),
-                              '\n');
-                    continue;
-                }
-
-                if (token[current_token_buffer].buffer[0] == '\0')
-                    continue;
-
-                break;
-            }
-
-            token[current_token_buffer].current = 0;
-            if (token[current_token_buffer].buffer[0] == '\0')
-                return std::string_view();
+        if (sort_before_search) {
+            name_to_node_id.sort();
+            sort_before_search = false;
         }
 
-        if (token[current_token_buffer]
-              .buffer[token[current_token_buffer].current] == '\0')
-            return std::string_view();
+        if (auto* found = name_to_node_id.get(name); found)
+            return *found;
 
-        bool starts_with_number =
-          starts_as_number(token[current_token_buffer]
-                             .buffer[token[current_token_buffer].current]);
-
-        std::size_t start = token[current_token_buffer].current++;
-
-        if (is_separator(token[current_token_buffer].buffer[start]))
-            return std::string_view(&token[current_token_buffer].buffer[start],
-                                    1);
-
-        if (token[current_token_buffer]
-              .buffer[token[current_token_buffer].current] == '\0')
-            return std::string_view(&token[current_token_buffer].buffer[start],
-                                    1);
-
-        while (token[current_token_buffer]
-                 .buffer[token[current_token_buffer].current] != '\0') {
-            if (is_separator(token[current_token_buffer]
-                               .buffer[token[current_token_buffer].current]))
-                break;
-
-            if (starts_with_number &&
-                !next_char_is_number(
-                  token[current_token_buffer]
-                    .buffer[token[current_token_buffer].current]))
-                break;
-
-            ++token[current_token_buffer].current;
+        if (not nodes.can_alloc(1)) {
+            const auto c = nodes.capacity() == 0 ? 64 : nodes.capacity() * 2;
+            nodes.reserve(c);
+            node_names.resize(c);
+            node_ids.resize(c);
+            node_positions.resize(c);
+            node_areas.resize(c);
         }
 
-        return std::string_view(&token[current_token_buffer].buffer[start],
-                                token[current_token_buffer].current - start);
-    }
-};
+        const auto id  = nodes.alloc();
+        const auto idx = irt::get_index(id);
 
-void try_read_strict(stream_buffer& buf,
-                     dot_parser& /*dot*/,
-                     graph_component& /*graph*/) noexcept
-{
-    if (not buf.empty() and are_equal(buf.first(), "strict"))
-        buf.pop_front();
-}
+        node_names[idx]     = buffer.append(name);
+        node_ids[idx]       = 0;
+        node_positions[idx] = { 0.f, 0.f };
+        node_areas[idx]     = 0.f;
+        name_to_node_id.data.emplace_back(node_names[idx], id);
+        sort_before_search = true;
 
-result<dot_parser::graph> read_graph_or_digraph(
-  stream_buffer& buf,
-  dot_parser& /*dot*/,
-  graph_component& /*graph*/) noexcept
-{
-    if (not buf.empty()) {
-        if (are_equal(buf.first(), "graph")) {
-            buf.pop_front();
-            return dot_parser::graph::graph;
-        }
-
-        if (are_equal(buf.first(), "digraph")) {
-            buf.pop_front();
-            return dot_parser::graph::digraph;
-        }
-    }
-
-    return new_error(dot_parser::read_graph_or_digraph_error{});
-}
-
-static constexpr bool next_is_edgeop(stream_buffer& buf) noexcept
-{
-    return buf.first() == "-" and (buf.second() == ">" or buf.second() == "-");
-}
-
-static constexpr bool is_next_main_curly_brace_close(
-  stream_buffer& buf,
-  dot_parser& /*dot*/,
-  graph_component& /*graph*/) noexcept
-{
-    return buf.first() == "}";
-}
-
-static status read_main_id(stream_buffer& buf,
-                           dot_parser&    dot,
-                           graph_component& /*graph*/) noexcept
-{
-    if (next_is_id(buf.first())) {
-        dot.id = dot.buffer.append(buf.first());
-        buf.pop_front();
-        return success();
-    }
-
-    return new_error(dot_parser::read_main_id_error{});
-}
-
-static auto read_id(stream_buffer&   buf,
-                    dot_parser&      dot,
-                    graph_component& graph) noexcept
-  -> result<graph_component::vertex_id>
-{
-    if (starts_as_id(buf.first())) {
-        graph_component::vertex_id id;
-        if (auto id_opt = dot.search_node_linear(buf.first());
-            id_opt.has_value()) {
-            id = *id_opt;
-        } else {
-            auto& n = graph.children.alloc(undefined<component_id>());
-            id      = graph.children.get_id(n);
-            n.name  = buf.first();
-            dot.nodes.emplace_back(dot.buffer.append(buf.first()), id);
-        }
-
-        buf.pop_front();
         return id;
     }
 
-    return new_error(dot_parser::read_id_error{});
-}
+    constexpr auto find_node(std::string_view name) noexcept -> graph_node_id
+    {
+        if (sort_before_search) {
+            name_to_node_id.sort();
+            sort_before_search = false;
+        }
 
-static status read_main_curly_brace_open(stream_buffer& buf,
-                                         dot_parser& /*dot*/,
-                                         graph_component& /*graph*/) noexcept
-{
-    if (buf.first() != "{")
-        return new_error(dot_parser::missing_curly_brace_error{});
-
-    buf.pop_front();
-
-    return success();
-}
-
-static auto read_edgeop(stream_buffer& buf,
-                        dot_parser& /*dot*/,
-                        graph_component& /*graph*/) noexcept
-  -> result<dot_parser::edgeop>
-{
-    if (buf.first() == "-" and buf.second() == ">") {
-        buf.pop_front();
-        buf.pop_front();
-        return dot_parser::edgeop::directed;
+        const auto* found = name_to_node_id.get(name);
+        return found ? *found : irt::undefined<graph_node_id>();
     }
 
-    if (buf.first() == "-" and buf.second() == "-") {
-        buf.pop_front();
-        buf.pop_front();
-        return dot_parser::edgeop::undirected;
+    void grow_strings() noexcept
+    {
+        const auto capacity = strings_ids.capacity();
+
+        strings_ids.reserve(capacity < 64 ? 64 : capacity * 4);
+        strings.resize(strings_ids.capacity());
     }
 
-    return new_error(dot_parser::read_edgeop_error{});
-}
+    token read_negative_integer() noexcept
+    {
+        if (not strings_ids.can_alloc(1))
+            grow_strings();
 
-status parse(stream_buffer&   buf,
-             dot_parser&      dot,
-             graph_component& graph) noexcept
-{
-    dot_parser dp;
+        const auto id  = strings_ids.alloc();
+        auto&      str = strings[irt::get_index(id)];
+        char       c;
+        str.clear();
+        str += '-';
 
-    try_read_strict(buf, dot, graph);
+        while (is.get(c)) {
+            if (c == '.' or c == '-' or ('0' <= c and c <= '9')) {
+                str += c;
+            } else {
+                is.unget();
+                break;
+            }
+        }
 
-    irt_auto(type, read_graph_or_digraph(buf, dot, graph));
-    dp.type = type;
+        return token{ .type = element_type::integer, .str = id };
+    }
 
-    if (starts_as_id(buf.first()))
-        irt_check(read_main_id(buf, dot, graph));
+    token read_integer() noexcept
+    {
+        if (not strings_ids.can_alloc(1))
+            grow_strings();
 
-    irt_check(read_main_curly_brace_open(buf, dot, graph));
+        const auto id  = strings_ids.alloc();
+        auto&      str = strings[irt::get_index(id)];
+        char       c;
+        str.clear();
 
-    while (not is_next_main_curly_brace_close(buf, dot, graph)) {
-        irt_auto(id_lhs, read_id(buf, dot, graph));
+        while (is.get(c)) {
+            if (c == '.' or c == '-' or ('0' <= c and c <= '9')) {
+                str += c;
+            } else {
+                is.unget();
+                break;
+            }
+        }
 
-        if (next_is_edgeop(buf)) {
-            irt_auto(op, read_edgeop(buf, dot, graph));
-            irt_auto(id_rhs, read_id(buf, dot, graph));
-            graph.edges.alloc(id_lhs, id_rhs);
-            if (op == dot_parser::edgeop::undirected)
-                graph.edges.alloc(id_rhs, id_lhs);
+        return token{ .type = element_type::integer, .str = id };
+    }
+
+    token read_id() noexcept
+    {
+        if (not strings_ids.can_alloc(1))
+            grow_strings();
+
+        const auto id  = strings_ids.alloc();
+        auto&      str = strings[irt::get_index(id)];
+        char       c;
+        str.clear();
+
+        while (is.get(c)) {
+            if (('a' <= c and c <= 'z') or ('A' <= c and c <= 'Z') or
+                ('\200' <= static_cast<int>(c) and
+                 static_cast<int>(c) <= '\377') or
+                ('0' <= c and c <= '9') or (c == '_')) {
+                str += static_cast<char>(c);
+            } else {
+                is.unget();
+                break;
+            }
+        }
+
+        return token{ .type = element_type::id, .str = id };
+    }
+
+    token read_double_quote() noexcept
+    {
+        if (not strings.can_alloc(1))
+            grow_strings();
+
+        const auto id  = strings_ids.alloc();
+        auto&      str = strings[irt::get_index(id)];
+        char       c;
+        str.clear();
+
+        while (is.get(c)) {
+            if (c != '\"') {
+                str += static_cast<char>(c);
+            } else {
+                break;
+            }
+        }
+
+        return token{ .type = element_type::double_quote, .str = id };
+    }
+
+    /** Continue to read characters from input stream until the string \*\/ is
+     * found. */
+    void forget_c_comment() noexcept
+    {
+        char c;
+
+        while (is.get(c))
+            if (c == '*' and is.get(c) and c == '/')
+                return;
+    }
+
+    /** Continue to read characters from input stream until the end of line
+     * is found. */
+    void forget_cpp_comment() noexcept
+    {
+        char c;
+
+        while (is.get(c))
+            if (c == '\n')
+                return;
+    }
+
+    /** Continue to read characters from input stream until the end of line
+     * is found. */
+    void forget_line() noexcept
+    {
+        char c;
+
+        while (is.get(c))
+            if (c == '\n')
+                return;
+    }
+
+    /** Returns the element of token ring buffer. If the buffer is empty,
+     * read the @c std::istream. If the @c std::istream is empty and token
+     * ring buffer is empty,  the @c element_type::none token is returned.
+     */
+    token pop_token() noexcept
+    {
+        if (tokens.empty()) // If the ring buffer is empty, fills the ring
+            fill_tokens();  // buffer from the stream.
+
+        if (tokens.empty()) // If the ring buffer is empty return none.
+            return token{ .type = element_type::none };
+
+        const auto head = *tokens.head();
+        tokens.pop_head();
+
+        return head;
+    }
+
+    /** Returns true if the next element in the ring buffer is @c type.
+     * otherwise returns false. */
+    bool next_token_is(const element_type type) noexcept
+    {
+        if (tokens.empty())
+            fill_tokens();
+
+        if (tokens.empty())
+            return false;
+
+        return tokens.head()->operator[](type);
+    }
+
+    /** Returns true if the next element in the ring buffer is @c type.
+     * otherwise returns false. */
+    bool next_token_is_string() noexcept
+    {
+        if (tokens.empty())
+            fill_tokens();
+
+        if (tokens.empty())
+            return false;
+
+        return tokens.head()->is_string();
+    }
+
+    void fill_tokens() noexcept
+    {
+        char c, c2;
+
+        while (not tokens.full() and is.get(c)) {
+            if (c == '\n') {
+                line++;
+            } else if (c == '#') {
+                forget_line();
+            } else if (c == '/') {
+                if (is.get(c2)) {
+                    if (c2 == '*')
+                        forget_c_comment();
+                    else if (c2 == '/')
+                        forget_cpp_comment();
+                    else {
+                        is.unget();
+                        warning<msg_id::undefined_slash_symbol>(c2, line);
+                    }
+                }
+            } else if (c == '\t' or c == ' ') {
+            } else if (c == '-') {
+                if (is.get(c2)) {
+                    if (c2 == '-')
+                        tokens.emplace_tail(element_type::undirected_edge);
+                    else if (c2 == '>')
+                        tokens.emplace_tail(element_type::directed_edge);
+                    else {
+                        is.unget();
+                        tokens.emplace_tail(read_negative_integer());
+                    }
+                }
+            } else if (starts_as_id(c)) {
+                is.unget();
+                tokens.emplace_tail(read_id());
+            } else if (starts_as_number(c)) {
+                is.unget();
+                tokens.emplace_tail(read_integer());
+            } else if (c == '\"') {
+                tokens.emplace_tail(read_double_quote());
+            } else if (c == '{') {
+                tokens.emplace_tail(element_type::opening_brace);
+            } else if (c == '}') {
+                tokens.emplace_tail(element_type::closing_brace);
+            } else if (c == '[') {
+                tokens.emplace_tail(element_type::opening_bracket);
+            } else if (c == ']') {
+                tokens.emplace_tail(element_type::closing_bracket);
+            } else if (c == ';') {
+                tokens.emplace_tail(element_type::semicolon);
+            } else if (c == ':') {
+                tokens.emplace_tail(element_type::colon);
+            } else if (c == ',') {
+                tokens.emplace_tail(element_type::comma);
+            } else if (c == '=') {
+                tokens.emplace_tail(element_type::equals);
+            }
         }
     }
 
-    return success();
+    bool empty() const noexcept
+    {
+        return tokens.empty() and (is.eof() or is.bad());
+    }
+
+    bool check_minimum_tokens(std::integral auto nb) noexcept
+    {
+        if (std::cmp_greater_equal(tokens.size(), nb))
+            return true;
+
+        fill_tokens();
+
+        return std::cmp_greater_equal(tokens.size(), nb);
+    }
+
+    void print_ring(const std::string_view title) const noexcept
+    {
+        fmt::print("{}\n ", title);
+        for (auto it = tokens.head(), et = tokens.tail(); it != et; ++it) {
+            if (it->is_string())
+                fmt::print(" `{}'", strings[irt::get_index(it->str)]);
+            else
+                fmt::print(" {}",
+                           element_type_string[static_cast<int>(it->type)]);
+        }
+        fmt::print("\n");
+    }
+
+    bool next_is_edge() noexcept
+    {
+        if (not check_minimum_tokens(2))
+            return false;
+
+        auto        it     = tokens.head();
+        const auto& first  = *it++;
+        const auto& second = *it++;
+
+        return first.is_string() and (second[element_type::directed_edge] or
+                                      second[element_type::undirected_edge]);
+    }
+
+    bool next_is_attributes() noexcept
+    {
+        if (not check_minimum_tokens(2))
+            return false;
+
+        auto        it     = tokens.head();
+        const auto& first  = *it++;
+        const auto& second = *it++;
+
+        return first[element_type::opening_bracket] and
+               (second[element_type::closing_bracket] or second.is_string());
+    }
+
+    bool parse_attributes(const graph_node_id id) noexcept
+    {
+        if (not check_minimum_tokens(1))
+            return false;
+
+        auto bracket = pop_token();
+        if (not bracket[element_type::opening_bracket])
+            return false;
+
+        for (;;) {
+            if (not check_minimum_tokens(1))
+                return false;
+
+            auto left = pop_token();
+            if (left[element_type::closing_bracket])
+                return true;
+
+            if (not check_minimum_tokens(3))
+                return false;
+
+            if (not left.is_string())
+                return false;
+
+            auto middle = pop_token();
+            if (not middle[element_type::equals])
+                return false;
+
+            auto right = pop_token();
+            if (not right.is_string())
+                return false;
+
+            const auto left_str  = get_and_free_string(left);
+            const auto right_str = get_and_free_string(right);
+
+            if (left_str == "area") {
+                node_areas[irt::get_index(id)] = to_float(right_str);
+            } else if (left_str == "pos") {
+                node_positions[irt::get_index(id)] = to_2float(right_str);
+            } else {
+                warning<msg_id::unknown_attribute>(left_str, right_str, line);
+            }
+
+            auto close_backet_or_comma = pop_token();
+            if (close_backet_or_comma[element_type::comma] or
+                close_backet_or_comma[element_type::semicolon]) {
+                continue;
+            } else if (close_backet_or_comma[element_type::closing_bracket]) {
+                return true;
+            } else {
+                return false;
+            }
+        }
+    }
+
+    bool parse_attributes(const graph_edge_id /*id*/) noexcept { return true; }
+
+    bool parse_edge() noexcept
+    {
+        if (not check_minimum_tokens(3))
+            return false;
+
+        const auto from = pop_token();
+        if (not from.is_string())
+            return false;
+
+        const auto from_str = get_and_free_string(from);
+        const auto from_id  = find_or_add_node(from_str);
+
+        const auto type = pop_token();
+        if (not(type.type == element_type::directed_edge or
+                type.type == element_type::undirected_edge))
+            return false;
+
+        const auto to = pop_token();
+        if (not to.is_string())
+            return false;
+
+        const auto to_str = get_and_free_string(to);
+        const auto to_id  = find_or_add_node(to_str);
+
+        if (not edges.can_alloc(1)) {
+            const auto c = edges.capacity() == 0 ? 64 : edges.capacity() * 2;
+            edges.reserve(c);
+            edges_nodes.resize(c);
+        }
+
+        const auto new_edge_id                   = edges.alloc();
+        edges_nodes[irt::get_index(new_edge_id)] = { from_id, to_id };
+
+        return next_is_attributes() ? parse_attributes(new_edge_id) : true;
+    }
+
+    bool parse_node() noexcept
+    {
+        if (not check_minimum_tokens(1))
+            return false;
+
+        const auto node_id = pop_token();
+        if (not node_id.is_string())
+            return false;
+
+        const auto str = get_and_free_string(node_id);
+        const auto id  = find_or_add_node(str);
+
+        return next_is_attributes() ? parse_attributes(id) : true;
+    }
+
+    bool parse_stmt_list() noexcept
+    {
+        if (not check_minimum_tokens(2))
+            return false;
+
+        const auto open = pop_token();
+        if (not open[element_type::opening_brace])
+            return false;
+
+        while (check_minimum_tokens(1)) {
+            if (next_token_is(element_type::closing_brace)) {
+                pop_token();
+                return true;
+            }
+
+            const auto success = next_is_edge() ? parse_edge() : parse_node();
+            if (not success)
+                return false;
+        }
+
+        if (not check_minimum_tokens(1))
+            return false;
+
+        auto closing = pop_token();
+        return closing.type == element_type::closing_brace;
+    }
+
+    bool parse_graph_type(const token type) noexcept
+    {
+        if (not type.is_string())
+            return error<msg_id::missing_graph_type>(false, line);
+
+        const auto s = get_and_free_string(type);
+        return parse_graph_type(s);
+    }
+
+    bool parse_graph_type(const std::string_view type) noexcept
+    {
+        if (type == "graph")
+            is_graph = true;
+        else if (type == "digraph")
+            is_digraph = true;
+        else
+            return error<msg_id::unknown_graph_type>(false, type, line);
+
+        return true;
+    }
+
+    bool parse_graph() noexcept
+    {
+        if (not check_minimum_tokens(1))
+            return false;
+
+        const auto strict_or_graph = pop_token();
+        if (not strict_or_graph.is_string())
+            return error<msg_id::missing_strict_or_graph>(false, line);
+
+        const auto s = get_and_free_string(strict_or_graph);
+
+        if (s == "strict") {
+            is_strict = true;
+
+            if (not check_minimum_tokens(1))
+                return false;
+
+            const auto graph_type = pop_token();
+            if (not parse_graph_type(graph_type))
+                return false;
+        } else {
+            if (not parse_graph_type(s))
+                return false;
+        }
+
+        if (not check_minimum_tokens(1))
+            return false;
+
+        if (next_token_is_string()) {
+            const auto m_id = pop_token();
+            main_id         = get_and_free_string(m_id);
+        }
+
+        return check_minimum_tokens(1) ? parse_stmt_list() : true;
+    }
+
+    const std::string& get_and_free_string(const token t) noexcept
+    {
+        irt::debug::ensure(t.is_string());
+
+        const auto idx = irt::get_index(t.str);
+        strings_ids.free(t.str);
+
+        return strings[idx];
+    }
+
+public:
+    std::optional<dot_graph> parse() noexcept
+    {
+        fill_tokens();
+
+        if (parse_graph())
+            return dot_graph{
+                .nodes = std::move(nodes),
+                .edges = std::move(edges),
+
+                .node_names     = std::move(node_names),
+                .node_ids       = std::move(node_ids),
+                .node_positions = std::move(node_positions),
+                .node_areas     = std::move(node_areas),
+                .edges_nodes    = std::move(edges_nodes),
+
+                .buffer = std::move(buffer),
+
+                .main_id = std::move(main_id),
+
+                .is_strict  = is_strict,
+                .is_graph   = is_graph,
+                .is_digraph = is_digraph,
+            };
+
+        return std::nullopt;
+    }
+
+    // https://graphviz.org/doc/info/lang.html
+    // https://www.ascii-code.com/ASCII
+};
+
+std::optional<dot_graph> parse_dot_buffer(
+  const std::string_view buffer) noexcept
+{
+    class streambuf_view : public std::streambuf
+    {
+    private:
+        using ios_base = std::ios_base;
+
+    protected:
+        pos_type seekoff(off_type                            off,
+                         ios_base::seekdir                   dir,
+                         [[maybe_unused]] ios_base::openmode which =
+                           ios_base::in | ios_base::out) override
+        {
+            if (dir == ios_base::cur)
+                gbump(static_cast<int>(off));
+            else if (dir == ios_base::end)
+                setg(eback(), egptr() + off, egptr());
+            else if (dir == ios_base::beg)
+                setg(eback(), eback() + off, egptr());
+            return gptr() - eback();
+        }
+
+        pos_type seekpos(pos_type sp, ios_base::openmode which) override
+        {
+            return seekoff(sp - pos_type(off_type(0)), ios_base::beg, which);
+        }
+
+    public:
+        streambuf_view(const char* s, std::size_t count) noexcept
+        {
+            auto p = const_cast<char*>(s);
+            setg(p, p, p + count);
+        }
+
+        explicit streambuf_view(std::string_view str) noexcept
+          : streambuf_view(str.data(), str.size())
+        {}
+    };
+
+    class istring_view_stream
+      : private virtual streambuf_view
+      , public std::istream
+    {
+    public:
+        istring_view_stream(const char* str, std::size_t len) noexcept
+          : streambuf_view(str, len)
+          , std::istream(static_cast<std::streambuf*>(this))
+        {}
+
+        explicit istring_view_stream(const std::string_view str) noexcept
+          : streambuf_view(str)
+          , std::istream(static_cast<std::streambuf*>(this))
+        {}
+    };
+
+    istring_view_stream isvs{ buffer.data(), buffer.size() };
+    input_stream_buffer sb{ isvs };
+
+    return sb.parse();
 }
 
-status parse_dot_file(graph_component& graph) noexcept
+std::optional<dot_graph> parse_dot_file(const std::filesystem::path& p) noexcept
 {
-    std::ifstream ifs{ "toto.dot" };
-    stream_buffer sb{ ifs };
-    dot_parser    dot;
+    std::ifstream       ifs{ p };
+    input_stream_buffer sb{ ifs };
 
-    return parse(sb, dot, graph);
+    return sb.parse();
 }
 
-status parse_dot_buffer(graph_component&       graph,
-                        const std::string_view buffer) noexcept
+irt::table<std::string_view, graph_node_id> dot_graph::make_toc() const noexcept
 {
-    istring_view_stream svs{ buffer };
-    stream_buffer       sb{ svs };
-    dot_parser          dot;
+    irt::table<std::string_view, graph_node_id> ret;
+    ret.data.reserve(nodes.size());
 
-    return parse(sb, dot, graph);
+    for (const auto id : nodes) {
+        const auto idx = irt::get_index(id);
+        ret.data.emplace_back(node_names[idx], id);
+    }
+
+    ret.sort();
+
+    return ret;
 }
 
 } // namespace irt

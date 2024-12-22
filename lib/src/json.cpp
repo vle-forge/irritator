@@ -3392,18 +3392,12 @@ struct json_dearchiver::impl {
         return true;
     }
 
-    bool grid_children_add(
-      data_array<graph_component::vertex, graph_component::vertex_id>& out,
-      component_id c_id) noexcept
+    bool graph_children_add(graph_component& graph, component_id c_id) noexcept
     {
-        if (not out.can_alloc()) {
-            out.reserve(out.capacity() * 2);
+        const auto id  = graph.nodes.alloc();
+        const auto idx = get_index(id);
 
-            if (not out.can_alloc())
-                return false;
-        }
-
-        out.alloc(c_id);
+        graph.node_components[idx] = c_id;
 
         return true;
     }
@@ -3512,20 +3506,36 @@ struct json_dearchiver::impl {
           });
     }
 
+    bool reserve_graph_node(graph_component& compo, i64 len)
+    {
+        compo.nodes.reserve(len);
+        compo.node_areas.resize(len);
+        compo.node_components.resize(len);
+        compo.node_ids.resize(len);
+        compo.node_names.resize(len);
+        compo.node_positions.resize(len);
+
+        return true;
+    }
+
     bool read_graph_children(const rapidjson::Value& val,
                              graph_component&        compo) noexcept
     {
         auto_stack s(this, stack_id::component_graph_children);
 
-        compo.children.clear();
+        compo.nodes.clear();
+        i64 len = 0;
 
-        return for_each_array(
-          val, [&](const auto /*i*/, const auto& value) noexcept -> bool {
-              component_id c_id = undefined<component_id>();
+        return is_value_array(val) and copy_array_size(val, len) and
+               reserve_graph_node(compo, len) and
+               for_each_array(
+                 val,
+                 [&](const auto /*i*/, const auto& value) noexcept -> bool {
+                     component_id c_id = undefined<component_id>();
 
-              return read_child_component(value, c_id) &&
-                     grid_children_add(compo.children, c_id);
-          });
+                     return read_child_component(value, c_id) &&
+                            graph_children_add(compo, c_id);
+                 });
     }
 
     bool is_grid_valid(const grid_component& grid) noexcept
@@ -6399,9 +6409,10 @@ struct json_archiver::impl {
 
         w.Key("children");
         w.StartArray();
-        for (auto& elem : graph.children) {
+        for (const auto id : graph.nodes) {
+            const auto idx = get_index(id);
             w.StartObject();
-            write_child_component(mod, elem.id, w);
+            write_child_component(mod, graph.node_components[idx], w);
             w.EndObject();
         }
         w.EndArray();

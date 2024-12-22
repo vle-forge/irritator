@@ -211,8 +211,8 @@ int main()
         g.g_type      = irt::graph_component::graph_type::small_world;
 
         expect(!!pj.set(mod, sim, cg));
-        expect(eq(pj.tree_nodes_size().first, g.children.ssize() + 1));
-        expect(eq(sim.models.ssize(), g.children.ssize()));
+        expect(eq(pj.tree_nodes_size().first, g.nodes.ssize() + 1));
+        expect(eq(sim.models.ssize(), g.nodes.ssize()));
     };
 
     "graph-scale-free"_test = [] {
@@ -235,8 +235,8 @@ int main()
         g.g_type      = irt::graph_component::graph_type::scale_free;
 
         expect(!!pj.set(mod, sim, cg));
-        expect(eq(pj.tree_nodes_size().first, g.children.ssize() + 1));
-        expect(eq(sim.models.ssize(), g.children.ssize()));
+        expect(eq(pj.tree_nodes_size().first, g.nodes.ssize() + 1));
+        expect(eq(sim.models.ssize(), g.nodes.ssize()));
     };
 
     "grid-3x3-empty-con"_test = [] {

@@ -37,6 +37,9 @@ enum class graph_observer_id : u64;
 enum class global_parameter_id : u64;
 enum class file_observer_id : u32;
 
+enum class graph_node_id : irt::u32;
+enum class graph_edge_id : irt::u32;
+
 using port_str           = small_string<7>;
 using name_str           = small_string<31>;
 using description_str    = small_string<1022>;
@@ -582,56 +585,30 @@ public:
     struct output_connection_error {};
     struct children_error {};
 
-    enum class vertex_id : u32;
-    enum class edge_id : u32;
-
     enum class graph_type { dot_file, scale_free, small_world };
 
     struct input_connection {
-        input_connection(port_id x_, vertex_id v_, port_id id_) noexcept
+        input_connection(port_id x_, graph_node_id v_, port_id id_) noexcept
           : x(x_)
           , v(v_)
           , id(id_)
         {}
 
-        port_id   x;  // The port_id in this component.
-        vertex_id v;  // The index in children vector.
-        port_id   id; // The port_id of the @c children[idx].
+        port_id       x;  // The port_id in this component.
+        graph_node_id v;  // The index in children vector.
+        port_id       id; // The port_id of the @c children[idx].
     };
 
     struct output_connection {
-        output_connection(port_id y_, vertex_id v_, port_id id_) noexcept
+        output_connection(port_id y_, graph_node_id v_, port_id id_) noexcept
           : y(y_)
           , v(v_)
           , id(id_)
         {}
 
-        port_id   y;  // The port_id in this component.
-        vertex_id v;  // The index in children vector.
-        port_id   id; // The port_id of the @c children[idx].
-    };
-
-    struct vertex {
-        vertex() noexcept = default;
-
-        vertex(component_id id_) noexcept
-          : id{ id_ }
-        {}
-
-        small_string<23> name;
-        component_id     id = undefined<component_id>();
-    };
-
-    struct edge {
-        edge() noexcept = default;
-
-        edge(const vertex_id src, const vertex_id dst) noexcept
-          : u{ src }
-          , v{ dst }
-        {}
-
-        vertex_id u = undefined<vertex_id>();
-        vertex_id v = undefined<vertex_id>();
+        port_id       y;  // The port_id in this component.
+        graph_node_id v;  // The index in children vector.
+        port_id       id; // The port_id of the @c children[idx].
     };
 
     enum class connection_type : i8 {
@@ -660,42 +637,18 @@ public:
         small_world_param small;
     };
 
-    graph_component() noexcept;
+    id_array<graph_node_id, default_allocator> nodes;
+    id_array<graph_edge_id, default_allocator> edges;
 
-    bool     exists_child(const std::string_view name) const noexcept;
-    name_str make_unique_name_id(const vertex_id v) const noexcept;
+    vector<std::string_view>             node_names;
+    vector<int>                          node_ids;
+    vector<std::array<float, 2>>         node_positions;
+    vector<float>                        node_areas;
+    vector<component_id>                 node_components;
+    vector<std::array<graph_node_id, 2>> edges_nodes;
 
-    //! Resize `children` vector and clear the `edges`, `input_connections` and
-    //! `output_connection`.
-    void resize(const i32 children_size, const component_id id) noexcept;
+    string_buffer buffer;
 
-    //! Update `edges` according to parameters.
-    void update() noexcept;
-
-    //! @brief Check if the input connection already exits.
-    bool exists_input_connection(const port_id   x,
-                                 const vertex_id v,
-                                 const port_id   id) const noexcept;
-
-    //! @brief Check if the output connection already exits.
-    bool exists_output_connection(const port_id   y,
-                                  const vertex_id v,
-                                  const port_id   id) const noexcept;
-
-    //! @brief Tries to add this input connection if it does not already exist.
-    //! @return `success()` or `connection_already_exists`.
-    result<input_connection_id> connect_input(const port_id   x,
-                                              const vertex_id v,
-                                              const port_id   id) noexcept;
-
-    //! @brief Tries to add this output connection if it does not already exist.
-    //! @return `success()` or `connection_already_exists`.
-    result<output_connection_id> connect_output(const port_id   y,
-                                                const vertex_id v,
-                                                const port_id   id) noexcept;
-
-    data_array<vertex, vertex_id>                       children;
-    data_array<edge, edge_id>                           edges;
     data_array<input_connection, input_connection_id>   input_connections;
     data_array<output_connection, output_connection_id> output_connections;
 
@@ -709,10 +662,49 @@ public:
     vector<name_str>                      cache_names;
     vector<position>                      positions;
 
-    int space_x     = 100;
-    int space_y     = 100;
-    int left_limit  = 0;
-    int upper_limit = 0;
+    int             space_x     = 100;
+    int             space_y     = 100;
+    int             left_limit  = 0;
+    int             upper_limit = 0;
+    connection_type type        = connection_type::name;
+
+    graph_component() noexcept = default;
+    graph_component(const graph_component& other) noexcept;
+
+    bool     exists_child(const std::string_view name) const noexcept;
+    name_str make_unique_name_id(const graph_node_id v) const noexcept;
+
+    //! Resize `children` vector and clear the `edges`, `input_connections` and
+    //! `output_connection`.
+    void resize(const i32 children_size, const component_id id) noexcept;
+
+    /** Build nodes and edges according to the type of graph and theirs
+     * parameters.
+     * @param mod Use when reading @c file_path for the dot graph.
+     */
+    void update(const modeling& mod) noexcept;
+
+    //! @brief Check if the input connection already exits.
+    bool exists_input_connection(const port_id       x,
+                                 const graph_node_id v,
+                                 const port_id       id) const noexcept;
+
+    //! @brief Check if the output connection already exits.
+    bool exists_output_connection(const port_id       y,
+                                  const graph_node_id v,
+                                  const port_id       id) const noexcept;
+
+    //! @brief Tries to add this input connection if it does not already exist.
+    //! @return `success()` or `connection_already_exists`.
+    result<input_connection_id> connect_input(const port_id       x,
+                                              const graph_node_id v,
+                                              const port_id       id) noexcept;
+
+    //! @brief Tries to add this output connection if it does not already exist.
+    //! @return `success()` or `connection_already_exists`.
+    result<output_connection_id> connect_output(const port_id       y,
+                                                const graph_node_id v,
+                                                const port_id id) noexcept;
 
     //! clear the @c cache and @c cache_connection data_array.
     void clear_cache() noexcept;
@@ -724,8 +716,6 @@ public:
     //! connections.
     //! @return success() or @c project::error::not_enough_memory.
     status build_cache(modeling& mod) noexcept;
-
-    connection_type type = connection_type::name;
 
     static auto build_error_handlers(log_manager& l) noexcept;
     static void format_input_connection_error(log_entry& e) noexcept;

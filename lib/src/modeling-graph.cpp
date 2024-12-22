@@ -84,41 +84,48 @@ struct local_rng {
 
 bool graph_component::exists_child(const std::string_view name) const noexcept
 {
-    return std::any_of(
-      children.begin(), children.end(), [name](const auto& v) noexcept -> bool {
-          return v.name.sv() == name;
-      });
+    for (const auto id : nodes)
+        if (node_names[get_index(id)] == name)
+            return true;
+
+    return false;
 }
 
-name_str graph_component::make_unique_name_id(const vertex_id v) const noexcept
+name_str graph_component::make_unique_name_id(
+  const graph_node_id v) const noexcept
 {
-    debug::ensure(is_included(get_index(v), 0, children.capacity()));
+    debug::ensure(nodes.exists(v));
 
     name_str ret;
-    format(ret, "{}", get_index(v));
+
+    if (g_type == graph_type::dot_file) {
+        format(ret, "{}", node_names[get_index(v)]);
+    } else {
+        format(ret, "{}", get_index(v));
+    }
 
     return ret;
 }
 
 static auto build_graph_children(modeling& mod, graph_component& graph) noexcept
-  -> table<graph_component::vertex_id, child_id>
+  -> table<graph_node_id, child_id>
 {
-    graph.positions.resize(graph.children.size());
-    graph.cache_names.resize(graph.children.size());
-    table<graph_component::vertex_id, child_id> tr;
-    tr.data.reserve(graph.children.ssize());
+    graph.positions.resize(graph.nodes.size());
+    table<graph_node_id, child_id> tr;
+    tr.data.reserve(graph.nodes.ssize());
 
-    const auto sq = std::sqrt(static_cast<float>(graph.children.size()));
+    const auto sq = std::sqrt(static_cast<float>(graph.nodes.size()));
     const auto gr = static_cast<i32>(sq);
 
     i32 x = 0;
     i32 y = 0;
 
-    for (const auto& vertex : graph.children) {
-        child_id new_id = undefined<child_id>();
+    for (const auto node_id : graph.nodes) {
+        child_id   new_id   = undefined<child_id>();
+        const auto compo_id = graph.node_components[get_index(node_id)];
 
-        if (auto* c = mod.components.try_to_get(vertex.id); c) {
-            auto& new_ch   = graph.cache.alloc(vertex.id);
+        if (auto* c = mod.components.try_to_get(compo_id); c) {
+            auto& new_ch   = graph.cache.alloc(compo_id);
             new_id         = graph.cache.get_id(new_ch);
             const auto idx = get_index(new_id);
 
@@ -126,8 +133,6 @@ static auto build_graph_children(modeling& mod, graph_component& graph) noexcept
               static_cast<float>(((graph.space_x * x) + graph.left_limit));
             graph.positions[idx].y =
               static_cast<float>(((graph.space_y * y) + graph.upper_limit));
-            graph.cache_names[idx] =
-              graph.make_unique_name_id(graph.children.get_id(vertex));
         }
 
         if (x++ > gr) {
@@ -135,7 +140,21 @@ static auto build_graph_children(modeling& mod, graph_component& graph) noexcept
             y++;
         }
 
-        tr.data.emplace_back(graph.children.get_id(vertex), new_id);
+        tr.data.emplace_back(node_id, new_id);
+    }
+
+    graph.cache_names.resize(tr.size());
+
+    if (graph.g_type == graph_component::graph_type::dot_file) {
+        for (const auto x : tr.data) {
+            graph.cache_names[get_index(x.value)] =
+              graph.node_names[get_index(x.id)];
+        }
+    } else {
+        for (const auto x : tr.data) {
+            graph.cache_names[get_index(x.value)] =
+              graph.make_unique_name_id(x.id);
+        }
     }
 
     tr.sort();
@@ -208,33 +227,67 @@ static void named_connection_add(modeling&        mod,
     }
 }
 
-static void build_dot_file_edges(
-  graph_component& graph,
-  const graph_component::dot_file_param& /*params*/) noexcept
+static std::optional<std::filesystem::path> build_dot_filename(
+  const modeling&    mod,
+  const file_path_id id) noexcept
 {
-    if (auto ret = parse_dot_file(graph); not ret) {
-        debug_log("parse_dot_file error");
+    try {
+        if (auto* f = mod.file_paths.try_to_get(id); f) {
+            if (auto* d = mod.dir_paths.try_to_get(f->parent); d) {
+                if (auto* r = mod.registred_paths.try_to_get(d->parent); r) {
+                    return std::filesystem::path(r->path.sv()) / d->path.sv() /
+                           f->path.sv();
+                } else
+                    debug_log("registred_path not found");
+            } else
+                debug_log("dir_path not found");
+        } else
+            debug_log("file_path not found");
+    } catch (...) {
+        debug_log("not enough memory");
     }
+
+    return std::nullopt;
+}
+
+static void build_dot_file_edges(
+  const modeling&                        mod,
+  graph_component&                       graph,
+  const graph_component::dot_file_param& params) noexcept
+{
+    if (auto file_opt = build_dot_filename(mod, params.file);
+        file_opt.has_value()) {
+        if (auto dot_graph = parse_dot_file(*file_opt); dot_graph.has_value()) {
+            graph.nodes = std::move(dot_graph->nodes);
+            graph.edges = std::move(dot_graph->edges);
+
+            graph.node_names     = std::move(dot_graph->node_names);
+            graph.node_ids       = std::move(dot_graph->node_ids);
+            graph.node_positions = std::move(dot_graph->node_positions);
+            graph.node_areas     = std::move(dot_graph->node_areas);
+            graph.edges_nodes    = std::move(dot_graph->edges_nodes);
+
+            graph.buffer = std::move(dot_graph->buffer);
+        } else
+            debug_log("parse_dot_file error");
+    } else
+        debug_log("file_dot_file error");
 }
 
 static void build_scale_free_edges(
   graph_component&                         graph,
   const graph_component::scale_free_param& params) noexcept
 {
-    using vertex = graph_component::vertex;
-
     graph.edges.clear();
 
-    if (const unsigned n = graph.children.max_used(); n > 1) {
+    if (const unsigned n = graph.nodes.max_used(); n > 1) {
         local_rng r(std::span<const u64>(graph.seed),
                     std::span<const u64>(graph.key));
         std::uniform_int_distribution<unsigned> d(0u, n - 1);
 
-        vertex* first  = nullptr;
-        vertex* second = nullptr;
-        bool    stop   = false;
-
-        graph.children.next(first);
+        auto first  = graph.nodes.begin();
+        auto second = graph.nodes.end();
+        bool stop   = false;
 
         while (not stop) {
             unsigned xv = d(r);
@@ -243,7 +296,8 @@ static void build_scale_free_edges(
                        : unsigned(params.beta * std::pow(xv, -params.alpha)));
 
             while (degree == 0) {
-                if (not graph.children.next(first)) {
+                ++first;
+                if (first == graph.nodes.end()) {
                     stop = true;
                     break;
                 }
@@ -258,20 +312,23 @@ static void build_scale_free_edges(
             if (stop)
                 break;
 
+            auto second = undefined<graph_node_id>();
             do {
-                second = graph.children.try_to_get(d(r));
-            } while (second == nullptr or first == second);
+                const auto idx = d(r);
+                second         = graph.nodes.get_from_index(idx);
+            } while (not is_defined(second) or *first == second);
             --degree;
 
-            if (not graph.edges.can_alloc()) {
+            if (not graph.edges.can_alloc(1)) {
                 graph.edges.reserve(graph.edges.capacity() * 2);
 
-                if (not graph.edges.can_alloc())
+                if (not graph.edges.can_alloc(1))
                     return;
             }
 
-            graph.edges.alloc(graph.children.get_id(first),
-                              graph.children.get_id(second));
+            auto new_edge_id = graph.edges.alloc();
+
+            graph.edges_nodes[get_index(new_edge_id)] = { *first, second };
         }
     }
 }
@@ -280,13 +337,12 @@ static void build_small_world_edges(
   graph_component&                          graph,
   const graph_component::small_world_param& params) noexcept
 {
-    using vertex = graph_component::vertex;
-
     graph.edges.clear();
 
-    if (const auto n = graph.children.ssize(); n > 1) {
-        local_rng                          r(std::span<const u64>(graph.seed),
+    if (const auto n = graph.nodes.ssize(); n > 1) {
+        local_rng r(std::span<const u64>(graph.seed),
                     std::span<const u64>(graph.key));
+
         std::uniform_real_distribution<>   dr(0.0, 1.0);
         std::uniform_int_distribution<int> di(0, n - 1);
 
@@ -319,47 +375,51 @@ static void build_small_world_edges(
             debug::ensure(first >= 0 && first < n);
             debug::ensure(second >= 0 && second < n);
 
-            vertex* vertex_first = nullptr;
-            {
-                int i = 0;
-                do {
-                    graph.children.next(vertex_first);
-                    ++i;
-                } while (i <= first);
-            }
+            auto vertex_first = graph.nodes.begin();
+            for (int i = 0; i <= first; ++i)
+                ++vertex_first;
 
-            vertex* vertex_second = nullptr;
-            {
-                int i = 0;
-                do {
-                    graph.children.next(vertex_second);
-                    ++i;
-                } while (i <= second);
-            }
+            auto vertex_second = graph.nodes.begin();
+            for (int i = 0; i <= second; ++i)
+                ++vertex_second;
 
-            if (not graph.edges.can_alloc()) {
+            if (not graph.edges.can_alloc(1)) {
                 graph.edges.reserve(graph.edges.capacity() * 2);
 
-                if (not graph.edges.can_alloc())
+                if (not graph.edges.can_alloc(1))
                     return;
             }
 
-            graph.edges.alloc(graph.children.get_id(vertex_first),
-                              graph.children.get_id(vertex_second));
+            const auto new_edge_id  = graph.edges.alloc();
+            const auto new_edge_idx = get_index(new_edge_id);
+
+            graph.edges_nodes[new_edge_idx] = { *vertex_first, *vertex_second };
         } while (source + 1 < n);
     }
 }
 
-graph_component::graph_component() noexcept
-  : children{ 16 }
-  , edges{ 32 }
-{}
+graph_component::graph_component(const graph_component& other) noexcept
+  : nodes{ other.nodes }
+  , edges{ other.edges }
+  , node_ids{ other.node_ids }
+  , node_positions{ other.node_positions }
+  , node_areas{ other.node_areas }
+  , node_components{ other.node_components }
+  , edges_nodes{ other.edges_nodes }
+{
+    node_names.resize(other.node_names.capacity());
 
-void graph_component::update() noexcept
+    for (const auto id : other.nodes) {
+        const auto idx  = get_index(id);
+        node_names[idx] = buffer.append(other.node_names[idx]);
+    }
+}
+
+void graph_component::update(const modeling& mod) noexcept
 {
     switch (g_type) {
     case graph_type::dot_file:
-        build_dot_file_edges(*this, param.dot);
+        build_dot_file_edges(mod, *this, param.dot);
         return;
     case graph_type::scale_free:
         build_scale_free_edges(*this, param.scale);
@@ -373,33 +433,47 @@ void graph_component::update() noexcept
 }
 
 void graph_component::resize(const i32          children_size,
-                             const component_id id) noexcept
+                             const component_id cid) noexcept
 {
-    children.clear();
-    children.reserve(children_size);
-
-    for (int i = 0; i < children_size; ++i)
-        children.alloc(id);
-
+    nodes.clear();
     edges.clear();
+    nodes.reserve(children_size);
+    edges.reserve(children_size);
     input_connections.clear();
     output_connections.clear();
+
+    node_ids.resize(children_size);
+    node_positions.resize(children_size);
+    node_areas.resize(children_size);
+    node_components.resize(children_size);
+
+    for (auto i = 0; i < children_size; ++i) {
+        const auto id        = nodes.alloc();
+        const auto idx       = get_index(id);
+        node_components[idx] = cid;
+    }
 }
 
 static void build_graph_connections(
-  modeling&                                          mod,
-  graph_component&                                   graph,
-  const table<graph_component::vertex_id, child_id>& vertex) noexcept
+  modeling&                             mod,
+  graph_component&                      graph,
+  const table<graph_node_id, child_id>& vertex) noexcept
 {
-    for (const auto& edge : graph.edges) {
-        const auto u = vertex.get(edge.u);
-        const auto v = vertex.get(edge.v);
+    for (const auto id : graph.edges) {
+        const auto idx  = get_index(id);
+        const auto u_id = graph.edges_nodes[idx][0];
+        const auto v_id = graph.edges_nodes[idx][1];
 
-        if (v and u) {
-            if (graph.type == graph_component::connection_type::name) {
-                named_connection_add(mod, graph, *u, *v);
-            } else {
-                in_out_connection_add(mod, graph, *u, *v);
+        if (graph.nodes.exists(u_id) and graph.nodes.exists(v_id)) {
+            const auto u = vertex.get(u_id);
+            const auto v = vertex.get(v_id);
+
+            if (u and v) {
+                if (graph.type == graph_component::connection_type::name) {
+                    named_connection_add(mod, graph, *u, *v);
+                } else {
+                    in_out_connection_add(mod, graph, *u, *v);
+                }
             }
         }
     }
@@ -409,12 +483,11 @@ status graph_component::build_cache(modeling& mod) noexcept
 {
     clear_cache();
 
-    cache.reserve(children.size());
-    if (not cache.can_alloc(children.size()))
+    cache.reserve(nodes.size());
+    if (not cache.can_alloc(nodes.size()))
         return new_error(
           graph_component::children_error{},
-          e_memory{ children.size(),
-                    static_cast<unsigned>(children.capacity()) });
+          e_memory{ nodes.size(), static_cast<unsigned>(nodes.capacity()) });
 
     const auto vec = build_graph_children(mod, *this);
     build_graph_connections(mod, *this, vec);
@@ -473,9 +546,9 @@ status modeling::copy(graph_component&   graph,
     return success();
 }
 
-bool graph_component::exists_input_connection(const port_id   x,
-                                              const vertex_id v,
-                                              const port_id   id) const noexcept
+bool graph_component::exists_input_connection(const port_id       x,
+                                              const graph_node_id v,
+                                              const port_id id) const noexcept
 {
     for (const auto& con : input_connections)
         if (con.id == id and con.x == x and con.v == v)
@@ -484,8 +557,8 @@ bool graph_component::exists_input_connection(const port_id   x,
     return false;
 }
 
-bool graph_component::exists_output_connection(const port_id   y,
-                                               const vertex_id v,
+bool graph_component::exists_output_connection(const port_id       y,
+                                               const graph_node_id v,
                                                const port_id id) const noexcept
 {
     for (const auto& con : output_connections)
@@ -496,9 +569,9 @@ bool graph_component::exists_output_connection(const port_id   y,
 }
 
 result<input_connection_id> graph_component::connect_input(
-  const port_id   x,
-  const vertex_id v,
-  const port_id   id) noexcept
+  const port_id       x,
+  const graph_node_id v,
+  const port_id       id) noexcept
 {
     if (exists_input_connection(x, v, id))
         return new_error(input_connection_error{}, already_exist_error{});
@@ -510,9 +583,9 @@ result<input_connection_id> graph_component::connect_input(
 }
 
 result<output_connection_id> graph_component::connect_output(
-  const port_id   y,
-  const vertex_id v,
-  const port_id   id) noexcept
+  const port_id       y,
+  const graph_node_id v,
+  const port_id       id) noexcept
 {
     if (exists_output_connection(y, v, id))
         return new_error(input_connection_error{}, already_exist_error{});

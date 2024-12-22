@@ -317,8 +317,8 @@ public:
     vector<ImVec2> positions;
     vector<ImVec2> displacements;
 
-    vector<graph_component::vertex_id> selected_nodes;
-    vector<graph_component::edge_id>   selected_edges;
+    vector<graph_node_id> selected_nodes;
+    vector<graph_edge_id> selected_edges;
 
     ImVec2 distance{ 50.f, 25.f };
     ImVec2 size{ 30.f, 15.f };

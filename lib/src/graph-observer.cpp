@@ -41,7 +41,7 @@ static void build_graph(graph_observer&  graph_obs,
                     ret.ec == std::errc{}) {
                     debug::ensure(0 <= index);
                     debug::ensure(graph_obs.observers.ssize() ==
-                                  graph_compo.children.ssize());
+                                  graph_compo.nodes.ssize());
                     debug::ensure(index < graph_obs.observers.ssize());
 
                     auto&      obs    = sim.observers.alloc();
@@ -71,7 +71,7 @@ void graph_observer::init(project& pj, modeling& mod, simulation& sim) noexcept
             if (auto* graph =
                   mod.graph_components.try_to_get(compo->id.graph_id);
                 graph) {
-                const auto len = graph->children.ssize();
+                const auto len = graph->nodes.ssize();
 
                 observers.resize(len);
                 values.resize(len);

@@ -8,102 +8,37 @@
 #include <irritator/core.hpp>
 #include <irritator/modeling.hpp>
 
-#include <forward_list>
-
 namespace irt {
 
-class string_buffer
-{
-public:
-    constexpr static inline std::size_t string_buffer_node_length = 1024 * 1024;
+struct dot_graph {
 
-    string_buffer() noexcept = default;
+    id_array<graph_node_id, default_allocator> nodes;
+    id_array<graph_edge_id, default_allocator> edges;
 
-    string_buffer(const string_buffer&) noexcept            = delete;
-    string_buffer& operator=(const string_buffer&) noexcept = delete;
-    string_buffer(string_buffer&&) noexcept                 = delete;
-    string_buffer& operator=(string_buffer&&) noexcept      = delete;
+    vector<std::string_view>             node_names;
+    vector<int>                          node_ids;
+    vector<std::array<float, 2>>         node_positions;
+    vector<float>                        node_areas;
+    vector<std::array<graph_node_id, 2>> edges_nodes;
 
-    //! Appends a `std::string_view` into the buffer and returns a new
-    //! `std::string_view` to this new chunck of characters. If necessary, a new
-    //! `value_type` is allocated to storage large number of strings.
-    //!
-    //! @param str A `std::string_view` to copy into the buffer. `str` must be
-    //! greater than `0` and lower than `string_buffer_node_length`.
-    std::string_view append(std::string_view str) noexcept;
+    string_buffer buffer;
 
-    //! Computes and returns the number of `value_type` allocated.
-    std::size_t size() const noexcept;
+    std::string main_id;
 
-private:
-    using value_type     = std::array<char, string_buffer_node_length>;
-    using container_type = std::forward_list<value_type>;
+    bool is_strict  = false;
+    bool is_graph   = false;
+    bool is_digraph = false;
 
-    //! Alloc a new `value_type` buffer in front of the last allocated buffer.
-    void do_alloc() noexcept;
-
-    container_type m_container;
-    std::size_t    m_position = { 0 };
+    /** Build a @c irt::table from node name to node identifier. This function
+     * use the @c node_names and @c nodes object, do not change this object
+     * after building a toc. */
+    table<std::string_view, graph_node_id> make_toc() const noexcept;
 };
 
-class dot_parser
-{
-public:
-    struct memory_error {}; //! Report allocation memory error.
-    struct file_error {};   //! Report an error during read the file.
-    struct syntax_error {}; //! Report an error in the file format.
+std::optional<dot_graph> parse_dot_buffer(std::string_view buffer) noexcept;
 
-    struct read_main_id_error {};
-    struct read_graph_or_digraph_error {};
-    struct missing_curly_brace_error {};
-    struct read_edgeop_error {};
-    struct read_id_error {};
-
-    enum class graph { graph, digraph };
-
-    enum class edgeop {
-        directed,
-        undirected,
-    };
-
-    struct node {
-        node() noexcept = default;
-
-        node(std::string_view name_, graph_component::vertex_id id_) noexcept
-          : name(name_)
-          , id(id_)
-        {}
-
-        std::string_view           name;
-        graph_component::vertex_id id =
-          undefined<typename graph_component::vertex_id>();
-    };
-
-    struct edge {
-        int src;
-        int dst;
-    };
-
-    string_buffer    buffer;
-    std::string_view id;
-    graph            type = graph::graph;
-
-    vector<node> nodes;
-    vector<edge> edges;
-
-    auto search_node_linear(std::string_view name) const noexcept
-      -> std::optional<graph_component::vertex_id>;
-
-    auto search_node(std::string_view name) const noexcept
-      -> std::optional<graph_component::vertex_id>;
-
-    void sort() noexcept;
-};
-
-status parse_dot_file(graph_component& graph) noexcept;
-
-status parse_dot_buffer(graph_component&       graph,
-                        const std::string_view buffer) noexcept;
+std::optional<dot_graph> parse_dot_file(
+  const std::filesystem::path& p) noexcept;
 
 } // irt
 
