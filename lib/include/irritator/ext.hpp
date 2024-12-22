@@ -7,6 +7,8 @@
 
 #include <irritator/core.hpp>
 
+#include <forward_list>
+
 #include <iterator>
 #include <type_traits>
 #include <utility>
@@ -273,6 +275,72 @@ public:
 private:
     hierarchy<T>* get_prior_sibling_node() const noexcept;
 };
+
+class string_buffer
+{
+public:
+    constexpr static inline std::size_t string_buffer_node_length = 1024 * 1024;
+
+    string_buffer() noexcept = default;
+
+    string_buffer(const string_buffer&) noexcept            = delete;
+    string_buffer& operator=(const string_buffer&) noexcept = delete;
+
+    string_buffer(string_buffer&&) noexcept            = default;
+    string_buffer& operator=(string_buffer&&) noexcept = default;
+
+    //! Appends a `std::string_view` into the buffer and returns a new
+    //! `std::string_view` to this new chunck of characters. If necessary, a new
+    //! `value_type` is allocated to storage large number of strings.
+    //!
+    //! @param str A `std::string_view` to copy into the buffer. `str` must be
+    //! greater than `0` and lower than `string_buffer_node_length`.
+    std::string_view append(std::string_view str) noexcept;
+
+    //! Computes and returns the number of `value_type` allocated.
+    std::size_t size() const noexcept;
+
+private:
+    using value_type     = std::array<char, string_buffer_node_length>;
+    using container_type = std::forward_list<value_type>;
+
+    //! Alloc a new `value_type` buffer in front of the last allocated buffer.
+    void do_alloc() noexcept;
+
+    container_type m_container;
+    std::size_t    m_position = { 0 };
+};
+
+inline std::string_view string_buffer::append(std::string_view str) noexcept
+{
+    debug::ensure(not str.empty());
+    debug::ensure(str.size() < string_buffer_node_length);
+
+    if (m_container.empty() ||
+        str.size() + m_position > string_buffer_node_length)
+        do_alloc();
+
+    std::size_t position = m_position;
+    m_position += str.size();
+
+    char* buffer = m_container.front().data() + position;
+
+    std::copy_n(str.data(), str.size(), buffer);
+
+    return std::string_view(buffer, str.size());
+}
+
+inline std::size_t string_buffer::size() const noexcept
+{
+    return static_cast<std::size_t>(
+      std::distance(m_container.cbegin(), m_container.cend()));
+}
+
+inline void string_buffer::do_alloc() noexcept
+{
+    m_container.emplace_front();
+    m_position = 0;
+}
 
 /*****************************************************************************
  *
