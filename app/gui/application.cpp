@@ -308,7 +308,8 @@ static void application_manage_menu_action(application& app) noexcept
     }
 
     if (app.menu_new_project_file) {
-        auto& pj                  = app.pjs.alloc();
+        auto& pj = app.pjs.alloc();
+        pj.pj.init(modeling_initializer{});
         app.menu_new_project_file = false;
         return;
     }

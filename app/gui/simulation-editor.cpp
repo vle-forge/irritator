@@ -26,6 +26,11 @@ namespace irt {
 simulation_editor::simulation_editor() noexcept
   : tl(32768, 4096, 65536, 65536, 32768, 32768)
 {
+    pj.init(modeling_initializer{});
+    pj.grid_observers.reserve(8);
+    pj.graph_observers.reserve(8);
+    pj.variable_observers.reserve(8);
+
     output_context = ImPlot::CreateContext();
     context        = ImNodes::EditorContextCreate();
     ImNodes::PushAttributeFlag(
