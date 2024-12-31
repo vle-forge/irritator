@@ -226,7 +226,7 @@ void project_window::show(simulation_editor& ed) noexcept
         }
 
         if (next_selection != ed.m_selected_tree_node)
-            ed.select(next_selection);
+            ed.select(app.mod, next_selection);
     }
 }
 
