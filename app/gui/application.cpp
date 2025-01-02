@@ -308,8 +308,12 @@ static void application_manage_menu_action(application& app) noexcept
     }
 
     if (app.menu_new_project_file) {
-        auto& pj = app.pjs.alloc();
-        pj.pj.init(modeling_initializer{});
+        name_str temp;
+        format(temp, "project {}", app.pjs.next_key());
+
+        auto& pj = app.pjs.alloc(temp.sv());
+        if (not pj.pj.init(modeling_initializer{}))
+            debug::log("Fail to initialize project\n");
         app.menu_new_project_file = false;
         return;
     }
@@ -329,8 +333,9 @@ static void application_manage_menu_action(application& app) noexcept
                     auto& path = app.mod.registred_paths.alloc();
                     auto  id   = app.mod.registred_paths.get_id(path);
                     path.path  = str;
-
-                    auto&      sim_ed = app.pjs.alloc();
+                    name_str temp;
+                    format(temp, "project {}", app.pjs.next_key());
+                    auto&      sim_ed = app.pjs.alloc(temp.sv());
                     const auto pj_id  = app.pjs.get_id(sim_ed);
 
                     app.start_load_project(id, pj_id);

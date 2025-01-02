@@ -502,7 +502,10 @@ void library_window::try_set_component_as_project(
               if (not app.pjs.can_alloc(1))
                   return new_error(project::not_enough_memory);
 
-              auto& pj = app.pjs.alloc();
+              name_str temp;
+              format(temp, "project {}", app.pjs.next_key());
+
+              auto& pj = app.pjs.alloc(temp.sv());
               irt_check(pj.pj.init(modeling_initializer{}));
               const auto pj_id = app.pjs.get_id(pj);
 

@@ -122,6 +122,21 @@ static inline constexpr std::string_view simulation_status_names[] = {
     "finishing",   "finished",     "debugged",
 };
 
+static constexpr bool project_name_already_exists(
+  const application&     app,
+  const project_id       exclude,
+  const std::string_view name) noexcept
+{
+    for (const auto& pj : app.pjs) {
+        const auto pj_id = app.pjs.get_id(pj);
+
+        if (pj_id != exclude and pj.name == name)
+            return true;
+    }
+
+    return false;
+}
+
 static bool show_project_simulation_settings(application&       app,
                                              simulation_editor& ed) noexcept
 {
@@ -129,6 +144,13 @@ static bool show_project_simulation_settings(application&       app,
     auto begin  = ed.pj.t_limit.begin();
     auto end    = ed.pj.t_limit.end();
     auto is_inf = std::isinf(end);
+
+    name_str name = ed.name;
+    if (ImGui::InputFilteredString(
+          "Name", name, ImGuiInputTextFlags_EnterReturnsTrue)) {
+        if (not project_name_already_exists(app, app.pjs.get_id(ed), name.sv()))
+            ed.name = name;
+    }
 
     if (ImGui::InputReal("Begin", &begin))
         ed.pj.t_limit.set_bound(begin, end);
@@ -207,19 +229,19 @@ void project_window::show(simulation_editor& ed) noexcept
 
         if (ImGui::BeginTabBar("Project")) {
             if (ImGui::BeginTabItem("Settings")) {
-                show_project_simulation_settings(app, ed);
+                if (ImGui::BeginChild("###PjHidden",
+                                      ImGui::GetContentRegionMax()))
+                    show_project_simulation_settings(app, ed);
+
+                ImGui::EndChild();
                 ImGui::EndTabItem();
             }
 
             if (ImGui::BeginTabItem("Hierarchy")) {
-                if (ImGui::BeginChild("##zone",
-                                      ImGui::GetContentRegionAvail())) {
-                    auto selection = show_project_hierarchy(
-                      app, ed.pj, *parent, ed.m_selected_tree_node);
-                    if (selection != ed.m_selected_tree_node)
-                        next_selection = selection;
-                }
-                ImGui::EndChild();
+                auto selection = show_project_hierarchy(
+                  app, ed.pj, *parent, ed.m_selected_tree_node);
+                if (selection != ed.m_selected_tree_node)
+                    next_selection = selection;
                 ImGui::EndTabItem();
             }
             ImGui::EndTabBar();

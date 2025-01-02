@@ -552,11 +552,11 @@ struct graph_editor_dialog {
 };
 
 struct simulation_editor {
-    constexpr static inline const char* name = "Simulation editor";
+    name_str name;
 
     enum class visualization_mode { flat, tree };
 
-    simulation_editor() noexcept;
+    simulation_editor(const std::string_view default_name) noexcept;
     ~simulation_editor() noexcept;
 
     simulation_editor(simulation_editor&&)            = default;

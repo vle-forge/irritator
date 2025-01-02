@@ -23,10 +23,15 @@
 
 namespace irt {
 
-simulation_editor::simulation_editor() noexcept
+simulation_editor::simulation_editor(
+  const std::string_view default_name) noexcept
   : tl(32768, 4096, 65536, 65536, 32768, 32768)
+  , name{ default_name }
 {
-    pj.init(modeling_initializer{});
+    if (not pj.init(modeling_initializer{})) {
+        debug::log("Fail to initialize project components\n");
+    }
+
     pj.grid_observers.reserve(8);
     pj.graph_observers.reserve(8);
     pj.variable_observers.reserve(8);
