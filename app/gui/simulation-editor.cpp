@@ -1162,7 +1162,17 @@ static void show_simulation_editor_treenode(application&       app,
 
 void simulation_editor::show(application& app) noexcept
 {
-    if (!ImGui::Begin(simulation_editor::name, &is_open)) {
+    if (not is_dock_init) {
+        ImGui::SetNextWindowDockID(app.main_dock_id, ImGuiCond_FirstUseEver);
+        is_dock_init = true;
+    }
+
+    if (not ImGui::Begin(name.c_str(), &is_open)) {
+        ImGui::End();
+        return;
+    }
+
+    if (not ImGui::BeginChild("##sim", ImVec2(0.f, 0.f))) {
         ImGui::End();
         return;
     }
@@ -1256,6 +1266,7 @@ void simulation_editor::show(application& app) noexcept
         ImGui::EndTable();
     }
 
+    ImGui::EndChild();
     ImGui::End();
 }
 

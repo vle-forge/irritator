@@ -615,7 +615,8 @@ struct simulation_editor {
     bool show_internal_inputs = false;
     bool show_identifiers     = false;
 
-    bool is_open = true;
+    bool is_open      = true;
+    bool is_dock_init = false;
 
     /** Return true if a simulation is currently running.
      *
@@ -998,6 +999,10 @@ private:
 struct application {
     application() noexcept;
     ~application() noexcept;
+
+    unsigned int main_dock_id;
+    unsigned int right_dock_id;
+    unsigned int bottom_dock_id;
 
     modeling mod;
 
