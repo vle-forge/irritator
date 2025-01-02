@@ -12,9 +12,9 @@ static void reinit(hsm_simulation_editor& hsm_ed, hsm_component_id id) noexcept
     hsm_ed.current_id = id;
 }
 
-bool hsm_simulation_editor::show_observations(application&       app,
-                                              simulation_editor& ed,
-                                              tree_node&         tn,
+bool hsm_simulation_editor::show_observations(application&    app,
+                                              project_window& ed,
+                                              tree_node&      tn,
                                               component& /*compo*/,
                                               hsm_component& hsm) noexcept
 {

@@ -21,9 +21,9 @@
 
 namespace irt {
 
-bool show_local_observers(application&       app,
-                          simulation_editor& ed,
-                          tree_node&         tn,
+bool show_local_observers(application&    app,
+                          project_window& ed,
+                          tree_node&      tn,
                           component& /*compo*/,
                           graph_component& /*graph*/) noexcept
 {

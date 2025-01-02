@@ -13,59 +13,59 @@
 namespace irt {
 
 struct application;
-struct simulation_editor;
+struct project_window;
 class component_editor;
 
-void show_dynamics_inputs(simulation_editor& sim, qss1_integrator& dyn);
-void show_dynamics_inputs(simulation_editor& sim, qss2_integrator& dyn);
-void show_dynamics_inputs(simulation_editor& sim, qss3_integrator& dyn);
-void show_dynamics_inputs(simulation_editor& sim, qss1_multiplier& dyn);
-void show_dynamics_inputs(simulation_editor& sim, qss1_sum_2& dyn);
-void show_dynamics_inputs(simulation_editor& sim, qss1_sum_3& dyn);
-void show_dynamics_inputs(simulation_editor& sim, qss1_sum_4& dyn);
-void show_dynamics_inputs(simulation_editor& sim, qss1_wsum_2& dyn);
-void show_dynamics_inputs(simulation_editor& sim, qss1_wsum_3& dyn);
-void show_dynamics_inputs(simulation_editor& sim, qss1_wsum_4& dyn);
-void show_dynamics_inputs(simulation_editor& sim, qss2_multiplier& dyn);
-void show_dynamics_inputs(simulation_editor& sim, qss2_sum_2& dyn);
-void show_dynamics_inputs(simulation_editor& sim, qss2_sum_3& dyn);
-void show_dynamics_inputs(simulation_editor& sim, qss2_sum_4& dyn);
-void show_dynamics_inputs(simulation_editor& sim, qss2_wsum_2& dyn);
-void show_dynamics_inputs(simulation_editor& sim, qss2_wsum_3& dyn);
-void show_dynamics_inputs(simulation_editor& sim, qss2_wsum_4& dyn);
-void show_dynamics_inputs(simulation_editor& sim, qss3_multiplier& dyn);
-void show_dynamics_inputs(simulation_editor& sim, qss3_sum_2& dyn);
-void show_dynamics_inputs(simulation_editor& sim, qss3_sum_3& dyn);
-void show_dynamics_inputs(simulation_editor& sim, qss3_sum_4& dyn);
-void show_dynamics_inputs(simulation_editor& sim, qss3_wsum_2& dyn);
-void show_dynamics_inputs(simulation_editor& sim, qss3_wsum_3& dyn);
-void show_dynamics_inputs(simulation_editor& sim, qss3_wsum_4& dyn);
-void show_dynamics_inputs(simulation_editor& sim, counter& dyn);
-void show_dynamics_inputs(simulation_editor& sim, queue& dyn);
-void show_dynamics_inputs(simulation_editor& sim, dynamic_queue& dyn);
-void show_dynamics_inputs(simulation_editor& sim, priority_queue& dyn);
-void show_dynamics_inputs(simulation_editor& sim, generator& dyn);
-void show_dynamics_inputs(simulation_editor& sim, constant& dyn);
-void show_dynamics_inputs(simulation_editor& sim, qss1_cross& dyn);
-void show_dynamics_inputs(simulation_editor& sim, qss2_cross& dyn);
-void show_dynamics_inputs(simulation_editor& sim, qss3_cross& dyn);
-void show_dynamics_inputs(simulation_editor& sim, qss1_filter& dyn);
-void show_dynamics_inputs(simulation_editor& sim, qss2_filter& dyn);
-void show_dynamics_inputs(simulation_editor& sim, qss3_filter& dyn);
-void show_dynamics_inputs(simulation_editor& sim, qss1_power& dyn);
-void show_dynamics_inputs(simulation_editor& sim, qss2_power& dyn);
-void show_dynamics_inputs(simulation_editor& sim, qss3_power& dyn);
-void show_dynamics_inputs(simulation_editor& sim, qss1_square& dyn);
-void show_dynamics_inputs(simulation_editor& sim, qss2_square& dyn);
-void show_dynamics_inputs(simulation_editor& sim, qss3_square& dyn);
-void show_dynamics_inputs(simulation_editor& sim, accumulator_2& dyn);
-void show_dynamics_inputs(simulation_editor& sim, logical_and_2& dyn);
-void show_dynamics_inputs(simulation_editor& sim, logical_or_2& dyn);
-void show_dynamics_inputs(simulation_editor& sim, logical_and_3& dyn);
-void show_dynamics_inputs(simulation_editor& sim, logical_or_3& dyn);
-void show_dynamics_inputs(simulation_editor& sim, logical_invert& dyn);
-void show_dynamics_inputs(simulation_editor& sim, hsm_wrapper& dyn);
-void show_dynamics_inputs(simulation_editor& sim, time_func& dyn);
+void show_dynamics_inputs(project_window& sim, qss1_integrator& dyn);
+void show_dynamics_inputs(project_window& sim, qss2_integrator& dyn);
+void show_dynamics_inputs(project_window& sim, qss3_integrator& dyn);
+void show_dynamics_inputs(project_window& sim, qss1_multiplier& dyn);
+void show_dynamics_inputs(project_window& sim, qss1_sum_2& dyn);
+void show_dynamics_inputs(project_window& sim, qss1_sum_3& dyn);
+void show_dynamics_inputs(project_window& sim, qss1_sum_4& dyn);
+void show_dynamics_inputs(project_window& sim, qss1_wsum_2& dyn);
+void show_dynamics_inputs(project_window& sim, qss1_wsum_3& dyn);
+void show_dynamics_inputs(project_window& sim, qss1_wsum_4& dyn);
+void show_dynamics_inputs(project_window& sim, qss2_multiplier& dyn);
+void show_dynamics_inputs(project_window& sim, qss2_sum_2& dyn);
+void show_dynamics_inputs(project_window& sim, qss2_sum_3& dyn);
+void show_dynamics_inputs(project_window& sim, qss2_sum_4& dyn);
+void show_dynamics_inputs(project_window& sim, qss2_wsum_2& dyn);
+void show_dynamics_inputs(project_window& sim, qss2_wsum_3& dyn);
+void show_dynamics_inputs(project_window& sim, qss2_wsum_4& dyn);
+void show_dynamics_inputs(project_window& sim, qss3_multiplier& dyn);
+void show_dynamics_inputs(project_window& sim, qss3_sum_2& dyn);
+void show_dynamics_inputs(project_window& sim, qss3_sum_3& dyn);
+void show_dynamics_inputs(project_window& sim, qss3_sum_4& dyn);
+void show_dynamics_inputs(project_window& sim, qss3_wsum_2& dyn);
+void show_dynamics_inputs(project_window& sim, qss3_wsum_3& dyn);
+void show_dynamics_inputs(project_window& sim, qss3_wsum_4& dyn);
+void show_dynamics_inputs(project_window& sim, counter& dyn);
+void show_dynamics_inputs(project_window& sim, queue& dyn);
+void show_dynamics_inputs(project_window& sim, dynamic_queue& dyn);
+void show_dynamics_inputs(project_window& sim, priority_queue& dyn);
+void show_dynamics_inputs(project_window& sim, generator& dyn);
+void show_dynamics_inputs(project_window& sim, constant& dyn);
+void show_dynamics_inputs(project_window& sim, qss1_cross& dyn);
+void show_dynamics_inputs(project_window& sim, qss2_cross& dyn);
+void show_dynamics_inputs(project_window& sim, qss3_cross& dyn);
+void show_dynamics_inputs(project_window& sim, qss1_filter& dyn);
+void show_dynamics_inputs(project_window& sim, qss2_filter& dyn);
+void show_dynamics_inputs(project_window& sim, qss3_filter& dyn);
+void show_dynamics_inputs(project_window& sim, qss1_power& dyn);
+void show_dynamics_inputs(project_window& sim, qss2_power& dyn);
+void show_dynamics_inputs(project_window& sim, qss3_power& dyn);
+void show_dynamics_inputs(project_window& sim, qss1_square& dyn);
+void show_dynamics_inputs(project_window& sim, qss2_square& dyn);
+void show_dynamics_inputs(project_window& sim, qss3_square& dyn);
+void show_dynamics_inputs(project_window& sim, accumulator_2& dyn);
+void show_dynamics_inputs(project_window& sim, logical_and_2& dyn);
+void show_dynamics_inputs(project_window& sim, logical_or_2& dyn);
+void show_dynamics_inputs(project_window& sim, logical_and_3& dyn);
+void show_dynamics_inputs(project_window& sim, logical_or_3& dyn);
+void show_dynamics_inputs(project_window& sim, logical_invert& dyn);
+void show_dynamics_inputs(project_window& sim, hsm_wrapper& dyn);
+void show_dynamics_inputs(project_window& sim, time_func& dyn);
 
 /**
  * @brief Display ImGui widgets acconding to the dynamics in model.
@@ -77,15 +77,15 @@ void show_dynamics_inputs(simulation_editor& sim, time_func& dyn);
  *
  * @return true is data under the parameter @c p are changed.
  */
-bool show_parameter_editor(application&       app,
-                           simulation_editor& ed,
-                           model&             mdl,
-                           parameter&         p) noexcept;
+bool show_parameter_editor(application&    app,
+                           project_window& ed,
+                           model&          mdl,
+                           parameter&      p) noexcept;
 
-bool show_parameter_editor(application&       app,
-                           simulation_editor& ed,
-                           dynamics_type      type,
-                           parameter&         p) noexcept;
+bool show_parameter_editor(application&    app,
+                           project_window& ed,
+                           dynamics_type   type,
+                           parameter&      p) noexcept;
 
 bool show_external_sources_combo(external_source& srcs,
                                  const char*      title,

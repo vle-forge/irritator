@@ -137,8 +137,8 @@ static constexpr bool project_name_already_exists(
     return false;
 }
 
-static bool show_project_simulation_settings(application&       app,
-                                             simulation_editor& ed) noexcept
+static bool show_project_simulation_settings(application&    app,
+                                             project_window& ed) noexcept
 {
     auto up     = 0;
     auto begin  = ed.pj.t_limit.begin();
@@ -220,7 +220,7 @@ static bool show_project_simulation_settings(application&       app,
     return up > 0;
 }
 
-void project_settings_widgets::show(simulation_editor& ed) noexcept
+void project_settings_widgets::show(project_window& ed) noexcept
 {
     auto& app = container_of(this, &application::project_wnd);
 

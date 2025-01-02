@@ -22,7 +22,7 @@
 namespace irt {
 
 static bool display_grid_simulation(application&            app,
-                                    simulation_editor&      ed,
+                                    project_window&         ed,
                                     grid_simulation_editor& grid_sim,
                                     tree_node&              tn,
                                     const grid_component&   grid) noexcept
@@ -160,9 +160,9 @@ void grid_simulation_editor::reset() noexcept
     distance   = ImVec2{ 5.f, 5.f };
 }
 
-bool grid_simulation_editor::display(application&       app,
-                                     simulation_editor& ed,
-                                     tree_node&         tn,
+bool grid_simulation_editor::display(application&    app,
+                                     project_window& ed,
+                                     tree_node&      tn,
                                      component& /*compo*/,
                                      grid_component& grid) noexcept
 {
@@ -175,9 +175,9 @@ bool grid_simulation_editor::display(application&       app,
     return display_grid_simulation(app, ed, *this, tn, grid);
 }
 
-bool show_local_observers(application&       app,
-                          simulation_editor& ed,
-                          tree_node&         tn,
+bool show_local_observers(application&    app,
+                          project_window& ed,
+                          tree_node&      tn,
                           component& /*compo*/,
                           grid_component& /*grid*/) noexcept
 {

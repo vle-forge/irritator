@@ -524,10 +524,10 @@ void application::show() noexcept
 #endif
 }
 
-static void show_select_model_box_recursive(application&       app,
-                                            simulation_editor& ed,
-                                            tree_node&         tn,
-                                            grid_observer&     access) noexcept
+static void show_select_model_box_recursive(application&    app,
+                                            project_window& ed,
+                                            tree_node&      tn,
+                                            grid_observer&  access) noexcept
 {
     constexpr auto flags = ImGuiTreeNodeFlags_DefaultOpen;
 
@@ -612,12 +612,12 @@ auto build_unique_component_vector(application& app,
     return ret;
 }
 
-bool show_select_model_box(const char*        button_label,
-                           const char*        popup_label,
-                           application&       app,
-                           simulation_editor& ed,
-                           tree_node&         tn,
-                           grid_observer&     access) noexcept
+bool show_select_model_box(const char*     button_label,
+                           const char*     popup_label,
+                           application&    app,
+                           project_window& ed,
+                           tree_node&      tn,
+                           grid_observer&  access) noexcept
 {
     auto ret = false;
 
@@ -673,12 +673,12 @@ bool show_select_model_box(const char*        button_label,
     return ret;
 }
 
-bool show_select_model_box(const char*        button_label,
-                           const char*        popup_label,
-                           application&       app,
-                           simulation_editor& ed,
-                           tree_node&         tn,
-                           graph_observer&    access) noexcept
+bool show_select_model_box(const char*     button_label,
+                           const char*     popup_label,
+                           application&    app,
+                           project_window& ed,
+                           tree_node&      tn,
+                           graph_observer& access) noexcept
 {
     auto ret = false;
 
