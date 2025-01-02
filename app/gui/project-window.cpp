@@ -220,7 +220,7 @@ static bool show_project_simulation_settings(application&       app,
     return up > 0;
 }
 
-void project_window::show(simulation_editor& ed) noexcept
+void project_settings_widgets::show(simulation_editor& ed) noexcept
 {
     auto& app = container_of(this, &application::project_wnd);
 

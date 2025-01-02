@@ -808,16 +808,14 @@ public:
     bool is_open = true;
 };
 
-//! An ImGui Window used to display the project hierarchy (@c hierarchy of @c
-//! tree_node). Configurable or observable widgets are provided for each @c
-//! tree_node with public configurable or observable component.
-class project_window
+/** An ImGui TabBAr to display project settings, project hierarchy, simulation
+ * settings etc. */
+class project_settings_widgets
 {
 public:
-    project_window() noexcept = default;
+    project_settings_widgets() noexcept = default;
 
     void show(simulation_editor& ed) noexcept;
-
 private:
 };
 
@@ -1016,7 +1014,7 @@ struct application {
     component_selector       component_sel;
     component_model_selector component_model_sel;
 
-    project_window project_wnd;
+    project_settings_widgets project_wnd;
 
     component_editor component_ed;
     output_editor    output_ed;
