@@ -611,6 +611,9 @@ struct project_window {
     bool have_use_back_advance = false;
     bool display_graph         = true;
 
+    bool save_project_file    = false;
+    bool save_as_project_file = false;
+
     bool show_internal_values = false;
     bool show_internal_inputs = false;
     bool show_identifiers     = false;
@@ -1063,11 +1066,9 @@ struct application {
     bool show_imgui_demo  = false;
     bool show_implot_demo = false;
 
-    bool menu_new_project_file     = false;
-    bool menu_load_project_file    = false;
-    bool menu_save_project_file    = false;
-    bool menu_save_as_project_file = false;
-    bool menu_quit                 = false;
+    bool menu_new_project_file  = false;
+    bool menu_load_project_file = false;
+    bool menu_quit              = false;
 
     bool init() noexcept;
     void show() noexcept;

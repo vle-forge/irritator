@@ -217,6 +217,14 @@ static bool show_project_simulation_settings(application&    app,
     ImGui::SameLine();
     HelpMarker("Display the simulation phase. Only for debug.");
 
+    const auto sz = ImGui::ComputeButtonSize(2);
+    if (ImGui::Button("Save", sz))
+        ed.save_as_project_file = true;
+    ImGui::SameLine();
+
+    if (ImGui::Button("Save as...", sz))
+        ed.save_as_project_file = true;
+
     return up > 0;
 }
 

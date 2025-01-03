@@ -238,12 +238,6 @@ static void application_show_menu(application& app) noexcept
             if (ImGui::MenuItem("Open project"))
                 app.menu_load_project_file = true;
 
-            if (ImGui::MenuItem("Save project"))
-                app.menu_save_project_file = true;
-
-            if (ImGui::MenuItem("Save project as..."))
-                app.menu_save_as_project_file = true;
-
             if (ImGui::MenuItem("Quit"))
                 app.menu_quit = true;
 
@@ -354,56 +348,6 @@ static void application_manage_menu_action(application& app) noexcept
 
             app.f_dialog.clear();
             app.menu_load_project_file = false;
-        }
-    }
-
-    if (app.menu_save_project_file) {
-        const bool have_file = !app.project_file.empty();
-
-        if (have_file) {
-            auto  u8str = app.project_file.u8string();
-            auto* str   = reinterpret_cast<const char*>(u8str.c_str());
-
-            if (app.mod.registred_paths.can_alloc(1)) {
-                auto& path = app.mod.registred_paths.alloc();
-                auto  id   = app.mod.registred_paths.get_id(path);
-                path.path  = str;
-
-                debug::breakpoint();
-                project_id pj_id;
-                app.start_save_project(id, pj_id);
-            }
-        } else {
-            app.menu_save_project_file    = false;
-            app.menu_save_as_project_file = true;
-        }
-    }
-
-    if (app.menu_save_as_project_file) {
-        const char*              title = "Select project file path to save";
-        const std::u8string_view default_filename = u8"filename.irt";
-        const char8_t*           filters[]        = { u8".irt", nullptr };
-
-        ImGui::OpenPopup(title);
-        if (app.f_dialog.show_save_file(title, default_filename, filters)) {
-            if (app.f_dialog.state == file_dialog::status::ok) {
-                app.project_file = app.f_dialog.result;
-                auto  u8str      = app.project_file.u8string();
-                auto* str        = reinterpret_cast<const char*>(u8str.c_str());
-
-                if (app.mod.registred_paths.can_alloc(1)) {
-                    auto& path = app.mod.registred_paths.alloc();
-                    auto  id   = app.mod.registred_paths.get_id(path);
-                    path.path  = str;
-
-                    debug::breakpoint();
-                    project_id pj_id;
-                    app.start_save_project(id, pj_id);
-                }
-            }
-
-            app.f_dialog.clear();
-            app.menu_save_as_project_file = false;
         }
     }
 }

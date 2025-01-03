@@ -1169,7 +1169,7 @@ void project_window::show(application& app) noexcept
         is_dock_init = true;
     }
 
-    if (not ImGui::Begin(name.c_str(), &is_open)) {
+    if (not ImGui::Begin(name.c_str(), &is_open, ImGuiWindowFlags_MenuBar)) {
         ImGui::End();
         return;
     }
@@ -1275,6 +1275,55 @@ void project_window::show(application& app) noexcept
 
     ImGui::EndChild();
     ImGui::End();
+
+    if (save_project_file) {
+        const bool have_file = !app.project_file.empty();
+
+        if (have_file) {
+            auto  u8str = app.project_file.u8string();
+            auto* str   = reinterpret_cast<const char*>(u8str.c_str());
+
+            if (app.mod.registred_paths.can_alloc(1)) {
+                auto& path           = app.mod.registred_paths.alloc();
+                auto  id             = app.mod.registred_paths.get_id(path);
+                path.path            = str;
+                save_project_file    = false;
+                save_as_project_file = false;
+
+                app.start_save_project(id, app.pjs.get_id(*this));
+            }
+        } else {
+            save_project_file    = false;
+            save_as_project_file = true;
+        }
+    }
+
+    if (save_as_project_file) {
+        const char*              title = "Select project file path to save";
+        const std::u8string_view default_filename = u8"filename.irt";
+        const char8_t*           filters[]        = { u8".irt", nullptr };
+
+        ImGui::OpenPopup(title);
+        if (app.f_dialog.show_save_file(title, default_filename, filters)) {
+            if (app.f_dialog.state == file_dialog::status::ok) {
+                app.project_file = app.f_dialog.result;
+                auto  u8str      = app.project_file.u8string();
+                auto* str        = reinterpret_cast<const char*>(u8str.c_str());
+
+                if (app.mod.registred_paths.can_alloc(1)) {
+                    auto& path = app.mod.registred_paths.alloc();
+                    auto  id   = app.mod.registred_paths.get_id(path);
+                    path.path  = str;
+
+                    app.start_save_project(id, app.pjs.get_id(*this));
+                }
+            }
+            save_project_file    = false;
+            save_as_project_file = false;
+
+            app.f_dialog.clear();
+        }
+    }
 }
 
 } // namesapce irt
