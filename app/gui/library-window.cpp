@@ -496,21 +496,13 @@ void library_window::try_set_component_as_project(
 
         attempt_all(
           [&]() noexcept -> status {
-              if (not app.pjs.can_alloc(1))
-                  app.pjs.grow();
+              if (auto opt = app.alloc_project_window(); opt.has_value()) {
+                  const auto id = *opt;
+                  auto&      pj = app.pjs.get(id);
 
-              if (not app.pjs.can_alloc(1))
-                  return new_error(project::not_enough_memory);
-
-              name_str temp;
-              format(temp, "project {}", app.pjs.next_key());
-
-              auto& pj = app.pjs.alloc(temp.sv());
-              irt_check(pj.pj.init(modeling_initializer{}));
-              const auto pj_id = app.pjs.get_id(pj);
-
-              if (auto* c = app.mod.components.try_to_get(compo_id); c) {
-                  return pj.pj.set(app.mod, *c);
+                  if (auto* c = app.mod.components.try_to_get(compo_id); c) {
+                      return pj.pj.set(app.mod, *c);
+                  }
               }
 
               return success();

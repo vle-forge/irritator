@@ -1005,8 +1005,11 @@ struct application {
 
     modeling mod;
 
-    // @TODO Rename simulation_editor into project editor.
     data_array<project_window, project_id> pjs;
+
+    /** Try to allocate a project and affect a new name to the newly allocated
+     * project_window. */
+    std::optional<project_id> alloc_project_window() noexcept;
 
     spin_mutex mod_mutex;
     spin_mutex sim_mutex;

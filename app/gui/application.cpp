@@ -45,6 +45,41 @@ application::~application() noexcept
     log_w(*this, log_level::info, "Application shutdown\n");
 }
 
+std::optional<project_id> application::alloc_project_window() noexcept
+{
+    if (not pjs.can_alloc(1))
+        pjs.grow();
+
+    if (not pjs.can_alloc(1)) {
+        notifications.try_insert(
+          log_level::error, [&](auto& title, auto& msg) noexcept {
+              title = "Fail to allocate another project";
+              format(msg,
+                     "There is {} projects opened. Close one before.",
+                     pjs.size());
+          });
+
+        return std::nullopt;
+    }
+
+    name_str temp;
+    format(temp, "project {}", pjs.next_key());
+
+    auto& pj = pjs.alloc(temp.sv());
+
+    if (not pj.pj.init(modeling_initializer{})) {
+        notifications.try_insert(
+          log_level::error, [&](auto& title, auto& msg) noexcept {
+              title = "Fail to initialize project";
+              format(msg,
+                     "There is {} projects opened. Close one before.",
+                     pjs.size());
+          });
+    }
+
+    return pjs.get_id(pj);
+}
+
 bool application::init() noexcept
 {
     if (!mod.init(mod_init)) {
@@ -291,29 +326,8 @@ static void application_show_menu(application& app) noexcept
 
 static void application_manage_menu_action(application& app) noexcept
 {
-    if (not app.pjs.can_alloc(1)) {
-        app.pjs.grow();
-        if (not app.pjs.can_alloc(1)) {
-            app.notifications.try_insert(
-              irt::log_level::error, [&](auto& title, auto& msg) noexcept {
-                  title = "Fail to allocate new project";
-                  format(msg,
-                         "There is {} project opened. Close on before opening "
-                         "a new project",
-                         app.pjs.size());
-              });
-        }
-
-        return;
-    }
-
     if (app.menu_new_project_file) {
-        name_str temp;
-        format(temp, "project {}", app.pjs.next_key());
-
-        auto& pj = app.pjs.alloc(temp.sv());
-        if (not pj.pj.init(modeling_initializer{}))
-            debug::log("Fail to initialize project\n");
+        app.alloc_project_window();
         app.menu_new_project_file = false;
         return;
     }
@@ -332,13 +346,9 @@ static void application_manage_menu_action(application& app) noexcept
                 if (app.mod.registred_paths.can_alloc(1)) {
                     auto& path = app.mod.registred_paths.alloc();
                     auto  id   = app.mod.registred_paths.get_id(path);
-                    path.path  = str;
-                    name_str temp;
-                    format(temp, "project {}", app.pjs.next_key());
-                    auto&      sim_ed = app.pjs.alloc(temp.sv());
-                    const auto pj_id  = app.pjs.get_id(sim_ed);
 
-                    app.start_load_project(id, pj_id);
+                    if (auto opt = app.alloc_project_window(); opt.has_value())
+                        app.start_load_project(id, *opt);
                 }
             }
 
