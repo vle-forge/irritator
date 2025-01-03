@@ -68,6 +68,7 @@ static constexpr auto error(Ret&& ret, Args&&... args) noexcept -> Ret
     return ret;
 }
 
+#if !defined(__APPLE__)
 static auto to_float_str(std::string_view str) noexcept
   -> std::optional<std::pair<float, std::string_view>>
 {
@@ -88,6 +89,28 @@ static auto to_float(std::string_view str) noexcept -> float
 
     return 0.f;
 }
+#else
+static auto to_float_str(std::string_view str) noexcept
+  -> std::optional<std::pair<float, std::string_view>>
+{
+    const std::string copy(str.data(), str.size());
+    char*             copy_end = nullptr;
+
+    const auto flt = std::strtof(copy.c_str(), &copy_end);
+    if (flt == 0.0 and copy_end == copy.c_str()) {
+        return std::nullopt;
+    } else {
+        return std::make_pair(flt, str.substr(copy_end - copy.c_str()));
+    }
+}
+
+static auto to_float(std::string_view str) noexcept -> float
+{
+    const std::string copy(str.data(), str.size());
+
+    return std::strtof(copy.c_str(), nullptr);
+}
+#endif
 
 static auto to_2float(std::string_view str) noexcept -> std::array<float, 2>
 {
