@@ -171,6 +171,17 @@ struct token {
     element_type type = element_type::none;
     str_id       str  = irt::undefined<str_id>();
 
+    constexpr token() noexcept = default;
+
+    constexpr token(const element_type t) noexcept
+      : type{ t }
+    {}
+
+    constexpr token(const element_type t, const str_id s) noexcept
+      : type{ t }
+      , str{ s }
+    {}
+
     constexpr bool is_string() const noexcept
     {
         return irt::any_equal(type,
@@ -353,7 +364,7 @@ private:
             }
         }
 
-        return token{ .type = element_type::integer, .str = id };
+        return { element_type::integer, id };
     }
 
     token read_integer() noexcept
@@ -375,7 +386,7 @@ private:
             }
         }
 
-        return token{ .type = element_type::integer, .str = id };
+        return { element_type::integer, id };
     }
 
     token read_id() noexcept
@@ -400,7 +411,7 @@ private:
             }
         }
 
-        return token{ .type = element_type::id, .str = id };
+        return { element_type::id, id };
     }
 
     token read_double_quote() noexcept
@@ -421,7 +432,7 @@ private:
             }
         }
 
-        return token{ .type = element_type::double_quote, .str = id };
+        return { element_type::double_quote, id };
     }
 
     /** Continue to read characters from input stream until the string \*\/ is
@@ -467,7 +478,7 @@ private:
             fill_tokens();  // buffer from the stream.
 
         if (tokens.empty()) // If the ring buffer is empty return none.
-            return token{ .type = element_type::none };
+            return { element_type::none };
 
         const auto head = *tokens.head();
         tokens.pop_head();
