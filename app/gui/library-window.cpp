@@ -54,6 +54,31 @@ static void add_hsm_component_data(application& app) noexcept
     app.add_gui_task([&app]() noexcept { app.component_sel.update(); });
 }
 
+static bool can_delete_component(application& app, component_id id) noexcept
+{
+    switch (app.library_wnd.is_component_deletable(app, id)) {
+    case library_window::is_component_deletable_t::deletable:
+        return true;
+
+    case library_window::is_component_deletable_t::used_by_component:
+        app.notifications.try_insert(
+          log_level::info, [](auto& title, auto& msg) noexcept {
+              title = "Can not delete this component";
+              msg   = "This component is used in another component";
+          });
+        break;
+    case library_window::is_component_deletable_t::used_by_project:
+        app.notifications.try_insert(
+          log_level::info, [](auto& title, auto& msg) noexcept {
+              title = "Can not delete this component";
+              msg   = "This component is used in project";
+          });
+        break;
+    }
+
+    return false;
+}
+
 static void show_component_popup_menu(application& app, component& sel) noexcept
 {
     if (ImGui::BeginPopupContextItem()) {
@@ -111,56 +136,50 @@ static void show_component_popup_menu(application& app, component& sel) noexcept
             }
 
             if (auto* file = app.mod.file_paths.try_to_get(sel.file); file) {
-                if (ImGui::MenuItem("Delete file")) {
-                    app.component_ed.close(app.mod.components.get_id(sel));
+                if (ImGui::MenuItem("Delete component and file")) {
+                    const auto id = app.mod.components.get_id(sel);
+                    if (can_delete_component(app, id)) {
+                        app.component_ed.close(app.mod.components.get_id(sel));
 
-                    app.add_gui_task([&app,
-                                      r = sel.reg_path,
-                                      d = sel.dir,
-                                      f = sel.file]() noexcept {
-                        auto& n = app.notifications.alloc(log_level::notice);
-                        n.title = "Remove file";
+                        app.add_gui_task([&]() noexcept {
+                            app.notifications.try_insert(
+                              log_level::notice,
+                              [&](auto& title, auto& msg) noexcept {
+                                  title = "Remove file";
+                                  format(
+                                    msg, "File `{}' removed", file->path.sv());
+                              });
 
-                        {
-                            auto* reg  = app.mod.registred_paths.try_to_get(r);
-                            auto* dir  = app.mod.dir_paths.try_to_get(d);
-                            auto* file = app.mod.file_paths.try_to_get(f);
+                            app.mod.remove_file(*file);
+                            if (auto* compo = app.mod.components.try_to_get(id))
+                                app.mod.free(*compo);
+                        });
 
-                            if (reg and dir and file) {
-                                std::scoped_lock lock(dir->mutex);
-
-                                format(n.message,
-                                       "File `{}' removed",
-                                       file->path.sv());
-                                app.mod.remove_file(*reg, *dir, *file);
-                            }
-                        }
-
-                        app.notifications.enable(n);
-                    });
-
-                    app.add_gui_task(
-                      [&app]() noexcept { app.component_sel.update(); });
+                        app.add_gui_task(
+                          [&app]() noexcept { app.component_sel.update(); });
+                    }
                 }
             } else {
                 if (ImGui::MenuItem("Delete component")) {
-                    app.component_ed.close(app.mod.components.get_id(sel));
+                    const auto id = app.mod.components.get_id(sel);
+                    if (can_delete_component(app, id)) {
+                        app.component_ed.close(app.mod.components.get_id(sel));
 
-                    app.add_gui_task([&]() noexcept {
-                        const auto compo_id = app.mod.components.get_id(sel);
-                        auto& n = app.notifications.alloc(log_level::notice);
-                        n.title = "Remove component";
+                        app.add_gui_task([&]() noexcept {
+                            app.notifications.try_insert(
+                              log_level::notice,
+                              [&](auto& title, auto& /*msg*/) noexcept {
+                                  title = "Remove component";
+                              });
 
-                        if_data_exists_do(
-                          app.mod.components, compo_id, [&](auto& compo) {
-                              app.mod.free(compo);
-                          });
+                            app.mod.remove_file(*file);
+                            if (auto* compo = app.mod.components.try_to_get(id))
+                                app.mod.free(*compo);
+                        });
 
-                        app.notifications.enable(n);
-                    });
-
-                    app.add_gui_task(
-                      [&app]() noexcept { app.component_sel.update(); });
+                        app.add_gui_task(
+                          [&app]() noexcept { app.component_sel.update(); });
+                    }
                 }
             }
         } else {
@@ -536,6 +555,82 @@ void library_window::try_set_component_as_project(
               app.notifications.enable(n);
           });
     });
+}
+
+auto library_window::is_component_deletable(
+  const application& app,
+  const component_id id) const noexcept -> is_component_deletable_t
+{
+    {
+        for (const auto& c : app.mod.components) {
+            switch (c.type) {
+            case component_type::simple:
+                if (const auto* g =
+                      app.mod.generic_components.try_to_get(c.id.generic_id)) {
+                    if (std::any_of(g->children.begin(),
+                                    g->children.end(),
+                                    [id](const auto& ch) noexcept -> bool {
+                                        return ch.type ==
+                                                 child_type::component and
+                                               ch.id.compo_id == id;
+                                    }))
+                        return is_component_deletable_t::used_by_component;
+                }
+                break;
+            case component_type::grid:
+                if (const auto* g =
+                      app.mod.grid_components.try_to_get(c.id.grid_id)) {
+                    if (std::any_of(g->children.begin(),
+                                    g->children.end(),
+                                    [id](const auto c) noexcept -> bool {
+                                        return c == id;
+                                    }))
+                        return is_component_deletable_t::used_by_component;
+                }
+                break;
+            case component_type::graph:
+                if (const auto* g =
+                      app.mod.graph_components.try_to_get(c.id.graph_id)) {
+                    for (const auto i : g->nodes) {
+                        if (g->node_components[get_index(i)] == id)
+                            return is_component_deletable_t::used_by_component;
+                    }
+                }
+                break;
+            case component_type::hsm:
+            case component_type::internal:
+            case component_type::none:
+                break;
+            }
+        }
+    }
+
+    {
+        vector<tree_node*> stack;
+        for (const auto& pj : app.pjs) {
+            stack.clear();
+            auto* head = pj.pj.tn_head();
+            if (head->id == id)
+                return is_component_deletable_t::used_by_project;
+
+            stack.push_back(head);
+            while (not stack.empty()) {
+                auto cur = stack.back();
+                stack.pop_back();
+
+                if (cur->id == id)
+                    return is_component_deletable_t::used_by_project;
+
+                if (auto* sibling = cur->tree.get_sibling(); sibling)
+                    stack.emplace_back(sibling);
+
+                if (auto* child = cur->tree.get_child(); child)
+                    stack.emplace_back(child);
+            }
+        }
+    }
+
+    return is_component_deletable_t::deletable;
 }
 
 void library_window::show() noexcept

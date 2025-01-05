@@ -1396,6 +1396,7 @@ public:
     void remove_file(registred_path& reg,
                      dir_path&       dir,
                      file_path&      file) noexcept;
+    void remove_file(const file_path& file) noexcept;
 
     void move_file(registred_path& reg,
                    dir_path&       from,

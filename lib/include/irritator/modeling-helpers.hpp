@@ -55,6 +55,42 @@ inline file_path_id get_file_from_component(const modeling&        mod,
     return undefined<file_path_id>();
 }
 
+inline std::optional<std::filesystem::path> make_file(
+  const registred_path& r,
+  const dir_path&       d,
+  const file_path&      f) noexcept
+{
+    try {
+        std::filesystem::path ret(r.path.sv());
+        ret /= d.path.sv();
+        ret /= f.path.sv();
+        return ret;
+    } catch (...) {
+        return std::nullopt;
+    }
+}
+
+inline std::optional<std::filesystem::path> make_file(
+  const modeling&  mod,
+  const file_path& f) noexcept
+{
+    if (auto* dir = mod.dir_paths.try_to_get(f.parent))
+        if (auto* reg = mod.registred_paths.try_to_get(dir->parent))
+            return make_file(*reg, *dir, f);
+
+    return std::nullopt;
+}
+
+inline std::optional<std::filesystem::path> make_file(
+  const modeling&    mod,
+  const file_path_id f) noexcept
+{
+    if (auto* file = mod.file_paths.try_to_get(f))
+        return make_file(mod, *file);
+
+    return std::nullopt;
+}
+
 template<typename Fn>
 inline std::optional<file> open_file(
   dir_path&                                   dir_p,

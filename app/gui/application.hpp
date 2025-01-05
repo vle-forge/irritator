@@ -814,6 +814,18 @@ public:
     void try_set_component_as_project(application&       app,
                                       const component_id id) noexcept;
 
+    enum class is_component_deletable_t {
+        deletable,
+        used_by_component,
+        used_by_project
+    };
+
+    /** Test if the component @c id is not used in any other component and any
+     * other projects. */
+    is_component_deletable_t is_component_deletable(
+      const application& app,
+      const component_id id) const noexcept;
+
     void show() noexcept;
 
     bool is_open = true;

@@ -7,6 +7,7 @@
 #include <irritator/format.hpp>
 #include <irritator/helpers.hpp>
 #include <irritator/io.hpp>
+#include <irritator/modeling-helpers.hpp>
 #include <irritator/modeling.hpp>
 
 #include <algorithm>
@@ -693,6 +694,17 @@ void modeling::remove_file(registred_path& reg,
                           [&](auto& compo) noexcept { free(compo); });
     } catch (...) {
     }
+}
+
+void modeling::remove_file(const file_path& file) noexcept
+{
+    if (const auto opt = make_file(*this, file); opt.has_value()) {
+        std::error_code ec;
+        std::filesystem::remove(*opt, ec);
+    }
+
+    const auto file_id = file_paths.get_id(file);
+    file_paths.free(file_id);
 }
 
 void modeling::move_file(registred_path& /*reg*/,
