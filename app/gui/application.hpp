@@ -562,7 +562,16 @@ struct project_window {
     project_window(project_window&&)            = default;
     project_window& operator=(project_window&&) = default;
 
-    void show(application& app) noexcept;
+    enum class show_result_t {
+        success,          /**< Nothing to do. */
+        request_to_close, /**< The window must be closed by the called. */
+    };
+
+    /** Display the project window in a @c ImGui::Begin/End window.
+     *
+     * @return project_window next status enumeration: keep the window open or
+     * try to close it. */
+    show_result_t show(application& app) noexcept;
 
     void select(tree_node_id id) noexcept;
     void unselect() noexcept;
@@ -618,7 +627,6 @@ struct project_window {
     bool show_internal_inputs = false;
     bool show_identifiers     = false;
 
-    bool is_open      = true;
     bool is_dock_init = false;
 
     /** Return true if a simulation is currently running.
@@ -698,7 +706,8 @@ struct project_window {
       models_to_move; /**< Online simulation created models need to use ImNodes
                          API to move into the canvas. */
 
-    project pj;
+    registred_path_id project_file = undefined<registred_path_id>();
+    project           pj;
 
     //! Select a @c tree_node node in the modeling tree node. The existence of
     //! the underlying component is tested before assignment.
@@ -1013,6 +1022,9 @@ struct application {
      * project_window. */
     std::optional<project_id> alloc_project_window() noexcept;
 
+    /** Free the @c id project and allo sub objects (@c registered_path etc.) */
+    void free_project_window(const project_id id) noexcept;
+
     spin_mutex mod_mutex;
     spin_mutex sim_mutex;
     spin_mutex pj_mutex;
@@ -1045,7 +1057,6 @@ struct application {
     data_array<generic_component_editor_data, generic_editor_data_id> generics;
     data_array<hsm_component_editor_data, hsm_editor_data_id>         hsms;
 
-    std::filesystem::path project_file;
     std::filesystem::path select_directory;
 
     std::filesystem::path home_dir;

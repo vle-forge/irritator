@@ -80,6 +80,16 @@ std::optional<project_id> application::alloc_project_window() noexcept
     return pjs.get_id(pj);
 }
 
+void application::free_project_window(const project_id id) noexcept
+{
+    if (auto* pj = pjs.try_to_get(id); pj) {
+        if (is_defined(pj->project_file))
+            mod.registred_paths.free(pj->project_file);
+    }
+
+    pjs.free(id);
+}
+
 bool application::init() noexcept
 {
     if (!mod.init(mod_init)) {
@@ -333,16 +343,20 @@ static void application_manage_menu_action(application& app) noexcept
         ImGui::OpenPopup(title);
         if (app.f_dialog.show_load_file(title, filters)) {
             if (app.f_dialog.state == file_dialog::status::ok) {
-                app.project_file = app.f_dialog.result;
-                auto  u8str      = app.project_file.u8string();
-                auto* str        = reinterpret_cast<const char*>(u8str.c_str());
+                auto  u8str = app.f_dialog.result.u8string();
+                auto* str   = reinterpret_cast<const char*>(u8str.c_str());
 
                 if (app.mod.registred_paths.can_alloc(1)) {
                     auto& path = app.mod.registred_paths.alloc();
                     auto  id   = app.mod.registred_paths.get_id(path);
+                    path.path  = str;
 
-                    if (auto opt = app.alloc_project_window(); opt.has_value())
+                    if (auto opt = app.alloc_project_window();
+                        opt.has_value()) {
+                        auto& pj        = app.pjs.get(*opt);
+                        pj.project_file = id;
                         app.start_load_project(id, *opt);
+                    }
                 }
             }
 
@@ -389,10 +403,16 @@ static void application_show_windows(application& app) noexcept
     if (app.component_ed.is_open)
         app.component_ed.display();
 
-    for (auto& ed : app.pjs) {
-        ed.start_simulation_update_state(app);
-        ed.show(app);
+    project_window* pj     = nullptr;
+    project_window* to_del = nullptr;
+    while (app.pjs.next(pj)) {
+        pj->start_simulation_update_state(app);
+        if (pj->show(app) == project_window::show_result_t::request_to_close)
+            to_del = pj;
     }
+
+    if (to_del)
+        app.free_project_window(app.pjs.get_id(*to_del));
 
     if (app.output_ed.is_open)
         app.output_ed.show();

@@ -101,8 +101,6 @@ void project_window::clear() noexcept
     show_internal_inputs = false;
     show_identifiers     = false;
 
-    is_open = true;
-
     tl.reset();
 
     simulation_last_finite_t   = 0;
@@ -1162,21 +1160,24 @@ static void show_simulation_editor_treenode(application&    app,
     }
 }
 
-void project_window::show(application& app) noexcept
+auto project_window::show(application& app) noexcept -> show_result_t
 {
     if (not is_dock_init) {
-        ImGui::SetNextWindowDockID(app.main_dock_id, ImGuiCond_FirstUseEver);
+        ImGui::SetNextWindowDockID(app.main_dock_id);
         is_dock_init = true;
     }
 
+    bool is_open = true;
     if (not ImGui::Begin(name.c_str(), &is_open, ImGuiWindowFlags_MenuBar)) {
         ImGui::End();
-        return;
+        return is_open ? show_result_t::success
+                       : show_result_t::request_to_close;
     }
 
     if (not ImGui::BeginChild("##sim", ImVec2(0.f, 0.f))) {
         ImGui::End();
-        return;
+        return is_open ? show_result_t::success
+                       : show_result_t::request_to_close;
     }
 
     constexpr ImGuiTableFlags flags =
@@ -1277,21 +1278,12 @@ void project_window::show(application& app) noexcept
     ImGui::End();
 
     if (save_project_file) {
-        const bool have_file = !app.project_file.empty();
+        if (auto* regf = app.mod.registred_paths.try_to_get(project_file)) {
+            auto* str            = regf->path.c_str();
+            save_project_file    = false;
+            save_as_project_file = false;
 
-        if (have_file) {
-            auto  u8str = app.project_file.u8string();
-            auto* str   = reinterpret_cast<const char*>(u8str.c_str());
-
-            if (app.mod.registred_paths.can_alloc(1)) {
-                auto& path           = app.mod.registred_paths.alloc();
-                auto  id             = app.mod.registred_paths.get_id(path);
-                path.path            = str;
-                save_project_file    = false;
-                save_as_project_file = false;
-
-                app.start_save_project(id, app.pjs.get_id(*this));
-            }
+            app.start_save_project(project_file, app.pjs.get_id(*this));
         } else {
             save_project_file    = false;
             save_as_project_file = true;
@@ -1306,16 +1298,14 @@ void project_window::show(application& app) noexcept
         ImGui::OpenPopup(title);
         if (app.f_dialog.show_save_file(title, default_filename, filters)) {
             if (app.f_dialog.state == file_dialog::status::ok) {
-                app.project_file = app.f_dialog.result;
-                auto  u8str      = app.project_file.u8string();
-                auto* str        = reinterpret_cast<const char*>(u8str.c_str());
-
                 if (app.mod.registred_paths.can_alloc(1)) {
-                    auto& path = app.mod.registred_paths.alloc();
-                    auto  id   = app.mod.registred_paths.get_id(path);
-                    path.path  = str;
+                    auto& path   = app.mod.registred_paths.alloc();
+                    project_file = app.mod.registred_paths.get_id(path);
+                    auto  u8str  = app.f_dialog.result.u8string();
+                    auto* str    = reinterpret_cast<const char*>(u8str.c_str());
+                    path.path    = str;
 
-                    app.start_save_project(id, app.pjs.get_id(*this));
+                    app.start_save_project(project_file, app.pjs.get_id(*this));
                 }
             }
             save_project_file    = false;
@@ -1324,6 +1314,8 @@ void project_window::show(application& app) noexcept
             app.f_dialog.clear();
         }
     }
+
+    return is_open ? show_result_t::success : show_result_t::request_to_close;
 }
 
 } // namesapce irt
