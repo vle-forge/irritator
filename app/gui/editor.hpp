@@ -67,21 +67,6 @@ void show_dynamics_inputs(project_window& sim, logical_invert& dyn);
 void show_dynamics_inputs(project_window& sim, hsm_wrapper& dyn);
 void show_dynamics_inputs(project_window& sim, time_func& dyn);
 
-/**
- * @brief Display ImGui widgets acconding to the dynamics in model.
- * @details [long description]
- *
- * @param app Global application to get settings, external sources, etc.
- * @param mdl Model to display dynamics widgets.
- * @param p [in,out] to read/write dynamics parameters.
- *
- * @return true is data under the parameter @c p are changed.
- */
-bool show_parameter_editor(application&    app,
-                           project_window& ed,
-                           model&          mdl,
-                           parameter&      p) noexcept;
-
 bool show_parameter_editor(application&    app,
                            project_window& ed,
                            dynamics_type   type,
@@ -366,205 +351,206 @@ constexpr auto dispatcher(Function&& f, Args&&... args) noexcept
 }
 
 auto show_parameter(dynamics_qss1_integrator_tag,
-                    application&      app,
-                    component_editor& ed,
-                    parameter&        p) noexcept -> bool;
+                    application&     app,
+                    external_source& src,
+                    parameter&       p) noexcept -> bool;
 auto show_parameter(dynamics_qss1_multiplier_tag,
-                    application&      app,
-                    component_editor& ed,
-                    parameter&        p) noexcept -> bool;
+                    application&     app,
+                    external_source& src,
+                    parameter&       p) noexcept -> bool;
 auto show_parameter(dynamics_qss1_cross_tag,
-                    application&      app,
-                    component_editor& ed,
-                    parameter&        p) noexcept -> bool;
+                    application&     app,
+                    external_source& src,
+                    parameter&       p) noexcept -> bool;
 auto show_parameter(dynamics_qss1_filter_tag,
-                    application&      app,
-                    component_editor& ed,
-                    parameter&        p) noexcept -> bool;
+                    application&     app,
+                    external_source& src,
+                    parameter&       p) noexcept -> bool;
 auto show_parameter(dynamics_qss1_power_tag,
-                    application&      app,
-                    component_editor& ed,
-                    parameter&        p) noexcept -> bool;
+                    application&     app,
+                    external_source& src,
+                    parameter&       p) noexcept -> bool;
 auto show_parameter(dynamics_qss1_square_tag,
-                    application&      app,
-                    component_editor& ed,
-                    parameter&        p) noexcept -> bool;
+                    application&     app,
+                    external_source& src,
+                    parameter&       p) noexcept -> bool;
 auto show_parameter(dynamics_qss1_sum_2_tag,
-                    application&      app,
-                    component_editor& ed,
-                    parameter&        p) noexcept -> bool;
+                    application&     app,
+                    external_source& src,
+                    parameter&       p) noexcept -> bool;
 auto show_parameter(dynamics_qss1_sum_3_tag,
-                    application&      app,
-                    component_editor& ed,
-                    parameter&        p) noexcept -> bool;
+                    application&     app,
+                    external_source& src,
+                    parameter&       p) noexcept -> bool;
 auto show_parameter(dynamics_qss1_sum_4_tag,
-                    application&      app,
-                    component_editor& ed,
-                    parameter&        p) noexcept -> bool;
+                    application&     app,
+                    external_source& src,
+                    parameter&       p) noexcept -> bool;
 auto show_parameter(dynamics_qss1_wsum_2_tag,
-                    application&      app,
-                    component_editor& ed,
-                    parameter&        p) noexcept -> bool;
+                    application&     app,
+                    external_source& src,
+                    parameter&       p) noexcept -> bool;
 auto show_parameter(dynamics_qss1_wsum_3_tag,
-                    application&      app,
-                    component_editor& ed,
-                    parameter&        p) noexcept -> bool;
+                    application&     app,
+                    external_source& src,
+                    parameter&       p) noexcept -> bool;
 auto show_parameter(dynamics_qss1_wsum_4_tag,
-                    application&      app,
-                    component_editor& ed,
-                    parameter&        p) noexcept -> bool;
+                    application&     app,
+                    external_source& src,
+                    parameter&       p) noexcept -> bool;
 auto show_parameter(dynamics_qss2_integrator_tag,
-                    application&      app,
-                    component_editor& ed,
-                    parameter&        p) noexcept -> bool;
+                    application&     app,
+                    external_source& src,
+                    parameter&       p) noexcept -> bool;
 auto show_parameter(dynamics_qss2_multiplier_tag,
-                    application&      app,
-                    component_editor& ed,
-                    parameter&        p) noexcept -> bool;
+                    application&     app,
+                    external_source& src,
+                    parameter&       p) noexcept -> bool;
 auto show_parameter(dynamics_qss2_cross_tag,
-                    application&      app,
-                    component_editor& ed,
-                    parameter&        p) noexcept -> bool;
+                    application&     app,
+                    external_source& src,
+                    parameter&       p) noexcept -> bool;
 auto show_parameter(dynamics_qss2_filter_tag,
-                    application&      app,
-                    component_editor& ed,
-                    parameter&        p) noexcept -> bool;
+                    application&     app,
+                    external_source& src,
+                    parameter&       p) noexcept -> bool;
 auto show_parameter(dynamics_qss2_power_tag,
-                    application&      app,
-                    component_editor& ed,
-                    parameter&        p) noexcept -> bool;
+                    application&     app,
+                    external_source& src,
+                    parameter&       p) noexcept -> bool;
 auto show_parameter(dynamics_qss2_square_tag,
-                    application&      app,
-                    component_editor& ed,
-                    parameter&        p) noexcept -> bool;
+                    application&     app,
+                    external_source& src,
+                    parameter&       p) noexcept -> bool;
 auto show_parameter(dynamics_qss2_sum_2_tag,
-                    application&      app,
-                    component_editor& ed,
-                    parameter&        p) noexcept -> bool;
+                    application&     app,
+                    external_source& src,
+                    parameter&       p) noexcept -> bool;
 auto show_parameter(dynamics_qss2_sum_3_tag,
-                    application&      app,
-                    component_editor& ed,
-                    parameter&        p) noexcept -> bool;
+                    application&     app,
+                    external_source& src,
+                    parameter&       p) noexcept -> bool;
 auto show_parameter(dynamics_qss2_sum_4_tag,
-                    application&      app,
-                    component_editor& ed,
-                    parameter&        p) noexcept -> bool;
+                    application&     app,
+                    external_source& src,
+                    parameter&       p) noexcept -> bool;
 auto show_parameter(dynamics_qss2_wsum_2_tag,
-                    application&      app,
-                    component_editor& ed,
-                    parameter&        p) noexcept -> bool;
+                    application&     app,
+                    external_source& src,
+                    parameter&       p) noexcept -> bool;
 auto show_parameter(dynamics_qss2_wsum_3_tag,
-                    application&      app,
-                    component_editor& ed,
-                    parameter&        p) noexcept -> bool;
+                    application&     app,
+                    external_source& src,
+                    parameter&       p) noexcept -> bool;
 auto show_parameter(dynamics_qss2_wsum_4_tag,
-                    application&      app,
-                    component_editor& ed,
-                    parameter&        p) noexcept -> bool;
+                    application&     app,
+                    external_source& src,
+                    parameter&       p) noexcept -> bool;
 auto show_parameter(dynamics_qss3_integrator_tag,
-                    application&      app,
-                    component_editor& ed,
-                    parameter&        p) noexcept -> bool;
+                    application&     app,
+                    external_source& src,
+                    parameter&       p) noexcept -> bool;
 auto show_parameter(dynamics_qss3_multiplier_tag,
-                    application&      app,
-                    component_editor& ed,
-                    parameter&        p) noexcept -> bool;
+                    application&     app,
+                    external_source& src,
+                    parameter&       p) noexcept -> bool;
 auto show_parameter(dynamics_qss3_cross_tag,
-                    application&      app,
-                    component_editor& ed,
-                    parameter&        p) noexcept -> bool;
+                    application&     app,
+                    external_source& src,
+                    parameter&       p) noexcept -> bool;
 auto show_parameter(dynamics_qss3_filter_tag,
-                    application&      app,
-                    component_editor& ed,
-                    parameter&        p) noexcept -> bool;
+                    application&     app,
+                    external_source& src,
+                    parameter&       p) noexcept -> bool;
 auto show_parameter(dynamics_qss3_power_tag,
-                    application&      app,
-                    component_editor& ed,
-                    parameter&        p) noexcept -> bool;
+                    application&     app,
+                    external_source& src,
+                    parameter&       p) noexcept -> bool;
 auto show_parameter(dynamics_qss3_square_tag,
-                    application&      app,
-                    component_editor& ed,
-                    parameter&        p) noexcept -> bool;
+                    application&     app,
+                    external_source& src,
+                    parameter&       p) noexcept -> bool;
 auto show_parameter(dynamics_qss3_sum_2_tag,
-                    application&      app,
-                    component_editor& ed,
-                    parameter&        p) noexcept -> bool;
+                    application&     app,
+                    external_source& src,
+                    parameter&       p) noexcept -> bool;
 auto show_parameter(dynamics_qss3_sum_3_tag,
-                    application&      app,
-                    component_editor& ed,
-                    parameter&        p) noexcept -> bool;
+                    application&     app,
+                    external_source& src,
+                    parameter&       p) noexcept -> bool;
 auto show_parameter(dynamics_qss3_sum_4_tag,
-                    application&      app,
-                    component_editor& ed,
-                    parameter&        p) noexcept -> bool;
+                    application&     app,
+                    external_source& src,
+                    parameter&       p) noexcept -> bool;
 auto show_parameter(dynamics_qss3_wsum_2_tag,
-                    application&      app,
-                    component_editor& ed,
-                    parameter&        p) noexcept -> bool;
+                    application&     app,
+                    external_source& src,
+                    parameter&       p) noexcept -> bool;
 auto show_parameter(dynamics_qss3_wsum_3_tag,
-                    application&      app,
-                    component_editor& ed,
-                    parameter&        p) noexcept -> bool;
+                    application&     app,
+                    external_source& src,
+                    parameter&       p) noexcept -> bool;
 auto show_parameter(dynamics_qss3_wsum_4_tag,
-                    application&      app,
-                    component_editor& ed,
-                    parameter&        p) noexcept -> bool;
+                    application&     app,
+                    external_source& src,
+                    parameter&       p) noexcept -> bool;
 auto show_parameter(dynamics_counter_tag,
-                    application&      app,
-                    component_editor& ed,
-                    parameter&        p) noexcept -> bool;
+                    application&     app,
+                    external_source& src,
+                    parameter&       p) noexcept -> bool;
 auto show_parameter(dynamics_queue_tag,
-                    application&      app,
-                    component_editor& ed,
-                    parameter&        p) noexcept -> bool;
+                    application&     app,
+                    external_source& src,
+                    parameter&       p) noexcept -> bool;
 auto show_parameter(dynamics_dynamic_queue_tag,
-                    application&      app,
-                    component_editor& ed,
-                    parameter&        p) noexcept -> bool;
+                    application&     app,
+                    external_source& src,
+                    parameter&       p) noexcept -> bool;
 auto show_parameter(dynamics_priority_queue_tag,
-                    application&      app,
-                    component_editor& ed,
-                    parameter&        p) noexcept -> bool;
+                    application&     app,
+                    external_source& src,
+                    parameter&       p) noexcept -> bool;
 auto show_parameter(dynamics_generator_tag,
-                    application&      app,
-                    component_editor& ed,
-                    parameter&        p) noexcept -> bool;
+                    application&     app,
+                    external_source& src,
+                    parameter&       p) noexcept -> bool;
 auto show_parameter(dynamics_constant_tag,
-                    application&      app,
-                    component_editor& ed,
-                    parameter&        p) noexcept -> bool;
+                    application&     app,
+                    external_source& src,
+                    parameter&       p) noexcept -> bool;
 auto show_parameter(dynamics_accumulator_2_tag,
-                    application&      app,
-                    component_editor& ed,
-                    parameter&        p) noexcept -> bool;
+                    application&     app,
+                    external_source& src,
+                    parameter&       p) noexcept -> bool;
 auto show_parameter(dynamics_time_func_tag,
-                    application&      app,
-                    component_editor& ed,
-                    parameter&        p) noexcept -> bool;
+                    application&     app,
+                    external_source& src,
+                    parameter&       p) noexcept -> bool;
 auto show_parameter(dynamics_logical_and_2_tag,
-                    application&      app,
-                    component_editor& ed,
-                    parameter&        p) noexcept -> bool;
+                    application&     app,
+                    external_source& src,
+                    parameter&       p) noexcept -> bool;
 auto show_parameter(dynamics_logical_and_3_tag,
-                    application&      app,
-                    component_editor& ed,
-                    parameter&        p) noexcept -> bool;
+                    application&     app,
+                    external_source& src,
+                    parameter&       p) noexcept -> bool;
 auto show_parameter(dynamics_logical_or_2_tag,
-                    application&      app,
-                    component_editor& ed,
-                    parameter&        p) noexcept -> bool;
+                    application&     app,
+                    external_source& src,
+                    parameter&       p) noexcept -> bool;
 auto show_parameter(dynamics_logical_or_3_tag,
-                    application&      app,
-                    component_editor& ed,
-                    parameter&        p) noexcept -> bool;
+                    application&     app,
+                    external_source& src,
+                    parameter&       p) noexcept -> bool;
 auto show_parameter(dynamics_logical_invert_tag,
-                    application&      app,
-                    component_editor& ed,
-                    parameter&        p) noexcept -> bool;
+                    application&     app,
+                    external_source& src,
+                    parameter&       p) noexcept -> bool;
 auto show_parameter(dynamics_hsm_wrapper_tag,
-                    application&      app,
-                    component_editor& ed,
-                    parameter&        p) noexcept -> bool;
+                    application&     app,
+                    external_source& src,
+                    parameter&       p) noexcept -> bool;
+bool show_hsm_parameter(const modeling& mod, parameter& p) noexcept;
 
 auto get_dynamics_input_names(dynamics_qss1_integrator_tag) noexcept
   -> std::span<const std::string_view>;

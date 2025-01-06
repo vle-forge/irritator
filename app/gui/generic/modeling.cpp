@@ -299,16 +299,16 @@ static bool show_connection(const generic_component& compo,
     return true;
 }
 
-static void show(component_editor& ed,
-                 std::string_view  name,
-                 parameter&        p,
-                 child&            c,
-                 child_id          id) noexcept
+static void show_node(component_editor&  ed,
+                      component&         compo,
+                      generic_component& gen,
+                      child&             c) noexcept
 {
+    const auto id  = gen.children.get_id(c);
+    const auto idx = get_index(id);
+
     auto& app      = container_of(&ed, &application::component_ed);
     auto& settings = app.settings_wnd;
-
-    const auto type = c.id.mdl_type;
 
     ImNodes::PushColorStyle(ImNodesCol_TitleBar, settings.gui_model_color);
 
@@ -319,22 +319,32 @@ static void show(component_editor& ed,
 
     ImNodes::BeginNode(pack_node_child(id));
     ImNodes::BeginNodeTitleBar();
-    ImGui::TextFormat(
-      "{}\n{}", name, dynamics_type_names[ordinal(c.id.mdl_type)]);
+    ImGui::TextFormat("{}\n{}",
+                      gen.children_names[idx].sv(),
+                      dynamics_type_names[ordinal(c.id.mdl_type)]);
     ImNodes::EndNodeTitleBar();
 
     [[maybe_unused]] auto changed =
-      dispatcher(type, [&](const auto tag) noexcept -> bool {
-          const auto X = get_dynamics_input_names(tag);
-          const auto Y = get_dynamics_output_names(tag);
+      dispatcher(c.id.mdl_type, [&](const auto tag) noexcept -> bool {
+          int        ret = false;
+          const auto X   = get_dynamics_input_names(tag);
+          const auto Y   = get_dynamics_output_names(tag);
 
           add_input_attribute(X, id);
           ImGui::PushItemWidth(120.0f);
-          bool updated = show_parameter(tag, app, ed, p);
+          if constexpr (std::is_same_v<std::decay_t<decltype(tag)>,
+                                       dynamics_hsm_wrapper_tag>) {
+              ret += show_hsm_parameter(app.mod, gen.children_parameters[idx]);
+              ret += show_parameter(
+                tag, app, compo.srcs, gen.children_parameters[idx]);
+          } else {
+              ret += show_parameter(
+                tag, app, compo.srcs, gen.children_parameters[idx]);
+          }
           ImGui::PopItemWidth();
           add_output_attribute(Y, id);
 
-          return updated;
+          return ret;
       });
 
     ImNodes::EndNode();
@@ -488,17 +498,13 @@ static void show_graph(component_editor&  ed,
     });
 
     for (auto& c : s_parent.children) {
-        const auto cid  = s_parent.children.get_id(c);
-        const auto cidx = get_index(cid);
-
         if (c.type == child_type::model) {
-            show(ed,
-                 s_parent.children_names[cidx].sv(),
-                 s_parent.children_parameters[cidx],
-                 c,
-                 cid);
+            show_node(ed, parent, s_parent, c);
         } else {
-            auto id = c.id.compo_id;
+            const auto cid  = s_parent.children.get_id(c);
+            const auto cidx = get_index(cid);
+            auto       id   = c.id.compo_id;
+
             if (auto* compo = app.mod.components.try_to_get(id); compo) {
                 switch (compo->type) {
                 case component_type::none:
