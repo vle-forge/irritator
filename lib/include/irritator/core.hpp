@@ -218,7 +218,7 @@ constexpr Iterator binary_find(Iterator begin,
                                Compare  comp)
 {
     begin = std::lower_bound(begin, end, value, comp);
-    return (begin != end && !comp(value, *begin)) ? begin : end;
+    return (!(begin == end) and !comp(value, *begin)) ? begin : end;
 }
 
 //! Enumeration class used everywhere in irritator to produce log data.
