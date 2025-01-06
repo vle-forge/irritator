@@ -173,7 +173,7 @@ struct token {
 
     constexpr token() noexcept = default;
 
-    constexpr token(const element_type t) noexcept
+    explicit constexpr token(const element_type t) noexcept
       : type{ t }
     {}
 
@@ -401,9 +401,8 @@ private:
 
         while (is.get(c)) {
             if (('a' <= c and c <= 'z') or ('A' <= c and c <= 'Z') or
-                ('\200' <= static_cast<int>(c) and
-                 static_cast<int>(c) <= '\377') or
-                ('0' <= c and c <= '9') or (c == '_')) {
+                (static_cast<int>(c) <= '\377') or ('0' <= c and c <= '9') or
+                (c == '_')) {
                 str += static_cast<char>(c);
             } else {
                 is.unget();
@@ -478,7 +477,7 @@ private:
             fill_tokens();  // buffer from the stream.
 
         if (tokens.empty()) // If the ring buffer is empty return none.
-            return { element_type::none };
+            return token{ element_type::none };
 
         const auto head = *tokens.head();
         tokens.pop_head();
