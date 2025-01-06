@@ -1584,9 +1584,9 @@ bool show_parameter(dynamics_queue_tag,
 }
 
 bool show_parameter(dynamics_dynamic_queue_tag,
-                    application&      app,
-                    component_editor& ed,
-                    parameter&        p) noexcept
+                    application& /*app*/,
+                    component_editor& /*ed*/,
+                    parameter& p) noexcept
 {
     auto       stop_on_error = p.integers[0] != 0;
     const auto b1            = ImGui::Checkbox("Stop on error", &stop_on_error);
@@ -1609,8 +1609,8 @@ bool show_parameter(dynamics_dynamic_queue_tag,
 
 bool show_parameter(dynamics_priority_queue_tag,
                     application& /*app*/,
-                    component_editor& app,
-                    parameter&        p) noexcept
+                    component_editor& /*app*/,
+                    parameter& p) noexcept
 {
     bool is_changed = false;
     bool value      = p.integers[0] != 0;
@@ -1632,9 +1632,9 @@ bool show_parameter(dynamics_priority_queue_tag,
 }
 
 bool show_parameter(dynamics_generator_tag,
-                    application&      app,
-                    component_editor& pj,
-                    parameter&        p) noexcept
+                    application& /*app*/,
+                    component_editor& /*pj*/,
+                    parameter& p) noexcept
 {
     static const char* items[] = { "source", "external events" };
 
@@ -2088,8 +2088,10 @@ bool show_parameter_editor(application&    app,
 {
     return dispatcher(
       type,
-      [](auto tag, application& app, project_window& ed, parameter& p) noexcept
-      -> bool {
+      [](auto /*tag*/,
+         application& /*app*/,
+         project_window& /*ed*/,
+         parameter& /*p*/) noexcept -> bool {
           debug::breakpoint();
           return true;
           // return show_parameter_editor(tag, app, ed, p);
