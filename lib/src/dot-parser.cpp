@@ -6,6 +6,7 @@
 
 #include "dot-parser.hpp"
 
+#include <cctype>
 #include <charconv>
 #include <fstream>
 #include <istream>
@@ -196,6 +197,12 @@ struct token {
     }
 };
 
+static auto ichar_equals(char a, char b) noexcept -> bool
+{
+    return std::tolower(static_cast<int>(a)) ==
+           std::tolower(static_cast<int>(b));
+}
+
 static element_type convert_to_element_type(const std::string_view str) noexcept
 {
     static constexpr std::string_view strs[] = {
@@ -209,7 +216,14 @@ static element_type convert_to_element_type(const std::string_view str) noexcept
 
     const auto beg = std::begin(strs);
     const auto end = std::end(strs);
-    const auto it  = irt::binary_find(beg, end, str);
+    const auto it  = irt::binary_find(
+      beg, end, str, [](const auto l, const auto r) noexcept -> bool {
+          for (sz i = 0, e = std::min(l.size(), r.size()); i != e; ++i)
+              if (not ichar_equals(l[i], r[i]))
+                  return l[i] < r[i];
+
+          return l.size() < r.size();
+      });
 
     return it != end ? types[std::distance(beg, it)] : element_type::id;
 }
@@ -770,14 +784,20 @@ private:
 
     bool parse_graph_type(const std::string_view type) noexcept
     {
-        if (type == "graph")
+        switch (convert_to_element_type(type)) {
+        case element_type::graph:
             is_graph = true;
-        else if (type == "digraph")
-            is_digraph = true;
-        else
-            return error<msg_id::unknown_graph_type>(false, type, line);
+            return true;
 
-        return true;
+        case element_type::digraph:
+            is_digraph = true;
+            return true;
+
+        default:
+            return error<msg_id::unknown_graph_type>(false, type, line);
+        }
+
+        irt::unreachable();
     }
 
     bool parse_graph() noexcept
@@ -791,7 +811,7 @@ private:
 
         const auto s = get_and_free_string(strict_or_graph);
 
-        if (s == "strict") {
+        if (convert_to_element_type(s) == element_type::strict) {
             is_strict = true;
 
             if (not check_minimum_tokens(1))
