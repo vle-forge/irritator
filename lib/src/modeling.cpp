@@ -681,18 +681,13 @@ void modeling::remove_file(registred_path& reg,
                            dir_path&       dir,
                            file_path&      file) noexcept
 {
-    try {
-        std::filesystem::path p{ reg.path.sv() };
-        p /= dir.path.sv();
-        p /= file.path.sv();
-
+    if (const auto opt = make_file(reg, dir, file); opt.has_value()) {
         std::error_code ec;
-        std::filesystem::remove(p, ec);
+        std::filesystem::remove(*opt, ec);
+    }
 
-        if_data_exists_do(components,
-                          file.component,
-                          [&](auto& compo) noexcept { free(compo); });
-    } catch (...) {
+    if (auto* c = components.try_to_get(file.component)) {
+        free(*c);
     }
 }
 
