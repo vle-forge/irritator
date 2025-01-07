@@ -633,6 +633,26 @@ struct json_dearchiver::impl {
         return true;
     }
 
+    bool read_bool(const rapidjson::Value& val, bool& b) noexcept
+    {
+        if (not read_temp_bool(val))
+            return false;
+
+        b = temp_bool;
+
+        return true;
+    }
+
+    bool read_bool(const rapidjson::Value& val, i64& i) noexcept
+    {
+        if (not read_temp_bool(val))
+            return false;
+
+        i = temp_bool;
+
+        return true;
+    }
+
     bool read_temp_unsigned_integer(const rapidjson::Value& val) noexcept
     {
         if (!val.IsUint64())
@@ -986,7 +1006,7 @@ struct json_dearchiver::impl {
         return true;
     }
 
-    bool copy_to(float& dst) noexcept
+    bool copy_to(float& dst) const noexcept
     {
         dst = static_cast<float>(temp_double);
 
@@ -1128,8 +1148,9 @@ struct json_dearchiver::impl {
     }
 
     template<int QssLevel>
-    bool read_dynamics(const rapidjson::Value&        val,
-                       abstract_integrator<QssLevel>& dyn) noexcept
+    bool read_dynamics(const rapidjson::Value& val,
+                       abstract_integrator<QssLevel>& /*dyn*/,
+                       parameter& p) noexcept
     {
         auto_stack a(this, stack_id::dynamics_qss_integrator);
 
@@ -1138,9 +1159,9 @@ struct json_dearchiver::impl {
         return for_members(val, n, [&](auto idx, const auto& value) noexcept {
             switch (idx) {
             case 0:
-                return read_real(value, dyn.default_X);
+                return read_real(value, p.reals[0]);
             case 1:
-                return read_real(value, dyn.default_dQ);
+                return read_real(value, p.reals[1]);
             default:
                 report_json_error(error_id::unknown_element);
             }
@@ -1149,7 +1170,8 @@ struct json_dearchiver::impl {
 
     template<int QssLevel>
     bool read_dynamics(const rapidjson::Value& /*val*/,
-                       abstract_multiplier<QssLevel>& /*dyn*/) noexcept
+                       abstract_multiplier<QssLevel>& /*dyn*/,
+                       parameter& /*p*/) noexcept
     {
         auto_stack a(this, stack_id::dynamics_qss_multiplier);
 
@@ -1157,8 +1179,9 @@ struct json_dearchiver::impl {
     }
 
     template<int QssLevel>
-    bool read_dynamics(const rapidjson::Value&    val,
-                       abstract_sum<QssLevel, 2>& dyn) noexcept
+    bool read_dynamics(const rapidjson::Value& val,
+                       abstract_sum<QssLevel, 2>& /*dyn*/,
+                       parameter& p) noexcept
     {
         auto_stack a(this, stack_id::dynamics_qss_sum);
 
@@ -1168,9 +1191,9 @@ struct json_dearchiver::impl {
           val, n, [&](const auto idx, const auto& value) noexcept -> bool {
               switch (idx) {
               case 0:
-                  return read_real(value, dyn.default_values[0]);
+                  return read_real(value, p.reals[0]);
               case 1:
-                  return read_real(value, dyn.default_values[1]);
+                  return read_real(value, p.reals[1]);
               default:
                   report_json_error(error_id::unknown_element);
               }
@@ -1178,8 +1201,9 @@ struct json_dearchiver::impl {
     }
 
     template<int QssLevel>
-    bool read_dynamics(const rapidjson::Value&    val,
-                       abstract_sum<QssLevel, 3>& dyn) noexcept
+    bool read_dynamics(const rapidjson::Value& val,
+                       abstract_sum<QssLevel, 3>& /*dyn*/,
+                       parameter& p) noexcept
     {
         auto_stack a(this, stack_id::dynamics_qss_sum);
 
@@ -1191,11 +1215,11 @@ struct json_dearchiver::impl {
           val, n, [&](const auto idx, const auto& value) noexcept -> bool {
               switch (idx) {
               case 0:
-                  return read_real(value, dyn.default_values[0]);
+                  return read_real(value, p.reals[0]);
               case 1:
-                  return read_real(value, dyn.default_values[1]);
+                  return read_real(value, p.reals[1]);
               case 2:
-                  return read_real(value, dyn.default_values[2]);
+                  return read_real(value, p.reals[2]);
               default:
                   report_json_error(error_id::unknown_element);
               }
@@ -1203,8 +1227,9 @@ struct json_dearchiver::impl {
     }
 
     template<int QssLevel>
-    bool read_dynamics(const rapidjson::Value&    val,
-                       abstract_sum<QssLevel, 4>& dyn) noexcept
+    bool read_dynamics(const rapidjson::Value& val,
+                       abstract_sum<QssLevel, 4>& /*dyn*/,
+                       parameter& p) noexcept
     {
         auto_stack a(this, stack_id::dynamics_qss_sum);
 
@@ -1216,13 +1241,13 @@ struct json_dearchiver::impl {
           val, n, [&](const auto idx, const auto& value) noexcept -> bool {
               switch (idx) {
               case 0:
-                  return read_real(value, dyn.default_values[0]);
+                  return read_real(value, p.reals[0]);
               case 1:
-                  return read_real(value, dyn.default_values[1]);
+                  return read_real(value, p.reals[1]);
               case 2:
-                  return read_real(value, dyn.default_values[2]);
+                  return read_real(value, p.reals[2]);
               case 3:
-                  return read_real(value, dyn.default_values[3]);
+                  return read_real(value, p.reals[3]);
               default:
                   report_json_error(error_id::unknown_element);
               }
@@ -1230,8 +1255,9 @@ struct json_dearchiver::impl {
     }
 
     template<int QssLevel>
-    bool read_dynamics(const rapidjson::Value&     val,
-                       abstract_wsum<QssLevel, 2>& dyn) noexcept
+    bool read_dynamics(const rapidjson::Value& val,
+                       abstract_wsum<QssLevel, 2>& /*dyn*/,
+                       parameter& p) noexcept
     {
         auto_stack a(this, stack_id::dynamics_qss_wsum_2);
 
@@ -1243,13 +1269,13 @@ struct json_dearchiver::impl {
           val, n, [&](const auto idx, const auto& value) noexcept -> bool {
               switch (idx) {
               case 0:
-                  return read_real(value, dyn.default_input_coeffs[0]);
+                  return read_real(value, p.reals[2]);
               case 1:
-                  return read_real(value, dyn.default_input_coeffs[1]);
+                  return read_real(value, p.reals[3]);
               case 2:
-                  return read_real(value, dyn.default_values[0]);
+                  return read_real(value, p.reals[0]);
               case 3:
-                  return read_real(value, dyn.default_values[1]);
+                  return read_real(value, p.reals[1]);
               default:
                   report_json_error(error_id::unknown_element);
               }
@@ -1257,8 +1283,9 @@ struct json_dearchiver::impl {
     }
 
     template<int QssLevel>
-    bool read_dynamics(const rapidjson::Value&     val,
-                       abstract_wsum<QssLevel, 3>& dyn) noexcept
+    bool read_dynamics(const rapidjson::Value& val,
+                       abstract_wsum<QssLevel, 3>& /*dyn*/,
+                       parameter& p) noexcept
     {
         auto_stack a(this, stack_id::dynamics_qss_wsum_3);
 
@@ -1270,17 +1297,17 @@ struct json_dearchiver::impl {
           val, n, [&](const auto idx, const auto& value) noexcept -> bool {
               switch (idx) {
               case 0:
-                  return read_real(value, dyn.default_input_coeffs[0]);
+                  return read_real(value, p.reals[3]);
               case 1:
-                  return read_real(value, dyn.default_input_coeffs[1]);
+                  return read_real(value, p.reals[4]);
               case 2:
-                  return read_real(value, dyn.default_input_coeffs[2]);
+                  return read_real(value, p.reals[5]);
               case 3:
-                  return read_real(value, dyn.default_values[0]);
+                  return read_real(value, p.reals[0]);
               case 4:
-                  return read_real(value, dyn.default_values[1]);
+                  return read_real(value, p.reals[1]);
               case 5:
-                  return read_real(value, dyn.default_values[2]);
+                  return read_real(value, p.reals[2]);
               default:
                   report_json_error(error_id::unknown_element);
               }
@@ -1288,8 +1315,9 @@ struct json_dearchiver::impl {
     }
 
     template<int QssLevel>
-    bool read_dynamics(const rapidjson::Value&     val,
-                       abstract_wsum<QssLevel, 4>& dyn) noexcept
+    bool read_dynamics(const rapidjson::Value& val,
+                       abstract_wsum<QssLevel, 4>& /*dyn*/,
+                       parameter& p) noexcept
     {
         auto_stack a(this, stack_id::dynamics_qss_wsum_4);
 
@@ -1302,21 +1330,21 @@ struct json_dearchiver::impl {
           val, n, [&](const auto idx, const auto& value) noexcept -> bool {
               switch (idx) {
               case 0:
-                  return read_real(value, dyn.default_input_coeffs[0]);
+                  return read_real(value, p.reals[4]);
               case 1:
-                  return read_real(value, dyn.default_input_coeffs[1]);
+                  return read_real(value, p.reals[5]);
               case 2:
-                  return read_real(value, dyn.default_input_coeffs[2]);
+                  return read_real(value, p.reals[6]);
               case 3:
-                  return read_real(value, dyn.default_input_coeffs[3]);
+                  return read_real(value, p.reals[7]);
               case 4:
-                  return read_real(value, dyn.default_values[0]);
+                  return read_real(value, p.reals[0]);
               case 5:
-                  return read_real(value, dyn.default_values[1]);
+                  return read_real(value, p.reals[1]);
               case 6:
-                  return read_real(value, dyn.default_values[2]);
+                  return read_real(value, p.reals[2]);
               case 7:
-                  return read_real(value, dyn.default_values[3]);
+                  return read_real(value, p.reals[3]);
               default:
                   report_json_error(error_id::unknown_element);
               }
@@ -1324,14 +1352,17 @@ struct json_dearchiver::impl {
     }
 
     bool read_dynamics(const rapidjson::Value& /*val*/,
-                       counter& /*dyn*/) noexcept
+                       counter& /*dyn*/,
+                       parameter& /*p*/) noexcept
     {
         auto_stack a(this, stack_id::dynamics_counter);
 
         return true;
     }
 
-    bool read_dynamics(const rapidjson::Value& val, queue& dyn) noexcept
+    bool read_dynamics(const rapidjson::Value& val,
+                       queue& /*dyn*/,
+                       parameter& p) noexcept
     {
         auto_stack a(this, stack_id::dynamics_queue);
 
@@ -1339,13 +1370,15 @@ struct json_dearchiver::impl {
           val, [&](const auto name, const auto& value) noexcept -> bool {
               if ("ta"sv == name)
                   return read_temp_real(value) && is_double_greater_than(0.0) &&
-                         copy_to(dyn.default_ta);
+                         copy_to(p.reals[0]);
 
               report_json_error(error_id::unknown_element);
           });
     }
 
-    bool read_dynamics(const rapidjson::Value& val, dynamic_queue& dyn) noexcept
+    bool read_dynamics(const rapidjson::Value& val,
+                       dynamic_queue& /*dyn*/,
+                       parameter& p) noexcept
     {
         auto_stack a(this, stack_id::dynamics_dynamic_queue);
 
@@ -1355,19 +1388,20 @@ struct json_dearchiver::impl {
                   return read_temp_integer(value) &&
                          is_int_greater_equal_than(0) &&
                          is_int_less_than(source::source_type_count) &&
-                         copy_to(dyn.default_source_ta.type);
+                         copy_to(p.integers[2]);
               if ("source-ta-id"sv == name)
                   return read_temp_unsigned_integer(value) &&
-                         copy_to(dyn.default_source_ta.id);
+                         copy_to(p.integers[1]);
               if ("stop-on-error"sv == name)
-                  return read_temp_bool(value) && copy_to(dyn.stop_on_error);
+                  return read_temp_bool(value) && copy_to(p.integers[0]);
 
               report_json_error(error_id::unknown_element);
           });
     }
 
     bool read_dynamics(const rapidjson::Value& val,
-                       priority_queue&         dyn) noexcept
+                       priority_queue& /*dyn*/,
+                       parameter& p) noexcept
     {
         auto_stack a(this, stack_id::dynamics_priority_queue);
 
@@ -1375,42 +1409,40 @@ struct json_dearchiver::impl {
           val, [&](const auto name, const auto& value) noexcept -> bool {
               if ("ta"sv == name)
                   return read_temp_real(value) && is_double_greater_than(0.0) &&
-                         copy_to(dyn.default_ta);
+                         copy_to(p.reals[0]);
               if ("source-ta-type"sv == name)
                   return read_temp_integer(value) &&
                          is_int_greater_equal_than(0) &&
                          is_int_less_than(source::source_type_count) &&
-                         copy_to(dyn.default_source_ta.type);
+                         copy_to(p.integers[2]);
               if ("source-ta-id"sv == name)
                   return read_temp_unsigned_integer(value) &&
-                         copy_to(dyn.default_source_ta.id);
+                         copy_to(p.integers[1]);
               if ("stop-on-error"sv == name)
-                  return read_temp_bool(value) && copy_to(dyn.stop_on_error);
+                  return read_temp_bool(value) && copy_to(p.integers[0]);
 
               report_json_error(error_id::unknown_element);
           });
     }
 
-    bool read_dynamics(const rapidjson::Value& val, generator& dyn) noexcept
+    bool read_dynamics(const rapidjson::Value& val,
+                       generator& /*dyn*/,
+                       parameter& p) noexcept
     {
         auto_stack a(this, stack_id::dynamics_generator);
-        bool       stop_on_error = false;
-
-        dyn.flags.reset();
 
         return for_each_member(
           val, [&](const auto name, const auto& value) noexcept -> bool {
               if ("offset"sv == name)
                   return read_temp_real(value) &&
                          is_double_greater_equal_than(0.0) &&
-                         copy_to(dyn.default_offset);
+                         copy_to(p.reals[0]);
 
               if ("source-ta-type"sv == name) {
                   if (read_temp_integer(value) &&
                       is_int_greater_equal_than(0) &&
                       is_int_less_than(source::source_type_count) &&
-                      copy_to(dyn.default_source_ta.type)) {
-                      dyn.flags.set(generator::option::ta_use_source);
+                      copy_to(p.integers[2])) {
                       return true;
                   }
                   return false;
@@ -1418,8 +1450,7 @@ struct json_dearchiver::impl {
 
               if ("source-ta-id"sv == name) {
                   if (read_temp_unsigned_integer(value) &&
-                      copy_to(dyn.default_source_ta.id)) {
-                      dyn.flags.set(generator::option::ta_use_source);
+                      copy_to(p.integers[1])) {
                       return true;
                   }
                   return false;
@@ -1429,8 +1460,7 @@ struct json_dearchiver::impl {
                   if (read_temp_integer(value) &&
                       is_int_greater_equal_than(0) &&
                       is_int_less_than(source::source_type_count) &&
-                      copy_to(dyn.default_source_value.type)) {
-                      dyn.flags.set(generator::option::value_use_source);
+                      copy_to(p.integers[4])) {
                       return true;
                   }
                   return false;
@@ -1438,16 +1468,14 @@ struct json_dearchiver::impl {
 
               if ("source-value-id"sv == name) {
                   if (read_temp_unsigned_integer(value) &&
-                      copy_to(dyn.default_source_value.id)) {
-                      dyn.flags.set(generator::option::value_use_source);
+                      copy_to(p.integers[3])) {
                       return true;
                   }
                   return false;
               }
 
               if ("stop-on-error"sv == name) {
-                  if (read_temp_bool(value) && copy_to(stop_on_error)) {
-                      dyn.flags.set(generator::option::stop_on_error);
+                  if (read_temp_bool(value) && copy_to(p.integers[0])) {
                       return true;
                   }
                   return false;
@@ -1457,75 +1485,77 @@ struct json_dearchiver::impl {
           });
     }
 
-    bool read_dynamics(const rapidjson::Value& val, constant& dyn) noexcept
+    bool read_dynamics(const rapidjson::Value& val,
+                       constant& /*dyn*/,
+                       parameter& p) noexcept
     {
         auto_stack a(this, stack_id::dynamics_constant);
 
         return for_each_member(
           val, [&](const auto name, const auto& value) noexcept -> bool {
               if ("value"sv == name)
-                  return read_temp_real(value) && copy_to(dyn.default_value);
+                  return read_temp_real(value) && copy_to(p.reals[0]);
               if ("offset"sv == name)
                   return read_temp_real(value) &&
                          is_double_greater_equal_than(0.0) &&
-                         copy_to(dyn.default_offset);
+                         copy_to(p.reals[1]);
               if ("type"sv == name)
-                  return read_temp_string(value) && copy_to(dyn.type);
+                  return read_temp_string(value) && copy_to(p.integers[0]);
               if ("port"sv == name)
-                  return read_temp_integer(value) && copy_to(dyn.port);
+                  return read_temp_integer(value) && copy_to(p.integers[1]);
 
               report_json_error(error_id::unknown_element);
           });
     }
 
     template<int QssLevel>
-    bool read_dynamics(const rapidjson::Value&   val,
-                       abstract_cross<QssLevel>& dyn) noexcept
+    bool read_dynamics(const rapidjson::Value& val,
+                       abstract_cross<QssLevel>& /*dyn*/,
+                       parameter& p) noexcept
     {
         auto_stack a(this, stack_id::dynamics_qss_cross);
 
         return for_each_member(
           val, [&](const auto name, const auto& value) noexcept -> bool {
               if ("threshold"sv == name)
-                  return read_temp_real(value) &&
-                         copy_to(dyn.default_threshold);
+                  return read_temp_real(value) && copy_to(p.reals[0]);
+
               if ("detect-up"sv == name)
-                  return read_temp_bool(value) &&
-                         copy_to(dyn.default_detect_up);
+                  return read_bool(value, p.integers[0]);
 
               report_json_error(error_id::unknown_element);
           });
     }
 
     template<int QssLevel>
-    bool read_dynamics(const rapidjson::Value&    val,
-                       abstract_filter<QssLevel>& dyn) noexcept
+    bool read_dynamics(const rapidjson::Value& val,
+                       abstract_filter<QssLevel>& /*dyn*/,
+                       parameter& p) noexcept
     {
         auto_stack a(this, stack_id::dynamics_qss_filter);
 
         return for_each_member(
           val, [&](const auto name, const auto& value) noexcept -> bool {
               if ("lower-threshold"sv == name)
-                  return read_temp_real(value) &&
-                         copy_to(dyn.default_lower_threshold);
+                  return read_temp_real(value) && copy_to(p.reals[0]);
               if ("upper-threshold"sv == name)
-                  return read_temp_real(value) &&
-                         copy_to(dyn.default_upper_threshold);
+                  return read_temp_real(value) && copy_to(p.reals[1]);
 
               report_json_error(error_id::unknown_element);
           });
     }
 
     template<int QssLevel>
-    bool read_dynamics(const rapidjson::Value&   val,
-                       abstract_power<QssLevel>& dyn) noexcept
+    bool read_dynamics(const rapidjson::Value& val,
+                       abstract_power<QssLevel>& /*dyn*/,
+                       parameter& p) noexcept
     {
         auto_stack a(this, stack_id::dynamics_qss_power);
 
         return for_each_member(
           val, [&](const auto name, const auto& value) noexcept -> bool {
               if ("n"sv == name)
-                  return read_temp_real(value) && copy_to(dyn.default_n);
+                  return read_temp_real(value) && copy_to(p.reals[0]);
 
               report_json_error(error_id::unknown_element);
           });
@@ -1533,7 +1563,8 @@ struct json_dearchiver::impl {
 
     template<int QssLevel>
     bool read_dynamics(const rapidjson::Value& /*val*/,
-                       abstract_square<QssLevel>& /*dyn*/) noexcept
+                       abstract_square<QssLevel>& /*dyn*/,
+                       parameter& /*p*/) noexcept
     {
         auto_stack a(this, stack_id::dynamics_qss_square);
 
@@ -1541,102 +1572,128 @@ struct json_dearchiver::impl {
     }
 
     bool read_dynamics(const rapidjson::Value& /*val*/,
-                       accumulator_2& /*dyn*/) noexcept
+                       accumulator_2& /*dyn*/,
+                       parameter& /*p*/) noexcept
     {
         auto_stack a(this, stack_id::dynamics_accumulator_2);
 
         return true;
     }
 
-    bool read_dynamics(const rapidjson::Value& val, time_func& dyn) noexcept
+    bool read_dynamics(const rapidjson::Value& val,
+                       time_func& /*dyn*/,
+                       parameter& p) noexcept
     {
         auto_stack a(this, stack_id::dynamics_time_func);
+        temp_string.clear();
 
-        return for_each_member(
+        auto ret = for_each_member(
           val, [&](const auto name, const auto& value) noexcept -> bool {
               if ("function"sv == name)
-                  return read_temp_string(value) && copy_to(dyn.default_f);
+                  return read_temp_string(value);
+
+              if ("offset"sv == name)
+                  return read_real(value, p.reals[0]);
+
+              if ("timestep"sv == name)
+                  return read_real(value, p.reals[1]);
 
               report_json_error(error_id::unknown_element);
           });
+
+        if (ret) {
+            if (temp_string == "time"sv)
+                p.integers[0] = 0;
+            else if (temp_string == "square"sv)
+                p.integers[0] = 1;
+            else
+                p.integers[0] = 2;
+        }
+        return ret;
     }
 
-    bool read_dynamics(const rapidjson::Value& val, logical_and_2& dyn) noexcept
+    bool read_dynamics(const rapidjson::Value& val,
+                       logical_and_2& /*dyn*/,
+                       parameter& p) noexcept
     {
         auto_stack a(this, stack_id::dynamics_logical_and_2);
 
         return for_each_member(
           val, [&](const auto name, const auto& value) noexcept -> bool {
               if ("value-0"sv == name)
-                  return read_temp_bool(value) &&
-                         copy_to(dyn.default_values[0]);
+                  if ("value-0"sv == name)
+                      return read_bool(value, p.integers[0]);
+
               if ("value-1"sv == name)
-                  return read_temp_bool(value) &&
-                         copy_to(dyn.default_values[1]);
+                  return read_bool(value, p.integers[1]);
 
               report_json_error(error_id::unknown_element);
           });
     }
 
-    bool read_dynamics(const rapidjson::Value& val, logical_or_2& dyn) noexcept
+    bool read_dynamics(const rapidjson::Value& val,
+                       logical_or_2& /*dyn*/,
+                       parameter& p) noexcept
     {
         auto_stack a(this, stack_id::dynamics_logical_or_2);
 
         return for_each_member(
           val, [&](const auto name, const auto& value) noexcept -> bool {
               if ("value-0"sv == name)
-                  return read_temp_bool(value) &&
-                         copy_to(dyn.default_values[0]);
+                  return read_bool(value, p.integers[0]);
+
               if ("value-1"sv == name)
-                  return read_temp_bool(value) &&
-                         copy_to(dyn.default_values[1]);
+                  return read_bool(value, p.integers[1]);
 
               report_json_error(error_id::unknown_element);
           });
     }
 
-    bool read_dynamics(const rapidjson::Value& val, logical_and_3& dyn) noexcept
+    bool read_dynamics(const rapidjson::Value& val,
+                       logical_and_3& /*dyn*/,
+                       parameter& p) noexcept
     {
         auto_stack a(this, stack_id::dynamics_logical_and_3);
 
         return for_each_member(
           val, [&](const auto name, const auto& value) noexcept -> bool {
               if ("value-0"sv == name)
-                  return read_temp_bool(value) &&
-                         copy_to(dyn.default_values[0]);
+                  return read_bool(value, p.integers[0]);
+
               if ("value-1"sv == name)
-                  return read_temp_bool(value) &&
-                         copy_to(dyn.default_values[1]);
+                  return read_bool(value, p.integers[1]);
+
               if ("value-2"sv == name)
-                  return read_temp_bool(value) &&
-                         copy_to(dyn.default_values[2]);
+                  return read_bool(value, p.integers[2]);
 
               report_json_error(error_id::unknown_element);
           });
     }
 
-    bool read_dynamics(const rapidjson::Value& val, logical_or_3& dyn) noexcept
+    bool read_dynamics(const rapidjson::Value& val,
+                       logical_or_3& /*dyn*/,
+                       parameter& p) noexcept
     {
         auto_stack a(this, stack_id::dynamics_logical_or_3);
 
         return for_each_member(
           val, [&](const auto name, const auto& value) noexcept -> bool {
               if ("value-0"sv == name)
-                  return read_temp_bool(value) &&
-                         copy_to(dyn.default_values[0]);
+                  return read_bool(value, p.integers[0]);
+
               if ("value-1"sv == name)
-                  return read_temp_bool(value) &&
-                         copy_to(dyn.default_values[1]);
+                  return read_bool(value, p.integers[1]);
+
               if ("value-2"sv == name)
-                  return read_temp_bool(value) &&
-                         copy_to(dyn.default_values[2]);
+                  return read_bool(value, p.integers[2]);
 
               report_json_error(error_id::unknown_element);
           });
     }
 
     bool read_dynamics(const rapidjson::Value& /*val*/,
-                       logical_invert& /*dyn*/) noexcept
+                       logical_invert& /*dyn*/,
+                       parameter& /*p*/) noexcept
     {
         auto_stack a(this, stack_id::dynamics_logical_invert);
 
@@ -1919,7 +1976,8 @@ struct json_dearchiver::impl {
     }
 
     bool read_simulation_dynamics(const rapidjson::Value& val,
-                                  hsm_wrapper&            wrapper) noexcept
+                                  hsm_wrapper&            wrapper,
+                                  parameter&              p) noexcept
     {
         auto_stack a(this, stack_id::dynamics_hsm);
 
@@ -1931,6 +1989,7 @@ struct json_dearchiver::impl {
             case 0: {
                 u64 id_in_file = 0;
 
+                // TODO Really ?
                 return read_u64(value, id_in_file) &&
                        ((std::cmp_greater(id_in_file, 0) &&
                          sim_hsms_mapping_get(id_in_file, wrapper.id)) ||
@@ -1939,15 +1998,15 @@ struct json_dearchiver::impl {
                                  log_level::error)));
             }
             case 1:
-                return read_temp_integer(value) && copy_to(wrapper.exec.i1);
+                return read_temp_integer(value) && copy_to(p.integers[1]);
             case 2:
-                return read_temp_integer(value) && copy_to(wrapper.exec.i2);
+                return read_temp_integer(value) && copy_to(p.integers[2]);
             case 3:
-                return read_temp_real(value) && copy_to(wrapper.exec.r1);
+                return read_temp_real(value) && copy_to(p.reals[0]);
             case 4:
-                return read_temp_real(value) && copy_to(wrapper.exec.r2);
+                return read_temp_real(value) && copy_to(p.reals[1]);
             case 5:
-                return read_temp_real(value) && copy_to(wrapper.exec.timer);
+                return read_temp_real(value) && copy_to(p.reals[2]);
             default:
                 report_json_error(error_id::unknown_element);
             }
@@ -1955,7 +2014,8 @@ struct json_dearchiver::impl {
     }
 
     bool read_modeling_dynamics(const rapidjson::Value& val,
-                                hsm_wrapper&            wrapper) noexcept
+                                hsm_wrapper& /*wrapper*/,
+                                parameter& p) noexcept
     {
         auto_stack a(this, stack_id::dynamics_hsm);
 
@@ -1966,19 +2026,23 @@ struct json_dearchiver::impl {
             switch (idx) {
             case 0: {
                 component_id c;
-                return read_child_simple_or_grid_component(value, c) &&
-                       copy<component_id>(c, wrapper.compo_id);
+                if (read_child_simple_or_grid_component(value, c)) {
+                    p.integers[0] = static_cast<i64>(c);
+                    return true;
+                }
+
+                return false;
             }
             case 1:
-                return read_temp_integer(value) && copy_to(wrapper.exec.i1);
+                return read_temp_integer(value) && copy_to(p.integers[1]);
             case 2:
-                return read_temp_integer(value) && copy_to(wrapper.exec.i2);
+                return read_temp_integer(value) && copy_to(p.integers[2]);
             case 3:
-                return read_temp_real(value) && copy_to(wrapper.exec.r1);
+                return read_temp_real(value) && copy_to(p.reals[0]);
             case 4:
-                return read_temp_real(value) && copy_to(wrapper.exec.r2);
+                return read_temp_real(value) && copy_to(p.reals[1]);
             case 5:
-                return read_temp_real(value) && copy_to(wrapper.exec.timer);
+                return read_temp_real(value) && copy_to(p.reals[2]);
             default:
                 report_json_error(error_id::unknown_element);
             }
@@ -2124,24 +2188,16 @@ struct json_dearchiver::impl {
         param.clear();
 
         return for_first_member(
-                 val,
-                 "dynamics"sv,
-                 [&](const auto& value) noexcept -> bool {
-                     return dispatch(
-                       mdl,
-                       [&]<typename Dynamics>(Dynamics& dyn) noexcept -> bool {
-                           if constexpr (std::is_same_v<Dynamics,
-                                                        hsm_wrapper>) {
-                               return read_modeling_dynamics(value, dyn);
-                           } else {
-                               return read_dynamics(value, dyn);
-                           }
-                       });
-                 }) &&
-                 [&param, &mdl]() -> bool {
-            param.copy_from(mdl);
-            return true;
-        }();
+          val, "dynamics"sv, [&](const auto& value) noexcept -> bool {
+              return dispatch(
+                mdl, [&]<typename Dynamics>(Dynamics& dyn) noexcept -> bool {
+                    if constexpr (std::is_same_v<Dynamics, hsm_wrapper>) {
+                        return read_modeling_dynamics(value, dyn, param);
+                    } else {
+                        return read_dynamics(value, dyn, param);
+                    }
+                });
+          });
     }
 
     bool read_child_model(const rapidjson::Value& val,
@@ -2200,7 +2256,7 @@ struct json_dearchiver::impl {
                copy_internal_component(compo, c_id);
     }
 
-    auto search_reg(std::string_view name) noexcept -> registred_path*
+    auto search_reg(std::string_view name) const noexcept -> registred_path*
     {
         registred_path* reg = nullptr;
         while (mod().registred_paths.next(reg))
@@ -2596,7 +2652,7 @@ struct json_dearchiver::impl {
     }
 
     bool search_file_from_dir_component(const component& compo,
-                                        file_path_id&    out) noexcept
+                                        file_path_id&    out) const noexcept
     {
         out = get_file_from_component(mod(), compo, temp_string);
 
@@ -3934,7 +3990,8 @@ struct json_dearchiver::impl {
     }
 
     bool read_simulation_model_dynamics(const rapidjson::Value& val,
-                                        model&                  mdl) noexcept
+                                        model&                  mdl,
+                                        parameter&              p) noexcept
     {
         auto_stack s(this, stack_id::simulation_model_dynamics);
 
@@ -3953,9 +4010,9 @@ struct json_dearchiver::impl {
                             dyn.y[i] = undefined<node_id>();
 
                     if constexpr (std::is_same_v<Dynamics, hsm_wrapper>) {
-                        return read_simulation_dynamics(value, dyn);
+                        return read_simulation_dynamics(value, dyn, p);
                     } else {
-                        return read_dynamics(value, dyn);
+                        return read_dynamics(value, dyn, p);
                     }
                 });
           });
@@ -3996,7 +4053,9 @@ struct json_dearchiver::impl {
         return true;
     }
 
-    bool read_simulation_model(const rapidjson::Value& val, model& mdl) noexcept
+    bool read_simulation_model(const rapidjson::Value& val,
+                               model&                  mdl,
+                               parameter&              p) noexcept
     {
         auto_stack s(this, stack_id::simulation_model);
 
@@ -4004,7 +4063,7 @@ struct json_dearchiver::impl {
           val, [&](const auto name, const auto& value) noexcept -> bool {
               if ("type"sv == name)
                   return read_temp_string(value) && copy_to(mdl.type) &&
-                         read_simulation_model_dynamics(val, mdl);
+                         read_simulation_model_dynamics(val, mdl, p);
 
               if ("id"sv == name) {
                   std::optional<u64> id_in_file;
@@ -4090,10 +4149,13 @@ struct json_dearchiver::impl {
                for_each_array(
                  val,
                  [&](const auto /* i */, const auto& value) noexcept -> bool {
-                     auto& mdl  = sim().models.alloc();
-                     mdl.handle = invalid_heap_handle;
+                     auto&      mdl = sim().models.alloc();
+                     const auto id  = sim().models.get_id(mdl);
+                     const auto idx = get_index(id);
+                     mdl.handle     = invalid_heap_handle;
 
-                     return read_simulation_model(value, mdl);
+                     return read_simulation_model(
+                       value, mdl, sim().parameters[idx]);
                  });
     }
 
@@ -4302,7 +4364,7 @@ struct json_dearchiver::impl {
     bool global_parameter_init(const global_parameter_id id,
                                const tree_node_id        tn_id,
                                const model_id            mdl_id,
-                               const parameter&          p) noexcept
+                               const parameter&          p) const noexcept
     {
         pj().parameters.get<tree_node_id>(id) = tn_id;
         pj().parameters.get<model_id>(id)     = mdl_id;
@@ -4616,7 +4678,7 @@ struct json_dearchiver::impl {
     bool grid_observation_init(grid_observer& grid,
                                tree_node_id   parent_id,
                                tree_node_id   grid_tn_id,
-                               model_id       mdl_id)
+                               model_id       mdl_id) const
     {
         auto* parent     = pj().tree_nodes.try_to_get(parent_id);
         auto* mdl_parent = pj().tree_nodes.try_to_get(grid_tn_id);
@@ -4685,7 +4747,8 @@ struct json_dearchiver::impl {
                  });
     }
 
-    bool project_time_limit_affect(const double b, const double e) noexcept
+    bool project_time_limit_affect(const double b,
+                                   const double e) const noexcept
     {
         pj().t_limit.set_bound(b, e);
 
@@ -4912,440 +4975,490 @@ struct json_archiver::impl {
     {}
 
     template<typename Writer, int QssLevel>
-    void write(Writer&                              writer,
-               const abstract_integrator<QssLevel>& dyn) noexcept
+    void write(Writer& writer,
+               const abstract_integrator<QssLevel>& /*dyn*/,
+               const parameter& p) noexcept
     {
         writer.StartObject();
         writer.Key("X");
-        writer.Double(dyn.default_X);
+        writer.Double(p.reals[0]);
         writer.Key("dQ");
-        writer.Double(dyn.default_dQ);
+        writer.Double(p.reals[1]);
         writer.EndObject();
     }
 
     template<typename Writer, int QssLevel>
     void write(Writer& writer,
-               const abstract_multiplier<QssLevel>& /*dyn*/) noexcept
+               const abstract_multiplier<QssLevel>& /*dyn*/,
+               const parameter& /*p*/) noexcept
     {
         writer.StartObject();
         writer.EndObject();
     }
 
     template<typename Writer>
-    void write(Writer& writer, const qss1_sum_2& dyn) noexcept
+    void write(Writer& writer,
+               const qss1_sum_2& /*dyn*/,
+               const parameter& p) noexcept
     {
         writer.StartObject();
 
         writer.Key("value-0");
-        writer.Double(dyn.default_values[0]);
+        writer.Double(p.reals[0]);
         writer.Key("value-1");
-        writer.Double(dyn.default_values[1]);
+        writer.Double(p.reals[1]);
 
         writer.EndObject();
     }
 
     template<typename Writer>
-    void write(Writer& writer, const qss1_sum_3& dyn) noexcept
+    void write(Writer& writer,
+               const qss1_sum_3& /*dyn*/,
+               const parameter& p) noexcept
     {
         writer.StartObject();
 
         writer.Key("value-0");
-        writer.Double(dyn.default_values[0]);
+        writer.Double(p.reals[0]);
         writer.Key("value-1");
-        writer.Double(dyn.default_values[1]);
+        writer.Double(p.reals[1]);
         writer.Key("value-2");
-        writer.Double(dyn.default_values[2]);
+        writer.Double(p.reals[2]);
 
         writer.EndObject();
     }
 
     template<typename Writer>
-    void write(Writer& writer, const qss1_sum_4& dyn) noexcept
+    void write(Writer& writer,
+               const qss1_sum_4& /*dyn*/,
+               const parameter& p) noexcept
     {
         writer.StartObject();
 
         writer.Key("value-0");
-        writer.Double(dyn.default_values[0]);
+        writer.Double(p.reals[0]);
         writer.Key("value-1");
-        writer.Double(dyn.default_values[1]);
+        writer.Double(p.reals[1]);
         writer.Key("value-2");
-        writer.Double(dyn.default_values[2]);
+        writer.Double(p.reals[2]);
         writer.Key("value-3");
-        writer.Double(dyn.default_values[3]);
+        writer.Double(p.reals[3]);
 
         writer.EndObject();
     }
 
     template<typename Writer>
-    void write(Writer& writer, const qss1_wsum_2& dyn) noexcept
+    void write(Writer& writer,
+               const qss1_wsum_2& /*dyn*/,
+               const parameter& p) noexcept
     {
         writer.StartObject();
 
         writer.Key("value-0");
-        writer.Double(dyn.default_values[0]);
+        writer.Double(p.reals[0]);
         writer.Key("value-1");
-        writer.Double(dyn.default_values[1]);
+        writer.Double(p.reals[1]);
 
         writer.Key("coeff-0");
-        writer.Double(dyn.default_input_coeffs[0]);
+        writer.Double(p.reals[2]);
         writer.Key("coeff-1");
-        writer.Double(dyn.default_input_coeffs[1]);
+        writer.Double(p.reals[3]);
 
         writer.EndObject();
     }
 
     template<typename Writer>
-    void write(Writer& writer, const qss1_wsum_3& dyn) noexcept
+    void write(Writer& writer,
+               const qss1_wsum_3& /*dyn*/,
+               const parameter& p) noexcept
     {
         writer.StartObject();
 
         writer.Key("value-0");
-        writer.Double(dyn.default_values[0]);
+        writer.Double(p.reals[0]);
         writer.Key("value-1");
-        writer.Double(dyn.default_values[1]);
+        writer.Double(p.reals[1]);
         writer.Key("value-2");
-        writer.Double(dyn.default_values[2]);
+        writer.Double(p.reals[2]);
 
         writer.Key("coeff-0");
-        writer.Double(dyn.default_input_coeffs[0]);
+        writer.Double(p.reals[3]);
         writer.Key("coeff-1");
-        writer.Double(dyn.default_input_coeffs[1]);
+        writer.Double(p.reals[4]);
         writer.Key("coeff-2");
-        writer.Double(dyn.default_input_coeffs[2]);
+        writer.Double(p.reals[5]);
 
         writer.EndObject();
     }
 
     template<typename Writer>
-    void write(Writer& writer, const qss1_wsum_4& dyn) noexcept
+    void write(Writer& writer,
+               const qss1_wsum_4& /*dyn*/,
+               const parameter& p) noexcept
     {
         writer.StartObject();
 
         writer.Key("value-0");
-        writer.Double(dyn.default_values[0]);
+        writer.Double(p.reals[0]);
         writer.Key("value-1");
-        writer.Double(dyn.default_values[1]);
+        writer.Double(p.reals[1]);
         writer.Key("value-2");
-        writer.Double(dyn.default_values[2]);
+        writer.Double(p.reals[2]);
         writer.Key("value-3");
-        writer.Double(dyn.default_values[3]);
+        writer.Double(p.reals[3]);
 
         writer.Key("coeff-0");
-        writer.Double(dyn.default_input_coeffs[0]);
+        writer.Double(p.reals[4]);
         writer.Key("coeff-1");
-        writer.Double(dyn.default_input_coeffs[1]);
+        writer.Double(p.reals[5]);
         writer.Key("coeff-2");
-        writer.Double(dyn.default_input_coeffs[2]);
+        writer.Double(p.reals[6]);
         writer.Key("coeff-3");
-        writer.Double(dyn.default_input_coeffs[3]);
+        writer.Double(p.reals[7]);
 
         writer.EndObject();
     }
 
     template<typename Writer>
-    void write(Writer& writer, const qss2_sum_2& dyn) noexcept
+    void write(Writer& writer,
+               const qss2_sum_2& /*dyn*/,
+               const parameter& p) noexcept
     {
         writer.StartObject();
 
         writer.Key("value-0");
-        writer.Double(dyn.default_values[0]);
+        writer.Double(p.reals[0]);
         writer.Key("value-1");
-        writer.Double(dyn.default_values[1]);
+        writer.Double(p.reals[1]);
 
         writer.EndObject();
     }
 
     template<typename Writer>
-    void write(Writer& writer, const qss2_sum_3& dyn) noexcept
+    void write(Writer& writer,
+               const qss2_sum_3& /*dyn*/,
+               const parameter& p) noexcept
     {
         writer.StartObject();
 
         writer.Key("value-0");
-        writer.Double(dyn.default_values[0]);
+        writer.Double(p.reals[0]);
         writer.Key("value-1");
-        writer.Double(dyn.default_values[1]);
+        writer.Double(p.reals[1]);
         writer.Key("value-2");
-        writer.Double(dyn.default_values[2]);
+        writer.Double(p.reals[2]);
 
         writer.EndObject();
     }
 
     template<typename Writer>
-    void write(Writer& writer, const qss2_sum_4& dyn) noexcept
+    void write(Writer& writer,
+               const qss2_sum_4& /*dyn*/,
+               const parameter& p) noexcept
     {
         writer.StartObject();
 
         writer.Key("value-0");
-        writer.Double(dyn.default_values[0]);
+        writer.Double(p.reals[0]);
         writer.Key("value-1");
-        writer.Double(dyn.default_values[1]);
+        writer.Double(p.reals[1]);
         writer.Key("value-2");
-        writer.Double(dyn.default_values[2]);
+        writer.Double(p.reals[2]);
         writer.Key("value-3");
-        writer.Double(dyn.default_values[3]);
+        writer.Double(p.reals[3]);
 
         writer.EndObject();
     }
 
     template<typename Writer>
-    void write(Writer& writer, const qss2_wsum_2& dyn) noexcept
+    void write(Writer& writer,
+               const qss2_wsum_2& /*dyn*/,
+               const parameter& p) noexcept
     {
         writer.StartObject();
 
         writer.Key("value-0");
-        writer.Double(dyn.default_values[0]);
+        writer.Double(p.reals[0]);
         writer.Key("value-1");
-        writer.Double(dyn.default_values[1]);
+        writer.Double(p.reals[1]);
 
         writer.Key("coeff-0");
-        writer.Double(dyn.default_input_coeffs[0]);
+        writer.Double(p.reals[2]);
         writer.Key("coeff-1");
-        writer.Double(dyn.default_input_coeffs[1]);
+        writer.Double(p.reals[3]);
 
         writer.EndObject();
     }
 
     template<typename Writer>
-    void write(Writer& writer, const qss2_wsum_3& dyn) noexcept
+    void write(Writer& writer,
+               const qss2_wsum_3& /*dyn*/,
+               const parameter& p) noexcept
     {
         writer.StartObject();
 
         writer.Key("value-0");
-        writer.Double(dyn.default_values[0]);
+        writer.Double(p.reals[0]);
         writer.Key("value-1");
-        writer.Double(dyn.default_values[1]);
+        writer.Double(p.reals[1]);
         writer.Key("value-2");
-        writer.Double(dyn.default_values[2]);
+        writer.Double(p.reals[2]);
 
         writer.Key("coeff-0");
-        writer.Double(dyn.default_input_coeffs[0]);
+        writer.Double(p.reals[3]);
         writer.Key("coeff-1");
-        writer.Double(dyn.default_input_coeffs[1]);
+        writer.Double(p.reals[4]);
         writer.Key("coeff-2");
-        writer.Double(dyn.default_input_coeffs[2]);
+        writer.Double(p.reals[5]);
 
         writer.EndObject();
     }
 
     template<typename Writer>
-    void write(Writer& writer, const qss2_wsum_4& dyn) noexcept
+    void write(Writer& writer,
+               const qss2_wsum_4& /*dyn*/,
+               const parameter& p) noexcept
     {
         writer.StartObject();
 
         writer.Key("value-0");
-        writer.Double(dyn.default_values[0]);
+        writer.Double(p.reals[0]);
         writer.Key("value-1");
-        writer.Double(dyn.default_values[1]);
+        writer.Double(p.reals[1]);
         writer.Key("value-2");
-        writer.Double(dyn.default_values[2]);
+        writer.Double(p.reals[2]);
         writer.Key("value-3");
-        writer.Double(dyn.default_values[3]);
+        writer.Double(p.reals[3]);
 
         writer.Key("coeff-0");
-        writer.Double(dyn.default_input_coeffs[0]);
+        writer.Double(p.reals[4]);
         writer.Key("coeff-1");
-        writer.Double(dyn.default_input_coeffs[1]);
+        writer.Double(p.reals[5]);
         writer.Key("coeff-2");
-        writer.Double(dyn.default_input_coeffs[2]);
+        writer.Double(p.reals[6]);
         writer.Key("coeff-3");
-        writer.Double(dyn.default_input_coeffs[3]);
+        writer.Double(p.reals[7]);
 
         writer.EndObject();
     }
 
     template<typename Writer>
-    void write(Writer& writer, const qss3_sum_2& dyn) noexcept
+    void write(Writer& writer,
+               const qss3_sum_2& /*dyn*/,
+               const parameter& p) noexcept
     {
         writer.StartObject();
 
         writer.Key("value-0");
-        writer.Double(dyn.default_values[0]);
+        writer.Double(p.reals[0]);
         writer.Key("value-1");
-        writer.Double(dyn.default_values[1]);
+        writer.Double(p.reals[1]);
 
         writer.EndObject();
     }
 
     template<typename Writer>
-    void write(Writer& writer, const qss3_sum_3& dyn) noexcept
+    void write(Writer& writer,
+               const qss3_sum_3& /*dyn*/,
+               const parameter& p) noexcept
     {
         writer.StartObject();
 
         writer.Key("value-0");
-        writer.Double(dyn.default_values[0]);
+        writer.Double(p.reals[0]);
         writer.Key("value-1");
-        writer.Double(dyn.default_values[1]);
+        writer.Double(p.reals[1]);
         writer.Key("value-2");
-        writer.Double(dyn.default_values[2]);
+        writer.Double(p.reals[2]);
 
         writer.EndObject();
     }
 
     template<typename Writer>
-    void write(Writer& writer, const qss3_sum_4& dyn) noexcept
+    void write(Writer& writer,
+               const qss3_sum_4& /*dyn*/,
+               const parameter& p) noexcept
     {
         writer.StartObject();
 
         writer.Key("value-0");
-        writer.Double(dyn.default_values[0]);
+        writer.Double(p.reals[0]);
         writer.Key("value-1");
-        writer.Double(dyn.default_values[1]);
+        writer.Double(p.reals[1]);
         writer.Key("value-2");
-        writer.Double(dyn.default_values[2]);
+        writer.Double(p.reals[2]);
         writer.Key("value-3");
-        writer.Double(dyn.default_values[3]);
+        writer.Double(p.reals[3]);
 
         writer.EndObject();
     }
 
     template<typename Writer>
-    void write(Writer& writer, const qss3_wsum_2& dyn) noexcept
+    void write(Writer& writer,
+               const qss3_wsum_2& /*dyn*/,
+               const parameter& p) noexcept
     {
         writer.StartObject();
 
         writer.Key("value-0");
-        writer.Double(dyn.default_values[0]);
+        writer.Double(p.reals[0]);
         writer.Key("value-1");
-        writer.Double(dyn.default_values[1]);
+        writer.Double(p.reals[1]);
 
         writer.Key("coeff-0");
-        writer.Double(dyn.default_input_coeffs[0]);
+        writer.Double(p.reals[2]);
         writer.Key("coeff-1");
-        writer.Double(dyn.default_input_coeffs[1]);
+        writer.Double(p.reals[3]);
 
         writer.EndObject();
     }
 
     template<typename Writer>
-    void write(Writer& writer, const qss3_wsum_3& dyn) noexcept
+    void write(Writer& writer,
+               const qss3_wsum_3& /*dyn*/,
+               const parameter& p) noexcept
     {
         writer.StartObject();
 
         writer.Key("value-0");
-        writer.Double(dyn.default_values[0]);
+        writer.Double(p.reals[0]);
         writer.Key("value-1");
-        writer.Double(dyn.default_values[1]);
+        writer.Double(p.reals[1]);
         writer.Key("value-2");
-        writer.Double(dyn.default_values[2]);
+        writer.Double(p.reals[2]);
 
         writer.Key("coeff-0");
-        writer.Double(dyn.default_input_coeffs[0]);
+        writer.Double(p.reals[3]);
         writer.Key("coeff-1");
-        writer.Double(dyn.default_input_coeffs[1]);
+        writer.Double(p.reals[4]);
         writer.Key("coeff-2");
-        writer.Double(dyn.default_input_coeffs[2]);
+        writer.Double(p.reals[5]);
 
         writer.EndObject();
     }
 
     template<typename Writer>
-    void write(Writer& writer, const qss3_wsum_4& dyn) noexcept
+    void write(Writer& writer,
+               const qss3_wsum_4& /*dyn*/,
+               const parameter& p) noexcept
     {
         writer.StartObject();
 
         writer.Key("value-0");
-        writer.Double(dyn.default_values[0]);
+        writer.Double(p.reals[0]);
         writer.Key("value-1");
-        writer.Double(dyn.default_values[1]);
+        writer.Double(p.reals[1]);
         writer.Key("value-2");
-        writer.Double(dyn.default_values[2]);
+        writer.Double(p.reals[2]);
         writer.Key("value-3");
-        writer.Double(dyn.default_values[3]);
+        writer.Double(p.reals[3]);
 
         writer.Key("coeff-0");
-        writer.Double(dyn.default_input_coeffs[0]);
+        writer.Double(p.reals[4]);
         writer.Key("coeff-1");
-        writer.Double(dyn.default_input_coeffs[1]);
+        writer.Double(p.reals[5]);
         writer.Key("coeff-2");
-        writer.Double(dyn.default_input_coeffs[2]);
+        writer.Double(p.reals[6]);
         writer.Key("coeff-3");
-        writer.Double(dyn.default_input_coeffs[3]);
+        writer.Double(p.reals[7]);
 
         writer.EndObject();
     }
 
     template<typename Writer>
-    void write(Writer& writer, const counter& /*dyn*/) noexcept
+    void write(Writer& writer,
+               const counter& /*dyn*/,
+               const parameter& /*p*/) noexcept
     {
         writer.StartObject();
         writer.EndObject();
     }
 
     template<typename Writer>
-    void write(Writer& writer, const queue& dyn) noexcept
+    void write(Writer& writer,
+               const queue& /*dyn*/,
+               const parameter& p) noexcept
     {
         writer.StartObject();
         writer.Key("ta");
-        writer.Double(dyn.default_ta);
+        writer.Double(p.reals[0]);
         writer.EndObject();
     }
 
     template<typename Writer>
-    void write(Writer& writer, const dynamic_queue& dyn) noexcept
+    void write(Writer& writer,
+               const dynamic_queue& /*dyn*/,
+               const parameter& p) noexcept
     {
         writer.StartObject();
         writer.Key("source-ta-type");
-        writer.Int(ordinal(dyn.default_source_ta.type));
+        writer.Int64(p.integers[1]);
         writer.Key("source-ta-id");
-        writer.Uint64(dyn.default_source_ta.id);
+        writer.Uint64(p.integers[2]);
         writer.Key("stop-on-error");
-        writer.Bool(dyn.stop_on_error);
+        writer.Bool(p.integers[0] != 0);
         writer.EndObject();
     }
 
     template<typename Writer>
-    void write(Writer& writer, const priority_queue& dyn) noexcept
+    void write(Writer& writer,
+               const priority_queue& /*dyn*/,
+               const parameter& p) noexcept
     {
         writer.StartObject();
         writer.Key("ta");
-        writer.Double(dyn.default_ta);
+        writer.Double(p.reals[0]);
         writer.Key("source-ta-type");
-        writer.Int(ordinal(dyn.default_source_ta.type));
+        writer.Int64(p.integers[1]);
         writer.Key("source-ta-id");
-        writer.Uint64(dyn.default_source_ta.id);
+        writer.Uint64(p.integers[2]);
         writer.Key("stop-on-error");
-        writer.Bool(dyn.stop_on_error);
+        writer.Bool(p.integers[0]);
         writer.EndObject();
     }
 
     template<typename Writer>
-    void write(Writer& writer, const generator& dyn) noexcept
+    void write(Writer& writer,
+               const generator& /*dyn*/,
+               const parameter& p) noexcept
     {
         writer.StartObject();
 
         writer.Key("stop-on-error");
-        writer.Bool(dyn.flags[generator::option::stop_on_error]);
+        writer.Bool(p.integers[0]);
 
-        if (dyn.flags[generator::option::ta_use_source]) {
-            writer.Key("offset");
-            writer.Double(dyn.default_offset);
-            writer.Key("source-ta-type");
-            writer.Int(ordinal(dyn.default_source_ta.type));
-            writer.Key("source-ta-id");
-            writer.Uint64(dyn.default_source_ta.id);
-        }
+        writer.Key("offset");
+        writer.Double(p.reals[0]);
+        writer.Key("source-ta-type");
+        writer.Int64(p.integers[2]);
+        writer.Key("source-ta-id");
+        writer.Uint64(p.integers[1]);
 
-        if (dyn.flags[generator::option::value_use_source]) {
-            writer.Key("source-value-type");
-            writer.Int(ordinal(dyn.default_source_value.type));
-            writer.Key("source-value-id");
-            writer.Uint64(dyn.default_source_value.id);
-        }
+        writer.Key("source-value-type");
+        writer.Int64(p.integers[4]);
+        writer.Key("source-value-id");
+        writer.Uint64(p.integers[3]);
 
         writer.EndObject();
     }
 
     template<typename Writer>
-    void write(Writer& writer, const constant& dyn) noexcept
+    void write(Writer& writer,
+               const constant& /*dyn*/,
+               const parameter& p) noexcept
     {
         writer.StartObject();
         writer.Key("value");
-        writer.Double(dyn.default_value);
+        writer.Double(p.reals[0]);
         writer.Key("offset");
-        writer.Double(dyn.default_offset);
+        writer.Double(p.reals[1]);
         writer.Key("type");
 
-        switch (dyn.type) {
+        const auto type = (0 <= p.integers[0] && p.integers[0] < 5)
+                            ? enum_cast<constant::init_type>(p.integers[0])
+                            : constant::init_type::constant;
+
+        switch (type) {
         case constant::init_type::constant:
             writer.String("constant");
             break;
@@ -5358,227 +5471,250 @@ struct json_archiver::impl {
         case constant::init_type::incoming_component_n:
             writer.String("incoming_component_n");
             writer.Key("port");
-            writer.Uint64(dyn.port);
+            writer.Uint64(p.integers[1]);
             break;
         case constant::init_type::outcoming_component_n:
             writer.String("outcoming_component_n");
             writer.Key("port");
-            writer.Uint64(dyn.port);
+            writer.Uint64(p.integers[1]);
             break;
         }
         writer.EndObject();
     }
 
     template<typename Writer>
-    void write(Writer& writer, const qss1_cross& dyn) noexcept
+    void write(Writer& writer,
+               const qss1_cross& /*dyn*/,
+               const parameter& p) noexcept
     {
         writer.StartObject();
         writer.Key("threshold");
-        writer.Double(dyn.default_threshold);
+        writer.Double(p.reals[0]);
         writer.Key("detect-up");
-        writer.Bool(dyn.default_detect_up);
+        writer.Bool(p.integers[0]);
         writer.EndObject();
     }
 
     template<typename Writer>
-    void write(Writer& writer, const qss2_cross& dyn) noexcept
+    void write(Writer& writer,
+               const qss2_cross& /*dyn*/,
+               const parameter& p) noexcept
     {
         writer.StartObject();
         writer.Key("threshold");
-        writer.Double(dyn.default_threshold);
+        writer.Double(p.reals[0]);
         writer.Key("detect-up");
-        writer.Bool(dyn.default_detect_up);
+        writer.Bool(p.integers[0]);
         writer.EndObject();
     }
 
     template<typename Writer>
-    void write(Writer& writer, const qss3_cross& dyn) noexcept
+    void write(Writer& writer,
+               const qss3_cross& /*dyn*/,
+               const parameter& p) noexcept
     {
         writer.StartObject();
         writer.Key("threshold");
-        writer.Double(dyn.default_threshold);
+        writer.Double(p.reals[0]);
         writer.Key("detect-up");
-        writer.Bool(dyn.default_detect_up);
+        writer.Bool(p.integers[0]);
         writer.EndObject();
     }
 
     template<typename Writer>
-    void write(Writer& writer, const qss1_filter& dyn) noexcept
+    void write(Writer& writer,
+               const qss1_filter& /*dyn*/,
+               const parameter& p) noexcept
     {
         writer.StartObject();
         writer.Key("lower-threshold");
-        writer.Double(std::isinf(dyn.default_lower_threshold)
-                        ? std::numeric_limits<double>::max()
-                        : dyn.default_lower_threshold);
+        writer.Double(p.reals[0]);
         writer.Key("upper-threshold");
-        writer.Double(std::isinf(dyn.default_upper_threshold)
-                        ? std::numeric_limits<double>::max()
-                        : dyn.default_upper_threshold);
+        writer.Double(p.reals[1]);
         writer.EndObject();
     }
 
     template<typename Writer>
-    void write(Writer& writer, const qss2_filter& dyn) noexcept
+    void write(Writer& writer,
+               const qss2_filter& /*dyn*/,
+               const parameter& p) noexcept
     {
         writer.StartObject();
         writer.Key("lower-threshold");
-        writer.Double(std::isinf(dyn.default_lower_threshold)
-                        ? std::numeric_limits<double>::max()
-                        : dyn.default_lower_threshold);
+        writer.Double(p.reals[0]);
         writer.Key("upper-threshold");
-        writer.Double(std::isinf(dyn.default_upper_threshold)
-                        ? std::numeric_limits<double>::max()
-                        : dyn.default_upper_threshold);
+        writer.Double(p.reals[1]);
         writer.EndObject();
     }
 
     template<typename Writer>
-    void write(Writer& writer, const qss3_filter& dyn) noexcept
+    void write(Writer& writer,
+               const qss3_filter& /*dyn*/,
+               const parameter& p) noexcept
     {
         writer.StartObject();
         writer.Key("lower-threshold");
-        writer.Double(std::isinf(dyn.default_lower_threshold)
-                        ? std::numeric_limits<double>::max()
-                        : dyn.default_lower_threshold);
+        writer.Double(p.reals[0]);
         writer.Key("upper-threshold");
-        writer.Double(std::isinf(dyn.default_upper_threshold)
-                        ? std::numeric_limits<double>::max()
-                        : dyn.default_upper_threshold);
+        writer.Double(p.reals[1]);
         writer.EndObject();
     }
 
     template<typename Writer>
-    void write(Writer& writer, const qss1_power& dyn) noexcept
+    void write(Writer& writer,
+               const qss1_power& /*dyn*/,
+               const parameter& p) noexcept
     {
         writer.StartObject();
         writer.Key("n");
-        writer.Double(dyn.default_n);
+        writer.Double(p.reals[0]);
         writer.EndObject();
     }
 
     template<typename Writer>
-    void write(Writer& writer, const qss2_power& dyn) noexcept
+    void write(Writer& writer,
+               const qss2_power& /*dyn*/,
+               const parameter& p) noexcept
     {
         writer.StartObject();
         writer.Key("n");
-        writer.Double(dyn.default_n);
+        writer.Double(p.reals[0]);
         writer.EndObject();
     }
 
     template<typename Writer>
-    void write(Writer& writer, const qss3_power& dyn) noexcept
+    void write(Writer& writer,
+               const qss3_power& /*dyn*/,
+               const parameter& p) noexcept
     {
         writer.StartObject();
         writer.Key("n");
-        writer.Double(dyn.default_n);
+        writer.Double(p.reals[0]);
         writer.EndObject();
     }
 
     template<typename Writer, int QssLevel>
     void write(Writer& writer,
-               const abstract_square<QssLevel>& /*dyn*/) noexcept
+               const abstract_square<QssLevel>& /*dyn*/,
+               const parameter& /*p*/) noexcept
     {
         writer.StartObject();
         writer.EndObject();
     }
 
     template<typename Writer, int PortNumber>
-    void write(Writer& writer, const accumulator<PortNumber>& /*dyn*/) noexcept
+    void write(Writer& writer,
+               const accumulator<PortNumber>& /*dyn*/,
+               const parameter& /*p*/) noexcept
     {
         writer.StartObject();
         writer.EndObject();
     }
 
     template<typename Writer>
-    void write(Writer& writer, const time_func& dyn) noexcept
+    void write(Writer& writer,
+               const time_func& /*dyn*/,
+               const parameter& p) noexcept
     {
         writer.StartObject();
         writer.Key("function");
-        writer.String(dyn.default_f == &time_function          ? "time"
-                      : dyn.default_f == &square_time_function ? "square"
-                                                               : "sin");
+        writer.String(p.integers[0] == 0   ? "time"
+                      : p.integers[0] == 1 ? "square"
+                                           : "sin");
         writer.EndObject();
     }
 
     template<typename Writer>
-    void write(Writer& writer, const logical_and_2& dyn) noexcept
+    void write(Writer& writer,
+               const logical_and_2& /*dyn*/,
+               const parameter& p) noexcept
     {
         writer.StartObject();
         writer.Key("value-0");
-        writer.Bool(dyn.default_values[0]);
+        writer.Bool(p.integers[0]);
         writer.Key("value-1");
-        writer.Bool(dyn.default_values[1]);
+        writer.Bool(p.integers[1]);
         writer.EndObject();
     }
 
     template<typename Writer>
-    void write(Writer& writer, const logical_and_3& dyn) noexcept
+    void write(Writer& writer,
+               const logical_and_3& /*dyn*/,
+               const parameter& p) noexcept
     {
         writer.StartObject();
         writer.Key("value-0");
-        writer.Bool(dyn.default_values[0]);
+        writer.Bool(p.integers[0]);
         writer.Key("value-1");
-        writer.Bool(dyn.default_values[1]);
+        writer.Bool(p.integers[1]);
         writer.Key("value-2");
-        writer.Bool(dyn.default_values[2]);
+        writer.Bool(p.integers[2]);
         writer.EndObject();
     }
 
     template<typename Writer>
-    void write(Writer& writer, const logical_or_2& dyn) noexcept
+    void write(Writer& writer,
+               const logical_or_2& /*dyn*/,
+               const parameter& p) noexcept
     {
         writer.StartObject();
         writer.Key("value-0");
-        writer.Bool(dyn.default_values[0]);
+        writer.Bool(p.integers[0]);
         writer.Key("value-1");
-        writer.Bool(dyn.default_values[1]);
+        writer.Bool(p.integers[1]);
         writer.EndObject();
     }
 
     template<typename Writer>
-    void write(Writer& writer, const logical_or_3& dyn) noexcept
+    void write(Writer& writer,
+               const logical_or_3& /*dyn*/,
+               const parameter& p) noexcept
     {
         writer.StartObject();
         writer.Key("value-0");
-        writer.Bool(dyn.default_values[0]);
+        writer.Bool(p.integers[0]);
         writer.Key("value-1");
-        writer.Bool(dyn.default_values[1]);
+        writer.Bool(p.integers[1]);
         writer.Key("value-2");
-        writer.Bool(dyn.default_values[2]);
+        writer.Bool(p.integers[2]);
         writer.EndObject();
     }
 
     template<typename Writer>
-    void write(Writer& writer, const logical_invert& /*dyn*/) noexcept
+    void write(Writer& writer,
+               const logical_invert& /*dyn*/,
+               const parameter& /*p*/) noexcept
     {
         writer.StartObject();
         writer.EndObject();
     }
 
     template<typename Writer>
-    void write_simulation_dynamics(Writer&            writer,
-                                   const hsm_wrapper& dyn) noexcept
+    void write_simulation_dynamics(Writer& writer,
+                                   const hsm_wrapper& /*dyn*/,
+                                   const parameter& p) noexcept
     {
         writer.StartObject();
         writer.Key("hsm");
-        writer.Uint64(get_index(dyn.id));
+        writer.Uint64(p.integers[0]);
         writer.Key("i1");
-        writer.Int(dyn.exec.i1);
+        writer.Int64(p.integers[1]);
         writer.Key("i2");
-        writer.Int(dyn.exec.i2);
+        writer.Int64(p.integers[2]);
         writer.Key("r1");
-        writer.Double(dyn.exec.r1);
+        writer.Double(p.reals[0]);
         writer.Key("r2");
-        writer.Double(dyn.exec.r2);
+        writer.Double(p.reals[1]);
         writer.Key("timeout");
-        writer.Double(dyn.exec.timer);
+        writer.Double(p.reals[2]);
         writer.EndObject();
     }
 
     template<typename Writer>
-    void write_modeling_dynamics(const modeling&    mod,
-                                 Writer&            writer,
-                                 const hsm_wrapper& dyn) noexcept
+    void write_modeling_dynamics(const modeling& mod,
+                                 Writer&         writer,
+                                 const hsm_wrapper& /*dyn*/,
+                                 const parameter& p) noexcept
     {
         writer.StartObject();
 
@@ -5586,20 +5722,20 @@ struct json_archiver::impl {
         writer.StartObject();
         if_data_exists_do(
           mod.components,
-          enum_cast<component_id>(dyn.compo_id),
+          enum_cast<component_id>(p.integers[0]),
           [&](auto& compo) { write_child_component_path(mod, compo, writer); });
         writer.EndObject();
 
         writer.Key("i1");
-        writer.Int(dyn.exec.i1);
+        writer.Int64(p.integers[1]);
         writer.Key("i2");
-        writer.Int(dyn.exec.i2);
+        writer.Int64(p.integers[2]);
         writer.Key("r1");
-        writer.Double(dyn.exec.r1);
+        writer.Double(p.reals[0]);
         writer.Key("r2");
-        writer.Double(dyn.exec.r2);
+        writer.Double(p.reals[1]);
         writer.Key("timeout");
-        writer.Double(dyn.exec.timer);
+        writer.Double(p.reals[2]);
         writer.EndObject();
     }
 
@@ -6006,15 +6142,18 @@ struct json_archiver::impl {
     }
 
     template<typename Writer>
-    void write_child_model(const modeling& mod, model& mdl, Writer& w) noexcept
+    void write_child_model(const modeling&  mod,
+                           model&           mdl,
+                           const parameter& p,
+                           Writer&          w) noexcept
     {
         w.Key("dynamics");
 
         dispatch(mdl, [&]<typename Dynamics>(Dynamics& dyn) noexcept {
             if constexpr (std::is_same_v<Dynamics, hsm_wrapper>) {
-                write_modeling_dynamics(mod, w, dyn);
+                write_modeling_dynamics(mod, w, dyn, p);
             } else {
-                write(w, dyn);
+                write(w, dyn, p);
             }
         });
     }
@@ -6066,7 +6205,7 @@ struct json_archiver::impl {
             w.Key("type");
             w.String(dynamics_type_names[ordinal(ch.id.mdl_type)]);
 
-            write_child_model(mod, mdl, w);
+            write_child_model(mod, mdl, gen.children_parameters[child_idx], w);
         }
 
         w.EndObject();
@@ -6627,8 +6766,9 @@ struct json_archiver::impl {
         w.Key("models");
         w.StartArray();
 
-        for (auto& mdl : sim.models) {
-            const auto mdl_id = sim.models.get_id(mdl);
+        for (const auto& mdl : sim.models) {
+            const auto mdl_id  = sim.models.get_id(mdl);
+            const auto mdl_idx = get_index(mdl_id);
 
             w.StartObject();
             w.Key("id");
@@ -6639,9 +6779,9 @@ struct json_archiver::impl {
 
             dispatch(mdl, [&]<typename Dynamics>(const Dynamics& dyn) noexcept {
                 if constexpr (std::is_same_v<Dynamics, hsm_wrapper>)
-                    write_simulation_dynamics(w, dyn);
+                    write_simulation_dynamics(w, dyn, sim.parameters[mdl_idx]);
                 else
-                    write(w, dyn);
+                    write(w, dyn, sim.parameters[mdl_idx]);
             });
 
             w.EndObject();

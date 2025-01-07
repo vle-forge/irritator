@@ -50,24 +50,34 @@ struct neuron make_neuron(irt::simulation* sim) noexcept
     auto& constant_cross_lif = sim->alloc<irt::constant>();
     auto& cross_lif          = sim->alloc<irt::qss3_cross>();
 
-    sum_lif.default_input_coeffs[0] = -irt::one;
-    sum_lif.default_input_coeffs[1] = irt::two * Vt_lif;
-
-    prod_lif.default_input_coeffs[0] = irt::one / tau_lif;
-    prod_lif.default_input_coeffs[1] = irt::zero;
-
-    constant_lif.default_value       = irt::one;
-    constant_cross_lif.default_value = Vr_lif;
-
-    integrator_lif.default_X = irt::zero;
-
-    cross_lif.default_threshold = Vt_lif;
-
     struct neuron neuron_model = {
         sim->get_id(sum_lif),        sim->get_id(prod_lif),
         sim->get_id(integrator_lif), sim->get_id(constant_lif),
         sim->get_id(cross_lif),      sim->get_id(constant_cross_lif),
     };
+
+    {
+        auto& p    = sim->parameters[get_index(sim->get_id(sum_lif))];
+        p.reals[2] = -irt::one;
+        p.reals[3] = irt::two * Vt_lif;
+    }
+    {
+        auto& p    = sim->parameters[get_index(sim->get_id(prod_lif))];
+        p.reals[2] = irt::one / tau_lif;
+        p.reals[3] = irt::zero;
+    }
+    {
+        auto& p    = sim->parameters[get_index(sim->get_id(constant_lif))];
+        p.reals[0] = irt::one;
+    }
+    {
+        auto& p = sim->parameters[get_index(sim->get_id(constant_cross_lif))];
+        p.reals[0] = Vr_lif;
+    }
+    {
+        auto& p    = sim->parameters[get_index(sim->get_id(cross_lif))];
+        p.reals[0] = Vt_lif;
+    }
 
     // Connections
     expect(!!sim->connect(prod_lif, 0, integrator_lif, 0));
@@ -81,6 +91,12 @@ struct neuron make_neuron(irt::simulation* sim) noexcept
     expect(!!sim->connect(constant_lif, 0, prod_lif, 1));
 
     return neuron_model;
+}
+
+template<typename Dynamics>
+irt::parameter& get_p(irt::simulation* sim, const Dynamics& d) noexcept
+{
+    return sim->parameters[get_index(sim->get_id(d))];
 }
 
 struct synapse make_synapse(irt::simulation* sim,
@@ -113,21 +129,19 @@ struct synapse make_synapse(irt::simulation* sim,
     auto& const_syn       = sim->alloc<irt::constant>();
     auto& accumulator_syn = sim->alloc<irt::accumulator_2>();
 
-    cross_pre.default_threshold      = irt::one;
-    int_pre.default_X                = irt::zero;
-    sum_pre.default_input_coeffs[0]  = irt::one;
-    sum_pre.default_input_coeffs[1]  = dApre;
-    mult_pre.default_input_coeffs[0] = -irt::one / taupre;
-    mult_pre.default_input_coeffs[1] = irt::zero;
+    get_p(sim, cross_pre).reals[0] = irt::one;
+    get_p(sim, sum_pre).reals[2]   = irt::one;
+    get_p(sim, sum_pre).reals[3]   = dApre;
+    get_p(sim, mult_pre).reals[2]  = -irt::one / taupre;
+    get_p(sim, mult_pre).reals[3]  = irt::zero;
 
-    cross_post.default_threshold      = irt::one;
-    int_post.default_X                = irt::zero;
-    sum_post.default_input_coeffs[0]  = irt::one;
-    sum_post.default_input_coeffs[1]  = dApost;
-    mult_post.default_input_coeffs[0] = -irt::one / taupost;
-    mult_post.default_input_coeffs[1] = irt::zero;
+    get_p(sim, cross_post).reals[0] = irt::one;
+    get_p(sim, sum_post).reals[2]   = irt::one;
+    get_p(sim, sum_post).reals[3]   = dApost;
+    get_p(sim, mult_post).reals[2]  = -irt::one / taupost;
+    get_p(sim, mult_post).reals[3]  = irt::zero;
 
-    const_syn.default_value = irt::one;
+    get_p(sim, const_syn).reals[0] = irt::one;
 
     struct synapse synapse_model = {
         sim->get_id(sum_pre),   sim->get_id(mult_pre),

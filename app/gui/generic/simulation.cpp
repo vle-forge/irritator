@@ -165,21 +165,21 @@ static void show_dynamics_values(project_window& /*sim*/,
                                  const qss1_integrator& dyn)
 {
     ImGui::TextFormat("X {}", dyn.X);
-    ImGui::TextFormat("dQ {}", dyn.default_dQ);
+    ImGui::TextFormat("dQ {}", dyn.dQ);
 }
 
 static void show_dynamics_values(project_window& /*sim*/,
                                  const qss2_integrator& dyn)
 {
     ImGui::TextFormat("X {}", dyn.X);
-    ImGui::TextFormat("dQ {}", dyn.default_dQ);
+    ImGui::TextFormat("dQ {}", dyn.dQ);
 }
 
 static void show_dynamics_values(project_window& /*sim*/,
                                  const qss3_integrator& dyn)
 {
     ImGui::TextFormat("X {}", dyn.X);
-    ImGui::TextFormat("dQ {}", dyn.default_dQ);
+    ImGui::TextFormat("dQ {}", dyn.dQ);
 }
 
 static void show_dynamics_values(project_window& /*sim*/, const qss1_sum_2& dyn)
@@ -519,7 +519,9 @@ static void show_dynamics_values(project_window& /*sim*/,
     ImGui::TextFormat("sigma={}", dyn.exec.timer);
 }
 
-static void show_model_dynamics(project_window& ed, model& mdl) noexcept
+static void show_model_dynamics(application&    app,
+                                project_window& ed,
+                                model&          mdl) noexcept
 {
     dispatch(mdl, [&]<typename Dynamics>(Dynamics& dyn) {
         add_input_attribute(ed, dyn);
@@ -534,7 +536,11 @@ static void show_model_dynamics(project_window& ed, model& mdl) noexcept
         if (ed.allow_user_changes) {
             ImGui::PushID(1);
             ImGui::PushItemWidth(120.0f);
-            show_dynamics_inputs(ed, dyn);
+            show_parameter_editor(
+              app,
+              ed,
+              mdl.type,
+              ed.pj.sim.parameters[get_index(ed.pj.sim.models.get_id(mdl))]);
             ImGui::PopItemWidth();
             ImGui::PopID();
         }
@@ -543,7 +549,7 @@ static void show_model_dynamics(project_window& ed, model& mdl) noexcept
     });
 }
 
-void show_top_with_identifier(application& /*app*/, project_window& ed) noexcept
+void show_top_with_identifier(application& app, project_window& ed) noexcept
 {
     for_each_data(ed.pj.sim.models, [&](model& mdl) noexcept -> void {
         const auto mdl_id    = ed.pj.sim.models.get_id(mdl);
@@ -556,13 +562,12 @@ void show_top_with_identifier(application& /*app*/, project_window& ed) noexcept
           "{}\n{}", mdl_index, dynamics_type_names[ordinal(mdl.type)]);
 
         ImNodes::EndNodeTitleBar();
-        show_model_dynamics(ed, mdl);
+        show_model_dynamics(app, ed, mdl);
         ImNodes::EndNode();
     });
 }
 
-void show_top_without_identifier(application& /*app*/,
-                                 project_window& ed) noexcept
+void show_top_without_identifier(application& app, project_window& ed) noexcept
 {
     for_each_data(ed.pj.sim.models, [&](model& mdl) noexcept -> void {
         const auto mdl_id    = ed.pj.sim.models.get_id(mdl);
@@ -572,7 +577,7 @@ void show_top_without_identifier(application& /*app*/,
         ImNodes::BeginNodeTitleBar();
         ImGui::TextUnformatted(dynamics_type_names[ordinal(mdl.type)]);
         ImNodes::EndNodeTitleBar();
-        show_model_dynamics(ed, mdl);
+        show_model_dynamics(app, ed, mdl);
         ImNodes::EndNode();
     });
 }

@@ -124,7 +124,6 @@ enum class modeling_status { modified, unmodified };
 class project;
 class log_manager;
 struct log_entry;
-struct parameter;
 struct connection;
 struct child;
 class generic_component;
@@ -134,36 +133,6 @@ struct tree_node;
 class variable_observer;
 class grid_observer;
 class graph_observer;
-
-//! Stores default values for all @c irt::dynamics.
-//!
-//! Mainly used to override default values of @c irt::component models into
-//! the @c irt::tree_node objects of the @c irt::project class.
-struct parameter {
-    parameter() noexcept = default;
-
-    //! Import values from the model @c mdl according to the underlying @c
-    //! irt::dynamics_type.
-    parameter(const model& mdl) noexcept;
-
-    //! Initialize values from the default dynamics type.
-    parameter(const dynamics_type type) noexcept;
-
-    //! Copy data from the vectors to the simulation model.
-    void copy_to(model& mdl) const noexcept;
-
-    //! Copy data from model to the vectors of this parameter.
-    void copy_from(const model& mdl) noexcept;
-
-    //! Initialize data from dynamics type default values.
-    void init_from(const dynamics_type type) noexcept;
-
-    //! Assign @c 0 to reals and integers arrays.
-    void clear() noexcept;
-
-    std::array<real, 8> reals;
-    std::array<i64, 8>  integers;
-};
 
 enum class child_flags : u8 {
     none         = 0,

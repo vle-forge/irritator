@@ -1831,8 +1831,8 @@ int main()
         auto& c1  = sim.alloc<irt::constant>();
         auto& c2  = sim.alloc<irt::constant>();
 
-        c1.default_value = 0.0;
-        c2.default_value = 0.0;
+        get_p(sim, c1).set_constant(0, 0);
+        get_p(sim, c2).set_constant(0, 0);
 
         expect(!!sim.connect(c1, 0, cnt, 0));
         expect(!!sim.connect(c2, 0, cnt, 0));
@@ -1857,8 +1857,8 @@ int main()
         auto& cross1 = sim.alloc<irt::qss1_cross>();
         auto& c1     = sim.alloc<irt::constant>();
 
-        c1.default_value         = 3.0;
-        cross1.default_threshold = 0.0;
+        get_p(sim, c1).set_constant(3.0, 0);
+        get_p(sim, cross1).set_cross(0, true);
 
         expect(!!sim.connect(c1, 0, cross1, 0));
         expect(!!sim.connect(c1, 0, cross1, 1));
@@ -1966,21 +1966,28 @@ int main()
         cst_ta.length = 10;
         cst_ta.buffer = { 1., 1., 1., 1., 1., 1., 1., 1., 1., 1., 1. };
 
-        auto& cst_1         = sim.alloc<irt::constant>();
-        cst_1.default_value = 1.0;
+        auto& cst_1 = sim.alloc<irt::constant>();
+        get_p(sim, cst_1).set_constant(1, 0);
 
         auto& cnt = sim.alloc<irt::counter>();
 
-        auto& gen          = sim.alloc<irt::generator>();
-        gen.default_offset = 0;
+        auto& gen                = sim.alloc<irt::generator>();
+        get_p(sim, gen).reals[0] = 0.0;
+
         gen.flags.set(irt::generator::option::ta_use_source);
         gen.flags.set(irt::generator::option::value_use_source);
-        gen.default_source_value.id =
+
+        get_p(sim, gen).integers[0] = gen.flags.to_unsigned();
+
+        get_p(sim, gen).integers[3] =
           irt::ordinal(sim.srcs.constant_sources.get_id(cst_value));
-        gen.default_source_value.type = irt::source::source_type::constant;
-        gen.default_source_ta.id =
+        get_p(sim, gen).integers[4] =
+          irt::ordinal(irt::source::source_type::constant);
+
+        get_p(sim, gen).integers[1] =
           irt::ordinal(sim.srcs.constant_sources.get_id(cst_ta));
-        gen.default_source_ta.type = irt::source::source_type::constant;
+        get_p(sim, gen).integers[2] =
+          ordinal(irt::source::source_type::constant);
 
         expect(sim.hsms.can_alloc());
         expect(sim.models.can_alloc());
@@ -2032,21 +2039,26 @@ int main()
         cst_ta.length = 10;
         cst_ta.buffer = { 1., 1., 1., 1., 1., 1., 1., 1., 1., 1., 1. };
 
-        auto& cst_1         = sim.alloc<irt::constant>();
-        cst_1.default_value = 1.0;
+        auto& cst_1                = sim.alloc<irt::constant>();
+        get_p(sim, cst_1).reals[0] = 1.0;
 
         auto& cnt = sim.alloc<irt::counter>();
 
-        auto& gen          = sim.alloc<irt::generator>();
-        gen.default_offset = 0;
+        auto& gen = sim.alloc<irt::generator>();
         gen.flags.set(irt::generator::option::ta_use_source);
         gen.flags.set(irt::generator::option::value_use_source);
-        gen.default_source_value.id =
+
+        get_p(sim, gen).integers[0] = gen.flags.to_unsigned();
+
+        get_p(sim, gen).integers[3] =
           irt::ordinal(sim.srcs.constant_sources.get_id(cst_value));
-        gen.default_source_value.type = irt::source::source_type::constant;
-        gen.default_source_ta.id =
+        get_p(sim, gen).integers[4] =
+          irt::ordinal(irt::source::source_type::constant);
+
+        get_p(sim, gen).integers[1] =
           irt::ordinal(sim.srcs.constant_sources.get_id(cst_ta));
-        gen.default_source_ta.type = irt::source::source_type::constant;
+        get_p(sim, gen).integers[2] =
+          ordinal(irt::source::source_type::constant);
 
         expect(sim.hsms.can_alloc());
         expect(sim.models.can_alloc());
@@ -2097,11 +2109,13 @@ int main()
         expect((sim.can_alloc(3)) >> fatal);
         expect((sim.hsms.can_alloc(1)) >> fatal);
 
-        auto& cnt          = sim.alloc<irt::counter>();
-        auto& gen          = sim.alloc<irt::constant>();
-        gen.default_offset = 5.0;
-        gen.default_value  = 1.0;
-        gen.type           = irt::constant::init_type::constant;
+        auto& cnt = sim.alloc<irt::counter>();
+        auto& gen = sim.alloc<irt::constant>();
+
+        get_p(sim, gen).reals[0] = 1.0;
+        get_p(sim, gen).reals[1] = 5.0;
+        get_p(sim, gen).integers[0] =
+          ordinal(irt::constant::init_type::constant);
 
         expect(sim.hsms.can_alloc());
         expect(sim.models.can_alloc());
@@ -2151,15 +2165,17 @@ int main()
         expect((sim.can_alloc(3)) >> fatal);
         expect((sim.hsms.can_alloc(1)) >> fatal);
 
-        auto& cnt           = sim.alloc<irt::counter>();
-        auto& gen1          = sim.alloc<irt::constant>();
-        gen1.default_offset = 5.0;
-        gen1.default_value  = 1.0;
-        gen1.type           = irt::constant::init_type::constant;
-        auto& gen2          = sim.alloc<irt::constant>();
-        gen2.default_offset = 12.0;
-        gen2.default_value  = 1.0;
-        gen2.type           = irt::constant::init_type::constant;
+        auto& cnt                 = sim.alloc<irt::counter>();
+        auto& gen1                = sim.alloc<irt::constant>();
+        get_p(sim, gen1).reals[0] = 1.0;
+        get_p(sim, gen1).reals[1] = 5.0;
+        get_p(sim, gen1).integers[0] =
+          ordinal(irt::constant::init_type::constant);
+        auto& gen2                = sim.alloc<irt::constant>();
+        get_p(sim, gen2).reals[0] = 1.0;
+        get_p(sim, gen2).reals[1] = 12.0;
+        get_p(sim, gen2).integers[0] =
+          ordinal(irt::constant::init_type::constant);
 
         expect(sim.hsms.can_alloc());
         expect(sim.models.can_alloc());
@@ -2209,15 +2225,17 @@ int main()
         expect((sim.can_alloc(3)) >> fatal);
         expect((sim.hsms.can_alloc(1)) >> fatal);
 
-        auto& cnt           = sim.alloc<irt::counter>();
-        auto& gen1          = sim.alloc<irt::constant>();
-        gen1.default_offset = 5.0;
-        gen1.default_value  = 1.0;
-        gen1.type           = irt::constant::init_type::constant;
-        auto& gen2          = sim.alloc<irt::constant>();
-        gen2.default_offset = 12.0;
-        gen2.default_value  = 1.0;
-        gen2.type           = irt::constant::init_type::constant;
+        auto& cnt                 = sim.alloc<irt::counter>();
+        auto& gen1                = sim.alloc<irt::constant>();
+        get_p(sim, gen1).reals[0] = 1.0;
+        get_p(sim, gen1).reals[1] = 5.0;
+        get_p(sim, gen1).integers[0] =
+          ordinal(irt::constant::init_type::constant);
+        auto& gen2                = sim.alloc<irt::constant>();
+        get_p(sim, gen2).reals[0] = 1.0;
+        get_p(sim, gen2).reals[1] = 12.0;
+        get_p(sim, gen2).integers[0] =
+          ordinal(irt::constant::init_type::constant);
 
         expect(sim.hsms.can_alloc());
         expect(sim.models.can_alloc());
@@ -2282,16 +2300,21 @@ int main()
         auto& gen = sim.alloc<irt::generator>();
         auto& cnt = sim.alloc<irt::counter>();
 
-        gen.default_offset = 0;
         gen.flags.set(irt::generator::option::ta_use_source);
         gen.flags.set(irt::generator::option::value_use_source);
         gen.flags.set(irt::generator::option::stop_on_error);
-        gen.default_source_value.id =
+
+        get_p(sim, gen).integers[0] = gen.flags.to_unsigned();
+
+        get_p(sim, gen).integers[3] =
           irt::ordinal(sim.srcs.constant_sources.get_id(cst_value));
-        gen.default_source_value.type = irt::source::source_type::constant;
-        gen.default_source_ta.id =
+        get_p(sim, gen).integers[4] =
+          irt::ordinal(irt::source::source_type::constant);
+
+        get_p(sim, gen).integers[1] =
           irt::ordinal(sim.srcs.constant_sources.get_id(cst_ta));
-        gen.default_source_ta.type = irt::source::source_type::constant;
+        get_p(sim, gen).integers[2] =
+          ordinal(irt::source::source_type::constant);
 
         expect(!!sim.connect(gen, 0, cnt, 0));
 
@@ -2325,21 +2348,24 @@ int main()
         auto& l_and = sim.alloc<irt::logical_and_2>();
         auto& l_or  = sim.alloc<irt::logical_or_2>();
 
-        gen.default_source_value.id =
+        get_p(sim, gen).integers[3] =
           irt::ordinal(sim.srcs.constant_sources.get_id(cst_value));
-        gen.default_source_value.type = irt::source::source_type::constant;
-        gen.default_source_ta.id =
+        get_p(sim, gen).integers[4] =
+          irt::ordinal(irt::source::source_type::constant);
+
+        get_p(sim, gen).integers[1] =
           irt::ordinal(sim.srcs.constant_sources.get_id(cst_ta));
-        gen.default_source_ta.type = irt::source::source_type::constant;
+        get_p(sim, gen).integers[2] =
+          ordinal(irt::source::source_type::constant);
 
         expect(!!sim.connect(gen, 0, l_and, 0));
         expect(!!sim.connect(l_and, 0, l_or, 0));
 
-        l_and.default_values[0] = false;
-        l_and.default_values[1] = true;
+        get_p(sim, l_and).integers[0] = false;
+        get_p(sim, l_and).integers[1] = true;
 
-        l_or.default_values[0] = false;
-        l_or.default_values[1] = false;
+        get_p(sim, l_or).integers[0] = false;
+        get_p(sim, l_or).integers[1] = false;
 
         auto& obs = sim.observers.alloc();
         sim.observe(irt::get_model(l_and), obs);
@@ -2368,15 +2394,15 @@ int main()
         fmt::print("time_func\n");
         irt::simulation sim(irt::simulation_memory_requirement(256, 16));
 
-        const irt::real duration{ 30 };
+        constexpr irt::real duration{ 30 };
+        constexpr irt::real timestep{ 0.1 };
 
         expect(sim.can_alloc(2));
 
         auto& time_fun = sim.alloc<irt::time_func>();
         auto& cnt      = sim.alloc<irt::counter>();
 
-        time_fun.default_f     = &irt::square_time_function;
-        time_fun.default_sigma = irt::to_real(0.1);
+        get_p(sim, time_fun).set_time_func(timestep, timestep, 1);
 
         expect(!!sim.connect(time_fun, 0, cnt, 0));
 
@@ -2385,26 +2411,23 @@ int main()
         expect(!!sim.initialize());
         do {
             expect(!!sim.run());
-            expect(time_fun.value == sim.t * sim.t);
+            expect(eq(time_fun.value, sim.t * sim.t));
             c++;
         } while (sim.t < duration);
 
         const auto value =
-          (irt::real{ 2.0 } * duration / time_fun.default_sigma -
-           irt::real{ 1.0 });
-        expect(c == value);
+          (irt::real{ 2.0 } * duration / timestep - irt::real{ 1.0 });
+        expect(eq(c, value));
     };
 
     "time_func_sin"_test = [] {
         fmt::print("time_func_sin\n");
-#if irt_have_numbers == 1
-        constexpr irt::real pi = std::numbers::pi_v<irt::real>;
-#else
-        // std::acos(-1) is not a constexpr in MVSC 2019
-        constexpr irt::real pi = 3.141592653589793238462643383279502884;
-#endif
 
-        const irt::real f0 = irt::real(0.1);
+        constexpr irt::real pi       = 3.141592653589793238462643383279502884;
+        constexpr irt::real f0       = irt::real(0.1);
+        constexpr irt::real duration = 30;
+        constexpr irt::real timestep = 0.1;
+
         irt::simulation sim(irt::simulation_memory_requirement(256, 16));
 
         expect(sim.can_alloc(2));
@@ -2412,14 +2435,12 @@ int main()
         auto& time_fun = sim.alloc<irt::time_func>();
         auto& cnt      = sim.alloc<irt::counter>();
 
-        time_fun.default_f     = &irt::sin_time_function;
-        time_fun.default_sigma = irt::real(0.1);
+        get_p(sim, time_fun).set_time_func(timestep, timestep, 2);
 
         expect(!!sim.connect(time_fun, 0, cnt, 0));
 
-        sim.t                    = 0;
-        const irt::real duration = 30;
-        irt::real       c        = irt::zero;
+        sim.t       = 0;
+        irt::real c = irt::zero;
 
         expect(!!sim.initialize());
         do {
@@ -2427,8 +2448,8 @@ int main()
             expect(time_fun.value == std::sin(irt::two * pi * f0 * sim.t));
             c++;
         } while (sim.t < duration);
-        expect(c == (irt::real{ 2.0 } * duration / time_fun.default_sigma -
-                     irt::real{ 1.0 }));
+        expect(
+          eq(c, (irt::real{ 2.0 } * duration / timestep - irt::real{ 1.0 })));
     };
 
     "lotka_volterra_simulation_qss1"_test = [] {
@@ -2443,16 +2464,10 @@ int main()
         auto& integrator_a = sim.alloc<irt::qss1_integrator>();
         auto& integrator_b = sim.alloc<irt::qss1_integrator>();
 
-        integrator_a.default_X  = irt::real(18.0);
-        integrator_a.default_dQ = irt::real(0.1);
-
-        integrator_b.default_X  = irt::real(7.0);
-        integrator_b.default_dQ = irt::real(0.1);
-
-        sum_a.default_input_coeffs[0] = irt::real(2.0);
-        sum_a.default_input_coeffs[1] = irt::real(-0.4);
-        sum_b.default_input_coeffs[0] = irt::real(-1.0);
-        sum_b.default_input_coeffs[1] = irt::real(0.1);
+        get_p(sim, integrator_a).set_integrator(18, 0.1);
+        get_p(sim, integrator_b).set_integrator(7.0, 0.1);
+        get_p(sim, sum_a).set_wsum2(0.0, 2.0, 0.0, -0.4);
+        get_p(sim, sum_b).set_wsum2(0.0, -1.0, 0.0, 0.1);
 
         expect((sim.models.size() == 5_ul) >> fatal);
 
@@ -2507,16 +2522,10 @@ int main()
         auto& integrator_a = sim.alloc<irt::qss2_integrator>();
         auto& integrator_b = sim.alloc<irt::qss2_integrator>();
 
-        integrator_a.default_X  = irt::real(18.0);
-        integrator_a.default_dQ = irt::real(0.1);
-
-        integrator_b.default_X  = irt::real(7.0);
-        integrator_b.default_dQ = irt::real(0.1);
-
-        sum_a.default_input_coeffs[0] = irt::real(2.0);
-        sum_a.default_input_coeffs[1] = irt::real(-0.4);
-        sum_b.default_input_coeffs[0] = irt::real(-1.0);
-        sum_b.default_input_coeffs[1] = irt::real(0.1);
+        get_p(sim, integrator_a).set_integrator(18, 0.1);
+        get_p(sim, integrator_b).set_integrator(7.0, 0.1);
+        get_p(sim, sum_a).set_wsum2(0.0, 2.0, 0.0, -0.4);
+        get_p(sim, sum_b).set_wsum2(0.0, -1.0, 0.0, 0.1);
 
         expect((sim.models.size() == 5_ul) >> fatal);
 
@@ -2576,16 +2585,11 @@ int main()
         irt::real V0  = irt::real(10.0);
         irt::real Vr  = irt::real(-V0);
 
-        sum.default_input_coeffs[0] = irt::real(-1) / tau;
-        sum.default_input_coeffs[1] = V0 / tau;
-
-        constant.default_value       = irt::real(1);
-        constant_cross.default_value = Vr;
-
-        integrator.default_X  = irt::real(0);
-        integrator.default_dQ = irt::real(0.001);
-
-        cross.default_threshold = Vt;
+        get_p(sim, sum).set_wsum2(0, irt::real(-1) / tau, 0, V0 / tau);
+        get_p(sim, constant).set_constant(1, 0);
+        get_p(sim, constant_cross).set_cross(Vr, true);
+        get_p(sim, integrator).set_integrator(0, 0.001);
+        get_p(sim, cross).set_cross(Vt, true);
 
         expect((sim.models.size() == 5_ul) >> fatal);
 
@@ -2637,16 +2641,11 @@ int main()
         irt::real V0  = irt::real(10.0);
         irt::real Vr  = irt::real(-V0);
 
-        sum.default_input_coeffs[0] = irt::real(-1.0) / tau;
-        sum.default_input_coeffs[1] = V0 / tau;
-
-        constant.default_value       = irt::real(1.0);
-        constant_cross.default_value = Vr;
-
-        integrator.default_X  = irt::real(0.0);
-        integrator.default_dQ = irt::real(0.001);
-
-        cross.default_threshold = Vt;
+        get_p(sim, sum).set_wsum2(0, irt::real(-1) / tau, 0, V0 / tau);
+        get_p(sim, constant).set_constant(1, 0);
+        get_p(sim, constant_cross).set_cross(Vr, true);
+        get_p(sim, integrator).set_integrator(0, 0.001);
+        get_p(sim, cross).set_cross(Vt, true);
 
         expect((sim.models.size() == 5_ul) >> fatal);
 
@@ -2711,29 +2710,22 @@ int main()
         irt::real I  = irt::real(-99.0);
         irt::real vt = irt::real(30.0);
 
-        constant.default_value  = irt::real(1.0);
-        constant2.default_value = c;
-        constant3.default_value = I;
+        get_p(sim, constant).set_constant(1, 0);
+        get_p(sim, constant2).set_constant(c, 0);
+        get_p(sim, constant3).set_constant(I, 0);
 
-        cross.default_threshold  = vt;
-        cross2.default_threshold = vt;
+        get_p(sim, cross).set_cross(vt, true);
+        get_p(sim, cross2).set_cross(vt, true);
 
-        integrator_a.default_X  = irt::real(0.0);
-        integrator_a.default_dQ = irt::real(0.01);
+        get_p(sim, integrator_a).set_integrator(0, 0.01);
+        get_p(sim, integrator_b).set_integrator(0, 0.01);
 
-        integrator_b.default_X  = irt::real(0.0);
-        integrator_b.default_dQ = irt::real(0.01);
+        get_p(sim, sum_a).set_wsum2(0, 1, 0, -1);
+        get_p(sim, sum_b).set_wsum2(0, -a, 0, a * b);
 
-        sum_a.default_input_coeffs[0] = irt::real(1.0);
-        sum_a.default_input_coeffs[1] = irt::real(-1.0);
-        sum_b.default_input_coeffs[0] = -a;
-        sum_b.default_input_coeffs[1] = a * b;
-        sum_c.default_input_coeffs[0] = irt::real(0.04);
-        sum_c.default_input_coeffs[1] = irt::real(5.0);
-        sum_c.default_input_coeffs[2] = irt::real(140.0);
-        sum_c.default_input_coeffs[3] = irt::real(1.0);
-        sum_d.default_input_coeffs[0] = irt::real(1.0);
-        sum_d.default_input_coeffs[1] = d;
+        get_p(sim, sum_c).set_wsum4(0, 0.04, .0, 5.0, .0, 140.0, 0, 1.0);
+
+        get_p(sim, sum_d).set_wsum2(0, 1, 0, d);
 
         expect((sim.models.size() == 12_ul) >> fatal);
 
@@ -2821,29 +2813,22 @@ int main()
         irt::real I  = irt::real(-99.0);
         irt::real vt = irt::real(30.0);
 
-        constant.default_value  = irt::real(1.0);
-        constant2.default_value = c;
-        constant3.default_value = I;
+        get_p(sim, constant).set_constant(1, 0);
+        get_p(sim, constant2).set_constant(c, 0);
+        get_p(sim, constant3).set_constant(I, 0);
 
-        cross.default_threshold  = vt;
-        cross2.default_threshold = vt;
+        get_p(sim, cross).set_cross(vt, true);
+        get_p(sim, cross2).set_cross(vt, true);
 
-        integrator_a.default_X  = irt::real(0.0);
-        integrator_a.default_dQ = irt::real(0.01);
+        get_p(sim, integrator_a).set_integrator(0, 0.01);
+        get_p(sim, integrator_b).set_integrator(0, 0.01);
 
-        integrator_b.default_X  = irt::real(0.0);
-        integrator_b.default_dQ = irt::real(0.01);
+        get_p(sim, sum_a).set_wsum2(0, 1, 0, -1);
+        get_p(sim, sum_b).set_wsum2(0, -a, 0, a * b);
 
-        sum_a.default_input_coeffs[0] = irt::real(1.0);
-        sum_a.default_input_coeffs[1] = irt::real(-1.0);
-        sum_b.default_input_coeffs[0] = irt::real(-a);
-        sum_b.default_input_coeffs[1] = irt::real(a * b);
-        sum_c.default_input_coeffs[0] = irt::real(0.04);
-        sum_c.default_input_coeffs[1] = irt::real(5.0);
-        sum_c.default_input_coeffs[2] = irt::real(140.0);
-        sum_c.default_input_coeffs[3] = irt::real(1.0);
-        sum_d.default_input_coeffs[0] = irt::real(1.0);
-        sum_d.default_input_coeffs[1] = irt::real(d);
+        get_p(sim, sum_c).set_wsum4(0, 0.04, .0, 5.0, .0, 140.0, 0, 1.0);
+
+        get_p(sim, sum_d).set_wsum2(0, 1, 0, d);
 
         expect((sim.models.size() == 12_ul) >> fatal);
 
@@ -2917,16 +2902,10 @@ int main()
         auto& integrator_a = sim.alloc<irt::qss3_integrator>();
         auto& integrator_b = sim.alloc<irt::qss3_integrator>();
 
-        integrator_a.default_X  = irt::real(18.0);
-        integrator_a.default_dQ = irt::real(0.1);
-
-        integrator_b.default_X  = irt::real(7.0);
-        integrator_b.default_dQ = irt::real(0.1);
-
-        sum_a.default_input_coeffs[0] = irt::real(2.0);
-        sum_a.default_input_coeffs[1] = irt::real(-0.4);
-        sum_b.default_input_coeffs[0] = irt::real(-1.0);
-        sum_b.default_input_coeffs[1] = irt::real(0.1);
+        get_p(sim, integrator_a).set_integrator(18, 0.1);
+        get_p(sim, integrator_b).set_integrator(7.0, 0.1);
+        get_p(sim, sum_a).set_wsum2(0.0, 2.0, 0.0, -0.4);
+        get_p(sim, sum_b).set_wsum2(0.0, -1.0, 0.0, 0.1);
 
         expect((sim.models.size() == 5_ul) >> fatal);
 
@@ -2986,16 +2965,11 @@ int main()
         irt::real V0  = irt::real(10.0);
         irt::real Vr  = irt::real(-V0);
 
-        sum.default_input_coeffs[0] = irt::real(-1.0) / tau;
-        sum.default_input_coeffs[1] = V0 / tau;
-
-        constant.default_value       = irt::real(1.0);
-        constant_cross.default_value = Vr;
-
-        integrator.default_X  = irt::real(0.0);
-        integrator.default_dQ = irt::real(0.01);
-
-        cross.default_threshold = Vt;
+        get_p(sim, sum).set_wsum2(0, irt::real(-1) / tau, 0, V0 / tau);
+        get_p(sim, constant).set_constant(1, 0);
+        get_p(sim, constant_cross).set_cross(Vr, true);
+        get_p(sim, integrator).set_integrator(0, 0.001);
+        get_p(sim, cross).set_cross(Vt, true);
 
         expect((sim.models.size() == 5_ul) >> fatal);
 
@@ -3059,29 +3033,22 @@ int main()
         irt::real I  = irt::real(-99.0);
         irt::real vt = irt::real(30.0);
 
-        constant.default_value  = irt::real(1.0);
-        constant2.default_value = c;
-        constant3.default_value = I;
+        get_p(sim, constant).set_constant(1, 0);
+        get_p(sim, constant2).set_constant(c, 0);
+        get_p(sim, constant3).set_constant(I, 0);
 
-        cross.default_threshold  = vt;
-        cross2.default_threshold = vt;
+        get_p(sim, cross).set_cross(vt, true);
+        get_p(sim, cross2).set_cross(vt, true);
 
-        integrator_a.default_X  = irt::real(0.0);
-        integrator_a.default_dQ = irt::real(0.01);
+        get_p(sim, integrator_a).set_integrator(0, 0.01);
+        get_p(sim, integrator_b).set_integrator(0, 0.01);
 
-        integrator_b.default_X  = irt::real(0.0);
-        integrator_b.default_dQ = irt::real(0.01);
+        get_p(sim, sum_a).set_wsum2(0, 1, 0, -1);
+        get_p(sim, sum_b).set_wsum2(0, -a, 0, a * b);
 
-        sum_a.default_input_coeffs[0] = irt::real(1.0);
-        sum_a.default_input_coeffs[1] = irt::real(-1.0);
-        sum_b.default_input_coeffs[0] = irt::real(-a);
-        sum_b.default_input_coeffs[1] = irt::real(a * b);
-        sum_c.default_input_coeffs[0] = irt::real(0.04);
-        sum_c.default_input_coeffs[1] = irt::real(5.0);
-        sum_c.default_input_coeffs[2] = irt::real(140.0);
-        sum_c.default_input_coeffs[3] = irt::real(1.0);
-        sum_d.default_input_coeffs[0] = irt::real(1.0);
-        sum_d.default_input_coeffs[1] = irt::real(d);
+        get_p(sim, sum_c).set_wsum4(0, 0.04, .0, 5.0, .0, 140.0, 0, 1.0);
+
+        get_p(sim, sum_d).set_wsum2(0, 1, 0, d);
 
         expect((sim.models.size() == 12_ul) >> fatal);
 
@@ -3155,16 +3122,11 @@ int main()
         auto& integrator_a = sim.alloc<irt::qss3_integrator>();
         auto& integrator_b = sim.alloc<irt::qss3_integrator>();
 
-        integrator_a.default_X  = irt::real(0.0);
-        integrator_a.default_dQ = irt::real(0.001);
-
-        integrator_b.default_X  = irt::real(10.0);
-        integrator_b.default_dQ = irt::real(0.001);
+        get_p(sim, integrator_a).set_integrator(0, 0.001);
+        get_p(sim, integrator_b).set_integrator(10, 0.001);
 
         irt::real mu(4);
-        sum.default_input_coeffs[0] = mu;
-        sum.default_input_coeffs[1] = -mu;
-        sum.default_input_coeffs[2] = irt::real(-1.0);
+        get_p(sim, sum).set_wsum3(0, mu, 0, -mu, 0, -1);
 
         expect(sim.models.size() == 5_ul);
 
@@ -3224,17 +3186,11 @@ int main()
         irt::real V0(-10.0);
         irt::real Vr(0.0);
 
-        sum.default_input_coeffs[0] = irt::real(-1) / tau;
-        sum.default_input_coeffs[1] = V0 / tau;
-
-        constant.default_value       = irt::real(1);
-        constant_cross.default_value = Vr;
-
-        integrator.default_X  = irt::real(0.0);
-        integrator.default_dQ = irt::real(0.001);
-
-        cross.default_threshold = Vt;
-        cross.default_detect_up = false;
+        get_p(sim, sum).set_wsum2(0, irt::real(-1) / tau, 0, V0 / tau);
+        get_p(sim, constant).set_constant(1, 0);
+        get_p(sim, constant_cross).set_constant(Vr, 0);
+        get_p(sim, integrator).set_integrator(0, 0.001);
+        get_p(sim, cross).set_cross(Vt, false);
 
         expect((sim.models.size() == 5_ul) >> fatal);
 
@@ -3287,17 +3243,11 @@ int main()
         irt::real V0(-10.0);
         irt::real Vr(0.0);
 
-        sum.default_input_coeffs[0] = irt::real(-1.0) / tau;
-        sum.default_input_coeffs[1] = V0 / tau;
-
-        constant.default_value       = irt::real(1.0);
-        constant_cross.default_value = Vr;
-
-        integrator.default_X  = irt::real(0.0);
-        integrator.default_dQ = irt::real(0.0001);
-
-        cross.default_threshold = Vt;
-        cross.default_detect_up = false;
+        get_p(sim, sum).set_wsum2(0, irt::real(-1) / tau, 0, V0 / tau);
+        get_p(sim, constant).set_constant(1, 0);
+        get_p(sim, constant_cross).set_constant(Vr, 0);
+        get_p(sim, integrator).set_integrator(0, 0.001);
+        get_p(sim, cross).set_cross(Vt, false);
 
         expect((sim.models.size() == 5_ul) >> fatal);
 
@@ -3351,17 +3301,11 @@ int main()
         irt::real V0  = -10;
         irt::real Vr  = 0;
 
-        sum.default_input_coeffs[0] = irt::real(-1) / tau;
-        sum.default_input_coeffs[1] = V0 / tau;
-
-        constant.default_value       = irt::real(1);
-        constant_cross.default_value = Vr;
-
-        integrator.default_X  = irt::zero;
-        integrator.default_dQ = irt::to_real(0.0001);
-
-        cross.default_threshold = Vt;
-        cross.default_detect_up = false;
+        get_p(sim, sum).set_wsum2(0, irt::real(-1) / tau, 0, V0 / tau);
+        get_p(sim, constant).set_constant(1, 0);
+        get_p(sim, constant_cross).set_constant(Vr, 0);
+        get_p(sim, integrator).set_integrator(0, 0.001);
+        get_p(sim, cross).set_cross(Vt, false);
 
         expect((sim.models.size() == 5_ul) >> fatal);
 

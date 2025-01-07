@@ -10,6 +10,12 @@
 
 namespace irt {
 
+template<typename Dynamics>
+inline auto get_p(simulation& sim, const Dynamics& d) noexcept -> parameter&
+{
+    return sim.parameters[get_index(sim.get_id(d))];
+}
+
 /** @brief Implements Lotka-Volterra model for QSS1, QSS2 and QSS3.
  *
  * @details
@@ -30,23 +36,23 @@ status example_qss_lotka_volterra(simulation& sim, F f) noexcept
     if (!(sim.can_alloc(5) && sim.can_connect(8)))
         return new_error(simulation::part::models, container_full_error{});
 
-    auto& integrator_a      = sim.alloc<abstract_integrator<QssLevel>>();
-    integrator_a.default_X  = 18.0_r;
-    integrator_a.default_dQ = 0.1_r;
+    auto& integrator_a = sim.alloc<abstract_integrator<QssLevel>>();
+    get_p(sim, integrator_a).reals[0] = 18.0_r;
+    get_p(sim, integrator_a).reals[1] = 0.1_r;
 
-    auto& integrator_b      = sim.alloc<abstract_integrator<QssLevel>>();
-    integrator_b.default_X  = 7.0_r;
-    integrator_b.default_dQ = 0.1_r;
+    auto& integrator_b = sim.alloc<abstract_integrator<QssLevel>>();
+    get_p(sim, integrator_b).reals[0] = 7.0_r;
+    get_p(sim, integrator_b).reals[1] = 0.1_r;
 
     auto& product = sim.alloc<abstract_multiplier<QssLevel>>();
 
-    auto& sum_a                   = sim.alloc<abstract_wsum<QssLevel, 2>>();
-    sum_a.default_input_coeffs[0] = 2.0_r;
-    sum_a.default_input_coeffs[1] = -0.4_r;
+    auto& sum_a                = sim.alloc<abstract_wsum<QssLevel, 2>>();
+    get_p(sim, sum_a).reals[2] = 2.0_r;
+    get_p(sim, sum_a).reals[3] = -0.4_r;
 
-    auto& sum_b                   = sim.alloc<abstract_wsum<QssLevel, 2>>();
-    sum_b.default_input_coeffs[0] = -1.0_r;
-    sum_b.default_input_coeffs[1] = 0.1_r;
+    auto& sum_b                = sim.alloc<abstract_wsum<QssLevel, 2>>();
+    get_p(sim, sum_b).reals[2] = -1.0_r;
+    get_p(sim, sum_b).reals[3] = 0.1_r;
 
     irt_check(sim.connect(sum_a, 0, integrator_a, 0));
     irt_check(sim.connect(sum_b, 0, integrator_b, 0));
@@ -81,22 +87,21 @@ status example_qss_lif(simulation& sim, F f) noexcept
     constexpr irt::real V0  = 10.0_r;
     constexpr irt::real Vr  = -V0;
 
-    auto& cst         = sim.alloc<constant>();
-    cst.default_value = 1.0;
+    auto& cst                = sim.alloc<constant>();
+    get_p(sim, cst).reals[0] = 1.0;
 
-    auto& cst_cross         = sim.alloc<constant>();
-    cst_cross.default_value = Vr;
+    auto& cst_cross                = sim.alloc<constant>();
+    get_p(sim, cst_cross).reals[0] = Vr;
 
-    auto& sum                   = sim.alloc<abstract_wsum<QssLevel, 2>>();
-    sum.default_input_coeffs[0] = -irt::one / tau;
-    sum.default_input_coeffs[1] = V0 / tau;
+    auto& sum                = sim.alloc<abstract_wsum<QssLevel, 2>>();
+    get_p(sim, sum).reals[2] = -irt::one / tau;
+    get_p(sim, sum).reals[3] = V0 / tau;
 
-    auto& integrator      = sim.alloc<abstract_integrator<QssLevel>>();
-    integrator.default_X  = 0._r;
-    integrator.default_dQ = 0.001_r;
+    auto& integrator = sim.alloc<abstract_integrator<QssLevel>>();
+    get_p(sim, integrator).reals[1] = 0.001_r;
 
-    auto& cross             = sim.alloc<abstract_cross<QssLevel>>();
-    cross.default_threshold = Vt;
+    auto& cross                = sim.alloc<abstract_cross<QssLevel>>();
+    get_p(sim, cross).reals[0] = Vt;
 
     irt_check(sim.connect(cross, 0, integrator, 1));
     irt_check(sim.connect(cross, 1, sum, 0));
@@ -145,29 +150,26 @@ status example_qss_izhikevich(simulation& sim, F f) noexcept
     constexpr irt::real I  = -99.0_r;
     constexpr irt::real vt = 30.0_r;
 
-    cst.default_value  = 1.0_r;
-    cst2.default_value = c;
-    cst3.default_value = I;
+    get_p(sim, cst).reals[0]  = 1.0_r;
+    get_p(sim, cst2).reals[0] = c;
+    get_p(sim, cst3).reals[0] = I;
 
-    cross.default_threshold  = vt;
-    cross2.default_threshold = vt;
+    get_p(sim, cross).reals[0]  = vt;
+    get_p(sim, cross2).reals[0] = vt;
 
-    integrator_a.default_X  = 0.0_r;
-    integrator_a.default_dQ = 0.01_r;
+    get_p(sim, integrator_a).reals[1] = 0.01_r;
+    get_p(sim, integrator_b).reals[1] = 0.01_r;
 
-    integrator_b.default_X  = 0.0_r;
-    integrator_b.default_dQ = 0.01_r;
-
-    sum_a.default_input_coeffs[0] = 1.0_r;
-    sum_a.default_input_coeffs[1] = -1.0_r;
-    sum_b.default_input_coeffs[0] = -a;
-    sum_b.default_input_coeffs[1] = a * b;
-    sum_c.default_input_coeffs[0] = 0.04_r;
-    sum_c.default_input_coeffs[1] = 5.0_r;
-    sum_c.default_input_coeffs[2] = 140.0_r;
-    sum_c.default_input_coeffs[3] = 1.0_r;
-    sum_d.default_input_coeffs[0] = 1.0_r;
-    sum_d.default_input_coeffs[1] = d;
+    get_p(sim, sum_a).reals[2] = 1.0_r;
+    get_p(sim, sum_a).reals[3] = -1.0_r;
+    get_p(sim, sum_b).reals[2] = -a;
+    get_p(sim, sum_b).reals[3] = a * b;
+    get_p(sim, sum_c).reals[2] = 0.04_r;
+    get_p(sim, sum_c).reals[3] = 5.0_r;
+    get_p(sim, sum_c).reals[2] = 140.0_r;
+    get_p(sim, sum_c).reals[3] = 1.0_r;
+    get_p(sim, sum_d).reals[2] = 1.0_r;
+    get_p(sim, sum_d).reals[3] = d;
 
     irt_check(sim.connect(integrator_a, 0, cross, 0));
     irt_check(sim.connect(cst2, 0, cross, 1));
@@ -229,16 +231,16 @@ status example_qss_van_der_pol(simulation& sim, F f) noexcept
     auto& integrator_a = sim.alloc<abstract_integrator<QssLevel>>();
     auto& integrator_b = sim.alloc<abstract_integrator<QssLevel>>();
 
-    integrator_a.default_X  = 0.0_r;
-    integrator_a.default_dQ = 0.001_r;
+    get_p(sim, integrator_a).reals[0] = 0.0_r;
+    get_p(sim, integrator_a).reals[1] = 0.001_r;
 
-    integrator_b.default_X  = 10.0_r;
-    integrator_b.default_dQ = 0.001_r;
+    get_p(sim, integrator_b).reals[0] = 10.0_r;
+    get_p(sim, integrator_b).reals[1] = 0.001_r;
 
-    constexpr double mu         = 4.0_r;
-    sum.default_input_coeffs[0] = mu;
-    sum.default_input_coeffs[1] = -mu;
-    sum.default_input_coeffs[2] = -1.0_r;
+    constexpr double mu      = 4.0_r;
+    get_p(sim, sum).reals[3] = mu;
+    get_p(sim, sum).reals[4] = -mu;
+    get_p(sim, sum).reals[5] = -1.0_r;
 
     irt_check(sim.connect(integrator_b, 0, integrator_a, 0));
     irt_check(sim.connect(sum, 0, integrator_b, 0));
@@ -280,17 +282,17 @@ status example_qss_negative_lif(simulation& sim, F f) noexcept
     constexpr real V0  = -10.0_r;
     constexpr real Vr  = 0.0_r;
 
-    sum.default_input_coeffs[0] = -1.0_r / tau;
-    sum.default_input_coeffs[1] = V0 / tau;
+    get_p(sim, sum).reals[2] = -1.0_r / tau;
+    get_p(sim, sum).reals[3] = V0 / tau;
 
-    cst.default_value       = 1.0_r;
-    cst_cross.default_value = Vr;
+    get_p(sim, cst).reals[0]       = 1.0_r;
+    get_p(sim, cst_cross).reals[0] = Vr;
 
-    integrator.default_X  = 0.0_r;
-    integrator.default_dQ = 0.001_r;
+    get_p(sim, integrator).reals[0] = 0.0_r;
+    get_p(sim, integrator).reals[1] = 0.001_r;
 
-    cross.default_threshold = Vt;
-    cross.default_detect_up = false;
+    get_p(sim, cross).reals[0]    = Vt;
+    get_p(sim, cross).integers[0] = false;
 
     irt_check(sim.connect(cross, 0, integrator, 1));
     irt_check(sim.connect(cross, 1, sum, 0));

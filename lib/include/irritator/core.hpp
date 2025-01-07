@@ -20,15 +20,6 @@
 #include <type_traits>
 #include <utility>
 
-#ifdef __has_include
-#if __has_include(<numbers>)
-#include <numbers>
-#define irt_have_numbers 1
-#else
-#define irt_have_numbers 0
-#endif
-#endif
-
 #include <cmath>
 #include <cstring>
 
@@ -341,6 +332,7 @@ using message             = std::array<real, 3>;
 using dated_message       = std::array<real, 4>;
 using observation_message = std::array<real, 5>;
 
+struct parameter;
 struct model;
 class simulation;
 class hierarchical_state_machine;
@@ -849,6 +841,53 @@ constexpr sz dynamics_type_size() noexcept
  *
  ****************************************************************************/
 
+//! Stores default values for all @c irt::dynamics.
+struct parameter {
+    parameter() noexcept = default;
+
+    //! Import values from the model @c mdl according to the underlying @c
+    //! irt::dynamics_type.
+    parameter(const model& mdl) noexcept;
+
+    //! Initialize values from the default dynamics type.
+    parameter(const dynamics_type type) noexcept;
+
+    //! Copy data from the vectors to the simulation model.
+    void copy_to(model& mdl) const noexcept;
+
+    //! Copy data from model to the vectors of this parameter.
+    void copy_from(const model& mdl) noexcept;
+
+    //! Initialize data from dynamics type default values.
+    void init_from(const dynamics_type type) noexcept;
+
+    //! Assign @c 0 to reals and integers arrays.
+    void clear() noexcept;
+
+    parameter& set_constant(real value, real offset) noexcept;
+    parameter& set_cross(real threshold, bool detect_up) noexcept;
+    parameter& set_integrator(real X, real dQ) noexcept;
+    parameter& set_time_func(real offset, real timestep, int type) noexcept;
+    parameter& set_wsum2(real v1, real coeff1, real v2, real coeff2) noexcept;
+    parameter& set_wsum3(real v1,
+                         real coeff1,
+                         real v2,
+                         real coeff2,
+                         real v3,
+                         real coeff3) noexcept;
+    parameter& set_wsum4(real v1,
+                         real coeff1,
+                         real v2,
+                         real coeff2,
+                         real v3,
+                         real coeff3,
+                         real v4,
+                         real coeff4) noexcept;
+
+    std::array<real, 8> reals;
+    std::array<i64, 8>  integers;
+};
+
 struct observation {
     observation() noexcept = default;
     observation(const real x_, const real y_) noexcept
@@ -1150,6 +1189,9 @@ public:
     vector<model_id>       immediate_models;
     vector<observer_id>    immediate_observers;
 
+    /** A vector of the size of @c models data_array. */
+    vector<parameter> parameters;
+
     data_array<model, model_id>                      models;
     data_array<hierarchical_state_machine, hsm_id>   hsms;
     data_array<observer, observer_id>                observers;
@@ -1223,7 +1265,7 @@ public:
     //! @brief This function allocates dynamics and models.
     model& alloc(dynamics_type type) noexcept;
 
-    void observe(model& mdl, observer& obs) noexcept;
+    void observe(model& mdl, observer& obs) const noexcept;
 
     void unobserve(model& mdl) noexcept;
 
@@ -1372,8 +1414,7 @@ template<>
 struct abstract_integrator<1> {
     message_id x[2];
     node_id    y[1];
-    real       default_X  = zero;
-    real       default_dQ = irt::real(0.01);
+    real       dQ;
     real       X;
     real       q;
     real       u;
@@ -1387,8 +1428,7 @@ struct abstract_integrator<1> {
     abstract_integrator() = default;
 
     abstract_integrator(const abstract_integrator& other) noexcept
-      : default_X(other.default_X)
-      , default_dQ(other.default_dQ)
+      : dQ(other.dQ)
       , X(other.X)
       , q(other.q)
       , u(other.u)
@@ -1397,14 +1437,13 @@ struct abstract_integrator<1> {
 
     status initialize(simulation& /*sim*/) noexcept
     {
-        if (!std::isfinite(default_X))
+        if (!std::isfinite(X))
             return new_error(X_error{});
 
-        if (!(std::isfinite(default_dQ) && default_dQ > zero))
+        if (!(std::isfinite(dQ) && dQ > zero))
             return new_error(dQ_error{});
 
-        X = default_X;
-        q = std::floor(X / default_dQ) * default_dQ;
+        q = std::floor(X / dQ) * dQ;
         u = zero;
 
         sigma = time_domain<time>::zero;
@@ -1421,9 +1460,9 @@ struct abstract_integrator<1> {
             if (u == zero)
                 sigma = time_domain<time>::infinity;
             else if (u > zero)
-                sigma = (q + default_dQ - X) / u;
+                sigma = (q + dQ - X) / u;
             else
-                sigma = (q - default_dQ - X) / u;
+                sigma = (q - dQ - X) / u;
         }
 
         return success();
@@ -1442,8 +1481,7 @@ struct abstract_integrator<1> {
         X += sigma * u;
         q = X;
 
-        sigma =
-          u == zero ? time_domain<time>::infinity : default_dQ / std::abs(u);
+        sigma = u == zero ? time_domain<time>::infinity : dQ / std::abs(u);
 
         return success();
     }
@@ -1491,8 +1529,7 @@ template<>
 struct abstract_integrator<2> {
     message_id x[2];
     node_id    y[1];
-    real       default_X  = zero;
-    real       default_dQ = irt::real(0.01);
+    real       dQ;
     real       X;
     real       u;
     real       mu;
@@ -1508,8 +1545,7 @@ struct abstract_integrator<2> {
     abstract_integrator() = default;
 
     abstract_integrator(const abstract_integrator& other) noexcept
-      : default_X(other.default_X)
-      , default_dQ(other.default_dQ)
+      : dQ(other.dQ)
       , X(other.X)
       , u(other.u)
       , mu(other.mu)
@@ -1520,13 +1556,11 @@ struct abstract_integrator<2> {
 
     status initialize(simulation& /*sim*/) noexcept
     {
-        if (!std::isfinite(default_X))
+        if (!std::isfinite(X))
             return new_error(X_error{});
 
-        if (!std::isfinite(default_dQ) && default_dQ > zero)
+        if (!std::isfinite(dQ) && dQ > zero)
             return new_error(dQ_error{});
-
-        X = default_X;
 
         u  = zero;
         mu = zero;
@@ -1551,7 +1585,7 @@ struct abstract_integrator<2> {
             q += mq * e;
             const real a = mu / two;
             const real b = u - mq;
-            real       c = X - q + default_dQ;
+            real       c = X - q + dQ;
             real       s;
             sigma = time_domain<time>::infinity;
 
@@ -1561,7 +1595,7 @@ struct abstract_integrator<2> {
                     if (s > zero)
                         sigma = s;
 
-                    c = X - q - default_dQ;
+                    c = X - q - dQ;
                     s = -c / b;
                     if ((s > zero) && (s < sigma))
                         sigma = s;
@@ -1575,7 +1609,7 @@ struct abstract_integrator<2> {
                 if ((s > zero) && (s < sigma))
                     sigma = s;
 
-                c = X - q - default_dQ;
+                c = X - q - dQ;
                 s = (-b + std::sqrt(b * b - four * a * c)) / two / a;
                 if ((s > zero) && (s < sigma))
                     sigma = s;
@@ -1585,7 +1619,7 @@ struct abstract_integrator<2> {
                     sigma = s;
             }
 
-            if (((X - q) > default_dQ) || ((q - X) > default_dQ))
+            if (((X - q) > dQ) || ((q - X) > dQ))
                 sigma = time_domain<time>::zero;
         }
 
@@ -1600,7 +1634,7 @@ struct abstract_integrator<2> {
         mq = u;
 
         sigma = mu == zero ? time_domain<time>::infinity
-                           : std::sqrt(two * default_dQ / std::abs(mu));
+                           : std::sqrt(two * dQ / std::abs(mu));
 
         return success();
     }
@@ -1652,8 +1686,7 @@ template<>
 struct abstract_integrator<3> {
     message_id x[2];
     node_id    y[1];
-    real       default_X  = zero;
-    real       default_dQ = irt::real(0.01);
+    real       dQ;
     real       X;
     real       u;
     real       mu;
@@ -1671,8 +1704,7 @@ struct abstract_integrator<3> {
     abstract_integrator() = default;
 
     abstract_integrator(const abstract_integrator& other) noexcept
-      : default_X(other.default_X)
-      , default_dQ(other.default_dQ)
+      : dQ(other.dQ)
       , X(other.X)
       , u(other.u)
       , mu(other.mu)
@@ -1685,17 +1717,16 @@ struct abstract_integrator<3> {
 
     status initialize(simulation& /*sim*/) noexcept
     {
-        if (!std::isfinite(default_X))
+        if (!std::isfinite(X))
             return new_error(X_error{});
 
-        if (!(std::isfinite(default_dQ) && default_dQ > zero))
+        if (!(std::isfinite(dQ) && dQ > zero))
             return new_error(dQ_error{});
 
-        X     = default_X;
         u     = zero;
         mu    = zero;
         pu    = zero;
-        q     = default_X;
+        q     = X;
         mq    = zero;
         pq    = zero;
         sigma = time_domain<time>::zero;
@@ -1705,15 +1736,10 @@ struct abstract_integrator<3> {
 
     status external(const time e, const message& msg) noexcept
     {
-        const real value_x          = msg[0];
-        const real value_slope      = msg[1];
-        const real value_derivative = msg[2];
-
-#if irt_have_numbers == 1
-        constexpr real pi_div_3 = std::numbers::pi_v<real> / three;
-#else
-        constexpr real pi_div_3 = 1.0471975511965976;
-#endif
+        constexpr real pi_div_3         = 1.0471975511965976;
+        const real     value_x          = msg[0];
+        const real     value_slope      = msg[1];
+        const real     value_derivative = msg[2];
 
         X  = X + u * e + (mu * e * e) / two + (pu * e * e * e) / three;
         u  = value_x;
@@ -1725,7 +1751,7 @@ struct abstract_integrator<3> {
             mq     = mq + two * pq * e;
             auto a = mu / two - pq;
             auto b = u - mq;
-            auto c = X - q - default_dQ;
+            auto c = X - q - dQ;
             auto s = zero;
 
             if (pu != zero) {
@@ -1792,7 +1818,7 @@ struct abstract_integrator<3> {
                         s = y2;
                     }
                 }
-                c  = c + real(6) * default_dQ / pu;
+                c  = c + real(6) * dQ / pu;
                 w  = c - b * a / three + two * a * a * a / real(27);
                 i1 = -w / two;
                 i2 = i1 * i1 + v * v * v / real(27);
@@ -1880,7 +1906,7 @@ struct abstract_integrator<3> {
                             s = x2;
                         }
                     }
-                    c  = c + two * default_dQ;
+                    c  = c + two * dQ;
                     x1 = b * b - four * a * c;
                     if (x1 < zero) {
                         sigma = time_domain<time>::infinity;
@@ -1907,7 +1933,7 @@ struct abstract_integrator<3> {
                 } else {
                     if (b != zero) {
                         auto x1 = -c / b;
-                        auto x2 = x1 - two * default_dQ / b;
+                        auto x2 = x1 - two * dQ / b;
                         if (x1 < zero)
                             x1 = time_domain<time>::infinity;
                         if (x2 < zero)
@@ -1921,7 +1947,7 @@ struct abstract_integrator<3> {
                 }
             }
 
-            if ((std::abs(X - q)) > default_dQ)
+            if ((std::abs(X - q)) > dQ)
                 sigma = time_domain<time>::zero;
         }
 
@@ -1938,9 +1964,8 @@ struct abstract_integrator<3> {
         mu = mu + two * pu * sigma;
         pq = mu / two;
 
-        sigma = pu == zero
-                  ? time_domain<time>::infinity
-                  : std::pow(std::abs(three * default_dQ / pu), one / three);
+        sigma = pu == zero ? time_domain<time>::infinity
+                           : std::pow(std::abs(three * dQ / pu), one / three);
 
         return success();
     }
@@ -2005,12 +2030,12 @@ struct abstract_power {
     time       sigma;
 
     real value[QssLevel];
-    real default_n;
+    real n;
 
     abstract_power() noexcept = default;
 
     abstract_power(const abstract_power& other) noexcept
-      : default_n(other.default_n)
+      : n(other.n)
     {
         std::copy_n(other.value, QssLevel, value);
     }
@@ -2026,24 +2051,22 @@ struct abstract_power {
     status lambda(simulation& sim) noexcept
     {
         if constexpr (QssLevel == 1)
-            return send_message(sim, y[0], std::pow(value[0], default_n));
+            return send_message(sim, y[0], std::pow(value[0], n));
 
         if constexpr (QssLevel == 2)
             return send_message(sim,
                                 y[0],
-                                std::pow(value[0], default_n),
-                                default_n * std::pow(value[0], default_n - 1) *
-                                  value[1]);
+                                std::pow(value[0], n),
+                                n * std::pow(value[0], n - 1) * value[1]);
 
         if constexpr (QssLevel == 3)
-            return send_message(
-              sim,
-              y[0],
-              std::pow(value[0], default_n),
-              default_n * std::pow(value[0], default_n - 1) * value[1],
-              default_n * (default_n - 1) * std::pow(value[0], default_n - 2) *
-                  (value[1] * value[1] / two) +
-                default_n * std::pow(value[0], default_n - 1) * value[2]);
+            return send_message(sim,
+                                y[0],
+                                std::pow(value[0], n),
+                                n * std::pow(value[0], n - 1) * value[1],
+                                n * (n - 1) * std::pow(value[0], n - 2) *
+                                    (value[1] * value[1] / two) +
+                                  n * std::pow(value[0], n - 1) * value[2]);
 
         return success();
     }
@@ -2083,24 +2106,23 @@ struct abstract_power {
     observation_message observation(time t, time e) const noexcept
     {
         if constexpr (QssLevel == 1) {
-            auto X = std::pow(value[0], default_n);
+            auto X = std::pow(value[0], n);
             return { t, X };
         }
 
         if constexpr (QssLevel == 2) {
-            auto X = std::pow(value[0], default_n);
-            auto u = default_n * std::pow(value[0], default_n - 1) * value[1];
+            auto X = std::pow(value[0], n);
+            auto u = n * std::pow(value[0], n - 1) * value[1];
 
             return qss_observation(X, u, t, e);
         }
 
         if constexpr (QssLevel == 3) {
-            auto X  = std::pow(value[0], default_n);
-            auto u  = default_n * std::pow(value[0], default_n - 1) * value[1];
-            auto mu = default_n * (default_n - 1) *
-                        std::pow(value[0], default_n - 2) *
+            auto X  = std::pow(value[0], n);
+            auto u  = n * std::pow(value[0], n - 1) * value[1];
+            auto mu = n * (n - 1) * std::pow(value[0], n - 2) *
                         (value[1] * value[1] / two) +
-                      default_n * std::pow(value[0], default_n - 1) * value[2];
+                      n * std::pow(value[0], n - 1) * value[2];
 
             return qss_observation(X, u, mu, t, e);
         }
@@ -2220,7 +2242,6 @@ struct abstract_sum {
     node_id    y[1];
     time       sigma;
 
-    real default_values[PortNumber]    = { 0 };
     real values[QssLevel * PortNumber] = { 0 };
 
     abstract_sum() noexcept = default;
@@ -2228,21 +2249,14 @@ struct abstract_sum {
     abstract_sum(const abstract_sum& other) noexcept
       : sigma(other.sigma)
     {
-        std::copy_n(other.default_values,
-                    std::size(other.default_values),
-                    default_values);
-
         std::copy_n(other.values, std::size(other.values), values);
     }
 
     status initialize(simulation& /*sim*/) noexcept
     {
-        std::copy_n(default_values, std::size(default_values), values);
-
         if constexpr (QssLevel >= 2) {
-            std::fill_n(values + std::size(default_values),
-                        std::size(values) - std::size(default_values),
-                        zero);
+            std::fill_n(
+              values + PortNumber, std::size(values) - PortNumber, zero);
         }
 
         sigma = time_domain<time>::infinity;
@@ -2403,33 +2417,25 @@ struct abstract_wsum {
     node_id    y[1];
     time       sigma;
 
-    real default_values[PortNumber]       = { 0 };
-    real default_input_coeffs[PortNumber] = { 0 };
-    real values[QssLevel * PortNumber]    = { 0 };
+    real input_coeffs[PortNumber]      = { 0 };
+    real values[QssLevel * PortNumber] = { 0 };
 
     abstract_wsum() noexcept = default;
 
     abstract_wsum(const abstract_wsum& other) noexcept
       : sigma(other.sigma)
     {
-        std::copy_n(other.default_values,
-                    std::size(other.default_values),
-                    default_values);
-
-        std::copy_n(other.default_input_coeffs,
-                    std::size(other.default_input_coeffs),
-                    default_input_coeffs);
+        std::copy_n(
+          other.input_coeffs, std::size(other.input_coeffs), input_coeffs);
 
         std::copy_n(other.values, std::size(other.values), values);
     }
 
     status initialize(simulation& /*sim*/) noexcept
     {
-        std::copy_n(default_values, std::size(default_values), values);
-
         if constexpr (QssLevel >= 2) {
-            std::fill_n(std::begin(values) + std::size(default_values),
-                        std::size(values) - std::size(default_values),
+            std::fill_n(std::begin(values) + PortNumber,
+                        std::size(values) - PortNumber,
                         zero);
         }
 
@@ -2444,7 +2450,7 @@ struct abstract_wsum {
             real value = zero;
 
             for (int i = 0; i != PortNumber; ++i)
-                value += default_input_coeffs[i] * values[i];
+                value += input_coeffs[i] * values[i];
 
             return send_message(sim, y[0], value);
         }
@@ -2454,8 +2460,8 @@ struct abstract_wsum {
             real slope = zero;
 
             for (int i = 0; i != PortNumber; ++i) {
-                value += default_input_coeffs[i] * values[i];
-                slope += default_input_coeffs[i] * values[i + PortNumber];
+                value += input_coeffs[i] * values[i];
+                slope += input_coeffs[i] * values[i + PortNumber];
             }
 
             return send_message(sim, y[0], value, slope);
@@ -2467,10 +2473,10 @@ struct abstract_wsum {
             real derivative = zero;
 
             for (int i = 0; i != PortNumber; ++i) {
-                value += default_input_coeffs[i] * values[i];
-                slope += default_input_coeffs[i] * values[i + PortNumber];
+                value += input_coeffs[i] * values[i];
+                slope += input_coeffs[i] * values[i + PortNumber];
                 derivative +=
-                  default_input_coeffs[i] * values[i + PortNumber + PortNumber];
+                  input_coeffs[i] * values[i + PortNumber + PortNumber];
             }
 
             return send_message(sim, y[0], value, slope, derivative);
@@ -2547,7 +2553,7 @@ struct abstract_wsum {
             real value = zero;
 
             for (int i = 0; i != PortNumber; ++i)
-                value += default_input_coeffs[i] * values[i];
+                value += input_coeffs[i] * values[i];
 
             return { t, value };
         }
@@ -2557,8 +2563,8 @@ struct abstract_wsum {
             real slope = zero;
 
             for (int i = 0; i != PortNumber; ++i) {
-                value += default_input_coeffs[i] * values[i];
-                slope += default_input_coeffs[i] * values[i + PortNumber];
+                value += input_coeffs[i] * values[i];
+                slope += input_coeffs[i] * values[i + PortNumber];
             }
 
             return qss_observation(value, slope, t, e);
@@ -2570,10 +2576,10 @@ struct abstract_wsum {
             real derivative = zero;
 
             for (int i = 0; i != PortNumber; ++i) {
-                value += default_input_coeffs[i] * values[i];
-                slope += default_input_coeffs[i] * values[i + PortNumber];
+                value += input_coeffs[i] * values[i];
+                slope += input_coeffs[i] * values[i + PortNumber];
                 derivative +=
-                  default_input_coeffs[i] * values[i + PortNumber + PortNumber];
+                  input_coeffs[i] * values[i + PortNumber + PortNumber];
             }
 
             return qss_observation(value, slope, derivative, t, e);
@@ -2786,9 +2792,9 @@ struct generator {
     time       sigma;
     real       value;
 
-    real             default_offset = time_domain<time>::infinity;
-    source           default_source_ta;
-    source           default_source_value;
+    real             offset;
+    source           source_ta;
+    source           source_value;
     bitflags<option> flags;
 
     generator() noexcept = default;
@@ -2796,9 +2802,9 @@ struct generator {
     generator(const generator& other) noexcept
       : sigma(other.sigma)
       , value(other.value)
-      , default_offset(other.default_offset)
-      , default_source_ta(other.default_source_ta)
-      , default_source_value(other.default_source_value)
+      , offset(other.offset)
+      , source_ta(other.source_ta)
+      , source_value(other.source_value)
       , flags(option::stop_on_error,
               option::ta_use_source,
               option::value_use_source)
@@ -2806,13 +2812,13 @@ struct generator {
 
     status initialize(simulation& sim) noexcept
     {
-        sigma = default_offset;
+        sigma = offset;
 
         if (flags[option::ta_use_source]) {
             if (flags[option::stop_on_error]) {
-                irt_check(initialize_source(sim, default_source_ta));
+                irt_check(initialize_source(sim, source_ta));
             } else {
-                (void)initialize_source(sim, default_source_ta);
+                (void)initialize_source(sim, source_ta);
             }
         } else {
             sigma = time_domain<time>::infinity;
@@ -2820,9 +2826,9 @@ struct generator {
 
         if (flags[option::value_use_source]) {
             if (flags[option::stop_on_error]) {
-                irt_check(initialize_source(sim, default_source_value));
+                irt_check(initialize_source(sim, source_value));
             } else {
-                (void)initialize_source(sim, default_source_value);
+                (void)initialize_source(sim, source_value);
             }
         }
 
@@ -2832,10 +2838,10 @@ struct generator {
     status finalize(simulation& sim) noexcept
     {
         if (flags[option::ta_use_source])
-            irt_check(finalize_source(sim, default_source_ta));
+            irt_check(finalize_source(sim, source_ta));
 
         if (flags[option::value_use_source])
-            irt_check(finalize_source(sim, default_source_value));
+            irt_check(finalize_source(sim, source_value));
 
         return success();
     }
@@ -2892,21 +2898,17 @@ struct generator {
             real local_value = 0;
 
             if (flags[option::stop_on_error]) {
-                irt_check(update_source(sim, default_source_ta, local_sigma));
-                irt_check(
-                  update_source(sim, default_source_value, local_value));
+                irt_check(update_source(sim, source_ta, local_sigma));
+                irt_check(update_source(sim, source_value, local_value));
                 sigma = static_cast<real>(local_sigma);
                 value = static_cast<real>(local_value);
             } else {
-                if (auto ret =
-                      update_source(sim, default_source_ta, local_sigma);
-                    !ret)
+                if (auto ret = update_source(sim, source_ta, local_sigma); !ret)
                     sigma = time_domain<time>::infinity;
                 else
                     sigma = static_cast<real>(local_sigma);
 
-                if (auto ret =
-                      update_source(sim, default_source_value, local_value);
+                if (auto ret = update_source(sim, source_value, local_value);
                     !ret)
                     value = 0;
                 else
@@ -2931,9 +2933,6 @@ struct generator {
 struct constant {
     node_id y[1];
     time    sigma;
-
-    real default_value  = 0.0;
-    time default_offset = time_domain<time>::zero;
 
     enum class init_type : i8 {
         // A constant value initialized at startup of the simulation.
@@ -2977,16 +2976,16 @@ struct constant {
 
     static inline constexpr int init_type_count = 5;
 
-    real      value = 0.0;
-    init_type type  = init_type::constant;
-    u64       port  = 0;
+    time      offset = 0.0;
+    real      value  = 0.0;
+    init_type type   = init_type::constant;
+    u64       port   = 0;
 
     constant() noexcept = default;
 
     constant(const constant& other) noexcept
       : sigma(other.sigma)
-      , default_value(other.default_value)
-      , default_offset(other.default_offset)
+      , offset(other.offset)
       , value(other.value)
       , type(other.type)
       , port(other.port)
@@ -2994,8 +2993,7 @@ struct constant {
 
     status initialize(simulation& /*sim*/) noexcept
     {
-        sigma = default_offset;
-        value = default_value;
+        sigma = offset;
 
         return success();
     }
@@ -3088,8 +3086,6 @@ struct abstract_filter {
     node_id    y[3];
 
     time sigma;
-    real default_lower_threshold = -std::numeric_limits<real>::infinity();
-    real default_upper_threshold = +std::numeric_limits<real>::infinity();
     real lower_threshold;
     real upper_threshold;
     real value[QssLevel];
@@ -3102,8 +3098,6 @@ struct abstract_filter {
 
     abstract_filter(const abstract_filter& other) noexcept
       : sigma(other.sigma)
-      , default_lower_threshold(other.default_lower_threshold)
-      , default_upper_threshold(other.default_upper_threshold)
       , lower_threshold(other.lower_threshold)
       , upper_threshold(other.upper_threshold)
       , reach_lower_threshold(other.reach_lower_threshold)
@@ -3114,11 +3108,9 @@ struct abstract_filter {
 
     status initialize(simulation& /*sim*/) noexcept
     {
-        if (default_lower_threshold >= default_upper_threshold)
+        if (lower_threshold >= upper_threshold)
             return new_error(threshold_condition_error{});
 
-        lower_threshold       = default_lower_threshold;
-        upper_threshold       = default_upper_threshold;
         reach_lower_threshold = false;
         reach_upper_threshold = false;
         std::fill_n(value, QssLevel, zero);
@@ -3315,7 +3307,6 @@ struct abstract_logical {
     node_id    y[1];
     time       sigma = time_domain<time>::infinity;
 
-    bool default_values[PortNumber];
     bool values[PortNumber];
 
     bool is_valid      = true;
@@ -3325,10 +3316,6 @@ struct abstract_logical {
 
     status initialize(simulation& /*sim*/) noexcept
     {
-        std::copy_n(std::data(default_values),
-                    std::size(default_values),
-                    std::data(values));
-
         AbstractLogicalTester tester{};
         is_valid = tester(std::begin(values), std::end(values));
         sigma =
@@ -3395,7 +3382,6 @@ struct logical_invert {
     node_id    y[1];
     time       sigma;
 
-    bool default_value = false;
     bool value;
     bool value_changed;
 
@@ -3403,7 +3389,6 @@ struct logical_invert {
 
     status initialize(simulation& /*sim*/) noexcept
     {
-        value         = default_value;
         sigma         = time_domain<time>::infinity;
         value_changed = false;
 
@@ -3916,9 +3901,6 @@ struct abstract_cross {
     node_id    y[3];
     time       sigma;
 
-    real default_threshold = zero;
-    bool default_detect_up = true;
-
     real threshold;
     real if_value[QssLevel];
     real else_value[QssLevel];
@@ -3931,8 +3913,6 @@ struct abstract_cross {
 
     abstract_cross(const abstract_cross& other) noexcept
       : sigma(other.sigma)
-      , default_threshold(other.default_threshold)
-      , default_detect_up(other.default_detect_up)
       , threshold(other.threshold)
       , last_reset(other.last_reset)
       , reach_threshold(other.reach_threshold)
@@ -3958,12 +3938,10 @@ struct abstract_cross {
         std::fill_n(else_value, QssLevel, zero);
         std::fill_n(value, QssLevel, zero);
 
-        threshold = default_threshold;
-        value[0]  = threshold - one;
+        value[0] = threshold - one;
 
         sigma           = time_domain<time>::infinity;
         last_reset      = time_domain<time>::infinity;
-        detect_up       = default_detect_up;
         reach_threshold = false;
 
         return success();
@@ -4153,9 +4131,8 @@ struct time_func {
     node_id y[1];
     time    sigma;
 
-    real default_sigma      = to_real(0.01L);
-    real (*default_f)(real) = &time_function;
-
+    real offset   = 0;
+    real timestep = 0.01;
     real value;
     real (*f)(real) = nullptr;
 
@@ -4163,16 +4140,13 @@ struct time_func {
 
     time_func(const time_func& other) noexcept
       : sigma(other.sigma)
-      , default_sigma(other.default_sigma)
-      , default_f(other.default_f)
       , value(other.value)
       , f(other.f)
     {}
 
     status initialize(simulation& /*sim*/) noexcept
     {
-        f     = default_f;
-        sigma = default_sigma;
+        sigma = offset;
         value = 0.0;
         return success();
     }
@@ -4183,6 +4157,7 @@ struct time_func {
                       time /*r*/) noexcept
     {
         value = (*f)(t);
+        sigma = timestep;
         return success();
     }
 
@@ -4206,7 +4181,7 @@ struct queue {
 
     dated_message_id fifo = undefined<dated_message_id>();
 
-    real default_ta = one;
+    real ta = one;
 
     struct ta_error {};
 
@@ -4215,12 +4190,12 @@ struct queue {
     queue(const queue& other) noexcept
       : sigma(other.sigma)
       , fifo(undefined<dated_message_id>())
-      , default_ta(other.default_ta)
+      , ta(other.ta)
     {}
 
     status initialize(simulation& /*sim*/) noexcept
     {
-        if (default_ta <= 0)
+        if (ta <= 0)
             return new_error(ta_error{});
 
         sigma = time_domain<time>::infinity;
@@ -4263,7 +4238,7 @@ struct dynamic_queue {
     time             sigma;
     dated_message_id fifo = undefined<dated_message_id>();
 
-    source default_source_ta;
+    source source_ta;
     bool   stop_on_error = false;
 
     dynamic_queue() noexcept = default;
@@ -4271,7 +4246,7 @@ struct dynamic_queue {
     dynamic_queue(const dynamic_queue& other) noexcept
       : sigma(other.sigma)
       , fifo(undefined<dated_message_id>())
-      , default_source_ta(other.default_source_ta)
+      , source_ta(other.source_ta)
       , stop_on_error(other.stop_on_error)
     {}
 
@@ -4281,9 +4256,9 @@ struct dynamic_queue {
         fifo  = undefined<dated_message_id>();
 
         if (stop_on_error) {
-            irt_check(initialize_source(sim, default_source_ta));
+            irt_check(initialize_source(sim, source_ta));
         } else {
-            (void)initialize_source(sim, default_source_ta);
+            (void)initialize_source(sim, source_ta);
         }
 
         return success();
@@ -4297,7 +4272,7 @@ struct dynamic_queue {
             fifo = undefined<dated_message_id>();
         }
 
-        irt_check(finalize_source(sim, default_source_ta));
+        irt_check(finalize_source(sim, source_ta));
 
         return success();
     }
@@ -4324,10 +4299,10 @@ struct priority_queue {
     message_id       x[1];
     node_id          y[1];
     time             sigma;
-    dated_message_id fifo       = undefined<dated_message_id>();
-    real             default_ta = 1.0;
+    dated_message_id fifo = undefined<dated_message_id>();
+    real             ta   = 1.0;
 
-    source default_source_ta;
+    source source_ta;
     bool   stop_on_error = false;
 
     priority_queue() noexcept = default;
@@ -4335,8 +4310,8 @@ struct priority_queue {
     priority_queue(const priority_queue& other) noexcept
       : sigma(other.sigma)
       , fifo(undefined<dated_message_id>())
-      , default_ta(other.default_ta)
-      , default_source_ta(other.default_source_ta)
+      , ta(other.ta)
+      , source_ta(other.source_ta)
       , stop_on_error(other.stop_on_error)
     {}
 
@@ -4349,9 +4324,9 @@ public:
     status initialize(simulation& sim) noexcept
     {
         if (stop_on_error) {
-            irt_check(initialize_source(sim, default_source_ta));
+            irt_check(initialize_source(sim, source_ta));
         } else {
-            (void)initialize_source(sim, default_source_ta);
+            (void)initialize_source(sim, source_ta);
         }
 
         sigma = time_domain<time>::infinity;
@@ -4368,7 +4343,7 @@ public:
             fifo = undefined<dated_message_id>();
         }
 
-        irt_check(finalize_source(sim, default_source_ta));
+        irt_check(finalize_source(sim, source_ta));
 
         return success();
     }
@@ -5679,6 +5654,7 @@ inline void simulation::do_realloc(
 
     if (init.model_nb > 0) {
         models.reserve(init.model_nb);
+        parameters.resize(init.model_nb);
         observers.reserve(init.model_nb);
         nodes.reserve(init.model_nb * 4); // Max 4 output port by models
         messages.reserve(init.model_nb * 4);
@@ -5707,6 +5683,7 @@ inline void simulation::realloc(
 inline void simulation::destroy() noexcept
 {
     models.destroy();
+    parameters.destroy();
     observers.destroy();
     nodes.destroy();
     messages.destroy();
@@ -5754,7 +5731,7 @@ inline void simulation::clear() noexcept
     observers.clear();
 }
 
-inline void simulation::observe(model& mdl, observer& obs) noexcept
+inline void simulation::observe(model& mdl, observer& obs) const noexcept
 {
     mdl.obs_id = observers.get_id(obs);
     obs.model  = models.get_id(mdl);
@@ -5914,6 +5891,8 @@ status simulation::make_initialize(model& mdl, Dynamics& dyn, time t) noexcept
                 dyn.x[i] = undefined<message_id>();
         }
     }
+
+    parameters[get_index(models.get_id(mdl))].copy_to(mdl);
 
     if constexpr (has_initialize_function<Dynamics>)
         irt_check(dyn.initialize(*this));
@@ -6264,6 +6243,8 @@ Dynamics& simulation::alloc() noexcept
     mdl.type   = dynamics_typeof<Dynamics>();
     mdl.handle = invalid_heap_handle;
 
+    parameters[get_index(models.get_id(mdl))].init_from(mdl.type);
+
     std::construct_at(reinterpret_cast<Dynamics*>(&mdl.dyn));
     auto& dyn = get_dyn<Dynamics>(mdl);
 
@@ -6294,9 +6275,12 @@ inline model& simulation::clone(const model& mdl) noexcept
     new_mdl.type   = mdl.type;
     new_mdl.handle = invalid_heap_handle;
 
-    dispatch(new_mdl, [this, &mdl]<typename Dynamics>(Dynamics& dyn) -> void {
+    dispatch(new_mdl, [&]<typename Dynamics>(Dynamics& dyn) -> void {
         const auto& src_dyn = get_dyn<Dynamics>(mdl);
         std::construct_at(&dyn, src_dyn);
+
+        parameters[get_index(models.get_id(new_mdl))] =
+          parameters[get_index(models.get_id(mdl))];
 
         if constexpr (has_input_port<Dynamics>)
             for (int i = 0, e = length(dyn.x); i != e; ++i)
@@ -6505,8 +6489,7 @@ inline status queue::transition(simulation& sim,
                     return new_error(simulation::part::dated_messages,
                                      container_full_error{});
 
-                ar->push_head(
-                  { irt::real(t + default_ta), msg[0], msg[1], msg[2] });
+                ar->push_head({ irt::real(t + ta), msg[0], msg[1], msg[2] });
             }
         }
 
@@ -6542,12 +6525,11 @@ inline status dynamic_queue::transition(simulation& sim,
                                      container_full_error{});
                 real ta = zero;
                 if (stop_on_error) {
-                    irt_check(update_source(sim, default_source_ta, ta));
+                    irt_check(update_source(sim, source_ta, ta));
                     ar->push_head(
                       { t + static_cast<real>(ta), msg[0], msg[1], msg[2] });
                 } else {
-                    if (auto ret = update_source(sim, default_source_ta, ta);
-                        !ret)
+                    if (auto ret = update_source(sim, source_ta, ta); !ret)
                         ar->push_head({ t + static_cast<real>(ta),
                                         msg[0],
                                         msg[1],
@@ -6604,7 +6586,7 @@ inline status priority_queue::transition(simulation& sim,
                 real value = zero;
 
                 if (stop_on_error) {
-                    irt_check(update_source(sim, default_source_ta, value));
+                    irt_check(update_source(sim, source_ta, value));
 
                     if (auto ret =
                           try_to_insert(sim, static_cast<real>(value) + t, msg);
@@ -6612,8 +6594,7 @@ inline status priority_queue::transition(simulation& sim,
                         return new_error(simulation::part::dated_messages,
                                          container_full_error{});
                 } else {
-                    if (auto ret = update_source(sim, default_source_ta, value);
-                        !ret) {
+                    if (auto ret = update_source(sim, source_ta, value); !ret) {
                         if (auto ret = try_to_insert(
                               sim, static_cast<real>(value) + t, msg);
                             !ret)
