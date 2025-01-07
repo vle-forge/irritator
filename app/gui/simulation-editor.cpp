@@ -161,7 +161,7 @@ void project_window::select(const modeling& mod, tree_node& node) noexcept
     }
 }
 
-void project_window::select(const modeling& mod, child_id id) noexcept
+void project_window::select(const modeling& /*mod*/, child_id id) noexcept
 {
     if (id != m_selected_child)
         m_selected_child = id;
@@ -621,7 +621,7 @@ static void show_local_variables_plot(project_window&    ed,
 // show_simulation_main_observations(application& app, DataArray& d)
 // noexcept {...}
 
-static bool show_simulation_table_grid_observers(application&    app,
+static bool show_simulation_table_grid_observers(application& /*app*/,
                                                  project_window& ed) noexcept
 {
     auto to_delete   = undefined<grid_observer_id>();
@@ -688,7 +688,7 @@ static bool show_simulation_table_grid_observers(application&    app,
     return is_modified;
 }
 
-static bool show_simulation_table_graph_observers(application&    app,
+static bool show_simulation_table_graph_observers(application& /*app*/,
                                                   project_window& ed) noexcept
 {
     auto to_delete   = undefined<graph_observer_id>();
@@ -756,7 +756,7 @@ static bool show_simulation_table_graph_observers(application&    app,
 }
 
 static bool show_simulation_table_variable_observers(
-  application&    app,
+  application& /*app*/,
   project_window& ed) noexcept
 {
     auto to_delete   = undefined<variable_observer_id>();
@@ -940,7 +940,7 @@ static void show_component_observations_actions(project_window& sim_ed) noexcept
     }
 }
 
-static int show_simulation_table_file_observers(application&    app,
+static int show_simulation_table_file_observers(application& /*app*/,
                                                 project_window& ed) noexcept
 {
     auto is_modified = 0;
@@ -1278,8 +1278,8 @@ auto project_window::show(application& app) noexcept -> show_result_t
     ImGui::End();
 
     if (save_project_file) {
-        if (auto* regf = app.mod.registred_paths.try_to_get(project_file)) {
-            auto* str            = regf->path.c_str();
+        if (auto* regf = app.mod.registred_paths.try_to_get(project_file);
+            regf) {
             save_project_file    = false;
             save_as_project_file = false;
 

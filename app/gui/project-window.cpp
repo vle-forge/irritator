@@ -60,7 +60,7 @@ static tree_node_id show_tree_node_children(application& app,
     return next_selection;
 }
 
-static tree_node_id show_tree_node_no_children(application& app,
+static tree_node_id show_tree_node_no_children(application& /*app*/,
                                                project&     pj,
                                                tree_node&   parent,
                                                component&   compo,

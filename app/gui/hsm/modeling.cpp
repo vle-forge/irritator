@@ -911,7 +911,7 @@ void hsm_component_editor_data::show_graph(hsm_component& hsm) noexcept
     }
 }
 
-void hsm_component_editor_data::show_panel(application&   app,
+void hsm_component_editor_data::show_panel(application& /*app*/,
                                            hsm_component& hsm) noexcept
 {
     if (ImGui::CollapsingHeader("constants settings")) {

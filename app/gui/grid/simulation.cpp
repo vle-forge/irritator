@@ -21,8 +21,8 @@
 
 namespace irt {
 
-static bool display_grid_simulation(application&            app,
-                                    project_window&         ed,
+static bool display_grid_simulation(application& app,
+                                    project_window& /*ed*/,
                                     grid_simulation_editor& grid_sim,
                                     tree_node&              tn,
                                     const grid_component&   grid) noexcept

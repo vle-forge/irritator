@@ -543,7 +543,7 @@ static void show_model_dynamics(project_window& ed, model& mdl) noexcept
     });
 }
 
-void show_top_with_identifier(application& app, project_window& ed) noexcept
+void show_top_with_identifier(application& /*app*/, project_window& ed) noexcept
 {
     for_each_data(ed.pj.sim.models, [&](model& mdl) noexcept -> void {
         const auto mdl_id    = ed.pj.sim.models.get_id(mdl);
@@ -561,7 +561,8 @@ void show_top_with_identifier(application& app, project_window& ed) noexcept
     });
 }
 
-void show_top_without_identifier(application& app, project_window& ed) noexcept
+void show_top_without_identifier(application& /*app*/,
+                                 project_window& ed) noexcept
 {
     for_each_data(ed.pj.sim.models, [&](model& mdl) noexcept -> void {
         const auto mdl_id    = ed.pj.sim.models.get_id(mdl);

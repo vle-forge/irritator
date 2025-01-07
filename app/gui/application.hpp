@@ -552,8 +552,6 @@ struct graph_editor_dialog {
 };
 
 struct project_window {
-    name_str name;
-
     enum class visualization_mode { flat, tree };
 
     project_window(const std::string_view default_name) noexcept;
@@ -637,6 +635,7 @@ struct project_window {
     bool is_simulation_running() const noexcept;
 
     timeline tl;
+    name_str name;
 
     real simulation_last_finite_t   = 0;
     real simulation_display_current = 0;
