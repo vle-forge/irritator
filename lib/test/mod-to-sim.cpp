@@ -610,7 +610,7 @@ int main()
                          ordinal(
                            irt::constant::init_type::incoming_component_all)));
                     expect(eq(dyn.port, 0u));
-                    expect(neq(dyn.default_value, 0.0));
+                    expect(neq(dyn.value, 0.0));
                 }
             }
 
@@ -702,7 +702,7 @@ int main()
                 if (cst_mdl->type == irt::dynamics_type::constant) {
                     ++nb_constant_model;
                     auto& dyn = irt::get_dyn<irt::constant>(*cst_mdl);
-                    expect(neq(dyn.default_value, 0.0));
+                    expect(neq(dyn.value, 0.0));
                     expect(eq(
                       ordinal(dyn.type),
                       ordinal(irt::constant::init_type::incoming_component_n)));

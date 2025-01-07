@@ -1831,8 +1831,8 @@ int main()
         auto& c1  = sim.alloc<irt::constant>();
         auto& c2  = sim.alloc<irt::constant>();
 
-        c1.default_value = 0.0;
-        c2.default_value = 0.0;
+        irt::get_p(sim, c1).reals[0] = 0.0;
+        irt::get_p(sim, c2).reals[0] = 0.0;
 
         expect(!!sim.connect(c1, 0, cnt, 0));
         expect(!!sim.connect(c2, 0, cnt, 0));
@@ -1857,8 +1857,8 @@ int main()
         auto& cross1 = sim.alloc<irt::qss1_cross>();
         auto& c1     = sim.alloc<irt::constant>();
 
-        c1.default_value         = 3.0;
-        cross1.default_threshold = 0.0;
+        irt::get_p(sim, c1).reals[0]     = 3.0;
+        irt::get_p(sim, cross1).reals[0] = 0.0;
 
         expect(!!sim.connect(c1, 0, cross1, 0));
         expect(!!sim.connect(c1, 0, cross1, 1));
