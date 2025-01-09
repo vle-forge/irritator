@@ -7,7 +7,7 @@ set(gui_sources application.cpp application.hpp
     imnodes.h imnodes_internal.h implot.cpp implot.h implot_demo.cpp
     implot_internal.h implot_items.cpp internal.cpp internal.hpp io.cpp
     library-window.cpp memory-window.cpp notification.cpp output-editor.cpp
-    plot-copy-widget.cpp plot-observation-widget.cpp project-external-source-editor.cpp project-window.cpp
+    plot-copy-widget.cpp plot-observation-widget.cpp project-external-source-editor.cpp project-settings-editor.cpp
     settings-window.cpp simulation-component.cpp simulation-editor.cpp
     task-window.cpp window-logger.cpp
 

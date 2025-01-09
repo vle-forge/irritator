@@ -834,10 +834,10 @@ public:
 
 /** An ImGui TabBAr to display project settings, project hierarchy, simulation
  * settings etc. */
-class project_settings_widgets
+class project_settings_editor
 {
 public:
-    project_settings_widgets() noexcept = default;
+    project_settings_editor() noexcept = default;
 
     void show(project_window& ed) noexcept;
 
@@ -1045,7 +1045,7 @@ struct application {
     component_selector       component_sel;
     component_model_selector component_model_sel;
 
-    project_settings_widgets project_wnd;
+    project_settings_editor project_wnd;
 
     component_editor component_ed;
     output_editor    output_ed;
