@@ -551,6 +551,40 @@ struct graph_editor_dialog {
     void show() noexcept;
 };
 
+struct data_window {
+    constexpr static inline const char* name = "Data";
+
+    data_window() noexcept;
+    ~data_window() noexcept;
+
+    void show(application& app) noexcept;
+
+    ImVector<ImVec2> plot;
+
+    ImPlotContext* context = nullptr;
+
+    struct selection {
+        void clear() noexcept;
+
+        void select(constant_source_id id) noexcept;
+        void select(text_file_source_id id) noexcept;
+        void select(binary_file_source_id id) noexcept;
+        void select(random_source_id id) noexcept;
+
+        bool is(constant_source_id id) const noexcept;
+        bool is(text_file_source_id id) const noexcept;
+        bool is(binary_file_source_id id) const noexcept;
+        bool is(random_source_id id) const noexcept;
+
+        std::optional<source::source_type> type_sel;
+        u64                                id_sel = 0;
+    } sel;
+
+    bool show_file_dialog = false;
+    bool plot_available   = false;
+    bool is_open          = true;
+};
+
 struct project_window {
     enum class visualization_mode { flat, tree };
 
@@ -731,6 +765,8 @@ struct project_window {
 
     tree_node_id m_selected_tree_node = undefined<tree_node_id>();
     child_id     m_selected_child     = undefined<child_id>();
+
+    data_window data_ed;
 };
 
 inline bool project_window::is_simulation_running() const noexcept
@@ -740,40 +776,6 @@ inline bool project_window::is_simulation_running() const noexcept
                      simulation_status::running,
                      simulation_status::run_requiring);
 }
-
-struct data_window {
-    constexpr static inline const char* name = "Data";
-
-    data_window() noexcept;
-    ~data_window() noexcept;
-
-    void show(project_window& ed) noexcept;
-
-    ImVector<ImVec2> plot;
-
-    ImPlotContext* context = nullptr;
-
-    struct selection {
-        void clear() noexcept;
-
-        void select(constant_source_id id) noexcept;
-        void select(text_file_source_id id) noexcept;
-        void select(binary_file_source_id id) noexcept;
-        void select(random_source_id id) noexcept;
-
-        bool is(constant_source_id id) const noexcept;
-        bool is(text_file_source_id id) const noexcept;
-        bool is(binary_file_source_id id) const noexcept;
-        bool is(random_source_id id) const noexcept;
-
-        std::optional<source::source_type> type_sel;
-        u64                                id_sel = 0;
-    } sel;
-
-    bool show_file_dialog = false;
-    bool plot_available   = false;
-    bool is_open          = true;
-};
 
 class component_editor
 {
@@ -1047,7 +1049,6 @@ struct application {
 
     component_editor component_ed;
     output_editor    output_ed;
-    data_window      data_ed;
 
     grid_editor_dialog  grid_dlg;
     graph_editor_dialog graph_dlg;

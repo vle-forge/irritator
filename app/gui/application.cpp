@@ -259,7 +259,6 @@ static void application_show_menu(application& app) noexcept
               "Show modeling editor", nullptr, &app.component_ed.is_open);
             ImGui::MenuItem(
               "Show output editor", nullptr, &app.output_ed.is_open);
-            ImGui::MenuItem("Show data editor", nullptr, &app.data_ed.is_open);
 
             ImGui::MenuItem(
               "Show component hierarchy", nullptr, &app.library_wnd.is_open);
@@ -391,7 +390,6 @@ static void application_show_windows(application& app) noexcept
 
         ImGui::DockBuilderDockWindow(component_editor::name, app.main_dock_id);
         ImGui::DockBuilderDockWindow(output_editor::name, app.main_dock_id);
-        ImGui::DockBuilderDockWindow(data_window::name, app.main_dock_id);
 
         ImGui::DockBuilderDockWindow(app.library_wnd.name, app.right_dock_id);
 
@@ -554,8 +552,8 @@ static void show_select_model_box_recursive(application&    app,
         show_select_model_box_recursive(app, ed, *sibling, access);
 }
 
-auto build_unique_component_vector(application& app,
-                                   tree_node&   tn) -> vector<component_id>
+auto build_unique_component_vector(application& app, tree_node& tn)
+  -> vector<component_id>
 {
     vector<component_id> ret;
     vector<tree_node*>   stack;
@@ -1008,12 +1006,12 @@ void application::start_init_source(const project_id          pj_id,
           [&]() noexcept -> status {
               if (sim_ed->pj.sim.srcs.dispatch(
                     src, source::operation_type::initialize)) {
-                  data_ed.plot.clear();
+                  sim_ed->data_ed.plot.clear();
                   for (sz i = 0, e = src.buffer.size(); i != e; ++i)
-                      data_ed.plot.push_back(
+                      sim_ed->data_ed.plot.push_back(
                         ImVec2{ static_cast<float>(i),
                                 static_cast<float>(src.buffer[i]) });
-                  data_ed.plot_available = true;
+                  sim_ed->data_ed.plot_available = true;
 
                   if (!sim_ed->pj.sim.srcs.prepare())
                       notifications.try_insert(

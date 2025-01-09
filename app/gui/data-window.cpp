@@ -239,14 +239,9 @@ data_window::~data_window() noexcept
         ImPlot::DestroyContext(context);
 }
 
-void data_window::show(project_window& ed) noexcept
+void data_window::show(application& app) noexcept
 {
-    auto& app = container_of(this, &application::data_ed);
-
-    if (!ImGui::Begin(data_window::name, &is_open)) {
-        ImGui::End();
-        return;
-    }
+    auto& pj = container_of(this, &project_window::data_ed);
 
     if (ImGui::BeginTable("All sources",
                           5,
@@ -263,9 +258,9 @@ void data_window::show(project_window& ed) noexcept
         {
             constant_source* cst_src     = nullptr;
             constant_source* cst_src_del = nullptr;
-            while (ed.pj.sim.srcs.constant_sources.next(cst_src)) {
+            while (pj.pj.sim.srcs.constant_sources.next(cst_src)) {
                 ImGui::PushID(cst_src);
-                const auto id = ed.pj.sim.srcs.constant_sources.get_id(cst_src);
+                const auto id = pj.pj.sim.srcs.constant_sources.get_id(cst_src);
                 const auto index            = get_index(id);
                 const bool item_is_selected = sel.is(id);
 
@@ -313,17 +308,17 @@ void data_window::show(project_window& ed) noexcept
             }
 
             if (cst_src_del)
-                ed.pj.sim.srcs.constant_sources.free(*cst_src_del);
+                pj.pj.sim.srcs.constant_sources.free(*cst_src_del);
         }
 
         {
             text_file_source* txt_src     = nullptr;
             text_file_source* txt_src_del = nullptr;
-            while (ed.pj.sim.srcs.text_file_sources.next(txt_src)) {
+            while (pj.pj.sim.srcs.text_file_sources.next(txt_src)) {
                 ImGui::PushID(txt_src);
 
                 const auto id =
-                  ed.pj.sim.srcs.text_file_sources.get_id(txt_src);
+                  pj.pj.sim.srcs.text_file_sources.get_id(txt_src);
                 const auto index            = get_index(id);
                 const bool item_is_selected = sel.is(id);
 
@@ -358,16 +353,16 @@ void data_window::show(project_window& ed) noexcept
             }
 
             if (txt_src_del)
-                ed.pj.sim.srcs.text_file_sources.free(*txt_src_del);
+                pj.pj.sim.srcs.text_file_sources.free(*txt_src_del);
         }
 
         {
             binary_file_source* bin_src     = nullptr;
             binary_file_source* bin_src_del = nullptr;
-            while (ed.pj.sim.srcs.binary_file_sources.next(bin_src)) {
+            while (pj.pj.sim.srcs.binary_file_sources.next(bin_src)) {
                 ImGui::PushID(bin_src);
                 const auto id =
-                  ed.pj.sim.srcs.binary_file_sources.get_id(bin_src);
+                  pj.pj.sim.srcs.binary_file_sources.get_id(bin_src);
                 const auto index            = get_index(id);
                 const bool item_is_selected = sel.is(id);
 
@@ -401,15 +396,15 @@ void data_window::show(project_window& ed) noexcept
             }
 
             if (bin_src_del)
-                ed.pj.sim.srcs.binary_file_sources.free(*bin_src_del);
+                pj.pj.sim.srcs.binary_file_sources.free(*bin_src_del);
         }
 
         {
             random_source* rnd_src     = nullptr;
             random_source* rnd_src_del = nullptr;
-            while (ed.pj.sim.srcs.random_sources.next(rnd_src)) {
+            while (pj.pj.sim.srcs.random_sources.next(rnd_src)) {
                 ImGui::PushID(rnd_src);
-                const auto id = ed.pj.sim.srcs.random_sources.get_id(rnd_src);
+                const auto id = pj.pj.sim.srcs.random_sources.get_id(rnd_src);
                 const auto index            = get_index(id);
                 const bool item_is_selected = sel.is(id);
 
@@ -442,7 +437,7 @@ void data_window::show(project_window& ed) noexcept
             }
 
             if (rnd_src_del)
-                ed.pj.sim.srcs.random_sources.free(*rnd_src_del);
+                pj.pj.sim.srcs.random_sources.free(*rnd_src_del);
         }
 
         ImGui::EndTable();
@@ -455,7 +450,7 @@ void data_window::show(project_window& ed) noexcept
         ImGui::Spacing();
         ImGui::InputScalarN("seed",
                             ImGuiDataType_U64,
-                            &ed.pj.sim.srcs.seed,
+                            &pj.pj.sim.srcs.seed,
                             2,
                             nullptr,
                             nullptr,
@@ -463,8 +458,8 @@ void data_window::show(project_window& ed) noexcept
                             ImGuiInputTextFlags_CharsHexadecimal);
 
         if (ImGui::Button("+constant", button_sz)) {
-            if (ed.pj.sim.srcs.constant_sources.can_alloc(1u)) {
-                auto& new_src = ed.pj.sim.srcs.constant_sources.alloc();
+            if (pj.pj.sim.srcs.constant_sources.can_alloc(1u)) {
+                auto& new_src = pj.pj.sim.srcs.constant_sources.alloc();
                 attempt_all(
                   [&]() noexcept -> status {
                       irt_check(new_src.init());
@@ -493,8 +488,8 @@ void data_window::show(project_window& ed) noexcept
 
         ImGui::SameLine();
         if (ImGui::Button("+text file", button_sz)) {
-            if (ed.pj.sim.srcs.text_file_sources.can_alloc(1u)) {
-                auto& new_src = ed.pj.sim.srcs.text_file_sources.alloc();
+            if (pj.pj.sim.srcs.text_file_sources.can_alloc(1u)) {
+                auto& new_src = pj.pj.sim.srcs.text_file_sources.alloc();
                 (void)new_src;
                 // attempt_all(
                 //   [&]() noexcept -> status {
@@ -520,8 +515,8 @@ void data_window::show(project_window& ed) noexcept
 
         ImGui::SameLine();
         if (ImGui::Button("+binary file", button_sz)) {
-            if (ed.pj.sim.srcs.binary_file_sources.can_alloc(1u)) {
-                auto& new_src = ed.pj.sim.srcs.binary_file_sources.alloc();
+            if (pj.pj.sim.srcs.binary_file_sources.can_alloc(1u)) {
+                auto& new_src = pj.pj.sim.srcs.binary_file_sources.alloc();
                 (void)new_src;
                 // attempt_all(
                 //   [&]() noexcept -> status {
@@ -547,8 +542,8 @@ void data_window::show(project_window& ed) noexcept
 
         ImGui::SameLine();
         if (ImGui::Button("+random", button_sz)) {
-            if (ed.pj.sim.srcs.random_sources.can_alloc(1u)) {
-                auto& new_src = ed.pj.sim.srcs.random_sources.alloc();
+            if (pj.pj.sim.srcs.random_sources.can_alloc(1u)) {
+                auto& new_src = pj.pj.sim.srcs.random_sources.alloc();
                 attempt_all(
                   [&]() noexcept -> status {
                       irt_check(new_src.init());
@@ -586,7 +581,7 @@ void data_window::show(project_window& ed) noexcept
         case source::source_type::constant: {
             const auto id  = enum_cast<constant_source_id>(sel.id_sel);
             const auto idx = get_index(id);
-            if (auto* ptr = ed.pj.sim.srcs.constant_sources.try_to_get(id);
+            if (auto* ptr = pj.pj.sim.srcs.constant_sources.try_to_get(id);
                 ptr) {
                 auto new_size = ptr->length;
 
@@ -618,7 +613,7 @@ void data_window::show(project_window& ed) noexcept
         case source::source_type::text_file: {
             const auto id  = enum_cast<text_file_source_id>(sel.id_sel);
             const auto idx = get_index(id);
-            if (auto* ptr = ed.pj.sim.srcs.text_file_sources.try_to_get(id);
+            if (auto* ptr = pj.pj.sim.srcs.text_file_sources.try_to_get(id);
                 ptr) {
 
                 ImGui::InputScalar("id",
@@ -641,7 +636,7 @@ void data_window::show(project_window& ed) noexcept
         case source::source_type::binary_file: {
             const auto id  = enum_cast<binary_file_source_id>(sel.id_sel);
             const auto idx = get_index(id);
-            if (auto* ptr = ed.pj.sim.srcs.binary_file_sources.try_to_get(id);
+            if (auto* ptr = pj.pj.sim.srcs.binary_file_sources.try_to_get(id);
                 ptr) {
                 ImGui::InputScalar("id",
                                    ImGuiDataType_U32,
@@ -675,7 +670,7 @@ void data_window::show(project_window& ed) noexcept
         case source::source_type::random: {
             const auto id  = enum_cast<random_source_id>(sel.id_sel);
             const auto idx = get_index(id);
-            if (auto* ptr = ed.pj.sim.srcs.random_sources.try_to_get(id); ptr) {
+            if (auto* ptr = pj.pj.sim.srcs.random_sources.try_to_get(id); ptr) {
                 ImGui::InputScalar("id",
                                    ImGuiDataType_U32,
                                    const_cast<uint32_t*>(&idx),
@@ -706,7 +701,7 @@ void data_window::show(project_window& ed) noexcept
     if (sel.type_sel.has_value() and show_file_dialog) {
         if (*sel.type_sel == source::source_type::binary_file) {
             const auto id = enum_cast<binary_file_source_id>(sel.id_sel);
-            if (auto* ptr = ed.pj.sim.srcs.binary_file_sources.try_to_get(id);
+            if (auto* ptr = pj.pj.sim.srcs.binary_file_sources.try_to_get(id);
                 ptr) {
                 const char*    title     = "Select binary file path to load";
                 const char8_t* filters[] = { u8".dat", nullptr };
@@ -716,7 +711,7 @@ void data_window::show(project_window& ed) noexcept
                     if (app.f_dialog.state == file_dialog::status::ok) {
                         ptr->file_path = app.f_dialog.result;
 
-                        app.start_init_source(app.pjs.get_id(ed),
+                        app.start_init_source(app.pjs.get_id(pj),
                                               sel.id_sel,
                                               source::source_type::binary_file);
                     }
@@ -726,7 +721,7 @@ void data_window::show(project_window& ed) noexcept
             }
         } else if (*sel.type_sel == source::source_type::text_file) {
             const auto id = enum_cast<text_file_source_id>(sel.id_sel);
-            if (auto* ptr = ed.pj.sim.srcs.text_file_sources.try_to_get(id);
+            if (auto* ptr = pj.pj.sim.srcs.text_file_sources.try_to_get(id);
                 ptr) {
                 const char*    title     = "Select text file path to load";
                 const char8_t* filters[] = { u8".txt", nullptr };
@@ -736,7 +731,7 @@ void data_window::show(project_window& ed) noexcept
                     if (app.f_dialog.state == file_dialog::status::ok) {
                         ptr->file_path = app.f_dialog.result;
 
-                        app.start_init_source(app.pjs.get_id(ed),
+                        app.start_init_source(app.pjs.get_id(pj),
                                               sel.id_sel,
                                               source::source_type::text_file);
                     }
@@ -760,8 +755,6 @@ void data_window::show(project_window& ed) noexcept
             ImPlot::EndPlot();
         }
     }
-
-    ImGui::End();
 }
 
 void show_combobox_external_sources(external_source& srcs, source& src) noexcept
@@ -1046,27 +1039,29 @@ void data_window::selection::select(random_source_id id) noexcept
 
 bool data_window::selection::is(constant_source_id id) const noexcept
 {
-    return type_sel.has_value() and
-           *type_sel == source::source_type::constant and id_sel == ordinal(id);
+    return type_sel.has_value() and * type_sel ==
+             source::source_type::constant and
+           id_sel == ordinal(id);
 }
 
 bool data_window::selection::is(text_file_source_id id) const noexcept
 {
-    return type_sel.has_value() and
-           *type_sel == source::source_type::text_file and
+    return type_sel.has_value() and * type_sel ==
+             source::source_type::text_file and
            id_sel == ordinal(id);
 }
 
 bool data_window::selection::is(binary_file_source_id id) const noexcept
 {
-    return type_sel.has_value() and
-           *type_sel == source::source_type::binary_file and
+    return type_sel.has_value() and * type_sel ==
+             source::source_type::binary_file and
            id_sel == ordinal(id);
 }
 
 bool data_window::selection::is(random_source_id id) const noexcept
 {
-    return type_sel.has_value() and *type_sel == source::source_type::random and
+    return type_sel.has_value() and * type_sel ==
+             source::source_type::random and
            id_sel == ordinal(id);
 }
 

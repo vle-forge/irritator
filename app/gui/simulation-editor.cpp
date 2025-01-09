@@ -1264,7 +1264,7 @@ auto project_window::show(application& app) noexcept -> show_result_t
             }
 
             if (ImGui::BeginTabItem("Input data")) {
-                app.data_ed.show(*this);
+                data_ed.show(app);
                 ImGui::EndTabItem();
             }
 
