@@ -1040,13 +1040,13 @@ bool show_parameter(dynamics_hsm_wrapper_tag,
 }
 
 bool show_parameter_editor(application&    app,
-                           project_window& ed,
+                           project_editor& ed,
                            dynamics_type   type,
                            parameter&      p) noexcept
 {
     return dispatcher(
       type,
-      [](auto tag, application& app, project_window& ed, parameter& p) noexcept
+      [](auto tag, application& app, project_editor& ed, parameter& p) noexcept
         -> bool { return show_parameter(tag, app, ed.pj.sim.srcs, p); },
       app,
       ed,

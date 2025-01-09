@@ -37,7 +37,7 @@ static void plot(const plot_copy& p) noexcept
 
 void plot_copy_widget::show(const char* name) noexcept
 {
-    auto& sim_ed = container_of(this, &project_window::plot_copy_wgt);
+    auto& sim_ed = container_of(this, &project_editor::plot_copy_wgt);
 
     ImGui::PushID(this);
 

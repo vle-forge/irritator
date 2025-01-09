@@ -17,7 +17,7 @@ constexpr static inline const char* plot_type_str[] = { "None",
                                                         "Plot line",
                                                         "Plot dot" };
 
-static void show_observers_table(application& app, project_window& ed) noexcept
+static void show_observers_table(application& app, project_editor& ed) noexcept
 {
     for (auto& vobs : ed.pj.variable_observers) {
         auto to_copy = std::optional<variable_observer::sub_id>();
@@ -84,7 +84,7 @@ static void show_observers_table(application& app, project_window& ed) noexcept
     }
 }
 
-static void show_copy_table(application& app, project_window& ed) noexcept
+static void show_copy_table(application& app, project_editor& ed) noexcept
 {
     auto to_del = std::optional<plot_copy_id>();
 
@@ -221,7 +221,7 @@ static void write(std::ofstream& ofs, const plot_copy& p) noexcept
 }
 
 static void write(application&       app,
-                  project_window&    ed,
+                  project_editor&    ed,
                   std::ofstream&     ofs,
                   const plot_copy_id id) noexcept
 {
@@ -236,7 +236,7 @@ static void write(application&       app,
 }
 
 static void write(application&                 app,
-                  project_window&              ed,
+                  project_editor&              ed,
                   const std::filesystem::path& file_path,
                   const plot_copy_id           id) noexcept
 {

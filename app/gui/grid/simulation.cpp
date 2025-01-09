@@ -22,7 +22,7 @@
 namespace irt {
 
 static bool display_grid_simulation(application& app,
-                                    project_window& /*ed*/,
+                                    project_editor& /*ed*/,
                                     grid_simulation_editor& grid_sim,
                                     tree_node&              tn,
                                     const grid_component&   grid) noexcept
@@ -161,7 +161,7 @@ void grid_simulation_editor::reset() noexcept
 }
 
 bool grid_simulation_editor::display(application&    app,
-                                     project_window& ed,
+                                     project_editor& ed,
                                      tree_node&      tn,
                                      component& /*compo*/,
                                      grid_component& grid) noexcept
@@ -176,7 +176,7 @@ bool grid_simulation_editor::display(application&    app,
 }
 
 bool show_local_observers(application&    app,
-                          project_window& ed,
+                          project_editor& ed,
                           tree_node&      tn,
                           component& /*compo*/,
                           grid_component& /*grid*/) noexcept

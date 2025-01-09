@@ -401,11 +401,11 @@ static void application_show_windows(application& app) noexcept
     if (app.component_ed.is_open)
         app.component_ed.display();
 
-    project_window* pj     = nullptr;
-    project_window* to_del = nullptr;
+    project_editor* pj     = nullptr;
+    project_editor* to_del = nullptr;
     while (app.pjs.next(pj)) {
         pj->start_simulation_update_state(app);
-        if (pj->show(app) == project_window::show_result_t::request_to_close)
+        if (pj->show(app) == project_editor::show_result_t::request_to_close)
             to_del = pj;
     }
 
@@ -494,7 +494,7 @@ void application::show() noexcept
 }
 
 static void show_select_model_box_recursive(application&    app,
-                                            project_window& ed,
+                                            project_editor& ed,
                                             tree_node&      tn,
                                             grid_observer&  access) noexcept
 {
@@ -584,7 +584,7 @@ auto build_unique_component_vector(application& app, tree_node& tn)
 bool show_select_model_box(const char*     button_label,
                            const char*     popup_label,
                            application&    app,
-                           project_window& ed,
+                           project_editor& ed,
                            tree_node&      tn,
                            grid_observer&  access) noexcept
 {
@@ -645,7 +645,7 @@ bool show_select_model_box(const char*     button_label,
 bool show_select_model_box(const char*     button_label,
                            const char*     popup_label,
                            application&    app,
-                           project_window& ed,
+                           project_editor& ed,
                            tree_node&      tn,
                            graph_observer& access) noexcept
 {

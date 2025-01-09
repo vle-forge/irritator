@@ -73,7 +73,7 @@ static void make_init_error_msg(application& app,
     app.notifications.enable(n);
 }
 
-static void simulation_copy(application& app, project_window& ed) noexcept
+static void simulation_copy(application& app, project_editor& ed) noexcept
 {
     ed.simulation_state = simulation_status::initializing;
 
@@ -113,7 +113,7 @@ static void simulation_copy(application& app, project_window& ed) noexcept
       });
 }
 
-static void simulation_init(application& app, project_window& ed) noexcept
+static void simulation_init(application& app, project_editor& ed) noexcept
 {
     ed.simulation_state = simulation_status::initializing;
 
@@ -150,7 +150,7 @@ static void simulation_init(application& app, project_window& ed) noexcept
       });
 }
 
-static bool debug_run(application& app, project_window& sim_ed) noexcept
+static bool debug_run(application& app, project_editor& sim_ed) noexcept
 {
     auto success = true;
 
@@ -189,7 +189,7 @@ static bool debug_run(application& app, project_window& sim_ed) noexcept
     return success;
 }
 
-static bool run(application& app, project_window& ed) noexcept
+static bool run(application& app, project_editor& ed) noexcept
 {
     auto success = true;
 
@@ -228,7 +228,7 @@ static bool run(application& app, project_window& ed) noexcept
     return success;
 }
 
-void project_window::start_simulation_static_run(application& app) noexcept
+void project_editor::start_simulation_static_run(application& app) noexcept
 {
     app.add_simulation_task([&]() noexcept {
         simulation_state = simulation_status::running;
@@ -314,7 +314,7 @@ static bool is_simulation_force_stop(simulation_status& s, bool stop) noexcept
     return stop;
 }
 
-void project_window::start_simulation_live_run(application& app) noexcept
+void project_editor::start_simulation_live_run(application& app) noexcept
 {
     namespace stdc = std::chrono;
 
@@ -407,7 +407,7 @@ void project_window::start_simulation_live_run(application& app) noexcept
     });
 }
 
-void project_window::start_simulation_update_state(application& app) noexcept
+void project_editor::start_simulation_update_state(application& app) noexcept
 {
     if (any_equal(simulation_state,
                   simulation_status::paused,
@@ -462,7 +462,7 @@ void project_window::start_simulation_update_state(application& app) noexcept
     }
 }
 
-void project_window::start_simulation_copy_modeling(application& app) noexcept
+void project_editor::start_simulation_copy_modeling(application& app) noexcept
 {
     bool state = any_equal(simulation_state,
                            simulation_status::initialized,
@@ -491,7 +491,7 @@ void project_window::start_simulation_copy_modeling(application& app) noexcept
     }
 }
 
-void project_window::start_simulation_init(application& app) noexcept
+void project_editor::start_simulation_init(application& app) noexcept
 {
     bool state = any_equal(simulation_state,
                            simulation_status::initialized,
@@ -509,7 +509,7 @@ void project_window::start_simulation_init(application& app) noexcept
     }
 }
 
-void project_window::start_simulation_clear(application& app) noexcept
+void project_editor::start_simulation_clear(application& app) noexcept
 {
     // Disable display graph node to avoid data race on @c
     // simulation_editor::simulation data.
@@ -521,7 +521,7 @@ void project_window::start_simulation_clear(application& app) noexcept
     });
 }
 
-void project_window::start_simulation_delete(application& app) noexcept
+void project_editor::start_simulation_delete(application& app) noexcept
 {
     // Disable display graph node to avoid data race on @c
     // simulation_editor::simulation data.
@@ -535,7 +535,7 @@ void project_window::start_simulation_delete(application& app) noexcept
     });
 }
 
-void project_window::start_simulation_start(application& app) noexcept
+void project_editor::start_simulation_start(application& app) noexcept
 {
     const auto state = any_equal(simulation_state,
                                  simulation_status::initialized,
@@ -554,7 +554,7 @@ void project_window::start_simulation_start(application& app) noexcept
     }
 }
 
-void project_window::stop_simulation_observation(application& app) noexcept
+void project_editor::stop_simulation_observation(application& app) noexcept
 {
     auto& task_list = app.get_unordered_task_list(0);
 
@@ -594,7 +594,7 @@ void project_window::stop_simulation_observation(application& app) noexcept
     pj.file_obs.finalize();
 }
 
-void project_window::start_simulation_observation(application& app) noexcept
+void project_editor::start_simulation_observation(application& app) noexcept
 {
     auto& task_list = app.get_unordered_task_list(0);
 
@@ -672,7 +672,7 @@ void project_window::start_simulation_observation(application& app) noexcept
         pj.file_obs.update(pj.sim, pj);
 }
 
-void project_window::start_simulation_start_1(application& app) noexcept
+void project_editor::start_simulation_start_1(application& app) noexcept
 {
     bool state = any_equal(simulation_state,
                            simulation_status::initialized,
@@ -715,7 +715,7 @@ void project_window::start_simulation_start_1(application& app) noexcept
     }
 }
 
-void project_window::start_simulation_pause(application& app) noexcept
+void project_editor::start_simulation_pause(application& app) noexcept
 {
     bool state = any_equal(simulation_state, simulation_status::running);
 
@@ -726,7 +726,7 @@ void project_window::start_simulation_pause(application& app) noexcept
     }
 }
 
-void project_window::start_simulation_stop(application& app) noexcept
+void project_editor::start_simulation_stop(application& app) noexcept
 {
     bool state = any_equal(
       simulation_state, simulation_status::running, simulation_status::paused);
@@ -738,7 +738,7 @@ void project_window::start_simulation_stop(application& app) noexcept
     }
 }
 
-void project_window::start_simulation_finish(application& app) noexcept
+void project_editor::start_simulation_finish(application& app) noexcept
 {
     app.add_simulation_task([&]() noexcept {
         std::scoped_lock lock{ app.sim_mutex };
@@ -767,7 +767,7 @@ void project_window::start_simulation_finish(application& app) noexcept
     });
 }
 
-void project_window::start_simulation_advance(application& app) noexcept
+void project_editor::start_simulation_advance(application& app) noexcept
 {
     app.add_simulation_task([&]() noexcept {
         if (tl.can_advance()) {
@@ -793,7 +793,7 @@ void project_window::start_simulation_advance(application& app) noexcept
     });
 }
 
-void project_window::start_simulation_back(application& app) noexcept
+void project_editor::start_simulation_back(application& app) noexcept
 {
     app.add_simulation_task([&]() noexcept {
         if (tl.can_back()) {
@@ -817,7 +817,7 @@ void project_window::start_simulation_back(application& app) noexcept
     });
 }
 
-void project_window::start_enable_or_disable_debug(application& app) noexcept
+void project_editor::start_enable_or_disable_debug(application& app) noexcept
 {
     app.add_simulation_task([&]() noexcept {
         tl.reset();
@@ -849,7 +849,7 @@ void project_window::start_enable_or_disable_debug(application& app) noexcept
     });
 }
 
-void project_window::start_simulation_model_add(application&        app,
+void project_editor::start_simulation_model_add(application&        app,
                                                 const dynamics_type type,
                                                 const float         x,
                                                 const float         y) noexcept
@@ -896,7 +896,7 @@ void project_window::start_simulation_model_add(application&        app,
     });
 }
 
-void project_window::start_simulation_model_del(application&   app,
+void project_editor::start_simulation_model_del(application&   app,
                                                 const model_id id) noexcept
 {
     app.add_simulation_task([&, id]() noexcept {
@@ -905,7 +905,7 @@ void project_window::start_simulation_model_del(application&   app,
     });
 }
 
-void project_window::remove_simulation_observation_from(
+void project_editor::remove_simulation_observation_from(
   application& app,
   model_id     mdl_id) noexcept
 {
@@ -919,7 +919,7 @@ void project_window::remove_simulation_observation_from(
     });
 }
 
-void project_window::add_simulation_observation_for(
+void project_editor::add_simulation_observation_for(
   application&   app,
   const model_id mdl_id) noexcept
 {

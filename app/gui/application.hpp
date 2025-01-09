@@ -27,7 +27,7 @@ namespace irt {
 
 struct application;
 class component_editor;
-struct project_window;
+struct project_editor;
 
 enum class notification_id : u32;
 enum class plot_copy_id : u32;
@@ -469,7 +469,7 @@ public:
     void reset() noexcept;
 
     bool display(application&    app,
-                 project_window& ed,
+                 project_editor& ed,
                  tree_node&      tn,
                  component&      compo,
                  grid_component& grid) noexcept;
@@ -511,7 +511,7 @@ struct graph_simulation_editor {
 
 struct hsm_simulation_editor {
     bool show_observations(application&    app,
-                           project_window& ed,
+                           project_editor& ed,
                            tree_node&      tn,
                            component&      compo,
                            hsm_component&  hsm) noexcept;
@@ -585,14 +585,14 @@ struct project_external_source_editor {
     bool is_open          = true;
 };
 
-struct project_window {
+struct project_editor {
     enum class visualization_mode { flat, tree };
 
-    project_window(const std::string_view default_name) noexcept;
-    ~project_window() noexcept;
+    project_editor(const std::string_view default_name) noexcept;
+    ~project_editor() noexcept;
 
-    project_window(project_window&&)            = default;
-    project_window& operator=(project_window&&) = default;
+    project_editor(project_editor&&)            = default;
+    project_editor& operator=(project_editor&&) = default;
 
     enum class show_result_t {
         success,          /**< Nothing to do. */
@@ -601,7 +601,7 @@ struct project_window {
 
     /** Display the project window in a @c ImGui::Begin/End window.
      *
-     * @return project_window next status enumeration: keep the window open or
+     * @return project_editor next status enumeration: keep the window open or
      * try to close it. */
     show_result_t show(application& app) noexcept;
 
@@ -769,7 +769,7 @@ struct project_window {
     project_external_source_editor data_ed;
 };
 
-inline bool project_window::is_simulation_running() const noexcept
+inline bool project_editor::is_simulation_running() const noexcept
 {
     return any_equal(simulation_state,
                      simulation_status::paused,
@@ -839,7 +839,7 @@ class project_settings_editor
 public:
     project_settings_editor() noexcept = default;
 
-    void show(project_window& ed) noexcept;
+    void show(project_editor& ed) noexcept;
 
 private:
 };
@@ -1029,7 +1029,7 @@ struct application {
 
     modeling mod;
 
-    data_array<project_window, project_id> pjs;
+    data_array<project_editor, project_id> pjs;
 
     /** Try to allocate a project and affect a new name to the newly allocated
      * project_window. */
@@ -1148,7 +1148,7 @@ struct application {
 bool show_select_model_box(const char*     button_label,
                            const char*     popup_label,
                            application&    app,
-                           project_window& ed,
+                           project_editor& ed,
                            tree_node&      tn,
                            grid_observer&  access) noexcept;
 
@@ -1157,12 +1157,12 @@ bool show_select_model_box(const char*     button_label,
 bool show_select_model_box(const char*     button_label,
                            const char*     popup_label,
                            application&    app,
-                           project_window& ed,
+                           project_editor& ed,
                            tree_node&      tn,
                            graph_observer& access) noexcept;
 
 bool show_local_observers(application&     app,
-                          project_window&  ed,
+                          project_editor&  ed,
                           tree_node&       tn,
                           component&       compo,
                           graph_component& graph) noexcept;
@@ -1170,12 +1170,12 @@ bool show_local_observers(application&     app,
 void alloc_grid_observer(irt::application& app, irt::tree_node& tn);
 
 bool show_local_observers(application&    app,
-                          project_window& ed,
+                          project_editor& ed,
                           tree_node&      tn,
                           component&      compo,
                           grid_component& grid) noexcept;
 
-void show_simulation_editor(application& app, project_window& ed) noexcept;
+void show_simulation_editor(application& app, project_editor& ed) noexcept;
 
 //! @brief Get the file path of the @c imgui.ini file saved in $HOME.
 //! @return A pointer to a newly allocated memory.
@@ -1197,17 +1197,17 @@ void application::add_gui_task(Fn&& fn) noexcept
 
 /* * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * */
 
-inline tree_node_id project_window::selected_tn() noexcept
+inline tree_node_id project_editor::selected_tn() noexcept
 {
     return m_selected_tree_node;
 }
 
-inline child_id project_window::selected_child() noexcept
+inline child_id project_editor::selected_child() noexcept
 {
     return m_selected_child;
 }
 
-inline bool project_window::can_edit() const noexcept
+inline bool project_editor::can_edit() const noexcept
 {
     if (any_equal(simulation_state,
                   simulation_status::not_started,
@@ -1217,7 +1217,7 @@ inline bool project_window::can_edit() const noexcept
     return allow_user_changes;
 }
 
-inline bool project_window::can_display_graph_editor() const noexcept
+inline bool project_editor::can_display_graph_editor() const noexcept
 {
     return display_graph;
 }

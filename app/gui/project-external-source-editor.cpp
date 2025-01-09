@@ -241,7 +241,7 @@ project_external_source_editor::~project_external_source_editor() noexcept
 
 void project_external_source_editor::show(application& app) noexcept
 {
-    auto& pj = container_of(this, &project_window::data_ed);
+    auto& pj = container_of(this, &project_editor::data_ed);
 
     if (ImGui::BeginTable("All sources",
                           5,

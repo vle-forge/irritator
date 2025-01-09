@@ -23,7 +23,7 @@
 
 namespace irt {
 
-project_window::project_window(const std::string_view default_name) noexcept
+project_editor::project_editor(const std::string_view default_name) noexcept
   : tl(32768, 4096, 65536, 65536, 32768, 32768)
   , name{ default_name }
 {
@@ -49,7 +49,7 @@ project_window::project_window(const std::string_view default_name) noexcept
       ImNodesStyleFlags_GridLinesPrimary | ImNodesStyleFlags_GridSnapping;
 }
 
-project_window::~project_window() noexcept
+project_editor::~project_editor() noexcept
 {
     if (output_context) {
         ImPlot::DestroyContext(output_context);
@@ -62,7 +62,7 @@ project_window::~project_window() noexcept
     }
 }
 
-void project_window::select(tree_node_id id) noexcept
+void project_editor::select(tree_node_id id) noexcept
 {
     if (auto* tree = pj.node(id); tree) {
         unselect();
@@ -72,7 +72,7 @@ void project_window::select(tree_node_id id) noexcept
     }
 }
 
-void project_window::unselect() noexcept
+void project_editor::unselect() noexcept
 {
     head    = undefined<tree_node_id>();
     current = undefined<tree_node_id>();
@@ -84,7 +84,7 @@ void project_window::unselect() noexcept
     selected_nodes.clear();
 }
 
-void project_window::clear() noexcept
+void project_editor::clear() noexcept
 {
     unselect();
 
@@ -121,17 +121,17 @@ void project_window::clear() noexcept
     displacements.clear();
 }
 
-bool project_window::is_selected(tree_node_id id) const noexcept
+bool project_editor::is_selected(tree_node_id id) const noexcept
 {
     return m_selected_tree_node == id;
 }
 
-bool project_window::is_selected(child_id id) const noexcept
+bool project_editor::is_selected(child_id id) const noexcept
 {
     return m_selected_child == id;
 }
 
-void project_window::select(const modeling& mod, tree_node_id id) noexcept
+void project_editor::select(const modeling& mod, tree_node_id id) noexcept
 {
     if (id != m_selected_tree_node) {
         m_selected_tree_node = undefined<tree_node_id>();
@@ -146,7 +146,7 @@ void project_window::select(const modeling& mod, tree_node_id id) noexcept
     }
 }
 
-void project_window::select(const modeling& mod, tree_node& node) noexcept
+void project_editor::select(const modeling& mod, tree_node& node) noexcept
 {
     auto id = pj.node(node);
 
@@ -161,14 +161,14 @@ void project_window::select(const modeling& mod, tree_node& node) noexcept
     }
 }
 
-void project_window::select(const modeling& /*mod*/, child_id id) noexcept
+void project_editor::select(const modeling& /*mod*/, child_id id) noexcept
 {
     if (id != m_selected_child)
         m_selected_child = id;
 }
 
 static void show_simulation_action_buttons(application&    app,
-                                           project_window& ed,
+                                           project_editor& ed,
                                            bool            can_be_initialized,
                                            bool            can_be_started,
                                            bool            can_be_paused,
@@ -327,7 +327,7 @@ static auto get_or_add_variable_observer(project&             pj,
 }
 
 static bool show_local_simulation_plot_observers_table(application&    app,
-                                                       project_window& ed,
+                                                       project_editor& ed,
                                                        tree_node& tn) noexcept
 {
     debug::ensure(!component_is_grid_or_graph(app.mod, tn));
@@ -476,7 +476,7 @@ static auto get_global_parameter(const auto&            tn,
 }
 
 static bool show_local_simulation_settings(application&    app,
-                                           project_window& ed,
+                                           project_editor& ed,
                                            tree_node&      tn) noexcept
 {
     int is_modified = 0;
@@ -570,7 +570,7 @@ static bool show_local_simulation_settings(application&    app,
 }
 
 static bool show_local_simulation_specific_observers(application&    app,
-                                                     project_window& ed,
+                                                     project_editor& ed,
                                                      tree_node& tn) noexcept
 {
     auto& mod = app.mod;
@@ -601,7 +601,7 @@ static bool show_local_simulation_specific_observers(application&    app,
     return false;
 }
 
-static void show_local_variables_plot(project_window&    ed,
+static void show_local_variables_plot(project_editor&    ed,
                                       variable_observer& v_obs,
                                       tree_node_id       tn_id) noexcept
 {
@@ -622,7 +622,7 @@ static void show_local_variables_plot(project_window&    ed,
 // noexcept {...}
 
 static bool show_simulation_table_grid_observers(application& /*app*/,
-                                                 project_window& ed) noexcept
+                                                 project_editor& ed) noexcept
 {
     auto to_delete   = undefined<grid_observer_id>();
     bool is_modified = false;
@@ -689,7 +689,7 @@ static bool show_simulation_table_grid_observers(application& /*app*/,
 }
 
 static bool show_simulation_table_graph_observers(application& /*app*/,
-                                                  project_window& ed) noexcept
+                                                  project_editor& ed) noexcept
 {
     auto to_delete   = undefined<graph_observer_id>();
     bool is_modified = false;
@@ -757,7 +757,7 @@ static bool show_simulation_table_graph_observers(application& /*app*/,
 
 static bool show_simulation_table_variable_observers(
   application& /*app*/,
-  project_window& ed) noexcept
+  project_editor& ed) noexcept
 {
     auto to_delete   = undefined<variable_observer_id>();
     bool is_modified = false;
@@ -837,7 +837,7 @@ static bool show_simulation_table_variable_observers(
 }
 
 static bool show_project_parameters(application&    app,
-                                    project_window& ed) noexcept
+                                    project_editor& ed) noexcept
 {
     constexpr auto tflags = ImGuiTableFlags_SizingStretchProp;
     constexpr auto fflags = ImGuiTableColumnFlags_WidthFixed;
@@ -899,7 +899,7 @@ static bool show_project_parameters(application&    app,
     return is_modified;
 }
 
-static void show_component_observations_actions(project_window& sim_ed) noexcept
+static void show_component_observations_actions(project_editor& sim_ed) noexcept
 {
     ImGui::TextUnformatted("Column: ");
     ImGui::SameLine();
@@ -941,7 +941,7 @@ static void show_component_observations_actions(project_window& sim_ed) noexcept
 }
 
 static int show_simulation_table_file_observers(application& /*app*/,
-                                                project_window& ed) noexcept
+                                                project_editor& ed) noexcept
 {
     auto is_modified = 0;
 
@@ -1002,7 +1002,7 @@ static int show_simulation_table_file_observers(application& /*app*/,
 }
 
 static bool show_project_observations(application&    app,
-                                      project_window& ed) noexcept
+                                      project_editor& ed) noexcept
 {
     constexpr static auto flags = ImGuiTreeNodeFlags_DefaultOpen;
 
@@ -1082,7 +1082,7 @@ static bool show_project_observations(application&    app,
 }
 
 static void show_component_observations(application&    app,
-                                        project_window& sim_ed,
+                                        project_editor& sim_ed,
                                         tree_node&      selected)
 {
     show_local_simulation_specific_observers(app, sim_ed, selected);
@@ -1138,7 +1138,7 @@ static void show_component_observations(application&    app,
 }
 
 static void show_simulation_editor_treenode(application&    app,
-                                            project_window& ed,
+                                            project_editor& ed,
                                             tree_node&      tn) noexcept
 {
     if (auto* compo = app.mod.components.try_to_get(tn.id); compo) {
@@ -1160,7 +1160,7 @@ static void show_simulation_editor_treenode(application&    app,
     }
 }
 
-auto project_window::show(application& app) noexcept -> show_result_t
+auto project_editor::show(application& app) noexcept -> show_result_t
 {
     if (not is_dock_init) {
         ImGui::SetNextWindowDockID(app.main_dock_id);
