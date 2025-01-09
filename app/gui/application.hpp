@@ -551,11 +551,11 @@ struct graph_editor_dialog {
     void show() noexcept;
 };
 
-struct data_window {
+struct project_external_source_editor {
     constexpr static inline const char* name = "Data";
 
-    data_window() noexcept;
-    ~data_window() noexcept;
+    project_external_source_editor() noexcept;
+    ~project_external_source_editor() noexcept;
 
     void show(application& app) noexcept;
 
@@ -766,7 +766,7 @@ struct project_window {
     tree_node_id m_selected_tree_node = undefined<tree_node_id>();
     child_id     m_selected_child     = undefined<child_id>();
 
-    data_window data_ed;
+    project_external_source_editor data_ed;
 };
 
 inline bool project_window::is_simulation_running() const noexcept

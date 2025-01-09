@@ -229,17 +229,17 @@ void show_random_distribution_input(random_source& src) noexcept
 //     }
 // }
 
-data_window::data_window() noexcept
+project_external_source_editor::project_external_source_editor() noexcept
   : context{ ImPlot::CreateContext() }
 {}
 
-data_window::~data_window() noexcept
+project_external_source_editor::~project_external_source_editor() noexcept
 {
     if (context)
         ImPlot::DestroyContext(context);
 }
 
-void data_window::show(application& app) noexcept
+void project_external_source_editor::show(application& app) noexcept
 {
     auto& pj = container_of(this, &project_window::data_ed);
 
@@ -1007,58 +1007,58 @@ void show_menu_external_sources(application&     app,
     }
 }
 
-void data_window::selection::clear() noexcept
+void project_external_source_editor::selection::clear() noexcept
 {
     type_sel.reset();
     id_sel = 0;
 }
 
-void data_window::selection::select(constant_source_id id) noexcept
+void project_external_source_editor::selection::select(constant_source_id id) noexcept
 {
     type_sel = source::source_type::constant;
     id_sel   = ordinal(id);
 }
 
-void data_window::selection::select(text_file_source_id id) noexcept
+void project_external_source_editor::selection::select(text_file_source_id id) noexcept
 {
     type_sel = source::source_type::text_file;
     id_sel   = ordinal(id);
 }
 
-void data_window::selection::select(binary_file_source_id id) noexcept
+void project_external_source_editor::selection::select(binary_file_source_id id) noexcept
 {
     type_sel = source::source_type::binary_file;
     id_sel   = ordinal(id);
 }
 
-void data_window::selection::select(random_source_id id) noexcept
+void project_external_source_editor::selection::select(random_source_id id) noexcept
 {
     type_sel = source::source_type::random;
     id_sel   = ordinal(id);
 }
 
-bool data_window::selection::is(constant_source_id id) const noexcept
+bool project_external_source_editor::selection::is(constant_source_id id) const noexcept
 {
     return type_sel.has_value() and * type_sel ==
              source::source_type::constant and
            id_sel == ordinal(id);
 }
 
-bool data_window::selection::is(text_file_source_id id) const noexcept
+bool project_external_source_editor::selection::is(text_file_source_id id) const noexcept
 {
     return type_sel.has_value() and * type_sel ==
              source::source_type::text_file and
            id_sel == ordinal(id);
 }
 
-bool data_window::selection::is(binary_file_source_id id) const noexcept
+bool project_external_source_editor::selection::is(binary_file_source_id id) const noexcept
 {
     return type_sel.has_value() and * type_sel ==
              source::source_type::binary_file and
            id_sel == ordinal(id);
 }
 
-bool data_window::selection::is(random_source_id id) const noexcept
+bool project_external_source_editor::selection::is(random_source_id id) const noexcept
 {
     return type_sel.has_value() and * type_sel ==
              source::source_type::random and
