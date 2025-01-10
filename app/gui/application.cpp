@@ -552,8 +552,8 @@ static void show_select_model_box_recursive(application&    app,
         show_select_model_box_recursive(app, ed, *sibling, access);
 }
 
-auto build_unique_component_vector(application& app, tree_node& tn)
-  -> vector<component_id>
+auto build_unique_component_vector(application& app,
+                                   tree_node&   tn) -> vector<component_id>
 {
     vector<component_id> ret;
     vector<tree_node*>   stack;
@@ -993,35 +993,34 @@ void application::start_init_source(const project_id          pj_id,
                                     const u64                 id,
                                     const source::source_type type) noexcept
 {
-    add_gui_task([&, id, type]() noexcept {
+    debug::ensure(any_equal(
+      type, source::source_type::constant, source::source_type::random));
+
+    add_gui_task([this, pj_id, id, type]() noexcept {
         if (auto* sim_ed = pjs.try_to_get(pj_id)) {
-            source src;
-            src.id   = id;
-            src.type = type;
+            if (type == source::source_type::constant) {
+                if (auto* c = sim_ed->pj.sim.srcs.constant_sources.try_to_get(
+                      enum_cast<constant_source_id>(id))) {
+                    (void)c->init();
+                    sim_ed->data_ed.fill_plot(
+                      std::span(c->buffer.data(), c->length));
+                }
+            } else {
+                if (auto* c = sim_ed->pj.sim.srcs.random_sources.try_to_get(
+                      enum_cast<random_source_id>(id))) {
+                    c->max_clients = 1;
+                    (void)c->init();
 
-            attempt_all(
-              [&]() noexcept -> status {
-                  if (sim_ed->pj.sim.srcs.dispatch(
-                        src, source::operation_type::initialize)) {
-                      sim_ed->data_ed.fill_plot(src.buffer);
+                    chunk_type tmp;
+                    source     src;
+                    src.buffer = tmp;
+                    src.id     = id;
+                    src.type   = type;
+                    (void)c->init(src);
 
-                      if (not sim_ed->pj.sim.srcs.prepare())
-                          notifications.try_insert(
-                            log_level::error,
-                            [](auto& title, auto& msg) noexcept {
-                                title = "Data error";
-                                msg   = "Fail to prepare data from source.";
-                            });
-                  }
-                  return success();
-              },
-              [&]() {
-                  notifications.try_insert(
-                    log_level::error, [](auto& title, auto& msg) noexcept {
-                        title = "Data error";
-                        msg   = "Fail to prepare data from source.";
-                    });
-              });
+                    sim_ed->data_ed.fill_plot(src.buffer);
+                }
+            }
         }
     });
 }

@@ -69,8 +69,10 @@ auto show_data_file_input(const modeling&  mod,
 
 /** Display combobox and input real, input integer for each type of random
  * distribution. The @c random_source @c src is updated according to user
- * selection */
-void show_random_distribution_input(random_source& src) noexcept;
+ * selection.
+ * @return True if the user change the distribution type or the parameters.
+ */
+bool show_random_distribution_input(random_source& src) noexcept;
 
 void show_menu_external_sources(external_source& srcs,
                                 const char*      title,
@@ -554,7 +556,7 @@ struct graph_editor_dialog {
 class project_external_source_editor
 {
 public:
-    enum class status {
+    enum class plot_status {
         empty,
         work_in_progress,
         data_available,
@@ -563,8 +565,7 @@ public:
     project_external_source_editor() noexcept;
     ~project_external_source_editor() noexcept;
 
-    void   show(application& app) noexcept;
-    status state() noexcept;
+    void show(application& app) noexcept;
 
     struct selection {
         void clear() noexcept;
@@ -593,9 +594,9 @@ public:
     void fill_plot(std::span<double> data) noexcept;
 
 private:
-    vector<ImVec2> plot;
+    vector<float>  plot;
     ImPlotContext* context          = nullptr;
-    status         m_status         = status::empty;
+    plot_status    m_status         = plot_status::empty;
     bool           show_file_dialog = false;
 
     spin_mutex mutex;

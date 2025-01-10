@@ -617,7 +617,7 @@ public:
     counter_type ctr;
     key_type     key; // provided by @c external_source class.
 
-    distribution_type distribution = distribution_type::uniform_int;
+    distribution_type distribution = distribution_type::uniform_real;
     double a = 0, b = 1, p, mean, lambda, alpha, beta, stddev, m, s, n;
     int    a32, b32, t32, k32;
 

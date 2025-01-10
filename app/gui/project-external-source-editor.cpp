@@ -11,6 +11,120 @@
 
 namespace irt {
 
+template<typename DataArray>
+static status try_allocate_external_source(application&        app,
+                                           project_editor&     pj,
+                                           source::source_type type,
+                                           DataArray&          d) noexcept
+{
+    if (not d.can_alloc(1)) {
+        d.grow();
+
+        if (not d.can_alloc(1))
+            return new_error(container_full_error{},
+                             e_memory{ d.capacity() * 2, d.capacity() });
+    }
+
+    [[maybe_unused]] auto& src = d.alloc();
+
+    using underlying_type = typename DataArray::value_type;
+
+    if constexpr (std::is_same_v<underlying_type, constant_source> or
+                  std::is_same_v<underlying_type, random_source>)
+        app.start_init_source(app.pjs.get_id(pj), ordinal(d.get_id(src)), type);
+
+    return success();
+}
+
+static void display_allocate_external_source(application&    app,
+                                             project_editor& ed) noexcept
+{
+    auto&      style = ImGui::GetStyle();
+    const auto width =
+      (ImGui::GetContentRegionAvail().x - 4.f * style.ItemSpacing.x) / 4.f;
+    auto button_sz = ImVec2(width, 20);
+
+    std::optional<source::source_type> part;
+
+    if (ImGui::Button("+constant", button_sz))
+        part = source::source_type::constant;
+    ImGui::SameLine();
+    if (ImGui::Button("+text file", button_sz))
+        part = source::source_type::text_file;
+    ImGui::SameLine();
+    if (ImGui::Button("+binary file", button_sz))
+        part = source::source_type::binary_file;
+    ImGui::SameLine();
+    if (ImGui::Button("+random", button_sz))
+        part = source::source_type::random;
+
+    if (part.has_value()) {
+        attempt_all(
+          [&]() noexcept -> status {
+              switch (*part) {
+
+              case source::source_type::constant:
+                  irt_check(try_allocate_external_source(
+                    app, ed, *part, ed.pj.sim.srcs.constant_sources));
+                  break;
+
+              case source::source_type::binary_file:
+                  irt_check(try_allocate_external_source(
+                    app, ed, *part, ed.pj.sim.srcs.binary_file_sources));
+                  break;
+
+              case source::source_type::text_file:
+                  irt_check(try_allocate_external_source(
+                    app, ed, *part, ed.pj.sim.srcs.text_file_sources));
+                  break;
+
+              case source::source_type::random:
+                  irt_check(try_allocate_external_source(
+                    app, ed, *part, ed.pj.sim.srcs.random_sources));
+                  break;
+              }
+
+              return success();
+          },
+
+          [&](const container_full_error /*c*/,
+              const e_memory m) noexcept -> void {
+              app.notifications.try_insert(
+                log_level::error, [&](auto& title, auto& msg) {
+                    format(title,
+                           "Fail to initialize {} source",
+                           external_source_str(*part));
+                    format(
+                      msg,
+                      "Not enough memory in container. Request size: `{}', "
+                      "and capacity `{}'",
+                      m.request,
+                      m.capacity);
+                });
+          },
+
+          [&](const external_source::part s) noexcept -> void {
+              app.notifications.try_insert(
+                log_level::error, [&](auto& title, auto& msg) {
+                    format(title,
+                           "Fail to initialize {} source",
+                           external_source_str(*part));
+                    format(msg, "Error in {}: {}", ordinal(s));
+                });
+          },
+
+          [&]() noexcept -> void {
+              app.notifications.try_insert(
+                log_level::error, [&](auto& title, auto& msg) {
+                    format(title,
+                           "Fail to initialize {} source",
+                           external_source_str(*part));
+                    format(msg, "unknown_error");
+                });
+          });
+    }
+}
+
 auto show_data_file_input(const modeling&  mod,
                           const component& compo,
                           file_path_id&    id) noexcept -> bool
@@ -45,16 +159,21 @@ auto show_data_file_input(const modeling&  mod,
     return old_id != id;
 }
 
-void show_random_distribution_input(random_source& src) noexcept
+bool show_random_distribution_input(random_source& src) noexcept
 {
+    int up           = 0;
     int current_item = ordinal(src.distribution);
     int old_current  = ordinal(src.distribution);
-    ImGui::Combo("Distribution",
-                 &current_item,
-                 irt::distribution_type_string,
-                 IM_ARRAYSIZE(irt::distribution_type_string));
 
-    src.distribution = enum_cast<distribution_type>(current_item);
+    if (ImGui::Combo("Distribution",
+                     &current_item,
+                     irt::distribution_type_string,
+                     IM_ARRAYSIZE(irt::distribution_type_string))) {
+        if (current_item != old_current) {
+            src.distribution = enum_cast<distribution_type>(current_item);
+            up++;
+        }
+    }
 
     switch (src.distribution) {
     case distribution_type::uniform_int: {
@@ -67,30 +186,56 @@ void show_random_distribution_input(random_source& src) noexcept
         int b = src.b32;
 
         if (ImGui::InputInt("a", &a)) {
+            up++;
+
             if (a < b)
                 src.a32 = a;
+            else
+                src.b32 = a + 1;
         }
 
         if (ImGui::InputInt("b", &b)) {
+            up++;
+
             if (a < b)
                 src.b32 = b;
+            else
+                src.a32 = b - 1;
         }
     } break;
 
-    case distribution_type::uniform_real:
+    case distribution_type::uniform_real: {
         if (old_current != current_item) {
             src.a = 0.0;
             src.b = 1.0;
         }
-        ImGui::InputDouble("a", &src.a);
-        ImGui::InputDouble("b", &src.b); // a < b
-        break;
+
+        auto a = src.a;
+        auto b = src.b;
+
+        if (ImGui::InputDouble("a", &a)) {
+            ++up;
+            if (a < b)
+                src.a = a;
+            else
+                src.b = a + 1;
+        }
+
+        if (ImGui::InputDouble("b", &b)) {
+            ++up;
+            if (a < b)
+                src.a = a;
+            else
+                src.b = a + 1;
+        }
+    } break;
 
     case distribution_type::bernouilli:
         if (old_current != current_item) {
             src.p = 0.5;
         }
-        ImGui::InputDouble("p", &src.p);
+        if (ImGui::InputDouble("p", &src.p))
+            ++up;
         break;
 
     case distribution_type::binomial:
@@ -98,8 +243,10 @@ void show_random_distribution_input(random_source& src) noexcept
             src.p   = 0.5;
             src.t32 = 1;
         }
-        ImGui::InputDouble("p", &src.p);
-        ImGui::InputInt("t", &src.t32);
+        if (ImGui::InputDouble("p", &src.p))
+            ++up;
+        if (ImGui::InputInt("t", &src.t32))
+            ++up;
         break;
 
     case distribution_type::negative_binomial:
@@ -107,29 +254,34 @@ void show_random_distribution_input(random_source& src) noexcept
             src.p   = 0.5;
             src.t32 = 1;
         }
-        ImGui::InputDouble("p", &src.p);
-        ImGui::InputInt("t", &src.k32);
+        if (ImGui::InputDouble("p", &src.p))
+            ++up;
+        if (ImGui::InputInt("t", &src.k32))
+            ++up;
         break;
 
     case distribution_type::geometric:
         if (old_current != current_item) {
             src.p = 0.5;
         }
-        ImGui::InputDouble("p", &src.p);
+        if (ImGui::InputDouble("p", &src.p))
+            ++up;
         break;
 
     case distribution_type::poisson:
         if (old_current != current_item) {
             src.mean = 0.5;
         }
-        ImGui::InputDouble("mean", &src.mean);
+        if (ImGui::InputDouble("mean", &src.mean))
+            ++up;
         break;
 
     case distribution_type::exponential:
         if (old_current != current_item) {
             src.lambda = 1.0;
         }
-        ImGui::InputDouble("lambda", &src.lambda);
+        if (ImGui::InputDouble("lambda", &src.lambda))
+            ++up;
         break;
 
     case distribution_type::gamma:
@@ -137,8 +289,10 @@ void show_random_distribution_input(random_source& src) noexcept
             src.alpha = 1.0;
             src.beta  = 1.0;
         }
-        ImGui::InputDouble("alpha", &src.alpha);
-        ImGui::InputDouble("beta", &src.beta);
+        if (ImGui::InputDouble("alpha", &src.alpha))
+            ++up;
+        if (ImGui::InputDouble("beta", &src.beta))
+            ++up;
         break;
 
     case distribution_type::weibull:
@@ -146,8 +300,10 @@ void show_random_distribution_input(random_source& src) noexcept
             src.a = 1.0;
             src.b = 1.0;
         }
-        ImGui::InputDouble("a", &src.a);
-        ImGui::InputDouble("b", &src.b);
+        if (ImGui::InputDouble("a", &src.a))
+            ++up;
+        if (ImGui::InputDouble("b", &src.b))
+            ++up;
         break;
 
     case distribution_type::exterme_value:
@@ -155,8 +311,10 @@ void show_random_distribution_input(random_source& src) noexcept
             src.a = 1.0;
             src.b = 0.0;
         }
-        ImGui::InputDouble("a", &src.a);
-        ImGui::InputDouble("b", &src.b);
+        if (ImGui::InputDouble("a", &src.a))
+            ++up;
+        if (ImGui::InputDouble("b", &src.b))
+            ++up;
         break;
 
     case distribution_type::normal:
@@ -164,8 +322,10 @@ void show_random_distribution_input(random_source& src) noexcept
             src.mean   = 0.0;
             src.stddev = 1.0;
         }
-        ImGui::InputDouble("mean", &src.mean);
-        ImGui::InputDouble("stddev", &src.stddev);
+        if (ImGui::InputDouble("mean", &src.mean))
+            ++up;
+        if (ImGui::InputDouble("stddev", &src.stddev))
+            ++up;
         break;
 
     case distribution_type::lognormal:
@@ -173,15 +333,18 @@ void show_random_distribution_input(random_source& src) noexcept
             src.m = 0.0;
             src.s = 1.0;
         }
-        ImGui::InputDouble("m", &src.m);
-        ImGui::InputDouble("s", &src.s);
+        if (ImGui::InputDouble("m", &src.m))
+            ++up;
+        if (ImGui::InputDouble("s", &src.s))
+            ++up;
         break;
 
     case distribution_type::chi_squared:
         if (old_current != current_item) {
             src.n = 1.0;
         }
-        ImGui::InputDouble("n", &src.n);
+        if (ImGui::InputDouble("n", &src.n))
+            ++up;
         break;
 
     case distribution_type::cauchy:
@@ -189,8 +352,10 @@ void show_random_distribution_input(random_source& src) noexcept
             src.a = 1.0;
             src.b = 0.0;
         }
-        ImGui::InputDouble("a", &src.a);
-        ImGui::InputDouble("b", &src.b);
+        if (ImGui::InputDouble("a", &src.a))
+            ++up;
+        if (ImGui::InputDouble("b", &src.b))
+            ++up;
         break;
 
     case distribution_type::fisher_f:
@@ -198,17 +363,22 @@ void show_random_distribution_input(random_source& src) noexcept
             src.m = 1.0;
             src.n = 1.0;
         }
-        ImGui::InputDouble("m", &src.m);
-        ImGui::InputDouble("s", &src.n);
+        if (ImGui::InputDouble("m", &src.m))
+            ++up;
+        if (ImGui::InputDouble("s", &src.n))
+            ++up;
         break;
 
     case distribution_type::student_t:
         if (old_current != current_item) {
             src.n = 1.0;
         }
-        ImGui::InputDouble("n", &src.n);
+        if (ImGui::InputDouble("n", &src.n))
+            ++up;
         break;
     }
+
+    return up > 0;
 }
 
 // static void task_try_finalize_source(application&        app,
@@ -241,16 +411,16 @@ project_external_source_editor::~project_external_source_editor() noexcept
 
 void project_external_source_editor::show(application& app) noexcept
 {
-    auto& pj = container_of(this, &project_editor::data_ed);
+    auto& pj  = container_of(this, &project_editor::data_ed);
+    auto  old = sel;
 
     if (ImGui::BeginTable("All sources",
-                          5,
+                          4,
                           ImGuiTableFlags_Resizable | ImGuiTableFlags_RowBg)) {
         ImGui::TableSetupColumn("id", ImGuiTableColumnFlags_WidthFixed, 60.f);
         ImGui::TableSetupColumn("name", ImGuiTableColumnFlags_WidthStretch);
         ImGui::TableSetupColumn("type", ImGuiTableColumnFlags_WidthStretch);
         ImGui::TableSetupColumn("value", ImGuiTableColumnFlags_WidthStretch);
-        ImGui::TableSetupColumn("action", ImGuiTableColumnFlags_WidthStretch);
         ImGui::TableHeadersRow();
 
         small_string<32> label;
@@ -297,12 +467,6 @@ void project_external_source_editor::show(application& app) noexcept
                                     cst_src->buffer[1],
                                     cst_src->buffer[2]);
                 }
-                ImGui::TableNextColumn();
-                if (ImGui::Button("del")) {
-                    cst_src_del = cst_src;
-                    if (sel.is(id))
-                        sel.clear();
-                }
 
                 ImGui::PopID();
             }
@@ -342,13 +506,6 @@ void project_external_source_editor::show(application& app) noexcept
                 ImGui::TableNextColumn();
                 // ImGui::Text("%s", txt_src->file_path.string().c_str());
 
-                ImGui::TableNextColumn();
-                if (ImGui::Button("del")) {
-                    txt_src_del = txt_src;
-                    if (sel.is(id))
-                        sel.clear();
-                }
-
                 ImGui::PopID();
             }
 
@@ -385,12 +542,6 @@ void project_external_source_editor::show(application& app) noexcept
                   external_source_str(source::source_type::binary_file));
                 ImGui::TableNextColumn();
                 // ImGui::Text("%s", bin_src->file_path.string().c_str());
-                ImGui::TableNextColumn();
-                if (ImGui::Button("del")) {
-                    bin_src_del = bin_src;
-                    if (sel.is(id))
-                        sel.clear();
-                }
 
                 ImGui::PopID();
             }
@@ -426,13 +577,6 @@ void project_external_source_editor::show(application& app) noexcept
                 ImGui::TableNextColumn();
                 ImGui::TextUnformatted(distribution_str(rnd_src->distribution));
 
-                ImGui::TableNextColumn();
-                if (ImGui::Button("del")) {
-                    rnd_src_del = rnd_src;
-                    if (sel.is(id))
-                        sel.clear();
-                }
-
                 ImGui::PopID();
             }
 
@@ -441,11 +585,6 @@ void project_external_source_editor::show(application& app) noexcept
         }
 
         ImGui::EndTable();
-
-        ImGuiStyle& style = ImGui::GetStyle();
-        const float width =
-          (ImGui::GetContentRegionAvail().x - 4.f * style.ItemSpacing.x) / 4.f;
-        ImVec2 button_sz(width, 20);
 
         ImGui::Spacing();
         ImGui::InputScalarN("seed",
@@ -457,303 +596,222 @@ void project_external_source_editor::show(application& app) noexcept
                             nullptr,
                             ImGuiInputTextFlags_CharsHexadecimal);
 
-        if (ImGui::Button("+constant", button_sz)) {
-            if (pj.pj.sim.srcs.constant_sources.can_alloc(1u)) {
-                auto& new_src = pj.pj.sim.srcs.constant_sources.alloc();
-                (void)new_src;
-                // attempt_all(
-                //   [&]() noexcept -> status {
-                //       irt_check(new_src.init());
-                //       new_src.length    = 3;
-                //       new_src.buffer[0] = 0.0;
-                //       new_src.buffer[1] = 1.0;
-                //       new_src.buffer[2] = 2.0;
-                //       return success();
-                //   },
-
-                //   [&](const external_source::part s) noexcept -> void {
-                //       auto& n = app.notifications.alloc();
-                //       n.title = "Fail to initialize source";
-                //       format(n.message, "Error: {}", ordinal(s));
-                //       app.notifications.enable(n);
-                //   },
-
-                //   [&]() noexcept -> void {
-                //       auto& n   = app.notifications.alloc();
-                //       n.title   = "Fail to initialize source";
-                //       n.message = "Error: unknown";
-                //       app.notifications.enable(n);
-                //   });
-            }
-        }
-
-        ImGui::SameLine();
-        if (ImGui::Button("+text file", button_sz)) {
-            if (pj.pj.sim.srcs.text_file_sources.can_alloc(1u)) {
-                auto& new_src = pj.pj.sim.srcs.text_file_sources.alloc();
-                (void)new_src;
-                // attempt_all(
-                //   [&]() noexcept -> status {
-                //       irt_check(new_src.init());
-                //       return success();
-                //   },
-
-                //  [&](const external_source::part s) noexcept -> void {
-                //      auto& n = app.notifications.alloc();
-                //      n.title = "Fail to initialize source";
-                //      format(n.message, "Error: {}", ordinal(s));
-                //      app.notifications.enable(n);
-                //  },
-
-                //  [&]() noexcept -> void {
-                //      auto& n   = app.notifications.alloc();
-                //      n.title   = "Fail to initialize source";
-                //      n.message = "Error: unknown";
-                //      app.notifications.enable(n);
-                //  });
-            }
-        }
-
-        ImGui::SameLine();
-        if (ImGui::Button("+binary file", button_sz)) {
-            if (pj.pj.sim.srcs.binary_file_sources.can_alloc(1u)) {
-                auto& new_src = pj.pj.sim.srcs.binary_file_sources.alloc();
-                (void)new_src;
-                // attempt_all(
-                //   [&]() noexcept -> status {
-                //       irt_check(new_src.init());
-                //       return success();
-                //   },
-
-                //  [&](const external_source::part s) noexcept -> void {
-                //      auto& n = app.notifications.alloc();
-                //      n.title = "Fail to initialize source";
-                //      format(n.message, "Error: {}", ordinal(s));
-                //      app.notifications.enable(n);
-                //  },
-
-                //  [&]() noexcept -> void {
-                //      auto& n   = app.notifications.alloc();
-                //      n.title   = "Fail to initialize source";
-                //      n.message = "Error: unknown";
-                //      app.notifications.enable(n);
-                //  });
-            }
-        }
-
-        ImGui::SameLine();
-        if (ImGui::Button("+random", button_sz)) {
-            if (pj.pj.sim.srcs.random_sources.can_alloc(1u)) {
-                // auto& new_src = pj.pj.sim.srcs.random_sources.alloc();
-                // attempt_all(
-                //   [&]() noexcept -> status { / },
-
-                //   [&](const external_source::part s) noexcept -> void {
-                //       auto& n = app.notifications.alloc();
-                //       n.title = "Fail to initialize source";
-                //       format(n.message, "Error: {}", ordinal(s));
-                //       app.notifications.enable(n);
-                //   },
-
-                //   [&]() noexcept -> void {
-                //       auto& n   = app.notifications.alloc();
-                //       n.title   = "Fail to initialize source";
-                //       n.message = "Error: unknown";
-                //       app.notifications.enable(n);
-                //   });
-            }
-        }
+        display_allocate_external_source(app, pj);
     }
 
     ImGui::Spacing();
     ImGui::Separator();
     ImGui::Spacing();
 
-    if (sel.type_sel.has_value() and
-        ImGui::CollapsingHeader("Source editor",
-                                ImGuiTreeNodeFlags_DefaultOpen)) {
-        switch (*sel.type_sel) {
-        case source::source_type::constant: {
-            const auto id  = enum_cast<constant_source_id>(sel.id_sel);
-            const auto idx = get_index(id);
-            if (auto* ptr = pj.pj.sim.srcs.constant_sources.try_to_get(id);
-                ptr) {
-                auto new_size = ptr->length;
+    if (sel.type_sel.has_value()) {
+        auto up = 0;
 
-                ImGui::InputScalar("id",
-                                   ImGuiDataType_U32,
-                                   const_cast<uint32_t*>(&idx),
-                                   nullptr,
-                                   nullptr,
-                                   nullptr,
-                                   ImGuiInputTextFlags_ReadOnly);
+        if (ImGui::CollapsingHeader("Source editor",
+                                    ImGuiTreeNodeFlags_DefaultOpen)) {
+            switch (*sel.type_sel) {
+            case source::source_type::constant: {
+                const auto id  = enum_cast<constant_source_id>(sel.id_sel);
+                const auto idx = get_index(id);
+                if (auto* ptr = pj.pj.sim.srcs.constant_sources.try_to_get(id);
+                    ptr) {
+                    auto new_size = ptr->length;
 
-                ImGui::InputSmallString("name", ptr->name);
+                    up += ImGui::InputScalar("id",
+                                             ImGuiDataType_U32,
+                                             const_cast<uint32_t*>(&idx),
+                                             nullptr,
+                                             nullptr,
+                                             nullptr,
+                                             ImGuiInputTextFlags_ReadOnly);
 
-                if (ImGui::InputScalar(
-                      "length", ImGuiDataType_U32, &new_size) &&
-                    new_size != ptr->length &&
-                    new_size < external_source_chunk_size) {
-                    ptr->length = new_size;
-                }
+                    up += ImGui::InputSmallString("name", ptr->name);
 
-                for (u32 i = 0; i < ptr->length; ++i) {
-                    ImGui::PushID(static_cast<int>(i));
-                    ImGui::InputDouble("##name", &ptr->buffer[i]);
-                    ImGui::PopID();
-                }
-            }
-        } break;
+                    if (ImGui::InputScalar(
+                          "length", ImGuiDataType_U32, &new_size) &&
+                        new_size != ptr->length &&
+                        new_size < external_source_chunk_size) {
+                        ptr->length = new_size;
+                        ++up;
+                    }
 
-        case source::source_type::text_file: {
-            const auto id  = enum_cast<text_file_source_id>(sel.id_sel);
-            const auto idx = get_index(id);
-            if (auto* ptr = pj.pj.sim.srcs.text_file_sources.try_to_get(id);
-                ptr) {
-
-                ImGui::InputScalar("id",
-                                   ImGuiDataType_U32,
-                                   const_cast<uint32_t*>(&idx),
-                                   nullptr,
-                                   nullptr,
-                                   nullptr,
-                                   ImGuiInputTextFlags_ReadOnly);
-
-                ImGui::InputSmallString("name", ptr->name);
-
-                // ImGui::Text("%s", text_file_ptr->file_path.string().c_str());
-                if (ImGui::Button("...")) {
-                    show_file_dialog = true;
-                }
-            }
-        } break;
-
-        case source::source_type::binary_file: {
-            const auto id  = enum_cast<binary_file_source_id>(sel.id_sel);
-            const auto idx = get_index(id);
-            if (auto* ptr = pj.pj.sim.srcs.binary_file_sources.try_to_get(id);
-                ptr) {
-                ImGui::InputScalar("id",
-                                   ImGuiDataType_U32,
-                                   const_cast<uint32_t*>(&idx),
-                                   nullptr,
-                                   nullptr,
-                                   nullptr,
-                                   ImGuiInputTextFlags_ReadOnly);
-
-                ImGui::InputSmallString("name", ptr->name);
-
-                if (ImGui::InputScalar(
-                      "max source",
-                      ImGuiDataType_U32,
-                      reinterpret_cast<void*>(&ptr->max_clients))) {
-                    if (auto ret = ptr->init(); !ret) {
-                        auto& n = app.notifications.alloc();
-                        n.title = "Fail to initialize binary file source";
-                        app.notifications.enable(n);
+                    for (u32 i = 0; i < ptr->length; ++i) {
+                        ImGui::PushID(static_cast<int>(i));
+                        up += ImGui::InputDouble("##name", &ptr->buffer[i]);
+                        ImGui::PopID();
                     }
                 }
+            } break;
 
-                // ImGui::Text("%s",
-                // binary_file_ptr->file_path.string().c_str());
-                if (ImGui::Button("...")) {
-                    show_file_dialog = true;
-                }
-            }
-        } break;
+            case source::source_type::text_file: {
+                const auto id  = enum_cast<text_file_source_id>(sel.id_sel);
+                const auto idx = get_index(id);
+                if (auto* ptr = pj.pj.sim.srcs.text_file_sources.try_to_get(id);
+                    ptr) {
 
-        case source::source_type::random: {
-            const auto id  = enum_cast<random_source_id>(sel.id_sel);
-            const auto idx = get_index(id);
-            if (auto* ptr = pj.pj.sim.srcs.random_sources.try_to_get(id); ptr) {
-                ImGui::InputScalar("id",
-                                   ImGuiDataType_U32,
-                                   const_cast<uint32_t*>(&idx),
-                                   nullptr,
-                                   nullptr,
-                                   nullptr,
-                                   ImGuiInputTextFlags_ReadOnly);
+                    ImGui::InputScalar("id",
+                                       ImGuiDataType_U32,
+                                       const_cast<uint32_t*>(&idx),
+                                       nullptr,
+                                       nullptr,
+                                       nullptr,
+                                       ImGuiInputTextFlags_ReadOnly);
 
-                ImGui::InputSmallString("name", ptr->name);
+                    ImGui::InputSmallString("name", ptr->name);
 
-                if (ImGui::InputScalar(
-                      "max source",
-                      ImGuiDataType_U32,
-                      reinterpret_cast<void*>(&ptr->max_clients))) {
-                    if (auto ret = ptr->init(); !ret) {
-                        auto& n = app.notifications.alloc();
-                        n.title = "Fail to initialize random source";
-                        app.notifications.enable(n);
+                    // ImGui::Text("%s",
+                    // text_file_ptr->file_path.string().c_str());
+                    if (ImGui::Button("...")) {
+                        show_file_dialog = true;
                     }
                 }
+            } break;
 
-                show_random_distribution_input(*ptr);
-            }
-        } break;
-        }
-    }
+            case source::source_type::binary_file: {
+                const auto id  = enum_cast<binary_file_source_id>(sel.id_sel);
+                const auto idx = get_index(id);
+                if (auto* ptr =
+                      pj.pj.sim.srcs.binary_file_sources.try_to_get(id);
+                    ptr) {
+                    ImGui::InputScalar("id",
+                                       ImGuiDataType_U32,
+                                       const_cast<uint32_t*>(&idx),
+                                       nullptr,
+                                       nullptr,
+                                       nullptr,
+                                       ImGuiInputTextFlags_ReadOnly);
 
-    if (sel.type_sel.has_value() and show_file_dialog) {
-        if (*sel.type_sel == source::source_type::binary_file) {
-            const auto id = enum_cast<binary_file_source_id>(sel.id_sel);
-            if (auto* ptr = pj.pj.sim.srcs.binary_file_sources.try_to_get(id);
-                ptr) {
-                const char*    title     = "Select binary file path to load";
-                const char8_t* filters[] = { u8".dat", nullptr };
+                    ImGui::InputSmallString("name", ptr->name);
 
-                ImGui::OpenPopup(title);
-                if (app.f_dialog.show_load_file(title, filters)) {
-                    if (app.f_dialog.state == file_dialog::status::ok) {
-                        ptr->file_path = app.f_dialog.result;
-
-                        app.start_init_source(app.pjs.get_id(pj),
-                                              sel.id_sel,
-                                              source::source_type::binary_file);
+                    if (ImGui::InputScalar(
+                          "max source",
+                          ImGuiDataType_U32,
+                          reinterpret_cast<void*>(&ptr->max_clients))) {
+                        if (auto ret = ptr->init(); !ret) {
+                            auto& n = app.notifications.alloc();
+                            n.title = "Fail to initialize binary file source";
+                            app.notifications.enable(n);
+                        }
                     }
-                    app.f_dialog.clear();
-                    show_file_dialog = false;
-                }
-            }
-        } else if (*sel.type_sel == source::source_type::text_file) {
-            const auto id = enum_cast<text_file_source_id>(sel.id_sel);
-            if (auto* ptr = pj.pj.sim.srcs.text_file_sources.try_to_get(id);
-                ptr) {
-                const char*    title     = "Select text file path to load";
-                const char8_t* filters[] = { u8".txt", nullptr };
 
-                ImGui::OpenPopup(title);
-                if (app.f_dialog.show_load_file(title, filters)) {
-                    if (app.f_dialog.state == file_dialog::status::ok) {
-                        ptr->file_path = app.f_dialog.result;
-
-                        app.start_init_source(app.pjs.get_id(pj),
-                                              sel.id_sel,
-                                              source::source_type::text_file);
+                    // ImGui::Text("%s",
+                    // binary_file_ptr->file_path.string().c_str());
+                    if (ImGui::Button("...")) {
+                        show_file_dialog = true;
                     }
-                    app.f_dialog.clear();
-                    show_file_dialog = false;
                 }
+            } break;
+
+            case source::source_type::random: {
+                const auto id  = enum_cast<random_source_id>(sel.id_sel);
+                const auto idx = get_index(id);
+                if (auto* ptr = pj.pj.sim.srcs.random_sources.try_to_get(id);
+                    ptr) {
+                    up += ImGui::InputScalar("id",
+                                             ImGuiDataType_U32,
+                                             const_cast<uint32_t*>(&idx),
+                                             nullptr,
+                                             nullptr,
+                                             nullptr,
+                                             ImGuiInputTextFlags_ReadOnly);
+
+                    up += ImGui::InputSmallString("name", ptr->name);
+
+                    if (ImGui::InputScalar(
+                          "max source",
+                          ImGuiDataType_U32,
+                          reinterpret_cast<void*>(&ptr->max_clients))) {
+                        up++;
+                        if (auto ret = ptr->init(); !ret) {
+                            auto& n = app.notifications.alloc();
+                            n.title = "Fail to initialize random source";
+                            app.notifications.enable(n);
+                        }
+                    }
+
+                    up += show_random_distribution_input(*ptr);
+                }
+            } break;
             }
         }
-    }
 
-    if (m_status == status::data_available) {
-        std::scoped_lock lock(mutex);
+        if (sel.type_sel.has_value() and show_file_dialog) {
+            if (*sel.type_sel == source::source_type::binary_file) {
+                const auto id = enum_cast<binary_file_source_id>(sel.id_sel);
+                if (auto* ptr =
+                      pj.pj.sim.srcs.binary_file_sources.try_to_get(id);
+                    ptr) {
+                    const char*    title = "Select binary file path to load";
+                    const char8_t* filters[] = { u8".dat", nullptr };
 
-        debug::ensure(plot.size() > 0);
+                    ImGui::OpenPopup(title);
+                    if (app.f_dialog.show_load_file(title, filters)) {
+                        if (app.f_dialog.state == file_dialog::status::ok) {
+                            ptr->file_path = app.f_dialog.result;
 
-        if (ImPlot::BeginPlot("External source preview", ImVec2(-1, -1))) {
-            ImPlot::PushStyleVar(ImPlotStyleVar_LineWeight, 1.f);
-            ImPlot::PushStyleVar(ImPlotStyleVar_MarkerSize, 1.f);
+                            app.start_init_source(
+                              app.pjs.get_id(pj),
+                              sel.id_sel,
+                              source::source_type::binary_file);
+                        }
+                        app.f_dialog.clear();
+                        show_file_dialog = false;
+                    }
+                }
+            } else if (*sel.type_sel == source::source_type::text_file) {
+                const auto id = enum_cast<text_file_source_id>(sel.id_sel);
+                if (auto* ptr = pj.pj.sim.srcs.text_file_sources.try_to_get(id);
+                    ptr) {
+                    const char*    title     = "Select text file path to load";
+                    const char8_t* filters[] = { u8".txt", nullptr };
 
-            ImPlot::PlotScatter(
-              "value", &plot[0].x, &plot[0].y, plot.size(), 0, sizeof(ImVec2));
+                    ImGui::OpenPopup(title);
+                    if (app.f_dialog.show_load_file(title, filters)) {
+                        if (app.f_dialog.state == file_dialog::status::ok) {
+                            ptr->file_path = app.f_dialog.result;
 
-            ImPlot::PopStyleVar(2);
-            ImPlot::EndPlot();
+                            app.start_init_source(
+                              app.pjs.get_id(pj),
+                              sel.id_sel,
+                              source::source_type::text_file);
+                        }
+                        app.f_dialog.clear();
+                        show_file_dialog = false;
+                    }
+                }
+            }
         }
-    } else if (m_status == status::work_in_progress) {
-        ImGui::TextUnformatted("preview in progress");
+
+        if (m_status == plot_status::data_available) {
+            if (std::unique_lock lock(mutex, std::try_to_lock);
+                lock.owns_lock()) {
+                debug::ensure(plot.size() > 0);
+
+                ImPlot::SetNextAxesToFit();
+                if (ImPlot::BeginPlot("External source preview",
+                                      ImVec2(-1, -1))) {
+                    ImPlot::PushStyleVar(ImPlotStyleVar_LineWeight, 1.f);
+                    ImPlot::PushStyleVar(ImPlotStyleVar_MarkerSize, 1.f);
+
+                    ImPlot::PlotScatter(
+                      "value", plot.data(), plot.size(), 1.0, 0.0);
+
+                    ImPlot::PopStyleVar(2);
+                    ImPlot::EndPlot();
+                }
+            } else {
+                ImGui::TextUnformatted("preview in progress");
+            }
+        } else if (m_status == plot_status::work_in_progress)
+            ImGui::TextUnformatted("preview in progress");
+        else
+            ImGui::TextUnformatted("not data to build preview");
+
+        if ((up or old.id_sel != sel.id_sel) and
+            any_equal(*sel.type_sel,
+                      source::source_type::constant,
+                      source::source_type::random))
+            app.start_init_source(
+              app.pjs.get_id(pj), sel.id_sel, *sel.type_sel);
     }
 }
 
@@ -1044,49 +1102,46 @@ void project_external_source_editor::selection::select(
 bool project_external_source_editor::selection::is(
   constant_source_id id) const noexcept
 {
-    return type_sel.has_value() and * type_sel ==
-             source::source_type::constant and
-           id_sel == ordinal(id);
+    return type_sel.has_value() and
+           *type_sel == source::source_type::constant and id_sel == ordinal(id);
 }
 
 bool project_external_source_editor::selection::is(
   text_file_source_id id) const noexcept
 {
-    return type_sel.has_value() and * type_sel ==
-             source::source_type::text_file and
+    return type_sel.has_value() and
+           *type_sel == source::source_type::text_file and
            id_sel == ordinal(id);
 }
 
 bool project_external_source_editor::selection::is(
   binary_file_source_id id) const noexcept
 {
-    return type_sel.has_value() and * type_sel ==
-             source::source_type::binary_file and
+    return type_sel.has_value() and
+           *type_sel == source::source_type::binary_file and
            id_sel == ordinal(id);
 }
 
 bool project_external_source_editor::selection::is(
   random_source_id id) const noexcept
 {
-    return type_sel.has_value() and * type_sel ==
-             source::source_type::random and
+    return type_sel.has_value() and *type_sel == source::source_type::random and
            id_sel == ordinal(id);
 }
 
 void project_external_source_editor::fill_plot(std::span<double> data) noexcept
 {
-    m_status = status::work_in_progress;
+    m_status = plot_status::work_in_progress;
 
-    std::scoped_lock lock(mutex);
+    std::unique_lock lock(mutex);
 
     plot.clear();
     plot.reserve(data.size());
 
     for (sz i = 0, e = data.size(); i != e; ++i)
-        plot.push_back(
-          ImVec2(static_cast<float>(i), static_cast<float>(data[i])));
+        plot.push_back(static_cast<float>(data[i]));
 
-    m_status = status::data_available;
+    m_status = plot_status::data_available;
 }
 
 } // namespace irt
