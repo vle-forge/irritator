@@ -551,17 +551,20 @@ struct graph_editor_dialog {
     void show() noexcept;
 };
 
-struct project_external_source_editor {
-    constexpr static inline const char* name = "Data";
+class project_external_source_editor
+{
+public:
+    enum class status {
+        empty,
+        work_in_progress,
+        data_available,
+    };
 
     project_external_source_editor() noexcept;
     ~project_external_source_editor() noexcept;
 
-    void show(application& app) noexcept;
-
-    ImVector<ImVec2> plot;
-
-    ImPlotContext* context = nullptr;
+    void   show(application& app) noexcept;
+    status state() noexcept;
 
     struct selection {
         void clear() noexcept;
@@ -580,9 +583,22 @@ struct project_external_source_editor {
         u64                                id_sel = 0;
     } sel;
 
-    bool show_file_dialog = false;
-    bool plot_available   = false;
-    bool is_open          = true;
+    /** Fill the underlying @c plot vector with reals from the @c data
+     * parameter. This operation is framed by the change of @c status:
+     * - entering function, status is status::work_in_progress.
+     * - exiting function, status is status::data_available.
+     *
+     * The @c mutex protect access to @c plot.
+     */
+    void fill_plot(std::span<double> data) noexcept;
+
+private:
+    vector<ImVec2> plot;
+    ImPlotContext* context          = nullptr;
+    status         m_status         = status::empty;
+    bool           show_file_dialog = false;
+
+    spin_mutex mutex;
 };
 
 struct project_editor {

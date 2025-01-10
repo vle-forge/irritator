@@ -994,41 +994,35 @@ void application::start_init_source(const project_id          pj_id,
                                     const source::source_type type) noexcept
 {
     add_gui_task([&, id, type]() noexcept {
-        auto* sim_ed = pjs.try_to_get(pj_id);
-        if (not sim_ed)
-            return;
+        if (auto* sim_ed = pjs.try_to_get(pj_id)) {
+            source src;
+            src.id   = id;
+            src.type = type;
 
-        source src;
-        src.id   = id;
-        src.type = type;
+            attempt_all(
+              [&]() noexcept -> status {
+                  if (sim_ed->pj.sim.srcs.dispatch(
+                        src, source::operation_type::initialize)) {
+                      sim_ed->data_ed.fill_plot(src.buffer);
 
-        attempt_all(
-          [&]() noexcept -> status {
-              if (sim_ed->pj.sim.srcs.dispatch(
-                    src, source::operation_type::initialize)) {
-                  sim_ed->data_ed.plot.clear();
-                  for (sz i = 0, e = src.buffer.size(); i != e; ++i)
-                      sim_ed->data_ed.plot.push_back(
-                        ImVec2{ static_cast<float>(i),
-                                static_cast<float>(src.buffer[i]) });
-                  sim_ed->data_ed.plot_available = true;
-
-                  if (!sim_ed->pj.sim.srcs.prepare())
-                      notifications.try_insert(
-                        log_level::error, [](auto& title, auto& msg) noexcept {
-                            title = "Data error";
-                            msg   = "Fail to prepare data from source.";
-                        });
-              }
-              return success();
-          },
-          [&]() {
-              notifications.try_insert(
-                log_level::error, [](auto& title, auto& msg) noexcept {
-                    title = "Data error";
-                    msg   = "Fail to prepare data from source.";
-                });
-          });
+                      if (not sim_ed->pj.sim.srcs.prepare())
+                          notifications.try_insert(
+                            log_level::error,
+                            [](auto& title, auto& msg) noexcept {
+                                title = "Data error";
+                                msg   = "Fail to prepare data from source.";
+                            });
+                  }
+                  return success();
+              },
+              [&]() {
+                  notifications.try_insert(
+                    log_level::error, [](auto& title, auto& msg) noexcept {
+                        title = "Data error";
+                        msg   = "Fail to prepare data from source.";
+                    });
+              });
+        }
     });
 }
 

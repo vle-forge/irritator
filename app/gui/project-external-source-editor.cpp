@@ -460,29 +460,30 @@ void project_external_source_editor::show(application& app) noexcept
         if (ImGui::Button("+constant", button_sz)) {
             if (pj.pj.sim.srcs.constant_sources.can_alloc(1u)) {
                 auto& new_src = pj.pj.sim.srcs.constant_sources.alloc();
-                attempt_all(
-                  [&]() noexcept -> status {
-                      irt_check(new_src.init());
-                      new_src.length    = 3;
-                      new_src.buffer[0] = 0.0;
-                      new_src.buffer[1] = 1.0;
-                      new_src.buffer[2] = 2.0;
-                      return success();
-                  },
+                (void)new_src;
+                // attempt_all(
+                //   [&]() noexcept -> status {
+                //       irt_check(new_src.init());
+                //       new_src.length    = 3;
+                //       new_src.buffer[0] = 0.0;
+                //       new_src.buffer[1] = 1.0;
+                //       new_src.buffer[2] = 2.0;
+                //       return success();
+                //   },
 
-                  [&](const external_source::part s) noexcept -> void {
-                      auto& n = app.notifications.alloc();
-                      n.title = "Fail to initialize source";
-                      format(n.message, "Error: {}", ordinal(s));
-                      app.notifications.enable(n);
-                  },
+                //   [&](const external_source::part s) noexcept -> void {
+                //       auto& n = app.notifications.alloc();
+                //       n.title = "Fail to initialize source";
+                //       format(n.message, "Error: {}", ordinal(s));
+                //       app.notifications.enable(n);
+                //   },
 
-                  [&]() noexcept -> void {
-                      auto& n   = app.notifications.alloc();
-                      n.title   = "Fail to initialize source";
-                      n.message = "Error: unknown";
-                      app.notifications.enable(n);
-                  });
+                //   [&]() noexcept -> void {
+                //       auto& n   = app.notifications.alloc();
+                //       n.title   = "Fail to initialize source";
+                //       n.message = "Error: unknown";
+                //       app.notifications.enable(n);
+                //   });
             }
         }
 
@@ -543,29 +544,23 @@ void project_external_source_editor::show(application& app) noexcept
         ImGui::SameLine();
         if (ImGui::Button("+random", button_sz)) {
             if (pj.pj.sim.srcs.random_sources.can_alloc(1u)) {
-                auto& new_src = pj.pj.sim.srcs.random_sources.alloc();
-                attempt_all(
-                  [&]() noexcept -> status {
-                      irt_check(new_src.init());
-                      new_src.a32          = 0;
-                      new_src.b32          = 100;
-                      new_src.distribution = distribution_type::uniform_int;
-                      return success();
-                  },
+                // auto& new_src = pj.pj.sim.srcs.random_sources.alloc();
+                // attempt_all(
+                //   [&]() noexcept -> status { / },
 
-                  [&](const external_source::part s) noexcept -> void {
-                      auto& n = app.notifications.alloc();
-                      n.title = "Fail to initialize source";
-                      format(n.message, "Error: {}", ordinal(s));
-                      app.notifications.enable(n);
-                  },
+                //   [&](const external_source::part s) noexcept -> void {
+                //       auto& n = app.notifications.alloc();
+                //       n.title = "Fail to initialize source";
+                //       format(n.message, "Error: {}", ordinal(s));
+                //       app.notifications.enable(n);
+                //   },
 
-                  [&]() noexcept -> void {
-                      auto& n   = app.notifications.alloc();
-                      n.title   = "Fail to initialize source";
-                      n.message = "Error: unknown";
-                      app.notifications.enable(n);
-                  });
+                //   [&]() noexcept -> void {
+                //       auto& n   = app.notifications.alloc();
+                //       n.title   = "Fail to initialize source";
+                //       n.message = "Error: unknown";
+                //       app.notifications.enable(n);
+                //   });
             }
         }
     }
@@ -742,18 +737,23 @@ void project_external_source_editor::show(application& app) noexcept
         }
     }
 
-    if (plot_available) {
+    if (m_status == status::data_available) {
+        std::scoped_lock lock(mutex);
+
         debug::ensure(plot.size() > 0);
-        if (ImPlot::BeginPlot("Plot", ImVec2(-1, -1))) {
+
+        if (ImPlot::BeginPlot("External source preview", ImVec2(-1, -1))) {
             ImPlot::PushStyleVar(ImPlotStyleVar_LineWeight, 1.f);
             ImPlot::PushStyleVar(ImPlotStyleVar_MarkerSize, 1.f);
 
             ImPlot::PlotScatter(
-              "value", &plot[0].x, &plot[0].y, plot.Size, 0, sizeof(ImVec2));
+              "value", &plot[0].x, &plot[0].y, plot.size(), 0, sizeof(ImVec2));
 
             ImPlot::PopStyleVar(2);
             ImPlot::EndPlot();
         }
+    } else if (m_status == status::work_in_progress) {
+        ImGui::TextUnformatted("preview in progress");
     }
 }
 
@@ -1013,56 +1013,80 @@ void project_external_source_editor::selection::clear() noexcept
     id_sel = 0;
 }
 
-void project_external_source_editor::selection::select(constant_source_id id) noexcept
+void project_external_source_editor::selection::select(
+  constant_source_id id) noexcept
 {
     type_sel = source::source_type::constant;
     id_sel   = ordinal(id);
 }
 
-void project_external_source_editor::selection::select(text_file_source_id id) noexcept
+void project_external_source_editor::selection::select(
+  text_file_source_id id) noexcept
 {
     type_sel = source::source_type::text_file;
     id_sel   = ordinal(id);
 }
 
-void project_external_source_editor::selection::select(binary_file_source_id id) noexcept
+void project_external_source_editor::selection::select(
+  binary_file_source_id id) noexcept
 {
     type_sel = source::source_type::binary_file;
     id_sel   = ordinal(id);
 }
 
-void project_external_source_editor::selection::select(random_source_id id) noexcept
+void project_external_source_editor::selection::select(
+  random_source_id id) noexcept
 {
     type_sel = source::source_type::random;
     id_sel   = ordinal(id);
 }
 
-bool project_external_source_editor::selection::is(constant_source_id id) const noexcept
+bool project_external_source_editor::selection::is(
+  constant_source_id id) const noexcept
 {
     return type_sel.has_value() and * type_sel ==
              source::source_type::constant and
            id_sel == ordinal(id);
 }
 
-bool project_external_source_editor::selection::is(text_file_source_id id) const noexcept
+bool project_external_source_editor::selection::is(
+  text_file_source_id id) const noexcept
 {
     return type_sel.has_value() and * type_sel ==
              source::source_type::text_file and
            id_sel == ordinal(id);
 }
 
-bool project_external_source_editor::selection::is(binary_file_source_id id) const noexcept
+bool project_external_source_editor::selection::is(
+  binary_file_source_id id) const noexcept
 {
     return type_sel.has_value() and * type_sel ==
              source::source_type::binary_file and
            id_sel == ordinal(id);
 }
 
-bool project_external_source_editor::selection::is(random_source_id id) const noexcept
+bool project_external_source_editor::selection::is(
+  random_source_id id) const noexcept
 {
     return type_sel.has_value() and * type_sel ==
              source::source_type::random and
            id_sel == ordinal(id);
+}
+
+void project_external_source_editor::fill_plot(std::span<double> data) noexcept
+{
+    m_status = status::work_in_progress;
+
+    std::scoped_lock lock(mutex);
+
+    plot.clear();
+    plot.reserve(data.size());
+
+    for (sz i = 0, e = data.size(); i != e; ++i)
+        plot.push_back(
+          ImVec2(static_cast<float>(i), static_cast<float>(data[i])));
+
+    m_status = status::data_available;
 }
 
 } // namespace irt
