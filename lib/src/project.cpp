@@ -15,6 +15,134 @@
 
 namespace irt {
 
+template<typename D>
+static bool data_array_reserve_add(D& d, std::integral auto size) noexcept
+{
+    if (not d.can_alloc(size))
+        d.reserve(d.capacity() + size);
+
+    if (not d.can_alloc(size))
+        return false;
+
+    d.reserve(size);
+
+    return true;
+}
+
+template<typename V>
+static bool vector_reserve_add(V& v, std::integral auto size) noexcept
+{
+    if (not v.can_alloc(size))
+        v.reserve(v.capacity() + size);
+
+    if (not v.can_alloc(size))
+        return false;
+
+    v.reserve(size);
+
+    return true;
+}
+
+/* Make a link between component modeling external source and simulation
+ * external source. */
+class mod_to_sim_srcs
+{
+public:
+    mod_to_sim_srcs(constant_source_id mid, constant_source_id sid) noexcept
+      : mod_id{ ordinal(mid) }
+      , sim_id{ ordinal(sid) }
+      , type(source::source_type::constant)
+    {}
+
+    mod_to_sim_srcs(binary_file_source_id mid,
+                    binary_file_source_id sid) noexcept
+      : mod_id{ ordinal(mid) }
+      , sim_id{ ordinal(sid) }
+      , type(source::source_type::binary_file)
+    {}
+
+    mod_to_sim_srcs(text_file_source_id mid, text_file_source_id sid) noexcept
+      : mod_id{ ordinal(mid) }
+      , sim_id{ ordinal(sid) }
+      , type(source::source_type::text_file)
+    {}
+
+    mod_to_sim_srcs(random_source_id mid, random_source_id sid) noexcept
+      : mod_id{ ordinal(mid) }
+      , sim_id{ ordinal(sid) }
+      , type(source::source_type::random)
+    {}
+
+    u64 mod_id;
+    u64 sim_id;
+
+    source::source_type type;
+};
+
+u64 convert_source_id(const std::span<const mod_to_sim_srcs> srcs,
+                      const source::source_type              type,
+                      const u64                              id) noexcept
+{
+    const auto it = std::find_if(
+      srcs.begin(), srcs.end(), [id, type](const auto& s) noexcept -> bool {
+          return type == s.type and id == s.mod_id;
+      });
+
+    return it != srcs.end() ? it->sim_id : 0u;
+
+    irt::unreachable();
+
+    return 0u;
+}
+
+constexpr void convert_source(const std::span<const mod_to_sim_srcs> srcs,
+                              const dynamics_type                    type,
+                              parameter&                             p) noexcept
+{
+    switch (type) {
+    case dynamics_type::dynamic_queue:
+        p.integers[1] =
+          convert_source_id(srcs,
+                            enum_cast<source::source_type>(p.integers[2]),
+                            static_cast<u64>(p.integers[1]));
+        break;
+
+    case dynamics_type::priority_queue:
+        p.integers[1] =
+          convert_source_id(srcs,
+                            enum_cast<source::source_type>(p.integers[2]),
+                            static_cast<u64>(p.integers[1]));
+        break;
+
+    case dynamics_type::generator: {
+        const auto flags = bitflags<generator::option>(p.integers[0]);
+        if (flags[generator::option::ta_use_source]) {
+            p.integers[1] =
+              convert_source_id(srcs,
+                                enum_cast<source::source_type>(p.integers[2]),
+                                static_cast<u64>(p.integers[1]));
+        }
+
+        if (flags[generator::option::value_use_source]) {
+            p.integers[3] =
+              convert_source_id(srcs,
+                                enum_cast<source::source_type>(p.integers[4]),
+                                static_cast<u64>(p.integers[3]));
+        }
+    } break;
+
+    case dynamics_type::hsm_wrapper:
+        p.integers[3] =
+          convert_source_id(srcs,
+                            enum_cast<source::source_type>(p.integers[4]),
+                            static_cast<u64>(p.integers[3]));
+        break;
+
+    default:
+        break;
+    }
+}
+
 struct simulation_copy {
     simulation_copy(project::cache&                      cache_,
                     modeling&                            mod_,
@@ -46,8 +174,9 @@ struct simulation_copy {
     modeling&       mod;
     simulation&     sim;
 
-    data_array<tree_node, tree_node_id>& tree_nodes;
-    table<hsm_component_id, hsm_id>      hsm_mod_to_sim;
+    data_array<tree_node, tree_node_id>&         tree_nodes;
+    table<hsm_component_id, hsm_id>              hsm_mod_to_sim;
+    table<component_id, vector<mod_to_sim_srcs>> srcs_mod_to_sim;
 };
 
 static auto make_tree_recursive(simulation_copy&       sc,
@@ -178,8 +307,14 @@ static auto make_tree_leaf(simulation_copy&       sc,
                            child_id               ch_id,
                            child& ch) noexcept -> result<model_id>
 {
-    if (!sc.sim.models.can_alloc())
-        return new_error(project::error::not_enough_memory);
+    if (not sc.sim.models.can_alloc()) {
+        const auto increase =
+          sc.sim.models.capacity() == 0 ? 1024 : sc.sim.models.capacity();
+
+        if (not data_array_reserve_add(sc.sim.models, increase) or
+            not vector_reserve_add(sc.sim.parameters, increase))
+            return new_error(project::error::not_enough_memory);
+    }
 
     const auto ch_idx     = get_index(ch_id);
     auto&      new_mdl    = sc.sim.models.alloc();
@@ -200,7 +335,16 @@ static auto make_tree_leaf(simulation_copy&       sc,
               for (int i = 0, e = length(dyn.y); i != e; ++i)
                   dyn.y[i] = undefined<node_id>();
 
-          gen.children_parameters[ch_idx].copy_to(new_mdl);
+          sc.sim.parameters[get_index(new_mdl_id)] =
+            gen.children_parameters[ch_idx];
+
+          if (auto* compo = sc.srcs_mod_to_sim.get(parent.id)) {
+              convert_source(std::span(compo->data(), compo->size()),
+                             new_mdl.type,
+                             sc.sim.parameters[get_index(new_mdl_id)]);
+          }
+
+          sc.sim.parameters[get_index(new_mdl_id)].copy_to(new_mdl);
 
           if constexpr (std::is_same_v<Dynamics, hsm_wrapper>) {
               const auto child_index = get_index(ch_id);
@@ -408,11 +552,91 @@ static status make_tree_recursive(simulation_copy& sc,
     return success();
 }
 
+static int count_sources(const external_source& srcs) noexcept
+{
+    return srcs.constant_sources.size() + srcs.binary_file_sources.size() +
+           srcs.text_file_sources.size() + srcs.random_sources.size();
+}
+
+static bool external_sources_reserve_add(const external_source& src,
+                                         external_source&       dst) noexcept
+{
+    return data_array_reserve_add(dst.constant_sources,
+                                  src.constant_sources.size()) and
+           data_array_reserve_add(dst.binary_file_sources,
+                                  src.binary_file_sources.size()) and
+           data_array_reserve_add(dst.text_file_sources,
+                                  src.text_file_sources.size()) and
+           data_array_reserve_add(dst.random_sources,
+                                  src.random_sources.size());
+}
+
+static status external_source_copy(vector<mod_to_sim_srcs>& v,
+                                   const external_source&   src,
+                                   external_source&         dst) noexcept
+{
+    if (not external_sources_reserve_add(src, dst) or
+        not vector_reserve_add(v, count_sources(src)))
+        return new_error(container_full_error{});
+
+    for (const auto& rs : src.constant_sources) {
+        auto& n_res    = dst.constant_sources.alloc(rs);
+        auto  n_res_id = dst.constant_sources.get_id(n_res);
+        auto  res_id   = src.constant_sources.get_id(rs);
+        v.emplace_back(res_id, n_res_id);
+    }
+
+    for (const auto& rs : src.binary_file_sources) {
+        auto& n_res    = dst.binary_file_sources.alloc(rs);
+        auto  n_res_id = dst.binary_file_sources.get_id(n_res);
+        auto  res_id   = src.binary_file_sources.get_id(rs);
+        v.emplace_back(res_id, n_res_id);
+    }
+
+    for (const auto& rs : src.text_file_sources) {
+        auto& n_res    = dst.text_file_sources.alloc(rs);
+        auto  n_res_id = dst.text_file_sources.get_id(n_res);
+        auto  res_id   = src.text_file_sources.get_id(rs);
+        v.emplace_back(res_id, n_res_id);
+    }
+
+    for (const auto& rs : src.random_sources) {
+        auto& n_res    = dst.random_sources.alloc(rs);
+        auto  n_res_id = dst.random_sources.get_id(n_res);
+        auto  res_id   = src.random_sources.get_id(rs);
+        v.emplace_back(res_id, n_res_id);
+    }
+
+    return success();
+}
+
 static status make_tree_recursive([[maybe_unused]] simulation_copy& sc,
                                   [[maybe_unused]] tree_node&       new_tree,
                                   [[maybe_unused]] hsm_component& src) noexcept
 {
     debug::ensure(sc.sim.hsms.can_alloc());
+
+    return success();
+}
+
+static status update_external_source(simulation_copy& sc,
+                                     component&       compo) noexcept
+{
+    const auto compo_id = sc.mod.components.get_id(compo);
+
+    if (const auto* exist = sc.srcs_mod_to_sim.get(compo_id); not exist) {
+        if (const auto nb = count_sources(compo.srcs); nb > 0) {
+            external_sources_reserve_add(compo.srcs, sc.sim.srcs);
+            sc.srcs_mod_to_sim.data.emplace_back(compo_id,
+                                                 vector<mod_to_sim_srcs>());
+            vector_reserve_add(sc.srcs_mod_to_sim.data.back().value, nb);
+
+            irt_check(external_source_copy(
+              sc.srcs_mod_to_sim.data.back().value, compo.srcs, sc.sim.srcs));
+
+            sc.srcs_mod_to_sim.sort();
+        }
+    }
 
     return success();
 }
@@ -431,6 +655,8 @@ static auto make_tree_recursive(simulation_copy&       sc,
     const auto tn_id = sc.tree_nodes.get_id(new_tree);
     new_tree.tree.set_id(&new_tree);
     new_tree.tree.parent_to(parent.tree);
+
+    irt_check(update_external_source(sc, compo));
 
     switch (compo.type) {
     case component_type::simple: {
@@ -833,99 +1059,6 @@ static status simulation_copy_connections(simulation_copy& sc,
     return success();
 }
 
-static status simulation_copy_sources(project::cache& cache,
-                                      modeling&       mod,
-                                      simulation&     sim) noexcept
-{
-    (void)cache;
-    (void)mod;
-    (void)sim;
-
-    // sim.srcs.clear();
-
-    // if (mod.srcs.constant_sources.can_alloc(
-    //       mod.srcs.constant_sources.capacity())) {
-    //     sim.srcs.constant_sources.reserve(mod.srcs.constant_sources.capacity());
-    //     if (not sim.srcs.constant_sources.can_alloc(
-    //           mod.srcs.constant_sources.capacity()))
-    //         return new_error(external_source::part::constant_source);
-    // }
-
-    // if (mod.srcs.binary_file_sources.can_alloc(
-    //       mod.srcs.binary_file_sources.capacity())) {
-    //     sim.srcs.binary_file_sources.reserve(mod.srcs.binary_file_sources.capacity());
-    //     if (not sim.srcs.binary_file_sources.can_alloc(
-    //           mod.srcs.binary_file_sources.capacity()))
-    //         return new_error(external_source::part::binary_file_source);
-    // }
-
-    // if (mod.srcs.text_file_sources.can_alloc(
-    //       mod.srcs.text_file_sources.capacity())) {
-    //     sim.srcs.text_file_sources.reserve(mod.srcs.text_file_sources.capacity());
-    //     if (not sim.srcs.text_file_sources.can_alloc(
-    //           mod.srcs.text_file_sources.capacity()))
-    //         return new_error(external_source::part::text_file_source);
-    // }
-
-    // if (mod.srcs.random_sources.can_alloc(
-    //       mod.srcs.random_sources.capacity())) {
-    //     sim.srcs.random_sources.reserve(mod.srcs.random_sources.capacity());
-    //     if (not sim.srcs.random_sources.can_alloc(
-    //           mod.srcs.random_sources.capacity()))
-    //         return new_error(external_source::part::random_source);
-    // }
-
-    //{
-    //    constant_source* src = nullptr;
-    //    while (mod.srcs.constant_sources.next(src)) {
-    //        auto& n_src    = mod.srcs.constant_sources.alloc(*src);
-    //        auto  src_id   = mod.srcs.constant_sources.get_id(*src);
-    //        auto  n_src_id = mod.srcs.constant_sources.get_id(n_src);
-    //        cache.constants.data.emplace_back(ordinal(src_id), n_src_id);
-    //    }
-
-    //    cache.constants.sort();
-    //}
-
-    //{
-    //    binary_file_source* src = nullptr;
-    //    while (mod.srcs.binary_file_sources.next(src)) {
-    //        auto& n_src    = mod.srcs.binary_file_sources.alloc(*src);
-    //        auto  src_id   = mod.srcs.binary_file_sources.get_id(*src);
-    //        auto  n_src_id = mod.srcs.binary_file_sources.get_id(n_src);
-    //        cache.binary_files.data.emplace_back(ordinal(src_id), n_src_id);
-    //    }
-
-    //    cache.binary_files.sort();
-    //}
-
-    //{
-    //    text_file_source* src = nullptr;
-    //    while (mod.srcs.text_file_sources.next(src)) {
-    //        auto& n_src    = mod.srcs.text_file_sources.alloc(*src);
-    //        auto  src_id   = mod.srcs.text_file_sources.get_id(*src);
-    //        auto  n_src_id = mod.srcs.text_file_sources.get_id(n_src);
-    //        cache.text_files.data.emplace_back(ordinal(src_id), n_src_id);
-    //    }
-
-    //    cache.text_files.sort();
-    //}
-
-    //{
-    //    random_source* src = nullptr;
-    //    while (mod.srcs.random_sources.next(src)) {
-    //        auto& n_src    = mod.srcs.random_sources.alloc(*src);
-    //        auto  src_id   = mod.srcs.random_sources.get_id(*src);
-    //        auto  n_src_id = mod.srcs.random_sources.get_id(n_src);
-    //        cache.randoms.data.emplace_back(ordinal(src_id), n_src_id);
-    //    }
-
-    //    cache.randoms.sort();
-    //}
-
-    return success();
-}
-
 static status make_component_cache(project& /*pj*/, modeling& mod) noexcept
 {
     for (auto& grid : mod.grid_components)
@@ -948,6 +1081,18 @@ static auto make_tree_from(simulation_copy&                     sc,
       data.alloc(sc.mod.components.get_id(parent), std::string_view{});
     new_tree.tree.set_id(&new_tree);
     new_tree.unique_id = "root";
+
+    if (const auto nb = count_sources(parent.srcs); nb > 0) {
+        external_sources_reserve_add(parent.srcs, sc.sim.srcs);
+
+        sc.srcs_mod_to_sim.data.emplace_back(sc.mod.components.get_id(parent),
+                                             vector<mod_to_sim_srcs>());
+
+        vector_reserve_add(sc.srcs_mod_to_sim.data.back().value, nb);
+
+        irt_check(external_source_copy(
+          sc.srcs_mod_to_sim.data.back().value, parent.srcs, sc.sim.srcs));
+    }
 
     switch (parent.type) {
     case component_type::simple: {
@@ -1192,7 +1337,6 @@ status project::set(modeling& mod, component& compo) noexcept
         m_head              = compo_id;
     }
 
-    irt_check(simulation_copy_sources(m_cache, mod, sim));
     irt_check(simulation_copy_connections(sc, *tn_head()));
 
     return success();
