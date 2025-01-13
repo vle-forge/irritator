@@ -1660,42 +1660,6 @@ public:
     /// Return the size and the capacity of the tree_nodes data_array.
     auto tree_nodes_size() const noexcept -> std::pair<int, int>;
 
-    /// Clear all vector and table in @c cache.
-    void clear_cache() noexcept;
-
-    /// Release all memory for vectors and tables in @c cache.
-    void destroy_cache() noexcept;
-
-    /// Used to cache memory allocation when user import a model into
-    /// simulation. The memory cached can be reused using clear but memory
-    /// cached can be completely free using the @c destroy_cache function.
-    struct cache {
-        struct model_port {
-            model_port() noexcept = default;
-
-            model_port(model* mdl_, int port_) noexcept
-              : mdl{ mdl_ }
-              , port{ port_ }
-            {}
-
-            model* mdl{};
-            int    port{};
-        };
-
-        void clear() noexcept;
-
-        vector<tree_node*> stack;
-        vector<model_port> inputs;
-        vector<model_port> outputs;
-
-        table<u64, constant_source_id>    constants;
-        table<u64, binary_file_source_id> binary_files;
-        table<u64, text_file_source_id>   text_files;
-        table<u64, random_source_id>      randoms;
-    };
-
-    enum class observation_id : u32;
-
     /// Build a @c from is excluced from the relative_id_path
     auto build_relative_path(const tree_node& from,
                              const tree_node& to,
@@ -1774,8 +1738,6 @@ public:
 private:
     component_id m_head    = undefined<component_id>();
     tree_node_id m_tn_head = undefined<tree_node_id>();
-
-    cache m_cache;
 };
 
 std::string_view to_string(const project::part p) noexcept;
