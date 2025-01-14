@@ -25,11 +25,15 @@ static auto init_or_reuse_observer(simulation& sim,
         const auto time_step = std::clamp(
           obs->time_step, std::numeric_limits<float>::epsilon(), 0.01f);
 
-        obs->init(raw_buffer_size, linerized_buffer_size, time_step);
+        obs->init(observer::buffer_size_t(raw_buffer_size),
+                  observer::linearized_buffer_size_t(linerized_buffer_size),
+                  time_step);
         sim.observe(mdl, *obs);
     } else {
         auto& new_obs = sim.observers.alloc();
-        new_obs.init(16, 32, 0.01f);
+        new_obs.init(observer::buffer_size_t(16),
+                     observer::linearized_buffer_size_t(32),
+                     0.01f);
         mdl.obs_id = sim.observers.get_id(new_obs);
         sim.observe(mdl, new_obs);
     }

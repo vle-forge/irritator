@@ -12,8 +12,8 @@
 #include <iterator>
 #include <limits>
 #include <memory>
+#include <memory_resource>
 #include <optional>
-#include <string>
 #include <type_traits>
 #include <utility>
 
@@ -95,9 +95,9 @@ inline constexpr auto left(std::unsigned_integral auto v) noexcept
 
     if constexpr (std::is_same_v<type, u16>)
         return static_cast<u8>(v >> 8);
-    if constexpr (std::is_same_v<type, u32>)
+    else if constexpr (std::is_same_v<type, u32>)
         return static_cast<u16>(v >> 16);
-    if constexpr (std::is_same_v<type, u64>)
+    else
         return static_cast<u32>(v >> 32);
 }
 
@@ -110,17 +110,19 @@ inline constexpr auto right(std::unsigned_integral auto v) noexcept
 
     if constexpr (std::is_same_v<type, u16>)
         return static_cast<u8>(v & 0xff);
-    if constexpr (std::is_same_v<type, u32>)
+    else if constexpr (std::is_same_v<type, u32>)
         return static_cast<u16>(v & 0xffff);
-    if constexpr (std::is_same_v<type, u64>)
+    else
         return static_cast<u32>(v & 0xffffffff);
 }
 
-//! Compute the best size to fit the small storage size.
-//!
-//! This function is used into @c small_string, @c small_vector and @c
-//! small_ring_buffer to determine the @c capacity and/or @c size type
-//! (unsigned, short unsigned, long unsigned, long long unsigned.
+/**
+   Compute the best size to fit the small storage size.
+
+   This function is used into @c small_string, @c small_vector and @c
+   small_ring_buffer to determine the @c capacity and/or @c size type
+   (unsigned, short unsigned, long unsigned, long long unsigned.
+*/
 template<size_t N>
 using small_storage_size_t = std::conditional_t<
   (N < std::numeric_limits<uint8_t>::max()),
@@ -136,655 +138,360 @@ using small_storage_size_t = std::conditional_t<
                          size_t>>>>;
 
 template<class T, class M>
-constexpr std::ptrdiff_t offset_of(const M T::* member)
+constexpr std::ptrdiff_t offset_of(const M T::*member)
 {
     return reinterpret_cast<std::ptrdiff_t>(
       &(reinterpret_cast<T*>(0)->*member));
 }
 
-//! A helper function to get a pointer to the parent container from a member.
-//! @code
-//! struct point { float x; float y; };
-//! struct line { point p1, p2; };
-//! ...
-//! line l;
-//! ..
-//!
-//! void fn(point& p) {
-//!     line& ptr = container_of(&p, &line::p1);
-//!     ...
-//! }
-//! @endcode
+/**
+   A helper function to get a pointer to the parent container from a member:
+
+   @code
+   struct point { float x; float y; };
+   struct line { point p1, p2; };
+   line l;
+
+   void fn(point& p) {
+       line& ptr = container_of(&p, &line::p1);
+       ...
+   }
+   @endcode
+*/
 template<class T, class M>
-constexpr T& container_of(M* ptr, const M T::* member) noexcept
+constexpr T& container_of(M* ptr, const M T::*member) noexcept
 {
     return *reinterpret_cast<T*>(reinterpret_cast<intptr_t>(ptr) -
                                  offset_of(member));
 }
 
+/**
+   A helper function to get a constant pointer to the parent container from a
+   member:
+
+   @code
+   struct point { float x; float y; };
+   struct line { point p1, p2; };
+   line l;
+
+   void fn(const point& p) {
+       const line& ptr = container_of(&p, &line::p1);
+       ...
+   }
+   @endcode
+*/
 template<class T, class M>
-constexpr const T& container_of(const M* ptr, const M T::* member) noexcept
+constexpr const T& container_of(const M* ptr, const M T::*member) noexcept
 {
     return *reinterpret_cast<const T*>(reinterpret_cast<intptr_t>(ptr) -
                                        offset_of(member));
 }
 
-////////////////////////////////////////////////////////////////////////
-//                                                                    //
-// Allocator: default menory_resource or specific................... //
-//                                                                    //
-////////////////////////////////////////////////////////////////////////
-
-class memory_resource
+class new_delete_memory_resource
 {
 public:
-    memory_resource() noexcept          = default;
-    virtual ~memory_resource() noexcept = default;
+    class data
+    {
+    private:
+        std::size_t allocated   = 0;
+        std::size_t deallocated = 0;
 
-    [[gnu::malloc]] void* allocate(
+    public:
+        void* allocate(std::size_t bytes,
+                       std::size_t alignment = alignof(std::max_align_t))
+        {
+            if constexpr (debug::enable_memory_log == true and
+                          debug::enable_ensure == true) {
+                return debug_allocate(bytes, alignment);
+            } else {
+                allocated += bytes;
+                return std::pmr::new_delete_resource()->allocate(bytes,
+                                                                 alignment);
+            }
+        }
+
+        void deallocate(
+          void*       p,
+          std::size_t bytes,
+          std::size_t alignment = alignof(std::max_align_t)) noexcept
+        {
+            if constexpr (debug::enable_memory_log == true and
+                          debug::enable_ensure == true) {
+                debug_deallocate(p, bytes, alignment);
+            } else {
+                deallocated += bytes;
+                return std::pmr::new_delete_resource()->deallocate(
+                  p, bytes, alignment);
+            }
+        }
+
+        void release() noexcept {}
+
+    private:
+        void* debug_allocate(std::size_t bytes, std::size_t alignment) noexcept;
+        void  debug_deallocate(void*       p,
+                               std::size_t bytes,
+                               std::size_t alignment) noexcept;
+    };
+
+    static data& instance() noexcept
+    {
+        static data d;
+        return d;
+    }
+};
+
+template<std::size_t max_blocks_per_chunk,
+         std::size_t largest_required_pool_block>
+class synchronized_pool_resource
+{
+public:
+    class data
+    {
+    private:
+        std::pmr::synchronized_pool_resource mr{ std::pmr::pool_options{
+          max_blocks_per_chunk,
+          largest_required_pool_block } };
+
+        std::size_t allocated   = 0;
+        std::size_t deallocated = 0;
+
+    public:
+        void* allocate(std::size_t bytes,
+                       std::size_t alignment = alignof(std::max_align_t))
+        {
+            allocated += bytes;
+            return mr.allocate(bytes, alignment);
+        }
+
+        void deallocate(
+          void*       p,
+          std::size_t bytes,
+          std::size_t alignment = alignof(std::max_align_t)) noexcept
+        {
+            deallocated += bytes;
+            return mr.deallocate(p, bytes, alignment);
+        }
+
+        void release() noexcept {}
+
+    private:
+        void* debug_allocate(std::size_t bytes, std::size_t alignment) noexcept;
+        void  debug_deallocate(void*       p,
+                               std::size_t bytes,
+                               std::size_t alignment) noexcept;
+    };
+
+    static data& instance() noexcept
+    {
+        static data d;
+        return d;
+    }
+};
+
+template<std::size_t max_blocks_per_chunk,
+         std::size_t largest_required_pool_block>
+class unsynchronized_pool_resource
+{
+public:
+    class data
+    {
+    private:
+        std::pmr::unsynchronized_pool_resource mr{ std::pmr::pool_options{
+          max_blocks_per_chunk,
+          largest_required_pool_block } };
+
+        std::size_t allocated   = 0;
+        std::size_t deallocated = 0;
+
+    public:
+        void* allocate(std::size_t bytes,
+                       std::size_t alignment = alignof(std::max_align_t))
+        {
+            allocated += bytes;
+            return mr.allocate(bytes, alignment);
+        }
+
+        void deallocate(
+          void*       p,
+          std::size_t bytes,
+          std::size_t alignment = alignof(std::max_align_t)) noexcept
+        {
+            deallocated += bytes;
+            return mr.deallocate(p, bytes, alignment);
+        }
+
+        void release() noexcept {}
+
+    private:
+        void* debug_allocate(std::size_t bytes, std::size_t alignment) noexcept;
+        void  debug_deallocate(void*       p,
+                               std::size_t bytes,
+                               std::size_t alignment) noexcept;
+    };
+
+    static data& instance() noexcept
+    {
+        static data d;
+        return d;
+    }
+};
+
+template<std::size_t Length = 1024u * 1024u, int ID = 0>
+class monotonic_small_buffer
+{
+public:
+    static inline constexpr std::size_t size = Length;
+    static inline constexpr int         id   = ID;
+
+    static_assert(Length > 0);
+
+    class data
+    {
+    private:
+        std::array<std::byte, Length> buffer;
+
+        std::pmr::monotonic_buffer_resource mr{
+            buffer.data(),
+            buffer.size(),
+            std::pmr::new_delete_resource()
+        };
+
+        std::size_t allocated   = 0;
+        std::size_t deallocated = 0;
+
+    public:
+        void* allocate(std::size_t bytes,
+                       std::size_t alignment = alignof(std::max_align_t))
+        {
+            allocated += bytes;
+            return mr.allocate(bytes, alignment);
+        }
+
+        void deallocate(
+          void*       p,
+          std::size_t bytes,
+          std::size_t alignment = alignof(std::max_align_t)) noexcept
+        {
+            deallocated += bytes;
+
+            return mr.deallocate(p, bytes, alignment);
+        }
+
+        void release() noexcept { mr.release(); }
+
+    private:
+        void* debug_allocate(std::size_t bytes, std::size_t alignment) noexcept;
+        void  debug_deallocate(void*       p,
+                               std::size_t bytes,
+                               std::size_t alignment) noexcept;
+    };
+
+    static data& instance() noexcept
+    {
+        static data d;
+        return d;
+    }
+};
+
+template<int ID = 0>
+class monotonic_buffer
+{
+public:
+    static inline constexpr int id = ID;
+
+    class data
+    {
+    private:
+        std::pmr::monotonic_buffer_resource mr{
+            std::pmr::new_delete_resource()
+        };
+
+        std::size_t allocated   = 0;
+        std::size_t deallocated = 0;
+
+    public:
+        void* allocate(std::size_t bytes,
+                       std::size_t alignment = alignof(std::max_align_t))
+        {
+            allocated += bytes;
+            return mr.allocate(bytes, alignment);
+        }
+
+        void deallocate(
+          void*       p,
+          std::size_t bytes,
+          std::size_t alignment = alignof(std::max_align_t)) noexcept
+        {
+            deallocated += bytes;
+
+            return mr.deallocate(p, bytes, alignment);
+        }
+
+        void release() noexcept { mr.release(); }
+
+    private:
+        void* debug_allocate(std::size_t bytes, std::size_t alignment) noexcept;
+        void  debug_deallocate(void*       p,
+                               std::size_t bytes,
+                               std::size_t alignment) noexcept;
+    };
+
+    static data& instance() noexcept
+    {
+        static data d;
+        return d;
+    }
+};
+
+/**
+   A stateless allocator class to wrap static memory resource.
+
+   @verbatim
+                                   +----------+
+                                   |new-delete|
+                                   +----^-----+
+   +-----------+        +---------+        |
+   |vector<T,A>+------->|allocator+--------+
+   +-----------+ static +---------+ static |
+                                   +----v-----+
+                                   |fixed-size|
+                                   +----------+
+   @endverbatim
+
+   Enable the @c IRRITATOR_ENABLE_DEBUG preprocessor variable to enable a debug
+   for all allocation/deallocation for each memory resource.
+ */
+template<typename MemoryResource = new_delete_memory_resource>
+struct allocator {
+    using size_type            = std::size_t;
+    using difference_type      = std::ptrdiff_t;
+    using memory_resource_type = MemoryResource;
+
+    static void* allocate(std::size_t bytes,
+                          std::size_t alignment = alignof(std::max_align_t))
+    {
+        debug::ensure(bytes != 0);
+
+        return memory_resource_type::instance().allocate(bytes, alignment);
+    }
+
+    static void deallocate(
+      void*       p,
       std::size_t bytes,
       std::size_t alignment = alignof(std::max_align_t)) noexcept
     {
-        debug::ensure(bytes > 0);
-        debug::ensure(bytes % alignment == 0);
+        debug::ensure((p != nullptr and bytes > 0) or
+                      (p == nullptr and bytes == 0));
 
-        return do_allocate(bytes, alignment);
+        return memory_resource_type::instance().deallocate(p, bytes, alignment);
     }
 
-    void deallocate(void*       pointer,
-                    std::size_t bytes,
-                    std::size_t alignment = alignof(std::max_align_t)) noexcept
+    static void release() noexcept
     {
-        debug::ensure(bytes > 0u);
-
-        if (pointer)
-            do_deallocate(pointer, bytes, alignment);
-    }
-
-    bool can_alloc(
-      std::size_t bytes,
-      std::size_t alignment = alignof(std::max_align_t)) const noexcept
-    {
-        return do_can_alloc(bytes, alignment);
-    }
-
-protected:
-    virtual void* do_allocate(std::size_t bytes,
-                              std::size_t alignment) noexcept = 0;
-
-    virtual void do_deallocate(void*       pointer,
-                               std::size_t bytes,
-                               std::size_t alignment) noexcept = 0;
-
-    virtual bool do_can_alloc(std::size_t bytes,
-                              std::size_t alignment) const noexcept = 0;
-};
-
-//! A dynamic heap `memory_resource` using `std::aligned_alloc` or
-//! `std::align_memory` to allocate aligned memory .
-//!
-//! @note `malloc_memory_resource` is the default `memory_resource` provides by
-//! the global function `get_malloc_memory_resource()`.
-class malloc_memory_resource final : public memory_resource
-{
-public:
-    malloc_memory_resource() noexcept  = default;
-    ~malloc_memory_resource() noexcept = default;
-
-protected:
-    void* do_allocate(std::size_t bytes,
-                      std::size_t alignment) noexcept override;
-
-    void do_deallocate(void*       pointer,
-                       std::size_t bytes,
-                       std::size_t alignment) noexcept override;
-
-    bool do_can_alloc(std::size_t /*bytes*/,
-                      std::size_t /*alignment*/) const noexcept override
-    {
-        return true;
+        return memory_resource_type::instance().release();
     }
 };
-
-//! A stack `memory_resource` using an `std::array` to store aligned memory.
-//!
-//! @note `static_memory_resource` mainly used in unit tests.
-template<size_t Bytes>
-class static_memory_resource final : public memory_resource
-{
-private:
-    alignas(std::max_align_t) std::byte buffer[Bytes];
-    std::size_t position{};
-
-public:
-    static_memory_resource() noexcept = default;
-
-    ~static_memory_resource() noexcept = default;
-
-    std::size_t capacity() const noexcept { return std::size(buffer); }
-
-    void reset() noexcept { position = 0; }
-
-protected:
-    void* do_allocate(std::size_t bytes,
-                      std::size_t alignment) noexcept override
-    {
-        debug::mem_log("static_memory_resource<",
-                       Bytes,
-                       ">::need - allocate[",
-                       bytes,
-                       " ",
-                       alignment,
-                       "]\n");
-
-        debug::ensure(bytes > 0);
-        debug::ensure((bytes % alignment) == 0);
-
-        if (Bytes < (position + bytes)) {
-            debug::log("Irritator shutdown: Unable to allocate memory ",
-                       bytes,
-                       " alignment ",
-                       alignment,
-                       "\n");
-            std::abort();
-        }
-
-        const auto old_position = position;
-        position += bytes;
-        auto* p = static_cast<void*>(std::data(buffer) + old_position);
-
-        debug::mem_log("static_memory_resource<",
-                       Bytes,
-                       ">::allocate[",
-                       p,
-                       " ",
-                       bytes,
-                       " ",
-                       alignment,
-                       "]\n");
-
-        return p;
-    }
-
-    void do_deallocate([[maybe_unused]] void*       pointer,
-                       [[maybe_unused]] std::size_t bytes,
-                       [[maybe_unused]] std::size_t alignment) noexcept override
-    {
-        debug::mem_log("static_memory_resource<",
-                       Bytes,
-                       ">::do_deallocate[",
-                       pointer,
-                       " ",
-                       bytes,
-                       " ",
-                       alignment,
-                       "]\n");
-
-        [[maybe_unused]] const auto pos =
-          reinterpret_cast<std::uintptr_t>(pointer);
-        [[maybe_unused]] const auto first =
-          reinterpret_cast<std::uintptr_t>(std::data(buffer));
-        [[maybe_unused]] const auto last = reinterpret_cast<std::uintptr_t>(
-          std::data(buffer) + std::size(buffer));
-
-        debug::ensure(first <= pos and pos <= last);
-    }
-
-    bool do_can_alloc(std::size_t bytes,
-                      std::size_t /*alignment*/) const noexcept override
-    {
-        return bytes < Bytes;
-    }
-};
-
-inline malloc_memory_resource* get_malloc_memory_resource() noexcept
-{
-    static malloc_memory_resource mem;
-
-    return &mem;
-}
-
-//! @brief A wrapper to the @c std::aligned_alloc and @c std::free cstdlib
-//! function to (de)allocate memory.
-//!
-//! This allocator is @c std::is_empty and use the default memory resource. Use
-//! this allocator in container to ensure allocator does not have size.
-class default_allocator
-{
-public:
-    using size_type         = std::size_t;
-    using difference_type   = std::ptrdiff_t;
-    using memory_resource_t = void;
-
-    template<typename T>
-    T* allocate(size_type n) noexcept
-    {
-        const auto bytes     = sizeof(T) * n;
-        const auto alignment = alignof(T);
-
-        debug::ensure(bytes > 0);
-        debug::ensure((bytes % alignment) == 0);
-
-        return reinterpret_cast<T*>(
-          get_malloc_memory_resource()->allocate(bytes, alignment));
-    }
-
-    template<typename T>
-    void deallocate(T* p, size_type n) noexcept
-    {
-        debug::ensure(p);
-        debug::ensure(n > 0);
-
-        get_malloc_memory_resource()->deallocate(p, n);
-    }
-};
-
-//! @brief Use a @c irt::memory_resource in member to (de)allocate memory.
-//!
-//! Use this allocator and a @c irt::memory_resource_t to (de)allocate memory in
-//! container.
-template<typename MR>
-class mr_allocator
-{
-public:
-    using memory_resource_t = MR;
-    using size_type         = std::size_t;
-    using difference_type   = std::ptrdiff_t;
-
-private:
-    memory_resource_t* m_mr;
-
-public:
-    mr_allocator() noexcept = default;
-
-    mr_allocator(memory_resource_t* mr) noexcept
-      : m_mr(mr)
-    {}
-
-    template<typename T>
-    T* allocate(size_type n) noexcept
-    {
-        return static_cast<T*>(m_mr->allocate(sizeof(T) * n, alignof(T)));
-    }
-
-    template<typename T>
-    void deallocate(T* p, size_type n) noexcept
-    {
-        m_mr->deallocate(p, sizeof(T) * n, alignof(T));
-    }
-
-    std::byte* allocate_bytes(
-      size_type bytes,
-      size_type alignment = alignof(std::max_align_t)) noexcept
-    {
-        return static_cast<std::byte*>(
-          m_mr->allocate(sizeof(std::byte) * bytes, alignment));
-    }
-
-    void deallocate_bytes(
-      std::byte* pointer,
-      size_type  bytes,
-      size_type  alignment = alignof(std::max_align_t)) noexcept
-    {
-        m_mr->deallocate(pointer, bytes, alignment);
-    }
-
-    bool can_alloc_bytes(
-      size_type bytes,
-      size_type alignment = alignof(std::max_align_t)) noexcept
-    {
-        return m_mr->can_alloc(bytes, alignment);
-    }
-
-    template<typename T>
-    bool can_alloc(std::size_t element_count) const noexcept
-    {
-        return m_mr->can_alloc(sizeof(T) * element_count, alignof(T));
-    }
-};
-
-////////////////////////////////////////////////////////////////////////
-//                                                                    //
-// Memory resource: linear, stack, stack-list........................ //
-//                                                                    //
-////////////////////////////////////////////////////////////////////////
-
-//! Return the smallest closest value of `v` divisible by `alignment`.
-//!
-//! ~~~{.cpp}
-//! assert(make_divisible_to(123, 16) == 112);
-//! assert(make_divisible_to(17, 16) == 16);
-//! assert(make_divisible_to(161, 16) == 160);
-//! assert(make_divisible_to(7, 16) == 0);
-//! assert(make_divisible_to(15, 16) == 0);
-//! assert(make_divisible_to(123, 8) == 120);
-//! assert(make_divisible_to(17, 8) == 16);
-//! assert(make_divisible_to(161, 8) == 160);
-//! assert(make_divisible_to(7, 8) == 0);
-//! assert(make_divisible_to(15, 8) == 8);
-//! ~~~
-inline constexpr auto make_divisible_to(
-  const std::integral auto v,
-  const std::size_t        alignment = alignof(std::max_align_t)) noexcept
-  -> decltype(v)
-{
-    using return_type = decltype(v);
-
-    if constexpr (std::is_signed_v<return_type>)
-        return static_cast<return_type>(
-          static_cast<std::intptr_t>(v) &
-          static_cast<std::intptr_t>(~(alignment - 1)));
-    else
-        return static_cast<return_type>(static_cast<std::size_t>(v) &
-                                        ~(alignment - 1));
-}
-
-inline constexpr auto calculate_padding(const std::uintptr_t address,
-                                        const std::size_t    alignment) noexcept
-  -> std::size_t
-{
-    const auto multiplier      = (address / alignment) + 1u;
-    const auto aligned_address = multiplier * alignment;
-    const auto padding         = aligned_address - address;
-
-    return static_cast<std::size_t>(padding);
-}
-
-inline constexpr auto calculate_padding_with_header(
-  const std::uintptr_t address,
-  const std::size_t    alignment,
-  const std::size_t    header_size) noexcept -> std::size_t
-{
-    auto padding      = calculate_padding(address, alignment);
-    auto needed_space = header_size;
-
-    if (padding < needed_space) {
-        needed_space -= padding;
-
-        if (needed_space % alignment > 0) {
-            padding += alignment * (1 + (needed_space / alignment));
-        } else {
-            padding += alignment * (needed_space / alignment);
-        }
-    }
-
-    return padding;
-}
-
-//! A non-thread-safe allocator: allocation are linear, no de-allocation.
-//!
-//! This is a non-thread-safe, fast, special-purpose resource that gets
-//! memory  from a preallocated buffer, but doesn’t release it with
-//! deallocation. It can only grow. The main idea is to keep a pointer at the
-//! first memory address of your memory chunk and move it every time an
-//! allocation is done. In this memory resource, the internal fragmentation is
-//! kept to a minimum because all elements are sequentially (spatial locality)
-//! inserted and the only fragmentation between them is the alignment. Due to
-//! its simplicity, this allocator doesn't allow specific positions of memory to
-//! be freed. Usually, all memory is freed together.
-class fixed_linear_memory_resource
-{
-public:
-    static constexpr bool is_relocatable = false;
-
-    fixed_linear_memory_resource() noexcept = default;
-    fixed_linear_memory_resource(std::byte* data, std::size_t size) noexcept;
-
-    void* allocate(size_t bytes, size_t alignment) noexcept;
-    void  deallocate(void* /*p*/,
-                     size_t /*bytes*/,
-                     size_t /*alignment*/) noexcept
-    {}
-
-    /** Release memory provides in contructor or in release memory. */
-    void destroy() noexcept;
-
-    //! @brief Reset the use of the chunk of memory.
-    void reset() noexcept;
-
-    //! @brief Assign a chunk of memory.
-    //!
-    //! @attention Use this function only when no chunk of memory are allocated
-    //! (ie the default constructor was called).
-    //! @param data The new buffer. Must be not null.
-    //! @param size The size of the buffer. Must be not null.
-    void reset(std::byte* data, std::size_t size) noexcept;
-
-    //! Check if the resource can allocate @c bytes with @c alignment.
-    //!
-    //! @attention Use this function before using @c do_allocate to be sure
-    //!     the @c memory_resource can allocate enough memory bcause @c
-    //!     do_allocate will use @c std::quick_exit or @c std::terminate to stop
-    //!     the application.
-    bool can_alloc(std::size_t bytes, std::size_t alignment) noexcept;
-
-    std::byte* head() noexcept { return m_start; }
-
-private:
-    std::byte*  m_start{};
-    std::size_t m_total_size{};
-    std::size_t m_offset{};
-};
-
-//! A non-thread-safe allocator: node specific memory resource.
-//!
-//! This pool allocator splits the big memory chunk in smaller chunks of the
-//! same size and keeps track of which of them are free. When an allocation is
-//! requested it returns the free chunk size. When a freed is done, it just
-//! stores it to be used in the next allocation. This way, allocations work
-//! super fast and the fragmentation is still very low.
-class pool_memory_resource
-{
-private:
-    template<class T>
-    struct list {
-        struct node {
-            T     data;
-            node* next;
-        };
-
-        node* head = {};
-
-        list() noexcept = default;
-
-        void push(node* new_node) noexcept
-        {
-            new_node->next = head;
-            head           = new_node;
-        }
-
-        node* pop() noexcept
-        {
-            node* top = head;
-            head      = head->next;
-            return top;
-        }
-    };
-
-    struct header {};
-
-    using node = list<header>::node;
-
-    list<header> m_free_list;
-
-    std::byte*  m_start_ptr       = nullptr;
-    std::size_t m_total_size      = {};
-    std::size_t m_chunk_size      = {};
-    std::size_t m_total_allocated = {};
-
-public:
-    pool_memory_resource() noexcept = default;
-
-    pool_memory_resource(std::byte*  data,
-                         std::size_t size,
-                         std::size_t chunk_size) noexcept;
-
-    void* allocate(size_t bytes, size_t /*alignment*/) noexcept;
-
-    void deallocate(void* p, size_t /*bytes*/, size_t /*alignment*/) noexcept;
-
-    //! @brief Reset the use of the chunk of memory.
-    void reset() noexcept;
-
-    //! @brief Assign a chunk of memory.
-    //!
-    //! @attention Use this function only when no chunk of memory are allocated
-    //! (ie the default constructor was called).
-    //! @param data The new buffer. Must be not null.
-    //! @param size The size of the buffer. Must be not null.
-    //! @param chunk_size The size of the chun
-    void reset(std::byte*  data,
-               std::size_t size,
-               std::size_t chunk_size) noexcept;
-
-    //! Check if the resource can allocate @c bytes with @c alignment.
-    //!
-    //! @attention Use this function before using @c do_allocate to be sure
-    //!     the @c memory_resource can allocate enough memory bcause @c
-    //!     do_allocate will use @c std::quick_exit or @c std::terminate to stop
-    //!     the application.
-    bool can_alloc(std::size_t bytes, std::size_t /*alignment*/) noexcept;
-
-    constexpr std::byte* head() noexcept;
-};
-
-//! A non-thread-safe allocator: a general purpose allocator.
-//!
-//! This memory resource doesn't impose any restriction. It allows
-//! allocations and deallocations to be done in any order. For this reason,
-//! its performance is not as good as its predecessors.
-class freelist_memory_resource
-{
-public:
-    enum class find_policy { find_first, find_best };
-
-private:
-    struct FreeHeader {
-        std::size_t block_size;
-    };
-
-    struct AllocationHeader {
-        std::size_t  block_size;
-        std::uint8_t padding;
-    };
-
-    template<class T>
-    class list
-    {
-    public:
-        struct node {
-            T     data;
-            node* next;
-        };
-
-        node* head = nullptr;
-
-        list() noexcept = default;
-
-        void insert(node* previous, node* new_node) noexcept
-        {
-            if (previous == nullptr) {
-                if (head != nullptr) {
-                    new_node->next = head;
-                } else {
-                    new_node->next = nullptr;
-                }
-                head = new_node;
-            } else {
-                if (previous->next == nullptr) {
-                    previous->next = new_node;
-                    new_node->next = nullptr;
-                } else {
-                    new_node->next = previous->next;
-                    previous->next = new_node;
-                }
-            }
-        }
-
-        void remove(node* previous, node* to_delete) noexcept
-        {
-            if (previous == nullptr) {
-                if (to_delete->next == nullptr) {
-                    head = nullptr;
-                } else {
-                    head = to_delete->next;
-                }
-            } else {
-                previous->next = to_delete->next;
-            }
-        }
-    };
-
-    using node = list<FreeHeader>::node;
-
-    static constexpr auto allocation_header_size = sizeof(AllocationHeader);
-    static constexpr auto free_header_size       = sizeof(FreeHeader);
-
-    list<FreeHeader> m_freeList;
-    std::byte*       m_start_ptr   = nullptr;
-    std::size_t      m_total_size  = 0;
-    std::size_t      m_used        = 0;
-    std::size_t      m_peak        = 0;
-    find_policy      m_find_policy = find_policy::find_first;
-
-    struct find_t {
-        node*       previous  = nullptr;
-        node*       allocated = nullptr;
-        std::size_t padding   = 0u;
-    };
-
-public:
-    freelist_memory_resource() noexcept = default;
-
-    freelist_memory_resource(std::byte* data, std::size_t size) noexcept;
-
-    void* allocate(size_t size, size_t alignment) noexcept;
-
-    void deallocate(void* ptr, size_t /*bytes*/, size_t /*alignment*/) noexcept;
-
-    /** Release memory provides in contructor or in release memory. */
-    void destroy() noexcept;
-
-    /** Reset the use of the chunk of memory. If the chunk is undefined do
-     * nothing.
-     * @attention Release of all memory of container/memory_resource using old
-     * chunk. */
-    void reset() noexcept;
-
-    /** Assign a new chunk of memory to the memory resource. If the new chunk is
-     * undefined do nothing.
-     * @attention Release of all memory of container/memory_resource using old
-     * chunk.
-     * @param data The new buffer. Must be not null.
-     * @param size The size of the buffer. Must be not null.
-     */
-    void reset(std::byte* data, std::size_t size) noexcept;
-
-    //! Get the pointer to the allocated memory provided in `constructor` or in
-    //! `reset` functions.
-    //!
-    //! @return Can return `nullptr` or a valid pointer.
-    constexpr std::byte* head() const noexcept { return m_start_ptr; }
-
-    //! Get the size of the allocated memory provided in `constructor` or in
-    //! `reset` functions.
-    //!
-    //! @return Can return `0` or a valid size.
-    constexpr std::size_t capacity() const noexcept { return m_total_size; }
-
-private:
-    void merge(node* previous, node* free_node) noexcept;
-
-    auto find_best(const std::size_t size,
-                   const std::size_t alignment) const noexcept -> find_t;
-
-    auto find_first(const std::size_t size,
-                    const std::size_t alignment) const noexcept -> find_t;
-};
-
-using freelist_allocator = mr_allocator<freelist_memory_resource>;
-using pool_allocator     = mr_allocator<pool_memory_resource>;
-using fixed_allocator    = mr_allocator<fixed_linear_memory_resource>;
 
 ////////////////////////////////////////////////////////////////////////
 //                                                                    //
@@ -792,24 +499,26 @@ using fixed_allocator    = mr_allocator<fixed_linear_memory_resource>;
 //                                                                    //
 ////////////////////////////////////////////////////////////////////////
 
-//! @brief A vector like class with dynamic allocation.
-//! @tparam T Any type (trivial or not).
-template<typename T, typename A = default_allocator>
+/**
+   @brief A vector like class with dynamic allocation.
+
+   @tparam T Any type (trivial or not).
+ */
+template<typename T, typename A = allocator<new_delete_memory_resource>>
 class vector
 {
 public:
-    using value_type        = T;
-    using size_type         = std::uint32_t;
-    using index_type        = std::make_signed_t<size_type>;
-    using iterator          = T*;
-    using const_iterator    = const T*;
-    using reference         = T&;
-    using const_reference   = const T&;
-    using pointer           = T*;
-    using const_pointer     = const T*;
-    using allocator_type    = A;
-    using memory_resource_t = typename A::memory_resource_t;
-    using this_container    = vector<T, A>;
+    using value_type      = T;
+    using size_type       = std::uint32_t;
+    using index_type      = std::make_signed_t<size_type>;
+    using iterator        = T*;
+    using const_iterator  = const T*;
+    using reference       = T&;
+    using const_reference = const T&;
+    using pointer         = T*;
+    using const_pointer   = const T*;
+    using allocator_type  = A;
+    using this_container  = vector<T, A>;
 
 private:
     static_assert(std::is_nothrow_destructible_v<T> ||
@@ -817,33 +526,17 @@ private:
 
     T* m_data = nullptr;
 
-    [[no_unique_address]] allocator_type m_alloc;
-
     index_type m_size     = 0;
     index_type m_capacity = 0;
 
 public:
     constexpr vector() noexcept;
-    vector(std::integral auto capacity) noexcept;
+    explicit vector(std::integral auto capacity) noexcept;
+
     vector(std::integral auto capacity, std::integral auto size) noexcept;
     vector(std::integral auto capacity,
            std::integral auto size,
            const T&           default_value) noexcept;
-
-    constexpr vector(memory_resource_t* mem) noexcept
-        requires(!std::is_empty_v<A>);
-
-    vector(memory_resource_t* mem, std::integral auto capacity) noexcept
-        requires(!std::is_empty_v<A>);
-    vector(memory_resource_t* mem,
-           std::integral auto capacity,
-           std::integral auto size) noexcept
-        requires(!std::is_empty_v<A>);
-    vector(memory_resource_t* mem,
-           std::integral auto capacity,
-           std::integral auto size,
-           const T&           default_value) noexcept
-        requires(!std::is_empty_v<A>);
 
     ~vector() noexcept;
 
@@ -855,8 +548,8 @@ public:
     bool resize(std::integral auto size) noexcept;
     bool reserve(std::integral auto new_capacity) noexcept;
 
-    void destroy() noexcept; // clear all elements and free memory (size =
-                             // 0, capacity = 0 after).
+    void destroy() noexcept; // clear all elements and free memory (size
+                             // = 0, capacity = 0 after).
 
     constexpr void clear() noexcept; // clear all elements (size = 0 after).
     constexpr void swap(vector<T, A>& other) noexcept;
@@ -942,29 +635,32 @@ constexpr bool is_valid(Identifier id) noexcept
     return get_key(id) > 0;
 }
 
-//! @brief An optimized array to store unique identifier.
-//!
-//! A container to handle only identifier.
-//! - linear memory/iteration
-//! - O(1) alloc/free
-//! - stable indices
-//! - weak references
-//! - zero overhead dereferences
-//!
-//! @tparam Identifier A enum class identifier to store identifier unsigned
-//!     number.
-//! @todo Make Identifier split key|id automatically for all unsigned.
-template<typename Identifier, typename A = default_allocator>
+template<typename T>
+concept is_identifier_type =
+  std::is_enum_v<T> and
+  (std::is_same_v<std::underlying_type_t<T>, std::uint32_t> or
+   std::is_same_v<std::underlying_type_t<T>, std::uint64_t>);
+
+/**
+   An optimized array to store unique identifier.
+
+   A container to handle only identifier.
+   - linear memory/iteration
+   - O(1) alloc/free
+   - stable indices
+   - weak references
+   - zero overhead dereferences
+
+   @tparam Identifier A enum class identifier to store identifier unsigned
+   number.
+*/
+template<typename Identifier,
+         typename A = allocator<new_delete_memory_resource>>
 class id_array
 {
-    static_assert(std::is_enum_v<Identifier>,
+    static_assert(is_identifier_type<Identifier>,
                   "Identifier must be a enumeration: enum class id : "
                   "std::uint32_t or std::uint64_t;");
-
-    static_assert(
-      std::is_same_v<std::underlying_type_t<Identifier>, std::uint32_t> ||
-        std::is_same_v<std::underlying_type_t<Identifier>, std::uint64_t>,
-      "Identifier underlying type must be std::uint32_t or std::uint64_t");
 
     using underlying_id_type = std::conditional_t<
       std::is_same_v<std::uint32_t, std::underlying_type_t<Identifier>>,
@@ -976,11 +672,10 @@ class id_array
                          std::uint16_t,
                          std::uint32_t>;
 
-    using identifier_type   = Identifier;
-    using value_type        = Identifier;
-    using this_container    = id_array<Identifier, A>;
-    using allocator_type    = A;
-    using memory_resource_t = typename A::memory_resource_t;
+    using identifier_type = Identifier;
+    using value_type      = Identifier;
+    using this_container  = id_array<Identifier, A>;
+    using allocator_type  = A;
 
     static constexpr index_type none = std::numeric_limits<index_type>::max();
 
@@ -991,7 +686,8 @@ private:
     index_type m_next_key          = 1; /**< [1..2^[16|32] - 1 (never == 0). */
     index_type m_free_head         = none; // index of first free entry
 
-    //! Build a new identifier merging m_next_key and the best free index.
+    //! Build a new identifier merging m_next_key and the best free
+    //! index.
     static constexpr identifier_type make_id(index_type key,
                                              index_type index) noexcept;
 
@@ -1007,15 +703,7 @@ private:
 public:
     constexpr id_array() noexcept = default;
 
-    constexpr id_array(memory_resource_t* mem) noexcept
-        requires(!std::is_empty_v<A>);
-
-    constexpr id_array(std::integral auto capacity) noexcept
-        requires(std::is_empty_v<A>);
-
-    constexpr id_array(memory_resource_t* mem,
-                       std::integral auto capacity) noexcept
-        requires(!std::is_empty_v<A>);
+    constexpr id_array(std::integral auto capacity) noexcept;
 
     constexpr ~id_array() noexcept = default;
 
@@ -1030,14 +718,16 @@ public:
     constexpr std::optional<index_type> get(const Identifier id) const noexcept;
     constexpr bool exists(const Identifier id) const noexcept;
 
-    //! @brief Checks if a `id` exists in the underlying array at index `index`.
+    //! @brief Checks if a `id` exists in the underlying array at index
+    //! `index`.
     //!
-    //! @attention This function can check the version of the identifier only
-    //! the `is_defined<Identifier>` is used to detect the `Identifier`.
+    //! @attention This function can check the version of the identifier
+    //! only the `is_defined<Identifier>` is used to detect the
+    //! `Identifier`.
     //!
     //! @param index A integer.
-    //! @return The `Identifier` found at index `index` or `std::nullopt`
-    //! otherwise.
+    //! @return The `Identifier` found at index `index` or
+    //! `std::nullopt` otherwise.
     constexpr identifier_type get_from_index(
       std::integral auto index) const noexcept;
 
@@ -1167,56 +857,56 @@ public:
     constexpr const_iterator end() const noexcept;
 };
 
-//! @brief An optimized SOA structure to store unique identifier and mutiples
-//! vector.
-//!
-//! A container to handle only identifier.
-//! - linear memory/iteration
-//! - O(1) alloc/free
-//! - stable indices
-//! - weak references
-//! - zero overhead dereferences
-//!
-//! @code
-//! struct pos3d {
-//!     float x, y, z;
-//! };
-//!
-//! struct color {
-//!     std::uint32_t rgba;
-//! };
-//!
-//! using name = irt::small_string<15>;
-//!
-//! enum class ex1_id : uint32_t;
-//!
-//! irt::id_data_array<ex1_id, irt::default_allocator, pos3d, color, name>
-//!   d;
-//! d.reserve(1024);
-//! expect(ge(d.capacity(), 1024u));
-//! expect(fatal(d.can_alloc(1)));
-//!
-//! const auto id =
-//!   d.alloc([](const auto /*id*/, auto& p, auto& c, auto& n) noexcept {
-//!       p = pos3d(1.f, 2.f, 3.f);
-//!       c = color{ 123u };
-//!       n = "HelloWorld!";
-//!   });
-//! @endcode
-//!
-//! @tparam Identifier A enum class identifier to store identifier unsigned
-//!     number.
-template<typename Identifier, typename A = irt::default_allocator, class... Ts>
+/**
+   An optimized SOA structure to store unique identifier and mutiples vector.
+
+   A container to handle only identifier.
+   - linear memory/iteration
+   - O(1) alloc/free
+   - stable indices
+   - weak references
+   - zero overhead dereferences
+
+   @code
+   struct pos3d {
+       float x, y, z;
+   };
+
+   struct color {
+       std::uint32_t rgba;
+   };
+
+   using name = irt::small_string<15>;
+
+   enum class ex1_id : uint32_t;
+
+   irt::id_data_array<ex1_id,
+        irt::allocator<new_delete_memory_resource>, pos3d, color, name>
+     d;
+   d.reserve(1024);
+   expect(ge(d.capacity(), 1024u));
+   expect(fatal(d.can_alloc(1)));
+
+   const auto id =
+     d.alloc([](const auto id, auto& p, auto& c, auto& n) noexcept
+   {
+       p = pos3d(1.f, 2.f, 3.f);
+       c = color{ 123u };
+       n = "HelloWorld!";
+   });
+   @endcode
+
+   @tparam Identifier A enum class identifier to store identifier unsigned
+   number.
+*/
+template<typename Identifier,
+         typename A = allocator<new_delete_memory_resource>,
+         class... Ts>
 class id_data_array
 {
-    static_assert(std::is_enum_v<Identifier>,
+    static_assert(is_identifier_type<Identifier>,
                   "Identifier must be a enumeration: enum class id : "
                   "std::uint32_t or std::uint64_t;");
-
-    static_assert(
-      std::is_same_v<std::underlying_type_t<Identifier>, std::uint32_t> ||
-        std::is_same_v<std::underlying_type_t<Identifier>, std::uint64_t>,
-      "Identifier underlying type must be std::uint32_t or std::uint64_t");
 
     using underlying_id_type = std::conditional_t<
       std::is_same_v<std::uint32_t, std::underlying_type_t<Identifier>>,
@@ -1228,10 +918,9 @@ class id_data_array
                          std::uint16_t,
                          std::uint32_t>;
 
-    using identifier_type   = Identifier;
-    using value_type        = Identifier;
-    using allocator_type    = A;
-    using memory_resource_t = typename A::memory_resource_t;
+    using identifier_type = Identifier;
+    using value_type      = Identifier;
+    using allocator_type  = A;
 
     id_array<identifier_type, A> m_ids;
     std::tuple<vector<Ts, A>...> m_col;
@@ -1283,28 +972,31 @@ public:
     template<typename Function>
     identifier_type alloc(Function&& fn) noexcept;
 
-    /** Return the identifier type at index `idx` if and only if `idx` is in
-     * range `[0, size()[` and if the value `is_defined` otherwise return
-     * `undefined<identifier_type>()`. */
+    /** Return the identifier type at index `idx` if and only if `idx`
+     * is in range `[0, size()[` and if the value `is_defined` otherwise
+     * return `undefined<identifier_type>()`. */
     identifier_type get_id(std::integral auto idx) const noexcept;
 
-    /** Release the @c identifier from the @c id_array. @attention To improve
-     * memory access, the destructors of underlying objects in @c std::tuple of
-     * @c vector are not called. If you need to realease memory use it before
-     * releasing the identifier but these objects can be reuse in future. In any
-     * case all destructor will free the memory in @c id_data_array destructor
-     * or during the @c reserve() operation.
+    /** Release the @c identifier from the @c id_array. @attention To
+     * improve memory access, the destructors of underlying objects in
+     * @c std::tuple of
+     * @c vector are not called. If you need to realease memory use it
+     * before releasing the identifier but these objects can be reuse in
+     * future. In any case all destructor will free the memory in @c
+     * id_data_array destructor or during the @c reserve() operation.
      *
      * @example
-     * id_data_array<obj_id, default_allocator, std::string, position> m;
+     * id_data_array<obj_id, allocator<new_delete_memory_resource,
+     * std::string, position> m;
      *
      * if (m.exists(id))
-     *     std::swap(m.get<std::string>()[get_index(id)], std::string{});
+     *     std::swap(m.get<std::string>()[get_index(id)],
+     * std::string{});
      * @endexample */
     void free(const identifier_type id) noexcept;
 
-    /** Get the underlying @c vector in @c tuple using an index. (read @c
-     * std::get). */
+    /** Get the underlying @c vector in @c tuple using an index. (read
+     * @c std::get). */
     template<std::size_t Index>
     auto& get() noexcept;
 
@@ -1314,19 +1006,19 @@ public:
     auto& get() noexcept
         requires(not std::is_integral_v<Type>);
 
-    /** Get the underlying object at position @c id @c vector in @c tuple using
-     * an index. (read @c std::get). */
+    /** Get the underlying object at position @c id @c vector in @c
+     * tuple using an index. (read @c std::get). */
     template<std::size_t Index>
     auto& get(const identifier_type id) noexcept;
 
-    /** Get the underlying object at position @c id in @c vector in @c tuple
-     * using a type (read @c std::get). */
+    /** Get the underlying object at position @c id in @c vector in @c
+     * tuple using a type (read @c std::get). */
     template<typename Type>
     auto& get(const identifier_type id) noexcept
         requires(not std::is_integral_v<Type>);
 
-    /** Get the underlying @c vector in @c tuple using an index. (read @c
-     * std::get). */
+    /** Get the underlying @c vector in @c tuple using an index. (read
+     * @c std::get). */
     template<std::size_t Index>
     auto& get() const noexcept;
 
@@ -1336,13 +1028,13 @@ public:
     auto& get() const noexcept
         requires(not std::is_integral_v<Type>);
 
-    /** Get the underlying object at position @c id @c vector in @c tuple using
-     * an index. (read @c std::get). */
+    /** Get the underlying object at position @c id @c vector in @c
+     * tuple using an index. (read @c std::get). */
     template<std::size_t Index>
     auto& get(const identifier_type id) const noexcept;
 
-    /** Get the underlying object at position @c id in @c vector in @c tuple
-     * using a type (read @c std::get). */
+    /** Get the underlying object at position @c id in @c vector in @c
+     * tuple using a type (read @c std::get). */
     template<typename Type>
     auto& get(const identifier_type id) const noexcept
         requires(not std::is_integral_v<Type>);
@@ -1417,10 +1109,13 @@ public:
 //! - zero overhead dereferences
 //!
 //! @tparam T The type of object the data_array holds.
-//! @tparam Identifier A enum class identifier to store identifier unsigned
+//! @tparam Identifier A enum class identifier to store identifier
+//! unsigned
 //!     number.
 //! @todo Make Identifier split key|id automatically for all unsigned.
-template<typename T, typename Identifier, typename A = default_allocator>
+template<typename T,
+         typename Identifier,
+         typename A = allocator<new_delete_memory_resource>>
 class data_array
 {
 public:
@@ -1431,7 +1126,8 @@ public:
     static_assert(
       std::is_same_v<std::underlying_type_t<Identifier>, std::uint32_t> ||
         std::is_same_v<std::underlying_type_t<Identifier>, std::uint64_t>,
-      "Identifier underlying type must be std::uint32_t or std::uint64_t");
+      "Identifier underlying type must be std::uint32_t or "
+      "std::uint64_t");
 
     using underlying_id_type = std::conditional_t<
       std::is_same_v<std::uint32_t, std::underlying_type_t<Identifier>>,
@@ -1443,11 +1139,10 @@ public:
                          std::uint16_t,
                          std::uint32_t>;
 
-    using identifier_type   = Identifier;
-    using value_type        = T;
-    using this_container    = data_array<T, Identifier, A>;
-    using allocator_type    = A;
-    using memory_resource_t = typename A::memory_resource_t;
+    using identifier_type = Identifier;
+    using value_type      = T;
+    using this_container  = data_array<T, Identifier, A>;
+    using allocator_type  = A;
 
 private:
     struct item {
@@ -1460,15 +1155,14 @@ public:
 
     item* m_items = nullptr; // items array
 
-    [[no_unique_address]] allocator_type m_alloc;
-
     index_type m_max_size  = 0;    // number of valid item
     index_type m_max_used  = 0;    // highest index ever allocated
     index_type m_capacity  = 0;    // capacity of the array
     index_type m_next_key  = 1;    // [1..2^32-64] (never == 0)
     index_type m_free_head = none; // index of first free entry
 
-    //! Build a new identifier merging m_next_key and the best free index.
+    //! Build a new identifier merging m_next_key and the best free
+    //! index.
     static constexpr identifier_type make_id(index_type key,
                                              index_type index) noexcept;
 
@@ -1486,15 +1180,7 @@ public:
 
     constexpr data_array() noexcept = default;
 
-    constexpr data_array(memory_resource_t* mem) noexcept
-        requires(!std::is_empty_v<A>);
-
-    constexpr data_array(std::integral auto capacity) noexcept
-        requires(std::is_empty_v<A>);
-
-    constexpr data_array(memory_resource_t* mem,
-                         std::integral auto capacity) noexcept
-        requires(!std::is_empty_v<A>);
+    constexpr data_array(std::integral auto capacity) noexcept;
 
     constexpr ~data_array() noexcept;
 
@@ -1504,8 +1190,8 @@ public:
     //! parameter is less or equal than the current @c capacity().
     //!
     //! @attention  If the `reserve()` succedded a reallocation takes
-    //! place, in which case all iterators (including the end() iterator)
-    //! and all references to the elements are invalidated.
+    //! place, in which case all iterators (including the end()
+    //! iterator) and all references to the elements are invalidated.
     //!
     //! @attention Use `can_alloc()` to be sure `reserve()` succeed.
     void reserve(std::integral auto capacity) noexcept;
@@ -1513,13 +1199,14 @@ public:
     //! Try to grow the capacity of memory.
     //!
     //! - current capacity equals 0 then tries to reserve 8 elements.
-    //! - current capacity equals size then tries to reserve capacity * 2
+    //! - current capacity equals size then tries to reserve capacity *
+    //! 2
     //!   elements.
     //! - else tries to reserve capacity * 3 / 2 elements.
     //!
     //! @attention  If the `grow()` succedded a reallocation takes
-    //! place, in which case all iterators (including the end() iterator)
-    //! and all references to the elements are invalidated.
+    //! place, in which case all iterators (including the end()
+    //! iterator) and all references to the elements are invalidated.
     //!
     //! @attention Use `can_alloc()` to be sure `grow()` succeed.
     void grow() noexcept;
@@ -1527,25 +1214,27 @@ public:
     //! @brief Destroy all items in the data_array but keep memory
     //!  allocation.
     //!
-    //! @details Run the destructor if @c T is not trivial on outstanding
+    //! @details Run the destructor if @c T is not trivial on
+    //! outstanding
     //!  items and re-initialize the size.
     void clear() noexcept;
 
     //! @brief Destroy all items in the data_array and release memory.
     //!
-    //! @details Run the destructor if @c T is not trivial on outstanding
+    //! @details Run the destructor if @c T is not trivial on
+    //! outstanding
     //!  items and re-initialize the size.
     void destroy() noexcept;
 
     //! @brief Alloc a new element.
     //!
-    //! If m_max_size == m_capacity then this function will abort. Before
-    //! using this function, tries @c !can_alloc() for example otherwise use
-    //! the @c try_alloc function.
+    //! If m_max_size == m_capacity then this function will abort.
+    //! Before using this function, tries @c !can_alloc() for example
+    //! otherwise use the @c try_alloc function.
     //!
     //! Use @c m_free_head if not empty or use a new items from buffer
-    //! (@m_item[max_used++]). The id is set to from @c next_key++ << 32) |
-    //! index to build unique identifier.
+    //! (@m_item[max_used++]). The id is set to from @c next_key++ <<
+    //! 32) | index to build unique identifier.
     //!
     //! @return A reference to the newly allocated element.
     template<typename... Args>
@@ -1554,8 +1243,8 @@ public:
     //! @brief Alloc a new element.
     //!
     //! Use @c m_free_head if not empty or use a new items from buffer
-    //! (@m_item[max_used++]). The id is set to from @c next_key++ << 32) |
-    //! index to build unique identifier.
+    //! (@m_item[max_used++]). The id is set to from @c next_key++ <<
+    //! 32) | index to build unique identifier.
     //!
     //! @return A pair with a boolean if the allocation success and a
     //! pointer to the newly element.
@@ -1564,14 +1253,14 @@ public:
 
     //! @brief Free the element @c t.
     //!
-    //! Internally, puts the elelent @c t entry on free list and use id to
-    //! store next.
+    //! Internally, puts the elelent @c t entry on free list and use id
+    //! to store next.
     void free(T& t) noexcept;
 
     //! @brief Free the element pointer by @c id.
     //!
-    //! Internally, puts the element @c id entry on free list and use id to
-    //! store next.
+    //! Internally, puts the element @c id entry on free list and use id
+    //! to store next.
     void free(Identifier id) noexcept;
 
     //! @brief Accessor to the id part of the item
@@ -1596,9 +1285,9 @@ public:
 
     //! @brief Get a T from an ID.
     //!
-    //! @details Validates ID, then returns item, returns null if invalid.
-    //! For cases like AI references and others where 'the thing might have
-    //! been deleted out from under me.
+    //! @details Validates ID, then returns item, returns null if
+    //! invalid. For cases like AI references and others where 'the
+    //! thing might have been deleted out from under me.
     //!
     //! @param id Identifier to get.
     //! @return T or nullptr
@@ -1620,8 +1309,8 @@ public:
     //! }
     //! @endcode
     //!
-    //! Loop item where @c id & 0xffffffff00000000 != 0 (i.e. items not on
-    //! free list).
+    //! Loop item where @c id & 0xffffffff00000000 != 0 (i.e. items not
+    //! on free list).
     //!
     //! @return true if the paramter @c t is valid false otherwise.
     bool next(T*& t) noexcept;
@@ -1636,8 +1325,8 @@ public:
     //! }
     //! @endcode
     //!
-    //! Loop item where @c id & 0xffffffff00000000 != 0 (i.e. items not on
-    //! free list).
+    //! Loop item where @c id & 0xffffffff00000000 != 0 (i.e. items not
+    //! on free list).
     //!
     //! @return true if the paramter @c t is valid false otherwise.
     bool next(const T*& t) const noexcept;
@@ -1674,9 +1363,9 @@ public:
 
         iterator_base& operator++() noexcept
         {
-            pointer next    = self->try_to_get(id);
-            bool    success = self->next(next);
-            id              = success ? self->get_id(*next) : identifier_type{};
+            pointer ptr     = self->try_to_get(id);
+            bool    success = self->next(ptr);
+            id              = success ? self->get_id(*ptr) : identifier_type{};
 
             return *this;
         }
@@ -1684,9 +1373,9 @@ public:
         iterator_base operator++(int) noexcept
         {
             auto    old_id  = id;
-            pointer next    = self->try_to_get(id);
-            bool    success = self->next(next);
-            id              = success ? self->get_id(*next) : identifier_type{};
+            pointer ptr     = self->try_to_get(id);
+            bool    success = self->next(ptr);
+            id              = success ? self->get_id(*ptr) : identifier_type{};
 
             return iterator_base{ .self = self, .id = old_id };
         }
@@ -1733,31 +1422,29 @@ public:
 //!       dequeue()           enqueue()
 //!
 //! @tparam T Any type (trivial or not).
-template<typename T, typename A = default_allocator>
+template<typename T, typename A = allocator<new_delete_memory_resource>>
 class ring_buffer
 {
 public:
-    using value_type        = T;
-    using size_type         = std::uint32_t;
-    using index_type        = std::make_signed_t<size_type>;
-    using reference         = T&;
-    using const_reference   = const T&;
-    using pointer           = T*;
-    using const_pointer     = const T*;
-    using this_container    = ring_buffer<T, A>;
-    using allocator_type    = A;
-    using memory_resource_t = typename A::memory_resource_t;
+    using value_type      = T;
+    using size_type       = std::uint32_t;
+    using index_type      = std::make_signed_t<size_type>;
+    using reference       = T&;
+    using const_reference = const T&;
+    using pointer         = T*;
+    using const_pointer   = const T*;
+    using this_container  = ring_buffer<T, A>;
+    using allocator_type  = A;
 
     static_assert((std::is_nothrow_constructible_v<T> ||
                    std::is_nothrow_move_constructible_v<T>) &&
                   std::is_nothrow_destructible_v<T>);
 
 private:
-    T*                                   buffer = nullptr;
-    [[no_unique_address]] allocator_type m_alloc;
-    index_type                           m_head     = 0;
-    index_type                           m_tail     = 0;
-    index_type                           m_capacity = 0;
+    T*         buffer     = nullptr;
+    index_type m_head     = 0;
+    index_type m_tail     = 0;
+    index_type m_capacity = 0;
 
     constexpr index_type advance(index_type position) const noexcept;
     constexpr index_type back(index_type position) const noexcept;
@@ -1812,13 +1499,7 @@ public:
     using const_iterator = iterator_base<true>;
 
     constexpr ring_buffer() noexcept = default;
-    constexpr ring_buffer(std::integral auto capacity) noexcept;
-    constexpr ring_buffer(memory_resource_t* mem) noexcept
-        requires(!std::is_empty_v<A>);
-
-    constexpr ring_buffer(memory_resource_t* mem,
-                          std::integral auto capacity) noexcept
-        requires(!std::is_empty_v<A>);
+    explicit constexpr ring_buffer(std::integral auto capacity) noexcept;
 
     constexpr ~ring_buffer() noexcept;
 
@@ -1986,8 +1667,8 @@ public:
     using index_type = std::make_signed_t<size_type>;
 
 private:
-    alignas(8) std::byte m_buffer[length * sizeof(T)];
-    size_type m_size; // number of T element in the m_buffer.
+    alignas(std::max_align_t) std::byte m_buffer[length * sizeof(T)];
+    size_type m_size = 0;
 
 public:
     using iterator        = T*;
@@ -1997,7 +1678,7 @@ public:
     using pointer         = T*;
     using const_pointer   = const T*;
 
-    constexpr small_vector() noexcept;
+    constexpr small_vector() noexcept = default;
     constexpr ~small_vector() noexcept;
 
     constexpr small_vector(const small_vector& other) noexcept;
@@ -2046,21 +1727,23 @@ public:
     constexpr iterator erase(iterator to_del) noexcept;
 };
 
-//! A ring-buffer based on a fixed size container. m_head point to
-//! the first element can be dequeue while m_tail point to the first
-//! constructible element in the ring.
-//!
-//!     --+----+----+----+----+----+--
-//!       |    |    |    |    |    |
-//!       |    |    |    |    |    |
-//!       |    |    |    |    |    |
-//!     --+----+----+----+----+----+--
-//!       head                tail
-//!
-//!       ----->              ----->
-//!       dequeue()           enqueue()
-//!
-//! @tparam T Any type (trivial or not).
+/**
+   A ring-buffer based on a fixed size container. m_head point to
+   the first element can be dequeue while m_tail point to the first
+   constructible element in the ring.
+
+       --+----+----+----+----+----+--
+         |    |    |    |    |    |
+         |    |    |    |    |    |
+         |    |    |    |    |    |
+       --+----+----+----+----+----+--
+         head                tail
+
+         ----->              ----->
+         dequeue()           enqueue()
+
+   @tparam T Any type (trivial or not).
+ */
 template<typename T, int length>
 class small_ring_buffer
 {
@@ -2217,9 +1900,9 @@ public:
       typename std::underlying_type_t<value_type>>;
 
     constexpr bitflags() noexcept = default;
-    constexpr bitflags(unsigned long long val) noexcept;
+    explicit constexpr bitflags(unsigned long long val) noexcept;
 
-    constexpr bitflags(std::same_as<EnumT> auto... args) noexcept;
+    explicit constexpr bitflags(std::same_as<EnumT> auto... args) noexcept;
 
     constexpr bitflags& set(value_type e, bool value = true) noexcept;
     constexpr bitflags& reset(value_type e) noexcept;
@@ -2293,31 +1976,15 @@ id_array<Identifier, A>::get_index(Identifier id) noexcept
 }
 
 template<typename Identifier, typename A>
-constexpr id_array<Identifier, A>::id_array(memory_resource_t* mem) noexcept
-    requires(!std::is_empty_v<A>)
-  : m_items{ mem }
-{}
-
-template<typename Identifier, typename A>
 constexpr id_array<Identifier, A>::id_array(
   std::integral auto capacity) noexcept
-    requires(std::is_empty_v<A>)
   : m_items{ capacity }
-{}
-
-template<typename Identifier, typename A>
-constexpr id_array<Identifier, A>::id_array(
-  memory_resource_t* mem,
-  std::integral auto capacity) noexcept
-    requires(!std::is_empty_v<A>)
-  : m_items{ mem, capacity }
 {}
 
 template<typename Identifier, typename A>
 constexpr Identifier id_array<Identifier, A>::alloc() noexcept
 {
-    debug::ensure(can_alloc(1) &&
-                  "check alloc() with full() before using use.");
+    debug::ensure(can_alloc(1));
 
     if (m_free_head != none) {
         index_type new_index = m_free_head;
@@ -2874,40 +2541,13 @@ data_array<T, Identifier, A>::get_index(Identifier id) noexcept
 
 template<typename T, typename Identifier, typename A>
 constexpr data_array<T, Identifier, A>::data_array(
-  memory_resource_t* mem) noexcept
-    requires(!std::is_empty_v<A>)
-  : m_alloc{ mem }
-{}
-
-template<typename T, typename Identifier, typename A>
-constexpr data_array<T, Identifier, A>::data_array(
   std::integral auto capacity) noexcept
-    requires(std::is_empty_v<A>)
 {
     debug::ensure(std::cmp_greater(capacity, 0));
     debug::ensure(
       std::cmp_less(capacity, std::numeric_limits<index_type>::max()));
 
-    m_items     = m_alloc.template allocate<item>(capacity);
-    m_max_size  = 0;
-    m_max_used  = 0;
-    m_capacity  = static_cast<index_type>(capacity);
-    m_next_key  = 1;
-    m_free_head = none;
-}
-
-template<typename T, typename Identifier, typename A>
-constexpr data_array<T, Identifier, A>::data_array(
-  memory_resource_t* mem,
-  std::integral auto capacity) noexcept
-    requires(!std::is_empty_v<A>)
-  : m_alloc(mem)
-{
-    debug::ensure(std::cmp_greater(capacity, 0));
-    debug::ensure(
-      std::cmp_less(capacity, std::numeric_limits<index_type>::max()));
-
-    m_items     = m_alloc.template allocate<item>(capacity);
+    m_items     = reinterpret_cast<item*>(A::allocate(sizeof(item) * capacity));
     m_max_size  = 0;
     m_max_used  = 0;
     m_capacity  = static_cast<index_type>(capacity);
@@ -2921,7 +2561,7 @@ constexpr data_array<T, Identifier, A>::~data_array() noexcept
     clear();
 
     if (m_items)
-        m_alloc.deallocate(m_items, m_capacity);
+        A::deallocate(m_items, sizeof(item) * m_capacity);
 }
 
 template<typename T, typename Identifier, typename A>
@@ -2937,7 +2577,8 @@ void data_array<T, Identifier, A>::reserve(std::integral auto capacity) noexcept
         std::cmp_less_equal(capacity, m_capacity))
         return;
 
-    item* new_buffer = m_alloc.template allocate<item>(capacity);
+    item* new_buffer =
+      reinterpret_cast<item*>(A::allocate(sizeof(item) * capacity));
     if (new_buffer == nullptr)
         return;
 
@@ -2973,7 +2614,7 @@ void data_array<T, Identifier, A>::reserve(std::integral auto capacity) noexcept
     }
 
     if (m_items)
-        m_alloc.template deallocate<item>(m_items, m_capacity);
+        A::deallocate(m_items, sizeof(item) * m_capacity);
 
     m_items    = new_buffer;
     m_capacity = static_cast<index_type>(capacity);
@@ -3025,7 +2666,7 @@ void data_array<T, Identifier, A>::destroy() noexcept
     clear();
 
     if (m_items)
-        m_alloc.deallocate(m_items, m_capacity);
+        A::deallocate(m_items, sizeof(item) * m_capacity);
 
     m_items    = nullptr;
     m_capacity = 0;
@@ -3036,8 +2677,7 @@ template<typename... Args>
 typename data_array<T, Identifier, A>::value_type&
 data_array<T, Identifier, A>::alloc(Args&&... args) noexcept
 {
-    debug::ensure(can_alloc(1) &&
-                  "check alloc() with full() before using use.");
+    debug::ensure(can_alloc(1));
 
     index_type new_index;
 
@@ -3348,12 +2988,6 @@ constexpr vector<T, A>::vector() noexcept
 {}
 
 template<typename T, typename A>
-constexpr vector<T, A>::vector(memory_resource_t* mem) noexcept
-    requires(!std::is_empty_v<A>)
-  : m_alloc(mem)
-{}
-
-template<typename T, typename A>
 constexpr bool vector<T, A>::make(std::integral auto capacity) noexcept
 {
     debug::ensure(std::cmp_greater(capacity, 0));
@@ -3361,9 +2995,8 @@ constexpr bool vector<T, A>::make(std::integral auto capacity) noexcept
                                 std::numeric_limits<index_type>::max()));
 
     if (std::cmp_greater(capacity, 0)) {
-        m_data = m_alloc.template allocate<T>(capacity);
-
-        if (m_data) {
+        if (auto* ret = A::allocate(sizeof(T) * capacity)) {
+            m_data     = reinterpret_cast<T*>(ret);
             m_size     = static_cast<index_type>(0);
             m_capacity = static_cast<index_type>(capacity);
         }
@@ -3453,36 +3086,6 @@ inline vector<T, A>::vector(std::integral auto capacity,
 }
 
 template<typename T, typename A>
-inline vector<T, A>::vector(memory_resource_t* mem,
-                            std::integral auto capacity) noexcept
-    requires(!std::is_empty_v<A>)
-  : m_alloc(mem)
-{
-    make(capacity);
-}
-
-template<typename T, typename A>
-inline vector<T, A>::vector(memory_resource_t* mem,
-                            std::integral auto capacity,
-                            std::integral auto size) noexcept
-    requires(!std::is_empty_v<A>)
-  : m_alloc(mem)
-{
-    make(capacity, size);
-}
-
-template<typename T, typename A>
-inline vector<T, A>::vector(memory_resource_t* mem,
-                            std::integral auto capacity,
-                            std::integral auto size,
-                            const T&           default_value) noexcept
-    requires(!std::is_empty_v<A>)
-  : m_alloc(mem)
-{
-    make(capacity, size, default_value);
-}
-
-template<typename T, typename A>
 inline vector<T, A>::~vector() noexcept
 {
     destroy();
@@ -3542,7 +3145,7 @@ inline void vector<T, A>::destroy() noexcept
     clear();
 
     if (m_data)
-        m_alloc.template deallocate<T>(m_data, m_capacity);
+        A::deallocate(m_data, m_capacity * sizeof(T));
 
     m_data     = nullptr;
     m_size     = 0;
@@ -3595,7 +3198,8 @@ bool vector<T, A>::reserve(std::integral auto new_capacity) noexcept
       std::cmp_less(new_capacity, std::numeric_limits<index_type>::max()));
 
     if (std::cmp_greater(new_capacity, m_capacity)) {
-        T* new_data = m_alloc.template allocate<T>(new_capacity);
+        T* new_data =
+          reinterpret_cast<T*>(A::allocate(sizeof(T) * new_capacity));
         if (!new_data)
             return false;
 
@@ -3605,7 +3209,7 @@ bool vector<T, A>::reserve(std::integral auto new_capacity) noexcept
             std::uninitialized_copy_n(data(), m_size, new_data);
 
         if (m_data)
-            m_alloc.template deallocate<T>(m_data, m_capacity);
+            A::deallocate(m_data, sizeof(T) * m_capacity);
 
         m_data     = new_data;
         m_capacity = static_cast<index_type>(new_capacity);
@@ -3754,7 +3358,7 @@ template<typename... Args>
 inline constexpr typename vector<T, A>::reference vector<T, A>::emplace_back(
   Args&&... args) noexcept
 {
-    static_assert(std::is_trivially_constructible_v<T, Args...> ||
+    static_assert(std::is_constructible_v<T, Args...> ||
                     std::is_nothrow_constructible_v<T, Args...>,
                   "T must but trivially or nothrow constructible from this "
                   "argument(s)");
@@ -3908,12 +3512,6 @@ int vector<T, A>::compute_new_capacity(int size) const
 // template<typename T, size_type length>
 // class small_vector;
 //
-
-template<typename T, int length>
-constexpr small_vector<T, length>::small_vector() noexcept
-{
-    m_size = 0;
-}
 
 template<typename T, int length>
 constexpr small_vector<T, length>::small_vector(
@@ -4175,8 +3773,7 @@ small_vector<T, length>::emplace_back(Args&&... args) noexcept
                   "T must but trivially constructible from this "
                   "argument(s)");
 
-    debug::ensure(can_alloc(1) &&
-                  "check alloc() with full() before using use.");
+    debug::ensure(can_alloc(1));
 
     std::construct_at(&(data()[m_size]), std::forward<Args>(args)...);
     ++m_size;
@@ -4188,8 +3785,7 @@ template<typename T, int length>
 constexpr typename small_vector<T, length>::reference
 small_vector<T, length>::push_back(const T& arg) noexcept
 {
-    debug::ensure(can_alloc(1) &&
-                  "check alloc() with full() before using use.");
+    debug::ensure(can_alloc(1));
 
     std::construct_at(&(data()[m_size]), arg);
     ++m_size;
@@ -4768,26 +4364,14 @@ template<class T, typename A>
 constexpr bool ring_buffer<T, A>::make(std::integral auto capacity) noexcept
 {
     if (std::cmp_greater(capacity, 0)) {
-        buffer     = m_alloc.template allocate<T>(capacity);
-        m_capacity = static_cast<index_type>(capacity);
+        auto* ptr = reinterpret_cast<T*>(A::allocate(sizeof(T) * capacity));
+        if (ptr) {
+            buffer     = ptr;
+            m_capacity = static_cast<index_type>(capacity);
+        }
     }
 
     return buffer != nullptr;
-}
-
-template<class T, typename A>
-constexpr ring_buffer<T, A>::ring_buffer(memory_resource_t* mem) noexcept
-    requires(!std::is_empty_v<A>)
-  : m_alloc(mem)
-{}
-
-template<class T, typename A>
-constexpr ring_buffer<T, A>::ring_buffer(memory_resource_t* mem,
-                                         std::integral auto capacity) noexcept
-    requires(!std::is_empty_v<A>)
-  : m_alloc(mem)
-{
-    make(capacity);
 }
 
 template<class T, typename A>
@@ -4803,12 +4387,16 @@ constexpr ring_buffer<T, A>::ring_buffer(const ring_buffer& rhs) noexcept
         clear();
 
         if (m_capacity != rhs.m_capacity) {
-            if (buffer)
-                m_alloc.template deallocate<T>(buffer, m_capacity);
+            auto* ptr =
+              reinterpret_cast<T*>(A::allocate(sizeof(T) * rhs.m_capacity));
+            if (ptr) {
+                if (buffer)
+                    A::deallocate(buffer, sizeof(T) * m_capacity);
 
-            if (rhs.m_capacity) {
-                buffer     = m_alloc.template allocate<T>(rhs.m_capacity);
-                m_capacity = rhs.m_capacity;
+                if (rhs.m_capacity) {
+                    buffer     = ptr;
+                    m_capacity = rhs.m_capacity;
+                }
             }
         }
 
@@ -4825,12 +4413,16 @@ constexpr ring_buffer<T, A>& ring_buffer<T, A>::operator=(
         clear();
 
         if (m_capacity != rhs.m_capacity) {
-            if (buffer)
-                m_alloc.template deallocate<T>(buffer, m_capacity);
+            auto* ptr =
+              reinterpret_cast<T*>(A::allocate(sizeof(T) * rhs.m_capacity));
+            if (ptr) {
+                if (buffer)
+                    A::deallocate(buffer, sizeof(T) * m_capacity);
 
-            if (rhs.m_capacity > 0) {
-                buffer     = m_alloc.template allocate<T>(rhs.m_capacity);
-                m_capacity = rhs.m_capacity;
+                if (rhs.m_capacity > 0) {
+                    buffer     = ptr;
+                    m_capacity = rhs.m_capacity;
+                }
             }
         }
 
@@ -4843,17 +4435,11 @@ constexpr ring_buffer<T, A>& ring_buffer<T, A>::operator=(
 
 template<class T, typename A>
 constexpr ring_buffer<T, A>::ring_buffer(ring_buffer&& rhs) noexcept
-{
-    buffer     = rhs.buffer;
-    m_head     = rhs.m_head;
-    m_tail     = rhs.m_tail;
-    m_capacity = rhs.m_capacity;
-
-    rhs.buffer     = nullptr;
-    rhs.m_head     = 0;
-    rhs.m_tail     = 0;
-    rhs.m_capacity = 0;
-}
+  : buffer{ std::exchange(rhs.buffer, nullptr) }
+  , m_head{ std::exchange(rhs.m_head, 0) }
+  , m_tail{ std::exchange(rhs.m_tail, 0) }
+  , m_capacity{ std::exchange(rhs.m_capacity, 0) }
+{}
 
 template<class T, typename A>
 constexpr ring_buffer<T, A>& ring_buffer<T, A>::operator=(
@@ -4862,15 +4448,10 @@ constexpr ring_buffer<T, A>& ring_buffer<T, A>::operator=(
     if (this != &rhs) {
         clear();
 
-        buffer     = rhs.buffer;
-        m_head     = rhs.m_head;
-        m_tail     = rhs.m_tail;
-        m_capacity = rhs.m_capacity;
-
-        rhs.buffer     = nullptr;
-        rhs.m_head     = 0;
-        rhs.m_tail     = 0;
-        rhs.m_capacity = 0;
+        buffer     = std::exchange(rhs.buffer, nullptr);
+        m_head     = std::exchange(rhs.m_head, 0);
+        m_tail     = std::exchange(rhs.m_tail, 0);
+        m_capacity = std::exchange(rhs.m_capacity, 0);
     }
 
     return *this;
@@ -4907,9 +4488,11 @@ template<class T, typename A>
 constexpr void ring_buffer<T, A>::destroy() noexcept
 {
     clear();
-    if (buffer)
-        m_alloc.template deallocate<T>(buffer, m_capacity);
-    buffer = nullptr;
+
+    if (buffer) {
+        A::deallocate(buffer, sizeof(T) * m_capacity);
+        buffer = nullptr;
+    }
 }
 
 template<class T, typename A>
@@ -5862,9 +5445,8 @@ void small_ring_buffer<T, length>::iterator_base<is_const>::reset() noexcept
 
 template<typename EnumT>
 constexpr bitflags<EnumT>::bitflags(unsigned long long val) noexcept
-{
-    m_bits = val;
-}
+  : m_bits{ val }
+{}
 
 template<typename EnumT>
 constexpr bitflags<EnumT>::bitflags(std::same_as<EnumT> auto... args) noexcept

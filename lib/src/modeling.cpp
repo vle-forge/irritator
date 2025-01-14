@@ -19,7 +19,7 @@
 namespace irt {
 
 modeling::modeling() noexcept
-  : log_entries{ 16 }
+  : log_entries(log_manager::value_p(16))
 {}
 
 status modeling::init(modeling_initializer& p) noexcept

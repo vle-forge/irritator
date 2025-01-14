@@ -3881,10 +3881,11 @@ struct json_dearchiver::impl {
         report_json_error(error_id::missing_component_type);
     }
 
-    bool read_port(
-      const rapidjson::Value& val,
-      id_data_array<port_id, default_allocator, port_str, position>&
-        port) noexcept
+    bool read_port(const rapidjson::Value&  val,
+                   id_data_array<port_id,
+                                 allocator<new_delete_memory_resource>,
+                                 port_str,
+                                 position>& port) noexcept
     {
         port_str port_name;
         double   x = 0, y = 0;
@@ -3914,10 +3915,11 @@ struct json_dearchiver::impl {
         return true;
     }
 
-    bool read_ports(
-      const rapidjson::Value& val,
-      id_data_array<port_id, default_allocator, port_str, position>&
-        port) noexcept
+    bool read_ports(const rapidjson::Value&  val,
+                    id_data_array<port_id,
+                                  allocator<new_delete_memory_resource>,
+                                  port_str,
+                                  position>& port) noexcept
     {
         auto_stack s(this, stack_id::component_ports);
 

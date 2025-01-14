@@ -6,13 +6,12 @@
 
 #include <boost/ut.hpp>
 
-#include <charconv>
-
 using namespace std::literals;
 
 int main()
 {
     using namespace boost::ut;
+    using namespace std::literals::string_view_literals;
 
 #if defined(IRRITATOR_ENABLE_DEBUG)
     irt::on_error_callback = irt::debug::breakpoint;
@@ -69,12 +68,12 @@ int main()
         const auto table = ret->make_toc();
         expect(eq(table.ssize(), 4));
 
-        expect(table.get("A") >> fatal);
-        expect(table.get("B") >> fatal);
-        expect(table.get("C") >> fatal);
-        const auto id_A  = *table.get("A");
-        const auto id_B  = *table.get("B");
-        const auto id_C  = *table.get("C");
+        expect(table.get("A"sv) >> fatal);
+        expect(table.get("B"sv) >> fatal);
+        expect(table.get("C"sv) >> fatal);
+        const auto id_A  = *table.get("A"sv);
+        const auto id_B  = *table.get("B"sv);
+        const auto id_C  = *table.get("C"sv);
         const auto idx_A = irt::get_index(id_A);
         const auto idx_B = irt::get_index(id_B);
         const auto idx_C = irt::get_index(id_C);

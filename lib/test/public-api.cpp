@@ -1359,7 +1359,11 @@ int main()
 
         enum class ex1_id : uint32_t;
 
-        irt::id_data_array<ex1_id, irt::default_allocator, pos3d, color, name>
+        irt::id_data_array<ex1_id,
+                           irt::allocator<irt::new_delete_memory_resource>,
+                           pos3d,
+                           color,
+                           name>
           d;
         d.reserve(1024);
         expect(ge(d.capacity(), 1024u));
@@ -1645,7 +1649,7 @@ int main()
     "heap-middle-decrease"_test = [] {
         using namespace irt::literals;
 
-        irt::heap<irt::default_allocator> h;
+        irt::heap<irt::allocator<irt::new_delete_memory_resource>> h;
 
         expect(h.reserve(256u));
 
@@ -1709,7 +1713,7 @@ int main()
     };
 
     "simulation-dispatch"_test = [] {
-        irt::simulation sim(irt::simulation_memory_requirement(256, 16));
+        irt::simulation sim(irt::simulation_memory_requirement(256));
 
         auto& dyn1 = sim.alloc<irt::qss1_sum_2>();
         (void)sim.alloc<irt::qss1_integrator>();
@@ -1735,7 +1739,7 @@ int main()
         irt::vector<char> out;
 
         {
-            irt::simulation sim(irt::simulation_memory_requirement(256, 16));
+            irt::simulation sim(irt::simulation_memory_requirement(256));
 
             sim.alloc<irt::qss1_integrator>();
             sim.alloc<irt::qss1_multiplier>();
@@ -1810,7 +1814,7 @@ int main()
         }
 
         {
-            irt::simulation sim(irt::simulation_memory_requirement(256, 16));
+            irt::simulation sim(irt::simulation_memory_requirement(256));
 
             auto in = std::span(out.data(), out.size());
 
@@ -1823,7 +1827,7 @@ int main()
     "constant_simulation"_test = [] {
         irt::on_error_callback = irt::debug::breakpoint;
         fmt::print("constant_simulation\n");
-        irt::simulation sim(irt::simulation_memory_requirement(256, 16));
+        irt::simulation sim(irt::simulation_memory_requirement(256));
 
         expect(sim.can_alloc(3));
 
@@ -1849,7 +1853,7 @@ int main()
 
     "cross_simulation"_test = [] {
         fmt::print("cross_simulation\n");
-        irt::simulation sim(irt::simulation_memory_requirement(256, 16));
+        irt::simulation sim(irt::simulation_memory_requirement(256));
 
         expect(sim.can_alloc(3));
 
@@ -1953,7 +1957,7 @@ int main()
     };
 
     "hsm_simulation"_test = [] {
-        irt::simulation sim(irt::simulation_memory_requirement(256, 16));
+        irt::simulation sim(irt::simulation_memory_requirement(256));
 
         expect((sim.can_alloc(3)) >> fatal);
         expect((sim.hsms.can_alloc(1)) >> fatal);
@@ -1992,24 +1996,26 @@ int main()
         expect(sim.hsms.can_alloc());
         expect(sim.models.can_alloc());
 
-        auto& hsm  = sim.alloc<irt::hsm_wrapper>();
-        auto* hsmw = sim.hsms.try_to_get(hsm.id);
-        expect((hsmw != nullptr) >> fatal);
+        auto& hsmw = sim.alloc<irt::hsm_wrapper>();
+        auto& hsm  = sim.hsms.alloc();
+        hsmw.id    = sim.hsms.get_id(hsm);
 
-        expect(!!hsmw->set_state(
+        expect((sim.hsms.try_to_get(hsmw.id) != nullptr) >> fatal);
+
+        expect(!!hsm.set_state(
           0u, irt::hierarchical_state_machine::invalid_state_id, 1u));
 
-        expect(!!hsmw->set_state(1u, 0u));
-        hsmw->states[1u].condition.set(0b0011u, 0b0011u);
-        hsmw->states[1u].if_transition = 2u;
+        expect(!!hsm.set_state(1u, 0u));
+        hsm.states[1u].condition.set(0b0011u, 0b0011u);
+        hsm.states[1u].if_transition = 2u;
 
-        expect(!!hsmw->set_state(2u, 0u));
-        hsmw->states[2u].enter_action.set_output(
+        expect(!!hsm.set_state(2u, 0u));
+        hsm.states[2u].enter_action.set_output(
           irt::hierarchical_state_machine::variable::port_0, 1.0f);
 
-        expect(!!sim.connect(gen, 0, hsm, 0));
-        expect(!!sim.connect(gen, 0, hsm, 1));
-        expect(!!sim.connect(hsm, 0, cnt, 0));
+        expect(!!sim.connect(gen, 0, hsmw, 0));
+        expect(!!sim.connect(gen, 0, hsmw, 1));
+        expect(!!sim.connect(hsmw, 0, cnt, 0));
 
         sim.t = 0.0;
         expect(!!sim.srcs.prepare());
@@ -2026,7 +2032,7 @@ int main()
     };
 
     "hsm_enter_exit_simulation"_test = [] {
-        irt::simulation sim(irt::simulation_memory_requirement(256, 16));
+        irt::simulation sim(irt::simulation_memory_requirement(256));
 
         expect((sim.can_alloc(3)) >> fatal);
         expect((sim.hsms.can_alloc(1)) >> fatal);
@@ -2063,29 +2069,29 @@ int main()
         expect(sim.hsms.can_alloc());
         expect(sim.models.can_alloc());
 
-        auto& hsm  = sim.alloc<irt::hsm_wrapper>();
-        auto* hsmw = sim.hsms.try_to_get(hsm.id);
-        expect((hsmw != nullptr) >> fatal);
+        auto& hsmw = sim.alloc<irt::hsm_wrapper>();
+        hsmw.id    = sim.hsms.get_id(sim.hsms.alloc());
+        auto& hsm  = sim.hsms.get(hsmw.id);
 
-        expect(!!hsmw->set_state(
+        expect(!!hsm.set_state(
           0u, irt::hierarchical_state_machine::invalid_state_id, 1u));
 
-        expect(!!hsmw->set_state(1u, 0u));
-        hsmw->states[1u].enter_action.set_affect(
+        expect(!!hsm.set_state(1u, 0u));
+        hsm.states[1u].enter_action.set_affect(
           irt::hierarchical_state_machine::variable::var_i1, 1.0f);
-        hsmw->states[1u].exit_action.set_plus(
+        hsm.states[1u].exit_action.set_plus(
           irt::hierarchical_state_machine::variable::var_i1, 10.0f);
 
-        hsmw->states[1u].condition.set(0b0011u, 0b0011u);
-        hsmw->states[1u].if_transition = 2u;
+        hsm.states[1u].condition.set(0b0011u, 0b0011u);
+        hsm.states[1u].if_transition = 2u;
 
-        expect(!!hsmw->set_state(2u, 0u));
-        hsmw->states[2u].enter_action.set_output(
+        expect(!!hsm.set_state(2u, 0u));
+        hsm.states[2u].enter_action.set_output(
           irt::hierarchical_state_machine::variable::port_0, 1.0f);
 
-        expect(!!sim.connect(gen, 0, hsm, 0));
-        expect(!!sim.connect(gen, 0, hsm, 1));
-        expect(!!sim.connect(hsm, 0, cnt, 0));
+        expect(!!sim.connect(gen, 0, hsmw, 0));
+        expect(!!sim.connect(gen, 0, hsmw, 1));
+        expect(!!sim.connect(hsmw, 0, cnt, 0));
 
         sim.t = 0.0;
         expect(!!sim.srcs.prepare());
@@ -2098,13 +2104,13 @@ int main()
             expect(!!st);
         } while (sim.t < 10);
 
-        expect(eq(hsm.exec.i1, 11));
+        expect(eq(hsmw.exec.i1, 11));
 
         expect(eq(cnt.number, static_cast<irt::i64>(1)));
     };
 
     "hsm_timer_simulation"_test = [] {
-        irt::simulation sim(irt::simulation_memory_requirement(256, 16));
+        irt::simulation sim(irt::simulation_memory_requirement(256));
 
         expect((sim.can_alloc(3)) >> fatal);
         expect((sim.hsms.can_alloc(1)) >> fatal);
@@ -2120,30 +2126,30 @@ int main()
         expect(sim.hsms.can_alloc());
         expect(sim.models.can_alloc());
 
-        auto& hsm  = sim.alloc<irt::hsm_wrapper>();
-        auto* hsmw = sim.hsms.try_to_get(hsm.id);
-        expect((hsmw != nullptr) >> fatal);
+        auto& hsmw = sim.alloc<irt::hsm_wrapper>();
+        auto& hsm  = sim.hsms.alloc();
+        hsmw.id    = sim.hsms.get_id(hsm);
 
-        expect(!!hsmw->set_state(
+        expect(!!hsm.set_state(
           0u, irt::hierarchical_state_machine::invalid_state_id, 1u));
 
-        expect(!!hsmw->set_state(1u, 0u));
-        hsmw->states[1u].condition.set(0b0011u, 0b0011u);
-        hsmw->states[1u].if_transition = 2u;
+        expect(!!hsm.set_state(1u, 0u));
+        hsm.states[1u].condition.set(0b0011u, 0b0011u);
+        hsm.states[1u].if_transition = 2u;
 
-        expect(!!hsmw->set_state(2u, 0u));
-        hsmw->states[2u].enter_action.set_affect(
+        expect(!!hsm.set_state(2u, 0u));
+        hsm.states[2u].enter_action.set_affect(
           irt::hierarchical_state_machine::variable::var_timer, 10.f);
-        hsmw->states[2u].condition.set_timer();
-        hsmw->states[2u].if_transition = 3u;
+        hsm.states[2u].condition.set_timer();
+        hsm.states[2u].if_transition = 3u;
 
-        expect(!!hsmw->set_state(3u, 0u));
-        hsmw->states[3u].enter_action.set_output(
+        expect(!!hsm.set_state(3u, 0u));
+        hsm.states[3u].enter_action.set_output(
           irt::hierarchical_state_machine::variable::port_0, 1.f);
 
-        expect(!!sim.connect(gen, 0, hsm, 0));
-        expect(!!sim.connect(gen, 0, hsm, 1));
-        expect(!!sim.connect(hsm, 0, cnt, 0));
+        expect(!!sim.connect(gen, 0, hsmw, 0));
+        expect(!!sim.connect(gen, 0, hsmw, 1));
+        expect(!!sim.connect(hsmw, 0, cnt, 0));
 
         sim.t = 0.0;
         expect(!!sim.srcs.prepare());
@@ -2160,7 +2166,7 @@ int main()
     };
 
     "hsm_timer_stop_and_restart_simulation"_test = [] {
-        irt::simulation sim(irt::simulation_memory_requirement(256, 16));
+        irt::simulation sim(irt::simulation_memory_requirement(256));
 
         expect((sim.can_alloc(3)) >> fatal);
         expect((sim.hsms.can_alloc(1)) >> fatal);
@@ -2180,30 +2186,30 @@ int main()
         expect(sim.hsms.can_alloc());
         expect(sim.models.can_alloc());
 
-        auto& hsm  = sim.alloc<irt::hsm_wrapper>();
-        auto* hsmw = sim.hsms.try_to_get(hsm.id);
-        expect((hsmw != nullptr) >> fatal);
+        auto& hsmw = sim.alloc<irt::hsm_wrapper>();
+        auto& hsm  = sim.hsms.alloc();
+        hsmw.id    = sim.hsms.get_id(hsm);
 
-        expect(!!hsmw->set_state(
+        expect(!!hsm.set_state(
           0u, irt::hierarchical_state_machine::invalid_state_id, 1u));
 
-        expect(!!hsmw->set_state(1u, 0u));
-        hsmw->states[1u].condition.set(0b0011u, 0b0011u);
-        hsmw->states[1u].if_transition = 2u;
+        expect(!!hsm.set_state(1u, 0u));
+        hsm.states[1u].condition.set(0b0011u, 0b0011u);
+        hsm.states[1u].if_transition = 2u;
 
-        expect(!!hsmw->set_state(2u, 0u));
-        hsmw->states[2u].enter_action.set_affect(
+        expect(!!hsm.set_state(2u, 0u));
+        hsm.states[2u].enter_action.set_affect(
           irt::hierarchical_state_machine::variable::var_timer, 10.f);
-        hsmw->states[2u].condition.set_timer();
-        hsmw->states[2u].if_transition = 3u;
+        hsm.states[2u].condition.set_timer();
+        hsm.states[2u].if_transition = 3u;
 
-        expect(!!hsmw->set_state(3u, 0u));
-        hsmw->states[3u].enter_action.set_output(
+        expect(!!hsm.set_state(3u, 0u));
+        hsm.states[3u].enter_action.set_output(
           irt::hierarchical_state_machine::variable::port_0, 1.f);
 
-        expect(!!sim.connect(gen1, 0, hsm, 0));
-        expect(!!sim.connect(gen2, 0, hsm, 1));
-        expect(!!sim.connect(hsm, 0, cnt, 0));
+        expect(!!sim.connect(gen1, 0, hsmw, 0));
+        expect(!!sim.connect(gen2, 0, hsmw, 1));
+        expect(!!sim.connect(hsmw, 0, cnt, 0));
 
         sim.t = 0.0;
         expect(!!sim.srcs.prepare());
@@ -2220,7 +2226,7 @@ int main()
     };
 
     "hsm_timer_stop_simulation"_test = [] {
-        irt::simulation sim(irt::simulation_memory_requirement(256, 16));
+        irt::simulation sim(irt::simulation_memory_requirement(256));
 
         expect((sim.can_alloc(3)) >> fatal);
         expect((sim.hsms.can_alloc(1)) >> fatal);
@@ -2240,33 +2246,33 @@ int main()
         expect(sim.hsms.can_alloc());
         expect(sim.models.can_alloc());
 
-        auto& hsm  = sim.alloc<irt::hsm_wrapper>();
-        auto* hsmw = sim.hsms.try_to_get(hsm.id);
-        expect((hsmw != nullptr) >> fatal);
+        auto& hsmw = sim.alloc<irt::hsm_wrapper>();
+        auto& hsm  = sim.hsms.alloc();
+        hsmw.id    = sim.hsms.get_id(hsm);
 
-        expect(!!hsmw->set_state(
+        expect(!!hsm.set_state(
           0u, irt::hierarchical_state_machine::invalid_state_id, 1u));
 
-        expect(!!hsmw->set_state(1u, 0u));
-        hsmw->states[1u].condition.set(0b0011u, 0b0011u);
-        hsmw->states[1u].if_transition = 2u;
+        expect(!!hsm.set_state(1u, 0u));
+        hsm.states[1u].condition.set(0b0011u, 0b0011u);
+        hsm.states[1u].if_transition = 2u;
 
-        expect(!!hsmw->set_state(2u, 0u));
-        hsmw->states[2u].enter_action.set_affect(
+        expect(!!hsm.set_state(2u, 0u));
+        hsm.states[2u].enter_action.set_affect(
           irt::hierarchical_state_machine::variable::var_timer, 10.f);
-        hsmw->states[2u].condition.set_timer();
-        hsmw->states[2u].if_transition = 3u;
-        hsmw->states[2u].if_transition = 4u;
+        hsm.states[2u].condition.set_timer();
+        hsm.states[2u].if_transition = 3u;
+        hsm.states[2u].if_transition = 4u;
 
-        expect(!!hsmw->set_state(3u, 0u));
-        hsmw->states[3u].enter_action.set_output(
+        expect(!!hsm.set_state(3u, 0u));
+        hsm.states[3u].enter_action.set_output(
           irt::hierarchical_state_machine::variable::port_0, 1.0f);
 
-        expect(!!hsmw->set_state(4u, 0u));
+        expect(!!hsm.set_state(4u, 0u));
 
-        expect(!!sim.connect(gen1, 0, hsm, 0));
-        expect(!!sim.connect(gen2, 0, hsm, 1));
-        expect(!!sim.connect(hsm, 0, cnt, 0));
+        expect(!!sim.connect(gen1, 0, hsmw, 0));
+        expect(!!sim.connect(gen2, 0, hsmw, 1));
+        expect(!!sim.connect(hsmw, 0, cnt, 0));
 
         sim.t = 0.0;
         expect(!!sim.srcs.prepare());
@@ -2284,7 +2290,7 @@ int main()
 
     "generator_counter_simluation"_test = [] {
         fmt::print("generator_counter_simluation\n");
-        irt::simulation sim(irt::simulation_memory_requirement(256, 16));
+        irt::simulation sim(irt::simulation_memory_requirement(256));
 
         expect(sim.can_alloc(2));
 
@@ -2333,7 +2339,7 @@ int main()
     };
 
     "boolean_simulation"_test = [] {
-        irt::simulation sim(irt::simulation_memory_requirement(256, 16));
+        irt::simulation sim(irt::simulation_memory_requirement(256));
 
         expect(sim.srcs.constant_sources.can_alloc(2u));
         auto& cst_value  = sim.srcs.constant_sources.alloc();
@@ -2392,7 +2398,7 @@ int main()
 
     "time_func"_test = [] {
         fmt::print("time_func\n");
-        irt::simulation sim(irt::simulation_memory_requirement(256, 16));
+        irt::simulation sim(irt::simulation_memory_requirement(256));
 
         constexpr irt::real duration{ 30 };
         constexpr irt::real timestep{ 0.1 };
@@ -2428,7 +2434,7 @@ int main()
         constexpr irt::real duration = 30;
         constexpr irt::real timestep = 0.1;
 
-        irt::simulation sim(irt::simulation_memory_requirement(256, 16));
+        irt::simulation sim(irt::simulation_memory_requirement(256));
 
         expect(sim.can_alloc(2));
 
@@ -2454,7 +2460,7 @@ int main()
 
     "lotka_volterra_simulation_qss1"_test = [] {
         fmt::print("lotka_volterra_simulation_qss1\n");
-        irt::simulation sim(irt::simulation_memory_requirement(256, 16));
+        irt::simulation sim(irt::simulation_memory_requirement(256));
 
         expect(sim.can_alloc(5));
 
@@ -2512,7 +2518,7 @@ int main()
 
     "lotka_volterra_simulation_qss2"_test = [] {
         fmt::print("lotka_volterra_simulation_qss2\n");
-        irt::simulation sim(irt::simulation_memory_requirement(256, 16));
+        irt::simulation sim(irt::simulation_memory_requirement(256));
 
         expect(sim.can_alloc(5));
 
@@ -2570,7 +2576,7 @@ int main()
 
     "lif_simulation_qss1"_test = [] {
         fmt::print("lif_simulation_qss1\n");
-        irt::simulation sim(irt::simulation_memory_requirement(256, 16));
+        irt::simulation sim(irt::simulation_memory_requirement(256));
 
         expect(sim.can_alloc(5));
 
@@ -2626,7 +2632,7 @@ int main()
 
     "lif_simulation_qss2"_test = [] {
         fmt::print("lif_simulation_qss2\n");
-        irt::simulation sim(irt::simulation_memory_requirement(256, 16));
+        irt::simulation sim(irt::simulation_memory_requirement(256));
 
         expect(sim.can_alloc(5));
 
@@ -2686,7 +2692,7 @@ int main()
 
     "izhikevich_simulation_qss1"_test = [] {
         fmt::print("izhikevich_simulation_qss1\n");
-        irt::simulation sim(irt::simulation_memory_requirement(256, 16));
+        irt::simulation sim(irt::simulation_memory_requirement(256));
 
         expect(sim.can_alloc(12));
 
@@ -2789,7 +2795,7 @@ int main()
 
     "izhikevich_simulation_qss2"_test = [] {
         fmt::print("izhikevich_simulation_qss2\n");
-        irt::simulation sim(irt::simulation_memory_requirement(256, 16));
+        irt::simulation sim(irt::simulation_memory_requirement(256));
 
         expect(sim.can_alloc(12));
 
@@ -2892,7 +2898,7 @@ int main()
 
     "lotka_volterra_simulation_qss3"_test = [] {
         fmt::print("lotka_volterra_simulation_qss3\n");
-        irt::simulation sim(irt::simulation_memory_requirement(256, 16));
+        irt::simulation sim(irt::simulation_memory_requirement(256));
 
         expect(sim.can_alloc(5));
 
@@ -2950,7 +2956,7 @@ int main()
 
     "lif_simulation_qss3"_test = [] {
         fmt::print("lif_simulation_qss3\n");
-        irt::simulation sim(irt::simulation_memory_requirement(256, 16));
+        irt::simulation sim(irt::simulation_memory_requirement(256));
 
         expect(sim.can_alloc(5));
 
@@ -3009,7 +3015,7 @@ int main()
 
     "izhikevich_simulation_qss3"_test = [] {
         fmt::print("izhikevich_simulation_qss3\n");
-        irt::simulation sim(irt::simulation_memory_requirement(256, 16));
+        irt::simulation sim(irt::simulation_memory_requirement(256));
 
         expect(sim.can_alloc(12));
 
@@ -3112,7 +3118,7 @@ int main()
 
     "van_der_pol_simulation_qss3"_test = [] {
         fmt::print("van_der_pol_simulation_qss3\n");
-        irt::simulation sim(irt::simulation_memory_requirement(256, 16));
+        irt::simulation sim(irt::simulation_memory_requirement(256));
 
         expect(sim.can_alloc(5));
 
@@ -3171,7 +3177,7 @@ int main()
 
     "neg_lif_simulation_qss1"_test = [] {
         fmt::print("neg_lif_simulation_qss1\n");
-        irt::simulation sim(irt::simulation_memory_requirement(256, 16));
+        irt::simulation sim(irt::simulation_memory_requirement(256));
 
         expect(sim.can_alloc(5));
 
@@ -3228,7 +3234,7 @@ int main()
 
     "neg_lif_simulation_qss2"_test = [] {
         fmt::print("neg_lif_simulation_qss2\n");
-        irt::simulation sim(irt::simulation_memory_requirement(256, 16));
+        irt::simulation sim(irt::simulation_memory_requirement(256));
 
         expect(sim.can_alloc(5));
 
@@ -3286,7 +3292,7 @@ int main()
 
     "neg_lif_simulation_qss3"_test = [] {
         fmt::print("neg_lif_simulation_qss3\n");
-        irt::simulation sim(irt::simulation_memory_requirement(256, 16));
+        irt::simulation sim(irt::simulation_memory_requirement(256));
 
         expect(sim.can_alloc(5));
 
@@ -3343,94 +3349,94 @@ int main()
 
     "all"_test = [] {
         {
-            irt::simulation sim(irt::simulation_memory_requirement(256, 16));
+            irt::simulation sim(irt::simulation_memory_requirement(256));
 
             expect(!!irt::example_qss_lotka_volterra<1>(sim, empty_fun));
             expect(!!run_simulation(sim, 30.));
         }
 
         {
-            irt::simulation sim(irt::simulation_memory_requirement(256, 16));
+            irt::simulation sim(irt::simulation_memory_requirement(256));
 
             expect(!!irt::example_qss_negative_lif<1>(sim, empty_fun));
             expect(!!run_simulation(sim, 30.));
         }
         {
-            irt::simulation sim(irt::simulation_memory_requirement(256, 16));
+            irt::simulation sim(irt::simulation_memory_requirement(256));
 
             expect(!!irt::example_qss_lif<1>(sim, empty_fun));
             expect(!!run_simulation(sim, 30.));
         }
         {
-            irt::simulation sim(irt::simulation_memory_requirement(256, 16));
+            irt::simulation sim(irt::simulation_memory_requirement(256));
 
             expect(!!irt::example_qss_van_der_pol<1>(sim, empty_fun));
             expect(!!run_simulation(sim, 30.));
         }
         {
-            irt::simulation sim(irt::simulation_memory_requirement(256, 16));
+            irt::simulation sim(irt::simulation_memory_requirement(256));
 
             expect(!!irt::example_qss_izhikevich<1>(sim, empty_fun));
             expect(!!run_simulation(sim, 30.));
         }
 
         {
-            irt::simulation sim(irt::simulation_memory_requirement(256, 16));
+            irt::simulation sim(irt::simulation_memory_requirement(256));
 
             expect(!!irt::example_qss_lotka_volterra<2>(sim, empty_fun));
             expect(!!run_simulation(sim, 30.));
         }
         {
-            irt::simulation sim(irt::simulation_memory_requirement(256, 16));
+            irt::simulation sim(irt::simulation_memory_requirement(256));
 
             expect(!!irt::example_qss_negative_lif<2>(sim, empty_fun));
             expect(!!run_simulation(sim, 30.));
         }
         {
-            irt::simulation sim(irt::simulation_memory_requirement(256, 16));
+            irt::simulation sim(irt::simulation_memory_requirement(256));
 
             expect(!!irt::example_qss_lif<2>(sim, empty_fun));
             expect(!!run_simulation(sim, 30.));
         }
         {
-            irt::simulation sim(irt::simulation_memory_requirement(256, 16));
+            irt::simulation sim(irt::simulation_memory_requirement(256));
 
             expect(!!irt::example_qss_van_der_pol<2>(sim, empty_fun));
             expect(!!run_simulation(sim, 30.));
         }
         {
-            irt::simulation sim(irt::simulation_memory_requirement(256, 16));
+            irt::simulation sim(irt::simulation_memory_requirement(256));
 
             expect(!!irt::example_qss_izhikevich<2>(sim, empty_fun));
             expect(!!run_simulation(sim, 30.));
         }
 
         {
-            irt::simulation sim(irt::simulation_memory_requirement(256, 16));
+            irt::simulation sim(irt::simulation_memory_requirement(256));
 
             expect(!!irt::example_qss_lotka_volterra<3>(sim, empty_fun));
             expect(!!run_simulation(sim, 30.));
         }
         {
-            irt::simulation sim(irt::simulation_memory_requirement(256, 16));
+            irt::simulation sim(irt::simulation_memory_requirement(256));
 
             expect(!!irt::example_qss_negative_lif<3>(sim, empty_fun));
             expect(!!run_simulation(sim, 30.));
         }
         {
-            irt::simulation sim(irt::simulation_memory_requirement(256, 16));
+            irt::simulation sim(irt::simulation_memory_requirement(256));
 
             expect(!!irt::example_qss_lif<3>(sim, empty_fun));
             expect(!!run_simulation(sim, 30.));
         }
         {
-            irt::simulation sim(irt::simulation_memory_requirement(256, 16));
+            irt::simulation sim(irt::simulation_memory_requirement(256));
 
             expect(!!irt::example_qss_van_der_pol<3>(sim, empty_fun));
             expect(!!run_simulation(sim, 30.));
         }
         {
-            irt::simulation sim(irt::simulation_memory_requirement(256, 16));
+            irt::simulation sim(irt::simulation_memory_requirement(256));
 
             expect(!!irt::example_qss_izhikevich<3>(sim, empty_fun));
             expect(!!run_simulation(sim, 30.));
@@ -3443,7 +3449,7 @@ int main()
     //         irt::g_free_fn  = global_free;
 
     //
-    //         irt::simulation sim(irt::simulation_memory_requirement(256, 16));
+    //         irt::simulation sim(irt::simulation_memory_requirement(256));
 
     //     }
 
@@ -3469,7 +3475,7 @@ int main()
     //     irt::g_free_fn  = null_free;
 
     //
-    //         irt::simulation sim(irt::simulation_memory_requirement(256, 16));
+    //         irt::simulation sim(irt::simulation_memory_requirement(256));
 
     //     irt::g_alloc_fn = irt::malloc_wrapper;
     //     irt::g_free_fn  = irt::free_wrapper;

@@ -191,9 +191,8 @@ static constexpr const option* get_from_long(
 
 class main_parameters
 {
-    irt::sz                            memory = default_memory_size;
-    irt::simulation_memory_requirement smr{ default_memory_size };
-    irt::simulation                    sim;
+    irt::sz         memory = 1024 * 1024 * 8;
+    irt::simulation sim;
 
     irt::modeling_initializer init;
     irt::modeling             mod;
@@ -208,8 +207,8 @@ class main_parameters
 
 public:
     main_parameters(int ac, const char* av[])
-      : smr{ 1024 * 1024 * 8 }
-      , sim{ smr }
+      : sim(irt::simulation_memory_requirement(1024 * 1024 * 8),
+            irt::external_source_memory_requirement(8, 8, 8, 8, 256, 256))
       , args{ av + 1, static_cast<std::size_t>(ac - 1) }
       , r{ 0.0 }
     {
@@ -516,10 +515,9 @@ public:
     bool read_memory() noexcept
     {
         if (parse_integer() and u > memory) {
-            memory = u;
-            irt::simulation_memory_requirement smr_two{ u };
-            std::swap(smr, smr_two);
-            sim.realloc(smr);
+            sim.realloc(irt::simulation_memory_requirement(memory),
+                        irt::external_source_memory_requirement(
+                          16, 16, 16, 16, 256, 256));
             memory = u;
             return true;
         }

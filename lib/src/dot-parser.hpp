@@ -12,8 +12,8 @@ namespace irt {
 
 struct dot_graph {
 
-    id_array<graph_node_id, default_allocator> nodes;
-    id_array<graph_edge_id, default_allocator> edges;
+    id_array<graph_node_id> nodes;
+    id_array<graph_edge_id> edges;
 
     vector<std::string_view>             node_names;
     vector<int>                          node_ids;

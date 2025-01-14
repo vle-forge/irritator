@@ -263,15 +263,15 @@ public:
 
     using token_ring_t = irt::small_ring_buffer<token, ring_length>;
 
-    irt::id_array<str_id, irt::default_allocator> strings_ids;
-    irt::vector<std::string>                      strings;
+    irt::id_array<str_id>    strings_ids;
+    irt::vector<std::string> strings;
 
     token_ring_t  tokens;
     std::istream& is;
     irt::i64      line = 0;
 
-    irt::id_array<graph_node_id, irt::default_allocator> nodes;
-    irt::id_array<graph_edge_id, irt::default_allocator> edges;
+    irt::id_array<graph_node_id> nodes;
+    irt::id_array<graph_edge_id> edges;
 
     irt::vector<std::string_view>             node_names;
     irt::vector<int>                          node_ids;

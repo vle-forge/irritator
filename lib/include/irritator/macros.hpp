@@ -104,7 +104,7 @@ irt_force_inline_attribute constexpr void ensure(
 //! and only if @c NDEBUG is not defined and @c IRRITATOR_ENABLE_DEBUG is
 //! defined. This function can be use with the @c on_error_callback to stop the
 //! application when a @c new_error function is called.
- void breakpoint() noexcept;
+void breakpoint() noexcept;
 
 } // namespace debug
 

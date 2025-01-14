@@ -739,8 +739,9 @@ struct project_editor {
     ImVector<int> selected_nodes;
 
     /** Number of column in the tree node observation. */
-    constrained_value<int, 1, 100> tree_node_observation        = 1;
-    float                          tree_node_observation_height = 200.f;
+    using tree_node_observation_t = constrained_value<int, 1, 100>;
+    tree_node_observation_t tree_node_observation{ 1 };
+    float                   tree_node_observation_height = 200.f;
 
     //! Position of each node
     int              automatic_layout_iteration = 0;

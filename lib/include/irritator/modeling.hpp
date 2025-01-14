@@ -151,8 +151,8 @@ struct child {
         component_id  compo_id;
     } id;
 
-    child_type            type  = child_type::model;
-    bitflags<child_flags> flags = child_flags::none;
+    child_type            type{ child_type::model };
+    bitflags<child_flags> flags{ child_flags::none };
 };
 
 struct position {
@@ -606,8 +606,8 @@ public:
         small_world_param small;
     };
 
-    id_array<graph_node_id, default_allocator> nodes;
-    id_array<graph_edge_id, default_allocator> edges;
+    id_array<graph_node_id, allocator<new_delete_memory_resource>> nodes;
+    id_array<graph_edge_id, allocator<new_delete_memory_resource>> edges;
 
     vector<std::string_view>             node_names;
     vector<int>                          node_ids;
@@ -697,8 +697,16 @@ public:
 struct component {
     component() noexcept;
 
-    id_data_array<port_id, default_allocator, port_str, position> x;
-    id_data_array<port_id, default_allocator, port_str, position> y;
+    id_data_array<port_id,
+                  allocator<new_delete_memory_resource>,
+                  port_str,
+                  position>
+      x;
+    id_data_array<port_id,
+                  allocator<new_delete_memory_resource>,
+                  port_str,
+                  position>
+      y;
 
     port_id get_x(std::string_view str) const noexcept
     {
@@ -808,8 +816,8 @@ struct registred_path {
                                 configuration file. */
     vector<dir_path_id> children;
 
-    state               status   = state::unread;
-    bitflags<reg_flags> flags    = reg_flags::none;
+    state               status = state::unread;
+    bitflags<reg_flags> flags{ reg_flags::none };
     i8                  priority = 0;
     spin_mutex          mutex;
 };
@@ -839,7 +847,7 @@ public:
     vector<file_path_id> children;
 
     state               status = state::unread;
-    bitflags<dir_flags> flags  = dir_flags::none;
+    bitflags<dir_flags> flags{ dir_flags::none };
     spin_mutex          mutex;
 
     /**
@@ -881,7 +889,7 @@ struct file_path {
 
     file_type            type{ file_type::undefined_file };
     state                status = state::unread;
-    bitflags<file_flags> flags  = file_flags::none;
+    bitflags<file_flags> flags{ file_flags::none };
     spin_mutex           mutex;
 };
 
@@ -1201,8 +1209,10 @@ struct log_entry {
 class log_manager
 {
 public:
-    constexpr log_manager(constrained_value<int, 1, 64> value = 8)
-      : m_data(value.value())
+    using value_p = constrained_value<int, 1, 64>;
+
+    constexpr log_manager(const value_p v)
+      : m_data(v.value())
     {}
 
     log_manager(const log_manager& other) noexcept            = delete;
@@ -1299,7 +1309,7 @@ public:
      * description is the same than the component except the extension ".desc".
      * @attention The size of the buffer is static for now. */
     id_data_array<description_id,
-                  default_allocator,
+                  allocator<new_delete_memory_resource>,
                   description_str,
                   description_status>
       descriptions;
@@ -1591,7 +1601,8 @@ public:
     };
 
     project() noexcept
-      : sim{ simulation_memory_requirement{ 1024 * 1024 * 8 } }
+      : sim{ simulation_memory_requirement(1024 * 1024 * 8),
+             irt::external_source_memory_requirement{} }
     {}
 
     status init(const modeling_initializer& init) noexcept;
@@ -1705,7 +1716,7 @@ public:
     file_observers file_obs;
 
     id_data_array<global_parameter_id,
-                  default_allocator,
+                  allocator<new_delete_memory_resource>,
                   name_str,
                   tree_node_id,
                   model_id,

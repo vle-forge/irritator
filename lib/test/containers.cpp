@@ -144,18 +144,50 @@ int main()
 {
     using namespace boost::ut;
 
-    "make-divisible"_test = [] {
-        expect(eq(irt::make_divisible_to(123u, 16u), 112u));
-        expect(eq(irt::make_divisible_to(17l, 16u), 16l));
-        expect(eq(irt::make_divisible_to(161llu, 16u), 160llu));
-        expect(eq(irt::make_divisible_to(7, 16u), 0));
-        expect(eq(irt::make_divisible_to(15, 16u), 0));
+    "allocator"_test = [] {
+        using a1 = irt::allocator<irt::monotonic_small_buffer<64u>>;
+        using a2 = irt::allocator<irt::monotonic_small_buffer<64u>>;
+        using b1 = irt::allocator<irt::monotonic_small_buffer<32u>>;
+        using b2 = irt::allocator<irt::monotonic_small_buffer<32u>>;
 
-        expect(eq(irt::make_divisible_to(123u, 8u), 120u));
-        expect(eq(irt::make_divisible_to(17l, 8u), 16l));
-        expect(eq(irt::make_divisible_to(161llu, 8u), 160llu));
-        expect(eq(irt::make_divisible_to(7, 8u), 0));
-        expect(eq(irt::make_divisible_to(15, 8u), 8));
+        using sub_1 = a1::memory_resource_type;
+        using sub_2 = a2::memory_resource_type;
+        using sub_3 = b1::memory_resource_type;
+        using sub_4 = b2::memory_resource_type;
+
+        auto* ptr_2 = static_cast<void*>(&sub_2::instance());
+        auto* ptr_3 = static_cast<void*>(&sub_3::instance());
+        auto* ptr_4 = static_cast<void*>(&sub_4::instance());
+        auto* ptr_1 = static_cast<void*>(&sub_1::instance());
+
+        expect(eq(ptr_1, ptr_2));
+        expect(eq(ptr_3, ptr_4));
+        expect(neq(ptr_1, ptr_3));
+        expect(neq(ptr_1, ptr_4));
+        expect(neq(ptr_2, ptr_3));
+        expect(neq(ptr_2, ptr_4));
+
+        using id_a1 = irt::allocator<irt::monotonic_small_buffer<64u, 1>>;
+        using id_a2 = irt::allocator<irt::monotonic_small_buffer<64u, 1>>;
+        using id_b1 = irt::allocator<irt::monotonic_small_buffer<64u, 2>>;
+        using id_b2 = irt::allocator<irt::monotonic_small_buffer<64u, 2>>;
+
+        using id_sub_1 = id_a1::memory_resource_type;
+        using id_sub_2 = id_a2::memory_resource_type;
+        using id_sub_3 = id_b1::memory_resource_type;
+        using id_sub_4 = id_b2::memory_resource_type;
+
+        auto* id_ptr_2 = static_cast<void*>(&id_sub_2::instance());
+        auto* id_ptr_3 = static_cast<void*>(&id_sub_3::instance());
+        auto* id_ptr_4 = static_cast<void*>(&id_sub_4::instance());
+        auto* id_ptr_1 = static_cast<void*>(&id_sub_1::instance());
+
+        expect(eq(id_ptr_1, id_ptr_2));
+        expect(eq(id_ptr_3, id_ptr_4));
+        expect(neq(id_ptr_1, id_ptr_3));
+        expect(neq(id_ptr_1, id_ptr_4));
+        expect(neq(id_ptr_2, id_ptr_3));
+        expect(neq(id_ptr_2, id_ptr_4));
     };
 
     "small-vector<T>"_test = [] {
@@ -292,10 +324,9 @@ int main()
     };
 
     "vector<T>-default_allocator"_test = [] {
-        std::array<std::byte, 256>        buffer;
-        irt::fixed_linear_memory_resource mbr{ buffer.data(), buffer.size() };
+        using fixed_alloc = irt::allocator<irt::monotonic_small_buffer<8192u>>;
 
-        irt::vector<int, irt::fixed_allocator> v(&mbr, 8);
+        irt::vector<int, fixed_alloc> v(8);
         expect(v.empty());
         expect(v.capacity() == 8);
         v.emplace_back(0);
@@ -339,7 +370,7 @@ int main()
         expect(v[4] == 4);
         expect(v[5] == 5);
 
-        irt::vector<int, irt::fixed_allocator> v2(&mbr, 8);
+        irt::vector<int, fixed_alloc> v2(8);
         v2 = v;
         v2[0] *= 2;
         expect(v2[0] == 14);

@@ -904,16 +904,20 @@ static void show_component_observations_actions(project_editor& sim_ed) noexcept
     ImGui::TextUnformatted("Column: ");
     ImGui::SameLine();
     if (ImGui::Button("1"))
-        sim_ed.tree_node_observation = 1;
+        sim_ed.tree_node_observation =
+          project_editor::tree_node_observation_t(1);
     ImGui::SameLine();
     if (ImGui::Button("2"))
-        sim_ed.tree_node_observation = 2;
+        sim_ed.tree_node_observation =
+          project_editor::tree_node_observation_t(2);
     ImGui::SameLine();
     if (ImGui::Button("3"))
-        sim_ed.tree_node_observation = 3;
+        sim_ed.tree_node_observation =
+          project_editor::tree_node_observation_t(3);
     ImGui::SameLine();
     if (ImGui::Button("4"))
-        sim_ed.tree_node_observation = 4;
+        sim_ed.tree_node_observation =
+          project_editor::tree_node_observation_t(4);
     ImGui::SameLine();
 
     ImGui::TextUnformatted("Height in pixel: ");

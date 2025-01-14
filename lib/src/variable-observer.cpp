@@ -34,15 +34,18 @@ status variable_observer::init(project& pj, simulation& sim) noexcept
 
             if (obs) {
                 obs_id = mdl->obs_id;
-                obs->init(raw_buffer_size.value(),
-                          linearized_buffer_size.value(),
+                obs->init(observer::buffer_size_t(raw_buffer_size.value()),
+                          observer::linearized_buffer_size_t(
+                            linearized_buffer_size.value()),
                           time_step.value());
             } else {
                 if (sim.observers.can_alloc()) {
                     auto& new_obs = sim.observers.alloc();
-                    new_obs.init(raw_buffer_size.value(),
-                                 linearized_buffer_size.value(),
-                                 time_step.value());
+                    new_obs.init(
+                      observer::buffer_size_t(raw_buffer_size.value()),
+                      observer::linearized_buffer_size_t(
+                        linearized_buffer_size.value()),
+                      time_step.value());
 
                     obs_id = sim.observers.get_id(new_obs);
                     sim.observe(*mdl, new_obs);
@@ -63,8 +66,8 @@ void variable_observer::clear() noexcept
     std::fill_n(m_obs_ids.data(), m_obs_ids.size(), undefined<observer_id>());
 }
 
-auto variable_observer::find(const tree_node_id tn,
-                             const model_id     mdl) noexcept -> sub_id
+auto variable_observer::find(const tree_node_id tn, const model_id mdl) noexcept
+  -> sub_id
 {
     for (const auto id : m_ids) {
         const auto idx = get_index(id);

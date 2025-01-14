@@ -245,7 +245,7 @@ status generic_component::import(
 
                 children_names[dst_idx] = exists_child(names[src_idx].sv())
                                             ? make_unique_name_id(pair.value)
-                                            : names[src_idx].sv();
+                                            : names[src_idx];
             }
         }
     }

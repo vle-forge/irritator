@@ -155,7 +155,7 @@ bool component_selector::combobox(const char*   label,
 
     if (std::shared_lock lock(m_mutex, std::try_to_lock); lock.owns_lock()) {
         const auto&       app = container_of(this, &application::component_sel);
-        small_string<254> selected_name = "undefined";
+        small_string<254> selected_name("undefined");
 
         cs_select(app.mod, *new_selected, selected_name);
 
@@ -194,7 +194,7 @@ bool component_selector::combobox(const char*   label,
 
     if (std::shared_lock lock(m_mutex, std::try_to_lock); lock.owns_lock()) {
         const auto&       app = container_of(this, &application::component_sel);
-        small_string<254> selected_name = "undefined";
+        small_string<254> selected_name("undefined");
 
         cs_select(app.mod, *new_selected, selected_name);
 
@@ -242,7 +242,7 @@ bool component_selector::menu(const char*   label,
     if (std::shared_lock lock(m_mutex, std::try_to_lock); lock.owns_lock()) {
         if (ImGui::BeginMenu(label)) {
             const auto& app = container_of(this, &application::component_sel);
-            small_string<254> selected_name = "undefined";
+            small_string<254> selected_name("undefined");
 
             cs_select(app.mod, *new_selected, selected_name);
 

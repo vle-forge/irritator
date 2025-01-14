@@ -2,7 +2,6 @@
 // Version 1.0. (See accompanying file LICENSE_1_0.txt or copy at
 // http://www.boost.org/LICENSE_1_0.txt)
 
-#include "irritator/core.hpp"
 #include <irritator/modeling.hpp>
 
 namespace irt {
@@ -10,8 +9,9 @@ namespace irt {
 template<typename Dynamics>
 static child_id alloc(modeling&              mod,
                       generic_component&     parent,
-                      const std::string_view name  = {},
-                      bitflags<child_flags>  param = child_flags::none) noexcept
+                      const std::string_view name = {},
+                      bitflags<child_flags>  param =
+                        bitflags<child_flags>(child_flags::none)) noexcept
 {
     auto&      child = mod.alloc(parent, dynamics_typeof<Dynamics>());
     const auto id    = parent.children.get_id(child);

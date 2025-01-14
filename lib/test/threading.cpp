@@ -11,9 +11,7 @@
 
 #include <boost/ut.hpp>
 
-using heap_mr = irt::static_memory_resource<256 * 256 * 16>;
-
-static heap_mr mem;
+using heap_mr = irt::allocator<irt::monotonic_small_buffer<256 * 256 * 16>>;
 
 static void function_1(std::atomic_int& counter) noexcept { counter += 1; }
 static void function_100(std::atomic_int& counter) noexcept { counter += 100; }
@@ -28,8 +26,7 @@ int main()
     using namespace boost::ut;
 
     "data-task-copy-capture"_test = [] {
-        irt::data_array<data_task, data_task_id, irt::mr_allocator<heap_mr>> d(
-          &mem, 32);
+        irt::data_array<data_task, data_task_id, heap_mr> d(32);
 
         int a = 16;
         int b = 32;
@@ -49,8 +46,7 @@ int main()
     };
 
     "data-task-reference-capture"_test = [] {
-        irt::data_array<data_task_ref, data_task_id, irt::mr_allocator<heap_mr>>
-          d(&mem, 32);
+        irt::data_array<data_task_ref, data_task_id, heap_mr> d(32);
 
         int a = 16;
         int b = 32;

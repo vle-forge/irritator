@@ -4,8 +4,6 @@
 
 #include "application.hpp"
 #include "imgui.h"
-#include "internal.hpp"
-#include "irritator/core.hpp"
 
 namespace irt {
 
@@ -22,7 +20,7 @@ auto window_logger::enqueue() noexcept -> window_logger::string_t&
     if (entries.full())
         entries.pop_head();
 
-    entries.push_tail("");
+    entries.push_tail(small_string<string_length>(""));
     return entries.back();
 }
 

@@ -448,7 +448,8 @@ static auto make_tree_leaf(simulation_copy&       sc,
 
     if (is_public) {
         debug::ensure(not uid.empty());
-        parent.unique_id_to_model_id.data.emplace_back(uid, new_mdl_id);
+        parent.unique_id_to_model_id.data.emplace_back(name_str(uid),
+                                                       new_mdl_id);
     }
 
     return new_mdl_id;
@@ -682,21 +683,24 @@ static auto make_tree_recursive(simulation_copy&       sc,
         auto s_id = compo.id.generic_id;
         if (auto* s = sc.mod.generic_components.try_to_get(s_id); s)
             irt_check(make_tree_recursive(sc, new_tree, *s));
-        parent.unique_id_to_tree_node_id.data.emplace_back(unique_id, tn_id);
+        parent.unique_id_to_tree_node_id.data.emplace_back(name_str(unique_id),
+                                                           tn_id);
     } break;
 
     case component_type::grid: {
         auto g_id = compo.id.grid_id;
         if (auto* g = sc.mod.grid_components.try_to_get(g_id); g)
             irt_check(make_tree_recursive(sc, new_tree, *g));
-        parent.unique_id_to_tree_node_id.data.emplace_back(unique_id, tn_id);
+        parent.unique_id_to_tree_node_id.data.emplace_back(name_str(unique_id),
+                                                           tn_id);
     } break;
 
     case component_type::graph: {
         auto g_id = compo.id.graph_id;
         if (auto* g = sc.mod.graph_components.try_to_get(g_id); g)
             irt_check(make_tree_recursive(sc, new_tree, *g));
-        parent.unique_id_to_tree_node_id.data.emplace_back(unique_id, tn_id);
+        parent.unique_id_to_tree_node_id.data.emplace_back(name_str(unique_id),
+                                                           tn_id);
     } break;
 
     case component_type::internal:
@@ -1308,14 +1312,11 @@ status project::set(modeling& mod, component& compo) noexcept
 
     irt_check(make_component_cache(*this, mod));
 
-    simulation_memory_requirement smr(numbers.model_nb, numbers.hsm_nb);
+    simulation_memory_requirement smr(numbers.model_nb);
+    //  smr.hsms = std::max(numbers.hsm_nb, smr.hsms);
+    smr.hsms = numbers.hsm_nb;
     sim.destroy();
-
-    if (smr.global_b < 1024u * 1024u * 8u) {
-        sim.realloc(simulation_memory_requirement(1024u * 1024u * 8u));
-    } else {
-        sim.realloc(smr);
-    }
+    sim.realloc(smr, external_source_memory_requirement{});
 
     simulation_copy sc(*this, mod, tree_nodes);
 
@@ -1344,6 +1345,9 @@ status project::rebuild(modeling& mod) noexcept
 
 void project::clear() noexcept
 {
+    name.clear();
+    sim.clear();
+
     tree_nodes.clear();
 
     m_head    = undefined<component_id>();
