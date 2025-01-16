@@ -1166,6 +1166,9 @@ static void show_simulation_editor_treenode(application&    app,
 
 auto project_editor::show(application& app) noexcept -> show_result_t
 {
+    if (disable_access)
+        return show_result_t::success;
+
     if (not is_dock_init) {
         ImGui::SetNextWindowDockID(app.main_dock_id);
         is_dock_init = true;

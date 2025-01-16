@@ -677,6 +677,7 @@ struct project_editor {
     bool show_identifiers     = false;
 
     bool is_dock_init = false;
+    bool disable_access = true;
 
     /** Return true if a simulation is currently running.
      *

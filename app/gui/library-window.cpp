@@ -520,7 +520,8 @@ void library_window::try_set_component_as_project(
                   auto&      pj = app.pjs.get(id);
 
                   if (auto* c = app.mod.components.try_to_get(compo_id); c) {
-                      return pj.pj.set(app.mod, *c);
+                      irt_check(pj.pj.set(app.mod, *c));
+                      pj.disable_access = false;
                   }
               }
 
