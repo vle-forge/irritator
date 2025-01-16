@@ -97,4 +97,31 @@ inline void debug_component(const modeling& mod, const component_id id) noexcept
 
 } //  irt
 
+template<>
+struct fmt::formatter<::irt::human_readable_length_t> {
+
+    constexpr auto parse(format_parse_context& ctx) noexcept
+      -> format_parse_context::iterator
+    {
+        return ctx.begin();
+    }
+
+    auto format(const ::irt::human_readable_length_t& hr,
+                format_context& ctx) const noexcept -> format_context::iterator
+    {
+        switch (hr.type) {
+        case ::irt::human_readable_length_t::display_type::B:
+            return format_to(ctx.out(), "{:+8.3} B", hr.size);
+        case ::irt::human_readable_length_t::display_type::KB:
+            return format_to(ctx.out(), "{:+8.3} KB", hr.size);
+        case ::irt::human_readable_length_t::display_type::MB:
+            return format_to(ctx.out(), "{:+8.3} MB", hr.size);
+        case ::irt::human_readable_length_t::display_type::GB:
+            return format_to(ctx.out(), "{:+8.3} GB", hr.size);
+        }
+
+        irt::unreachable();
+    }
+};
+
 #endif

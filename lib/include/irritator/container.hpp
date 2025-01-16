@@ -187,6 +187,23 @@ constexpr const T& container_of(const M* ptr, const M T::*member) noexcept
                                        offset_of(member));
 }
 
+/**
+   Preparpe an human readable version of number of bytes.
+
+   According to the number of bytes, it will produce an easy to read value of
+   byte, kilobytes, megabytes etc.
+
+   A fmt::formatter is provide in the file @c format.hpp
+ */
+struct human_readable_length_t {
+    enum class display_type { B, KB, MB, GB };
+
+    human_readable_length_t(std::size_t bytes) noexcept;
+
+    double       size;
+    display_type type;
+};
+
 class new_delete_memory_resource
 {
 public:
@@ -226,6 +243,11 @@ public:
         }
 
         void release() noexcept {}
+
+        std::pair<std::size_t, std::size_t> get_memory_usage() noexcept
+        {
+            return std::make_pair(allocated, deallocated);
+        }
 
     private:
         void* debug_allocate(std::size_t bytes, std::size_t alignment) noexcept;
@@ -275,6 +297,11 @@ public:
 
         void release() noexcept {}
 
+        std::pair<std::size_t, std::size_t> get_memory_usage() noexcept
+        {
+            return std::make_pair(allocated, deallocated);
+        }
+
     private:
         void* debug_allocate(std::size_t bytes, std::size_t alignment) noexcept;
         void  debug_deallocate(void*       p,
@@ -322,6 +349,11 @@ public:
         }
 
         void release() noexcept {}
+
+        std::pair<std::size_t, std::size_t> get_memory_usage() noexcept
+        {
+            return std::make_pair(allocated, deallocated);
+        }
 
     private:
         void* debug_allocate(std::size_t bytes, std::size_t alignment) noexcept;
@@ -380,6 +412,11 @@ public:
 
         void release() noexcept { mr.release(); }
 
+        std::pair<std::size_t, std::size_t> get_memory_usage() noexcept
+        {
+            return std::make_pair(allocated, deallocated);
+        }
+
     private:
         void* debug_allocate(std::size_t bytes, std::size_t alignment) noexcept;
         void  debug_deallocate(void*       p,
@@ -429,6 +466,11 @@ public:
         }
 
         void release() noexcept { mr.release(); }
+
+        std::pair<std::size_t, std::size_t> get_memory_usage() noexcept
+        {
+            return std::make_pair(allocated, deallocated);
+        }
 
     private:
         void* debug_allocate(std::size_t bytes, std::size_t alignment) noexcept;
@@ -490,6 +532,11 @@ struct allocator {
     static void release() noexcept
     {
         return memory_resource_type::instance().release();
+    }
+
+    static std::pair<std::size_t, std::size_t> get_memory_usage() noexcept
+    {
+        return memory_resource_type::instance().get_memory_usage();
     }
 };
 
