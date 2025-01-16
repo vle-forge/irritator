@@ -1601,7 +1601,7 @@ public:
     };
 
     project() noexcept
-      : sim{ simulation_memory_requirement(1024 * 1024 * 8),
+      : sim{ simulation_memory_requirement(1u << 16u),
              irt::external_source_memory_requirement{} }
     {}
 

@@ -5631,12 +5631,12 @@ inline void simulation::do_realloc(
         models.reserve(init.models);
         parameters.resize(init.models);
         observers.reserve(init.models);
-        emitting_output_ports.reserve(init.models);
         immediate_models.reserve(init.models);
         immediate_observers.reserve(init.models);
 
         nodes.reserve(init.connections);
         messages.reserve(init.connections);
+        emitting_output_ports.reserve(init.connections);
 
         dated_messages.reserve(init.dated_messages);
 
@@ -6597,7 +6597,7 @@ inline status priority_queue::transition(simulation& sim,
 inline constexpr simulation_memory_requirement::simulation_memory_requirement(
   unsigned model_nb) noexcept
 {
-    model_nb       = model_nb == 0 ? 256u : model_nb;
+    models         = model_nb < 256u ? 256u : model_nb;
     connections    = models * 10;
     hsms           = models / 10;
     dated_messages = models / 20;

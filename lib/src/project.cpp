@@ -1312,9 +1312,8 @@ status project::set(modeling& mod, component& compo) noexcept
 
     irt_check(make_component_cache(*this, mod));
 
-    simulation_memory_requirement smr(numbers.model_nb);
-    //  smr.hsms = std::max(numbers.hsm_nb, smr.hsms);
-    smr.hsms = numbers.hsm_nb;
+    simulation_memory_requirement smr(std::bit_ceil(numbers.model_nb));
+    smr.hsms = std::bit_ceil(std::max(numbers.hsm_nb, smr.hsms));
     sim.destroy();
     sim.realloc(smr, external_source_memory_requirement{});
 
@@ -1662,8 +1661,8 @@ auto project::tree_nodes_size() const noexcept -> std::pair<int, int>
 }
 
 template<typename T>
-static auto already_name_exists(const T& obs, std::string_view str) noexcept
-  -> bool
+static auto already_name_exists(const T&         obs,
+                                std::string_view str) noexcept -> bool
 {
     return std::any_of(
       obs.begin(), obs.end(), [str](const auto& o) noexcept -> bool {
