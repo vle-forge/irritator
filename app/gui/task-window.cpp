@@ -94,6 +94,71 @@ void task_window::show_widgets() noexcept
             ImGui::EndTable();
         }
     }
+
+    if (ImGui::CollapsingHeader("Memory usage",
+                                ImGuiTreeNodeFlags_DefaultOpen)) {
+        using simalloc = allocator<new_delete_memory_resource>;
+        using th1alloc = allocator<monotonic_small_buffer<1024 * 1024, 1>>;
+        using th2alloc = allocator<monotonic_small_buffer<1024 * 1024, 2>>;
+
+        if (ImGui::BeginTable("Threads", 4)) {
+            ImGui::TableSetupColumn("name");
+            ImGui::TableSetupColumn("allocated");
+            ImGui::TableSetupColumn("deallocated");
+            ImGui::TableSetupColumn("remaining");
+            ImGui::TableHeadersRow();
+
+            ImGui::TableNextRow();
+
+            {
+                const auto [allocated, deallocated] =
+                  simalloc::get_memory_usage();
+                ImGui::TableNextColumn();
+                ImGui::TextUnformatted("global");
+                ImGui::TableNextColumn();
+                ImGui::TextFormat("{}", human_readable_length_t(allocated));
+                ImGui::TableNextColumn();
+                ImGui::TextFormat("{}", human_readable_length_t(deallocated));
+                ImGui::TableNextColumn();
+                ImGui::TextFormat(
+                  "{}", human_readable_length_t(allocated - deallocated));
+            }
+
+            ImGui::TableNextRow();
+
+            {
+                const auto [allocated, deallocated] =
+                  th1alloc::get_memory_usage();
+                ImGui::TableNextColumn();
+                ImGui::TextUnformatted("thread-1");
+                ImGui::TableNextColumn();
+                ImGui::TextFormat("{}", human_readable_length_t(allocated));
+                ImGui::TableNextColumn();
+                ImGui::TextFormat("{}", human_readable_length_t(deallocated));
+                ImGui::TableNextColumn();
+                ImGui::TextFormat(
+                  "{}", human_readable_length_t(allocated - deallocated));
+            }
+
+            ImGui::TableNextRow();
+
+            {
+                const auto [allocated, deallocated] =
+                  th2alloc::get_memory_usage();
+                ImGui::TableNextColumn();
+                ImGui::TextUnformatted("thread-2");
+                ImGui::TableNextColumn();
+                ImGui::TextFormat("{}", human_readable_length_t(allocated));
+                ImGui::TableNextColumn();
+                ImGui::TextFormat("{}", human_readable_length_t(deallocated));
+                ImGui::TableNextColumn();
+                ImGui::TextFormat(
+                  "{}", human_readable_length_t(allocated - deallocated));
+            }
+
+            ImGui::EndTable();
+        }
+    }
 }
 
 void task_window::show() noexcept
