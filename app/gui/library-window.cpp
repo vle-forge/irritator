@@ -274,9 +274,39 @@ static void open_component(application& app, component_id id) noexcept
 static bool is_component_open(const application& app,
                               const component_id id) noexcept
 {
-    for (const auto& pj : app.pjs)
-        if (pj.pj.head() == id)
-            return true;
+    if (const auto* compo = app.mod.components.try_to_get(id)) {
+        switch (compo->type) {
+        case component_type::graph:
+            for (const auto& g : app.graphs)
+                if (g.get_id() == id)
+                    return true;
+            break;
+
+        case component_type::grid:
+            for (const auto& g : app.grids)
+                if (g.get_id() == id)
+                    return true;
+            break;
+
+        case component_type::hsm:
+            for (const auto& g : app.hsms)
+                if (g.get_id() == id)
+                    return true;
+            break;
+
+        case component_type::internal:
+            break;
+
+        case component_type::none:
+            break;
+
+        case component_type::simple:
+            for (const auto& g : app.generics)
+                if (g.get_id() == id)
+                    return true;
+            break;
+        }
+    }
 
     return false;
 }
