@@ -62,7 +62,7 @@ void task_window::show_widgets() noexcept
     if (ImGui::CollapsingHeader("Worker list",
                                 ImGuiTreeNodeFlags_DefaultOpen)) {
 
-        if (ImGui::BeginTable("Workers", 3)) {
+        if (ImGui::BeginTable("Workers", 2)) {
             ImGui::TableSetupColumn("id");
             ImGui::TableSetupColumn("execution duration");
             ImGui::TableHeadersRow();
