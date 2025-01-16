@@ -201,14 +201,15 @@ struct connection {
     }
 };
 
-/// A wrapper to the simulation @c hierarchical_state_machine class.
-///
-/// This component is different from others. It does not have any child nor
-/// connection. @c project class during import, the @c
-/// hierarchical_state_machine is copied into the simulation HSM data array. The
-/// parameter @c a and @c b are store into the @c children_parameters of the @c
-/// generic_component.
+/**
+   A wrapper to the simulation @c hierarchical_state_machine class.
 
+   This component is different from others. It does not have any child nor
+   connection. @c project class during import, the @c
+   hierarchical_state_machine is copied into the simulation HSM data array. The
+   parameter @c a and @c b are store into the @c children_parameters of the @c
+   generic_component.
+ */
 class hsm_component
 {
 public:
