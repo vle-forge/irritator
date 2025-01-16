@@ -801,7 +801,12 @@ constexpr sz dynamics_type_size() noexcept
  *
  ****************************************************************************/
 
-//! Stores default values for all @c irt::dynamics.
+/**
+   Stores dynamics model parameters for each @c irt::dynamics.
+
+   Two vertors of real and integer are available to initialize each type of @c
+   irt::dynamics.
+ */
 struct parameter {
     parameter() noexcept = default;
 
