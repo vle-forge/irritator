@@ -340,7 +340,7 @@ int main()
 
     using namespace boost::ut;
 
-    "tester_1"_test = [] {
+    "leaf_tester_1"_test = [] {
         leaf_tester   t(true);
         leaf_tester_2 t2(false);
         int           error_sum = 0;
@@ -359,7 +359,7 @@ int main()
         expect(eq(error_sum, 1));
     };
 
-    "tester_1"_test = [] {
+    "leaf_tester_2"_test = [] {
         leaf_tester   t(false);
         leaf_tester_2 t2(true);
         int           error_sum = 0;
