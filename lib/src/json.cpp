@@ -771,9 +771,8 @@ struct json_dearchiver::impl {
         return true;
     }
 
-    template<int QssLevel>
     bool read_dynamics(const rapidjson::Value& val,
-                       abstract_integrator<QssLevel>& /*dyn*/,
+                       qss_integrator_tag,
                        parameter& p) noexcept
     {
         auto_stack a(this, "dynamics qss integrator");
@@ -792,9 +791,8 @@ struct json_dearchiver::impl {
         });
     }
 
-    template<int QssLevel>
     bool read_dynamics(const rapidjson::Value& /*val*/,
-                       abstract_multiplier<QssLevel>& /*dyn*/,
+                       qss_multiplier_tag,
                        parameter& /*p*/) noexcept
     {
         auto_stack a(this, "dynamics qss multiplier");
@@ -802,9 +800,8 @@ struct json_dearchiver::impl {
         return true;
     }
 
-    template<int QssLevel>
     bool read_dynamics(const rapidjson::Value& val,
-                       abstract_sum<QssLevel, 2>& /*dyn*/,
+                       qss_sum_2_tag,
                        parameter& p) noexcept
     {
         auto_stack a(this, "dynamics_qss_sum");
@@ -824,9 +821,8 @@ struct json_dearchiver::impl {
           });
     }
 
-    template<int QssLevel>
     bool read_dynamics(const rapidjson::Value& val,
-                       abstract_sum<QssLevel, 3>& /*dyn*/,
+                       qss_sum_3_tag,
                        parameter& p) noexcept
     {
         auto_stack a(this, "dynamics qss sum");
@@ -850,9 +846,8 @@ struct json_dearchiver::impl {
           });
     }
 
-    template<int QssLevel>
     bool read_dynamics(const rapidjson::Value& val,
-                       abstract_sum<QssLevel, 4>& /*dyn*/,
+                       qss_sum_4_tag,
                        parameter& p) noexcept
     {
         auto_stack a(this, "dynamics qss sum");
@@ -878,9 +873,8 @@ struct json_dearchiver::impl {
           });
     }
 
-    template<int QssLevel>
     bool read_dynamics(const rapidjson::Value& val,
-                       abstract_wsum<QssLevel, 2>& /*dyn*/,
+                       qss_wsum_2_tag,
                        parameter& p) noexcept
     {
         auto_stack a(this, "dynamics qss wsum 2");
@@ -906,9 +900,8 @@ struct json_dearchiver::impl {
           });
     }
 
-    template<int QssLevel>
     bool read_dynamics(const rapidjson::Value& val,
-                       abstract_wsum<QssLevel, 3>& /*dyn*/,
+                       qss_wsum_3_tag,
                        parameter& p) noexcept
     {
         auto_stack a(this, "dynamics qss wsum 3");
@@ -938,9 +931,8 @@ struct json_dearchiver::impl {
           });
     }
 
-    template<int QssLevel>
     bool read_dynamics(const rapidjson::Value& val,
-                       abstract_wsum<QssLevel, 4>& /*dyn*/,
+                       qss_wsum_4_tag,
                        parameter& p) noexcept
     {
         auto_stack a(this, "dynamics qss wsum 4");
@@ -976,7 +968,7 @@ struct json_dearchiver::impl {
     }
 
     bool read_dynamics(const rapidjson::Value& /*val*/,
-                       counter& /*dyn*/,
+                       counter_tag,
                        parameter& /*p*/) noexcept
     {
         auto_stack a(this, "dynamics counter");
@@ -985,7 +977,7 @@ struct json_dearchiver::impl {
     }
 
     bool read_dynamics(const rapidjson::Value& val,
-                       queue& /*dyn*/,
+                       queue_tag,
                        parameter& p) noexcept
     {
         auto_stack a(this, "dynamics queue");
@@ -1001,7 +993,7 @@ struct json_dearchiver::impl {
     }
 
     bool read_dynamics(const rapidjson::Value& val,
-                       dynamic_queue& /*dyn*/,
+                       dynamic_queue_tag,
                        parameter& p) noexcept
     {
         auto_stack a(this, "dynamics_dynamic_queue");
@@ -1022,7 +1014,7 @@ struct json_dearchiver::impl {
     }
 
     bool read_dynamics(const rapidjson::Value& val,
-                       priority_queue& /*dyn*/,
+                       priority_queue_tag,
                        parameter& p) noexcept
     {
         auto_stack a(this, "dynamics priority queue");
@@ -1046,7 +1038,7 @@ struct json_dearchiver::impl {
     }
 
     bool read_dynamics(const rapidjson::Value& val,
-                       generator& /*dyn*/,
+                       generator_tag,
                        parameter& p) noexcept
     {
         auto_stack a(this, "dynamics generator");
@@ -1102,7 +1094,7 @@ struct json_dearchiver::impl {
     }
 
     bool read_dynamics(const rapidjson::Value& val,
-                       constant& /*dyn*/,
+                       constant_tag,
                        parameter& p) noexcept
     {
         auto_stack a(this, "dynamics constant");
@@ -1131,9 +1123,8 @@ struct json_dearchiver::impl {
           });
     }
 
-    template<int QssLevel>
     bool read_dynamics(const rapidjson::Value& val,
-                       abstract_cross<QssLevel>& /*dyn*/,
+                       qss_cross_tag,
                        parameter& p) noexcept
     {
         auto_stack a(this, "dynamics qss cross");
@@ -1150,9 +1141,8 @@ struct json_dearchiver::impl {
           });
     }
 
-    template<int QssLevel>
     bool read_dynamics(const rapidjson::Value& val,
-                       abstract_filter<QssLevel>& /*dyn*/,
+                       qss_filter_tag,
                        parameter& p) noexcept
     {
         auto_stack a(this, "dynamics_qss_filter");
@@ -1168,9 +1158,8 @@ struct json_dearchiver::impl {
           });
     }
 
-    template<int QssLevel>
     bool read_dynamics(const rapidjson::Value& val,
-                       abstract_power<QssLevel>& /*dyn*/,
+                       qss_power_tag,
                        parameter& p) noexcept
     {
         auto_stack a(this, "dynamics qss power");
@@ -1184,9 +1173,8 @@ struct json_dearchiver::impl {
           });
     }
 
-    template<int QssLevel>
     bool read_dynamics(const rapidjson::Value& /*val*/,
-                       abstract_square<QssLevel>& /*dyn*/,
+                       qss_square_tag,
                        parameter& /*p*/) noexcept
     {
         auto_stack a(this, "dynamics qss square");
@@ -1195,7 +1183,7 @@ struct json_dearchiver::impl {
     }
 
     bool read_dynamics(const rapidjson::Value& /*val*/,
-                       accumulator_2& /*dyn*/,
+                       accumulator_2_tag,
                        parameter& /*p*/) noexcept
     {
         auto_stack a(this, "dynamics accumulator 2");
@@ -1204,7 +1192,7 @@ struct json_dearchiver::impl {
     }
 
     bool read_dynamics(const rapidjson::Value& val,
-                       time_func& /*dyn*/,
+                       time_func_tag,
                        parameter& p) noexcept
     {
         auto_stack a(this, "dynamics time func");
@@ -1236,7 +1224,7 @@ struct json_dearchiver::impl {
     }
 
     bool read_dynamics(const rapidjson::Value& val,
-                       logical_and_2& /*dyn*/,
+                       logical_and_2_tag,
                        parameter& p) noexcept
     {
         auto_stack a(this, "dynamics logical and 2");
@@ -1255,7 +1243,7 @@ struct json_dearchiver::impl {
     }
 
     bool read_dynamics(const rapidjson::Value& val,
-                       logical_or_2& /*dyn*/,
+                       logical_or_2_tag,
                        parameter& p) noexcept
     {
         auto_stack a(this, "dynamics logical or 2");
@@ -1273,7 +1261,7 @@ struct json_dearchiver::impl {
     }
 
     bool read_dynamics(const rapidjson::Value& val,
-                       logical_and_3& /*dyn*/,
+                       logical_and_3_tag,
                        parameter& p) noexcept
     {
         auto_stack a(this, "dynamics logical and 3");
@@ -1294,7 +1282,7 @@ struct json_dearchiver::impl {
     }
 
     bool read_dynamics(const rapidjson::Value& val,
-                       logical_or_3& /*dyn*/,
+                       logical_or_3_tag,
                        parameter& p) noexcept
     {
         auto_stack a(this, "dynamics logical or 3");
@@ -1315,7 +1303,7 @@ struct json_dearchiver::impl {
     }
 
     bool read_dynamics(const rapidjson::Value& /*val*/,
-                       logical_invert& /*dyn*/,
+                       logical_invert_tag,
                        parameter& /*p*/) noexcept
     {
         auto_stack a(this, "dynamics logical invert");
@@ -1590,8 +1578,8 @@ struct json_dearchiver::impl {
     }
 
     bool read_simulation_dynamics(const rapidjson::Value& val,
-                                  hsm_wrapper&            wrapper,
-                                  parameter&              p) noexcept
+                                  hsm_wrapper_tag,
+                                  parameter& p) noexcept
     {
         auto_stack a(this, "dynamics hsm");
 
@@ -1601,15 +1589,13 @@ struct json_dearchiver::impl {
         return for_members(val, n, [&](auto idx, const auto& value) noexcept {
             switch (idx) {
             case 0: {
-                u64 id_in_file = 0;
+                u64    id_in_file = 0;
+                hsm_id id;
 
-                // TODO Really ?
-                return read_u64(value, id_in_file) &&
-                       ((std::cmp_greater(id_in_file, 0) &&
-                         sim_hsms_mapping_get(id_in_file, wrapper.id)) ||
-                        (copy<hsm_id>(0, wrapper.id) &&
-                         warning("hsm_wrapper does not reference a valid hsm",
-                                 log_level::error)));
+                return read_u64(value, id_in_file) && id_in_file == 0
+                         ? copy(0, p.integers[0])
+                         : (sim_hsms_mapping_get(id_in_file, id) &&
+                            copy(ordinal(id), p.integers[0]));
             }
             case 1:
                 return read_temp_i64(value) && copy_i64_to(p.integers[1]);
@@ -1629,7 +1615,7 @@ struct json_dearchiver::impl {
     }
 
     bool read_modeling_dynamics(const rapidjson::Value& val,
-                                hsm_wrapper& /*wrapper*/,
+                                hsm_wrapper_tag,
                                 parameter& p) noexcept
     {
         auto_stack a(this, "dynamics hsm");
@@ -1791,8 +1777,7 @@ struct json_dearchiver::impl {
 
     bool read_child_model_dynamics(const rapidjson::Value& val,
                                    generic_component&      compo,
-                                   child&                  c,
-                                   model&                  mdl) noexcept
+                                   child&                  c) noexcept
     {
         auto_stack a(this, "child model dynamics");
 
@@ -1805,11 +1790,12 @@ struct json_dearchiver::impl {
         return for_first_member(
           val, "dynamics"sv, [&](const auto& value) noexcept -> bool {
               return dispatch(
-                mdl, [&]<typename Dynamics>(Dynamics& dyn) noexcept -> bool {
-                    if constexpr (std::is_same_v<Dynamics, hsm_wrapper>) {
-                        return read_modeling_dynamics(value, dyn, param);
+                c.id.mdl_type,
+                [&]<typename Tag>(const Tag tag) noexcept -> bool {
+                    if constexpr (std::is_same_v<Tag, hsm_wrapper_tag>) {
+                        return read_modeling_dynamics(value, tag, param);
                     } else {
-                        return read_dynamics(value, dyn, param);
+                        return read_dynamics(value, tag, param);
                     }
                 });
           });
@@ -1825,22 +1811,7 @@ struct json_dearchiver::impl {
         c.type        = child_type::model;
         c.id.mdl_type = type;
 
-        model mdl;
-        mdl.type = type;
-
-        dispatch(mdl, [&]<typename Dynamics>(Dynamics& dyn) -> void {
-            new (&dyn) Dynamics{};
-
-            if constexpr (has_input_port<Dynamics>)
-                for (int i = 0, e = length(dyn.x); i != e; ++i)
-                    dyn.x[i] = undefined<message_id>();
-
-            if constexpr (has_output_port<Dynamics>)
-                for (int i = 0, e = length(dyn.y); i != e; ++i)
-                    dyn.y[i] = undefined<node_id>();
-        });
-
-        return read_child_model_dynamics(val, compo, c, mdl);
+        return read_child_model_dynamics(val, compo, c);
     }
 
     bool copy_internal_component(internal_component type,
@@ -3608,24 +3579,25 @@ struct json_dearchiver::impl {
 
         return for_first_member(
           val, "dynamics"sv, [&](const auto& value) -> bool {
-              return dispatch(
-                mdl, [&]<typename Dynamics>(Dynamics& dyn) -> bool {
-                    new (&dyn) Dynamics{};
+              dispatch(mdl, [&]<typename Dynamics>(Dynamics& dyn) {
+                  new (&dyn) Dynamics{};
 
-                    if constexpr (has_input_port<Dynamics>)
-                        for (int i = 0, e = length(dyn.x); i != e; ++i)
-                            dyn.x[i] = undefined<message_id>();
+                  if constexpr (has_input_port<Dynamics>)
+                      for (int i = 0, e = length(dyn.x); i != e; ++i)
+                          dyn.x[i] = undefined<message_id>();
 
-                    if constexpr (has_output_port<Dynamics>)
-                        for (int i = 0, e = length(dyn.y); i != e; ++i)
-                            dyn.y[i] = undefined<node_id>();
+                  if constexpr (has_output_port<Dynamics>)
+                      for (int i = 0, e = length(dyn.y); i != e; ++i)
+                          dyn.y[i] = undefined<node_id>();
+              });
 
-                    if constexpr (std::is_same_v<Dynamics, hsm_wrapper>) {
-                        return read_simulation_dynamics(value, dyn, p);
-                    } else {
-                        return read_dynamics(value, dyn, p);
-                    }
-                });
+              return dispatch(mdl.type, [&]<typename Tag>(Tag tag) -> bool {
+                  if constexpr (std::is_same_v<Tag, hsm_wrapper_tag>) {
+                      return read_simulation_dynamics(value, tag, p);
+                  } else {
+                      return read_dynamics(value, tag, p);
+                  }
+              });
           });
     }
 
