@@ -785,6 +785,33 @@ enum class dynamics_type : i32 {
     hsm_wrapper
 };
 
+struct qss_integrator_tag {};
+struct qss_multiplier_tag {};
+struct qss_cross_tag {};
+struct qss_filter_tag {};
+struct qss_power_tag {};
+struct qss_square_tag {};
+struct qss_sum_2_tag {};
+struct qss_sum_3_tag {};
+struct qss_sum_4_tag {};
+struct qss_wsum_2_tag {};
+struct qss_wsum_3_tag {};
+struct qss_wsum_4_tag {};
+struct counter_tag {};
+struct queue_tag {};
+struct dynamic_queue_tag {};
+struct priority_queue_tag {};
+struct generator_tag {};
+struct constant_tag {};
+struct time_func_tag {};
+struct accumulator_2_tag {};
+struct logical_and_2_tag {};
+struct logical_and_3_tag {};
+struct logical_or_2_tag {};
+struct logical_or_3_tag {};
+struct logical_invert_tag {};
+struct hsm_wrapper_tag {};
+
 constexpr i8 dynamics_type_last() noexcept
 {
     return static_cast<i8>(dynamics_type::hsm_wrapper);
@@ -4521,6 +4548,112 @@ static constexpr dynamics_type dynamics_typeof() noexcept
 
     if constexpr (std::is_same_v<Dynamics, hsm_wrapper>)
         return dynamics_type::hsm_wrapper;
+
+    unreachable();
+}
+
+/**
+   @brief dispatch the callable @c f with @c args argument according to @c type.
+
+   @param type
+   @param f
+   @param args
+
+   @verbatim
+   dispatch(mdl.type, []<typename Tag>(
+       const Tag t, const float x, const float y) -> bool {
+           if constexpr(std::is_same_v(t, hsm_wrapper_tag)) {
+               // todo
+           }
+       }));
+   @endverbatim
+ */
+template<typename Function, typename... Args>
+constexpr auto dispatch(const dynamics_type type,
+                        Function&&          f,
+                        Args... args) noexcept
+{
+    switch (type) {
+    case dynamics_type::qss1_integrator:
+    case dynamics_type::qss2_integrator:
+    case dynamics_type::qss3_integrator:
+        return f(qss_integrator_tag{}, args...);
+    case dynamics_type::qss1_multiplier:
+    case dynamics_type::qss2_multiplier:
+    case dynamics_type::qss3_multiplier:
+        return f(qss_multiplier_tag{}, args...);
+    case dynamics_type::qss1_cross:
+    case dynamics_type::qss2_cross:
+    case dynamics_type::qss3_cross:
+        return f(qss_cross_tag{}, args...);
+    case dynamics_type::qss1_filter:
+    case dynamics_type::qss2_filter:
+    case dynamics_type::qss3_filter:
+        return f(qss_filter_tag{}, args...);
+    case dynamics_type::qss1_power:
+    case dynamics_type::qss2_power:
+    case dynamics_type::qss3_power:
+        return f(qss_power_tag{}, args...);
+    case dynamics_type::qss1_square:
+    case dynamics_type::qss2_square:
+    case dynamics_type::qss3_square:
+        return f(qss_square_tag{}, args...);
+    case dynamics_type::qss1_sum_2:
+    case dynamics_type::qss2_sum_2:
+    case dynamics_type::qss3_sum_2:
+        return f(qss_sum_2_tag{}, args...);
+    case dynamics_type::qss1_sum_3:
+    case dynamics_type::qss2_sum_3:
+    case dynamics_type::qss3_sum_3:
+        return f(qss_sum_3_tag{}, args...);
+    case dynamics_type::qss1_sum_4:
+    case dynamics_type::qss2_sum_4:
+    case dynamics_type::qss3_sum_4:
+        return f(qss_sum_4_tag{}, args...);
+    case dynamics_type::qss1_wsum_2:
+    case dynamics_type::qss2_wsum_2:
+    case dynamics_type::qss3_wsum_2:
+        return f(qss_wsum_2_tag{}, args...);
+    case dynamics_type::qss1_wsum_3:
+    case dynamics_type::qss2_wsum_3:
+    case dynamics_type::qss3_wsum_3:
+        return f(qss_wsum_3_tag{}, args...);
+    case dynamics_type::qss1_wsum_4:
+    case dynamics_type::qss2_wsum_4:
+    case dynamics_type::qss3_wsum_4:
+        return f(qss_wsum_4_tag{}, args...);
+
+    case dynamics_type::counter:
+        return f(counter_tag{}, args...);
+    case dynamics_type::queue:
+        return f(queue_tag{}, args...);
+    case dynamics_type::dynamic_queue:
+        return f(dynamic_queue_tag{}, args...);
+    case dynamics_type::priority_queue:
+        return f(priority_queue_tag{}, args...);
+    case dynamics_type::generator:
+        return f(generator_tag{}, args...);
+    case dynamics_type::constant:
+        return f(constant_tag{}, args...);
+    case dynamics_type::accumulator_2:
+        return f(accumulator_2_tag{}, args...);
+    case dynamics_type::time_func:
+        return f(time_func_tag{}, args...);
+
+    case dynamics_type::logical_and_2:
+        return f(logical_and_2_tag{}, args...);
+    case dynamics_type::logical_and_3:
+        return f(logical_and_3_tag{}, args...);
+    case dynamics_type::logical_or_2:
+        return f(logical_or_2_tag{}, args...);
+    case dynamics_type::logical_or_3:
+        return f(logical_or_3_tag{}, args...);
+    case dynamics_type::logical_invert:
+        return f(logical_invert_tag{}, args...);
+
+    case dynamics_type::hsm_wrapper:
+        return f(hsm_wrapper_tag{}, args...);
+    }
 
     unreachable();
 }
