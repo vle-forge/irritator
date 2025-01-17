@@ -5789,8 +5789,6 @@ struct json_archiver::impl {
                 std::construct_at<Dynamics>(&dyn);
             });
 
-            gen.children_parameters[child_idx].copy_to(mdl);
-
             w.Key("type");
             w.String(dynamics_type_names[ordinal(ch.id.mdl_type)]);
 
