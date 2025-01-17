@@ -220,12 +220,12 @@ struct json_dearchiver::impl {
         report_json_error("json object member not found");
     }
 
-    bool read_temp_integer(const rapidjson::Value& val) noexcept
+    bool read_temp_i64(const rapidjson::Value& val) noexcept
     {
         if (!val.IsInt64())
             report_json_error("missing integer");
 
-        temp_integer = val.GetInt64();
+        temp_i64 = val.GetInt64();
 
         return true;
     }
@@ -260,7 +260,7 @@ struct json_dearchiver::impl {
         return true;
     }
 
-    bool read_temp_unsigned_integer(const rapidjson::Value& val) noexcept
+    bool read_temp_u64(const rapidjson::Value& val) noexcept
     {
         if (!val.IsUint64())
             report_json_error("missing u64");
@@ -310,7 +310,7 @@ struct json_dearchiver::impl {
         return true;
     }
 
-    bool copy_to(binary_file_source& src) noexcept
+    bool copy_string_to(binary_file_source& src) noexcept
     {
         try {
             src.file_path = temp_string;
@@ -321,7 +321,7 @@ struct json_dearchiver::impl {
         report_json_error("binary file missing");
     }
 
-    bool copy_to(text_file_source& src) noexcept
+    bool copy_string_to(text_file_source& src) noexcept
     {
         try {
             src.file_path = temp_string;
@@ -332,7 +332,7 @@ struct json_dearchiver::impl {
         report_json_error("text file missing");
     }
 
-    bool copy_to(constant::init_type& type) noexcept
+    bool copy_string_to(constant::init_type& type) noexcept
     {
         if (temp_string == "constant"sv)
             type = constant::init_type::constant;
@@ -350,7 +350,7 @@ struct json_dearchiver::impl {
         return true;
     }
 
-    bool copy_to(connection_type& type) noexcept
+    bool copy_string_to(connection_type& type) noexcept
     {
         if (temp_string == "internal"sv)
             type = connection_type::internal;
@@ -364,7 +364,7 @@ struct json_dearchiver::impl {
         return true;
     }
 
-    bool copy_to(distribution_type& dst) noexcept
+    bool copy_string_to(distribution_type& dst) noexcept
     {
         if (auto dist_opt = get_distribution_type(temp_string);
             dist_opt.has_value()) {
@@ -375,7 +375,7 @@ struct json_dearchiver::impl {
         report_json_error("bad distribution type");
     }
 
-    bool copy_to(dynamics_type& dst) noexcept
+    bool copy_string_to(dynamics_type& dst) noexcept
     {
         if (auto opt = get_dynamics_type(temp_string); opt.has_value()) {
             dst = opt.value();
@@ -385,7 +385,7 @@ struct json_dearchiver::impl {
         report_json_error("bad dynamics type");
     }
 
-    bool copy_to(child_type& dst_1, dynamics_type& dst_2) noexcept
+    bool copy_string_to(child_type& dst_1, dynamics_type& dst_2) noexcept
     {
         if (temp_string == "component"sv) {
             dst_1 = child_type::component;
@@ -402,17 +402,17 @@ struct json_dearchiver::impl {
         }
     }
 
-    bool copy_to(grid_component::type& dst) noexcept
+    bool copy_i64_to(grid_component::type& dst) noexcept
     {
-        if (0 <= temp_integer && temp_integer < grid_component::type_count) {
-            dst = enum_cast<grid_component::type>(temp_integer);
+        if (0 <= temp_i64 && temp_i64 < grid_component::type_count) {
+            dst = enum_cast<grid_component::type>(temp_i64);
             return true;
         }
 
         report_json_error("bad grid component type");
     }
 
-    bool copy_to(component_type& dst) noexcept
+    bool copy_string_to(component_type& dst) noexcept
     {
         if (auto opt = get_component_type(temp_string); opt.has_value()) {
             dst = opt.value();
@@ -422,7 +422,7 @@ struct json_dearchiver::impl {
         report_json_error("bad component type");
     }
 
-    bool copy_to(internal_component& dst) noexcept
+    bool copy_string_to(internal_component& dst) noexcept
     {
         if (auto compo_opt = get_internal_component_type(temp_string);
             compo_opt.has_value()) {
@@ -434,45 +434,45 @@ struct json_dearchiver::impl {
     }
 
     template<int Length>
-    bool copy_to(small_string<Length>& dst) noexcept
+    bool copy_string_to(small_string<Length>& dst) noexcept
     {
         dst.assign(temp_string);
 
         return true;
     }
 
-    bool copy_to(bool& dst) const noexcept
+    bool copy_bool_to(bool& dst) const noexcept
     {
         dst = temp_bool;
 
         return true;
     }
 
-    bool copy_to(double& dst) const noexcept
+    bool copy_real_to(double& dst) const noexcept
     {
         dst = temp_double;
 
         return true;
     }
 
-    bool copy_to(i64& dst) const noexcept
+    bool copy_i64_to(i64& dst) const noexcept
     {
-        dst = temp_integer;
+        dst = temp_i64;
 
         return true;
     }
 
-    bool copy_to(i32& dst) noexcept
+    bool copy_i64_to(i32& dst) noexcept
     {
-        if (!(INT32_MIN <= temp_integer && temp_integer <= INT32_MAX))
+        if (!(INT32_MIN <= temp_i64 && temp_i64 <= INT32_MAX))
             report_json_error("not a 32 bits integer");
 
-        dst = static_cast<i32>(temp_integer);
+        dst = static_cast<i32>(temp_i64);
 
         return true;
     }
 
-    bool copy_to(u32& dst) noexcept
+    bool copy_u64_to(u32& dst) noexcept
     {
         if (temp_u64 >= UINT32_MAX)
             report_json_error("not a 32 bits unsigned integer");
@@ -482,17 +482,17 @@ struct json_dearchiver::impl {
         return true;
     }
 
-    bool copy_to(i8& dst) noexcept
+    bool copy_i64_to(i8& dst) noexcept
     {
-        if (!(0 <= temp_integer && temp_integer <= INT8_MAX))
+        if (!(0 <= temp_i64 && temp_i64 <= INT8_MAX))
             report_json_error("not a 8 bits integer");
 
-        dst = static_cast<i8>(temp_integer);
+        dst = static_cast<i8>(temp_i64);
 
         return true;
     }
 
-    bool copy_to(u8& dst) noexcept
+    bool copy_u64_to(u8& dst) noexcept
     {
         if (!(temp_u64 <= UINT8_MAX))
             report_json_error("not a 8 bits unsigned integer");
@@ -502,41 +502,40 @@ struct json_dearchiver::impl {
         return true;
     }
 
-    bool copy_to(hierarchical_state_machine::action_type& dst) noexcept
+    bool copy_i64_to(hierarchical_state_machine::action_type& dst) noexcept
     {
-        if (!(0 <= temp_integer &&
-              temp_integer < hierarchical_state_machine::action_type_count))
+        if (!(0 <= temp_i64 &&
+              temp_i64 < hierarchical_state_machine::action_type_count))
             report_json_error("bad HSM action type");
 
-        dst = enum_cast<hierarchical_state_machine::action_type>(temp_integer);
+        dst = enum_cast<hierarchical_state_machine::action_type>(temp_i64);
 
         return true;
     }
 
-    bool copy_to(hierarchical_state_machine::condition_type& dst) noexcept
+    bool copy_i64_to(hierarchical_state_machine::condition_type& dst) noexcept
     {
-        if (!(0 <= temp_integer &&
-              temp_integer < hierarchical_state_machine::condition_type_count))
+        if (!(0 <= temp_i64 &&
+              temp_i64 < hierarchical_state_machine::condition_type_count))
             report_json_error("bad HSM condition type");
 
-        dst =
-          enum_cast<hierarchical_state_machine::condition_type>(temp_integer);
+        dst = enum_cast<hierarchical_state_machine::condition_type>(temp_i64);
 
         return true;
     }
 
-    bool copy_to(hierarchical_state_machine::variable& dst) noexcept
+    bool copy_i64_to(hierarchical_state_machine::variable& dst) noexcept
     {
-        if (!(0 <= temp_integer &&
-              temp_integer < hierarchical_state_machine::variable_count))
+        if (!(0 <= temp_i64 &&
+              temp_i64 < hierarchical_state_machine::variable_count))
             report_json_error("bad HSM variable type");
 
-        dst = enum_cast<hierarchical_state_machine::variable>(temp_integer);
+        dst = enum_cast<hierarchical_state_machine::variable>(temp_i64);
 
         return true;
     }
 
-    bool copy_to(real (*&dst)(real)) noexcept
+    bool copy_string_to(real (*&dst)(real)) noexcept
     {
         if (temp_string == "time"sv)
             dst = &time_function;
@@ -559,66 +558,90 @@ struct json_dearchiver::impl {
         report_json_error("missing value");
     }
 
-    bool copy_to(u64& dst) const noexcept
+    bool copy_u64_to(u64& dst) const noexcept
     {
-        dst = temp_u64;
+        dst = temp_i64;
         return true;
     }
 
-    bool copy_to(std::optional<double>& dst) noexcept
+    bool copy_u64_to(i64& dst) const noexcept
+    {
+        if (dst > INT64_MAX)
+            return false;
+
+        dst = static_cast<i64>(temp_u64);
+        return true;
+    }
+
+    bool copy_i64_to(u64& dst) const noexcept
+    {
+        if (temp_i64 < 0)
+            return false;
+
+        dst = static_cast<u64>(temp_u64);
+        return true;
+    }
+
+    bool copy_bool_to(i64& dst) const noexcept
+    {
+        dst = temp_bool;
+        return true;
+    }
+
+    bool copy_real_to(std::optional<double>& dst) noexcept
     {
         dst = temp_double;
         return true;
     }
 
-    bool copy_to(std::optional<u8>& dst) noexcept
+    bool copy_u64_to(std::optional<u8>& dst) noexcept
     {
         if (!(temp_u64 <= UINT8_MAX))
             report_json_error("bad 8 bits unsigned integer");
 
-        dst = static_cast<u8>(temp_integer);
+        dst = static_cast<u8>(temp_i64);
         return true;
     }
 
-    bool copy_to(std::optional<u64>& dst) noexcept
+    bool copy_u64_to(std::optional<u64>& dst) noexcept
     {
         dst = temp_u64;
         return true;
     }
 
-    bool copy_to(std::optional<i8>& dst) noexcept
+    bool copy_i64_to(std::optional<i8>& dst) noexcept
     {
-        if (!(INT8_MIN <= temp_integer && temp_integer <= INT8_MAX))
+        if (!(INT8_MIN <= temp_i64 && temp_i64 <= INT8_MAX))
             report_json_error("bad 8 bits integer");
 
-        dst = static_cast<i8>(temp_integer);
+        dst = static_cast<i8>(temp_i64);
         return true;
     }
 
-    bool copy_to(std::optional<i32>& dst) noexcept
+    bool copy_i64_to(std::optional<i32>& dst) noexcept
     {
-        if (!(INT32_MIN <= temp_integer && temp_integer <= INT32_MAX))
+        if (!(INT32_MIN <= temp_i64 && temp_i64 <= INT32_MAX))
             report_json_error("bad 32 bits integer");
 
-        dst = static_cast<int>(temp_integer);
+        dst = static_cast<int>(temp_i64);
         return true;
     }
 
-    bool copy_to(std::optional<std::string>& dst) noexcept
+    bool copy_string_to(std::optional<std::string>& dst) noexcept
     {
         dst = temp_string;
         return true;
     }
 
-    bool copy_to(float& dst) const noexcept
+    bool copy_real_to(float& dst) const noexcept
     {
         dst = static_cast<float>(temp_double);
         return true;
     }
 
-    bool copy_to(source::source_type& dst) const noexcept
+    bool copy_i64_to(source::source_type& dst) const noexcept
     {
-        dst = enum_cast<source::source_type>(temp_integer);
+        dst = enum_cast<source::source_type>(temp_i64);
         return true;
     }
 
@@ -672,17 +695,17 @@ struct json_dearchiver::impl {
         return true;
     }
 
-    bool is_int_less_than(int excluded_max) noexcept
+    bool is_i64_less_than(int excluded_max) noexcept
     {
-        if (temp_integer >= excluded_max)
+        if (temp_i64 >= excluded_max)
             report_json_error("bad integer less than");
 
         return true;
     }
 
-    bool is_int_greater_equal_than(int included_min) noexcept
+    bool is_i64_greater_equal_than(int included_min) noexcept
     {
-        if (temp_integer < included_min)
+        if (temp_i64 < included_min)
             report_json_error("bad integer greater or equal");
 
         return true;
@@ -971,7 +994,7 @@ struct json_dearchiver::impl {
           val, [&](const auto name, const auto& value) noexcept -> bool {
               if ("ta"sv == name)
                   return read_temp_real(value) && is_double_greater_than(0.0) &&
-                         copy_to(p.reals[0]);
+                         copy_real_to(p.reals[0]);
 
               report_json_error("unknown element");
           });
@@ -986,15 +1009,13 @@ struct json_dearchiver::impl {
         return for_each_member(
           val, [&](const auto name, const auto& value) noexcept -> bool {
               if ("source-ta-type"sv == name)
-                  return read_temp_integer(value) &&
-                         is_int_greater_equal_than(0) &&
-                         is_int_less_than(source::source_type_count) &&
-                         copy_to(p.integers[2]);
+                  return read_temp_i64(value) && is_i64_greater_equal_than(0) &&
+                         is_i64_less_than(source::source_type_count) &&
+                         copy_i64_to(p.integers[2]);
               if ("source-ta-id"sv == name)
-                  return read_temp_unsigned_integer(value) &&
-                         copy_to(p.integers[1]);
+                  return read_temp_u64(value) && copy_u64_to(p.integers[1]);
               if ("stop-on-error"sv == name)
-                  return read_temp_bool(value) && copy_to(p.integers[0]);
+                  return read_temp_bool(value) && copy_bool_to(p.integers[0]);
 
               report_json_error("unknown element");
           });
@@ -1010,17 +1031,15 @@ struct json_dearchiver::impl {
           val, [&](const auto name, const auto& value) noexcept -> bool {
               if ("ta"sv == name)
                   return read_temp_real(value) && is_double_greater_than(0.0) &&
-                         copy_to(p.reals[0]);
+                         copy_real_to(p.reals[0]);
               if ("source-ta-type"sv == name)
-                  return read_temp_integer(value) &&
-                         is_int_greater_equal_than(0) &&
-                         is_int_less_than(source::source_type_count) &&
-                         copy_to(p.integers[2]);
+                  return read_temp_i64(value) && is_i64_greater_equal_than(0) &&
+                         is_i64_less_than(source::source_type_count) &&
+                         copy_i64_to(p.integers[2]);
               if ("source-ta-id"sv == name)
-                  return read_temp_unsigned_integer(value) &&
-                         copy_to(p.integers[1]);
+                  return read_temp_u64(value) && copy_u64_to(p.integers[1]);
               if ("stop-on-error"sv == name)
-                  return read_temp_bool(value) && copy_to(p.integers[0]);
+                  return read_temp_bool(value) && copy_bool_to(p.integers[0]);
 
               report_json_error("unknown element");
           });
@@ -1037,46 +1056,42 @@ struct json_dearchiver::impl {
               if ("offset"sv == name)
                   return read_temp_real(value) &&
                          is_double_greater_equal_than(0.0) &&
-                         copy_to(p.reals[0]);
+                         copy_real_to(p.reals[0]);
 
               if ("source-ta-type"sv == name) {
-                  if (read_temp_integer(value) &&
-                      is_int_greater_equal_than(0) &&
-                      is_int_less_than(source::source_type_count) &&
-                      copy_to(p.integers[2])) {
+                  if (read_temp_i64(value) && is_i64_greater_equal_than(0) &&
+                      is_i64_less_than(source::source_type_count) &&
+                      copy_i64_to(p.integers[2])) {
                       return true;
                   }
                   return false;
               }
 
               if ("source-ta-id"sv == name) {
-                  if (read_temp_unsigned_integer(value) &&
-                      copy_to(p.integers[1])) {
+                  if (read_temp_u64(value) && copy_u64_to(p.integers[1])) {
                       return true;
                   }
                   return false;
               }
 
               if ("source-value-type"sv == name) {
-                  if (read_temp_integer(value) &&
-                      is_int_greater_equal_than(0) &&
-                      is_int_less_than(source::source_type_count) &&
-                      copy_to(p.integers[4])) {
+                  if (read_temp_i64(value) && is_i64_greater_equal_than(0) &&
+                      is_i64_less_than(source::source_type_count) &&
+                      copy_i64_to(p.integers[4])) {
                       return true;
                   }
                   return false;
               }
 
               if ("source-value-id"sv == name) {
-                  if (read_temp_unsigned_integer(value) &&
-                      copy_to(p.integers[3])) {
+                  if (read_temp_u64(value) && copy_u64_to(p.integers[3])) {
                       return true;
                   }
                   return false;
               }
 
               if ("stop-on-error"sv == name) {
-                  if (read_temp_bool(value) && copy_to(p.integers[0])) {
+                  if (read_temp_bool(value) && copy_bool_to(p.integers[0])) {
                       return true;
                   }
                   return false;
@@ -1095,22 +1110,22 @@ struct json_dearchiver::impl {
         return for_each_member(
           val, [&](const auto name, const auto& value) noexcept -> bool {
               if ("value"sv == name)
-                  return read_temp_real(value) && copy_to(p.reals[0]);
+                  return read_temp_real(value) && copy_real_to(p.reals[0]);
 
               if ("offset"sv == name)
                   return read_temp_real(value) &&
                          is_double_greater_equal_than(0.0) &&
-                         copy_to(p.reals[1]);
+                         copy_real_to(p.reals[1]);
 
               if ("type"sv == name) {
                   constant::init_type type = constant::init_type::constant;
 
-                  return read_temp_string(value) && copy_to(type) &&
+                  return read_temp_string(value) && copy_string_to(type) &&
                          copy(ordinal(type), p.integers[0]);
               }
 
               if ("port"sv == name)
-                  return read_temp_integer(value) && copy_to(p.integers[1]);
+                  return read_temp_i64(value) && copy_i64_to(p.integers[1]);
 
               report_json_error("unknown element");
           });
@@ -1126,7 +1141,7 @@ struct json_dearchiver::impl {
         return for_each_member(
           val, [&](const auto name, const auto& value) noexcept -> bool {
               if ("threshold"sv == name)
-                  return read_temp_real(value) && copy_to(p.reals[0]);
+                  return read_temp_real(value) && copy_real_to(p.reals[0]);
 
               if ("detect-up"sv == name)
                   return read_bool(value, p.integers[0]);
@@ -1145,9 +1160,9 @@ struct json_dearchiver::impl {
         return for_each_member(
           val, [&](const auto name, const auto& value) noexcept -> bool {
               if ("lower-threshold"sv == name)
-                  return read_temp_real(value) && copy_to(p.reals[0]);
+                  return read_temp_real(value) && copy_real_to(p.reals[0]);
               if ("upper-threshold"sv == name)
-                  return read_temp_real(value) && copy_to(p.reals[1]);
+                  return read_temp_real(value) && copy_real_to(p.reals[1]);
 
               report_json_error("unknown element");
           });
@@ -1163,7 +1178,7 @@ struct json_dearchiver::impl {
         return for_each_member(
           val, [&](const auto name, const auto& value) noexcept -> bool {
               if ("n"sv == name)
-                  return read_temp_real(value) && copy_to(p.reals[0]);
+                  return read_temp_real(value) && copy_real_to(p.reals[0]);
 
               report_json_error("unknown element");
           });
@@ -1321,37 +1336,34 @@ struct json_dearchiver::impl {
         auto ret = for_each_member(
           val, [&](const auto name, const auto& value) noexcept -> bool {
               if ("var-1"sv == name)
-                  return read_temp_integer(value) &&
-                         is_int_greater_equal_than(0) &&
-                         is_int_less_than(
+                  return read_temp_i64(value) && is_i64_greater_equal_than(0) &&
+                         is_i64_less_than(
                            hierarchical_state_machine::variable_count) &&
-                         copy_to(s.var1);
+                         copy_i64_to(s.var1);
 
               if ("var-2"sv == name)
-                  return read_temp_integer(value) &&
-                         is_int_greater_equal_than(0) &&
-                         is_int_less_than(
+                  return read_temp_i64(value) && is_i64_greater_equal_than(0) &&
+                         is_i64_less_than(
                            hierarchical_state_machine::variable_count) &&
-                         copy_to(s.var2);
+                         copy_i64_to(s.var2);
 
               if ("type"sv == name)
-                  return read_temp_integer(value) &&
-                         is_int_greater_equal_than(0) &&
-                         is_int_less_than(
+                  return read_temp_i64(value) && is_i64_greater_equal_than(0) &&
+                         is_i64_less_than(
                            hierarchical_state_machine::condition_type_count) &&
-                         copy_to(s.type);
+                         copy_i64_to(s.type);
 
               if ("port"sv == name)
-                  return read_temp_integer(value) && copy_to(port);
+                  return read_temp_u64(value) && copy_u64_to(port);
 
               if ("mask"sv == name)
-                  return read_temp_integer(value) && copy_to(mask);
+                  return read_temp_u64(value) && copy_u64_to(mask);
 
               if ("constant-i"sv == name)
-                  return read_temp_integer(value) && copy_to(i);
+                  return read_temp_i64(value) && copy_i64_to(i);
 
               if ("constant-r"sv == name)
-                  return read_temp_real(value) && copy_to(f);
+                  return read_temp_real(value) && copy_real_to(f);
 
               report_json_error("unknown element");
           });
@@ -1380,31 +1392,28 @@ struct json_dearchiver::impl {
         auto ret = for_each_member(
           val, [&](const auto name, const auto& value) noexcept -> bool {
               if ("var-1"sv == name)
-                  return read_temp_integer(value) &&
-                         is_int_greater_equal_than(0) &&
-                         is_int_less_than(
+                  return read_temp_i64(value) && is_i64_greater_equal_than(0) &&
+                         is_i64_less_than(
                            hierarchical_state_machine::variable_count) &&
-                         copy_to(s.var1);
+                         copy_i64_to(s.var1);
 
               if ("var-2"sv == name)
-                  return read_temp_integer(value) &&
-                         is_int_greater_equal_than(0) &&
-                         is_int_less_than(
+                  return read_temp_i64(value) && is_i64_greater_equal_than(0) &&
+                         is_i64_less_than(
                            hierarchical_state_machine::variable_count) &&
-                         copy_to(s.var2);
+                         copy_i64_to(s.var2);
 
               if ("type"sv == name)
-                  return read_temp_integer(value) &&
-                         is_int_greater_equal_than(0) &&
-                         is_int_less_than(
+                  return read_temp_i64(value) && is_i64_greater_equal_than(0) &&
+                         is_i64_less_than(
                            hierarchical_state_machine::action_type_count) &&
-                         copy_to(s.type);
+                         copy_i64_to(s.type);
 
               if ("constant-i"sv == name)
-                  return read_temp_integer(value) && copy_to(i);
+                  return read_temp_i64(value) && copy_i64_to(i);
 
               if ("constant-r"sv == name)
-                  return read_temp_real(value) && copy_to(f);
+                  return read_temp_real(value) && copy_real_to(f);
 
               report_json_error("unknown element");
           });
@@ -1440,10 +1449,11 @@ struct json_dearchiver::impl {
               val,
               [&](const auto name, const auto& value) noexcept -> bool {
                   if ("id"sv == name)
-                      return read_temp_integer(value) and copy_to(id);
+                      return read_temp_i64(value) and copy_i64_to(id);
 
                   if ("name"sv == name)
-                      return read_temp_string(value) and copy_to(state_name);
+                      return read_temp_string(value) and
+                             copy_string_to(state_name);
 
                   if ("enter"sv == name)
                       return read_hsm_state_action(value, s.enter_action);
@@ -1461,26 +1471,24 @@ struct json_dearchiver::impl {
                       return read_hsm_condition_action(value, s.condition);
 
                   if ("if-transition"sv == name)
-                      return read_temp_unsigned_integer(value) &&
-                             copy_to(s.if_transition);
+                      return read_temp_u64(value) &&
+                             copy_u64_to(s.if_transition);
 
                   if ("else-transition"sv == name)
-                      return read_temp_unsigned_integer(value) &&
-                             copy_to(s.else_transition);
+                      return read_temp_u64(value) &&
+                             copy_u64_to(s.else_transition);
 
                   if ("super-id"sv == name)
-                      return read_temp_unsigned_integer(value) &&
-                             copy_to(s.super_id);
+                      return read_temp_u64(value) && copy_u64_to(s.super_id);
 
                   if ("sub-id"sv == name)
-                      return read_temp_unsigned_integer(value) &&
-                             copy_to(s.sub_id);
+                      return read_temp_u64(value) && copy_u64_to(s.sub_id);
 
                   if ("x"sv == name)
-                      return read_temp_real(value) && copy_to(pos.x);
+                      return read_temp_real(value) && copy_real_to(pos.x);
 
                   if ("y"sv == name)
-                      return read_temp_real(value) && copy_to(pos.y);
+                      return read_temp_real(value) && copy_real_to(pos.y);
 
                   report_json_error("unknown element");
               }) or
@@ -1509,7 +1517,7 @@ struct json_dearchiver::impl {
               val,
               [&](const auto name, const auto& value) noexcept -> bool {
                   if ("id"sv == name)
-                      return read_temp_integer(value) and copy_to(id);
+                      return read_temp_i64(value) and copy_i64_to(id);
 
                   if ("enter"sv == name)
                       return read_hsm_state_action(value, s.enter_action);
@@ -1527,20 +1535,18 @@ struct json_dearchiver::impl {
                       return read_hsm_condition_action(value, s.condition);
 
                   if ("if-transition"sv == name)
-                      return read_temp_unsigned_integer(value) &&
-                             copy_to(s.if_transition);
+                      return read_temp_u64(value) &&
+                             copy_u64_to(s.if_transition);
 
                   if ("else-transition"sv == name)
-                      return read_temp_unsigned_integer(value) &&
-                             copy_to(s.else_transition);
+                      return read_temp_u64(value) &&
+                             copy_u64_to(s.else_transition);
 
                   if ("super-id"sv == name)
-                      return read_temp_unsigned_integer(value) &&
-                             copy_to(s.super_id);
+                      return read_temp_u64(value) && copy_u64_to(s.super_id);
 
                   if ("sub-id"sv == name)
-                      return read_temp_unsigned_integer(value) &&
-                             copy_to(s.sub_id);
+                      return read_temp_u64(value) && copy_u64_to(s.sub_id);
 
                   report_json_error("unknown element");
               }) or
@@ -1606,15 +1612,15 @@ struct json_dearchiver::impl {
                                  log_level::error)));
             }
             case 1:
-                return read_temp_integer(value) && copy_to(p.integers[1]);
+                return read_temp_i64(value) && copy_i64_to(p.integers[1]);
             case 2:
-                return read_temp_integer(value) && copy_to(p.integers[2]);
+                return read_temp_i64(value) && copy_i64_to(p.integers[2]);
             case 3:
-                return read_temp_real(value) && copy_to(p.reals[0]);
+                return read_temp_real(value) && copy_real_to(p.reals[0]);
             case 4:
-                return read_temp_real(value) && copy_to(p.reals[1]);
+                return read_temp_real(value) && copy_real_to(p.reals[1]);
             case 5:
-                return read_temp_real(value) && copy_to(p.reals[2]);
+                return read_temp_real(value) && copy_real_to(p.reals[2]);
             default:
                 report_json_error("unknown element");
                 ;
@@ -1643,15 +1649,15 @@ struct json_dearchiver::impl {
                 return false;
             }
             case 1:
-                return read_temp_integer(value) && copy_to(p.integers[1]);
+                return read_temp_i64(value) && copy_i64_to(p.integers[1]);
             case 2:
-                return read_temp_integer(value) && copy_to(p.integers[2]);
+                return read_temp_i64(value) && copy_i64_to(p.integers[2]);
             case 3:
-                return read_temp_real(value) && copy_to(p.reals[0]);
+                return read_temp_real(value) && copy_real_to(p.reals[0]);
             case 4:
-                return read_temp_real(value) && copy_to(p.reals[1]);
+                return read_temp_real(value) && copy_real_to(p.reals[1]);
             case 5:
-                return read_temp_real(value) && copy_to(p.reals[2]);
+                return read_temp_real(value) && copy_real_to(p.reals[2]);
             default:
                 report_json_error("unknown element");
                 ;
@@ -1754,21 +1760,20 @@ struct json_dearchiver::impl {
                  val,
                  [&](const auto name, const auto& value) noexcept -> bool {
                      if ("id"sv == name)
-                         return read_temp_unsigned_integer(value) &&
-                                copy_to(id);
+                         return read_temp_u64(value) && copy_u64_to(id);
                      if ("x"sv == name)
                          return read_temp_real(value) and
-                                copy_to(
+                                copy_real_to(
                                   generic.children_positions[get_index(c_id)]
                                     .x);
                      if ("y"sv == name)
                          return read_temp_real(value) and
-                                copy_to(
+                                copy_real_to(
                                   generic.children_positions[get_index(c_id)]
                                     .y);
                      if ("name"sv == name)
                          return read_temp_string(value) and
-                                copy_to(
+                                copy_string_to(
                                   generic.children_names[get_index(c_id)]);
                      if ("configurable"sv == name)
                          return read_temp_bool(value) and
@@ -1862,7 +1867,7 @@ struct json_dearchiver::impl {
 
         internal_component compo = internal_component::qss1_izhikevich;
 
-        return read_temp_string(val) && copy_to(compo) &&
+        return read_temp_string(val) && copy_string_to(compo) &&
                copy_internal_component(compo, c_id);
     }
 
@@ -2015,13 +2020,16 @@ struct json_dearchiver::impl {
                  val,
                  [&](const auto name, const auto& value) noexcept -> bool {
                      if ("path"sv == name)
-                         return read_temp_string(value) && copy_to(reg_name);
+                         return read_temp_string(value) &&
+                                copy_string_to(reg_name);
 
                      if ("directory"sv == name)
-                         return read_temp_string(value) && copy_to(dir_path);
+                         return read_temp_string(value) &&
+                                copy_string_to(dir_path);
 
                      if ("file"sv == name)
-                         return read_temp_string(value) && copy_to(file_path);
+                         return read_temp_string(value) &&
+                                copy_string_to(file_path);
 
                      return true;
                  }) &&
@@ -2067,7 +2075,7 @@ struct json_dearchiver::impl {
 
         return for_first_member(
           val, "component-type", [&](const auto& value) noexcept -> bool {
-              return read_temp_string(value) && copy_to(type) &&
+              return read_temp_string(value) && copy_string_to(type) &&
                      dispatch_child_component_type(val, type, c_id);
           });
     }
@@ -2096,7 +2104,7 @@ struct json_dearchiver::impl {
                                 "type"sv,
                                 [&](const auto& value) noexcept -> bool {
                                     return read_temp_string(value) &&
-                                           copy_to(c.type, type);
+                                           copy_string_to(c.type, type);
                                 }) &&
                dispatch_child_component_or_model(val, generic, type, c);
     }
@@ -2194,7 +2202,8 @@ struct json_dearchiver::impl {
                for_each_array(
                  val, [&](const auto i, const auto& value) noexcept -> bool {
                      src.length = static_cast<u32>(i);
-                     return read_temp_real(value) && copy_to(src.buffer[i]);
+                     return read_temp_real(value) &&
+                            copy_real_to(src.buffer[i]);
                  });
     }
 
@@ -2228,13 +2237,12 @@ struct json_dearchiver::impl {
                                 [&](const auto  name,
                                     const auto& value) noexcept -> bool {
                                     if ("id"sv == name)
-                                        return read_temp_unsigned_integer(
-                                                 value) &&
-                                               copy_to(id_in_file);
+                                        return read_temp_u64(value) &&
+                                               copy_u64_to(id_in_file);
 
                                     if ("name"sv == name)
                                         return read_temp_string(value) &&
-                                               copy_to(cst.name);
+                                               copy_string_to(cst.name);
 
                                     if ("parameters"sv == name)
                                         return read_constant_source(value, cst);
@@ -2285,13 +2293,12 @@ struct json_dearchiver::impl {
                               [&](const auto  name,
                                   const auto& value) noexcept -> bool {
                                   if ("id"sv == name)
-                                      return read_temp_unsigned_integer(
-                                               value) &&
-                                             copy_to(id_in_file);
+                                      return read_temp_u64(value) &&
+                                             copy_u64_to(id_in_file);
 
                                   if ("name"sv == name)
                                       return read_temp_string(value) &&
-                                             copy_to(text.name);
+                                             copy_string_to(text.name);
 
                                   if ("path"sv == name)
                                       return read_temp_string(value) &&
@@ -2328,17 +2335,16 @@ struct json_dearchiver::impl {
                               [&](const auto  name,
                                   const auto& value) noexcept -> bool {
                                   if ("id"sv == name)
-                                      return read_temp_unsigned_integer(
-                                               value) &&
-                                             copy_to(id_in_file);
+                                      return read_temp_u64(value) &&
+                                             copy_u64_to(id_in_file);
 
                                   if ("name"sv == name)
                                       return read_temp_string(value) &&
-                                             copy_to(text.name);
+                                             copy_string_to(text.name);
 
                                   if ("path"sv == name)
                                       return read_temp_string(value) &&
-                                             copy_to(text);
+                                             copy_string_to(text);
 
                                   return true;
                               }) &&
@@ -2378,13 +2384,12 @@ struct json_dearchiver::impl {
                               [&](const auto  name,
                                   const auto& value) noexcept -> bool {
                                   if ("id"sv == name)
-                                      return read_temp_unsigned_integer(
-                                               value) &&
-                                             copy_to(id_in_file);
+                                      return read_temp_u64(value) &&
+                                             copy_u64_to(id_in_file);
 
                                   if ("name"sv == name)
                                       return read_temp_string(value) &&
-                                             copy_to(bin.name);
+                                             copy_string_to(bin.name);
 
                                   if ("path"sv == name)
                                       return read_temp_string(value) &&
@@ -2421,17 +2426,16 @@ struct json_dearchiver::impl {
                               [&](const auto  name,
                                   const auto& value) noexcept -> bool {
                                   if ("id"sv == name)
-                                      return read_temp_unsigned_integer(
-                                               value) &&
-                                             copy_to(id_in_file);
+                                      return read_temp_u64(value) &&
+                                             copy_u64_to(id_in_file);
 
                                   if ("name"sv == name)
                                       return read_temp_string(value) &&
-                                             copy_to(text.name);
+                                             copy_string_to(text.name);
 
                                   if ("path"sv == name)
                                       return read_temp_string(value) &&
-                                             copy_to(text);
+                                             copy_string_to(text);
 
                                   return true;
                               }) &&
@@ -2450,9 +2454,9 @@ struct json_dearchiver::impl {
             return for_each_member(
               val, [&](const auto name, const auto& value) noexcept -> bool {
                   if ("a"sv == name)
-                      return read_temp_integer(value) && copy_to(r.a32);
+                      return read_temp_i64(value) && copy_i64_to(r.a32);
                   if ("b"sv == name)
-                      return read_temp_integer(value) && copy_to(r.b32);
+                      return read_temp_i64(value) && copy_i64_to(r.b32);
                   return true;
               });
 
@@ -2460,9 +2464,9 @@ struct json_dearchiver::impl {
             return for_each_member(
               val, [&](const auto name, const auto& value) noexcept -> bool {
                   if ("a"sv == name)
-                      return read_temp_real(value) && copy_to(r.a);
+                      return read_temp_real(value) && copy_real_to(r.a);
                   if ("b"sv == name)
-                      return read_temp_real(value) && copy_to(r.b);
+                      return read_temp_real(value) && copy_real_to(r.b);
                   return true;
               });
 
@@ -2470,7 +2474,7 @@ struct json_dearchiver::impl {
             return for_each_member(
               val, [&](const auto name, const auto& value) noexcept -> bool {
                   if ("p"sv == name)
-                      return read_temp_real(value) && copy_to(r.p);
+                      return read_temp_real(value) && copy_real_to(r.p);
                   return true;
               });
 
@@ -2478,9 +2482,9 @@ struct json_dearchiver::impl {
             return for_each_member(
               val, [&](const auto name, const auto& value) noexcept -> bool {
                   if ("t"sv == name)
-                      return read_temp_integer(value) && copy_to(r.t32);
+                      return read_temp_i64(value) && copy_i64_to(r.t32);
                   if ("p"sv == name)
-                      return read_temp_real(value) && copy_to(r.p);
+                      return read_temp_real(value) && copy_real_to(r.p);
                   return true;
               });
 
@@ -2488,9 +2492,9 @@ struct json_dearchiver::impl {
             return for_each_member(
               val, [&](const auto name, const auto& value) noexcept -> bool {
                   if ("t"sv == name)
-                      return read_temp_integer(value) && copy_to(r.t32);
+                      return read_temp_i64(value) && copy_i64_to(r.t32);
                   if ("p"sv == name)
-                      return read_temp_real(value) && copy_to(r.p);
+                      return read_temp_real(value) && copy_real_to(r.p);
                   return true;
               });
 
@@ -2498,7 +2502,7 @@ struct json_dearchiver::impl {
             return for_each_member(
               val, [&](const auto name, const auto& value) noexcept -> bool {
                   if ("p"sv == name)
-                      return read_temp_real(value) && copy_to(r.p);
+                      return read_temp_real(value) && copy_real_to(r.p);
                   return true;
               });
 
@@ -2506,7 +2510,7 @@ struct json_dearchiver::impl {
             return for_each_member(
               val, [&](const auto name, const auto& value) noexcept -> bool {
                   if ("mean"sv == name)
-                      return read_temp_real(value) && copy_to(r.mean);
+                      return read_temp_real(value) && copy_real_to(r.mean);
                   return true;
               });
 
@@ -2514,7 +2518,7 @@ struct json_dearchiver::impl {
             return for_each_member(
               val, [&](const auto name, const auto& value) noexcept -> bool {
                   if ("lambda"sv == name)
-                      return read_temp_real(value) && copy_to(r.lambda);
+                      return read_temp_real(value) && copy_real_to(r.lambda);
                   return true;
               });
 
@@ -2522,9 +2526,9 @@ struct json_dearchiver::impl {
             return for_each_member(
               val, [&](const auto name, const auto& value) noexcept -> bool {
                   if ("alpha"sv == name)
-                      return read_temp_integer(value) && copy_to(r.alpha);
+                      return read_temp_real(value) && copy_real_to(r.alpha);
                   if ("beta"sv == name)
-                      return read_temp_real(value) && copy_to(r.beta);
+                      return read_temp_real(value) && copy_real_to(r.beta);
                   return true;
               });
 
@@ -2532,9 +2536,9 @@ struct json_dearchiver::impl {
             return for_each_member(
               val, [&](const auto name, const auto& value) noexcept -> bool {
                   if ("a"sv == name)
-                      return read_temp_integer(value) && copy_to(r.a);
+                      return read_temp_real(value) && copy_real_to(r.a);
                   if ("b"sv == name)
-                      return read_temp_real(value) && copy_to(r.b);
+                      return read_temp_real(value) && copy_real_to(r.b);
                   return true;
               });
 
@@ -2542,9 +2546,9 @@ struct json_dearchiver::impl {
             return for_each_member(
               val, [&](const auto name, const auto& value) noexcept -> bool {
                   if ("a"sv == name)
-                      return read_temp_integer(value) && copy_to(r.a);
+                      return read_temp_real(value) && copy_real_to(r.a);
                   if ("b"sv == name)
-                      return read_temp_real(value) && copy_to(r.b);
+                      return read_temp_real(value) && copy_real_to(r.b);
                   return true;
               });
 
@@ -2552,9 +2556,9 @@ struct json_dearchiver::impl {
             return for_each_member(
               val, [&](const auto name, const auto& value) noexcept -> bool {
                   if ("mean"sv == name)
-                      return read_temp_integer(value) && copy_to(r.mean);
+                      return read_temp_real(value) && copy_real_to(r.mean);
                   if ("stddev"sv == name)
-                      return read_temp_real(value) && copy_to(r.stddev);
+                      return read_temp_real(value) && copy_real_to(r.stddev);
                   return true;
               });
 
@@ -2562,9 +2566,9 @@ struct json_dearchiver::impl {
             return for_each_member(
               val, [&](const auto name, const auto& value) noexcept -> bool {
                   if ("m"sv == name)
-                      return read_temp_integer(value) && copy_to(r.m);
+                      return read_temp_real(value) && copy_real_to(r.m);
                   if ("s"sv == name)
-                      return read_temp_real(value) && copy_to(r.s);
+                      return read_temp_real(value) && copy_real_to(r.s);
                   return true;
               });
 
@@ -2572,7 +2576,7 @@ struct json_dearchiver::impl {
             return for_each_member(
               val, [&](const auto name, const auto& value) noexcept -> bool {
                   if ("n"sv == name)
-                      return read_temp_integer(value) && copy_to(r.n);
+                      return read_temp_real(value) && copy_real_to(r.n);
                   return true;
               });
 
@@ -2580,9 +2584,9 @@ struct json_dearchiver::impl {
             return for_each_member(
               val, [&](const auto name, const auto& value) noexcept -> bool {
                   if ("a"sv == name)
-                      return read_temp_integer(value) && copy_to(r.a);
+                      return read_temp_real(value) && copy_real_to(r.a);
                   if ("b"sv == name)
-                      return read_temp_real(value) && copy_to(r.b);
+                      return read_temp_real(value) && copy_real_to(r.b);
                   return true;
               });
 
@@ -2590,9 +2594,9 @@ struct json_dearchiver::impl {
             return for_each_member(
               val, [&](const auto name, const auto& value) noexcept -> bool {
                   if ("m"sv == name)
-                      return read_temp_integer(value) && copy_to(r.m);
+                      return read_temp_real(value) && copy_real_to(r.m);
                   if ("n"sv == name)
-                      return read_temp_real(value) && copy_to(r.n);
+                      return read_temp_real(value) && copy_real_to(r.n);
                   return true;
               });
 
@@ -2600,7 +2604,7 @@ struct json_dearchiver::impl {
             return for_each_member(
               val, [&](const auto name, const auto& value) noexcept -> bool {
                   if ("n"sv == name)
-                      return read_temp_real(value) && copy_to(r.n);
+                      return read_temp_real(value) && copy_real_to(r.n);
                   return true;
               });
         }
@@ -2639,17 +2643,16 @@ struct json_dearchiver::impl {
                               [&](const auto  name,
                                   const auto& value) noexcept -> bool {
                                   if ("id"sv == name)
-                                      return read_temp_unsigned_integer(
-                                               value) &&
-                                             copy_to(id_in_file);
+                                      return read_temp_u64(value) &&
+                                             copy_u64_to(id_in_file);
 
                                   if ("name"sv == name)
                                       return read_temp_string(value) &&
-                                             copy_to(r.name);
+                                             copy_string_to(r.name);
 
                                   if ("type"sv == name) {
                                       return read_temp_string(value) &&
-                                             copy_to(r.distribution) &&
+                                             copy_string_to(r.distribution) &&
                                              read_distribution_type(value, r);
                                   }
 
@@ -2667,7 +2670,8 @@ struct json_dearchiver::impl {
 
         return for_first_member(
           val, "component"sv, [&](const auto& value) noexcept -> bool {
-              return read_temp_string(value) && copy_to(compo.id.internal_id);
+              return read_temp_string(value) &&
+                     copy_string_to(compo.id.internal_id);
           });
     }
 
@@ -2861,24 +2865,26 @@ struct json_dearchiver::impl {
                  val,
                  [&](const auto name, const auto& value) noexcept -> bool {
                      if ("source"sv == name)
-                         return read_temp_unsigned_integer(value) &&
+                         return read_temp_u64(value) &&
                                 cache_model_mapping_to(src_id);
 
                      if ("destination"sv == name)
-                         return read_temp_unsigned_integer(value) &&
+                         return read_temp_u64(value) &&
                                 cache_model_mapping_to(dst_id);
 
                      if ("port-source"sv == name)
-                         return value.IsString() ? read_temp_string(value) &&
-                                                     copy_to(src_str_port)
-                                                 : read_temp_integer(value) &&
-                                                     copy_to(src_int_port);
+                         return value.IsString()
+                                  ? read_temp_string(value) &&
+                                      copy_string_to(src_str_port)
+                                  : read_temp_i64(value) &&
+                                      copy_i64_to(src_int_port);
 
                      if ("port-destination"sv == name)
-                         return value.IsString() ? read_temp_string(value) &&
-                                                     copy_to(dst_str_port)
-                                                 : read_temp_integer(value) &&
-                                                     copy_to(dst_int_port);
+                         return value.IsString()
+                                  ? read_temp_string(value) &&
+                                      copy_string_to(dst_str_port)
+                                  : read_temp_i64(value) &&
+                                      copy_i64_to(dst_int_port);
 
                      return true;
                  }) &&
@@ -2910,15 +2916,17 @@ struct json_dearchiver::impl {
                  val,
                  [&](const auto name, const auto& value) noexcept -> bool {
                      if ("source"sv == name)
-                         return read_temp_unsigned_integer(value) &&
+                         return read_temp_u64(value) &&
                                 cache_model_mapping_to(src_id);
                      if ("port-source"sv == name)
-                         return value.IsString() ? read_temp_string(value) &&
-                                                     copy_to(src_str_port)
-                                                 : read_temp_integer(value) &&
-                                                     copy_to(src_int_port);
+                         return value.IsString()
+                                  ? read_temp_string(value) &&
+                                      copy_string_to(src_str_port)
+                                  : read_temp_i64(value) &&
+                                      copy_i64_to(src_int_port);
                      if ("port"sv == name)
-                         return read_temp_string(value) && copy_to(str_port);
+                         return read_temp_string(value) &&
+                                copy_string_to(str_port);
 
                      return true;
                  }) &&
@@ -2948,16 +2956,18 @@ struct json_dearchiver::impl {
                  val,
                  [&](const auto name, const auto& value) noexcept -> bool {
                      if ("destination"sv == name)
-                         return read_temp_unsigned_integer(value) &&
+                         return read_temp_u64(value) &&
                                 cache_model_mapping_to(dst_id);
                      if ("port-destination"sv == name)
-                         return value.IsString() ? read_temp_string(value) &&
-                                                     copy_to(dst_str_port)
-                                                 : read_temp_integer(value) &&
-                                                     copy_to(dst_int_port);
+                         return value.IsString()
+                                  ? read_temp_string(value) &&
+                                      copy_string_to(dst_str_port)
+                                  : read_temp_i64(value) &&
+                                      copy_i64_to(dst_int_port);
 
                      if ("port"sv == name)
-                         return read_temp_string(value) && copy_to(str_port);
+                         return read_temp_string(value) &&
+                                copy_string_to(str_port);
 
                      return true;
                  }) &&
@@ -3004,7 +3014,7 @@ struct json_dearchiver::impl {
                            if ("type"sv == name) {
                                connection_type type = connection_type::internal;
                                return read_temp_string(value) &&
-                                      copy_to(type) &&
+                                      copy_string_to(type) &&
                                       dispatch_connection_type(
                                         val_con, type, compo, gen);
                            }
@@ -3108,10 +3118,12 @@ struct json_dearchiver::impl {
                  val,
                  [&](const auto name, const auto& value) noexcept -> bool {
                      if ("dir"sv == name)
-                         return read_temp_string(value) && copy_to(dir_path);
+                         return read_temp_string(value) &&
+                                copy_string_to(dir_path);
 
                      if ("file"sv == name)
-                         return read_temp_string(value) && copy_to(file_path);
+                         return read_temp_string(value) &&
+                                copy_string_to(file_path);
 
                      return true;
                  }) &&
@@ -3128,11 +3140,11 @@ struct json_dearchiver::impl {
           val, [&](const auto name, const auto& value) noexcept -> bool {
               if ("alpha"sv == name)
                   return read_temp_real(value) && is_double_greater_than(0) &&
-                         copy_to(p.alpha);
+                         copy_real_to(p.alpha);
 
               if ("beta"sv == name)
                   return read_temp_real(value) && is_double_greater_than(0) &&
-                         copy_to(p.beta);
+                         copy_real_to(p.beta);
 
               return true;
           });
@@ -3147,11 +3159,11 @@ struct json_dearchiver::impl {
           val, [&](const auto name, const auto& value) noexcept -> bool {
               if ("probability"sv == name)
                   return read_temp_real(value) && is_double_greater_than(0) &&
-                         copy_to(p.probability);
+                         copy_real_to(p.probability);
 
               if ("k"sv == name)
-                  return read_temp_integer(value) &&
-                         is_int_greater_equal_than(1) && copy_to(p.k);
+                  return read_temp_i64(value) && is_i64_greater_equal_than(1) &&
+                         copy_i64_to(p.k);
 
               return true;
           });
@@ -3208,16 +3220,16 @@ struct json_dearchiver::impl {
               val,
               [&](const auto name, const auto& value) noexcept -> bool {
                   if ("row"sv == name)
-                      return read_temp_integer(value) and copy_to(row);
+                      return read_temp_i64(value) and copy_i64_to(row);
 
                   if ("col"sv == name)
-                      return read_temp_integer(value) and copy_to(col);
+                      return read_temp_i64(value) and copy_i64_to(col);
 
                   if ("id"sv == name)
-                      return read_temp_string(value) and copy_to(id);
+                      return read_temp_string(value) and copy_string_to(id);
 
                   if ("x"sv == name)
-                      return read_temp_string(value) and copy_to(x);
+                      return read_temp_string(value) and copy_string_to(x);
 
                   return true;
               }) and
@@ -3258,16 +3270,16 @@ struct json_dearchiver::impl {
               val,
               [&](const auto name, const auto& value) noexcept -> bool {
                   if ("row"sv == name)
-                      return read_temp_integer(value) and copy_to(row);
+                      return read_temp_i64(value) and copy_i64_to(row);
 
                   if ("col"sv == name)
-                      return read_temp_integer(value) and copy_to(col);
+                      return read_temp_i64(value) and copy_i64_to(col);
 
                   if ("id"sv == name)
-                      return read_temp_string(value) and copy_to(id);
+                      return read_temp_string(value) and copy_string_to(id);
 
                   if ("y"sv == name)
-                      return read_temp_string(value) and copy_to(y);
+                      return read_temp_string(value) and copy_string_to(y);
 
                   return true;
               }) and
@@ -3338,24 +3350,24 @@ struct json_dearchiver::impl {
                  val,
                  [&](const auto name, const auto& value) noexcept -> bool {
                      if ("rows"sv == name)
-                         return read_temp_integer(value) &&
-                                is_int_greater_equal_than(1) &&
-                                is_int_less_than(grid_component::row_max) &&
-                                copy_to(grid.row);
+                         return read_temp_i64(value) &&
+                                is_i64_greater_equal_than(1) &&
+                                is_i64_less_than(grid_component::row_max) &&
+                                copy_i64_to(grid.row);
 
                      if ("columns"sv == name)
-                         return read_temp_integer(value) &&
-                                is_int_greater_equal_than(1) &&
-                                is_int_less_than(grid_component::row_max) &&
-                                copy_to(grid.column);
+                         return read_temp_i64(value) &&
+                                is_i64_greater_equal_than(1) &&
+                                is_i64_less_than(grid_component::row_max) &&
+                                copy_i64_to(grid.column);
 
                      if ("in-connection-type"sv == name)
-                         return read_temp_integer(value) &&
-                                copy_to(grid.in_connection_type);
+                         return read_temp_i64(value) &&
+                                copy_i64_to(grid.in_connection_type);
 
                      if ("out-connection-type"sv == name)
-                         return read_temp_integer(value) &&
-                                copy_to(grid.out_connection_type);
+                         return read_temp_i64(value) &&
+                                copy_i64_to(grid.out_connection_type);
 
                      if ("children"sv == name)
                          return read_grid_children(value, grid);
@@ -3406,23 +3418,23 @@ struct json_dearchiver::impl {
                     value, hsm.machine.states, hsm.names, hsm.positions);
 
               if ("top"sv == name)
-                  return read_temp_unsigned_integer(value) &&
-                         copy_to(hsm.machine.top_state);
+                  return read_temp_u64(value) &&
+                         copy_u64_to(hsm.machine.top_state);
 
               if ("i1"sv == name)
-                  return read_temp_integer(value) && copy_to(hsm.i1);
+                  return read_temp_i64(value) && copy_i64_to(hsm.i1);
 
               if ("i2"sv == name)
-                  return read_temp_integer(value) && copy_to(hsm.i2);
+                  return read_temp_i64(value) && copy_i64_to(hsm.i2);
 
               if ("r1"sv == name)
-                  return read_temp_real(value) && copy_to(hsm.r1);
+                  return read_temp_real(value) && copy_real_to(hsm.r1);
 
               if ("r2"sv == name)
-                  return read_temp_real(value) && copy_to(hsm.r2);
+                  return read_temp_real(value) && copy_real_to(hsm.r2);
 
               if ("timeout"sv == name)
-                  return read_temp_real(value) && copy_to(hsm.timeout);
+                  return read_temp_real(value) && copy_real_to(hsm.timeout);
 
               if ("constants"sv == name)
                   return value.IsArray() and
@@ -3433,7 +3445,7 @@ struct json_dearchiver::impl {
                            value,
                            [&](const auto i, const auto& val) noexcept -> bool {
                                return read_temp_real(val) &&
-                                      copy_to(hsm.machine.constants[i]);
+                                      copy_real_to(hsm.machine.constants[i]);
                            });
 
               return true;
@@ -3489,11 +3501,12 @@ struct json_dearchiver::impl {
         if (not for_each_member(
               val, [&](const auto name, const auto& value) noexcept -> bool {
                   if ("name"sv == name)
-                      return read_temp_string(value) && copy_to(port_name);
+                      return read_temp_string(value) &&
+                             copy_string_to(port_name);
                   if ("x"sv == name)
-                      return read_temp_real(value) && copy_to(x);
+                      return read_temp_real(value) && copy_real_to(x);
                   if ("y"sv == name)
-                      return read_temp_real(value) && copy_to(y);
+                      return read_temp_real(value) && copy_real_to(y);
 
                   return true;
               }))
@@ -3549,7 +3562,7 @@ struct json_dearchiver::impl {
         return is_value_array(val) && is_value_array_size_equal(val, 4) &&
                for_each_array(
                  val, [&](const auto i, const auto& value) noexcept -> bool {
-                     return read_temp_real(value) && copy_to(color[i]);
+                     return read_temp_real(value) && copy_real_to(color[i]);
                  });
     }
 
@@ -3560,7 +3573,7 @@ struct json_dearchiver::impl {
         return for_each_member(
           val, [&](const auto name, const auto& value) noexcept -> bool {
               if ("name"sv == name)
-                  return read_temp_string(value) && copy_to(compo.name);
+                  return read_temp_string(value) && copy_string_to(compo.name);
               if ("constant-sources"sv == name)
                   return read_constant_sources(value, compo.srcs);
               if ("binary-file-sources"sv == name)
@@ -3660,14 +3673,13 @@ struct json_dearchiver::impl {
         return for_each_member(
           val, [&](const auto name, const auto& value) noexcept -> bool {
               if ("type"sv == name)
-                  return read_temp_string(value) && copy_to(mdl.type) &&
+                  return read_temp_string(value) && copy_string_to(mdl.type) &&
                          read_simulation_model_dynamics(val, mdl, p);
 
               if ("id"sv == name) {
                   std::optional<u64> id_in_file;
 
-                  return read_temp_unsigned_integer(value) &&
-                         copy_to(id_in_file) &&
+                  return read_temp_u64(value) && copy_u64_to(id_in_file) &&
                          optional_has_value(id_in_file) &&
                          cache_model_mapping_add(
                            *id_in_file, ordinal(sim().models.get_id(mdl)));
@@ -3696,8 +3708,7 @@ struct json_dearchiver::impl {
                   return read_hsm_states(value, machine.states);
 
               if ("top"sv == name)
-                  return read_temp_unsigned_integer(value) &&
-                         copy_to(machine.top_state);
+                  return read_temp_u64(value) && copy_u64_to(machine.top_state);
               return true;
           });
     }
@@ -3808,18 +3819,16 @@ struct json_dearchiver::impl {
                  val,
                  [&](const auto name, const auto& value) noexcept -> bool {
                      if ("source"sv == name)
-                         return read_temp_unsigned_integer(value) &&
-                                copy_to(src);
+                         return read_temp_u64(value) && copy_u64_to(src);
 
                      if ("port-source"sv == name)
-                         return read_temp_integer(value) && copy_to(port_src);
+                         return read_temp_i64(value) && copy_i64_to(port_src);
 
                      if ("destination"sv == name)
-                         return read_temp_unsigned_integer(value) &&
-                                copy_to(dst);
+                         return read_temp_u64(value) && copy_u64_to(dst);
 
                      if ("port_destination"sv == name)
-                         return read_temp_integer(value) && copy_to(port_dst);
+                         return read_temp_i64(value) && copy_i64_to(port_dst);
 
                      return true;
                  }) &&
@@ -3892,13 +3901,16 @@ struct json_dearchiver::impl {
                  val,
                  [&](const auto name, const auto& value) noexcept -> bool {
                      if ("component-path"sv == name)
-                         return read_temp_string(value) && copy_to(reg_name);
+                         return read_temp_string(value) &&
+                                copy_string_to(reg_name);
 
                      if ("component-directory"sv == name)
-                         return read_temp_string(value) && copy_to(dir_path);
+                         return read_temp_string(value) &&
+                                copy_string_to(dir_path);
 
                      if ("component-file"sv == name)
-                         return read_temp_string(value) && copy_to(file_path);
+                         return read_temp_string(value) &&
+                                copy_string_to(file_path);
 
                      return true;
                  }) &&
@@ -3928,7 +3940,7 @@ struct json_dearchiver::impl {
         return is_value_array(val) && is_value_array_size_equal(val, 8) &&
                for_each_array(
                  val, [&](const auto i, const auto& value) noexcept -> bool {
-                     return read_temp_real(value) && copy_to(reals[i]);
+                     return read_temp_real(value) && copy_real_to(reals[i]);
                  });
     }
 
@@ -3940,8 +3952,7 @@ struct json_dearchiver::impl {
         return is_value_array(val) && is_value_array_size_equal(val, 8) &&
                for_each_array(
                  val, [&](const auto i, const auto& value) noexcept -> bool {
-                     return read_temp_unsigned_integer(value) &&
-                            copy_to(integers[i]);
+                     return read_temp_i64(value) && copy_i64_to(integers[i]);
                  });
     }
 
@@ -3988,7 +3999,8 @@ struct json_dearchiver::impl {
 
                      if ("name"sv == name)
                          return read_temp_string(value) &&
-                                copy_to(pj().parameters.get<name_str>(id));
+                                copy_string_to(
+                                  pj().parameters.get<name_str>(id));
 
                      if ("access"sv == name)
                          return read_project_unique_id_path(value, path) &&
@@ -4155,7 +4167,7 @@ struct json_dearchiver::impl {
                for_each_array(
                  val,
                  [&](const auto i, const auto& value) noexcept -> bool {
-                     return read_temp_unsigned_integer(value) && copy_to(cc[i]);
+                     return read_temp_real(value) && copy_real_to(cc[i]);
                  }) &&
                copy(cc, c);
     }
@@ -4192,7 +4204,7 @@ struct json_dearchiver::impl {
                  [&](const auto name, const auto& value) noexcept -> bool {
                      unique_id_path path;
                      if ("name"sv == name)
-                         return read_temp_string(value) && copy_to(str);
+                         return read_temp_string(value) && copy_string_to(str);
 
                      if ("access"sv == name)
                          return read_project_unique_id_path(value, path) &&
@@ -4213,7 +4225,7 @@ struct json_dearchiver::impl {
         return false;
     }
 
-    bool copy_to(variable_observer::type_options& type) noexcept
+    bool copy_string_to(variable_observer::type_options& type) noexcept
     {
         if (temp_string == "line")
             type = variable_observer::type_options::line;
@@ -4222,7 +4234,6 @@ struct json_dearchiver::impl {
             type = variable_observer::type_options::dash;
 
         report_json_error("unknown element");
-        ;
     }
 
     bool read_project_plot_observation_children(
@@ -4251,7 +4262,7 @@ struct json_dearchiver::impl {
         return for_each_member(
           val, [&](const auto name, const auto& value) noexcept -> bool {
               if ("name"sv == name)
-                  return read_temp_string(value) && copy_to(plot.name);
+                  return read_temp_string(value) && copy_string_to(plot.name);
 
               if ("models"sv == name)
                   return read_project_plot_observation_children(value, plot);
@@ -4314,7 +4325,8 @@ struct json_dearchiver::impl {
                      unique_id_path path;
 
                      if ("name"sv == name)
-                         return read_temp_string(value) && copy_to(grid.name);
+                         return read_temp_string(value) &&
+                                copy_string_to(grid.name);
 
                      if ("grid"sv == name)
                          return read_project_unique_id_path(value, path) &&
@@ -4368,10 +4380,10 @@ struct json_dearchiver::impl {
                  val,
                  [&](const auto name, const auto& value) noexcept -> bool {
                      if ("begin"sv == name)
-                         return read_temp_real(value) and copy_to(begin);
+                         return read_temp_real(value) and copy_real_to(begin);
 
                      if ("end"sv == name)
-                         return read_temp_real(value) and copy_to(end);
+                         return read_temp_real(value) and copy_real_to(end);
 
                      if ("parameters"sv == name)
                          return read_project_parameters(value);
@@ -4386,10 +4398,10 @@ struct json_dearchiver::impl {
 
     void clear() noexcept
     {
-        temp_integer = 0;
-        temp_u64     = 0;
-        temp_double  = 0.0;
-        temp_bool    = false;
+        temp_i64    = 0;
+        temp_u64    = 0;
+        temp_double = 0.0;
+        temp_bool   = false;
         temp_string.clear();
         stack.clear();
         error.reset();
@@ -4399,10 +4411,10 @@ struct json_dearchiver::impl {
     simulation* m_sim = nullptr;
     project*    m_pj  = nullptr;
 
-    i64         temp_integer = 0;
-    u64         temp_u64     = 0;
-    double      temp_double  = 0.0;
-    bool        temp_bool    = false;
+    i64         temp_i64    = 0;
+    u64         temp_u64    = 0;
+    double      temp_double = 0.0;
+    bool        temp_bool   = false;
     std::string temp_string;
 
     small_vector<std::string_view, 16> stack;
