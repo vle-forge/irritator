@@ -1096,12 +1096,19 @@ struct json_dearchiver::impl {
           val, [&](const auto name, const auto& value) noexcept -> bool {
               if ("value"sv == name)
                   return read_temp_real(value) && copy_to(p.reals[0]);
+
               if ("offset"sv == name)
                   return read_temp_real(value) &&
                          is_double_greater_equal_than(0.0) &&
                          copy_to(p.reals[1]);
-              if ("type"sv == name)
-                  return read_temp_string(value) && copy_to(p.integers[0]);
+
+              if ("type"sv == name) {
+                  constant::init_type type = constant::init_type::constant;
+
+                  return read_temp_string(value) && copy_to(type) &&
+                         copy(ordinal(type), p.integers[0]);
+              }
+
               if ("port"sv == name)
                   return read_temp_integer(value) && copy_to(p.integers[1]);
 
