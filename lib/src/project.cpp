@@ -1242,6 +1242,7 @@ public:
             }
 
             map.data.emplace_back(mod.components.get_id(c), ret);
+            map.sort();
         }
 
         return ret;
