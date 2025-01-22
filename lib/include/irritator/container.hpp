@@ -214,8 +214,9 @@ public:
         std::size_t deallocated = 0;
 
     public:
-        void* allocate(std::size_t bytes,
-                       std::size_t alignment = alignof(std::max_align_t))
+        void* allocate(
+          std::size_t bytes,
+          std::size_t alignment = alignof(std::max_align_t)) noexcept
         {
             if constexpr (debug::enable_memory_log == true and
                           debug::enable_ensure == true) {
@@ -279,8 +280,9 @@ public:
         std::size_t deallocated = 0;
 
     public:
-        void* allocate(std::size_t bytes,
-                       std::size_t alignment = alignof(std::max_align_t))
+        void* allocate(
+          std::size_t bytes,
+          std::size_t alignment = alignof(std::max_align_t)) noexcept
         {
             allocated += bytes;
             return mr.allocate(bytes, alignment);
@@ -332,8 +334,9 @@ public:
         std::size_t deallocated = 0;
 
     public:
-        void* allocate(std::size_t bytes,
-                       std::size_t alignment = alignof(std::max_align_t))
+        void* allocate(
+          std::size_t bytes,
+          std::size_t alignment = alignof(std::max_align_t)) noexcept
         {
             allocated += bytes;
             return mr.allocate(bytes, alignment);
@@ -393,8 +396,9 @@ public:
         std::size_t deallocated = 0;
 
     public:
-        void* allocate(std::size_t bytes,
-                       std::size_t alignment = alignof(std::max_align_t))
+        void* allocate(
+          std::size_t bytes,
+          std::size_t alignment = alignof(std::max_align_t)) noexcept
         {
             allocated += bytes;
             return mr.allocate(bytes, alignment);
@@ -448,8 +452,9 @@ public:
         std::size_t deallocated = 0;
 
     public:
-        void* allocate(std::size_t bytes,
-                       std::size_t alignment = alignof(std::max_align_t))
+        void* allocate(
+          std::size_t bytes,
+          std::size_t alignment = alignof(std::max_align_t)) noexcept
         {
             allocated += bytes;
             return mr.allocate(bytes, alignment);
@@ -510,8 +515,9 @@ struct allocator {
     using difference_type      = std::ptrdiff_t;
     using memory_resource_type = MemoryResource;
 
-    static void* allocate(std::size_t bytes,
-                          std::size_t alignment = alignof(std::max_align_t))
+    static void* allocate(
+      std::size_t bytes,
+      std::size_t alignment = alignof(std::max_align_t)) noexcept
     {
         debug::ensure(bytes != 0);
 
