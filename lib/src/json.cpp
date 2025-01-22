@@ -164,19 +164,19 @@ struct json_dearchiver::impl {
                                             it->name.GetStringLength() });
 
             if (x == std::end(names)) {
-                debug_logi(stack.ssize(),
-                           "for-member: unknown element {}\n",
-                           std::string_view{ it->name.GetString(),
-                                             it->name.GetStringLength() });
+                //debug_logi(stack.ssize(),
+                //           "for-member: unknown element {}\n",
+                //           std::string_view{ it->name.GetString(),
+                //                             it->name.GetStringLength() });
 
                 report_json_error("unknown element");
             }
 
             if (!fn(std::distance(std::begin(names), x), it->value)) {
-                debug_logi(stack.ssize(),
-                           "for-member: element {} return false\n",
-                           std::string_view{ it->name.GetString(),
-                                             it->name.GetStringLength() });
+                //debug_logi(stack.ssize(),
+                //           "for-member: element {} return false\n",
+                //           std::string_view{ it->name.GetString(),
+                //                             it->name.GetStringLength() });
                 return false;
             }
 
@@ -196,7 +196,7 @@ struct json_dearchiver::impl {
 
         for (auto it = val.MemberBegin(), et = val.MemberEnd(); it != et;
              ++it) {
-            debug_logi(stack.ssize(), "for-member: {}\n", it->name.GetString());
+            //debug_logi(stack.ssize(), "for-member: {}\n", it->name.GetString());
             if (!f(it->name.GetString(), it->value, args...))
                 return false;
         }
