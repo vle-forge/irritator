@@ -546,7 +546,7 @@ static bool show_local_simulation_settings(application&    app,
                 if (is_enable)
                     show_parameter_editor(
                       app,
-                      ed,
+                      ed.pj.sim.srcs,
                       mdl.type,
                       ed.pj.parameters.get<parameter>(param_id));
 
@@ -872,7 +872,7 @@ static bool show_project_parameters(application&    app,
                 ImGui::TableNextColumn();
                 ImGui::TextUnformatted(dynamics_type_names[ordinal(mdl->type)]);
                 ImGui::TableNextColumn();
-                if (show_parameter_editor(app, ed, mdl->type, p))
+                if (show_parameter_editor(app, ed.pj.sim.srcs, mdl->type, p))
                     is_modified++;
             } else {
                 ImGui::TableNextColumn();

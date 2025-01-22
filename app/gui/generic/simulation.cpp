@@ -538,7 +538,7 @@ static void show_model_dynamics(application&    app,
             ImGui::PushItemWidth(120.0f);
             show_parameter_editor(
               app,
-              ed,
+              ed.pj.sim.srcs,
               mdl.type,
               ed.pj.sim.parameters[get_index(ed.pj.sim.models.get_id(mdl))]);
             ImGui::PopItemWidth();

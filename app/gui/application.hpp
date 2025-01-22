@@ -676,7 +676,7 @@ struct project_editor {
     bool show_internal_inputs = false;
     bool show_identifiers     = false;
 
-    bool is_dock_init = false;
+    bool is_dock_init   = false;
     bool disable_access = true;
 
     /** Return true if a simulation is currently running.
@@ -1114,14 +1114,6 @@ struct application {
 
     bool init() noexcept;
     void show() noexcept;
-
-    void show_tasks_widgets() noexcept;
-    void show_external_sources() noexcept;
-    void show_log_window() noexcept;
-    void show_simulation_observation_window() noexcept;
-    void show_components_window() noexcept;
-    void show_project_window() noexcept;
-    void show_memory_box(bool* is_open) noexcept;
 
     status save_settings() noexcept;
     status load_settings() noexcept;

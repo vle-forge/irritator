@@ -299,7 +299,7 @@ static bool show_connection(const generic_component& compo,
     return true;
 }
 
-static void show_node(component_editor&  ed,
+static bool show_node(component_editor&  ed,
                       component&         compo,
                       generic_component& gen,
                       child&             c) noexcept
@@ -324,33 +324,26 @@ static void show_node(component_editor&  ed,
                       dynamics_type_names[ordinal(c.id.mdl_type)]);
     ImNodes::EndNodeTitleBar();
 
-    [[maybe_unused]] auto changed =
-      dispatcher(c.id.mdl_type, [&](const auto tag) noexcept -> bool {
-          int        ret = false;
-          const auto X   = get_dynamics_input_names(tag);
-          const auto Y   = get_dynamics_output_names(tag);
+    const auto [X, Y] = get_dynamics_input_output_names(c.id.mdl_type);
+    auto ret          = 0;
 
-          add_input_attribute(X, id);
-          ImGui::PushItemWidth(120.0f);
-          if constexpr (std::is_same_v<std::decay_t<decltype(tag)>,
-                                       dynamics_hsm_wrapper_tag>) {
-              ret += show_hsm_parameter(app.mod, gen.children_parameters[idx]);
-              ret += show_parameter(
-                tag, app, compo.srcs, gen.children_parameters[idx]);
-          } else {
-              ret += show_parameter(
-                tag, app, compo.srcs, gen.children_parameters[idx]);
-          }
-          ImGui::PopItemWidth();
-          add_output_attribute(Y, id);
+    add_input_attribute(X, id);
+    ImGui::PushItemWidth(120.0f);
+    if (c.id.mdl_type == dynamics_type::hsm_wrapper)
+        ret += show_hsm_component_id_parameter(app.mod,
+                                               gen.children_parameters[idx]);
+    ret += show_parameter_editor(
+      app, compo.srcs, c.id.mdl_type, gen.children_parameters[idx]);
 
-          return ret;
-      });
+    ImGui::PopItemWidth();
+    add_output_attribute(Y, id);
 
     ImNodes::EndNode();
 
     ImNodes::PopColorStyle();
     ImNodes::PopColorStyle();
+
+    return ret;
 }
 
 static void show_input_an_output_ports(component&     compo,
@@ -499,7 +492,7 @@ static void show_graph(component_editor&  ed,
 
     for (auto& c : s_parent.children) {
         if (c.type == child_type::model) {
-            show_node(ed, parent, s_parent, c);
+            (void)show_node(ed, parent, s_parent, c);
         } else {
             const auto cid  = s_parent.children.get_id(c);
             const auto cidx = get_index(cid);

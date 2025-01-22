@@ -4571,7 +4571,7 @@ static constexpr dynamics_type dynamics_typeof() noexcept
 template<typename Function, typename... Args>
 constexpr auto dispatch(const dynamics_type type,
                         Function&&          f,
-                        Args... args) noexcept
+                        Args&&... args) noexcept
 {
     switch (type) {
     case dynamics_type::qss1_integrator:

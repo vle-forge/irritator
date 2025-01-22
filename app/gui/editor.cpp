@@ -224,10 +224,10 @@ bool show_external_sources_combo(external_source&     srcs,
 
 /////////////////////////////////////////////////////////////////////
 
-bool show_parameter(dynamics_counter_tag,
-                    application& /*app*/,
-                    external_source& /*srcs*/,
-                    parameter& p) noexcept
+static bool show_parameter(counter_tag,
+                           application& /*app*/,
+                           external_source& /*srcs*/,
+                           parameter& p) noexcept
 {
     const auto b1 = ImGui::InputReal("value", &p.reals[0]);
     const auto b2 = ImGui::InputReal("dQ", &p.reals[1]);
@@ -235,10 +235,10 @@ bool show_parameter(dynamics_counter_tag,
     return b1 or b2;
 }
 
-bool show_parameter(dynamics_qss1_integrator_tag,
-                    application& /*app*/,
-                    external_source& /*srcs*/,
-                    parameter& p) noexcept
+static bool show_parameter(qss_integrator_tag,
+                           application& /*app*/,
+                           external_source& /*srcs*/,
+                           parameter& p) noexcept
 {
     const auto b1 = ImGui::InputReal("value", &p.reals[0]);
     const auto b2 = ImGui::InputReal("dQ", &p.reals[1]);
@@ -246,40 +246,18 @@ bool show_parameter(dynamics_qss1_integrator_tag,
     return b1 or b2;
 }
 
-bool show_parameter(dynamics_qss2_integrator_tag,
-                    application& /*app*/,
-                    external_source& /*srcs*/,
-                    parameter& p) noexcept
-{
-    const auto b1 = ImGui::InputReal("value", &p.reals[0]);
-    const auto b2 = ImGui::InputReal("dQ", &p.reals[1]);
-
-    return b1 or b2;
-}
-
-bool show_parameter(dynamics_qss3_integrator_tag,
-                    application& /*app*/,
-                    external_source& /*srcs*/,
-                    parameter& p) noexcept
-{
-    const auto b1 = ImGui::InputReal("value", &p.reals[0]);
-    const auto b2 = ImGui::InputReal("dQ", &p.reals[1]);
-
-    return b1 or b2;
-}
-
-bool show_parameter(dynamics_qss1_multiplier_tag,
-                    application& /*app*/,
-                    external_source& /*srcs*/,
-                    parameter& /* p */) noexcept
+static bool show_parameter(qss_multiplier_tag,
+                           application& /*app*/,
+                           external_source& /*srcs*/,
+                           parameter& /* p */) noexcept
 {
     return false;
 }
 
-bool show_parameter(dynamics_qss1_sum_2_tag,
-                    application& /*app*/,
-                    external_source& /*srcs*/,
-                    parameter& p) noexcept
+static bool show_parameter(qss_sum_2_tag,
+                           application& /*app*/,
+                           external_source& /*srcs*/,
+                           parameter& p) noexcept
 {
     const auto b1 = ImGui::InputReal("value-0", &p.reals[0]);
     const auto b2 = ImGui::InputReal("value-1", &p.reals[1]);
@@ -287,10 +265,10 @@ bool show_parameter(dynamics_qss1_sum_2_tag,
     return b1 or b2;
 }
 
-bool show_parameter(dynamics_qss1_sum_3_tag,
-                    application& /*app*/,
-                    external_source& /*srcs*/,
-                    parameter& p) noexcept
+static bool show_parameter(qss_sum_3_tag,
+                           application& /*app*/,
+                           external_source& /*srcs*/,
+                           parameter& p) noexcept
 {
     const auto b1 = ImGui::InputReal("value-0", &p.reals[0]);
     const auto b2 = ImGui::InputReal("value-1", &p.reals[1]);
@@ -299,10 +277,10 @@ bool show_parameter(dynamics_qss1_sum_3_tag,
     return b1 or b2 or b3;
 }
 
-bool show_parameter(dynamics_qss1_sum_4_tag,
-                    application& /*app*/,
-                    external_source& /*srcs*/,
-                    parameter& p) noexcept
+static bool show_parameter(qss_sum_4_tag,
+                           application& /*app*/,
+                           external_source& /*srcs*/,
+                           parameter& p) noexcept
 {
     const auto b1 = ImGui::InputReal("value-0", &p.reals[0]);
     const auto b2 = ImGui::InputReal("value-1", &p.reals[1]);
@@ -312,10 +290,10 @@ bool show_parameter(dynamics_qss1_sum_4_tag,
     return b1 or b2 or b3 or b4;
 }
 
-bool show_parameter(dynamics_qss1_wsum_2_tag,
-                    application& /*app*/,
-                    external_source& /*srcs*/,
-                    parameter& p) noexcept
+static bool show_parameter(qss_wsum_2_tag,
+                           application& /*app*/,
+                           external_source& /*srcs*/,
+                           parameter& p) noexcept
 {
     const auto b1 = ImGui::InputReal("value-0", &p.reals[0]);
     const auto b2 = ImGui::InputReal("value-1", &p.reals[1]);
@@ -325,10 +303,10 @@ bool show_parameter(dynamics_qss1_wsum_2_tag,
     return b1 or b2 or b3 or b4;
 }
 
-bool show_parameter(dynamics_qss1_wsum_3_tag,
-                    application& /*app*/,
-                    external_source& /*srcs*/,
-                    parameter& p) noexcept
+static bool show_parameter(qss_wsum_3_tag,
+                           application& /*app*/,
+                           external_source& /*srcs*/,
+                           parameter& p) noexcept
 {
     const auto b1 = ImGui::InputReal("value-0", &p.reals[0]);
     const auto b2 = ImGui::InputReal("value-1", &p.reals[1]);
@@ -340,10 +318,10 @@ bool show_parameter(dynamics_qss1_wsum_3_tag,
     return b1 or b2 or b3 or b4 or b5 or b6;
 }
 
-bool show_parameter(dynamics_qss1_wsum_4_tag,
-                    application& /*app*/,
-                    external_source& /*srcs*/,
-                    parameter& p) noexcept
+static bool show_parameter(qss_wsum_4_tag,
+                           application& /*app*/,
+                           external_source& /*srcs*/,
+                           parameter& p) noexcept
 {
     const auto b1 = ImGui::InputReal("value-0", &p.reals[0]);
     const auto b2 = ImGui::InputReal("value-1", &p.reals[1]);
@@ -357,188 +335,10 @@ bool show_parameter(dynamics_qss1_wsum_4_tag,
     return b1 or b2 or b3 or b4 or b5 or b6 or b7 or b8;
 }
 
-bool show_parameter(dynamics_qss2_multiplier_tag,
-                    application& /*app*/,
-                    external_source& /*srcs*/,
-                    parameter& /*p*/) noexcept
-{
-    return false;
-}
-
-bool show_parameter(dynamics_qss2_sum_2_tag,
-                    application& /*app*/,
-                    external_source& /*srcs*/,
-                    parameter& p) noexcept
-{
-    const auto b1 = ImGui::InputReal("value-0", &p.reals[0]);
-    const auto b2 = ImGui::InputReal("value-1", &p.reals[1]);
-
-    return b1 or b2;
-}
-
-bool show_parameter(dynamics_qss2_sum_3_tag,
-                    application& /*app*/,
-                    external_source& /*srcs*/,
-                    parameter& p) noexcept
-{
-    const auto b1 = ImGui::InputReal("value-0", &p.reals[0]);
-    const auto b2 = ImGui::InputReal("value-1", &p.reals[1]);
-    const auto b3 = ImGui::InputReal("value-2", &p.reals[2]);
-
-    return b1 or b2 or b3;
-}
-
-bool show_parameter(dynamics_qss2_sum_4_tag,
-                    application& /*app*/,
-                    external_source& /*srcs*/,
-                    parameter& p) noexcept
-{
-    const auto b1 = ImGui::InputReal("value-0", &p.reals[0]);
-    const auto b2 = ImGui::InputReal("value-1", &p.reals[1]);
-    const auto b3 = ImGui::InputReal("value-2", &p.reals[2]);
-    const auto b4 = ImGui::InputReal("value-3", &p.reals[3]);
-
-    return b1 or b2 or b3 or b4;
-}
-
-bool show_parameter(dynamics_qss2_wsum_2_tag,
-                    application& /*app*/,
-                    external_source& /*srcs*/,
-                    parameter& p) noexcept
-{
-    const auto b1 = ImGui::InputReal("value-0", &p.reals[0]);
-    const auto b2 = ImGui::InputReal("value-1", &p.reals[1]);
-    const auto b3 = ImGui::InputReal("coeff-0", &p.reals[2]);
-    const auto b4 = ImGui::InputReal("coeff-1", &p.reals[3]);
-
-    return b1 or b2 or b3 or b4;
-}
-
-bool show_parameter(dynamics_qss2_wsum_3_tag,
-                    application& /*app*/,
-                    external_source& /*srcs*/,
-                    parameter& p) noexcept
-{
-    const auto b1 = ImGui::InputReal("value-0", &p.reals[0]);
-    const auto b2 = ImGui::InputReal("value-1", &p.reals[1]);
-    const auto b3 = ImGui::InputReal("value-2", &p.reals[2]);
-    const auto b4 = ImGui::InputReal("coeff-0", &p.reals[3]);
-    const auto b5 = ImGui::InputReal("coeff-1", &p.reals[4]);
-    const auto b6 = ImGui::InputReal("coeff-2", &p.reals[5]);
-
-    return b1 or b2 or b3 or b4 or b5 or b6;
-}
-
-bool show_parameter(dynamics_qss2_wsum_4_tag,
-                    application& /*app*/,
-                    external_source& /*srcs*/,
-                    parameter& p) noexcept
-{
-    const auto b1 = ImGui::InputReal("value-0", &p.reals[0]);
-    const auto b2 = ImGui::InputReal("value-1", &p.reals[1]);
-    const auto b3 = ImGui::InputReal("value-2", &p.reals[2]);
-    const auto b4 = ImGui::InputReal("value-3", &p.reals[3]);
-    const auto b5 = ImGui::InputReal("coeff-0", &p.reals[4]);
-    const auto b6 = ImGui::InputReal("coeff-1", &p.reals[5]);
-    const auto b7 = ImGui::InputReal("coeff-2", &p.reals[6]);
-    const auto b8 = ImGui::InputReal("coeff-3", &p.reals[7]);
-
-    return b1 or b2 or b3 or b4 or b5 or b6 or b7 or b8;
-}
-
-bool show_parameter(dynamics_qss3_multiplier_tag,
-                    application& /*app*/,
-                    external_source& /*srcs*/,
-                    parameter& /*p*/) noexcept
-{
-    return false;
-}
-
-bool show_parameter(dynamics_qss3_sum_2_tag,
-                    application& /*app*/,
-                    external_source& /*srcs*/,
-                    parameter& p) noexcept
-{
-    const auto b1 = ImGui::InputReal("value-0", &p.reals[0]);
-    const auto b2 = ImGui::InputReal("value-1", &p.reals[1]);
-
-    return b1 or b2;
-}
-
-bool show_parameter(dynamics_qss3_sum_3_tag,
-                    application& /*app*/,
-                    external_source& /*srcs*/,
-                    parameter& p) noexcept
-{
-    const auto b1 = ImGui::InputReal("value-0", &p.reals[0]);
-    const auto b2 = ImGui::InputReal("value-1", &p.reals[1]);
-    const auto b3 = ImGui::InputReal("value-2", &p.reals[2]);
-
-    return b1 or b2 or b3;
-}
-
-bool show_parameter(dynamics_qss3_sum_4_tag,
-                    application& /*app*/,
-                    external_source& /*srcs*/,
-                    parameter& p) noexcept
-{
-    const auto b1 = ImGui::InputReal("value-0", &p.reals[0]);
-    const auto b2 = ImGui::InputReal("value-1", &p.reals[1]);
-    const auto b3 = ImGui::InputReal("value-2", &p.reals[2]);
-    const auto b4 = ImGui::InputReal("value-3", &p.reals[3]);
-
-    return b1 or b2 or b3 or b4;
-}
-
-bool show_parameter(dynamics_qss3_wsum_2_tag,
-                    application& /*app*/,
-                    external_source& /*srcs*/,
-                    parameter& p) noexcept
-{
-    const auto b1 = ImGui::InputReal("value-0", &p.reals[0]);
-    const auto b2 = ImGui::InputReal("value-1", &p.reals[1]);
-    const auto b3 = ImGui::InputReal("coeff-0", &p.reals[2]);
-    const auto b4 = ImGui::InputReal("coeff-1", &p.reals[3]);
-
-    return b1 or b2 or b3 or b4;
-}
-
-bool show_parameter(dynamics_qss3_wsum_3_tag,
-                    application& /*app*/,
-                    external_source& /*srcs*/,
-                    parameter& p) noexcept
-{
-    const auto b1 = ImGui::InputReal("value-0", &p.reals[0]);
-    const auto b2 = ImGui::InputReal("value-1", &p.reals[1]);
-    const auto b3 = ImGui::InputReal("value-2", &p.reals[2]);
-    const auto b4 = ImGui::InputReal("coeff-0", &p.reals[3]);
-    const auto b5 = ImGui::InputReal("coeff-1", &p.reals[4]);
-    const auto b6 = ImGui::InputReal("coeff-2", &p.reals[5]);
-
-    return b1 or b2 or b3 or b4 or b5 or b6;
-}
-
-bool show_parameter(dynamics_qss3_wsum_4_tag,
-                    application& /*app*/,
-                    external_source& /*srcs*/,
-                    parameter& p) noexcept
-{
-    const auto b1 = ImGui::InputReal("value-0", &p.reals[0]);
-    const auto b2 = ImGui::InputReal("value-1", &p.reals[1]);
-    const auto b3 = ImGui::InputReal("value-2", &p.reals[2]);
-    const auto b4 = ImGui::InputReal("value-3", &p.reals[3]);
-    const auto b5 = ImGui::InputReal("coeff-0", &p.reals[4]);
-    const auto b6 = ImGui::InputReal("coeff-1", &p.reals[5]);
-    const auto b7 = ImGui::InputReal("coeff-2", &p.reals[6]);
-    const auto b8 = ImGui::InputReal("coeff-3", &p.reals[7]);
-
-    return b1 or b2 or b3 or b4 or b5 or b6 or b7 or b8;
-}
-
-bool show_parameter(dynamics_queue_tag,
-                    application& /*app*/,
-                    external_source& /*srcs*/,
-                    parameter& p) noexcept
+static bool show_parameter(queue_tag,
+                           application& /*app*/,
+                           external_source& /*srcs*/,
+                           parameter& p) noexcept
 {
     const auto b1 = ImGui::InputReal("delay", &p.reals[0]);
     ImGui::SameLine();
@@ -547,10 +347,10 @@ bool show_parameter(dynamics_queue_tag,
     return b1;
 }
 
-bool show_parameter(dynamics_dynamic_queue_tag,
-                    application& /*app*/,
-                    external_source& srcs,
-                    parameter&       p) noexcept
+static bool show_parameter(dynamic_queue_tag,
+                           application& /*app*/,
+                           external_source& srcs,
+                           parameter&       p) noexcept
 {
     auto       stop_on_error = p.integers[0] != 0;
     const auto b1            = ImGui::Checkbox("Stop on error", &stop_on_error);
@@ -568,10 +368,10 @@ bool show_parameter(dynamics_dynamic_queue_tag,
     return b1 or b2;
 }
 
-bool show_parameter(dynamics_priority_queue_tag,
-                    application& /*app*/,
-                    external_source& srcs,
-                    parameter&       p) noexcept
+static bool show_parameter(priority_queue_tag,
+                           application& /*app*/,
+                           external_source& srcs,
+                           parameter&       p) noexcept
 {
     bool is_changed = false;
     bool value      = p.integers[0] != 0;
@@ -589,10 +389,10 @@ bool show_parameter(dynamics_priority_queue_tag,
     return is_changed;
 }
 
-bool show_parameter(dynamics_generator_tag,
-                    application& /*app*/,
-                    external_source& srcs,
-                    parameter&       p) noexcept
+static bool show_parameter(generator_tag,
+                           application& /*app*/,
+                           external_source& srcs,
+                           parameter&       p) noexcept
 {
     static const char* items[] = { "source", "external events" };
 
@@ -664,10 +464,10 @@ bool show_parameter(dynamics_generator_tag,
     return is_changed;
 }
 
-bool show_parameter(dynamics_constant_tag,
-                    application& /*app*/,
-                    external_source& /*srcs*/,
-                    parameter& p) noexcept
+static bool show_parameter(constant_tag,
+                           application& /*app*/,
+                           external_source& /*srcs*/,
+                           parameter& p) noexcept
 {
     static const char* type_names[] = { "constant",
                                         "incoming component all",
@@ -706,10 +506,10 @@ bool show_parameter(dynamics_constant_tag,
     return is_changed;
 }
 
-bool show_parameter(dynamics_qss1_cross_tag,
-                    application& /*app*/,
-                    external_source& /*srcs*/,
-                    parameter& p) noexcept
+static bool show_parameter(qss_cross_tag,
+                           application& /*app*/,
+                           external_source& /*srcs*/,
+                           parameter& p) noexcept
 {
     bool is_changed = ImGui::InputReal("threshold", &p.reals[0]);
 
@@ -722,43 +522,10 @@ bool show_parameter(dynamics_qss1_cross_tag,
     return is_changed;
 }
 
-bool show_parameter(dynamics_qss2_cross_tag,
-                    application& /*app*/,
-                    external_source& /*srcs*/,
-                    parameter& p) noexcept
-
-{
-    bool is_changed = ImGui::InputReal("threshold", &p.reals[0]);
-
-    bool value = p.integers[0] != 0;
-    if (ImGui::Checkbox("up detection", &value)) {
-        p.integers[0] = value ? 1 : 0;
-        is_changed    = true;
-    }
-
-    return is_changed;
-}
-
-bool show_parameter(dynamics_qss3_cross_tag,
-                    application& /*app*/,
-                    external_source& /*srcs*/,
-                    parameter& p) noexcept
-{
-    bool is_changed = ImGui::InputReal("threshold", &p.reals[0]);
-
-    bool value = p.integers[0] != 0;
-    if (ImGui::Checkbox("up detection", &value)) {
-        p.integers[0] = value ? 1 : 0;
-        is_changed    = true;
-    }
-
-    return is_changed;
-}
-
-bool show_parameter(dynamics_qss1_filter_tag,
-                    application& /*app*/,
-                    external_source& /*srcs*/,
-                    parameter& p) noexcept
+static bool show_parameter(qss_filter_tag,
+                           application& /*app*/,
+                           external_source& /*srcs*/,
+                           parameter& p) noexcept
 {
     const auto b1 = ImGui::InputReal("lowe threshold", &p.reals[0]);
     const auto b2 = ImGui::InputReal("upper threshold", &p.reals[1]);
@@ -766,88 +533,34 @@ bool show_parameter(dynamics_qss1_filter_tag,
     return b1 or b2;
 }
 
-bool show_parameter(dynamics_qss2_filter_tag,
-                    application& /*app*/,
-                    external_source& /*srcs*/,
-                    parameter& p) noexcept
-{
-    const auto b1 = ImGui::InputReal("lowe threshold", &p.reals[0]);
-    const auto b2 = ImGui::InputReal("upper threshold", &p.reals[1]);
-
-    return b1 or b2;
-}
-
-bool show_parameter(dynamics_qss3_filter_tag,
-                    application& /*app*/,
-                    external_source& /*srcs*/,
-                    parameter& p) noexcept
-{
-    const auto b1 = ImGui::InputReal("lowe threshold", &p.reals[0]);
-    const auto b2 = ImGui::InputReal("upper threshold", &p.reals[1]);
-
-    return b1 or b2;
-}
-
-bool show_parameter(dynamics_qss1_power_tag,
-                    application& /*app*/,
-                    external_source& /*srcs*/,
-                    parameter& p) noexcept
+static bool show_parameter(qss_power_tag,
+                           application& /*app*/,
+                           external_source& /*srcs*/,
+                           parameter& p) noexcept
 {
     return ImGui::InputReal("n", &p.reals[0]);
 }
 
-bool show_parameter(dynamics_qss2_power_tag,
-                    application& /*app*/,
-                    external_source& /*srcs*/,
-                    parameter& p) noexcept
-{
-    return ImGui::InputReal("n", &p.reals[0]);
-}
-
-bool show_parameter(dynamics_qss3_power_tag,
-                    application& /*app*/,
-                    external_source& /*srcs*/,
-                    parameter& p) noexcept
-{
-    return ImGui::InputReal("n", &p.reals[0]);
-}
-
-bool show_parameter(dynamics_qss1_square_tag,
-                    application& /*app*/,
-                    external_source& /*srcs*/,
-                    parameter& /*p*/) noexcept
+static bool show_parameter(qss_square_tag,
+                           application& /*app*/,
+                           external_source& /*srcs*/,
+                           parameter& /*p*/) noexcept
 {
     return false;
 }
 
-bool show_parameter(dynamics_qss2_square_tag,
-                    application& /*app*/,
-                    external_source& /*srcs*/,
-                    parameter& /*p*/) noexcept
+static bool show_parameter(accumulator_2_tag,
+                           application& /*app*/,
+                           external_source& /*srcs*/,
+                           parameter& /*p*/) noexcept
 {
     return false;
 }
 
-bool show_parameter(dynamics_qss3_square_tag,
-                    application& /*app*/,
-                    external_source& /*srcs*/,
-                    parameter& /*p*/) noexcept
-{
-    return false;
-}
-
-bool show_parameter(dynamics_accumulator_2_tag,
-                    application& /*app*/,
-                    external_source& /*srcs*/,
-                    parameter& /*p*/) noexcept
-{
-    return false;
-}
-
-bool show_parameter(dynamics_time_func_tag,
-                    application& /*app*/,
-                    external_source& /*srcs*/,
-                    parameter& p) noexcept
+static bool show_parameter(time_func_tag,
+                           application& /*app*/,
+                           external_source& /*srcs*/,
+                           parameter& p) noexcept
 {
     static const char* items[] = { "time", "square", "sin" };
 
@@ -867,10 +580,10 @@ bool show_parameter(dynamics_time_func_tag,
     return is_changed;
 }
 
-bool show_parameter(dynamics_logical_and_2_tag,
-                    application& /*app*/,
-                    external_source& /*srcs*/,
-                    parameter& p) noexcept
+static bool show_parameter(logical_and_2_tag,
+                           application& /*app*/,
+                           external_source& /*srcs*/,
+                           parameter& p) noexcept
 {
     bool is_changed = false;
     bool value_0    = p.integers[0] != 0;
@@ -889,10 +602,10 @@ bool show_parameter(dynamics_logical_and_2_tag,
     return is_changed;
 }
 
-bool show_parameter(dynamics_logical_or_2_tag,
-                    application& /*app*/,
-                    external_source& /*srcs*/,
-                    parameter& p) noexcept
+static bool show_parameter(logical_or_2_tag,
+                           application& /*app*/,
+                           external_source& /*srcs*/,
+                           parameter& p) noexcept
 {
     bool is_changed = false;
     bool value_0    = p.integers[0] != 0;
@@ -911,38 +624,10 @@ bool show_parameter(dynamics_logical_or_2_tag,
     return is_changed;
 }
 
-bool show_parameter(dynamics_logical_and_3_tag,
-                    application& /*app*/,
-                    external_source& /*srcs*/,
-                    parameter& p) noexcept
-{
-    bool is_changed = false;
-    bool value_0    = p.integers[0] != 0;
-    bool value_1    = p.integers[1] != 0;
-    bool value_2    = p.integers[2] != 0;
-
-    if (ImGui::Checkbox("value 1", &value_0)) {
-        p.integers[0] = value_0 ? 1 : 0;
-        is_changed    = true;
-    }
-
-    if (ImGui::Checkbox("value 2", &value_1)) {
-        p.integers[1] = value_1 ? 1 : 0;
-        is_changed    = true;
-    }
-
-    if (ImGui::Checkbox("value 3", &value_2)) {
-        p.integers[2] = value_2 ? 1 : 0;
-        is_changed    = true;
-    }
-
-    return is_changed;
-}
-
-bool show_parameter(dynamics_logical_or_3_tag,
-                    application& /*app*/,
-                    external_source& /*srcs*/,
-                    parameter& p) noexcept
+static bool show_parameter(logical_and_3_tag,
+                           application& /*app*/,
+                           external_source& /*srcs*/,
+                           parameter& p) noexcept
 {
     bool is_changed = false;
     bool value_0    = p.integers[0] != 0;
@@ -967,16 +652,44 @@ bool show_parameter(dynamics_logical_or_3_tag,
     return is_changed;
 }
 
-bool show_parameter(dynamics_logical_invert_tag,
-                    application& /*app*/,
-                    external_source& /*srcs*/,
-                    parameter& /*p*/) noexcept
+static bool show_parameter(logical_or_3_tag,
+                           application& /*app*/,
+                           external_source& /*srcs*/,
+                           parameter& p) noexcept
+{
+    bool is_changed = false;
+    bool value_0    = p.integers[0] != 0;
+    bool value_1    = p.integers[1] != 0;
+    bool value_2    = p.integers[2] != 0;
+
+    if (ImGui::Checkbox("value 1", &value_0)) {
+        p.integers[0] = value_0 ? 1 : 0;
+        is_changed    = true;
+    }
+
+    if (ImGui::Checkbox("value 2", &value_1)) {
+        p.integers[1] = value_1 ? 1 : 0;
+        is_changed    = true;
+    }
+
+    if (ImGui::Checkbox("value 3", &value_2)) {
+        p.integers[2] = value_2 ? 1 : 0;
+        is_changed    = true;
+    }
+
+    return is_changed;
+}
+
+static bool show_parameter(logical_invert_tag,
+                           application& /*app*/,
+                           external_source& /*srcs*/,
+                           parameter& /*p*/) noexcept
 {
     return false;
 }
 
-static auto build_default_hsm_name(const modeling& mod, parameter& p) noexcept
-  -> const char*
+static auto build_default_hsm_name(const modeling& mod,
+                                   parameter&      p) noexcept -> const char*
 {
     static constexpr auto undefined_name = "-";
 
@@ -991,7 +704,7 @@ static auto build_default_hsm_name(const modeling& mod, parameter& p) noexcept
     return compo ? compo->name.c_str() : undefined_name;
 }
 
-bool show_hsm_parameter(const modeling& mod, parameter& p) noexcept
+bool show_hsm_component_id_parameter(const modeling& mod, parameter& p) noexcept
 {
     int changed = false;
 
@@ -1023,10 +736,10 @@ bool show_hsm_parameter(const modeling& mod, parameter& p) noexcept
     return changed;
 }
 
-bool show_parameter(dynamics_hsm_wrapper_tag,
-                    application& /*app*/,
-                    external_source& /*srcs*/,
-                    parameter& p) noexcept
+static bool show_parameter(hsm_wrapper_tag,
+                           application& /*app*/,
+                           external_source& /*srcs*/,
+                           parameter& p) noexcept
 {
     int changed = false;
 
@@ -1039,23 +752,27 @@ bool show_parameter(dynamics_hsm_wrapper_tag,
     return changed;
 }
 
-bool show_parameter_editor(application&    app,
-                           project_editor& ed,
-                           dynamics_type   type,
-                           parameter&      p) noexcept
+bool show_parameter_editor(application&     app,
+                           external_source& srcs,
+                           dynamics_type    type,
+                           parameter&       p) noexcept
 {
-    return dispatcher(
+    return dispatch(
       type,
-      [](auto tag, application& app, project_editor& ed, parameter& p) noexcept
-        -> bool { return show_parameter(tag, app, ed.pj.sim.srcs, p); },
+      [](const auto       tag,
+         application&     app,
+         external_source& srcs,
+         parameter&       p) noexcept -> bool {
+          return show_parameter(tag, app, srcs, p);
+      },
       app,
-      ed,
+      srcs,
       p);
 }
 
 ///////////////////////////////////////////////////////////
 
-auto get_dynamics_input_names(dynamics_qss1_integrator_tag) noexcept
+auto get_dynamics_input_names(qss_integrator_tag) noexcept
   -> std::span<const std::string_view>
 {
     static const std::array<std::string_view, 2> names = { "x-dot", "reset" };
@@ -1063,7 +780,7 @@ auto get_dynamics_input_names(dynamics_qss1_integrator_tag) noexcept
     return std::span{ names.data(), names.size() };
 }
 
-auto get_dynamics_input_names(dynamics_qss1_multiplier_tag) noexcept
+auto get_dynamics_input_names(qss_multiplier_tag) noexcept
   -> std::span<const std::string_view>
 {
     static const std::array<std::string_view, 2> names = { "in-1", "in-2" };
@@ -1071,7 +788,7 @@ auto get_dynamics_input_names(dynamics_qss1_multiplier_tag) noexcept
     return std::span{ names.data(), names.size() };
 }
 
-auto get_dynamics_input_names(dynamics_qss1_cross_tag) noexcept
+auto get_dynamics_input_names(qss_cross_tag) noexcept
   -> std::span<const std::string_view>
 {
     static const std::array<std::string_view, 4> names = {
@@ -1081,7 +798,7 @@ auto get_dynamics_input_names(dynamics_qss1_cross_tag) noexcept
     return std::span{ names.data(), names.size() };
 }
 
-auto get_dynamics_input_names(dynamics_qss1_filter_tag) noexcept
+auto get_dynamics_input_names(qss_filter_tag) noexcept
   -> std::span<const std::string_view>
 {
     static const std::array<std::string_view, 1> names = { "in" };
@@ -1089,7 +806,7 @@ auto get_dynamics_input_names(dynamics_qss1_filter_tag) noexcept
     return std::span{ names.data(), names.size() };
 }
 
-auto get_dynamics_input_names(dynamics_qss1_power_tag) noexcept
+auto get_dynamics_input_names(qss_power_tag) noexcept
   -> std::span<const std::string_view>
 {
     static const std::array<std::string_view, 1> names = { "in" };
@@ -1097,7 +814,7 @@ auto get_dynamics_input_names(dynamics_qss1_power_tag) noexcept
     return std::span{ names.data(), names.size() };
 }
 
-auto get_dynamics_input_names(dynamics_qss1_square_tag) noexcept
+auto get_dynamics_input_names(qss_square_tag) noexcept
   -> std::span<const std::string_view>
 {
     static const std::array<std::string_view, 1> names = { "in" };
@@ -1105,7 +822,7 @@ auto get_dynamics_input_names(dynamics_qss1_square_tag) noexcept
     return std::span{ names.data(), names.size() };
 }
 
-auto get_dynamics_input_names(dynamics_qss1_sum_2_tag) noexcept
+auto get_dynamics_input_names(qss_sum_2_tag) noexcept
   -> std::span<const std::string_view>
 {
     static const std::array<std::string_view, 2> names = { "in-1", "in-2" };
@@ -1113,7 +830,7 @@ auto get_dynamics_input_names(dynamics_qss1_sum_2_tag) noexcept
     return std::span{ names.data(), names.size() };
 }
 
-auto get_dynamics_input_names(dynamics_qss1_sum_3_tag) noexcept
+auto get_dynamics_input_names(qss_sum_3_tag) noexcept
   -> std::span<const std::string_view>
 {
     static const std::array<std::string_view, 3> names = { "in-1",
@@ -1123,7 +840,7 @@ auto get_dynamics_input_names(dynamics_qss1_sum_3_tag) noexcept
     return std::span{ names.data(), names.size() };
 }
 
-auto get_dynamics_input_names(dynamics_qss1_sum_4_tag) noexcept
+auto get_dynamics_input_names(qss_sum_4_tag) noexcept
   -> std::span<const std::string_view>
 {
     static const std::array<std::string_view, 4> names = {
@@ -1133,7 +850,7 @@ auto get_dynamics_input_names(dynamics_qss1_sum_4_tag) noexcept
     return std::span{ names.data(), names.size() };
 }
 
-auto get_dynamics_input_names(dynamics_qss1_wsum_2_tag) noexcept
+auto get_dynamics_input_names(qss_wsum_2_tag) noexcept
   -> std::span<const std::string_view>
 {
     static const std::array<std::string_view, 2> names = { "in-1", "in-2" };
@@ -1141,7 +858,7 @@ auto get_dynamics_input_names(dynamics_qss1_wsum_2_tag) noexcept
     return std::span{ names.data(), names.size() };
 }
 
-auto get_dynamics_input_names(dynamics_qss1_wsum_3_tag) noexcept
+auto get_dynamics_input_names(qss_wsum_3_tag) noexcept
   -> std::span<const std::string_view>
 {
     static const std::array<std::string_view, 3> names = { "in-1",
@@ -1151,7 +868,7 @@ auto get_dynamics_input_names(dynamics_qss1_wsum_3_tag) noexcept
     return std::span{ names.data(), names.size() };
 }
 
-auto get_dynamics_input_names(dynamics_qss1_wsum_4_tag) noexcept
+auto get_dynamics_input_names(qss_wsum_4_tag) noexcept
   -> std::span<const std::string_view>
 {
     static const std::array<std::string_view, 4> names = {
@@ -1161,33 +878,7 @@ auto get_dynamics_input_names(dynamics_qss1_wsum_4_tag) noexcept
     return std::span{ names.data(), names.size() };
 }
 
-auto get_dynamics_input_names(dynamics_qss2_integrator_tag) noexcept
-  -> std::span<const std::string_view>
-{
-    static const std::array<std::string_view, 2> names = { "x-dot", "reset" };
-
-    return std::span{ names.data(), names.size() };
-}
-
-auto get_dynamics_input_names(dynamics_qss2_multiplier_tag) noexcept
-  -> std::span<const std::string_view>
-{
-    static const std::array<std::string_view, 2> names = { "in-1", "in-2" };
-
-    return std::span{ names.data(), names.size() };
-}
-
-auto get_dynamics_input_names(dynamics_qss2_cross_tag) noexcept
-  -> std::span<const std::string_view>
-{
-    static const std::array<std::string_view, 4> names = {
-        "value", "if", "else", "threshold"
-    };
-
-    return std::span{ names.data(), names.size() };
-}
-
-auto get_dynamics_input_names(dynamics_qss2_filter_tag) noexcept
+auto get_dynamics_input_names(counter_tag) noexcept
   -> std::span<const std::string_view>
 {
     static const std::array<std::string_view, 1> names = { "in" };
@@ -1195,7 +886,7 @@ auto get_dynamics_input_names(dynamics_qss2_filter_tag) noexcept
     return std::span{ names.data(), names.size() };
 }
 
-auto get_dynamics_input_names(dynamics_qss2_power_tag) noexcept
+auto get_dynamics_input_names(queue_tag) noexcept
   -> std::span<const std::string_view>
 {
     static const std::array<std::string_view, 1> names = { "in" };
@@ -1203,7 +894,7 @@ auto get_dynamics_input_names(dynamics_qss2_power_tag) noexcept
     return std::span{ names.data(), names.size() };
 }
 
-auto get_dynamics_input_names(dynamics_qss2_square_tag) noexcept
+auto get_dynamics_input_names(dynamic_queue_tag) noexcept
   -> std::span<const std::string_view>
 {
     static const std::array<std::string_view, 1> names = { "in" };
@@ -1211,89 +902,7 @@ auto get_dynamics_input_names(dynamics_qss2_square_tag) noexcept
     return std::span{ names.data(), names.size() };
 }
 
-auto get_dynamics_input_names(dynamics_qss2_sum_2_tag) noexcept
-  -> std::span<const std::string_view>
-{
-    static const std::array<std::string_view, 2> names = { "in-1", "in-2" };
-
-    return std::span{ names.data(), names.size() };
-}
-
-auto get_dynamics_input_names(dynamics_qss2_sum_3_tag) noexcept
-  -> std::span<const std::string_view>
-{
-    static const std::array<std::string_view, 3> names = { "in-1",
-                                                           "in-2",
-                                                           "in-3" };
-
-    return std::span{ names.data(), names.size() };
-}
-
-auto get_dynamics_input_names(dynamics_qss2_sum_4_tag) noexcept
-  -> std::span<const std::string_view>
-{
-    static const std::array<std::string_view, 4> names = {
-        "in-1", "in-2", "in-3", "in-4"
-    };
-
-    return std::span{ names.data(), names.size() };
-}
-
-auto get_dynamics_input_names(dynamics_qss2_wsum_2_tag) noexcept
-  -> std::span<const std::string_view>
-{
-    static const std::array<std::string_view, 2> names = { "in-1", "in-2" };
-
-    return std::span{ names.data(), names.size() };
-}
-
-auto get_dynamics_input_names(dynamics_qss2_wsum_3_tag) noexcept
-  -> std::span<const std::string_view>
-{
-    static const std::array<std::string_view, 3> names = { "in-1",
-                                                           "in-2",
-                                                           "in-3" };
-
-    return std::span{ names.data(), names.size() };
-}
-
-auto get_dynamics_input_names(dynamics_qss2_wsum_4_tag) noexcept
-  -> std::span<const std::string_view>
-{
-    static const std::array<std::string_view, 4> names = {
-        "in-1", "in-2", "in-3", "in-4"
-    };
-
-    return std::span{ names.data(), names.size() };
-}
-
-auto get_dynamics_input_names(dynamics_qss3_integrator_tag) noexcept
-  -> std::span<const std::string_view>
-{
-    static const std::array<std::string_view, 2> names = { "x-dot", "reset" };
-
-    return std::span{ names.data(), names.size() };
-}
-
-auto get_dynamics_input_names(dynamics_qss3_multiplier_tag) noexcept
-  -> std::span<const std::string_view>
-{
-    static const std::array<std::string_view, 2> names = { "in-1", "in-2" };
-
-    return std::span{ names.data(), names.size() };
-}
-
-auto get_dynamics_input_names(dynamics_qss3_cross_tag) noexcept
-  -> std::span<const std::string_view>
-{
-    static const std::array<std::string_view, 4> names = {
-        "value", "if", "else", "threshold"
-    };
-
-    return std::span{ names.data(), names.size() };
-}
-
-auto get_dynamics_input_names(dynamics_qss3_filter_tag) noexcept
+auto get_dynamics_input_names(priority_queue_tag) noexcept
   -> std::span<const std::string_view>
 {
     static const std::array<std::string_view, 1> names = { "in" };
@@ -1301,111 +910,7 @@ auto get_dynamics_input_names(dynamics_qss3_filter_tag) noexcept
     return std::span{ names.data(), names.size() };
 }
 
-auto get_dynamics_input_names(dynamics_qss3_power_tag) noexcept
-  -> std::span<const std::string_view>
-{
-    static const std::array<std::string_view, 1> names = { "in" };
-
-    return std::span{ names.data(), names.size() };
-}
-
-auto get_dynamics_input_names(dynamics_qss3_square_tag) noexcept
-  -> std::span<const std::string_view>
-{
-    static const std::array<std::string_view, 1> names = { "in" };
-
-    return std::span{ names.data(), names.size() };
-}
-
-auto get_dynamics_input_names(dynamics_qss3_sum_2_tag) noexcept
-  -> std::span<const std::string_view>
-{
-    static const std::array<std::string_view, 2> names = { "in-1", "in-2" };
-
-    return std::span{ names.data(), names.size() };
-}
-
-auto get_dynamics_input_names(dynamics_qss3_sum_3_tag) noexcept
-  -> std::span<const std::string_view>
-{
-    static const std::array<std::string_view, 3> names = { "in-1",
-                                                           "in-2",
-                                                           "in-3" };
-
-    return std::span{ names.data(), names.size() };
-}
-
-auto get_dynamics_input_names(dynamics_qss3_sum_4_tag) noexcept
-  -> std::span<const std::string_view>
-{
-    static const std::array<std::string_view, 4> names = {
-        "in-1", "in-2", "in-3", "in-4"
-    };
-
-    return std::span{ names.data(), names.size() };
-}
-
-auto get_dynamics_input_names(dynamics_qss3_wsum_2_tag) noexcept
-  -> std::span<const std::string_view>
-{
-    static const std::array<std::string_view, 2> names = { "in-1", "in-2" };
-
-    return std::span{ names.data(), names.size() };
-}
-
-auto get_dynamics_input_names(dynamics_qss3_wsum_3_tag) noexcept
-  -> std::span<const std::string_view>
-{
-    static const std::array<std::string_view, 3> names = { "in-1",
-                                                           "in-2",
-                                                           "in-3" };
-
-    return std::span{ names.data(), names.size() };
-}
-
-auto get_dynamics_input_names(dynamics_qss3_wsum_4_tag) noexcept
-  -> std::span<const std::string_view>
-{
-    static const std::array<std::string_view, 4> names = {
-        "in-1", "in-2", "in-3", "in-4"
-    };
-
-    return std::span{ names.data(), names.size() };
-}
-
-auto get_dynamics_input_names(dynamics_counter_tag) noexcept
-  -> std::span<const std::string_view>
-{
-    static const std::array<std::string_view, 1> names = { "in" };
-
-    return std::span{ names.data(), names.size() };
-}
-
-auto get_dynamics_input_names(dynamics_queue_tag) noexcept
-  -> std::span<const std::string_view>
-{
-    static const std::array<std::string_view, 1> names = { "in" };
-
-    return std::span{ names.data(), names.size() };
-}
-
-auto get_dynamics_input_names(dynamics_dynamic_queue_tag) noexcept
-  -> std::span<const std::string_view>
-{
-    static const std::array<std::string_view, 1> names = { "in" };
-
-    return std::span{ names.data(), names.size() };
-}
-
-auto get_dynamics_input_names(dynamics_priority_queue_tag) noexcept
-  -> std::span<const std::string_view>
-{
-    static const std::array<std::string_view, 1> names = { "in" };
-
-    return std::span{ names.data(), names.size() };
-}
-
-auto get_dynamics_input_names(dynamics_generator_tag) noexcept
+auto get_dynamics_input_names(generator_tag) noexcept
   -> std::span<const std::string_view>
 {
     static const std::array<std::string_view, 4> names = {
@@ -1415,13 +920,13 @@ auto get_dynamics_input_names(dynamics_generator_tag) noexcept
     return std::span{ names.data(), names.size() };
 }
 
-auto get_dynamics_input_names(dynamics_constant_tag) noexcept
+auto get_dynamics_input_names(constant_tag) noexcept
   -> std::span<const std::string_view>
 {
     return std::span<const std::string_view>{};
 }
 
-auto get_dynamics_input_names(dynamics_accumulator_2_tag) noexcept
+auto get_dynamics_input_names(accumulator_2_tag) noexcept
   -> std::span<const std::string_view>
 {
     static const std::array<std::string_view, 4> names = {
@@ -1431,13 +936,13 @@ auto get_dynamics_input_names(dynamics_accumulator_2_tag) noexcept
     return std::span{ names.data(), names.size() };
 }
 
-auto get_dynamics_input_names(dynamics_time_func_tag) noexcept
+auto get_dynamics_input_names(time_func_tag) noexcept
   -> std::span<const std::string_view>
 {
     return std::span<const std::string_view>{};
 }
 
-auto get_dynamics_input_names(dynamics_logical_and_2_tag) noexcept
+auto get_dynamics_input_names(logical_and_2_tag) noexcept
   -> std::span<const std::string_view>
 {
     static const std::array<std::string_view, 2> names = { "in-1", "in-2" };
@@ -1445,7 +950,7 @@ auto get_dynamics_input_names(dynamics_logical_and_2_tag) noexcept
     return std::span{ names.data(), names.size() };
 }
 
-auto get_dynamics_input_names(dynamics_logical_and_3_tag) noexcept
+auto get_dynamics_input_names(logical_and_3_tag) noexcept
   -> std::span<const std::string_view>
 {
     static const std::array<std::string_view, 3> names = { "in-1",
@@ -1455,7 +960,7 @@ auto get_dynamics_input_names(dynamics_logical_and_3_tag) noexcept
     return std::span{ names.data(), names.size() };
 }
 
-auto get_dynamics_input_names(dynamics_logical_or_2_tag) noexcept
+auto get_dynamics_input_names(logical_or_2_tag) noexcept
   -> std::span<const std::string_view>
 {
     static const std::array<std::string_view, 2> names = { "in-1", "in-2" };
@@ -1463,7 +968,7 @@ auto get_dynamics_input_names(dynamics_logical_or_2_tag) noexcept
     return std::span{ names.data(), names.size() };
 }
 
-auto get_dynamics_input_names(dynamics_logical_or_3_tag) noexcept
+auto get_dynamics_input_names(logical_or_3_tag) noexcept
   -> std::span<const std::string_view>
 {
     static const std::array<std::string_view, 3> names = { "in-1",
@@ -1473,7 +978,7 @@ auto get_dynamics_input_names(dynamics_logical_or_3_tag) noexcept
     return std::span{ names.data(), names.size() };
 }
 
-auto get_dynamics_input_names(dynamics_logical_invert_tag) noexcept
+auto get_dynamics_input_names(logical_invert_tag) noexcept
   -> std::span<const std::string_view>
 {
     static const std::array<std::string_view, 1> names = { "in" };
@@ -1481,7 +986,7 @@ auto get_dynamics_input_names(dynamics_logical_invert_tag) noexcept
     return std::span{ names.data(), names.size() };
 }
 
-auto get_dynamics_input_names(dynamics_hsm_wrapper_tag) noexcept
+auto get_dynamics_input_names(hsm_wrapper_tag) noexcept
   -> std::span<const std::string_view>
 {
     static const std::array<std::string_view, 4> names = {
@@ -1493,7 +998,7 @@ auto get_dynamics_input_names(dynamics_hsm_wrapper_tag) noexcept
 
 // Dynamics output names
 
-auto get_dynamics_output_names(dynamics_qss1_integrator_tag) noexcept
+auto get_dynamics_output_names(qss_integrator_tag) noexcept
   -> std::span<const std::string_view>
 {
     static const std::array<std::string_view, 1> names = { "out" };
@@ -1501,7 +1006,7 @@ auto get_dynamics_output_names(dynamics_qss1_integrator_tag) noexcept
     return std::span{ names.data(), names.size() };
 }
 
-auto get_dynamics_output_names(dynamics_qss1_multiplier_tag) noexcept
+auto get_dynamics_output_names(qss_multiplier_tag) noexcept
   -> std::span<const std::string_view>
 {
     static const std::array<std::string_view, 1> names = { "out" };
@@ -1509,7 +1014,7 @@ auto get_dynamics_output_names(dynamics_qss1_multiplier_tag) noexcept
     return std::span{ names.data(), names.size() };
 }
 
-auto get_dynamics_output_names(dynamics_qss1_cross_tag) noexcept
+auto get_dynamics_output_names(qss_cross_tag) noexcept
   -> std::span<const std::string_view>
 {
     static const std::array<std::string_view, 3> names = { "if-value",
@@ -1519,7 +1024,7 @@ auto get_dynamics_output_names(dynamics_qss1_cross_tag) noexcept
     return std::span{ names.data(), names.size() };
 }
 
-auto get_dynamics_output_names(dynamics_qss1_filter_tag) noexcept
+auto get_dynamics_output_names(qss_filter_tag) noexcept
   -> std::span<const std::string_view>
 {
     static const std::array<std::string_view, 3> names = { "value",
@@ -1529,7 +1034,7 @@ auto get_dynamics_output_names(dynamics_qss1_filter_tag) noexcept
     return std::span{ names.data(), names.size() };
 }
 
-auto get_dynamics_output_names(dynamics_qss1_power_tag) noexcept
+auto get_dynamics_output_names(qss_power_tag) noexcept
   -> std::span<const std::string_view>
 {
     static const std::array<std::string_view, 1> names = { "out" };
@@ -1537,7 +1042,7 @@ auto get_dynamics_output_names(dynamics_qss1_power_tag) noexcept
     return std::span{ names.data(), names.size() };
 }
 
-auto get_dynamics_output_names(dynamics_qss1_square_tag) noexcept
+auto get_dynamics_output_names(qss_square_tag) noexcept
   -> std::span<const std::string_view>
 {
     static const std::array<std::string_view, 1> names = { "out" };
@@ -1545,7 +1050,7 @@ auto get_dynamics_output_names(dynamics_qss1_square_tag) noexcept
     return std::span{ names.data(), names.size() };
 }
 
-auto get_dynamics_output_names(dynamics_qss1_sum_2_tag) noexcept
+auto get_dynamics_output_names(qss_sum_2_tag) noexcept
   -> std::span<const std::string_view>
 {
     static const std::array<std::string_view, 1> names = { "out" };
@@ -1553,7 +1058,7 @@ auto get_dynamics_output_names(dynamics_qss1_sum_2_tag) noexcept
     return std::span{ names.data(), names.size() };
 }
 
-auto get_dynamics_output_names(dynamics_qss1_sum_3_tag) noexcept
+auto get_dynamics_output_names(qss_sum_3_tag) noexcept
   -> std::span<const std::string_view>
 {
     static const std::array<std::string_view, 1> names = { "out" };
@@ -1561,7 +1066,7 @@ auto get_dynamics_output_names(dynamics_qss1_sum_3_tag) noexcept
     return std::span{ names.data(), names.size() };
 }
 
-auto get_dynamics_output_names(dynamics_qss1_sum_4_tag) noexcept
+auto get_dynamics_output_names(qss_sum_4_tag) noexcept
   -> std::span<const std::string_view>
 {
     static const std::array<std::string_view, 1> names = { "out" };
@@ -1569,7 +1074,7 @@ auto get_dynamics_output_names(dynamics_qss1_sum_4_tag) noexcept
     return std::span{ names.data(), names.size() };
 }
 
-auto get_dynamics_output_names(dynamics_qss1_wsum_2_tag) noexcept
+auto get_dynamics_output_names(qss_wsum_2_tag) noexcept
   -> std::span<const std::string_view>
 {
     static const std::array<std::string_view, 1> names = { "out" };
@@ -1577,7 +1082,7 @@ auto get_dynamics_output_names(dynamics_qss1_wsum_2_tag) noexcept
     return std::span{ names.data(), names.size() };
 }
 
-auto get_dynamics_output_names(dynamics_qss1_wsum_3_tag) noexcept
+auto get_dynamics_output_names(qss_wsum_3_tag) noexcept
   -> std::span<const std::string_view>
 {
     static const std::array<std::string_view, 1> names = { "out" };
@@ -1585,7 +1090,7 @@ auto get_dynamics_output_names(dynamics_qss1_wsum_3_tag) noexcept
     return std::span{ names.data(), names.size() };
 }
 
-auto get_dynamics_output_names(dynamics_qss1_wsum_4_tag) noexcept
+auto get_dynamics_output_names(qss_wsum_4_tag) noexcept
   -> std::span<const std::string_view>
 {
     static const std::array<std::string_view, 1> names = { "out" };
@@ -1593,213 +1098,13 @@ auto get_dynamics_output_names(dynamics_qss1_wsum_4_tag) noexcept
     return std::span{ names.data(), names.size() };
 }
 
-auto get_dynamics_output_names(dynamics_qss2_integrator_tag) noexcept
-  -> std::span<const std::string_view>
-{
-    static const std::array<std::string_view, 1> names = { "out" };
-
-    return std::span{ names.data(), names.size() };
-}
-
-auto get_dynamics_output_names(dynamics_qss2_multiplier_tag) noexcept
-  -> std::span<const std::string_view>
-{
-    static const std::array<std::string_view, 1> names = { "out" };
-
-    return std::span{ names.data(), names.size() };
-}
-
-auto get_dynamics_output_names(dynamics_qss2_cross_tag) noexcept
-  -> std::span<const std::string_view>
-{
-    static const std::array<std::string_view, 3> names = { "if-value",
-                                                           "else-value",
-                                                           "event" };
-
-    return std::span{ names.data(), names.size() };
-}
-
-auto get_dynamics_output_names(dynamics_qss2_filter_tag) noexcept
-  -> std::span<const std::string_view>
-{
-    static const std::array<std::string_view, 3> names = { "value",
-                                                           "up",
-                                                           "down" };
-
-    return std::span{ names.data(), names.size() };
-}
-
-auto get_dynamics_output_names(dynamics_qss2_power_tag) noexcept
-  -> std::span<const std::string_view>
-{
-    static const std::array<std::string_view, 1> names = { "out" };
-
-    return std::span{ names.data(), names.size() };
-}
-
-auto get_dynamics_output_names(dynamics_qss2_square_tag) noexcept
-  -> std::span<const std::string_view>
-{
-    static const std::array<std::string_view, 1> names = { "out" };
-
-    return std::span{ names.data(), names.size() };
-}
-
-auto get_dynamics_output_names(dynamics_qss2_sum_2_tag) noexcept
-  -> std::span<const std::string_view>
-{
-    static const std::array<std::string_view, 1> names = { "out" };
-
-    return std::span{ names.data(), names.size() };
-}
-
-auto get_dynamics_output_names(dynamics_qss2_sum_3_tag) noexcept
-  -> std::span<const std::string_view>
-{
-    static const std::array<std::string_view, 1> names = { "out" };
-
-    return std::span{ names.data(), names.size() };
-}
-
-auto get_dynamics_output_names(dynamics_qss2_sum_4_tag) noexcept
-  -> std::span<const std::string_view>
-{
-    static const std::array<std::string_view, 1> names = { "out" };
-
-    return std::span{ names.data(), names.size() };
-}
-
-auto get_dynamics_output_names(dynamics_qss2_wsum_2_tag) noexcept
-  -> std::span<const std::string_view>
-{
-    static const std::array<std::string_view, 1> names = { "out" };
-
-    return std::span{ names.data(), names.size() };
-}
-
-auto get_dynamics_output_names(dynamics_qss2_wsum_3_tag) noexcept
-  -> std::span<const std::string_view>
-{
-    static const std::array<std::string_view, 1> names = { "out" };
-
-    return std::span{ names.data(), names.size() };
-}
-
-auto get_dynamics_output_names(dynamics_qss2_wsum_4_tag) noexcept
-  -> std::span<const std::string_view>
-{
-    static const std::array<std::string_view, 1> names = { "out" };
-
-    return std::span{ names.data(), names.size() };
-}
-
-auto get_dynamics_output_names(dynamics_qss3_integrator_tag) noexcept
-  -> std::span<const std::string_view>
-{
-    static const std::array<std::string_view, 1> names = { "out" };
-
-    return std::span{ names.data(), names.size() };
-}
-
-auto get_dynamics_output_names(dynamics_qss3_multiplier_tag) noexcept
-  -> std::span<const std::string_view>
-{
-    static const std::array<std::string_view, 1> names = { "out" };
-
-    return std::span{ names.data(), names.size() };
-}
-
-auto get_dynamics_output_names(dynamics_qss3_cross_tag) noexcept
-  -> std::span<const std::string_view>
-{
-    static const std::array<std::string_view, 3> names = { "if-value",
-                                                           "else-value",
-                                                           "event" };
-
-    return std::span{ names.data(), names.size() };
-}
-
-auto get_dynamics_output_names(dynamics_qss3_filter_tag) noexcept
-  -> std::span<const std::string_view>
-{
-    static const std::array<std::string_view, 3> names = { "value",
-                                                           "up",
-                                                           "down" };
-
-    return std::span{ names.data(), names.size() };
-}
-
-auto get_dynamics_output_names(dynamics_qss3_power_tag) noexcept
-  -> std::span<const std::string_view>
-{
-    static const std::array<std::string_view, 1> names = { "out" };
-
-    return std::span{ names.data(), names.size() };
-}
-
-auto get_dynamics_output_names(dynamics_qss3_square_tag) noexcept
-  -> std::span<const std::string_view>
-{
-    static const std::array<std::string_view, 1> names = { "out" };
-
-    return std::span{ names.data(), names.size() };
-}
-
-auto get_dynamics_output_names(dynamics_qss3_sum_2_tag) noexcept
-  -> std::span<const std::string_view>
-{
-    static const std::array<std::string_view, 1> names = { "out" };
-
-    return std::span{ names.data(), names.size() };
-}
-
-auto get_dynamics_output_names(dynamics_qss3_sum_3_tag) noexcept
-  -> std::span<const std::string_view>
-{
-    static const std::array<std::string_view, 1> names = { "out" };
-
-    return std::span{ names.data(), names.size() };
-}
-
-auto get_dynamics_output_names(dynamics_qss3_sum_4_tag) noexcept
-  -> std::span<const std::string_view>
-{
-    static const std::array<std::string_view, 1> names = { "out" };
-
-    return std::span{ names.data(), names.size() };
-}
-
-auto get_dynamics_output_names(dynamics_qss3_wsum_2_tag) noexcept
-  -> std::span<const std::string_view>
-{
-    static const std::array<std::string_view, 1> names = { "out" };
-
-    return std::span{ names.data(), names.size() };
-}
-
-auto get_dynamics_output_names(dynamics_qss3_wsum_3_tag) noexcept
-  -> std::span<const std::string_view>
-{
-    static const std::array<std::string_view, 1> names = { "out" };
-
-    return std::span{ names.data(), names.size() };
-}
-
-auto get_dynamics_output_names(dynamics_qss3_wsum_4_tag) noexcept
-  -> std::span<const std::string_view>
-{
-    static const std::array<std::string_view, 1> names = { "out" };
-
-    return std::span{ names.data(), names.size() };
-}
-
-auto get_dynamics_output_names(dynamics_counter_tag) noexcept
+auto get_dynamics_output_names(counter_tag) noexcept
   -> std::span<const std::string_view>
 {
     return std::span<const std::string_view>{};
 }
 
-auto get_dynamics_output_names(dynamics_queue_tag) noexcept
+auto get_dynamics_output_names(queue_tag) noexcept
   -> std::span<const std::string_view>
 {
     static const std::array<std::string_view, 1> names = { "out" };
@@ -1807,7 +1112,7 @@ auto get_dynamics_output_names(dynamics_queue_tag) noexcept
     return std::span{ names.data(), names.size() };
 }
 
-auto get_dynamics_output_names(dynamics_dynamic_queue_tag) noexcept
+auto get_dynamics_output_names(dynamic_queue_tag) noexcept
   -> std::span<const std::string_view>
 {
     static const std::array<std::string_view, 1> names = { "out" };
@@ -1815,7 +1120,7 @@ auto get_dynamics_output_names(dynamics_dynamic_queue_tag) noexcept
     return std::span{ names.data(), names.size() };
 }
 
-auto get_dynamics_output_names(dynamics_priority_queue_tag) noexcept
+auto get_dynamics_output_names(priority_queue_tag) noexcept
   -> std::span<const std::string_view>
 {
     static const std::array<std::string_view, 1> names = { "out" };
@@ -1823,7 +1128,7 @@ auto get_dynamics_output_names(dynamics_priority_queue_tag) noexcept
     return std::span{ names.data(), names.size() };
 }
 
-auto get_dynamics_output_names(dynamics_generator_tag) noexcept
+auto get_dynamics_output_names(generator_tag) noexcept
   -> std::span<const std::string_view>
 {
     static const std::array<std::string_view, 1> names = { "out" };
@@ -1831,7 +1136,7 @@ auto get_dynamics_output_names(dynamics_generator_tag) noexcept
     return std::span{ names.data(), names.size() };
 }
 
-auto get_dynamics_output_names(dynamics_constant_tag) noexcept
+auto get_dynamics_output_names(constant_tag) noexcept
   -> std::span<const std::string_view>
 {
     static const std::array<std::string_view, 1> names = { "out" };
@@ -1839,13 +1144,13 @@ auto get_dynamics_output_names(dynamics_constant_tag) noexcept
     return std::span{ names.data(), names.size() };
 }
 
-auto get_dynamics_output_names(dynamics_accumulator_2_tag) noexcept
+auto get_dynamics_output_names(accumulator_2_tag) noexcept
   -> std::span<const std::string_view>
 {
     return std::span<const std::string_view>{};
 }
 
-auto get_dynamics_output_names(dynamics_time_func_tag) noexcept
+auto get_dynamics_output_names(time_func_tag) noexcept
   -> std::span<const std::string_view>
 {
     static const std::array<std::string_view, 1> names = { "out" };
@@ -1853,7 +1158,7 @@ auto get_dynamics_output_names(dynamics_time_func_tag) noexcept
     return std::span{ names.data(), names.size() };
 }
 
-auto get_dynamics_output_names(dynamics_logical_and_2_tag) noexcept
+auto get_dynamics_output_names(logical_and_2_tag) noexcept
   -> std::span<const std::string_view>
 {
     static const std::array<std::string_view, 1> names = { "out" };
@@ -1861,7 +1166,7 @@ auto get_dynamics_output_names(dynamics_logical_and_2_tag) noexcept
     return std::span{ names.data(), names.size() };
 }
 
-auto get_dynamics_output_names(dynamics_logical_and_3_tag) noexcept
+auto get_dynamics_output_names(logical_and_3_tag) noexcept
   -> std::span<const std::string_view>
 {
     static const std::array<std::string_view, 1> names = { "out" };
@@ -1869,7 +1174,7 @@ auto get_dynamics_output_names(dynamics_logical_and_3_tag) noexcept
     return std::span{ names.data(), names.size() };
 }
 
-auto get_dynamics_output_names(dynamics_logical_or_2_tag) noexcept
+auto get_dynamics_output_names(logical_or_2_tag) noexcept
   -> std::span<const std::string_view>
 {
     static const std::array<std::string_view, 1> names = { "out" };
@@ -1877,7 +1182,7 @@ auto get_dynamics_output_names(dynamics_logical_or_2_tag) noexcept
     return std::span{ names.data(), names.size() };
 }
 
-auto get_dynamics_output_names(dynamics_logical_or_3_tag) noexcept
+auto get_dynamics_output_names(logical_or_3_tag) noexcept
   -> std::span<const std::string_view>
 {
     static const std::array<std::string_view, 1> names = { "out" };
@@ -1885,7 +1190,7 @@ auto get_dynamics_output_names(dynamics_logical_or_3_tag) noexcept
     return std::span{ names.data(), names.size() };
 }
 
-auto get_dynamics_output_names(dynamics_logical_invert_tag) noexcept
+auto get_dynamics_output_names(logical_invert_tag) noexcept
   -> std::span<const std::string_view>
 {
     static const std::array<std::string_view, 1> names = { "out" };
@@ -1893,7 +1198,7 @@ auto get_dynamics_output_names(dynamics_logical_invert_tag) noexcept
     return std::span{ names.data(), names.size() };
 }
 
-auto get_dynamics_output_names(dynamics_hsm_wrapper_tag) noexcept
+auto get_dynamics_output_names(hsm_wrapper_tag) noexcept
   -> std::span<const std::string_view>
 {
     static const std::array<std::string_view, 4> names = {
@@ -1901,6 +1206,34 @@ auto get_dynamics_output_names(dynamics_hsm_wrapper_tag) noexcept
     };
 
     return std::span{ names.data(), names.size() };
+}
+
+auto get_dynamics_input_names(const dynamics_type type) noexcept
+  -> std::span<const std::string_view>
+{
+    return dispatch(type,
+                    [](auto tag) noexcept -> std::span<const std::string_view> {
+                        return get_dynamics_input_names(tag);
+                    });
+}
+
+auto get_dynamics_output_names(const dynamics_type type) noexcept
+  -> std::span<const std::string_view>
+{
+    return dispatch(type,
+                    [](auto tag) noexcept -> std::span<const std::string_view> {
+                        return get_dynamics_input_names(tag);
+                    });
+}
+
+auto get_dynamics_input_output_names(const dynamics_type type) noexcept
+  -> std::pair<std::span<const std::string_view>,
+               std::span<const std::string_view>>
+{
+    return dispatch(type, [](auto tag) noexcept {
+        return std::make_pair(get_dynamics_input_names(tag),
+                              get_dynamics_output_names(tag));
+    });
 }
 
 } // irt
