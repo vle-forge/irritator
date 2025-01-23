@@ -6,14 +6,19 @@
 #define ORG_VLEPROJECT_IRRITATOR_APP_EDITOR_2021
 
 #include <irritator/core.hpp>
-#include <irritator/ext.hpp>
-#include <irritator/io.hpp>
 #include <irritator/modeling.hpp>
 
 namespace irt {
 
 struct application;
 
+/**
+   Displays widgets to control the parameter @c p according to the dynamics
+   type @c type.
+
+   @return @c true if a modification of a parameter occured during the display,
+   @c false otherwise.
+ */
 bool show_parameter_editor(application&     app,
                            external_source& srcs,
                            dynamics_type    type,
@@ -29,7 +34,9 @@ bool show_external_sources_combo(external_source&     srcs,
                                  source::source_type& src_type) noexcept;
 
 /**
-   Show the control to select an existing HSM component from modeling.
+   Display widgets to control the HSM component from modeling.
+
+   The parameter @c p must be a parameter of an @c hsm_rapper.
 
    @return True if the parameter @c is changed.
  */
