@@ -494,16 +494,73 @@ static bool show_parameter(constant_tag,
         is_changed    = true;
     }
 
-    if (i == ordinal(constant::init_type::incoming_component_n) ||
-        i == ordinal(constant::init_type::outcoming_component_n)) {
-        int port = static_cast<int>(p.integers[1]);
-        if (ImGui::SliderInt("port", &port, 0, 32)) {
-            p.integers[1] = static_cast<i64>(port);
-            is_changed    = true;
+    return is_changed;
+}
+
+static const char* get_selected_input_name(const component& c, const port_id p)
+{
+    return c.x.exists(p) ? c.x.get<port_str>(p).c_str() : "-";
+}
+
+static const char* get_selected_output_name(const component& c, const port_id p)
+{
+    return c.y.exists(p) ? c.y.get<port_str>(p).c_str() : "-";
+}
+
+bool show_extented_constant_parameter(const modeling&    mod,
+                                      const component_id id,
+                                      parameter&         p) noexcept
+{
+    int ret = false;
+
+    if (const auto* c = mod.components.try_to_get(id)) {
+        const auto type = enum_cast<constant::init_type>(p.integers[0]);
+        const auto port = enum_cast<port_id>(p.integers[1]);
+
+        if (type == constant::init_type::incoming_component_n) {
+            const auto selected      = c->x.exists(port);
+            const auto selected_name = get_selected_input_name(*c, port);
+
+            if (ImGui::BeginCombo("input port", selected_name)) {
+                if (ImGui::Selectable("-", not selected)) {
+                    p.integers[1] = 0;
+                    ++ret;
+                }
+
+                c->x.for_each<port_str>([&](const auto id, const auto& name) {
+                    if (ImGui::Selectable(name.c_str(),
+                                          p.integers[1] == ordinal(id))) {
+                        p.integers[1] = ordinal(id);
+                        ++ret;
+                    }
+                });
+
+                ImGui::EndCombo();
+            }
+        } else if (type == constant::init_type::outcoming_component_n) {
+            const auto selected      = c->y.exists(port);
+            const auto selected_name = get_selected_output_name(*c, port);
+
+            if (ImGui::BeginCombo("output port", selected_name)) {
+                if (ImGui::Selectable("-", not selected)) {
+                    p.integers[1] = 0;
+                    ++ret;
+                }
+
+                c->y.for_each<port_str>([&](const auto id, const auto& name) {
+                    if (ImGui::Selectable(name.c_str(),
+                                          p.integers[1] == ordinal(id))) {
+                        p.integers[1] = ordinal(id);
+                        ++ret;
+                    }
+                });
+
+                ImGui::EndCombo();
+            }
         }
     }
 
-    return is_changed;
+    return ret;
 }
 
 static bool show_parameter(qss_cross_tag,
@@ -688,8 +745,8 @@ static bool show_parameter(logical_invert_tag,
     return false;
 }
 
-static auto build_default_hsm_name(const modeling& mod,
-                                   parameter&      p) noexcept -> const char*
+static auto build_default_hsm_name(const modeling& mod, parameter& p) noexcept
+  -> const char*
 {
     static constexpr auto undefined_name = "-";
 
@@ -704,7 +761,7 @@ static auto build_default_hsm_name(const modeling& mod,
     return compo ? compo->name.c_str() : undefined_name;
 }
 
-bool show_hsm_component_id_parameter(const modeling& mod, parameter& p) noexcept
+bool show_extented_hsm_parameter(const modeling& mod, parameter& p) noexcept
 {
     int changed = false;
 

@@ -330,10 +330,17 @@ static bool show_node(component_editor&  ed,
     add_input_attribute(X, id);
     ImGui::PushItemWidth(120.0f);
     if (c.id.mdl_type == dynamics_type::hsm_wrapper)
-        ret += show_hsm_component_id_parameter(app.mod,
-                                               gen.children_parameters[idx]);
+        ret +=
+          show_extented_hsm_parameter(app.mod, gen.children_parameters[idx]);
+
     ret += show_parameter_editor(
       app, compo.srcs, c.id.mdl_type, gen.children_parameters[idx]);
+
+    if (c.id.mdl_type == dynamics_type::constant)
+        ret +=
+          show_extented_constant_parameter(app.mod,
+                                           app.mod.components.get_id(compo),
+                                           gen.children_parameters[idx]);
 
     ImGui::PopItemWidth();
     add_output_attribute(Y, id);

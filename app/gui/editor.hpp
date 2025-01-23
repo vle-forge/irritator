@@ -40,8 +40,19 @@ bool show_external_sources_combo(external_source&     srcs,
 
    @return True if the parameter @c is changed.
  */
-bool show_hsm_component_id_parameter(const modeling& mod,
+bool show_extented_hsm_parameter(const modeling& mod,
                                      parameter&      p) noexcept;
+
+/**
+   Display widgets to control the constant model incoming/outcoming port.
+
+   The parameter @c p must be a parameter of an @c hsm_rapper.
+
+   @return True if the parameter @c is changed.
+*/
+bool show_extented_constant_parameter(const modeling&    mod,
+                                      const component_id id,
+                                      parameter&         p) noexcept;
 
 /**
    Get the list of input port for the specified dynamics.
