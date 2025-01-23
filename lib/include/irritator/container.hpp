@@ -138,7 +138,7 @@ using small_storage_size_t = std::conditional_t<
                          size_t>>>>;
 
 template<class T, class M>
-constexpr std::ptrdiff_t offset_of(const M T::*member)
+constexpr std::ptrdiff_t offset_of(const M T::* member)
 {
     return reinterpret_cast<std::ptrdiff_t>(
       &(reinterpret_cast<T*>(0)->*member));
@@ -159,7 +159,7 @@ constexpr std::ptrdiff_t offset_of(const M T::*member)
    @endcode
 */
 template<class T, class M>
-constexpr T& container_of(M* ptr, const M T::*member) noexcept
+constexpr T& container_of(M* ptr, const M T::* member) noexcept
 {
     return *reinterpret_cast<T*>(reinterpret_cast<intptr_t>(ptr) -
                                  offset_of(member));
@@ -181,26 +181,50 @@ constexpr T& container_of(M* ptr, const M T::*member) noexcept
    @endcode
 */
 template<class T, class M>
-constexpr const T& container_of(const M* ptr, const M T::*member) noexcept
+constexpr const T& container_of(const M* ptr, const M T::* member) noexcept
 {
     return *reinterpret_cast<const T*>(reinterpret_cast<intptr_t>(ptr) -
                                        offset_of(member));
 }
 
 /**
-   Preparpe an human readable version of number of bytes.
+   Build an human readable version of a number of bytes.
 
    According to the number of bytes, it will produce an easy to read value of
    byte, kilobytes, megabytes etc.
 
    A fmt::formatter is provide in the file @c format.hpp
  */
-struct human_readable_length_t {
+struct human_readable_bytes {
     enum class display_type { B, KB, MB, GB };
 
-    human_readable_length_t(std::size_t bytes) noexcept;
+    explicit human_readable_bytes(std::size_t bytes) noexcept;
 
     double       size;
+    display_type type;
+};
+
+/**
+   Build  an human readable version of a duration.
+
+   According to the number of nanoseconds, producte an easy to read value of the
+   duration (ms, s, mn etc.).
+
+   A fmt::formatter is provide in the file @c format.hpp
+*/
+struct human_readable_time {
+    enum class display_type {
+        nanoseconds,
+        microseconds,
+        milliseconds,
+        seconds,
+        minutes,
+        hours,
+    };
+
+    explicit human_readable_time(const std::size_t nanoseconds) noexcept;
+
+    double       value;
     display_type type;
 };
 

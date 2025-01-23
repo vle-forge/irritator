@@ -5,6 +5,9 @@
 #include "application.hpp"
 #include "internal.hpp"
 
+#include <fmt/core.h>
+#include <fmt/format.h>
+
 namespace irt {
 
 void task_window::show_widgets() noexcept
@@ -74,8 +77,9 @@ void task_window::show_widgets() noexcept
                 ImGui::TextFormat("main-{}", i);
                 ImGui::TableNextColumn();
                 ImGui::TextFormat(
-                  "{} ms",
-                  app.task_mgr.main_workers[i].exec_time.count() / 1000);
+                  "{}",
+                  human_readable_time(
+                    app.task_mgr.main_workers[i].exec_time.count()));
                 ImGui::TableNextColumn();
             }
 
@@ -86,8 +90,7 @@ void task_window::show_widgets() noexcept
                 ImGui::TextFormat("generic-{}", i);
                 ImGui::TableNextColumn();
                 ImGui::TextFormat(
-                  "{} ms",
-                  app.task_mgr.temp_workers[j].exec_time.count() / 1000);
+                  "{}", (app.task_mgr.temp_workers[j].exec_time.count()));
                 ImGui::TableNextColumn();
             }
 
@@ -116,12 +119,12 @@ void task_window::show_widgets() noexcept
                 ImGui::TableNextColumn();
                 ImGui::TextUnformatted("global");
                 ImGui::TableNextColumn();
-                ImGui::TextFormat("{}", human_readable_length_t(allocated));
+                ImGui::TextFormat("{}", human_readable_bytes(allocated));
                 ImGui::TableNextColumn();
-                ImGui::TextFormat("{}", human_readable_length_t(deallocated));
+                ImGui::TextFormat("{}", human_readable_bytes(deallocated));
                 ImGui::TableNextColumn();
                 ImGui::TextFormat(
-                  "{}", human_readable_length_t(allocated - deallocated));
+                  "{}", human_readable_bytes(allocated - deallocated));
             }
 
             ImGui::TableNextRow();
@@ -132,12 +135,12 @@ void task_window::show_widgets() noexcept
                 ImGui::TableNextColumn();
                 ImGui::TextUnformatted("thread-1");
                 ImGui::TableNextColumn();
-                ImGui::TextFormat("{}", human_readable_length_t(allocated));
+                ImGui::TextFormat("{}", human_readable_bytes(allocated));
                 ImGui::TableNextColumn();
-                ImGui::TextFormat("{}", human_readable_length_t(deallocated));
+                ImGui::TextFormat("{}", human_readable_bytes(deallocated));
                 ImGui::TableNextColumn();
                 ImGui::TextFormat(
-                  "{}", human_readable_length_t(allocated - deallocated));
+                  "{}", human_readable_bytes(allocated - deallocated));
             }
 
             ImGui::TableNextRow();
@@ -148,12 +151,12 @@ void task_window::show_widgets() noexcept
                 ImGui::TableNextColumn();
                 ImGui::TextUnformatted("thread-2");
                 ImGui::TableNextColumn();
-                ImGui::TextFormat("{}", human_readable_length_t(allocated));
+                ImGui::TextFormat("{}", human_readable_bytes(allocated));
                 ImGui::TableNextColumn();
-                ImGui::TextFormat("{}", human_readable_length_t(deallocated));
+                ImGui::TextFormat("{}", human_readable_bytes(deallocated));
                 ImGui::TableNextColumn();
                 ImGui::TextFormat(
-                  "{}", human_readable_length_t(allocated - deallocated));
+                  "{}", human_readable_bytes(allocated - deallocated));
             }
 
             ImGui::EndTable();
