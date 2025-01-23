@@ -164,19 +164,19 @@ struct json_dearchiver::impl {
                                             it->name.GetStringLength() });
 
             if (x == std::end(names)) {
-                //debug_logi(stack.ssize(),
-                //           "for-member: unknown element {}\n",
-                //           std::string_view{ it->name.GetString(),
-                //                             it->name.GetStringLength() });
+                // debug_logi(stack.ssize(),
+                //            "for-member: unknown element {}\n",
+                //            std::string_view{ it->name.GetString(),
+                //                              it->name.GetStringLength() });
 
                 report_json_error("unknown element");
             }
 
             if (!fn(std::distance(std::begin(names), x), it->value)) {
-                //debug_logi(stack.ssize(),
-                //           "for-member: element {} return false\n",
-                //           std::string_view{ it->name.GetString(),
-                //                             it->name.GetStringLength() });
+                // debug_logi(stack.ssize(),
+                //            "for-member: element {} return false\n",
+                //            std::string_view{ it->name.GetString(),
+                //                              it->name.GetStringLength() });
                 return false;
             }
 
@@ -196,7 +196,8 @@ struct json_dearchiver::impl {
 
         for (auto it = val.MemberBegin(), et = val.MemberEnd(); it != et;
              ++it) {
-            //debug_logi(stack.ssize(), "for-member: {}\n", it->name.GetString());
+            // debug_logi(stack.ssize(), "for-member: {}\n",
+            // it->name.GetString());
             if (!f(it->name.GetString(), it->value, args...))
                 return false;
         }
@@ -332,7 +333,7 @@ struct json_dearchiver::impl {
         report_json_error("text file missing");
     }
 
-    bool copy_string_to(constant::init_type& type) noexcept
+    bool copy_string_to(std::optional<constant::init_type>& type) noexcept
     {
         if (temp_string == "constant"sv)
             type = constant::init_type::constant;
@@ -1093,9 +1094,9 @@ struct json_dearchiver::impl {
           });
     }
 
-    bool read_dynamics(const rapidjson::Value& val,
-                       constant_tag,
-                       parameter& p) noexcept
+    bool read_simulation_dynamics(const rapidjson::Value& val,
+                                  constant_tag,
+                                  parameter& p) noexcept
     {
         auto_stack a(this, "dynamics constant");
 
@@ -1109,17 +1110,56 @@ struct json_dearchiver::impl {
                          is_double_greater_equal_than(0.0) &&
                          copy_real_to(p.reals[1]);
 
-              if ("type"sv == name) {
-                  constant::init_type type = constant::init_type::constant;
-
-                  return read_temp_string(value) && copy_string_to(type) &&
-                         copy(ordinal(type), p.integers[0]);
-              }
-
-              if ("port"sv == name)
-                  return read_temp_i64(value) && copy_i64_to(p.integers[1]);
-
               report_json_error("unknown element");
+          });
+    }
+
+    bool copy_string_to_constant_port(component&                compo,
+                                      const constant::init_type type,
+                                      parameter&                p) noexcept
+
+    {
+        if (type != constant::init_type::incoming_component_n or
+            type != constant::init_type::outcoming_component_n)
+            report_json_error("constant port not necessary");
+
+        const auto port = type == constant::init_type::incoming_component_n
+                            ? compo.get_or_add_x(temp_string)
+                            : compo.get_or_add_y(temp_string);
+
+        p.integers[1] = ordinal(port);
+
+        return true;
+    }
+
+    bool read_modeling_dynamics(const rapidjson::Value& val,
+                                component&              compo,
+                                constant_tag,
+                                parameter& p) noexcept
+    {
+        auto_stack a(this, "dynamics constant");
+
+        std::optional<constant::init_type> type;
+
+        return for_each_member(
+          val, [&](const auto name, const auto& value) noexcept -> bool {
+              if ("value"sv == name)
+                  return read_temp_real(value) && copy_real_to(p.reals[0]);
+
+              if ("offset"sv == name)
+                  return read_temp_real(value) &&
+                         is_double_greater_equal_than(0.0) &&
+                         copy_real_to(p.reals[1]);
+
+              if ("type"sv == name)
+                  return read_temp_string(value) && copy_string_to(type) &&
+                         copy(ordinal(*type), p.integers[0]);
+
+              if ("port"sv == name and type.has_value())
+                  return read_temp_string(value) &&
+                         copy_string_to_constant_port(compo, *type, p);
+
+              return true;
           });
     }
 
@@ -1776,15 +1816,16 @@ struct json_dearchiver::impl {
     }
 
     bool read_child_model_dynamics(const rapidjson::Value& val,
-                                   generic_component&      compo,
+                                   component&              compo,
+                                   generic_component&      gen,
                                    child&                  c) noexcept
     {
         auto_stack a(this, "child model dynamics");
 
-        const auto c_id  = compo.children.get_id(c);
+        const auto c_id  = gen.children.get_id(c);
         const auto c_idx = get_index(c_id);
 
-        auto& param = compo.children_parameters[c_idx];
+        auto& param = gen.children_parameters[c_idx];
         param.clear();
 
         return for_first_member(
@@ -1794,6 +1835,8 @@ struct json_dearchiver::impl {
                 [&]<typename Tag>(const Tag tag) noexcept -> bool {
                     if constexpr (std::is_same_v<Tag, hsm_wrapper_tag>) {
                         return read_modeling_dynamics(value, tag, param);
+                    } else if constexpr (std::is_same_v<Tag, constant_tag>) {
+                        return read_modeling_dynamics(value, compo, tag, param);
                     } else {
                         return read_dynamics(value, tag, param);
                     }
@@ -1802,7 +1845,8 @@ struct json_dearchiver::impl {
     }
 
     bool read_child_model(const rapidjson::Value& val,
-                          generic_component&      compo,
+                          component&              compo,
+                          generic_component&      gen,
                           const dynamics_type     type,
                           child&                  c) noexcept
     {
@@ -1811,7 +1855,7 @@ struct json_dearchiver::impl {
         c.type        = child_type::model;
         c.id.mdl_type = type;
 
-        return read_child_model_dynamics(val, compo, c);
+        return read_child_model_dynamics(val, compo, gen, c);
     }
 
     bool copy_internal_component(internal_component type,
@@ -1852,8 +1896,8 @@ struct json_dearchiver::impl {
         return nullptr;
     }
 
-    auto search_dir_in_reg(registred_path& reg, std::string_view name) noexcept
-      -> dir_path*
+    auto search_dir_in_reg(registred_path&  reg,
+                           std::string_view name) noexcept -> dir_path*
     {
         for (auto dir_id : reg.children) {
             if (auto* dir = mod().dir_paths.try_to_get(dir_id); dir) {
@@ -1922,8 +1966,8 @@ struct json_dearchiver::impl {
         return nullptr;
     }
 
-    auto search_file(dir_path& dir, std::string_view name) noexcept
-      -> file_path*
+    auto search_file(dir_path&        dir,
+                     std::string_view name) noexcept -> file_path*
     {
         for (auto file_id : dir.children)
             if (auto* file = mod().file_paths.try_to_get(file_id); file)
@@ -2052,6 +2096,7 @@ struct json_dearchiver::impl {
     }
 
     bool dispatch_child_component_or_model(const rapidjson::Value& val,
+                                           component&              compo,
                                            generic_component&      generic,
                                            dynamics_type           d_type,
                                            child&                  c) noexcept
@@ -2060,10 +2105,11 @@ struct json_dearchiver::impl {
 
         return c.type == child_type::component
                  ? read_child_component(val, c.id.compo_id)
-                 : read_child_model(val, generic, d_type, c);
+                 : read_child_model(val, compo, generic, d_type, c);
     }
 
     bool read_child_component_or_model(const rapidjson::Value& val,
+                                       component&              compo,
                                        generic_component&      generic,
                                        child&                  c) noexcept
     {
@@ -2077,10 +2123,11 @@ struct json_dearchiver::impl {
                                     return read_temp_string(value) &&
                                            copy_string_to(c.type, type);
                                 }) &&
-               dispatch_child_component_or_model(val, generic, type, c);
+               dispatch_child_component_or_model(val, compo, generic, type, c);
     }
 
     bool read_children_array(const rapidjson::Value& val,
+                             component&              compo,
                              generic_component&      generic) noexcept
     {
         auto_stack a(this, "children array");
@@ -2097,7 +2144,7 @@ struct json_dearchiver::impl {
                      return read_child(
                               value, generic, new_child, new_child_id) &&
                             read_child_component_or_model(
-                              value, generic, new_child);
+                              value, compo, generic, new_child);
                  });
     }
 
@@ -2109,11 +2156,13 @@ struct json_dearchiver::impl {
     }
 
     bool read_children(const rapidjson::Value& val,
+                       component&              compo,
                        generic_component&      generic) noexcept
     {
         auto_stack a(this, "children");
 
-        return read_children_array(val, generic) && cache_model_mapping_sort();
+        return read_children_array(val, compo, generic) &&
+               cache_model_mapping_sort();
     }
 
     bool constant_sources_can_alloc(external_source&   srcs,
@@ -3007,7 +3056,7 @@ struct json_dearchiver::impl {
         return for_each_member(
           val, [&](const auto name, const auto& value) noexcept -> bool {
               if ("children"sv == name)
-                  return read_children(value, generic);
+                  return read_children(value, compo, generic);
 
               if ("connections"sv == name)
                   return read_connections(value, compo, generic);
@@ -3593,6 +3642,8 @@ struct json_dearchiver::impl {
 
               return dispatch(mdl.type, [&]<typename Tag>(Tag tag) -> bool {
                   if constexpr (std::is_same_v<Tag, hsm_wrapper_tag>) {
+                      return read_simulation_dynamics(value, tag, p);
+                  } else if constexpr (std::is_same_v<Tag, constant_tag>) {
                       return read_simulation_dynamics(value, tag, p);
                   } else {
                       return read_dynamics(value, tag, p);
@@ -5021,6 +5072,22 @@ struct json_archiver::impl {
                const parameter& p) noexcept
     {
         writer.StartObject();
+
+        writer.Key("value");
+        writer.Double(p.reals[0]);
+        writer.Key("offset");
+        writer.Double(p.reals[1]);
+
+        writer.EndObject();
+    }
+
+    template<typename Writer>
+    void write(Writer&          writer,
+               const component& c,
+               const constant& /*dyn*/,
+               const parameter& p) noexcept
+    {
+        writer.StartObject();
         writer.Key("value");
         writer.Double(p.reals[0]);
         writer.Key("offset");
@@ -5041,17 +5108,32 @@ struct json_archiver::impl {
         case constant::init_type::outcoming_component_all:
             writer.String("outcoming_component_all");
             break;
-        case constant::init_type::incoming_component_n:
+        case constant::init_type::incoming_component_n: {
             writer.String("incoming_component_n");
             writer.Key("port");
-            writer.Uint64(p.integers[1]);
-            break;
-        case constant::init_type::outcoming_component_n:
+
+            const auto port = enum_cast<port_id>(p.integers[1]);
+            if (c.x.exists(port)) {
+                const auto& str = c.x.get<port_str>(port);
+                writer.String(str.c_str());
+            } else {
+                writer.String("");
+            }
+        } break;
+        case constant::init_type::outcoming_component_n: {
             writer.String("outcoming_component_n");
             writer.Key("port");
-            writer.Uint64(p.integers[1]);
-            break;
+
+            const auto port = enum_cast<port_id>(p.integers[1]);
+            if (c.y.exists(port)) {
+                const auto& str = c.y.get<port_str>(port);
+                writer.String(str.c_str());
+            } else {
+                writer.String("");
+            }
+        } break;
         }
+
         writer.EndObject();
     }
 
@@ -5716,6 +5798,7 @@ struct json_archiver::impl {
 
     template<typename Writer>
     void write_child_model(const modeling&  mod,
+                           const component& compo,
                            model&           mdl,
                            const parameter& p,
                            Writer&          w) noexcept
@@ -5725,6 +5808,8 @@ struct json_archiver::impl {
         dispatch(mdl, [&]<typename Dynamics>(Dynamics& dyn) noexcept {
             if constexpr (std::is_same_v<Dynamics, hsm_wrapper>) {
                 write_modeling_dynamics(mod, w, dyn, p);
+            } else if constexpr (std::is_same_v<Dynamics, constant>) {
+                write(w, compo, dyn, p);
             } else {
                 write(w, dyn, p);
             }
@@ -5733,6 +5818,7 @@ struct json_archiver::impl {
 
     template<typename Writer>
     void write_child(const modeling&          mod,
+                     const component&         compo,
                      const generic_component& gen,
                      const child&             ch,
                      Writer&                  w) noexcept
@@ -5776,7 +5862,8 @@ struct json_archiver::impl {
             w.Key("type");
             w.String(dynamics_type_names[ordinal(ch.id.mdl_type)]);
 
-            write_child_model(mod, mdl, gen.children_parameters[child_idx], w);
+            write_child_model(
+              mod, compo, mdl, gen.children_parameters[child_idx], w);
         }
 
         w.EndObject();
@@ -5784,6 +5871,7 @@ struct json_archiver::impl {
 
     template<typename Writer>
     void write_generic_component_children(const modeling&          mod,
+                                          const component&         compo,
                                           const generic_component& simple_compo,
                                           Writer&                  w) noexcept
     {
@@ -5791,7 +5879,7 @@ struct json_archiver::impl {
         w.StartArray();
 
         for (const auto& c : simple_compo.children)
-            write_child(mod, simple_compo, c, w);
+            write_child(mod, compo, simple_compo, c, w);
 
         w.EndArray();
     }
@@ -5990,7 +6078,7 @@ struct json_archiver::impl {
                                  const generic_component& s_compo,
                                  Writer&                  w) noexcept
     {
-        write_generic_component_children(mod, s_compo, w);
+        write_generic_component_children(mod, compo, s_compo, w);
         write_generic_component_connections(mod, compo, s_compo, w);
     }
 
@@ -6351,6 +6439,8 @@ struct json_archiver::impl {
             dispatch(mdl, [&]<typename Dynamics>(const Dynamics& dyn) noexcept {
                 if constexpr (std::is_same_v<Dynamics, hsm_wrapper>)
                     write_simulation_dynamics(w, dyn, sim.parameters[mdl_idx]);
+                else if constexpr (std::is_same_v<Dynamics, constant>)
+                    write(w, dyn, sim.parameters[mdl_idx]);
                 else
                     write(w, dyn, sim.parameters[mdl_idx]);
             });
