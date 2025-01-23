@@ -42,68 +42,67 @@ void memory_window::show() noexcept
                           app.mod.file_paths.capacity());
     }
 
-    if (ImGui::CollapsingHeader("Simulation usage",
-                                ImGuiTreeNodeFlags_DefaultOpen)) {
+    if (ImGui::CollapsingHeader("Project", ImGuiTreeNodeFlags_DefaultOpen)) {
         for (const auto& p : app.pjs) {
             const auto id  = app.pjs.get_id(p);
             const auto idx = get_index(id);
-            name_str   temp;
-            format(temp, "{}", idx);
 
-            if (ImGui::TreeNode(temp.c_str())) {
-                ImGui::TextFormat("models: {}", p.pj.sim.models.size());
-                ImGui::TextFormat("hsms: {}", p.pj.sim.hsms.size());
-                ImGui::TextFormat("observers: {}", p.pj.sim.observers.size());
+            ImGui::PushID(idx);
+            if (ImGui::TreeNode(p.name.c_str())) {
+                ImGui::LabelFormat("models", "{}", p.pj.sim.models.size());
+                ImGui::LabelFormat("hsms", "{}", p.pj.sim.hsms.size());
+                ImGui::LabelFormat(
+                  "observers", "{}", p.pj.sim.observers.size());
+                ImGui::LabelFormat(
+                  "immediate models", "{}", p.pj.sim.immediate_models.size());
+                ImGui::LabelFormat("immediate observers",
+                                   "{}",
+                                   p.pj.sim.immediate_observers.size());
+                ImGui::LabelFormat(
+                  "message alloc", "{}", p.pj.sim.messages.size());
+                ImGui::LabelFormat("node", "{}", p.pj.sim.nodes.size());
+                ImGui::LabelFormat(
+                  "dated message alloc", "{}", p.pj.sim.dated_messages.size());
+                ImGui::LabelFormat("emitting output ports",
+                                   "{}",
+                                   p.pj.sim.emitting_output_ports.size());
 
-                ImGui::TextFormat("immediate_models: {}",
-                                  p.pj.sim.immediate_models.size());
-                ImGui::TextFormat("immediate_observers: {}",
-                                  p.pj.sim.immediate_observers.size());
-
-                ImGui::TextFormat("message_alloc: {}",
-                                  p.pj.sim.messages.size());
-                ImGui::TextFormat("node: {}", p.pj.sim.nodes.size());
-                ImGui::TextFormat("dated_message_alloc: {}",
-                                  p.pj.sim.dated_messages.size());
-                ImGui::TextFormat("emitting_output_ports: {}",
-                                  p.pj.sim.emitting_output_ports.size());
-
-                ImGui::TextFormat("contant sources: {}",
-                                  p.pj.sim.srcs.constant_sources.size());
-                ImGui::TextFormat("text sources: {}",
-                                  p.pj.sim.srcs.text_file_sources.size());
-                ImGui::TextFormat("binary sources: {}",
-                                  p.pj.sim.srcs.binary_file_sources.size());
-                ImGui::TextFormat("random sources: {}",
-                                  p.pj.sim.srcs.random_sources.size());
+                ImGui::LabelFormat("contant sources",
+                                   "{}",
+                                   p.pj.sim.srcs.constant_sources.size());
+                ImGui::LabelFormat(
+                  "text sources", "{}", p.pj.sim.srcs.text_file_sources.size());
+                ImGui::LabelFormat("binary sources",
+                                   "{}",
+                                   p.pj.sim.srcs.binary_file_sources.size());
+                ImGui::LabelFormat(
+                  "random sources", "{}", p.pj.sim.srcs.random_sources.size());
+                ImGui::TreePop();
             }
+            ImGui::PopID();
         }
     }
 
     if (ImGui::CollapsingHeader("Components")) {
-        component* compo = nullptr;
-        while (app.mod.components.next(compo)) {
-            ImGui::PushID(compo);
-            if (ImGui::TreeNode(compo->name.c_str())) {
-                if (auto* s_compo = app.mod.generic_components.try_to_get(
-                      compo->id.generic_id);
-                    s_compo) {
-                    ImGui::TextFormat("children: {}/{}",
-                                      s_compo->children.size(),
-                                      s_compo->children.capacity());
-                    ImGui::TextFormat("connections: {}/{}",
-                                      s_compo->connections.size(),
-                                      s_compo->connections.capacity());
-                    ImGui::Separator();
+        for (const auto& compo : app.mod.components) {
+            if (compo.type != component_type::internal) {
+                const auto id  = app.mod.components.get_id(compo);
+                const auto idx = get_index(id);
 
-                    ImGui::TextFormat("Dir: {}", ordinal(compo->dir));
-                    ImGui::TextFormat("Description: {}", ordinal(compo->desc));
-                    ImGui::TextFormat("File: {}", ordinal(compo->file));
+                ImGui::PushID(idx);
+                if (ImGui::TreeNode(compo.name.c_str())) {
+                    ImGui::LabelFormat(
+                      "type", "{}", component_type_names[ordinal(compo.type)]);
+
+                    ImGui::LabelFormat("Dir", "{}", ordinal(compo.dir));
+                    ImGui::LabelFormat(
+                      "Description", "{}", ordinal(compo.desc));
+                    ImGui::LabelFormat("File", "{}", ordinal(compo.file));
 
                     ImGui::TreePop();
                 }
+                ImGui::PopID();
             }
-            ImGui::PopID();
         }
     }
 
