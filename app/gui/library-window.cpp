@@ -538,54 +538,51 @@ void library_window::try_set_component_as_project(
   application&       app,
   const component_id compo_id) noexcept
 {
-    // Perhaps add a new simulation status: to avoid import of a
-    // component.
-    app.add_gui_task([&app, compo_id]() noexcept {
-        std::scoped_lock lock{ app.sim_mutex, app.mod_mutex, app.pj_mutex };
+    if (auto opt = app.alloc_project_window(); opt.has_value()) {
+        const auto id = *opt;
 
-        attempt_all(
-          [&]() noexcept -> status {
-              if (auto opt = app.alloc_project_window(); opt.has_value()) {
-                  const auto id = *opt;
-                  auto&      pj = app.pjs.get(id);
+        app.add_gui_task([&app, compo_id, id]() noexcept {
+            attempt_all(
+              [&]() noexcept -> status {
+                  auto& pj = app.pjs.get(id);
 
                   if (auto* c = app.mod.components.try_to_get(compo_id); c) {
                       irt_check(pj.pj.set(app.mod, *c));
                       pj.disable_access = false;
                   }
-              }
 
-              return success();
-          },
+                  return success();
+              },
 
-          [&](project::part part, project::error error) noexcept {
-              auto& n = app.notifications.alloc(log_level::error);
-              n.title = "Project import error";
-              format(n.message,
-                     "Error in {} failed with error: {}",
-                     to_string(part),
-                     to_string(error));
-          },
+              [&](project::part part, project::error error) noexcept {
+                  auto& n = app.notifications.alloc(log_level::error);
+                  n.title = "Project import error";
+                  format(n.message,
+                         "Error in {} failed with error: {}",
+                         to_string(part),
+                         to_string(error));
+              },
 
-          [&](project::part part) noexcept {
-              auto& n = app.notifications.alloc(log_level::error);
-              n.title = "Project import error";
-              format(n.message, "Error in {}", to_string(part));
-          },
+              [&](project::part part) noexcept {
+                  auto& n = app.notifications.alloc(log_level::error);
+                  n.title = "Project import error";
+                  format(n.message, "Error in {}", to_string(part));
+              },
 
-          [&](project::error error) noexcept {
-              auto& n = app.notifications.alloc(log_level::error);
-              n.title = "Project import error";
-              format(n.message, "Error: {}", to_string(error));
-          },
+              [&](project::error error) noexcept {
+                  auto& n = app.notifications.alloc(log_level::error);
+                  n.title = "Project import error";
+                  format(n.message, "Error: {}", to_string(error));
+              },
 
-          [&]() noexcept {
-              auto& n = app.notifications.alloc();
-              n.level = log_level::error;
-              n.title = "Fail to build tree";
-              app.notifications.enable(n);
-          });
-    });
+              [&]() noexcept {
+                  auto& n = app.notifications.alloc();
+                  n.level = log_level::error;
+                  n.title = "Fail to build tree";
+                  app.notifications.enable(n);
+              });
+        });
+    }
 }
 
 auto library_window::is_component_deletable(
