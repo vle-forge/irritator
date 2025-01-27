@@ -1119,7 +1119,7 @@ struct json_dearchiver::impl {
                                       parameter&                p) noexcept
 
     {
-        if (type != constant::init_type::incoming_component_n or
+        if (type != constant::init_type::incoming_component_n and
             type != constant::init_type::outcoming_component_n)
             report_json_error("constant port not necessary");
 
