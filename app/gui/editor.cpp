@@ -53,14 +53,11 @@ bool show_external_sources_combo(external_source& srcs,
     return false;
 }
 
-bool show_external_sources_combo(external_source&     srcs,
-                                 const char*          title,
-                                 u64&                 src_id,
-                                 source::source_type& src_type) noexcept
+static void build_selected_source_label(const source::source_type src_type,
+                                        const u64                 src_id,
+                                        const external_source&    srcs,
+                                        small_string<63>&         label) noexcept
 {
-    bool             is_changed = false;
-    small_string<63> label("None");
-
     switch (src_type) {
     case source::source_type::binary_file: {
         const auto id    = enum_cast<binary_file_source_id>(src_id);
@@ -109,110 +106,108 @@ bool show_external_sources_combo(external_source&     srcs,
                    es->name.c_str());
         }
     } break;
+
     default:
         unreachable();
     }
+}
+
+bool show_external_sources_combo(external_source&     srcs,
+                                 const char*          title,
+                                 u64&                 src_id,
+                                 source::source_type& src_type) noexcept
+{
+    bool             is_changed = false;
+    small_string<63> label("-");
+    build_selected_source_label(src_type, src_id, srcs, label);
 
     if (ImGui::BeginCombo(title, label.c_str())) {
         {
             bool is_selected = src_type == source::source_type::constant;
-            ImGui::Selectable("None", is_selected);
+            ImGui::Selectable("-", is_selected);
         }
 
-        {
-            constant_source* s = nullptr;
-            while (srcs.constant_sources.next(s)) {
-                const auto id    = srcs.constant_sources.get_id(s);
-                const auto index = get_index(id);
+        for (const auto& s : srcs.constant_sources) {
+            const auto id    = srcs.constant_sources.get_id(s);
+            const auto index = get_index(id);
 
-                format(label,
-                       "{}-{} {}",
-                       ordinal(source::source_type::constant),
-                       index,
-                       s->name.c_str());
+            format(label,
+                   "{}-{} {}",
+                   ordinal(source::source_type::constant),
+                   index,
+                   s.name.c_str());
 
-                bool is_selected = src_type == source::source_type::constant &&
-                                   src_id == ordinal(id);
-                if (ImGui::Selectable(label.c_str(), is_selected)) {
-                    src_type   = source::source_type::constant;
-                    src_id     = ordinal(id);
-                    is_changed = true;
-                    ImGui::EndCombo();
-                    break;
-                }
+            bool is_selected = src_type == source::source_type::constant &&
+                               src_id == ordinal(id);
+            if (ImGui::Selectable(label.c_str(), is_selected)) {
+                src_type   = source::source_type::constant;
+                src_id     = ordinal(id);
+                is_changed = true;
+                ImGui::EndCombo();
+                break;
             }
         }
 
-        {
-            binary_file_source* s = nullptr;
-            while (srcs.binary_file_sources.next(s)) {
-                const auto id    = srcs.binary_file_sources.get_id(s);
-                const auto index = get_index(id);
+        for (const auto& s : srcs.binary_file_sources) {
+            const auto id    = srcs.binary_file_sources.get_id(s);
+            const auto index = get_index(id);
 
-                format(label,
-                       "{}-{} {}",
-                       ordinal(source::source_type::binary_file),
-                       index,
-                       s->name.c_str());
+            format(label,
+                   "{}-{} {}",
+                   ordinal(source::source_type::binary_file),
+                   index,
+                   s.name.c_str());
 
-                bool is_selected =
-                  src_type == source::source_type::binary_file &&
-                  src_id == ordinal(id);
-                if (ImGui::Selectable(label.c_str(), is_selected)) {
-                    src_type   = source::source_type::binary_file;
-                    src_id     = ordinal(id);
-                    is_changed = true;
-                    ImGui::EndCombo();
-                    break;
-                }
+            bool is_selected = src_type == source::source_type::binary_file &&
+                               src_id == ordinal(id);
+            if (ImGui::Selectable(label.c_str(), is_selected)) {
+                src_type   = source::source_type::binary_file;
+                src_id     = ordinal(id);
+                is_changed = true;
+                ImGui::EndCombo();
+                break;
             }
         }
 
-        {
-            random_source* s = nullptr;
-            while (srcs.random_sources.next(s)) {
-                const auto id    = srcs.random_sources.get_id(s);
-                const auto index = get_index(id);
+        for (const auto& s : srcs.random_sources) {
+            const auto id    = srcs.random_sources.get_id(s);
+            const auto index = get_index(id);
 
-                format(label,
-                       "{}-{} {}",
-                       ordinal(source::source_type::random),
-                       index,
-                       s->name.c_str());
+            format(label,
+                   "{}-{} {}",
+                   ordinal(source::source_type::random),
+                   index,
+                   s.name.c_str());
 
-                bool is_selected = src_type == source::source_type::random &&
-                                   src_id == ordinal(id);
-                if (ImGui::Selectable(label.c_str(), is_selected)) {
-                    src_type   = source::source_type::random;
-                    src_id     = ordinal(id);
-                    is_changed = true;
-                    ImGui::EndCombo();
-                    break;
-                }
+            bool is_selected =
+              src_type == source::source_type::random && src_id == ordinal(id);
+            if (ImGui::Selectable(label.c_str(), is_selected)) {
+                src_type   = source::source_type::random;
+                src_id     = ordinal(id);
+                is_changed = true;
+                ImGui::EndCombo();
+                break;
             }
         }
 
-        {
-            text_file_source* s = nullptr;
-            while (srcs.text_file_sources.next(s)) {
-                const auto id    = srcs.text_file_sources.get_id(s);
-                const auto index = get_index(id);
+        for (const auto& s : srcs.text_file_sources) {
+            const auto id    = srcs.text_file_sources.get_id(s);
+            const auto index = get_index(id);
 
-                format(label,
-                       "{}-{} {}",
-                       ordinal(source::source_type::text_file),
-                       index,
-                       s->name.c_str());
+            format(label,
+                   "{}-{} {}",
+                   ordinal(source::source_type::text_file),
+                   index,
+                   s.name.c_str());
 
-                bool is_selected = src_type == source::source_type::text_file &&
-                                   src_id == ordinal(id);
-                if (ImGui::Selectable(label.c_str(), is_selected)) {
-                    src_type   = source::source_type::text_file;
-                    src_id     = ordinal(id);
-                    is_changed = true;
-                    ImGui::EndCombo();
-                    break;
-                }
+            bool is_selected = src_type == source::source_type::text_file &&
+                               src_id == ordinal(id);
+            if (ImGui::Selectable(label.c_str(), is_selected)) {
+                src_type   = source::source_type::text_file;
+                src_id     = ordinal(id);
+                is_changed = true;
+                ImGui::EndCombo();
+                break;
             }
         }
 
@@ -745,8 +740,8 @@ static bool show_parameter(logical_invert_tag,
     return false;
 }
 
-static auto build_default_hsm_name(const modeling& mod, parameter& p) noexcept
-  -> const char*
+static auto build_default_hsm_name(const modeling& mod,
+                                   parameter&      p) noexcept -> const char*
 {
     static constexpr auto undefined_name = "-";
 

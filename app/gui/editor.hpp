@@ -40,8 +40,7 @@ bool show_external_sources_combo(external_source&     srcs,
 
    @return True if the parameter @c is changed.
  */
-bool show_extented_hsm_parameter(const modeling& mod,
-                                     parameter&      p) noexcept;
+bool show_extented_hsm_parameter(const modeling& mod, parameter& p) noexcept;
 
 /**
    Display widgets to control the constant model incoming/outcoming port.
