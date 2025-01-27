@@ -372,7 +372,7 @@ static void parameter_init(parameter& param, const logical_invert& dyn) noexcept
 
 static void model_init(const parameter& param, hsm_wrapper& dyn) noexcept
 {
-    dyn.compo_id               = static_cast<u64>(param.integers[0]);
+    dyn.id                     = static_cast<u64>(param.integers[0]);
     dyn.exec.i1                = static_cast<i32>(param.integers[1]);
     dyn.exec.i2                = static_cast<i32>(param.integers[2]);
     dyn.exec.source_value.id   = get_source_id(param.integers[3]);
@@ -384,7 +384,7 @@ static void model_init(const parameter& param, hsm_wrapper& dyn) noexcept
 
 static void parameter_init(parameter& param, const hsm_wrapper& dyn) noexcept
 {
-    param.integers[0] = static_cast<i64>(dyn.compo_id);
+    param.integers[0] = static_cast<i64>(dyn.id);
     param.integers[1] = static_cast<i64>(dyn.exec.i1);
     param.integers[2] = static_cast<i64>(dyn.exec.i2);
     param.integers[3] = static_cast<i64>(dyn.exec.source_value.id);
@@ -556,6 +556,37 @@ parameter& parameter::set_wsum4(real v1,
     reals[5] = std::isfinite(coeff2) ? coeff2 : 1.0;
     reals[6] = std::isfinite(coeff3) ? coeff3 : 1.0;
     reals[7] = std::isfinite(coeff4) ? coeff4 : 1.0;
+    return *this;
+}
+
+parameter& parameter::set_hsm_wrapper(const u32 id) noexcept
+{
+    integers[0] = id;
+
+    return *this;
+}
+
+parameter& parameter::set_hsm_wrapper(i64  i1,
+                                      i64  i2,
+                                      real r1,
+                                      real r2,
+                                      real timer) noexcept
+{
+    integers[1] = i1;
+    integers[2] = i2;
+    reals[0]    = r1;
+    reals[1]    = r2;
+    reals[2]    = std::isfinite(timer) ? timer : 0.0;
+
+    return *this;
+}
+
+parameter& parameter::set_hsm_wrapper(const u64                 id,
+                                      const source::source_type type) noexcept
+{
+    integers[3] = static_cast<i64>(id);
+    integers[4] = static_cast<i64>(type);
+
     return *this;
 }
 

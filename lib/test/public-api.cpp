@@ -1996,11 +1996,9 @@ int main()
         expect(sim.hsms.can_alloc());
         expect(sim.models.can_alloc());
 
-        auto& hsmw = sim.alloc<irt::hsm_wrapper>();
-        auto& hsm  = sim.hsms.alloc();
-        hsmw.id    = sim.hsms.get_id(hsm);
-
-        expect((sim.hsms.try_to_get(hsmw.id) != nullptr) >> fatal);
+        expect(eq(sim.hsms.size(), 0u));
+        auto& hsm = sim.hsms.alloc();
+        expect(eq(sim.hsms.size(), 1u));
 
         expect(!!hsm.set_state(
           0u, irt::hierarchical_state_machine::invalid_state_id, 1u));
@@ -2012,6 +2010,9 @@ int main()
         expect(!!hsm.set_state(2u, 0u));
         hsm.states[2u].enter_action.set_output(
           irt::hierarchical_state_machine::variable::port_0, 1.0f);
+
+        auto& hsmw = sim.alloc<irt::hsm_wrapper>();
+        get_p(sim, hsmw).set_hsm_wrapper(ordinal(sim.hsms.get_id(hsm)));
 
         expect(!!sim.connect(gen, 0, hsmw, 0));
         expect(!!sim.connect(gen, 0, hsmw, 1));
@@ -2069,9 +2070,7 @@ int main()
         expect(sim.hsms.can_alloc());
         expect(sim.models.can_alloc());
 
-        auto& hsmw = sim.alloc<irt::hsm_wrapper>();
-        hsmw.id    = sim.hsms.get_id(sim.hsms.alloc());
-        auto& hsm  = sim.hsms.get(hsmw.id);
+        auto& hsm = sim.hsms.alloc();
 
         expect(!!hsm.set_state(
           0u, irt::hierarchical_state_machine::invalid_state_id, 1u));
@@ -2088,6 +2087,9 @@ int main()
         expect(!!hsm.set_state(2u, 0u));
         hsm.states[2u].enter_action.set_output(
           irt::hierarchical_state_machine::variable::port_0, 1.0f);
+
+        auto& hsmw = sim.alloc<irt::hsm_wrapper>();
+        get_p(sim, hsmw).set_hsm_wrapper(ordinal(sim.hsms.get_id(hsm)));
 
         expect(!!sim.connect(gen, 0, hsmw, 0));
         expect(!!sim.connect(gen, 0, hsmw, 1));
@@ -2126,9 +2128,7 @@ int main()
         expect(sim.hsms.can_alloc());
         expect(sim.models.can_alloc());
 
-        auto& hsmw = sim.alloc<irt::hsm_wrapper>();
-        auto& hsm  = sim.hsms.alloc();
-        hsmw.id    = sim.hsms.get_id(hsm);
+        auto& hsm = sim.hsms.alloc();
 
         expect(!!hsm.set_state(
           0u, irt::hierarchical_state_machine::invalid_state_id, 1u));
@@ -2146,6 +2146,9 @@ int main()
         expect(!!hsm.set_state(3u, 0u));
         hsm.states[3u].enter_action.set_output(
           irt::hierarchical_state_machine::variable::port_0, 1.f);
+
+        auto& hsmw = sim.alloc<irt::hsm_wrapper>();
+        get_p(sim, hsmw).set_hsm_wrapper(ordinal(sim.hsms.get_id(hsm)));
 
         expect(!!sim.connect(gen, 0, hsmw, 0));
         expect(!!sim.connect(gen, 0, hsmw, 1));
@@ -2186,9 +2189,7 @@ int main()
         expect(sim.hsms.can_alloc());
         expect(sim.models.can_alloc());
 
-        auto& hsmw = sim.alloc<irt::hsm_wrapper>();
-        auto& hsm  = sim.hsms.alloc();
-        hsmw.id    = sim.hsms.get_id(hsm);
+        auto& hsm = sim.hsms.alloc();
 
         expect(!!hsm.set_state(
           0u, irt::hierarchical_state_machine::invalid_state_id, 1u));
@@ -2206,6 +2207,9 @@ int main()
         expect(!!hsm.set_state(3u, 0u));
         hsm.states[3u].enter_action.set_output(
           irt::hierarchical_state_machine::variable::port_0, 1.f);
+
+        auto& hsmw = sim.alloc<irt::hsm_wrapper>();
+        get_p(sim, hsmw).set_hsm_wrapper(ordinal(sim.hsms.get_id(hsm)));
 
         expect(!!sim.connect(gen1, 0, hsmw, 0));
         expect(!!sim.connect(gen2, 0, hsmw, 1));
@@ -2246,9 +2250,7 @@ int main()
         expect(sim.hsms.can_alloc());
         expect(sim.models.can_alloc());
 
-        auto& hsmw = sim.alloc<irt::hsm_wrapper>();
-        auto& hsm  = sim.hsms.alloc();
-        hsmw.id    = sim.hsms.get_id(hsm);
+        auto& hsm = sim.hsms.alloc();
 
         expect(!!hsm.set_state(
           0u, irt::hierarchical_state_machine::invalid_state_id, 1u));
@@ -2269,6 +2271,9 @@ int main()
           irt::hierarchical_state_machine::variable::port_0, 1.0f);
 
         expect(!!hsm.set_state(4u, 0u));
+
+        auto& hsmw = sim.alloc<irt::hsm_wrapper>();
+        get_p(sim, hsmw).set_hsm_wrapper(ordinal(sim.hsms.get_id(hsm)));
 
         expect(!!sim.connect(gen1, 0, hsmw, 0));
         expect(!!sim.connect(gen2, 0, hsmw, 1));

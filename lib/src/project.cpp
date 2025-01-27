@@ -377,7 +377,7 @@ static auto make_tree_leaf(simulation_copy&       sc,
                         sc.mod.hsm_components.try_to_get(hsm_id)) {
                       const auto* shsm = sc.hsm_mod_to_sim.get(hsm_id);
                       if (shsm) {
-                          dyn.id      = *shsm;
+                          dyn.id      = ordinal(*shsm);
                           dyn.exec.i1 = static_cast<i32>(
                             gen.children_parameters[child_index].integers[1]);
                           dyn.exec.i2 = static_cast<i32>(
@@ -1282,15 +1282,16 @@ static result<std::pair<tree_node_id, component_id>> set_project_from_hsm(
     if (not sim_hsm)
         return new_error(project::part::tree_nodes);
 
-    auto& dyn    = sc.pj.sim.alloc<hsm_wrapper>();
-    dyn.compo_id = ordinal(sc.mod.components.get_id(compo));
-    dyn.id       = (*sim_hsm_id);
+    auto&      dyn     = sc.pj.sim.alloc<hsm_wrapper>();
+    auto&      mdl     = irt::get_model(dyn);
+    const auto mdl_id  = sc.pj.sim.models.get_id(mdl);
+    const auto mdl_idx = get_index(mdl_id);
 
-    dyn.exec.i1    = com_hsm->i1;
-    dyn.exec.i2    = com_hsm->i2;
-    dyn.exec.r1    = com_hsm->r1;
-    dyn.exec.r2    = com_hsm->r2;
-    dyn.exec.timer = com_hsm->timeout;
+    sc.pj.sim.parameters[mdl_idx]
+      .set_hsm_wrapper(ordinal(*sim_hsm_id))
+      .set_hsm_wrapper(com_hsm->src.id, com_hsm->src.type)
+      .set_hsm_wrapper(
+        com_hsm->i1, com_hsm->i2, com_hsm->r1, com_hsm->r2, com_hsm->timeout);
 
     return std::make_pair(sc.tree_nodes.get_id(tn), compo_id);
 }
@@ -1662,8 +1663,8 @@ auto project::tree_nodes_size() const noexcept -> std::pair<int, int>
 }
 
 template<typename T>
-static auto already_name_exists(const T&         obs,
-                                std::string_view str) noexcept -> bool
+static auto already_name_exists(const T& obs, std::string_view str) noexcept
+  -> bool
 {
     return std::any_of(
       obs.begin(), obs.end(), [str](const auto& o) noexcept -> bool {

@@ -420,17 +420,17 @@ int main()
         expect(mod.components.can_alloc(1)) << fatal;
 
         auto& compo = mod.alloc_hsm_component();
-        auto& hsmw  = mod.hsm_components.get(compo.id.hsm_id);
+        auto& hsm   = mod.hsm_components.get(compo.id.hsm_id);
 
-        expect(!!hsmw.machine.set_state(
+        expect(!!hsm.machine.set_state(
           0u, irt::hierarchical_state_machine::invalid_state_id, 1u));
 
-        expect(!!hsmw.machine.set_state(1u, 0u));
-        hsmw.machine.states[1u].condition.set(0b0011u, 0b0011u);
-        hsmw.machine.states[1u].if_transition = 2u;
+        expect(!!hsm.machine.set_state(1u, 0u));
+        hsm.machine.states[1u].condition.set(0b0011u, 0b0011u);
+        hsm.machine.states[1u].if_transition = 2u;
 
-        expect(!!hsmw.machine.set_state(2u, 0u));
-        hsmw.machine.states[2u].enter_action.set_output(
+        expect(!!hsm.machine.set_state(2u, 0u));
+        hsm.machine.states[2u].enter_action.set_output(
           irt::hierarchical_state_machine::variable::port_0, 1.0f);
 
         expect(!!mod.init(mod_init));

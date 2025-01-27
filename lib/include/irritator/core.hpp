@@ -342,7 +342,7 @@ enum class registred_path_id : u32;
 enum class dir_path_id : u32;
 enum class file_path_id : u32;
 
-enum class hsm_id : u64;
+enum class hsm_id : u32;
 enum class model_id : u64;
 enum class dynamics_id : u64;
 enum class message_id : u64;
@@ -875,6 +875,14 @@ struct parameter {
                          real coeff3,
                          real v4,
                          real coeff4) noexcept;
+    parameter& set_hsm_wrapper(const u32 id) noexcept;
+    parameter& set_hsm_wrapper(i64  i1,
+                               i64  i2,
+                               real r1,
+                               real r2,
+                               real timer) noexcept;
+    parameter& set_hsm_wrapper(const u64                 id,
+                               const source::source_type type) noexcept;
 
     std::array<real, 8> reals;
     std::array<i64, 8>  integers;
@@ -3821,11 +3829,12 @@ struct hsm_wrapper {
     message_id x[4];
     node_id    y[4];
 
-    hsm_id         id;
-    u64            compo_id;
     hsm::execution exec;
 
     real sigma;
+
+    u32 id = 0; //!< stores the @c ordinal value of a @c component_id in
+                //!< modeling part and a @c hsm_id in the simulation part.
 
     hsm_wrapper() noexcept;
     hsm_wrapper(const hsm_wrapper& other) noexcept;
@@ -5896,11 +5905,6 @@ void simulation::do_deallocate(Dynamics& dyn) noexcept
         }
     }
 
-    if constexpr (std::is_same_v<Dynamics, hsm_wrapper>) {
-        if (auto* machine = hsms.try_to_get(dyn.id); machine)
-            hsms.free(dyn.id);
-    }
-
     std::destroy_at(&dyn);
 }
 
@@ -6178,16 +6182,17 @@ inline status simulation::run() noexcept
 inline hsm_wrapper::hsm_wrapper() noexcept = default;
 
 inline hsm_wrapper::hsm_wrapper(const hsm_wrapper& other) noexcept
-  : id{ other.id }
-  , exec{ other.exec }
+  : exec{ other.exec }
   , sigma{ other.sigma }
+  , id{ other.id }
 {}
 
 inline status hsm_wrapper::initialize(simulation& sim) noexcept
 {
     exec.clear();
 
-    irt_auto(machine, get_hierarchical_state_machine(sim, id));
+    irt_auto(machine,
+             get_hierarchical_state_machine(sim, enum_cast<hsm_id>(id)));
 
     if (machine->flags[hierarchical_state_machine::option::use_source]) {
         irt_check(initialize_source(sim, exec.source_value));
@@ -6223,7 +6228,8 @@ inline status hsm_wrapper::transition(simulation& sim,
                                       time /*e*/,
                                       time r) noexcept
 {
-    irt_auto(machine, get_hierarchical_state_machine(sim, id));
+    irt_auto(machine,
+             get_hierarchical_state_machine(sim, enum_cast<hsm_id>(id)));
 
     for (int i = 0, e = length(x); i != e; ++i) {
         auto* lst = sim.messages.try_to_get(x[i]);
@@ -6309,7 +6315,8 @@ inline status hsm_wrapper::lambda(simulation& sim) noexcept
 
 inline status hsm_wrapper::finalize(simulation& sim) noexcept
 {
-    irt_auto(machine, get_hierarchical_state_machine(sim, id));
+    irt_auto(machine,
+             get_hierarchical_state_machine(sim, enum_cast<hsm_id>(id)));
 
     if (machine->flags[hierarchical_state_machine::option::use_source])
         irt_check(finalize_source(sim, exec.source_value));
@@ -6371,9 +6378,8 @@ Dynamics& simulation::alloc() noexcept
         for (int i = 0, e = length(dyn.y); i != e; ++i)
             dyn.y[i] = undefined<node_id>();
 
-    if constexpr (std::is_same_v<Dynamics, hsm_wrapper>) {
-        dyn.id = undefined<hsm_id>();
-    }
+    if constexpr (std::is_same_v<Dynamics, hsm_wrapper>)
+        dyn.id = 0;
 
     return dyn;
 }
@@ -6402,18 +6408,6 @@ inline model& simulation::clone(const model& mdl) noexcept
         if constexpr (has_output_port<Dynamics>)
             for (int i = 0, e = length(dyn.y); i != e; ++i)
                 dyn.y[i] = undefined<node_id>();
-
-        if constexpr (std::is_same_v<Dynamics, hsm_wrapper>) {
-            if (auto* hsm_src = hsms.try_to_get(src_dyn.id); hsm_src) {
-                auto& hsm = hsms.alloc(*hsm_src);
-                auto  id  = hsms.get_id(hsm);
-                dyn.id    = id;
-            } else {
-                auto& hsm = hsms.alloc();
-                auto  id  = hsms.get_id(hsm);
-                dyn.id    = id;
-            }
-        }
     });
 
     return new_mdl;
@@ -6428,7 +6422,7 @@ inline model& simulation::alloc(dynamics_type type) noexcept
     mdl.type   = type;
     mdl.handle = invalid_heap_handle;
 
-    dispatch(mdl, [this]<typename Dynamics>(Dynamics& dyn) -> void {
+    dispatch(mdl, []<typename Dynamics>(Dynamics& dyn) -> void {
         std::construct_at(&dyn);
 
         if constexpr (has_input_port<Dynamics>)
@@ -6440,9 +6434,7 @@ inline model& simulation::alloc(dynamics_type type) noexcept
                 dyn.y[i] = undefined<node_id>();
 
         if constexpr (std::is_same_v<Dynamics, hsm_wrapper>) {
-            auto& hsm = hsms.alloc();
-            auto  id  = hsms.get_id(hsm);
-            dyn.id    = id;
+            dyn.id = 0u;
         }
     });
 
