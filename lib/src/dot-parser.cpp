@@ -261,7 +261,8 @@ class input_stream_buffer
 public:
     static constexpr int ring_length = 32;
 
-    using token_ring_t = irt::small_ring_buffer<token, ring_length>;
+    using token_ring_t  = irt::small_ring_buffer<token, ring_length>;
+    const modeling* mod = nullptr;
 
     irt::id_array<str_id>    strings_ids;
     irt::vector<std::string> strings;
@@ -277,6 +278,7 @@ public:
     irt::vector<int>                          node_ids;
     irt::vector<std::array<float, 2>>         node_positions;
     irt::vector<float>                        node_areas;
+    irt::vector<component_id>                 node_components;
     irt::vector<std::array<graph_node_id, 2>> edges_nodes;
 
     irt::table<std::string_view, graph_node_id> name_to_node_id;
@@ -290,6 +292,28 @@ public:
     bool        is_digraph = false;
 
     /** Default is to fill the token ring buffer from the @c std::istream.
+     *
+     *  @param mod To get component
+     *  @param stream The default input stream.
+     *  @param start_fill_tokens Start the parsing/tokenizing in constructor.
+     */
+    explicit input_stream_buffer(const modeling& mod_,
+                                 std::istream&   stream,
+                                 bool start_fill_tokens = true) noexcept
+      : mod{ &mod_ }
+      , strings_ids(64)
+      , strings(64)
+      , is(stream)
+    {
+        strings.resize(strings_ids.capacity());
+
+        if (start_fill_tokens)
+            fill_tokens();
+    }
+
+    /** Default is to fill the token ring buffer from the @c std::istream.
+     *
+     *  @param mod To get component
      *  @param stream The default input stream.
      *  @param start_fill_tokens Start the parsing/tokenizing in constructor.
      */
@@ -324,6 +348,7 @@ private:
             node_ids.resize(c);
             node_positions.resize(c);
             node_areas.resize(c);
+            node_components.resize(c);
         }
 
         const auto id  = nodes.alloc();
@@ -639,6 +664,69 @@ private:
                (second[element_type::closing_bracket] or second.is_string());
     }
 
+    class dot_component
+    {
+    public:
+        static auto make(const std::string_view f) noexcept
+        {
+            return dot_component(std::string_view{}, std::string_view{}, f);
+        }
+
+        static auto make(const std::string_view d,
+                         const std::string_view f) noexcept
+        {
+            return dot_component(std::string_view{}, d, f);
+        }
+
+        static auto make(const std::string_view r,
+                         const std::string_view d,
+                         const std::string_view f) noexcept
+        {
+            return dot_component(r, d, f);
+        }
+
+    private:
+        dot_component(std::string_view reg_,
+                      std::string_view dir_,
+                      std::string_view file_) noexcept
+          : reg{ reg_ }
+          , dir{ dir_ }
+          , file{ file_ }
+        {}
+
+    public:
+        std::string_view reg;
+        std::string_view dir;
+        std::string_view file;
+    };
+
+    auto split_colon(const std::string_view str) noexcept -> dot_component
+    {
+        const auto first = str.find(':');
+
+        if (first != std::string_view::npos and first < str.size()) {
+            const auto left  = str.substr(0, first);
+            const auto right = str.substr(first + 1);
+
+            const auto second = right.find(':');
+            if (second != std::string_view::npos and second < right.size()) {
+                return dot_component::make(
+                  left, right.substr(0, second), right.substr(second + 1));
+            } else {
+                return dot_component::make(left, right);
+            }
+        } else {
+            return dot_component::make(str);
+        }
+    }
+
+    component_id search_component(const std::string_view str) noexcept
+    {
+        const auto dot_compo = split_colon(str);
+        return mod->search_component_by_name(
+          dot_compo.reg, dot_compo.dir, dot_compo.file);
+    }
+
     bool parse_attributes(const graph_node_id id) noexcept
     {
         if (not check_minimum_tokens(1))
@@ -675,6 +763,10 @@ private:
 
             if (left_str == "area") {
                 node_areas[irt::get_index(id)] = to_float(right_str);
+            } else if (left_str == "component") {
+                if (mod)
+                    node_components[irt::get_index(id)] =
+                      search_component(right_str);
             } else if (left_str == "pos") {
                 node_positions[irt::get_index(id)] = to_2float(right_str);
             } else {
@@ -856,11 +948,12 @@ public:
                 .nodes = std::move(nodes),
                 .edges = std::move(edges),
 
-                .node_names     = std::move(node_names),
-                .node_ids       = std::move(node_ids),
-                .node_positions = std::move(node_positions),
-                .node_areas     = std::move(node_areas),
-                .edges_nodes    = std::move(edges_nodes),
+                .node_names      = std::move(node_names),
+                .node_ids        = std::move(node_ids),
+                .node_positions  = std::move(node_positions),
+                .node_components = std::move(node_components),
+                .node_areas      = std::move(node_areas),
+                .edges_nodes     = std::move(edges_nodes),
 
                 .buffer = std::move(buffer),
 
@@ -878,72 +971,84 @@ public:
     // https://www.ascii-code.com/ASCII
 };
 
+class streambuf_view : public std::streambuf
+{
+private:
+    using ios_base = std::ios_base;
+
+protected:
+    pos_type seekoff(off_type                            off,
+                     ios_base::seekdir                   dir,
+                     [[maybe_unused]] ios_base::openmode which =
+                       ios_base::in | ios_base::out) override
+    {
+        if (dir == ios_base::cur)
+            gbump(static_cast<int>(off));
+        else if (dir == ios_base::end)
+            setg(eback(), egptr() + off, egptr());
+        else if (dir == ios_base::beg)
+            setg(eback(), eback() + off, egptr());
+        return gptr() - eback();
+    }
+
+    pos_type seekpos(pos_type sp, ios_base::openmode which) override
+    {
+        return seekoff(sp - pos_type(off_type(0)), ios_base::beg, which);
+    }
+
+public:
+    streambuf_view(const char* s, std::size_t count) noexcept
+    {
+        auto p = const_cast<char*>(s);
+        setg(p, p, p + count);
+    }
+
+    explicit streambuf_view(std::string_view str) noexcept
+      : streambuf_view(str.data(), str.size())
+    {}
+};
+
+class istring_view_stream
+  : private virtual streambuf_view
+  , public std::istream
+{
+public:
+    istring_view_stream(const char* str, std::size_t len) noexcept
+      : streambuf_view(str, len)
+      , std::istream(static_cast<std::streambuf*>(this))
+    {}
+
+    explicit istring_view_stream(const std::string_view str) noexcept
+      : streambuf_view(str)
+      , std::istream(static_cast<std::streambuf*>(this))
+    {}
+};
+
+std::optional<dot_graph> parse_dot_buffer(
+  const modeling&        mod,
+  const std::string_view buffer) noexcept
+{
+
+    istring_view_stream isvs{ buffer.data(), buffer.size() };
+    input_stream_buffer sb{ mod, isvs };
+
+    return sb.parse();
+}
+
 std::optional<dot_graph> parse_dot_buffer(
   const std::string_view buffer) noexcept
 {
-    class streambuf_view : public std::streambuf
-    {
-    private:
-        using ios_base = std::ios_base;
-
-    protected:
-        pos_type seekoff(off_type                            off,
-                         ios_base::seekdir                   dir,
-                         [[maybe_unused]] ios_base::openmode which =
-                           ios_base::in | ios_base::out) override
-        {
-            if (dir == ios_base::cur)
-                gbump(static_cast<int>(off));
-            else if (dir == ios_base::end)
-                setg(eback(), egptr() + off, egptr());
-            else if (dir == ios_base::beg)
-                setg(eback(), eback() + off, egptr());
-            return gptr() - eback();
-        }
-
-        pos_type seekpos(pos_type sp, ios_base::openmode which) override
-        {
-            return seekoff(sp - pos_type(off_type(0)), ios_base::beg, which);
-        }
-
-    public:
-        streambuf_view(const char* s, std::size_t count) noexcept
-        {
-            auto p = const_cast<char*>(s);
-            setg(p, p, p + count);
-        }
-
-        explicit streambuf_view(std::string_view str) noexcept
-          : streambuf_view(str.data(), str.size())
-        {}
-    };
-
-    class istring_view_stream
-      : private virtual streambuf_view
-      , public std::istream
-    {
-    public:
-        istring_view_stream(const char* str, std::size_t len) noexcept
-          : streambuf_view(str, len)
-          , std::istream(static_cast<std::streambuf*>(this))
-        {}
-
-        explicit istring_view_stream(const std::string_view str) noexcept
-          : streambuf_view(str)
-          , std::istream(static_cast<std::streambuf*>(this))
-        {}
-    };
-
     istring_view_stream isvs{ buffer.data(), buffer.size() };
     input_stream_buffer sb{ isvs };
 
     return sb.parse();
 }
 
-std::optional<dot_graph> parse_dot_file(const std::filesystem::path& p) noexcept
+std::optional<dot_graph> parse_dot_file(const modeling&              mod,
+                                        const std::filesystem::path& p) noexcept
 {
     std::ifstream       ifs{ p };
-    input_stream_buffer sb{ ifs };
+    input_stream_buffer sb{ mod, ifs };
 
     return sb.parse();
 }

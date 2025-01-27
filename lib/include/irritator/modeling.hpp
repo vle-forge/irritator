@@ -1347,6 +1347,14 @@ public:
     //! Adds a new path to read and search component files.
     status fill_components(registred_path& path) noexcept;
 
+    /** Search a component from three string.
+     *
+     *  @return @c component_id found or @c undefined<component_id>();
+     */
+    component_id search_component_by_name(std::string_view reg,
+                                          std::string_view dir,
+                                          std::string_view file) const noexcept;
+
     /// Clear and free all dependencies of the component but let the component
     /// alive.
     void clear(component& c) noexcept;

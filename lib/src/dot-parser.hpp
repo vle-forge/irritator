@@ -18,6 +18,7 @@ struct dot_graph {
     vector<std::string_view>             node_names;
     vector<int>                          node_ids;
     vector<std::array<float, 2>>         node_positions;
+    vector<component_id>                 node_components;
     vector<float>                        node_areas;
     vector<std::array<graph_node_id, 2>> edges_nodes;
 
@@ -35,9 +36,13 @@ struct dot_graph {
     table<std::string_view, graph_node_id> make_toc() const noexcept;
 };
 
+std::optional<dot_graph> parse_dot_buffer(const modeling&  mod,
+                                          std::string_view buffer) noexcept;
+
 std::optional<dot_graph> parse_dot_buffer(std::string_view buffer) noexcept;
 
 std::optional<dot_graph> parse_dot_file(
+  const modeling&              mod,
   const std::filesystem::path& p) noexcept;
 
 } // irt

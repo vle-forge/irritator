@@ -257,7 +257,8 @@ static void build_dot_file_edges(
 {
     if (auto file_opt = build_dot_filename(mod, params.file);
         file_opt.has_value()) {
-        if (auto dot_graph = parse_dot_file(*file_opt); dot_graph.has_value()) {
+        if (auto dot_graph = parse_dot_file(mod, *file_opt);
+            dot_graph.has_value()) {
             graph.nodes = std::move(dot_graph->nodes);
             graph.edges = std::move(dot_graph->edges);
 
@@ -285,9 +286,8 @@ static void build_scale_free_edges(
                     std::span<const u64>(graph.key));
         std::uniform_int_distribution<unsigned> d(0u, n - 1);
 
-        auto first  = graph.nodes.begin();
-        auto second = graph.nodes.end();
-        bool stop   = false;
+        auto first = graph.nodes.begin();
+        bool stop  = false;
 
         while (not stop) {
             unsigned xv = d(r);

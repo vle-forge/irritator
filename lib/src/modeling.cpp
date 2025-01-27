@@ -556,6 +556,85 @@ status modeling::fill_components(registred_path& path) noexcept
     return success();
 }
 
+auto search_reg(const modeling& mod, std::string_view name) noexcept
+  -> const registred_path*
+{
+    for (const auto& reg : mod.registred_paths)
+        if (name == reg.name.sv())
+            return &reg;
+
+    return nullptr;
+}
+
+auto search_dir_in_reg(const modeling&       mod,
+                       const registred_path& reg,
+                       std::string_view      name) noexcept -> const dir_path*
+{
+    for (auto dir_id : reg.children) {
+        if (auto* dir = mod.dir_paths.try_to_get(dir_id); dir) {
+            if (name == dir->path.sv())
+                return dir;
+        }
+    }
+
+    return nullptr;
+}
+
+auto search_dir(const modeling& mod, std::string_view name) noexcept
+  -> const dir_path*
+{
+    for (auto reg_id : mod.component_repertories) {
+        if (auto* reg = mod.registred_paths.try_to_get(reg_id); reg) {
+            for (auto dir_id : reg->children) {
+                if (auto* dir = mod.dir_paths.try_to_get(dir_id); dir) {
+                    if (dir->path.sv() == name)
+                        return dir;
+                }
+            }
+        }
+    }
+
+    return nullptr;
+}
+
+auto search_file(const modeling&  mod,
+                 const dir_path&  dir,
+                 std::string_view name) noexcept -> const file_path*
+{
+    for (auto file_id : dir.children)
+        if (auto* file = mod.file_paths.try_to_get(file_id); file)
+            if (file->path.sv() == name)
+                return file;
+
+    return nullptr;
+}
+
+component_id modeling::search_component_by_name(
+  std::string_view reg,
+  std::string_view dir,
+  std::string_view file) const noexcept
+{
+    const registred_path* reg_ptr  = search_reg(*this, reg);
+    const dir_path*       dir_ptr  = nullptr;
+    const file_path*      file_ptr = nullptr;
+
+    if (reg_ptr)
+        dir_ptr = search_dir_in_reg(*this, *reg_ptr, dir);
+
+    if (not dir_ptr)
+        dir_ptr = search_dir(*this, dir);
+
+    if (dir_ptr)
+        file_ptr = search_file(*this, *dir_ptr, file);
+
+    if (file_ptr) {
+        if (auto* c = components.try_to_get(file_ptr->component); c)
+            return components.get_id(*c);
+    }
+
+    return undefined<component_id>();
+}
+
 bool modeling::can_alloc_file(i32 number) const noexcept
 {
     return file_paths.can_alloc(number);

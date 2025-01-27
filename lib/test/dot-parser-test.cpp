@@ -27,7 +27,7 @@ int main()
             A->D
         })";
 
-        auto ret = irt::parse_dot_buffer(buf);
+        auto ret = irt::parse_dot_buffer(irt::modeling{}, buf);
         expect(ret.has_value() >> fatal);
         expect(eq(ret->nodes.ssize(), 4));
         expect(eq(ret->edges.ssize(), 3));
