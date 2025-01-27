@@ -81,9 +81,9 @@ int main()
         expect(eq(pj.tree_nodes_size().first, 3));
 
         expect(eq(pj.sim.models.ssize(), 2));
-        auto* m1 = pj.sim.models.try_to_get(0);
+        auto* m1 = pj.sim.models.try_to_get_from_pos(0);
         expect(neq(m1, nullptr));
-        auto* m2 = pj.sim.models.try_to_get(1);
+        auto* m2 = pj.sim.models.try_to_get_from_pos(1);
         expect(neq(m2, nullptr));
         expect(pj.sim.can_connect(1));
 
@@ -120,9 +120,9 @@ int main()
 
         expect(eq(pj.sim.models.ssize(), 2));
 
-        auto* m1 = pj.sim.models.try_to_get(0);
+        auto* m1 = pj.sim.models.try_to_get_from_pos(0);
         expect(neq(m1, nullptr));
-        auto* m2 = pj.sim.models.try_to_get(1);
+        auto* m2 = pj.sim.models.try_to_get_from_pos(1);
         expect(neq(m2, nullptr));
     };
 
@@ -176,9 +176,9 @@ int main()
 
         expect(eq(pj.sim.models.ssize(), 2));
 
-        auto* m1 = pj.sim.models.try_to_get(0);
+        auto* m1 = pj.sim.models.try_to_get_from_pos(0);
         expect(neq(m1, nullptr));
-        auto* m2 = pj.sim.models.try_to_get(1);
+        auto* m2 = pj.sim.models.try_to_get_from_pos(1);
         expect(neq(m2, nullptr));
 
         if (m1->type == irt::dynamics_type::counter) {

@@ -853,7 +853,8 @@ static void is_link_created(application& app,
             }
 
             auto  child_port = unpack_in(end);
-            auto* child      = s_parent.children.try_to_get(child_port.first);
+            auto* child =
+              s_parent.children.try_to_get_from_pos(child_port.first);
             debug::ensure(child);
 
             if (child->type == child_type::model) {
@@ -884,7 +885,8 @@ static void is_link_created(application& app,
             }
         } else {
             auto  ch_port_src = unpack_out(start);
-            auto* ch_src      = s_parent.children.try_to_get(ch_port_src.first);
+            auto* ch_src =
+              s_parent.children.try_to_get_from_pos(ch_port_src.first);
             debug::ensure(ch_src);
 
             if (is_output_Y(end)) {
@@ -923,7 +925,8 @@ static void is_link_created(application& app,
                 }
             } else {
                 auto  ch_port_dst = unpack_in(end);
-                auto* ch_dst = s_parent.children.try_to_get(ch_port_dst.first);
+                auto* ch_dst =
+                  s_parent.children.try_to_get_from_pos(ch_port_dst.first);
                 debug::ensure(ch_dst);
 
                 if (ch_src->type == child_type::model) {
@@ -1017,19 +1020,19 @@ static void delete_link(component&         compo,
 {
     if (link_id >= 8192) {
         const auto id = static_cast<u32>(link_id - 8192);
-        if (auto* con = gen.output_connections.try_to_get(id); con) {
+        if (auto* con = gen.output_connections.try_to_get_from_pos(id); con) {
             gen.output_connections.free(*con);
             compo.state = component_status::modified;
         }
     } else if (link_id >= 4096) {
         const auto id = static_cast<u32>(link_id - 4096);
-        if (auto* con = gen.input_connections.try_to_get(id); con) {
+        if (auto* con = gen.input_connections.try_to_get_from_pos(id); con) {
             gen.input_connections.free(*con);
             compo.state = component_status::modified;
         }
     } else {
         const auto id = static_cast<u32>(link_id);
-        if (auto* con = gen.connections.try_to_get(id); con) {
+        if (auto* con = gen.connections.try_to_get_from_pos(id); con) {
             gen.connections.free(*con);
             compo.state = component_status::modified;
         }
@@ -1058,7 +1061,8 @@ static void remove_nodes(modeling&                      mod,
                   if (is_node_child(data.selected_nodes[i])) {
                       auto idx = unpack_node_child(data.selected_nodes[i]);
 
-                      if (auto* child = generic.children.try_to_get(idx);
+                      if (auto* child =
+                            generic.children.try_to_get_from_pos(idx);
                           child) {
                           generic.children.free(*child);
                           parent.state = component_status::modified;
@@ -1278,7 +1282,7 @@ void generic_component_editor_data::show_selected_nodes(
                   continue;
 
               const auto id = unpack_node_child(selected_nodes[i]);
-              if (auto* child = gen.children.try_to_get(id); child)
+              if (auto* child = gen.children.try_to_get_from_pos(id); child)
                   is_modified =
                     show_selected_node(compo, gen, *child) or is_modified;
           }

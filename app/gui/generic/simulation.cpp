@@ -148,7 +148,7 @@ struct gport {
 gport get_in(simulation& sim, const int index) noexcept
 {
     const auto model_index_port = get_model_input_port(index);
-    auto*      mdl              = sim.models.try_to_get(model_index_port.first);
+    auto*      mdl = sim.models.try_to_get_from_pos(model_index_port.first);
 
     return { mdl, static_cast<int>(model_index_port.second) };
 }
@@ -156,7 +156,7 @@ gport get_in(simulation& sim, const int index) noexcept
 gport get_out(simulation& sim, const int index) noexcept
 {
     const auto model_index_port = get_model_output_port(index);
-    auto*      mdl              = sim.models.try_to_get(model_index_port.first);
+    auto*      mdl = sim.models.try_to_get_from_pos(model_index_port.first);
 
     return { mdl, static_cast<int>(model_index_port.second) };
 }
@@ -648,7 +648,7 @@ static status copy(project_editor& ed, const ImVector<int>& nodes) noexcept
     mapping.data.reserve(nodes.size());
 
     for (int i = 0, e = nodes.size(); i != e; ++i) {
-        auto* src_mdl = ed.pj.sim.models.try_to_get(nodes[i]);
+        auto* src_mdl = ed.pj.sim.models.try_to_get_from_pos(nodes[i]);
         if (!src_mdl)
             continue;
 
@@ -700,7 +700,8 @@ static void free_children(application&         app,
     const auto tasks = std::min(nodes.size(), task_list_tasks_number);
 
     for (int i = 0; i < tasks; ++i) {
-        if (const auto* mdl = ed.pj.sim.models.try_to_get(nodes[i]); mdl) {
+        if (const auto* mdl = ed.pj.sim.models.try_to_get_from_pos(nodes[i]);
+            mdl) {
             ed.start_simulation_model_del(app, ed.pj.sim.models.get_id(mdl));
         }
     }

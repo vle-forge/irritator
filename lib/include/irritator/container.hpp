@@ -1374,7 +1374,7 @@ public:
     //!
     //! @param index The array.
     //! @return T or nullptr.
-    T* try_to_get(std::integral auto index) const noexcept;
+    T* try_to_get_from_pos(std::integral auto index) const noexcept;
 
     //! @brief Return next valid item.
     //! @code
@@ -2883,7 +2883,7 @@ T* data_array<T, Identifier, A>::try_to_get(Identifier id) const noexcept
 }
 
 template<typename T, typename Identifier, typename A>
-T* data_array<T, Identifier, A>::try_to_get(
+T* data_array<T, Identifier, A>::try_to_get_from_pos(
   std::integral auto index) const noexcept
 {
     debug::ensure(std::cmp_greater_equal(index, 0));
