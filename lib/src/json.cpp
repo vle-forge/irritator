@@ -61,19 +61,6 @@ enum class connection_type { internal, input, output };
         return false;                                                          \
     } while (0)
 
-template<typename T>
-static bool buffer_reserve(std::integral auto len, vector<T>& vec) noexcept
-{
-    if (std::cmp_less(vec.capacity(), len)) {
-        vec.reserve(len);
-
-        if (std::cmp_less(vec.capacity(), len))
-            return false;
-    }
-
-    return true;
-}
-
 struct json_dearchiver::impl {
     json_dearchiver&          self;
     json_dearchiver::error_cb cb;
@@ -640,10 +627,14 @@ struct json_dearchiver::impl {
         return true;
     }
 
-    bool copy_i64_to(source::source_type& dst) const noexcept
+    bool copy_i64_to(std::optional<source::source_type>& dst) const noexcept
     {
-        dst = enum_cast<source::source_type>(temp_i64);
-        return true;
+        if (0 <= temp_i64 and temp_i64 < 5) {
+            dst = enum_cast<source::source_type>(temp_i64);
+            return true;
+        }
+
+        return false;
     }
 
     bool project_global_parameters_can_alloc(std::integral auto i) noexcept
@@ -993,25 +984,112 @@ struct json_dearchiver::impl {
           });
     }
 
+    bool copy_to_source(const std::optional<source::source_type> type,
+                        const std::optional<u64>                 id,
+                        source&                                  src)
+    {
+        if (not type.has_value() or not id.has_value())
+            return true;
+
+        switch (*type) {
+        case source::source_type::binary_file:
+            if (const auto* ptr = self.binary_file_mapping.get(*id)) {
+                src.type = *type;
+                src.id   = ordinal(*ptr);
+            }
+            break;
+
+        case source::source_type::constant:
+            if (const auto* ptr = self.constant_mapping.get(*id)) {
+                src.type = *type;
+                src.id   = ordinal(*ptr);
+            }
+            break;
+
+        case source::source_type::random:
+            if (const auto* ptr = self.random_mapping.get(*id)) {
+                src.type = *type;
+                src.id   = ordinal(*ptr);
+            }
+            break;
+
+        case source::source_type::text_file:
+            if (const auto* ptr = self.text_file_mapping.get(*id)) {
+                src.type = *type;
+                src.id   = ordinal(*ptr);
+            }
+            break;
+        }
+
+        return true;
+    }
+
+    bool copy_to_source(const std::optional<source::source_type> type,
+                        const std::optional<u64>                 id,
+                        i64&                                     t,
+                        i64&                                     i) noexcept
+    {
+        if (not type.has_value() or not id.has_value())
+            return true;
+
+        switch (*type) {
+        case source::source_type::binary_file:
+            if (const auto* ptr = self.binary_file_mapping.get(*id)) {
+                t = ordinal(*type);
+                i = ordinal(*ptr);
+            }
+            break;
+
+        case source::source_type::constant:
+            if (const auto* ptr = self.constant_mapping.get(*id)) {
+                t = ordinal(*type);
+                i = ordinal(*ptr);
+            }
+            break;
+
+        case source::source_type::random:
+            if (const auto* ptr = self.random_mapping.get(*id)) {
+                t = ordinal(*type);
+                i = ordinal(*ptr);
+            }
+            break;
+
+        case source::source_type::text_file:
+            if (const auto* ptr = self.text_file_mapping.get(*id)) {
+                t = ordinal(*type);
+                i = ordinal(*ptr);
+            }
+            break;
+        }
+
+        return true;
+    }
+
     bool read_dynamics(const rapidjson::Value& val,
                        dynamic_queue_tag,
                        parameter& p) noexcept
     {
         auto_stack a(this, "dynamics_dynamic_queue");
 
-        return for_each_member(
-          val, [&](const auto name, const auto& value) noexcept -> bool {
-              if ("source-ta-type"sv == name)
-                  return read_temp_i64(value) && is_i64_greater_equal_than(0) &&
-                         is_i64_less_than(source::source_type_count) &&
-                         copy_i64_to(p.integers[2]);
-              if ("source-ta-id"sv == name)
-                  return read_temp_u64(value) && copy_u64_to(p.integers[1]);
-              if ("stop-on-error"sv == name)
-                  return read_temp_bool(value) && copy_bool_to(p.integers[0]);
+        std::optional<source::source_type> type;
+        std::optional<u64>                 id;
 
-              report_json_error("unknown element");
-          });
+        return for_each_member(
+                 val,
+                 [&](const auto name, const auto& value) noexcept -> bool {
+                     if ("source-ta-type"sv == name)
+                         return read_temp_i64(value) && copy_i64_to(type);
+
+                     if ("source-ta-id"sv == name)
+                         return read_temp_u64(value) && copy_u64_to(id);
+
+                     if ("stop-on-error"sv == name)
+                         return read_temp_bool(value) &&
+                                copy_bool_to(p.integers[0]);
+
+                     report_json_error("unknown element");
+                 }) and
+               copy_to_source(type, id, p.integers[1], p.integers[2]);
     }
 
     bool read_dynamics(const rapidjson::Value& val,
@@ -1020,22 +1098,30 @@ struct json_dearchiver::impl {
     {
         auto_stack a(this, "dynamics priority queue");
 
-        return for_each_member(
-          val, [&](const auto name, const auto& value) noexcept -> bool {
-              if ("ta"sv == name)
-                  return read_temp_real(value) && is_double_greater_than(0.0) &&
-                         copy_real_to(p.reals[0]);
-              if ("source-ta-type"sv == name)
-                  return read_temp_i64(value) && is_i64_greater_equal_than(0) &&
-                         is_i64_less_than(source::source_type_count) &&
-                         copy_i64_to(p.integers[2]);
-              if ("source-ta-id"sv == name)
-                  return read_temp_u64(value) && copy_u64_to(p.integers[1]);
-              if ("stop-on-error"sv == name)
-                  return read_temp_bool(value) && copy_bool_to(p.integers[0]);
+        std::optional<source::source_type> type;
+        std::optional<u64>                 id;
 
-              report_json_error("unknown element");
-          });
+        return for_each_member(
+                 val,
+                 [&](const auto name, const auto& value) noexcept -> bool {
+                     if ("ta"sv == name)
+                         return read_temp_real(value) &&
+                                is_double_greater_than(0.0) &&
+                                copy_real_to(p.reals[0]);
+
+                     if ("source-ta-type"sv == name)
+                         return read_temp_i64(value) && copy_i64_to(type);
+
+                     if ("source-ta-id"sv == name)
+                         return read_temp_u64(value) && copy_u64_to(id);
+
+                     if ("stop-on-error"sv == name)
+                         return read_temp_bool(value) &&
+                                copy_bool_to(p.integers[0]);
+
+                     report_json_error("unknown element");
+                 }) and
+               copy_to_source(type, id, p.integers[1], p.integers[2]);
     }
 
     bool read_dynamics(const rapidjson::Value& val,
@@ -1044,54 +1130,44 @@ struct json_dearchiver::impl {
     {
         auto_stack a(this, "dynamics generator");
 
+        std::optional<source::source_type> type_ta;
+        std::optional<source::source_type> type_value;
+        std::optional<u64>                 id_ta;
+        std::optional<u64>                 id_value;
+
         return for_each_member(
-          val, [&](const auto name, const auto& value) noexcept -> bool {
-              if ("offset"sv == name)
-                  return read_temp_real(value) &&
-                         is_double_greater_equal_than(0.0) &&
-                         copy_real_to(p.reals[0]);
+                 val,
+                 [&](const auto name, const auto& value) noexcept -> bool {
+                     if ("offset"sv == name)
+                         return read_temp_real(value) &&
+                                is_double_greater_equal_than(0.0) &&
+                                copy_real_to(p.reals[0]);
 
-              if ("source-ta-type"sv == name) {
-                  if (read_temp_i64(value) && is_i64_greater_equal_than(0) &&
-                      is_i64_less_than(source::source_type_count) &&
-                      copy_i64_to(p.integers[2])) {
-                      return true;
-                  }
-                  return false;
-              }
+                     if ("source-ta-type"sv == name)
+                         return read_temp_i64(value) && copy_i64_to(type_ta);
 
-              if ("source-ta-id"sv == name) {
-                  if (read_temp_u64(value) && copy_u64_to(p.integers[1])) {
-                      return true;
-                  }
-                  return false;
-              }
+                     if ("source-ta-id"sv == name)
+                         return read_temp_u64(value) && copy_u64_to(id_ta);
 
-              if ("source-value-type"sv == name) {
-                  if (read_temp_i64(value) && is_i64_greater_equal_than(0) &&
-                      is_i64_less_than(source::source_type_count) &&
-                      copy_i64_to(p.integers[4])) {
-                      return true;
-                  }
-                  return false;
-              }
+                     if ("source-value-type"sv == name)
+                         return read_temp_i64(value) && copy_i64_to(type_value);
 
-              if ("source-value-id"sv == name) {
-                  if (read_temp_u64(value) && copy_u64_to(p.integers[3])) {
-                      return true;
-                  }
-                  return false;
-              }
+                     if ("source-value-id"sv == name)
+                         return read_temp_u64(value) && copy_u64_to(id_value);
 
-              if ("stop-on-error"sv == name) {
-                  if (read_temp_bool(value) && copy_bool_to(p.integers[0])) {
-                      return true;
-                  }
-                  return false;
-              }
+                     if ("stop-on-error"sv == name) {
+                         if (read_temp_bool(value) &&
+                             copy_bool_to(p.integers[0])) {
+                             return true;
+                         }
+                         return false;
+                     }
 
-              report_json_error("unknown element");
-          });
+                     report_json_error("unknown element");
+                 }) and
+               copy_to_source(type_ta, id_ta, p.integers[1], p.integers[2]) and
+               copy_to_source(
+                 type_value, id_value, p.integers[3], p.integers[4]);
     }
 
     bool read_simulation_dynamics(const rapidjson::Value& val,
@@ -2227,14 +2303,6 @@ struct json_dearchiver::impl {
                  });
     }
 
-    bool cache_constant_mapping_add(u64                id_in_file,
-                                    constant_source_id id) const noexcept
-    {
-        self.constant_mapping.data.emplace_back(id_in_file, ordinal(id));
-
-        return true;
-    }
-
     bool read_constant_sources(const rapidjson::Value& val,
                                external_source&        srcs) noexcept
     {
@@ -2272,14 +2340,6 @@ struct json_dearchiver::impl {
                               optional_has_value(id_in_file) &&
                               cache_constant_mapping_add(*id_in_file, id);
                    });
-    }
-
-    bool cache_text_file_mapping_add(u64                 id_in_file,
-                                     text_file_source_id id) noexcept
-    {
-        self.text_file_mapping.data.emplace_back(id_in_file, ordinal(id));
-
-        return true;
     }
 
     bool search_file_from_dir_component(const component& compo,
@@ -2373,12 +2433,98 @@ struct json_dearchiver::impl {
                  });
     }
 
+    bool cache_constant_mapping_add(u64                id_in_file,
+                                    constant_source_id id) const noexcept
+    {
+        self.constant_mapping.data.emplace_back(id_in_file, id);
+        return true;
+    }
+
+    bool cache_text_file_mapping_add(u64                 id_in_file,
+                                     text_file_source_id id) noexcept
+    {
+        self.text_file_mapping.data.emplace_back(id_in_file, id);
+        return true;
+    }
+
     bool cache_binary_file_mapping_add(u64                   id_in_file,
                                        binary_file_source_id id) const noexcept
     {
-        self.binary_file_mapping.data.emplace_back(id_in_file, ordinal(id));
-
+        self.binary_file_mapping.data.emplace_back(id_in_file, id);
         return true;
+    }
+
+    bool cache_random_mapping_add(u64 id_in_file, random_source_id id) noexcept
+    {
+        self.random_mapping.data.emplace_back(id_in_file, id);
+        return true;
+    }
+
+    bool cache_constant_mapping_sort() noexcept
+    {
+        self.constant_mapping.sort();
+        return true;
+    }
+
+    bool cache_text_file_mapping_sort() noexcept
+    {
+        self.text_file_mapping.sort();
+        return true;
+    }
+
+    bool cache_binary_file_mapping_sort() const noexcept
+    {
+        self.binary_file_mapping.sort();
+        return true;
+    }
+
+    bool cache_random_mapping_sort() noexcept
+    {
+        self.random_mapping.sort();
+        return true;
+    }
+
+    bool cache_constant_mapping_get(u64                 id_in_file,
+                                    constant_source_id& id) noexcept
+    {
+        if (const auto* ptr = self.constant_mapping.get(id_in_file)) {
+            id = *ptr;
+            return true;
+        }
+
+        report_json_error("unknown constant source");
+    }
+
+    bool cache_text_file_mapping_get(u64                  id_in_file,
+                                     text_file_source_id& id) noexcept
+    {
+        if (const auto* ptr = self.text_file_mapping.get(id_in_file)) {
+            id = *ptr;
+            return true;
+        }
+
+        report_json_error("unknown text file source");
+    }
+
+    bool cache_random_mapping_get(u64 id_in_file, random_source_id& id) noexcept
+    {
+        if (const auto* ptr = self.random_mapping.get(id_in_file)) {
+            id = *ptr;
+            return true;
+        }
+
+        report_json_error("unknown random source");
+    }
+
+    bool cache_binary_file_mapping_get(u64                    id_in_file,
+                                       binary_file_source_id& id) noexcept
+    {
+        if (const auto* ptr = self.binary_file_mapping.get(id_in_file)) {
+            id = *ptr;
+            return true;
+        }
+
+        report_json_error("unknown binary file source");
     }
 
     bool read_binary_file_sources(const rapidjson::Value& val,
@@ -2433,8 +2579,7 @@ struct json_dearchiver::impl {
         return is_value_array(val) && copy_array_size(val, len) &&
                binary_file_sources_can_alloc(srcs, len) &&
                for_each_array(
-                 val,
-                 [&](const auto /*i*/, const auto& value) noexcept -> bool {
+                 val, [&](const auto /*i*/, const auto& elem) noexcept -> bool {
                      auto& text = srcs.binary_file_sources.alloc();
                      auto  id   = srcs.binary_file_sources.get_id(text);
                      std::optional<u64> id_in_file;
@@ -2442,7 +2587,7 @@ struct json_dearchiver::impl {
                      auto_stack s(this, "srcs binary file source");
 
                      return for_each_member(
-                              value,
+                              elem,
                               [&](const auto  name,
                                   const auto& value) noexcept -> bool {
                                   if ("id"sv == name)
@@ -2632,13 +2777,6 @@ struct json_dearchiver::impl {
         unreachable();
     }
 
-    bool cache_random_mapping_add(u64 id_in_file, random_source_id id) noexcept
-    {
-        self.random_mapping.data.emplace_back(id_in_file, ordinal(id));
-
-        return true;
-    }
-
     bool read_random_sources(const rapidjson::Value& val,
                              external_source&        srcs) noexcept
     {
@@ -2649,8 +2787,7 @@ struct json_dearchiver::impl {
         return is_value_array(val) && copy_array_size(val, len) &&
                random_sources_can_alloc(srcs, len) &&
                for_each_array(
-                 val,
-                 [&](const auto /*i*/, const auto& value) noexcept -> bool {
+                 val, [&](const auto /*i*/, const auto& elem) noexcept -> bool {
                      auto& r  = srcs.random_sources.alloc();
                      auto  id = srcs.random_sources.get_id(r);
 
@@ -2659,7 +2796,7 @@ struct json_dearchiver::impl {
                      auto_stack s(this, "srcs random source");
 
                      return for_each_member(
-                              value,
+                              elem,
                               [&](const auto  name,
                                   const auto& value) noexcept -> bool {
                                   if ("id"sv == name)
@@ -2673,7 +2810,7 @@ struct json_dearchiver::impl {
                                   if ("type"sv == name) {
                                       return read_temp_string(value) &&
                                              copy_string_to(r.distribution) &&
-                                             read_distribution_type(value, r);
+                                             read_distribution_type(elem, r);
                                   }
 
                                   return true;
@@ -3431,45 +3568,59 @@ struct json_dearchiver::impl {
         compo.type      = component_type::hsm;
         compo.id.hsm_id = mod().hsm_components.get_id(hsm);
 
+        std::optional<source::source_type> type;
+        std::optional<u64>                 id;
+
         return for_each_member(
-          val, [&](const auto name, const auto& value) noexcept -> bool {
-              if ("states"sv == name)
-                  return read_hsm_states(
-                    value, hsm.machine.states, hsm.names, hsm.positions);
+                 val,
+                 [&](const auto name, const auto& value) noexcept -> bool {
+                     if ("states"sv == name)
+                         return read_hsm_states(
+                           value, hsm.machine.states, hsm.names, hsm.positions);
 
-              if ("top"sv == name)
-                  return read_temp_u64(value) &&
-                         copy_u64_to(hsm.machine.top_state);
+                     if ("top"sv == name)
+                         return read_temp_u64(value) &&
+                                copy_u64_to(hsm.machine.top_state);
 
-              if ("i1"sv == name)
-                  return read_temp_i64(value) && copy_i64_to(hsm.i1);
+                     if ("i1"sv == name)
+                         return read_temp_i64(value) && copy_i64_to(hsm.i1);
 
-              if ("i2"sv == name)
-                  return read_temp_i64(value) && copy_i64_to(hsm.i2);
+                     if ("i2"sv == name)
+                         return read_temp_i64(value) && copy_i64_to(hsm.i2);
 
-              if ("r1"sv == name)
-                  return read_temp_real(value) && copy_real_to(hsm.r1);
+                     if ("r1"sv == name)
+                         return read_temp_real(value) && copy_real_to(hsm.r1);
 
-              if ("r2"sv == name)
-                  return read_temp_real(value) && copy_real_to(hsm.r2);
+                     if ("r2"sv == name)
+                         return read_temp_real(value) && copy_real_to(hsm.r2);
 
-              if ("timeout"sv == name)
-                  return read_temp_real(value) && copy_real_to(hsm.timeout);
+                     if ("timeout"sv == name)
+                         return read_temp_real(value) &&
+                                copy_real_to(hsm.timeout);
 
-              if ("constants"sv == name)
-                  return value.IsArray() and
-                           std::cmp_less_equal(
-                             value.GetArray().Size(),
-                             hierarchical_state_machine::max_constants),
-                         for_each_array(
-                           value,
-                           [&](const auto i, const auto& val) noexcept -> bool {
-                               return read_temp_real(val) &&
-                                      copy_real_to(hsm.machine.constants[i]);
-                           });
+                     if ("source-type"sv == name)
+                         return read_temp_i64(value) && copy_i64_to(type);
 
-              return true;
-          });
+                     if ("source-id"sv == name)
+                         return read_temp_u64(value) && copy_u64_to(id);
+
+                     if ("constants"sv == name)
+                         return value.IsArray() and
+                                  std::cmp_less_equal(
+                                    value.GetArray().Size(),
+                                    hierarchical_state_machine::max_constants),
+                                for_each_array(
+                                  value,
+                                  [&](const auto  i,
+                                      const auto& val) noexcept -> bool {
+                                      return read_temp_real(val) &&
+                                             copy_real_to(
+                                               hsm.machine.constants[i]);
+                                  });
+
+                     return true;
+                 }) and
+               copy_to_source(type, id, hsm.src);
     }
 
     bool dispatch_component_type(const rapidjson::Value& val,
@@ -3595,13 +3746,17 @@ struct json_dearchiver::impl {
               if ("name"sv == name)
                   return read_temp_string(value) && copy_string_to(compo.name);
               if ("constant-sources"sv == name)
-                  return read_constant_sources(value, compo.srcs);
+                  return read_constant_sources(value, compo.srcs) and
+                         cache_constant_mapping_sort();
               if ("binary-file-sources"sv == name)
-                  return read_binary_file_sources(value, compo.srcs);
+                  return read_binary_file_sources(value, compo.srcs) and
+                         cache_binary_file_mapping_sort();
               if ("text-file-sources"sv == name)
-                  return read_text_file_sources(value, compo.srcs);
+                  return read_text_file_sources(value, compo.srcs) and
+                         cache_text_file_mapping_sort();
               if ("random-sources"sv == name)
-                  return read_random_sources(value, compo.srcs);
+                  return read_random_sources(value, compo.srcs) and
+                         cache_random_mapping_sort();
               if ("x"sv == name)
                   return read_ports(value, compo.x);
               if ("y"sv == name)
@@ -6319,6 +6474,10 @@ struct json_archiver::impl {
         w.Double(hsm.r2);
         w.Key("timeout");
         w.Double(hsm.timeout);
+        w.Key("source-type");
+        w.String(external_source_str(hsm.src.type));
+        w.Key("source-id");
+        w.Uint64(hsm.src.id);
 
         w.Key("constants");
         w.StartArray();
