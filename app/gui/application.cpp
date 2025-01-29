@@ -877,7 +877,7 @@ void application::start_load_project(const registred_path_id id,
 void application::start_save_project(const registred_path_id id,
                                      const project_id        pj_id) noexcept
 {
-    add_gui_task([&, id]() noexcept {
+    add_gui_task([&, id, pj_id]() noexcept {
         std::scoped_lock _(mod.reg_paths_mutex);
 
         auto* file = mod.registred_paths.try_to_get(id);
