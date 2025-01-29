@@ -322,7 +322,7 @@ inline auto ComputeButtonSize(int button_number) noexcept -> ImVec2
     ::irt::debug::ensure(button_number > 1);
 
     return ImVec2{ ((ImGui::GetContentRegionAvail().x -
-                     (static_cast<float>(button_number - 1) *
+                     (static_cast<float>(button_number) *
                       ImGui::GetStyle().ItemSpacing.x)) /
                     static_cast<float>(button_number)),
                    0.f };
