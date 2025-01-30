@@ -3,14 +3,13 @@
 // http://www.boost.org/LICENSE_1_0.txt)
 
 #include <irritator/core.hpp>
+#include <irritator/dot-parser.hpp>
 #include <irritator/file.hpp>
 #include <irritator/format.hpp>
 #include <irritator/helpers.hpp>
 #include <irritator/io.hpp>
 #include <irritator/modeling-helpers.hpp>
 #include <irritator/modeling.hpp>
-
-#include "dot-parser.hpp"
 
 #include <algorithm>
 #include <random>
@@ -321,14 +320,16 @@ static void build_scale_free_edges(
 
             if (not graph.edges.can_alloc(1)) {
                 graph.edges.reserve(graph.edges.capacity() * 2);
+                graph.edges_nodes.resize(graph.edges.capacity());
 
                 if (not graph.edges.can_alloc(1))
                     return;
             }
 
-            auto new_edge_id = graph.edges.alloc();
+            auto       new_edge_id  = graph.edges.alloc();
+            const auto new_edge_idx = get_index(new_edge_id);
 
-            graph.edges_nodes[get_index(new_edge_id)] = { *first, second };
+            graph.edges_nodes[new_edge_idx] = { *first, second };
         }
     }
 }
@@ -385,6 +386,7 @@ static void build_small_world_edges(
 
             if (not graph.edges.can_alloc(1)) {
                 graph.edges.reserve(graph.edges.capacity() * 2);
+                graph.edges_nodes.resize(graph.edges.capacity());
 
                 if (not graph.edges.can_alloc(1))
                     return;
@@ -442,10 +444,13 @@ void graph_component::resize(const i32          children_size,
     input_connections.clear();
     output_connections.clear();
 
-    node_ids.resize(children_size);
-    node_positions.resize(children_size);
-    node_areas.resize(children_size);
-    node_components.resize(children_size);
+    node_names.resize(nodes.capacity());
+    node_ids.resize(nodes.capacity());
+    node_positions.resize(nodes.capacity());
+    node_areas.resize(nodes.capacity());
+    node_components.resize(nodes.capacity());
+
+    edges_nodes.resize(edges.capacity());
 
     for (auto i = 0; i < children_size; ++i) {
         const auto id        = nodes.alloc();

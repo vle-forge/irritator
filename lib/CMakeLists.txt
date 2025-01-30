@@ -5,6 +5,7 @@ set(public_irritator_header
     include/irritator/archiver.hpp
     include/irritator/container.hpp
     include/irritator/core.hpp
+    include/irritator/dot-parser.hpp
     include/irritator/error.hpp
     include/irritator/examples.hpp
     include/irritator/ext.hpp
@@ -23,7 +24,6 @@ set(public_irritator_header
 set(private_irritator_sources
     src/archiver.cpp
     src/dot-parser.cpp
-    src/dot-parser.hpp
     src/error.cpp
     src/external_source.cpp
     src/filesystem.cpp

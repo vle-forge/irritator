@@ -312,7 +312,7 @@ int main()
         expect(v[4] == 4);
         expect(v[5] == 5);
 
-        irt::vector<int> v2(8);
+        irt::vector<int> v2(8, irt::reserve_tag{});
         v2 = v;
         v2[0] *= 2;
         expect(v2[0] == 14);

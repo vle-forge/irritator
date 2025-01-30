@@ -2,9 +2,8 @@
 // Version 1.0. (See accompanying file LICENSE_1_0.txt or copy at
 // http://www.boost.org/LICENSE_1_0.txt)
 
+#include <irritator/dot-parser.hpp>
 #include <irritator/format.hpp>
-
-#include "dot-parser.hpp"
 
 #include <cctype>
 #include <charconv>
@@ -357,7 +356,7 @@ public:
                                  bool start_fill_tokens = true) noexcept
       : mod{ &mod_ }
       , strings_ids(64)
-      , strings(64)
+      , strings(64, irt::reserve_tag{})
       , is(stream)
     {
         strings.resize(strings_ids.capacity());
@@ -375,7 +374,7 @@ public:
     explicit input_stream_buffer(std::istream& stream,
                                  bool start_fill_tokens = true) noexcept
       : strings_ids(64)
-      , strings(64)
+      , strings(64, irt::reserve_tag{})
       , is(stream)
     {
         strings.resize(strings_ids.capacity());

@@ -743,13 +743,6 @@ static void show_popup_menuitem(component_editor&  ed,
 
         ImGui::Separator();
 
-        if (ImGui::MenuItem("Grid generator"))
-            app.grid_dlg.load(app, &s_parent);
-        if (ImGui::MenuItem("Graph generator"))
-            app.graph_dlg.load(app, &s_parent);
-
-        ImGui::Separator();
-
         if (ImGui::BeginMenu("QSS1")) {
             auto       i = ordinal(dynamics_type::qss1_integrator);
             const auto e = ordinal(dynamics_type::qss1_wsum_4);

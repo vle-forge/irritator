@@ -321,9 +321,10 @@ public:
     //! Get the underlying component_id.
     component_id get_id() const noexcept { return m_id; }
 
-    vector<ImVec2> positions;
-    vector<ImVec2> displacements;
+private:
+    struct impl;
 
+    vector<ImVec2>        displacements;
     vector<graph_node_id> selected_nodes;
     vector<graph_edge_id> selected_edges;
 
@@ -342,7 +343,9 @@ public:
     component_id       selected_id = undefined<component_id>();
     graph_component_id graph_id    = undefined<graph_component_id>();
 
-private:
+    spin_mutex mutex;
+    enum class status { none, update_required, updating } st = status::none;
+
     component_id m_id = undefined<component_id>();
 };
 
@@ -519,38 +522,6 @@ struct hsm_simulation_editor {
                            hsm_component&  hsm) noexcept;
 
     hsm_component_id current_id = undefined<hsm_component_id>();
-};
-
-struct grid_editor_dialog {
-    constexpr static inline const char* name = "Grid generator";
-
-    grid_editor_dialog() noexcept;
-
-    grid_component     grid;
-    application*       app        = nullptr;
-    generic_component* compo      = nullptr;
-    bool               is_running = false;
-    bool               is_ok      = false;
-
-    void load(application& app, generic_component* compo) noexcept;
-    void save() noexcept;
-    void show() noexcept;
-};
-
-struct graph_editor_dialog {
-    constexpr static inline const char* name = "Graph generator";
-
-    graph_editor_dialog() noexcept;
-
-    graph_component    graph;
-    application*       app        = nullptr;
-    generic_component* compo      = nullptr;
-    bool               is_running = false;
-    bool               is_ok      = false;
-
-    void load(application& app, generic_component* compo) noexcept;
-    void save() noexcept;
-    void show() noexcept;
 };
 
 class project_external_source_editor
@@ -1069,9 +1040,7 @@ struct application {
     component_editor component_ed;
     output_editor    output_ed;
 
-    grid_editor_dialog  grid_dlg;
-    graph_editor_dialog graph_dlg;
-    file_dialog         f_dialog;
+    file_dialog f_dialog;
 
     settings_window settings_wnd;
     library_window  library_wnd;

@@ -798,7 +798,7 @@ int main()
     };
 
     "vector<T>"_test = [] {
-        irt::vector<int> v(8);
+        irt::vector<int> v(8, irt::reserve_tag{});
         expect(v.empty());
         expect(v.capacity() == 8);
         v.emplace_back(0);
@@ -854,7 +854,7 @@ int main()
     };
 
     "vector-iterator-valid"_test = [] {
-        irt::vector<int> vec(4);
+        irt::vector<int> vec(4, irt::reserve_tag{});
 
         expect(eq(vec.ssize(), 0));
         expect(eq(vec.capacity(), 4));
@@ -892,12 +892,18 @@ int main()
 
             t_1() noexcept = default;
 
-            t_1(int x_) noexcept
+            explicit t_1(int x_) noexcept
               : x(x_)
             {}
+
+            t_1& operator=(int x_) noexcept
+            {
+                x = x_;
+                return *this;
+            }
         };
 
-        irt::vector<t_1> v_1(10, 10);
+        irt::vector<t_1> v_1(10);
         std::iota(v_1.begin(), v_1.end(), 0);
 
         expect(v_1.is_iterator_valid(v_1.begin()));
@@ -956,7 +962,7 @@ int main()
         struct toto {
             int i;
 
-            toto(int i_) noexcept
+            explicit toto(int i_) noexcept
               : i(i_)
             {}
 

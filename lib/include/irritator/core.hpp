@@ -6459,36 +6459,36 @@ inline status global_connect(simulation& sim,
                              model_id    dst,
                              int         port_dst) noexcept
 {
-    return dispatch(src,
-                    [&sim, port_src, dst, port_dst]<typename Dynamics>(
-                      Dynamics& dyn) -> status {
-                        if constexpr (has_output_port<Dynamics>) {
-                            auto* list = sim.nodes.try_to_get(dyn.y[port_src]);
+    return dispatch(
+      src,
+      [&sim, port_src, dst, port_dst]<typename Dynamics>(
+        Dynamics& dyn) -> status {
+          if constexpr (has_output_port<Dynamics>) {
+              auto* list = sim.nodes.try_to_get(dyn.y[port_src]);
 
-                            if (not list) {
-                                auto& new_node  = sim.nodes.alloc(4);
-                                dyn.y[port_src] = sim.nodes.get_id(new_node);
-                                list            = &new_node;
-                            }
+              if (not list) {
+                  auto& new_node  = sim.nodes.alloc(4, reserve_tag{});
+                  dyn.y[port_src] = sim.nodes.get_id(new_node);
+                  list            = &new_node;
+              }
 
-                            for (const auto& elem : *list) {
-                                if (elem.model == dst &&
-                                    elem.port_index == port_dst)
-                                    return new_error(simulation::part::nodes,
-                                                     already_exist_error{});
-                            }
+              for (const auto& elem : *list) {
+                  if (elem.model == dst && elem.port_index == port_dst)
+                      return new_error(simulation::part::nodes,
+                                       already_exist_error{});
+              }
 
-                            // if (not list->can_alloc(1))
-                            //     return new_error(simulation::part::nodes,
-                            //                      container_full_error{});
+              // if (not list->can_alloc(1))
+              //     return new_error(simulation::part::nodes,
+              //                      container_full_error{});
 
-                            list->emplace_back(dst, static_cast<i8>(port_dst));
+              list->emplace_back(dst, static_cast<i8>(port_dst));
 
-                            return success();
-                        }
+              return success();
+          }
 
-                        unreachable();
-                    });
+          unreachable();
+      });
 }
 
 inline status global_disconnect(simulation& sim,

@@ -313,7 +313,7 @@ static std::error_code do_load(const char*                 filename,
 
 vector<recorded_path_id> recorded_paths::sort_by_priorities() const noexcept
 {
-    vector<recorded_path_id> ret(ids.size());
+    vector<recorded_path_id> ret(ids.size(), reserve_tag{});
 
     if (ids.capacity() >= ids.ssize()) {
         for (auto id : ids)
