@@ -35,15 +35,15 @@ enum class msg_id {
 };
 
 static constexpr std::string_view msg_fmt[] = {
-    "missing token at line {}",
-    "missing strict or graph type at line {}",
-    "missing graph type at line {}",
-    "unknown graph type `{}' at line {}",
-    "missing open brace at line {}",
-    "unknwon attribute `{}' = `{}' at line {}",
-    "missing comma character in `{}'",
-    "fail to parse `{}' to read a float",
-    "undefined `/{}' sequence at line {}"
+    "missing token at line {}\n",
+    "missing strict or graph type at line {}\n",
+    "missing graph type at line {}\n",
+    "unknown graph type `{}' at line {}\n",
+    "missing open brace at line {}\n",
+    "unknwon attribute `{}' = `{}' at line {}\n",
+    "missing comma character in `{}'\n",
+    "fail to parse `{}' to read a float\n",
+    "undefined `/{}' sequence at line {}\n"
 };
 
 template<msg_id Index, typename... Args>
@@ -159,6 +159,67 @@ enum class element_type : irt::u16 {
     undirected_edge, // --
 };
 
+/**
+   Return lower case of char @c c iff @c c is upper ascii character.
+
+   @param c The character to convert iff @c c if upper ascii character.
+   @return The lower car of the @c c parameter.
+ */
+inline auto ascii_tolower(const char c) noexcept -> char
+{
+    return ((static_cast<unsigned>(c) - 65u) < 26) ? c + 'a' - 'A' : c;
+}
+
+/**
+   Return true if the lower characters @c a and @c b are equals.
+
+   @param a The character to convert iff @c c if upper ascii character.
+   @param b The character to convert iff @c c if upper ascii character.
+ */
+inline auto ichar_equals(char a, char b) noexcept -> bool
+{
+    return ascii_tolower(a) == ascii_tolower(b);
+}
+
+/**
+   Returns @c true if two strings are equal, using a case-insensitive
+   comparison. The case-comparison operation is defined only for low-ASCII
+   characters.
+
+   @param lhs The string on the left side of the equality
+   @param rhs The string on the right side of the equality
+ */
+inline auto iequals(std::string_view lhs, std::string_view rhs) noexcept -> bool
+{
+    auto n = lhs.size();
+    if (rhs.size() != n)
+        return false;
+
+    auto p1 = lhs.data();
+    auto p2 = rhs.data();
+    char a, b;
+
+    while (n--) {
+        a = *p1++;
+        b = *p2++;
+
+        if (a != b)
+            goto slow;
+    }
+
+    return true;
+
+slow:
+    do {
+        if (ascii_tolower(a) != ascii_tolower(b))
+            return false;
+        a = *p1++;
+        b = *p2++;
+    } while (n--);
+
+    return true;
+}
+
 static constexpr std::string_view element_type_string[] = {
     "{}",     "digraph",  "edge", "graph",   "node",
     "strict", "subgraph", "id",   "integer", "double_quote",
@@ -196,12 +257,6 @@ struct token {
         return type == t;
     }
 };
-
-static auto ichar_equals(char a, char b) noexcept -> bool
-{
-    return std::tolower(static_cast<int>(a)) ==
-           std::tolower(static_cast<int>(b));
-}
 
 static element_type convert_to_element_type(const std::string_view str) noexcept
 {
@@ -729,6 +784,8 @@ private:
 
     bool parse_attributes(const graph_node_id id) noexcept
     {
+        using namespace std::string_view_literals;
+
         if (not check_minimum_tokens(1))
             return false;
 
@@ -761,13 +818,15 @@ private:
             const auto left_str  = get_and_free_string(left);
             const auto right_str = get_and_free_string(right);
 
-            if (left_str == "area") {
+            if (iequals(left_str, "id"sv)) {
+                node_names[irt::get_index(id)] = buffer.append(right_str);
+            } else if (iequals(left_str, "area"sv)) {
                 node_areas[irt::get_index(id)] = to_float(right_str);
-            } else if (left_str == "component") {
+            } else if (iequals(left_str, "component"sv)) {
                 if (mod)
                     node_components[irt::get_index(id)] =
                       search_component(right_str);
-            } else if (left_str == "pos") {
+            } else if (iequals(left_str, "pos"sv)) {
                 node_positions[irt::get_index(id)] = to_2float(right_str);
             } else {
                 warning<msg_id::unknown_attribute>(left_str, right_str, line);
@@ -856,6 +915,10 @@ private:
             const auto success = next_is_edge() ? parse_edge() : parse_node();
             if (not success)
                 return false;
+
+            if (check_minimum_tokens(1) and
+                next_token_is(element_type::semicolon))
+                pop_token();
         }
 
         if (not check_minimum_tokens(1))

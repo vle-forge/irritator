@@ -89,4 +89,40 @@ int main()
         expect(eq(ret->node_positions[idx_C][0], 5.0f));
         expect(eq(ret->node_positions[idx_C][1], 6.0f));
     };
+
+    "id-area-pos-node-attribute"_test = [] {
+        const std::string_view buf = R"(graph Voronoi
+        {
+            1 [ID = 1, Area = 123, pos = "-1,-2"] ;
+            1 -- 2;
+            2 [ID = 2, Area = 321, pos = "-3,-4"];
+        })";
+
+        auto ret = irt::parse_dot_buffer(buf);
+        expect(ret.has_value() >> fatal);
+
+        expect(eq(ret->nodes.size(), 2u));
+        expect(eq(ret->edges.size(), 1u));
+
+        const auto table = ret->make_toc();
+        expect(eq(table.ssize(), 2));
+
+        expect(table.get("1"sv) >> fatal);
+        expect(table.get("2"sv) >> fatal);
+        const auto id_1  = *table.get("1"sv);
+        const auto id_2  = *table.get("2"sv);
+        const auto idx_1 = irt::get_index(id_1);
+        const auto idx_2 = irt::get_index(id_2);
+
+        expect(eq(ret->node_names[idx_1], "1"sv));
+        expect(eq(ret->node_names[idx_2], "2"sv));
+
+        expect(eq(ret->node_positions[idx_1][0], -1.0f));
+        expect(eq(ret->node_positions[idx_1][1], -2.0f));
+        expect(eq(ret->node_positions[idx_2][0], -3.0f));
+        expect(eq(ret->node_positions[idx_2][1], -4.0f));
+
+        expect(eq(ret->node_areas[idx_1], 123.0f));
+        expect(eq(ret->node_areas[idx_2], 321.0f));
+    };
 }
