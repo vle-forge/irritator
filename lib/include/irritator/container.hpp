@@ -3255,13 +3255,19 @@ bool vector<T, A>::resize(std::integral auto size) noexcept
 
     debug::ensure(std::cmp_less(size, std::numeric_limits<index_type>::max()));
 
-    if (std::cmp_greater(size, m_capacity)) {
-        if (!reserve(compute_new_capacity(static_cast<index_type>(size))))
-            return false;
-    }
+    if (std::cmp_equal(size, m_size))
+        return true;
 
-    std::uninitialized_value_construct_n(data() + m_size, size - m_size);
-    // std::uninitialized_default_construct_n(data() + m_size, size);
+    if (std::cmp_less(size, m_size)) {
+        std::destroy_n(data() + size, m_size - size);
+    } else {
+        if (std::cmp_greater(size, m_capacity)) {
+            if (!reserve(compute_new_capacity(static_cast<index_type>(size))))
+                return false;
+        }
+
+        std::uninitialized_value_construct_n(data() + m_size, size - m_size);
+    }
 
     m_size = static_cast<index_type>(size);
 
