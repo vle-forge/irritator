@@ -268,7 +268,7 @@ int main()
     };
 
     "vector<T>-default_allocator"_test = [] {
-        irt::vector<int> v(8);
+        irt::vector<int> v(8, irt::reserve_tag{});
         expect(v.empty());
         expect(v.capacity() == 8);
         v.emplace_back(0);
@@ -323,10 +323,10 @@ int main()
         expect(v2[5] == 5);
     };
 
-    "vector<T>-default_allocator"_test = [] {
+    "vector<T>-monotonic_allocator"_test = [] {
         using fixed_alloc = irt::allocator<irt::monotonic_small_buffer<8192u>>;
 
-        irt::vector<int, fixed_alloc> v(8);
+        irt::vector<int, fixed_alloc> v(8, irt::reserve_tag{});
         expect(v.empty());
         expect(v.capacity() == 8);
         v.emplace_back(0);
@@ -370,7 +370,7 @@ int main()
         expect(v[4] == 4);
         expect(v[5] == 5);
 
-        irt::vector<int, fixed_alloc> v2(8);
+        irt::vector<int, fixed_alloc> v2(8, irt::reserve_tag{});
         v2 = v;
         v2[0] *= 2;
         expect(v2[0] == 14);
@@ -382,7 +382,7 @@ int main()
     };
 
     "vector-iterator-valid"_test = [] {
-        irt::vector<int> vec(4);
+        irt::vector<int> vec(4, irt::reserve_tag{});
 
         expect(eq(vec.ssize(), 0));
         expect(eq(vec.capacity(), 4));
@@ -420,12 +420,18 @@ int main()
 
             t_1() noexcept = default;
 
-            t_1(int x_) noexcept
+            explicit t_1(int x_) noexcept
               : x(x_)
             {}
+
+            t_1& operator=(int x_) noexcept
+            {
+                x = x_;
+                return *this;
+            }
         };
 
-        irt::vector<t_1> v_1(10, 10);
+        irt::vector<t_1> v_1(10);
         std::iota(v_1.begin(), v_1.end(), 0);
 
         expect(v_1.is_iterator_valid(v_1.begin()));
@@ -484,7 +490,7 @@ int main()
         struct toto {
             int i;
 
-            toto(int i_) noexcept
+            explicit toto(int i_) noexcept
               : i(i_)
             {}
 
@@ -697,7 +703,7 @@ int main()
             float x = 0, y = 0;
         };
 
-        irt::vector<position> pos(4, 4);
+        irt::vector<position> pos(4);
         pos[0].x = 0;
         pos[1].x = 1;
         pos[2].x = 2;
@@ -930,10 +936,10 @@ int main()
     "id_array_api"_test = [] {
         enum class position32_id : std::uint32_t;
 
-        irt::id_array<position32_id> ids{ 4 };
-        irt::vector<float>           x{ 4, 4 };
-        irt::vector<float>           y{ 4, 4 };
-        irt::vector<float>           sum{ 4, 4 };
+        irt::id_array<position32_id> ids(4);
+        irt::vector<float>           x(4);
+        irt::vector<float>           y(4);
+        irt::vector<float>           sum(4);
 
         expect(eq(ids.size(), 0u));
         expect(eq(ids.max_used(), 0));
@@ -1020,7 +1026,8 @@ int main()
     "data_array_api"_test = [] {
         struct position {
             position() = default;
-            constexpr position(float x_)
+
+            explicit constexpr position(float x_)
               : x(x_)
             {}
 
@@ -1150,5 +1157,550 @@ int main()
         expect(array.is_free_list_empty());
 
         expect(check_data_array_loop(array));
+    };
+
+    constexpr static int Size = 10;
+    using svec                = irt::small_vector<int, Size>;
+    using vec                 = irt::vector<int>;
+
+    "test_default_constructor"_test = [] {
+        svec sdata;
+        vec  data;
+
+        expect(eq(data.size(), 0u));
+        expect(data.empty());
+        expect(eq(data.capacity(), 0));
+        expect(data.begin() == data.end());
+
+        expect(eq(sdata.size(), 0u));
+        expect(sdata.empty());
+        expect(eq(sdata.capacity(), Size));
+        expect(sdata.begin() == sdata.end());
+    };
+
+    "test_initializer_list_constructor"_test = [] {
+        svec sdata{ 0, 1, 2, 3, 4, 5, 6, 7, 8, 9 };
+        vec  data{ 0, 1, 2, 3, 4, 5, 6, 7, 8, 9 };
+
+        expect(!data.empty());
+        expect(data.full());
+        expect(data.begin() != data.end());
+        expect(eq(0, data.capacity() - data.ssize()));
+        expect(eq(10, data.capacity()));
+        expect(eq(10, data.ssize()));
+
+        expect(!sdata.empty());
+        expect(sdata.full());
+        expect(sdata.begin() != sdata.end());
+        expect(eq(0, sdata.capacity() - sdata.ssize()));
+        expect(eq(10, sdata.capacity()));
+        expect(eq(10, sdata.ssize()));
+
+        expect(data == sdata);
+    };
+
+    "test_copy_constructor"_test = [] {
+        std::vector<int> sorted_vec{ 0, 1, 2, 3, 4, 5, 6, 7, 8, 9 };
+
+        {
+            vec data(sorted_vec.begin(), sorted_vec.end());
+            vec data2(data);
+            expect(data2 == data);
+
+            data2[2] = -1;
+            expect(data2 != data);
+        }
+
+        {
+            svec data(sorted_vec.begin(), sorted_vec.end());
+            svec data2(data);
+            expect(data2 == data);
+
+            data2[2] = -1;
+            expect(data2 != data);
+        }
+    };
+
+    "test_move_constructor"_test = [] {
+        std::vector<int> sorted_vec{ 0, 1, 2, 3, 4, 5, 6, 7, 8, 9 };
+
+        {
+            vec data(sorted_vec.begin(), sorted_vec.end());
+            vec data2(std::move(data));
+            expect(data.size() == 0);
+            expect(data2.size() == sorted_vec.size());
+            expect(data2 != data);
+        }
+
+        {
+            svec data(sorted_vec.begin(), sorted_vec.end());
+            svec data2(std::move(data));
+            expect(data.size() == 0);
+            expect(data2.size() == sorted_vec.size());
+            expect(data2 != data);
+        }
+    };
+
+    "test_assignment"_test = [] {
+        std::vector<int> sorted_vec{ 0, 1, 2, 3, 4, 5, 6, 7, 8, 9 };
+
+        {
+            vec data(sorted_vec.begin(), sorted_vec.end());
+            vec other_data;
+
+            other_data = data;
+
+            bool is_equal =
+              std::equal(data.begin(), data.end(), other_data.begin());
+
+            expect(is_equal);
+        }
+
+        {
+            svec data(sorted_vec.begin(), sorted_vec.end());
+            svec other_data;
+
+            other_data = data;
+
+            bool is_equal =
+              std::equal(data.begin(), data.end(), other_data.begin());
+
+            expect(is_equal);
+        }
+    };
+
+    "test_move_assignment"_test = [] {
+        std::vector<int> sorted_vec{ 0, 1, 2, 3, 4, 5, 6, 7, 8, 9 };
+
+        {
+            vec data(sorted_vec.begin(), sorted_vec.end());
+            vec other_data;
+            other_data.push_back(1);
+
+            other_data = std::move(data);
+
+            expect(data.size() == 0);
+            expect(other_data.size() == sorted_vec.size());
+            expect(data != other_data);
+        }
+        {
+            svec data(sorted_vec.begin(), sorted_vec.end());
+            svec other_data;
+            other_data.push_back(1);
+
+            other_data = std::move(data);
+
+            expect(data.size() == 0);
+            expect(other_data.size() == sorted_vec.size());
+            expect(data != other_data);
+        }
+    };
+
+    "test_self_assignment"_test = [] {
+        std::vector<int> sorted_vec{ 0, 1, 2, 3, 4, 5, 6, 7, 8, 9 };
+
+        {
+            vec data(sorted_vec.begin(), sorted_vec.end());
+            vec other_data(data);
+
+            other_data = other_data;
+
+            bool is_equal =
+              std::equal(data.begin(), data.end(), other_data.begin());
+
+            expect(is_equal);
+        }
+        {
+            svec data(sorted_vec.begin(), sorted_vec.end());
+            svec other_data(data);
+
+            other_data = other_data;
+
+            bool is_equal =
+              std::equal(data.begin(), data.end(), other_data.begin());
+
+            expect(is_equal);
+        }
+    };
+
+    "test_begin"_test = [] {
+        {
+            vec       data(10);
+            const vec constData(10);
+
+            expect(eq(&data[0], data.begin()));
+            expect(eq(&constData[0], constData.begin()));
+        }
+        {
+            svec       data(10);
+            const svec constData(10);
+
+            expect(eq(&data[0], data.begin()));
+            expect(eq(&constData[0], constData.begin()));
+        }
+    };
+
+    "test_end"_test = [] {
+        {
+            vec       data(10);
+            const vec constData(10);
+
+            expect(eq((&data[9]) + 1, data.end()));
+            expect(eq((&constData[9]) + 1, constData.end()));
+        }
+        {
+            svec       data(10);
+            const svec constData(10);
+
+            expect(eq((&data[9]) + 1, data.end()));
+            expect(eq((&constData[9]) + 1, constData.end()));
+        }
+    };
+
+    "test_resize_up"_test = [] {
+        const size_t INITIAL_SIZE = 5;
+        const size_t NEW_SIZE     = 8;
+        {
+
+            vec data(INITIAL_SIZE);
+            data.resize(NEW_SIZE);
+
+            expect(eq(data.size(), NEW_SIZE));
+        }
+        {
+            svec data(INITIAL_SIZE);
+            data.resize(NEW_SIZE);
+
+            expect(eq(data.size(), NEW_SIZE));
+        }
+    };
+
+    "test_resize_up_value"_test = [] {
+        const size_t INITIAL_SIZE  = 5;
+        const size_t NEW_SIZE      = 8;
+        const int    INITIAL_VALUE = 1;
+        {
+
+            vec data(INITIAL_SIZE, INITIAL_VALUE);
+            data.resize(NEW_SIZE, INITIAL_VALUE);
+
+            std::array<int, NEW_SIZE> compare_data;
+            compare_data.fill(INITIAL_VALUE);
+
+            expect(eq(compare_data.size(), data.size()));
+
+            bool is_equal =
+              std::equal(data.begin(), data.end(), compare_data.begin());
+
+            expect(is_equal);
+        }
+        {
+            svec data(INITIAL_SIZE, INITIAL_VALUE);
+            data.resize(NEW_SIZE, INITIAL_VALUE);
+
+            std::array<int, NEW_SIZE> compare_data;
+            compare_data.fill(INITIAL_VALUE);
+
+            expect(eq(compare_data.size(), data.size()));
+
+            bool is_equal =
+              std::equal(data.begin(), data.end(), compare_data.begin());
+
+            expect(is_equal);
+        }
+    };
+
+    "test_resize_excess"_test = [] {
+        const size_t INITIAL_SIZE = 5;
+        const size_t NEW_SIZE     = Size + 1;
+
+        {
+
+            vec data(INITIAL_SIZE, INITIAL_SIZE);
+            data.resize(NEW_SIZE);
+
+            expect(data.capacity() == NEW_SIZE);
+        }
+        {
+            svec data(INITIAL_SIZE, INITIAL_SIZE);
+            data.resize(NEW_SIZE);
+
+            expect(data.capacity() == NEW_SIZE - 1);
+        }
+    };
+
+    "test_resize_down"_test = [] {
+        const size_t INITIAL_SIZE = 5;
+        const size_t NEW_SIZE     = 2;
+
+        {
+            vec data(INITIAL_SIZE);
+            data.resize(NEW_SIZE);
+
+            expect(eq(data.size(), NEW_SIZE));
+        }
+        {
+            svec data(INITIAL_SIZE);
+            data.resize(NEW_SIZE);
+
+            expect(eq(data.size(), NEW_SIZE));
+        }
+    };
+
+    "test_resize_down_value"_test = [] {
+        const size_t INITIAL_SIZE  = 5;
+        const size_t NEW_SIZE      = 2;
+        const int    INITIAL_VALUE = 1;
+
+        {
+            vec data(INITIAL_SIZE);
+            data.resize(NEW_SIZE, INITIAL_VALUE);
+
+            expect(eq(data.size(), NEW_SIZE));
+        }
+        {
+            svec data(INITIAL_SIZE);
+            data.resize(NEW_SIZE, INITIAL_VALUE);
+
+            expect(eq(data.size(), NEW_SIZE));
+        }
+    };
+
+    "test_push_back"_test = [] {
+        std::vector<int> compare_data;
+        for (int i = 0; i < Size; ++i) {
+            compare_data.push_back(i);
+        }
+
+        {
+            vec data;
+
+            for (int i = 0; i < Size; ++i) {
+                data.push_back(i);
+            }
+
+            expect(eq(compare_data.size(), data.size()));
+
+            bool is_equal =
+              std::equal(data.begin(), data.end(), compare_data.begin());
+
+            expect(is_equal);
+        }
+        {
+            svec data;
+
+            for (int i = 0; i < Size; ++i) {
+                data.push_back(i);
+            }
+
+            expect(eq(compare_data.size(), data.size()));
+
+            bool is_equal =
+              std::equal(data.begin(), data.end(), compare_data.begin());
+
+            expect(is_equal);
+        }
+    };
+
+    "test_push_back_literal"_test = [] {
+        std::vector<int> compare_data;
+        compare_data.push_back(1);
+        compare_data.push_back(2);
+        compare_data.push_back(3);
+        compare_data.push_back(4);
+
+        {
+            vec data;
+
+            data.push_back(1);
+            data.push_back(2);
+            data.push_back(3);
+            data.push_back(4);
+
+            expect(eq(compare_data.size(), data.size()));
+
+            bool is_equal =
+              std::equal(data.begin(), data.end(), compare_data.begin());
+
+            expect(is_equal);
+        }
+        {
+            svec data;
+
+            data.push_back(1);
+            data.push_back(2);
+            data.push_back(3);
+            data.push_back(4);
+
+            expect(eq(compare_data.size(), data.size()));
+
+            bool is_equal =
+              std::equal(data.begin(), data.end(), compare_data.begin());
+
+            expect(is_equal);
+        }
+    };
+
+    "test_push_back_excess"_test = [] {
+        {
+            vec data;
+
+            for (int i = 0; i < Size; ++i) {
+                data.push_back(i);
+            }
+
+            if (data.capacity() == data.ssize())
+                expect(not data.can_alloc(1));
+            else
+                expect(data.can_alloc(1));
+        }
+        {
+            svec data;
+
+            for (int i = 0; i < Size; ++i) {
+                data.push_back(i);
+            }
+
+            expect(not data.can_alloc(1));
+        }
+    };
+
+    "test_emplace_back"_test = [] {
+        std::vector<int> compare_data;
+        for (int i = 0; i < Size; ++i) {
+            compare_data.emplace_back(i);
+        }
+
+        {
+            vec data;
+
+            for (int i = 0; i < Size; ++i) {
+                data.emplace_back(i);
+            }
+
+            expect(eq(compare_data.size(), data.size()));
+
+            bool is_equal =
+              std::equal(data.begin(), data.end(), compare_data.begin());
+
+            expect(is_equal);
+        }
+        {
+            svec data;
+
+            for (int i = 0; i < Size; ++i) {
+                data.emplace_back(i);
+            }
+
+            expect(eq(compare_data.size(), data.size()));
+
+            bool is_equal =
+              std::equal(data.begin(), data.end(), compare_data.begin());
+
+            expect(is_equal);
+        }
+    };
+
+    "test_emplace_back_return"_test = [] {
+        {
+            vec data;
+
+            data.emplace_back(24);
+            auto back = data.emplace_back(42);
+            expect(eq(back, data.back()));
+        }
+        {
+            svec data;
+
+            data.emplace_back(24);
+            auto back = data.emplace_back(42);
+            expect(eq(back, data.back()));
+        }
+    };
+
+    "test_pop_back"_test = [] {
+        std::vector<int> compare_data{ 0, 1, 2, 3, 4, 5, 6, 7, 8, 9 };
+
+        {
+            vec data(compare_data.begin(), compare_data.end());
+
+            compare_data.pop_back();
+            compare_data.pop_back();
+
+            data.pop_back();
+            data.pop_back();
+
+            expect(eq(compare_data.size(), data.size()));
+
+            bool is_equal =
+              std::equal(data.begin(), data.end(), compare_data.begin());
+
+            expect(is_equal);
+        }
+        {
+            svec data(compare_data.begin(), compare_data.end());
+
+            compare_data.pop_back();
+            compare_data.pop_back();
+
+            data.pop_back();
+            data.pop_back();
+
+            expect(eq(compare_data.size(), data.size()));
+
+            bool is_equal =
+              std::equal(data.begin(), data.end(), compare_data.begin());
+
+            expect(is_equal);
+        }
+    };
+
+    "test_pop_back_exception"_test = [] {
+        {
+            vec data;
+
+            data.resize(2);
+
+            data.pop_back();
+            data.pop_back();
+
+            expect(data.size() == 0);
+        }
+        {
+            svec data;
+
+            data.resize(2);
+
+            data.pop_back();
+            data.pop_back();
+
+            expect(data.size() == 0);
+        }
+    };
+
+    "test_insert_position_value"_test = [] {
+        const size_t     INITIAL_SIZE  = 5;
+        const int        INITIAL_VALUE = 1;
+        std::vector<int> sorted_vec{ 0, 1, 2, 3, 4, 5, 6, 7, 8, 9 };
+
+        for (size_t offset = 0; offset <= INITIAL_SIZE; ++offset) {
+            std::vector<int> compare_data;
+            vec              data;
+
+            data.assign(sorted_vec.begin(), sorted_vec.begin() + INITIAL_SIZE);
+            compare_data.assign(sorted_vec.begin(),
+                                sorted_vec.begin() + INITIAL_SIZE);
+            expect(eq(compare_data.size(), data.size()));
+
+            data.insert(data.cbegin() + offset, INITIAL_VALUE);
+            compare_data.insert(compare_data.cbegin() + offset, INITIAL_VALUE);
+
+            expect(eq(compare_data.size(), data.size()));
+
+            bool is_equal =
+              std::equal(data.cbegin(), data.cend(), compare_data.cbegin());
+
+            expect(is_equal);
+        }
     };
 }

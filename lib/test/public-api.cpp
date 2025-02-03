@@ -1065,7 +1065,9 @@ int main()
             float x = 0, y = 0;
         };
 
-        irt::vector<position> pos(4, 4);
+        irt::vector<position> pos(4);
+        expect(pos.capacity() >= 4);
+        expect(pos.size() == 4);
         pos[0].x = 0;
         pos[1].x = 1;
         pos[2].x = 2;
@@ -1673,7 +1675,7 @@ int main()
 
     "hierarchy-simple"_test = [] {
         struct data_type {
-            data_type(int i_) noexcept
+            explicit data_type(int i_) noexcept
               : i(i_)
             {}
 
@@ -1681,7 +1683,7 @@ int main()
             irt::hierarchy<data_type> d;
         };
 
-        irt::vector<data_type> data(256);
+        irt::vector<data_type> data(256, irt::reserve_tag{});
         data_type              parent(999);
         parent.d.set_id(&parent);
 

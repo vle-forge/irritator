@@ -9,6 +9,7 @@
 
 #include <algorithm>
 #include <bitset>
+#include <initializer_list>
 #include <iterator>
 #include <limits>
 #include <memory>
@@ -41,8 +42,25 @@ using ssz = ptrdiff_t;
 using f32 = float;
 using f64 = double;
 
-/** Returns true if the integer @c t is greater or equal to @c min_include and
- * less or equal to @c max_include. */
+template<typename T>
+concept not_integral = not std::is_integral_v<T>;
+
+/**
+   tag to allow small_vector<T, S> and vector<T, A> to reserve memory without
+   resize.
+
+   @code
+   irt::vector<int> vec(10, reserve_tag{});
+   irt::debug::ensure(vec.capacity() > 10);
+   irt::debug::ensure(vec.size() == 0);
+   @endcode
+ */
+struct reserve_tag {};
+
+/**
+   Returns true if the integer @c t is greater or equal to @c min_include and
+   less or equal to @c max_include.
+ */
 template<std::integral T, std::integral R1, std::integral R2>
 constexpr bool is_included(const T  t,
                            const R1 min_include,
@@ -585,17 +603,18 @@ template<typename T, typename A = allocator<new_delete_memory_resource>>
 class vector
 {
 public:
-    using value_type      = T;
-    using size_type       = std::uint32_t;
-    using index_type      = std::make_signed_t<size_type>;
-    using iterator        = T*;
-    using const_iterator  = const T*;
-    using reference       = T&;
-    using const_reference = const T&;
-    using pointer         = T*;
-    using const_pointer   = const T*;
-    using allocator_type  = A;
-    using this_container  = vector<T, A>;
+    using value_type       = T;
+    using size_type        = std::uint32_t;
+    using index_type       = std::make_signed_t<size_type>;
+    using iterator         = T*;
+    using const_iterator   = const T*;
+    using reference        = T&;
+    using const_reference  = const T&;
+    using rvalue_reference = T&&;
+    using pointer          = T*;
+    using const_pointer    = const T*;
+    using allocator_type   = A;
+    using this_container   = vector<T, A>;
 
 private:
     static_assert(std::is_nothrow_destructible_v<T> ||
@@ -607,13 +626,35 @@ private:
     index_type m_capacity = 0;
 
 public:
-    constexpr vector() noexcept;
-    explicit vector(std::integral auto capacity) noexcept;
+    constexpr vector() noexcept = default;
+    explicit vector(std::integral auto size) noexcept;
 
-    vector(std::integral auto capacity, std::integral auto size) noexcept;
+    vector(std::integral auto capacity, const reserve_tag) noexcept;
+
+    vector(std::integral auto size, const_reference value) noexcept;
+
     vector(std::integral auto capacity,
            std::integral auto size,
            const T&           default_value) noexcept;
+
+    template<not_integral InputIterator>
+    vector(InputIterator first, InputIterator last) noexcept;
+
+    /**
+       Equivalent to vector(init.begin(), init.end()).
+
+       @code
+       irt::vector<int> x{ 1, 2, 3, 4 };
+       irt::debug::ensure(x.size() == 4u);
+       irt::debug::ensure(x[0] == 1);
+       irt::debug::ensure(x[1] == 2);
+       irt::debug::ensure(x[2] == 3);
+       irt::debug::ensure(x[3] == 4);
+       @endcode
+
+       @param init
+     */
+    explicit vector(std::initializer_list<T> init) noexcept;
 
     ~vector() noexcept;
 
@@ -623,10 +664,23 @@ public:
     constexpr vector& operator=(vector&& other) noexcept;
 
     bool resize(std::integral auto size) noexcept;
+    bool resize(std::integral auto size, const_reference value) noexcept;
+
     bool reserve(std::integral auto new_capacity) noexcept;
 
     void destroy() noexcept; // clear all elements and free memory (size
                              // = 0, capacity = 0 after).
+
+    template<not_integral InputIterator>
+    constexpr void assign(InputIterator first, InputIterator last) noexcept;
+
+    constexpr void assign(std::integral auto size,
+                          const_reference    value) noexcept;
+
+    constexpr iterator insert(const_iterator  it,
+                              const_reference value) noexcept;
+    constexpr iterator insert(const_iterator   it,
+                              rvalue_reference value) noexcept;
 
     constexpr void clear() noexcept; // clear all elements (size = 0 after).
     constexpr void swap(vector<T, A>& other) noexcept;
@@ -647,6 +701,8 @@ public:
     constexpr const_iterator begin() const noexcept;
     constexpr iterator       end() noexcept;
     constexpr const_iterator end() const noexcept;
+    constexpr const_iterator cbegin() const noexcept;
+    constexpr const_iterator cend() const noexcept;
 
     constexpr bool     can_alloc(std::integral auto number = 1) const noexcept;
     constexpr unsigned size() const noexcept;
@@ -1758,6 +1814,15 @@ public:
     constexpr small_vector() noexcept = default;
     constexpr ~small_vector() noexcept;
 
+    constexpr small_vector(std::integral auto size) noexcept;
+    constexpr small_vector(std::integral auto size,
+                           const_reference    value) noexcept;
+
+    template<not_integral InputIterator>
+    constexpr small_vector(InputIterator first, InputIterator last) noexcept;
+
+    explicit constexpr small_vector(std::initializer_list<T> init) noexcept;
+
     constexpr small_vector(const small_vector& other) noexcept;
     constexpr small_vector& operator=(const small_vector& other) noexcept;
     constexpr small_vector(small_vector&& other) noexcept
@@ -1765,7 +1830,15 @@ public:
     constexpr small_vector& operator=(small_vector&& other) noexcept
         requires(std::is_move_assignable_v<T>);
 
+    template<not_integral InputIterator>
+    constexpr void assign(InputIterator first, InputIterator last) noexcept;
+
+    constexpr void assign(std::integral auto size,
+                          const_reference    value) noexcept;
+
     constexpr void resize(std::integral auto capacity) noexcept;
+    constexpr void resize(std::integral auto capacity,
+                          const_reference    value) noexcept;
     constexpr void clear() noexcept;
 
     constexpr reference       front() noexcept;
@@ -2055,7 +2128,7 @@ id_array<Identifier, A>::get_index(Identifier id) noexcept
 template<typename Identifier, typename A>
 constexpr id_array<Identifier, A>::id_array(
   std::integral auto capacity) noexcept
-  : m_items{ capacity }
+  : m_items(capacity, reserve_tag{})
 {}
 
 template<typename Identifier, typename A>
@@ -3061,10 +3134,6 @@ data_array<T, Identifier, A>::end() const noexcept
 //
 
 template<typename T, typename A>
-constexpr vector<T, A>::vector() noexcept
-{}
-
-template<typename T, typename A>
 constexpr bool vector<T, A>::make(std::integral auto capacity) noexcept
 {
     debug::ensure(std::cmp_greater(capacity, 0));
@@ -3142,16 +3211,23 @@ constexpr bool vector<T, A>::make(std::integral auto capacity,
 }
 
 template<typename T, typename A>
-inline vector<T, A>::vector(std::integral auto capacity) noexcept
+inline vector<T, A>::vector(std::integral auto size) noexcept
+{
+    make(size, size);
+}
+
+template<typename T, typename A>
+inline vector<T, A>::vector(std::integral auto capacity,
+                            const reserve_tag) noexcept
 {
     make(capacity);
 }
 
 template<typename T, typename A>
-inline vector<T, A>::vector(std::integral auto capacity,
-                            std::integral auto size) noexcept
+inline vector<T, A>::vector(std::integral auto size,
+                            const_reference    value) noexcept
 {
-    make(capacity, size);
+    make(size, size, value);
 }
 
 template<typename T, typename A>
@@ -3160,6 +3236,19 @@ inline vector<T, A>::vector(std::integral auto capacity,
                             const T&           default_value) noexcept
 {
     make(capacity, size, default_value);
+}
+
+template<typename T, typename A>
+inline vector<T, A>::vector(std::initializer_list<T> init) noexcept
+{
+    assign(init.begin(), init.end());
+}
+
+template<typename T, typename A>
+template<not_integral InputIterator>
+inline vector<T, A>::vector(InputIterator first, InputIterator last) noexcept
+{
+    assign(first, last);
 }
 
 template<typename T, typename A>
@@ -3217,6 +3306,106 @@ inline constexpr vector<T, A>& vector<T, A>::operator=(vector&& other) noexcept
 }
 
 template<typename T, typename A>
+template<not_integral InputIterator>
+inline constexpr void vector<T, A>::assign(InputIterator first,
+                                           InputIterator last) noexcept
+{
+    clear();
+
+    const auto distance = std::distance(first, last);
+    if (std::cmp_less(m_capacity, distance))
+        reserve(distance);
+
+    m_size = static_cast<size_type>(distance);
+    std::uninitialized_copy_n(first, m_size, data());
+}
+
+template<typename T, typename A>
+inline constexpr void vector<T, A>::assign(std::integral auto size,
+                                           const_reference    value) noexcept
+{
+    clear();
+
+    if (std::cmp_less(m_capacity, size))
+        reserve(size);
+
+    m_size = static_cast<size_type>(size);
+    std::uninitialized_fill_n(data(), m_size, value);
+}
+
+template<typename T, typename A>
+constexpr typename vector<T, A>::iterator vector<T, A>::insert(
+  const_iterator  it,
+  const_reference value) noexcept
+{
+    if (it == cend()) {
+        push_back(value);
+        return begin() + m_size - 1;
+    }
+
+    const auto distance = std::distance(cbegin(), it);
+
+    if (m_size < m_capacity) {
+        std::move_backward(
+          begin() + distance, begin() + m_size, begin() + m_size);
+        std::construct_at(begin() + distance, std::move(value));
+        ++m_size;
+    } else {
+        const auto new_capacity = compute_new_capacity(m_capacity * 2);
+        if (auto* ret = A::allocate(sizeof(T) * new_capacity)) {
+            auto new_data = reinterpret_cast<T*>(ret);
+            std::uninitialized_move_n(m_data, distance, new_data);
+            std::construct_at(new_data + distance, value);
+            std::uninitialized_move_n(
+              m_data + distance, m_size - distance, new_data + distance + 1);
+
+            A::deallocate(m_data, m_capacity * sizeof(T));
+            m_data     = new_data;
+            m_capacity = new_capacity;
+            ++m_size;
+        }
+    }
+
+    return begin() + distance;
+}
+
+template<typename T, typename A>
+constexpr typename vector<T, A>::iterator vector<T, A>::insert(
+  const_iterator   it,
+  rvalue_reference value) noexcept
+{
+    if (it == cend()) {
+        push_back(std::move(value));
+        return begin() + m_size - 1;
+    }
+
+    const auto distance = std::distance(cbegin(), it);
+
+    if (m_size < m_capacity) {
+        std::move_backward(
+          begin() + distance, begin() + m_size, begin() + m_size);
+        std::construct_at(begin() + distance, std::move(value));
+        ++m_size;
+    } else {
+        const auto new_capacity = compute_new_capacity(m_capacity * 2);
+        if (auto* ret = A::allocate(sizeof(T) * new_capacity)) {
+            auto new_data = reinterpret_cast<T*>(ret);
+            std::uninitialized_move_n(m_data, distance, new_data);
+            std::construct_at(new_data + distance, std::move(value));
+            std::uninitialized_move_n(
+              m_data + distance, m_size - distance, new_data + distance + 1);
+
+            A::deallocate(m_data, m_capacity * sizeof(T));
+            m_data     = new_data;
+            m_capacity = new_capacity;
+            ++m_size;
+        }
+    }
+
+    return begin() + distance;
+}
+
+template<typename T, typename A>
 inline void vector<T, A>::destroy() noexcept
 {
     clear();
@@ -3267,6 +3456,36 @@ bool vector<T, A>::resize(std::integral auto size) noexcept
         }
 
         std::uninitialized_value_construct_n(data() + m_size, size - m_size);
+    }
+
+    m_size = static_cast<index_type>(size);
+
+    return true;
+}
+
+template<typename T, typename A>
+bool vector<T, A>::resize(std::integral auto size,
+                          const_reference    value) noexcept
+{
+    static_assert(std::is_default_constructible_v<T> ||
+                    std::is_trivially_default_constructible_v<T>,
+                  "T must be default or trivially default constructible to use "
+                  "resize() function");
+
+    debug::ensure(std::cmp_less(size, std::numeric_limits<index_type>::max()));
+
+    if (std::cmp_equal(size, m_size))
+        return true;
+
+    if (std::cmp_less(size, m_size)) {
+        std::destroy_n(data() + size, m_size - size);
+    } else {
+        if (std::cmp_greater(size, m_capacity)) {
+            if (!reserve(compute_new_capacity(static_cast<index_type>(size))))
+                return false;
+        }
+
+        std::uninitialized_fill_n(data() + m_size, size - m_size, value);
     }
 
     m_size = static_cast<index_type>(size);
@@ -3377,6 +3596,13 @@ inline constexpr typename vector<T, A>::const_iterator vector<T, A>::begin()
 }
 
 template<typename T, typename A>
+inline constexpr typename vector<T, A>::const_iterator vector<T, A>::cbegin()
+  const noexcept
+{
+    return data();
+}
+
+template<typename T, typename A>
 inline constexpr typename vector<T, A>::iterator vector<T, A>::end() noexcept
 {
     return data() + m_size;
@@ -3384,6 +3610,13 @@ inline constexpr typename vector<T, A>::iterator vector<T, A>::end() noexcept
 
 template<typename T, typename A>
 inline constexpr typename vector<T, A>::const_iterator vector<T, A>::end()
+  const noexcept
+{
+    return data() + m_size;
+}
+
+template<typename T, typename A>
+inline constexpr typename vector<T, A>::const_iterator vector<T, A>::cend()
   const noexcept
 {
     return data() + m_size;
@@ -3616,6 +3849,49 @@ constexpr small_vector<T, length>::small_vector(
 }
 
 template<typename T, int length>
+constexpr small_vector<T, length>::small_vector(
+  std::integral auto size) noexcept
+{
+    if (std::cmp_less(size, 0))
+        m_size = 0;
+    else if (std::cmp_less(length, size))
+        m_size = length;
+    else
+        m_size = static_cast<size_type>(size);
+
+    std::uninitialized_value_construct_n(data(), m_size);
+}
+
+template<typename T, int length>
+constexpr small_vector<T, length>::small_vector(std::integral auto size,
+                                                const_reference value) noexcept
+{
+    if (std::cmp_less(size, 0))
+        m_size = 0;
+    else if (std::cmp_less(length, size))
+        m_size = length;
+    else
+        m_size = static_cast<size_type>(size);
+
+    std::uninitialized_fill_n(data(), m_size, value);
+}
+
+template<typename T, int length>
+constexpr small_vector<T, length>::small_vector(
+  std::initializer_list<T> init) noexcept
+{
+    assign(init.begin(), init.end());
+}
+
+template<typename T, int length>
+template<not_integral InputIterator>
+constexpr small_vector<T, length>::small_vector(InputIterator first,
+                                                InputIterator last) noexcept
+{
+    assign(first, last);
+}
+
+template<typename T, int length>
 constexpr small_vector<T, length>::~small_vector() noexcept
 {
     std::destroy_n(data(), m_size);
@@ -3682,6 +3958,38 @@ constexpr small_vector<T, length>& small_vector<T, length>::operator=(
 }
 
 template<typename T, int length>
+template<not_integral InputIterator>
+constexpr void small_vector<T, length>::assign(InputIterator first,
+                                               InputIterator last) noexcept
+{
+    clear();
+
+    const auto distance = std::distance(first, last);
+    if (std::cmp_less(length, distance))
+        m_size = length;
+    else
+        m_size = static_cast<size_type>(distance);
+
+    std::uninitialized_copy_n(first, m_size, data());
+}
+
+template<typename T, int length>
+constexpr void small_vector<T, length>::assign(std::integral auto size,
+                                               const_reference value) noexcept
+{
+    clear();
+
+    if (std::cmp_less_equal(size, 0))
+        m_size = 0;
+    else if (std::cmp_less(length, size))
+        m_size = length;
+    else
+        m_size = size;
+
+    std::uninitialized_fill_n(data(), m_size, value);
+}
+
+template<typename T, int length>
 constexpr void small_vector<T, length>::resize(
   std::integral auto default_size) noexcept
 {
@@ -3689,20 +3997,42 @@ constexpr void small_vector<T, length>::resize(
                   "T must be nothrow default constructible to use "
                   "init() function");
 
-    debug::ensure(std::cmp_greater_equal(default_size, 0) &&
-                  std::cmp_less(default_size, length));
-
-    if (!std::cmp_greater_equal(default_size, 0))
+    if (std::cmp_greater(0, default_size))
         default_size = 0;
 
-    if (!std::cmp_less(default_size, length))
-        default_size = length - 1;
+    if (std::cmp_less(length, default_size))
+        default_size = length;
 
     const auto new_default_size = static_cast<size_type>(default_size);
 
     if (new_default_size > m_size)
         std::uninitialized_value_construct_n(data() + m_size,
                                              new_default_size - m_size);
+    else
+        std::destroy_n(data() + new_default_size, m_size - new_default_size);
+
+    m_size = new_default_size;
+}
+
+template<typename T, int length>
+constexpr void small_vector<T, length>::resize(std::integral auto default_size,
+                                               const_reference value) noexcept
+{
+    static_assert(std::is_nothrow_default_constructible_v<T>,
+                  "T must be nothrow default constructible to use "
+                  "init() function");
+
+    if (std::cmp_greater(0, default_size))
+        default_size = 0;
+
+    if (std::cmp_less(length, default_size))
+        default_size = length;
+
+    const auto new_default_size = static_cast<size_type>(default_size);
+
+    if (new_default_size > m_size)
+        std::uninitialized_fill_n(
+          data() + m_size, new_default_size - m_size, value);
     else
         std::destroy_n(data() + new_default_size, m_size - new_default_size);
 
@@ -5606,6 +5936,120 @@ constexpr typename bitflags<EnumT>::underlying_type bitflags<EnumT>::underlying(
   value_type e) noexcept
 {
     return static_cast<typename bitflags<EnumT>::underlying_type>(e);
+}
+
+/**
+   Equal vector operator.
+
+   @param lhs Reference to the first vector.
+   @param rhs Reference to the second vector.
+   @return @c true if the arrays are equal, otherwise @c false.
+ */
+template<typename T>
+constexpr bool operator==(const vector<T>& lhs, const vector<T>& rhs) noexcept
+{
+    return lhs.size() == rhs.size() and
+           std::equal(lhs.begin(), lhs.end(), rhs.begin());
+}
+
+/**
+   Equal vector operator.
+
+   @param lhs Reference to the first vector.
+   @param rhs Reference to the second vector.
+   @return @c true if the arrays are equal, otherwise @c false.
+ */
+template<typename T, int Length>
+constexpr bool operator==(const vector<T>&               lhs,
+                          const small_vector<T, Length>& rhs) noexcept
+{
+    return lhs.size() == rhs.size() and
+           std::equal(lhs.begin(), lhs.end(), rhs.begin());
+}
+
+/**
+   Equal vector operator.
+
+   @param lhs Reference to the first vector.
+   @param rhs Reference to the second vector.
+   @return @c true if the arrays are equal, otherwise @c false.
+ */
+template<typename T, int Length>
+constexpr bool operator==(const small_vector<T, Length>& lhs,
+                          const vector<T>&               rhs) noexcept
+{
+    return lhs.size() == rhs.size() and
+           std::equal(lhs.begin(), lhs.end(), rhs.begin());
+}
+
+/**
+   Equal vector operator.
+
+   @param lhs Reference to the first vector.
+   @param rhs Reference to the second vector.
+   @return @c true if the arrays are equal, otherwise @c false.
+ */
+template<typename T, int LengthLhs, int LengthRhs>
+constexpr bool operator==(const small_vector<T, LengthLhs>& lhs,
+                          const small_vector<T, LengthRhs>& rhs) noexcept
+{
+    return lhs.size() == rhs.size() and
+           std::equal(lhs.begin(), lhs.end(), rhs.begin());
+}
+
+/**
+   Not equal vector operator.
+
+   @param lhs Reference to the first vector.
+   @param rhs Reference to the second vector.
+   @return @c true if the arrays are not equal, otherwise @c false.
+ */
+template<typename T>
+constexpr bool operator!=(const vector<T>& lhs, const vector<T>& rhs) noexcept
+{
+    return not(lhs == rhs);
+}
+
+/**
+   Not equal vector operator.
+
+   @param lhs Reference to the first vector.
+   @param rhs Reference to the second vector.
+   @return @c true if the arrays are not equal, otherwise @c false.
+ */
+template<typename T, int Length>
+constexpr bool operator!=(const vector<T>&               lhs,
+                          const small_vector<T, Length>& rhs) noexcept
+{
+    return not(lhs == rhs);
+}
+
+/**
+   Not equal vector operator.
+
+   @param lhs Reference to the first vector.
+   @param rhs Reference to the second vector.
+   @return @c true if the arrays are not equal, otherwise @c false.
+ */
+template<typename T, int Length>
+constexpr bool operator!=(const small_vector<T, Length>& lhs,
+                          const vector<T>&               rhs) noexcept
+{
+    return not(lhs == rhs);
+}
+
+/**
+   Not equal vector operator.
+
+   @param lhs Reference to the first vector.
+   @param rhs Reference to the second vector.
+   @return @c true if the arrays are not equal, otherwise @c false.
+ */
+template<typename T, int LengthLhs, int LengthRhs>
+constexpr bool operator!=(const small_vector<T, LengthLhs>& lhs,
+                          const small_vector<T, LengthRhs>& rhs) noexcept
+{
+    return not(lhs == rhs);
 }
 
 } // namespace irt
