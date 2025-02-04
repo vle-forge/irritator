@@ -372,7 +372,7 @@ static void parameter_init(parameter& param, const logical_invert& dyn) noexcept
 
 static void model_init(const parameter& param, hsm_wrapper& dyn) noexcept
 {
-    dyn.id                     = static_cast<u64>(param.integers[0]);
+    dyn.id                     = static_cast<u32>(param.integers[0]);
     dyn.exec.i1                = static_cast<i32>(param.integers[1]);
     dyn.exec.i2                = static_cast<i32>(param.integers[2]);
     dyn.exec.source_value.id   = get_source_id(param.integers[3]);
