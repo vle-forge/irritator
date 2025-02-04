@@ -43,22 +43,22 @@ human_readable_time::human_readable_time(const std::size_t duration) noexcept
     const auto hours        = minutes / 60;
 
     if (hours > 1.0) {
-        value = hours;
+        value = static_cast<double>(hours);
         type  = display_type::hours;
     } else if (minutes > 1.0) {
-        value = minutes;
+        value = static_cast<double>(minutes);
         type  = display_type::minutes;
     } else if (seconds > 1.0) {
-        value = seconds;
+        value = static_cast<double>(seconds);
         type  = display_type::seconds;
     } else if (milliseconds > 1.0) {
-        value = milliseconds;
+        value = static_cast<double>(milliseconds);
         type  = display_type::milliseconds;
     } else if (microseconds > 1.0) {
-        value = hours;
+        value = static_cast<double>(hours);
         type  = display_type::microseconds;
     } else {
-        value = nanoseconds;
+        value = static_cast<double>(nanoseconds);
         type  = display_type::nanoseconds;
     }
 }
