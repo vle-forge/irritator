@@ -270,8 +270,7 @@ static status apply(simulation&                            sim,
         break;
 
     case connection_point::operation_type::remove:
-        irt_check(
-          sim.disconnect(*mdl_src, cnt.port_src, *mdl_dst, cnt.port_dst));
+        sim.disconnect(*mdl_src, cnt.port_src, *mdl_dst, cnt.port_dst);
     }
 
     return success();

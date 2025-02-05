@@ -1295,10 +1295,10 @@ public:
                    DynamicsDst& dst,
                    int          port_dst) noexcept;
 
-    status disconnect(model& src,
-                      int    port_src,
-                      model& dst,
-                      int    port_dst) noexcept;
+    void disconnect(model& src,
+                    int    port_src,
+                    model& dst,
+                    int    port_dst) noexcept;
 
     /** Call the initialize member function for each model of the simulation an
      * prepare the simulation class to call the `run` function. */
@@ -5055,18 +5055,6 @@ inline bool is_ports_compatible(const model& mdl_src,
                                 const model& mdl_dst,
                                 const int    i_port_index) noexcept;
 
-inline status global_connect(simulation& sim,
-                             model&      src,
-                             int         port_src,
-                             model_id    dst,
-                             int         port_dst) noexcept;
-
-inline status global_disconnect(simulation& sim,
-                                model&      src,
-                                int         port_src,
-                                model_id    dst,
-                                int         port_dst) noexcept;
-
 /*****************************************************************************
  *
  * simulation
@@ -5918,12 +5906,36 @@ inline status simulation::connect(model& src,
                                   model& dst,
                                   int    port_dst) noexcept
 {
-    if (!is_ports_compatible(src, port_src, dst, port_dst))
+    if (not is_ports_compatible(src, port_src, dst, port_dst))
         return new_error(simulation::part::nodes, incompatibility_error{});
 
-    const auto dst_id = get_id(dst);
+    return dispatch(src, [&]<typename Dynamics>(Dynamics& dyn) -> status {
+        if constexpr (has_output_port<Dynamics>) {
+            auto* list = nodes.try_to_get(dyn.y[port_src]);
 
-    return global_connect(*this, src, port_src, dst_id, port_dst);
+            if (not list) {
+                auto& new_node  = nodes.alloc(4, reserve_tag{});
+                dyn.y[port_src] = nodes.get_id(new_node);
+                list            = &new_node;
+            }
+
+            for (const auto& elem : *list) {
+                if (elem.model == get_id(dst) && elem.port_index == port_dst)
+                    return new_error(simulation::part::nodes,
+                                     already_exist_error{});
+            }
+
+            // if (not list->can_alloc(1))
+            //     return new_error(simulation::part::nodes,
+            //                      container_full_error{});
+
+            list->emplace_back(get_id(dst), static_cast<i8>(port_dst));
+
+            return success();
+        }
+
+        unreachable();
+    });
 }
 
 inline bool simulation::can_connect(const model& src,
@@ -5953,22 +5965,28 @@ status simulation::connect(DynamicsSrc& src,
                            DynamicsDst& dst,
                            int          port_dst) noexcept
 {
-    model&   src_model    = get_model(src);
-    model&   dst_model    = get_model(dst);
-    model_id model_dst_id = get_id(dst);
-
-    if (!is_ports_compatible(src_model, port_src, dst_model, port_dst))
-        return new_error(simulation::part::nodes, incompatibility_error{});
-
-    return global_connect(*this, src_model, port_src, model_dst_id, port_dst);
+    return connect(get_model(src), port_src, get_model(dst), port_dst);
 }
 
-inline status simulation::disconnect(model& src,
-                                     int    port_src,
-                                     model& dst,
-                                     int    port_dst) noexcept
+inline void simulation::disconnect(model& src,
+                                   int    port_src,
+                                   model& dst,
+                                   int    port_dst) noexcept
 {
-    return global_disconnect(*this, src, port_src, get_id(dst), port_dst);
+    dispatch(src, [&]<typename Dynamics>(Dynamics& dyn) noexcept {
+        if constexpr (has_output_port<Dynamics>) {
+            if (auto* list = nodes.try_to_get(dyn.y[port_src]); list) {
+                for (auto it = list->begin(), end = list->end(); it != end;
+                     ++it) {
+                    if (it->model == models.get_id(dst) &&
+                        it->port_index == port_dst) {
+                        it = list->erase(it);
+                        return;
+                    }
+                }
+            }
+        }
+    });
 }
 
 inline status simulation::initialize() noexcept
@@ -6451,70 +6469,6 @@ inline bool is_ports_compatible(const model& mdl_src,
 
     return is_ports_compatible(
       mdl_src.type, o_port_index, mdl_dst.type, i_port_index);
-}
-
-inline status global_connect(simulation& sim,
-                             model&      src,
-                             int         port_src,
-                             model_id    dst,
-                             int         port_dst) noexcept
-{
-    return dispatch(
-      src,
-      [&sim, port_src, dst, port_dst]<typename Dynamics>(
-        Dynamics& dyn) -> status {
-          if constexpr (has_output_port<Dynamics>) {
-              auto* list = sim.nodes.try_to_get(dyn.y[port_src]);
-
-              if (not list) {
-                  auto& new_node  = sim.nodes.alloc(4, reserve_tag{});
-                  dyn.y[port_src] = sim.nodes.get_id(new_node);
-                  list            = &new_node;
-              }
-
-              for (const auto& elem : *list) {
-                  if (elem.model == dst && elem.port_index == port_dst)
-                      return new_error(simulation::part::nodes,
-                                       already_exist_error{});
-              }
-
-              // if (not list->can_alloc(1))
-              //     return new_error(simulation::part::nodes,
-              //                      container_full_error{});
-
-              list->emplace_back(dst, static_cast<i8>(port_dst));
-
-              return success();
-          }
-
-          unreachable();
-      });
-}
-
-inline status global_disconnect(simulation& sim,
-                                model&      src,
-                                int         port_src,
-                                model_id    dst,
-                                int         port_dst) noexcept
-{
-    return dispatch(
-      src,
-      [&sim, port_src, dst, port_dst]<typename Dynamics>(
-        Dynamics& dyn) -> status {
-          if constexpr (has_output_port<Dynamics>) {
-              if (auto* list = sim.nodes.try_to_get(dyn.y[port_src]); list) {
-                  for (auto it = list->begin(), end = list->end(); it != end;
-                       ++it) {
-                      if (it->model == dst && it->port_index == port_dst) {
-                          it = list->erase(it);
-                          return success();
-                      }
-                  }
-              }
-          }
-
-          unreachable();
-      });
 }
 
 inline result<message_id> get_input_port(model& src, int port_src) noexcept
