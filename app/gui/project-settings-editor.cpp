@@ -262,7 +262,7 @@ void project_settings_editor::show(project_editor& ed) noexcept
         }
 
         if (next_selection != ed.m_selected_tree_node)
-            ed.select(app.mod, next_selection);
+            ed.select(app, next_selection);
     }
 }
 

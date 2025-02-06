@@ -228,69 +228,59 @@ static bool run(application& app, project_editor& ed) noexcept
     return success;
 }
 
-void project_editor::start_simulation_static_run(application& app) noexcept
+void project_editor::start_simulation_update_state(application& app) noexcept
 {
-    app.add_simulation_task([&]() noexcept {
-        simulation_state = simulation_status::running;
-        namespace stdc   = std::chrono;
+    if (any_equal(simulation_state,
+                  simulation_status::paused,
+                  simulation_status::run_requiring)) {
 
-        auto start_at = stdc::high_resolution_clock::now();
-        auto end_at   = stdc::high_resolution_clock::now();
-        auto duration = end_at - start_at;
+        if (have_send_message) {
+            const auto mdl_id = *have_send_message;
+            const auto t      = irt::time_domain<time>::is_infinity(pj.sim.t)
+                                  ? pj.sim.last_valid_t
+                                  : pj.sim.t;
 
-        auto duration_cast = stdc::duration_cast<stdc::microseconds>(duration);
-        auto duration_since_start = duration_cast.count();
+            if_data_exists_do(pj.sim.models, mdl_id, [&](auto& m) noexcept {
+                if (m.type == dynamics_type::constant) {
+                    if (m.handle == invalid_heap_handle) {
+                        pj.sim.sched.alloc(m, mdl_id, t);
+                    } else {
+                        if (pj.sim.sched.is_in_tree(m.handle)) {
+                            pj.sim.sched.update(m, t);
+                        } else {
+                            pj.sim.sched.reintegrate(m, t);
+                        }
+                    }
 
-        bool stop_or_pause;
-
-        do {
-            if (simulation_state != simulation_status::running)
-                return;
-
-            if (store_all_changes) {
-                if (auto ret = debug_run(app, *this); !ret) {
-                    simulation_state = simulation_status::finish_requiring;
-                    simulation_display_current = pj.sim.t;
-                    return;
+                    m.tn = t;
                 }
-            } else {
-                if (auto ret = run(app, *this); !ret) {
-                    simulation_state = simulation_status::finish_requiring;
-                    simulation_display_current = pj.sim.t;
-                    return;
-                }
-            }
+            });
 
-            start_simulation_observation(app);
-
-            if (not time_domain<time>::is_infinity(pj.t_limit.begin()) &&
-                pj.sim.t >= pj.t_limit.end()) {
-                pj.sim.t         = pj.t_limit.end();
-                simulation_state = simulation_status::finish_requiring;
-                simulation_display_current = pj.sim.t;
-                return;
-            }
-
-            end_at        = stdc::high_resolution_clock::now();
-            duration      = end_at - start_at;
-            duration_cast = stdc::duration_cast<stdc::microseconds>(duration);
-            duration_since_start = duration_cast.count();
-            stop_or_pause        = force_pause || force_stop;
-        } while (!stop_or_pause &&
-                 duration_since_start < thread_frame_duration);
-
-        simulation_display_current = pj.sim.t;
-
-        if (force_pause) {
-            force_pause      = false;
-            simulation_state = simulation_status::pause_forced;
-        } else if (force_stop) {
-            force_stop       = false;
-            simulation_state = simulation_status::finish_requiring;
-        } else {
-            simulation_state = simulation_status::paused;
+            have_send_message.reset();
         }
-    });
+
+        simulation_state = simulation_status::run_requiring;
+
+        if (real_time)
+            start_simulation_live_run(app);
+        else
+            start_simulation_static_run(app);
+    }
+
+    if (simulation_state == simulation_status::finish_requiring) {
+        simulation_state = simulation_status::finishing;
+        start_simulation_finish(app);
+    }
+
+    auto       it = models_to_move.begin();
+    const auto et = models_to_move.end();
+
+    for (; it != et; ++it) {
+        const auto index   = get_index(it->first);
+        const auto index_i = static_cast<int>(index);
+
+        ImNodes::SetNodeScreenSpacePos(index_i, it->second);
+    }
 }
 
 static bool is_simulation_state_not_running(simulation_status s) noexcept
@@ -312,6 +302,215 @@ static bool is_simulation_force_stop(simulation_status& s, bool stop) noexcept
         s = simulation_status::finish_requiring;
 
     return stop;
+}
+
+void project_editor::start_simulation_copy_modeling(application& app) noexcept
+{
+    bool state = any_equal(simulation_state,
+                           simulation_status::initialized,
+                           simulation_status::not_started,
+                           simulation_status::finished);
+
+    debug::ensure(state);
+
+    if (state) {
+        auto* modeling_head = pj.tn_head();
+        if (!modeling_head) {
+            auto& notif = app.notifications.alloc(log_level::error);
+            notif.title = "Empty model";
+            app.notifications.enable(notif);
+        } else {
+            force_pause = false;
+            force_stop  = false;
+
+            start_simulation_clear(app);
+
+            app.add_simulation_task(
+              [&]() noexcept { simulation_copy(app, *this); });
+
+            start_simulation_init(app);
+        }
+    }
+}
+
+void project_editor::start_simulation_init(application& app) noexcept
+{
+    bool state = any_equal(simulation_state,
+                           simulation_status::initialized,
+                           simulation_status::not_started,
+                           simulation_status::finished);
+
+    debug::ensure(state);
+
+    if (state) {
+        app.add_simulation_task([&]() noexcept {
+            force_pause = false;
+            force_stop  = false;
+            simulation_init(app, *this);
+        });
+    }
+}
+
+void project_editor::start_simulation_delete(application& app) noexcept
+{
+    // Disable display graph node to avoid data race on @c
+    // simulation_editor::simulation data.
+    display_graph = false;
+
+    app.add_simulation_task([&]() noexcept {
+        std::scoped_lock lock(app.sim_mutex);
+        pj.clear();
+        pj.sim.clear();
+    });
+}
+
+void project_editor::start_simulation_clear(application& app) noexcept
+{
+    // Disable display graph node to avoid data race on @c
+    // simulation_editor::simulation data.
+    display_graph = false;
+
+    app.add_simulation_task([&]() noexcept {
+        std::scoped_lock lock(app.sim_mutex);
+        pj.sim.clear();
+    });
+}
+
+void project_editor::start_simulation_start(application& app) noexcept
+{
+    const auto state = any_equal(simulation_state,
+                                 simulation_status::initialized,
+                                 simulation_status::pause_forced,
+                                 simulation_status::run_requiring);
+
+    debug::ensure(state);
+
+    if (state) {
+        start = std::chrono::high_resolution_clock::now();
+
+        if (real_time)
+            start_simulation_live_run(app);
+        else
+            start_simulation_static_run(app);
+    }
+}
+
+void project_editor::start_simulation_observation(application& app) noexcept
+{
+    auto& task_list = app.get_unordered_task_list(0);
+
+    debug::ensure(simulation_state != simulation_status::finished);
+
+    constexpr int capacity = 255;
+    int           obs_max  = pj.sim.immediate_observers.ssize();
+    int           current  = 0;
+
+    while (obs_max > 0) {
+        int loop = std::min(obs_max, capacity);
+
+        for (int i = 0; i != loop; ++i) {
+            auto obs_id = pj.sim.immediate_observers[i + current];
+
+            task_list.add([&, obs_id]() noexcept {
+                if_data_exists_do(pj.sim.observers,
+                                  obs_id,
+                                  [&](observer& obs) noexcept -> void {
+                                      while (obs.buffer.ssize() > 2)
+                                          write_interpolate_data(obs,
+                                                                 obs.time_step);
+                                  });
+            });
+        }
+
+        task_list.submit();
+        task_list.wait();
+
+        current += loop;
+        if (obs_max > capacity)
+            obs_max -= capacity;
+        else
+            obs_max = 0;
+    }
+
+    current = 0;
+    for (auto& g : pj.grid_observers) {
+        const auto g_id = pj.grid_observers.get_id(g);
+        task_list.add([&, g_id]() noexcept {
+            if (auto* g = pj.grid_observers.try_to_get(g_id); g)
+                if (g->can_update(pj.sim.t))
+                    g->update(pj.sim);
+        });
+
+        ++current;
+        if (current == obs_max) {
+            task_list.submit();
+            task_list.wait();
+            current = 0;
+        }
+    }
+
+    for (auto& g : pj.graph_observers) {
+        const auto g_id = pj.graph_observers.get_id(g);
+        task_list.add([&, g_id]() noexcept {
+            if (auto* g = pj.graph_observers.try_to_get(g_id); g)
+                if (g->can_update(pj.sim.t))
+                    g->update(pj.sim);
+        });
+        ++current;
+        if (current == obs_max) {
+            task_list.submit();
+            task_list.wait();
+            current = 0;
+        }
+    }
+
+    if (current > 0) {
+        task_list.submit();
+        task_list.wait();
+    }
+
+    if (pj.file_obs.can_update(pj.sim.t))
+        pj.file_obs.update(pj.sim, pj);
+}
+
+void project_editor::stop_simulation_observation(application& app) noexcept
+{
+    auto& task_list = app.get_unordered_task_list(0);
+
+    debug::ensure(simulation_state == simulation_status::finishing);
+
+    constexpr int capacity = 255;
+    int           obs_max  = pj.sim.observers.ssize();
+    observer*     obs      = nullptr;
+
+    while (pj.sim.observers.next(obs)) {
+        int loop = std::min(obs_max, capacity);
+
+        for (int i = 0; i != loop; ++i) {
+            auto obs_id = pj.sim.observers.get_id(*obs);
+            pj.sim.observers.next(obs);
+
+            task_list.add([&, obs_id]() noexcept {
+                if_data_exists_do(pj.sim.observers,
+                                  obs_id,
+                                  [&](observer& obs) noexcept -> void {
+                                      while (obs.buffer.ssize() > 2)
+                                          flush_interpolate_data(obs,
+                                                                 obs.time_step);
+                                  });
+            });
+        }
+
+        task_list.submit();
+        task_list.wait();
+
+        if (obs_max >= capacity)
+            obs_max -= capacity;
+        else
+            obs_max = 0;
+    }
+
+    pj.file_obs.finalize();
 }
 
 void project_editor::start_simulation_live_run(application& app) noexcept
@@ -407,269 +606,69 @@ void project_editor::start_simulation_live_run(application& app) noexcept
     });
 }
 
-void project_editor::start_simulation_update_state(application& app) noexcept
+void project_editor::start_simulation_static_run(application& app) noexcept
 {
-    if (any_equal(simulation_state,
-                  simulation_status::paused,
-                  simulation_status::run_requiring)) {
+    app.add_simulation_task([&]() noexcept {
+        simulation_state = simulation_status::running;
+        namespace stdc   = std::chrono;
 
-        if (have_send_message) {
-            const auto mdl_id = *have_send_message;
-            const auto t      = irt::time_domain<time>::is_infinity(pj.sim.t)
-                                  ? pj.sim.last_valid_t
-                                  : pj.sim.t;
+        auto start_at = stdc::high_resolution_clock::now();
+        auto end_at   = stdc::high_resolution_clock::now();
+        auto duration = end_at - start_at;
 
-            if_data_exists_do(pj.sim.models, mdl_id, [&](auto& m) noexcept {
-                if (m.type == dynamics_type::constant) {
-                    if (m.handle == invalid_heap_handle) {
-                        pj.sim.sched.alloc(m, mdl_id, t);
-                    } else {
-                        if (pj.sim.sched.is_in_tree(m.handle)) {
-                            pj.sim.sched.update(m, t);
-                        } else {
-                            pj.sim.sched.reintegrate(m, t);
-                        }
-                    }
+        auto duration_cast = stdc::duration_cast<stdc::microseconds>(duration);
+        auto duration_since_start = duration_cast.count();
 
-                    m.tn = t;
+        bool stop_or_pause;
+
+        do {
+            if (simulation_state != simulation_status::running)
+                return;
+
+            if (store_all_changes) {
+                if (auto ret = debug_run(app, *this); !ret) {
+                    simulation_state = simulation_status::finish_requiring;
+                    simulation_display_current = pj.sim.t;
+                    return;
                 }
-            });
+            } else {
+                if (auto ret = run(app, *this); !ret) {
+                    simulation_state = simulation_status::finish_requiring;
+                    simulation_display_current = pj.sim.t;
+                    return;
+                }
+            }
 
-            have_send_message.reset();
-        }
+            start_simulation_observation(app);
 
-        simulation_state = simulation_status::run_requiring;
+            if (not time_domain<time>::is_infinity(pj.t_limit.begin()) &&
+                pj.sim.t >= pj.t_limit.end()) {
+                pj.sim.t         = pj.t_limit.end();
+                simulation_state = simulation_status::finish_requiring;
+                simulation_display_current = pj.sim.t;
+                return;
+            }
 
-        if (real_time)
-            start_simulation_live_run(app);
-        else
-            start_simulation_static_run(app);
-    }
+            end_at        = stdc::high_resolution_clock::now();
+            duration      = end_at - start_at;
+            duration_cast = stdc::duration_cast<stdc::microseconds>(duration);
+            duration_since_start = duration_cast.count();
+            stop_or_pause        = force_pause || force_stop;
+        } while (!stop_or_pause &&
+                 duration_since_start < thread_frame_duration);
 
-    if (simulation_state == simulation_status::finish_requiring) {
-        simulation_state = simulation_status::finishing;
-        start_simulation_finish(app);
-    }
+        simulation_display_current = pj.sim.t;
 
-    auto       it = models_to_move.begin();
-    const auto et = models_to_move.end();
-
-    for (; it != et; ++it) {
-        const auto index   = get_index(it->first);
-        const auto index_i = static_cast<int>(index);
-
-        ImNodes::SetNodeScreenSpacePos(index_i, it->second);
-    }
-}
-
-void project_editor::start_simulation_copy_modeling(application& app) noexcept
-{
-    bool state = any_equal(simulation_state,
-                           simulation_status::initialized,
-                           simulation_status::not_started,
-                           simulation_status::finished);
-
-    debug::ensure(state);
-
-    if (state) {
-        auto* modeling_head = pj.tn_head();
-        if (!modeling_head) {
-            auto& notif = app.notifications.alloc(log_level::error);
-            notif.title = "Empty model";
-            app.notifications.enable(notif);
+        if (force_pause) {
+            force_pause      = false;
+            simulation_state = simulation_status::pause_forced;
+        } else if (force_stop) {
+            force_stop       = false;
+            simulation_state = simulation_status::finish_requiring;
         } else {
-            force_pause = false;
-            force_stop  = false;
-
-            start_simulation_clear(app);
-
-            app.add_simulation_task(
-              [&]() noexcept { simulation_copy(app, *this); });
-
-            start_simulation_init(app);
+            simulation_state = simulation_status::paused;
         }
-    }
-}
-
-void project_editor::start_simulation_init(application& app) noexcept
-{
-    bool state = any_equal(simulation_state,
-                           simulation_status::initialized,
-                           simulation_status::not_started,
-                           simulation_status::finished);
-
-    debug::ensure(state);
-
-    if (state) {
-        app.add_simulation_task([&]() noexcept {
-            force_pause = false;
-            force_stop  = false;
-            simulation_init(app, *this);
-        });
-    }
-}
-
-void project_editor::start_simulation_clear(application& app) noexcept
-{
-    // Disable display graph node to avoid data race on @c
-    // simulation_editor::simulation data.
-    display_graph = false;
-
-    app.add_simulation_task([&]() noexcept {
-        std::scoped_lock lock(app.sim_mutex);
-        clear();
     });
-}
-
-void project_editor::start_simulation_delete(application& app) noexcept
-{
-    // Disable display graph node to avoid data race on @c
-    // simulation_editor::simulation data.
-    display_graph = false;
-
-    app.add_simulation_task([&]() noexcept {
-        std::scoped_lock lock(app.sim_mutex);
-        pj.clear();
-        pj.sim.clear();
-        clear();
-    });
-}
-
-void project_editor::start_simulation_start(application& app) noexcept
-{
-    const auto state = any_equal(simulation_state,
-                                 simulation_status::initialized,
-                                 simulation_status::pause_forced,
-                                 simulation_status::run_requiring);
-
-    debug::ensure(state);
-
-    if (state) {
-        start = std::chrono::high_resolution_clock::now();
-
-        if (real_time)
-            start_simulation_live_run(app);
-        else
-            start_simulation_static_run(app);
-    }
-}
-
-void project_editor::stop_simulation_observation(application& app) noexcept
-{
-    auto& task_list = app.get_unordered_task_list(0);
-
-    debug::ensure(simulation_state == simulation_status::finishing);
-
-    constexpr int capacity = 255;
-    int           obs_max  = pj.sim.observers.ssize();
-    observer*     obs      = nullptr;
-
-    while (pj.sim.observers.next(obs)) {
-        int loop = std::min(obs_max, capacity);
-
-        for (int i = 0; i != loop; ++i) {
-            auto obs_id = pj.sim.observers.get_id(*obs);
-            pj.sim.observers.next(obs);
-
-            task_list.add([&, obs_id]() noexcept {
-                if_data_exists_do(pj.sim.observers,
-                                  obs_id,
-                                  [&](observer& obs) noexcept -> void {
-                                      while (obs.buffer.ssize() > 2)
-                                          flush_interpolate_data(obs,
-                                                                 obs.time_step);
-                                  });
-            });
-        }
-
-        task_list.submit();
-        task_list.wait();
-
-        if (obs_max >= capacity)
-            obs_max -= capacity;
-        else
-            obs_max = 0;
-    }
-
-    pj.file_obs.finalize();
-}
-
-void project_editor::start_simulation_observation(application& app) noexcept
-{
-    auto& task_list = app.get_unordered_task_list(0);
-
-    debug::ensure(simulation_state != simulation_status::finished);
-
-    constexpr int capacity = 255;
-    int           obs_max  = pj.sim.immediate_observers.ssize();
-    int           current  = 0;
-
-    while (obs_max > 0) {
-        int loop = std::min(obs_max, capacity);
-
-        for (int i = 0; i != loop; ++i) {
-            auto obs_id = pj.sim.immediate_observers[i + current];
-
-            task_list.add([&, obs_id]() noexcept {
-                if_data_exists_do(pj.sim.observers,
-                                  obs_id,
-                                  [&](observer& obs) noexcept -> void {
-                                      while (obs.buffer.ssize() > 2)
-                                          write_interpolate_data(obs,
-                                                                 obs.time_step);
-                                  });
-            });
-        }
-
-        task_list.submit();
-        task_list.wait();
-
-        current += loop;
-        if (obs_max > capacity)
-            obs_max -= capacity;
-        else
-            obs_max = 0;
-    }
-
-    current = 0;
-    for (auto& g : pj.grid_observers) {
-        const auto g_id = pj.grid_observers.get_id(g);
-        task_list.add([&, g_id]() noexcept {
-            if (auto* g = pj.grid_observers.try_to_get(g_id); g)
-                if (g->can_update(pj.sim.t))
-                    g->update(pj.sim);
-        });
-
-        ++current;
-        if (current == obs_max) {
-            task_list.submit();
-            task_list.wait();
-            current = 0;
-        }
-    }
-
-    for (auto& g : pj.graph_observers) {
-        const auto g_id = pj.graph_observers.get_id(g);
-        task_list.add([&, g_id]() noexcept {
-            if (auto* g = pj.graph_observers.try_to_get(g_id); g)
-                if (g->can_update(pj.sim.t))
-                    g->update(pj.sim);
-        });
-        ++current;
-        if (current == obs_max) {
-            task_list.submit();
-            task_list.wait();
-            current = 0;
-        }
-    }
-
-    if (current > 0) {
-        task_list.submit();
-        task_list.wait();
-    }
-
-    if (pj.file_obs.can_update(pj.sim.t))
-        pj.file_obs.update(pj.sim, pj);
 }
 
 void project_editor::start_simulation_start_1(application& app) noexcept

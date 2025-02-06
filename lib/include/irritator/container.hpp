@@ -156,7 +156,7 @@ using small_storage_size_t = std::conditional_t<
                          size_t>>>>;
 
 template<class T, class M>
-constexpr std::ptrdiff_t offset_of(const M T::* member)
+constexpr std::ptrdiff_t offset_of(const M T::*member)
 {
     return reinterpret_cast<std::ptrdiff_t>(
       &(reinterpret_cast<T*>(0)->*member));
@@ -177,7 +177,7 @@ constexpr std::ptrdiff_t offset_of(const M T::* member)
    @endcode
 */
 template<class T, class M>
-constexpr T& container_of(M* ptr, const M T::* member) noexcept
+constexpr T& container_of(M* ptr, const M T::*member) noexcept
 {
     return *reinterpret_cast<T*>(reinterpret_cast<intptr_t>(ptr) -
                                  offset_of(member));
@@ -199,7 +199,7 @@ constexpr T& container_of(M* ptr, const M T::* member) noexcept
    @endcode
 */
 template<class T, class M>
-constexpr const T& container_of(const M* ptr, const M T::* member) noexcept
+constexpr const T& container_of(const M* ptr, const M T::*member) noexcept
 {
     return *reinterpret_cast<const T*>(reinterpret_cast<intptr_t>(ptr) -
                                        offset_of(member));
@@ -1872,6 +1872,7 @@ public:
 
     constexpr void pop_back() noexcept;
     constexpr void swap_pop_back(std::integral auto index) noexcept;
+    constexpr void swap_pop_back(const_iterator it) noexcept;
 
     constexpr iterator erase(std::integral auto index) noexcept;
     constexpr iterator erase(iterator to_del) noexcept;
@@ -4244,6 +4245,33 @@ constexpr void small_vector<T, length>::swap_pop_back(
         }
 
         --m_size;
+    }
+}
+
+template<typename T, int length>
+constexpr void small_vector<T, length>::swap_pop_back(
+  const_iterator to_delete) noexcept
+{
+    debug::ensure(m_size > 0);
+    debug::ensure(begin() <= to_delete and to_delete < begin() + m_size);
+
+    if (to_delete != end()) {
+        auto last = data() + m_size - 1;
+
+        if (to_delete == last) {
+            pop_back();
+        } else {
+            std::destroy_at(to_delete);
+
+            if constexpr (std::is_move_constructible_v<T>) {
+                std::uninitialized_move_n(last, 1, last);
+            } else {
+                std::uninitialized_copy_n(last, 1, last);
+                std::destroy_at(last);
+            }
+
+            --m_size;
+        }
     }
 }
 

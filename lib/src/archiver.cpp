@@ -412,19 +412,17 @@ struct binary_archiver::impl {
     template<typename Stream>
     bool do_serialize(simulation& sim, Stream& io) noexcept
     {
-        {
-            auto constant_external_source = sim.srcs.constant_sources.ssize();
-            auto binary_external_source = sim.srcs.binary_file_sources.ssize();
-            auto text_external_source   = sim.srcs.text_file_sources.ssize();
-            auto random_external_source = sim.srcs.random_sources.ssize();
-            auto models                 = sim.models.ssize();
-            auto hsms                   = sim.hsms.ssize();
+        auto constant_external_source = sim.srcs.constant_sources.ssize();
+        auto binary_external_source   = sim.srcs.binary_file_sources.ssize();
+        auto text_external_source     = sim.srcs.text_file_sources.ssize();
+        auto random_external_source   = sim.srcs.random_sources.ssize();
+        auto models                   = sim.models.ssize();
+        auto hsms                     = sim.hsms.ssize();
 
-            if (not(io(constant_external_source) and
-                    io(binary_external_source) and io(text_external_source) and
-                    io(random_external_source) and io(models) and io(hsms)))
-                return false;
-        }
+        if (not(io(constant_external_source) and io(binary_external_source) and
+                io(text_external_source) and io(random_external_source) and
+                io(models) and io(hsms)))
+            return false;
 
         {
             constant_source* src = nullptr;
@@ -502,24 +500,18 @@ struct binary_archiver::impl {
                         i8         i      = 0;
                         const auto out_id = sim.models.get_id(mdl);
 
-                        for (const auto elem : dyn.y) {
-                            if (auto* lst = sim.nodes.try_to_get(elem); lst) {
-                                for (const auto& cnt : *lst) {
-                                    auto* dst =
-                                      sim.models.try_to_get(cnt.model);
-                                    if (dst) {
-                                        auto out = get_index(out_id);
-                                        auto in  = get_index(cnt.model);
+                        for (const auto& elem : dyn.y) {
+                            sim.for_each(
+                              elem,
+                              [&](const auto& mdl, const auto port_index) {
+                                  auto in = get_index(sim.get_id(mdl));
 
-                                        io(out);
-                                        io(i);
-                                        io(in);
-                                        io(cnt.port_index);
-                                    }
-                                }
-
-                                ++i;
-                            }
+                                  io(out_id);
+                                  io(i);
+                                  io(in);
+                                  io(port_index);
+                                  ++i;
+                              });
                         }
                     }
                 });
@@ -687,8 +679,8 @@ struct binary_archiver::impl {
             if (!mdl_dst)
                 return bin.report_error(error_code::unknown_model_error);
 
-            node_id*    pout = nullptr;
-            message_id* pin  = nullptr;
+            block_node_id* pout = nullptr;
+            message_id*    pin  = nullptr;
 
             if (auto ret = get_output_port(*mdl_src, port_out, pout); !ret)
                 return bin.report_error(error_code::unknown_model_port_error);

@@ -3792,7 +3792,7 @@ struct json_dearchiver::impl {
 
                   if constexpr (has_output_port<Dynamics>)
                       for (int i = 0, e = length(dyn.y); i != e; ++i)
-                          dyn.y[i] = undefined<node_id>();
+                          dyn.y[i] = undefined<block_node_id>();
               });
 
               return dispatch(mdl.type, [&]<typename Tag>(Tag tag) -> bool {
@@ -3968,8 +3968,8 @@ struct json_dearchiver::impl {
         if (!mdl_dst)
             report_json_error("unknown destination model");
 
-        node_id*    out = nullptr;
-        message_id* in  = nullptr;
+        block_node_id* out = nullptr;
+        message_id*    in  = nullptr;
 
         if (auto ret = get_output_port(*mdl_src, port_src, out); !ret)
             report_json_error("unknown source model port");
@@ -6621,23 +6621,20 @@ struct json_archiver::impl {
             dispatch(*mdl, [&sim, &mdl, &w]<typename Dynamics>(Dynamics& dyn) {
                 if constexpr (has_output_port<Dynamics>) {
                     for (auto i = 0, e = length(dyn.y); i != e; ++i) {
-                        if (auto* lst = sim.nodes.try_to_get(dyn.y[i]); lst) {
-                            for (const auto& cnt : *lst) {
-                                auto* dst = sim.models.try_to_get(cnt.model);
-                                if (dst) {
-                                    w.StartObject();
-                                    w.Key("source");
-                                    w.Uint64(ordinal(sim.models.get_id(*mdl)));
-                                    w.Key("port-source");
-                                    w.Uint64(static_cast<u64>(i));
-                                    w.Key("destination");
-                                    w.Uint64(ordinal(cnt.model));
-                                    w.Key("port-destination");
-                                    w.Uint64(static_cast<u64>(cnt.port_index));
-                                    w.EndObject();
-                                }
-                            }
-                        }
+                        sim.for_each(
+                          dyn.y[i],
+                          [&](const auto& dst, const auto port_index) {
+                              w.StartObject();
+                              w.Key("source");
+                              w.Uint64(ordinal(sim.models.get_id(*mdl)));
+                              w.Key("port-source");
+                              w.Uint64(static_cast<u64>(i));
+                              w.Key("destination");
+                              w.Uint64(ordinal(sim.models.get_id(dst)));
+                              w.Key("port-destination");
+                              w.Uint64(static_cast<u64>(port_index));
+                              w.EndObject();
+                          });
                     }
                 }
             });

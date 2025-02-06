@@ -36,17 +36,6 @@ project_editor::project_editor(const std::string_view default_name) noexcept
     pj.variable_observers.reserve(8);
 
     output_context = ImPlot::CreateContext();
-    context        = ImNodes::EditorContextCreate();
-    ImNodes::PushAttributeFlag(
-      ImNodesAttributeFlags_EnableLinkDetachWithDragClick);
-
-    ImNodesIO& io                           = ImNodes::GetIO();
-    io.LinkDetachWithModifierClick.Modifier = &ImGui::GetIO().KeyCtrl;
-    io.MultipleSelectModifier.Modifier      = &ImGui::GetIO().KeyCtrl;
-
-    ImNodesStyle& style = ImNodes::GetStyle();
-    style.Flags |=
-      ImNodesStyleFlags_GridLinesPrimary | ImNodesStyleFlags_GridSnapping;
 }
 
 project_editor::~project_editor() noexcept
@@ -54,71 +43,6 @@ project_editor::~project_editor() noexcept
     if (output_context) {
         ImPlot::DestroyContext(output_context);
     }
-
-    if (context) {
-        ImNodes::EditorContextSet(context);
-        ImNodes::PopAttributeFlag();
-        ImNodes::EditorContextFree(context);
-    }
-}
-
-void project_editor::select(tree_node_id id) noexcept
-{
-    if (auto* tree = pj.node(id); tree) {
-        unselect();
-
-        head    = id;
-        current = id;
-    }
-}
-
-void project_editor::unselect() noexcept
-{
-    head    = undefined<tree_node_id>();
-    current = undefined<tree_node_id>();
-
-    ImNodes::ClearLinkSelection();
-    ImNodes::ClearNodeSelection();
-
-    selected_links.clear();
-    selected_nodes.clear();
-}
-
-void project_editor::clear() noexcept
-{
-    unselect();
-
-    force_pause           = false;
-    force_stop            = false;
-    show_minimap          = true;
-    allow_user_changes    = true;
-    store_all_changes     = false;
-    real_time             = false;
-    have_use_back_advance = false;
-    display_graph         = true;
-
-    show_internal_values = false;
-    show_internal_inputs = false;
-    show_identifiers     = false;
-
-    tl.reset();
-
-    simulation_last_finite_t   = 0;
-    simulation_display_current = 0;
-
-    nb_microsecond_per_simulation_time = 1000000;
-
-    head    = undefined<tree_node_id>();
-    current = undefined<tree_node_id>();
-    mode    = visualization_mode::flat;
-
-    simulation_state = simulation_status::not_started;
-
-    selected_links.clear();
-    selected_nodes.clear();
-
-    automatic_layout_iteration = 0;
-    displacements.clear();
 }
 
 bool project_editor::is_selected(tree_node_id id) const noexcept
@@ -126,45 +50,24 @@ bool project_editor::is_selected(tree_node_id id) const noexcept
     return m_selected_tree_node == id;
 }
 
-bool project_editor::is_selected(child_id id) const noexcept
-{
-    return m_selected_child == id;
-}
-
-void project_editor::select(const modeling& mod, tree_node_id id) noexcept
+void project_editor::select(application& app, tree_node_id id) noexcept
 {
     if (id != m_selected_tree_node) {
         m_selected_tree_node = undefined<tree_node_id>();
-        m_selected_child     = undefined<child_id>();
 
         if (auto* tree = pj.node(id); tree) {
-            if (auto* compo = mod.components.try_to_get(tree->id); compo) {
+            if (auto* compo = app.mod.components.try_to_get(tree->id); compo) {
                 m_selected_tree_node = id;
-                m_selected_child     = undefined<child_id>();
+
+                if (compo->type == component_type::simple) {
+                    if (auto* gen = app.mod.generic_components.try_to_get(
+                          compo->id.generic_id)) {
+                        generic_sim.init(app, *tree, *compo, *gen);
+                    }
+                }
             }
         }
     }
-}
-
-void project_editor::select(const modeling& mod, tree_node& node) noexcept
-{
-    auto id = pj.node(node);
-
-    if (id != m_selected_tree_node) {
-        m_selected_tree_node = undefined<tree_node_id>();
-        m_selected_child     = undefined<child_id>();
-
-        if (auto* compo = mod.components.try_to_get(node.id); compo) {
-            m_selected_tree_node = id;
-            m_selected_child     = undefined<child_id>();
-        }
-    }
-}
-
-void project_editor::select(const modeling& /*mod*/, child_id id) noexcept
-{
-    if (id != m_selected_child)
-        m_selected_child = id;
 }
 
 static void show_simulation_action_buttons(application&    app,
@@ -1154,7 +1057,7 @@ static void show_simulation_editor_treenode(application&    app,
             } else if constexpr (std::is_same_v<T, graph_component>) {
                 ed.graph_sim.show_observations(tn, *compo, c);
             } else if constexpr (std::is_same_v<T, generic_component>) {
-                ed.generic_sim.show_observations(tn, *compo, c);
+                ed.generic_sim.display(app);
             } else if constexpr (std::is_same_v<T, hsm_component>) {
                 ed.hsm_sim.show_observations(app, ed, tn, *compo, c);
             } else
@@ -1264,7 +1167,7 @@ auto project_editor::show(application& app) noexcept -> show_result_t
                     if (selected) {
                         show_simulation_editor_treenode(app, *this, *selected);
                     } else {
-                        show_simulation_editor(app, *this);
+                        generic_sim.display(app);
                     }
                 }
                 ImGui::EndTabItem();

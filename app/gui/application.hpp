@@ -455,16 +455,77 @@ private:
     component_id m_id = undefined<component_id>();
 };
 
-struct generic_simulation_editor {
+class generic_simulation_editor
+{
+public:
+    generic_simulation_editor() noexcept;
+
+    ~generic_simulation_editor() noexcept;
+
+    /**
+       Build the @c links and @c nodes vectors from the project tree_node.
+
+       This function lock the @c mutex to perform the computation. Use this
+       function in task.
+
+       @param tn The tree node to display.
+       @param compo The component of the tree node.
+       @param gen The generic_component in the compo.
+     */
+    void init(application&       app,
+              const tree_node&   tn,
+              component&         compo,
+              generic_component& gen) noexcept;
+
+    /**
+       Build the @c links and @c nodes vectors from the entire simulation
+       models.
+
+       This function lock the @c mutex to perform the computation. Use this
+       function in task.
+     */
+    void init(application& app, simulation& sim) noexcept;
+
+    bool display(application& app) noexcept;
+
+    struct link {
+        int out;
+        int in;
+    };
+
+    struct node {
+        model_id mdl;
+    };
+
+private:
+    struct impl;
 
     ImNodesEditorContext* context = nullptr;
 
-    ImVector<int> selected_links;
-    ImVector<int> selected_nodes;
+    tree_node_id current = undefined<tree_node_id>();
 
-    bool show_observations(tree_node&         tn,
-                           component&         compo,
-                           generic_component& generic) noexcept;
+    vector<int>  selected_links;
+    vector<int>  selected_nodes;
+    vector<link> links;
+    vector<node> nodes;
+    vector<link> links_2nd;
+    vector<node> nodes_2nd;
+
+    spin_mutex mutex;
+
+    int            automatic_layout_iteration = 0;
+    vector<ImVec2> displacements;
+
+    bool show_identifiers      = true;
+    bool show_internal_values  = false;
+    bool show_parameter_values = false;
+    bool show_minimap          = true;
+    bool can_edit              = false;
+    bool can_edit_parameters   = true;
+
+    // If false, the display of nodes and links are disabled. Mainly use during
+    // @c rebuild or @c init.
+    bool enable_show = true;
 };
 
 class grid_simulation_editor
@@ -593,10 +654,6 @@ struct project_editor {
      * try to close it. */
     show_result_t show(application& app) noexcept;
 
-    void select(tree_node_id id) noexcept;
-    void unselect() noexcept;
-    void clear() noexcept;
-
     void start_simulation_update_state(application& app) noexcept;
 
     void start_simulation_copy_modeling(application& app) noexcept;
@@ -634,18 +691,15 @@ struct project_editor {
     bool force_pause           = false;
     bool force_stop            = false;
     bool show_minimap          = true;
-    bool allow_user_changes    = true;
     bool store_all_changes     = false;
     bool real_time             = false;
     bool have_use_back_advance = false;
     bool display_graph         = true;
 
+    bool allow_user_changes = false;
+
     bool save_project_file    = false;
     bool save_as_project_file = false;
-
-    bool show_internal_values = false;
-    bool show_internal_inputs = false;
-    bool show_identifiers     = false;
 
     bool is_dock_init   = false;
     bool disable_access = true;
@@ -704,20 +758,12 @@ struct project_editor {
     graph_simulation_editor   graph_sim;
     hsm_simulation_editor     hsm_sim;
 
-    ImNodesEditorContext* context        = nullptr;
-    ImPlotContext*        output_context = nullptr;
-
-    ImVector<int> selected_links;
-    ImVector<int> selected_nodes;
+    ImPlotContext* output_context = nullptr;
 
     /** Number of column in the tree node observation. */
     using tree_node_observation_t = constrained_value<int, 1, 100>;
     tree_node_observation_t tree_node_observation{ 1 };
     float                   tree_node_observation_height = 200.f;
-
-    //! Position of each node
-    int              automatic_layout_iteration = 0;
-    ImVector<ImVec2> displacements;
 
     /**
      * @brief A live modeling tool to force a `constant` model to produce an
@@ -734,37 +780,26 @@ struct project_editor {
 
     //! Select a @c tree_node node in the modeling tree node. The existence of
     //! the underlying component is tested before assignment.
-    void select(const modeling& mod, tree_node_id id) noexcept;
-
-    //! Select a @c tree_node node in the modeling tree node. The existence of
-    //! the underlying component is tested before assignment.
-    void select(const modeling& mod, tree_node& node) noexcept;
-
-    //! Select a @C child in the modeling tree node. The existence of the
-    //! underlying component is tested before assignment.
-    void select(const modeling& mod, child_id id) noexcept;
+    void select(application& app, tree_node_id id) noexcept;
 
     //! @return true if @c id is the selected @c tree_node.
     bool is_selected(tree_node_id id) const noexcept;
 
-    //! @return true if @c id is the selected @c child.
-    bool is_selected(child_id id) const noexcept;
-
     tree_node_id selected_tn() noexcept;
-    child_id     selected_child() noexcept;
 
     tree_node_id m_selected_tree_node = undefined<tree_node_id>();
-    child_id     m_selected_child     = undefined<child_id>();
 
     project_external_source_editor data_ed;
 };
 
-inline bool project_editor::is_simulation_running() const noexcept
+inline bool project_editor::can_edit() const noexcept
 {
-    return any_equal(simulation_state,
-                     simulation_status::paused,
-                     simulation_status::running,
-                     simulation_status::run_requiring);
+    if (any_equal(simulation_state,
+                  simulation_status::not_started,
+                  simulation_status::finished))
+        return true;
+
+    return allow_user_changes;
 }
 
 class component_editor
@@ -1155,8 +1190,6 @@ bool show_local_observers(application&    app,
                           component&      compo,
                           grid_component& grid) noexcept;
 
-void show_simulation_editor(application& app, project_editor& ed) noexcept;
-
 //! @brief Get the file path of the @c imgui.ini file saved in $HOME.
 //! @return A pointer to a newly allocated memory.
 char* get_imgui_filename() noexcept;
@@ -1177,29 +1210,22 @@ void application::add_gui_task(Fn&& fn) noexcept
 
 /* * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * */
 
-inline tree_node_id project_editor::selected_tn() noexcept
-{
-    return m_selected_tree_node;
-}
-
-inline child_id project_editor::selected_child() noexcept
-{
-    return m_selected_child;
-}
-
-inline bool project_editor::can_edit() const noexcept
-{
-    if (any_equal(simulation_state,
-                  simulation_status::not_started,
-                  simulation_status::finished))
-        return true;
-
-    return allow_user_changes;
-}
-
 inline bool project_editor::can_display_graph_editor() const noexcept
 {
     return display_graph;
+}
+
+inline bool project_editor::is_simulation_running() const noexcept
+{
+    return any_equal(simulation_state,
+                     simulation_status::paused,
+                     simulation_status::running,
+                     simulation_status::run_requiring);
+}
+
+inline tree_node_id project_editor::selected_tn() noexcept
+{
+    return m_selected_tree_node;
 }
 
 inline void component_editor::request_to_open(const component_id id) noexcept

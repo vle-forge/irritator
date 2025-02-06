@@ -351,7 +351,7 @@ static auto make_tree_leaf(simulation_copy&       sc,
 
           if constexpr (has_output_port<Dynamics>)
               for (int i = 0, e = length(dyn.y); i != e; ++i)
-                  dyn.y[i] = undefined<node_id>();
+                  dyn.y[i] = undefined<block_node_id>();
 
           sc.pj.sim.parameters[get_index(new_mdl_id)] =
             gen.children_parameters[ch_idx];
