@@ -1228,7 +1228,7 @@ public:
 
     //! Use the default malloc memory resource to allocate all memory need
     //! by sub-containers.
-    simulation(const simulation_memory_requirement& init) noexcept;
+    explicit simulation(const simulation_memory_requirement& init) noexcept;
 
     //! Use the default malloc memory resource to allocate all memory need
     //! by sub-containers.
@@ -1419,8 +1419,8 @@ struct abstract_integrator;
 
 template<>
 struct abstract_integrator<1> {
-    message_id x[2];
-    node_id    y[1];
+    message_id x[2] = {};
+    node_id    y[1] = {};
     real       dQ;
     real       X;
     real       q;
@@ -1534,8 +1534,8 @@ struct abstract_integrator<1> {
 
 template<>
 struct abstract_integrator<2> {
-    message_id x[2];
-    node_id    y[1];
+    message_id x[2] = {};
+    node_id    y[1] = {};
     real       dQ;
     real       X;
     real       u;
@@ -1691,8 +1691,8 @@ struct abstract_integrator<2> {
 
 template<>
 struct abstract_integrator<3> {
-    message_id x[2];
-    node_id    y[1];
+    message_id x[2] = {};
+    node_id    y[1] = {};
     real       dQ;
     real       X;
     real       u;
@@ -2032,8 +2032,8 @@ template<int QssLevel>
 struct abstract_power {
     static_assert(1 <= QssLevel && QssLevel <= 3, "Only for Qss1, 2 and 3");
 
-    message_id x[1];
-    node_id    y[1];
+    message_id x[1] = {};
+    node_id    y[1] = {};
     time       sigma;
 
     real value[QssLevel];
@@ -2144,8 +2144,8 @@ template<int QssLevel>
 struct abstract_square {
     static_assert(1 <= QssLevel && QssLevel <= 3, "Only for Qss1, 2 and 3");
 
-    message_id x[1];
-    node_id    y[1];
+    message_id x[1] = {};
+    node_id    y[1] = {};
     time       sigma;
 
     real value[QssLevel];
@@ -2245,8 +2245,8 @@ struct abstract_sum {
     static_assert(1 <= QssLevel && QssLevel <= 3, "Only for Qss1, 2 and 3");
     static_assert(PortNumber > 1, "sum model need at least two input port");
 
-    message_id x[PortNumber];
-    node_id    y[1];
+    message_id x[PortNumber] = {};
+    node_id    y[1]          = {};
     time       sigma;
 
     real values[QssLevel * PortNumber] = { 0 };
@@ -2420,8 +2420,8 @@ struct abstract_wsum {
     static_assert(1 <= QssLevel && QssLevel <= 3, "Only for Qss1, 2 and 3");
     static_assert(PortNumber > 1, "sum model need at least two input port");
 
-    message_id x[PortNumber];
-    node_id    y[1];
+    message_id x[PortNumber] = {};
+    node_id    y[1]          = {};
     time       sigma;
 
     real input_coeffs[PortNumber]      = { 0 };
@@ -2608,8 +2608,8 @@ template<int QssLevel>
 struct abstract_multiplier {
     static_assert(1 <= QssLevel && QssLevel <= 3, "Only for Qss1, 2 and 3");
 
-    message_id x[2];
-    node_id    y[1];
+    message_id x[2] = {};
+    node_id    y[1] = {};
     time       sigma;
 
     real values[QssLevel * 2];
@@ -2748,7 +2748,7 @@ using qss2_multiplier = abstract_multiplier<2>;
 using qss3_multiplier = abstract_multiplier<3>;
 
 struct counter {
-    message_id x[1];
+    message_id x[1] = {};
     time       sigma;
     i64        number;
 
@@ -2794,8 +2794,8 @@ struct generator {
         Count
     };
 
-    message_id x[4];
-    node_id    y[1];
+    message_id x[4] = {};
+    node_id    y[1] = {};
     time       sigma;
     real       value;
 
@@ -2938,7 +2938,7 @@ struct generator {
 };
 
 struct constant {
-    node_id y[1];
+    node_id y[1] = {};
     time    sigma;
 
     enum class init_type : i8 {
@@ -3089,8 +3089,8 @@ inline time compute_wake_up(real threshold,
 
 template<int QssLevel>
 struct abstract_filter {
-    message_id x[1];
-    node_id    y[3];
+    message_id x[1] = {};
+    node_id    y[3] = {};
 
     time sigma;
     real lower_threshold;
@@ -3385,14 +3385,14 @@ using logical_or_2  = abstract_logical<abstract_or_check, 2>;
 using logical_or_3  = abstract_logical<abstract_or_check, 3>;
 
 struct logical_invert {
-    message_id x[1];
-    node_id    y[1];
-    time       sigma;
+    message_id x[1] = {};
+    node_id    y[1] = {};
 
-    bool value;
-    bool value_changed;
+    time sigma         = time_domain<time>::infinity;
+    bool value         = false;
+    bool value_changed = false;
 
-    logical_invert() noexcept { sigma = time_domain<time>::infinity; }
+    logical_invert() noexcept = default;
 
     status initialize(simulation& /*sim*/) noexcept
     {
@@ -3826,8 +3826,8 @@ struct hsm_wrapper {
     using hsm      = hierarchical_state_machine;
     using state_id = hsm::state_id;
 
-    message_id x[4];
-    node_id    y[4];
+    message_id x[4] = {};
+    node_id    y[4] = {};
 
     hsm::execution exec;
 
@@ -3848,7 +3848,7 @@ struct hsm_wrapper {
 
 template<int PortNumber>
 struct accumulator {
-    message_id x[2 * PortNumber];
+    message_id x[2 * PortNumber] = {};
     time       sigma;
     real       number;
     real       numbers[PortNumber];
@@ -3905,8 +3905,8 @@ template<int QssLevel>
 struct abstract_cross {
     static_assert(1 <= QssLevel && QssLevel <= 3, "Only for Qss1, 2 and 3");
 
-    message_id x[4];
-    node_id    y[3];
+    message_id x[4] = {};
+    node_id    y[3] = {};
     time       sigma;
 
     real threshold;
@@ -4136,7 +4136,7 @@ inline real square_time_function(real t) noexcept { return t * t; }
 inline real time_function(real t) noexcept { return t; }
 
 struct time_func {
-    node_id y[1];
+    node_id y[1] = {};
     time    sigma;
 
     real offset   = 0;
@@ -4183,8 +4183,8 @@ struct time_func {
 using accumulator_2 = accumulator<2>;
 
 struct queue {
-    message_id x[1];
-    node_id    y[1];
+    message_id x[1] = {};
+    node_id    y[1] = {};
     time       sigma;
 
     dated_message_id fifo = undefined<dated_message_id>();
@@ -4241,8 +4241,8 @@ struct queue {
 };
 
 struct dynamic_queue {
-    message_id       x[1];
-    node_id          y[1];
+    message_id       x[1] = {};
+    node_id          y[1] = {};
     time             sigma;
     dated_message_id fifo = undefined<dated_message_id>();
 
@@ -4304,8 +4304,8 @@ struct dynamic_queue {
 };
 
 struct priority_queue {
-    message_id       x[1];
-    node_id          y[1];
+    message_id       x[1] = {};
+    node_id          y[1] = {};
     time             sigma;
     dated_message_id fifo = undefined<dated_message_id>();
     real             ta   = 1.0;
@@ -6007,7 +6007,7 @@ inline status simulation::initialize() noexcept
     for (auto& obs : observers) {
         obs.reset();
 
-        if (auto* mdl = models.try_to_get(obs.model); mdl) {
+        if (auto* mdl = models.try_to_get(obs.model)) {
             dispatch(*mdl, [&]<typename Dynamics>(Dynamics& dyn) {
                 if constexpr (has_observation_function<Dynamics>) {
                     obs.update(dyn.observation(t, t - mdl->tl));
