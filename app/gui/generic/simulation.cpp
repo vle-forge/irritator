@@ -1037,16 +1037,16 @@ struct generic_simulation_editor::impl {
         ImGui::PopID();
     }
 
-    void show_nodes(application&                                   app,
-                    const vector<generic_simulation_editor::node>& nodes,
-                    bool show_identifiers) noexcept
+    void show_nodes(
+      application&                                   app,
+      const vector<generic_simulation_editor::node>& nodes) noexcept
     {
         for (auto i = 0, e = nodes.ssize(); i != e; ++i) {
             if (auto* mdl = pj_ed.pj.sim.models.try_to_get(nodes[i].mdl)) {
                 ImNodes::BeginNode(get_index(nodes[i].mdl));
                 ImNodes::BeginNodeTitleBar();
 
-                if (show_identifiers) {
+                if (self.show_identifiers) {
                     ImGui::TextFormat(
                       "{}\n{}",
                       get_index(pj_ed.pj.sim.models.get_id(*mdl)),
@@ -1218,7 +1218,7 @@ bool generic_simulation_editor::display(application& app) noexcept
                 --automatic_layout_iteration;
             }
 
-            impl.show_nodes(app, nodes, show_identifiers);
+            impl.show_nodes(app, nodes);
             impl.show_links(links);
 
             auto click_pos = ImGui::GetMousePosOnOpeningCurrentPopup();
