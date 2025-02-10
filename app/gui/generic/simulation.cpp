@@ -87,52 +87,6 @@ static std::pair<irt::u32, irt::u32> get_model_output_port(
     return std::make_pair(index, port);
 }
 
-template<typename Dynamics>
-static void add_input_attribute(project_editor& ed,
-                                const Dynamics& dyn) noexcept
-{
-    if constexpr (has_input_port<Dynamics>) {
-        const auto** names  = get_input_port_names<Dynamics>();
-        const auto&  mdl    = get_model(dyn);
-        const auto   mdl_id = ed.pj.sim.models.get_id(mdl);
-        const auto   e      = length(dyn.x);
-
-        debug::ensure(names != nullptr);
-        debug::ensure(ed.pj.sim.models.try_to_get(mdl_id) == &mdl);
-        debug::ensure(0 <= e && e < 8);
-
-        for (int i = 0; i != e; ++i) {
-            ImNodes::BeginInputAttribute(make_input_node_id(mdl_id, i),
-                                         ImNodesPinShape_TriangleFilled);
-            ImGui::TextUnformatted(names[i]);
-            ImNodes::EndInputAttribute();
-        }
-    }
-}
-
-template<typename Dynamics>
-static void add_output_attribute(project_editor& ed,
-                                 const Dynamics& dyn) noexcept
-{
-    if constexpr (has_output_port<Dynamics>) {
-        const auto** names  = get_output_port_names<Dynamics>();
-        const auto&  mdl    = get_model(dyn);
-        const auto   mdl_id = ed.pj.sim.models.get_id(mdl);
-        const auto   e      = length(dyn.y);
-
-        debug::ensure(names != nullptr);
-        debug::ensure(ed.pj.sim.models.try_to_get(mdl_id) == &mdl);
-        debug::ensure(0 <= e && e < 8);
-
-        for (int i = 0; i != e; ++i) {
-            ImNodes::BeginOutputAttribute(make_output_node_id(mdl_id, i),
-                                          ImNodesPinShape_TriangleFilled);
-            ImGui::TextUnformatted(names[i]);
-            ImNodes::EndOutputAttribute();
-        }
-    }
-}
-
 struct gport {
     gport() noexcept = default;
 
