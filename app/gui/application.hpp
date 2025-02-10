@@ -489,8 +489,11 @@ public:
     bool display(application& app) noexcept;
 
     struct link {
-        int out;
-        int in;
+        int out; // use get_model_output_port/make_output_node_id.
+        int in;  // use get_model_input_port/make_input_node_id.
+
+        int mdl_out; // output model in nodes index.
+        int mdl_in;  // input model in nodes index.
     };
 
     struct node {
@@ -886,7 +889,7 @@ public:
     u32 gui_hovered_component_color;
     u32 gui_selected_component_color;
 
-    int   automatic_layout_iteration_limit = 200;
+    int   automatic_layout_iteration_limit = 2048;
     float automatic_layout_x_distance      = 350.f;
     float automatic_layout_y_distance      = 350.f;
     float grid_layout_x_distance           = 240.f;

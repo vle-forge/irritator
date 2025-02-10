@@ -570,15 +570,22 @@ struct generic_simulation_editor::impl {
         return success();
     }
 
-    bool is_in_node(const tree_node& tn, const model& mdl) const noexcept
+    bool is_in_node(const model_id mdl_id) const noexcept
     {
-        for (const auto& child : tn.children) {
-            if (child.type == tree_node::child_node::type::model and
-                child.mdl and &mdl == child.mdl)
+        for (auto i = 0, e = self.nodes_2nd.ssize(); i < e; ++i)
+            if (self.nodes_2nd[i].mdl == mdl_id)
                 return true;
-        }
 
         return false;
+    }
+
+    int get_index_from_nodes_2nd(const model_id mdl_id) const noexcept
+    {
+        for (auto i = 0, e = self.nodes_2nd.ssize(); i < e; ++i)
+            if (mdl_id == self.nodes_2nd[i].mdl)
+                return i;
+
+        irt::unreachable();
     }
 
     void build_links(const simulation& sim, const tree_node& tn) noexcept
@@ -589,16 +596,18 @@ struct generic_simulation_editor::impl {
                 dispatch(
                   *child.mdl, [&]<typename Dynamics>(Dynamics& dyn) noexcept {
                       if constexpr (has_output_port<Dynamics>) {
+                          const auto src_id  = sim.get_id(dyn);
+                          const auto src_idx = get_index_from_nodes_2nd(src_id);
                           for (int i = 0, e = length(dyn.y); i != e; ++i) {
                               sim.for_each(
                                 dyn.y[i], [&](auto& dst, auto dst_port) {
                                     const auto dst_id = sim.get_id(dst);
-
-                                    if (is_in_node(tn, dst)) {
+                                    if (is_in_node(dst_id)) {
                                         self.links_2nd.emplace_back(
-                                          make_output_node_id(sim.get_id(dyn),
-                                                              i),
-                                          make_input_node_id(dst_id, dst_port));
+                                          make_output_node_id(src_id, i),
+                                          make_input_node_id(dst_id, dst_port),
+                                          src_idx,
+                                          get_index_from_nodes_2nd(dst_id));
                                     }
                                 });
                           }
@@ -623,11 +632,16 @@ struct generic_simulation_editor::impl {
         for (const auto& mdl : sim.models) {
             dispatch(mdl, [&]<typename Dynamics>(Dynamics& dyn) noexcept {
                 if constexpr (has_output_port<Dynamics>) {
+                    const auto src_id  = sim.get_id(dyn);
+                    const auto src_idx = get_index_from_nodes_2nd(src_id);
                     for (int i = 0, e = length(dyn.y); i != e; ++i) {
                         sim.for_each(dyn.y[i], [&](auto& dst, auto dst_port) {
+                            const auto dst_id = sim.get_id(dst);
                             self.links_2nd.emplace_back(
-                              make_output_node_id(sim.get_id(dyn), i),
-                              make_input_node_id(sim.get_id(dst), dst_port));
+                              make_output_node_id(src_id, i),
+                              make_input_node_id(dst_id, dst_port),
+                              src_idx,
+                              get_index_from_nodes_2nd(dst_id));
                         });
                     }
                 }
@@ -706,52 +720,37 @@ struct generic_simulation_editor::impl {
         }
     }
 
-    void compute_connection_distance(std::span<ImVec2> displacements,
-                                     const model_id    src,
-                                     const model_id    dst,
-                                     const float       k) noexcept
-    {
-        const auto u     = static_cast<u32>(get_index(dst));
-        const auto v     = static_cast<u32>(get_index(src));
-        const auto u_pos = ImNodes::GetNodeEditorSpacePos(u);
-        const auto v_pos = ImNodes::GetNodeEditorSpacePos(v);
-
-        const float dx = v_pos.x - u_pos.x;
-        const float dy = v_pos.y - u_pos.y;
-        if (dx && dy) {
-            const float d2    = dx * dx / dy * dy;
-            const float coeff = std::sqrt(d2) / k;
-
-            displacements[v].x -= dx * coeff;
-            displacements[v].y -= dy * coeff;
-            displacements[u].x += dx * coeff;
-            displacements[u].y += dy * coeff;
-        }
-    }
-
-    void compute_connection_distance(const model&      mdl,
-                                     const simulation& sim,
-                                     const float       k,
+    void compute_connection_distance(const float       k,
                                      std::span<ImVec2> displacements) noexcept
     {
-        dispatch(mdl, [&]<typename Dynamics>(Dynamics& dyn) -> void {
-            if constexpr (has_output_port<Dynamics>) {
-                for (const auto& elem : dyn.y) {
-                    sim.for_each(
-                      elem, [&](const auto& model, auto /*port_index*/) {
-                          compute_connection_distance(displacements,
-                                                      sim.get_id(mdl),
-                                                      sim.get_id(model),
-                                                      k);
-                      });
-                }
+        for (const auto& link : self.links) {
+            const auto out = get_model_output_port(link.out);
+            const auto in  = get_model_input_port(link.in);
+
+            const auto u_pos = ImNodes::GetNodeEditorSpacePos(out.first);
+            const auto v_pos = ImNodes::GetNodeEditorSpacePos(in.first);
+
+            const float dx = v_pos.x - u_pos.x;
+            const float dy = v_pos.y - u_pos.y;
+
+            if (dx and dy) {
+                const float d2    = dx * dx / dy * dy;
+                const float coeff = std::sqrt(d2) / k;
+
+                displacements[link.mdl_out].x += dx * coeff;
+                displacements[link.mdl_out].y += dy * coeff;
+                displacements[link.mdl_in].x -= dx * coeff;
+                displacements[link.mdl_in].y -= dy * coeff;
             }
-        });
+        }
     }
 
     void compute_automatic_layout(application&    app,
                                   vector<ImVec2>& displacements) noexcept
     {
+        if (self.nodes.empty())
+            return;
+
         auto& settings = app.settings_wnd;
 
         /* See. Graph drawing by Forced-directed Placement by Thomas M. J.
@@ -759,31 +758,20 @@ struct generic_simulation_editor::impl {
            Experience, Vol. 21(1 1), 1129-1164 (november 1991).
            */
 
-        const auto orig_size = pj_ed.pj.sim.models.ssize();
-
-        if (orig_size == 0)
-            return;
-
-        const auto size      = static_cast<int>(orig_size);
+        const auto size      = self.nodes.ssize();
         const auto tmp       = std::sqrt(size);
         const auto column    = static_cast<int>(tmp);
-        auto       line      = column;
-        auto       remaining = static_cast<int>(size) - (column * line);
-
-        while (remaining > column) {
-            ++line;
-            remaining -= column;
-        }
+        const auto line      = column;
+        const auto remaining = size - (column * line);
 
         const float W =
           static_cast<float>(column) * settings.automatic_layout_x_distance;
         const float L =
           static_cast<float>(line) +
           ((remaining > 0) ? settings.automatic_layout_y_distance : 0.f);
-        const float area = W * L;
-        const float k_square =
-          area / static_cast<float>(pj_ed.pj.sim.models.size());
-        const float k = std::sqrt(k_square);
+        const float area     = W * L;
+        const float k_square = area / static_cast<float>(size);
+        const float k        = std::sqrt(k_square);
 
         // float t = 1.f - static_cast<float>(iteration) /
         //                   static_cast<float>(automatic_layout_iteration_limit);
@@ -795,13 +783,13 @@ struct generic_simulation_editor::impl {
                                 settings.automatic_layout_iteration_limit);
 
         for (int i_v = 0; i_v < size; ++i_v) {
-            const int v = i_v;
+            const int v = get_index(self.nodes[i_v].mdl);
 
-            displacements[v].x = 0.f;
-            displacements[v].y = 0.f;
+            displacements[i_v].x = 0.f;
+            displacements[i_v].y = 0.f;
 
             for (int i_u = 0; i_u < size; ++i_u) {
-                const int u = i_u;
+                const int u = get_index(self.nodes[i_u].mdl);
 
                 if (u != v) {
                     const auto u_pos = ImNodes::GetNodeEditorSpacePos(u);
@@ -813,97 +801,80 @@ struct generic_simulation_editor::impl {
                         const float d2 = delta.x * delta.x + delta.y * delta.y;
                         const float coeff = k_square / d2;
 
-                        displacements[v].x += coeff * delta.x;
-                        displacements[v].y += coeff * delta.y;
+                        displacements[i_v].x += coeff * delta.x;
+                        displacements[i_v].y += coeff * delta.y;
                     }
                 }
             }
         }
 
-        for (auto& mdl : pj_ed.pj.sim.models)
-            compute_connection_distance(
-              mdl,
-              pj_ed.pj.sim,
-              k,
-              std::span(displacements.data(), displacements.size()));
+        compute_connection_distance(
+          k, std::span(displacements.data(), displacements.size()));
 
-        model* mdl = nullptr;
         for (int i_v = 0; i_v < size; ++i_v) {
-            debug::ensure(pj_ed.pj.sim.models.next(mdl));
-            const int v = i_v;
+            const int v = get_index(self.nodes[i_v].mdl);
 
-            const float d2 = displacements[v].x * displacements[v].x +
-                             displacements[v].y * displacements[v].y;
+            const float d2 = displacements[i_v].x * displacements[i_v].x +
+                             displacements[i_v].y * displacements[i_v].y;
             const float d = std::sqrt(d2);
 
             if (d > t) {
                 const float coeff = t / d;
-                displacements[v].x *= coeff;
-                displacements[v].y *= coeff;
+                displacements[i_v].x *= coeff;
+                displacements[i_v].y *= coeff;
             }
 
             auto v_pos = ImNodes::GetNodeEditorSpacePos(v);
-            v_pos.x += displacements[v].x;
-            v_pos.y += displacements[v].y;
+            v_pos.x += displacements[i_v].x;
+            v_pos.y += displacements[i_v].y;
 
-            const auto mdl_id    = pj_ed.pj.sim.models.get_id(mdl);
-            const auto mdl_index = static_cast<u32>(get_index(mdl_id));
-
-            ImNodes::SetNodeEditorSpacePos(mdl_index, v_pos);
+            ImNodes::SetNodeEditorSpacePos(v, v_pos);
         }
     }
 
-    void compute_grid_layout(application& app, project_editor& ed) noexcept
+    void compute_grid_layout(application& app) noexcept
     {
         auto& settings = app.settings_wnd;
 
-        const auto size  = ed.pj.sim.models.max_size();
+        const auto size  = self.nodes.ssize();
         const auto fsize = static_cast<float>(size);
 
         if (size == 0)
             return;
 
-        const auto column    = std::floor(std::sqrt(fsize));
-        auto       line      = column;
-        auto       remaining = fsize - (column * line);
+        const auto column    = static_cast<int>(std::floor(std::sqrt(fsize)));
+        const auto line      = column;
+        const auto remaining = size - (column * line);
+        const auto panning   = ImNodes::EditorContextGetPanning();
+        auto       new_pos   = panning;
 
-        const auto panning = ImNodes::EditorContextGetPanning();
-        auto       new_pos = panning;
+        int index = 0;
+        for (auto i = 0; i < line; ++i) {
+            new_pos.y = panning.y +
+                        static_cast<float>(i) * settings.grid_layout_y_distance;
 
-        model* mdl = nullptr;
-        for (float i = 0.f; i < line; ++i) {
-            new_pos.y = panning.y + i * settings.grid_layout_y_distance;
-
-            for (float j = 0.f; j < column; ++j) {
-                if (!ed.pj.sim.models.next(mdl))
-                    break;
-
-                const auto mdl_id    = ed.pj.sim.models.get_id(mdl);
-                const auto mdl_index = static_cast<u32>(get_index(mdl_id));
-
-                new_pos.x = panning.x + j * settings.grid_layout_x_distance;
-                ImNodes::SetNodeEditorSpacePos(mdl_index, new_pos);
+            for (auto j = 0; j < column; ++j) {
+                new_pos.x = panning.x + static_cast<float>(j) *
+                                          settings.grid_layout_x_distance;
+                ImNodes::SetNodeEditorSpacePos(get_index(self.nodes[index].mdl),
+                                               new_pos);
+                ++index;
             }
         }
 
         new_pos.x = panning.x;
         new_pos.y = panning.y + column * settings.grid_layout_y_distance;
 
-        for (float j = 0.f; j < remaining; ++j) {
-            if (!ed.pj.sim.models.next(mdl))
-                break;
-
-            const auto mdl_id    = ed.pj.sim.models.get_id(mdl);
-            const auto mdl_index = static_cast<u32>(get_index(mdl_id));
-
-            new_pos.x = panning.x + j * settings.grid_layout_x_distance;
-            ImNodes::SetNodeEditorSpacePos(mdl_index, new_pos);
+        for (auto j = 0; j < remaining; ++j) {
+            new_pos.x = panning.x +
+                        static_cast<float>(j) * settings.grid_layout_x_distance;
+            ImNodes::SetNodeEditorSpacePos(get_index(self.nodes[index].mdl),
+                                           new_pos);
+            ++index;
         }
     }
 
-    int show_simulation_graph_editor_edit_menu(application&    app,
-                                               project_editor& ed,
-                                               ImVec2 click_pos) noexcept
+    int show_menu(application& app, ImVec2 click_pos) noexcept
     {
         const bool open_popup =
           ImGui::IsWindowFocused(ImGuiFocusedFlags_RootAndChildWindows) &&
@@ -917,7 +888,7 @@ struct generic_simulation_editor::impl {
 
         if (ImGui::BeginPopup("Context menu")) {
             if (ImGui::MenuItem("Force grid layout")) {
-                compute_grid_layout(app, ed);
+                compute_grid_layout(app);
             }
 
             if (ImGui::MenuItem("Force automatic layout")) {
@@ -933,14 +904,14 @@ struct generic_simulation_editor::impl {
 
             ImGui::Separator();
 
-            const auto can_edit = ed.can_edit();
+            const auto can_edit = pj_ed.can_edit();
 
             if (ImGui::BeginMenu("QSS1")) {
                 auto       i = static_cast<int>(dynamics_type::qss1_integrator);
                 const auto e = static_cast<int>(dynamics_type::qss1_wsum_4) + 1;
                 for (; i != e; ++i)
                     ret += add_popup_menuitem(app,
-                                              ed,
+                                              pj_ed,
                                               can_edit,
                                               static_cast<dynamics_type>(i),
                                               click_pos);
@@ -953,7 +924,7 @@ struct generic_simulation_editor::impl {
 
                 for (; i != e; ++i)
                     ret += add_popup_menuitem(app,
-                                              ed,
+                                              pj_ed,
                                               can_edit,
                                               static_cast<dynamics_type>(i),
                                               click_pos);
@@ -966,7 +937,7 @@ struct generic_simulation_editor::impl {
 
                 for (; i != e; ++i)
                     ret += add_popup_menuitem(app,
-                                              ed,
+                                              pj_ed,
                                               can_edit,
                                               static_cast<dynamics_type>(i),
                                               click_pos);
@@ -974,37 +945,46 @@ struct generic_simulation_editor::impl {
             }
 
             if (ImGui::BeginMenu("Logical")) {
+                ret += add_popup_menuitem(app,
+                                          pj_ed,
+                                          can_edit,
+                                          dynamics_type::logical_and_2,
+                                          click_pos);
                 ret += add_popup_menuitem(
-                  app, ed, can_edit, dynamics_type::logical_and_2, click_pos);
+                  app, pj_ed, can_edit, dynamics_type::logical_or_2, click_pos);
+                ret += add_popup_menuitem(app,
+                                          pj_ed,
+                                          can_edit,
+                                          dynamics_type::logical_and_3,
+                                          click_pos);
                 ret += add_popup_menuitem(
-                  app, ed, can_edit, dynamics_type::logical_or_2, click_pos);
-                ret += add_popup_menuitem(
-                  app, ed, can_edit, dynamics_type::logical_and_3, click_pos);
-                ret += add_popup_menuitem(
-                  app, ed, can_edit, dynamics_type::logical_or_3, click_pos);
-                ret += add_popup_menuitem(
-                  app, ed, can_edit, dynamics_type::logical_invert, click_pos);
+                  app, pj_ed, can_edit, dynamics_type::logical_or_3, click_pos);
+                ret += add_popup_menuitem(app,
+                                          pj_ed,
+                                          can_edit,
+                                          dynamics_type::logical_invert,
+                                          click_pos);
                 ImGui::EndMenu();
             }
 
             ret += add_popup_menuitem(
-              app, ed, can_edit, dynamics_type::counter, click_pos);
+              app, pj_ed, can_edit, dynamics_type::counter, click_pos);
             ret += add_popup_menuitem(
-              app, ed, can_edit, dynamics_type::queue, click_pos);
+              app, pj_ed, can_edit, dynamics_type::queue, click_pos);
             ret += add_popup_menuitem(
-              app, ed, can_edit, dynamics_type::dynamic_queue, click_pos);
+              app, pj_ed, can_edit, dynamics_type::dynamic_queue, click_pos);
             ret += add_popup_menuitem(
-              app, ed, can_edit, dynamics_type::priority_queue, click_pos);
+              app, pj_ed, can_edit, dynamics_type::priority_queue, click_pos);
             ret += add_popup_menuitem(
-              app, ed, can_edit, dynamics_type::generator, click_pos);
+              app, pj_ed, can_edit, dynamics_type::generator, click_pos);
             ret += add_popup_menuitem(
-              app, ed, can_edit, dynamics_type::constant, click_pos);
+              app, pj_ed, can_edit, dynamics_type::constant, click_pos);
             ret += add_popup_menuitem(
-              app, ed, can_edit, dynamics_type::time_func, click_pos);
+              app, pj_ed, can_edit, dynamics_type::time_func, click_pos);
             ret += add_popup_menuitem(
-              app, ed, can_edit, dynamics_type::accumulator_2, click_pos);
+              app, pj_ed, can_edit, dynamics_type::accumulator_2, click_pos);
             ret += add_popup_menuitem(
-              app, ed, can_edit, dynamics_type::hsm_wrapper, click_pos);
+              app, pj_ed, can_edit, dynamics_type::hsm_wrapper, click_pos);
 
             ImGui::EndPopup();
         }
@@ -1109,7 +1089,7 @@ struct generic_simulation_editor::impl {
     {
         for (auto i = 0, e = nodes.ssize(); i != e; ++i) {
             if (auto* mdl = pj_ed.pj.sim.models.try_to_get(nodes[i].mdl)) {
-                ImNodes::BeginNode(i);
+                ImNodes::BeginNode(get_index(nodes[i].mdl));
                 ImNodes::BeginNodeTitleBar();
 
                 if (show_identifiers) {
@@ -1175,11 +1155,11 @@ struct generic_simulation_editor::impl {
             self.nodes_2nd.clear();
 
             if (auto* tn = pj_ed.pj.tree_nodes.try_to_get(self.current)) {
-                build_links(pj_ed.pj.sim, *tn);
                 build_nodes(pj_ed.pj.sim, *tn);
+                build_links(pj_ed.pj.sim, *tn);
             } else {
-                build_flat_links(pj_ed.pj.sim);
                 build_flat_nodes(pj_ed.pj.sim);
+                build_flat_links(pj_ed.pj.sim);
             }
 
             if (std::unique_lock lock(self.mutex); lock.owns_lock()) {
@@ -1231,8 +1211,8 @@ void generic_simulation_editor::init(application&     app,
         nodes.clear();
 
         const auto tn_id = pj_ed.pj.tree_nodes.get_id(tn);
-        impl.build_links(pj_ed.pj.sim, tn);
         impl.build_nodes(pj_ed.pj.sim, tn);
+        impl.build_links(pj_ed.pj.sim, tn);
 
         if (std::unique_lock lock(mutex); lock.owns_lock()) {
             std::swap(links, links_2nd);
@@ -1255,12 +1235,12 @@ void generic_simulation_editor::init(application& app,
         links.clear();
         nodes.clear();
 
-        impl.build_flat_links(pj_ed.pj.sim);
         impl.build_flat_nodes(pj_ed.pj.sim);
+        impl.build_flat_links(pj_ed.pj.sim);
 
         if (std::unique_lock lock(mutex); lock.owns_lock()) {
-            std::swap(links, links_2nd);
             std::swap(nodes, nodes_2nd);
+            std::swap(links, links_2nd);
             current     = undefined<tree_node_id>();
             enable_show = true;
         }
@@ -1288,8 +1268,7 @@ bool generic_simulation_editor::display(application& app) noexcept
             impl.show_links(links);
 
             auto click_pos = ImGui::GetMousePosOnOpeningCurrentPopup();
-            changes += impl.show_simulation_graph_editor_edit_menu(
-              app, pj_ed, click_pos);
+            changes += impl.show_menu(app, click_pos);
 
             if (show_minimap)
                 ImNodes::MiniMap(0.2f, ImNodesMiniMapLocation_BottomLeft);
