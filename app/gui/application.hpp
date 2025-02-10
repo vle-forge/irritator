@@ -497,7 +497,19 @@ public:
     };
 
     struct node {
-        model_id mdl;
+        node() noexcept = default;
+
+        explicit node(const model_id mdl_) noexcept
+          : mdl(mdl_)
+        {}
+
+        node(const model_id mdl_, const std::string_view name_) noexcept
+          : mdl(mdl_)
+          , name(name_)
+        {}
+
+        model_id mdl = undefined<model_id>();
+        name_str name;
     };
 
 private:

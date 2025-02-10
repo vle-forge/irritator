@@ -574,8 +574,14 @@ struct generic_simulation_editor::impl {
     void build_nodes(const simulation& sim, const tree_node& tn) noexcept
     {
         for (const auto& child : tn.children) {
-            if (child.type == tree_node::child_node::type::model) {
-                if (child.mdl)
+            if (child.type == tree_node::child_node::type::model and
+                child.mdl) {
+                const auto mdl_id = sim.models.get_id(*child.mdl);
+
+                if (const auto* name = tn.model_id_to_unique_id.get(mdl_id))
+                    self.nodes_2nd.emplace_back(sim.get_id(*child.mdl),
+                                                name->sv());
+                else
                     self.nodes_2nd.emplace_back(sim.get_id(*child.mdl));
             }
         }
@@ -1046,11 +1052,10 @@ struct generic_simulation_editor::impl {
                 ImNodes::BeginNode(get_index(nodes[i].mdl));
                 ImNodes::BeginNodeTitleBar();
 
-                if (self.show_identifiers) {
-                    ImGui::TextFormat(
-                      "{}\n{}",
-                      get_index(pj_ed.pj.sim.models.get_id(*mdl)),
-                      dynamics_type_names[ordinal(mdl->type)]);
+                if (self.show_identifiers and not nodes[i].name.empty()) {
+                    ImGui::TextFormat("{}\n{}",
+                                      nodes[i].name.c_str(),
+                                      dynamics_type_names[ordinal(mdl->type)]);
                 } else {
                     ImGui::TextUnformatted(
                       dynamics_type_names[ordinal(mdl->type)]);

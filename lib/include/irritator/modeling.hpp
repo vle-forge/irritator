@@ -966,6 +966,7 @@ struct tree_node {
 
     table<name_str, tree_node_id> unique_id_to_tree_node_id;
     table<name_str, model_id>     unique_id_to_model_id;
+    table<model_id, name_str>     model_id_to_unique_id;
 
     table<name_str, global_parameter_id>  parameters_ids;
     table<name_str, variable_observer_id> variable_observer_ids;
