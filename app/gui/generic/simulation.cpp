@@ -1223,26 +1223,26 @@ void generic_simulation_editor::init(application&     app,
     });
 }
 
-void generic_simulation_editor::init(application& app,
-                                     simulation& /*sim*/) noexcept
+void generic_simulation_editor::init(application& app, simulation& sim) noexcept
 {
     enable_show = false;
 
     app.add_gui_task([&]() {
-        auto& pj_ed = container_of(this, &project_editor::generic_sim);
         generic_simulation_editor::impl impl(*this);
 
         links.clear();
         nodes.clear();
 
-        impl.build_flat_nodes(pj_ed.pj.sim);
-        impl.build_flat_links(pj_ed.pj.sim);
+        if (sim.models.ssize() < 256) {
+            impl.build_flat_nodes(sim);
+            impl.build_flat_links(sim);
 
-        if (std::unique_lock lock(mutex); lock.owns_lock()) {
-            std::swap(nodes, nodes_2nd);
-            std::swap(links, links_2nd);
-            current     = undefined<tree_node_id>();
-            enable_show = true;
+            if (std::unique_lock lock(mutex); lock.owns_lock()) {
+                std::swap(nodes, nodes_2nd);
+                std::swap(links, links_2nd);
+                current     = undefined<tree_node_id>();
+                enable_show = true;
+            }
         }
     });
 }
