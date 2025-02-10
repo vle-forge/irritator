@@ -450,6 +450,8 @@ static auto make_tree_leaf(simulation_copy&       sc,
         debug::ensure(not uid.empty());
         parent.unique_id_to_model_id.data.emplace_back(name_str(uid),
                                                        new_mdl_id);
+        parent.model_id_to_unique_id.data.emplace_back(new_mdl_id,
+                                                       name_str(uid));
     }
 
     return new_mdl_id;
@@ -496,6 +498,7 @@ static status make_tree_recursive(simulation_copy&   sc,
     }
 
     new_tree.unique_id_to_model_id.sort();
+    new_tree.model_id_to_unique_id.sort();
     new_tree.unique_id_to_tree_node_id.sort();
 
     return success();
@@ -530,6 +533,7 @@ static status make_tree_recursive(simulation_copy& sc,
     }
 
     new_tree.unique_id_to_model_id.sort();
+    new_tree.model_id_to_unique_id.sort();
     new_tree.unique_id_to_tree_node_id.sort();
 
     return success();
@@ -566,6 +570,7 @@ static status make_tree_recursive(simulation_copy& sc,
     }
 
     new_tree.unique_id_to_model_id.sort();
+    new_tree.model_id_to_unique_id.sort();
     new_tree.unique_id_to_tree_node_id.sort();
 
     return success();
