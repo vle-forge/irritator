@@ -271,16 +271,6 @@ void project_editor::start_simulation_update_state(application& app) noexcept
         simulation_state = simulation_status::finishing;
         start_simulation_finish(app);
     }
-
-    auto       it = models_to_move.begin();
-    const auto et = models_to_move.end();
-
-    for (; it != et; ++it) {
-        const auto index   = get_index(it->first);
-        const auto index_i = static_cast<int>(index);
-
-        ImNodes::SetNodeScreenSpacePos(index_i, it->second);
-    }
 }
 
 static bool is_simulation_state_not_running(simulation_status s) noexcept
@@ -869,8 +859,6 @@ void project_editor::start_simulation_model_add(application&        app,
         attempt_all(
           [&]() noexcept -> status {
               irt_check(pj.sim.make_initialize(mdl, pj.sim.t));
-
-              models_to_move.emplace_enqueue(mdl_id, ImVec2(x, y));
 
               return success();
           },

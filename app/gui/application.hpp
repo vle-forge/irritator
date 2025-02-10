@@ -785,10 +785,6 @@ struct project_editor {
      */
     std::optional<model_id> have_send_message;
 
-    small_ring_buffer<std::pair<model_id, ImVec2>, 8>
-      models_to_move; /**< Online simulation created models need to use ImNodes
-                         API to move into the canvas. */
-
     registred_path_id project_file = undefined<registred_path_id>();
     project           pj;
 
