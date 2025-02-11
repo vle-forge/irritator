@@ -20,7 +20,8 @@
 namespace irt {
 
 application::application() noexcept
-  : task_mgr{}
+  : pjs(16)
+  , task_mgr{}
   , config(get_config_home(true))
 {
     settings_wnd.apply_style(undefined<gui_theme_id>());
@@ -47,9 +48,6 @@ application::~application() noexcept
 
 std::optional<project_id> application::alloc_project_window() noexcept
 {
-    if (not pjs.can_alloc(1))
-        pjs.grow();
-
     if (not pjs.can_alloc(1)) {
         notifications.try_insert(
           log_level::error, [&](auto& title, auto& msg) noexcept {
@@ -98,8 +96,6 @@ bool application::init() noexcept
               "Fail to initialize modeling components: {}\n");
         return false;
     }
-
-    pjs.reserve(8);
 
     if (mod.registred_paths.size() == 0) {
         attempt_all(
