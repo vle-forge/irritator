@@ -653,9 +653,8 @@ struct project_editor {
     enum class visualization_mode { flat, tree };
 
     explicit project_editor(const std::string_view default_name) noexcept;
-    ~project_editor() noexcept;
 
-    project_editor(project_editor&&) = default;
+    ~project_editor() noexcept;
 
     enum class show_result_t {
         success,          /**< Nothing to do. */
