@@ -110,6 +110,15 @@ public:
         return true;
     }
 
+    bool empty() const noexcept
+    {
+        int tail = m_tail.load(std::memory_order_relaxed);
+        if (tail == m_head.load(std::memory_order_acquire))
+            return true;
+
+        return false;
+    }
+
     constexpr auto capacity() noexcept -> int { return Size; }
 
 private:
