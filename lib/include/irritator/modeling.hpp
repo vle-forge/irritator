@@ -932,6 +932,12 @@ struct tree_node {
 
         enum class type { empty, model, tree_node } type = type::empty;
 
+        void disable() noexcept
+        {
+            mdl  = nullptr;
+            type = type::empty;
+        }
+
         void set(model* id) noexcept
         {
             mdl  = id;

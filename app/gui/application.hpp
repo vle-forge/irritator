@@ -463,14 +463,15 @@ public:
     ~generic_simulation_editor() noexcept;
 
     /**
-       Build the @c links and @c nodes vectors from the project tree_node.
-
-       This function lock the @c mutex to perform the computation. Use this
-       function in task.
-
-       @param tn The tree node to display.
-       @param compo The component of the tree node.
-       @param gen The generic_component in the compo.
+     * Build the @c links and @c nodes vectors from the project tree_node.
+     *
+     * This function lock the @c mutex to perform the computation. Use this
+     * function in task.
+     *
+     * @param app Application to use thread task manager and log.
+     * @param tn The tree node to display.
+     * @param compo The component of the tree node.
+     * @param gen The generic_component in the compo.
      */
     void init(application&       app,
               const tree_node&   tn,
@@ -478,22 +479,32 @@ public:
               generic_component& gen) noexcept;
 
     /**
-       Build the @c links and @c nodes vectors from the entire simulation
-       models.
-
-       This function lock the @c mutex to perform the computation. Use this
-       function in task.
+     * Build the @c links and @c nodes vectors from the entire simulation
+     * models.
+     *
+     * This function lock the @c mutex to perform the computation. Use this
+     * function in task.
+     *
+     *  @param app Application to use thread task manager and log.
      */
-    void init(application& app, simulation& sim) noexcept;
+    void init(application& app) noexcept;
+
+    /**
+     * Add a rebuild @c nodes and @c links vectors task according to the current
+     * @c tree_node.
+     *
+     * @param app Application to use thread task manager and log.
+     */
+    void reinit(application& app) noexcept;
 
     bool display(application& app) noexcept;
 
     struct link {
-        int out; // use get_model_output_port/make_output_node_id.
-        int in;  // use get_model_input_port/make_input_node_id.
+        int out; /**<  use get_model_output_port/make_output_node_id. */
+        int in;  /**< use get_model_input_port/make_input_node_id. */
 
-        int mdl_out; // output model in nodes index.
-        int mdl_in;  // input model in nodes index.
+        int mdl_out; /**< output model in nodes index. */
+        int mdl_in;  /**< input model in nodes index. */
     };
 
     struct node {
@@ -519,17 +530,15 @@ private:
 
     tree_node_id current = undefined<tree_node_id>();
 
-    vector<int>  selected_links;
-    vector<int>  selected_nodes;
-    vector<link> links;
-    vector<node> nodes;
-    vector<link> links_2nd;
-    vector<node> nodes_2nd;
-
-    spin_mutex mutex;
-
-    int            automatic_layout_iteration = 0;
+    vector<int>    selected_links;
+    vector<int>    selected_nodes;
+    vector<link>   links;
+    vector<node>   nodes;
+    vector<link>   links_2nd;
+    vector<node>   nodes_2nd;
     vector<ImVec2> displacements;
+
+    int automatic_layout_iteration = 0;
 
     bool show_identifiers      = true;
     bool show_internal_values  = false;
@@ -538,9 +547,16 @@ private:
     bool can_edit              = false;
     bool can_edit_parameters   = true;
 
-    // If false, the display of nodes and links are disabled. Mainly use during
-    // @c rebuild or @c init.
-    bool enable_show = true;
+    bool enable_show =
+      true; /**< @c false, the display of nodes and links are disabled. Mainly
+               use during @c rebuild or @c init. */
+    bool rebuild_wip = false; /**< @ true, a rebuild order is in work in
+                                 progress. No other rebuild can occured. */
+
+
+    void start_rebuild_task(application& app) noexcept;
+
+    spin_mutex mutex;
 };
 
 class grid_simulation_editor
@@ -647,6 +663,85 @@ private:
     bool           show_file_dialog = false;
 
     spin_mutex mutex;
+};
+
+enum class command_type {
+    none,
+    new_model,
+    free_model,
+    copy_model,
+    new_connection,
+    free_connection,
+    new_observer,
+    free_observer,
+    send_message
+};
+
+struct command {
+    struct none_t {};
+
+    struct new_model_t {
+        tree_node_id  tn_id;
+        dynamics_type type;
+        float         x;
+        float         y;
+    };
+
+    struct free_model_t {
+        tree_node_id tn_id;
+        model_id     mdl_id;
+    };
+
+    struct copy_model_t {
+        tree_node_id tn_id;
+        model_id     mdl_id;
+    };
+
+    struct new_connection_t {
+        tree_node_id tn_id;
+        model_id     mdl_src_id;
+        model_id     mdl_dst_id;
+        i8           port_src;
+        i8           port_dst;
+    };
+
+    struct free_connection_t {
+        tree_node_id tn_id;
+        model_id     mdl_src_id;
+        model_id     mdl_dst_id;
+        i8           port_src;
+        i8           port_dst;
+    };
+
+    struct new_observer_t {
+        tree_node_id tn_id;
+        model_id     mdl_id;
+    };
+
+    struct free_observer_t {
+        tree_node_id tn_id;
+        model_id     mdl_id;
+    };
+
+    struct send_message_t {
+        tree_node_id tn_id;
+        model_id     mdl_id;
+    };
+
+    union data_t {
+        none_t            none;
+        new_model_t       new_model;
+        free_model_t      free_model;
+        copy_model_t      copy_model;
+        new_connection_t  new_connection;
+        free_connection_t free_connection;
+        new_observer_t    new_observer;
+        free_observer_t   free_observer;
+        send_message_t    send_message;
+    };
+
+    command_type type = command_type::none;
+    data_t       data;
 };
 
 struct project_editor {
@@ -783,6 +878,8 @@ struct project_editor {
      * internal event.
      */
     std::optional<model_id> have_send_message;
+
+    thread_safe_ring_buffer<command, 256> commands;
 
     registred_path_id project_file = undefined<registred_path_id>();
     project           pj;

@@ -67,7 +67,7 @@ void project_editor::select(application& app, tree_node_id id) noexcept
                 }
             }
         } else {
-            generic_sim.init(app, pj.sim);
+            generic_sim.init(app);
         }
     }
 }

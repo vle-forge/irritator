@@ -228,36 +228,285 @@ static bool run(application& app, project_editor& ed) noexcept
     return success;
 }
 
+static int new_model(application&                app,
+                     project_editor&             pj_ed,
+                     const command::new_model_t& data) noexcept
+{
+    int rebuild = false;
+
+    if (not pj_ed.pj.sim.can_alloc(1)) {
+        app.notifications.try_insert(
+          log_level::error, [](auto& title, auto&) noexcept {
+              title = "Internal error: fail to initialize new model.";
+          });
+    } else {
+        auto& mdl = pj_ed.pj.sim.alloc(data.type);
+        (void)pj_ed.pj.sim.make_initialize(mdl, pj_ed.pj.sim.t);
+
+        if (auto* tn = pj_ed.pj.tree_nodes.try_to_get(data.tn_id)) {
+            tn->children.push_back(tree_node::child_node{
+              .mdl = &mdl, .type = tree_node::child_node::type::model });
+        }
+        ++rebuild;
+    }
+
+    return rebuild;
+}
+
+static int free_model(application& /*app*/,
+                      project_editor&              pj_ed,
+                      const command::free_model_t& data) noexcept
+{
+    if (auto* mdl = pj_ed.pj.sim.models.try_to_get(data.mdl_id)) {
+        if (auto* tn = pj_ed.pj.tree_nodes.try_to_get(data.tn_id)) {
+            for (auto i = 0, e = tn->children.ssize(); i < e; ++i) {
+                if (tn->children[i].type ==
+                      tree_node::child_node::type::model and
+                    tn->children[i].mdl == mdl) {
+                    tn->children[i].disable();
+                    break;
+                }
+            }
+
+            pj_ed.pj.sim.deallocate(data.mdl_id);
+            return true;
+        }
+    }
+
+    return false;
+}
+
+static int copy_model(application&                 app,
+                      project_editor&              pj_ed,
+                      const command::copy_model_t& data) noexcept
+{
+    if (auto* src_mdl = pj_ed.pj.sim.models.try_to_get(data.mdl_id)) {
+        if (not pj_ed.pj.sim.can_alloc(1)) {
+            app.notifications.try_insert(
+              log_level::error, [](auto& title, auto&) noexcept {
+                  title = "Internal error: fail to allocate more models.";
+              });
+
+            return 0;
+        }
+
+        auto& dst_mdl = pj_ed.pj.sim.clone(*src_mdl);
+
+        if (not pj_ed.pj.sim.make_initialize(dst_mdl, pj_ed.pj.sim.t)) {
+            app.notifications.try_insert(
+              log_level::error, [](auto& title, auto&) noexcept {
+                  title = "Internal error: fail to initialize new model.";
+              });
+
+            return 0;
+        }
+
+        dispatch(*src_mdl, [&]<typename Dynamics>(Dynamics& dyn) noexcept {
+            if constexpr (has_output_port<Dynamics>) {
+                for (int i = 0, e = length(dyn.y); i != e; ++i) {
+                    auto& dst_dyn = get_dyn<Dynamics>(dst_mdl);
+
+                    pj_ed.pj.sim.for_each(
+                      dyn.y[i], [&](auto& mdl_src, int port_src) {
+                          const auto mdl_src_id = pj_ed.pj.sim.get_id(mdl_src);
+
+                          (void)pj_ed.pj.sim.connect(
+                            dst_dyn.y[i], mdl_src_id, port_src);
+                      });
+                }
+
+                // if (auto* tn =
+                // pj_ed.pj.tree_nodes.try_to_get(data.tn_id)) { tn->
+                // }
+            }
+        });
+
+        return 1;
+    }
+
+    return 0;
+}
+
+static int new_connection(application&                     app,
+                          project_editor&                  ed,
+                          const command::new_connection_t& data) noexcept
+{
+    int rebuild = false;
+
+    if (not ed.pj.sim.can_connect(1)) {
+        app.notifications.try_insert(
+          log_level::error, [](auto& title, auto&) noexcept {
+              title = "Internal error: fail to initialize new model.";
+          });
+    } else {
+        if (auto* src = ed.pj.sim.models.try_to_get(data.mdl_src_id)) {
+            if (auto* dst = ed.pj.sim.models.try_to_get(data.mdl_dst_id)) {
+                if (!!ed.pj.sim.connect(
+                      *src, data.port_src, *dst, data.port_dst)) {
+                    ++rebuild;
+
+                    // if (auto* tn =
+                    // pj_ed.pj.tree_nodes.try_to_get(data.tn_id)) { tn->
+                    // }
+
+                } else {
+                    app.notifications.try_insert(
+                      log_level::error, [](auto& title, auto&) noexcept {
+                          title =
+                            "Internal error: fail to buid new connection.";
+                      });
+                }
+            }
+        }
+    }
+
+    return rebuild;
+}
+
+static int free_connection(application&                      app,
+                           project_editor&                   ed,
+                           const command::free_connection_t& data) noexcept
+
+{
+    if (auto* src = ed.pj.sim.models.try_to_get(data.mdl_src_id)) {
+        if (auto* dst = ed.pj.sim.models.try_to_get(data.mdl_dst_id)) {
+            ed.pj.sim.disconnect(*src, data.port_src, *dst, data.port_dst);
+
+            // if (auto* tn =
+            // pj_ed.pj.tree_nodes.try_to_get(data.tn_id)) { tn->
+            // }
+
+            return true;
+        } else {
+            app.notifications.try_insert(
+              log_level::error, [](auto& title, auto&) noexcept {
+                  title = "Internal error: fail to buid new connection.";
+              });
+        }
+    }
+
+    return false;
+}
+
+static void new_observer(application&                   app,
+                         project_editor&                ed,
+                         const command::new_observer_t& data) noexcept
+
+{
+    if (auto* mdl = ed.pj.sim.models.try_to_get(data.mdl_id)) {
+        if (ed.pj.sim.observers.can_alloc(1)) {
+            auto& obs = ed.pj.sim.observers.alloc();
+            ed.pj.sim.observe(*mdl, obs);
+        } else {
+            app.notifications.try_insert(
+              log_level::error, [&](auto& title, auto& /*msg*/) noexcept {
+                  title = "Internal error: fail to add observer.";
+              });
+        }
+    }
+}
+
+static void free_observer(application&                    app,
+                          project_editor&                 ed,
+                          const command::free_observer_t& data) noexcept
+{
+    if (auto* mdl = ed.pj.sim.models.try_to_get(data.mdl_id)) {
+        ed.pj.sim.unobserve(*mdl);
+    } else {
+        app.notifications.try_insert(
+          log_level::error, [&](auto& title, auto& /*msg*/) noexcept {
+              title = "Internal error: fail to delete observer.";
+          });
+    }
+}
+
+static void send_message(application&                   app,
+                         project_editor&                ed,
+                         const command::send_message_t& data) noexcept
+{
+    const auto t = irt::time_domain<time>::is_infinity(ed.pj.sim.t)
+                     ? ed.pj.sim.last_valid_t
+                     : ed.pj.sim.t;
+
+    if (auto* mdl = ed.pj.sim.models.try_to_get(data.mdl_id)) {
+        if (mdl->type == dynamics_type::constant) {
+            if (mdl->handle == invalid_heap_handle) {
+                ed.pj.sim.sched.alloc(*mdl, data.mdl_id, t);
+            } else {
+                if (ed.pj.sim.sched.is_in_tree(mdl->handle)) {
+                    ed.pj.sim.sched.update(*mdl, t);
+                } else {
+                    ed.pj.sim.sched.reintegrate(*mdl, t);
+                }
+            }
+
+            mdl->tn = t;
+            return;
+        }
+    }
+
+    app.notifications.try_insert(
+      log_level::error, [&](auto& title, auto& /*msg*/) noexcept {
+          title = "Internal error: fail to send message.";
+      });
+}
+
+void start_simulation_commands_apply(application& app, project_id id) noexcept
+{
+    app.add_simulation_task([&app, id]() noexcept {
+        if (auto* ed = app.pjs.try_to_get(id)) {
+            int rebuild = false;
+
+            while (not ed->commands.empty()) {
+                command c;
+                if (ed->commands.pop(c)) {
+                    switch (c.type) {
+                    case command_type::none:
+                        break;
+                    case command_type::new_model:
+                        rebuild += new_model(app, *ed, c.data.new_model);
+                        break;
+                    case command_type::free_model:
+                        rebuild += free_model(app, *ed, c.data.free_model);
+                        break;
+                    case command_type::copy_model:
+                        rebuild += copy_model(app, *ed, c.data.copy_model);
+                        break;
+                    case command_type::new_connection:
+                        rebuild +=
+                          new_connection(app, *ed, c.data.new_connection);
+                        break;
+                    case command_type::free_connection:
+                        rebuild +=
+                          free_connection(app, *ed, c.data.free_connection);
+                        break;
+                    case command_type::new_observer:
+                        new_observer(app, *ed, c.data.new_observer);
+                        break;
+                    case command_type::free_observer:
+                        free_observer(app, *ed, c.data.free_observer);
+                        break;
+                    case command_type::send_message:
+                        send_message(app, *ed, c.data.send_message);
+                        break;
+                    }
+                }
+            }
+
+            if (rebuild)
+                ed->generic_sim.reinit(app);
+        }
+    });
+}
+
 void project_editor::start_simulation_update_state(application& app) noexcept
 {
+    if (not commands.empty())
+        start_simulation_commands_apply(app, app.pjs.get_id(*this));
+
     if (any_equal(simulation_state,
                   simulation_status::paused,
                   simulation_status::run_requiring)) {
-
-        if (have_send_message) {
-            const auto mdl_id = *have_send_message;
-            const auto t      = irt::time_domain<time>::is_infinity(pj.sim.t)
-                                  ? pj.sim.last_valid_t
-                                  : pj.sim.t;
-
-            if_data_exists_do(pj.sim.models, mdl_id, [&](auto& m) noexcept {
-                if (m.type == dynamics_type::constant) {
-                    if (m.handle == invalid_heap_handle) {
-                        pj.sim.sched.alloc(m, mdl_id, t);
-                    } else {
-                        if (pj.sim.sched.is_in_tree(m.handle)) {
-                            pj.sim.sched.update(m, t);
-                        } else {
-                            pj.sim.sched.reintegrate(m, t);
-                        }
-                    }
-
-                    m.tn = t;
-                }
-            });
-
-            have_send_message.reset();
-        }
 
         simulation_state = simulation_status::run_requiring;
 
@@ -551,8 +800,8 @@ void project_editor::start_simulation_live_run(application& app) noexcept
 
             simulation_display_current = x / y;
 
-            // There is no real time available for this simulation task. Program
-            // the next.
+            // There is no real time available for this simulation task.
+            // Program the next.
             if (remaining_rt.count() < 0) {
                 simulation_state = simulation_status::paused;
                 return;

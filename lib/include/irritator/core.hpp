@@ -5728,14 +5728,14 @@ inline void scheduller<A>::reintegrate(model& mdl, time tn) noexcept
 template<typename A>
 inline void scheduller<A>::remove(model& mdl) noexcept
 {
-    if (mdl.handle)
+    if (mdl.handle != invalid_heap_handle)
         m_heap.remove(mdl.handle);
 }
 
 template<typename A>
 inline void scheduller<A>::free(model& mdl) noexcept
 {
-    if (mdl.handle) {
+    if (mdl.handle != invalid_heap_handle) {
         m_heap.remove(mdl.handle);
         m_heap.destroy(mdl.handle);
         mdl.handle = invalid_heap_handle;

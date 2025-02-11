@@ -482,25 +482,6 @@ struct generic_simulation_editor::impl {
       , pj_ed(container_of(&self, &project_editor::generic_sim))
     {}
 
-    int add_popup_menuitem(application&    app,
-                           project_editor& ed,
-                           bool            enable_menu_item,
-                           dynamics_type   type,
-                           ImVec2          click_pos) noexcept
-    {
-        if (ImGui::MenuItem(dynamics_type_names[static_cast<i8>(type)],
-                            nullptr,
-                            nullptr,
-                            enable_menu_item)) {
-            // TODO Maybe we should add model and the update the vectors links
-            // and nodes or just add an object "add model type at x, y"
-            ed.start_simulation_model_add(app, type, click_pos.x, click_pos.y);
-            return 1;
-        }
-
-        return 0;
-    }
-
     status copy_port(simulation&                      sim,
                      const table<model_id, model_id>& mapping,
                      block_node_id&                   src,
@@ -615,69 +596,143 @@ struct generic_simulation_editor::impl {
             self.nodes_2nd.emplace_back(sim.get_id(mdl));
     }
 
-    status copy(project_editor& ed, const vector<int>& nodes) noexcept
+    int copy(application& app, const vector<int>& nodes) noexcept
     {
-        table<model_id, model_id> mapping;
-        mapping.data.reserve(nodes.size());
+        int ret = false;
 
-        for (int i = 0, e = nodes.size(); i != e; ++i) {
-            auto* src_mdl = ed.pj.sim.models.try_to_get_from_pos(nodes[i]);
-            if (!src_mdl)
-                continue;
+        for (const auto index : nodes) {
+            if (pj_ed.pj.sim.models.try_to_get(self.nodes[index].mdl)) {
+                if (not pj_ed.commands.push(
+                      command{ .type = command_type::copy_model,
+                               .data{ .copy_model{
+                                 .tn_id  = self.current,
+                                 .mdl_id = self.nodes[index].mdl } } })) {
+                    app.notifications.try_insert(
+                      log_level::error, [](auto& title, auto& msg) noexcept {
+                          title = "Internal error during copy";
+                          msg   = "The project commands order list is full";
+                      });
+                    return ret;
+                }
 
-            if (!ed.pj.sim.can_alloc(1))
-                return new_error(simulation::part::models,
-                                 container_full_error{});
-
-            auto& dst_mdl    = ed.pj.sim.clone(*src_mdl);
-            auto  src_mdl_id = ed.pj.sim.models.get_id(src_mdl);
-            auto  dst_mdl_id = ed.pj.sim.models.get_id(dst_mdl);
-
-            irt_check(ed.pj.sim.make_initialize(dst_mdl, ed.pj.sim.t));
-
-            mapping.data.emplace_back(src_mdl_id, dst_mdl_id);
-        }
-
-        mapping.sort();
-
-        for (const auto& m : mapping.data) {
-            auto& src_mdl = ed.pj.sim.models.get(m.id);
-            auto& dst_mdl = ed.pj.sim.models.get(m.value);
-
-            if (auto ret = dispatch(
-                  src_mdl,
-                  [&]<typename Dynamics>(Dynamics& dyn) noexcept -> status {
-                      if constexpr (has_output_port<Dynamics>) {
-                          for (int i = 0, e = length(dyn.y); i != e; ++i) {
-                              auto& dst_dyn = get_dyn<Dynamics>(dst_mdl);
-
-                              irt_check(copy_port(
-                                ed.pj.sim, mapping, dyn.y[i], dst_dyn.y[i]));
-                          }
-                      }
-                      return success();
-                  });
-                !ret)
-                return ret.error();
-        }
-
-        return success();
-    }
-
-    void free_children(application&       app,
-                       project_editor&    ed,
-                       const vector<int>& nodes) noexcept
-    {
-        const auto tasks = std::min(nodes.ssize(), task_list_tasks_number);
-
-        for (int i = 0; i < tasks; ++i) {
-            if (const auto* mdl =
-                  ed.pj.sim.models.try_to_get_from_pos(nodes[i]);
-                mdl) {
-                ed.start_simulation_model_del(app,
-                                              ed.pj.sim.models.get_id(mdl));
+                ++ret;
             }
         }
+
+        return ret;
+    }
+
+    int new_model(application&        app,
+                  const dynamics_type type,
+                  const ImVec2        click_pos) noexcept
+    {
+        if (not pj_ed.commands.push(
+              command{ .type = command_type::new_model,
+                       .data{ .new_model{ .tn_id = self.current,
+                                          .type  = type,
+                                          .x     = click_pos.x,
+                                          .y     = click_pos.y } } })) {
+            app.notifications.try_insert(
+              log_level::error, [](auto& title, auto& msg) noexcept {
+                  title = "Internal error during model allocation";
+                  msg   = "Project command order list is full";
+              });
+
+            return false;
+        }
+
+        return true;
+    }
+
+    int free_model(application& app, const vector<int>& nodes) noexcept
+    {
+        int ret = false;
+
+        for (const auto index : nodes) {
+            if (auto* mdl = pj_ed.pj.sim.models.try_to_get_from_pos(index)) {
+                if (not pj_ed.commands.push(command{
+                      .type = command_type::free_model,
+                      .data{ .free_model{
+                        .tn_id  = self.current,
+                        .mdl_id = pj_ed.pj.sim.models.get_id(*mdl) } } })) {
+                    app.notifications.try_insert(
+                      log_level::error, [](auto& title, auto& msg) noexcept {
+                          title = "Internal error during model deletion";
+                          msg   = "The project commands order list is full";
+                      });
+                    return ret;
+                }
+
+                ++ret;
+            }
+        }
+
+        return ret;
+    }
+
+    int connect(application& app, int start, int end) noexcept
+    {
+        const gport out = get_out(pj_ed.pj.sim, start);
+        const gport in  = get_in(pj_ed.pj.sim, end);
+
+        if (!(out.model && in.model && pj_ed.pj.sim.can_connect(1)))
+            return 0;
+
+        if (!is_ports_compatible(
+              *out.model, out.port_index, *in.model, in.port_index))
+            return 0;
+
+        if (not pj_ed.commands.push(
+              command{ .type = command_type::new_connection,
+                       .data{ .new_connection{
+                         .tn_id      = self.current,
+                         .mdl_src_id = pj_ed.pj.sim.get_id(*out.model),
+                         .mdl_dst_id = pj_ed.pj.sim.get_id(*in.model),
+                         .port_src   = static_cast<i8>(out.port_index),
+                         .port_dst   = static_cast<i8>(in.port_index) } } })) {
+            app.notifications.try_insert(
+              log_level::error, [](auto& title, auto& msg) noexcept {
+                  title = "Internal error during connection";
+                  msg   = "Project command order list is full";
+              });
+
+            return 0;
+        }
+
+        return 1;
+    }
+
+    int disconnect(application& app, const vector<int>& links) noexcept
+    {
+        int ret = false;
+
+        for (const auto link_index : links) {
+            auto out = get_out(pj_ed.pj.sim, self.links[link_index].out);
+            auto in  = get_in(pj_ed.pj.sim, self.links[link_index].in);
+
+            if (out.model and in.model) {
+                if (not pj_ed.commands.push(command{
+                      .type = command_type::free_connection,
+                      .data{ .free_connection{
+                        .tn_id      = self.current,
+                        .mdl_src_id = pj_ed.pj.sim.get_id(*out.model),
+                        .mdl_dst_id = pj_ed.pj.sim.get_id(*in.model),
+                        .port_src   = static_cast<i8>(out.port_index),
+                        .port_dst   = static_cast<i8>(in.port_index) } } })) {
+                    app.notifications.try_insert(
+                      log_level::error, [](auto& title, auto& msg) noexcept {
+                          title = "Internal error during disconnection";
+                          msg   = "Project command order list is full";
+                      });
+
+                    return ret;
+                }
+
+                ++ret;
+            }
+        }
+
+        return ret;
     }
 
     void compute_connection_distance(const float       k,
@@ -834,13 +889,81 @@ struct generic_simulation_editor::impl {
         }
     }
 
+    int popup_menu(application&        app,
+                   const dynamics_type type,
+                   const ImVec2        click_pos) noexcept
+    {
+        if (ImGui::MenuItem(dynamics_type_names[ordinal(type)]))
+            return new_model(app, type, click_pos);
+
+        return false;
+    }
+
+    int show_menu_edit(application& app, const ImVec2 click_pos) noexcept
+    {
+        int r = false;
+
+        if (ImGui::BeginMenu("QSS1")) {
+            auto       i = static_cast<int>(dynamics_type::qss1_integrator);
+            const auto e = static_cast<int>(dynamics_type::qss1_wsum_4) + 1;
+            for (; i != e; ++i)
+                r += popup_menu(app, static_cast<dynamics_type>(i), click_pos);
+            ImGui::EndMenu();
+        }
+
+        if (ImGui::BeginMenu("QSS2")) {
+            auto       i = static_cast<int>(dynamics_type::qss2_integrator);
+            const auto e = static_cast<int>(dynamics_type::qss2_wsum_4) + 1;
+
+            for (; i != e; ++i)
+                r += popup_menu(app, static_cast<dynamics_type>(i), click_pos);
+            ImGui::EndMenu();
+        }
+
+        if (ImGui::BeginMenu("QSS3")) {
+            auto       i = static_cast<int>(dynamics_type::qss3_integrator);
+            const auto e = static_cast<int>(dynamics_type::qss3_wsum_4) + 1;
+
+            for (; i != e; ++i)
+                r += popup_menu(app, static_cast<dynamics_type>(i), click_pos);
+            ImGui::EndMenu();
+        }
+
+        if (ImGui::BeginMenu("Logical")) {
+            r += popup_menu(app, dynamics_type::logical_and_2, click_pos);
+            r += popup_menu(app, dynamics_type::logical_or_2, click_pos);
+            r += popup_menu(app,
+
+                            dynamics_type::logical_and_3,
+                            click_pos);
+            r += popup_menu(app, dynamics_type::logical_or_3, click_pos);
+            r += popup_menu(app,
+
+                            dynamics_type::logical_invert,
+                            click_pos);
+            ImGui::EndMenu();
+        }
+
+        r += popup_menu(app, dynamics_type::counter, click_pos);
+        r += popup_menu(app, dynamics_type::queue, click_pos);
+        r += popup_menu(app, dynamics_type::dynamic_queue, click_pos);
+        r += popup_menu(app, dynamics_type::priority_queue, click_pos);
+        r += popup_menu(app, dynamics_type::generator, click_pos);
+        r += popup_menu(app, dynamics_type::constant, click_pos);
+        r += popup_menu(app, dynamics_type::time_func, click_pos);
+        r += popup_menu(app, dynamics_type::accumulator_2, click_pos);
+        r += popup_menu(app, dynamics_type::hsm_wrapper, click_pos);
+
+        return r;
+    }
+
     int show_menu(application& app, ImVec2 click_pos) noexcept
     {
         const bool open_popup =
           ImGui::IsWindowFocused(ImGuiFocusedFlags_RootAndChildWindows) &&
           ImNodes::IsEditorHovered() && ImGui::IsMouseClicked(1);
 
-        auto ret = 0;
+        int r = false;
 
         ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(8.f, 8.f));
         if (!ImGui::IsAnyItemHovered() && open_popup)
@@ -864,135 +987,15 @@ struct generic_simulation_editor::impl {
 
             ImGui::Separator();
 
-            const auto can_edit = pj_ed.can_edit();
-
-            if (ImGui::BeginMenu("QSS1")) {
-                auto       i = static_cast<int>(dynamics_type::qss1_integrator);
-                const auto e = static_cast<int>(dynamics_type::qss1_wsum_4) + 1;
-                for (; i != e; ++i)
-                    ret += add_popup_menuitem(app,
-                                              pj_ed,
-                                              can_edit,
-                                              static_cast<dynamics_type>(i),
-                                              click_pos);
-                ImGui::EndMenu();
-            }
-
-            if (ImGui::BeginMenu("QSS2")) {
-                auto       i = static_cast<int>(dynamics_type::qss2_integrator);
-                const auto e = static_cast<int>(dynamics_type::qss2_wsum_4) + 1;
-
-                for (; i != e; ++i)
-                    ret += add_popup_menuitem(app,
-                                              pj_ed,
-                                              can_edit,
-                                              static_cast<dynamics_type>(i),
-                                              click_pos);
-                ImGui::EndMenu();
-            }
-
-            if (ImGui::BeginMenu("QSS3")) {
-                auto       i = static_cast<int>(dynamics_type::qss3_integrator);
-                const auto e = static_cast<int>(dynamics_type::qss3_wsum_4) + 1;
-
-                for (; i != e; ++i)
-                    ret += add_popup_menuitem(app,
-                                              pj_ed,
-                                              can_edit,
-                                              static_cast<dynamics_type>(i),
-                                              click_pos);
-                ImGui::EndMenu();
-            }
-
-            if (ImGui::BeginMenu("Logical")) {
-                ret += add_popup_menuitem(app,
-                                          pj_ed,
-                                          can_edit,
-                                          dynamics_type::logical_and_2,
-                                          click_pos);
-                ret += add_popup_menuitem(
-                  app, pj_ed, can_edit, dynamics_type::logical_or_2, click_pos);
-                ret += add_popup_menuitem(app,
-                                          pj_ed,
-                                          can_edit,
-                                          dynamics_type::logical_and_3,
-                                          click_pos);
-                ret += add_popup_menuitem(
-                  app, pj_ed, can_edit, dynamics_type::logical_or_3, click_pos);
-                ret += add_popup_menuitem(app,
-                                          pj_ed,
-                                          can_edit,
-                                          dynamics_type::logical_invert,
-                                          click_pos);
-                ImGui::EndMenu();
-            }
-
-            ret += add_popup_menuitem(
-              app, pj_ed, can_edit, dynamics_type::counter, click_pos);
-            ret += add_popup_menuitem(
-              app, pj_ed, can_edit, dynamics_type::queue, click_pos);
-            ret += add_popup_menuitem(
-              app, pj_ed, can_edit, dynamics_type::dynamic_queue, click_pos);
-            ret += add_popup_menuitem(
-              app, pj_ed, can_edit, dynamics_type::priority_queue, click_pos);
-            ret += add_popup_menuitem(
-              app, pj_ed, can_edit, dynamics_type::generator, click_pos);
-            ret += add_popup_menuitem(
-              app, pj_ed, can_edit, dynamics_type::constant, click_pos);
-            ret += add_popup_menuitem(
-              app, pj_ed, can_edit, dynamics_type::time_func, click_pos);
-            ret += add_popup_menuitem(
-              app, pj_ed, can_edit, dynamics_type::accumulator_2, click_pos);
-            ret += add_popup_menuitem(
-              app, pj_ed, can_edit, dynamics_type::hsm_wrapper, click_pos);
+            if (pj_ed.can_edit())
+                r += show_menu_edit(app, click_pos);
 
             ImGui::EndPopup();
         }
 
         ImGui::PopStyleVar();
 
-        return ret;
-    }
-
-    int try_create_connection(application& app, project_editor& ed) noexcept
-    {
-        int start = 0, end = 0;
-
-        if (!(ImNodes::IsLinkCreated(&start, &end) && ed.can_edit()))
-            return 0;
-
-        const gport out = get_out(ed.pj.sim, start);
-        const gport in  = get_in(ed.pj.sim, end);
-
-        if (!(out.model && in.model && ed.pj.sim.can_connect(1)))
-            return 0;
-
-        if (!is_ports_compatible(
-              *out.model, out.port_index, *in.model, in.port_index))
-            return 0;
-
-        return attempt_all(
-          [&]() noexcept -> result<int> {
-              irt_check(ed.pj.sim.connect(
-                *out.model, out.port_index, *in.model, in.port_index));
-              return 1;
-          },
-
-          [&app](const simulation::part s) noexcept -> int {
-              auto& notif = app.notifications.alloc(log_level::warning);
-              notif.title = "Fail to create connection";
-              format(notif.message, "Error: {}", ordinal(s));
-              app.notifications.enable(notif);
-              return 0;
-          },
-
-          [&app]() noexcept -> int {
-              auto& notif   = app.notifications.alloc(log_level::warning);
-              notif.title   = "Fail to create connection";
-              notif.message = "Error: Unknown";
-              app.notifications.enable(notif);
-              return 0;
-          });
+        return r;
     }
 
     template<typename Dynamics>
@@ -1104,31 +1107,6 @@ struct generic_simulation_editor::impl {
             ImNodes::Link(i, links[i].out, links[i].in);
         }
     }
-
-    void rebuild(application& app) noexcept
-    {
-        self.enable_show = false;
-
-        app.add_gui_task([&]() {
-            self.links_2nd.clear();
-            self.nodes_2nd.clear();
-
-            if (auto* tn = pj_ed.pj.tree_nodes.try_to_get(self.current)) {
-                build_nodes(pj_ed.pj.sim, *tn);
-                build_links(pj_ed.pj.sim, *tn);
-            } else {
-                build_flat_nodes(pj_ed.pj.sim);
-                build_flat_links(pj_ed.pj.sim);
-            }
-
-            if (std::unique_lock lock(self.mutex); lock.owns_lock()) {
-                std::swap(self.links, self.links_2nd);
-                std::swap(self.nodes, self.nodes_2nd);
-            }
-
-            self.enable_show = true;
-        });
-    }
 };
 
 generic_simulation_editor::generic_simulation_editor() noexcept
@@ -1163,52 +1141,95 @@ void generic_simulation_editor::init(application&     app,
     enable_show = false;
 
     app.add_gui_task([&]() {
-        auto& pj_ed = container_of(this, &project_editor::generic_sim);
         generic_simulation_editor::impl impl(*this);
+        impl.self.nodes_2nd.clear();
+        impl.self.links_2nd.clear();
 
-        links.clear();
-        nodes.clear();
+        impl.build_nodes(impl.pj_ed.pj.sim, tn);
+        impl.build_links(impl.pj_ed.pj.sim, tn);
 
-        const auto tn_id = pj_ed.pj.tree_nodes.get_id(tn);
-        impl.build_nodes(pj_ed.pj.sim, tn);
-        impl.build_links(pj_ed.pj.sim, tn);
-
-        if (std::unique_lock lock(mutex); lock.owns_lock()) {
-            std::swap(links, links_2nd);
-            std::swap(nodes, nodes_2nd);
-            current     = tn_id;
-            enable_show = true;
+        if (std::unique_lock lock(impl.pj_ed.generic_sim.mutex);
+            lock.owns_lock()) {
+            std::swap(impl.pj_ed.generic_sim.links,
+                      impl.pj_ed.generic_sim.links_2nd);
+            std::swap(impl.pj_ed.generic_sim.nodes,
+                      impl.pj_ed.generic_sim.nodes_2nd);
         }
+
+        impl.self.current = impl.pj_ed.pj.tree_nodes.get_id(tn);
+        impl.pj_ed.generic_sim.enable_show = true;
+        impl.pj_ed.generic_sim.rebuild_wip = false;
     });
 }
 
-void generic_simulation_editor::init(application& app, simulation& sim) noexcept
+void generic_simulation_editor::init(application& app) noexcept
 {
     enable_show = false;
 
     app.add_gui_task([&]() {
         generic_simulation_editor::impl impl(*this);
+        impl.self.nodes_2nd.clear();
+        impl.self.links_2nd.clear();
 
-        links.clear();
-        nodes.clear();
+        impl.build_flat_nodes(impl.pj_ed.pj.sim);
+        impl.build_flat_links(impl.pj_ed.pj.sim);
 
-        if (sim.models.ssize() < 256) {
-            impl.build_flat_nodes(sim);
-            impl.build_flat_links(sim);
-
-            if (std::unique_lock lock(mutex); lock.owns_lock()) {
-                std::swap(nodes, nodes_2nd);
-                std::swap(links, links_2nd);
-                current     = undefined<tree_node_id>();
-                enable_show = true;
-            }
+        if (std::unique_lock lock(impl.pj_ed.generic_sim.mutex);
+            lock.owns_lock()) {
+            std::swap(impl.pj_ed.generic_sim.links,
+                      impl.pj_ed.generic_sim.links_2nd);
+            std::swap(impl.pj_ed.generic_sim.nodes,
+                      impl.pj_ed.generic_sim.nodes_2nd);
         }
+
+        impl.self.current                  = undefined<tree_node_id>();
+        impl.pj_ed.generic_sim.enable_show = true;
+        impl.pj_ed.generic_sim.rebuild_wip = false;
     });
+}
+
+void generic_simulation_editor::start_rebuild_task(application& app) noexcept
+{
+    app.add_gui_task([&]() {
+        generic_simulation_editor::impl impl(*this);
+        impl.self.nodes_2nd.clear();
+        impl.self.links_2nd.clear();
+
+        if (auto* tn = impl.pj_ed.pj.tree_nodes.try_to_get(
+              impl.pj_ed.generic_sim.current)) {
+            impl.build_nodes(impl.pj_ed.pj.sim, *tn);
+            impl.build_links(impl.pj_ed.pj.sim, *tn);
+        } else {
+            impl.build_flat_nodes(impl.pj_ed.pj.sim);
+            impl.build_flat_links(impl.pj_ed.pj.sim);
+        }
+
+        if (std::unique_lock lock(impl.pj_ed.generic_sim.mutex);
+            lock.owns_lock()) {
+            std::swap(impl.pj_ed.generic_sim.links,
+                      impl.pj_ed.generic_sim.links_2nd);
+            std::swap(impl.pj_ed.generic_sim.nodes,
+                      impl.pj_ed.generic_sim.nodes_2nd);
+        }
+
+        impl.pj_ed.generic_sim.enable_show = true;
+        impl.pj_ed.generic_sim.rebuild_wip = false;
+    });
+}
+
+void generic_simulation_editor::reinit(application& app) noexcept
+{
+    if (rebuild_wip)
+        return;
+
+    rebuild_wip = true;
+    enable_show = false;
+    start_rebuild_task(app);
 }
 
 bool generic_simulation_editor::display(application& app) noexcept
 {
-    auto& pj_ed = container_of(this, &project_editor::generic_sim);
+    int                             changes = false;
     generic_simulation_editor::impl impl(*this);
 
     if (std::unique_lock lock(mutex, std::try_to_lock); lock.owns_lock()) {
@@ -1216,7 +1237,7 @@ bool generic_simulation_editor::display(application& app) noexcept
             ImNodes::EditorContextSet(context);
             ImNodes::BeginNodeEditor();
 
-            auto changes = 0;
+            auto& pj_ed = container_of(this, &project_editor::generic_sim);
 
             if (automatic_layout_iteration > 0) {
                 impl.compute_automatic_layout(app, displacements);
@@ -1234,7 +1255,9 @@ bool generic_simulation_editor::display(application& app) noexcept
 
             ImNodes::EndNodeEditor();
 
-            changes += impl.try_create_connection(app, pj_ed);
+            int start = 0, end = 0;
+            if (ImNodes::IsLinkCreated(&start, &end) and pj_ed.can_edit())
+                changes += impl.connect(app, start, end);
 
             auto num_selected_links = ImNodes::NumSelectedLinks();
             auto num_selected_nodes = ImNodes::NumSelectedNodes();
@@ -1249,60 +1272,36 @@ bool generic_simulation_editor::display(application& app) noexcept
                 ImNodes::ClearLinkSelection();
             }
 
-            if (can_edit and num_selected_nodes > 0) {
+            if (num_selected_nodes > 0) {
                 selected_nodes.resize(num_selected_nodes, -1);
                 ImNodes::GetSelectedNodes(selected_nodes.begin());
 
                 if (ImGui::IsKeyReleased(ImGuiKey_Delete)) {
-                    impl.free_children(app, pj_ed, selected_nodes);
+                    changes += impl.free_model(app, selected_nodes);
                     selected_nodes.clear();
-                    num_selected_nodes = 0;
                     ++changes;
                     ImNodes::ClearNodeSelection();
                 } else if (ImGui::IsKeyReleased(ImGuiKey_D)) {
-                    if (auto ret = impl.copy(pj_ed, selected_nodes); !ret) {
-                        app.notifications.try_insert(
-                          log_level::error,
-                          [&](auto& title, auto& /*msg*/) noexcept {
-                              title = "Fail to copy selected nodes";
-                          });
-                    }
+                    changes += impl.copy(app, selected_nodes);
                     selected_nodes.clear();
-                    num_selected_nodes = 0;
                     ImNodes::ClearNodeSelection();
-                    ++changes;
                 }
-            } else if (can_edit and num_selected_links > 0) {
+            } else if (num_selected_links > 0) {
                 selected_links.resize(num_selected_links);
 
                 if (ImGui::IsKeyReleased(ImGuiKey_Delete)) {
                     std::fill_n(
                       selected_links.begin(), selected_links.size(), -1);
                     ImNodes::GetSelectedLinks(selected_links.begin());
-
-                    for (const auto link_index : selected_links) {
-                        auto out = get_out(pj_ed.pj.sim, links[link_index].out);
-                        auto in  = get_out(pj_ed.pj.sim, links[link_index].in);
-
-                        if (out.model and in.model)
-                            pj_ed.pj.sim.disconnect(*out.model,
-                                                    out.port_index,
-                                                    *in.model,
-                                                    in.port_index);
-                    }
-
-                    selected_links.resize(0);
+                    changes += impl.disconnect(app, selected_links);
+                    selected_links.clear();
                     ImNodes::ClearLinkSelection();
-                    ++changes;
                 }
             }
-
-            if (changes > 0)
-                impl.rebuild(app);
         }
     }
 
-    return false;
+    return changes;
 }
 
 } // namespace irt
