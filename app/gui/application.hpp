@@ -724,8 +724,7 @@ struct command {
     };
 
     struct send_message_t {
-        tree_node_id tn_id;
-        model_id     mdl_id;
+        model_id mdl_id;
     };
 
     union data_t {
@@ -879,7 +878,8 @@ struct project_editor {
      */
     std::optional<model_id> have_send_message;
 
-    thread_safe_ring_buffer<command, 256> commands;
+    /** TODO Maybe develop a heap allocated ring-buffer. */
+    thread_safe_ring_buffer<command, 16> commands;
 
     registred_path_id project_file = undefined<registred_path_id>();
     project           pj;

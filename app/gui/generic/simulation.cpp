@@ -343,11 +343,13 @@ static void show_dynamics_values(project_editor& sim, constant& dyn)
     ImGui::TextFormat("next ta {}", dyn.sigma);
     ImGui::InputDouble("value", &dyn.value);
 
-    if (not sim.have_send_message.has_value() and
-        ImGui::Button("Send value now")) {
-        auto& mdl             = get_model(dyn);
-        auto  mdl_id          = sim.pj.sim.models.get_id(mdl);
-        sim.have_send_message = mdl_id;
+    if (ImGui::Button("Send value now")) {
+        auto& mdl    = get_model(dyn);
+        auto  mdl_id = sim.pj.sim.models.get_id(mdl);
+
+        sim.commands.push(
+          command{ .type = command_type::send_message,
+                   .data{ .send_message{ .mdl_id = mdl_id } } });
     }
 }
 
