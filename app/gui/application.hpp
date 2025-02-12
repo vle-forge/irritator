@@ -553,7 +553,6 @@ private:
     bool rebuild_wip = false; /**< @ true, a rebuild order is in work in
                                  progress. No other rebuild can occured. */
 
-
     void start_rebuild_task(application& app) noexcept;
 
     spin_mutex mutex;
@@ -871,12 +870,6 @@ struct project_editor {
     using tree_node_observation_t = constrained_value<int, 1, 100>;
     tree_node_observation_t tree_node_observation{ 1 };
     float                   tree_node_observation_height = 200.f;
-
-    /**
-     * @brief A live modeling tool to force a `constant` model to produce an
-     * internal event.
-     */
-    std::optional<model_id> have_send_message;
 
     /** TODO Maybe develop a heap allocated ring-buffer. */
     thread_safe_ring_buffer<command, 16> commands;
