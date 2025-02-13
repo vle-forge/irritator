@@ -132,6 +132,186 @@ private:
     std::atomic_int m_head, m_tail;
 };
 
+template<typename T, int Size>
+class static_buffer
+{
+public:
+    static_assert(Size > 0);
+
+    using size_type  = small_storage_size_t<Size>;
+    using index_type = std::make_signed_t<size_type>;
+
+    T& operator[](std::integral auto position) noexcept
+    {
+        return *(static_cast<T*>(m_buffer.data()) + position);
+    }
+
+    const T& operator[](std::integral auto position) const noexcept
+    {
+        return *(static_cast<T*>(m_buffer.data()) + position);
+    }
+
+    size_type capacity() const noexcept { return Size; }
+    bool      good() const noexcept { return true; }
+
+protected:
+    std::array<std::byte, sizeof(T) * Size> m_buffer;
+};
+
+template<typename T,
+         int Size,
+         typename A = allocator<new_delete_memory_resource>>
+class dynamic_buffer
+{
+public:
+    static_assert(Size > 0);
+
+    using size_type  = small_storage_size_t<Size>;
+    using index_type = std::make_signed_t<size_type>;
+
+    dynamic_buffer() noexcept
+      : m_buffer(static_cast<std::byte*>(A::allocate(sizeof(T) * Size)))
+    {}
+
+    ~dynamic_buffer() noexcept
+    {
+        if (m_buffer)
+            A::deallocate(m_buffer, Size * sizeof(T));
+
+        m_buffer = nullptr;
+    }
+
+    T& operator[](std::integral auto position) noexcept
+    {
+        return *(reinterpret_cast<T*>(m_buffer) + position);
+    }
+
+    const T& operator[](std::integral auto position) const noexcept
+    {
+        return *(reinterpret_cast<T*>(m_buffer) + position);
+    }
+
+    size_type capacity() const noexcept { return Size; }
+    bool      good() const noexcept { return m_buffer != nullptr; }
+
+protected:
+    std::byte* m_buffer = nullptr;
+};
+
+/**
+ * The @c circular_buffer_base class provides a single-writer/single-reader fifo
+ * queue where pushing and popping is wait-free.
+ *
+ * @tparam T A simple type (trivially object or nothrow).
+ * @tparam Memory A fixed size buffer in heap or in stack.
+ */
+template<typename T, typename Memory>
+class circular_buffer_base
+{
+public:
+    using underlying_memory_type = Memory;
+    using size_type              = typename underlying_memory_type::size_type;
+    using index_type             = typename underlying_memory_type::index_type;
+
+    static_assert(std::is_nothrow_destructible_v<T> ||
+                  std::is_trivially_destructible_v<T> ||
+                  std::is_nothrow_copy_assignable_v<T> ||
+                  std::is_trivially_copy_assignable_v<T> ||
+                  std::is_nothrow_move_assignable_v<T> ||
+                  std::is_trivially_move_assignable_v<T>);
+
+    constexpr circular_buffer_base() noexcept = default;
+
+    constexpr ~circular_buffer_base() noexcept
+    {
+        while (not empty()) {
+            T value;
+            if (not pop(value))
+                break;
+        }
+    }
+
+    circular_buffer_base(const circular_buffer_base&) noexcept = delete;
+    circular_buffer_base& operator=(const circular_buffer_base&) noexcept =
+      delete;
+
+    bool push(const T& value) noexcept
+    {
+        int head      = m_head.load(std::memory_order_relaxed);
+        int next_head = next(head);
+        if (next_head == m_tail.load(std::memory_order_acquire))
+            return false;
+
+        std::construct_at(&m_buffer[head], value);
+        m_head.store(next_head, std::memory_order_release);
+
+        return true;
+    }
+
+    bool pop(T& value) noexcept
+    {
+        int tail = m_tail.load(std::memory_order_relaxed);
+        if (tail == m_head.load(std::memory_order_acquire))
+            return false;
+
+        else if constexpr (std::is_trivially_move_assignable_v<T> or
+                           std::is_nothrow_move_assignable_v<T>) {
+            value = std::move(m_buffer[tail]);
+        } else {
+            value = m_buffer[tail];
+        }
+
+        std::destroy_at(&m_buffer[tail]);
+        m_tail.store(next(tail), std::memory_order_release);
+
+        return true;
+    }
+
+    bool empty() const noexcept
+    {
+        int tail = m_tail.load(std::memory_order_relaxed);
+        if (tail == m_head.load(std::memory_order_acquire))
+            return true;
+
+        return false;
+    }
+
+    constexpr auto capacity() noexcept { return m_buffer.capacity(); }
+
+private:
+    constexpr auto next(int current) noexcept -> int
+    {
+        return (current + 1) % capacity();
+    }
+
+private:
+    underlying_memory_type m_buffer;
+    std::atomic_int        m_head;
+    std::atomic_int        m_tail;
+};
+
+/**
+ * The @c static_circular_buffer class provides a single-writer/single-reader
+ * fifo queue where pushing and popping is wait-free and a stack allocated
+ * underlying buffer.
+ *
+ * @tparam T A simple type (trivially object or nothrow).
+ * @tparam Size The capacity of the underlying buffer.
+ */
+template<typename T, int Size>
+using static_circular_buffer = circular_buffer_base<T, static_buffer<T, Size>>;
+
+/**
+ * The @c circular_buffer class provides a single-writer/single-reader fifo
+ * queue where pushing and popping is wait-free and a heap allocated underlying
+ * buffer.
+ *
+ * @tparam T A simple type (trivially object or nothrow).
+ * @tparam Size The capacity of the underlying buffer.
+ */
+template<typename T, int Size>
+using circular_buffer = circular_buffer_base<T, dynamic_buffer<T, Size>>;
+
 // Simplicity key to scalability
 // – Task has well defined input and output
 // – Independent stateless, no stalls, always completes
@@ -160,8 +340,8 @@ struct job {
 
 //! @brief Simple task list access by only one thread
 struct task_list {
-    worker_stats&                                         stats;
-    thread_safe_ring_buffer<task, task_list_tasks_number> tasks;
+    worker_stats&                                 stats;
+    circular_buffer<task, task_list_tasks_number> tasks;
 
     worker_main* worker = nullptr;
 

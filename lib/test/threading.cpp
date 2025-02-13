@@ -350,4 +350,29 @@ int main()
           std::chrono::duration_cast<std::chrono::milliseconds>(end - start);
         fmt::print("linear: {}\n", dif.count());
     };
+
+    "static-circular-buffer"_test = [] {
+        irt::task_manager             tm;
+        irt::circular_buffer<int, 16> buffer;
+
+        constexpr int loop = 100;
+
+        tm.start();
+
+        for (int x = 0; x < 100; ++x) {
+            for (int i = 0; i < loop; ++i) {
+                tm.main_task_lists[0].add([&buffer]() { buffer.push(0); });
+
+                tm.main_task_lists[1].add([&buffer]() {
+                    int r;
+                    buffer.pop(r);
+                });
+            }
+
+            tm.main_task_lists[0].submit();
+            tm.main_task_lists[1].submit();
+            tm.main_task_lists[0].wait();
+            tm.main_task_lists[1].wait();
+        }
+    };
 }
