@@ -280,7 +280,7 @@ struct task_list {
     std::atomic_int  task_done   = 0;
     std::atomic_flag wakeup      = ATOMIC_FLAG_INIT;
 
-    task_list(worker_stats& stats) noexcept;
+    explicit task_list(worker_stats& stats) noexcept;
     ~task_list() noexcept = default;
     task_list(task_list&& other) noexcept;
 
