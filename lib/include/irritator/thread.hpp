@@ -299,14 +299,14 @@ struct task_list {
 struct unordered_task_list {
     enum class phase { add, submit, run, stop };
 
-    worker_stats&                                        stats;
-    small_vector<task, unordered_task_list_tasks_number> tasks;
+    worker_stats& stats;
+    vector<task>  tasks;
 
     vector<worker_generic*> workers;
     std::atomic_int         current_task = 0;
     std::atomic_int         phase        = ordinal(phase::add);
 
-    unordered_task_list(worker_stats& stats) noexcept;
+    explicit unordered_task_list(worker_stats& stats) noexcept;
     ~unordered_task_list() noexcept = default;
     unordered_task_list(unordered_task_list&& other) noexcept;
 
@@ -515,7 +515,8 @@ inline void task_list::terminate() noexcept
 }
 
 inline unordered_task_list::unordered_task_list(worker_stats& stats_) noexcept
-  : stats{ stats_ }
+  : stats(stats_)
+  , tasks(unordered_task_list_tasks_number, reserve_tag{})
 {
     stats.start_time = std::chrono::steady_clock::now();
 }
