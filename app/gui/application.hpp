@@ -779,18 +779,6 @@ struct project_editor {
     void start_simulation_back(application& app) noexcept;
     void start_enable_or_disable_debug(application& app) noexcept;
 
-    void start_simulation_model_add(application&        app,
-                                    const dynamics_type type,
-                                    const float         x,
-                                    const float         y) noexcept;
-    void start_simulation_model_del(application&   app,
-                                    const model_id id) noexcept;
-
-    void remove_simulation_observation_from(application&   app,
-                                            const model_id id) noexcept;
-    void add_simulation_observation_for(application&   app,
-                                        const model_id id) noexcept;
-
     bool can_edit() const noexcept;
     bool can_display_graph_editor() const noexcept;
 
