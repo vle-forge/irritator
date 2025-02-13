@@ -96,10 +96,10 @@ static bool have_good_extension(const std::filesystem::path& p,
 }
 
 static void copy_files_and_directories(
-  const std::filesystem::path&        current_path,
-  std::vector<std::filesystem::path>& paths,
-  const char8_t**                     file_filters,
-  const char8_t**                     extension_filters) noexcept
+  const std::filesystem::path&   current_path,
+  vector<std::filesystem::path>& paths,
+  const char8_t**                file_filters,
+  const char8_t**                extension_filters) noexcept
 {
     std::error_code err;
     for (std::filesystem::directory_iterator it(current_path, err), et;
@@ -121,7 +121,7 @@ static void copy_files_and_directories(
     }
 }
 
-static void sort(std::vector<std::filesystem::path>& paths) noexcept
+static void sort(vector<std::filesystem::path>& paths) noexcept
 {
     std::sort(
       std::begin(paths), std::end(paths), [](const auto& lhs, const auto& rhs) {
@@ -216,7 +216,8 @@ static void show_path(const std::filesystem::path& current,
 }
 
 file_dialog::file_dialog() noexcept
-  : drives{ 0 }
+  : buffer(512, reserve_tag{})
+  , drives{ 0 }
   , state{ status::hide }
 {
     std::error_code error;
@@ -238,7 +239,8 @@ void file_dialog::clear() noexcept
     temp.clear();
     state = file_dialog::status::hide;
 
-    buffer[0] = u8'\0';
+    buffer.clear();
+    buffer.push_back(u8'\0');
 }
 
 bool file_dialog::show_load_file(const char*     title,
@@ -282,13 +284,14 @@ bool file_dialog::show_load_file(const char*     title,
                 }
             }
 
-            for (auto it = paths.begin(), et = paths.end(); it != et; ++it) {
+            for (auto it = paths.cbegin(), et = paths.cend(); it != et; ++it) {
                 temp.clear();
                 std::error_code ec;
                 if (std::filesystem::is_directory(*it, ec))
                     temp = u8"[Dir] ";
 
-                temp += it->filename().u8string();
+                const auto u8filename = it->filename().u8string();
+                temp += u8filename;
 
                 auto* u8c_str = temp.c_str();
                 auto* c_str   = reinterpret_cast<const char*>(u8c_str);
@@ -306,14 +309,10 @@ bool file_dialog::show_load_file(const char*     title,
                     }
 
                     if (std::filesystem::is_regular_file(*it, ec)) {
-                        const size_t max_size =
-                          std::min(std::size(it->filename().u8string()),
-                                   std::size(buffer) - 1);
-
-                        std::copy_n(std::begin(it->filename().u8string()),
-                                    max_size,
-                                    buffer);
-                        buffer[max_size] = u8'\0';
+                        buffer.resize(u8filename.size());
+                        std::copy_n(
+                          u8filename.data(), u8filename.size(), buffer.begin());
+                        buffer.push_back(u8'\0');
                     }
                     break;
                 }
@@ -369,13 +368,12 @@ bool file_dialog::show_save_file(const char*        title,
                                  const char8_t**    filters) noexcept
 {
     if (state == status::hide) {
-        state                   = status::show;
-        const auto default_size = std::size(default_file_name);
-        const auto buffer_size  = std::size(buffer);
-        const auto max_size     = std::min(default_size, buffer_size - 1);
+        state = status::show;
 
-        std::copy_n(std::begin(default_file_name), max_size, buffer);
-        buffer[max_size] = u8'\0';
+        buffer.resize(std::size(default_file_name));
+        std::copy_n(
+          default_file_name.data(), default_file_name.size(), buffer.begin());
+        buffer.push_back(u8'\0');
     }
 
     next.clear();
@@ -412,13 +410,14 @@ bool file_dialog::show_save_file(const char*        title,
                 }
             }
 
-            for (auto it = paths.begin(), et = paths.end(); it != et; ++it) {
+            for (auto it = paths.cbegin(), et = paths.cend(); it != et; ++it) {
                 temp.clear();
                 std::error_code ec;
                 if (std::filesystem::is_directory(*it, ec))
                     temp = u8"[Dir] ";
 
-                temp = it->filename().u8string();
+                const auto u8filename = it->filename().u8string();
+                temp                  = u8filename;
 
                 if (ImGui::Selectable((const char*)temp.c_str(),
                                       (it->filename() == selected))) {
@@ -434,14 +433,10 @@ bool file_dialog::show_save_file(const char*        title,
                     }
 
                     if (std::filesystem::is_regular_file(*it, ec)) {
-                        const size_t max_size =
-                          std::min(std::size(it->filename().u8string()),
-                                   std::size(buffer) - 1);
-
-                        std::copy_n(std::begin(it->filename().u8string()),
-                                    max_size,
-                                    buffer);
-                        buffer[max_size] = u8'\0';
+                        buffer.resize(u8filename.size());
+                        std::copy_n(
+                          u8filename.data(), u8filename.size(), buffer.begin());
+                        buffer.push_back(u8'\0');
                     }
 
                     break;
@@ -463,7 +458,7 @@ bool file_dialog::show_save_file(const char*        title,
             current = next;
         }
 
-        auto* buffer_ptr    = reinterpret_cast<char*>(buffer);
+        auto* buffer_ptr    = reinterpret_cast<char*>(buffer.data());
         auto  buffer_size   = std::size(buffer);
         auto  current_str   = current.u8string();
         auto* u8current_ptr = current_str.c_str();
@@ -473,7 +468,7 @@ bool file_dialog::show_save_file(const char*        title,
 
         if (ImGui::Button("Ok", button_size)) {
             result = current;
-            result /= buffer;
+            result /= buffer.data();
             state = status::ok;
         }
 
@@ -535,7 +530,7 @@ bool file_dialog::show_select_directory(const char* title) noexcept
                 }
             }
 
-            for (auto it = paths.begin(), et = paths.end(); it != et; ++it) {
+            for (auto it = paths.cbegin(), et = paths.cend(); it != et; ++it) {
                 temp.clear();
                 std::error_code ec;
                 if (std::filesystem::is_directory(*it, ec)) {
@@ -579,7 +574,7 @@ bool file_dialog::show_select_directory(const char* title) noexcept
 
         if (ImGui::Button("Ok", button_size)) {
             result = current;
-            result /= buffer;
+            result /= buffer.data();
             state = status::ok;
         }
 

@@ -6,24 +6,23 @@
 #define ORG_VLEPROJECT_IRRITATOR_APP_DIALOG_2021
 
 #include <filesystem>
-#include <vector>
 
-#include <irritator/error.hpp>
+#include <irritator/container.hpp>
 
 namespace irt {
 
 struct file_dialog {
     enum class status { show, ok, cancel, hide };
 
-    std::vector<std::filesystem::path> paths;
-    std::filesystem::path              current;
-    std::filesystem::path              selected;
-    std::filesystem::path              next;
-    std::filesystem::path              result;
-    std::u8string                      temp;
-    char8_t                            buffer[512];
-    uint32_t                           drives = 0;
-    status                             state;
+    vector<std::filesystem::path> paths;
+    std::filesystem::path         current;
+    std::filesystem::path         selected;
+    std::filesystem::path         next;
+    std::filesystem::path         result;
+    std::u8string                 temp;
+    vector<char8_t>               buffer;
+    uint32_t                      drives = 0;
+    status                        state;
 
     const char8_t** file_filters;
     const char8_t** extension_filters;
