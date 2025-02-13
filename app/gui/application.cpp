@@ -90,7 +90,7 @@ void application::free_project_window(const project_id id) noexcept
 
 bool application::init() noexcept
 {
-    if (!mod.init(mod_init)) {
+    if (not mod.init(modeling_initializer{})) {
         log_w(*this,
               log_level::error,
               "Fail to initialize modeling components: {}\n");
@@ -184,10 +184,6 @@ bool application::init() noexcept
           });
     }
 
-    if (auto ret = save_settings(); !ret) {
-        log_w(*this, log_level::error, "Fail to save settings files.\n");
-    }
-
     if (auto ret = mod.fill_internal_components(); !ret) {
         log_w(*this,
               log_level::error,
@@ -271,51 +267,6 @@ static void application_show_menu(application& app) noexcept
               "ImPlot demo window", nullptr, &app.show_implot_demo);
             ImGui::Separator();
             ImGui::MenuItem("Settings", nullptr, &app.settings_wnd.is_open);
-
-            if (ImGui::MenuItem("Load settings")) {
-                attempt_all(
-                  [&app]() noexcept -> status {
-                      irt_check(app.load_settings());
-                      return success();
-                  },
-
-                  [&app](const json_archiver::error_code s) noexcept -> void {
-                      auto& n = app.notifications.alloc();
-                      n.title = "Fail to load settings";
-                      format(n.message, "Error: {}", ordinal(s));
-                      app.notifications.enable(n);
-                  },
-
-                  [&app]() noexcept -> void {
-                      auto& n   = app.notifications.alloc();
-                      n.title   = "Fail to load settings";
-                      n.message = "Unknown error";
-                      app.notifications.enable(n);
-                  });
-            }
-
-            if (ImGui::MenuItem("Save settings")) {
-                attempt_all(
-                  [&app]() noexcept -> status {
-                      irt_check(app.save_settings());
-                      return success();
-                  },
-
-                  [&app](const json_archiver::error_code s) noexcept -> void {
-                      auto& n = app.notifications.alloc();
-                      n.title = "Fail to save settings";
-                      format(n.message, "Error: {}", ordinal(s));
-                      app.notifications.enable(n);
-                  },
-
-                  [&app]() noexcept -> void {
-                      auto& n   = app.notifications.alloc();
-                      n.title   = "Fail to load settings";
-                      n.message = "Unknown error";
-                      app.notifications.enable(n);
-                  });
-            }
-
             ImGui::EndMenu();
         }
 

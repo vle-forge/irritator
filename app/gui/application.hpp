@@ -1186,8 +1186,6 @@ public:
     std::filesystem::path home_dir;
     std::filesystem::path executable_dir;
 
-    modeling_initializer mod_init;
-
     notification_manager notifications;
 
     config_manager config;
@@ -1207,9 +1205,6 @@ public:
 
     bool init() noexcept;
     void show() noexcept;
-
-    status save_settings() noexcept;
-    status load_settings() noexcept;
 
     //! Helpers function to add a @c simulation_task into the @c
     //! main_task_lists[simulation]. Task is added at tail of the @c

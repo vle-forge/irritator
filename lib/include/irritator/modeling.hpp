@@ -1340,7 +1340,7 @@ public:
 
     modeling() noexcept;
 
-    status init(modeling_initializer& params) noexcept;
+    status init(const modeling_initializer& params) noexcept;
 
     //! Add internal components to component lists.
     status fill_internal_components() noexcept;

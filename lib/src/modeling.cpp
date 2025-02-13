@@ -22,7 +22,7 @@ modeling::modeling() noexcept
   : log_entries(log_manager::value_p(16))
 {}
 
-status modeling::init(modeling_initializer& p) noexcept
+status modeling::init(const modeling_initializer& p) noexcept
 {
     if (p.description_capacity) {
         descriptions.reserve(p.description_capacity);
