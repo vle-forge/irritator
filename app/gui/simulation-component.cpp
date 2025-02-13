@@ -597,7 +597,6 @@ void project_editor::start_simulation_delete(application& app) noexcept
     display_graph = false;
 
     app.add_simulation_task([&]() noexcept {
-        std::scoped_lock lock(app.sim_mutex);
         pj.clear();
         pj.sim.clear();
     });
@@ -609,10 +608,7 @@ void project_editor::start_simulation_clear(application& app) noexcept
     // simulation_editor::simulation data.
     display_graph = false;
 
-    app.add_simulation_task([&]() noexcept {
-        std::scoped_lock lock(app.sim_mutex);
-        pj.sim.clear();
-    });
+    app.add_simulation_task([&]() noexcept { pj.sim.clear(); });
 }
 
 void project_editor::start_simulation_start(application& app) noexcept
@@ -770,12 +766,8 @@ void project_editor::start_simulation_live_run(application& app) noexcept
             time sim_t;
             time sim_next_t;
 
-            {
-                std::scoped_lock lock(app.sim_mutex);
-
-                sim_t      = pj.sim.t;
-                sim_next_t = pj.sim.sched.tn();
-            }
+            sim_t      = pj.sim.t;
+            sim_next_t = pj.sim.sched.tn();
 
             if (time_domain<time>::is_infinity(sim_t)) {
                 sim_t      = simulation_last_finite_t;
@@ -819,21 +811,18 @@ void project_editor::start_simulation_live_run(application& app) noexcept
             if (wakeup_rt >= start_task_rt + std::chrono::milliseconds{ 1 })
                 std::this_thread::sleep_until(wakeup_rt);
 
-            {
-                std::scoped_lock lock(app.sim_mutex);
-                simulation_last_finite_t = sim_t;
-                pj.sim.t                 = sim_t;
+            simulation_last_finite_t = sim_t;
+            pj.sim.t                 = sim_t;
 
-                if (store_all_changes) {
-                    if (auto ret = debug_run(app, *this); !ret) {
-                        simulation_state = simulation_status::finish_requiring;
-                        return;
-                    }
-                } else {
-                    if (auto ret = run(app, *this); !ret) {
-                        simulation_state = simulation_status::finish_requiring;
-                        return;
-                    }
+            if (store_all_changes) {
+                if (auto ret = debug_run(app, *this); !ret) {
+                    simulation_state = simulation_status::finish_requiring;
+                    return;
+                }
+            } else {
+                if (auto ret = run(app, *this); !ret) {
+                    simulation_state = simulation_status::finish_requiring;
+                    return;
                 }
             }
 
@@ -979,8 +968,6 @@ void project_editor::start_simulation_stop(application& app) noexcept
 void project_editor::start_simulation_finish(application& app) noexcept
 {
     app.add_simulation_task([&]() noexcept {
-        std::scoped_lock lock{ app.sim_mutex };
-
         simulation_state = simulation_status::finishing;
         pj.sim.immediate_observers.clear();
         stop_simulation_observation(app);

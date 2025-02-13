@@ -1156,10 +1156,6 @@ public:
     /** Free the @c id project and allo sub objects (@c registered_path etc.) */
     void free_project_window(const project_id id) noexcept;
 
-    spin_mutex mod_mutex;
-    spin_mutex sim_mutex;
-    spin_mutex pj_mutex;
-
     component_selector       component_sel;
     component_model_selector component_model_sel;
 
