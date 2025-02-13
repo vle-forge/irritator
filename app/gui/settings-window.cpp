@@ -77,7 +77,8 @@ void settings_window::show() noexcept
 
     static const char* dir_status[] = { "none", "read", "unread", "error" };
 
-    auto& app = container_of(this, &application::settings_wnd);
+    auto& app     = container_of(this, &application::settings_wnd);
+    int   changes = false;
 
     if (ImGui::BeginTable("Component directories", 6)) {
         ImGui::TableSetupColumn(
@@ -111,20 +112,20 @@ void settings_window::show() noexcept
 
             ImGui::TableNextColumn();
             ImGui::PushItemWidth(-1);
-            ImGui::InputSmallString(
+            changes += ImGui::InputSmallString(
               "##path", dir->path, ImGuiInputTextFlags_ReadOnly);
             ImGui::PopItemWidth();
 
             ImGui::TableNextColumn();
             ImGui::PushItemWidth(150.f);
-            ImGui::InputSmallString("##name", dir->name);
+            changes += ImGui::InputSmallString("##name", dir->name);
             ImGui::PopItemWidth();
 
             ImGui::TableNextColumn();
             ImGui::PushItemWidth(60.f);
             constexpr i8 p_min = INT8_MIN;
             constexpr i8 p_max = INT8_MAX;
-            ImGui::SliderScalar(
+            changes += ImGui::SliderScalar(
               "##input", ImGuiDataType_S8, &dir->priority, &p_min, &p_max);
             ImGui::PopItemWidth();
 
@@ -176,6 +177,7 @@ void settings_window::show() noexcept
         }
 
         if (to_delete) {
+            changes++;
             app.mod.free(*to_delete);
         }
 
@@ -191,32 +193,61 @@ void settings_window::show() noexcept
             app.show_select_directory_dialog = true;
             app.select_dir_path              = id;
             app.mod.component_repertories.emplace_back(id);
+            changes++;
         }
     }
 
     ImGui::Separator();
     ImGui::Text("Graphics");
 
-    if (display_themes_selector(app))
+    if (display_themes_selector(app)) {
         apply_style(undefined<gui_theme_id>());
+        changes++;
+    }
 
     ImGui::Separator();
     ImGui::Text("Automatic layout parameters");
-    ImGui::DragInt(
+    changes += ImGui::DragInt(
       "max iteration", &automatic_layout_iteration_limit, 1.f, 0, 1000);
-    ImGui::DragFloat(
+    changes += ImGui::DragFloat(
       "a-x-distance", &automatic_layout_x_distance, 1.f, 150.f, 500.f);
-    ImGui::DragFloat(
+    changes += ImGui::DragFloat(
       "a-y-distance", &automatic_layout_y_distance, 1.f, 150.f, 500.f);
 
     ImGui::Separator();
     ImGui::Text("Grid layout parameters");
-    ImGui::DragFloat(
+    changes += ImGui::DragFloat(
       "g-x-distance", &grid_layout_x_distance, 1.f, 150.f, 500.f);
-    ImGui::DragFloat(
+    changes += ImGui::DragFloat(
       "g-y-distance", &grid_layout_y_distance, 1.f, 150.f, 500.f);
 
     ImGui::End();
+
+    if (changes > 0) {
+        timer_started = true;
+        last_change   = std::chrono::steady_clock::now();
+    } else if (timer_started) {
+        const auto end_at   = std::chrono::steady_clock::now();
+        const auto duration = end_at - last_change;
+
+        if (duration > std::chrono::seconds(5)) {
+            timer_started = false;
+            app.add_gui_task([&app]() noexcept {
+                if (auto ret = app.config.save(); ret) {
+                    app.notifications.try_insert(
+                      log_level::error, [ret](auto& title, auto& msg) noexcept {
+                          title = "Settings save failure";
+                          format(msg, "Error in {}", ret.message());
+                      });
+                } else {
+                    app.notifications.try_insert(
+                      log_level::info, [](auto& title, auto&) noexcept {
+                          title = "Settings save success";
+                      });
+                }
+            });
+        }
+    }
 }
 
 void apply_theme_Modern_colors() noexcept;

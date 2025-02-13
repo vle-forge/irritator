@@ -495,8 +495,11 @@ std::string get_config_home(bool log) noexcept
 
     return "config.ini";
 #elif defined(_WIN32)
-    if (auto ret = get_home_directory(); ret)
-        return (*ret).string();
+    if (auto ret = get_home_directory(); ret) {
+        auto path(std::move(*ret));
+        path /= "config.ini";
+        return path.string();
+    }
 
     return "config.ini";
 #endif

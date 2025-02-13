@@ -84,7 +84,7 @@ static std::shared_ptr<variables> do_build_default() noexcept
         v->rec_paths.paths[get_index(idx)] =
           (const char*)sys->u8string().c_str();
         v->rec_paths.priorities[get_index(idx)] = 10;
-        v->rec_paths.names[get_index(idx)]      = "local system";
+        v->rec_paths.names[get_index(idx)]      = "p-system";
     }
 
     if (auto sys = get_default_user_component_dir(); sys.has_value()) {
@@ -115,6 +115,10 @@ static std::error_code do_write(const variables& vars,
     if (os << "[paths]\n") {
         for (const auto id : vars.rec_paths.ids) {
             const auto idx = get_index(id);
+
+            if (vars.rec_paths.names[idx].empty() or
+                vars.rec_paths.paths[idx].empty())
+                continue;
 
             os << vars.rec_paths.names[idx].sv() << ' '
                << vars.rec_paths.priorities[idx] << ' '
@@ -229,7 +233,7 @@ static bool do_read_elem(variables&       vars,
         vars.rec_paths.paths[idx].clear();
 
         imemstream in(element.data(), element.size());
-        in >> vars.rec_paths.priorities[idx] >> vars.rec_paths.names[idx] >>
+        in >> vars.rec_paths.names[idx] >> vars.rec_paths.priorities[idx] >>
           vars.rec_paths.paths[idx];
 
         return in.good();
@@ -238,80 +242,84 @@ static bool do_read_elem(variables&       vars,
     return false;
 }
 
+/**
+ * @brief Check if a position is in a range of a buffer.
+ * @param buffer the buffer to test.
+ * @param pos the position [0, std::string_view::npos].
+ * @return True is pos is in range [0, buffer.size()[.
+ */
+static constexpr bool in_range(const std::string_view      buffer,
+                               std::string_view::size_type pos) noexcept
+{
+    return buffer.empty() ? false : (pos <= buffer.size() - 1);
+}
+
+namespace {
+/**
+ * @brief An anonymous namespace to test the in_range function.
+ */
+using namespace std::string_view_literals;
+static_assert(in_range("totoa"sv, 0));
+static_assert(in_range("totoa"sv, 1));
+static_assert(in_range("totoa"sv, 2));
+static_assert(in_range("totoa"sv, 3));
+static_assert(in_range("totoa"sv, 4));
+static_assert(not in_range("totoa"sv, -1));
+static_assert(not in_range("totoa"sv, 5));
+}
+
 static std::error_code do_parse(std::shared_ptr<variables>& v,
                                 std::string_view            buffer) noexcept
 {
     std::bitset<2> s;
 
-    auto pos = buffer.find_first_of(";#[=\n");
-    if (pos != std::string_view::npos) {
+    for (auto pos = buffer.find_first_of(";#[=\n");
+         pos != std::string_view::npos;
+         pos = buffer.find_first_of(";#[=\n")) {
 
         if (buffer[pos] == '#' or buffer[pos] == ';') { // A comment
-            if (pos + 1u >= buffer.size()) {
-                if (not do_read_elem(*v, s, buffer.substr(0, pos)))
-                    return std::make_error_code(
-                      std::errc::argument_out_of_domain);
+            if (not in_range(buffer, pos + 1u))
                 return std::error_code();
-            }
 
-            auto new_line = buffer.find('\n', pos + 1);
-            if (new_line == std::string_view::npos or
-                new_line + 1u >= buffer.size()) {
-                if (not do_read_elem(*v, s, buffer.substr(0, pos)))
-                    return std::make_error_code(
-                      std::errc::argument_out_of_domain);
+            const auto new_line = buffer.find('\n', pos + 1u);
+            if (not in_range(buffer, new_line + 1u))
                 return std::error_code();
-            }
 
-            if (not do_read_elem(*v, s, buffer.substr(0, pos)))
-                return std::make_error_code(std::errc::argument_out_of_domain);
-            buffer = buffer.substr(new_line);
+            buffer = buffer.substr(new_line + 1u);
         } else if (buffer[pos] == '[') { // Read a new section
-            if (pos + 1u >= buffer.size())
+            if (not in_range(buffer, pos + 1u))
                 return std::make_error_code(std::errc::io_error);
 
             const auto end_section = buffer.find(']', pos + 1u);
-            if (end_section == std::string_view::npos)
+            if (not in_range(buffer, end_section))
                 return std::make_error_code(std::errc::io_error);
 
-            auto sec = buffer.substr(pos + 1u, end_section - pos + 1u);
+            auto sec = buffer.substr(pos + 1u, end_section - pos - 1u);
             if (not do_read_section(*v, s, sec))
                 return std::make_error_code(std::errc::argument_out_of_domain);
             buffer = buffer.substr(end_section + 1u);
-
         } else if (buffer[pos] == '=') { // Read affectation
-            if (pos + 1u >= buffer.size()) {
-                if (not do_read_affect(
-                      *v, s, buffer.substr(0, pos), std::string_view()))
-                    return std::make_error_code(
-                      std::errc::argument_out_of_domain);
-                return std::error_code();
-            }
+            if (not in_range(buffer, pos + 1u))
+                return std::make_error_code(std::errc::io_error);
 
             auto new_line = buffer.find('\n', pos + 1u);
-            if (new_line == std::string_view::npos or
-                new_line + 1 >= buffer.size()) {
-                if (not do_read_affect(
-                      *v, s, buffer.substr(0, pos), buffer.substr(pos + 1u)))
-                    return std::make_error_code(
-                      std::errc::argument_out_of_domain);
-                return std::error_code();
-            }
-
             if (not do_read_affect(*v,
                                    s,
                                    buffer.substr(0, pos),
                                    buffer.substr(pos + 1u, new_line)))
                 return std::make_error_code(std::errc::argument_out_of_domain);
-
-            buffer = buffer.substr(new_line + 1u);
-
-        } else if (buffer[pos] == '\n') { // Read elemet in list
-            if (not do_read_elem(*v, s, buffer.substr(0, pos)))
-                return std::make_error_code(std::errc::argument_out_of_domain);
-
-            if (pos + 1u >= buffer.size())
+            if (not in_range(buffer, new_line + 1u))
                 return std::error_code();
+            buffer = buffer.substr(new_line + 1u);
+        } else if (buffer[pos] == '\n') { // Read elemet in list
+            if (pos > 0u) {
+                if (not do_read_elem(*v, s, buffer.substr(0, pos - 1u)))
+                    return std::make_error_code(
+                      std::errc::argument_out_of_domain);
+
+                if (not in_range(buffer, pos + 1u))
+                    return std::error_code();
+            }
 
             buffer = buffer.substr(pos + 1u);
         }

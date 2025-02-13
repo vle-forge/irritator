@@ -989,6 +989,11 @@ public:
     bool show_dynamics_inputs_in_editor = false;
 
     bool is_open = false;
+
+    /** Stores the clock when settings are changed. If after five second user
+     * does not change anything, a save settings task is launch. */
+    std::chrono::time_point<std::chrono::steady_clock> last_change;
+    bool timer_started = false;
 };
 
 struct task_window {
