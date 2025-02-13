@@ -500,9 +500,17 @@ public:
     bool display(application& app) noexcept;
 
     struct link {
-        int out; /**<  use get_model_output_port/make_output_node_id. */
-        int in;  /**< use get_model_input_port/make_input_node_id. */
+        link() noexcept = default;
 
+        link(int out_, int in_, int mdl_out_, int mdl_in_) noexcept
+          : out(out_)
+          , in(in_)
+          , mdl_out(mdl_out_)
+          , mdl_in(mdl_in_)
+        {}
+
+        int out;     /**<  use get_model_output_port/make_output_node_id. */
+        int in;      /**< use get_model_input_port/make_input_node_id. */
         int mdl_out; /**< output model in nodes index. */
         int mdl_in;  /**< input model in nodes index. */
     };
