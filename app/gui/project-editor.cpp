@@ -1075,7 +1075,7 @@ auto project_editor::show(application& app) noexcept -> show_result_t
         return show_result_t::success;
 
     if (not is_dock_init) {
-        ImGui::SetNextWindowDockID(app.main_dock_id);
+        ImGui::SetNextWindowDockID(app.get_main_dock_id());
         is_dock_init = true;
     }
 

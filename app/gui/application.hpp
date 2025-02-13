@@ -25,7 +25,7 @@
 
 namespace irt {
 
-struct application;
+class application;
 class component_editor;
 struct project_editor;
 
@@ -1138,13 +1138,12 @@ private:
                            vectors. Other functions try to lock. */
 };
 
-struct application {
+class application
+{
+public:
     application() noexcept;
-    ~application() noexcept;
 
-    unsigned int main_dock_id;
-    unsigned int right_dock_id;
-    unsigned int bottom_dock_id;
+    ~application() noexcept;
 
     modeling mod;
 
@@ -1250,6 +1249,15 @@ struct application {
 
     std::optional<file> try_open_file(const char* filename,
                                       open_mode   mode) noexcept;
+
+    unsigned int get_main_dock_id() const noexcept { return main_dock_id; }
+
+private:
+    unsigned int main_dock_id;
+    unsigned int right_dock_id;
+    unsigned int bottom_dock_id;
+
+    void show_dock() noexcept;
 };
 
 /// Display dialog box to choose a @c model in a hierarchy of a @c tree_node

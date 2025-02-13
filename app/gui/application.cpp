@@ -361,61 +361,60 @@ static void application_manage_menu_action(application& app) noexcept
     }
 }
 
-static void application_show_windows(application& app) noexcept
+void application::show_dock() noexcept
 {
     static auto                  first_time = true;
     constexpr ImGuiDockNodeFlags dockspace_flags =
       ImGuiDockNodeFlags_PassthruCentralNode;
 
     ImGuiViewport* viewport = ImGui::GetMainViewport();
-    app.main_dock_id =
-      ImGui::DockSpaceOverViewport(0, viewport, dockspace_flags);
+    main_dock_id = ImGui::DockSpaceOverViewport(0, viewport, dockspace_flags);
 
     if (first_time) {
         first_time = false;
 
-        ImGui::DockBuilderRemoveNode(app.main_dock_id);
+        ImGui::DockBuilderRemoveNode(main_dock_id);
         ImGui::DockBuilderAddNode(
-          app.main_dock_id, dockspace_flags | ImGuiDockNodeFlags_DockSpace);
-        ImGui::DockBuilderSetNodeSize(app.main_dock_id, viewport->Size);
+          main_dock_id, dockspace_flags | ImGuiDockNodeFlags_DockSpace);
+        ImGui::DockBuilderSetNodeSize(main_dock_id, viewport->Size);
 
-        app.right_dock_id = ImGui::DockBuilderSplitNode(
-          app.main_dock_id, ImGuiDir_Right, 0.2f, nullptr, &app.main_dock_id);
-        app.bottom_dock_id = ImGui::DockBuilderSplitNode(
-          app.main_dock_id, ImGuiDir_Down, 0.2f, nullptr, &app.main_dock_id);
+        right_dock_id = ImGui::DockBuilderSplitNode(
+          main_dock_id, ImGuiDir_Right, 0.2f, nullptr, &main_dock_id);
+        bottom_dock_id = ImGui::DockBuilderSplitNode(
+          main_dock_id, ImGuiDir_Down, 0.2f, nullptr, &main_dock_id);
 
-        ImGui::DockBuilderDockWindow(component_editor::name, app.main_dock_id);
-        ImGui::DockBuilderDockWindow(output_editor::name, app.main_dock_id);
+        ImGui::DockBuilderDockWindow(component_editor::name, main_dock_id);
+        ImGui::DockBuilderDockWindow(output_editor::name, main_dock_id);
 
-        ImGui::DockBuilderDockWindow(app.library_wnd.name, app.right_dock_id);
+        ImGui::DockBuilderDockWindow(library_wnd.name, right_dock_id);
 
-        ImGui::DockBuilderDockWindow(window_logger::name, app.bottom_dock_id);
+        ImGui::DockBuilderDockWindow(window_logger::name, bottom_dock_id);
 
-        ImGui::DockBuilderFinish(app.main_dock_id);
+        ImGui::DockBuilderFinish(main_dock_id);
     }
 
-    if (app.component_ed.is_open)
-        app.component_ed.display();
+    if (component_ed.is_open)
+        component_ed.display();
 
     project_editor* pj     = nullptr;
     project_editor* to_del = nullptr;
-    while (app.pjs.next(pj)) {
-        pj->start_simulation_update_state(app);
-        if (pj->show(app) == project_editor::show_result_t::request_to_close)
+    while (pjs.next(pj)) {
+        pj->start_simulation_update_state(*this);
+        if (pj->show(*this) == project_editor::show_result_t::request_to_close)
             to_del = pj;
     }
 
     if (to_del)
-        app.free_project_window(app.pjs.get_id(*to_del));
+        free_project_window(pjs.get_id(*to_del));
 
-    if (app.output_ed.is_open)
-        app.output_ed.show();
+    if (output_ed.is_open)
+        output_ed.show();
 
-    if (app.log_wnd.is_open)
-        app.log_wnd.show();
+    if (log_wnd.is_open)
+        log_wnd.show();
 
-    if (app.library_wnd.is_open)
-        app.library_wnd.show();
+    if (library_wnd.is_open)
+        library_wnd.show();
 }
 
 void application::show() noexcept
@@ -447,7 +446,7 @@ void application::show() noexcept
     if (show_implot_demo)
         ImPlot::ShowDemoWindow(&show_implot_demo);
 
-    application_show_windows(*this);
+    show_dock();
 
     if (memory_wnd.is_open)
         memory_wnd.show();

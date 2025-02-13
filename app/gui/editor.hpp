@@ -10,7 +10,7 @@
 
 namespace irt {
 
-struct application;
+class application;
 
 /**
    Displays widgets to control the parameter @c p according to the dynamics
