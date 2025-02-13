@@ -242,20 +242,30 @@ using static_circular_buffer = circular_buffer_base<T, static_buffer<T, Size>>;
 template<typename T, int Size>
 using circular_buffer = circular_buffer_base<T, dynamic_buffer<T, Size>>;
 
-// Simplicity key to scalability
-// – Task has well defined input and output
-// – Independent stateless, no stalls, always completes
-// – Task added to @c main_task_list
-// – Task fully independent
+/**
+ * The @c task is a function with a static buffer allowing 4 sizeof(u64) data in
+ * lambda capture.
+ *
+ * Simplicity key to scalability:
+ * – @c task has well defined input and output.
+ * – Independent stateless, no stalls, always completes.
+ * – @c task added to @c main_task_list.
+ * – @c task fully independent
+ */
 using task =
   small_function<(sizeof(void*) * 2) + (sizeof(u64) * 4), void(void)>;
 
-// Simplicity key to scalability
-// - Job build by task for large parallelisable task
-// – Job has well defined input and output
-// – Independent stateless, no stalls, always completes
-// – Job added to @c temp_task_list
-// – Task fully independent
+/**
+ * The @c task is a function with a static buffer allowing 4 sizeof(u64) data in
+ * lambda capture.
+ *
+ * Simplicity key to scalability:
+ * - @c job build by task for large parallelisable task.
+ * – @c job has well defined input and output.
+ * – Independent stateless, no stalls, always completes.
+ * – @c job added to @c temp_task_list.
+ * – @c job fully independent.
+ */
 struct job {
     job() noexcept = default;
 
