@@ -859,8 +859,7 @@ struct project_editor {
     tree_node_observation_t tree_node_observation{ 1 };
     float                   tree_node_observation_height = 200.f;
 
-    /** TODO Maybe develop a heap allocated ring-buffer. */
-    thread_safe_ring_buffer<command, 16> commands;
+    circular_buffer<command, 256> commands;
 
     registred_path_id project_file = undefined<registred_path_id>();
     project           pj;

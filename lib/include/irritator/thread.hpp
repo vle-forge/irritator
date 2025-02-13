@@ -433,8 +433,8 @@ struct worker_generic : public worker_base<worker_generic> {
 
     void run() noexcept;
 
-    std::atomic_flag                 wakeup = ATOMIC_FLAG_INIT;
-    thread_safe_ring_buffer<job, 16> tasks;
+    std::atomic_flag         wakeup = ATOMIC_FLAG_INIT;
+    circular_buffer<job, 16> tasks;
 };
 
 struct worker_stats {
