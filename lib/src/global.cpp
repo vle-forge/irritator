@@ -21,6 +21,7 @@ struct membuf : std::streambuf {
         this->setg(p, p, p + size);
     }
 };
+
 struct imemstream
   : virtual membuf
   , std::istream {
@@ -65,9 +66,37 @@ static std::shared_ptr<variables> do_build_default() noexcept
 {
     auto v = std::make_shared<variables>();
 
+    v->rec_paths.ids.reserve(16);
+    v->rec_paths.paths.resize(16);
+    v->rec_paths.priorities.resize(16);
+    v->rec_paths.names.resize(16);
+
+    if (auto sys = get_system_component_dir(); sys.has_value()) {
+        const auto idx = v->rec_paths.ids.alloc();
+        v->rec_paths.paths[get_index(idx)] =
+          (const char*)sys->u8string().c_str();
+        v->rec_paths.priorities[get_index(idx)] = 20;
+        v->rec_paths.names[get_index(idx)]      = "system";
+    }
+
+    if (auto sys = get_system_prefix_component_dir(); sys.has_value()) {
+        const auto idx = v->rec_paths.ids.alloc();
+        v->rec_paths.paths[get_index(idx)] =
+          (const char*)sys->u8string().c_str();
+        v->rec_paths.priorities[get_index(idx)] = 10;
+        v->rec_paths.names[get_index(idx)]      = "local system";
+    }
+
+    if (auto sys = get_default_user_component_dir(); sys.has_value()) {
+        const auto idx = v->rec_paths.ids.alloc();
+        v->rec_paths.paths[get_index(idx)] =
+          (const char*)sys->u8string().c_str();
+        v->rec_paths.priorities[get_index(idx)] = 0;
+        v->rec_paths.names[get_index(idx)]      = "user";
+    }
+
     v->g_themes.ids.reserve(16);
     v->g_themes.names.resize(16);
-
     v->g_themes.selected = alloc_gui_theme("Modern", v->g_themes);
     alloc_gui_theme("Dark", v->g_themes);
     alloc_gui_theme("Light", v->g_themes);
@@ -116,7 +145,7 @@ static std::error_code do_save(const char*      filename,
         return std::make_error_code(
           std::errc(std::errc::no_such_file_or_directory));
 
-    file << "# irritator 0.x\n;\n";
+    file << "# irritator 0.x\n";
     if (file.bad())
         return std::make_error_code(std::errc(std::errc::io_error));
 
@@ -339,7 +368,9 @@ config_manager::config_manager(const std::string config_path) noexcept
   : m_path{ config_path }
   , m_vars{ do_build_default() }
 {
-    (void)do_load(config_path.c_str(), m_vars);
+    if (do_load(config_path.c_str(), m_vars)) {
+        (void)save();
+    }
 }
 
 std::error_code config_manager::save() const noexcept

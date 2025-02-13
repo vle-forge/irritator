@@ -88,6 +88,35 @@ void application::free_project_window(const project_id id) noexcept
     pjs.free(id);
 }
 
+static void init_registred_path(application&  app,
+                                const config& cfg,
+                                modeling&     mod) noexcept
+{
+    auto& vars = cfg.vars();
+
+    for (const auto id : vars.rec_paths.ids) {
+        const auto idx = get_index(id);
+
+        auto& new_dir    = mod.registred_paths.alloc();
+        auto  new_dir_id = mod.registred_paths.get_id(new_dir);
+        new_dir.name     = vars.rec_paths.names[idx].sv();
+        new_dir.path     = vars.rec_paths.paths[idx].sv();
+        new_dir.priority = vars.rec_paths.priorities[idx];
+
+        app.notifications.try_insert(
+          log_level::info, [&new_dir](auto& title, auto& msg) noexcept {
+              title = "New directory registred";
+              format(msg,
+                     "{} registred as path `{}' priority: {}",
+                     new_dir.name.sv(),
+                     new_dir.path.sv(),
+                     new_dir.priority);
+          });
+
+        mod.component_repertories.emplace_back(new_dir_id);
+    }
+}
+
 bool application::init() noexcept
 {
     if (not mod.init(modeling_initializer{})) {
@@ -97,92 +126,7 @@ bool application::init() noexcept
         return false;
     }
 
-    if (mod.registred_paths.size() == 0) {
-        attempt_all(
-          [&]() -> result<void> {
-              auto path = get_system_component_dir();
-              if (!path)
-                  return path.error();
-
-              auto& new_dir    = mod.registred_paths.alloc();
-              auto  new_dir_id = mod.registred_paths.get_id(new_dir);
-              new_dir.name     = "System directory";
-              new_dir.path     = path.value().string().c_str();
-              log_w(*this,
-                    log_level::info,
-                    "Add system directory: {}\n",
-                    new_dir.path.c_str());
-
-              mod.component_repertories.emplace_back(new_dir_id);
-              return success();
-          },
-          [&](fs_error /*code*/) -> void {
-              log_w(*this,
-                    log_level::error,
-                    "Fail to use the system directory path");
-          },
-          [&]() -> void {
-              log_w(*this,
-                    log_level::error,
-                    "Fail to use the system directory path");
-          });
-
-        attempt_all(
-          [&]() -> result<void> {
-              auto path = get_system_prefix_component_dir();
-              if (!path)
-                  return path.error();
-
-              auto& new_dir    = mod.registred_paths.alloc();
-              auto  new_dir_id = mod.registred_paths.get_id(new_dir);
-              new_dir.name     = "System directory";
-              new_dir.path     = path.value().string().c_str();
-              log_w(*this,
-                    log_level::info,
-                    "Add system directory: {}\n",
-                    new_dir.path.c_str());
-
-              mod.component_repertories.emplace_back(new_dir_id);
-              return success();
-          },
-          [&](fs_error /*code*/) -> void {
-              log_w(*this,
-                    log_level::error,
-                    "Fail to use the system directory path");
-          },
-          [&]() -> void {
-              log_w(*this,
-                    log_level::error,
-                    "Fail to use the system directory path");
-          });
-
-        attempt_all(
-          [&]() -> result<void> {
-              auto path = get_default_user_component_dir();
-              if (!path)
-                  return path.error();
-
-              auto& new_dir    = mod.registred_paths.alloc();
-              auto  new_dir_id = mod.registred_paths.get_id(new_dir);
-              new_dir.name     = "User directory";
-              new_dir.path     = path.value().string().c_str();
-              log_w(*this,
-                    log_level::info,
-                    "Add user directory: {}\n",
-                    new_dir.path.c_str());
-
-              mod.component_repertories.emplace_back(new_dir_id);
-              return success();
-          },
-          [&](fs_error /*code*/) -> void {
-              log_w(
-                *this, log_level::error, "Fail to use the user directory path");
-          },
-          [&]() -> void {
-              log_w(
-                *this, log_level::error, "Fail to use the user directory path");
-          });
-    }
+    init_registred_path(*this, config.get(), mod);
 
     if (auto ret = mod.fill_internal_components(); !ret) {
         log_w(*this,
@@ -498,8 +442,8 @@ static void show_select_model_box_recursive(application&    app,
         show_select_model_box_recursive(app, ed, *sibling, access);
 }
 
-auto build_unique_component_vector(application& app, tree_node& tn)
-  -> vector<component_id>
+auto build_unique_component_vector(application& app,
+                                   tree_node&   tn) -> vector<component_id>
 {
     vector<component_id> ret;
     vector<tree_node*>   stack;

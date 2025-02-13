@@ -91,7 +91,7 @@ public:
 
     /** Build a @c variables object from the file @c config_path. If it fail,
        the default object from static data is build. */
-    config_manager(const std::string config_path) noexcept;
+    explicit config_manager(const std::string config_path) noexcept;
 
     config_manager(config_manager&&) noexcept            = delete;
     config_manager& operator=(config_manager&&) noexcept = delete;
