@@ -390,7 +390,7 @@ struct graph_component_editor_data::impl {
         return not(a_miss or b_miss);
     };
 
-    void show_graph(application& app,
+    void show_graph(application& /*app*/,
                     component& /*compo*/,
                     graph_component_editor_data& ed,
                     graph_component&             data) noexcept
