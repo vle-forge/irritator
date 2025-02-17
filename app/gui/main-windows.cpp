@@ -351,9 +351,7 @@ int main(int, char**)
             ImGui_ImplWin32_NewFrame();
             ImGui::NewFrame();
 
-            app.show();
-
-            if (app.menu_quit)
+            if (app.show() == irt::application::show_result_t::request_to_close)
                 ::PostMessage(hwnd, WM_CLOSE, 0, 0);
 
             // 1. Show the big demo window (Most of the sample code is in

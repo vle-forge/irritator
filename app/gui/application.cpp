@@ -173,87 +173,95 @@ static void cleanup_sim_or_gui_task(DataArray& d_array) noexcept
         d_array.free(*to_del);
 }
 
-static void application_show_menu(application& app) noexcept
+static void open_project(application& app) noexcept
 {
+    const char*    title     = "Select project file path to load";
+    const char8_t* filters[] = { u8".irt", nullptr };
+
+    ImGui::OpenPopup(title);
+    if (app.f_dialog.show_load_file(title, filters)) {
+        if (app.f_dialog.state == file_dialog::status::ok) {
+            auto  u8str = app.f_dialog.result.u8string();
+            auto* str   = reinterpret_cast<const char*>(u8str.c_str());
+
+            if (app.mod.registred_paths.can_alloc(1)) {
+                auto& path = app.mod.registred_paths.alloc();
+                auto  id   = app.mod.registred_paths.get_id(path);
+                path.path  = str;
+
+                if (auto opt = app.alloc_project_window(); opt.has_value()) {
+                    auto& pj        = app.pjs.get(*opt);
+                    pj.project_file = id;
+                    app.start_load_project(id, *opt);
+                }
+            }
+        }
+
+        app.f_dialog.clear();
+    }
+}
+
+void application::request_open_directory_dlg(
+  const registred_path_id id) noexcept
+{
+    debug::ensure(not show_select_reg_path);
+
+    show_select_reg_path = true;
+    selected_reg_path              = id;
+}
+
+auto application::show_menu() noexcept -> show_result_t
+{
+    show_result_t ret = show_result_t::success;
+
     if (ImGui::BeginMainMenuBar()) {
         if (ImGui::BeginMenu("File")) {
-
             if (ImGui::MenuItem("New project"))
-                app.menu_new_project_file = true;
+                alloc_project_window();
 
             if (ImGui::MenuItem("Open project"))
-                app.menu_load_project_file = true;
+                menu_load_project_file = true;
 
             if (ImGui::MenuItem("Quit"))
-                app.menu_quit = true;
+                ret = show_result_t::request_to_close;
 
             ImGui::EndMenu();
         }
 
         if (ImGui::BeginMenu("View")) {
             ImGui::MenuItem(
-              "Show modeling editor", nullptr, &app.component_ed.is_open);
-            ImGui::MenuItem(
-              "Show output editor", nullptr, &app.output_ed.is_open);
+              "Show modeling editor", nullptr, &component_ed.is_open);
+            ImGui::MenuItem("Show output editor", nullptr, &output_ed.is_open);
 
             ImGui::MenuItem(
-              "Show component hierarchy", nullptr, &app.library_wnd.is_open);
+              "Show component hierarchy", nullptr, &library_wnd.is_open);
 
-            ImGui::MenuItem(
-              "Show memory usage", nullptr, &app.memory_wnd.is_open);
-            ImGui::MenuItem("Show task usage", nullptr, &app.task_wnd.is_open);
+            ImGui::MenuItem("Show memory usage", nullptr, &memory_wnd.is_open);
+            ImGui::MenuItem("Show task usage", nullptr, &task_wnd.is_open);
             ImGui::EndMenu();
         }
 
         if (ImGui::BeginMenu("Preferences")) {
-            ImGui::MenuItem("ImGui demo window", nullptr, &app.show_imgui_demo);
-            ImGui::MenuItem(
-              "ImPlot demo window", nullptr, &app.show_implot_demo);
+            ImGui::MenuItem("ImGui demo window", nullptr, &show_imgui_demo);
+            ImGui::MenuItem("ImPlot demo window", nullptr, &show_implot_demo);
             ImGui::Separator();
-            ImGui::MenuItem("Settings", nullptr, &app.settings_wnd.is_open);
+            ImGui::MenuItem("Settings", nullptr, &settings_wnd.is_open);
             ImGui::EndMenu();
         }
 
         ImGui::EndMainMenuBar();
     }
-}
 
-static void application_manage_menu_action(application& app) noexcept
-{
-    if (app.menu_new_project_file) {
-        app.alloc_project_window();
-        app.menu_new_project_file = false;
-        return;
-    }
+    if (menu_load_project_file)
+        open_project(*this);
 
-    if (app.menu_load_project_file) {
-        const char*    title     = "Select project file path to load";
-        const char8_t* filters[] = { u8".irt", nullptr };
+    if (show_imgui_demo)
+        ImGui::ShowDemoWindow(&show_imgui_demo);
 
-        ImGui::OpenPopup(title);
-        if (app.f_dialog.show_load_file(title, filters)) {
-            if (app.f_dialog.state == file_dialog::status::ok) {
-                auto  u8str = app.f_dialog.result.u8string();
-                auto* str   = reinterpret_cast<const char*>(u8str.c_str());
+    if (show_implot_demo)
+        ImPlot::ShowDemoWindow(&show_implot_demo);
 
-                if (app.mod.registred_paths.can_alloc(1)) {
-                    auto& path = app.mod.registred_paths.alloc();
-                    auto  id   = app.mod.registred_paths.get_id(path);
-                    path.path  = str;
-
-                    if (auto opt = app.alloc_project_window();
-                        opt.has_value()) {
-                        auto& pj        = app.pjs.get(*opt);
-                        pj.project_file = id;
-                        app.start_load_project(id, *opt);
-                    }
-                }
-            }
-
-            app.f_dialog.clear();
-            app.menu_load_project_file = false;
-        }
-    }
+    return ret;
 }
 
 void application::show_dock() noexcept
@@ -312,7 +320,7 @@ void application::show_dock() noexcept
         library_wnd.show();
 }
 
-void application::show() noexcept
+auto application::show() noexcept -> show_result_t
 {
 #ifdef IRRITATOR_USE_TTF
     if (ttf)
@@ -332,15 +340,7 @@ void application::show() noexcept
         });
     }
 
-    application_show_menu(*this);
-    application_manage_menu_action(*this);
-
-    if (show_imgui_demo)
-        ImGui::ShowDemoWindow(&show_imgui_demo);
-
-    if (show_implot_demo)
-        ImPlot::ShowDemoWindow(&show_implot_demo);
-
+    auto ret = show_menu();
     show_dock();
 
     if (memory_wnd.is_open)
@@ -352,26 +352,26 @@ void application::show() noexcept
     if (settings_wnd.is_open)
         settings_wnd.show();
 
-    if (show_select_directory_dialog) {
+    if (show_select_reg_path) {
         const char* title = "Select directory";
         ImGui::OpenPopup(title);
         if (f_dialog.show_select_directory(title)) {
             if (f_dialog.state == file_dialog::status::ok) {
                 select_directory = f_dialog.result;
                 auto* dir_path =
-                  mod.registred_paths.try_to_get(select_dir_path);
+                  mod.registred_paths.try_to_get(selected_reg_path);
                 if (dir_path) {
                     auto str = select_directory.string();
                     dir_path->path.assign(str);
                 }
 
-                show_select_directory_dialog = false;
-                select_dir_path              = undefined<registred_path_id>();
+                show_select_reg_path = false;
+                selected_reg_path              = undefined<registred_path_id>();
                 select_directory.clear();
             }
 
             f_dialog.clear();
-            show_select_directory_dialog = false;
+            show_select_reg_path = false;
         }
     }
 
@@ -381,6 +381,8 @@ void application::show() noexcept
     if (ttf)
         ImGui::PopFont();
 #endif
+
+    return ret;
 }
 
 static void show_select_model_box_recursive(application&    app,

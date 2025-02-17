@@ -1150,6 +1150,11 @@ public:
 
     ~application() noexcept;
 
+    enum class show_result_t {
+        success,          /**< Nothing to do. */
+        request_to_close, /**< The window must be closed by the called. */
+    };
+
     modeling mod;
 
     data_array<project_editor, project_id> pjs;
@@ -1177,8 +1182,6 @@ public:
     window_logger   log_wnd;
     task_window     task_wnd;
 
-    registred_path_id select_dir_path = undefined<registred_path_id>();
-
     data_array<grid_component_editor_data, grid_editor_data_id>       grids;
     data_array<graph_component_editor_data, graph_editor_data_id>     graphs;
     data_array<generic_component_editor_data, generic_editor_data_id> generics;
@@ -1197,17 +1200,8 @@ public:
     ImFont* ttf = nullptr;
 #endif
 
-    bool show_select_directory_dialog = false;
-
-    bool show_imgui_demo  = false;
-    bool show_implot_demo = false;
-
-    bool menu_new_project_file  = false;
-    bool menu_load_project_file = false;
-    bool menu_quit              = false;
-
-    bool init() noexcept;
-    void show() noexcept;
+    bool          init() noexcept;
+    show_result_t show() noexcept;
 
     //! Helpers function to add a @c simulation_task into the @c
     //! main_task_lists[simulation]. Task is added at tail of the @c
@@ -1246,6 +1240,8 @@ public:
 
     unsigned int get_main_dock_id() const noexcept { return main_dock_id; }
 
+    void request_open_directory_dlg(const registred_path_id id) noexcept;
+
 private:
     task_manager task_mgr;
     friend task_window;
@@ -1254,7 +1250,18 @@ private:
     unsigned int right_dock_id;
     unsigned int bottom_dock_id;
 
-    void show_dock() noexcept;
+    registred_path_id selected_reg_path    = undefined<registred_path_id>();
+    bool              show_select_reg_path = false;
+
+    bool show_imgui_demo  = false;
+    bool show_implot_demo = false;
+
+    bool menu_new_project_file  = false;
+    bool menu_load_project_file = false;
+
+    show_result_t show_menu() noexcept;
+    void          show_dock() noexcept;
+    void          show_select_directory_dlg() noexcept;
 };
 
 /// Display dialog box to choose a @c model in a hierarchy of a @c tree_node

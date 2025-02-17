@@ -185,13 +185,12 @@ void settings_window::show() noexcept
 
         if (app.mod.registred_paths.can_alloc(1) &&
             ImGui::Button("Add directory")) {
-            auto& dir    = app.mod.registred_paths.alloc();
-            auto  id     = app.mod.registred_paths.get_id(dir);
-            dir.status   = registred_path::state::unread;
-            dir.path     = "";
-            dir.priority = 127;
-            app.show_select_directory_dialog = true;
-            app.select_dir_path              = id;
+            auto& ndir    = app.mod.registred_paths.alloc();
+            auto  id      = app.mod.registred_paths.get_id(ndir);
+            ndir.status   = registred_path::state::unread;
+            ndir.path     = "";
+            ndir.priority = 127;
+            app.request_open_directory_dlg(id);
             app.mod.component_repertories.emplace_back(id);
             changes++;
         }

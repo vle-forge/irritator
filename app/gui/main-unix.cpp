@@ -184,7 +184,7 @@ int main([[maybe_unused]] int argc, [[maybe_unused]] char* argv[])
     if (!glfwInit())
         return 1;
 
-        // Decide GL+GLSL versions
+    // Decide GL+GLSL versions
 #if defined(IMGUI_IMPL_OPENGL_ES2)
     // GL ES 2.0 + GLSL 100
     const char* glsl_version = "#version 100";
@@ -323,9 +323,7 @@ int main([[maybe_unused]] int argc, [[maybe_unused]] char* argv[])
             ImGui_ImplGlfw_NewFrame();
             ImGui::NewFrame();
 
-            app.show();
-
-            if (app.menu_quit)
+            if (app.show() == irt::application::show_result_t::request_to_close)
                 glfwSetWindowShouldClose(window, GLFW_TRUE);
 
             // Rendering
