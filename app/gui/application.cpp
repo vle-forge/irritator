@@ -433,8 +433,8 @@ static void show_select_model_box_recursive(application&    app,
         show_select_model_box_recursive(app, ed, *sibling, access);
 }
 
-auto build_unique_component_vector(application& app, tree_node& tn)
-  -> vector<component_id>
+auto build_unique_component_vector(application& app,
+                                   tree_node&   tn) -> vector<component_id>
 {
     vector<component_id> ret;
     vector<tree_node*>   stack;
@@ -585,12 +585,8 @@ bool show_select_model_box(const char*     button_label,
 
 unordered_task_list& application::get_unordered_task_list(int idx) noexcept
 {
-    idx = idx < 0 ? 0
-          : idx >= length(task_mgr.unordered_task_lists)
-            ? length(task_mgr.unordered_task_lists) - 1
-            : idx;
-
-    return task_mgr.unordered_task_lists[idx];
+    return task_mgr
+      .unordered_task_lists[std::clamp(idx, 0, unordered_task_worker_size - 1)];
 }
 
 std::optional<file> application::try_open_file(const char* filename,

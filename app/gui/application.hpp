@@ -1221,8 +1221,13 @@ public:
     template<typename Fn>
     void add_gui_task(Fn&& fn) noexcept;
 
-    //! Helpers function to get a @c unordered_task_list. Wait until the task
-    //! list is available.
+    /**
+     * Helpers function to get an @a unordered_task_list according to the @a idx
+     * index. This index can be produced from project identifier.
+     *
+     * @param idx The index in range `[0, unordered_task_worker_size - 1]`.
+     * @return The reference to the @a unordered_task_list
+     */
     unordered_task_list& get_unordered_task_list(int idx) noexcept;
 
     void start_load_project(const registred_path_id file,

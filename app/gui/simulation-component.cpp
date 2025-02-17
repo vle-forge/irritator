@@ -634,7 +634,8 @@ void project_editor::start_simulation_start(application& app) noexcept
 
 void project_editor::start_simulation_observation(application& app) noexcept
 {
-    auto& task_list = app.get_unordered_task_list(0);
+    auto& task_list = app.get_unordered_task_list(
+      get_index(app.pjs.get_id(*this)) % unordered_task_worker_size);
 
     debug::ensure(simulation_state != simulation_status::finished);
 
@@ -712,7 +713,8 @@ void project_editor::start_simulation_observation(application& app) noexcept
 
 void project_editor::stop_simulation_observation(application& app) noexcept
 {
-    auto& task_list = app.get_unordered_task_list(0);
+    auto& task_list = app.get_unordered_task_list(
+      get_index(app.pjs.get_id(*this)) % unordered_task_worker_size);
 
     debug::ensure(simulation_state == simulation_status::finishing);
 
