@@ -1150,29 +1150,29 @@ public:
 
     ~application() noexcept;
 
+private:
+    task_manager task_mgr;
+
+public:
+    data_array<project_editor, project_id>                            pjs;
+    data_array<grid_component_editor_data, grid_editor_data_id>       grids;
+    data_array<graph_component_editor_data, graph_editor_data_id>     graphs;
+    data_array<generic_component_editor_data, generic_editor_data_id> generics;
+    data_array<hsm_component_editor_data, hsm_editor_data_id>         hsms;
+
     enum class show_result_t {
         success,          /**< Nothing to do. */
         request_to_close, /**< The window must be closed by the called. */
     };
 
-    modeling mod;
-
-    data_array<project_editor, project_id> pjs;
-
-    /** Try to allocate a project and affect a new name to the newly allocated
-     * project_window. */
-    std::optional<project_id> alloc_project_window() noexcept;
-
-    /** Free the @c id project and allo sub objects (@c registered_path etc.) */
-    void free_project_window(const project_id id) noexcept;
-
+    config_manager           config;
+    modeling                 mod;
     component_selector       component_sel;
     component_model_selector component_model_sel;
 
     project_settings_editor project_wnd;
-
-    component_editor component_ed;
-    output_editor    output_ed;
+    component_editor        component_ed;
+    output_editor           output_ed;
 
     file_dialog f_dialog;
 
@@ -1182,14 +1182,19 @@ public:
     window_logger   log_wnd;
     task_window     task_wnd;
 
-    data_array<grid_component_editor_data, grid_editor_data_id>       grids;
-    data_array<graph_component_editor_data, graph_editor_data_id>     graphs;
-    data_array<generic_component_editor_data, generic_editor_data_id> generics;
-    data_array<hsm_component_editor_data, hsm_editor_data_id>         hsms;
-
     notification_manager notifications;
 
-    config_manager config;
+    /**
+     * Try to allocate a project and affect a new name to the newly allocated
+     * project_window.
+     */
+    std::optional<project_id> alloc_project_window() noexcept;
+
+    /**
+     * Free the @a project according to the @a project_id and free all
+     * subobjects (@a registered_path etc.).
+     */
+    void free_project_window(const project_id id) noexcept;
 
     bool          init() noexcept;
     show_result_t show() noexcept;
@@ -1202,14 +1207,17 @@ public:
      *
      * @param id The identifier use to select the @a
      * task_manager::ordered_task_lists.
-     * @paran fn The function to run.
+     * @param fn The function to run.
      */
     template<typename Fn>
     void add_simulation_task(const project_id id, Fn&& fn) noexcept;
 
-    //! Helpers function to add a @c simulation_task into the @c
-    //! main_task_lists[gui]. Task is added at tail of the @c ring_buffer and
-    //! ensure linear operation.
+    /**
+     * Helpers function to add a @c gui_task into the @c ordered_task_list gui.
+     * Task is added at tail of the @c ring_buffer and ensure linear operation.
+     *
+     * @param fn The function to run.
+     */
     template<typename Fn>
     void add_gui_task(Fn&& fn) noexcept;
 
@@ -1241,7 +1249,6 @@ public:
     void request_open_directory_dlg(const registred_path_id id) noexcept;
 
 private:
-    task_manager task_mgr;
     friend task_window;
 
     unsigned int main_dock_id;

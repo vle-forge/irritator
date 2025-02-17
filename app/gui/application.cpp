@@ -20,9 +20,9 @@
 namespace irt {
 
 application::application() noexcept
-  : pjs(16)
+  : task_mgr{}
+  , pjs(16)
   , config(get_config_home(true))
-  , task_mgr{}
 {
     settings_wnd.apply_style(undefined<gui_theme_id>());
 
