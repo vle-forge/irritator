@@ -993,7 +993,7 @@ public:
     /** Stores the clock when settings are changed. If after five second user
      * does not change anything, a save settings task is launch. */
     std::chrono::time_point<std::chrono::steady_clock> last_change;
-    bool timer_started = false;
+    bool                                               timer_started = false;
 };
 
 struct task_window {
@@ -1179,8 +1179,6 @@ public:
 
     registred_path_id select_dir_path = undefined<registred_path_id>();
 
-    task_manager task_mgr;
-
     data_array<grid_component_editor_data, grid_editor_data_id>       grids;
     data_array<graph_component_editor_data, graph_editor_data_id>     graphs;
     data_array<generic_component_editor_data, generic_editor_data_id> generics;
@@ -1249,6 +1247,9 @@ public:
     unsigned int get_main_dock_id() const noexcept { return main_dock_id; }
 
 private:
+    task_manager task_mgr;
+    friend task_window;
+
     unsigned int main_dock_id;
     unsigned int right_dock_id;
     unsigned int bottom_dock_id;

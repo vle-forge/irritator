@@ -21,8 +21,8 @@ namespace irt {
 
 application::application() noexcept
   : pjs(16)
-  , task_mgr{}
   , config(get_config_home(true))
+  , task_mgr{}
 {
     settings_wnd.apply_style(undefined<gui_theme_id>());
 
@@ -442,8 +442,8 @@ static void show_select_model_box_recursive(application&    app,
         show_select_model_box_recursive(app, ed, *sibling, access);
 }
 
-auto build_unique_component_vector(application& app,
-                                   tree_node&   tn) -> vector<component_id>
+auto build_unique_component_vector(application& app, tree_node& tn)
+  -> vector<component_id>
 {
     vector<component_id> ret;
     vector<tree_node*>   stack;
