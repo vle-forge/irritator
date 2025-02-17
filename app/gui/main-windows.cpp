@@ -323,6 +323,11 @@ int main(int, char**)
             return 0;
         }
 
+#ifdef IRRITATOR_USE_TTF
+        if (ttf)
+            ImGui::GetIO().FontDefault = ttf;
+#endif
+
         // Main loop
         MSG msg;
         ZeroMemory(&msg, sizeof(msg));
