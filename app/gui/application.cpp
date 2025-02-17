@@ -352,17 +352,16 @@ auto application::show() noexcept -> show_result_t
         ImGui::OpenPopup(title);
         if (f_dialog.show_select_directory(title)) {
             if (f_dialog.state == file_dialog::status::ok) {
-                select_directory = f_dialog.result;
                 auto* dir_path =
                   mod.registred_paths.try_to_get(selected_reg_path);
                 if (dir_path) {
-                    auto str = select_directory.string();
+                    auto str = f_dialog.result.string();
                     dir_path->path.assign(str);
                 }
 
                 show_select_reg_path = false;
                 selected_reg_path    = undefined<registred_path_id>();
-                select_directory.clear();
+                f_dialog.result.clear();
             }
 
             f_dialog.clear();

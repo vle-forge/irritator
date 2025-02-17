@@ -1187,11 +1187,6 @@ public:
     data_array<generic_component_editor_data, generic_editor_data_id> generics;
     data_array<hsm_component_editor_data, hsm_editor_data_id>         hsms;
 
-    std::filesystem::path select_directory;
-
-    std::filesystem::path home_dir;
-    std::filesystem::path executable_dir;
-
     notification_manager notifications;
 
     config_manager config;

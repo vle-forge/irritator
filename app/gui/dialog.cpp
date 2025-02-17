@@ -493,8 +493,12 @@ bool file_dialog::show_save_file(const char*        title,
 
 bool file_dialog::show_select_directory(const char* title) noexcept
 {
-    if (state == status::hide)
+    if (state == status::hide) {
         state = status::show;
+
+        buffer.reserve(512);
+        buffer.push_back(u8'\0');
+    }
 
     next.clear();
     bool res = false;
