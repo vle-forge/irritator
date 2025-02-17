@@ -260,10 +260,6 @@ int main([[maybe_unused]] int argc, [[maybe_unused]] char* argv[])
     {
         irt::application app;
 
-#ifdef IRRITATOR_USE_TTF
-        app.ttf = ttf;
-#endif
-
         if (!app.init()) {
             ImNodes::DestroyContext();
 

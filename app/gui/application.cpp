@@ -207,7 +207,7 @@ void application::request_open_directory_dlg(
     debug::ensure(not show_select_reg_path);
 
     show_select_reg_path = true;
-    selected_reg_path              = id;
+    selected_reg_path    = id;
 }
 
 auto application::show_menu() noexcept -> show_result_t
@@ -322,11 +322,6 @@ void application::show_dock() noexcept
 
 auto application::show() noexcept -> show_result_t
 {
-#ifdef IRRITATOR_USE_TTF
-    if (ttf)
-        ImGui::PushFont(ttf);
-#endif
-
     if (mod.log_entries.have_entry()) {
         mod.log_entries.try_consume([&](auto& entries) noexcept {
             for (auto& w : entries) {
@@ -366,7 +361,7 @@ auto application::show() noexcept -> show_result_t
                 }
 
                 show_select_reg_path = false;
-                selected_reg_path              = undefined<registred_path_id>();
+                selected_reg_path    = undefined<registred_path_id>();
                 select_directory.clear();
             }
 
@@ -376,11 +371,6 @@ auto application::show() noexcept -> show_result_t
     }
 
     notifications.show();
-
-#ifdef IRRITATOR_USE_TTF
-    if (ttf)
-        ImGui::PopFont();
-#endif
 
     return ret;
 }

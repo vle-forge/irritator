@@ -310,10 +310,6 @@ int main(int, char**)
     {
         irt::application app;
 
-#ifdef IRRITATOR_USE_TTF
-        app.ttf = ttf;
-#endif
-
         if (!app.init()) {
             ImNodes::DestroyContext();
 

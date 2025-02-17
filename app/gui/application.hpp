@@ -1196,10 +1196,6 @@ public:
 
     config_manager config;
 
-#ifdef IRRITATOR_USE_TTF
-    ImFont* ttf = nullptr;
-#endif
-
     bool          init() noexcept;
     show_result_t show() noexcept;
 
