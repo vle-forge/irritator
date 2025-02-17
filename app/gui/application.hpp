@@ -1194,11 +1194,18 @@ public:
     bool          init() noexcept;
     show_result_t show() noexcept;
 
-    //! Helpers function to add a @c simulation_task into the @c
-    //! main_task_lists[simulation]. Task is added at tail of the @c
-    //! ring_buffer and ensure linear operation.
+    /**
+     * Helpers function to add a @c simulation_task into an @c
+     * ordered_task_list. The task list used depends on the @c get_index or the
+     * @c project_id. Task is added at tail of the @c ring_buffer and ensure
+     * linear operation.
+     *
+     * @param id The identifier use to select the @a
+     * task_manager::ordered_task_lists.
+     * @paran fn The function to run.
+     */
     template<typename Fn>
-    void add_simulation_task(Fn&& fn) noexcept;
+    void add_simulation_task(const project_id id, Fn&& fn) noexcept;
 
     //! Helpers function to add a @c simulation_task into the @c
     //! main_task_lists[gui]. Task is added at tail of the @c ring_buffer and
@@ -1292,10 +1299,12 @@ bool show_local_observers(application&    app,
 char* get_imgui_filename() noexcept;
 
 template<typename Fn>
-void application::add_simulation_task(Fn&& fn) noexcept
+void application::add_simulation_task(const project_id id, Fn&& fn) noexcept
 {
-    task_mgr.ordered_task_lists[ordinal(main_task::simulation_0)].add(fn);
-    task_mgr.ordered_task_lists[ordinal(main_task::simulation_0)].submit();
+    const auto index = get_index(id) % 3;
+
+    task_mgr.ordered_task_lists[index].add(fn);
+    task_mgr.ordered_task_lists[index].submit();
 }
 
 template<typename Fn>

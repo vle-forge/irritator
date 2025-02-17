@@ -453,7 +453,7 @@ static void send_message(application&                   app,
 
 void start_simulation_commands_apply(application& app, project_id id) noexcept
 {
-    app.add_simulation_task([&app, id]() noexcept {
+    app.add_simulation_task(id, [&app, id]() noexcept {
         if (auto* ed = app.pjs.try_to_get(id)) {
             int rebuild = false;
 
@@ -564,8 +564,9 @@ void project_editor::start_simulation_copy_modeling(application& app) noexcept
 
             start_simulation_clear(app);
 
-            app.add_simulation_task(
-              [&]() noexcept { simulation_copy(app, *this); });
+            app.add_simulation_task(app.pjs.get_id(*this), [&]() noexcept {
+                simulation_copy(app, *this);
+            });
 
             start_simulation_init(app);
         }
@@ -582,7 +583,7 @@ void project_editor::start_simulation_init(application& app) noexcept
     debug::ensure(state);
 
     if (state) {
-        app.add_simulation_task([&]() noexcept {
+        app.add_simulation_task(app.pjs.get_id(*this), [&]() noexcept {
             force_pause = false;
             force_stop  = false;
             simulation_init(app, *this);
@@ -596,7 +597,7 @@ void project_editor::start_simulation_delete(application& app) noexcept
     // simulation_editor::simulation data.
     display_graph = false;
 
-    app.add_simulation_task([&]() noexcept {
+    app.add_simulation_task(app.pjs.get_id(*this), [&]() noexcept {
         pj.clear();
         pj.sim.clear();
     });
@@ -608,7 +609,8 @@ void project_editor::start_simulation_clear(application& app) noexcept
     // simulation_editor::simulation data.
     display_graph = false;
 
-    app.add_simulation_task([&]() noexcept { pj.sim.clear(); });
+    app.add_simulation_task(app.pjs.get_id(*this),
+                            [&]() noexcept { pj.sim.clear(); });
 }
 
 void project_editor::start_simulation_start(application& app) noexcept
@@ -752,7 +754,7 @@ void project_editor::start_simulation_live_run(application& app) noexcept
 {
     namespace stdc = std::chrono;
 
-    app.add_simulation_task([&]() noexcept {
+    app.add_simulation_task(app.pjs.get_id(*this), [&]() noexcept {
         simulation_state         = simulation_status::running;
         const auto start_task_rt = stdc::high_resolution_clock::now();
         const auto end_task_rt   = start_task_rt + simulation_task_duration;
@@ -836,7 +838,7 @@ void project_editor::start_simulation_live_run(application& app) noexcept
 
 void project_editor::start_simulation_static_run(application& app) noexcept
 {
-    app.add_simulation_task([&]() noexcept {
+    app.add_simulation_task(app.pjs.get_id(*this), [&]() noexcept {
         simulation_state = simulation_status::running;
         namespace stdc   = std::chrono;
 
@@ -909,7 +911,7 @@ void project_editor::start_simulation_start_1(application& app) noexcept
     debug::ensure(state);
 
     if (state) {
-        app.add_simulation_task([&]() noexcept {
+        app.add_simulation_task(app.pjs.get_id(*this), [&]() noexcept {
             if (auto* parent = pj.tn_head(); parent) {
                 simulation_state = simulation_status::running;
 
@@ -949,7 +951,8 @@ void project_editor::start_simulation_pause(application& app) noexcept
     debug::ensure(state);
 
     if (state) {
-        app.add_simulation_task([&]() noexcept { force_pause = true; });
+        app.add_simulation_task(app.pjs.get_id(*this),
+                                [&]() noexcept { force_pause = true; });
     }
 }
 
@@ -961,13 +964,14 @@ void project_editor::start_simulation_stop(application& app) noexcept
     debug::ensure(state);
 
     if (state) {
-        app.add_simulation_task([&]() noexcept { force_stop = true; });
+        app.add_simulation_task(app.pjs.get_id(*this),
+                                [&]() noexcept { force_stop = true; });
     }
 }
 
 void project_editor::start_simulation_finish(application& app) noexcept
 {
-    app.add_simulation_task([&]() noexcept {
+    app.add_simulation_task(app.pjs.get_id(*this), [&]() noexcept {
         simulation_state = simulation_status::finishing;
         pj.sim.immediate_observers.clear();
         stop_simulation_observation(app);
@@ -994,7 +998,7 @@ void project_editor::start_simulation_finish(application& app) noexcept
 
 void project_editor::start_simulation_advance(application& app) noexcept
 {
-    app.add_simulation_task([&]() noexcept {
+    app.add_simulation_task(app.pjs.get_id(*this), [&]() noexcept {
         if (tl.can_advance()) {
             attempt_all(
               [&]() noexcept -> status {
@@ -1020,7 +1024,7 @@ void project_editor::start_simulation_advance(application& app) noexcept
 
 void project_editor::start_simulation_back(application& app) noexcept
 {
-    app.add_simulation_task([&]() noexcept {
+    app.add_simulation_task(app.pjs.get_id(*this), [&]() noexcept {
         if (tl.can_back()) {
             attempt_all(
               [&]() noexcept -> status { return back(tl, pj.sim, pj.sim.t); },
@@ -1044,7 +1048,7 @@ void project_editor::start_simulation_back(application& app) noexcept
 
 void project_editor::start_enable_or_disable_debug(application& app) noexcept
 {
-    app.add_simulation_task([&]() noexcept {
+    app.add_simulation_task(app.pjs.get_id(*this), [&]() noexcept {
         tl.reset();
 
         attempt_all(
