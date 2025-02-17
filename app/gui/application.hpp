@@ -1294,15 +1294,15 @@ char* get_imgui_filename() noexcept;
 template<typename Fn>
 void application::add_simulation_task(Fn&& fn) noexcept
 {
-    task_mgr.main_task_lists[ordinal(main_task::simulation)].add(fn);
-    task_mgr.main_task_lists[ordinal(main_task::simulation)].submit();
+    task_mgr.ordered_task_lists[ordinal(main_task::simulation_0)].add(fn);
+    task_mgr.ordered_task_lists[ordinal(main_task::simulation_0)].submit();
 }
 
 template<typename Fn>
 void application::add_gui_task(Fn&& fn) noexcept
 {
-    task_mgr.main_task_lists[ordinal(main_task::gui)].add(fn);
-    task_mgr.main_task_lists[ordinal(main_task::gui)].submit();
+    task_mgr.ordered_task_lists[ordinal(main_task::gui)].add(fn);
+    task_mgr.ordered_task_lists[ordinal(main_task::gui)].submit();
 }
 
 /* * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * */

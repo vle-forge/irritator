@@ -24,13 +24,14 @@ struct unordered_task_list;
 struct worker_stats;
 class task_manager;
 
-enum class main_task : i8 { simulation = 0, gui };
+enum class main_task : i8 { simulation_0 = 0, simulation_1, simulation_2, gui };
 
 static inline constexpr int  unordered_task_list_tasks_number = 256;
 static inline constexpr int  task_list_tasks_number           = 16;
-static inline constexpr auto main_task_size                   = 2;
-static inline constexpr auto max_temp_worker                  = 8;
-static inline constexpr auto max_threads = main_task_size + max_temp_worker;
+static inline constexpr auto ordered_task_worker_size         = 4;
+static inline constexpr auto unordered_task_worker_size       = 4;
+static inline constexpr auto task_work_size =
+  ordered_task_worker_size + unordered_task_worker_size;
 
 //! A `std::mutex` like based on `std::atomic_flag::wait` and
 //! `std::atomic_flag::notify_one` standard functions.
@@ -387,14 +388,16 @@ struct worker_stats {
 class task_manager
 {
 public:
-    small_vector<task_list, main_task_size>   main_task_lists;
-    small_vector<worker_main, main_task_size> main_workers;
+    small_vector<task_list, ordered_task_worker_size>   ordered_task_lists;
+    small_vector<worker_main, ordered_task_worker_size> ordered_task_workers;
 
-    small_vector<unordered_task_list, main_task_size> temp_task_lists;
-    small_vector<worker_generic, max_temp_worker>     temp_workers;
+    small_vector<unordered_task_list, unordered_task_worker_size>
+      unordered_task_lists;
+    small_vector<worker_generic, unordered_task_worker_size>
+      unordered_task_workers;
 
-    worker_stats main_task_lists_stats[main_task_size];
-    worker_stats temp_task_lists_stats[main_task_size];
+    worker_stats ordered_task_stats[ordered_task_worker_size];
+    worker_stats unordered_task_stats[unordered_task_worker_size];
 
     task_manager() noexcept;
     ~task_manager() noexcept;
@@ -723,29 +726,31 @@ inline void worker_generic::run() noexcept
 inline task_manager::task_manager() noexcept
 {
     const auto hc         = std::thread::hardware_concurrency();
-    const auto max_thread = hc <= 2u               ? 2u
-                            : max_temp_worker < hc ? max_temp_worker
-                                                   : hc - 2u;
+    const auto max_thread = hc <= 2u ? 2u
+                            : unordered_task_worker_size < hc
+                              ? unordered_task_worker_size
+                              : hc - 2u;
 
-    for (auto i = 0; i < main_task_size; ++i)
-        main_task_lists.emplace_back(main_task_lists_stats[i]);
+    for (auto i = 0; i < ordered_task_worker_size; ++i)
+        ordered_task_lists.emplace_back(ordered_task_stats[i]);
 
-    for (auto i = 0; i < main_task_size; ++i)
-        main_workers.emplace_back();
+    for (auto i = 0; i < ordered_task_worker_size; ++i)
+        ordered_task_workers.emplace_back();
 
-    for (auto i = 0; i < main_task_size; ++i)
-        temp_task_lists.emplace_back(temp_task_lists_stats[i]);
+    for (auto i = 0; i < ordered_task_worker_size; ++i)
+        unordered_task_lists.emplace_back(unordered_task_stats[i]);
 
     for (auto i = 0u; i < max_thread; ++i)
-        temp_workers.emplace_back();
+        unordered_task_workers.emplace_back();
 
-    for (auto i = 0; i < main_task_size; ++i)
+    for (auto i = 0; i < ordered_task_worker_size; ++i)
         for (auto j = 0u; j < max_thread; ++j)
-            temp_task_lists[i].workers.emplace_back(&temp_workers[j]);
+            unordered_task_lists[i].workers.emplace_back(
+              &unordered_task_workers[j]);
 
-    for (auto i = 0; i < main_task_size; ++i) {
-        main_task_lists[i].worker = &main_workers[i];
-        main_workers[i].tl        = &main_task_lists[i];
+    for (auto i = 0; i < ordered_task_worker_size; ++i) {
+        ordered_task_lists[i].worker = &ordered_task_workers[i];
+        ordered_task_workers[i].tl   = &ordered_task_lists[i];
     }
 }
 
@@ -753,31 +758,31 @@ inline task_manager::~task_manager() noexcept { finalize(); }
 
 inline void task_manager::start() noexcept
 {
-    for (auto i = 0; i < main_task_size; ++i)
-        main_workers[i].start();
+    for (auto i = 0; i < ordered_task_worker_size; ++i)
+        ordered_task_workers[i].start();
 
-    for (auto i = 0; i < temp_workers.ssize(); ++i)
-        temp_workers[i].start();
+    for (auto i = 0; i < unordered_task_workers.ssize(); ++i)
+        unordered_task_workers[i].start();
 }
 
 inline void task_manager::finalize() noexcept
 {
-    for (auto i = 0, e = temp_workers.ssize(); i != e; ++i)
-        temp_workers[i].terminate();
+    for (auto i = 0, e = unordered_task_workers.ssize(); i != e; ++i)
+        unordered_task_workers[i].terminate();
 
-    for (auto i = 0, e = main_workers.ssize(); i != e; ++i)
-        main_workers[i].terminate();
+    for (auto i = 0, e = ordered_task_workers.ssize(); i != e; ++i)
+        ordered_task_workers[i].terminate();
 
-    for (auto i = 0, e = temp_task_lists.ssize(); i != e; ++i)
-        temp_task_lists[i].terminate();
+    for (auto i = 0, e = unordered_task_lists.ssize(); i != e; ++i)
+        unordered_task_lists[i].terminate();
 
-    for (auto i = 0, e = main_task_lists.ssize(); i != e; ++i)
-        main_task_lists[i].terminate();
+    for (auto i = 0, e = ordered_task_lists.ssize(); i != e; ++i)
+        ordered_task_lists[i].terminate();
 
-    main_task_lists.clear();
-    main_workers.clear();
-    temp_task_lists.clear();
-    temp_workers.clear();
+    ordered_task_lists.clear();
+    ordered_task_workers.clear();
+    unordered_task_lists.clear();
+    unordered_task_workers.clear();
 }
 
 } // namespace irt

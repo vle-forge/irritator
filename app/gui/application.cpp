@@ -31,8 +31,8 @@ application::application() noexcept
     log_w(*this,
           log_level::info,
           "Starting with {} main threads and {} generic workers\n",
-          task_mgr.main_workers.ssize(),
-          task_mgr.temp_workers.ssize());
+          task_mgr.ordered_task_workers.ssize(),
+          task_mgr.unordered_task_workers.ssize());
 
     task_mgr.start();
 
@@ -586,11 +586,11 @@ bool show_select_model_box(const char*     button_label,
 unordered_task_list& application::get_unordered_task_list(int idx) noexcept
 {
     idx = idx < 0 ? 0
-          : idx >= length(task_mgr.temp_task_lists)
-            ? length(task_mgr.temp_task_lists) - 1
+          : idx >= length(task_mgr.unordered_task_lists)
+            ? length(task_mgr.unordered_task_lists) - 1
             : idx;
 
-    return task_mgr.temp_task_lists[idx];
+    return task_mgr.unordered_task_lists[idx];
 }
 
 std::optional<file> application::try_open_file(const char* filename,

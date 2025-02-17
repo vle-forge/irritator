@@ -10,53 +10,49 @@
 
 namespace irt {
 
+constexpr static inline std::string_view main_task_strings[] = { "simulation-0",
+                                                                 "simulation-1",
+                                                                 "simulation-2",
+                                                                 "Gui" };
+
 void task_window::show_widgets() noexcept
 {
     auto& app = container_of(this, &application::task_wnd);
 
-    ImGui::LabelFormat("workers", "{}", app.task_mgr.temp_workers.ssize());
-    ImGui::LabelFormat("lists", "{}", app.task_mgr.temp_task_lists.ssize());
+    ImGui::LabelFormat(
+      "workers", "{}", app.task_mgr.unordered_task_workers.ssize());
+    ImGui::LabelFormat(
+      "lists", "{}", app.task_mgr.unordered_task_lists.ssize());
 
     if (ImGui::CollapsingHeader("Tasks list", ImGuiTreeNodeFlags_DefaultOpen)) {
-        if (ImGui::BeginTable("Main Tasks", 3)) {
+        if (ImGui::BeginTable("Tasks list", 3)) {
             ImGui::TableSetupColumn("id");
             ImGui::TableSetupColumn("Submitted tasks");
             ImGui::TableSetupColumn("finished tasks");
             ImGui::TableHeadersRow();
 
-            ImGui::TableNextRow();
-            ImGui::TableNextColumn();
-            ImGui::Text("simulation");
-            ImGui::TableNextColumn();
-            ImGui::TextFormat(
-              "{}", app.task_mgr.main_task_lists_stats[0].num_submitted_tasks);
-            ImGui::TableNextColumn();
-            ImGui::TextFormat(
-              "{}", app.task_mgr.main_task_lists_stats[0].num_executed_tasks);
+            auto i = 0;
+            for (const auto& stats : app.task_mgr.ordered_task_stats) {
+                ImGui::TableNextRow();
+                ImGui::TableNextColumn();
+                ImGui::TextUnformatted(main_task_strings[i].data(),
+                                       main_task_strings[i].data() +
+                                         main_task_strings[i].size());
+                ImGui::TableNextColumn();
+                ImGui::TextFormat("{}", stats.num_submitted_tasks);
+                ImGui::TableNextColumn();
+                ImGui::TextFormat("{}", stats.num_executed_tasks);
+                ++i;
+            }
 
-            ImGui::TableNextRow();
-            ImGui::TableNextColumn();
-            ImGui::Text("gui");
-            ImGui::TableNextColumn();
-            ImGui::TextFormat(
-              "{}", app.task_mgr.main_task_lists_stats[1].num_submitted_tasks);
-            ImGui::TableNextColumn();
-            ImGui::TextFormat(
-              "{}", app.task_mgr.main_task_lists_stats[1].num_executed_tasks);
-
-            for (int i = 0, e = app.task_mgr.temp_task_lists.ssize(); i != e;
-                 ++i) {
+            for (const auto& stats : app.task_mgr.unordered_task_stats) {
                 ImGui::TableNextRow();
                 ImGui::TableNextColumn();
                 ImGui::TextFormat("generic-{}", i);
                 ImGui::TableNextColumn();
-                ImGui::TextFormat(
-                  "{}",
-                  app.task_mgr.temp_task_lists_stats[i].num_submitted_tasks);
+                ImGui::TextFormat("{}", stats.num_submitted_tasks);
                 ImGui::TableNextColumn();
-                ImGui::TextFormat(
-                  "{}",
-                  app.task_mgr.temp_task_lists_stats[i].num_executed_tasks);
+                ImGui::TextFormat("{}", stats.num_executed_tasks);
             }
             ImGui::EndTable();
         }
@@ -71,26 +67,30 @@ void task_window::show_widgets() noexcept
             ImGui::TableHeadersRow();
 
             int i = 0;
-            for (int e = app.task_mgr.main_workers.ssize(); i != e; ++i) {
+            for (int e = app.task_mgr.ordered_task_workers.ssize(); i != e;
+                 ++i) {
                 ImGui::TableNextRow();
                 ImGui::TableNextColumn();
-                ImGui::TextFormat("main-{}", i);
+                ImGui::TextFormat("ordered {}", i);
                 ImGui::TableNextColumn();
                 ImGui::TextFormat(
                   "{}",
                   human_readable_time(
-                    app.task_mgr.main_workers[i].exec_time.count()));
+                    app.task_mgr.ordered_task_workers[i].exec_time.count()));
                 ImGui::TableNextColumn();
             }
 
             int j = 0;
-            for (int e = app.task_mgr.temp_workers.ssize(); j != e; ++j, ++i) {
+            for (int e = app.task_mgr.unordered_task_workers.ssize(); j != e;
+                 ++j, ++i) {
                 ImGui::TableNextRow();
                 ImGui::TableNextColumn();
-                ImGui::TextFormat("generic-{}", i);
+                ImGui::TextFormat("unordered {}", i);
                 ImGui::TableNextColumn();
                 ImGui::TextFormat(
-                  "{}", (app.task_mgr.temp_workers[j].exec_time.count()));
+                  "{}",
+                  human_readable_time(
+                    app.task_mgr.unordered_task_workers[j].exec_time.count()));
                 ImGui::TableNextColumn();
             }
 
@@ -167,7 +167,7 @@ void task_window::show_widgets() noexcept
 void task_window::show() noexcept
 {
     ImGui::SetNextWindowPos(ImVec2(300, 300), ImGuiCond_FirstUseEver);
-    ImGui::SetNextWindowSize(ImVec2(350, 400), ImGuiCond_Once);
+    ImGui::SetNextWindowSize(ImVec2(350, 500), ImGuiCond_Once);
 
     if (!ImGui::Begin(task_window::name, &is_open)) {
         ImGui::End();

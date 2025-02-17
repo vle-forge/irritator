@@ -133,12 +133,12 @@ int main()
         for (int i = 0; i < 100; ++i) {
             std::atomic_int counter = 0;
 
-            tm.main_task_lists[0].add([&counter]() { function_1(counter); });
-            tm.main_task_lists[0].add([&counter]() { function_100(counter); });
-            tm.main_task_lists[0].add([&counter]() { function_1(counter); });
-            tm.main_task_lists[0].add([&counter]() { function_100(counter); });
-            tm.main_task_lists[0].submit();
-            tm.main_task_lists[0].wait();
+            tm.ordered_task_lists[0].add([&counter]() { function_1(counter); });
+            tm.ordered_task_lists[0].add([&counter]() { function_100(counter); });
+            tm.ordered_task_lists[0].add([&counter]() { function_1(counter); });
+            tm.ordered_task_lists[0].add([&counter]() { function_100(counter); });
+            tm.ordered_task_lists[0].submit();
+            tm.ordered_task_lists[0].wait();
 
             expect(counter == 202);
         }
@@ -155,13 +155,13 @@ int main()
 
         std::atomic_int counter = 0;
         for (int i = 0; i < 100; ++i) {
-            tm.main_task_lists[0].add([&counter]() { function_1(counter); });
-            tm.main_task_lists[0].add([&counter]() { function_100(counter); });
-            tm.main_task_lists[0].add([&counter]() { function_1(counter); });
-            tm.main_task_lists[0].add([&counter]() { function_100(counter); });
-            tm.main_task_lists[0].submit();
+            tm.ordered_task_lists[0].add([&counter]() { function_1(counter); });
+            tm.ordered_task_lists[0].add([&counter]() { function_100(counter); });
+            tm.ordered_task_lists[0].add([&counter]() { function_1(counter); });
+            tm.ordered_task_lists[0].add([&counter]() { function_100(counter); });
+            tm.ordered_task_lists[0].submit();
         }
-        tm.main_task_lists[0].wait();
+        tm.ordered_task_lists[0].wait();
         expect(counter == 202 * 100);
 
         tm.finalize();
@@ -181,40 +181,40 @@ int main()
             std::atomic_int counter = 0;
 
             for (int i = 0; i < loop; ++i) {
-                tm.main_task_lists[0].add(
+                tm.ordered_task_lists[0].add(
                   [&counter]() { function_1(counter); });
-                tm.main_task_lists[0].add(
+                tm.ordered_task_lists[0].add(
                   [&counter]() { function_100(counter); });
             }
-            tm.main_task_lists[0].submit();
-            tm.main_task_lists[0].wait();
+            tm.ordered_task_lists[0].submit();
+            tm.ordered_task_lists[0].wait();
 
             for (int i = 0; i < loop; ++i) {
-                tm.main_task_lists[0].add(
+                tm.ordered_task_lists[0].add(
                   [&counter]() { function_1(counter); });
-                tm.main_task_lists[0].add(
+                tm.ordered_task_lists[0].add(
                   [&counter]() { function_100(counter); });
             }
-            tm.main_task_lists[0].submit();
-            tm.main_task_lists[0].wait();
+            tm.ordered_task_lists[0].submit();
+            tm.ordered_task_lists[0].wait();
 
             for (int i = 0; i < loop; ++i) {
-                tm.main_task_lists[0].add(
+                tm.ordered_task_lists[0].add(
                   [&counter]() { function_1(counter); });
-                tm.main_task_lists[0].add(
+                tm.ordered_task_lists[0].add(
                   [&counter]() { function_100(counter); });
             }
-            tm.main_task_lists[0].submit();
-            tm.main_task_lists[0].wait();
+            tm.ordered_task_lists[0].submit();
+            tm.ordered_task_lists[0].wait();
 
             for (int i = 0; i < loop; ++i) {
-                tm.main_task_lists[0].add(
+                tm.ordered_task_lists[0].add(
                   [&counter]() { function_1(counter); });
-                tm.main_task_lists[0].add(
+                tm.ordered_task_lists[0].add(
                   [&counter]() { function_100(counter); });
             }
-            tm.main_task_lists[0].submit();
-            tm.main_task_lists[0].wait();
+            tm.ordered_task_lists[0].submit();
+            tm.ordered_task_lists[0].wait();
 
             expect(counter == 101 * 100 * 4);
         }
@@ -231,24 +231,24 @@ int main()
             std::atomic_int counter_1 = 0;
             std::atomic_int counter_2 = 0;
 
-            tm.temp_task_lists[0].add(
+            tm.unordered_task_lists[0].add(
               [&counter_1]() { function_1(counter_1); });
-            tm.temp_task_lists[0].add(
+            tm.unordered_task_lists[0].add(
               [&counter_2]() { function_100(counter_2); });
-            tm.temp_task_lists[0].add(
+            tm.unordered_task_lists[0].add(
               [&counter_1]() { function_1(counter_1); });
-            tm.temp_task_lists[0].add(
+            tm.unordered_task_lists[0].add(
               [&counter_2]() { function_100(counter_2); });
-            tm.temp_task_lists[0].add(
+            tm.unordered_task_lists[0].add(
               [&counter_1]() { function_1(counter_1); });
-            tm.temp_task_lists[0].add(
+            tm.unordered_task_lists[0].add(
               [&counter_2]() { function_100(counter_2); });
-            tm.temp_task_lists[0].add(
+            tm.unordered_task_lists[0].add(
               [&counter_1]() { function_1(counter_1); });
-            tm.temp_task_lists[0].add(
+            tm.unordered_task_lists[0].add(
               [&counter_2]() { function_100(counter_2); });
-            tm.temp_task_lists[0].submit();
-            tm.temp_task_lists[0].wait();
+            tm.unordered_task_lists[0].submit();
+            tm.unordered_task_lists[0].wait();
             expect(counter_1 == 4);
             expect(counter_2 == 400);
         }
@@ -265,43 +265,43 @@ int main()
             std::atomic_int counter = 0;
 
             for (int i = 0; i < 100; ++i) {
-                tm.temp_task_lists[0].add(
+                tm.unordered_task_lists[0].add(
                   [&counter]() { function_1(counter); });
-                tm.temp_task_lists[0].add(
+                tm.unordered_task_lists[0].add(
                   [&counter]() { function_100(counter); });
             }
-            tm.temp_task_lists[0].submit();
-            tm.temp_task_lists[0].wait();
+            tm.unordered_task_lists[0].submit();
+            tm.unordered_task_lists[0].wait();
             expect(counter == 101 * 100);
 
             for (int i = 0; i < 100; ++i) {
-                tm.temp_task_lists[0].add(
+                tm.unordered_task_lists[0].add(
                   [&counter]() { function_1(counter); });
-                tm.temp_task_lists[0].add(
+                tm.unordered_task_lists[0].add(
                   [&counter]() { function_100(counter); });
             }
-            tm.temp_task_lists[0].submit();
-            tm.temp_task_lists[0].wait();
+            tm.unordered_task_lists[0].submit();
+            tm.unordered_task_lists[0].wait();
             expect(counter == 101 * 100 * 2);
 
             for (int i = 0; i < 100; ++i) {
-                tm.temp_task_lists[0].add(
+                tm.unordered_task_lists[0].add(
                   [&counter]() { function_1(counter); });
-                tm.temp_task_lists[0].add(
+                tm.unordered_task_lists[0].add(
                   [&counter]() { function_100(counter); });
             }
-            tm.temp_task_lists[0].submit();
-            tm.temp_task_lists[0].wait();
+            tm.unordered_task_lists[0].submit();
+            tm.unordered_task_lists[0].wait();
             expect(counter == 101 * 100 * 3);
 
             for (int i = 0; i < 100; ++i) {
-                tm.temp_task_lists[0].add(
+                tm.unordered_task_lists[0].add(
                   [&counter]() { function_1(counter); });
-                tm.temp_task_lists[0].add(
+                tm.unordered_task_lists[0].add(
                   [&counter]() { function_100(counter); });
             }
-            tm.temp_task_lists[0].submit();
-            tm.temp_task_lists[0].wait();
+            tm.unordered_task_lists[0].submit();
+            tm.unordered_task_lists[0].wait();
 
             expect(counter == 101 * 100 * 4);
         }
@@ -361,18 +361,18 @@ int main()
 
         for (int x = 0; x < 100; ++x) {
             for (int i = 0; i < loop; ++i) {
-                tm.main_task_lists[0].add([&buffer]() { buffer.push(0); });
+                tm.ordered_task_lists[0].add([&buffer]() { buffer.push(0); });
 
-                tm.main_task_lists[1].add([&buffer]() {
+                tm.ordered_task_lists[1].add([&buffer]() {
                     int r;
                     buffer.pop(r);
                 });
             }
 
-            tm.main_task_lists[0].submit();
-            tm.main_task_lists[1].submit();
-            tm.main_task_lists[0].wait();
-            tm.main_task_lists[1].wait();
+            tm.ordered_task_lists[0].submit();
+            tm.ordered_task_lists[1].submit();
+            tm.ordered_task_lists[0].wait();
+            tm.ordered_task_lists[1].wait();
         }
     };
 }
