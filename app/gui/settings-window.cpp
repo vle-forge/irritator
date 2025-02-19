@@ -27,35 +27,41 @@ static auto display_themes_selector(application& app) noexcept -> bool
     auto theme_id     = undefined<gui_theme_id>();
     auto old_theme_id = undefined<gui_theme_id>();
 
-    {
-        auto config               = app.config.get();
-        old_theme_id              = config.vars().g_themes.selected;
-        theme_id                  = old_theme_id;
-        const char* previous_name = "-";
+    app.config.try_read(
+      [](auto& vars, auto& theme_id, auto& old_theme_id) {
+          old_theme_id              = vars.g_themes.selected;
+          theme_id                  = old_theme_id;
+          const char* previous_name = "-";
 
-        if (config.vars().g_themes.ids.exists(old_theme_id)) {
-            const auto selected_idx = get_index(old_theme_id);
-            previous_name = config.vars().g_themes.names[selected_idx].c_str();
-        } else {
-            theme_id = undefined<gui_theme_id>();
-        }
+          if (vars.g_themes.ids.exists(old_theme_id)) {
+              const auto selected_idx = get_index(old_theme_id);
+              previous_name = vars.g_themes.names[selected_idx].c_str();
+          } else {
+              theme_id = undefined<gui_theme_id>();
+          }
 
-        if (ImGui::BeginCombo("Choose style", previous_name)) {
-            for (const auto id : config.vars().g_themes.ids) {
-                const auto  idx  = get_index(id);
-                const auto& name = config.vars().g_themes.names[idx];
+          if (ImGui::BeginCombo("Choose style", previous_name)) {
+              for (const auto id : vars.g_themes.ids) {
+                  const auto  idx  = get_index(id);
+                  const auto& name = vars.g_themes.names[idx];
 
-                if (ImGui::Selectable(name.c_str(), id == theme_id)) {
-                    theme_id = id;
-                }
-            }
-            ImGui::EndCombo();
-        }
-    }
+                  if (ImGui::Selectable(name.c_str(), id == theme_id)) {
+                      theme_id = id;
+                  }
+              }
+              ImGui::EndCombo();
+          }
+      },
+      theme_id,
+      old_theme_id);
 
     if (old_theme_id != theme_id) {
-        auto config_rw                     = app.config.get_rw();
-        config_rw.vars().g_themes.selected = theme_id;
+        app.config.read_write(
+          [](auto& vars, auto theme_id) noexcept {
+              vars.g_themes.selected = theme_id;
+          },
+          theme_id);
+
         return true;
     }
 
@@ -266,8 +272,11 @@ void settings_window::apply_style(const gui_theme_id id) noexcept
     auto  idx = 0u;
 
     if (is_undefined(id)) {
-        auto config = app.config.get();
-        idx         = get_index(config.vars().g_themes.selected);
+        app.config.read(
+          [](auto& vars, auto& idx) noexcept {
+              idx = get_index(vars.g_themes.selected);
+          },
+          idx);
     } else {
         idx = get_index(id);
     }

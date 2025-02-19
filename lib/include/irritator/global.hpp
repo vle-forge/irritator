@@ -40,75 +40,6 @@ struct variables {
     recorded_paths rec_paths;
 };
 
-class config
-{
-public:
-    config(std::shared_mutex&                      mutex,
-           const std::shared_ptr<const variables>& vars)
-      : m_lock(mutex)
-      , m_vars{ vars }
-    {}
-
-    /**
-     * Get the underlying @a variables object.
-     *
-     * @attention Do not store pointer or reference to any members of @a
-     * variables after the destruction of the @a config object (@c
-     * use-after-free). the config.
-     *
-     * @code
-     * config_manager cfgm;
-     * ...
-     * small_string<127> name;
-     * {
-     *     auto cfg = cfgn.get();
-     *     name = cfg.vars().g_themes.names[0]; // copy
-     * }
-     * ... // name is available.
-     *
-     * @endcode
-     */
-    [[nodiscard]] const variables& vars() const noexcept { return *m_vars; }
-
-private:
-    /** Multiple reader (@a config object) can take the lock. */
-    std::shared_lock<std::shared_mutex> m_lock;
-    std::shared_ptr<const variables>    m_vars;
-};
-
-class config_rw
-{
-public:
-    config_rw(std::shared_mutex& mutex, const std::shared_ptr<variables>& vars)
-      : m_lock{ mutex }
-      , m_vars{ vars }
-    {}
-
-    /**
-     * Get the underlying @a variables object.
-     *
-     * @attention Do not store pointer or reference to any members of @a
-     * variables after the destruction of the @a config object (@c
-     * use-after-free). the config.
-     *
-     * @code
-     * config_manager cfgm;
-     * ...
-     * small_string<127> name;
-     * {
-     *     auto cfg = cfgn.get_rw();
-     *     cfg.vars().g_themes.names[0].clear();
-     * }
-     * @endcode
-     */
-    [[nodiscard]] variables& vars() const noexcept { return *m_vars; }
-
-private:
-    /** Unique writer (@a config_rw object) at a time can take the lock. */
-    std::unique_lock<std::shared_mutex> m_lock;
-    std::shared_ptr<variables>          m_vars;
-};
-
 class config_manager
 {
 public:
@@ -123,21 +54,49 @@ public:
     config_manager(config_manager&&) noexcept            = delete;
     config_manager& operator=(config_manager&&) noexcept = delete;
 
-    config get() const
-    {
-        return config{ m_mutex,
-                       std::static_pointer_cast<const variables>(m_vars) };
-    }
-
-    config_rw get_rw() const { return config_rw{ m_mutex, m_vars }; }
-
+    /**
+     * Get the underlying @a variables object under @a shared_lock locker.
+     *
+     * @attention Do not store pointer or reference to any members of @a
+     * variables after the destruction of the @a config object (@c
+     * use-after-free). the config.
+     *
+     * @code
+     * config_manager cfgm;
+     * ...
+     * small_string<127> name;
+     * {
+     *     read_write([&name](const auto& vars) {
+     *         name = vars.g_themes.names[0];
+     *     });
+     * }
+     * @endcode
+     */
     template<typename Function, typename... Args>
     void read(Function&& fn, Args&&... args) noexcept
     {
         std::shared_lock<std::shared_mutex> lock(m_mutex);
-        fn(*m_vars, args...);
+        fn(std::as_const(*m_vars), args...);
     }
 
+    /**
+     * Get the underlying @a variables object under a @a unique_lock locker.
+     *
+     * @attention Do not store pointer or reference to any members of @a
+     * variables after the destruction of the @a config object (@c
+     * use-after-free). the config.
+     *
+     * @code
+     * config_manager cfgm;
+     * ...
+     * small_string<127> name = "toto";
+     * {
+     *     read_write([&name](auto& vars) {
+     *         vars.g_themes.names[0] = name;
+     *     });
+     * }
+     * @endcode
+     */
     template<typename Function, typename... Args>
     void read_write(Function&& fn, Args&&... args) noexcept
     {
@@ -145,12 +104,33 @@ public:
         fn(*m_vars, args...);
     }
 
+    /**
+     * Try to get the underlying @a variables object under @a shared_lock
+     * try-locker. The function @a fn is call if and only if the lock is
+     * acquired otherwise, the function is not call and the caller take the
+     * control.
+     *
+     * @attention Do not store pointer or reference to any members of @a
+     * variables after the destruction of the @a config object (@c
+     * use-after-free). the config.
+     *
+     * @code
+     * config_manager cfgm;
+     * ...
+     * small_string<127> name;
+     * {
+     *     read_write([&name](const auto& vars) {
+     *         name = vars.g_themes.names[0];
+     *     });
+     * }
+     * @endcode
+     */
     template<typename Function, typename... Args>
     void try_read(Function&& fn, Args&&... args) noexcept
     {
         if (std::shared_lock<std::shared_mutex> lock(m_mutex, std::try_to_lock);
             lock.owns_lock()) {
-            fn(*m_vars, args...);
+            fn(std::as_const(*m_vars), args...);
         }
     }
 
