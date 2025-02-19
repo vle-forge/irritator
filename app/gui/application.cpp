@@ -88,33 +88,33 @@ void application::free_project_window(const project_id id) noexcept
     pjs.free(id);
 }
 
-static void init_registred_path(application&  app,
-                                const config& cfg,
-                                modeling&     mod) noexcept
+static void init_registred_path(application& app, config_manager& cfg) noexcept
 {
-    auto& vars = cfg.vars();
+    cfg.read_write(
+      [](auto& vars, auto& app) noexcept {
+          for (const auto id : vars.rec_paths.ids) {
+              const auto idx = get_index(id);
 
-    for (const auto id : vars.rec_paths.ids) {
-        const auto idx = get_index(id);
+              auto& new_dir    = app.mod.registred_paths.alloc();
+              auto  new_dir_id = app.mod.registred_paths.get_id(new_dir);
+              new_dir.name     = vars.rec_paths.names[idx].sv();
+              new_dir.path     = vars.rec_paths.paths[idx].sv();
+              new_dir.priority = vars.rec_paths.priorities[idx];
 
-        auto& new_dir    = mod.registred_paths.alloc();
-        auto  new_dir_id = mod.registred_paths.get_id(new_dir);
-        new_dir.name     = vars.rec_paths.names[idx].sv();
-        new_dir.path     = vars.rec_paths.paths[idx].sv();
-        new_dir.priority = vars.rec_paths.priorities[idx];
+              app.notifications.try_insert(
+                log_level::info, [&new_dir](auto& title, auto& msg) noexcept {
+                    title = "New directory registred";
+                    format(msg,
+                           "{} registred as path `{}' priority: {}",
+                           new_dir.name.sv(),
+                           new_dir.path.sv(),
+                           new_dir.priority);
+                });
 
-        app.notifications.try_insert(
-          log_level::info, [&new_dir](auto& title, auto& msg) noexcept {
-              title = "New directory registred";
-              format(msg,
-                     "{} registred as path `{}' priority: {}",
-                     new_dir.name.sv(),
-                     new_dir.path.sv(),
-                     new_dir.priority);
-          });
-
-        mod.component_repertories.emplace_back(new_dir_id);
-    }
+              app.mod.component_repertories.emplace_back(new_dir_id);
+          }
+      },
+      app);
 }
 
 bool application::init() noexcept
@@ -126,7 +126,7 @@ bool application::init() noexcept
         return false;
     }
 
-    init_registred_path(*this, config.get(), mod);
+    init_registred_path(*this, config);
 
     if (auto ret = mod.fill_internal_components(); !ret) {
         log_w(*this,
@@ -433,8 +433,8 @@ static void show_select_model_box_recursive(application&    app,
         show_select_model_box_recursive(app, ed, *sibling, access);
 }
 
-auto build_unique_component_vector(application& app,
-                                   tree_node&   tn) -> vector<component_id>
+auto build_unique_component_vector(application& app, tree_node& tn)
+  -> vector<component_id>
 {
     vector<component_id> ret;
     vector<tree_node*>   stack;

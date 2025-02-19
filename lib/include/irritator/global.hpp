@@ -49,15 +49,29 @@ public:
       , m_vars{ vars }
     {}
 
-    /** Get the underlying @c variables object.
+    /**
+     * Get the underlying @a variables object.
      *
-     * @c attention Do not store the underlying variable @c variables and free
-     * the config. It may be delete or replace in writer thread.
+     * @attention Do not store pointer or reference to any members of @a
+     * variables after the destruction of the @a config object (@c
+     * use-after-free). the config.
+     *
+     * @code
+     * config_manager cfgm;
+     * ...
+     * small_string<127> name;
+     * {
+     *     auto cfg = cfgn.get();
+     *     name = cfg.vars().g_themes.names[0]; // copy
+     * }
+     * ... // name is available.
+     *
+     * @endcode
      */
     [[nodiscard]] const variables& vars() const noexcept { return *m_vars; }
 
 private:
-    /** Multiple reader (@c config object) can take the lock. */
+    /** Multiple reader (@a config object) can take the lock. */
     std::shared_lock<std::shared_mutex> m_lock;
     std::shared_ptr<const variables>    m_vars;
 };
@@ -70,15 +84,27 @@ public:
       , m_vars{ vars }
     {}
 
-    /** Get the underlying @c variables object.
+    /**
+     * Get the underlying @a variables object.
      *
-     * @c attention Do not store the underlying variable @c variables and free
-     * the config. It may be delete or replace in writer thread.
+     * @attention Do not store pointer or reference to any members of @a
+     * variables after the destruction of the @a config object (@c
+     * use-after-free). the config.
+     *
+     * @code
+     * config_manager cfgm;
+     * ...
+     * small_string<127> name;
+     * {
+     *     auto cfg = cfgn.get_rw();
+     *     cfg.vars().g_themes.names[0].clear();
+     * }
+     * @endcode
      */
     [[nodiscard]] variables& vars() const noexcept { return *m_vars; }
 
 private:
-    /** Unique writer (@c config_rw object) at a time can take the lock. */
+    /** Unique writer (@a config_rw object) at a time can take the lock. */
     std::unique_lock<std::shared_mutex> m_lock;
     std::shared_ptr<variables>          m_vars;
 };
@@ -86,11 +112,12 @@ private:
 class config_manager
 {
 public:
-    /** Build a @c variables object from static data. Useful in unit-tests. */
+    /** Build a @a variables object from static data. Useful in unit-tests. */
     config_manager() noexcept;
 
-    /** Build a @c variables object from the file @c config_path. If it fail,
-       the default object from static data is build. */
+    /** Build a @a variables object from the file @a config_path. If it fail,
+       the default object from static data is build. Priority is given to @a
+       config_path data. */
     explicit config_manager(const std::string config_path) noexcept;
 
     config_manager(config_manager&&) noexcept            = delete;
@@ -104,6 +131,29 @@ public:
 
     config_rw get_rw() const { return config_rw{ m_mutex, m_vars }; }
 
+    template<typename Function, typename... Args>
+    void read(Function&& fn, Args&&... args) noexcept
+    {
+        std::shared_lock<std::shared_mutex> lock(m_mutex);
+        fn(*m_vars, args...);
+    }
+
+    template<typename Function, typename... Args>
+    void read_write(Function&& fn, Args&&... args) noexcept
+    {
+        std::unique_lock<std::shared_mutex> lock(m_mutex);
+        fn(*m_vars, args...);
+    }
+
+    template<typename Function, typename... Args>
+    void try_read(Function&& fn, Args&&... args) noexcept
+    {
+        if (std::shared_lock<std::shared_mutex> lock(m_mutex, std::try_to_lock);
+            lock.owns_lock()) {
+            fn(*m_vars, args...);
+        }
+    }
+
     std::error_code save() const noexcept;
     std::error_code load() noexcept;
 
@@ -111,35 +161,36 @@ public:
     std::shared_ptr<variables> copy() const noexcept;
 
 private:
-    /** Stores the configuration path (@c `$XDG_RUNTIME_DIR/irritator.ini` or @c
-
-       `%HOMEDIR%/%HOMEPATH&/irritator.ini`) directories. @TODO move from
-       std::string into small_string or vector<char> with cold memory allocator.
+    /**
+     * Stores the configuration path (@a `$XDG_RUNTIME_DIR/irritator.ini` or @a
+     *
+     * `%HOMEDIR%/%HOMEPATH&/irritator.ini`) directories. @TODO move from
+     * std::string into small_string or vector<char> with cold memory allocator.
      */
     const std::string m_path;
 
     std::shared_ptr<variables> m_vars;
 
-    /** Use a @c std::shared_mutex to permit multiple readers with @c
-       std::shared_lock in @c config object and unique writer with @c
-       std::unique_lock. */
+    /** Use a @a std::shared_mutex to permit multiple readers with @a
+     * std::shared_lock in @a config object and unique writer with @a *
+     * std::unique_lock. */
     mutable std::shared_mutex m_mutex;
 };
 
-/** Retrieves the path of the file @c "irritator.ini" from the directoy @c
- * conf_dir/irritator-x.y/ where @c conf_dir equals:
+/** Retrieves the path of the file @a "irritator.ini" from the directoy @a
+ * conf_dir/irritator-x.y/ where @a conf_dir equals:
  *
- *  - Unix/Linux: Try to the directories @c XDG_CONFIG_HOME, @c HOME or current
+ *  - Unix/Linux: Try to the directories @a XDG_CONFIG_HOME, @a HOME or current
  *    directory.
  *  - Win32: Use the local application data directory.
  */
 std::string get_config_home(bool log = false) noexcept;
 
 /** Retrives the home directory of the current user:
- * - unix/linux : Get the user home directory from the @c $HOME environment
- *   variable or operating system file entry using @c getpwuid_r otherwise
+ * - unix/linux : Get the user home directory from the @a $HOME environment
+ *   variable or operating system file entry using @a getpwuid_r otherwise
  *   use the current directory.
- * - win32: Use the @c SHGetKnownFolderPath to retrieves the path of the user
+ * - win32: Use the @a SHGetKnownFolderPath to retrieves the path of the user
  *   directory otherwise use the current directory.
  */
 result<std::filesystem::path> get_home_directory() noexcept;
