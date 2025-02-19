@@ -327,13 +327,6 @@ static void prepare_component_loading(modeling&              mod,
                            mod.dir_paths.size(),
                            reg_dir.path.sv());
                 });
-            } else {
-                mod.log_entries.push(log_level::notice, [&](auto& e) noexcept {
-                    format(e.buffer,
-                           "Directory {} registered in paths {}\n",
-                           mod.dir_paths.size(),
-                           reg_dir.path.sv());
-                });
             }
         }
     } catch (...) {
