@@ -548,7 +548,7 @@ struct json_dearchiver::impl {
 
     bool copy_u64_to(u64& dst) const noexcept
     {
-        dst = temp_i64;
+        dst = temp_u64;
         return true;
     }
 
@@ -566,7 +566,7 @@ struct json_dearchiver::impl {
         if (temp_i64 < 0)
             return false;
 
-        dst = static_cast<u64>(temp_u64);
+        dst = static_cast<u64>(temp_i64);
         return true;
     }
 
@@ -587,7 +587,7 @@ struct json_dearchiver::impl {
         if (!(temp_u64 <= UINT8_MAX))
             report_json_error("bad 8 bits unsigned integer");
 
-        dst = static_cast<u8>(temp_i64);
+        dst = static_cast<u8>(temp_u64);
         return true;
     }
 
@@ -5591,7 +5591,7 @@ struct json_archiver::impl {
         writer.Int(static_cast<int>(state.type));
 
         if (state.type == hierarchical_state_machine::condition_type::port) {
-            u8 port{}, mask{};
+            u8 port = 0, mask = 0;
             state.get(port, mask);
 
             writer.Key("port");

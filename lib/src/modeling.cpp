@@ -856,6 +856,9 @@ component& modeling::alloc_hsm_component() noexcept
 
     auto& h             = hsm_components.alloc();
     new_compo.id.hsm_id = hsm_components.get_id(h);
+    h.clear();
+    h.machine.states[0].super_id = hierarchical_state_machine::invalid_state_id;
+    h.machine.top_state          = 0;
 
     return new_compo;
 }
