@@ -241,9 +241,8 @@ bool show_local_observers(application&    app,
                   if (auto* mdl = ed.pj.sim.models.try_to_get(grid.mdl_id);
                       mdl) {
                       if (mdl->type == dynamics_type::hsm_wrapper) {
-                          if (auto* hsm =
-                                ed.pj.sim.hsms.try_to_get(enum_cast<hsm_id>(
-                                  get_dyn<hsm_wrapper>(*mdl).id));
+                          if (auto* hsm = ed.pj.sim.hsms.try_to_get_from_pos(
+                                get_dyn<hsm_wrapper>(*mdl).id);
                               hsm) {
                               grid.scale_min = 0.f;
                               grid.scale_max =
