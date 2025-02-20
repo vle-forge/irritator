@@ -6475,7 +6475,7 @@ struct json_archiver::impl {
         w.Key("timeout");
         w.Double(hsm.timeout);
         w.Key("source-type");
-        w.String(external_source_str(hsm.src.type));
+        w.Int(ordinal(hsm.src.type));
         w.Key("source-id");
         w.Uint64(hsm.src.id);
 
