@@ -3901,8 +3901,8 @@ struct hsm_wrapper {
 
     real sigma;
 
-    u32 id = 0; //!< stores the @c ordinal value of a @c component_id in
-                //!< modeling part and a @c hsm_id in the simulation part.
+    u32 id = 0; //!< stores the @a ordinal value of an @a hsm_id from the
+                //!< simulation hsms data_array.
 
     hsm_wrapper() noexcept;
     hsm_wrapper(const hsm_wrapper& other) noexcept;
@@ -5312,18 +5312,23 @@ inline status send_message(simulation&    sim,
     return success();
 }
 
-/**  Get an @c hierarchical_state_machine from the ID.
- * @return @c success() or a new error @c simulation::hsms_error{} @c
- * unknown_error{} and e_ulong_id{ ordinal(id). */
-inline auto get_hierarchical_state_machine(simulation&  sim,
-                                           const hsm_id id) noexcept
+/**
+ * Get an @a hierarchical_state_machine pointer from the
+ * @a hierarchical_state_machine::exec::id index in the simulation @a hsms
+ * data_array.
+ *
+ * @return @a the pointer or a new error @c simulation::hsms_error{} @a
+ * unknown_error{} and e_ulong_id{ idx }.
+ */
+inline auto get_hierarchical_state_machine(simulation& sim,
+                                           const u32   idx) noexcept
   -> result<hierarchical_state_machine*>
 {
-    if (auto* hsm = sim.hsms.try_to_get(id); hsm)
+    if (auto* hsm = sim.hsms.try_to_get_from_pos(idx); hsm)
         return hsm;
 
     return new_error(
-      simulation::part::hsms, unknown_error{}, e_ulong_id{ ordinal(id) });
+      simulation::part::hsms, unknown_error{}, e_ulong_id{ idx });
 }
 
 //
@@ -6349,8 +6354,7 @@ inline status hsm_wrapper::initialize(simulation& sim) noexcept
 {
     exec.clear();
 
-    irt_auto(machine,
-             get_hierarchical_state_machine(sim, enum_cast<hsm_id>(id)));
+    irt_auto(machine, get_hierarchical_state_machine(sim, id));
 
     if (machine->flags[hierarchical_state_machine::option::use_source]) {
         irt_check(initialize_source(sim, exec.source_value));
@@ -6386,8 +6390,7 @@ inline status hsm_wrapper::transition(simulation& sim,
                                       time /*e*/,
                                       time r) noexcept
 {
-    irt_auto(machine,
-             get_hierarchical_state_machine(sim, enum_cast<hsm_id>(id)));
+    irt_auto(machine, get_hierarchical_state_machine(sim, id));
 
     for (int i = 0, e = length(x); i != e; ++i) {
         auto* lst = sim.messages.try_to_get(x[i]);
@@ -6473,8 +6476,7 @@ inline status hsm_wrapper::lambda(simulation& sim) noexcept
 
 inline status hsm_wrapper::finalize(simulation& sim) noexcept
 {
-    irt_auto(machine,
-             get_hierarchical_state_machine(sim, enum_cast<hsm_id>(id)));
+    irt_auto(machine, get_hierarchical_state_machine(sim, id));
 
     if (machine->flags[hierarchical_state_machine::option::use_source])
         irt_check(finalize_source(sim, exec.source_value));

@@ -119,35 +119,23 @@ static void simulation_init(application& app, project_editor& ed) noexcept
 
     ed.tl.reset();
 
-    auto* head = ed.pj.tn_head();
-    if (!head) {
+    if (ed.pj.tn_head()) {
+        ed.pj.sim.t                   = ed.pj.t_limit.begin();
+        ed.simulation_last_finite_t   = ed.pj.sim.t;
+        ed.simulation_display_current = ed.pj.sim.t;
+
+        if (simulation_init_observation(app.mod, ed.pj) and
+            ed.pj.sim.srcs.prepare() and ed.pj.sim.initialize()) {
+            ed.simulation_state = simulation_status::initialized;
+        } else {
+            ed.simulation_state = simulation_status::not_started;
+            make_copy_error_msg(app, "Error in initialization");
+        }
+    } else {
         ed.simulation_state = simulation_status::not_started;
         make_init_error_msg(app, "Empty component");
         return;
     }
-
-    attempt_all(
-      [&]() noexcept -> status {
-          ed.pj.sim.t                   = ed.pj.t_limit.begin();
-          ed.simulation_last_finite_t   = ed.pj.sim.t;
-          ed.simulation_display_current = ed.pj.sim.t;
-
-          irt_check(simulation_init_observation(app.mod, ed.pj));
-          irt_check(ed.pj.sim.srcs.prepare());
-          irt_check(ed.pj.sim.initialize());
-          ed.simulation_state = simulation_status::initialized;
-          return success();
-      },
-
-      [&](const simulation::part s) noexcept -> void {
-          ed.simulation_state = simulation_status::not_started;
-          make_copy_error_msg(app, "Error in simulation: {}", ordinal(s));
-      },
-
-      [&]() noexcept -> void {
-          ed.simulation_state = simulation_status::not_started;
-          make_copy_error_msg(app, "Unknown error");
-      });
 }
 
 static bool debug_run(application& app, project_editor& sim_ed) noexcept
