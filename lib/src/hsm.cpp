@@ -985,7 +985,7 @@ status hierarchical_state_machine::set_state(state_id id,
                                              state_id sub_id) noexcept
 {
     if (super_id == invalid_state_id) {
-        if (top_state != invalid_state_id)
+        if (top_state != invalid_state_id and top_state != id)
             return new_error(top_state_error{});
         top_state = id;
     }
