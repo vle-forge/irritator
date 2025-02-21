@@ -293,7 +293,8 @@ static void prepare_component_loading(modeling&              mod,
             bool too_many_directory = false;
 
             while (it != et) {
-                if (it->is_directory()) {
+                if (it->is_directory() and
+                    not it->path().filename().string().starts_with('.')) {
                     if (mod.dir_paths.can_alloc()) {
                         auto u8str = it->path().filename().u8string();
                         auto cstr =
@@ -549,8 +550,8 @@ status modeling::fill_components(registred_path& path) noexcept
     return success();
 }
 
-auto search_reg(const modeling& mod, std::string_view name) noexcept
-  -> const registred_path*
+auto search_reg(const modeling&  mod,
+                std::string_view name) noexcept -> const registred_path*
 {
     for (const auto& reg : mod.registred_paths)
         if (name == reg.name.sv())
@@ -573,8 +574,8 @@ auto search_dir_in_reg(const modeling&       mod,
     return nullptr;
 }
 
-auto search_dir(const modeling& mod, std::string_view name) noexcept
-  -> const dir_path*
+auto search_dir(const modeling&  mod,
+                std::string_view name) noexcept -> const dir_path*
 {
     for (auto reg_id : mod.component_repertories) {
         if (auto* reg = mod.registred_paths.try_to_get(reg_id); reg) {
