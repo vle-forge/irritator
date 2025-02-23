@@ -356,11 +356,9 @@ public:
                                  bool start_fill_tokens = true) noexcept
       : mod{ &mod_ }
       , strings_ids(64)
-      , strings(64, irt::reserve_tag{})
+      , strings(64)
       , is(stream)
     {
-        strings.resize(strings_ids.capacity());
-
         if (start_fill_tokens)
             fill_tokens();
     }
@@ -374,11 +372,9 @@ public:
     explicit input_stream_buffer(std::istream& stream,
                                  bool start_fill_tokens = true) noexcept
       : strings_ids(64)
-      , strings(64, irt::reserve_tag{})
+      , strings(64)
       , is(stream)
     {
-        strings.resize(strings_ids.capacity());
-
         if (start_fill_tokens)
             fill_tokens();
     }
@@ -508,7 +504,7 @@ private:
 
     token read_double_quote() noexcept
     {
-        if (not strings.can_alloc(1))
+        if (not strings_ids.can_alloc(1))
             grow_strings();
 
         const auto id  = strings_ids.alloc();
@@ -566,11 +562,7 @@ private:
      */
     token pop_token() noexcept
     {
-        if (tokens.empty()) // If the ring buffer is empty, fills the ring
-            fill_tokens();  // buffer from the stream.
-
-        if (tokens.empty()) // If the ring buffer is empty return none.
-            return token{ element_type::none };
+        debug::ensure(not tokens.empty());
 
         const auto head = *tokens.head();
         tokens.pop_head();
@@ -671,6 +663,8 @@ private:
 
     bool check_minimum_tokens(std::integral auto nb) noexcept
     {
+        debug::ensure(std::cmp_less(nb, tokens.capacity()));
+
         if (std::cmp_greater_equal(tokens.size(), nb))
             return true;
 
