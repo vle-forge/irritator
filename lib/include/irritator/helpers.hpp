@@ -15,6 +15,7 @@ namespace irt {
 
 template<typename T>
 class limiter
+    requires std::integral<T> or std::floating_point<T>
 {
     T m_lower;
     T m_upper;
