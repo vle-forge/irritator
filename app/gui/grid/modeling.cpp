@@ -436,10 +436,12 @@ static void show_grid(application&                app,
 
     if (ImGui::BeginPopupContextItem("##GridComponentEditConnection")) {
         const auto click_pos = ImGui::GetMousePosOnOpeningCurrentPopup();
-        ed.row =
-          (click_pos.x - origin.x) / ((ed.distance.x + ed.size.x) * ed.zoom[0]);
-        ed.col =
-          (click_pos.y - origin.y) / ((ed.distance.y + ed.size.y) * ed.zoom[1]);
+        ed.row               = static_cast<int>(
+          std::lround((click_pos.x - origin.x) /
+                      ((ed.distance.x + ed.size.x) * ed.zoom[0])));
+        ed.col = static_cast<int>(
+          std::lround((click_pos.y - origin.y) /
+                      ((ed.distance.y + ed.size.y) * ed.zoom[1])));
 
         if (0 <= ed.row and ed.row < data.row and 0 <= ed.col and
             ed.col < data.column)
