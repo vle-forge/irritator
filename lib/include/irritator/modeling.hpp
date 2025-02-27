@@ -257,8 +257,8 @@ inline void hsm_component::clear() noexcept
 class generic_component
 {
 public:
-    using child_limiter      = static_limiter<i32, 64, 64 * 16>;
-    using connection_limiter = static_limiter<i32, 64 * 4, 64 * 16 * 4>;
+    using child_limiter      = static_bounded_value<i32, 64, 64 * 16>;
+    using connection_limiter = static_bounded_value<i32, 64 * 4, 64 * 16 * 4>;
 
     struct children_error {};
     struct connection_error {};
@@ -1040,7 +1040,7 @@ public:
 
     time tn = 0;
 
-    floating_point_limiter<float, 1, 100, 1, 1> time_step = 0.1f;
+    static_bounded_floating_point<float, 1, 100, 1, 1> time_step = 0.1f;
 
     // Build or reuse existing observer for each pair `tn_id`, `mdl_id` and
     // reinitialize all buffers.
@@ -1083,7 +1083,7 @@ public:
 
     time tn = 0;
 
-    floating_point_limiter<float, 1, 100, 1, 1> time_step = 0.1f;
+    static_bounded_floating_point<float, 1, 100, 1, 1> time_step = 0.1f;
 
     // Build or reuse existing observer for each pair `tn_id`, `mdl_id` and
     // reinitialize all buffers.
@@ -1117,10 +1117,10 @@ public:
     };
 
     name_str                                     name;
-    static_limiter<i32, 8, 64>                   max_observers          = 8;
-    static_limiter<i32, 8, 512>                  raw_buffer_size        = 64;
-    static_limiter<i32, 1024, 65536>             linearized_buffer_size = 32768;
-    floating_point_limiter<float, 1, 100, 1, 10> time_step              = .01f;
+    static_bounded_value<i32, 8, 64>                   max_observers          = 8;
+    static_bounded_value<i32, 8, 512>                  raw_buffer_size        = 64;
+    static_bounded_value<i32, 1024, 65536>             linearized_buffer_size = 32768;
+    static_bounded_floating_point<float, 1, 100, 1, 10> time_step              = .01f;
 
     time tn = 0;
 
@@ -1480,7 +1480,7 @@ public:
     vector<type>               types;
     vector<bool>               enables;
 
-    floating_point_limiter<float, 1, 10000, 1, 1> time_step = 1.f;
+    static_bounded_floating_point<float, 1, 10000, 1, 1> time_step = 1.f;
 
     time tn = 0;
 };

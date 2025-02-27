@@ -14,15 +14,15 @@
 namespace irt {
 
 template<typename T>
-class limiter
     requires std::integral<T> or std::floating_point<T>
+class bounded_value
 {
     T m_lower;
     T m_upper;
     T m_value;
 
 public:
-    constexpr limiter(const T& lower_, const T& upper_) noexcept
+    constexpr bounded_value(const T& lower_, const T& upper_) noexcept
       : m_lower{ lower_ }
       , m_upper{ upper_ }
     {
@@ -49,14 +49,14 @@ public:
 
 template<typename T, T Lower, T Upper>
     requires std::integral<T>
-class static_limiter
+class static_bounded_value
 {
     static_assert(Lower < Upper);
 
     T m_value;
 
 public:
-    constexpr static_limiter(const T value) noexcept
+    constexpr static_bounded_value(const T value) noexcept
       : m_value(std::clamp(value, Lower, Upper))
     {}
 
@@ -80,7 +80,7 @@ public:
 
 template<typename T, int LowerNum, int LowerDenom, int UpperNum, int UpperDenom>
     requires std::floating_point<T>
-class floating_point_limiter
+class static_bounded_floating_point
 {
 public:
     static inline constexpr T lower =
@@ -93,7 +93,7 @@ private:
     T m_value;
 
 public:
-    constexpr floating_point_limiter(const T value) noexcept
+    constexpr static_bounded_floating_point(const T value) noexcept
       : m_value(std::clamp(value, lower, upper))
     {}
 
