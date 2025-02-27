@@ -14,21 +14,36 @@
 namespace irt {
 
 template<typename T>
-struct limiter {
-    T lower;
-    T upper;
+class limiter
+{
+    T m_lower;
+    T m_upper;
+    T m_value;
 
+public:
     constexpr limiter(const T& lower_, const T& upper_) noexcept
-      : lower{ lower_ }
-      , upper{ upper_ }
+      : m_lower{ lower_ }
+      , m_upper{ upper_ }
     {
         debug::ensure(lower_ < upper_);
     }
 
     constexpr bool is_valid(const T value) const noexcept
     {
-        return lower <= value && value <= upper;
+        return m_lower <= value && m_value <= m_upper;
     }
+
+    constexpr void set(const T value) noexcept
+    {
+        m_value = std::clamp(value, m_lower, m_upper);
+    }
+
+    constexpr T value() const noexcept { return m_value; }
+    constexpr   operator T() noexcept { return m_value; }
+    constexpr   operator T() const noexcept { return m_value; }
+
+    constexpr T lower_bound() noexcept { return m_lower; }
+    constexpr T upper_bound() noexcept { return m_upper; }
 };
 
 template<typename T, T Lower, T Upper>
@@ -44,7 +59,7 @@ public:
       : m_value(std::clamp(value, Lower, Upper))
     {}
 
-    static constexpr bool is_valid(const T value) noexcept
+    constexpr bool is_valid(const T value) noexcept
     {
         return Lower <= value && value <= Upper;
     }
@@ -81,19 +96,22 @@ public:
       : m_value(std::clamp(value, lower, upper))
     {}
 
-    static constexpr bool is_valid(const T value) noexcept
+    constexpr bool is_valid(const T value) noexcept
     {
         return lower <= value && value <= upper;
     }
 
-    void set(const T value) noexcept
+    constexpr void set(const T value) noexcept
     {
         m_value = std::clamp(value, lower, upper);
     }
 
-    T value() const noexcept { return m_value; }
-    operator T() noexcept { return m_value; }
-    operator T() const noexcept { return m_value; }
+    constexpr T value() const noexcept { return m_value; }
+    constexpr   operator T() noexcept { return m_value; }
+    constexpr   operator T() const noexcept { return m_value; }
+
+    static constexpr T lower_bound() noexcept { return lower; }
+    static constexpr T upper_bound() noexcept { return upper; }
 };
 
 template<typename>
