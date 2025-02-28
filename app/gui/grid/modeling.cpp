@@ -47,27 +47,35 @@ constexpr static inline auto grid_neighborhood_count = 2;
 constexpr inline auto get_default_component_id(const grid_component& g) noexcept
   -> component_id
 {
-    return g.children.empty() ? undefined<component_id>() : g.children.front();
+    return g.cells_number() > 0 ? undefined<component_id>()
+                                : g.children().front();
 }
 
 static bool show_row_column_widgets(grid_component& grid) noexcept
 {
     bool is_changed = false;
 
-    int row = grid.row;
-    if (ImGui::InputInt(
-          "row", &row, 1, 100, ImGuiInputTextFlags_EnterReturnsTrue)) {
-        row        = std::clamp(row, 1, 256);
-        is_changed = row != grid.row;
-        grid.row   = row;
+    int row    = grid.row();
+    int column = grid.column();
+
+    if (ImGui::InputInt("row",
+                        &row,
+                        grid_component::slimit::lower_bound(),
+                        grid_component::slimit::upper_bound(),
+                        ImGuiInputTextFlags_EnterReturnsTrue)) {
+        is_changed = row != grid.row();
     }
 
-    int column = grid.column;
-    if (ImGui::InputInt(
-          "column", &column, 1, 100, ImGuiInputTextFlags_EnterReturnsTrue)) {
-        column      = std::clamp(column, 1, 256);
-        is_changed  = is_changed || column != grid.column;
-        grid.column = column;
+    if (ImGui::InputInt("column",
+                        &column,
+                        grid_component::slimit::lower_bound(),
+                        grid_component::slimit::upper_bound(),
+                        ImGuiInputTextFlags_EnterReturnsTrue)) {
+        is_changed = is_changed || column != grid.column();
+    }
+
+    if (is_changed) {
+        grid.resize(row, column, get_default_component_id(grid));
     }
 
     return is_changed;
@@ -303,7 +311,7 @@ static void show_grid_editor_options(application&                app,
           "Reset the content of the grid with the selected component.");
 
         if (updated)
-            std::fill_n(grid.children.data(), grid.children.ssize(), id);
+            std::fill_n(grid.children().data(), grid.children().size(), id);
     }
 
     {
@@ -409,8 +417,8 @@ static void show_grid(application&                app,
                            ImVec2(canvas_p1.x, canvas_p0.y + y),
                            IM_COL32(200, 200, 200, 40));
 
-    for (int row = 0; row < data.row; ++row) {
-        for (int col = 0; col < data.column; ++col) {
+    for (int row = 0; row < data.row(); ++row) {
+        for (int col = 0; col < data.column(); ++col) {
             ImVec2 p_min(
               origin.x + (col * (ed.distance.x + ed.size.x) * ed.zoom[0]),
               origin.y + (row * (ed.distance.y + ed.size.y) * ed.zoom[1]));
@@ -421,14 +429,14 @@ static void show_grid(application&                app,
             if (p_min.x <= io.MousePos.x && io.MousePos.x < p_max.x &&
                 p_min.y <= io.MousePos.y && io.MousePos.y < p_max.y &&
                 ImGui::IsMouseReleased(ImGuiMouseButton_Left)) {
-                data.children[data.pos(row, col)] = ed.selected_id;
+                data.children()[data.pos(row, col)] = ed.selected_id;
             }
 
             draw_list->AddRectFilled(
               p_min,
               p_max,
               to_ImU32(app.mod.component_colors[get_index(
-                data.children[data.pos(row, col)])]));
+                data.children()[data.pos(row, col)])]));
         }
     }
 
@@ -443,10 +451,10 @@ static void show_grid(application&                app,
           std::lround((click_pos.y - origin.y) /
                       ((ed.distance.y + ed.size.y) * ed.zoom[1])));
 
-        if (0 <= ed.row and ed.row < data.row and 0 <= ed.col and
-            ed.col < data.column)
+        if (0 <= ed.row and ed.row < data.row() and 0 <= ed.col and
+            ed.col < data.column())
             ed.hovered_component = app.mod.components.try_to_get(
-              data.children[data.pos(ed.row, ed.col)]);
+              data.children()[data.pos(ed.row, ed.col)]);
 
         if (ed.hovered_component) {
             small_string<32> ss;
@@ -554,11 +562,7 @@ void grid_component_editor_data::show(component_editor& ed) noexcept
     debug::ensure(compo && grid);
 
     if (compo and grid) {
-        if (show_row_column_widgets(*grid)) {
-            grid->resize(
-              grid->row, grid->column, get_default_component_id(*grid));
-        }
-
+        show_row_column_widgets(*grid);
         show_grid_component_options(*grid);
         show_grid_editor_options(app, *this, *grid);
         show_grid(app, *compo, *this, *grid);
@@ -590,7 +594,7 @@ static void display_input_output_connections(modeling&       mod,
                         grid_port =
                           compo.x.get<port_str>()[get_index(con.x)].sv();
 
-                    auto id = grid.children[grid.pos(con.row, con.col)];
+                    auto id = grid.children()[grid.pos(con.row, con.col)];
                     if (auto* c = mod.components.try_to_get(id); c) {
                         if (c->x.exists(con.id)) {
                             child_port =
@@ -648,7 +652,7 @@ static void display_input_output_connections(modeling&       mod,
                         grid_port =
                           compo.y.get<port_str>()[get_index(con.y)].sv();
 
-                    auto id = grid.children[grid.pos(con.row, con.col)];
+                    auto id = grid.children()[grid.pos(con.row, con.col)];
                     if (auto* c = mod.components.try_to_get(id); c) {
                         if (c->y.exists(con.id)) {
                             child_port =

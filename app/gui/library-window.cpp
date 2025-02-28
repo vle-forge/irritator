@@ -608,8 +608,8 @@ auto library_window::is_component_deletable(
             case component_type::grid:
                 if (const auto* g =
                       app.mod.grid_components.try_to_get(c.id.grid_id)) {
-                    if (std::any_of(g->children.begin(),
-                                    g->children.end(),
+                    if (std::any_of(g->children().begin(),
+                                    g->children().end(),
                                     [id](const auto c) noexcept -> bool {
                                         return c == id;
                                     }))

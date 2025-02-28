@@ -251,8 +251,8 @@ int main()
         g.resize(5, 5, mod.components.get_id(c));
 
         expect(!!pj.set(mod, cg));
-        expect(eq(pj.tree_nodes_size().first, g.row * g.column + 1));
-        expect(eq(pj.sim.models.ssize(), g.row * g.column));
+        expect(eq(pj.tree_nodes_size().first, g.cells_number() + 1));
+        expect(eq(pj.sim.models.ssize(), g.cells_number()));
     };
 
     "grid-3x3-empty-con-middle"_test = [] {
@@ -273,12 +273,12 @@ int main()
 
         for (int i = 1; i < 4; ++i)
             for (int j = 1; j < 4; ++j)
-                g.children[g.pos(i, j)] = mod.components.get_id(c);
+                g.children()[g.pos(i, j)] = mod.components.get_id(c);
 
         expect(!!pj.set(mod, cg));
         expect(
-          eq(pj.tree_nodes_size().first, (g.row - 2) * (g.column - 2) + 1));
-        expect(eq(pj.sim.models.ssize(), (g.row - 2) * (g.column - 2)));
+          eq(pj.tree_nodes_size().first, (g.row() - 2) * (g.column() - 2) + 1));
+        expect(eq(pj.sim.models.ssize(), (g.row() - 2) * (g.column() - 2)));
     };
 
     "grid-3x3"_test = [] {
@@ -370,9 +370,9 @@ int main()
             expect(!!mod.save(cg));
 
             expect(!!pj.set(mod, cg));
-            expect(eq(pj.tree_nodes_size().first, g.row * g.column * 3 + 1));
+            expect(eq(pj.tree_nodes_size().first, g.cells_number() * 3 + 1));
 
-            expect(eq(pj.sim.models.ssize(), g.row * g.column * 2));
+            expect(eq(pj.sim.models.ssize(), g.cells_number() * 2));
 
             irt::json_archiver j;
             expect(
@@ -595,9 +595,9 @@ int main()
 
             expect(!!pj.set(mod, cg));
             expect(gt(g.cache_connections.ssize(), 0));
-            expect(eq(pj.tree_nodes_size().first, g.row * g.column * 3 + 1));
+            expect(eq(pj.tree_nodes_size().first, g.cells_number() * 3 + 1));
 
-            expect(eq(pj.sim.models.ssize(), g.row * g.column * 3));
+            expect(eq(pj.sim.models.ssize(), g.cells_number() * 3));
 
             int         nb_constant_model = 0;
             irt::model* cst_mdl           = nullptr;
@@ -614,7 +614,7 @@ int main()
                 }
             }
 
-            expect(eq(nb_constant_model, g.row * g.column));
+            expect(eq(nb_constant_model, g.cells_number()));
         }
     };
 
@@ -692,9 +692,9 @@ int main()
             g.out_connection_type = irt::grid_component::type::in_out;
 
             expect(!!pj.set(mod, cg));
-            expect(eq(pj.tree_nodes_size().first, g.row * g.column * 3 + 1));
+            expect(eq(pj.tree_nodes_size().first, g.cells_number() * 3 + 1));
 
-            expect(eq(pj.sim.models.ssize(), g.row * g.column * 3));
+            expect(eq(pj.sim.models.ssize(), g.cells_number() * 3));
 
             int         nb_constant_model = 0;
             irt::model* cst_mdl           = nullptr;
@@ -709,7 +709,7 @@ int main()
                 }
             }
 
-            expect(eq(nb_constant_model, g.row * g.column));
+            expect(eq(nb_constant_model, g.cells_number()));
         }
     };
 

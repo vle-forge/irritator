@@ -420,7 +420,7 @@ static void show_grid_node(application&     app,
     ImNodes::BeginNode(pack_node_child(c_id));
     ImNodes::BeginNodeTitleBar();
     ImGui::TextFormat("{}\n{}", name, compo.name.sv());
-    ImGui::TextFormat("{}x{}", grid.row, grid.column);
+    ImGui::TextFormat("{}x{}", grid.row(), grid.column());
     ImNodes::EndNodeTitleBar();
     show_input_an_output_ports(compo, c_id);
     ImNodes::EndNode();
@@ -708,11 +708,10 @@ static void show_popup_menuitem(component_editor&  ed,
                 n.level   = log_level::error;
                 n.title   = "can not allocate a new grid component";
             } else {
-                auto& grid    = app.mod.grid_components.alloc();
-                auto  grid_id = app.mod.grid_components.get_id(grid);
-                grid.row      = 4;
-                grid.column   = 4;
+                auto& grid = app.mod.grid_components.alloc();
+                grid.resize(4, 4, undefined<component_id>());
 
+                auto  grid_id    = app.mod.grid_components.get_id(grid);
                 auto& compo      = app.mod.components.alloc();
                 compo.name       = "Grid";
                 compo.type       = component_type::grid;

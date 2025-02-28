@@ -382,17 +382,22 @@ public:
     static void format_children_error(log_entry& e) noexcept;
 };
 
-struct grid_component {
-    static inline constexpr i32 row_max    = 1024;
-    static inline constexpr i32 column_max = 1024;
+class grid_component
+{
+public:
+    using limit  = bounded_value<i32>;
+    using slimit = static_bounded_value<i32, 1, 1024>;
 
     struct input_connection_error {};
     struct output_connection_error {};
     struct children_connection_error {};
 
-    i32 row    = 1;
-    i32 column = 1;
+private:
+    i32                  m_row    = slimit::lower_bound();
+    i32                  m_column = slimit::lower_bound();
+    vector<component_id> m_children;
 
+public:
     enum class options : i8 { none = 0, row_cylinder, column_cylinder, torus };
 
     enum class type : i8 {
@@ -410,32 +415,62 @@ struct grid_component {
         eight,
     };
 
-    void resize(i32 row_, i32 col_, component_id id) noexcept
+    constexpr i32 row() const noexcept { return m_row; }
+    constexpr i32 column() const noexcept { return m_column; }
+
+    constexpr std::span<const component_id> children() const noexcept
     {
-        debug::ensure(row_ > 0 && col_ > 0);
+        return std::span(m_children.data(), m_children.size());
+    }
 
-        row    = row_;
-        column = col_;
+    constexpr std::span<component_id> children() noexcept
+    {
+        return std::span(m_children.data(), m_children.size());
+    }
 
-        children.resize(row_ * col_);
-        std::fill_n(children.data(), children.size(), id);
+    void resize(slimit rows, slimit cols, component_id id) noexcept
+    {
+        m_row    = rows;
+        m_column = cols;
+
+        m_children.resize(m_row * m_column);
+        std::fill_n(m_children.data(), m_children.size(), id);
     }
 
     static inline constexpr auto type_count = 2;
 
     name_str make_unique_name_id(int row, int col) const noexcept;
 
-    constexpr int pos(int row_, int col_) const noexcept
+    /**
+     * @brief Compute the number of cells in the grid.
+     * @return A integer between @a limit::lower_bound() squared to @a
+     * limit::upper_bound() squared.
+     */
+    constexpr i32 cells_number() const noexcept { return m_column * m_row; }
+
+    constexpr bool is_coord_valid(std::integral auto r,
+                                  std::integral auto c) const noexcept
     {
-        return col_ * row + row_;
+        return std::cmp_greater_equal(r, 0) and std::cmp_greater_equal(c, 0) and
+               std::cmp_less(r, slimit::upper_bound()) and
+               std::cmp_less(c, slimit::upper_bound());
     }
 
-    constexpr std::pair<int, int> pos(int pos_) const noexcept
+    constexpr int pos(std::integral auto r, std::integral auto c) const noexcept
     {
-        return std::make_pair(pos_ % row, pos_ / row);
+        debug::ensure(is_coord_valid(r, c));
+
+        return c * m_row + r;
     }
 
-    constexpr u64 unique_id(int pos_) const noexcept
+    constexpr std::pair<i32, i32> pos(std::integral auto p) const noexcept
+    {
+        debug::ensure(is_coord_valid(p % m_row, p / m_row));
+
+        return std::make_pair(p % m_row, p / m_row);
+    }
+
+    constexpr u64 unique_id(i32 pos_) const noexcept
     {
         auto pair = pos(pos_);
 
@@ -505,7 +540,6 @@ struct grid_component {
                                                 const i32     col,
                                                 const port_id id) noexcept;
 
-    vector<component_id>                                children;
     data_array<input_connection, input_connection_id>   input_connections;
     data_array<output_connection, output_connection_id> output_connections;
 
@@ -1116,11 +1150,11 @@ public:
         dash,
     };
 
-    name_str                                     name;
-    static_bounded_value<i32, 8, 64>                   max_observers          = 8;
-    static_bounded_value<i32, 8, 512>                  raw_buffer_size        = 64;
-    static_bounded_value<i32, 1024, 65536>             linearized_buffer_size = 32768;
-    static_bounded_floating_point<float, 1, 100, 1, 10> time_step              = .01f;
+    name_str                               name;
+    static_bounded_value<i32, 8, 64>       max_observers          = 8;
+    static_bounded_value<i32, 8, 512>      raw_buffer_size        = 64;
+    static_bounded_value<i32, 1024, 65536> linearized_buffer_size = 32768;
+    static_bounded_floating_point<float, 1, 100, 1, 10> time_step = .01f;
 
     time tn = 0;
 

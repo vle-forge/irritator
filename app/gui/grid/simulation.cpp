@@ -92,8 +92,8 @@ static bool display_grid_simulation(application& app,
                            ImVec2(canvas_p1.x, canvas_p0.y + y),
                            IM_COL32(200, 200, 200, 40));
 
-    for (int row = 0; row < grid.row; ++row) {
-        for (int col = 0; col < grid.column; ++col) {
+    for (int row = 0; row < grid.row(); ++row) {
+        for (int col = 0; col < grid.column(); ++col) {
             ImVec2 p_min(
               origin.x + (col * (grid_sim.distance.x + grid_sim.size.x) *
                           grid_sim.zoom[0]),
@@ -114,7 +114,7 @@ static bool display_grid_simulation(application& app,
               p_min,
               p_max,
               to_ImU32(app.mod.component_colors[get_index(
-                grid.children[grid.pos(row, col)])]));
+                grid.children()[grid.pos(row, col)])]));
         }
     }
 
@@ -129,7 +129,8 @@ static bool display_grid_simulation(application& app,
           (click_pos.y - origin.y) /
           ((grid_sim.distance.y + grid_sim.size.y) * grid_sim.zoom[1]);
 
-        if (0 <= row and row < grid.row and 0 <= col and col < grid.column) {
+        if (0 <= row and row < grid.row() and 0 <= col and
+            col < grid.column()) {
             const auto irow      = static_cast<int>(row);
             const auto icol      = static_cast<int>(col);
             const auto uid       = grid.make_unique_name_id(irow, icol);

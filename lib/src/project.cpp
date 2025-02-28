@@ -797,7 +797,7 @@ static void get_input_models(vector<model_port>&   inputs,
             continue;
 
         const auto idx = grid.pos(con.row, con.col);
-        if (is_undefined(grid.children[idx]))
+        if (is_undefined(grid.children()[idx]))
             continue;
 
         debug::ensure(tn.children[idx].tn);
@@ -902,7 +902,7 @@ static void get_output_models(vector<model_port>&   outputs,
             continue;
 
         const auto idx = grid.pos(con.row, con.col);
-        if (is_undefined(grid.children[idx]))
+        if (is_undefined(grid.children()[idx]))
             continue;
 
         debug::ensure(tn.children[idx].tn);
@@ -1177,10 +1177,10 @@ public:
     {
         project::required_data ret;
 
-        for (auto r = 0; r < g.row; ++r) {
-            for (auto c = 0; c < g.column; ++c) {
+        for (auto r = 0; r < g.row(); ++r) {
+            for (auto c = 0; c < g.column(); ++c) {
                 const auto* sub_c =
-                  mod.components.try_to_get(g.children[g.pos(r, c)]);
+                  mod.components.try_to_get(g.children()[g.pos(r, c)]);
                 if (sub_c)
                     ret += compute(mod, *sub_c);
             }
@@ -1667,8 +1667,8 @@ auto project::tree_nodes_size() const noexcept -> std::pair<int, int>
 }
 
 template<typename T>
-static auto already_name_exists(const T& obs, std::string_view str) noexcept
-  -> bool
+static auto already_name_exists(const T&         obs,
+                                std::string_view str) noexcept -> bool
 {
     return std::any_of(
       obs.begin(), obs.end(), [str](const auto& o) noexcept -> bool {

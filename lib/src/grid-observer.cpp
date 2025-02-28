@@ -87,12 +87,8 @@ static void build_grid_observer(grid_observer& grid_obs,
                 if (const auto w_opt = get_row_column(child->unique_id.sv());
                     w_opt.has_value()) {
                     const auto& w = *w_opt;
-                    debug::ensure(std::cmp_less(w.first, grid_compo.row));
-                    debug::ensure(std::cmp_less(w.second, grid_compo.column));
-
-                    const auto index =
-                      static_cast<i32>(w.second) * grid_compo.row +
-                      static_cast<i32>(w.first);
+                    debug::ensure(grid_compo.is_coord_valid(w.first, w.second));
+                    const auto index = grid_compo.pos(w.first, w.second);
 
                     debug::ensure(0 <= index);
                     debug::ensure(index < grid_obs.observers.ssize());
@@ -122,13 +118,14 @@ void grid_observer::init(project& pj, modeling& mod, simulation& sim) noexcept
             if (auto* grid = mod.grid_components.try_to_get(compo->id.grid_id);
                 grid) {
 
-                const auto len = grid->row * grid->column;
-                rows           = grid->row;
-                cols           = grid->column;
+                const auto len = grid->cells_number();
 
                 observers.resize(len);
                 values.resize(len);
                 values_2nd.resize(len);
+
+                rows = grid->row();
+                cols = grid->column();
 
                 std::fill_n(observers.data(), len, undefined<observer_id>());
                 std::fill_n(values.data(), len, zero);

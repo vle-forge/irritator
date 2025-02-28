@@ -903,7 +903,7 @@ static bool can_add_component(const modeling&       mod,
     case component_type::grid: {
         auto id = compo.id.grid_id;
         if (auto* g = mod.grid_components.try_to_get(id); g) {
-            for (const auto ch : g->children)
+            for (const auto ch : g->children())
                 if (not can_add_component(mod, ch, out, search))
                     return false;
         }

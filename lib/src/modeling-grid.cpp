@@ -43,16 +43,10 @@ constexpr static inline std::string_view p_names[] = {
     "5",  "6",   "44", "45", "46", "54", "55", "56", "64", "65", "66"
 };
 
-constexpr static int compute_grid_children_size(
-  const grid_component& grid) noexcept
-{
-    return grid.row * grid.column;
-}
-
 constexpr static int compute_grid_connections_size(
   const grid_component& grid) noexcept
 {
-    const int children = compute_grid_children_size(grid);
+    const int children = grid.cells_number();
 
     int row_mult = 0;
     int col_mult = 0;
@@ -86,14 +80,14 @@ constexpr static int compute_grid_connections_size(
     // Replace 8x with the number of input/output connections for each children
     // components.
 
-    return 8 * children * children_mult + grid.column * col_mult +
-           grid.row * row_mult;
+    return 8 * children * children_mult + grid.column() * col_mult +
+           grid.row() * row_mult;
 }
 
 static bool can_alloc_grid_children_and_connections(
   grid_component& grid) noexcept
 {
-    const auto children    = compute_grid_children_size(grid);
+    const auto children    = grid.cells_number();
     const auto connections = compute_grid_connections_size(grid);
 
     grid.cache.reserve(children);
@@ -106,7 +100,7 @@ static bool can_alloc_grid_children_and_connections(
 static auto build_grid_children(modeling& mod, grid_component& grid) noexcept
   -> vector<child_id>
 {
-    const auto children_nb = compute_grid_children_size(grid);
+    const auto children_nb = grid.cells_number();
 
     vector<child_id> ret;
 
@@ -114,11 +108,11 @@ static auto build_grid_children(modeling& mod, grid_component& grid) noexcept
     grid.cache.reserve(children_nb);
     grid.cache_names.resize(children_nb);
 
-    for (int i = 0, e = grid.children.ssize(); i != e; ++i) {
+    for (int i = 0; i != children_nb; ++i) {
         auto id = undefined<child_id>();
 
-        if (mod.components.try_to_get(grid.children[i])) {
-            auto& new_ch   = grid.cache.alloc(grid.children[i]);
+        if (mod.components.try_to_get(grid.children()[i])) {
+            auto& new_ch   = grid.cache.alloc(grid.children()[i]);
             id             = grid.cache.get_id(new_ch);
             const auto idx = get_index(id);
             const auto r_c = grid.pos(i);
@@ -283,15 +277,15 @@ static void build_grid_connections(modeling&               mod,
         for (std::size_t i = 0; i < valids.size(); ++i) {
             if (valids[i]) {
                 if (dests[i].c < 0)
-                    dests[i].c = grid.column - 1;
-                else if (dests[i].c >= grid.column)
+                    dests[i].c = grid.column() - 1;
+                else if (dests[i].c >= grid.column())
                     dests[i].c = 0;
             }
         }
     } else {
         for (std::size_t i = 0; i < valids.size(); ++i)
             if (valids[i])
-                valids[i] = 0 <= dests[i].c and dests[i].c < grid.column;
+                valids[i] = 0 <= dests[i].c and dests[i].c < grid.column();
     }
 
     if (any_equal(grid.opts,
@@ -300,22 +294,22 @@ static void build_grid_connections(modeling&               mod,
         for (std::size_t i = 0; i < valids.size(); ++i) {
             if (valids[i]) {
                 if (dests[i].r < 0)
-                    dests[i].r = grid.row - 1;
-                else if (dests[i].r >= grid.row)
+                    dests[i].r = grid.row() - 1;
+                else if (dests[i].r >= grid.row())
                     dests[i].r = 0;
             }
         }
     } else {
         for (std::size_t i = 0; i < valids.size(); ++i)
             if (valids[i])
-                valids[i] = 0 <= dests[i].r and dests[i].r < grid.row;
+                valids[i] = 0 <= dests[i].r and dests[i].r < grid.row();
     }
 
     if (const auto c_src = ids[grid.pos(row, col)]; is_defined(c_src)) {
         for (std::size_t i = 0; i < valids.size(); ++i) {
             if (valids[i]) {
-                debug::ensure(0 <= dests[i].r and dests[i].r < grid.row);
-                debug::ensure(0 <= dests[i].c and dests[i].c < grid.column);
+                debug::ensure(0 <= dests[i].r and dests[i].r < grid.row());
+                debug::ensure(0 <= dests[i].c and dests[i].c < grid.column());
 
                 if (const auto c_dst = ids[grid.pos(dests[i].r, dests[i].c)];
                     is_defined(c_dst)) {
@@ -336,8 +330,8 @@ static void build_grid_connections(modeling&               mod,
                                    grid_component&         grid,
                                    const vector<child_id>& ids) noexcept
 {
-    for (int row = 0; row < grid.row; ++row)
-        for (int col = 0; col < grid.column; ++col)
+    for (int row = 0; row < grid.row(); ++row)
+        for (int col = 0; col < grid.column(); ++col)
             build_grid_connections(mod, grid, ids, row, col);
 }
 
@@ -350,8 +344,7 @@ status modeling::copy(grid_component& grid, generic_component& s) noexcept
 
 name_str grid_component::make_unique_name_id(int row, int col) const noexcept
 {
-    debug::ensure(0 <= row and row < row_max);
-    debug::ensure(0 <= col and col < column_max);
+    debug::ensure(is_coord_valid(row, col));
 
     name_str ret;
     format(ret, "{},{}", row, col);
