@@ -626,13 +626,17 @@ public:
     };
 
     struct scale_free_param {
-        double alpha = 2.5;
-        double beta  = 1.e3;
+        double       alpha = 2.5;
+        double       beta  = 1.e3;
+        component_id id    = undefined<component_id>();
+        int          nodes = 32;
     };
 
     struct small_world_param {
-        double probability = 3e-2;
-        i32    k           = 6;
+        double       probability = 3e-2;
+        i32          k           = 6;
+        component_id id          = undefined<component_id>();
+        int          nodes       = 32;
     };
 
     union random_graph_param {

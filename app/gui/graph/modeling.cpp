@@ -101,10 +101,7 @@ static auto dot_combobox_selector(const modeling& mod,
 struct graph_component_editor_data::impl {
     graph_component_editor_data& ed;
 
-    int  new_size      = 0;
-    bool size_updated  = false;
     bool param_updated = false;
-    bool type_updated  = false;
 
     bool compute_automatic_layout(graph_component& graph,
                                   const int        iteration,
@@ -271,7 +268,7 @@ struct graph_component_editor_data::impl {
         }
 
         if (ordinal(graph.g_type) != current)
-            type_updated = true;
+            param_updated = true;
 
         ImGui::SameLine();
         HelpMarker(
@@ -285,14 +282,14 @@ struct graph_component_editor_data::impl {
           "are randomly rewired to different vertices with a probability p.");
     }
 
-    void show_random_graph_params(modeling&        mod,
+    void show_random_graph_params(application&     app,
                                   graph_component& graph) noexcept
     {
         switch (graph.g_type) {
         case graph_component::graph_type::dot_file: {
             auto*      param     = &graph.param.dot;
             const auto old_param = *param;
-            dot_combobox_selector(mod, param->dir, param->file);
+            dot_combobox_selector(app.mod, param->dir, param->file);
             if (param->dir != old_param.dir or param->file != old_param.file)
                 param_updated = true;
         } break;
@@ -301,44 +298,52 @@ struct graph_component_editor_data::impl {
             auto*      param = &graph.param.scale;
             const auto alpha = param->alpha;
             const auto beta  = param->beta;
-            auto       size  = graph.nodes.ssize();
 
-            if (ImGui::InputInt("size", &size))
-                size = std::clamp(size, 1, graph_component::children_max);
-            if (ImGui::InputDouble("alpha", &param->alpha))
-                param->alpha = std::clamp(param->alpha, 0.0, 1000.0);
-            if (ImGui::InputDouble("beta", &param->beta))
-                param->beta = std::clamp(param->beta, 0.0, 1000.0);
-
-            if (size != graph.nodes.ssize()) {
-                new_size     = size;
-                size_updated = true;
+            if (ImGui::InputInt("size", &param->nodes)) {
+                param->nodes =
+                  std::clamp(param->nodes, 1, graph_component::children_max);
+                param_updated = true;
             }
 
-            if (alpha != param->alpha or beta != param->beta)
+            if (ImGui::InputDouble("alpha", &param->alpha)) {
+                param->alpha  = std::clamp(param->alpha, 0.0, 1000.0);
                 param_updated = true;
+            }
+
+            if (ImGui::InputDouble("beta", &param->beta)) {
+                param->beta   = std::clamp(param->beta, 0.0, 1000.0);
+                param_updated = true;
+            }
+
+            if (app.component_sel.combobox("component", &param->id)) {
+                param_updated = true;
+            }
         } break;
 
         case graph_component::graph_type::small_world: {
             auto*      param       = &graph.param.small;
             const auto probability = param->probability;
             const auto k           = param->k;
-            auto       size        = graph.nodes.ssize();
 
-            if (ImGui::InputInt("size", &size))
-                size = std::clamp(size, 1, graph_component::children_max);
-            if (ImGui::InputDouble("probability", &param->probability))
-                param->probability = std::clamp(param->probability, 0.0, 1.0);
-            if (ImGui::InputInt("k", &param->k, 1, 2))
-                param->k = std::clamp(param->k, 1, 8);
-
-            if (size != graph.nodes.ssize()) {
-                new_size     = size;
-                size_updated = true;
+            if (ImGui::InputInt("size", &param->nodes)) {
+                param->nodes =
+                  std::clamp(param->nodes, 1, graph_component::children_max);
+                param_updated = true;
             }
 
-            if (k != param->k or probability != param->probability)
+            if (ImGui::InputDouble("probability", &param->probability)) {
+                param->probability = std::clamp(param->probability, 0.0, 1.0);
+                param_updated      = true;
+            }
+
+            if (ImGui::InputInt("k", &param->k, 1, 2)) {
+                param->k      = std::clamp(param->k, 1, 8);
                 param_updated = true;
+            }
+
+            if (app.component_sel.combobox("component", &param->id)) {
+                param_updated = true;
+            }
         } break;
         }
     }
@@ -348,14 +353,7 @@ struct graph_component_editor_data::impl {
                                         graph_component& graph) noexcept
     {
         show_random_graph_type(graph);
-        show_random_graph_params(app.mod, graph);
-
-        if (app.component_sel.combobox("Default component", &ed.selected_id)) {
-            for (const auto node_id : graph.nodes) {
-                const auto node_idx             = get_index(node_id);
-                graph.node_components[node_idx] = ed.selected_id;
-            }
-        }
+        show_random_graph_params(app, graph);
     }
 
     constexpr static bool is_line_intersects_box(ImVec2 p1,
@@ -606,7 +604,7 @@ struct graph_component_editor_data::impl {
         for (const auto id : data.edges) {
             const auto i   = get_index(id);
             const auto u_c = data.edges_nodes[i][0];
-            const auto v_c = data.edges_nodes[i][0];
+            const auto v_c = data.edges_nodes[i][1];
 
             if (not(data.nodes.exists(u_c) and data.nodes.exists(v_c)))
                 continue;
@@ -692,31 +690,36 @@ struct graph_component_editor_data::impl {
             debug::ensure(compo);
             debug::ensure(graph);
 
-            ImGui::LabelFormat("nodes", "{}", graph->nodes.size());
-            ImGui::LabelFormat("edges", "{}", graph->edges.size());
-            ImGui::LabelFormat("automatic layout", "{}", ed.automatic_layout);
-            ImGui::LabelFormat("iterator", "{}", ed.iteration);
+            if (ImGui::CollapsingHeader("Settings",
+                                        ImGuiTreeNodeFlags_DefaultOpen)) {
+                ImGui::LabelFormat("nodes", "{}", graph->nodes.size());
+                ImGui::LabelFormat("edges", "{}", graph->edges.size());
+                if (ImGui::Button(ed.automatic_layout
+                                    ? "Stop automatic placement"
+                                    : "Start Automatic placement"))
+                    ed.automatic_layout = not ed.automatic_layout;
 
-            display_graph_component_editor(ed, app, *graph);
+                display_graph_component_editor(ed, app, *graph);
 
-            if (ed.automatic_layout) {
-                bool again = compute_automatic_layout(
-                  *graph,
-                  ++ed.iteration,
-                  ed.iteration_limit,
-                  ed.distance,
-                  std::span(graph->node_positions.data(),
-                            graph->node_positions.size()),
-                  std::span(ed.displacements.data(), ed.displacements.size()));
-                if (not again) {
-                    ed.iteration        = 0;
-                    ed.automatic_layout = false;
+                if (ed.automatic_layout) {
+                    bool again = compute_automatic_layout(
+                      *graph,
+                      ++ed.iteration,
+                      ed.iteration_limit,
+                      ed.distance,
+                      std::span(graph->node_positions.data(),
+                                graph->node_positions.size()),
+                      std::span(ed.displacements.data(),
+                                ed.displacements.size()));
+                    if (not again) {
+                        ed.iteration        = 0;
+                        ed.automatic_layout = false;
+                    }
                 }
             }
 
             show_graph(app, *compo, ed, *graph);
-
-            if (size_updated or param_updated or type_updated)
+            if (param_updated)
                 ed.st = status::update_required;
         }
     }
@@ -728,9 +731,8 @@ struct graph_component_editor_data::impl {
 
         const auto id   = app.graphs.get_id(ed);
         const auto g_id = ed.graph_id;
-        const auto size = new_size;
 
-        app.add_gui_task([&app, id, g_id, size]() {
+        app.add_gui_task([&app, id, g_id]() {
             auto* graph_ed = app.graphs.try_to_get(id);
             auto* graph    = app.mod.graph_components.try_to_get(g_id);
 
@@ -739,21 +741,7 @@ struct graph_component_editor_data::impl {
 
             std::scoped_lock lock(graph_ed->mutex);
 
-            switch (graph->g_type) {
-            case graph_component::graph_type::dot_file:
-                graph->update(app.mod);
-                break;
-
-            case graph_component::graph_type::scale_free:
-                graph->resize(size, graph_ed->selected_id);
-                graph->update(app.mod);
-                break;
-
-            case graph_component::graph_type::small_world:
-                graph->resize(size, graph_ed->selected_id);
-                graph->update(app.mod);
-                break;
-            }
+            graph->update(app.mod);
 
             if (not graph->nodes.empty()) {
                 const auto nb        = graph->nodes.size();

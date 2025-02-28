@@ -340,8 +340,7 @@ private:
     bool  automatic_layout = false;
     bool  run_selection    = false;
 
-    component_id       selected_id = undefined<component_id>();
-    graph_component_id graph_id    = undefined<graph_component_id>();
+    graph_component_id graph_id = undefined<graph_component_id>();
 
     spin_mutex mutex;
     enum class status { none, update_required, updating } st = status::none;

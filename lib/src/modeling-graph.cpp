@@ -278,7 +278,7 @@ static void build_scale_free_edges(
   graph_component&                         graph,
   const graph_component::scale_free_param& params) noexcept
 {
-    graph.edges.clear();
+    graph.resize(params.nodes, params.id);
 
     if (const unsigned n = graph.nodes.max_used(); n > 1) {
         local_rng r(std::span<const u64>(graph.seed),
@@ -338,7 +338,7 @@ static void build_small_world_edges(
   graph_component&                          graph,
   const graph_component::small_world_param& params) noexcept
 {
-    graph.edges.clear();
+    graph.resize(params.nodes, params.id);
 
     if (const auto n = graph.nodes.ssize(); n > 1) {
         local_rng r(std::span<const u64>(graph.seed),
