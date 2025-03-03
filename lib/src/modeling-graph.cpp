@@ -423,16 +423,22 @@ void graph_component::update(const modeling& mod) noexcept
     switch (g_type) {
     case graph_type::dot_file:
         build_dot_file_edges(mod, *this, param.dot);
-        return;
+        break;
     case graph_type::scale_free:
         build_scale_free_edges(*this, param.scale);
-        return;
+        break;
     case graph_type::small_world:
         build_small_world_edges(*this, param.small);
-        return;
+        break;
     };
 
-    irt::unreachable();
+    for (const auto id : nodes) {
+        const auto idx  = get_index(id);
+        top_left[0]     = std::min(top_left[0], node_positions[idx][0]);
+        top_left[1]     = std::min(top_left[1], node_positions[idx][1]);
+        bottom_right[0] = std::max(bottom_right[0], node_positions[idx][0]);
+        bottom_right[1] = std::max(bottom_right[1], node_positions[idx][1]);
+    }
 }
 
 void graph_component::resize(const i32          children_size,

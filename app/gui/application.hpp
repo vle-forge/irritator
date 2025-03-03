@@ -330,20 +330,27 @@ private:
 
     ImVec2 distance{ 50.f, 25.f };
     ImVec2 size{ 30.f, 15.f };
-    ImVec2 scrolling{ 0.f, 0.f };
+    ImVec2 scrolling{ 0.f, 0.f }; //!< top left position in canvas.
     ImVec2 start_selection;
     ImVec2 end_selection;
 
     float zoom[2]{ 1.f, 1.f };
-    int   iteration        = 0;
-    int   iteration_limit  = 1000;
-    bool  automatic_layout = false;
-    bool  run_selection    = false;
+
+    int  iteration        = 0;
+    int  iteration_limit  = 1000;
+    bool automatic_layout = false;
+    bool run_selection    = false;
 
     graph_component_id graph_id = undefined<graph_component_id>();
 
     spin_mutex mutex;
-    enum class status { none, update_required, updating } st = status::none;
+    enum class status {
+        none,
+        center_required,
+        auto_fit_required,
+        update_required,
+        updating
+    } st = status::none;
 
     component_id m_id = undefined<component_id>();
 };

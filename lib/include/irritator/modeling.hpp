@@ -670,6 +670,9 @@ public:
     vector<name_str>                      cache_names;
     vector<position>                      positions;
 
+    std::array<float, 2> top_left{ +INFINITY, +INFINITY };
+    std::array<float, 2> bottom_right{ -INFINITY, -INFINITY };
+
     int             space_x     = 100;
     int             space_y     = 100;
     int             left_limit  = 0;

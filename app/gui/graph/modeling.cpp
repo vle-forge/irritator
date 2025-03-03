@@ -360,6 +360,9 @@ struct graph_component_editor_data::impl {
             ed.zoom[1] = ImClamp(ed.zoom[1], 0.1f, 1000.f);
         }
 
+        ImGui::LabelFormat(
+          "scrolling", "{} {}", ed.scrolling.x, ed.scrolling.y);
+
         ImVec2 canvas_p0 = ImGui::GetCursorScreenPos();
         ImVec2 canvas_sz = ImGui::GetContentRegionAvail();
 
@@ -373,6 +376,18 @@ struct graph_component_editor_data::impl {
 
         const ImGuiIO& io        = ImGui::GetIO();
         ImDrawList*    draw_list = ImGui::GetWindowDrawList();
+
+        if (ed.st == graph_component_editor_data::status::center_required)
+            center_camera(ImVec2(data.top_left[0], data.top_left[1]),
+                          ImVec2(data.bottom_right[0], data.bottom_right[1]),
+                          canvas_sz,
+                          ImVec2(ed.zoom[0], ed.zoom[1]));
+
+        if (ed.st == graph_component_editor_data::status::auto_fit_required)
+            auto_fit_camera(ImVec2(data.top_left[0], data.top_left[1]),
+                            ImVec2(data.bottom_right[0], data.bottom_right[1]),
+                            canvas_sz,
+                            ImVec2(ed.zoom[0], ed.zoom[1]));
 
         draw_list->AddRect(canvas_p0, canvas_p1, IM_COL32(255, 255, 255, 255));
 
@@ -657,6 +672,38 @@ struct graph_component_editor_data::impl {
         draw_list->PopClipRect();
     }
 
+    void center_camera(ImVec2 top_left,
+                       ImVec2 bottom_right,
+                       ImVec2 canvas_sz,
+                       ImVec2 zoom) noexcept
+    {
+        ImVec2 distance(bottom_right[0] - top_left[0],
+                        bottom_right[1] - top_left[1]);
+        ImVec2 center((bottom_right[0] - top_left[0]) / 2.0f + top_left[0],
+                      (bottom_right[1] - top_left[1]) / 2.0f + top_left[1]);
+
+        ed.scrolling.x = ((-center.x * zoom.x) + (canvas_sz.x / 2.f));
+        ed.scrolling.y = ((-center.y * zoom.y) + (canvas_sz.y / 2.f));
+        ed.st          = graph_component_editor_data::status::none;
+    }
+
+    void auto_fit_camera(ImVec2 top_left,
+                         ImVec2 bottom_right,
+                         ImVec2 canvas_sz,
+                         ImVec2 zoom) noexcept
+    {
+        ImVec2 distance(bottom_right[0] - top_left[0],
+                        bottom_right[1] - top_left[1]);
+        ImVec2 center((bottom_right[0] - top_left[0]) / 2.0f + top_left[0],
+                      (bottom_right[1] - top_left[1]) / 2.0f + top_left[1]);
+
+        ed.zoom[0]     = canvas_sz.x / distance.x;
+        ed.zoom[1]     = canvas_sz.y / distance.y;
+        ed.scrolling.x = ((-center.x * ed.zoom[0]) + (canvas_sz.x / 2.f));
+        ed.scrolling.y = ((-center.y * ed.zoom[1]) + (canvas_sz.y / 2.f));
+        ed.st          = graph_component_editor_data::status::none;
+    }
+
     void show(application& app) noexcept
     {
         if (std::unique_lock lock(ed.mutex, std::try_to_lock);
@@ -677,6 +724,16 @@ struct graph_component_editor_data::impl {
                                     ? "Stop automatic placement"
                                     : "Start Automatic placement"))
                     ed.automatic_layout = not ed.automatic_layout;
+
+                ImGui::SameLine();
+                if (ImGui::Button("center"))
+                    ed.st =
+                      graph_component_editor_data::status::center_required;
+
+                ImGui::SameLine();
+                if (ImGui::Button("auto-fit"))
+                    ed.st =
+                      graph_component_editor_data::status::auto_fit_required;
 
                 show_random_graph_type(*graph);
                 show_random_graph_params(app, *graph);
