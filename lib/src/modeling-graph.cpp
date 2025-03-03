@@ -258,6 +258,7 @@ static void build_dot_file_edges(
         file_opt.has_value()) {
         if (auto dot_graph = parse_dot_file(mod, *file_opt);
             dot_graph.has_value()) {
+
             graph.nodes = std::move(dot_graph->nodes);
             graph.edges = std::move(dot_graph->edges);
 

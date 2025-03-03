@@ -83,9 +83,12 @@ static auto to_float_str(std::string_view str) noexcept
 static auto to_float(std::string_view str) noexcept -> float
 {
     auto f = 0.f;
+
     if (auto ret = std::from_chars(str.data(), str.data() + str.size(), f);
         ret.ec == std::errc{})
         return f;
+
+    warning<msg_id::parse_real>(str);
 
     return 0.f;
 }
@@ -117,13 +120,9 @@ static auto to_2float(std::string_view str) noexcept -> std::array<float, 2>
     if (const auto first = to_float_str(str); first.has_value()) {
         const auto& [first_float, substr] = *first;
 
-        if (not substr.empty() and substr[0] == ',') {
-            const auto second = substr.substr(1u, std::string_view::npos);
-
-            if (const auto second_float = to_float(second))
-                return std::array<float, 2>{ first_float, second_float };
-            else
-                warning<msg_id::parse_real>(second);
+        if (not substr.empty() or substr[0] == ',') {
+            const auto second_str = substr.substr(1u, std::string_view::npos);
+            return std::array<float, 2>{ first_float, to_float(second_str) };
         } else {
             warning<msg_id::missing_comma>(substr);
         }
