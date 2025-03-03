@@ -287,73 +287,60 @@ struct graph_component_editor_data::impl {
     {
         switch (graph.g_type) {
         case graph_component::graph_type::dot_file: {
-            auto*      param     = &graph.param.dot;
-            const auto old_param = *param;
-            dot_combobox_selector(app.mod, param->dir, param->file);
-            if (param->dir != old_param.dir or param->file != old_param.file)
+            auto& p = graph.param.dot;
+
+            const auto old_param = p;
+            dot_combobox_selector(app.mod, p.dir, p.file);
+            if (p.dir != old_param.dir or p.file != old_param.file)
                 param_updated = true;
         } break;
 
         case graph_component::graph_type::scale_free: {
-            auto*      param = &graph.param.scale;
-            const auto alpha = param->alpha;
-            const auto beta  = param->beta;
+            auto& p = graph.param.scale;
 
-            if (ImGui::InputInt("size", &param->nodes)) {
-                param->nodes =
-                  std::clamp(param->nodes, 1, graph_component::children_max);
+            if (ImGui::InputInt("size", &p.nodes)) {
+                p.nodes = std::clamp(p.nodes, 1, graph_component::children_max);
                 param_updated = true;
             }
 
-            if (ImGui::InputDouble("alpha", &param->alpha)) {
-                param->alpha  = std::clamp(param->alpha, 0.0, 1000.0);
+            if (ImGui::InputDouble("alpha", &p.alpha)) {
+                p.alpha       = std::clamp(p.alpha, 0.0, 1000.0);
                 param_updated = true;
             }
 
-            if (ImGui::InputDouble("beta", &param->beta)) {
-                param->beta   = std::clamp(param->beta, 0.0, 1000.0);
+            if (ImGui::InputDouble("beta", &p.beta)) {
+                p.beta        = std::clamp(p.beta, 0.0, 1000.0);
                 param_updated = true;
             }
 
-            if (app.component_sel.combobox("component", &param->id)) {
+            if (app.component_sel.combobox("component", &p.id)) {
                 param_updated = true;
             }
         } break;
 
         case graph_component::graph_type::small_world: {
-            auto*      param       = &graph.param.small;
-            const auto probability = param->probability;
-            const auto k           = param->k;
+            auto& p = graph.param.small;
 
-            if (ImGui::InputInt("size", &param->nodes)) {
-                param->nodes =
-                  std::clamp(param->nodes, 1, graph_component::children_max);
+            if (ImGui::InputInt("size", &p.nodes)) {
+                p.nodes = std::clamp(p.nodes, 1, graph_component::children_max);
                 param_updated = true;
             }
 
-            if (ImGui::InputDouble("probability", &param->probability)) {
-                param->probability = std::clamp(param->probability, 0.0, 1.0);
-                param_updated      = true;
-            }
-
-            if (ImGui::InputInt("k", &param->k, 1, 2)) {
-                param->k      = std::clamp(param->k, 1, 8);
+            if (ImGui::InputDouble("probability", &p.probability)) {
+                p.probability = std::clamp(p.probability, 0.0, 1.0);
                 param_updated = true;
             }
 
-            if (app.component_sel.combobox("component", &param->id)) {
+            if (ImGui::InputInt("k", &p.k, 1, 2)) {
+                p.k           = std::clamp(p.k, 1, 8);
+                param_updated = true;
+            }
+
+            if (app.component_sel.combobox("component", &p.id)) {
                 param_updated = true;
             }
         } break;
         }
-    }
-
-    void display_graph_component_editor(graph_component_editor_data& ed,
-                                        application&                 app,
-                                        graph_component& graph) noexcept
-    {
-        show_random_graph_type(graph);
-        show_random_graph_params(app, graph);
     }
 
     constexpr static bool is_line_intersects_box(ImVec2 p1,
@@ -699,7 +686,8 @@ struct graph_component_editor_data::impl {
                                     : "Start Automatic placement"))
                     ed.automatic_layout = not ed.automatic_layout;
 
-                display_graph_component_editor(ed, app, *graph);
+                show_random_graph_type(*graph);
+                show_random_graph_params(app, *graph);
 
                 if (ed.automatic_layout) {
                     bool again = compute_automatic_layout(
