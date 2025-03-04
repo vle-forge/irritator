@@ -109,34 +109,16 @@ name_str graph_component::make_unique_name_id(
 static auto build_graph_children(modeling& mod, graph_component& graph) noexcept
   -> table<graph_node_id, child_id>
 {
-    graph.positions.resize(graph.nodes.size());
     table<graph_node_id, child_id> tr;
     tr.data.reserve(graph.nodes.ssize());
-
-    const auto sq = std::sqrt(static_cast<float>(graph.nodes.size()));
-    const auto gr = static_cast<i32>(sq);
-
-    i32 x = 0;
-    i32 y = 0;
 
     for (const auto node_id : graph.nodes) {
         child_id   new_id   = undefined<child_id>();
         const auto compo_id = graph.node_components[get_index(node_id)];
 
         if (auto* c = mod.components.try_to_get(compo_id); c) {
-            auto& new_ch   = graph.cache.alloc(compo_id);
-            new_id         = graph.cache.get_id(new_ch);
-            const auto idx = get_index(new_id);
-
-            graph.positions[idx].x =
-              static_cast<float>(((graph.space_x * x) + graph.left_limit));
-            graph.positions[idx].y =
-              static_cast<float>(((graph.space_y * y) + graph.upper_limit));
-        }
-
-        if (x++ > gr) {
-            x = 0;
-            y++;
+            auto& new_ch = graph.cache.alloc(compo_id);
+            new_id       = graph.cache.get_id(new_ch);
         }
 
         tr.data.emplace_back(node_id, new_id);
@@ -516,7 +498,6 @@ void graph_component::clear_cache() noexcept
 {
     cache.clear();
     cache_connections.clear();
-    positions.clear();
 }
 
 status modeling::copy(graph_component&   graph,

@@ -668,16 +668,11 @@ public:
     data_array<child, child_id>           cache;
     data_array<connection, connection_id> cache_connections;
     vector<name_str>                      cache_names;
-    vector<position>                      positions;
 
     std::array<float, 2> top_left{ +INFINITY, +INFINITY };
     std::array<float, 2> bottom_right{ -INFINITY, -INFINITY };
 
-    int             space_x     = 100;
-    int             space_y     = 100;
-    int             left_limit  = 0;
-    int             upper_limit = 0;
-    connection_type type        = connection_type::name;
+    connection_type type = connection_type::name;
 
     graph_component() noexcept = default;
     graph_component(const graph_component& other) noexcept;

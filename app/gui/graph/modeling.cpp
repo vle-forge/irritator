@@ -355,9 +355,10 @@ struct graph_component_editor_data::impl {
                     graph_component_editor_data& ed,
                     graph_component&             data) noexcept
     {
-        if (ImGui::InputFloat2("Width and height of vertex", ed.zoom)) {
-            ed.zoom[0] = ImClamp(ed.zoom[0], 0.1f, 1000.f);
-            ed.zoom[1] = ImClamp(ed.zoom[1], 0.1f, 1000.f);
+        float zoom[2] = { ed.zoom.x, ed.zoom.y };
+        if (ImGui::InputFloat2("Width and height of vertex", zoom)) {
+            ed.zoom.x = ImClamp(zoom[0], 0.1f, 1000.f);
+            ed.zoom.y = ImClamp(zoom[1], 0.1f, 1000.f);
         }
 
         ImGui::LabelFormat(
@@ -380,14 +381,12 @@ struct graph_component_editor_data::impl {
         if (ed.st == graph_component_editor_data::status::center_required)
             center_camera(ImVec2(data.top_left[0], data.top_left[1]),
                           ImVec2(data.bottom_right[0], data.bottom_right[1]),
-                          canvas_sz,
-                          ImVec2(ed.zoom[0], ed.zoom[1]));
+                          canvas_sz);
 
         if (ed.st == graph_component_editor_data::status::auto_fit_required)
             auto_fit_camera(ImVec2(data.top_left[0], data.top_left[1]),
                             ImVec2(data.bottom_right[0], data.bottom_right[1]),
-                            canvas_sz,
-                            ImVec2(ed.zoom[0], ed.zoom[1]));
+                            canvas_sz);
 
         draw_list->AddRect(canvas_p0, canvas_p1, IM_COL32(255, 255, 255, 255));
 
@@ -414,10 +413,10 @@ struct graph_component_editor_data::impl {
         }
 
         if (is_hovered and io.MouseWheel != 0.f) {
-            ed.zoom[0] = ed.zoom[0] + (io.MouseWheel * ed.zoom[0] * 0.1f);
-            ed.zoom[1] = ed.zoom[1] + (io.MouseWheel * ed.zoom[1] * 0.1f);
-            ed.zoom[0] = ImClamp(ed.zoom[0], 0.1f, 1000.f);
-            ed.zoom[1] = ImClamp(ed.zoom[1], 0.1f, 1000.f);
+            ed.zoom.x = ed.zoom.x + (io.MouseWheel * ed.zoom.x * 0.1f);
+            ed.zoom.y = ed.zoom.y + (io.MouseWheel * ed.zoom.y * 0.1f);
+            ed.zoom.x = ImClamp(ed.zoom.x, 0.1f, 1000.f);
+            ed.zoom.y = ImClamp(ed.zoom.y, 0.1f, 1000.f);
         }
 
         ImVec2 drag_delta = ImGui::GetMouseDragDelta(ImGuiMouseButton_Right);
@@ -484,14 +483,14 @@ struct graph_component_editor_data::impl {
                         const auto i = get_index(id);
 
                         ImVec2 p_min(
-                          origin.x + (data.node_positions[i][0] * ed.zoom[0]),
-                          origin.y + (data.node_positions[i][1] * ed.zoom[1]));
+                          origin.x + (data.node_positions[i][0] * ed.zoom.x),
+                          origin.y + (data.node_positions[i][1] * ed.zoom.y));
 
                         ImVec2 p_max(
                           origin.x + ((data.node_positions[i][0] + ed.size.x) *
-                                      ed.zoom[0]),
+                                      ed.zoom.x),
                           origin.y + ((data.node_positions[i][1] + ed.size.y) *
-                                      ed.zoom[1]));
+                                      ed.zoom.y));
 
                         if (p_min.x >= bmin.x and p_max.x < bmax.x and
                             p_min.y >= bmin.y and p_max.y < bmax.y) {
@@ -508,21 +507,21 @@ struct graph_component_editor_data::impl {
                               origin.x +
                                 ((data.node_positions[get_index(us)][0] +
                                   ed.size.x / 2.f) *
-                                 ed.zoom[0]),
+                                 ed.zoom.x),
                               origin.y +
                                 ((data.node_positions[get_index(us)][1] +
                                   ed.size.y / 2.f) *
-                                 ed.zoom[1]));
+                                 ed.zoom.y));
 
                             ImVec2 p2(
                               origin.x +
                                 ((data.node_positions[get_index(vs)][0] +
                                   ed.size.x / 2.f) *
-                                 ed.zoom[0]),
+                                 ed.zoom.x),
                               origin.y +
                                 ((data.node_positions[get_index(vs)][1] +
                                   ed.size.y / 2.f) *
-                                 ed.zoom[1]));
+                                 ed.zoom.y));
 
                             if (is_line_intersects_box(p1, p2, bmin, bmax))
                                 ed.selected_edges.emplace_back(id);
@@ -556,12 +555,12 @@ struct graph_component_editor_data::impl {
               data.node_areas[i] != 0 ? data.node_areas[i] : ed.size.y;
 
             const ImVec2 p_min(
-              origin.x + (data.node_positions[i][0] * ed.zoom[0]),
-              origin.y + (data.node_positions[i][1] * ed.zoom[1]));
+              origin.x + (data.node_positions[i][0] * ed.zoom.x),
+              origin.y + (data.node_positions[i][1] * ed.zoom.y));
 
             const ImVec2 p_max(
-              origin.x + ((data.node_positions[i][0] + width) * ed.zoom[0]),
-              origin.y + ((data.node_positions[i][1] + height) * ed.zoom[1]));
+              origin.x + ((data.node_positions[i][0] + width) * ed.zoom.x),
+              origin.y + ((data.node_positions[i][1] + height) * ed.zoom.y));
 
             draw_list->AddRectFilled(p_min, p_max, IM_COL32(255, 255, 0, 255));
 
@@ -571,13 +570,12 @@ struct graph_component_editor_data::impl {
         for (const auto id : ed.selected_nodes) {
             const auto i = get_index(id);
 
-            ImVec2 p_min(origin.x + (data.node_positions[i][0] * ed.zoom[0]),
-                         origin.y + (data.node_positions[i][1] * ed.zoom[1]));
+            ImVec2 p_min(origin.x + (data.node_positions[i][0] * ed.zoom.x),
+                         origin.y + (data.node_positions[i][1] * ed.zoom.y));
 
             ImVec2 p_max(
-              origin.x + ((data.node_positions[i][0] + ed.size.x) * ed.zoom[0]),
-              origin.y +
-                ((data.node_positions[i][1] + ed.size.y) * ed.zoom[1]));
+              origin.x + ((data.node_positions[i][0] + ed.size.x) * ed.zoom.x),
+              origin.y + ((data.node_positions[i][1] + ed.size.y) * ed.zoom.y));
 
             draw_list->AddRect(
               p_min, p_max, IM_COL32(255, 255, 255, 255), 0.f, 0, 4.f);
@@ -609,14 +607,14 @@ struct graph_component_editor_data::impl {
                                     : ed.size.y / 2.f;
 
             ImVec2 src(origin.x + ((data.node_positions[p_src][0] + u_width) *
-                                   ed.zoom[0]),
+                                   ed.zoom.x),
                        origin.y + ((data.node_positions[p_src][1] + u_height) *
-                                   ed.zoom[1]));
+                                   ed.zoom.y));
 
             ImVec2 dst(origin.x + ((data.node_positions[p_dst][0] + v_width) *
-                                   ed.zoom[0]),
+                                   ed.zoom.x),
                        origin.y + ((data.node_positions[p_dst][1] + v_height) *
-                                   ed.zoom[1]));
+                                   ed.zoom.y));
 
             draw_list->AddLine(src, dst, IM_COL32(255, 255, 0, 255), 1.f);
             // IM_COL32(200, 200, 200, 40), 1.0f);
@@ -634,16 +632,16 @@ struct graph_component_editor_data::impl {
             const auto p_dst = get_index(v_c);
 
             ImVec2 src(
-              origin.x + ((data.node_positions[p_src][0] + ed.size.x / 2.f) *
-                          ed.zoom[0]),
+              origin.x +
+                ((data.node_positions[p_src][0] + ed.size.x / 2.f) * ed.zoom.x),
               origin.y + ((data.node_positions[p_src][1] + ed.size.y / 2.f) *
-                          ed.zoom[1]));
+                          ed.zoom.y));
 
             ImVec2 dst(
-              origin.x + ((data.node_positions[p_dst][0] + ed.size.x / 2.f) *
-                          ed.zoom[0]),
+              origin.x +
+                ((data.node_positions[p_dst][0] + ed.size.x / 2.f) * ed.zoom.x),
               origin.y + ((data.node_positions[p_dst][1] + ed.size.y / 2.f) *
-                          ed.zoom[1]));
+                          ed.zoom.y));
 
             draw_list->AddLine(src, dst, IM_COL32(255, 0, 0, 255), 1.0f);
         }
@@ -674,33 +672,31 @@ struct graph_component_editor_data::impl {
 
     void center_camera(ImVec2 top_left,
                        ImVec2 bottom_right,
-                       ImVec2 canvas_sz,
-                       ImVec2 zoom) noexcept
+                       ImVec2 canvas_sz) noexcept
     {
         ImVec2 distance(bottom_right[0] - top_left[0],
                         bottom_right[1] - top_left[1]);
         ImVec2 center((bottom_right[0] - top_left[0]) / 2.0f + top_left[0],
                       (bottom_right[1] - top_left[1]) / 2.0f + top_left[1]);
 
-        ed.scrolling.x = ((-center.x * zoom.x) + (canvas_sz.x / 2.f));
-        ed.scrolling.y = ((-center.y * zoom.y) + (canvas_sz.y / 2.f));
+        ed.scrolling.x = ((-center.x * ed.zoom.x) + (canvas_sz.x / 2.f));
+        ed.scrolling.y = ((-center.y * ed.zoom.y) + (canvas_sz.y / 2.f));
         ed.st          = graph_component_editor_data::status::none;
     }
 
     void auto_fit_camera(ImVec2 top_left,
                          ImVec2 bottom_right,
-                         ImVec2 canvas_sz,
-                         ImVec2 zoom) noexcept
+                         ImVec2 canvas_sz) noexcept
     {
         ImVec2 distance(bottom_right[0] - top_left[0],
                         bottom_right[1] - top_left[1]);
         ImVec2 center((bottom_right[0] - top_left[0]) / 2.0f + top_left[0],
                       (bottom_right[1] - top_left[1]) / 2.0f + top_left[1]);
 
-        ed.zoom[0]     = canvas_sz.x / distance.x;
-        ed.zoom[1]     = canvas_sz.y / distance.y;
-        ed.scrolling.x = ((-center.x * ed.zoom[0]) + (canvas_sz.x / 2.f));
-        ed.scrolling.y = ((-center.y * ed.zoom[1]) + (canvas_sz.y / 2.f));
+        ed.zoom.x      = canvas_sz.x / distance.x;
+        ed.zoom.y      = canvas_sz.y / distance.y;
+        ed.scrolling.x = ((-center.x * ed.zoom.x) + (canvas_sz.x / 2.f));
+        ed.scrolling.y = ((-center.y * ed.zoom.y) + (canvas_sz.y / 2.f));
         ed.st          = graph_component_editor_data::status::none;
     }
 
@@ -720,9 +716,7 @@ struct graph_component_editor_data::impl {
                                         ImGuiTreeNodeFlags_DefaultOpen)) {
                 ImGui::LabelFormat("nodes", "{}", graph->nodes.size());
                 ImGui::LabelFormat("edges", "{}", graph->edges.size());
-                if (ImGui::Button(ed.automatic_layout
-                                    ? "Stop automatic placement"
-                                    : "Start Automatic placement"))
+                if (ImGui::Button(ed.automatic_layout ? "stop" : "start"))
                     ed.automatic_layout = not ed.automatic_layout;
 
                 ImGui::SameLine();

@@ -324,35 +324,36 @@ public:
 private:
     struct impl;
 
-    vector<ImVec2>        displacements;
+    vector<ImVec2> displacements;
+
     vector<graph_node_id> selected_nodes;
     vector<graph_edge_id> selected_edges;
+    ImVec2                start_selection;
+    ImVec2                end_selection;
 
     ImVec2 distance{ 50.f, 25.f };
     ImVec2 size{ 30.f, 15.f };
     ImVec2 scrolling{ 0.f, 0.f }; //!< top left position in canvas.
-    ImVec2 start_selection;
-    ImVec2 end_selection;
+    ImVec2 zoom{ 1.f, 1.f };
 
-    float zoom[2]{ 1.f, 1.f };
+    int iteration       = 0;
+    int iteration_limit = 1000;
 
-    int  iteration        = 0;
-    int  iteration_limit  = 1000;
+    graph_component_id graph_id = undefined<graph_component_id>();
+    component_id       m_id     = undefined<component_id>();
+
+    spin_mutex mutex;
+
     bool automatic_layout = false;
     bool run_selection    = false;
 
-    graph_component_id graph_id = undefined<graph_component_id>();
-
-    spin_mutex mutex;
-    enum class status {
+    enum class status : u8 {
         none,
         center_required,
         auto_fit_required,
         update_required,
         updating
     } st = status::none;
-
-    component_id m_id = undefined<component_id>();
 };
 
 class hsm_component_editor_data
