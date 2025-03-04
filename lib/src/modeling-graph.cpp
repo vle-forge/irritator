@@ -433,11 +433,16 @@ void graph_component::update(const modeling& mod) noexcept
     };
 
     for (const auto id : nodes) {
-        const auto idx  = get_index(id);
-        top_left[0]     = std::min(top_left[0], node_positions[idx][0]);
-        top_left[1]     = std::min(top_left[1], node_positions[idx][1]);
-        bottom_right[0] = std::max(bottom_right[0], node_positions[idx][0]);
-        bottom_right[1] = std::max(bottom_right[1], node_positions[idx][1]);
+        const auto idx = get_index(id);
+
+        top_left[0] =
+          std::min(top_left[0], node_positions[idx][0] - node_areas[idx]);
+        top_left[1] =
+          std::min(top_left[1], node_positions[idx][1] - node_areas[idx]);
+        bottom_right[0] =
+          std::max(bottom_right[0], node_positions[idx][0] + node_areas[idx]);
+        bottom_right[1] =
+          std::max(bottom_right[1], node_positions[idx][1] + node_areas[idx]);
     }
 }
 
