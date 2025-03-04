@@ -331,8 +331,7 @@ private:
     ImVec2                start_selection;
     ImVec2                end_selection;
 
-    ImVec2 distance{ 50.f, 25.f };
-    ImVec2 size{ 30.f, 15.f };
+    ImVec2 distance{ 15.f, 15.f };
     ImVec2 scrolling{ 0.f, 0.f }; //!< top left position in canvas.
     ImVec2 zoom{ 1.f, 1.f };
 

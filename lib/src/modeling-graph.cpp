@@ -244,11 +244,12 @@ static void build_dot_file_edges(
             graph.nodes = std::move(dot_graph->nodes);
             graph.edges = std::move(dot_graph->edges);
 
-            graph.node_names     = std::move(dot_graph->node_names);
-            graph.node_ids       = std::move(dot_graph->node_ids);
-            graph.node_positions = std::move(dot_graph->node_positions);
-            graph.node_areas     = std::move(dot_graph->node_areas);
-            graph.edges_nodes    = std::move(dot_graph->edges_nodes);
+            graph.node_names      = std::move(dot_graph->node_names);
+            graph.node_ids        = std::move(dot_graph->node_ids);
+            graph.node_positions  = std::move(dot_graph->node_positions);
+            graph.node_components = std::move(dot_graph->node_components);
+            graph.node_areas      = std::move(dot_graph->node_areas);
+            graph.edges_nodes     = std::move(dot_graph->edges_nodes);
 
             graph.buffer = std::move(dot_graph->buffer);
         } else
@@ -438,11 +439,15 @@ void graph_component::resize(const i32          children_size,
     input_connections.clear();
     output_connections.clear();
 
-    node_names.resize(nodes.capacity());
-    node_ids.resize(nodes.capacity());
-    node_positions.resize(nodes.capacity());
-    node_areas.resize(nodes.capacity());
-    node_components.resize(nodes.capacity());
+    node_names.resize(children_size);
+    node_ids.resize(children_size, 0);
+    node_positions.resize(children_size, std::array<float, 2>{ 0.f, 0.f });
+    node_components.resize(children_size, undefined<component_id>());
+    node_areas.resize(children_size, 1.f);
+    edges_nodes.resize(
+      children_size,
+      std::array<graph_node_id, 2>{ undefined<graph_node_id>(),
+                                    undefined<graph_node_id>() });
 
     edges_nodes.resize(edges.capacity());
 
