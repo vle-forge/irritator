@@ -878,12 +878,24 @@ void graph_component_editor_data::show_selected_nodes(
             }
         }
 
-        if (auto newid = undefined<component_id>();
-            app.component_sel.combobox("apply for all", &newid)) {
-            for (const auto id : selected_nodes) {
-                if (graph->nodes.exists(id)) {
-                    const auto idx              = get_index(id);
-                    graph->node_components[idx] = newid;
+        if (ImGui::CollapsingHeader("apply for all selected")) {
+            if (auto newid = undefined<component_id>();
+                app.component_sel.combobox("component", &newid)) {
+                for (const auto id : selected_nodes) {
+                    if (graph->nodes.exists(id)) {
+                        const auto idx              = get_index(id);
+                        graph->node_components[idx] = newid;
+                    }
+                }
+            }
+
+            if (auto area = 1.f;
+                ImGui::SliderFloat("area", &area, 0.01f, 1000.f)) {
+                for (const auto id : selected_nodes) {
+                    if (graph->nodes.exists(id)) {
+                        const auto idx         = get_index(id);
+                        graph->node_areas[idx] = area;
+                    }
                 }
             }
         }
