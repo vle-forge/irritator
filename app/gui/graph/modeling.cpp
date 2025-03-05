@@ -867,7 +867,11 @@ void graph_component_editor_data::show_selected_nodes(
                                        "{}x{}",
                                        graph->node_positions[idx][0],
                                        graph->node_positions[idx][1]);
-                    ImGui::LabelFormat("area", "{}", graph->node_areas[idx]);
+
+                    if (auto area = graph->node_areas[idx];
+                        ImGui::SliderFloat("area", &area, 0.01f, 1000.f)) {
+                        graph->node_areas[idx] = area;
+                    }
 
                     if (auto newid = graph->node_components[idx];
                         app.component_sel.combobox("component", &newid))
