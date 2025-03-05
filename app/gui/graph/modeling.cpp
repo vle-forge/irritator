@@ -909,7 +909,7 @@ void graph_component_editor_data::show_selected_nodes(
 bool graph_component_editor_data::need_show_selected_nodes(
   component_editor& /*ed*/) noexcept
 {
-    return false;
+    return not selected_nodes.empty();
 }
 
 void graph_component_editor_data::clear_selected_nodes() noexcept
