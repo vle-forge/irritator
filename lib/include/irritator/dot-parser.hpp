@@ -45,6 +45,14 @@ std::optional<dot_graph> parse_dot_file(
   const modeling&              mod,
   const std::filesystem::path& p) noexcept;
 
+error_code write_dot_file(const modeling&              mod,
+                          const dot_graph&             graph,
+                          const std::filesystem::path& path) noexcept;
+
+//!< @return @a vector<char> or error_code if error.
+result<vector<char>> write_dot_buffer(const modeling&  mod,
+                                      const dot_graph& graph) noexcept;
+
 } // irt
 
 #endif

@@ -181,6 +181,105 @@ template<class... Item>
     return boost::leaf::new_error(std::forward<Item>(p_item)...);
 }
 
+/**
+ * @a error_code represents a platform-dependent error code value. Each
+ * @a error_code object holds an error code value originating from the
+ * operating system or some low-level interface and a value to identify the
+ * category which corresponds to the said interface. The error code values are
+ * not required to be unique across different error categories.
+ */
+class error_code
+{
+public:
+    static constexpr int generic_error_category = 0; // errno or std::errc
+    static constexpr int system_error_category  = 1;
+    static constexpr int stream_error_category  = 2;
+    static constexpr int future_error_category  = 3;
+
+private:
+    int ec  = 0;
+    int cat = generic_error_category;
+
+public:
+    error_code() noexcept = default;
+
+    error_code(int error, int category) noexcept
+      : ec(error)
+      , cat(category)
+    {}
+
+    template<typename ErrorCodeEnum>
+        requires(std::is_enum_v<ErrorCodeEnum> and
+                 std::is_convertible_v<std::underlying_type_t<ErrorCodeEnum>,
+                                       int>)
+    inline error_code(ErrorCodeEnum e, int category) noexcept
+      : ec(static_cast<int>(e))
+      , cat(category)
+    {}
+
+    //!< Returns the platform dependent error code value.
+    int value() const noexcept { return ec; }
+
+    //!< Returns the error category of the error code.
+    int category() const noexcept { return cat; }
+
+    //!< Checks if the error code value is valid, i.e. non-zero.
+    //!< @return @a false if @a value() == 0, true otherwise.
+    explicit operator bool() const noexcept { return ec != 0; }
+};
+
+/**
+ * Helper function to return no error in function that returns @a error_code.
+ * @code
+ * error_code myfun(const std::string& file)
+ * {
+ *     std::filesystem::path path(file);
+ *     std::error_code ec;
+ *
+ *     if (not std::filesystem::is_directory(path, ec))
+ *         return error_code(std::errc::not_a_directory);
+ *
+ *     return ok();
+ * }
+ * @endcode
+ * @return An empty value and category @a error_code.
+ */
+inline error_code ok() noexcept { return error_code{}; }
+
+inline error_code make_error_code(std::errc e) noexcept
+{
+    if (on_error_callback) {
+        on_error_callback();
+    }
+
+    return error_code(static_cast<int>(e), 0);
+}
+
+template<typename ConvertibleToInt>
+    requires(std::is_convertible_v<ConvertibleToInt, int>)
+inline error_code make_error_code(
+  ConvertibleToInt e,
+  int              category = error_code::generic_error_category) noexcept
+{
+    if (on_error_callback) {
+        on_error_callback();
+    }
+
+    return error_code(static_cast<int>(e), category);
+}
+
+template<typename ErrorCodeEnum>
+    requires(std::is_enum_v<ErrorCodeEnum> and
+             std::is_convertible_v<std::underlying_type_t<ErrorCodeEnum>, int>)
+inline error_code make_error_code(ErrorCodeEnum e, int category) noexcept
+{
+    if (on_error_callback) {
+        on_error_callback();
+    }
+
+    return error_code(static_cast<int>(e), category);
+}
+
 } // namespace irt
 
 #endif

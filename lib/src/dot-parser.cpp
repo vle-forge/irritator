@@ -14,6 +14,7 @@
 
 #include <fmt/color.h>
 #include <fmt/format.h>
+#include <fmt/ostream.h>
 
 namespace irt {
 
@@ -31,6 +32,9 @@ enum class msg_id {
     missing_comma,
     parse_real,
     undefined_slash_symbol,
+    missing_reg_path,
+    missing_dir_path,
+    missing_file_path,
 };
 
 static constexpr std::string_view msg_fmt[] = {
@@ -42,7 +46,10 @@ static constexpr std::string_view msg_fmt[] = {
     "unknwon attribute `{}' = `{}' at line {}\n",
     "missing comma character in `{}'\n",
     "fail to parse `{}' to read a float\n",
-    "undefined `/{}' sequence at line {}\n"
+    "undefined `/{}' sequence at line {}\n",
+    "missing registered path\n",
+    "missing directory path\n",
+    "missing file path\n"
 };
 
 template<msg_id Index, typename... Args>
@@ -379,7 +386,7 @@ public:
     }
 
 private:
-    constexpr auto find_or_add_node(std::string_view name) noexcept
+    /*constexpr*/ auto find_or_add_node(std::string_view name) noexcept
       -> graph_node_id
     {
         if (sort_before_search) {
@@ -811,7 +818,7 @@ private:
             const auto right_str = get_and_free_string(right);
 
             if (iequals(left_str, "id"sv)) {
-                node_names[irt::get_index(id)] = buffer.append(right_str);
+                node_ids[irt::get_index(id)] = (int)to_float(right_str);
             } else if (iequals(left_str, "area"sv)) {
                 node_areas[irt::get_index(id)] = to_float(right_str);
             } else if (iequals(left_str, "component"sv)) {
@@ -1121,6 +1128,130 @@ irt::table<std::string_view, graph_node_id> dot_graph::make_toc() const noexcept
     ret.sort();
 
     return ret;
+}
+
+struct reg_dir_file {
+    std::string_view r, d, f;
+};
+
+static std::optional<reg_dir_file> build_component_string(
+  const modeling&    mod,
+  const component_id id) noexcept
+{
+    if (const auto* compo = mod.components.try_to_get(id)) {
+        auto* reg = mod.registred_paths.try_to_get(compo->reg_path);
+        if (not reg or reg->path.empty() or reg->name.empty()) {
+            warning<msg_id::missing_reg_path>();
+            return std::nullopt;
+        }
+
+        auto* dir = mod.dir_paths.try_to_get(compo->dir);
+        if (not dir or not dir->path.empty()) {
+            warning<msg_id::missing_dir_path>();
+            return std::nullopt;
+        }
+
+        auto* file = mod.file_paths.try_to_get(compo->file);
+        if (not file or file->path.empty()) {
+            warning<msg_id::missing_file_path>();
+            return std::nullopt;
+        }
+
+        return reg_dir_file{ .r = reg->name.sv(),
+                             .d = dir->path.sv(),
+                             .f = file->path.sv() };
+    }
+
+    return std::nullopt;
+}
+
+template<typename OutputIterator>
+error_code write_dot_stream(const modeling&  mod,
+                            const dot_graph& graph,
+                            OutputIterator   out) noexcept
+{
+    if (graph.is_strict)
+        out = fmt::format_to(out, "strict ");
+
+    if (graph.is_graph)
+        out = fmt::format_to(out, "graph {} {{\n", graph.main_id);
+    else
+        out = fmt::format_to(out, "digraph {} {{\n", graph.main_id);
+
+    for (const auto id : graph.nodes) {
+        const auto idx = get_index(id);
+
+        auto compo = build_component_string(mod, graph.node_components[idx]);
+        if (compo.has_value()) {
+            out = fmt::format_to(out,
+                                 "  {} [id={}, area={},"
+                                 " pos=\"{},{}\""
+                                 " component=\"{}:{}:{}\"];\n",
+                                 graph.node_names[idx],
+                                 graph.node_ids[idx],
+                                 graph.node_areas[idx],
+                                 graph.node_positions[idx][0],
+                                 graph.node_positions[idx][1],
+                                 compo->r,
+                                 compo->d,
+                                 compo->f);
+        } else {
+            out = fmt::format_to(out,
+                                 "  {} [id={}, area={}, pos=\"{},{}\"];\n",
+                                 graph.node_names[idx],
+                                 graph.node_ids[idx],
+                                 graph.node_areas[idx],
+                                 graph.node_positions[idx][0],
+                                 graph.node_positions[idx][1]);
+        }
+    }
+
+    std::string_view edge_type = graph.is_graph ? "--" : "->";
+
+    for (const auto id : graph.edges) {
+        const auto idx = get_index(id);
+
+        if (graph.nodes.exists(graph.edges_nodes[idx][0]) and
+            graph.nodes.exists(graph.edges_nodes[idx][1])) {
+            const auto src = get_index(graph.edges_nodes[idx][0]);
+            const auto dst = get_index(graph.edges_nodes[idx][1]);
+
+            out = fmt::format_to(out,
+                                 "  {} {} {};\n",
+                                 graph.node_names[src],
+                                 edge_type,
+                                 graph.node_names[dst]);
+        }
+    }
+
+    out = fmt::format_to(out, "}}");
+
+    return error_code();
+}
+
+error_code write_dot_file(const modeling&              mod,
+                          const dot_graph&             graph,
+                          const std::filesystem::path& path) noexcept
+{
+    if (std::ofstream ofs(path); ofs) {
+        return write_dot_stream(mod, graph, std::ostream_iterator<char>(ofs));
+    } else {
+        return make_error_code(errno);
+    }
+}
+
+result<vector<char>> write_dot_buffer(const modeling&  mod,
+                                      const dot_graph& graph) noexcept
+{
+    vector<char> buffer(4096, reserve_tag{});
+
+    if (const auto ret =
+          write_dot_stream(mod, graph, std::back_insert_iterator(buffer));
+        not ret) {
+        return buffer;
+    } else {
+        return new_error(ret);
+    }
 }
 
 } // namespace irt
