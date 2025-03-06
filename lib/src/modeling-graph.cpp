@@ -440,7 +440,7 @@ void graph_component::resize(const i32          children_size,
     output_connections.clear();
 
     node_names.resize(children_size);
-    node_ids.resize(children_size, 0);
+    node_ids.resize(children_size);
     node_positions.resize(children_size, std::array<float, 2>{ 0.f, 0.f });
     node_components.resize(children_size, undefined<component_id>());
     node_areas.resize(children_size, 1.f);

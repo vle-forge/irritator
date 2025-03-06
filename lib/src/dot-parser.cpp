@@ -335,7 +335,7 @@ public:
     irt::id_array<graph_edge_id> edges;
 
     irt::vector<std::string_view>             node_names;
-    irt::vector<int>                          node_ids;
+    irt::vector<std::string_view>             node_ids;
     irt::vector<std::array<float, 2>>         node_positions;
     irt::vector<float>                        node_areas;
     irt::vector<component_id>                 node_components;
@@ -411,7 +411,7 @@ private:
         const auto idx = irt::get_index(id);
 
         node_names[idx]     = buffer.append(name);
-        node_ids[idx]       = 0;
+        node_ids[idx]       = std::string_view{};
         node_positions[idx] = { 0.f, 0.f };
         node_areas[idx]     = 0.f;
         name_to_node_id.data.emplace_back(node_names[idx], id);
@@ -818,7 +818,7 @@ private:
             const auto right_str = get_and_free_string(right);
 
             if (iequals(left_str, "id"sv)) {
-                node_ids[irt::get_index(id)] = (int)to_float(right_str);
+                node_ids[irt::get_index(id)] = buffer.append(right_str);
             } else if (iequals(left_str, "area"sv)) {
                 node_areas[irt::get_index(id)] = to_float(right_str);
             } else if (iequals(left_str, "component"sv)) {

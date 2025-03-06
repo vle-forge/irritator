@@ -649,7 +649,7 @@ public:
     id_array<graph_edge_id, allocator<new_delete_memory_resource>> edges;
 
     vector<std::string_view>             node_names;
-    vector<int>                          node_ids;
+    vector<std::string_view>             node_ids;
     vector<std::array<float, 2>>         node_positions;
     vector<float>                        node_areas;
     vector<component_id>                 node_components;
