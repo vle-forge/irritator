@@ -327,6 +327,40 @@ struct leaf_tester_2 {
     }
 };
 
+struct expected_tester {
+    struct a_error {};
+    bool make_error = false;
+
+    expected_tester(bool error)
+      : make_error(error)
+    {}
+
+    irt::expected<int> make() noexcept
+    {
+        if (make_error)
+            return irt::new_error_code(1, 2);
+
+        return 1;
+    }
+};
+
+struct expected_tester_2 {
+    struct a_error {};
+    bool make_error = false;
+
+    expected_tester_2(bool error)
+      : make_error(error)
+    {}
+
+    irt::expected<int> make() noexcept
+    {
+        if (make_error)
+            return irt::error_code(1, 2);
+
+        return 2;
+    }
+};
+
 static auto build_error_handler(int& num) noexcept
 {
     return std::make_tuple([&] { num = -1; });
@@ -415,6 +449,49 @@ int main()
                          build_error_handler(error_sum)));
 
         expect(eq(error_sum, -1));
+    };
+
+    "tester_expected"_test = [] {
+        expected_tester t(false);
+
+        int error_sum = 0;
+
+        auto ret = t.make().and_then([](auto v) -> irt::expected<int> {
+            expected_tester_2 t2(false);
+            return t2.make();
+        });
+
+        expect(ret.has_value() >> fatal);
+        expect(eq(ret.value(), 2));
+    };
+
+    "tester_expected_2"_test = [] {
+        expected_tester t(false);
+
+        int error_sum = 0;
+
+        auto ret = t.make().and_then([](auto v) -> irt::expected<int> {
+            expected_tester_2 t2(true);
+            return t2.make();
+        });
+
+        expect(not ret.has_value() >> fatal);
+    };
+
+    "tester_expected_3"_test = [] {
+        expected_tester t(false);
+
+        int error_sum = 0;
+
+        auto ret = t.make()
+                     .and_then([](auto v) -> irt::expected<int> {
+                         expected_tester_2 t2(true);
+                         return t2.make();
+                     })
+                     .or_else([](auto ec) -> irt::expected<int> { return 3; });
+
+        expect(ret.has_value() >> fatal);
+        expect(eq(ret.value(), 3));
     };
 
     "small-function-1"_test = [] {

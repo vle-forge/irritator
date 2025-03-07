@@ -1236,22 +1236,23 @@ error_code write_dot_file(const modeling&              mod,
     if (std::ofstream ofs(path); ofs) {
         return write_dot_stream(mod, graph, std::ostream_iterator<char>(ofs));
     } else {
-        return make_error_code(errno);
+        return new_error_code(errno);
     }
 }
 
-result<vector<char>> write_dot_buffer(const modeling&  mod,
-                                      const dot_graph& graph) noexcept
+expected<vector<char>> write_dot_buffer(const modeling&  mod,
+                                        const dot_graph& graph) noexcept
 {
     vector<char> buffer(4096, reserve_tag{});
+    if (buffer.capacity() < 4096)
+        return new_error_code(std::errc::not_enough_memory);
 
-    if (const auto ret =
+    if (auto ret =
           write_dot_stream(mod, graph, std::back_insert_iterator(buffer));
-        not ret) {
+        ret)
         return buffer;
-    } else {
-        return new_error(ret);
-    }
+    else
+        return ret;
 }
 
 } // namespace irt
