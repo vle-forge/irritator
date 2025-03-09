@@ -11,6 +11,12 @@
 namespace irt {
 
 struct dot_graph {
+    enum class errc : i16 {
+        buffer_empty,
+        memory_insufficient,
+        file_unreachable,
+        format_illegible
+    };
 
     id_array<graph_node_id> nodes;
     id_array<graph_edge_id> edges;
@@ -30,26 +36,39 @@ struct dot_graph {
     bool is_graph   = false;
     bool is_digraph = false;
 
-    /** Build a @c irt::table from node name to node identifier. This function
-     * use the @c node_names and @c nodes object, do not change this object
-     * after building a toc. */
+    /**
+     * @brief Build a @c irt::table from node name to node identifier.
+     * This function use the @c node_names and @c nodes object, do not change
+     * this object after building a toc.
+     * @return A string-to-node table.
+     */
     table<std::string_view, graph_node_id> make_toc() const noexcept;
 };
 
-std::optional<dot_graph> parse_dot_buffer(const modeling&  mod,
-                                          std::string_view buffer) noexcept;
+expected<dot_graph> parse_dot_buffer(const modeling&  mod,
+                                     std::string_view buffer) noexcept;
 
-std::optional<dot_graph> parse_dot_buffer(std::string_view buffer) noexcept;
+expected<dot_graph> parse_dot_buffer(std::string_view buffer) noexcept;
 
-std::optional<dot_graph> parse_dot_file(
-  const modeling&              mod,
-  const std::filesystem::path& p) noexcept;
+expected<dot_graph> parse_dot_file(const modeling&              mod,
+                                   const std::filesystem::path& p) noexcept;
 
+/**
+ * @brief Write the @a graph into a text based file.
+ * @param mod Use to get the file and directory for all component.
+ * @param graph dot-graph to write.
+ * @return @a vector<char> or error_code if error.
+ */
 error_code write_dot_file(const modeling&              mod,
                           const dot_graph&             graph,
                           const std::filesystem::path& path) noexcept;
 
-//!< @return @a vector<char> or error_code if error.
+/**
+ * @brief Write the @a graph into a text based vector.
+ * @param mod Use to get the file and directory for all component.
+ * @param graph dot-graph to write.
+ * @return @a vector<char> or error_code if error.
+ */
 expected<vector<char>> write_dot_buffer(const modeling&  mod,
                                         const dot_graph& graph) noexcept;
 

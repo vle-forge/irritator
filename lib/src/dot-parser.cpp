@@ -1001,7 +1001,7 @@ private:
     }
 
 public:
-    std::optional<dot_graph> parse() noexcept
+    expected<dot_graph> parse() noexcept
     {
         fill_tokens();
 
@@ -1026,7 +1026,7 @@ public:
                 .is_digraph = is_digraph,
             };
 
-        return std::nullopt;
+        return new_error_code(dot_graph::errc::format_illegible);
     }
 
     // https://graphviz.org/doc/info/lang.html
@@ -1086,10 +1086,11 @@ public:
     {}
 };
 
-std::optional<dot_graph> parse_dot_buffer(
-  const modeling&        mod,
-  const std::string_view buffer) noexcept
+expected<dot_graph> parse_dot_buffer(const modeling&        mod,
+                                     const std::string_view buffer) noexcept
 {
+    if (buffer.empty())
+        return new_error_code(dot_graph::errc::buffer_empty);
 
     istring_view_stream isvs{ buffer.data(), buffer.size() };
     input_stream_buffer sb{ mod, isvs };
@@ -1097,22 +1098,26 @@ std::optional<dot_graph> parse_dot_buffer(
     return sb.parse();
 }
 
-std::optional<dot_graph> parse_dot_buffer(
-  const std::string_view buffer) noexcept
+expected<dot_graph> parse_dot_buffer(const std::string_view buffer) noexcept
 {
+    if (buffer.empty())
+        return new_error_code(dot_graph::errc::buffer_empty);
+
     istring_view_stream isvs{ buffer.data(), buffer.size() };
     input_stream_buffer sb{ isvs };
 
     return sb.parse();
 }
 
-std::optional<dot_graph> parse_dot_file(const modeling&              mod,
-                                        const std::filesystem::path& p) noexcept
+expected<dot_graph> parse_dot_file(const modeling&              mod,
+                                   const std::filesystem::path& p) noexcept
 {
-    std::ifstream       ifs{ p };
-    input_stream_buffer sb{ mod, ifs };
+    if (std::ifstream ifs{ p }; ifs) {
+        input_stream_buffer sb{ mod, ifs };
+        return sb.parse();
+    }
 
-    return sb.parse();
+    return new_error_code(dot_graph::errc::file_unreachable);
 }
 
 irt::table<std::string_view, graph_node_id> dot_graph::make_toc() const noexcept
@@ -1236,7 +1241,7 @@ error_code write_dot_file(const modeling&              mod,
     if (std::ofstream ofs(path); ofs) {
         return write_dot_stream(mod, graph, std::ostream_iterator<char>(ofs));
     } else {
-        return new_error_code(errno);
+        return new_error_code(dot_graph::errc::file_unreachable);
     }
 }
 
@@ -1245,7 +1250,7 @@ expected<vector<char>> write_dot_buffer(const modeling&  mod,
 {
     vector<char> buffer(4096, reserve_tag{});
     if (buffer.capacity() < 4096)
-        return new_error_code(std::errc::not_enough_memory);
+        return new_error_code(dot_graph::errc::memory_insufficient);
 
     if (auto ret =
           write_dot_stream(mod, graph, std::back_insert_iterator(buffer));
