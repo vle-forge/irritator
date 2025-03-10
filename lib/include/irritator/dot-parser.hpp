@@ -59,9 +59,9 @@ expected<dot_graph> parse_dot_file(const modeling&              mod,
  * @param graph dot-graph to write.
  * @return @a vector<char> or error_code if error.
  */
-error_code write_dot_file(const modeling&              mod,
-                          const dot_graph&             graph,
-                          const std::filesystem::path& path) noexcept;
+expected<void> write_dot_file(const modeling&              mod,
+                              const dot_graph&             graph,
+                              const std::filesystem::path& path) noexcept;
 
 /**
  * @brief Write the @a graph into a text based vector.

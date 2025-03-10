@@ -454,8 +454,6 @@ int main()
     "tester_expected"_test = [] {
         expected_tester t(false);
 
-        int error_sum = 0;
-
         auto ret = t.make().and_then([](auto v) -> irt::expected<int> {
             expected_tester_2 t2(false);
             return t2.make();
@@ -468,8 +466,6 @@ int main()
     "tester_expected_2"_test = [] {
         expected_tester t(false);
 
-        int error_sum = 0;
-
         auto ret = t.make().and_then([](auto v) -> irt::expected<int> {
             expected_tester_2 t2(true);
             return t2.make();
@@ -481,8 +477,6 @@ int main()
     "tester_expected_3"_test = [] {
         expected_tester t(false);
 
-        int error_sum = 0;
-
         auto ret = t.make()
                      .and_then([](auto v) -> irt::expected<int> {
                          expected_tester_2 t2(true);
@@ -492,6 +486,51 @@ int main()
 
         expect(ret.has_value() >> fatal);
         expect(eq(ret.value(), 3));
+    };
+
+    "tester_expected_3"_test = [] {
+        expected_tester t(false);
+
+        auto ret = t.make()
+                     .and_then(
+                       [](auto v, int plus_1) -> irt::expected<int> {
+                           return v + plus_1;
+                       },
+                       1)
+                     .and_then(
+                       [](auto v, int plus_2) -> irt::expected<int> {
+                           return v + plus_2;
+                       },
+                       2);
+
+        expect(ret.has_value() >> fatal);
+        expect(eq(ret.value(), 4));
+    };
+
+    "tester_expected_4"_test = [] {
+        auto u = []() -> irt::expected<std::unique_ptr<int>> {
+            return std::make_unique<int>(1234);
+        };
+
+        auto ret =
+          u()
+            .and_then(
+              [](auto ptr, int minus) -> irt::expected<std::unique_ptr<int>> {
+                  *ptr -= minus;
+                  return std::move(ptr);
+              },
+              4)
+            .and_then(
+              [](auto ptr, int minus) -> irt::expected<std::unique_ptr<int>> {
+                  *ptr -= minus;
+                  return std::move(ptr);
+              },
+              1000);
+
+        expect(ret.has_value() >> fatal);
+        expect(!!ret.value() >> fatal);
+        expect(ret.value().get() >> fatal);
+        expect(eq(*ret.value().get(), 230));
     };
 
     "small-function-1"_test = [] {

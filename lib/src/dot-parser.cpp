@@ -1171,9 +1171,9 @@ static std::optional<reg_dir_file> build_component_string(
 }
 
 template<typename OutputIterator>
-error_code write_dot_stream(const modeling&  mod,
-                            const dot_graph& graph,
-                            OutputIterator   out) noexcept
+expected<void> write_dot_stream(const modeling&  mod,
+                                const dot_graph& graph,
+                                OutputIterator   out) noexcept
 {
     if (graph.is_strict)
         out = fmt::format_to(out, "strict ");
@@ -1231,12 +1231,12 @@ error_code write_dot_stream(const modeling&  mod,
 
     out = fmt::format_to(out, "}}");
 
-    return error_code();
+    return expected<void>();
 }
 
-error_code write_dot_file(const modeling&              mod,
-                          const dot_graph&             graph,
-                          const std::filesystem::path& path) noexcept
+expected<void> write_dot_file(const modeling&              mod,
+                              const dot_graph&             graph,
+                              const std::filesystem::path& path) noexcept
 {
     if (std::ofstream ofs(path); ofs) {
         return write_dot_stream(mod, graph, std::ostream_iterator<char>(ofs));
@@ -1254,10 +1254,10 @@ expected<vector<char>> write_dot_buffer(const modeling&  mod,
 
     if (auto ret =
           write_dot_stream(mod, graph, std::back_insert_iterator(buffer));
-        ret)
+        ret.has_value())
         return buffer;
     else
-        return ret;
+        return ret.error();
 }
 
 } // namespace irt

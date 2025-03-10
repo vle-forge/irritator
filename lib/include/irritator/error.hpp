@@ -262,33 +262,38 @@ inline error_code new_error_code(
 }
 
 template<typename Value>
-class expected;
-
-template<typename Value>
 class expected
 {
+private:
+    static_assert(not std::is_reference_v<Value>);
+    static_assert(not std::is_function_v<Value>);
+    static_assert(not std::is_same_v<std::remove_cv_t<Value>, std::in_place_t>);
+    static_assert(not std::is_same_v<std::remove_cv_t<Value>, error_code>);
+
 public:
-    using this_type  = expected<Value>;
     using value_type = Value;
     using error_type = error_code;
+    using this_type  = expected<value_type>;
 
 private:
     union storage_type {
         std::monostate _;
-        value_type     val;
-        error_type     ec;
+        Value          val;
+        error_code     ec;
 
         constexpr storage_type() noexcept {}
         constexpr ~storage_type() noexcept {}
-
     } storage;
 
-    enum class state_type : std::int8_t { uninitialised, value, error } state;
+    enum class state_type : std::int8_t { value, error } state;
 
 public:
     constexpr expected() noexcept
-      : state{ state_type::uninitialised }
-    {}
+      : state{ state_type::value }
+    {
+        if constexpr (std::is_default_constructible_v<value_type>)
+            std::construct_at(std::addressof(storage.val));
+    }
 
     constexpr ~expected() noexcept = default;
 
@@ -296,7 +301,7 @@ public:
         requires(not std::is_trivially_destructible_v<value_type>)
     {
         if (state == state_type::value)
-            std::destroy_at(&storage.val);
+            std::destroy_at(std::addressof(storage.val));
     }
 
     constexpr expected(const value_type& value_) noexcept
@@ -312,27 +317,29 @@ public:
     }
 
     constexpr expected(const expected& other) noexcept
-      : state{ state_type::value }
+      : state{ other.state }
     {
-        if (state == state_type::value)
-            std::construct_at(std::addressof(storage.val), other.storage.val);
-        else if (state == state_type::error)
+        static_assert(std::is_copy_constructible_v<value_type>);
+
+        if (state == state_type::error) {
             std::construct_at(std::addressof(storage.ec), other.storage.ec);
-        else
-            std::construct_at(std::addressof(storage._));
+        } else {
+            std::construct_at(std::addressof(storage.val), other.storage.val);
+        }
     }
 
     constexpr expected(expected&& other) noexcept
       : state{ other.state }
     {
-        if (state == state_type::value)
-            std::construct_at(std::addressof(storage.val),
-                              std::move(other.storage.val));
-        else if (state == state_type::error)
+        static_assert(std::is_move_constructible_v<value_type>);
+
+        if (state == state_type::error) {
             std::construct_at(std::addressof(storage.ec),
                               std::move(other.storage.ec));
-        else
-            std::construct_at(std::addressof(storage._));
+        } else {
+            std::construct_at(std::addressof(storage.val),
+                              std::move(other.storage.val));
+        }
     }
 
     constexpr expected(const error_code& ec) noexcept
@@ -354,10 +361,9 @@ public:
         std::construct_at(storage.val, std::forward<Args>(args)...);
     }
 
-    this_type& operator=(const this_type& other) noexcept
+    constexpr this_type& operator=(const this_type& other) noexcept
     {
-        static_assert(std::is_copy_constructible_v<Value>,
-                      "Not copy assignable");
+        static_assert(std::is_copy_constructible_v<value_type>);
 
         if constexpr (not std::is_trivially_destructible_v<value_type>) {
             if (state == state_type::value)
@@ -366,20 +372,18 @@ public:
 
         state = other.state;
 
-        if (state == state_type::value)
-            std::construct_at(std::addressof(storage.val), other.storage.val);
-        else if (state == state_type::error)
+        if (state == state_type::error) {
             std::construct_at(std::addressof(storage.ec), other.storage.ec);
-        else
-            std::construct_at(std::addressof(storage._));
+        } else {
+            std::construct_at(std::addressof(storage.val), other.storage.val);
+        }
 
         return *this;
     }
 
-    this_type& operator=(this_type&& other)
+    constexpr this_type& operator=(this_type&& other) noexcept
     {
-        static_assert(std::is_move_constructible_v<Value>,
-                      "Not move assignable");
+        static_assert(std::is_move_constructible_v<value_type>);
 
         if constexpr (not std::is_trivially_destructible_v<value_type>) {
             if (state == state_type::value)
@@ -388,21 +392,20 @@ public:
 
         state = other.state;
 
-        if (state == state_type::value)
-            std::construct_at(std::addressof(storage.val),
-                              std::move(other.storage.val));
-        else if (state == state_type::error)
+        if (state == state_type::error) {
             std::construct_at(std::addressof(storage.ec),
                               std::move(other.storage.ec));
-        else
-            std::construct_at(std::addressof(storage._));
+        } else {
+            std::construct_at(std::addressof(storage.val),
+                              std::move(other.storage.val));
+        }
 
         return *this;
     }
 
-    this_type& operator=(const value_type& value)
+    constexpr this_type& operator=(const value_type& value) noexcept
     {
-        static_assert(std::is_copy_constructible_v<Value>,
+        static_assert(std::is_copy_constructible_v<value_type>,
                       "Value not copy assignable");
 
         if constexpr (not std::is_trivially_destructible_v<value_type>) {
@@ -416,7 +419,7 @@ public:
         return *this;
     }
 
-    this_type& operator=(value_type&& value)
+    constexpr this_type& operator=(value_type&& value) noexcept
     {
         static_assert(std::is_move_constructible_v<Value>,
                       "Value not move assignable");
@@ -432,7 +435,20 @@ public:
         return *this;
     }
 
-    this_type& operator=(const error_code& ec)
+    constexpr this_type& operator=(const error_code& ec) noexcept
+    {
+        if constexpr (not std::is_trivially_destructible_v<value_type>) {
+            if (state == state_type::value)
+                std::destroy(storage.val);
+        }
+
+        state = state_type::error;
+        std::construct_at(std::addressof(storage.ec), ec);
+
+        return *this;
+    }
+
+    constexpr this_type& operator=(error_code&& ec) noexcept
     {
         if constexpr (not std::is_trivially_destructible_v<value_type>) {
             if (state == state_type::value)
@@ -445,38 +461,25 @@ public:
         return *this;
     }
 
-    this_type& operator=(error_code&& ec)
-    {
-        if constexpr (not std::is_trivially_destructible_v<value_type>) {
-            if (state == state_type::value)
-                std::destroy(storage.val);
-        }
-
-        state = state_type::error;
-        std::construct_at(std::addressof(storage.ec), std::move(ec));
-
-        return *this;
-    }
-
-    constexpr value_type& value() &
+    constexpr value_type& value() & noexcept
     {
         debug::ensure(has_value());
         return storage.val;
     }
 
-    constexpr const value_type& value() const&
+    constexpr const value_type& value() const& noexcept
     {
         debug::ensure(has_value());
         return storage.val;
     }
 
-    constexpr value_type&& value() &&
+    constexpr value_type&& value() && noexcept
     {
         debug::ensure(has_value());
         return std::move(storage.val);
     }
 
-    constexpr const value_type&& value() const&&
+    constexpr const value_type&& value() const&& noexcept
     {
         debug::ensure(has_value());
         return std::move(storage.val);
@@ -497,7 +500,7 @@ public:
     template<typename U>
         requires(std::is_convertible_v<U, value_type>)
     [[nodiscard]]
-    constexpr auto value_or(U&& default_value) const&
+    constexpr auto value_or(U&& default_value) const& noexcept
     {
         if (has_value()) {
             return value();
@@ -507,9 +510,10 @@ public:
     }
 
     template<typename U>
-        requires(std::is_convertible_v<U, value_type>)
+        requires(not std::is_void_v<value_type> and
+                 std::is_convertible_v<U, value_type>)
     [[nodiscard]]
-    constexpr auto value_or(U&& default_value) &&
+    constexpr auto value_or(U&& default_value) && noexcept
     {
         if (has_value()) {
             return std::move(storage.val);
@@ -532,7 +536,7 @@ public:
         return storage.ec;
     }
 
-    void swap(this_type& other)
+    void swap(this_type& other) noexcept
     {
         using std::swap;
 
@@ -554,7 +558,7 @@ public:
     }
 
     template<typename U>
-    value_type value_or(const U& default_value) const
+    value_type value_or(const U& default_value) const noexcept
     {
         if (has_value()) {
             return value();
@@ -563,104 +567,234 @@ public:
         }
     }
 
-    value_type* operator->()
+    value_type* operator->() noexcept
     {
         debug::ensure(has_value());
 
         return std::addressof(storage.val);
     }
 
-    const value_type* operator->() const
+    const value_type* operator->() const noexcept
     {
         debug::ensure(has_value());
 
         return std::addressof(storage.val);
     }
 
-    value_type& operator*()
+    value_type& operator*() noexcept
     {
         debug::ensure(has_value());
 
         return storage.val;
     }
 
-    const value_type& operator*() const
+    const value_type& operator*() const noexcept
     {
         debug::ensure(has_value());
 
         return storage.val;
     }
 
-    template<typename Fn>
-    constexpr auto and_then(Fn&& f) & noexcept
+    template<typename Fn, typename... Args>
+    constexpr auto and_then(Fn&& f, Args&&... args) & noexcept
     {
         if (has_value())
-            return std::invoke(std::forward<Fn>(f), storage.val);
+            return std::invoke(
+              std::forward<Fn>(f), storage.val, std::forward<Args>(args)...);
         else
-            return *this;
+            return storage.ec;
     }
 
-    template<typename Fn>
-    constexpr auto and_then(Fn&& f) const& noexcept
+    template<typename Fn, typename... Args>
+    constexpr auto and_then(Fn&& f, Args&&... args) const& noexcept
     {
         if (has_value())
-            return std::invoke(std::forward<Fn>(f), storage.val);
+            return std::invoke(
+              std::forward<Fn>(f), storage.val, std::forward<Args>(args)...);
         else
-            return *this;
+            return this_type(storage.ec);
     }
 
-    template<typename Fn>
-    constexpr auto and_then(Fn&& f) && noexcept
+    template<typename Fn, typename... Args>
+    constexpr auto and_then(Fn&& f, Args&&... args) && noexcept
     {
         if (has_value())
-            return std::invoke(std::forward<Fn>(f), std::move(storage.val));
+            return std::invoke(
+              std::forward<Fn>(f), std::move(storage.val), args...);
         else
-            return *this;
+            return this_type(storage.ec);
     }
 
-    template<typename Fn>
-    constexpr auto and_then(Fn&& f) const&& noexcept
+    template<typename Fn, typename... Args>
+    constexpr auto and_then(Fn&& f, Args&&... args) const&& noexcept
     {
         if (has_value())
-            return std::invoke(std::forward<Fn>(f), std::move(storage.val));
+            return std::invoke(
+              std::forward<Fn>(f), std::move(storage.val), args...);
         else
-            return *this;
+            return this_type(storage.ec);
     }
 
-    template<typename Fn>
-    constexpr auto or_else(Fn&& f) &
+    template<typename Fn, typename... Args>
+    constexpr auto or_else(Fn&& f, Args&&... args) & noexcept
     {
         if (has_value())
-            return *this;
+            return this_type(storage.val);
         else
-            return std::invoke(std::forward<Fn>(f), storage.ec);
+            return std::invoke(std::forward<Fn>(f), storage.ec, args...);
     }
 
-    template<typename Fn>
-    constexpr auto or_else(Fn&& f) const&
+    template<typename Fn, typename... Args>
+    constexpr auto or_else(Fn&& f, Args&&... args) const& noexcept
     {
         if (has_value())
-            return *this;
+            return this_type(storage.val);
         else
-            return std::invoke(std::forward<Fn>(f), storage.ec);
+            return std::invoke(std::forward<Fn>(f), storage.ec, args...);
     }
 
-    template<typename Fn>
-    constexpr auto or_else(Fn&& f) &&
+    template<typename Fn, typename... Args>
+    constexpr auto or_else(Fn&& f, Args&&... args) && noexcept
     {
         if (has_value())
-            return *this;
+            return this_type(std::move(storage.val));
         else
-            return std::invoke(std::forward<Fn>(f), std::move(storage.ec));
+            return std::invoke(
+              std::forward<Fn>(f), std::move(storage.ec), args...);
     }
 
-    template<typename Fn>
-    constexpr auto or_else(Fn&& f) const&&
+    template<typename Fn, typename... Args>
+    constexpr auto or_else(Fn&& f, Args&&... args) const&& noexcept
     {
         if (has_value())
-            return *this;
+            return this_type(std::move(storage.val));
         else
-            return std::invoke(std::forward<Fn>(f), std::move(storage.ec));
+            return std::invoke(
+              std::forward<Fn>(f), std::move(storage.ec), args...);
+    }
+};
+
+template<>
+class expected<void>
+{
+public:
+    using value_type = void;
+    using error_type = error_code;
+    using this_type  = expected<value_type>;
+
+private:
+    union storage_type {
+        std::monostate _;
+        error_code     ec;
+
+        constexpr storage_type() noexcept {}
+        constexpr ~storage_type() noexcept {}
+    } storage;
+
+    enum class state_type : std::int8_t { value, error } state;
+
+public:
+    constexpr expected() noexcept
+      : state{ state_type::value }
+    {}
+
+    constexpr ~expected() noexcept = default;
+
+    constexpr expected(const expected& other) noexcept
+      : state{ other.state }
+    {
+        if (state == state_type::error)
+            std::construct_at(std::addressof(storage.ec), other.storage.ec);
+    }
+
+    constexpr expected(expected&& other) noexcept
+      : state{ other.state }
+    {
+        if (state == state_type::error)
+            std::construct_at(std::addressof(storage.ec),
+                              std::move(other.storage.ec));
+    }
+
+    constexpr expected(const error_code& ec) noexcept
+      : state{ state_type::error }
+    {
+        std::construct_at(std::addressof(storage.ec), ec);
+    }
+
+    constexpr expected(error_code&& ec) noexcept
+      : state{ state_type::error }
+    {
+        std::construct_at(std::addressof(storage.ec), std::move(ec));
+    }
+
+    constexpr this_type& operator=(const this_type& other) noexcept
+    {
+        state = other.state;
+
+        if (state == state_type::error)
+            std::construct_at(std::addressof(storage.ec), other.storage.ec);
+
+        return *this;
+    }
+
+    constexpr this_type& operator=(this_type&& other) noexcept
+    {
+        state = other.state;
+
+        if (state == state_type::error)
+            std::construct_at(std::addressof(storage.ec),
+                              std::move(other.storage.ec));
+
+        return *this;
+    }
+
+    constexpr this_type& operator=(const error_code& ec) noexcept
+    {
+        state = state_type::error;
+        std::construct_at(std::addressof(storage.ec), ec);
+
+        return *this;
+    }
+
+    constexpr this_type& operator=(error_code&& ec) noexcept
+    {
+        state = state_type::error;
+        std::construct_at(std::addressof(storage.ec), std::move(ec));
+
+        return *this;
+    }
+
+    [[nodiscard]]
+    constexpr bool has_value() const noexcept
+    {
+        return state_type::value == state;
+    }
+
+    [[nodiscard]]
+    constexpr explicit operator bool() const noexcept
+    {
+        return has_value();
+    }
+
+    [[nodiscard]]
+    constexpr error_type& error() & noexcept
+    {
+        debug::ensure(not has_value());
+        return storage.ec;
+    }
+
+    [[nodiscard]]
+    constexpr const error_type& error() const& noexcept
+    {
+        debug::ensure(not has_value());
+        return storage.ec;
+    }
+
+    void swap(this_type& other) noexcept
+    {
+        using std::swap;
+
+        swap(storage, other.storage);
     }
 };
 
@@ -670,8 +804,10 @@ constexpr bool operator==(const expected<T>& lhs, const expected<T2>& rhs)
     if (lhs.has_value() != rhs.has_value())
         return false;
 
-    if (lhs.has_value())
-        return lhs.value() == rhs.value();
+    if (not std::is_void_v<T> and not std::is_void_v<T2>) {
+        if (lhs.has_value())
+            return lhs.value() == rhs.value();
+    }
 
     return lhs.error() == rhs.error();
 }
@@ -682,7 +818,10 @@ constexpr bool operator==(const expected<T>& lhs, const T2& rhs)
     if (not lhs.has_value())
         return false;
 
-    return lhs.value() == rhs;
+    if (not std::is_void_v<T>)
+        return lhs.value() == rhs;
+
+    return false;
 }
 
 template<typename T>
