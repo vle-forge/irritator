@@ -341,15 +341,16 @@ public:
     irt::vector<component_id>                 node_components;
     irt::vector<std::array<graph_node_id, 2>> edges_nodes;
 
+    std::string_view main_id;
+
     irt::table<std::string_view, graph_node_id> name_to_node_id;
     bool                                        sort_before_search = false;
 
     irt::string_buffer buffer;
 
-    std::string main_id;
-    bool        is_strict  = false;
-    bool        is_graph   = false;
-    bool        is_digraph = false;
+    bool is_strict  = false;
+    bool is_graph   = false;
+    bool is_digraph = false;
 
     /** Default is to fill the token ring buffer from the @c std::istream.
      *
@@ -984,7 +985,7 @@ private:
 
         if (next_token_is_string()) {
             const auto m_id = pop_token();
-            main_id         = get_and_free_string(m_id);
+            main_id         = buffer.append(get_and_free_string(m_id));
         }
 
         return check_minimum_tokens(1) ? parse_stmt_list() : true;
@@ -1017,9 +1018,9 @@ public:
                 .node_areas      = std::move(node_areas),
                 .edges_nodes     = std::move(edges_nodes),
 
-                .buffer = std::move(buffer),
+                .main_id = main_id,
 
-                .main_id = std::move(main_id),
+                .buffer = std::move(buffer),
 
                 .is_strict  = is_strict,
                 .is_graph   = is_graph,

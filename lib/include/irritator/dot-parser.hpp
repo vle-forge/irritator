@@ -28,9 +28,9 @@ struct dot_graph {
     vector<float>                        node_areas;
     vector<std::array<graph_node_id, 2>> edges_nodes;
 
-    string_buffer buffer;
+    std::string_view main_id;
 
-    std::string main_id;
+    string_buffer buffer;
 
     bool is_strict  = false;
     bool is_graph   = false;
