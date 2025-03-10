@@ -170,7 +170,7 @@ enum class element_type : irt::u16 {
    @param c The character to convert iff @c c if upper ascii character.
    @return The lower car of the @c c parameter.
  */
-inline auto ascii_tolower(const char c) noexcept -> char
+inline static auto ascii_tolower(const char c) noexcept -> char
 {
     return ((static_cast<unsigned>(c) - 65u) < 26) ? c + 'a' - 'A' : c;
 }
@@ -181,7 +181,7 @@ inline auto ascii_tolower(const char c) noexcept -> char
    @param a The character to convert iff @c c if upper ascii character.
    @param b The character to convert iff @c c if upper ascii character.
  */
-inline auto ichar_equals(char a, char b) noexcept -> bool
+inline static auto ichar_equals(char a, char b) noexcept -> bool
 {
     return ascii_tolower(a) == ascii_tolower(b);
 }
@@ -194,7 +194,8 @@ inline auto ichar_equals(char a, char b) noexcept -> bool
    @param lhs The string on the left side of the equality
    @param rhs The string on the right side of the equality
  */
-inline auto iequals(std::string_view lhs, std::string_view rhs) noexcept -> bool
+inline static auto iequals(std::string_view lhs, std::string_view rhs) noexcept
+  -> bool
 {
     auto n = lhs.size();
     if (rhs.size() != n)
