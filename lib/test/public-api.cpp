@@ -454,7 +454,7 @@ int main()
     "tester_expected"_test = [] {
         expected_tester t(false);
 
-        auto ret = t.make().and_then([](auto v) -> irt::expected<int> {
+        auto ret = t.make().and_then([](auto /*v*/) -> irt::expected<int> {
             expected_tester_2 t2(false);
             return t2.make();
         });
@@ -466,7 +466,7 @@ int main()
     "tester_expected_2"_test = [] {
         expected_tester t(false);
 
-        auto ret = t.make().and_then([](auto v) -> irt::expected<int> {
+        auto ret = t.make().and_then([](auto /*v*/) -> irt::expected<int> {
             expected_tester_2 t2(true);
             return t2.make();
         });
@@ -477,12 +477,13 @@ int main()
     "tester_expected_3"_test = [] {
         expected_tester t(false);
 
-        auto ret = t.make()
-                     .and_then([](auto v) -> irt::expected<int> {
-                         expected_tester_2 t2(true);
-                         return t2.make();
-                     })
-                     .or_else([](auto ec) -> irt::expected<int> { return 3; });
+        auto ret =
+          t.make()
+            .and_then([](auto /*v*/) -> irt::expected<int> {
+                expected_tester_2 t2(true);
+                return t2.make();
+            })
+            .or_else([](auto /*ec*/) -> irt::expected<int> { return 3; });
 
         expect(ret.has_value() >> fatal);
         expect(eq(ret.value(), 3));
@@ -517,13 +518,13 @@ int main()
             .and_then(
               [](auto ptr, int minus) -> irt::expected<std::unique_ptr<int>> {
                   *ptr -= minus;
-                  return std::move(ptr);
+                  return ptr;
               },
               4)
             .and_then(
               [](auto ptr, int minus) -> irt::expected<std::unique_ptr<int>> {
                   *ptr -= minus;
-                  return std::move(ptr);
+                  return ptr;
               },
               1000);
 
