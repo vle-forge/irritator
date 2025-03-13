@@ -406,14 +406,14 @@ void graph_component::update(const modeling& mod) noexcept
     for (const auto id : nodes) {
         const auto idx = get_index(id);
 
-        top_left[0] =
-          std::min(top_left[0], node_positions[idx][0] - node_areas[idx]);
-        top_left[1] =
-          std::min(top_left[1], node_positions[idx][1] - node_areas[idx]);
-        bottom_right[0] =
-          std::max(bottom_right[0], node_positions[idx][0] + node_areas[idx]);
-        bottom_right[1] =
-          std::max(bottom_right[1], node_positions[idx][1] + node_areas[idx]);
+        top_left_limit[0] =
+          std::min(top_left_limit[0], node_positions[idx][0] - node_areas[idx]);
+        top_left_limit[1] =
+          std::min(top_left_limit[1], node_positions[idx][1] - node_areas[idx]);
+        bottom_right_limit[0] = std::max(
+          bottom_right_limit[0], node_positions[idx][0] + node_areas[idx]);
+        bottom_right_limit[1] = std::max(
+          bottom_right_limit[1], node_positions[idx][1] + node_areas[idx]);
     }
 }
 
@@ -501,20 +501,19 @@ static void build_graph_connections(
     }
 }
 
-status graph_component::build_cache(modeling& mod) noexcept
+expected<void> graph_component::build_cache(modeling& mod) noexcept
 {
     clear_cache();
 
     cache.reserve(nodes.size());
     if (not cache.can_alloc(nodes.size()))
-        return new_error(
-          graph_component::children_error{},
-          e_memory{ nodes.size(), static_cast<unsigned>(nodes.capacity()) });
+        return new_error_code(graph_component::errc::children_full,
+                               graph_component::ID);
 
     const auto vec = build_graph_children(mod, *this);
     build_graph_connections(mod, *this, vec);
 
-    return success();
+    return expected<void>{};
 }
 
 void graph_component::clear_cache() noexcept
@@ -526,8 +525,9 @@ void graph_component::clear_cache() noexcept
 status modeling::copy(graph_component&   graph,
                       generic_component& generic) noexcept
 {
-    irt_check(graph.build_cache(*this));
-
+    if (auto ret = graph.build_cache(*this); not ret.has_value())
+        return new_error(modeling::children_error{}, container_full_error{});
+        
     if (not generic.children.can_alloc(graph.cache.size()))
         return new_error(modeling::children_error{}, container_full_error{});
 
@@ -589,67 +589,32 @@ bool graph_component::exists_output_connection(const port_id       y,
     return false;
 }
 
-result<input_connection_id> graph_component::connect_input(
+expected<input_connection_id> graph_component::connect_input(
   const port_id       x,
   const graph_node_id v,
   const port_id       id) noexcept
 {
     if (exists_input_connection(x, v, id))
-        return new_error(input_connection_error{}, already_exist_error{});
+        return new_error_code(errc::input_connection_already_exists);
 
     if (not input_connections.can_alloc(1))
-        return new_error(input_connection_error{}, container_full_error{});
+        return new_error_code(errc::input_connection_full);
 
     return input_connections.get_id(input_connections.alloc(x, v, id));
 }
 
-result<output_connection_id> graph_component::connect_output(
+expected<output_connection_id> graph_component::connect_output(
   const port_id       y,
   const graph_node_id v,
   const port_id       id) noexcept
 {
     if (exists_output_connection(y, v, id))
-        return new_error(input_connection_error{}, already_exist_error{});
+        return new_error_code(errc::output_connection_already_exists);
 
     if (not output_connections.can_alloc(1))
-        return new_error(input_connection_error{}, container_full_error{});
+        return new_error_code(errc::output_connection_full);
 
     return output_connections.get_id(output_connections.alloc(y, v, id));
-}
-
-void graph_component::format_input_connection_error(log_entry& e) noexcept
-{
-    e.buffer = "Input connection already exists in this graph component";
-    e.level  = log_level::notice;
-}
-
-void graph_component::format_input_connection_full_error(log_entry& e) noexcept
-{
-    e.buffer = "Input connection list is full in this graph component";
-    e.level  = log_level::error;
-}
-
-void graph_component::format_output_connection_error(log_entry& e) noexcept
-{
-    e.buffer = "Input connection already exists in this graph component";
-    e.level  = log_level::notice;
-}
-
-void graph_component::format_output_connection_full_error(log_entry& e) noexcept
-{
-    e.buffer = "Output connection list is full in this graph component";
-    e.level  = log_level::error;
-}
-
-void graph_component::format_children_error(log_entry& e, e_memory mem) noexcept
-{
-    format(e.buffer,
-           "Not enough available space for model "
-           "in this grid component({}, {}) ",
-           mem.request,
-           mem.capacity);
-
-    e.level = log_level::error;
 }
 
 } // namespace irt

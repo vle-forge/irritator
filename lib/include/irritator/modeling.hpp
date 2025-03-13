@@ -585,9 +585,15 @@ class graph_component
 public:
     static inline constexpr i32 children_max = 4096;
 
-    struct input_connection_error {};
-    struct output_connection_error {};
-    struct children_error {};
+    static inline constexpr const int ID = 1012;
+
+    enum class errc {
+        input_connection_full,
+        output_connection_full,
+        input_connection_already_exists,
+        output_connection_already_exists,
+        children_full,
+    };
 
     enum class graph_type { dot_file, scale_free, small_world };
 
@@ -647,8 +653,8 @@ public:
         small_world_param small;
     };
 
-    id_array<graph_node_id, allocator<new_delete_memory_resource>> nodes;
-    id_array<graph_edge_id, allocator<new_delete_memory_resource>> edges;
+    id_array<graph_node_id> nodes;
+    id_array<graph_edge_id> edges;
 
     vector<std::string_view>             node_names;
     vector<std::string_view>             node_ids;
@@ -671,8 +677,8 @@ public:
     data_array<connection, connection_id> cache_connections;
     vector<name_str>                      cache_names;
 
-    std::array<float, 2> top_left{ +INFINITY, +INFINITY };
-    std::array<float, 2> bottom_right{ -INFINITY, -INFINITY };
+    std::array<float, 2> top_left_limit{ +INFINITY, +INFINITY };
+    std::array<float, 2> bottom_right_limit{ -INFINITY, -INFINITY };
 
     connection_type type = connection_type::name;
 
@@ -704,15 +710,15 @@ public:
 
     //! @brief Tries to add this input connection if it does not already exist.
     //! @return `success()` or `connection_already_exists`.
-    result<input_connection_id> connect_input(const port_id       x,
-                                              const graph_node_id v,
-                                              const port_id       id) noexcept;
+    expected<input_connection_id> connect_input(const port_id       x,
+                                                const graph_node_id v,
+                                                const port_id id) noexcept;
 
     //! @brief Tries to add this output connection if it does not already exist.
     //! @return `success()` or `connection_already_exists`.
-    result<output_connection_id> connect_output(const port_id       y,
-                                                const graph_node_id v,
-                                                const port_id id) noexcept;
+    expected<output_connection_id> connect_output(const port_id       y,
+                                                  const graph_node_id v,
+                                                  const port_id id) noexcept;
 
     //! clear the @c cache and @c cache_connection data_array.
     void clear_cache() noexcept;
@@ -723,14 +729,7 @@ public:
     //! @param mod Necessary to read, check and build components and
     //! connections.
     //! @return success() or @c project::error::not_enough_memory.
-    status build_cache(modeling& mod) noexcept;
-
-    static auto build_error_handlers(log_manager& l) noexcept;
-    static void format_input_connection_error(log_entry& e) noexcept;
-    static void format_input_connection_full_error(log_entry& e) noexcept;
-    static void format_output_connection_error(log_entry& e) noexcept;
-    static void format_output_connection_full_error(log_entry& e) noexcept;
-    static void format_children_error(log_entry& e, e_memory mem) noexcept;
+    expected<void> build_cache(modeling& mod) noexcept;
 };
 
 struct component {
@@ -2011,67 +2010,6 @@ inline auto grid_component::build_error_handlers(log_manager& l) noexcept
       [&](children_connection_error, e_memory mem) {
           l.push(log_level::error,
                  [&](auto& e) { format_children_connection_error(e, mem); });
-      });
-}
-
-inline auto graph_component::build_error_handlers(log_manager& l) noexcept
-{
-    return std::make_tuple(
-      [&](input_connection_error, already_exist_error) {
-          l.push(log_level::error,
-                 [&](auto& e) { format_input_connection_error(e); });
-      },
-      [&](input_connection_error, container_full_error) {
-          l.push(log_level::error,
-                 [&](auto& e) { format_input_connection_full_error(e); });
-      },
-      [&](output_connection_error, already_exist_error) {
-          l.push(log_level::error,
-                 [&](auto& e) { format_output_connection_error(e); });
-      },
-      [&](output_connection_error, container_full_error) {
-          l.push(log_level::error,
-                 [&](auto& e) { format_output_connection_full_error(e); });
-      },
-      [&](children_error, e_memory mem) {
-          l.push(log_level::error,
-                 [&](auto& e) { format_children_error(e, mem); });
-      });
-}
-
-inline auto generic_component::build_error_handlers(log_manager& l) noexcept
-{
-    return std::make_tuple(
-      [&](connection_error, container_full_error) {
-          l.push(log_level::error,
-                 [&](auto& e) { format_input_connection_error(e); });
-      },
-      [&](connection_error, already_exist_error) {
-          l.push(log_level::error,
-                 [&](auto& e) { format_input_connection_error(e); });
-      },
-      [&](connection_error, container_full_error) {
-          l.push(log_level::error,
-                 [&](auto& e) { format_input_connection_error(e); });
-      },
-      [&](input_connection_error, already_exist_error) {
-          l.push(log_level::error,
-                 [&](auto& e) { format_input_connection_error(e); });
-      },
-      [&](input_connection_error, container_full_error) {
-          l.push(log_level::error,
-                 [&](auto& e) { format_input_connection_full_error(e); });
-      },
-      [&](output_connection_error, already_exist_error) {
-          l.push(log_level::error,
-                 [&](auto& e) { format_output_connection_error(e); });
-      },
-      [&](output_connection_error, container_full_error) {
-          l.push(log_level::error,
-                 [&](auto& e) { format_output_connection_full_error(e); });
-      },
-      [&](children_error, container_full_error) {
-          l.push(log_level::error, [&](auto& e) { format_children_error(e); });
       });
 }
 

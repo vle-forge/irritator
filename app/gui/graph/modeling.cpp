@@ -401,14 +401,16 @@ struct graph_component_editor_data::impl {
         ImDrawList*    draw_list = ImGui::GetWindowDrawList();
 
         if (ed.st == graph_component_editor_data::status::center_required)
-            center_camera(ImVec2(data.top_left[0], data.top_left[1]),
-                          ImVec2(data.bottom_right[0], data.bottom_right[1]),
-                          canvas_sz);
+            center_camera(
+              ImVec2(data.top_left_limit[0], data.top_left_limit[1]),
+              ImVec2(data.bottom_right_limit[0], data.bottom_right_limit[1]),
+              canvas_sz);
 
         if (ed.st == graph_component_editor_data::status::auto_fit_required)
-            auto_fit_camera(ImVec2(data.top_left[0], data.top_left[1]),
-                            ImVec2(data.bottom_right[0], data.bottom_right[1]),
-                            canvas_sz);
+            auto_fit_camera(
+              ImVec2(data.top_left_limit[0], data.top_left_limit[1]),
+              ImVec2(data.bottom_right_limit[0], data.bottom_right_limit[1]),
+              canvas_sz);
 
         draw_list->AddRect(canvas_p0, canvas_p1, IM_COL32(255, 255, 255, 255));
 
@@ -769,15 +771,17 @@ struct graph_component_editor_data::impl {
     static void update_bound(graph_component&   graph,
                              std::integral auto i) noexcept
     {
-        graph.top_left[0] = std::min(
-          graph.top_left[0], graph.node_positions[i][0] - graph.node_areas[i]);
-        graph.top_left[1] = std::min(
-          graph.top_left[1], graph.node_positions[i][1] - graph.node_areas[i]);
-        graph.bottom_right[0] =
-          std::max(graph.bottom_right[0],
+        graph.top_left_limit[0] =
+          std::min(graph.top_left_limit[0],
+                   graph.node_positions[i][0] - graph.node_areas[i]);
+        graph.top_left_limit[1] =
+          std::min(graph.top_left_limit[1],
+                   graph.node_positions[i][1] - graph.node_areas[i]);
+        graph.bottom_right_limit[0] =
+          std::max(graph.bottom_right_limit[0],
                    graph.node_positions[i][0] + graph.node_areas[i]);
-        graph.bottom_right[1] =
-          std::max(graph.bottom_right[1],
+        graph.bottom_right_limit[1] =
+          std::max(graph.bottom_right_limit[1],
                    graph.node_positions[i][1] + graph.node_areas[i]);
     }
 
