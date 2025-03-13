@@ -255,6 +255,25 @@ struct graph_component_editor_data::impl {
           "are randomly rewired to different vertices with a probability p.");
     }
 
+    void show_project_params(graph_component& graph) noexcept
+    {
+        static const char* names[] = { "in-out", "name", "name+suffix" };
+
+        int type = ordinal(graph.type);
+        if (ImGui::Combo("connection type", &type, names, length(names))) {
+            graph.type = enum_cast<graph_component::connection_type>(type);
+        }
+        ImGui::SameLine();
+        HelpMarker(
+          "- in-out: only connect output port `out' to input port `in'.\n"
+          "- name: only connect output port to input port with the same name.\n"
+          "- name+suffix: connect output port to input port with the same "
+          "prefix. The suffix, an integer, is used to allow connection of "
+          "output port from varius models to input ports with suffix (ie. two "
+          "models m1 and m2 with output port M connect to input port M_0 and "
+          "M_1 of a thrid model.");
+    }
+
     void show_random_graph_params(application&     app,
                                   graph_component& graph) noexcept
     {
@@ -730,6 +749,7 @@ struct graph_component_editor_data::impl {
 
                 show_random_graph_type(*graph);
                 show_random_graph_params(app, *graph);
+                show_project_params(*graph);
 
                 if (ed.automatic_layout) {
                     bool again = compute_automatic_layout(*graph);
