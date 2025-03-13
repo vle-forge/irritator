@@ -616,8 +616,10 @@ public:
     };
 
     enum class connection_type : i8 {
-        number, ///< Only one port for all neighbor.
-        name    ///< One, two, three or four ports according to neighbor.
+        in_out,      //!< Connect only output port 'out' to input port 'in'.
+        name,        //!< Connect output port to input port with same name.
+        name_suffix, //!< Connect output port to inport port with the same name
+                     //!< and an integer.
     };
 
     struct dot_file_param {

@@ -14,6 +14,32 @@
 
 namespace irt {
 
+constexpr inline auto split(const std::string_view str,
+                            const char             delim = '_') noexcept
+  -> std::pair<std::string_view, std::string_view>
+{
+    if (const auto pos = str.find_last_of(delim);
+        pos != std::string_view::npos) {
+        if (std::cmp_less(pos + 1, str.size())) {
+            return std::make_pair(str.substr(0, pos),
+                                  str.substr(pos + 1, std::string_view::npos));
+        } else {
+            return std::make_pair(str.substr(0, pos), std::string_view{});
+        }
+    } else {
+        return std::make_pair(str, std::string_view{});
+    }
+}
+
+static_assert(split("m_0", '_').first == std::string_view("m"));
+static_assert(split("m_0", '_').second == std::string_view("0"));
+static_assert(split("m_123", '_').first == std::string_view("m"));
+static_assert(split("m_123", '_').second == std::string_view("123"));
+static_assert(split("m", '_').first == std::string_view("m"));
+static_assert(split("m", '_').second == std::string_view{});
+static_assert(split("m_", '_').first == std::string_view("m"));
+static_assert(split("m_", '_').second == std::string_view{});
+
 inline result<registred_path&> get_reg(modeling&         mod,
                                        registred_path_id id) noexcept
 {

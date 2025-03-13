@@ -143,69 +143,57 @@ static auto build_graph_children(modeling& mod, graph_component& graph) noexcept
     return tr;
 }
 
-static void in_out_connection_add(modeling&        mod,
-                                  graph_component& compo,
-                                  child_id         src_id,
-                                  child_id         dst_id) noexcept
+static void in_out_connection_add(graph_component& compo,
+                                  const child_id   src_id,
+                                  const child_id   dst_id,
+                                  const component& src,
+                                  const component& dst) noexcept
 {
-    auto* src = compo.cache.try_to_get(src_id);
-    auto* dst = compo.cache.try_to_get(dst_id);
-
-    if (src and dst) {
-        if (src->type == child_type::component) {
-            auto* c_src = mod.components.try_to_get(src->id.compo_id);
-            if (c_src) {
-                const auto p_src = c_src->get_y("out");
-
-                if (dst->type == child_type::component) {
-                    auto* c_dst = mod.components.try_to_get(dst->id.compo_id);
-                    if (c_dst) {
-                        const auto p_dst = c_dst->get_x("in");
-
-                        if (is_defined(p_src) and is_defined(p_dst)) {
-                            compo.cache_connections.alloc(
-                              src_id, p_src, dst_id, p_dst);
-                        }
-                    }
-                }
-            }
+    if (const auto p_src = src.get_y("out"); is_defined(p_src)) {
+        if (const auto p_dst = dst.get_x("in"); is_defined(p_dst)) {
+            compo.cache_connections.alloc(src_id, p_src, dst_id, p_dst);
         }
     }
 }
 
-static void named_connection_add(modeling&        mod,
-                                 graph_component& compo,
-                                 child_id         src_id,
-                                 child_id         dst_id) noexcept
+static void named_connection_add(graph_component& compo,
+                                 const child_id   src_id,
+                                 const child_id   dst_id,
+                                 const component& src,
+                                 const component& dst) noexcept
 {
-    auto* src = compo.cache.try_to_get(src_id);
-    auto* dst = compo.cache.try_to_get(dst_id);
+    src.y.for_each<port_str>([&](const auto sid, const auto& sname) noexcept {
+        dst.x.for_each<port_str>(
+          [&](const auto did, const auto& dname) noexcept {
+              if (sname == dname)
+                  compo.cache_connections.alloc(src_id, sid, dst_id, did);
+          });
+    });
+}
 
-    if (src and dst) {
-        if (src->type == child_type::component) {
-            auto* c_src = mod.components.try_to_get(src->id.compo_id);
-            if (c_src) {
-                if (dst->type == child_type::component) {
-                    auto* c_dst = mod.components.try_to_get(dst->id.compo_id);
-                    if (c_dst) {
-                        auto     sz_src = c_src->x.ssize();
-                        auto     sz_dst = c_dst->y.ssize();
-                        port_str temp;
+static void named_suffix_connection_add(graph_component&     compo,
+                                        const child_id       src_id,
+                                        const child_id       dst_id,
+                                        const component&     src,
+                                        const component&     dst,
+                                        const std::span<int> suffix) noexcept
+{
+    src.y.for_each<port_str>([&](const auto sid, const auto& sname) noexcept {
+        dst.x.for_each<port_str>(
+          [&](const auto did, const auto& dname) noexcept {
+              auto dual = split(dname.sv(), '_');
+              if (dual.first == sname.sv()) {
+                  small_string<16> tmp;
+                  const auto       nb = suffix[get_index(dst_id)];
+                  format(tmp, "{}", nb);
 
-                        format(temp, "{}", sz_src);
-                        const auto p_src = c_src->get_x(temp.sv());
-
-                        format(temp, "{}", sz_dst);
-                        const auto p_dst = c_dst->get_y(temp.sv());
-
-                        if (is_defined(p_src) and is_defined(p_dst))
-                            compo.cache_connections.alloc(
-                              src_id, p_src, dst_id, p_dst);
-                    }
-                }
-            }
-        }
-    }
+                  if (tmp.sv() == dual.second) {
+                      compo.cache_connections.alloc(src_id, sid, dst_id, did);
+                      suffix[get_index(dst_id)] += 1;
+                  }
+              }
+          });
+    });
 }
 
 static std::optional<std::filesystem::path> build_dot_filename(
@@ -463,20 +451,50 @@ static void build_graph_connections(
   graph_component&                      graph,
   const table<graph_node_id, child_id>& vertex) noexcept
 {
+    vector<int> name_suffix_table;
+
+    if (graph.type == graph_component::connection_type::name_suffix)
+        name_suffix_table.resize(graph.nodes.size(), 0);
+
     for (const auto id : graph.edges) {
         const auto idx  = get_index(id);
         const auto u_id = graph.edges_nodes[idx][0];
         const auto v_id = graph.edges_nodes[idx][1];
 
         if (graph.nodes.exists(u_id) and graph.nodes.exists(v_id)) {
-            const auto u = vertex.get(u_id);
-            const auto v = vertex.get(v_id);
+            if (const auto u = vertex.get(u_id)) {
+                if (const auto v = vertex.get(v_id)) {
+                    if (auto* src = graph.cache.try_to_get(*u);
+                        src and src->type == child_type::component) {
+                        if (auto* dst = graph.cache.try_to_get(*u);
+                            dst and dst->type == child_type::component) {
 
-            if (u and v) {
-                if (graph.type == graph_component::connection_type::name) {
-                    named_connection_add(mod, graph, *u, *v);
-                } else {
-                    in_out_connection_add(mod, graph, *u, *v);
+                            const auto* c_src =
+                              mod.components.try_to_get(src->id.compo_id);
+                            const auto* c_dst =
+                              mod.components.try_to_get(dst->id.compo_id);
+
+                            switch (graph.type) {
+                            case graph_component::connection_type::in_out:
+                                in_out_connection_add(
+                                  graph, *u, *v, *c_src, *c_dst);
+                                break;
+                            case graph_component::connection_type::name:
+                                named_connection_add(
+                                  graph, *u, *v, *c_src, *c_dst);
+                                break;
+                            case graph_component::connection_type::name_suffix:
+                                named_suffix_connection_add(
+                                  graph,
+                                  *u,
+                                  *v,
+                                  *c_src,
+                                  *c_dst,
+                                  std::span(name_suffix_table));
+                                break;
+                            }
+                        }
+                    }
                 }
             }
         }
