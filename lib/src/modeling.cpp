@@ -174,6 +174,23 @@ static auto push_back_if_not_exists(modeling&                    mod,
     }
 }
 
+dir_path_id registred_path::search(
+  const data_array<dir_path, dir_path_id>& data,
+  const std::string_view                   dir_name) noexcept
+{
+    for (const auto& elem : data)
+        if (elem.path.sv() == dir_name)
+            return data.get_id(elem);
+
+    return undefined<dir_path_id>();
+}
+
+bool registred_path::exists(const data_array<dir_path, dir_path_id>& data,
+                            const std::string_view dir_name) noexcept
+{
+    return search(data, dir_name) != undefined<dir_path_id>();
+}
+
 auto dir_path::refresh(modeling& mod) noexcept -> vector<file_path_id>
 {
     namespace fs = std::filesystem;
@@ -550,8 +567,8 @@ status modeling::fill_components(registred_path& path) noexcept
     return success();
 }
 
-auto search_reg(const modeling&  mod,
-                std::string_view name) noexcept -> const registred_path*
+auto search_reg(const modeling& mod, std::string_view name) noexcept
+  -> const registred_path*
 {
     for (const auto& reg : mod.registred_paths)
         if (name == reg.name.sv())
@@ -574,8 +591,8 @@ auto search_dir_in_reg(const modeling&       mod,
     return nullptr;
 }
 
-auto search_dir(const modeling&  mod,
-                std::string_view name) noexcept -> const dir_path*
+auto search_dir(const modeling& mod, std::string_view name) noexcept
+  -> const dir_path*
 {
     for (auto reg_id : mod.component_repertories) {
         if (auto* reg = mod.registred_paths.try_to_get(reg_id); reg) {

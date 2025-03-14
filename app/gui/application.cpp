@@ -19,6 +19,209 @@
 
 namespace irt {
 
+static const std::string_view extensions[] = { ".dot", ".irt" };
+
+static constexpr const char* empty = "-";
+
+static auto get_reg_preview(const application&      app,
+                            const registred_path_id id) noexcept -> const char*
+{
+    if (auto* reg = app.mod.registred_paths.try_to_get(id)) {
+        return reg->name.c_str();
+    } else {
+        return empty;
+    }
+}
+
+static auto get_dir_preview(const application& app,
+                            const dir_path_id  id) noexcept -> const char*
+{
+    if (auto* dir = app.mod.dir_paths.try_to_get(id)) {
+        return dir->path.c_str();
+    } else {
+        return empty;
+    }
+}
+
+static auto combobox_reg(application& app, registred_path_id& in_out) noexcept
+  -> bool
+{
+    const char* reg_preview = get_reg_preview(app, in_out);
+    auto        ret         = false;
+
+    if (ImGui::BeginCombo("Path", reg_preview)) {
+        int i = 0;
+        for (auto& reg : app.mod.registred_paths) {
+            if (reg.status == registred_path::state::error)
+                continue;
+
+            ImGui::PushID(i++);
+            const auto id = app.mod.registred_paths.get_id(reg);
+            if (ImGui::Selectable(
+                  reg.path.c_str(), in_out == id, ImGuiSelectableFlags_None)) {
+                in_out = id;
+                ret    = true;
+            }
+            ImGui::PopID();
+        }
+
+        ImGui::EndCombo();
+    }
+
+    return ret;
+}
+
+static auto combobox_dir(application&          app,
+                         const registred_path& reg,
+                         dir_path_id&          in_out) noexcept -> bool
+{
+
+    auto  ret         = false;
+    auto* dir_preview = get_dir_preview(app, in_out);
+
+    if (ImGui::BeginCombo("Dir", dir_preview)) {
+        int i = 0;
+        ImGui::PushID(i++);
+        if (ImGui::Selectable("##empty-dir", is_undefined(in_out))) {
+            in_out = undefined<dir_path_id>();
+        }
+        ImGui::PopID();
+
+        for (auto id : reg.children) {
+            if (auto* dir = app.mod.dir_paths.try_to_get(id)) {
+                ImGui::PushID(i++);
+                if (ImGui::Selectable(dir->path.c_str(), in_out == id)) {
+                    in_out = id;
+                    ret    = true;
+                }
+                ImGui::PopID();
+            }
+        }
+        ImGui::EndCombo();
+    }
+
+    return ret;
+}
+
+static auto combobox_newdir(application&    app,
+                            registred_path& reg,
+                            dir_path_id&    in_out) noexcept -> bool
+{
+    auto ret = false;
+
+    if (auto* dir = app.mod.dir_paths.try_to_get(in_out); not dir) {
+        directory_path_str dir_name;
+
+        if (ImGui::InputFilteredString("New dir.##dir", dir_name)) {
+            if (reg.exists(app.mod.dir_paths, dir_name.sv())) {
+                auto& new_dir  = app.mod.dir_paths.alloc();
+                auto  dir_id   = app.mod.dir_paths.get_id(new_dir);
+                auto  reg_id   = app.mod.registred_paths.get_id(reg);
+                new_dir.parent = reg_id;
+                new_dir.path   = dir_name;
+                new_dir.status = dir_path::state::unread;
+                reg.children.emplace_back(dir_id);
+                ret = true;
+
+                if (not app.mod.create_directories(new_dir)) {
+                    app.notifications.try_insert(
+                      log_level::error, [&](auto& title, auto& msg) noexcept {
+                          format(
+                            title, "Fail to create directory ", dir_name.sv());
+                          format(msg,
+                                 "Error in recorded name `{}' path`{}'",
+                                 reg.name.sv(),
+                                 reg.path.sv());
+                      });
+                }
+            }
+        }
+    }
+
+    return ret;
+}
+
+static bool end_with(std::string_view v, file_path_selector_option opt) noexcept
+{
+    switch (opt) {
+    case file_path_selector_option::none:
+        return true;
+    case file_path_selector_option::force_irt_extension:
+        return v.ends_with(extensions[ordinal(opt)]);
+    case file_path_selector_option::force_dot_extension:
+        return v.ends_with(extensions[ordinal(opt)]);
+    }
+
+    irt::unreachable();
+}
+
+static void add_extension(file_path_str&   file,
+                          std::string_view extension) noexcept
+{
+    const std::decay_t<decltype(file)> tmp(file);
+
+    if (auto dot = tmp.sv().find_last_of('.'); dot != std::string_view::npos) {
+        format(file, "{}{}", tmp.sv().substr(0, dot), extension);
+    } else {
+        format(file, "{}{}", tmp.sv(), extension);
+    }
+}
+
+static auto combobox_file(application&              app,
+                          file_path_selector_option opt,
+                          dir_path&                 dir,
+                          file_path_id&             in_out) noexcept -> bool
+{
+    auto  ret  = false;
+    auto* file = app.mod.file_paths.try_to_get(in_out);
+
+    if (not file) {
+        auto& f     = app.mod.file_paths.alloc();
+        auto  id    = app.mod.file_paths.get_id(f);
+        f.component = undefined<component_id>();
+        f.parent    = app.mod.dir_paths.get_id(dir);
+        dir.children.emplace_back(id);
+        file = &f;
+    }
+
+    if (ImGui::InputFilteredString("File##text", file->path)) {
+        if (not end_with(file->path.sv(), opt)) {
+            add_extension(file->path, extensions[ordinal(opt)]);
+        }
+        ret = true;
+    }
+
+    return ret;
+}
+
+auto file_path_selector(application&              app,
+                        file_path_selector_option opt,
+                        registred_path_id&        reg_id,
+                        dir_path_id&              dir_id,
+                        file_path_id&             file_id) noexcept -> bool
+{
+    auto ret = false;
+    if (combobox_reg(app, reg_id))
+        ret = true;
+
+    if (auto* reg = app.mod.registred_paths.try_to_get(reg_id)) {
+        if (combobox_dir(app, *reg, dir_id))
+            ret = true;
+
+        if (auto* dir = app.mod.dir_paths.try_to_get(dir_id); not dir) {
+            if (combobox_newdir(app, *reg, dir_id))
+                ret = true;
+        }
+
+        if (auto* dir = app.mod.dir_paths.try_to_get(dir_id)) {
+            if (combobox_file(app, opt, *dir, file_id))
+                ret = true;
+        }
+    }
+
+    return ret;
+}
+
 application::application() noexcept
   : task_mgr{}
   , pjs(16)

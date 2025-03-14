@@ -832,6 +832,10 @@ struct component {
       srcs; /**<! Each component stores potential external source. */
 };
 
+struct registred_path;
+struct dir_path;
+struct file_path;
+
 struct registred_path {
     enum class state : u8 {
         lock,   /**< `dir-path` is locked during I/O operation. Do not use this
@@ -848,6 +852,26 @@ struct registred_path {
         read_only    = 1 << 2,
         Count,
     };
+
+    /**
+     * Linear search a directory with the name @a dir_name in the @a children
+     * vector.
+     * @param data A @a data_array of @a dir_path.
+     * @param dir_name The name to search.
+     * @return The directory identifier or @a undefined otherwise.
+     */
+    dir_path_id search(const data_array<dir_path, dir_path_id>& data,
+                       const std::string_view dir_name) noexcept;
+
+    /**
+     * Returns true if a directory with the name @a dir_name in the @a children
+     * vector exists in this @a registred_path.
+     * @param data A @a data_array of @a dir_path.
+     * @param dir_name The name to search.
+     * @return @a true is the directory exists, false otherwise.
+     */
+    bool exists(const data_array<dir_path, dir_path_id>& data,
+                const std::string_view                   dir_name) noexcept;
 
     registred_path_str path; /**< Stores an absolute path in utf8 format. */
     name_str           name; /**< Stores a user name, the same name as in the

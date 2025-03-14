@@ -78,6 +78,27 @@ void show_menu_external_sources(external_source& srcs,
                                 const char*      title,
                                 source&          src) noexcept;
 
+enum class file_path_selector_option {
+    none,
+    force_dot_extension,
+    force_irt_extension
+};
+
+/**
+ * Display @a ImGui::ComboBox widgets to select file, dir and recorded paths.
+ * @param app @a application to get @a modeling, @a notifications etc.
+ * @param opt Options to force file path extension.
+ * @param [in-out] reg_id @a recorded_path identifier.
+ * @param [in-out] dir_id @a dir_path identifier.
+ * @param [in-out] file_id @a file_path identifier.
+ * @return @a true if a change occured in idenfiers parameters.
+ */
+auto file_path_selector(application&              app,
+                        file_path_selector_option opt,
+                        registred_path_id&        reg_id,
+                        dir_path_id&              dir_id,
+                        file_path_id&             file_id) noexcept -> bool;
+
 /** Display two combox, one per line. The first to select the source type,
  * second to select the source identifier. */
 void show_combobox_external_sources(external_source& srcs,
