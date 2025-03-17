@@ -3275,10 +3275,10 @@ struct json_dearchiver::impl {
 
     bool graph_children_add(graph_component& graph, component_id c_id) noexcept
     {
-        const auto id  = graph.nodes.alloc();
+        const auto id  = graph.g.nodes.alloc();
         const auto idx = get_index(id);
 
-        graph.node_components[idx] = c_id;
+        graph.g.node_components[idx] = c_id;
 
         return true;
     }
@@ -3406,12 +3406,12 @@ struct json_dearchiver::impl {
 
     bool reserve_graph_node(graph_component& compo, i64 len)
     {
-        compo.nodes.reserve(len);
-        compo.node_areas.resize(len);
-        compo.node_components.resize(len);
-        compo.node_ids.resize(len);
-        compo.node_names.resize(len);
-        compo.node_positions.resize(len);
+        compo.g.nodes.reserve(len);
+        compo.g.node_areas.resize(len);
+        compo.g.node_components.resize(len);
+        compo.g.node_ids.resize(len);
+        compo.g.node_names.resize(len);
+        compo.g.node_positions.resize(len);
 
         return true;
     }
@@ -3421,7 +3421,7 @@ struct json_dearchiver::impl {
     {
         auto_stack s(this, "component graph children");
 
-        compo.nodes.clear();
+        compo.g.nodes.clear();
 
         if (auto it = val.FindMember("children");
             it != val.MemberEnd() and it->value.IsArray()) {
@@ -6462,10 +6462,10 @@ struct json_archiver::impl {
 
             w.Key("children");
             w.StartArray();
-            for (const auto id : g.nodes) {
+            for (const auto id : g.g.nodes) {
                 const auto idx = get_index(id);
                 w.StartObject();
-                write_child_component(mod, g.node_components[idx], w);
+                write_child_component(mod, g.g.node_components[idx], w);
                 w.EndObject();
             }
             w.EndArray();
@@ -6483,10 +6483,10 @@ struct json_archiver::impl {
 
             w.Key("children");
             w.StartArray();
-            for (const auto id : g.nodes) {
+            for (const auto id : g.g.nodes) {
                 const auto idx = get_index(id);
                 w.StartObject();
-                write_child_component(mod, g.node_components[idx], w);
+                write_child_component(mod, g.g.node_components[idx], w);
                 w.EndObject();
             }
             w.EndArray();

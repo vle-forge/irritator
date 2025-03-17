@@ -624,8 +624,8 @@ auto library_window::is_component_deletable(
             case component_type::graph:
                 if (const auto* g =
                       app.mod.graph_components.try_to_get(c.id.graph_id)) {
-                    for (const auto i : g->nodes) {
-                        if (g->node_components[get_index(i)] == id)
+                    for (const auto i : g->g.nodes) {
+                        if (g->g.node_components[get_index(i)] == id)
                             return is_component_deletable_t::used_by_component;
                     }
                 }

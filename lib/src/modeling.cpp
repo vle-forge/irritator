@@ -929,9 +929,12 @@ static bool can_add_component(const modeling&       mod,
     case component_type::graph: {
         auto id = compo.id.graph_id;
         if (auto* g = mod.graph_components.try_to_get(id); g) {
-            for (const auto edge_id : g->nodes)
+            for (const auto edge_id : g->g.nodes)
                 if (not can_add_component(
-                      mod, g->node_components[get_index(edge_id)], out, search))
+                      mod,
+                      g->g.node_components[get_index(edge_id)],
+                      out,
+                      search))
                     return false;
         }
     } break;

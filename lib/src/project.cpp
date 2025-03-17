@@ -777,7 +777,7 @@ static void get_input_models(vector<model_port>&    inputs,
         if (con.x != p)
             continue;
 
-        if (not graph.nodes.exists(con.v))
+        if (not graph.g.nodes.exists(con.v))
             continue;
 
         const auto idx = get_index(con.v);
@@ -882,7 +882,7 @@ static void get_output_models(vector<model_port>&    outputs,
         if (con.y != p)
             continue;
 
-        if (not graph.nodes.exists(con.v))
+        if (not graph.g.nodes.exists(con.v))
             continue;
 
         const auto idx = get_index(con.v);
@@ -1069,7 +1069,7 @@ static status make_component_cache(project& /*pj*/, modeling& mod) noexcept
     for (auto& graph : mod.graph_components)
         if (auto ret = graph.build_cache(mod); not ret.has_value())
             return new_error(project::component_type_error);
- 
+
     return success();
 }
 
@@ -1195,10 +1195,10 @@ public:
     {
         project::required_data ret;
 
-        for (const auto id : g.nodes) {
+        for (const auto id : g.g.nodes) {
             const auto  idx = get_index(id);
             const auto* sub_c =
-              mod.components.try_to_get(g.node_components[idx]);
+              mod.components.try_to_get(g.g.node_components[idx]);
 
             if (sub_c)
                 ret += compute(mod, *sub_c);
@@ -1668,8 +1668,8 @@ auto project::tree_nodes_size() const noexcept -> std::pair<int, int>
 }
 
 template<typename T>
-static auto already_name_exists(const T&         obs,
-                                std::string_view str) noexcept -> bool
+static auto already_name_exists(const T& obs, std::string_view str) noexcept
+  -> bool
 {
     return std::any_of(
       obs.begin(), obs.end(), [str](const auto& o) noexcept -> bool {

@@ -305,6 +305,13 @@ public:
     string_buffer(string_buffer&&) noexcept            = default;
     string_buffer& operator=(string_buffer&&) noexcept = default;
 
+    /**
+     * Clear the underlying container (ie. call the @a container_type::clear()
+     * function.
+     * @attention Any use of @a std::string_view after @a clear() is UB.
+     */
+    void clear() noexcept;
+
     //! Appends a `std::string_view` into the buffer and returns a new
     //! `std::string_view` to this new chunck of characters. If necessary, a new
     //! `value_type` is allocated to storage large number of strings.
@@ -344,6 +351,12 @@ inline std::string_view string_buffer::append(std::string_view str) noexcept
     std::copy_n(str.data(), str.size(), buffer);
 
     return std::string_view(buffer, str.size());
+}
+
+inline void string_buffer::clear() noexcept
+{
+    m_container.clear();
+    m_position = 0;
 }
 
 inline std::size_t string_buffer::size() const noexcept

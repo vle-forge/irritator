@@ -5,53 +5,17 @@
 #ifndef ORG_VLEPROJECT_IRRITATOR_2024_SRC_DOT_PARSER
 #define ORG_VLEPROJECT_IRRITATOR_2024_SRC_DOT_PARSER
 
-#include <irritator/core.hpp>
 #include <irritator/modeling.hpp>
 
 namespace irt {
 
-struct dot_graph {
-    enum class errc : i16 {
-        buffer_empty,
-        memory_insufficient,
-        file_unreachable,
-        format_illegible
-    };
+expected<graph> parse_dot_buffer(const modeling&  mod,
+                                 std::string_view buffer) noexcept;
 
-    id_array<graph_node_id> nodes;
-    id_array<graph_edge_id> edges;
+expected<graph> parse_dot_buffer(std::string_view buffer) noexcept;
 
-    vector<std::string_view>             node_names;
-    vector<std::string_view>             node_ids;
-    vector<std::array<float, 2>>         node_positions;
-    vector<component_id>                 node_components;
-    vector<float>                        node_areas;
-    vector<std::array<graph_node_id, 2>> edges_nodes;
-
-    std::string_view main_id;
-
-    string_buffer buffer;
-
-    bool is_strict  = false;
-    bool is_graph   = false;
-    bool is_digraph = false;
-
-    /**
-     * @brief Build a @c irt::table from node name to node identifier.
-     * This function use the @c node_names and @c nodes object, do not change
-     * this object after building a toc.
-     * @return A string-to-node table.
-     */
-    table<std::string_view, graph_node_id> make_toc() const noexcept;
-};
-
-expected<dot_graph> parse_dot_buffer(const modeling&  mod,
-                                     std::string_view buffer) noexcept;
-
-expected<dot_graph> parse_dot_buffer(std::string_view buffer) noexcept;
-
-expected<dot_graph> parse_dot_file(const modeling&              mod,
-                                   const std::filesystem::path& p) noexcept;
+expected<graph> parse_dot_file(const modeling&              mod,
+                               const std::filesystem::path& p) noexcept;
 
 /**
  * @brief Write the @a graph into a text based file.
@@ -60,7 +24,7 @@ expected<dot_graph> parse_dot_file(const modeling&              mod,
  * @return @a vector<char> or error_code if error.
  */
 expected<void> write_dot_file(const modeling&              mod,
-                              const dot_graph&             graph,
+                              const graph&                 graph,
                               const std::filesystem::path& path) noexcept;
 
 /**
@@ -69,8 +33,8 @@ expected<void> write_dot_file(const modeling&              mod,
  * @param graph dot-graph to write.
  * @return @a vector<char> or error_code if error.
  */
-expected<vector<char>> write_dot_buffer(const modeling&  mod,
-                                        const dot_graph& graph) noexcept;
+expected<vector<char>> write_dot_buffer(const modeling& mod,
+                                        const graph&    graph) noexcept;
 
 } // irt
 

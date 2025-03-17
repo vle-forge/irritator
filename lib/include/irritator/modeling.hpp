@@ -571,6 +571,68 @@ public:
                                                  e_memory   mem) noexcept;
 };
 
+/**
+ * A generic graph structure to stores nodes, edges, properties.
+ */
+class graph
+{
+public:
+    enum class errc : i16 {
+        buffer_empty,
+        memory_insufficient,
+        file_unreachable,
+        format_illegible
+    };
+
+    graph() noexcept = default;
+
+    explicit graph(const graph& other) noexcept;
+    explicit graph(graph&& other) noexcept;
+
+    graph& operator=(const graph& other) noexcept;
+    graph& operator=(graph&& other) noexcept;
+
+    id_array<graph_node_id> nodes;
+    id_array<graph_edge_id> edges;
+
+    vector<std::string_view>             node_names;
+    vector<std::string_view>             node_ids;
+    vector<std::array<float, 2>>         node_positions;
+    vector<component_id>                 node_components;
+    vector<float>                        node_areas;
+    vector<std::array<graph_node_id, 2>> edges_nodes;
+
+    std::string_view main_id;
+
+    string_buffer buffer; /**< Stores all strings from @a node_names, @a
+                             node_ids and @a main_id.*/
+
+    bool is_strict  = false;
+    bool is_graph   = false;
+    bool is_digraph = false;
+
+    /**
+     * Reserve memory for nodes @a data_array and resize memory for @c vector
+     * for at least @a i nodes.
+     * @param n Nodes number.
+     * @param e Edges number.
+     */
+    void reserve(int n, int e) noexcept;
+
+    /**
+     * Call @a clear or @a resize(0) for each containers.
+     */
+    void clear() noexcept;
+
+    /**
+     * @brief Build a @c irt::table from node name to node identifier.
+     * This function use the @c node_names and @c nodes object, do not change
+     * this object after building a toc.
+     * @return A string-to-node table.
+     */
+    table<std::string_view, graph_node_id> make_toc() const noexcept;
+};
+
 /// random-graph type:
 /// - scale_free: graph typically has a very skewed degree distribution, where
 ///   few vertices have a very high degree and a large number of vertices have a
@@ -653,17 +715,7 @@ public:
         small_world_param small;
     };
 
-    id_array<graph_node_id> nodes;
-    id_array<graph_edge_id> edges;
-
-    vector<std::string_view>             node_names;
-    vector<std::string_view>             node_ids;
-    vector<std::array<float, 2>>         node_positions;
-    vector<float>                        node_areas;
-    vector<component_id>                 node_components;
-    vector<std::array<graph_node_id, 2>> edges_nodes;
-
-    string_buffer buffer;
+    graph g;
 
     data_array<input_connection, input_connection_id>   input_connections;
     data_array<output_connection, output_connection_id> output_connections;
@@ -682,8 +734,8 @@ public:
 
     connection_type type = connection_type::name;
 
-    graph_component() noexcept = default;
-    graph_component(const graph_component& other) noexcept;
+    graph_component() noexcept                             = default;
+    graph_component(const graph_component& other) noexcept = default;
 
     bool     exists_child(const std::string_view name) const noexcept;
     name_str make_unique_name_id(const graph_node_id v) const noexcept;
@@ -885,9 +937,7 @@ struct registred_path {
     spin_mutex          mutex;
 };
 
-class dir_path
-{
-public:
+struct dir_path {
     enum class state : u8 {
         lock,   /**< `dir-path` is locked during I/O operation. Do not use this
                    class in writing mode. */

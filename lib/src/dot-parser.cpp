@@ -332,26 +332,10 @@ public:
     std::istream& is;
     irt::i64      line = 0;
 
-    irt::id_array<graph_node_id> nodes;
-    irt::id_array<graph_edge_id> edges;
-
-    irt::vector<std::string_view>             node_names;
-    irt::vector<std::string_view>             node_ids;
-    irt::vector<std::array<float, 2>>         node_positions;
-    irt::vector<float>                        node_areas;
-    irt::vector<component_id>                 node_components;
-    irt::vector<std::array<graph_node_id, 2>> edges_nodes;
-
-    std::string_view main_id;
+    graph g;
 
     irt::table<std::string_view, graph_node_id> name_to_node_id;
     bool                                        sort_before_search = false;
-
-    irt::string_buffer buffer;
-
-    bool is_strict  = false;
-    bool is_graph   = false;
-    bool is_digraph = false;
 
     /** Default is to fill the token ring buffer from the @c std::istream.
      *
@@ -399,24 +383,25 @@ private:
         if (auto* found = name_to_node_id.get(name); found)
             return *found;
 
-        if (not nodes.can_alloc(1)) {
-            const auto c = nodes.capacity() == 0 ? 64 : nodes.capacity() * 2;
-            nodes.reserve(c);
-            node_names.resize(c);
-            node_ids.resize(c);
-            node_positions.resize(c);
-            node_areas.resize(c);
-            node_components.resize(c);
+        if (not g.nodes.can_alloc(1)) {
+            const auto c =
+              g.nodes.capacity() == 0 ? 64 : g.nodes.capacity() * 2;
+            g.nodes.reserve(c);
+            g.node_names.resize(c);
+            g.node_ids.resize(c);
+            g.node_positions.resize(c);
+            g.node_areas.resize(c);
+            g.node_components.resize(c);
         }
 
-        const auto id  = nodes.alloc();
+        const auto id  = g.nodes.alloc();
         const auto idx = irt::get_index(id);
 
-        node_names[idx]     = buffer.append(name);
-        node_ids[idx]       = std::string_view{};
-        node_positions[idx] = { 0.f, 0.f };
-        node_areas[idx]     = 0.f;
-        name_to_node_id.data.emplace_back(node_names[idx], id);
+        g.node_names[idx]     = g.buffer.append(name);
+        g.node_ids[idx]       = std::string_view{};
+        g.node_positions[idx] = { 0.f, 0.f };
+        g.node_areas[idx]     = 0.f;
+        name_to_node_id.data.emplace_back(g.node_names[idx], id);
         sort_before_search = true;
 
         return id;
@@ -820,15 +805,15 @@ private:
             const auto right_str = get_and_free_string(right);
 
             if (iequals(left_str, "id"sv)) {
-                node_ids[irt::get_index(id)] = buffer.append(right_str);
+                g.node_ids[irt::get_index(id)] = g.buffer.append(right_str);
             } else if (iequals(left_str, "area"sv)) {
-                node_areas[irt::get_index(id)] = to_float(right_str);
+                g.node_areas[irt::get_index(id)] = to_float(right_str);
             } else if (iequals(left_str, "component"sv)) {
                 if (mod)
-                    node_components[irt::get_index(id)] =
+                    g.node_components[irt::get_index(id)] =
                       search_component(right_str);
             } else if (iequals(left_str, "pos"sv)) {
-                node_positions[irt::get_index(id)] = to_2float(right_str);
+                g.node_positions[irt::get_index(id)] = to_2float(right_str);
             } else {
                 warning<msg_id::unknown_attribute>(left_str, right_str, line);
             }
@@ -871,14 +856,15 @@ private:
         const auto to_str = get_and_free_string(to);
         const auto to_id  = find_or_add_node(to_str);
 
-        if (not edges.can_alloc(1)) {
-            const auto c = edges.capacity() == 0 ? 64 : edges.capacity() * 2;
-            edges.reserve(c);
-            edges_nodes.resize(c);
+        if (not g.edges.can_alloc(1)) {
+            const auto c =
+              g.edges.capacity() == 0 ? 64 : g.edges.capacity() * 2;
+            g.edges.reserve(c);
+            g.edges_nodes.resize(c);
         }
 
-        const auto new_edge_id                   = edges.alloc();
-        edges_nodes[irt::get_index(new_edge_id)] = { from_id, to_id };
+        const auto new_edge_id                     = g.edges.alloc();
+        g.edges_nodes[irt::get_index(new_edge_id)] = { from_id, to_id };
 
         return next_is_attributes() ? parse_attributes(new_edge_id) : true;
     }
@@ -942,11 +928,11 @@ private:
     {
         switch (convert_to_element_type(type)) {
         case element_type::graph:
-            is_graph = true;
+            g.is_graph = true;
             return true;
 
         case element_type::digraph:
-            is_digraph = true;
+            g.is_digraph = true;
             return true;
 
         default:
@@ -968,7 +954,7 @@ private:
         const auto s = get_and_free_string(strict_or_graph);
 
         if (convert_to_element_type(s) == element_type::strict) {
-            is_strict = true;
+            g.is_strict = true;
 
             if (not check_minimum_tokens(1))
                 return false;
@@ -986,7 +972,7 @@ private:
 
         if (next_token_is_string()) {
             const auto m_id = pop_token();
-            main_id         = buffer.append(get_and_free_string(m_id));
+            g.main_id       = g.buffer.append(get_and_free_string(m_id));
         }
 
         return check_minimum_tokens(1) ? parse_stmt_list() : true;
@@ -1003,32 +989,14 @@ private:
     }
 
 public:
-    expected<dot_graph> parse() noexcept
+    expected<graph> parse() noexcept
     {
         fill_tokens();
 
         if (parse_graph())
-            return dot_graph{
-                .nodes = std::move(nodes),
-                .edges = std::move(edges),
+            return std::move(g);
 
-                .node_names      = std::move(node_names),
-                .node_ids        = std::move(node_ids),
-                .node_positions  = std::move(node_positions),
-                .node_components = std::move(node_components),
-                .node_areas      = std::move(node_areas),
-                .edges_nodes     = std::move(edges_nodes),
-
-                .main_id = main_id,
-
-                .buffer = std::move(buffer),
-
-                .is_strict  = is_strict,
-                .is_graph   = is_graph,
-                .is_digraph = is_digraph,
-            };
-
-        return new_error_code(dot_graph::errc::format_illegible);
+        return new_error_code(graph::errc::format_illegible);
     }
 
     // https://graphviz.org/doc/info/lang.html
@@ -1088,11 +1056,11 @@ public:
     {}
 };
 
-expected<dot_graph> parse_dot_buffer(const modeling&        mod,
-                                     const std::string_view buffer) noexcept
+expected<graph> parse_dot_buffer(const modeling&        mod,
+                                 const std::string_view buffer) noexcept
 {
     if (buffer.empty())
-        return new_error_code(dot_graph::errc::buffer_empty);
+        return new_error_code(graph::errc::buffer_empty);
 
     istring_view_stream isvs{ buffer.data(), buffer.size() };
     input_stream_buffer sb{ mod, isvs };
@@ -1100,10 +1068,10 @@ expected<dot_graph> parse_dot_buffer(const modeling&        mod,
     return sb.parse();
 }
 
-expected<dot_graph> parse_dot_buffer(const std::string_view buffer) noexcept
+expected<graph> parse_dot_buffer(const std::string_view buffer) noexcept
 {
     if (buffer.empty())
-        return new_error_code(dot_graph::errc::buffer_empty);
+        return new_error_code(graph::errc::buffer_empty);
 
     istring_view_stream isvs{ buffer.data(), buffer.size() };
     input_stream_buffer sb{ isvs };
@@ -1111,18 +1079,140 @@ expected<dot_graph> parse_dot_buffer(const std::string_view buffer) noexcept
     return sb.parse();
 }
 
-expected<dot_graph> parse_dot_file(const modeling&              mod,
-                                   const std::filesystem::path& p) noexcept
+expected<graph> parse_dot_file(const modeling&              mod,
+                               const std::filesystem::path& p) noexcept
 {
     if (std::ifstream ifs{ p }; ifs) {
         input_stream_buffer sb{ mod, ifs };
         return sb.parse();
     }
 
-    return new_error_code(dot_graph::errc::file_unreachable);
+    return new_error_code(graph::errc::file_unreachable);
 }
 
-irt::table<std::string_view, graph_node_id> dot_graph::make_toc() const noexcept
+graph::graph(const graph& other) noexcept
+  : nodes(other.nodes)
+  , edges(other.edges)
+  , node_names(other.node_names)
+  , node_ids(other.node_ids)
+  , node_positions(other.node_positions)
+  , node_components(other.node_components)
+  , node_areas(other.node_areas)
+  , edges_nodes(other.edges_nodes)
+  , main_id(other.main_id)
+  , is_strict(other.is_strict)
+  , is_graph(other.is_graph)
+  , is_digraph(other.is_digraph)
+{
+    for (const auto id : other.nodes) {
+        const auto idx  = get_index(id);
+        node_names[idx] = buffer.append(other.node_names[idx]);
+        node_ids[idx]   = buffer.append(other.node_ids[idx]);
+    }
+
+    main_id = buffer.append(other.main_id);
+}
+
+graph::graph(graph&& other) noexcept
+  : nodes(std::move(other.nodes))
+  , edges(std::move(other.edges))
+  , node_names(std::move(other.node_names))
+  , node_ids(std::move(other.node_ids))
+  , node_positions(std::move(other.node_positions))
+  , node_components(std::move(other.node_components))
+  , node_areas(std::move(other.node_areas))
+  , edges_nodes(std::move(other.edges_nodes))
+  , main_id(std::move(other.main_id))
+  , buffer(std::move(other.buffer))
+  , is_strict(other.is_strict)
+  , is_graph(other.is_graph)
+  , is_digraph(other.is_digraph)
+{}
+
+graph& graph::operator=(const graph& other) noexcept
+{
+    clear();
+
+    for (const auto id : other.nodes) {
+        const auto idx       = get_index(id);
+        node_names[idx]      = buffer.append(other.node_names[idx]);
+        node_ids[idx]        = buffer.append(other.node_ids[idx]);
+        node_positions[idx]  = other.node_positions[idx];
+        node_components[idx] = other.node_components[idx];
+        node_areas[idx]      = other.node_areas[idx];
+    }
+
+    main_id    = buffer.append(other.main_id);
+    is_strict  = other.is_strict;
+    is_graph   = other.is_graph;
+    is_digraph = other.is_digraph;
+
+    return *this;
+}
+
+graph& graph::operator=(graph&& other) noexcept
+{
+    clear();
+
+    nodes           = std::move(other.nodes);
+    edges           = std::move(other.edges);
+    node_names      = std::move(other.node_names);
+    node_ids        = std::move(other.node_ids);
+    node_positions  = std::move(other.node_positions);
+    node_components = std::move(other.node_components);
+    node_areas      = std::move(other.node_areas);
+    edges_nodes     = std::move(other.edges_nodes);
+    main_id         = std::move(other.main_id);
+    buffer          = std::move(other.buffer);
+    main_id         = other.main_id;
+    is_strict       = other.is_strict;
+    is_graph        = other.is_graph;
+    is_digraph      = other.is_digraph;
+
+    return *this;
+}
+
+void graph::reserve(int n, int e) noexcept
+{
+    if (n > 0) {
+        nodes.reserve(n);
+        node_names.resize(n);
+        node_ids.resize(n);
+        node_positions.resize(n, std::array<float, 2>{ 0.f, 0.f });
+        node_components.resize(n, undefined<component_id>());
+        node_areas.resize(n, 1.f);
+    }
+
+    if (e > 0) {
+        edges_nodes.resize(
+          e,
+          std::array<graph_node_id, 2>{ undefined<graph_node_id>(),
+                                        undefined<graph_node_id>() });
+
+        edges_nodes.resize(e);
+    }
+}
+
+void graph::clear() noexcept
+{
+    nodes.clear();
+    edges.clear();
+    node_names.clear();
+    node_ids.clear();
+    node_positions.clear();
+    node_components.clear();
+    node_areas.clear();
+    edges_nodes.clear();
+    main_id = std::string_view{};
+
+    buffer.clear();
+
+    is_strict  = false;
+    is_graph   = true;
+    is_digraph = false;
+}
+
+irt::table<std::string_view, graph_node_id> graph::make_toc() const noexcept
 {
     irt::table<std::string_view, graph_node_id> ret;
     ret.data.reserve(nodes.size());
@@ -1173,9 +1263,9 @@ static std::optional<reg_dir_file> build_component_string(
 }
 
 template<typename OutputIterator>
-expected<void> write_dot_stream(const modeling&  mod,
-                                const dot_graph& graph,
-                                OutputIterator   out) noexcept
+expected<void> write_dot_stream(const modeling& mod,
+                                const graph&    graph,
+                                OutputIterator  out) noexcept
 {
     if (graph.is_strict)
         out = fmt::format_to(out, "strict ");
@@ -1237,22 +1327,22 @@ expected<void> write_dot_stream(const modeling&  mod,
 }
 
 expected<void> write_dot_file(const modeling&              mod,
-                              const dot_graph&             graph,
+                              const graph&                 graph,
                               const std::filesystem::path& path) noexcept
 {
     if (std::ofstream ofs(path); ofs) {
         return write_dot_stream(mod, graph, std::ostream_iterator<char>(ofs));
     } else {
-        return new_error_code(dot_graph::errc::file_unreachable);
+        return new_error_code(graph::errc::file_unreachable);
     }
 }
 
-expected<vector<char>> write_dot_buffer(const modeling&  mod,
-                                        const dot_graph& graph) noexcept
+expected<vector<char>> write_dot_buffer(const modeling& mod,
+                                        const graph&    graph) noexcept
 {
     vector<char> buffer(4096, reserve_tag{});
     if (buffer.capacity() < 4096)
-        return new_error_code(dot_graph::errc::memory_insufficient);
+        return new_error_code(graph::errc::memory_insufficient);
 
     if (auto ret =
           write_dot_stream(mod, graph, std::back_insert_iterator(buffer));

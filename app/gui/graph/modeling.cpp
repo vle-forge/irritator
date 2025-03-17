@@ -105,11 +105,11 @@ struct graph_component_editor_data::impl {
 
     bool compute_automatic_layout(graph_component& graph) noexcept
     {
-        const auto size = graph.nodes.size();
+        const auto size = graph.g.nodes.size();
         if (size < 2)
             return false;
 
-        ed.displacements.resize(graph.nodes.size());
+        ed.displacements.resize(graph.g.nodes.size());
 
         const auto sqrt_size = std::sqrt(static_cast<float>(size));
         const auto W         = (sqrt_size + 1.f) * ed.distance.x;
@@ -123,27 +123,27 @@ struct graph_component_editor_data::impl {
                        (1.f - (static_cast<float>(ed.iteration) /
                                static_cast<float>(ed.iteration_limit)));
 
-        for (const auto v_edge_id : graph.edges) {
-            const auto& v_edge = graph.edges_nodes[get_index(v_edge_id)];
+        for (const auto v_edge_id : graph.g.edges) {
+            const auto& v_edge = graph.g.edges_nodes[get_index(v_edge_id)];
 
-            if (not graph.nodes.exists(v_edge[1]))
+            if (not graph.g.nodes.exists(v_edge[1]))
                 continue;
 
             const auto v          = get_index(v_edge[1]);
             ed.displacements[v].x = 0.f;
             ed.displacements[v].y = 0.f;
 
-            for (const auto u_edge_id : graph.edges) {
-                const auto& u_edge = graph.edges_nodes[get_index(u_edge_id)];
-                if (not graph.nodes.exists(u_edge[0]))
+            for (const auto u_edge_id : graph.g.edges) {
+                const auto& u_edge = graph.g.edges_nodes[get_index(u_edge_id)];
+                if (not graph.g.nodes.exists(u_edge[0]))
                     continue;
 
                 const auto u = get_index(u_edge[0]);
                 if (u != v) {
-                    const auto delta = ImVec2{
-                        graph.node_positions[v][0] - graph.node_positions[u][0],
-                        graph.node_positions[v][1] - graph.node_positions[u][1]
-                    };
+                    const auto delta = ImVec2{ graph.g.node_positions[v][0] -
+                                                 graph.g.node_positions[u][0],
+                                               graph.g.node_positions[v][1] -
+                                                 graph.g.node_positions[u][1] };
 
                     if (delta.x && delta.y) {
                         const float d2 = delta.x * delta.x + delta.y * delta.y;
@@ -158,15 +158,15 @@ struct graph_component_editor_data::impl {
             }
         }
 
-        for (const auto edge_id : graph.edges) {
-            const auto& edge = graph.edges_nodes[get_index(edge_id)];
+        for (const auto edge_id : graph.g.edges) {
+            const auto& edge = graph.g.edges_nodes[get_index(edge_id)];
 
             const auto  u = get_index(edge[0]);
             const auto  v = get_index(edge[1]);
             const float dx =
-              graph.node_positions[v][0] - graph.node_positions[u][0];
+              graph.g.node_positions[v][0] - graph.g.node_positions[u][0];
             const float dy =
-              graph.node_positions[v][1] - graph.node_positions[u][1];
+              graph.g.node_positions[v][1] - graph.g.node_positions[u][1];
 
             if (dx && dy) {
                 const float coeff = std::sqrt((dx * dx) / (dy * dy)) / k;
@@ -188,8 +188,8 @@ struct graph_component_editor_data::impl {
         }
 
         bool have_big_displacement = false;
-        for (const auto edge_id : graph.edges) {
-            const auto& edge = graph.edges_nodes[get_index(edge_id)];
+        for (const auto edge_id : graph.g.edges) {
+            const auto& edge = graph.g.edges_nodes[get_index(edge_id)];
 
             const auto  v = get_index(edge[1]);
             const float d =
@@ -205,8 +205,8 @@ struct graph_component_editor_data::impl {
             if (ed.displacements[v].x > 10.f or ed.displacements[v].y > 10.f)
                 have_big_displacement = true;
 
-            graph.node_positions[v][0] += ed.displacements[v].x;
-            graph.node_positions[v][1] += ed.displacements[v].y;
+            graph.g.node_positions[v][0] += ed.displacements[v].x;
+            graph.g.node_positions[v][1] += ed.displacements[v].y;
 
             update_bound(graph, v);
         }
@@ -455,8 +455,8 @@ struct graph_component_editor_data::impl {
                 if (not ed.selected_nodes.empty() and
                     ImGui::MenuItem("Delete selected nodes?")) {
                     for (auto id : ed.selected_nodes) {
-                        if (data.nodes.exists(id))
-                            data.nodes.free(id);
+                        if (data.g.nodes.exists(id))
+                            data.g.nodes.free(id);
                     }
                     ed.selected_nodes.clear();
                 }
@@ -464,8 +464,8 @@ struct graph_component_editor_data::impl {
                 if (not ed.selected_edges.empty() and
                     ImGui::MenuItem("Delete selected edges?")) {
                     for (auto id : ed.selected_edges)
-                        if (data.edges.exists(id))
-                            data.edges.free(id);
+                        if (data.g.edges.exists(id))
+                            data.g.edges.free(id);
                     ed.selected_edges.clear();
                 }
 
@@ -503,20 +503,19 @@ struct graph_component_editor_data::impl {
                     ed.selected_edges.clear();
                     ed.selected_nodes.clear();
 
-                    for (const auto id : data.nodes) {
+                    for (const auto id : data.g.nodes) {
                         const auto i = get_index(id);
 
                         ImVec2 p_min(
-                          origin.x + (data.node_positions[i][0] * ed.zoom.x),
-                          origin.y + (data.node_positions[i][1] * ed.zoom.y));
+                          origin.x + (data.g.node_positions[i][0] * ed.zoom.x),
+                          origin.y + (data.g.node_positions[i][1] * ed.zoom.y));
 
-                        ImVec2 p_max(
-                          origin.x +
-                            ((data.node_positions[i][0] + data.node_areas[i]) *
-                             ed.zoom.x),
-                          origin.y +
-                            ((data.node_positions[i][1] + data.node_areas[i]) *
-                             ed.zoom.y));
+                        ImVec2 p_max(origin.x + ((data.g.node_positions[i][0] +
+                                                  data.g.node_areas[i]) *
+                                                 ed.zoom.x),
+                                     origin.y + ((data.g.node_positions[i][1] +
+                                                  data.g.node_areas[i]) *
+                                                 ed.zoom.y));
 
                         if (p_min.x >= bmin.x and p_max.x < bmax.x and
                             p_min.y >= bmin.y and p_max.y < bmax.y) {
@@ -524,29 +523,30 @@ struct graph_component_editor_data::impl {
                         }
                     }
 
-                    for (const auto id : data.edges) {
-                        const auto us = data.edges_nodes[get_index(id)][0];
-                        const auto vs = data.edges_nodes[get_index(id)][1];
+                    for (const auto id : data.g.edges) {
+                        const auto us = data.g.edges_nodes[get_index(id)][0];
+                        const auto vs = data.g.edges_nodes[get_index(id)][1];
 
-                        if (data.nodes.exists(us) and data.nodes.exists(vs)) {
+                        if (data.g.nodes.exists(us) and
+                            data.g.nodes.exists(vs)) {
                             ImVec2 p1(
                               origin.x +
-                                ((data.node_positions[get_index(us)][0] +
-                                  data.node_areas[get_index(us)] / 2.f) *
+                                ((data.g.node_positions[get_index(us)][0] +
+                                  data.g.node_areas[get_index(us)] / 2.f) *
                                  ed.zoom.x),
                               origin.y +
-                                ((data.node_positions[get_index(us)][1] +
-                                  data.node_areas[get_index(vs)] / 2.f) *
+                                ((data.g.node_positions[get_index(us)][1] +
+                                  data.g.node_areas[get_index(vs)] / 2.f) *
                                  ed.zoom.y));
 
                             ImVec2 p2(
                               origin.x +
-                                ((data.node_positions[get_index(vs)][0] +
-                                  data.node_areas[get_index(us)] / 2.f) *
+                                ((data.g.node_positions[get_index(vs)][0] +
+                                  data.g.node_areas[get_index(us)] / 2.f) *
                                  ed.zoom.x),
                               origin.y +
-                                ((data.node_positions[get_index(vs)][1] +
-                                  data.node_areas[get_index(vs)] / 2.f) *
+                                ((data.g.node_positions[get_index(vs)][1] +
+                                  data.g.node_areas[get_index(vs)] / 2.f) *
                                  ed.zoom.y));
 
                             if (is_line_intersects_box(p1, p2, bmin, bmax))
@@ -572,68 +572,70 @@ struct graph_component_editor_data::impl {
                                ImVec2(canvas_p1.x, canvas_p0.y + y),
                                IM_COL32(200, 200, 200, 40));
 
-        for (const auto id : data.nodes) {
+        for (const auto id : data.g.nodes) {
             const auto i = get_index(id);
 
             const ImVec2 p_min(
-              origin.x + (data.node_positions[i][0] * ed.zoom.x),
-              origin.y + (data.node_positions[i][1] * ed.zoom.y));
+              origin.x + (data.g.node_positions[i][0] * ed.zoom.x),
+              origin.y + (data.g.node_positions[i][1] * ed.zoom.y));
 
             const ImVec2 p_max(
-              origin.x +
-                ((data.node_positions[i][0] + data.node_areas[i]) * ed.zoom.x),
-              origin.y +
-                ((data.node_positions[i][1] + data.node_areas[i]) * ed.zoom.y));
+              origin.x + ((data.g.node_positions[i][0] + data.g.node_areas[i]) *
+                          ed.zoom.x),
+              origin.y + ((data.g.node_positions[i][1] + data.g.node_areas[i]) *
+                          ed.zoom.y));
 
             draw_list->AddRectFilled(
               p_min,
               p_max,
-              to_ImU32(
-                app.mod.component_colors[get_index(data.node_components[i])]));
+              to_ImU32(app.mod.component_colors[get_index(
+                data.g.node_components[i])]));
         }
 
         for (const auto id : ed.selected_nodes) {
             const auto i = get_index(id);
 
-            ImVec2 p_min(origin.x + (data.node_positions[i][0] * ed.zoom.x),
-                         origin.y + (data.node_positions[i][1] * ed.zoom.y));
+            ImVec2 p_min(origin.x + (data.g.node_positions[i][0] * ed.zoom.x),
+                         origin.y + (data.g.node_positions[i][1] * ed.zoom.y));
 
             ImVec2 p_max(
-              origin.x +
-                ((data.node_positions[i][0] + data.node_areas[i]) * ed.zoom.x),
-              origin.y +
-                ((data.node_positions[i][1] + data.node_areas[i]) * ed.zoom.y));
+              origin.x + ((data.g.node_positions[i][0] + data.g.node_areas[i]) *
+                          ed.zoom.x),
+              origin.y + ((data.g.node_positions[i][1] + data.g.node_areas[i]) *
+                          ed.zoom.y));
 
             draw_list->AddRect(
               p_min, p_max, IM_COL32(255, 255, 255, 255), 0.f, 0, 4.f);
         }
 
-        for (const auto id : data.edges) {
+        for (const auto id : data.g.edges) {
             const auto i   = get_index(id);
-            const auto u_c = data.edges_nodes[i][0];
-            const auto v_c = data.edges_nodes[i][1];
+            const auto u_c = data.g.edges_nodes[i][0];
+            const auto v_c = data.g.edges_nodes[i][1];
 
-            if (not(data.nodes.exists(u_c) and data.nodes.exists(v_c)))
+            if (not(data.g.nodes.exists(u_c) and data.g.nodes.exists(v_c)))
                 continue;
 
             const auto p_src = get_index(u_c);
             const auto p_dst = get_index(v_c);
 
-            const auto u_width  = data.node_areas[p_src] / 2.f;
-            const auto u_height = data.node_areas[p_src] / 2.f;
+            const auto u_width  = data.g.node_areas[p_src] / 2.f;
+            const auto u_height = data.g.node_areas[p_src] / 2.f;
 
-            const auto v_width  = data.node_areas[p_dst] / 2.f;
-            const auto v_height = data.node_areas[p_dst] / 2.f;
+            const auto v_width  = data.g.node_areas[p_dst] / 2.f;
+            const auto v_height = data.g.node_areas[p_dst] / 2.f;
 
-            ImVec2 src(origin.x + ((data.node_positions[p_src][0] + u_width) *
-                                   ed.zoom.x),
-                       origin.y + ((data.node_positions[p_src][1] + u_height) *
-                                   ed.zoom.y));
+            ImVec2 src(
+              origin.x +
+                ((data.g.node_positions[p_src][0] + u_width) * ed.zoom.x),
+              origin.y +
+                ((data.g.node_positions[p_src][1] + u_height) * ed.zoom.y));
 
-            ImVec2 dst(origin.x + ((data.node_positions[p_dst][0] + v_width) *
-                                   ed.zoom.x),
-                       origin.y + ((data.node_positions[p_dst][1] + v_height) *
-                                   ed.zoom.y));
+            ImVec2 dst(
+              origin.x +
+                ((data.g.node_positions[p_dst][0] + v_width) * ed.zoom.x),
+              origin.y +
+                ((data.g.node_positions[p_dst][1] + v_height) * ed.zoom.y));
 
             draw_list->AddLine(src, dst, IM_COL32(255, 255, 0, 255), 1.f);
             // IM_COL32(200, 200, 200, 40), 1.0f);
@@ -641,27 +643,27 @@ struct graph_component_editor_data::impl {
 
         for (const auto id : ed.selected_edges) {
             const auto idx = get_index(id);
-            const auto u_c = data.edges_nodes[idx][0];
-            const auto v_c = data.edges_nodes[idx][1];
+            const auto u_c = data.g.edges_nodes[idx][0];
+            const auto v_c = data.g.edges_nodes[idx][1];
 
-            if (not(data.nodes.exists(u_c) and data.nodes.exists(v_c)))
+            if (not(data.g.nodes.exists(u_c) and data.g.nodes.exists(v_c)))
                 continue;
 
             const auto p_src = get_index(u_c);
             const auto p_dst = get_index(v_c);
 
-            ImVec2 src(origin.x + ((data.node_positions[p_src][0] +
-                                    data.node_areas[p_src] / 2.f) *
+            ImVec2 src(origin.x + ((data.g.node_positions[p_src][0] +
+                                    data.g.node_areas[p_src] / 2.f) *
                                    ed.zoom.x),
-                       origin.y + ((data.node_positions[p_src][1] +
-                                    data.node_areas[p_src] / 2.f) *
+                       origin.y + ((data.g.node_positions[p_src][1] +
+                                    data.g.node_areas[p_src] / 2.f) *
                                    ed.zoom.y));
 
-            ImVec2 dst(origin.x + ((data.node_positions[p_dst][0] +
-                                    data.node_areas[p_dst] / 2.f) *
+            ImVec2 dst(origin.x + ((data.g.node_positions[p_dst][0] +
+                                    data.g.node_areas[p_dst] / 2.f) *
                                    ed.zoom.x),
-                       origin.y + ((data.node_positions[p_dst][1] +
-                                    data.node_areas[p_dst] / 2.f) *
+                       origin.y + ((data.g.node_positions[p_dst][1] +
+                                    data.g.node_areas[p_dst] / 2.f) *
                                    ed.zoom.y));
 
             draw_list->AddLine(src, dst, IM_COL32(255, 0, 0, 255), 1.0f);
@@ -773,51 +775,53 @@ struct graph_component_editor_data::impl {
     {
         graph.top_left_limit[0] =
           std::min(graph.top_left_limit[0],
-                   graph.node_positions[i][0] - graph.node_areas[i]);
+                   graph.g.node_positions[i][0] - graph.g.node_areas[i]);
         graph.top_left_limit[1] =
           std::min(graph.top_left_limit[1],
-                   graph.node_positions[i][1] - graph.node_areas[i]);
+                   graph.g.node_positions[i][1] - graph.g.node_areas[i]);
         graph.bottom_right_limit[0] =
           std::max(graph.bottom_right_limit[0],
-                   graph.node_positions[i][0] + graph.node_areas[i]);
+                   graph.g.node_positions[i][0] + graph.g.node_areas[i]);
         graph.bottom_right_limit[1] =
           std::max(graph.bottom_right_limit[1],
-                   graph.node_positions[i][1] + graph.node_areas[i]);
+                   graph.g.node_positions[i][1] + graph.g.node_areas[i]);
     }
 
     static void update_position_to_grid(auto& graph, auto& graph_ed) noexcept
     {
-        debug::ensure(not graph.nodes.empty());
+        debug::ensure(not graph.g.nodes.empty());
         debug::ensure(graph.g_type != graph_component::graph_type::dot_file);
 
-        const auto nb        = graph.nodes.size();
+        const auto nb        = graph.g.nodes.size();
         const auto sqrt      = std::sqrt(nb);
         const auto line      = static_cast<unsigned>(sqrt);
         const auto col       = nb / line;
         const auto remaining = nb - (col * line);
 
-        auto it = graph.nodes.begin();
+        auto it = graph.g.nodes.begin();
         for (auto l = 0u; l < line; ++l) {
             for (auto c = 0u; c < col; ++c) {
-                graph.node_positions[get_index(*it)][0] =
-                  (graph_ed.distance.x + graph.node_areas[get_index(*it)]) * c;
-                graph.node_positions[get_index(*it)][1] =
-                  (graph_ed.distance.y + graph.node_areas[get_index(*it)]) * l;
+                graph.g.node_positions[get_index(*it)][0] =
+                  (graph_ed.distance.x + graph.g.node_areas[get_index(*it)]) *
+                  c;
+                graph.g.node_positions[get_index(*it)][1] =
+                  (graph_ed.distance.y + graph.g.node_areas[get_index(*it)]) *
+                  l;
                 update_bound(graph, get_index(*it));
                 ++it;
             }
         }
 
         for (auto r = 0u; r < remaining; ++r) {
-            graph.node_positions[get_index(*it)][0] =
-              (graph_ed.distance.x + graph.node_areas[get_index(*it)]) * r;
-            graph.node_positions[get_index(*it)][1] =
-              (graph_ed.distance.y + graph.node_areas[get_index(*it)]) * line;
+            graph.g.node_positions[get_index(*it)][0] =
+              (graph_ed.distance.x + graph.g.node_areas[get_index(*it)]) * r;
+            graph.g.node_positions[get_index(*it)][1] =
+              (graph_ed.distance.y + graph.g.node_areas[get_index(*it)]) * line;
             update_bound(graph, get_index(*it));
             ++it;
         }
 
-        graph_ed.displacements.resize(graph.nodes.size());
+        graph_ed.displacements.resize(graph.g.nodes.size());
         graph_ed.automatic_layout = true;
         graph_ed.iteration        = 0;
     }
@@ -841,7 +845,7 @@ struct graph_component_editor_data::impl {
 
             graph->update(app.mod);
 
-            if (not graph->nodes.empty() and
+            if (not graph->g.nodes.empty() and
                 graph->g_type != graph_component::graph_type::dot_file)
                 update_position_to_grid(*graph, *graph_ed);
 
@@ -881,25 +885,25 @@ void graph_component_editor_data::show_selected_nodes(
     if (auto* graph = app.mod.graph_components.try_to_get(graph_id)) {
         if (ImGui::CollapsingHeader("selected nodes")) {
             for (const auto id : selected_nodes) {
-                if (graph->nodes.exists(id)) {
+                if (graph->g.nodes.exists(id)) {
                     const auto idx = get_index(id);
                     ImGui::PushID(idx);
 
-                    ImGui::LabelFormat("name", "{}", graph->node_names[idx]);
-                    ImGui::LabelFormat("ids", "{}", graph->node_ids[idx]);
+                    ImGui::LabelFormat("name", "{}", graph->g.node_names[idx]);
+                    ImGui::LabelFormat("ids", "{}", graph->g.node_ids[idx]);
                     ImGui::LabelFormat("position",
                                        "{}x{}",
-                                       graph->node_positions[idx][0],
-                                       graph->node_positions[idx][1]);
+                                       graph->g.node_positions[idx][0],
+                                       graph->g.node_positions[idx][1]);
 
-                    if (auto area = graph->node_areas[idx];
+                    if (auto area = graph->g.node_areas[idx];
                         ImGui::SliderFloat("area", &area, 0.01f, 1000.f)) {
-                        graph->node_areas[idx] = area;
+                        graph->g.node_areas[idx] = area;
                     }
 
-                    if (auto newid = graph->node_components[idx];
+                    if (auto newid = graph->g.node_components[idx];
                         app.component_sel.combobox("component", &newid))
-                        graph->node_components[idx] = newid;
+                        graph->g.node_components[idx] = newid;
                 }
 
                 ImGui::PopID();
@@ -910,9 +914,9 @@ void graph_component_editor_data::show_selected_nodes(
             if (auto newid = undefined<component_id>();
                 app.component_sel.combobox("component", &newid)) {
                 for (const auto id : selected_nodes) {
-                    if (graph->nodes.exists(id)) {
-                        const auto idx              = get_index(id);
-                        graph->node_components[idx] = newid;
+                    if (graph->g.nodes.exists(id)) {
+                        const auto idx                = get_index(id);
+                        graph->g.node_components[idx] = newid;
                     }
                 }
             }
@@ -920,9 +924,9 @@ void graph_component_editor_data::show_selected_nodes(
             if (auto area = 1.f;
                 ImGui::SliderFloat("area", &area, 0.01f, 1000.f)) {
                 for (const auto id : selected_nodes) {
-                    if (graph->nodes.exists(id)) {
-                        const auto idx         = get_index(id);
-                        graph->node_areas[idx] = area;
+                    if (graph->g.nodes.exists(id)) {
+                        const auto idx           = get_index(id);
+                        graph->g.node_areas[idx] = area;
                     }
                 }
             }
