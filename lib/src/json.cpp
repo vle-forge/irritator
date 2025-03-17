@@ -1972,8 +1972,8 @@ struct json_dearchiver::impl {
         return nullptr;
     }
 
-    auto search_dir_in_reg(registred_path&  reg,
-                           std::string_view name) noexcept -> dir_path*
+    auto search_dir_in_reg(registred_path& reg, std::string_view name) noexcept
+      -> dir_path*
     {
         for (auto dir_id : reg.children) {
             if (auto* dir = mod().dir_paths.try_to_get(dir_id); dir) {
@@ -2026,13 +2026,55 @@ struct json_dearchiver::impl {
         report_json_error("file not found");
     }
 
-    auto search_dir(std::string_view name) const noexcept -> dir_path*
+    /**
+     * Search a directory named @a dir_name from the recorded path @a reg.
+     * @param reg The recorded path used to search the @a dir_name.
+     * @param dir_name The directory name to search.
+     */
+    auto search_dir(const registred_path&  reg,
+                    const std::string_view dir_name) const noexcept -> dir_path*
+    {
+        for (auto dir_id : reg.children) {
+            if (auto* dir = mod().dir_paths.try_to_get(dir_id); dir) {
+                if (dir->path.sv() == dir_name)
+                    return dir;
+            }
+        }
+
+        return nullptr;
+    }
+
+    /**
+     * Search a directory named @a dir_name into the recorded path @a reg_path
+     * if it exists.
+     * @param reg_path The recorded path to search.
+     * @param dir_name The directory name to search.
+     */
+    auto search_dir(const std::string_view reg_path,
+                    const std::string_view dir_name) const noexcept -> dir_path*
+    {
+        for (auto reg_id : mod().component_repertories) {
+            if (auto* reg = mod().registred_paths.try_to_get(reg_id);
+                reg and reg->name.sv() == reg_path) {
+                return search_dir(*reg, dir_name);
+            }
+        }
+
+        return nullptr;
+    }
+
+    /**
+     * Search a directory named @a dir_name into recorded path using the @a
+     * recorded paths in @a modeling.
+     * @param dir_name The directory name to search.
+     */
+    auto search_dir(const std::string_view dir_name) const noexcept -> dir_path*
     {
         for (auto reg_id : mod().component_repertories) {
             if (auto* reg = mod().registred_paths.try_to_get(reg_id); reg) {
                 for (auto dir_id : reg->children) {
                     if (auto* dir = mod().dir_paths.try_to_get(dir_id); dir) {
-                        if (dir->path.sv() == name)
+                        if (dir->path.sv() == dir_name)
                             return dir;
                     }
                 }
@@ -2042,8 +2084,28 @@ struct json_dearchiver::impl {
         return nullptr;
     }
 
-    auto search_file(dir_path&        dir,
-                     std::string_view name) noexcept -> file_path*
+    /**
+     * Search a directory named @a dir_name into the recorded path @a reg_path
+     * if it exists.
+     * @param reg_path The recorded path to search.
+     * @param dir_name The directory name to search.
+     * @param [out] out Output parameter to store directory identifier found.
+     * @return true if a directory is found, false otherwise.
+     */
+    auto search_dir(const std::string_view reg_path,
+                    const std::string_view dir_name,
+                    dir_path_id&           out) const noexcept -> bool
+    {
+        if (auto* dir = search_dir(reg_path, dir_name)) {
+            out = mod().dir_paths.get_id(*dir);
+            return true;
+        }
+
+        return false;
+    }
+
+    auto search_file(dir_path& dir, std::string_view name) noexcept
+      -> file_path*
     {
         for (auto file_id : dir.children)
             if (auto* file = mod().file_paths.try_to_get(file_id); file)
@@ -3247,33 +3309,40 @@ struct json_dearchiver::impl {
 
         if ("dot-file"sv == name.GetString()) {
             graph.param.dot = graph_component::dot_file_param{};
-            return read_graph_param(val, graph.param.dot);
+            return read_dot_graph_param(val, graph);
         }
 
         if ("scale-free"sv == name.GetString()) {
             graph.param.scale = graph_component::scale_free_param{};
-            return read_graph_param(val, graph.param.scale);
+            return read_scale_free_graph_param(val, graph) and
+                   read_graph_children(val, graph);
         }
 
         if ("small-world"sv == name.GetString()) {
             graph.param.small = graph_component::small_world_param{};
-            return read_graph_param(val, graph.param.small);
+            return read_small_world_graph_param(val, graph) and
+                   read_graph_children(val, graph);
         }
 
         report_json_error("bad graph component type");
     }
 
-    bool read_graph_param(const rapidjson::Value&          val,
-                          graph_component::dot_file_param& p) noexcept
+    bool read_dot_graph_param(const rapidjson::Value& val,
+                              graph_component&        graph) noexcept
     {
         auto_stack s(this, "component graph param");
 
+        name_str           reg_path;
         directory_path_str dir_path;
         file_path_str      file_path;
 
         return for_each_member(
                  val,
                  [&](const auto name, const auto& value) noexcept -> bool {
+                     if ("path"sv == name)
+                         return read_temp_string(value) &&
+                                copy_string_to(reg_path);
+
                      if ("dir"sv == name)
                          return read_temp_string(value) &&
                                 copy_string_to(dir_path);
@@ -3284,12 +3353,13 @@ struct json_dearchiver::impl {
 
                      return true;
                  }) &&
-               search_dir(dir_path.sv(), p.dir) &&
-               search_file(p.dir, file_path.sv(), p.file);
+               search_dir(reg_path.sv(), dir_path.sv(), graph.param.dot.dir) &&
+               search_file(
+                 graph.param.dot.dir, file_path.sv(), graph.param.dot.file);
     }
 
-    bool read_graph_param(const rapidjson::Value&            val,
-                          graph_component::scale_free_param& p) noexcept
+    bool read_scale_free_graph_param(const rapidjson::Value& val,
+                                     graph_component&        graph) noexcept
     {
         auto_stack s(this, "component graph param");
 
@@ -3297,18 +3367,22 @@ struct json_dearchiver::impl {
           val, [&](const auto name, const auto& value) noexcept -> bool {
               if ("alpha"sv == name)
                   return read_temp_real(value) && is_double_greater_than(0) &&
-                         copy_real_to(p.alpha);
+                         copy_real_to(graph.param.scale.alpha);
 
               if ("beta"sv == name)
                   return read_temp_real(value) && is_double_greater_than(0) &&
-                         copy_real_to(p.beta);
+                         copy_real_to(graph.param.scale.beta);
+
+              if ("nodes"sv == name)
+                  return read_temp_i64(value) && is_i64_greater_equal_than(0) &&
+                         copy_i64_to(graph.param.scale.nodes);
 
               return true;
           });
     }
 
-    bool read_graph_param(const rapidjson::Value&             val,
-                          graph_component::small_world_param& p) noexcept
+    bool read_small_world_graph_param(const rapidjson::Value& val,
+                                      graph_component&        graph) noexcept
     {
         auto_stack s(this, "component graph param");
 
@@ -3316,11 +3390,15 @@ struct json_dearchiver::impl {
           val, [&](const auto name, const auto& value) noexcept -> bool {
               if ("probability"sv == name)
                   return read_temp_real(value) && is_double_greater_than(0) &&
-                         copy_real_to(p.probability);
+                         copy_real_to(graph.param.small.probability);
 
               if ("k"sv == name)
                   return read_temp_i64(value) && is_i64_greater_equal_than(1) &&
-                         copy_i64_to(p.k);
+                         copy_i64_to(graph.param.small.k);
+
+              if ("nodes"sv == name)
+                  return read_temp_i64(value) && is_i64_greater_equal_than(0) &&
+                         copy_i64_to(graph.param.small.nodes);
 
               return true;
           });
@@ -3344,18 +3422,22 @@ struct json_dearchiver::impl {
         auto_stack s(this, "component graph children");
 
         compo.nodes.clear();
-        i64 len = 0;
 
-        return is_value_array(val) and copy_array_size(val, len) and
-               reserve_graph_node(compo, len) and
-               for_each_array(
-                 val,
-                 [&](const auto /*i*/, const auto& value) noexcept -> bool {
-                     component_id c_id = undefined<component_id>();
+        if (auto it = val.FindMember("children");
+            it != val.MemberEnd() and it->value.IsArray()) {
 
-                     return read_child_component(value, c_id) &&
-                            graph_children_add(compo, c_id);
-                 });
+            return reserve_graph_node(compo, it->value.GetArray().Size()) and
+                   for_each_array(
+                     it->value.GetArray(),
+                     [&](const auto /*i*/, const auto& value) noexcept -> bool {
+                         component_id c_id = undefined<component_id>();
+
+                         return read_child_component(value, c_id) &&
+                                graph_children_add(compo, c_id);
+                     });
+        }
+
+        return true;
     }
 
     bool is_grid_valid(const grid_component& grid) noexcept
@@ -3396,8 +3478,8 @@ struct json_dearchiver::impl {
 
         if (not grid.is_coord_valid(*row, *col)) {
             report_json_error(
-              "bad child coordinates"); // TODO Report a warning in console or
-                                        // log window instead.
+              "bad child coordinates"); // TODO Report a warning in console
+                                        // or log window instead.
         } else {
             const auto pos        = grid.pos(*row, *col);
             const auto c_compo_id = grid.children()[pos];
@@ -3451,8 +3533,8 @@ struct json_dearchiver::impl {
 
         if (not grid.is_coord_valid(*row, *col)) {
             report_json_error(
-              "bad child coordinates"); // TODO Report a warning in console or
-                                        // log window instead.
+              "bad child coordinates"); // TODO Report a warning in console
+                                        // or log window instead.
         } else {
             const auto pos        = grid.pos(*row, *col);
             const auto c_compo_id = grid.children()[pos];
@@ -3578,10 +3660,11 @@ struct json_dearchiver::impl {
           val, [&](const auto name, const auto& value) noexcept -> bool {
               if ("graph-type"sv == name)
                   return value.IsString() &&
-                         dispatch_graph_type(val, value, graph);
-
-              if ("children"sv == name)
-                  return read_graph_children(value, graph);
+                           dispatch_graph_type(val, value, graph) &&
+                           [&]() noexcept -> bool {
+                      graph.update(mod());
+                      return true;
+                  }();
 
               return true;
           });
@@ -4634,7 +4717,13 @@ struct json_dearchiver::impl {
             fmt::print("{:{}} {}\n", "", i, stack[i]);
     }
 
-    void show_state() const noexcept { fmt::print("error: {}\n", *error); }
+    void show_state() const noexcept
+    {
+        if (error.has_value())
+            fmt::print("error: {}\n", *error);
+        else
+            fmt::print("unidentified error\n");
+    }
 
     void show_error() const noexcept
     {
@@ -6339,10 +6428,12 @@ struct json_archiver::impl {
     }
 
     template<typename Writer>
-    void write_graph_component_param(const modeling&        mod,
-                                     const graph_component& g,
-                                     Writer&                w) noexcept
+    void write_graph_component(const modeling&        mod,
+                               const graph_component& g,
+                               Writer&                w) noexcept
     {
+        w.Key("graph-type");
+
         switch (g.g_type) {
         case graph_component::graph_type::dot_file: {
             w.String("dot-file");
@@ -6366,6 +6457,18 @@ struct json_archiver::impl {
             w.Double(g.param.scale.alpha);
             w.Key("beta");
             w.Double(g.param.scale.beta);
+            w.Key("nodes");
+            w.Int(g.param.small.nodes);
+
+            w.Key("children");
+            w.StartArray();
+            for (const auto id : g.nodes) {
+                const auto idx = get_index(id);
+                w.StartObject();
+                write_child_component(mod, g.node_components[idx], w);
+                w.EndObject();
+            }
+            w.EndArray();
             break;
         }
 
@@ -6375,28 +6478,21 @@ struct json_archiver::impl {
             w.Double(g.param.small.probability);
             w.Key("k");
             w.Int(g.param.small.k);
+            w.Key("nodes");
+            w.Int(g.param.small.nodes);
+
+            w.Key("children");
+            w.StartArray();
+            for (const auto id : g.nodes) {
+                const auto idx = get_index(id);
+                w.StartObject();
+                write_child_component(mod, g.node_components[idx], w);
+                w.EndObject();
+            }
+            w.EndArray();
             break;
         }
         }
-    }
-
-    template<typename Writer>
-    void write_graph_component(const modeling&        mod,
-                               const graph_component& graph,
-                               Writer&                w) noexcept
-    {
-        w.Key("graph-type");
-        write_graph_component_param(mod, graph, w);
-
-        w.Key("children");
-        w.StartArray();
-        for (const auto id : graph.nodes) {
-            const auto idx = get_index(id);
-            w.StartObject();
-            write_child_component(mod, graph.node_components[idx], w);
-            w.EndObject();
-        }
-        w.EndArray();
     }
 
     template<typename Writer>

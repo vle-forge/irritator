@@ -149,6 +149,12 @@ static void in_out_connection_add(graph_component& compo,
                                   const component& src,
                                   const component& dst) noexcept
 {
+    if (not compo.cache_connections.can_alloc(1)) {
+        compo.cache_connections.grow();
+        if (not compo.cache_connections.can_alloc(1))
+            return;
+    }
+
     if (const auto p_src = src.get_y("out"); is_defined(p_src)) {
         if (const auto p_dst = dst.get_x("in"); is_defined(p_dst)) {
             compo.cache_connections.alloc(src_id, p_src, dst_id, p_dst);
@@ -162,6 +168,11 @@ static void named_connection_add(graph_component& compo,
                                  const component& src,
                                  const component& dst) noexcept
 {
+    if (not compo.cache_connections.can_alloc(1)) {
+        compo.cache_connections.grow();
+        if (not compo.cache_connections.can_alloc(1))
+            return;
+    }
     src.y.for_each<port_str>([&](const auto sid, const auto& sname) noexcept {
         dst.x.for_each<port_str>(
           [&](const auto did, const auto& dname) noexcept {
@@ -178,6 +189,11 @@ static void named_suffix_connection_add(graph_component&     compo,
                                         const component&     dst,
                                         const std::span<int> suffix) noexcept
 {
+    if (not compo.cache_connections.can_alloc(1)) {
+        compo.cache_connections.grow();
+        if (not compo.cache_connections.can_alloc(1))
+            return;
+    }
     src.y.for_each<port_str>([&](const auto sid, const auto& sname) noexcept {
         dst.x.for_each<port_str>(
           [&](const auto did, const auto& dname) noexcept {
@@ -476,14 +492,20 @@ static void build_graph_connections(
 
                             switch (graph.type) {
                             case graph_component::connection_type::in_out:
+                                graph.cache_connections.reserve(
+                                  graph.edges.size());
                                 in_out_connection_add(
                                   graph, *u, *v, *c_src, *c_dst);
                                 break;
                             case graph_component::connection_type::name:
+                                graph.cache_connections.reserve(
+                                  graph.edges.size() * 4);
                                 named_connection_add(
                                   graph, *u, *v, *c_src, *c_dst);
                                 break;
                             case graph_component::connection_type::name_suffix:
+                                graph.cache_connections.reserve(
+                                  graph.edges.size() * 4);
                                 named_suffix_connection_add(
                                   graph,
                                   *u,
@@ -508,7 +530,7 @@ expected<void> graph_component::build_cache(modeling& mod) noexcept
     cache.reserve(nodes.size());
     if (not cache.can_alloc(nodes.size()))
         return new_error_code(graph_component::errc::children_full,
-                               graph_component::ID);
+                              graph_component::ID);
 
     const auto vec = build_graph_children(mod, *this);
     build_graph_connections(mod, *this, vec);
@@ -527,7 +549,7 @@ status modeling::copy(graph_component&   graph,
 {
     if (auto ret = graph.build_cache(*this); not ret.has_value())
         return new_error(modeling::children_error{}, container_full_error{});
-        
+
     if (not generic.children.can_alloc(graph.cache.size()))
         return new_error(modeling::children_error{}, container_full_error{});
 

@@ -692,7 +692,8 @@ public:
     //! `output_connection`.
     void resize(const i32 children_size, const component_id id) noexcept;
 
-    /** Build nodes and edges according to the type of graph and theirs
+    /**
+     * Build nodes and edges according to the type of graph and theirs
      * parameters.
      * @param mod Use when reading @c file_path for the dot graph.
      */
