@@ -163,19 +163,24 @@ static void show_component_popup_menu(application& app, component& sel) noexcept
                 if (ImGui::MenuItem("Delete component")) {
                     const auto id = app.mod.components.get_id(sel);
                     if (can_delete_component(app, id)) {
-                        app.component_ed.close(app.mod.components.get_id(sel));
+                        const auto compo_id = app.mod.components.get_id(sel);
+                        app.component_ed.close(compo_id);
 
-                        app.add_gui_task([&]() noexcept {
-                            app.notifications.try_insert(
-                              log_level::notice,
-                              [&](auto& title, auto& /*msg*/) noexcept {
-                                  title = "Remove component";
-                              });
+                        app.add_gui_task(
+                          [&app, compo_id, id = sel.file]() noexcept {
+                              app.notifications.try_insert(
+                                log_level::notice,
+                                [&](auto& title, auto& /*msg*/) noexcept {
+                                    title = "Remove component";
+                                });
 
-                            app.mod.remove_file(*file);
-                            if (auto* compo = app.mod.components.try_to_get(id))
-                                app.mod.free(*compo);
-                        });
+                              if (auto* f = app.mod.file_paths.try_to_get(id))
+                                  app.mod.remove_file(*f);
+
+                              if (auto* c =
+                                    app.mod.components.try_to_get(compo_id))
+                                  app.mod.free(*c);
+                          });
 
                         app.add_gui_task(
                           [&app]() noexcept { app.component_sel.update(); });
