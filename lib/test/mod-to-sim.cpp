@@ -285,6 +285,48 @@ int main()
         expect(eq(get_connection_number(pj.sim.nodes), g.g.edges.size()));
     };
 
+    "graph-scale-free-sum-m-n"_test = [] {
+        irt::modeling_initializer mod_init;
+        irt::modeling             mod;
+        irt::project              pj;
+
+        expect(!!mod.init(mod_init));
+        expect(!!pj.init(mod_init));
+
+        auto& c     = mod.alloc_generic_component();
+        auto& s     = mod.generic_components.get(c.id.generic_id);
+        auto& child = mod.alloc(s, irt::dynamics_type::qss1_sum_2);
+
+        const auto port_in_m  = c.get_or_add_x("m");
+        const auto port_in_n  = c.get_or_add_x("n");
+        const auto port_out_m = c.get_or_add_y("m");
+        const auto port_out_n = c.get_or_add_y("n");
+
+        expect(!!s.connect_input(
+          port_in_m, child, irt::connection::port{ .model = 0 }));
+        expect(!!s.connect_input(
+          port_in_n, child, irt::connection::port{ .model = 1 }));
+        expect(!!s.connect_output(
+          port_out_m, child, irt::connection::port{ .model = 0 }));
+        expect(!!s.connect_output(
+          port_out_n, child, irt::connection::port{ .model = 1 }));
+
+        auto& cg            = mod.alloc_graph_component();
+        auto& g             = mod.graph_components.get(cg.id.graph_id);
+        g.g_type            = irt::graph_component::graph_type::scale_free;
+        g.type              = irt::graph_component::connection_type::name;
+        g.param.scale       = irt::graph_component::scale_free_param{};
+        g.param.scale.alpha = 2.5;
+        g.param.scale.beta  = 1.e3;
+        g.param.scale.id    = mod.components.get_id(c);
+        g.param.scale.nodes = 64;
+
+        expect(!!pj.set(mod, cg));
+        expect(eq(pj.tree_nodes_size().first, g.g.nodes.ssize() + 1));
+        expect(eq(pj.sim.models.ssize(), g.g.nodes.ssize()));
+        expect(eq(get_connection_number(pj.sim.nodes), 2u * g.g.edges.size()));
+    };
+
     "grid-3x3-empty-con"_test = [] {
         irt::modeling_initializer mod_init;
         irt::modeling             mod;
