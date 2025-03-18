@@ -431,6 +431,16 @@ expected<void> graph_component::update(const modeling& mod) noexcept
           bottom_right_limit[1], g.node_positions[idx][1] + g.node_areas[idx]);
     }
 
+    if (top_left_limit[0] == bottom_right_limit[0]) {
+        top_left_limit[0]     = -1.f;
+        bottom_right_limit[0] = 1.f;
+    }
+
+    if (top_left_limit[1] == bottom_right_limit[1]) {
+        top_left_limit[1]     = -1.f;
+        bottom_right_limit[1] = 1.f;
+    }
+
     return expected<void>();
 }
 
