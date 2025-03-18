@@ -848,6 +848,16 @@ public:
     constexpr void clear() noexcept;
     constexpr void destroy() noexcept;
 
+    /**
+     * Use @a reserve function with a @a factor to grow the capacity. If the @a
+     * capacity equals zero, default size is @a 8 otherwise, the capactiy will
+     * be @a capacity() multiples @a grow_factor.
+     * @param grow_factor The growing factor.
+     * @return true is success, false otherwise.
+     */
+    template<int Num, int Denum = 1>
+    constexpr bool grow() noexcept;
+
     constexpr std::optional<index_type> get(const Identifier id) const noexcept;
     constexpr bool exists(const Identifier id) const noexcept;
 
@@ -2206,6 +2216,19 @@ constexpr void id_array<Identifier, A>::destroy() noexcept
     m_free_head         = none;
 
     m_items.destroy();
+}
+
+template<typename Identifier, typename A>
+template<int Num, int Denum>
+constexpr bool id_array<Identifier, A>::grow() noexcept
+{
+    static_assert(Num > 0 and Denum > 0);
+
+    const auto nb = std::cmp_equal(m_items.capacity(), 0)
+                      ? 8
+                      : m_items.capacity() * Num / Denum;
+
+    return m_items.reserve(nb);
 }
 
 template<typename Identifier, typename A>
