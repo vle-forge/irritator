@@ -338,7 +338,7 @@ struct expected_tester {
     irt::expected<int> make() noexcept
     {
         if (make_error)
-            return irt::new_error_code(1, 2);
+            return irt::new_error_code(1, irt::category::future);
 
         return 1;
     }
@@ -355,7 +355,7 @@ struct expected_tester_2 {
     irt::expected<int> make() noexcept
     {
         if (make_error)
-            return irt::error_code(1, 2);
+            return irt::error_code(1, irt::category::future);
 
         return 2;
     }

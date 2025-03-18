@@ -647,8 +647,6 @@ class graph_component
 public:
     static inline constexpr i32 children_max = 4096;
 
-    static inline constexpr const int ID = 1012;
-
     enum class errc {
         input_connection_full,
         output_connection_full,

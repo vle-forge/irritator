@@ -182,6 +182,32 @@ template<class... Item>
 }
 
 /**
+ * Defines all part of the irritator project.
+ */
+enum class category : std::int16_t {
+    generic, /**< Equivalent to std::generic_error. */
+    system,  /**< Equivalent to std::system_error. */
+    stream,  /**< Equivalent to std::stream_error. */
+    future,  /**< Equivalent to std::future_error. */
+
+    modeling,
+    hsm_component,
+    generic_component,
+    gric_component,
+    graph_component,
+    graph,
+    tree_node,
+    grid_observer,
+    graph_observer,
+    variable_observer,
+    file_observers,
+
+    project,
+
+    simulation,
+};
+
+/**
  * @a error_code represents a platform-dependent error code value. Each
  * @a error_code object holds an error code value originating from the
  * operating system or some low-level interface and a value to identify the
@@ -190,75 +216,63 @@ template<class... Item>
  */
 class error_code
 {
-public:
-    static constexpr std::int16_t generic_error_category =
-      0; // errno or std::errc
-    static constexpr std::int16_t system_error_category = 1;
-    static constexpr std::int16_t stream_error_category = 2;
-    static constexpr std::int16_t future_error_category = 3;
-
 private:
-    std::int16_t ec  = 0;
-    std::int16_t cat = generic_error_category;
+    std::int16_t m_ec  = 0;
+    category     m_cat = category::generic;
 
 public:
     constexpr error_code() noexcept = default;
 
-    constexpr error_code(std::int16_t error, std::int16_t category) noexcept
-      : ec(error)
-      , cat(category)
+    constexpr error_code(std::int16_t error, category cat) noexcept
+      : m_ec(error)
+      , m_cat(cat)
     {}
 
     template<typename ErrorCodeEnum>
         requires(std::is_enum_v<ErrorCodeEnum> and
                  std::is_convertible_v<std::underlying_type_t<ErrorCodeEnum>,
                                        std::int16_t>)
-    constexpr inline error_code(ErrorCodeEnum e, std::int16_t category) noexcept
-      : ec(static_cast<std::int16_t>(e))
-      , cat(category)
+    constexpr inline error_code(ErrorCodeEnum e_, category cat_) noexcept
+      : m_ec(static_cast<std::int16_t>(e_))
+      , m_cat(cat_)
     {}
 
     //!< Returns the platform dependent error code value.
-    constexpr std::int16_t value() const noexcept { return ec; }
+    constexpr std::int16_t value() const noexcept { return m_ec; }
 
     //!< Returns the error category of the error code.
-    constexpr std::int16_t category() const noexcept { return cat; }
+    constexpr enum category cat() const noexcept { return m_cat; }
 
     //!< Checks if the error code value is valid, i.e. non-zero.
     //!< @return @a false if @a value() == 0, true otherwise.
-    constexpr explicit operator bool() const noexcept { return ec != 0; }
+    constexpr explicit operator bool() const noexcept { return m_ec != 0; }
 };
 
-inline error_code new_error_code(
-  std::integral auto e,
-  std::int16_t       category = error_code::generic_error_category) noexcept
+constexpr inline error_code new_error_code(std::integral auto e,
+                                           enum category      cat) noexcept
 {
-    debug::ensure(std::cmp_less_equal(e, INT16_MAX));
     debug::ensure(std::cmp_greater_equal(e, INT16_MIN));
+    debug::ensure(std::cmp_less_equal(e, INT16_MAX));
 
-    if (on_error_callback) {
+    if (on_error_callback)
         on_error_callback();
-    }
 
-    return error_code(static_cast<std::int16_t>(e), category);
+    return error_code(static_cast<std::int16_t>(e), cat);
 }
 
 template<typename ErrorCodeEnum>
     requires(std::is_enum_v<ErrorCodeEnum>)
-inline error_code new_error_code(
-  ErrorCodeEnum e,
-  std::int16_t  category = error_code::generic_error_category) noexcept
+inline error_code new_error_code(ErrorCodeEnum e, enum category cat) noexcept
 {
     debug::ensure(std::cmp_less_equal(
       static_cast<std::underlying_type_t<ErrorCodeEnum>>(e), INT16_MAX));
     debug::ensure(std::cmp_greater_equal(
       static_cast<std::underlying_type_t<ErrorCodeEnum>>(e), INT16_MIN));
 
-    if (on_error_callback) {
+    if (on_error_callback)
         on_error_callback();
-    }
 
-    return error_code(static_cast<std::int16_t>(e), category);
+    return error_code(static_cast<std::int16_t>(e), cat);
 }
 
 template<typename Value>
@@ -835,7 +849,7 @@ constexpr bool operator==(const expected<T>& lhs, const error_code& rhs)
 
 constexpr bool operator==(const error_code& lhs, const error_code& rhs)
 {
-    return lhs.value() == rhs.value() and lhs.category() == rhs.category();
+    return lhs.value() == rhs.value() and lhs.cat() == rhs.cat();
 }
 
 template<typename T, typename T2>
