@@ -12,7 +12,6 @@
 #include <initializer_list>
 #include <iterator>
 #include <limits>
-#include <memory>
 #include <memory_resource>
 #include <optional>
 #include <type_traits>
@@ -156,7 +155,7 @@ using small_storage_size_t = std::conditional_t<
                          size_t>>>>;
 
 template<class T, class M>
-constexpr std::ptrdiff_t offset_of(const M T::*member)
+constexpr std::ptrdiff_t offset_of(const M T::* member)
 {
     return reinterpret_cast<std::ptrdiff_t>(
       &(reinterpret_cast<T*>(0)->*member));
@@ -177,7 +176,7 @@ constexpr std::ptrdiff_t offset_of(const M T::*member)
    @endcode
 */
 template<class T, class M>
-constexpr T& container_of(M* ptr, const M T::*member) noexcept
+constexpr T& container_of(M* ptr, const M T::* member) noexcept
 {
     return *reinterpret_cast<T*>(reinterpret_cast<intptr_t>(ptr) -
                                  offset_of(member));
@@ -199,7 +198,7 @@ constexpr T& container_of(M* ptr, const M T::*member) noexcept
    @endcode
 */
 template<class T, class M>
-constexpr const T& container_of(const M* ptr, const M T::*member) noexcept
+constexpr const T& container_of(const M* ptr, const M T::* member) noexcept
 {
     return *reinterpret_cast<const T*>(reinterpret_cast<intptr_t>(ptr) -
                                        offset_of(member));
