@@ -1066,9 +1066,13 @@ static status make_component_cache(project& /*pj*/, modeling& mod) noexcept
     for (auto& grid : mod.grid_components)
         irt_check(grid.build_cache(mod));
 
-    for (auto& graph : mod.graph_components)
+    for (auto& graph : mod.graph_components) {
+        if (auto ret = graph.update(mod); not ret.has_value())
+            return new_error(project::component_type_error);
+
         if (auto ret = graph.build_cache(mod); not ret.has_value())
             return new_error(project::component_type_error);
+    }
 
     return success();
 }

@@ -16,6 +16,17 @@
 #include <fmt/format.h>
 #include <utility>
 
+std::size_t get_connection_number(
+  const irt::data_array<irt::block_node, irt::block_node_id>& data) noexcept
+{
+    std::size_t sum = 0;
+
+    for (const auto& elem : data)
+        sum += elem.nodes.size();
+
+    return sum;
+}
+
 template<int length>
 static bool get_temp_registred_path(irt::small_string<length>& str) noexcept
 {
@@ -200,11 +211,13 @@ int main()
         auto& s = mod.generic_components.get(c.id.generic_id);
         mod.alloc(s, irt::dynamics_type::counter);
 
-        auto& cg = mod.alloc_graph_component();
-        auto& g  = mod.graph_components.get(cg.id.graph_id);
-        g.resize(25, mod.components.get_id(c));
-        g.param.small = irt::graph_component::small_world_param{};
-        g.g_type      = irt::graph_component::graph_type::small_world;
+        auto& cg            = mod.alloc_graph_component();
+        auto& g             = mod.graph_components.get(cg.id.graph_id);
+        g.g_type            = irt::graph_component::graph_type::small_world;
+        g.type              = irt::graph_component::connection_type::in_out;
+        g.param.small       = irt::graph_component::small_world_param{};
+        g.param.small.nodes = 25;
+        g.param.small.id    = mod.components.get_id(c);
 
         expect(!!pj.set(mod, cg));
         expect(eq(pj.tree_nodes_size().first, g.g.nodes.ssize() + 1));
@@ -223,15 +236,53 @@ int main()
         auto& s = mod.generic_components.get(c.id.generic_id);
         mod.alloc(s, irt::dynamics_type::counter);
 
-        auto& cg = mod.alloc_graph_component();
-        auto& g  = mod.graph_components.get(cg.id.graph_id);
-        g.resize(25, mod.components.get_id(c));
-        g.param.scale = irt::graph_component::scale_free_param{};
-        g.g_type      = irt::graph_component::graph_type::scale_free;
+        auto& cg            = mod.alloc_graph_component();
+        auto& g             = mod.graph_components.get(cg.id.graph_id);
+        g.g_type            = irt::graph_component::graph_type::scale_free;
+        g.type              = irt::graph_component::connection_type::in_out;
+        g.param.scale       = irt::graph_component::scale_free_param{};
+        g.param.scale.nodes = 25;
+        g.param.scale.id    = mod.components.get_id(c);
 
         expect(!!pj.set(mod, cg));
         expect(eq(pj.tree_nodes_size().first, g.g.nodes.ssize() + 1));
         expect(eq(pj.sim.models.ssize(), g.g.nodes.ssize()));
+    };
+
+    "graph-scale-free-sum-in-out"_test = [] {
+        irt::modeling_initializer mod_init;
+        irt::modeling             mod;
+        irt::project              pj;
+
+        expect(!!mod.init(mod_init));
+        expect(!!pj.init(mod_init));
+
+        auto& c     = mod.alloc_generic_component();
+        auto& s     = mod.generic_components.get(c.id.generic_id);
+        auto& child = mod.alloc(s, irt::dynamics_type::qss1_sum_2);
+
+        const auto port_in  = c.get_or_add_x("in");
+        const auto port_out = c.get_or_add_y("out");
+
+        expect(!!s.connect_input(
+          port_in, child, irt::connection::port{ .model = 0 }));
+        expect(!!s.connect_output(
+          port_out, child, irt::connection::port{ .model = 0 }));
+
+        auto& cg            = mod.alloc_graph_component();
+        auto& g             = mod.graph_components.get(cg.id.graph_id);
+        g.g_type            = irt::graph_component::graph_type::scale_free;
+        g.type              = irt::graph_component::connection_type::in_out;
+        g.param.scale       = irt::graph_component::scale_free_param{};
+        g.param.scale.alpha = 2.5;
+        g.param.scale.beta  = 1.e3;
+        g.param.scale.id    = mod.components.get_id(c);
+        g.param.scale.nodes = 64;
+
+        expect(!!pj.set(mod, cg));
+        expect(eq(pj.tree_nodes_size().first, g.g.nodes.ssize() + 1));
+        expect(eq(pj.sim.models.ssize(), g.g.nodes.ssize()));
+        expect(eq(get_connection_number(pj.sim.nodes), g.g.edges.size()));
     };
 
     "grid-3x3-empty-con"_test = [] {

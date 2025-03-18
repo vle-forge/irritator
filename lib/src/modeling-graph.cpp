@@ -235,7 +235,7 @@ static std::optional<std::filesystem::path> build_dot_filename(
     return std::nullopt;
 }
 
-static void build_dot_file_edges(
+static expected<void> build_dot_file_edges(
   const modeling&                        mod,
   graph_component&                       graph,
   const graph_component::dot_file_param& params) noexcept
@@ -257,12 +257,16 @@ static void build_dot_file_edges(
 
             graph.g.buffer = std::move(dot_graph->buffer);
         } else
-            debug_log("parse_dot_file error");
+            return new_error_code(graph_component::errc::dot_file_access_error,
+                                  graph_component::ID);
     } else
-        debug_log("file_dot_file error");
+        return new_error_code(graph_component::errc::dot_file_format_error,
+                              graph_component::ID);
+
+    return expected<void>();
 }
 
-static void build_scale_free_edges(
+static expected<void> build_scale_free_edges(
   graph_component&                         graph,
   const graph_component::scale_free_param& params) noexcept
 {
@@ -307,11 +311,13 @@ static void build_scale_free_edges(
             --degree;
 
             if (not graph.g.edges.can_alloc(1)) {
-                graph.g.edges.reserve(graph.g.edges.capacity() * 2);
+                graph.g.edges.grow<3, 2>();
                 graph.g.edges_nodes.resize(graph.g.edges.capacity());
 
                 if (not graph.g.edges.can_alloc(1))
-                    return;
+                    return new_error_code(
+                      graph_component::errc::edges_container_full,
+                      graph_component::ID);
             }
 
             auto       new_edge_id  = graph.g.edges.alloc();
@@ -320,9 +326,11 @@ static void build_scale_free_edges(
             graph.g.edges_nodes[new_edge_idx] = { *first, second };
         }
     }
+
+    return expected<void>();
 }
 
-static void build_small_world_edges(
+static expected<void> build_small_world_edges(
   graph_component&                          graph,
   const graph_component::small_world_param& params) noexcept
 {
@@ -373,11 +381,13 @@ static void build_small_world_edges(
                 ++vertex_second;
 
             if (not graph.g.edges.can_alloc(1)) {
-                graph.g.edges.reserve(graph.g.edges.capacity() * 2);
+                graph.g.edges.grow<3, 2>();
                 graph.g.edges_nodes.resize(graph.g.edges.capacity());
 
                 if (not graph.g.edges.can_alloc(1))
-                    return;
+                    return new_error_code(
+                      graph_component::errc::edges_container_full,
+                      graph_component::ID);
             }
 
             const auto new_edge_id  = graph.g.edges.alloc();
@@ -387,19 +397,24 @@ static void build_small_world_edges(
                                                   *vertex_second };
         } while (source + 1 < n);
     }
+
+    return expected<void>();
 }
 
-void graph_component::update(const modeling& mod) noexcept
+expected<void> graph_component::update(const modeling& mod) noexcept
 {
     switch (g_type) {
     case graph_type::dot_file:
-        build_dot_file_edges(mod, *this, param.dot);
+        if (auto ret = build_dot_file_edges(mod, *this, param.dot); not ret)
+            return ret.error();
         break;
     case graph_type::scale_free:
-        build_scale_free_edges(*this, param.scale);
+        if (auto ret = build_scale_free_edges(*this, param.scale); not ret)
+            return ret.error();
         break;
     case graph_type::small_world:
-        build_small_world_edges(*this, param.small);
+        if (auto ret = build_small_world_edges(*this, param.small); not ret)
+            return ret.error();
         break;
     };
 
@@ -415,6 +430,8 @@ void graph_component::update(const modeling& mod) noexcept
         bottom_right_limit[1] = std::max(
           bottom_right_limit[1], g.node_positions[idx][1] + g.node_areas[idx]);
     }
+
+    return expected<void>();
 }
 
 void graph_component::resize(const i32          children_size,
@@ -500,7 +517,7 @@ expected<void> graph_component::build_cache(modeling& mod) noexcept
 
     cache.reserve(g.nodes.size());
     if (not cache.can_alloc(g.nodes.size()))
-        return new_error_code(graph_component::errc::children_full,
+        return new_error_code(graph_component::errc::nodes_container_full,
                               graph_component::ID);
 
     const auto vec = build_graph_children(mod, *this);

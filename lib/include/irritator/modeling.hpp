@@ -654,7 +654,10 @@ public:
         output_connection_full,
         input_connection_already_exists,
         output_connection_already_exists,
-        children_full,
+        nodes_container_full,
+        edges_container_full,
+        dot_file_access_error,
+        dot_file_format_error,
     };
 
     enum class graph_type { dot_file, scale_free, small_world };
@@ -749,7 +752,7 @@ public:
      * parameters.
      * @param mod Use when reading @c file_path for the dot graph.
      */
-    void update(const modeling& mod) noexcept;
+    expected<void> update(const modeling& mod) noexcept;
 
     //! @brief Check if the input connection already exits.
     bool exists_input_connection(const port_id       x,
