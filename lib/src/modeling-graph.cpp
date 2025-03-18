@@ -182,33 +182,44 @@ static void named_connection_add(graph_component& compo,
     });
 }
 
-static void named_suffix_connection_add(graph_component&     compo,
-                                        const child_id       src_id,
-                                        const child_id       dst_id,
-                                        const component&     src,
-                                        const component&     dst,
-                                        const std::span<int> suffix) noexcept
+static constexpr auto exists_connection(const graph_component& graph,
+                                        const child_id         src_id,
+                                        const port_id          p_src,
+                                        const child_id         dst_id,
+                                        const port_id p_dst) noexcept -> bool
+{
+    for (const auto& elem : graph.cache_connections)
+        if (elem.src == src_id and elem.dst == dst_id and
+            elem.index_src.compo == p_src and elem.index_dst.compo == p_dst)
+            return true;
+
+    return false;
+}
+
+static void named_suffix_connection_add(graph_component& compo,
+                                        const child_id   src_id,
+                                        const child_id   dst_id,
+                                        const component& src,
+                                        const component& dst) noexcept
 {
     if (not compo.cache_connections.can_alloc(1)) {
         compo.cache_connections.grow();
         if (not compo.cache_connections.can_alloc(1))
             return;
     }
-    src.y.for_each<port_str>([&](const auto sid, const auto& sname) noexcept {
-        dst.x.for_each<port_str>(
-          [&](const auto did, const auto& dname) noexcept {
-              auto dual = split(dname.sv(), '_');
-              if (dual.first == sname.sv()) {
-                  small_string<16> tmp;
-                  const auto       nb = suffix[get_index(dst_id)];
-                  format(tmp, "{}", nb);
 
-                  if (tmp.sv() == dual.second) {
-                      compo.cache_connections.alloc(src_id, sid, dst_id, did);
-                      suffix[get_index(dst_id)] += 1;
-                  }
-              }
-          });
+    src.y.for_each<port_str>([&](const auto sid, const auto& sname) noexcept {
+        for (const auto did : dst.x) {
+            const auto dname = dst.x.get<port_str>(did).sv();
+            const auto dual  = split(dname, '_');
+            if (dual.first == sname.sv()) {
+                if (exists_connection(compo, src_id, sid, dst_id, did))
+                    continue;
+
+                compo.cache_connections.alloc(src_id, sid, dst_id, did);
+                return;
+            }
+        }
     });
 }
 
@@ -266,6 +277,20 @@ static expected<void> build_dot_file_edges(
     return expected<void>();
 }
 
+static constexpr auto edge_exists(const graph&        g,
+                                  const graph_node_id src,
+                                  const graph_node_id dst) noexcept -> bool
+{
+    for (auto id : g.edges) {
+        const auto idx = get_index(id);
+
+        if (g.edges_nodes[idx][0] == src and g.edges_nodes[idx][1] == dst)
+            return true;
+    }
+
+    return false;
+}
+
 static expected<void> build_scale_free_edges(
   graph_component&                         graph,
   const graph_component::scale_free_param& params) noexcept
@@ -307,7 +332,8 @@ static expected<void> build_scale_free_edges(
             do {
                 const auto idx = d(r);
                 second         = graph.g.nodes.get_from_index(idx);
-            } while (not is_defined(second) or *first == second);
+            } while (not is_defined(second) or *first == second or
+                     edge_exists(graph.g, *first, second));
             --degree;
 
             if (not graph.g.edges.can_alloc(1)) {
@@ -393,6 +419,12 @@ static expected<void> build_small_world_edges(
             const auto new_edge_id  = graph.g.edges.alloc();
             const auto new_edge_idx = get_index(new_edge_id);
 
+            if (not is_defined(*vertex_first) or
+                not is_defined(*vertex_second) or
+                vertex_first == vertex_second or
+                edge_exists(graph.g, *vertex_first, *vertex_second))
+                continue;
+
             graph.g.edges_nodes[new_edge_idx] = { *vertex_first,
                                                   *vertex_second };
         } while (source + 1 < n);
@@ -465,11 +497,6 @@ static void build_graph_connections(
   graph_component&                      graph,
   const table<graph_node_id, child_id>& vertex) noexcept
 {
-    vector<int> name_suffix_table;
-
-    if (graph.type == graph_component::connection_type::name_suffix)
-        name_suffix_table.resize(graph.g.nodes.size(), 0);
-
     for (const auto id : graph.g.edges) {
         const auto idx  = get_index(id);
         const auto u_id = graph.g.edges_nodes[idx][0];
@@ -505,12 +532,7 @@ static void build_graph_connections(
                                 graph.cache_connections.reserve(
                                   graph.g.edges.size() * 4);
                                 named_suffix_connection_add(
-                                  graph,
-                                  *u,
-                                  *v,
-                                  *c_src,
-                                  *c_dst,
-                                  std::span(name_suffix_table));
+                                  graph, *u, *v, *c_src, *c_dst);
                                 break;
                             }
                         }
