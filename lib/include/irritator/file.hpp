@@ -58,21 +58,6 @@ enum class open_mode { read, write, append };
 class file
 {
 public:
-    struct memory_error {
-        sz value = 0;
-    };
-
-    struct eof_error {};
-
-    struct arg_error {};
-
-    struct open_error {
-        int value = 0;
-    };
-
-    using error_code = std::
-      variant<std::monostate, memory_error, eof_error, arg_error, open_error>;
-
     /**
       @brief Try to open a file.
 
@@ -96,13 +81,8 @@ public:
       @param  filename File name in utf-8.
       @return @c file if success @c error_code otherwise.
      */
-    template<std::invocable<file::error_code> Fn>
-    static std::optional<file> open(const char*     filename,
-                                    const open_mode mode,
-                                    Fn&&            fn) noexcept;
-
-    static std::optional<file> open(const char*     filename,
-                                    const open_mode mode) noexcept;
+    static expected<file> open(const char*     filename,
+                               const open_mode mode) noexcept;
 
     static bool exists(const char* filename) noexcept;
 
@@ -197,24 +177,10 @@ private:
 class memory
 {
 public:
-    struct memory_error {
-        sz value = 0;
-    };
-    struct eof_error {};
-    struct arg_error {};
-
-    using error_code =
-      std::variant<std::monostate, memory_error, eof_error, arg_error>;
-
     ~memory() noexcept = default;
 
-    template<std::invocable<memory::error_code> Fn>
-    static std::optional<memory> make(const i64       length,
-                                      const open_mode mode,
-                                      Fn&&            fn) noexcept;
-
-    static std::optional<memory> make(const i64       length,
-                                      const open_mode mode) noexcept;
+    static expected<memory> make(const i64       length,
+                                 const open_mode mode) noexcept;
 
     memory(const memory& other) noexcept            = delete;
     memory& operator=(const memory& other) noexcept = delete;
@@ -298,34 +264,13 @@ private:
 inline void*     file::get_handle() const noexcept { return file_handle; }
 inline open_mode file::get_mode() const noexcept { return mode; }
 
-template<std::invocable<file::error_code> Fn>
-inline std::optional<file> file::open(const char*     filename,
-                                      const open_mode mode,
-                                      Fn&&            fn) noexcept
+inline expected<file> file::open(const char*     filename,
+                                 const open_mode mode) noexcept
 {
-    if (not filename) {
-        fn(arg_error{});
-        return std::nullopt;
-    }
+    debug::ensure(filename != nullptr);
 
-    auto* ptr = fopen(filename,
-                      mode == open_mode::read    ? "rb"
-                      : mode == open_mode::write ? "wb"
-                                                 : "ab");
-
-    if (not ptr) {
-        fn(open_error{ .value = errno });
-        return std::nullopt;
-    }
-
-    return file(ptr, mode);
-}
-
-inline std::optional<file> file::open(const char*     filename,
-                                      const open_mode mode) noexcept
-{
     if (not filename)
-        return std::nullopt;
+        return file{};
 
     auto* ptr = fopen(filename,
                       mode == open_mode::read    ? "rb"
@@ -333,39 +278,22 @@ inline std::optional<file> file::open(const char*     filename,
                                                  : "ab");
 
     if (not ptr)
-        return std::nullopt;
+        return new_error(file_errc::open_error);
 
     return file(ptr, mode);
 }
 
-template<std::invocable<memory::error_code> Fn>
-inline std::optional<memory> memory::make(const i64       length,
-                                          const open_mode mode,
-                                          Fn&&            fn) noexcept
+inline expected<memory> memory::make(const i64       length,
+                                     const open_mode mode) noexcept
 {
-    if (not(1 <= length and length <= INT32_MAX)) {
-        fn(arg_error{});
-        return std::nullopt;
-    }
+    debug::ensure(1 <= length and length <= INT32_MAX);
 
-    memory mem(length, mode);
-    if (not std::cmp_equal(mem.data.size(), length)) {
-        fn(memory_error{ .value = static_cast<sz>(length) });
-        return std::nullopt;
-    }
-
-    return mem;
-}
-
-inline std::optional<memory> memory::make(const i64       length,
-                                          const open_mode mode) noexcept
-{
     if (not(1 <= length and length <= INT32_MAX))
-        return std::nullopt;
+        return new_error(file_errc::memory_error);
 
     memory mem(length, mode);
     if (not std::cmp_equal(mem.data.size(), length))
-        return std::nullopt;
+        return new_error(file_errc::memory_error);
 
     return mem;
 }

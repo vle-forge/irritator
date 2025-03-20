@@ -47,10 +47,10 @@ static status connect(generic_component& c,
                       int                port_dst) noexcept
 {
     if (not c.connections.can_alloc())
-        return new_error(modeling::connection_error{}, container_full_error{});
+        return new_error(generic_component_errc::connection_container_full);
 
     if (is_connection_exits(c, src, port_src, dst, port_dst))
-        return new_error(modeling::connection_error{}, already_exist_error{});
+        return new_error(generic_component_errc::connection_already_exist);
 
     c.connections.alloc(src, port_src, dst, port_dst);
 
@@ -170,7 +170,7 @@ status add_lotka_volterra(modeling&          mod,
     static_assert(1 <= QssLevel && QssLevel <= 3, "Only for Qss1, 2 and 3");
 
     if (!com.children.can_alloc(5))
-        return new_error(modeling::children_error{}, container_full_error{});
+        return new_error(generic_component_errc::children_container_full);
 
     auto integrator_a = alloc<abstract_integrator<QssLevel>>(
       mod,
@@ -220,7 +220,7 @@ status add_lif(modeling& mod, component& dst, generic_component& com) noexcept
     static_assert(1 <= QssLevel && QssLevel <= 3, "Only for Qss1, 2 and 3");
 
     if (!com.children.can_alloc(5))
-        return new_error(modeling::children_error{}, container_full_error{});
+        return new_error(generic_component_errc::children_container_full);
 
     constexpr irt::real tau = 10.0_r;
     constexpr irt::real Vt  = 1.0_r;
@@ -267,7 +267,7 @@ status add_izhikevich(modeling&          mod,
 {
     using namespace irt::literals;
     if (!com.children.can_alloc(12))
-        return new_error(modeling::children_error{}, container_full_error{});
+        return new_error(generic_component_errc::children_container_full);
 
     auto cst          = alloc<constant>(mod, com);
     auto cst2         = alloc<constant>(mod, com);
@@ -355,7 +355,7 @@ status add_van_der_pol(modeling&          mod,
 {
     using namespace irt::literals;
     if (!com.children.can_alloc(5))
-        return new_error(modeling::children_error{}, container_full_error{});
+        return new_error(generic_component_errc::children_container_full);
 
     auto sum          = alloc<abstract_wsum<QssLevel, 3>>(mod, com);
     auto product1     = alloc<abstract_multiplier<QssLevel>>(mod, com);
@@ -402,7 +402,7 @@ status add_negative_lif(modeling&          mod,
 {
     using namespace irt::literals;
     if (!com.children.can_alloc(5))
-        return new_error(modeling::children_error{}, container_full_error{});
+        return new_error(generic_component_errc::children_container_full);
 
     auto sum        = alloc<abstract_wsum<QssLevel, 2>>(mod, com);
     auto integrator = alloc<abstract_integrator<QssLevel>>(
@@ -444,7 +444,7 @@ status add_seirs(modeling& mod, component& dst, generic_component& com) noexcept
 {
     using namespace irt::literals;
     if (!com.children.can_alloc(17))
-        return new_error(modeling::children_error{}, container_full_error{});
+        return new_error(generic_component_errc::children_container_full);
 
     auto dS = alloc<abstract_integrator<QssLevel>>(
       mod,
@@ -542,7 +542,7 @@ status add_seirs(modeling& mod, component& dst, generic_component& com) noexcept
 status modeling::copy(internal_component src, component& dst) noexcept
 {
     if (!generic_components.can_alloc())
-        return new_error(part::generic_components, container_full_error{});
+        return new_error(generic_component_errc::children_container_full);
 
     auto& s_compo     = generic_components.alloc();
     auto  s_compo_id  = generic_components.get_id(s_compo);

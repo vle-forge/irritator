@@ -111,8 +111,6 @@ void binary_file_source::swap(binary_file_source& other) noexcept
 
 status binary_file_source::init() noexcept
 {
-    auto _ = on_error(e_file_name{ file_path.string() });
-
     next_client = 0;
     next_offset = 0;
 
@@ -126,30 +124,29 @@ status binary_file_source::init() noexcept
         ifs.close();
 
     try {
-
         std::error_code ec;
 
         auto size = std::filesystem::file_size(file_path, ec);
         if (!ec)
-            return new_error(access_file_error{});
+            return new_error(external_source_errc::binary_file_access_error);
 
         auto number = size / sizeof(double);
         if (number <= 0)
-            return new_error(too_small_file_error{});
+            return new_error(external_source_errc::binary_file_size_error);
 
         auto chunks = number / external_source_chunk_size;
         if (chunks < max_clients)
-            return new_error(too_small_file_error{});
+            return new_error(external_source_errc::binary_file_size_error);
 
         max_reals = static_cast<u64>(number);
     } catch (const std::exception& /*e*/) {
-        return new_error(access_file_error{});
+        return new_error(external_source_errc::binary_file_access_error);
     }
 
     ifs.open(file_path);
 
     if (!ifs)
-        return new_error(open_file_error{});
+        return new_error(external_source_errc::binary_file_access_error);
 
     return success();
 }
@@ -178,14 +175,14 @@ static status binary_file_source_fill_buffer(binary_file_source& ext,
     const auto to_seek = src.chunk_id[1] * sizeof(double);
 
     if (!ext.seekg(static_cast<long>(to_seek)))
-        return new_error(binary_file_source::eof_file_error{});
+        return new_error(external_source_errc::binary_file_eof_error);
 
     if (!ext.read(src, external_source_chunk_size))
-        return new_error(binary_file_source::eof_file_error{});
+        return new_error(external_source_errc::binary_file_eof_error);
 
     const auto tellg = ext.tellg();
     if (tellg < 0)
-        return new_error(binary_file_source::eof_file_error{});
+        return new_error(external_source_errc::binary_file_eof_error);
 
     const auto current_position = static_cast<u64>(tellg) / sizeof(double);
     src.chunk_id[1]             = current_position;
@@ -196,8 +193,6 @@ static status binary_file_source_fill_buffer(binary_file_source& ext,
 
 status binary_file_source::init(source& src) noexcept
 {
-    auto _ = on_error(e_file_name{ file_path.string() });
-
     src.buffer      = std::span(buffers[next_client]);
     src.index       = 0;
     src.chunk_id[0] = to_unsigned(next_client);
@@ -208,20 +203,18 @@ status binary_file_source::init(source& src) noexcept
     next_offset += external_source_chunk_size;
 
     if (!(next_offset < max_reals))
-        return new_error(eof_file_error{});
+        return new_error(external_source_errc::binary_file_eof_error);
 
     return binary_file_source_fill_buffer(*this, src);
 }
 
 status binary_file_source::update(source& src) noexcept
 {
-    auto _ = on_error(e_file_name{ file_path.string() });
-
     const auto distance = external_source_chunk_size * max_clients;
     const auto next     = src.chunk_id[1] + distance;
 
     if (!(next + external_source_chunk_size < max_reals))
-        return new_error(eof_file_error{});
+        return new_error(external_source_errc::binary_file_eof_error);
 
     src.index = 0;
 
@@ -260,14 +253,12 @@ void text_file_source::swap(text_file_source& other) noexcept
 
 status text_file_source::init() noexcept
 {
-    auto _ = on_error(e_file_name{ file_path.string() });
-
     if (ifs.is_open())
         ifs.close();
 
     ifs.open(file_path);
     if (!ifs)
-        return new_error(open_file_error{});
+        return new_error(external_source_errc::text_file_access_error);
 
     offset = 0;
 
@@ -286,7 +277,7 @@ static status text_file_source_fill_buffer(text_file_source& ext,
                                            source& /*src*/) noexcept
 {
     if (not ext.read_chunk())
-        return new_error(text_file_source::eof_file_error{});
+        return new_error(external_source_errc::text_file_eof_error);
 
     return success();
 }
@@ -304,14 +295,12 @@ text_file_source& text_file_source::operator=(
 
 status text_file_source::init(source& src) noexcept
 {
-    auto _ = on_error(e_file_name{ file_path.string() });
-
     src.buffer = std::span(buffer);
     src.index  = 0;
 
     const auto tellg = ifs.tellg();
     if (tellg == -1)
-        return new_error(eof_file_error{});
+        return new_error(external_source_errc::text_file_eof_error);
 
     src.chunk_id[0] = static_cast<u64>(tellg);
     offset          = static_cast<u64>(tellg);
@@ -327,13 +316,11 @@ void text_file_source::finalize() noexcept
 
 status text_file_source::update(source& src) noexcept
 {
-    auto _ = on_error(e_file_name{ file_path.string() });
-
     src.index = 0;
 
     const auto tellg = ifs.tellg();
     if (tellg == -1)
-        return new_error(eof_file_error{});
+        return new_error(external_source_errc::text_file_eof_error);
 
     src.chunk_id[0] = static_cast<u64>(tellg);
     offset          = static_cast<u64>(tellg);
@@ -343,19 +330,18 @@ status text_file_source::update(source& src) noexcept
 
 status text_file_source::restore(source& src) noexcept
 {
-    auto _     = on_error(e_file_name{ file_path.string() });
     src.buffer = std::span(buffer);
 
     if (offset != src.chunk_id[0]) {
         if (!(is_numeric_castable<std::ifstream::off_type>(src.chunk_id[0])))
-            return new_error(eof_file_error{});
+            return new_error(external_source_errc::text_file_eof_error);
 
         if (!ifs.seekg(numeric_cast<std::ifstream::off_type>(src.chunk_id[0])))
-            return new_error(eof_file_error{});
+            return new_error(external_source_errc::text_file_eof_error);
 
         const auto tellg = ifs.tellg();
         if (!(tellg < 0))
-            return new_error(eof_file_error{});
+            return new_error(external_source_errc::text_file_eof_error);
 
         offset = static_cast<u64>(tellg);
     }
@@ -758,8 +744,7 @@ status external_source::dispatch(source&                      src,
         if (auto* bin_src = binary_file_sources.try_to_get(src_id); bin_src)
             return external_source_dispatch(*bin_src, src, op);
 
-        return new_error(
-          part::binary_file_source, unknown_error{}, e_ulong_id{ src.id });
+        return new_error(external_source_errc::binary_file_unknown);
     } break;
 
     case source::source_type::constant: {
@@ -767,8 +752,7 @@ status external_source::dispatch(source&                      src,
         if (auto* cst_src = constant_sources.try_to_get(src_id); cst_src)
             return external_source_dispatch(*cst_src, src, op);
 
-        return new_error(
-          part::constant_source, unknown_error{}, e_ulong_id{ src.id });
+        return new_error(external_source_errc::constant_unknown);
     } break;
 
     case source::source_type::random: {
@@ -776,8 +760,8 @@ status external_source::dispatch(source&                      src,
         if (auto* rnd_src = random_sources.try_to_get(src_id); rnd_src)
             return external_source_dispatch(*rnd_src, src, op);
 
-        return new_error(
-          part::random_source, unknown_error{}, e_ulong_id{ src.id });
+        return new_error(external_source_errc::random_unknown);
+
     } break;
 
     case source::source_type::text_file: {
@@ -785,8 +769,7 @@ status external_source::dispatch(source&                      src,
         if (auto* txt_src = text_file_sources.try_to_get(src_id); txt_src)
             return external_source_dispatch(*txt_src, src, op);
 
-        return new_error(
-          part::text_file_source, unknown_error{}, e_ulong_id{ src.id });
+        return new_error(external_source_errc::text_file_unknown);
     } break;
     }
 
@@ -794,7 +777,7 @@ status external_source::dispatch(source&                      src,
 }
 
 external_source::external_source(
-    const external_source_memory_requirement& init) noexcept
+  const external_source_memory_requirement& init) noexcept
 {
     realloc(init);
 }

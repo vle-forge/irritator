@@ -1177,21 +1177,6 @@ public:
 class simulation
 {
 public:
-    //! Used to report which part of the @c project have a problem with the
-    //! @c new_error function.
-    enum class part {
-        messages,
-        nodes,
-        dated_messages,
-        models,
-        hsms,
-        observers,
-        scheduler,
-        external_sources
-    };
-
-    struct model_error {};
-
     vector<output_message> emitting_output_ports;
     vector<model_id>       immediate_models;
     vector<observer_id>    immediate_observers;
@@ -1513,10 +1498,10 @@ struct abstract_integrator<1> {
     status initialize(simulation& /*sim*/) noexcept
     {
         if (!std::isfinite(X))
-            return new_error(X_error{});
+            return new_error(simulation_errc::abstract_integrator_x_error);
 
         if (!(std::isfinite(dQ) && dQ > zero))
-            return new_error(dQ_error{});
+            return new_error(simulation_errc::abstract_integrator_dq_error);
 
         q = std::floor(X / dQ) * dQ;
         u = zero;
@@ -1632,10 +1617,10 @@ struct abstract_integrator<2> {
     status initialize(simulation& /*sim*/) noexcept
     {
         if (!std::isfinite(X))
-            return new_error(X_error{});
+            return new_error(simulation_errc::abstract_integrator_x_error);
 
-        if (!std::isfinite(dQ) && dQ > zero)
-            return new_error(dQ_error{});
+        if (!(std::isfinite(dQ) && dQ > zero))
+            return new_error(simulation_errc::abstract_integrator_dq_error);
 
         u  = zero;
         mu = zero;
@@ -1793,10 +1778,10 @@ struct abstract_integrator<3> {
     status initialize(simulation& /*sim*/) noexcept
     {
         if (!std::isfinite(X))
-            return new_error(X_error{});
+            return new_error(simulation_errc::abstract_integrator_x_error);
 
         if (!(std::isfinite(dQ) && dQ > zero))
-            return new_error(dQ_error{});
+            return new_error(simulation_errc::abstract_integrator_dq_error);
 
         u     = zero;
         mu    = zero;
@@ -3184,7 +3169,8 @@ struct abstract_filter {
     status initialize(simulation& /*sim*/) noexcept
     {
         if (lower_threshold >= upper_threshold)
-            return new_error(threshold_condition_error{});
+            return new_error(
+              simulation_errc::abstract_filter_threshold_condition_error);
 
         reach_lower_threshold = false;
         reach_upper_threshold = false;
@@ -4259,8 +4245,6 @@ struct queue {
 
     real ta = one;
 
-    struct ta_error {};
-
     queue() noexcept = default;
 
     queue(const queue& other) noexcept
@@ -4272,7 +4256,7 @@ struct queue {
     status initialize(simulation& /*sim*/) noexcept
     {
         if (ta <= 0)
-            return new_error(ta_error{});
+            return new_error(simulation_errc::queue_ta_error);
 
         sigma = time_domain<time>::infinity;
         fifo  = undefined<dated_message_id>();
@@ -5271,9 +5255,9 @@ inline status send_message(simulation&    sim,
             if (auto* mdl = sim.models.try_to_get(it->model); not mdl) {
                 block->nodes.swap_pop_back(it);
             } else {
-                if (!sim.emitting_output_ports.can_alloc(1))
-                    return new_error(simulation::part::messages,
-                                     container_full_error{});
+                if (not sim.emitting_output_ports.can_alloc(1))
+                    return new_error(
+                      simulation_errc::emitting_output_ports_full);
 
                 auto& output_message = sim.emitting_output_ports.emplace_back();
                 output_message.msg[0] = r1;
@@ -5327,8 +5311,7 @@ inline auto get_hierarchical_state_machine(simulation& sim,
     if (auto* hsm = sim.hsms.try_to_get_from_pos(idx); hsm)
         return hsm;
 
-    return new_error(
-      simulation::part::hsms, unknown_error{}, e_ulong_id{ idx });
+    return new_error(simulation_errc::hsm_unknown);
 }
 
 //
@@ -6004,10 +5987,10 @@ inline status simulation::connect(model& src,
                                   int    port_dst) noexcept
 {
     if (not is_ports_compatible(src, port_src, dst, port_dst))
-        return new_error(simulation::part::nodes, incompatibility_error{});
+        return new_error(simulation_errc::connection_incompatible);
 
     if (not can_connect(src, port_src, dst, port_dst))
-        return new_error(simulation::part::nodes, already_exist_error{});
+        return new_error(simulation_errc::connection_already_exists);
 
     return dispatch(src, [&]<typename Dynamics>(Dynamics& dyn) -> status {
         if constexpr (has_output_port<Dynamics>) {
@@ -6024,7 +6007,7 @@ inline status simulation::connect(block_node_id& port,
 {
     if (auto* block = nodes.try_to_get(port); not block) {
         if (not nodes.can_alloc(1))
-            return new_error(simulation::part::nodes, container_full_error{});
+            return new_error(simulation_errc::connection_container_full);
 
         auto& new_block = nodes.alloc();
         new_block.nodes.emplace_back(dst, port_dst);
@@ -6046,7 +6029,7 @@ inline status simulation::connect(block_node_id& port,
         debug::ensure(prev != nullptr);
 
         if (not nodes.can_alloc(1))
-            return new_error(simulation::part::nodes, container_full_error{});
+            return new_error(simulation_errc::connection_container_full);
 
         auto& new_block = nodes.alloc();
         new_block.nodes.emplace_back(dst, port_dst);
@@ -6314,9 +6297,8 @@ inline status simulation::run() noexcept
         debug::ensure(sched.is_in_tree(mdl->handle));
         sched.update(*mdl, t);
 
-        if (!messages.can_alloc(1))
-            return new_error(simulation::part::messages,
-                             container_full_error{});
+        if (not messages.can_alloc(1))
+            return new_error(simulation_errc::messages_container_full);
 
         auto  port = emitting_output_ports[i].port;
         auto& msg  = emitting_output_ports[i].msg;
@@ -6354,35 +6336,39 @@ inline status hsm_wrapper::initialize(simulation& sim) noexcept
 {
     exec.clear();
 
-    irt_auto(machine, get_hierarchical_state_machine(sim, id));
-
-    if (machine->flags[hierarchical_state_machine::option::use_source]) {
-        irt_check(initialize_source(sim, exec.source_value));
-    }
-
-    irt_check(machine->start(exec, sim.srcs));
-
-    sigma = time_domain<time>::infinity;
-
-    if (exec.current_state != hierarchical_state_machine::invalid_state_id and
-        not machine->states[exec.current_state].is_terminal()) {
-        switch (machine->states[exec.current_state].condition.type) {
-        case hierarchical_state_machine::condition_type::sigma:
-            sigma = exec.timer;
-            break;
-        case irt::hierarchical_state_machine::condition_type::port:
-            sigma = time_domain<time>::infinity;
-            break;
-        default:
-            sigma = time_domain<time>::zero;
-            break;
+    if (auto machine = get_hierarchical_state_machine(sim, id);
+        machine.has_value()) {
+        if ((*machine)->flags[hierarchical_state_machine::option::use_source]) {
+            irt_check(initialize_source(sim, exec.source_value));
         }
+
+        irt_check((*machine)->start(exec, sim.srcs));
+
+        sigma = time_domain<time>::infinity;
+
+        if (exec.current_state !=
+              hierarchical_state_machine::invalid_state_id and
+            not(*machine)->states[exec.current_state].is_terminal()) {
+            switch ((*machine)->states[exec.current_state].condition.type) {
+            case hierarchical_state_machine::condition_type::sigma:
+                sigma = exec.timer;
+                break;
+            case irt::hierarchical_state_machine::condition_type::port:
+                sigma = time_domain<time>::infinity;
+                break;
+            default:
+                sigma = time_domain<time>::zero;
+                break;
+            }
+        }
+
+        if (exec.messages > 0)
+            sigma = time_domain<time>::zero;
+
+        return success();
+    } else {
+        return machine.error();
     }
-
-    if (exec.messages > 0)
-        sigma = time_domain<time>::zero;
-
-    return success();
 }
 
 inline status hsm_wrapper::transition(simulation& sim,
@@ -6390,79 +6376,84 @@ inline status hsm_wrapper::transition(simulation& sim,
                                       time /*e*/,
                                       time r) noexcept
 {
-    irt_auto(machine, get_hierarchical_state_machine(sim, id));
+    if (auto machine = get_hierarchical_state_machine(sim, id);
+        machine.has_value()) {
 
-    for (int i = 0, e = length(x); i != e; ++i) {
-        auto* lst = sim.messages.try_to_get(x[i]);
-        if (lst and not lst->empty()) {
-            exec.values.set(i, true);
+        for (int i = 0, e = length(x); i != e; ++i) {
+            auto* lst = sim.messages.try_to_get(x[i]);
+            if (lst and not lst->empty()) {
+                exec.values.set(i, true);
 
-            for (auto& elem : *lst)
-                exec.ports[i] = elem[0];
+                for (auto& elem : *lst)
+                    exec.ports[i] = elem[0];
+            }
         }
+
+        exec.messages = 0;
+        bool wait_timer, wait_msg, is_terminal;
+
+        do {
+            exec.previous_state = exec.current_state;
+
+            switch ((*machine)->states[exec.current_state].condition.type) {
+            case irt::hierarchical_state_machine::condition_type::sigma:
+                exec.timer = r;
+                if (r == 0.0) {
+                    irt_check((*machine)->dispatch(
+                      hierarchical_state_machine::event_type::wake_up,
+                      exec,
+                      sim.srcs));
+                } else {
+                    debug::ensure(exec.values.any());
+
+                    irt_check((*machine)->dispatch(
+                      hierarchical_state_machine::event_type::input_changed,
+                      exec,
+                      sim.srcs));
+                }
+                break;
+
+            case irt::hierarchical_state_machine::condition_type::port:
+                if (exec.values.any()) {
+                    irt_check((*machine)->dispatch(
+                      hierarchical_state_machine::event_type::input_changed,
+                      exec,
+                      sim.srcs));
+                }
+                break;
+
+            default:
+                irt_check((*machine)->dispatch(
+                  hierarchical_state_machine::event_type::internal,
+                  exec,
+                  sim.srcs));
+                break;
+            }
+
+            debug::ensure(exec.current_state !=
+                          hierarchical_state_machine::invalid_state_id);
+
+            wait_timer =
+              (*machine)->states[exec.current_state].condition.type ==
+              hierarchical_state_machine::condition_type::sigma;
+
+            wait_msg = (*machine)->states[exec.current_state].condition.type ==
+                       hierarchical_state_machine::condition_type::port;
+
+            is_terminal = (*machine)->states[exec.current_state].is_terminal();
+
+        } while (not(wait_timer or wait_msg or is_terminal));
+
+        sigma = exec.messages ? 0.0
+                : wait_timer  ? exec.timer
+                : wait_msg    ? time_domain<time>::infinity
+                : is_terminal ? time_domain<time>::infinity
+                              : 0.0;
+
+        return success();
+    } else {
+        return machine.error();
     }
-
-    exec.messages = 0;
-    bool wait_timer, wait_msg, is_terminal;
-
-    do {
-        exec.previous_state = exec.current_state;
-
-        switch (machine->states[exec.current_state].condition.type) {
-        case irt::hierarchical_state_machine::condition_type::sigma:
-            exec.timer = r;
-            if (r == 0.0) {
-                irt_check(machine->dispatch(
-                  hierarchical_state_machine::event_type::wake_up,
-                  exec,
-                  sim.srcs));
-            } else {
-                debug::ensure(exec.values.any());
-
-                irt_check(machine->dispatch(
-                  hierarchical_state_machine::event_type::input_changed,
-                  exec,
-                  sim.srcs));
-            }
-            break;
-
-        case irt::hierarchical_state_machine::condition_type::port:
-            if (exec.values.any()) {
-                irt_check(machine->dispatch(
-                  hierarchical_state_machine::event_type::input_changed,
-                  exec,
-                  sim.srcs));
-            }
-            break;
-
-        default:
-            irt_check(machine->dispatch(
-              hierarchical_state_machine::event_type::internal,
-              exec,
-              sim.srcs));
-            break;
-        }
-
-        debug::ensure(exec.current_state !=
-                      hierarchical_state_machine::invalid_state_id);
-
-        wait_timer = machine->states[exec.current_state].condition.type ==
-                     hierarchical_state_machine::condition_type::sigma;
-
-        wait_msg = machine->states[exec.current_state].condition.type ==
-                   hierarchical_state_machine::condition_type::port;
-
-        is_terminal = machine->states[exec.current_state].is_terminal();
-
-    } while (not(wait_timer or wait_msg or is_terminal));
-
-    sigma = exec.messages ? 0.0
-            : wait_timer  ? exec.timer
-            : wait_msg    ? time_domain<time>::infinity
-            : is_terminal ? time_domain<time>::infinity
-                          : 0.0;
-
-    return success();
 }
 
 inline status hsm_wrapper::lambda(simulation& sim) noexcept
@@ -6476,12 +6467,15 @@ inline status hsm_wrapper::lambda(simulation& sim) noexcept
 
 inline status hsm_wrapper::finalize(simulation& sim) noexcept
 {
-    irt_auto(machine, get_hierarchical_state_machine(sim, id));
+    if (auto machine = get_hierarchical_state_machine(sim, id);
+        machine.has_value()) {
+        if ((*machine)->flags[hierarchical_state_machine::option::use_source])
+            irt_check(finalize_source(sim, exec.source_value));
 
-    if (machine->flags[hierarchical_state_machine::option::use_source])
-        irt_check(finalize_source(sim, exec.source_value));
-
-    return success();
+        return success();
+    } else {
+        return machine.error();
+    }
 }
 
 inline observation_message hsm_wrapper::observation(time t,
@@ -6623,23 +6617,23 @@ inline result<message_id> get_input_port(model& src, int port_src) noexcept
               }
           }
 
-          return new_error(simulation::part::nodes, unknown_error{});
+          return new_error(simulation_errc::input_port_error);
       });
 }
 
 inline status get_input_port(model& src, int port_src, message_id*& p) noexcept
 {
-    return dispatch(
-      src, [port_src, &p]<typename Dynamics>(Dynamics& dyn) -> status {
-          if constexpr (has_input_port<Dynamics>) {
-              if (port_src >= 0 && port_src < length(dyn.x)) {
-                  p = &dyn.x[port_src];
-                  return success();
-              }
-          }
+    return dispatch(src,
+                    [port_src, &p]<typename Dynamics>(Dynamics& dyn) -> status {
+                        if constexpr (has_input_port<Dynamics>) {
+                            if (port_src >= 0 && port_src < length(dyn.x)) {
+                                p = &dyn.x[port_src];
+                                return success();
+                            }
+                        }
 
-          return new_error(simulation::part::nodes, unknown_error{});
-      });
+                        return new_error(simulation_errc::input_port_error);
+                    });
 }
 
 inline result<block_node_id> get_output_port(model& dst, int port_dst) noexcept
@@ -6651,7 +6645,7 @@ inline result<block_node_id> get_output_port(model& dst, int port_dst) noexcept
                   return dyn.y[port_dst];
           }
 
-          return new_error(simulation::part::nodes, unknown_error{});
+          return new_error(simulation_errc::output_port_error);
       });
 }
 
@@ -6659,17 +6653,17 @@ inline status get_output_port(model&          dst,
                               int             port_dst,
                               block_node_id*& p) noexcept
 {
-    return dispatch(
-      dst, [port_dst, &p]<typename Dynamics>(Dynamics& dyn) -> status {
-          if constexpr (has_output_port<Dynamics>) {
-              if (port_dst >= 0 && port_dst < length(dyn.y)) {
-                  p = &dyn.y[port_dst];
-                  return success();
-              }
-          }
+    return dispatch(dst,
+                    [port_dst, &p]<typename Dynamics>(Dynamics& dyn) -> status {
+                        if constexpr (has_output_port<Dynamics>) {
+                            if (port_dst >= 0 && port_dst < length(dyn.y)) {
+                                p = &dyn.y[port_dst];
+                                return success();
+                            }
+                        }
 
-          return new_error(simulation::part::nodes, unknown_error{});
-      });
+                        return new_error(simulation_errc::output_port_error);
+                    });
 }
 
 /////////////////////////////////////////////////////////////////////
@@ -6689,8 +6683,8 @@ inline status queue::transition(simulation& sim,
         if (lst) {
             for (const auto& msg : *lst) {
                 if (!sim.dated_messages.can_alloc(1))
-                    return new_error(simulation::part::dated_messages,
-                                     container_full_error{});
+                    return new_error(
+                      simulation_errc::dated_messages_container_full);
 
                 ar->push_head({ irt::real(t + ta), msg[0], msg[1], msg[2] });
             }
@@ -6724,8 +6718,9 @@ inline status dynamic_queue::transition(simulation& sim,
         if (lst) {
             for (const auto& msg : *lst) {
                 if (!sim.dated_messages.can_alloc(1))
-                    return new_error(simulation::part::dated_messages,
-                                     container_full_error{});
+                    return new_error(
+                      simulation_errc::dated_messages_container_full);
+
                 real ta = zero;
                 if (stop_on_error) {
                     irt_check(update_source(sim, source_ta, ta));
@@ -6760,8 +6755,7 @@ inline status priority_queue::try_to_insert(simulation&    sim,
                                             const message& msg) noexcept
 {
     if (not sim.dated_messages.can_alloc(1))
-        return new_error(simulation::part::dated_messages,
-                         container_full_error{});
+        return new_error(simulation_errc::dated_messages_container_full);
 
     if (auto* ar = sim.dated_messages.try_to_get(fifo); ar) {
         ar->push_head({ irt::real(t), msg[0], msg[1], msg[2] });
@@ -6794,15 +6788,15 @@ inline status priority_queue::transition(simulation& sim,
                     if (auto ret =
                           try_to_insert(sim, static_cast<real>(value) + t, msg);
                         !ret)
-                        return new_error(simulation::part::dated_messages,
-                                         container_full_error{});
+                        return new_error(
+                          simulation_errc::dated_messages_container_full);
                 } else {
                     if (auto ret = update_source(sim, source_ta, value); !ret) {
-                        if (auto ret = try_to_insert(
+                        if (auto ret2 = try_to_insert(
                               sim, static_cast<real>(value) + t, msg);
-                            !ret)
-                            return new_error(simulation::part::dated_messages,
-                                             container_full_error{});
+                            !ret2)
+                            return new_error(
+                              simulation_errc::dated_messages_container_full);
                     }
                 }
             }

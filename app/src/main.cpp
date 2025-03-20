@@ -109,7 +109,7 @@ static constexpr void warning(Args&&... args) noexcept
 {
     constexpr auto idx = static_cast<std::underlying_type_t<ec>>(Index);
 
-    assert(sizeof...(args) == report_parameters[idx].arg);
+    irt::debug::ensure(sizeof...(args) == report_parameters[idx].arg);
 
     fmt::vprint(
       stderr, report_parameters[idx].str, fmt::make_format_args(args...));
@@ -120,7 +120,7 @@ static constexpr auto error(Ret&& ret, Args&&... args) noexcept -> Ret
 {
     constexpr auto idx = static_cast<std::underlying_type_t<ec>>(Index);
 
-    assert(sizeof...(args) == report_parameters[idx].arg);
+    irt::debug::ensure(sizeof...(args) == report_parameters[idx].arg);
 
     fmt::vprint(stderr,
                 fg(fmt::terminal_color::red),
@@ -212,31 +212,32 @@ public:
       , args{ av + 1, static_cast<std::size_t>(ac - 1) }
       , r{ 0.0 }
     {
-        irt::attempt_all(
-          [&]() noexcept -> irt::status {
-              irt_check(mod.init(init));
-              registred_path_add();
-              irt_check(mod.fill_components());
-              irt_check(pj.init(init));
+        auto ret = [&]() -> irt::status {
+            irt_check(mod.init(init));
+            registred_path_add();
+            irt_check(mod.fill_components());
+            irt_check(pj.init(init));
+            return irt::success();
+        }();
 
-              return irt::success();
-          },
-
-          [](const irt::project::part s) noexcept {
-              warning<ec::project_init_error>(ordinal(s));
-          },
-
-          [](const irt::modeling::part s) noexcept {
-              warning<ec::modeling_init_error>(ordinal(s));
-          },
-
-          [](const irt::simulation::part s) noexcept {
-              warning<ec::simulation_init_error>(ordinal(s));
-          },
-
-          []() noexcept { warning<ec::unknown_error>(); });
-
-        load_next_token();
+        if (not ret.has_value()) {
+            switch (ret.error().cat()) {
+            case irt::category::modeling:
+                warning<ec::modeling_init_error>(ret.error().value());
+                break;
+            case irt::category::project:
+                warning<ec::project_init_error>(ret.error().value());
+                break;
+            case irt::category::simulation:
+                warning<ec::simulation_init_error>(ret.error().value());
+                break;
+            default:
+                warning<ec::unknown_error>();
+                break;
+            }
+        } else {
+            load_next_token();
+        }
     }
 
     void observation_initialize() noexcept
@@ -296,62 +297,64 @@ public:
 
     constexpr bool run() noexcept
     {
-        return irt::attempt_all(
-          [&]() noexcept -> irt::result<bool> {
-              fmt::print("Run simulation for file {}\n", front);
-              const std::string str{ front };
-              load_next_token();
-              if (auto file =
-                    irt::file::open(str.c_str(), irt::open_mode::read);
-                  file.has_value()) {
+        auto ret = [&]() noexcept -> irt::result<bool> {
+            fmt::print("Run simulation for file {}\n", front);
+            const std::string str{ front };
+            load_next_token();
+            if (auto file = irt::file::open(str.c_str(), irt::open_mode::read);
+                file.has_value()) {
 
-                  if (json(pj, mod, sim, *file)) {
-                      sim.t         = pj.t_limit.begin();
-                      irt::real end = pj.t_limit.duration();
-                      observation_initialize();
-                      irt_check(sim.srcs.prepare());
-                      irt_check(sim.initialize());
+                if (json(pj, mod, sim, *file)) {
+                    sim.t         = pj.t_limit.begin();
+                    irt::real end = pj.t_limit.duration();
+                    observation_initialize();
+                    irt_check(sim.srcs.prepare());
+                    irt_check(sim.initialize());
 
-                      fmt::print("grid-observers: {}\n"
-                                 "graph-observers: {}\n"
-                                 "plot-observers: {}\n"
-                                 "file-observers: {}\n",
-                                 pj.grid_observers.ssize(),
-                                 pj.graph_observers.ssize(),
-                                 pj.variable_observers.ssize(),
-                                 pj.file_obs.ids.ssize());
+                    fmt::print("grid-observers: {}\n"
+                               "graph-observers: {}\n"
+                               "plot-observers: {}\n"
+                               "file-observers: {}\n",
+                               pj.grid_observers.ssize(),
+                               pj.graph_observers.ssize(),
+                               pj.variable_observers.ssize(),
+                               pj.file_obs.ids.ssize());
 
-                      do {
-                          irt_check(sim.run());
-                          observation_update();
-                      } while (sim.t < end);
+                    do {
+                        irt_check(sim.run());
+                        observation_update();
+                    } while (sim.t < end);
 
-                      irt_check(sim.finalize());
-                      observation_finalize();
-                  } else {
-                      warning<ec::json_file>(str,
-                                             std::string_view{ "unknown" });
-                  }
-              } else {
-                  warning<ec::open_file>(str, std::string_view{ "unknown" });
-              }
+                    irt_check(sim.finalize());
+                    observation_finalize();
+                } else {
+                    warning<ec::json_file>(str, std::string_view{ "unknown" });
+                }
+            } else {
+                warning<ec::open_file>(str, std::string_view{ "unknown" });
+            }
 
-              return true;
-          },
+            return true;
+        }();
 
-          [](const irt::project::part s) noexcept -> bool {
-              return error<ec::project_init_error>(false, ordinal(s));
-          },
+        if (not ret.has_value()) {
+            switch (ret.error().cat()) {
+            case irt::category::modeling:
+                warning<ec::modeling_init_error>(ret.error().value());
+                return false;
+            case irt::category::project:
+                warning<ec::project_init_error>(ret.error().value());
+                return false;
+            case irt::category::simulation:
+                warning<ec::simulation_init_error>(ret.error().value());
+                return false;
+            default:
+                warning<ec::unknown_error>();
+                return false;
+            }
+        }
 
-          [](const irt::modeling::part s) noexcept -> bool {
-              return error<ec::modeling_init_error>(false, ordinal(s));
-          },
-
-          [](const irt::simulation::part s) noexcept -> bool {
-              return error<ec::simulation_init_error>(false, ordinal(s));
-          },
-
-          []() noexcept -> bool { return error<ec::unknown_error>(false); });
+        return true;
     }
 
     /** Try to add a new global path in @c modeling. This function only test if

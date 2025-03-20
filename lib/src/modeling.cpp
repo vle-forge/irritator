@@ -27,45 +27,44 @@ status modeling::init(const modeling_initializer& p) noexcept
     if (p.description_capacity) {
         descriptions.reserve(p.description_capacity);
         if (not descriptions.capacity())
-            return new_error(description_error{},
-                             e_memory{ p.description_capacity, 0 });
+            return new_error(modeling_errc::memory_error);
     }
 
     components.reserve(p.component_capacity);
     if (not components.can_alloc())
-        return new_error(modeling::part::components);
+        return new_error(modeling_errc::memory_error);
 
     grid_components.reserve(p.component_capacity);
     if (not grid_components.can_alloc())
-        return new_error(modeling::part::grid_components);
+        return new_error(modeling_errc::memory_error);
 
     graph_components.reserve(p.component_capacity);
     if (not graph_components.can_alloc())
-        return new_error(modeling::part::graph_components);
+        return new_error(modeling_errc::memory_error);
 
     generic_components.reserve(p.component_capacity);
     if (not generic_components.can_alloc())
-        return new_error(modeling::part::generic_components);
+        return new_error(modeling_errc::memory_error);
 
     hsm_components.reserve(p.component_capacity);
     if (not hsm_components.can_alloc())
-        return new_error(modeling::part::hsm_components);
+        return new_error(modeling_errc::memory_error);
 
     dir_paths.reserve(p.dir_path_capacity);
     if (not dir_paths.can_alloc())
-        return new_error(modeling::part::dir_paths);
+        return new_error(modeling_errc::memory_error);
 
     file_paths.reserve(p.file_path_capacity);
     if (not file_paths.can_alloc())
-        return new_error(modeling::part::file_paths);
+        return new_error(modeling_errc::memory_error);
 
     registred_paths.reserve(p.dir_path_capacity);
     if (not registred_paths.can_alloc())
-        return new_error(modeling::part::registred_paths);
+        return new_error(modeling_errc::memory_error);
 
     hsms.reserve(p.component_capacity);
     if (not hsms.can_alloc())
-        return new_error(modeling::part::hsms);
+        return new_error(modeling_errc::memory_error);
 
     component_colors.resize(components.capacity());
 
@@ -409,9 +408,7 @@ status modeling::load_component(component& compo) noexcept
     auto* file = file_paths.try_to_get(compo.file);
 
     if (!(reg && dir && file))
-        return new_error(modeling::part::components,
-                         undefined_error{},
-                         e_ulong_id{ ordinal(components.get_id(compo)) });
+        return new_error(modeling_errc::file_error);
 
     try {
         std::filesystem::path p{ reg->path.sv() };
@@ -424,9 +421,7 @@ status modeling::load_component(component& compo) noexcept
             auto f = file::open(str.c_str(), open_mode::read);
             if (!f) {
                 compo.state = component_status::unreadable;
-                return new_error(modeling::part::components,
-                                 filesystem_error{},
-                                 e_file_name{ str });
+                return f.error();
             }
 
             json_dearchiver j;
@@ -463,9 +458,9 @@ status modeling::load_component(component& compo) noexcept
             }
         }
     } catch (const std::bad_alloc& /*e*/) {
-        return new_error(filesystem_error{});
+        return new_error(modeling_errc::memory_error);
     } catch (...) {
-        return new_error(filesystem_error{});
+        return new_error(modeling_errc::memory_error);
     }
 
     return success();
@@ -474,7 +469,7 @@ status modeling::load_component(component& compo) noexcept
 status modeling::fill_internal_components() noexcept
 {
     if (!components.can_alloc(internal_component_count))
-        return new_error(part::components, container_full_error{});
+        return new_error(modeling_errc::component_container_full);
 
     for (int i = 0, e = internal_component_count; i < e; ++i) {
         auto& compo          = components.alloc();
@@ -1107,8 +1102,11 @@ child& modeling::alloc(generic_component& parent, dynamics_type type) noexcept
 
 status modeling::copy(const component& src, component& dst) noexcept
 {
-    if (not(dst.x.can_alloc(src.x.size()) and dst.y.can_alloc(src.y.size())))
-        return new_error(part::components, container_full_error{});
+    if (not dst.x.can_alloc(src.x.size()))
+        return new_error(modeling_errc::component_input_container_full);
+
+    if (not dst.y.can_alloc(src.y.size()))
+        return new_error(modeling_errc::component_output_container_full);
 
     src.x.for_each(
       [&](auto /*id*/, const auto& name, const auto& pos) noexcept {
@@ -1138,8 +1136,8 @@ status modeling::copy(const component& src, component& dst) noexcept
               generic_components.try_to_get(src.id.generic_id);
             s_src) {
             if (!generic_components.can_alloc())
-                return new_error(part::generic_components,
-                                 container_full_error{});
+                return new_error(
+                  generic_component_errc::children_container_full);
 
             auto& s_dst       = generic_components.alloc();
             auto  s_dst_id    = generic_components.get_id(s_dst);
@@ -1153,8 +1151,8 @@ status modeling::copy(const component& src, component& dst) noexcept
 
     case component_type::grid:
         if (const auto* s = grid_components.try_to_get(src.id.grid_id); s) {
-            if (!generic_components.can_alloc())
-                return new_error(part::grid_components, container_full_error{});
+            if (!grid_components.can_alloc())
+                return new_error(grid_component_errc::children_container_full);
 
             auto& d        = grid_components.alloc(*s);
             auto  d_id     = grid_components.get_id(d);
@@ -1165,9 +1163,8 @@ status modeling::copy(const component& src, component& dst) noexcept
 
     case component_type::graph:
         if (const auto* s = graph_components.try_to_get(src.id.graph_id); s) {
-            if (!generic_components.can_alloc())
-                return new_error(part::graph_components,
-                                 container_full_error{});
+            if (!graph_components.can_alloc())
+                return new_error(graph_component_errc::children_container_full);
 
             auto& d         = graph_components.alloc(*s);
             auto  d_id      = graph_components.get_id(d);
@@ -1178,8 +1175,8 @@ status modeling::copy(const component& src, component& dst) noexcept
 
     case component_type::hsm:
         if (const auto* s = hsm_components.try_to_get(src.id.hsm_id); s) {
-            if (!generic_components.can_alloc())
-                return new_error(part::hsms, container_full_error{});
+            if (!hsm_components.can_alloc())
+                return new_error(hsm_component_errc::children_container_full);
 
             auto& d       = hsm_components.alloc(*s);
             auto  d_id    = hsm_components.get_id(d);
@@ -1225,11 +1222,8 @@ status modeling::save(component& c) noexcept
     auto* dir  = dir_paths.try_to_get(c.dir);
     auto* file = file_paths.try_to_get(c.file);
 
-    if (!(reg && dir && file)) {
-        return new_error(part::components,
-                         undefined_error{},
-                         e_ulong_id{ ordinal(components.get_id(c)) });
-    }
+    if (!(reg && dir && file))
+        return new_error(modeling_errc::file_error);
 
     {
         std::filesystem::path p{ reg->path.sv() };
@@ -1237,25 +1231,13 @@ status modeling::save(component& c) noexcept
         p /= file->path.sv();
         p.replace_extension(".irt");
 
-        std::error_code ec;
-        project::error  err;
-
-        auto file = file::open(
-          p.string().c_str(),
-          open_mode::write,
-          [&](file::error_code ec) noexcept -> project::error {
-              if (const auto ptr = std::get_if<file::memory_error>(&ec); ptr)
-                  return project::error::not_enough_memory;
-              else
-                  return project::error::file_error;
-          });
-
-        if (not file.has_value())
-            return new_error(err);
+        auto jfile = file::open(p.string().c_str(), open_mode::write);
+        if (not jfile.has_value())
+            return jfile.error();
 
         json_archiver j;
-        if (not j(*this, c, *file))
-            return new_error(project::file_error);
+        if (not j(*this, c, *jfile))
+            return new_error(json_component_errc::format_error);
     }
 
     if (descriptions.exists(c.desc)) {

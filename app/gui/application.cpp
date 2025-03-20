@@ -800,38 +800,16 @@ std::optional<file> application::try_open_file(const char* filename,
     if (not filename)
         return std::nullopt;
 
-    auto f = file::open(filename, mode, [&](file::error_code ec) noexcept {
-        notifications.try_insert(
-          log_level::error, [&](auto& title, auto& msg) noexcept {
-              format(title, "Open file {}", filename);
+    if (auto f = file::open(filename, mode); not f) {
+        notifications.try_insert(log_level::error,
+                                 [&](auto& title, auto& msg) noexcept {
+                                     title = "File open error";
+                                     format(msg, "Open file {}", filename);
+                                 });
 
-              std::visit(
-                [&](auto&& arg) {
-                    using T = std::decay_t<decltype(arg)>;
-
-                    if constexpr (std::is_same_v<T, file::memory_error>) {
-                        format(msg,
-                               "Memory allocation error (requires {})",
-                               arg.value);
-                    } else if constexpr (std::is_same_v<T, file::arg_error>) {
-                        msg = "Internal error (bad argument)";
-                    } else if constexpr (std::is_same_v<T, file::eof_error>) {
-                        msg = "End of file reached to quickly";
-                    } else if constexpr (std::is_same_v<T, file::open_error>) {
-                        if (arg.value)
-                            format(msg,
-                                   "Filesystem error ({})",
-                                   std::strerror(arg.value));
-                        else
-                            msg = "Filesystem error";
-                    } else
-                        msg = "Internal error (non-exhaustive error report";
-                },
-                ec);
-          });
-    });
-
-    return f;
+        return std::nullopt;
+    } else
+        return std::make_optional(std::move(*f));
 }
 
 void application::start_load_project(const registred_path_id id,
@@ -1041,30 +1019,23 @@ void application::start_save_component(const component_id id) noexcept
 {
     add_gui_task([&, id]() noexcept {
         if (auto* c = mod.components.try_to_get(id); c) {
-            auto& n = notifications.alloc();
-            n.title = "Component save";
-
-            attempt_all(
-              [&]() noexcept -> status {
-                  irt_check(mod.save(*c));
-                  format(n.message, "{} saved", c->name.sv());
-
-                  return success();
-              },
-
-              [&](const irt::modeling::part s) noexcept -> void {
-                  format(n.message,
-                         "Fail to save {} (part: {})",
-                         c->name.sv(),
-                         ordinal(s));
-              },
-
-              [&]() noexcept -> void {
-                  auto& n   = notifications.alloc();
-                  n.message = "Unknown error";
-              });
-
-            notifications.enable(n);
+            if (auto ret = mod.save(*c); not ret) {
+                notifications.try_insert(
+                  log_level::error, [&](auto& title, auto& msg) {
+                      title = "Component save error";
+                      format(msg,
+                             "Fail to save {} (part: {} {}",
+                             c->name.sv(),
+                             ordinal(ret.error().cat()),
+                             ret.error().value());
+                  });
+            } else {
+                notifications.try_insert(
+                  log_level::notice, [&](auto& title, auto& msg) {
+                      title = "Component save";
+                      format(msg, "Save {} success", c->name.sv());
+                  });
+            }
         }
     });
 }

@@ -563,12 +563,6 @@ public:
     type         in_connection_type  = type::name;
     type         out_connection_type = type::in_out;
     neighborhood neighbors           = neighborhood::four;
-
-    static auto build_error_handlers(log_manager& l) noexcept;
-    static void format_input_connection_error(log_entry& e) noexcept;
-    static void format_output_connection_error(log_entry& e) noexcept;
-    static void format_children_connection_error(log_entry& e,
-                                                 e_memory   mem) noexcept;
 };
 
 /**
@@ -648,7 +642,7 @@ public:
     static inline constexpr i32 children_max = 4096;
 
     enum class errc {
-        input_connection_full,
+        input_connection_full = 1,
         output_connection_full,
         input_connection_already_exists,
         output_connection_already_exists,
@@ -2070,23 +2064,6 @@ inline void project::for_each_children(tree_node& tn,
         if (auto* child = cur->tree.get_child(); child)
             stack.emplace_back(child);
     }
-}
-
-inline auto grid_component::build_error_handlers(log_manager& l) noexcept
-{
-    return std::make_tuple(
-      [&](input_connection_error, already_exist_error) {
-          l.push(log_level::error,
-                 [&](auto& e) { format_input_connection_error(e); });
-      },
-      [&](output_connection_error, already_exist_error) {
-          l.push(log_level::error,
-                 [&](auto& e) { format_output_connection_error(e); });
-      },
-      [&](children_connection_error, e_memory mem) {
-          l.push(log_level::error,
-                 [&](auto& e) { format_children_connection_error(e, mem); });
-      });
 }
 
 } // namespace irt

@@ -21,8 +21,7 @@ static status try_allocate_external_source(application&        app,
         d.grow();
 
         if (not d.can_alloc(1))
-            return new_error(container_full_error{},
-                             e_memory{ d.capacity() * 2, d.capacity() });
+            return new_error(external_source_errc::memory_error);
     }
 
     [[maybe_unused]] auto& src = d.alloc();
@@ -36,11 +35,38 @@ static status try_allocate_external_source(application&        app,
     return success();
 }
 
+static status display_allocate_external_source(
+  application&        app,
+  project_editor&     ed,
+  source::source_type part) noexcept
+{
+
+    switch (part) {
+    case source::source_type::constant:
+        return (try_allocate_external_source(
+          app, ed, part, ed.pj.sim.srcs.constant_sources));
+
+    case source::source_type::binary_file:
+        return (try_allocate_external_source(
+          app, ed, part, ed.pj.sim.srcs.binary_file_sources));
+
+    case source::source_type::text_file:
+        return (try_allocate_external_source(
+          app, ed, part, ed.pj.sim.srcs.text_file_sources));
+
+    case source::source_type::random:
+        return (try_allocate_external_source(
+          app, ed, part, ed.pj.sim.srcs.random_sources));
+    }
+
+    irt::unreachable();
+}
+
 static void display_allocate_external_source(application&    app,
                                              project_editor& ed) noexcept
 {
-    auto&      style = ImGui::GetStyle();
-    const auto width =
+    const auto& style = ImGui::GetStyle();
+    const auto  width =
       (ImGui::GetContentRegionAvail().x - 4.f * style.ItemSpacing.x) / 4.f;
     auto button_sz = ImVec2(width, 20);
 
@@ -59,69 +85,28 @@ static void display_allocate_external_source(application&    app,
         part = source::source_type::random;
 
     if (part.has_value()) {
-        attempt_all(
-          [&]() noexcept -> status {
-              switch (*part) {
+        auto ret = display_allocate_external_source(app, ed, *part);
+        if (not ret.has_value()) {
+            switch (ret.error().cat()) {
+            case category::external_source:
+                app.notifications.try_insert(
+                  log_level::error, [&](auto& title, auto&) {
+                      format(title,
+                             "Fail to initialize {} source",
+                             external_source_str(*part));
+                      // TODO More.
+                  });
+                break;
 
-              case source::source_type::constant:
-                  irt_check(try_allocate_external_source(
-                    app, ed, *part, ed.pj.sim.srcs.constant_sources));
-                  break;
-
-              case source::source_type::binary_file:
-                  irt_check(try_allocate_external_source(
-                    app, ed, *part, ed.pj.sim.srcs.binary_file_sources));
-                  break;
-
-              case source::source_type::text_file:
-                  irt_check(try_allocate_external_source(
-                    app, ed, *part, ed.pj.sim.srcs.text_file_sources));
-                  break;
-
-              case source::source_type::random:
-                  irt_check(try_allocate_external_source(
-                    app, ed, *part, ed.pj.sim.srcs.random_sources));
-                  break;
-              }
-
-              return success();
-          },
-
-          [&](const container_full_error /*c*/,
-              const e_memory m) noexcept -> void {
-              app.notifications.try_insert(
-                log_level::error, [&](auto& title, auto& msg) {
-                    format(title,
-                           "Fail to initialize {} source",
-                           external_source_str(*part));
-                    format(
-                      msg,
-                      "Not enough memory in container. Request size: `{}', "
-                      "and capacity `{}'",
-                      m.request,
-                      m.capacity);
-                });
-          },
-
-          [&](const external_source::part s) noexcept -> void {
-              app.notifications.try_insert(
-                log_level::error, [&](auto& title, auto& msg) {
-                    format(title,
-                           "Fail to initialize {} source",
-                           external_source_str(*part));
-                    format(msg, "Error in {}: {}", ordinal(s));
-                });
-          },
-
-          [&]() noexcept -> void {
-              app.notifications.try_insert(
-                log_level::error, [&](auto& title, auto& msg) {
-                    format(title,
-                           "Fail to initialize {} source",
-                           external_source_str(*part));
-                    format(msg, "unknown_error");
-                });
-          });
+            default:
+                app.notifications.try_insert(
+                  log_level::error, [&](auto& title, auto&) {
+                      format(title,
+                             "Fail to initialize {} source",
+                             external_source_str(*part));
+                  });
+            }
+        }
     }
 }
 
@@ -383,7 +368,8 @@ bool show_random_distribution_input(random_source& src) noexcept
 
 // static void task_try_finalize_source(application&        app,
 //                                      u64                 id,
-//                                      source::source_type type) noexcept
+//                                      source::source_type type)
+//                                      noexcept
 // {
 //     source src;
 //     src.id   = id;
@@ -504,7 +490,8 @@ void project_external_source_editor::show(application& app) noexcept
                 ImGui::TextUnformatted(
                   external_source_str(source::source_type::text_file));
                 ImGui::TableNextColumn();
-                // ImGui::Text("%s", txt_src->file_path.string().c_str());
+                // ImGui::Text("%s",
+                // txt_src->file_path.string().c_str());
 
                 ImGui::PopID();
             }
@@ -541,7 +528,8 @@ void project_external_source_editor::show(application& app) noexcept
                 ImGui::TextUnformatted(
                   external_source_str(source::source_type::binary_file));
                 ImGui::TableNextColumn();
-                // ImGui::Text("%s", bin_src->file_path.string().c_str());
+                // ImGui::Text("%s",
+                // bin_src->file_path.string().c_str());
 
                 ImGui::PopID();
             }

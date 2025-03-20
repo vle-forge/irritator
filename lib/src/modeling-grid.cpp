@@ -393,8 +393,8 @@ result<input_connection_id> grid_component::connect_input(
         input_connections.reserve(request);
 
         if (input_connections.capacity() == capacity)
-            return new_error(input_connection_error{},
-                             e_memory{ request, capacity });
+            return new_error(
+              grid_component_errc::input_connection_container_full);
     }
 
     return input_connections.get_id(input_connections.alloc(x, row, col, id));
@@ -417,8 +417,8 @@ result<output_connection_id> grid_component::connect_output(
         output_connections.reserve(request);
 
         if (output_connections.capacity() == capacity)
-            return new_error(input_connection_error{},
-                             e_memory{ request, capacity });
+            return new_error(
+              grid_component_errc::output_connection_container_full);
     }
 
     return output_connections.get_id(output_connections.alloc(y, row, col, id));
@@ -435,39 +435,12 @@ status grid_component::build_cache(modeling& mod) noexcept
     clear_cache();
 
     if (not can_alloc_grid_children_and_connections(*this))
-        return new_error(
-          children_connection_error{},
-          e_memory{
-            static_cast<unsigned long long>(cache.capacity()),
-            static_cast<unsigned long long>(cache_connections.capacity()) });
+        return new_error(grid_component_errc::children_container_full);
 
     const auto vec = build_grid_children(mod, *this);
     build_grid_connections(mod, *this, vec);
 
     return success();
-}
-
-void grid_component::format_input_connection_error(log_entry& e) noexcept
-{
-    e.buffer = "Input connection already exists in this grid component";
-    e.level  = log_level::notice;
-}
-
-void grid_component::format_output_connection_error(log_entry& e) noexcept
-{
-    e.buffer = "Input connection already exists in this grid component";
-    e.level  = log_level::notice;
-}
-
-void grid_component::format_children_connection_error(log_entry& e,
-                                                      e_memory   mem) noexcept
-{
-    format(e.buffer,
-           "Not enough available space for model or connection "
-           "in this grid component({}, {}) ",
-           mem.request,
-           mem.capacity);
-    e.level = log_level::error;
 }
 
 } // namespace irt

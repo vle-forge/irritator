@@ -60,10 +60,10 @@ result<buffered_file> open_buffered_file(
         if (::_wfopen_s(&fp, path.c_str(), m) == 0) {
             return buffered_file(fp);
         } else {
-            return new_error(file::open_error{});
+            return new_error(file_errc::open_error);
         }
     } catch (...) {
-        return new_error(file::memory_error{});
+        return new_error(file_errc::memory_error);
     }
 
 #else
@@ -79,10 +79,10 @@ result<buffered_file> open_buffered_file(
         if (auto* fp = std::fopen(path.c_str(), m); fp) {
             return buffered_file(fp);
         } else {
-            return new_error(file::open_error{});
+            return new_error(file_errc::open_error);
         }
     } catch (...) {
-        return new_error(file::memory_error{});
+        return new_error(file_errc::memory_error);
     }
 #endif
 }

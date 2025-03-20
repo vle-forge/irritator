@@ -154,7 +154,7 @@ static status build_initial_simulation_point(timeline&   tl,
     if (!tl.can_alloc(timeline_point_type::simulation,
                       static_cast<i32>(sim.models.max_used()),
                       static_cast<i32>(sim.messages.max_size())))
-        return new_error(simulation::part::models, container_full_error{});
+        return new_error(timeline_errc::memory_error);
 
     auto& sim_pt = tl.alloc_simulation_point();
     sim_pt.t     = t;
@@ -258,15 +258,16 @@ static status apply(simulation&                            sim,
 {
     auto* mdl_src = sim.models.try_to_get(cnt.src);
     if (!mdl_src)
-        return new_error(simulation::part::models, unknown_error{});
+        return new_error(timeline_errc::apply_change_error);
 
     auto* mdl_dst = sim.models.try_to_get(cnt.dst);
     if (!mdl_dst)
-        return new_error(simulation::part::models, unknown_error{});
+        return new_error(timeline_errc::apply_change_error);
 
     switch (type) {
     case connection_point::operation_type::add:
-        irt_check(sim.connect(*mdl_src, cnt.port_src, *mdl_dst, cnt.port_dst));
+        if (not sim.connect(*mdl_src, cnt.port_src, *mdl_dst, cnt.port_dst))
+            return new_error(timeline_errc::apply_change_error);
         break;
 
     case connection_point::operation_type::remove:
@@ -283,7 +284,7 @@ static status apply(simulation&                       sim,
     switch (type) {
     case model_point::operation_type::add: {
         if (!sim.models.can_alloc(1))
-            return new_error(simulation::part::models, container_full_error{});
+            return new_error(timeline_errc::apply_change_error);
 
         auto& new_mdl = sim.clone(mdl.mdl);
         irt_check(sim.make_initialize(new_mdl, mdl.t));
@@ -292,7 +293,7 @@ static status apply(simulation&                       sim,
     case model_point::operation_type::change: {
         auto* to_change_mdl = sim.models.try_to_get(mdl.id);
         if (!to_change_mdl)
-            return new_error(simulation::part::models, unknown_error{});
+            return new_error(timeline_errc::apply_change_error);
 
         std::copy_n(reinterpret_cast<const std::byte*>(&mdl.mdl),
                     sizeof(model),
@@ -453,8 +454,7 @@ status run(timeline& tl, simulation& sim, time& t) noexcept
         sim.sched.update(*mdl, t);
 
         if (!sim.messages.can_alloc(1))
-            return new_error(simulation::part::messages,
-                             container_full_error{});
+            return new_error(timeline_errc::memory_error);
 
         auto  port = sim.emitting_output_ports[i].port;
         auto& msg  = sim.emitting_output_ports[i].msg;

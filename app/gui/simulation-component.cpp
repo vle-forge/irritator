@@ -87,30 +87,33 @@ static void simulation_copy(application& app, project_editor& ed) noexcept
         return;
     }
 
-    attempt_all(
-      [&]() noexcept -> status {
-          irt_check(ed.pj.set(app.mod, *compo));
-          irt_check(ed.pj.sim.srcs.prepare());
-          ed.pj.sim.t = ed.pj.t_limit.begin();
-          irt_check(ed.pj.sim.initialize());
-          ed.simulation_state = simulation_status::initialized;
-          return success();
-      },
+    auto ret = [&]() noexcept -> status {
+        irt_check(ed.pj.set(app.mod, *compo));
+        irt_check(ed.pj.sim.srcs.prepare());
+        ed.pj.sim.t = ed.pj.t_limit.begin();
+        irt_check(ed.pj.sim.initialize());
+        ed.simulation_state = simulation_status::initialized;
+        return success();
+    }();
 
-      [&](const project::part s) noexcept -> void {
-          ed.simulation_state = simulation_status::not_started;
-          make_copy_error_msg(app, "Error {} in project copy", ordinal(s));
-      },
+    if (not ret.has_value()) {
+        ed.simulation_state = simulation_status::not_started;
 
-      [&](const simulation::part s) noexcept -> void {
-          ed.simulation_state = simulation_status::not_started;
-          make_copy_error_msg(app, "Error {} in simulation copy", ordinal(s));
-      },
-
-      [&]() noexcept -> void {
-          ed.simulation_state = simulation_status::not_started;
-          make_copy_error_msg(app, "Unknown error");
-      });
+        switch (ret.error().cat()) {
+        case category::project:
+            make_copy_error_msg(app, "Error in project copy");
+            break;
+        case category::external_source:
+            make_copy_error_msg(app, "Error {} external source preparation");
+            break;
+        case category::simulation:
+            make_copy_error_msg(app, "Error in simulation copy");
+            break;
+        default:
+            make_copy_error_msg(app, "Unknown copy error");
+            break;
+        }
+    }
 }
 
 static void simulation_init(application& app, project_editor& ed) noexcept
@@ -140,80 +143,40 @@ static void simulation_init(application& app, project_editor& ed) noexcept
 
 static bool debug_run(application& app, project_editor& sim_ed) noexcept
 {
-    auto success = true;
+    if (auto ret = run(sim_ed.tl, sim_ed.pj.sim, sim_ed.pj.sim.t); not ret) {
+        sim_ed.simulation_state = simulation_status::finish_requiring;
 
-    attempt_all(
-      [&] { return run(sim_ed.tl, sim_ed.pj.sim, sim_ed.pj.sim.t); },
+        app.notifications.try_insert(log_level::error,
+                                     [&](auto& t, auto& msg) noexcept {
+                                         t = "Simulation debug task run error";
+                                         format(msg,
+                                                "Fail in {} with error {}",
+                                                ordinal(ret.error().cat()),
+                                                ret.error().value());
+                                     });
+        return false;
+    }
 
-      [&](simulation::part type, simulation::model_error* ptr) noexcept {
-          sim_ed.simulation_state = simulation_status::finish_requiring;
-          success                 = false;
-
-          app.notifications.try_insert(
-            log_level::error, [&](auto& t, auto& msg) noexcept {
-                t = "Simulation debug task run error";
-
-                if (ptr)
-                    format(msg,
-                           "Model error in part {}",
-                           simulation_part_names[ordinal(type)]);
-                else
-                    format(msg,
-                           "Error in part {}",
-                           simulation_part_names[ordinal(type)]);
-            });
-      },
-
-      [&] {
-          sim_ed.simulation_state = simulation_status::finish_requiring;
-          success                 = false;
-
-          app.notifications.try_insert(
-            log_level::error, [&](auto& t, auto& /*msg*/) noexcept {
-                t = "Simulation debug task run error";
-            });
-      });
-
-    return success;
+    return true;
 }
 
 static bool run(application& app, project_editor& ed) noexcept
 {
-    auto success = true;
+    if (auto ret = ed.pj.sim.run(); not ret) {
+        ed.simulation_state = simulation_status::finish_requiring;
 
-    attempt_all(
-      [&] { return ed.pj.sim.run(); },
+        app.notifications.try_insert(log_level::error,
+                                     [&](auto& t, auto& msg) noexcept {
+                                         t = "Simulation debug task run error";
+                                         format(msg,
+                                                "Fail in {} with error {}",
+                                                ordinal(ret.error().cat()),
+                                                ret.error().value());
+                                     });
+        return false;
+    }
 
-      [&](simulation::part type, simulation::model_error* ptr) noexcept {
-          ed.simulation_state = simulation_status::finish_requiring;
-          success             = false;
-
-          app.notifications.try_insert(
-            log_level::error, [&](auto& t, auto& msg) noexcept {
-                t = "Simulation task run error";
-
-                if (ptr)
-                    format(msg,
-                           "Model error in part {}",
-                           simulation_part_names[ordinal(type)]);
-                else
-                    format(msg,
-                           "Error in part {}",
-                           simulation_part_names[ordinal(type)]);
-            });
-      },
-
-      [&] {
-          ed.simulation_state = simulation_status::finish_requiring;
-          success             = false;
-
-          app.notifications.try_insert(log_level::error,
-                                       [&](auto& t, auto& /*msg*/) noexcept {
-                                           t = "Simulation  task run error";
-                                       });
-      });
-
-    return success;
+    return true;
 }
 
 static int new_model(application&                app,
@@ -340,8 +303,8 @@ static int new_connection(application&                     app,
                 } else {
                     app.notifications.try_insert(
                       log_level::error, [](auto& title, auto&) noexcept {
-                          title =
-                            "Internal error: fail to buid new connection.";
+                          title = "Internal error: fail to buid new "
+                                  "connection.";
                       });
                 }
             }
@@ -990,24 +953,21 @@ void project_editor::start_simulation_advance(application& app) noexcept
 {
     app.add_simulation_task(app.pjs.get_id(*this), [&]() noexcept {
         if (tl.can_advance()) {
-            attempt_all(
-              [&]() noexcept -> status {
-                  return advance(tl, pj.sim, pj.sim.t);
-              },
-
-              [&](const simulation::part s) noexcept -> void {
-                  auto& n = app.notifications.alloc(log_level::error);
-                  n.title = "Fail to advance the simulation";
-                  format(n.message, "Advance message: {}", ordinal(s));
-                  app.notifications.enable(n);
-              },
-
-              [&]() noexcept -> void {
-                  auto& n   = app.notifications.alloc(log_level::error);
-                  n.title   = "Fail to advance the simulation";
-                  n.message = "Error: Unknown";
-                  app.notifications.enable(n);
-              });
+            if (auto ret = advance(tl, pj.sim, pj.sim.t); not ret) {
+                if (ret.error().cat() == category::simulation) {
+                    app.notifications.try_insert(
+                      log_level::error, [](auto& t, auto& m) {
+                          t = "Fail to advance the simulation";
+                          format(m, "Advance message");
+                      });
+                } else {
+                    app.notifications.try_insert(
+                      log_level::error, [](auto& t, auto& m) {
+                          t = "Fail to advance the simulation";
+                          format(m, "Unknwon message");
+                      });
+                }
+            }
         }
     });
 }
@@ -1016,22 +976,21 @@ void project_editor::start_simulation_back(application& app) noexcept
 {
     app.add_simulation_task(app.pjs.get_id(*this), [&]() noexcept {
         if (tl.can_back()) {
-            attempt_all(
-              [&]() noexcept -> status { return back(tl, pj.sim, pj.sim.t); },
-
-              [&](const simulation::part s) noexcept -> void {
-                  auto& n = app.notifications.alloc(log_level::error);
-                  n.title = "Fail to back the simulation";
-                  format(n.message, "Advance message: {}", ordinal(s));
-                  app.notifications.enable(n);
-              },
-
-              [&]() noexcept -> void {
-                  auto& n   = app.notifications.alloc(log_level::error);
-                  n.title   = "Fail to back the simulation";
-                  n.message = "Error: Unknown";
-                  app.notifications.enable(n);
-              });
+            if (auto ret = back(tl, pj.sim, pj.sim.t); not ret) {
+                if (ret.error().cat() == category::simulation) {
+                    app.notifications.try_insert(
+                      log_level::error, [](auto& t, auto& m) {
+                          t = "Fail to advance the simulation";
+                          format(m, "Advance message");
+                      });
+                } else {
+                    app.notifications.try_insert(
+                      log_level::error, [](auto& t, auto& m) {
+                          t = "Fail to advance the simulation";
+                          format(m, "Unknwon message");
+                      });
+                }
+            }
         }
     });
 }
@@ -1041,30 +1000,26 @@ void project_editor::start_enable_or_disable_debug(application& app) noexcept
     app.add_simulation_task(app.pjs.get_id(*this), [&]() noexcept {
         tl.reset();
 
-        attempt_all(
-          [&]() -> status {
-              irt_check(initialize(tl, pj.sim, pj.sim.t));
+        if (auto ret = initialize(tl, pj.sim, pj.sim.t); not ret) {
+            simulation_state = simulation_status::not_started;
 
-              return success();
-          },
-
-          [&](const simulation::part s) noexcept -> void {
-              auto& n = app.notifications.alloc(log_level::error);
-              n.title = "Debug mode failed to initialize";
-              format(
-                n.message, "Fail to initialize the debug mode: {}", ordinal(s));
-              app.notifications.enable(n);
-              simulation_state = simulation_status::not_started;
-          },
-
-          [&]() noexcept -> void {
-              auto& n = app.notifications.alloc(log_level::error);
-              n.title = "Debug mode failed to initialize";
-              format(n.message,
-                     "Fail to initialize the debug mode: Unknown error");
-              app.notifications.enable(n);
-              simulation_state = simulation_status::not_started;
-          });
+            if (ret.error().cat() == category::simulation) {
+                app.notifications.try_insert(
+                  log_level::error, [&ret](auto& t, auto& m) {
+                      t = "Debug mode failed to initialize";
+                      format(m,
+                             "Fail to initialize the debug mode: {}",
+                             ret.error().value());
+                  });
+            } else {
+                app.notifications.try_insert(
+                  log_level::error, [](auto& t, auto& m) {
+                      t = "Debug mode failed to initialize";
+                      format(
+                        m, "Fail to initialize the debug mode: Unknown error");
+                  });
+            }
+        }
     });
 }
 

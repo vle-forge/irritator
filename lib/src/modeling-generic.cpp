@@ -40,7 +40,7 @@ result<child_id> generic_component::copy_to(
     const auto src_idx = get_index(src_id);
 
     if (not dst.children.can_alloc())
-        return new_error(children_error{}, container_full_error{});
+        return new_error(generic_component_errc::children_container_full);
 
     auto&      new_c     = dst.children.alloc();
     const auto new_c_id  = dst.children.get_id(new_c);
@@ -138,18 +138,19 @@ status generic_component::connect([[maybe_unused]] const modeling& mod,
                                   const connection::port p_dst) noexcept
 {
     if (exists(src, p_src, dst, p_dst))
-        return new_error(connection_error{}, already_exist_error{});
+        return new_error(generic_component_errc::connection_already_exist);
 
     if (src.type == child_type::model) {
         if (dst.type == child_type::model) {
             if (not is_ports_compatible(
                   src.id.mdl_type, p_src.model, dst.id.mdl_type, p_dst.model))
-                return new_error(connection_error{}, incompatibility_error{});
+                return new_error(
+                  generic_component_errc::connection_compatibility_error);
         }
     }
 
     if (not connections.can_alloc(1))
-        return new_error(connection_error{}, container_full_error{});
+        return new_error(generic_component_errc::connection_container_full);
 
     connections.alloc(children.get_id(src), p_src, children.get_id(dst), p_dst);
 
@@ -161,11 +162,13 @@ status generic_component::connect_input(const port_id          x,
                                         const connection::port port) noexcept
 {
     if (not input_connections.can_alloc(1))
-        return new_error(input_connection_error{}, container_full_error{});
+        return new_error(
+          generic_component_errc::input_connection_container_full);
 
     for (const auto& con : input_connections)
         if (con.x == x and con.dst == children.get_id(dst) and con.port == port)
-            return new_error(input_connection_error{}, already_exist_error{});
+            return new_error(
+              generic_component_errc::input_connection_container_already_exist);
 
     input_connections.alloc(x, children.get_id(dst), port);
 
@@ -177,12 +180,13 @@ status generic_component::connect_output(const port_id          y,
                                          const connection::port port) noexcept
 {
     if (not output_connections.can_alloc(1))
-        return new_error(output_connection_error{}, container_full_error{});
+        return new_error(
+          generic_component_errc::output_connection_container_full);
 
     for (const auto& con : output_connections)
         if (con.y == y and con.src == children.get_id(src) and con.port == port)
-            return new_error(output_connection_error{}, already_exist_error{});
-
+            return new_error(generic_component_errc::
+                               output_connection_container_already_exist);
     output_connections.alloc(y, children.get_id(src), port);
 
     return success();
@@ -197,8 +201,11 @@ status generic_component::import(
 {
     table<child_id, child_id> src_to_this;
 
-    if (not this->children.can_alloc(children.size()))
-        return new_error(children_error{}, container_full_error{});
+    if (not this->children.can_alloc(children.size())) {
+        this->children.reserve(children.size());
+        if (not this->children.can_alloc(children.size()))
+            return new_error(generic_component_errc::children_container_full);
+    }
 
     for (const auto& c : children) {
         auto& new_c = this->children.alloc();

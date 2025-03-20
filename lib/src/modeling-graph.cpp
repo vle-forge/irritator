@@ -568,13 +568,13 @@ status modeling::copy(graph_component&   graph,
                       generic_component& generic) noexcept
 {
     if (auto ret = graph.build_cache(*this); not ret.has_value())
-        return new_error(modeling::children_error{}, container_full_error{});
+        return new_error(graph_component_errc::children_container_full);
 
     if (not generic.children.can_alloc(graph.cache.size()))
-        return new_error(modeling::children_error{}, container_full_error{});
+        return new_error(generic_component_errc::children_container_full);
 
     if (not generic.connections.can_alloc(graph.cache_connections.size()))
-        return new_error(modeling::connection_error{}, container_full_error{});
+        return new_error(generic_component_errc::connection_container_full);
 
     table<child_id, child_id> graph_to_generic;
     graph_to_generic.data.reserve(graph.cache.size());

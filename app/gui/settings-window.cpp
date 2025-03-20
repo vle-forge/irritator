@@ -143,32 +143,35 @@ void settings_window::show() noexcept
             ImGui::TableNextColumn();
             ImGui::PushItemWidth(60.f);
             if (ImGui::Button("Refresh")) {
-                attempt_all(
-                  [&]() noexcept -> status {
-                      irt_check(app.mod.fill_components(*dir));
-                      return success();
-                  },
+                if (auto ret = app.mod.fill_components(*dir); not ret) {
+                    switch (ret.error().cat()) {
+                    case category::json_component:
+                        app.notifications.try_insert(
+                          log_level::error, [](auto& title, auto& msg) {
+                              title =
+                                "Refresh components from directory failed";
+                              msg = "Error in json component.";
+                          });
+                        break;
 
-                  [&app](const json_archiver::error_code s) noexcept -> void {
-                      auto& n = app.notifications.alloc();
-                      n.title = "Refresh components from directory failed";
-                      format(n.message, "Error: {}", ordinal(s));
-                      app.notifications.enable(n);
-                  },
+                    case category::modeling:
+                        app.notifications.try_insert(
+                          log_level::error, [](auto& title, auto& msg) {
+                              title =
+                                "Refresh components from directory failed";
+                              msg = "Error in filesystem.";
+                          });
+                        break;
 
-                  [&app](const modeling::part s) noexcept -> void {
-                      auto& n = app.notifications.alloc();
-                      n.title = "Refresh components from directory failed";
-                      format(n.message, "Error: {}", ordinal(s));
-                      app.notifications.enable(n);
-                  },
-
-                  [&app]() noexcept -> void {
-                      auto& n   = app.notifications.alloc();
-                      n.title   = "Refresh components from directory failed";
-                      n.message = "Error: Unknown";
-                      app.notifications.enable(n);
-                  });
+                    default:
+                        app.notifications.try_insert(
+                          log_level::error, [](auto& title, auto& msg) {
+                              title =
+                                "Refresh components from directory failed";
+                              msg = "Unknown error.";
+                          });
+                    }
+                }
             }
             ImGui::PopItemWidth();
 

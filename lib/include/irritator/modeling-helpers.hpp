@@ -40,31 +40,6 @@ static_assert(split("m", '_').second == std::string_view{});
 static_assert(split("m_", '_').first == std::string_view("m"));
 static_assert(split("m_", '_').second == std::string_view{});
 
-inline result<registred_path&> get_reg(modeling&         mod,
-                                       registred_path_id id) noexcept
-{
-    if (auto* reg = mod.registred_paths.try_to_get(id); reg)
-        return *reg;
-
-    return new_error(project::error::registred_path_access_error);
-}
-
-inline result<dir_path&> get_dir(modeling& mod, dir_path_id id) noexcept
-{
-    if (auto* dir = mod.dir_paths.try_to_get(id); dir)
-        return *dir;
-
-    return new_error(project::error::directory_access_error);
-}
-
-inline result<file_path&> get_file(modeling& mod, file_path_id id) noexcept
-{
-    if (auto* f = mod.file_paths.try_to_get(id); f)
-        return *f;
-
-    return new_error(project::error::file_access_error);
-}
-
 inline file_path_id get_file_from_component(const modeling&        mod,
                                             const component&       compo,
                                             const std::string_view str) noexcept
@@ -117,11 +92,7 @@ inline std::optional<std::filesystem::path> make_file(
     return std::nullopt;
 }
 
-template<typename Fn>
-inline std::optional<file> open_file(
-  dir_path&                                   dir_p,
-  file_path&                                  file_p,
-  std::invocable<Fn, file::error_code> auto&& fn) noexcept
+inline expected<file> open_file(dir_path& dir_p, file_path& file_p) noexcept
 {
     try {
         std::filesystem::path p = dir_p.path.u8sv();
@@ -130,12 +101,10 @@ inline std::optional<file> open_file(
         std::u8string u8str = p.u8string();
         const char*   cstr  = reinterpret_cast<const char*>(u8str.c_str());
 
-        return file::open(cstr, open_mode::read, fn);
+        return file::open(cstr, open_mode::read);
     } catch (...) {
-        fn(file::memory_error{ 0 });
+        return new_error(file_errc::memory_error);
     }
-
-    return std::nullopt;
 }
 
 /// Checks the type of \c component pointed by the \c tree_node \c.

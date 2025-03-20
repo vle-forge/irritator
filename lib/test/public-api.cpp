@@ -2,7 +2,6 @@
 // Version 1.0. (See accompanying file LICENSE_1_0.txt or copy at
 // http://www.boost.org/LICENSE_1_0.txt)
 
-#include <cstdint>
 #include <irritator/archiver.hpp>
 #include <irritator/core.hpp>
 #include <irritator/examples.hpp>
@@ -20,6 +19,7 @@
 #include <random>
 #include <sstream>
 
+#include <cstdint>
 #include <cstdio>
 
 #include <boost/ut.hpp>
@@ -283,55 +283,11 @@ static bool check_data_array_loop(const Data& d) noexcept
     return true;
 }
 
-struct leaf_tester {
-    struct a_error {};
-    bool make_error = false;
-
-    leaf_tester(bool error)
-      : make_error(error)
-    {}
-
-    irt::result<int> make() noexcept
-    {
-        if (make_error)
-            return boost::leaf::new_error(a_error{});
-
-        return 1;
-    }
-
-    static auto build_error_handlers(int& num) noexcept
-    {
-        return std::make_tuple([&](leaf_tester::a_error) { num = 1; });
-    }
-};
-
-struct leaf_tester_2 {
-    struct a_error {};
-    bool make_error = false;
-
-    leaf_tester_2(bool error)
-      : make_error(error)
-    {}
-
-    irt::result<int> make() noexcept
-    {
-        if (make_error)
-            return boost::leaf::new_error(a_error{});
-
-        return 2;
-    }
-
-    static auto build_error_handlers(int& num) noexcept
-    {
-        return std::make_tuple([&](leaf_tester_2::a_error) { num = 2; });
-    }
-};
-
 struct expected_tester {
     struct a_error {};
     bool make_error = false;
 
-    expected_tester(bool error)
+    explicit expected_tester(bool error)
       : make_error(error)
     {}
 
@@ -348,7 +304,7 @@ struct expected_tester_2 {
     struct a_error {};
     bool make_error = false;
 
-    expected_tester_2(bool error)
+    explicit expected_tester_2(bool error)
       : make_error(error)
     {}
 
@@ -373,83 +329,6 @@ int main()
 #endif
 
     using namespace boost::ut;
-
-    "leaf_tester_1"_test = [] {
-        leaf_tester   t(true);
-        leaf_tester_2 t2(false);
-        int           error_sum = 0;
-
-        irt::attempt_all(
-          [&]() -> irt::status {
-              irt_check(t.make());
-              irt_check(t2.make());
-              return irt::success();
-          },
-
-          std::tuple_cat(t.build_error_handlers(error_sum),
-                         t2.build_error_handlers(error_sum),
-                         build_error_handler(error_sum)));
-
-        expect(eq(error_sum, 1));
-    };
-
-    "leaf_tester_2"_test = [] {
-        leaf_tester   t(false);
-        leaf_tester_2 t2(true);
-        int           error_sum = 0;
-
-        irt::attempt_all(
-          [&]() -> irt::status {
-              irt_check(t.make());
-              irt_check(t2.make());
-              return irt::success();
-          },
-
-          std::tuple_cat(t.build_error_handlers(error_sum),
-                         t2.build_error_handlers(error_sum),
-                         build_error_handler(error_sum)));
-
-        expect(eq(error_sum, 2));
-    };
-
-    "tester_off"_test = [] {
-        leaf_tester   t(false);
-        leaf_tester_2 t2(false);
-        int           error_sum = 0;
-
-        irt::attempt_all(
-          [&]() -> irt::status {
-              irt_check(t.make());
-              irt_check(t2.make());
-              return irt::success();
-          },
-
-          std::tuple_cat(t.build_error_handlers(error_sum),
-                         t2.build_error_handlers(error_sum),
-                         build_error_handler(error_sum)));
-
-        expect(eq(error_sum, 0));
-    };
-
-    "tester_unknown"_test = [] {
-        leaf_tester   t(false);
-        leaf_tester_2 t2(false);
-        int           error_sum = 0;
-
-        irt::attempt_all(
-          [&]() -> irt::status {
-              irt_check(t.make());
-              irt_check(t2.make());
-
-              return boost::leaf::new_error(123456789);
-          },
-
-          std::tuple_cat(t.build_error_handlers(error_sum),
-                         t2.build_error_handlers(error_sum),
-                         build_error_handler(error_sum)));
-
-        expect(eq(error_sum, -1));
-    };
 
     "tester_expected"_test = [] {
         expected_tester t(false);
@@ -1300,7 +1179,7 @@ int main()
     "data_array_api"_test = [] {
         struct position {
             position() = default;
-            constexpr position(float x_)
+            explicit constexpr position(float x_)
               : x(x_)
             {}
 
@@ -1592,42 +1471,42 @@ int main()
 
         {
             irt::observation_message vdouble({ 0 });
-            assert(vdouble[0] == 0.0_r);
-            assert(vdouble[1] == 0.0_r);
-            assert(vdouble[2] == 0.0_r);
-            assert(vdouble[3] == 0.0_r);
+            expect(vdouble[0] == 0.0_r);
+            expect(vdouble[1] == 0.0_r);
+            expect(vdouble[2] == 0.0_r);
+            expect(vdouble[3] == 0.0_r);
         }
 
         {
             irt::observation_message vdouble({ 1.0_r });
-            assert(vdouble[0] == 1.0_r);
-            assert(vdouble[1] == 0.0_r);
-            assert(vdouble[2] == 0.0_r);
-            assert(vdouble[3] == 0.0_r);
+            expect(vdouble[0] == 1.0_r);
+            expect(vdouble[1] == 0.0_r);
+            expect(vdouble[2] == 0.0_r);
+            expect(vdouble[3] == 0.0_r);
         }
 
         {
             irt::observation_message vdouble({ 0.0_r, 1.0_r });
-            assert(vdouble[0] == 0.0_r);
-            assert(vdouble[1] == 1.0_r);
-            assert(vdouble[2] == 0.0_r);
-            assert(vdouble[3] == 0.0_r);
+            expect(vdouble[0] == 0.0_r);
+            expect(vdouble[1] == 1.0_r);
+            expect(vdouble[2] == 0.0_r);
+            expect(vdouble[3] == 0.0_r);
         }
 
         {
             irt::observation_message vdouble({ 0.0_r, 0.0_r, 1.0_r });
-            assert(vdouble[0] == 0.0_r);
-            assert(vdouble[1] == 0.0_r);
-            assert(vdouble[2] == 1.0_r);
-            assert(vdouble[3] == 0.0_r);
+            expect(vdouble[0] == 0.0_r);
+            expect(vdouble[1] == 0.0_r);
+            expect(vdouble[2] == 1.0_r);
+            expect(vdouble[3] == 0.0_r);
         }
 
         {
             irt::observation_message vdouble({ 0.0_r, 0.0_r, 0.0_r, 1.0_r });
-            assert(vdouble[0] == 0.0_r);
-            assert(vdouble[1] == 0.0_r);
-            assert(vdouble[2] == 0.0_r);
-            assert(vdouble[3] == 1.0_r);
+            expect(vdouble[0] == 0.0_r);
+            expect(vdouble[1] == 0.0_r);
+            expect(vdouble[2] == 0.0_r);
+            expect(vdouble[3] == 1.0_r);
         }
     };
 
@@ -3595,8 +3474,7 @@ int main()
     };
 
     "binary-memory-io"_test = [] {
-        auto f = irt::memory::make(
-          256, irt::open_mode::write, [](irt::memory::error_code) noexcept {});
+        auto f = irt::memory::make(256, irt::open_mode::write);
 
         expect(f.has_value()) << fatal;
         expect(eq(f->data.ssize(), 256));
@@ -3621,6 +3499,6 @@ int main()
 
         f->rewind();
 
-        assert(f->tell() == 0);
+        expect(f->tell() == 0);
     };
 }

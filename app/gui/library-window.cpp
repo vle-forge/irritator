@@ -547,45 +547,17 @@ void library_window::try_set_component_as_project(
         const auto id = *opt;
 
         app.add_gui_task([&app, compo_id, id]() noexcept {
-            attempt_all(
-              [&]() noexcept -> status {
-                  auto& pj = app.pjs.get(id);
-
-                  if (auto* c = app.mod.components.try_to_get(compo_id); c) {
-                      irt_check(pj.pj.set(app.mod, *c));
-                      pj.disable_access = false;
-                  }
-
-                  return success();
-              },
-
-              [&](project::part part, project::error error) noexcept {
-                  auto& n = app.notifications.alloc(log_level::error);
-                  n.title = "Project import error";
-                  format(n.message,
-                         "Error in {} failed with error: {}",
-                         to_string(part),
-                         to_string(error));
-              },
-
-              [&](project::part part) noexcept {
-                  auto& n = app.notifications.alloc(log_level::error);
-                  n.title = "Project import error";
-                  format(n.message, "Error in {}", to_string(part));
-              },
-
-              [&](project::error error) noexcept {
-                  auto& n = app.notifications.alloc(log_level::error);
-                  n.title = "Project import error";
-                  format(n.message, "Error: {}", to_string(error));
-              },
-
-              [&]() noexcept {
-                  auto& n = app.notifications.alloc();
-                  n.level = log_level::error;
-                  n.title = "Fail to build tree";
-                  app.notifications.enable(n);
-              });
+            auto& pj = app.pjs.get(id);
+            if (auto* c = app.mod.components.try_to_get(compo_id); c) {
+                if (not pj.pj.set(app.mod, *c)) {
+                    app.notifications.try_insert(
+                      log_level::error, [](auto& title, auto& msg) {
+                          title = "Project failure",
+                          msg   = "Fail to import component as project";
+                      });
+                }
+                pj.disable_access = false;
+            }
         });
     }
 }

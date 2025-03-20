@@ -119,7 +119,13 @@ template<typename>
 struct is_result : std::false_type {};
 
 template<typename T>
-struct is_result<::boost::leaf::result<T>> : std::true_type {};
+struct is_result<::irt::expected<T>> : std::true_type {};
+
+template<typename>
+struct is_expected : std::false_type {};
+
+template<typename T>
+struct is_expected<::irt::expected<T>> : std::true_type {};
 
 //! @brief Apply the function @c f for all elements of the @c data_array.
 template<typename Data, typename Function>
