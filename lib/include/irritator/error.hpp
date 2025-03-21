@@ -867,6 +867,82 @@ public:
         return storage.ec;
     }
 
+    template<typename Fn, typename... Args>
+    constexpr auto and_then(Fn&& f, Args&&... args) & noexcept
+    {
+        if (has_value())
+            return std::invoke(std::forward<Fn>(f),
+                               std::forward<Args>(args)...);
+        else
+            return storage.ec;
+    }
+
+    template<typename Fn, typename... Args>
+    constexpr auto and_then(Fn&& f, Args&&... args) const& noexcept
+    {
+        if (has_value())
+            return std::invoke(std::forward<Fn>(f),
+                               std::forward<Args>(args)...);
+        else
+            return this_type(storage.ec);
+    }
+
+    template<typename Fn, typename... Args>
+    constexpr auto and_then(Fn&& f, Args&&... args) && noexcept
+    {
+        if (has_value())
+            return std::invoke(std::forward<Fn>(f), args...);
+        else
+            return this_type(storage.ec);
+    }
+
+    template<typename Fn, typename... Args>
+    constexpr auto and_then(Fn&& f, Args&&... args) const&& noexcept
+    {
+        if (has_value())
+            return std::invoke(std::forward<Fn>(f), args...);
+        else
+            return this_type(storage.ec);
+    }
+
+    template<typename Fn, typename... Args>
+    constexpr auto or_else(Fn&& f, Args&&... args) & noexcept
+    {
+        if (has_value())
+            return *this;
+        else
+            return std::invoke(std::forward<Fn>(f), storage.ec, args...);
+    }
+
+    template<typename Fn, typename... Args>
+    constexpr auto or_else(Fn&& f, Args&&... args) const& noexcept
+    {
+        if (has_value())
+            return *this;
+        else
+            return std::invoke(std::forward<Fn>(f), storage.ec, args...);
+    }
+
+    template<typename Fn, typename... Args>
+    constexpr auto or_else(Fn&& f, Args&&... args) && noexcept
+    {
+        if (has_value())
+            return *this;
+        else
+            return std::invoke(
+              std::forward<Fn>(f), std::move(storage.ec), args...);
+    }
+
+    template<typename Fn, typename... Args>
+    constexpr auto or_else(Fn&& f, Args&&... args) const&& noexcept
+    {
+        if (has_value())
+            return *this;
+        else
+            return std::invoke(
+              std::forward<Fn>(f), std::move(storage.ec), args...);
+    }
+
     void swap(this_type& other) noexcept
     {
         using std::swap;
