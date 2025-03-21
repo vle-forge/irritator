@@ -2956,12 +2956,20 @@ Identifier data_array<T, Identifier, A>::get_id(const T& t) const noexcept
 template<typename T, typename Identifier, typename A>
 T& data_array<T, Identifier, A>::get(Identifier id) noexcept
 {
+    debug::ensure(get_key(id) and std::cmp_greater_equal(get_index(id), 0) and
+                  std::cmp_less(get_index(id), m_max_used) and
+                  m_items[get_index(id)].id == id);
+
     return m_items[get_index(id)].item;
 }
 
 template<typename T, typename Identifier, typename A>
 const T& data_array<T, Identifier, A>::get(Identifier id) const noexcept
 {
+    debug::ensure(get_key(id) and std::cmp_greater_equal(get_index(id), 0) and
+                  std::cmp_less(get_index(id), m_max_used) and
+                  m_items[get_index(id)].id == id);
+
     return m_items[get_index(id)].item;
 }
 
