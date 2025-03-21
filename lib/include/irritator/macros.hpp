@@ -24,6 +24,23 @@ using real = double;
 using real = float;
 #endif
 
+namespace fatal {
+
+//! @brief A c++ function to replace assert macro.
+//!
+//! Call @c quick_exit if the assertion fail. This function can not be disabled.
+//!
+//! @tparam T The type of the assertion to test.
+//! @param assertion The instance of the assertion to test.
+template<typename T>
+inline constexpr void ensure(T&& assertion) noexcept
+{
+    if (!static_cast<bool>(assertion))
+        std::abort();
+}
+
+} // fatal
+
 namespace debug {
 
 #ifdef IRRITATOR_ENABLE_DEBUG
