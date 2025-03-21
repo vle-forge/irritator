@@ -860,7 +860,7 @@ status hierarchical_state_machine::start(execution&       exec,
     exec.timer = time_domain<time>::infinity;
 
     if (states.empty() or top_state == invalid_state_id)
-        return new_sim_error(simulation_errc::hsm_top_state_error);
+        return new_error(simulation_errc::hsm_top_state_error);
 
     exec.current_state = top_state;
     exec.next_state    = invalid_state_id;
@@ -915,7 +915,7 @@ status hierarchical_state_machine::on_enter_sub_state(
   external_source& srcs) noexcept
 {
     if (exec.next_state == invalid_state_id)
-        return new_sim_error(simulation_errc::hsm_next_state_error);
+        return new_error(simulation_errc::hsm_next_state_error);
 
     small_vector<state_id, max_number_of_state> entry_path;
     for (state_id sid = exec.next_state; sid != exec.current_state;) {
@@ -925,7 +925,7 @@ status hierarchical_state_machine::on_enter_sub_state(
         sid = state.super_id;
 
         if (sid == invalid_state_id)
-            return new_sim_error(simulation_errc::hsm_next_state_error);
+            return new_error(simulation_errc::hsm_next_state_error);
     }
 
     while (!entry_path.empty()) {
@@ -986,7 +986,7 @@ status hierarchical_state_machine::set_state(state_id id,
 {
     if (super_id == invalid_state_id) {
         if (top_state != invalid_state_id and top_state != id)
-            return new_sim_error(simulation_errc::hsm_top_state_error);
+            return new_error(simulation_errc::hsm_top_state_error);
         top_state = id;
     }
 
@@ -995,7 +995,7 @@ status hierarchical_state_machine::set_state(state_id id,
 
     if (!((super_id == invalid_state_id ||
            states[super_id].sub_id != invalid_state_id)))
-        return new_sim_error(simulation_errc::hsm_top_state_error);
+        return new_error(simulation_errc::hsm_top_state_error);
 
     return success();
 }

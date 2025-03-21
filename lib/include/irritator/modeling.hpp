@@ -1363,26 +1363,6 @@ private:
 class modeling
 {
 public:
-    struct connection_error {};
-    struct children_error {};
-    struct description_error {};
-
-    enum class part {
-        descriptions,
-        generic_components,
-        grid_components,
-        graph_components,
-        hsm_components,
-        ports,
-        components,
-        registred_paths,
-        dir_paths,
-        file_paths,
-        hsms,
-        children,
-        connections
-    };
-
     /** Stores the description of a component in a text. A description is
      * attached to only one component (@c description_id). The file name of the
      * description is the same than the component except the extension ".desc".
@@ -1652,41 +1632,6 @@ inline constexpr time time_limit::end() const noexcept { return m_end; }
 class project
 {
 public:
-    struct hsm_error {};
-    struct tree_node_error {};
-
-    //! Used to report which part of the @c project have a problem with the @c
-    //! new_error function.
-    enum class part {
-        tree_nodes,
-        variable_observers,
-        grid_observers,
-        graph_observers,
-        global_parameters
-    };
-
-    enum error {
-        not_enough_memory,
-        unknown_source,
-        impossible_connection,
-        empty_project,
-
-        component_empty,
-        component_type_error,
-        file_error,
-        file_component_type_error,
-
-        registred_path_access_error,
-        directory_access_error,
-        file_access_error,
-        file_open_error,
-
-        file_parameters_error,
-        file_parameters_access_error,
-        file_parameters_type_error,
-        file_parameters_init_error,
-    };
-
     project() noexcept
       : sim{ simulation_memory_requirement(1u << 16u),
              irt::external_source_memory_requirement{} }
@@ -1837,9 +1782,6 @@ private:
     component_id m_head    = undefined<component_id>();
     tree_node_id m_tn_head = undefined<tree_node_id>();
 };
-
-std::string_view to_string(const project::part p) noexcept;
-std::string_view to_string(const project::error e) noexcept;
 
 /* ------------------------------------------------------------------
    Child part

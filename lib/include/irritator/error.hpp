@@ -129,7 +129,12 @@ enum class external_source_errc : std::int16_t {
 
 enum class project_errc : std::int16_t {
     memory_error = 1,
+
     import_error,
+    component_cache_error,
+    component_unknown,
+    component_port_x_unknown,
+    component_port_y_unknown,
 };
 
 enum class json_project_errc : std::int16_t {
@@ -149,6 +154,7 @@ enum class modeling_errc : std::int16_t {
     directory_error,
     file_error,
 
+    component_load_error,
     component_container_full,
     component_input_container_full,
     component_output_container_full,
@@ -229,14 +235,6 @@ public:
     constexpr explicit operator bool() const noexcept { return m_ec != 0; }
 };
 
-inline error_code new_sim_error(const simulation_errc e) noexcept
-{
-    if (on_error_callback)
-        on_error_callback();
-
-    return error_code(static_cast<std::int16_t>(e), category::simulation);
-}
-
 template<typename ErrorCodeEnum>
     requires(std::is_enum_v<ErrorCodeEnum>)
 inline error_code new_error(ErrorCodeEnum e) noexcept
@@ -278,33 +276,6 @@ constexpr inline error_code new_error(std::integral auto e,
 template<typename ErrorCodeEnum>
     requires(std::is_enum_v<ErrorCodeEnum>)
 inline error_code new_error(ErrorCodeEnum e, enum category cat) noexcept
-{
-    debug::ensure(std::cmp_less_equal(
-      static_cast<std::underlying_type_t<ErrorCodeEnum>>(e), INT16_MAX));
-    debug::ensure(std::cmp_greater_equal(
-      static_cast<std::underlying_type_t<ErrorCodeEnum>>(e), INT16_MIN));
-
-    if (on_error_callback)
-        on_error_callback();
-
-    return error_code(static_cast<std::int16_t>(e), cat);
-}
-
-constexpr inline error_code new_error_code(std::integral auto e,
-                                           enum category      cat) noexcept
-{
-    debug::ensure(std::cmp_greater_equal(e, INT16_MIN));
-    debug::ensure(std::cmp_less_equal(e, INT16_MAX));
-
-    if (on_error_callback)
-        on_error_callback();
-
-    return error_code(static_cast<std::int16_t>(e), cat);
-}
-
-template<typename ErrorCodeEnum>
-    requires(std::is_enum_v<ErrorCodeEnum>)
-inline error_code new_error_code(ErrorCodeEnum e, enum category cat) noexcept
 {
     debug::ensure(std::cmp_less_equal(
       static_cast<std::underlying_type_t<ErrorCodeEnum>>(e), INT16_MAX));

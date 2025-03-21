@@ -230,17 +230,17 @@ static auto get_incoming_connection(const modeling&  mod,
 {
     const auto* compo = mod.components.try_to_get(tn.id);
     if (not compo)
-        return new_error(project::part::tree_nodes);
+        return new_error(project_errc::import_error);
 
     if (not compo->x.exists(id))
-        return new_error(project::part::tree_nodes);
+        return new_error(project_errc::import_error);
 
     if (compo->type == component_type::simple) {
         auto* gen = mod.generic_components.try_to_get(compo->id.generic_id);
         return gen ? get_incoming_connection(*gen, id) : 0;
     }
 
-    return new_error(project::part::tree_nodes);
+    return new_error(project_errc::import_error);
 }
 
 static auto get_incoming_connection(const modeling&  mod,
@@ -248,7 +248,7 @@ static auto get_incoming_connection(const modeling&  mod,
 {
     const auto* compo = mod.components.try_to_get(tn.id);
     if (not compo)
-        return new_error(project::part::tree_nodes);
+        return new_error(project_errc::import_error);
 
     int nb = 0;
     compo->x.for_each_id([&](auto id) noexcept {
@@ -284,17 +284,17 @@ static auto get_outcoming_connection(const modeling&  mod,
 {
     const auto* compo = mod.components.try_to_get(tn.id);
     if (not compo)
-        return new_error(project::part::tree_nodes);
+        return new_error(project_errc::import_error);
 
     if (not compo->y.exists(id))
-        return new_error(project::part::tree_nodes);
+        return new_error(project_errc::import_error);
 
     if (compo->type == component_type::simple) {
         auto* gen = mod.generic_components.try_to_get(compo->id.generic_id);
         return gen ? get_outcoming_connection(*gen, id) : 0;
     }
 
-    return new_error(project::part::tree_nodes);
+    return new_error(project_errc::import_error);
 }
 
 static auto get_outcoming_connection(const modeling&  mod,
@@ -303,7 +303,7 @@ static auto get_outcoming_connection(const modeling&  mod,
 {
     const auto* compo = mod.components.try_to_get(tn.id);
     if (not compo)
-        return new_error(project::part::tree_nodes);
+        return new_error(project_errc::import_error);
 
     int nb = 0;
     compo->y.for_each_id([&](auto id) noexcept {
@@ -315,6 +315,94 @@ static auto get_outcoming_connection(const modeling&  mod,
     });
 
     return nb;
+}
+
+static auto make_tree_hsm_leaf(simulation_copy&   sc,
+                               generic_component& gen,
+                               const child_id     ch_id,
+                               const model_id     new_mdl_id,
+                               hsm_wrapper&       dyn) noexcept -> status
+{
+    const auto child_index = get_index(ch_id);
+    const auto compo_id =
+      enum_cast<component_id>(gen.children_parameters[child_index].integers[0]);
+
+    const auto& compo = sc.mod.components.get(compo_id);
+    debug::ensure(compo.type == component_type::hsm);
+    const auto hsm_id = compo.id.hsm_id;
+    debug::ensure(sc.mod.hsm_components.try_to_get(hsm_id));
+    const auto* shsm = sc.hsm_mod_to_sim.get(hsm_id);
+    dyn.id           = get_index(*shsm);
+    sc.pj.sim.parameters[get_index(new_mdl_id)].integers[0] =
+      static_cast<i32>(get_index(*shsm));
+    dyn.exec.i1 =
+      static_cast<i32>(gen.children_parameters[child_index].integers[1]);
+    dyn.exec.i2 =
+      static_cast<i32>(gen.children_parameters[child_index].integers[2]);
+    dyn.exec.r1    = gen.children_parameters[child_index].reals[0];
+    dyn.exec.r2    = gen.children_parameters[child_index].reals[1];
+    dyn.exec.timer = gen.children_parameters[child_index].reals[2];
+
+    return success();
+}
+
+static auto make_tree_constant_leaf(simulation_copy&   sc,
+                                    tree_node&         parent,
+                                    generic_component& gen,
+                                    const child_id     ch_id,
+                                    constant&          dyn) noexcept -> status
+{
+    const auto child_index = get_index(ch_id);
+
+    switch (dyn.type) {
+    case constant::init_type::constant:
+        break;
+
+    case constant::init_type::incoming_component_all: {
+        if (auto nb = get_incoming_connection(sc.mod, parent); nb.has_value()) {
+            gen.children_parameters[child_index].reals[0] = *nb;
+            dyn.value                                     = *nb;
+        } else
+            return nb.error();
+    } break;
+
+    case constant::init_type::outcoming_component_all: {
+        if (auto nb = get_outcoming_connection(sc.mod, parent);
+            nb.has_value()) {
+            gen.children_parameters[child_index].reals[0] = *nb;
+            dyn.value                                     = *nb;
+        } else
+            return nb.error();
+    } break;
+
+    case constant::init_type::incoming_component_n: {
+        const auto id = enum_cast<port_id>(dyn.port);
+        if (not sc.mod.components.get(parent.id).x.exists(id))
+            return new_error(project_errc::component_port_x_unknown);
+
+        if (auto nb = get_incoming_connection(sc.mod, parent, id);
+            nb.has_value()) {
+            gen.children_parameters[child_index].reals[0] = *nb;
+            dyn.value                                     = *nb;
+        } else
+            return nb.error();
+    } break;
+
+    case constant::init_type::outcoming_component_n: {
+        const auto id = enum_cast<port_id>(dyn.port);
+        if (not sc.mod.components.get(parent.id).y.exists(id))
+            return new_error(project_errc::component_port_y_unknown);
+
+        if (auto nb = get_outcoming_connection(sc.mod, parent, id);
+            nb.has_value()) {
+            gen.children_parameters[child_index].reals[0] = *nb;
+            dyn.value                                     = *nb;
+        } else
+            return nb.error();
+    } break;
+    }
+
+    return success();
 }
 
 static auto make_tree_leaf(simulation_copy&       sc,
@@ -331,7 +419,7 @@ static auto make_tree_leaf(simulation_copy&       sc,
 
         if (not data_array_reserve_add(sc.pj.sim.models, increase) or
             not vector_reserve_add(sc.pj.sim.parameters, increase))
-            return new_error(project::error::not_enough_memory);
+            return new_error(project_errc::memory_error);
     }
 
     const auto ch_idx     = get_index(ch_id);
@@ -365,77 +453,11 @@ static auto make_tree_leaf(simulation_copy&       sc,
           sc.pj.sim.parameters[get_index(new_mdl_id)].copy_to(new_mdl);
 
           if constexpr (std::is_same_v<Dynamics, hsm_wrapper>) {
-              const auto child_index = get_index(ch_id);
-              const auto compo_id    = enum_cast<component_id>(
-                gen.children_parameters[child_index].integers[0]);
-
-              const auto& compo = sc.mod.components.get(compo_id);
-              debug::ensure(compo.type == component_type::hsm);
-              const auto hsm_id = compo.id.hsm_id;
-              debug::ensure(sc.mod.hsm_components.try_to_get(hsm_id));
-              const auto* shsm = sc.hsm_mod_to_sim.get(hsm_id);
-              dyn.id           = get_index(*shsm);
-              sc.pj.sim.parameters[get_index(new_mdl_id)].integers[0] =
-                static_cast<i32>(get_index(*shsm));
-              dyn.exec.i1 = static_cast<i32>(
-                gen.children_parameters[child_index].integers[1]);
-              dyn.exec.i2 = static_cast<i32>(
-                gen.children_parameters[child_index].integers[2]);
-              dyn.exec.r1    = gen.children_parameters[child_index].reals[0];
-              dyn.exec.r2    = gen.children_parameters[child_index].reals[1];
-              dyn.exec.timer = gen.children_parameters[child_index].reals[2];
+              irt_check(make_tree_hsm_leaf(sc, gen, ch_id, new_mdl_id, dyn));
           }
 
           if constexpr (std::is_same_v<Dynamics, constant>) {
-              switch (dyn.type) {
-              case constant::init_type::constant:
-                  break;
-
-              case constant::init_type::incoming_component_all: {
-                  if (auto nb = get_incoming_connection(sc.mod, parent);
-                      nb.has_value()) {
-                      gen.children_parameters[ch_idx].reals[0] = *nb;
-                      dyn.value                                = *nb;
-                  } else
-                      return nb.error();
-              } break;
-
-              case constant::init_type::outcoming_component_all: {
-                  if (auto nb = get_outcoming_connection(sc.mod, parent);
-                      nb.has_value()) {
-                      ;
-                      gen.children_parameters[ch_idx].reals[0] = *nb;
-                      dyn.value                                = *nb;
-                  } else
-                      return nb.error();
-              } break;
-
-              case constant::init_type::incoming_component_n: {
-                  const auto id = enum_cast<port_id>(dyn.port);
-                  if (not sc.mod.components.get(parent.id).x.exists(id))
-                      return new_error(project::part::tree_nodes);
-
-                  if (auto nb = get_incoming_connection(sc.mod, parent, id);
-                      nb.has_value()) {
-                      gen.children_parameters[ch_idx].reals[0] = *nb;
-                      dyn.value                                = *nb;
-                  } else
-                      return nb.error();
-              } break;
-
-              case constant::init_type::outcoming_component_n: {
-                  const auto id = enum_cast<port_id>(dyn.port);
-                  if (not sc.mod.components.get(parent.id).y.exists(id))
-                      return new_error(project::part::tree_nodes);
-
-                  if (auto nb = get_outcoming_connection(sc.mod, parent, id);
-                      nb.has_value()) {
-                      gen.children_parameters[ch_idx].reals[0] = *nb;
-                      dyn.value                                = *nb;
-                  } else
-                      return nb.error();
-              } break;
-              }
+              irt_check(make_tree_constant_leaf(sc, parent, gen, ch_id, dyn));
           }
 
           return success();
@@ -673,7 +695,7 @@ static auto make_tree_recursive(simulation_copy&       sc,
   -> result<tree_node_id>
 {
     if (not sc.tree_nodes.can_alloc())
-        return new_error(project::error::not_enough_memory);
+        return new_error(project_errc::memory_error);
 
     auto& new_tree =
       sc.tree_nodes.alloc(sc.mod.components.get_id(compo), unique_id);
@@ -729,7 +751,7 @@ static status simulation_copy_connections(const vector<model_port>& inputs,
         for (auto dst : inputs) {
             if (auto ret = sim.connect(*src.mdl, src.port, *dst.mdl, dst.port);
                 !ret)
-                return new_error(project::error::impossible_connection);
+                return new_error(project_errc::import_error);
         }
     }
 
@@ -1069,10 +1091,10 @@ static status make_component_cache(project& /*pj*/, modeling& mod) noexcept
 
     for (auto& graph : mod.graph_components) {
         if (auto ret = graph.update(mod); not ret.has_value())
-            return new_error(project::component_type_error);
+            return new_error(project_errc::component_cache_error);
 
         if (auto ret = graph.build_cache(mod); not ret.has_value())
-            return new_error(project::component_type_error);
+            return new_error(project_errc::component_cache_error);
     }
 
     return success();
@@ -1083,7 +1105,7 @@ static auto make_tree_from(simulation_copy&                     sc,
                            component& parent) noexcept -> result<tree_node_id>
 {
     if (not data.can_alloc())
-        return new_error(project::error::not_enough_memory);
+        return new_error(project_errc::memory_error);
 
     auto& new_tree =
       data.alloc(sc.mod.components.get_id(parent), std::string_view{});
@@ -1144,13 +1166,13 @@ status project::init(const modeling_initializer& init) noexcept
 
     tree_nodes.reserve(init.tree_capacity);
     if (not tree_nodes.can_alloc())
-        return new_error(project::part::tree_nodes);
+        return new_error(project_errc::memory_error);
     variable_observers.reserve(init.tree_capacity);
     if (not variable_observers.can_alloc())
-        return new_error(project::part::variable_observers);
+        return new_error(project_errc::memory_error);
     grid_observers.reserve(init.tree_capacity);
     if (not grid_observers.can_alloc())
-        return new_error(project::part::grid_observers);
+        return new_error(project_errc::memory_error);
 
     return success();
 }
@@ -1282,15 +1304,15 @@ static result<std::pair<tree_node_id, component_id>> set_project_from_hsm(
 
     auto* com_hsm = sc.mod.hsm_components.try_to_get(compo.id.hsm_id);
     if (not com_hsm)
-        return new_error(project::part::tree_nodes);
+        return new_error(project_errc::component_unknown);
 
     auto* sim_hsm_id = sc.hsm_mod_to_sim.get(compo.id.hsm_id);
     if (not sim_hsm_id)
-        return new_error(project::part::tree_nodes);
+        return new_error(project_errc::component_unknown);
 
     auto* sim_hsm = sc.pj.sim.hsms.try_to_get(*sim_hsm_id);
     if (not sim_hsm)
-        return new_error(project::part::tree_nodes);
+        return new_error(project_errc::component_unknown);
 
     auto&      dyn     = sc.pj.sim.alloc<hsm_wrapper>();
     auto&      mdl     = irt::get_model(dyn);
@@ -1726,49 +1748,6 @@ graph_observer& project::alloc_graph_observer() noexcept
     auto& obs = graph_observers.alloc();
     assign_name(graph_observers, obs.name);
     return obs;
-}
-
-std::string_view to_string(const project::part p) noexcept
-{
-    using integer = std::underlying_type_t<project::part>;
-
-    static const std::string_view str[] = { "tree nodes",
-                                            "variable observers",
-                                            "grid observers",
-                                            "graph observers",
-                                            "global parameters" };
-
-    debug::ensure(std::cmp_less(static_cast<integer>(p), 5));
-
-    return str[static_cast<integer>(p)];
-};
-
-std::string_view to_string(const project::error e) noexcept
-{
-    using integer = std::underlying_type_t<project::error>;
-
-    static const std::string_view str[] = {
-        "not enough memory",
-        "unknown source",
-        "impossible connection",
-        "empty project",
-        "component empty",
-        "component type error",
-        "file error",
-        "file component type error",
-        "registred path access error",
-        "directory access error",
-        "file access error",
-        "file open error",
-        "file parameters error",
-        "file parameters access error",
-        "file parameters type error",
-        "file parameters init error",
-    };
-
-    debug::ensure(std::cmp_less(static_cast<integer>(e), 16));
-
-    return str[static_cast<integer>(e)];
 }
 
 } // namespace irt
