@@ -574,6 +574,12 @@ public:
         return has_value();
     }
 
+    [[nodiscard]]
+    constexpr bool has_error() const noexcept
+    {
+        return not has_value();
+    }
+
     template<typename U>
         requires(std::is_convertible_v<U, value_type>)
     [[nodiscard]]
@@ -851,6 +857,12 @@ public:
     constexpr explicit operator bool() const noexcept
     {
         return has_value();
+    }
+
+    [[nodiscard]]
+    constexpr bool has_error() const noexcept
+    {
+        return not has_value();
     }
 
     [[nodiscard]]
