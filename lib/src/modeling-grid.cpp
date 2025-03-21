@@ -394,7 +394,7 @@ result<input_connection_id> grid_component::connect_input(
 
         if (input_connections.capacity() == capacity)
             return new_error(
-              grid_component_errc::input_connection_container_full);
+              modeling_errc::generic_input_connection_container_full);
     }
 
     return input_connections.get_id(input_connections.alloc(x, row, col, id));
@@ -418,7 +418,7 @@ result<output_connection_id> grid_component::connect_output(
 
         if (output_connections.capacity() == capacity)
             return new_error(
-              grid_component_errc::output_connection_container_full);
+              modeling_errc::generic_output_connection_container_full);
     }
 
     return output_connections.get_id(output_connections.alloc(y, row, col, id));
@@ -435,7 +435,7 @@ status grid_component::build_cache(modeling& mod) noexcept
     clear_cache();
 
     if (not can_alloc_grid_children_and_connections(*this))
-        return new_error(grid_component_errc::children_container_full);
+        return new_error(modeling_errc::generic_children_container_full);
 
     const auto vec = build_grid_children(mod, *this);
     build_grid_connections(mod, *this, vec);

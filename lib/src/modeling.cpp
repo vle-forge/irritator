@@ -1137,7 +1137,7 @@ status modeling::copy(const component& src, component& dst) noexcept
             s_src) {
             if (!generic_components.can_alloc())
                 return new_error(
-                  generic_component_errc::children_container_full);
+                  modeling_errc::generic_children_container_full);
 
             auto& s_dst       = generic_components.alloc();
             auto  s_dst_id    = generic_components.get_id(s_dst);
@@ -1152,7 +1152,7 @@ status modeling::copy(const component& src, component& dst) noexcept
     case component_type::grid:
         if (const auto* s = grid_components.try_to_get(src.id.grid_id); s) {
             if (!grid_components.can_alloc())
-                return new_error(grid_component_errc::children_container_full);
+                return new_error(modeling_errc::grid_children_container_full);
 
             auto& d        = grid_components.alloc(*s);
             auto  d_id     = grid_components.get_id(d);
@@ -1164,7 +1164,7 @@ status modeling::copy(const component& src, component& dst) noexcept
     case component_type::graph:
         if (const auto* s = graph_components.try_to_get(src.id.graph_id); s) {
             if (!graph_components.can_alloc())
-                return new_error(graph_component_errc::children_container_full);
+                return new_error(modeling_errc::graph_children_container_full);
 
             auto& d         = graph_components.alloc(*s);
             auto  d_id      = graph_components.get_id(d);
@@ -1176,7 +1176,7 @@ status modeling::copy(const component& src, component& dst) noexcept
     case component_type::hsm:
         if (const auto* s = hsm_components.try_to_get(src.id.hsm_id); s) {
             if (!hsm_components.can_alloc())
-                return new_error(hsm_component_errc::children_container_full);
+                return new_error(modeling_errc::hsm_children_container_full);
 
             auto& d       = hsm_components.alloc(*s);
             auto  d_id    = hsm_components.get_id(d);

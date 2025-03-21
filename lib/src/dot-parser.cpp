@@ -996,7 +996,7 @@ public:
         if (parse_graph())
             return std::move(g);
 
-        return new_error_code(graph::errc::format_illegible, category::graph);
+        return new_error(modeling_errc::dot_format_illegible);
     }
 
     // https://graphviz.org/doc/info/lang.html
@@ -1060,7 +1060,7 @@ expected<graph> parse_dot_buffer(const modeling&        mod,
                                  const std::string_view buffer) noexcept
 {
     if (buffer.empty())
-        return new_error_code(graph::errc::buffer_empty, category::graph);
+        return new_error(modeling_errc::dot_buffer_empty);
 
     istring_view_stream isvs{ buffer.data(), buffer.size() };
     input_stream_buffer sb{ mod, isvs };
@@ -1071,7 +1071,7 @@ expected<graph> parse_dot_buffer(const modeling&        mod,
 expected<graph> parse_dot_buffer(const std::string_view buffer) noexcept
 {
     if (buffer.empty())
-        return new_error_code(graph::errc::buffer_empty, category::graph);
+        return new_error(modeling_errc::dot_buffer_empty);
 
     istring_view_stream isvs{ buffer.data(), buffer.size() };
     input_stream_buffer sb{ isvs };
@@ -1087,7 +1087,7 @@ expected<graph> parse_dot_file(const modeling&              mod,
         return sb.parse();
     }
 
-    return new_error_code(graph::errc::file_unreachable, category::graph);
+    return new_error(modeling_errc::dot_file_unreachable);
 }
 
 graph::graph(const graph& other) noexcept
@@ -1333,7 +1333,7 @@ expected<void> write_dot_file(const modeling&              mod,
     if (std::ofstream ofs(path); ofs) {
         return write_dot_stream(mod, graph, std::ostream_iterator<char>(ofs));
     } else {
-        return new_error_code(graph::errc::file_unreachable, category::graph);
+        return new_error(modeling_errc::dot_file_unreachable);
     }
 }
 
@@ -1342,8 +1342,7 @@ expected<vector<char>> write_dot_buffer(const modeling& mod,
 {
     vector<char> buffer(4096, reserve_tag{});
     if (buffer.capacity() < 4096)
-        return new_error_code(graph::errc::memory_insufficient,
-                              category::graph);
+        return new_error(modeling_errc::dot_memory_insufficient);
 
     if (auto ret =
           write_dot_stream(mod, graph, std::back_insert_iterator(buffer));

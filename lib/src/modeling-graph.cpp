@@ -268,11 +268,9 @@ static expected<void> build_dot_file_edges(
 
             graph.g.buffer = std::move(dot_graph->buffer);
         } else
-            return new_error_code(graph_component::errc::dot_file_access_error,
-                                  category::graph_component);
+            return dot_graph.error();
     } else
-        return new_error_code(graph_component::errc::dot_file_format_error,
-                              category::graph_component);
+        return new_error(file_errc::arg_error);
 
     return expected<void>();
 }
@@ -341,9 +339,8 @@ static expected<void> build_scale_free_edges(
                 graph.g.edges_nodes.resize(graph.g.edges.capacity());
 
                 if (not graph.g.edges.can_alloc(1))
-                    return new_error_code(
-                      graph_component::errc::edges_container_full,
-                      category::graph_component);
+                    return new_error(
+                      modeling_errc::graph_children_container_full);
             }
 
             auto       new_edge_id  = graph.g.edges.alloc();
@@ -411,9 +408,8 @@ static expected<void> build_small_world_edges(
                 graph.g.edges_nodes.resize(graph.g.edges.capacity());
 
                 if (not graph.g.edges.can_alloc(1))
-                    return new_error_code(
-                      graph_component::errc::edges_container_full,
-                      category::graph_component);
+                    return new_error(
+                      modeling_errc::graph_connection_container_full);
             }
 
             const auto new_edge_id  = graph.g.edges.alloc();
@@ -549,8 +545,7 @@ expected<void> graph_component::build_cache(modeling& mod) noexcept
 
     cache.reserve(g.nodes.size());
     if (not cache.can_alloc(g.nodes.size()))
-        return new_error_code(graph_component::errc::nodes_container_full,
-                              category::graph_component);
+        return new_error(modeling_errc::graph_children_container_full);
 
     const auto vec = build_graph_children(mod, *this);
     build_graph_connections(mod, *this, vec);
@@ -568,13 +563,13 @@ status modeling::copy(graph_component&   graph,
                       generic_component& generic) noexcept
 {
     if (auto ret = graph.build_cache(*this); not ret.has_value())
-        return new_error(graph_component_errc::children_container_full);
+        return new_error(modeling_errc::graph_children_container_full);
 
     if (not generic.children.can_alloc(graph.cache.size()))
-        return new_error(generic_component_errc::children_container_full);
+        return new_error(modeling_errc::generic_children_container_full);
 
     if (not generic.connections.can_alloc(graph.cache_connections.size()))
-        return new_error(generic_component_errc::connection_container_full);
+        return new_error(modeling_errc::generic_connection_container_full);
 
     table<child_id, child_id> graph_to_generic;
     graph_to_generic.data.reserve(graph.cache.size());
@@ -637,12 +632,10 @@ expected<input_connection_id> graph_component::connect_input(
   const port_id       id) noexcept
 {
     if (exists_input_connection(x, v, id))
-        return new_error_code(errc::input_connection_already_exists,
-                              category::graph_component);
+        return new_error(modeling_errc::graph_input_connection_already_exists);
 
     if (not input_connections.can_alloc(1))
-        return new_error_code(errc::input_connection_full,
-                              category::graph_component);
+        return new_error(modeling_errc::graph_input_connection_container_full);
 
     return input_connections.get_id(input_connections.alloc(x, v, id));
 }
@@ -653,12 +646,10 @@ expected<output_connection_id> graph_component::connect_output(
   const port_id       id) noexcept
 {
     if (exists_output_connection(y, v, id))
-        return new_error_code(errc::output_connection_already_exists,
-                              category::graph_component);
+        return new_error(modeling_errc::graph_output_connection_already_exists);
 
     if (not output_connections.can_alloc(1))
-        return new_error_code(errc::output_connection_full,
-                              category::graph_component);
+        return new_error(modeling_errc::graph_output_connection_container_full);
 
     return output_connections.get_id(output_connections.alloc(y, v, id));
 }

@@ -260,11 +260,6 @@ public:
     using child_limiter      = static_bounded_value<i32, 64, 64 * 16>;
     using connection_limiter = static_bounded_value<i32, 64 * 4, 64 * 16 * 4>;
 
-    struct children_error {};
-    struct connection_error {};
-    struct input_connection_error {};
-    struct output_connection_error {};
-
     generic_component() noexcept;
 
     generic_component(const child_limiter      child_limit,
@@ -371,15 +366,6 @@ public:
 
     bool     exists_child(const std::string_view name) const noexcept;
     name_str make_unique_name_id(const child_id from_id) const noexcept;
-
-    static auto build_error_handlers(log_manager& l) noexcept;
-    static void format_connection_error(log_entry& e) noexcept;
-    static void format_connection_full_error(log_entry& e) noexcept;
-    static void format_input_connection_error(log_entry& e) noexcept;
-    static void format_input_connection_full_error(log_entry& e) noexcept;
-    static void format_output_connection_error(log_entry& e) noexcept;
-    static void format_output_connection_full_error(log_entry& e) noexcept;
-    static void format_children_error(log_entry& e) noexcept;
 };
 
 class grid_component
@@ -387,10 +373,6 @@ class grid_component
 public:
     using limit  = bounded_value<i32>;
     using slimit = static_bounded_value<i32, 1, 1024>;
-
-    struct input_connection_error {};
-    struct output_connection_error {};
-    struct children_connection_error {};
 
 private:
     i32                  m_row    = slimit::lower_bound();
@@ -571,13 +553,6 @@ public:
 class graph
 {
 public:
-    enum class errc : i16 {
-        buffer_empty,
-        memory_insufficient,
-        file_unreachable,
-        format_illegible
-    };
-
     graph() noexcept = default;
 
     explicit graph(const graph& other) noexcept;
@@ -640,17 +615,6 @@ class graph_component
 {
 public:
     static inline constexpr i32 children_max = 4096;
-
-    enum class errc {
-        input_connection_full = 1,
-        output_connection_full,
-        input_connection_already_exists,
-        output_connection_already_exists,
-        nodes_container_full,
-        edges_container_full,
-        dot_file_access_error,
-        dot_file_format_error,
-    };
 
     enum class graph_type { dot_file, scale_free, small_world };
 

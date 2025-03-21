@@ -43,11 +43,7 @@ enum class category : std::int16_t {
     json_component,
 
     modeling,
-    hsm_component,
-    generic_component,
-    grid_component,
-    graph_component,
-    graph,
+
     tree_node,
     grid_observer,
     graph_observer,
@@ -131,45 +127,6 @@ enum class external_source_errc : std::int16_t {
     text_file_eof_error,
 };
 
-enum class graph_component_errc {
-    input_connection_container_full = 1,
-    output_connection_container_full,
-
-    connection_container_full,
-    connection_already_exist,
-    children_container_full,
-};
-
-enum class grid_component_errc {
-    input_connection_container_full = 1,
-    output_connection_container_full,
-
-    connection_container_full,
-    connection_already_exist,
-    children_container_full,
-};
-
-enum class hsm_component_errc {
-    input_connection_container_full = 1,
-    output_connection_container_full,
-
-    connection_container_full,
-    connection_already_exist,
-    children_container_full,
-};
-
-enum class generic_component_errc {
-    input_connection_container_full = 1,
-    output_connection_container_full,
-    input_connection_container_already_exist,
-    output_connection_container_already_exist,
-
-    connection_container_full,
-    connection_already_exist,
-    connection_compatibility_error,
-    children_container_full,
-};
-
 enum class project_errc : std::int16_t {
     memory_error = 1,
     import_error,
@@ -186,15 +143,49 @@ enum class json_component_errc : std::int16_t {
 };
 
 enum class modeling_errc : std::int16_t {
-    recorded_directory_error = 1,
+    memory_error = 1,
+
+    recorded_directory_error,
     directory_error,
     file_error,
-
-    memory_error,
 
     component_container_full,
     component_input_container_full,
     component_output_container_full,
+
+    dot_buffer_empty,
+    dot_memory_insufficient,
+    dot_file_unreachable,
+    dot_format_illegible,
+
+    graph_input_connection_container_full,
+    graph_output_connection_container_full,
+    graph_input_connection_already_exists,
+    graph_output_connection_already_exists,
+    graph_connection_container_full,
+    graph_connection_already_exist,
+    graph_children_container_full,
+
+    grid_input_connection_container_full,
+    grid_output_connection_container_full,
+    grid_connection_container_full,
+    grid_connection_already_exist,
+    grid_children_container_full,
+
+    hsm_input_connection_container_full,
+    hsm_output_connection_container_full,
+    hsm_connection_container_full,
+    hsm_connection_already_exist,
+    hsm_children_container_full,
+
+    generic_input_connection_container_full,
+    generic_output_connection_container_full,
+    generic_input_connection_container_already_exist,
+    generic_output_connection_container_already_exist,
+    generic_connection_container_full,
+    generic_connection_already_exist,
+    generic_connection_compatibility_error,
+    generic_children_container_full,
 };
 
 /**
@@ -261,18 +252,6 @@ inline error_code new_error(ErrorCodeEnum e) noexcept
         return error_code(static_cast<std::int16_t>(e), category::project);
     else if constexpr (std::is_same_v<modeling_errc, ErrorCodeEnum>)
         return error_code(static_cast<std::int16_t>(e), category::modeling);
-    else if constexpr (std::is_same_v<generic_component_errc, ErrorCodeEnum>)
-        return error_code(static_cast<std::int16_t>(e),
-                          category::generic_component);
-    else if constexpr (std::is_same_v<grid_component_errc, ErrorCodeEnum>)
-        return error_code(static_cast<std::int16_t>(e),
-                          category::grid_component);
-    else if constexpr (std::is_same_v<graph_component_errc, ErrorCodeEnum>)
-        return error_code(static_cast<std::int16_t>(e),
-                          category::graph_component);
-    else if constexpr (std::is_same_v<hsm_component_errc, ErrorCodeEnum>)
-        return error_code(static_cast<std::int16_t>(e),
-                          category::hsm_component);
     else if constexpr (std::is_same_v<external_source_errc, ErrorCodeEnum>)
         return error_code(static_cast<std::int16_t>(e),
                           category::external_source);
