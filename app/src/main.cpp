@@ -295,66 +295,53 @@ public:
         pj.file_obs.finalize();
     }
 
-    constexpr bool run() noexcept
+    irt::expected<void> run() noexcept
     {
-        auto ret = [&]() noexcept -> irt::result<bool> {
-            fmt::print("Run simulation for file {}\n", front);
-            const std::string str{ front };
-            load_next_token();
-            if (auto file = irt::file::open(str.c_str(), irt::open_mode::read);
-                file.has_value()) {
+        sim.t         = pj.t_limit.begin();
+        irt::real end = pj.t_limit.duration();
 
-                if (json(pj, mod, sim, *file)) {
-                    sim.t         = pj.t_limit.begin();
-                    irt::real end = pj.t_limit.duration();
-                    observation_initialize();
-                    irt_check(sim.srcs.prepare());
-                    irt_check(sim.initialize());
+        observation_initialize();
+        irt_check(sim.srcs.prepare());
+        irt_check(sim.initialize());
 
-                    fmt::print("grid-observers: {}\n"
-                               "graph-observers: {}\n"
-                               "plot-observers: {}\n"
-                               "file-observers: {}\n",
-                               pj.grid_observers.ssize(),
-                               pj.graph_observers.ssize(),
-                               pj.variable_observers.ssize(),
-                               pj.file_obs.ids.ssize());
+        fmt::print("grid-observers: {}\n"
+                   "graph-observers: {}\n"
+                   "plot-observers: {}\n"
+                   "file-observers: {}\n",
+                   pj.grid_observers.ssize(),
+                   pj.graph_observers.ssize(),
+                   pj.variable_observers.ssize(),
+                   pj.file_obs.ids.ssize());
 
-                    do {
-                        irt_check(sim.run());
-                        observation_update();
-                    } while (sim.t < end);
+        do {
+            irt_check(sim.run());
+            observation_update();
+        } while (sim.t < end);
 
-                    irt_check(sim.finalize());
-                    observation_finalize();
-                } else {
-                    warning<ec::json_file>(str, std::string_view{ "unknown" });
-                }
+        irt_check(sim.finalize());
+        observation_finalize();
+
+        return irt::success();
+    }
+
+    irt::expected<void> prepare_and_run() noexcept
+    {
+        fmt::print("Run simulation for file {}\n", front);
+        const std::string str{ front };
+        load_next_token();
+
+        if (auto file = irt::file::open(str.c_str(), irt::open_mode::read);
+            file.has_value()) {
+            if (json(pj, mod, sim, *file)) {
+                run();
             } else {
-                warning<ec::open_file>(str, std::string_view{ "unknown" });
+                return irt::new_error(irt::json_project_errc::format_error);
             }
-
-            return true;
-        }();
-
-        if (not ret.has_value()) {
-            switch (ret.error().cat()) {
-            case irt::category::modeling:
-                warning<ec::modeling_init_error>(ret.error().value());
-                return false;
-            case irt::category::project:
-                warning<ec::project_init_error>(ret.error().value());
-                return false;
-            case irt::category::simulation:
-                warning<ec::simulation_init_error>(ret.error().value());
-                return false;
-            default:
-                warning<ec::unknown_error>();
-                return false;
-            }
+        } else {
+            return file.error();
         }
 
-        return true;
+        return irt::success();
     }
 
     /** Try to add a new global path in @c modeling. This function only test if
@@ -591,13 +578,39 @@ public:
         }
     }
 
-    constexpr bool read_argument() noexcept
+    bool read_argument() noexcept
     {
         irt::debug::ensure(not front.empty());
-        return run();
+
+        if (auto ret = prepare_and_run(); not ret) {
+            switch (ret.error().cat()) {
+            case irt::category::json_project:
+                warning<ec::json_file>(front.front(),
+                                       std::string_view{ "unknown" });
+                return false;
+            case irt::category::file:;
+                warning<ec::open_file>(front.front(),
+                                       std::string_view{ "unknown" });
+                return false;
+            case irt::category::modeling:
+                warning<ec::modeling_init_error>(ret.error().value());
+                return false;
+            case irt::category::project:
+                warning<ec::project_init_error>(ret.error().value());
+                return false;
+            case irt::category::simulation:
+                warning<ec::simulation_init_error>(ret.error().value());
+                return false;
+            default:
+                warning<ec::unknown_error>();
+                return false;
+            }
+        }
+
+        return true;
     }
 
-    constexpr bool parse_args()
+    bool parse_args()
     {
         return start_short_option()  ? read_short_options()
                : start_long_option() ? read_long_option()
