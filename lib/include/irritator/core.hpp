@@ -485,11 +485,6 @@ public:
 class binary_file_source
 {
 public:
-    struct access_file_error {};    //<! Add an e_file_name
-    struct too_small_file_error {}; //<! Add an e_file_name
-    struct open_file_error {};      //<! Add an e_file_name
-    struct eof_file_error {};       //<! Add an e_file_name
-
     small_string<23>   name;
     vector<chunk_type> buffers; // buffer, size is defined by max_clients
     vector<u64>        offsets; // offset, size is defined by max_clients
@@ -528,9 +523,6 @@ public:
 class text_file_source
 {
 public:
-    struct open_file_error {}; //<! Add an e_file_name
-    struct eof_file_error {};  //<! Add an e_file_name
-
     small_string<23> name;
     chunk_type       buffer;
     u64              offset;
@@ -662,13 +654,6 @@ public:
 class external_source
 {
 public:
-    enum class part {
-        constant_source,
-        binary_file_source,
-        text_file_source,
-        random_source,
-    };
-
     data_array<constant_source, constant_source_id>       constant_sources;
     data_array<binary_file_source, binary_file_source_id> binary_file_sources;
     data_array<text_file_source, text_file_source_id>     text_file_sources;
