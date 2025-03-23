@@ -716,13 +716,7 @@ public:
     using this_type  = expected<value_type>;
 
 private:
-    union storage_type {
-        std::monostate _;
-        error_code     ec;
-
-        constexpr storage_type() noexcept {}
-        constexpr ~storage_type() noexcept {}
-    } storage;
+    error_code storage;
 
     enum class state_type : std::int8_t { value, error } state;
 
@@ -737,27 +731,27 @@ public:
       : state{ other.state }
     {
         if (state == state_type::error)
-            std::construct_at(std::addressof(storage.ec), other.storage.ec);
+            std::construct_at(std::addressof(storage), other.storage);
     }
 
     constexpr expected(expected&& other) noexcept
       : state{ other.state }
     {
         if (state == state_type::error)
-            std::construct_at(std::addressof(storage.ec),
-                              std::move(other.storage.ec));
+            std::construct_at(std::addressof(storage),
+                              std::move(other.storage));
     }
 
     constexpr expected(const error_code& ec) noexcept
       : state{ state_type::error }
     {
-        std::construct_at(std::addressof(storage.ec), ec);
+        std::construct_at(std::addressof(storage), ec);
     }
 
     constexpr expected(error_code&& ec) noexcept
       : state{ state_type::error }
     {
-        std::construct_at(std::addressof(storage.ec), std::move(ec));
+        std::construct_at(std::addressof(storage), std::move(ec));
     }
 
     constexpr this_type& operator=(const this_type& other) noexcept
@@ -765,7 +759,7 @@ public:
         state = other.state;
 
         if (state == state_type::error)
-            std::construct_at(std::addressof(storage.ec), other.storage.ec);
+            std::construct_at(std::addressof(storage), other.storage);
 
         return *this;
     }
@@ -775,8 +769,8 @@ public:
         state = other.state;
 
         if (state == state_type::error)
-            std::construct_at(std::addressof(storage.ec),
-                              std::move(other.storage.ec));
+            std::construct_at(std::addressof(storage),
+                              std::move(other.storage));
 
         return *this;
     }
@@ -784,7 +778,7 @@ public:
     constexpr this_type& operator=(const error_code& ec) noexcept
     {
         state = state_type::error;
-        std::construct_at(std::addressof(storage.ec), ec);
+        std::construct_at(std::addressof(storage), ec);
 
         return *this;
     }
@@ -792,7 +786,7 @@ public:
     constexpr this_type& operator=(error_code&& ec) noexcept
     {
         state = state_type::error;
-        std::construct_at(std::addressof(storage.ec), std::move(ec));
+        std::construct_at(std::addressof(storage), std::move(ec));
 
         return *this;
     }
@@ -819,14 +813,14 @@ public:
     constexpr error_type& error() & noexcept
     {
         debug::ensure(not has_value());
-        return storage.ec;
+        return storage;
     }
 
     [[nodiscard]]
     constexpr const error_type& error() const& noexcept
     {
         debug::ensure(not has_value());
-        return storage.ec;
+        return storage;
     }
 
     template<typename Fn, typename... Args>
@@ -836,7 +830,7 @@ public:
             return std::invoke(std::forward<Fn>(f),
                                std::forward<Args>(args)...);
         else
-            return storage.ec;
+            return storage;
     }
 
     template<typename Fn, typename... Args>
@@ -846,7 +840,7 @@ public:
             return std::invoke(std::forward<Fn>(f),
                                std::forward<Args>(args)...);
         else
-            return this_type(storage.ec);
+            return this_type(storage);
     }
 
     template<typename Fn, typename... Args>
@@ -855,7 +849,7 @@ public:
         if (has_value())
             return std::invoke(std::forward<Fn>(f), args...);
         else
-            return this_type(storage.ec);
+            return this_type(storage);
     }
 
     template<typename Fn, typename... Args>
@@ -864,7 +858,7 @@ public:
         if (has_value())
             return std::invoke(std::forward<Fn>(f), args...);
         else
-            return this_type(storage.ec);
+            return this_type(storage);
     }
 
     template<typename Fn, typename... Args>
@@ -873,7 +867,7 @@ public:
         if (has_value())
             return *this;
         else
-            return std::invoke(std::forward<Fn>(f), storage.ec, args...);
+            return std::invoke(std::forward<Fn>(f), storage, args...);
     }
 
     template<typename Fn, typename... Args>
@@ -882,7 +876,7 @@ public:
         if (has_value())
             return *this;
         else
-            return std::invoke(std::forward<Fn>(f), storage.ec, args...);
+            return std::invoke(std::forward<Fn>(f), storage, args...);
     }
 
     template<typename Fn, typename... Args>
@@ -892,7 +886,7 @@ public:
             return *this;
         else
             return std::invoke(
-              std::forward<Fn>(f), std::move(storage.ec), args...);
+              std::forward<Fn>(f), std::move(storage), args...);
     }
 
     template<typename Fn, typename... Args>
@@ -902,7 +896,7 @@ public:
             return *this;
         else
             return std::invoke(
-              std::forward<Fn>(f), std::move(storage.ec), args...);
+              std::forward<Fn>(f), std::move(storage), args...);
     }
 
     void swap(this_type& other) noexcept
