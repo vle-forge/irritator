@@ -30,7 +30,7 @@ generic_component::generic_component(
     children_parameters.resize(child_limit.value());
 }
 
-result<child_id> generic_component::copy_to(
+expected<child_id> generic_component::copy_to(
   const child&       c,
   generic_component& dst) const noexcept
 {

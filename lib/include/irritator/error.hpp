@@ -909,9 +909,6 @@ public:
 
 using status = expected<void>;
 
-template<typename T>
-using result = expected<T>;
-
 /**
  * @brief a readability function for returning successful results;
  *
@@ -927,7 +924,7 @@ using result = expected<T>;
  *
  * @return status - that is always successful
  */
-inline status success()
+constexpr inline status success() noexcept
 {
     // Default initialize the status object using the brace initialization,
     // which will set the status to the default "success" state.

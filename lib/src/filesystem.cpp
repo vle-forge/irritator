@@ -38,7 +38,7 @@
 namespace irt {
 
 #if defined(__linux__) || defined(__APPLE__)
-static result<std::filesystem::path> get_local_home_directory() noexcept
+static expected<std::filesystem::path> get_local_home_directory() noexcept
 {
     if (auto* home = std::getenv("HOME"); home)
         return std::filesystem::path{ home };
@@ -66,7 +66,7 @@ static result<std::filesystem::path> get_local_home_directory() noexcept
     return new_error(fs_errc::user_directory_access_fail, category::fs);
 }
 #elif defined(_WIN32)
-static result<std::filesystem::path> get_local_home_directory() noexcept
+static expected<std::filesystem::path> get_local_home_directory() noexcept
 {
     PWSTR path{ nullptr };
 
@@ -87,7 +87,7 @@ static result<std::filesystem::path> get_local_home_directory() noexcept
 }
 #endif
 
-result<std::filesystem::path> get_home_directory() noexcept
+expected<std::filesystem::path> get_home_directory() noexcept
 {
     try {
         auto ret = get_local_home_directory();
@@ -115,7 +115,7 @@ result<std::filesystem::path> get_home_directory() noexcept
 }
 
 #if defined(__linux__)
-result<std::filesystem::path> get_executable_directory() noexcept
+expected<std::filesystem::path> get_executable_directory() noexcept
 {
     std::vector<char> buf(PATH_MAX, '\0');
     const auto        ssize = readlink("/proc/self/exe", buf.data(), PATH_MAX);
@@ -128,7 +128,7 @@ result<std::filesystem::path> get_executable_directory() noexcept
     return std::filesystem::path{ std::string_view{ buf.data(), size } };
 }
 #elif defined(__APPLE__)
-result<std::filesystem::path> get_executable_directory() noexcept
+expected<std::filesystem::path> get_executable_directory() noexcept
 {
     std::vector<char> buf(MAXPATHLEN, '\0');
     uint32_t          size{ 0 };
@@ -139,7 +139,7 @@ result<std::filesystem::path> get_executable_directory() noexcept
     return std::filesystem::path{ std::string_view{ buf.data(), size } };
 }
 #elif defined(_WIN32)
-result<std::filesystem::path> get_executable_directory() noexcept
+expected<std::filesystem::path> get_executable_directory() noexcept
 {
     std::wstring filepath;
     DWORD        len   = MAX_PATH;
@@ -164,7 +164,7 @@ result<std::filesystem::path> get_executable_directory() noexcept
 #endif
 
 #if defined(__linux__) || defined(__APPLE__)
-result<std::filesystem::path> get_system_component_dir() noexcept
+expected<std::filesystem::path> get_system_component_dir() noexcept
 {
     auto exe = get_executable_directory();
     if (!exe)
@@ -183,7 +183,7 @@ result<std::filesystem::path> get_system_component_dir() noexcept
     return new_error(fs_errc::executable_access_fail, category::fs);
 }
 #elif defined(_WIN32)
-result<std::filesystem::path> get_system_component_dir() noexcept
+expected<std::filesystem::path> get_system_component_dir() noexcept
 {
     auto exe = get_executable_directory();
     if (!exe)
@@ -204,7 +204,7 @@ result<std::filesystem::path> get_system_component_dir() noexcept
 #endif
 
 #if defined(IRT_DATAROOTDIR)
-result<std::filesystem::path> get_system_prefix_component_dir() noexcept
+expected<std::filesystem::path> get_system_prefix_component_dir() noexcept
 {
     std::filesystem::path path(IRT_DATAROOTDIR);
 
@@ -219,14 +219,14 @@ result<std::filesystem::path> get_system_prefix_component_dir() noexcept
     return new_error(fs_errc::executable_access_fail, category::fs);
 }
 #else
-result<std::filesystem::path> get_system_prefix_component_dir() noexcept
+expected<std::filesystem::path> get_system_prefix_component_dir() noexcept
 {
     return std::filesystem::path();
 }
 #endif
 
 #if defined(__linux__) || defined(__APPLE__)
-result<std::filesystem::path> get_default_user_component_dir() noexcept
+expected<std::filesystem::path> get_default_user_component_dir() noexcept
 {
     auto home_path = get_home_directory();
 
@@ -247,7 +247,7 @@ result<std::filesystem::path> get_default_user_component_dir() noexcept
                      category::fs);
 }
 #elif defined(_WIN32)
-result<std::filesystem::path> get_default_user_component_dir() noexcept
+expected<std::filesystem::path> get_default_user_component_dir() noexcept
 {
     auto home_path = get_home_directory();
     if (!home_path)
@@ -268,7 +268,7 @@ result<std::filesystem::path> get_default_user_component_dir() noexcept
 }
 #endif
 
-static result<std::filesystem::path> get_home_filename(
+static expected<std::filesystem::path> get_home_filename(
   const char* filename) noexcept
 {
     try {
@@ -285,7 +285,7 @@ static result<std::filesystem::path> get_home_filename(
     return new_error(fs_errc::user_directory_access_fail, category::fs);
 }
 
-result<std::filesystem::path> get_settings_filename() noexcept
+expected<std::filesystem::path> get_settings_filename() noexcept
 {
     return get_home_filename("settings.ini");
 }

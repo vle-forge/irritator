@@ -3799,7 +3799,7 @@ public:
     //! @return return true if the event was processed, otherwise false.
     //! If the automata is badly defined, return an modeling error or @c
     //! empty_value_error if the external source fail to update the buffer.
-    result<bool> dispatch(const event_type e,
+    expected<bool> dispatch(const event_type e,
                           execution&       exec,
                           external_source& srcs) noexcept;
 
@@ -3838,7 +3838,7 @@ public:
     //!
     //! @c return empty_value_error if the external source fail to update the
     //! buffer.
-    result<bool> handle(const state_id   state,
+    expected<bool> handle(const state_id   state,
                         const event_type event,
                         execution&       exec,
                         external_source& srcs) noexcept;
@@ -3874,7 +3874,7 @@ public:
 };
 
 auto get_hierarchical_state_machine(simulation& sim, hsm_id id) noexcept
-  -> result<hierarchical_state_machine*>;
+  -> expected<hierarchical_state_machine*>;
 
 struct hsm_wrapper {
     using hsm      = hierarchical_state_machine;
@@ -4977,10 +4977,10 @@ constexpr model& get_model(Dynamics& d) noexcept
     return *(model*)((char*)__mptr - offsetof(model, dyn));
 }
 
-inline result<message_id> get_input_port(model& src, int port_src) noexcept;
+inline expected<message_id> get_input_port(model& src, int port_src) noexcept;
 
 inline status get_input_port(model& src, int port_src, message_id*& p) noexcept;
-inline result<block_node_id> get_output_port(model& dst, int port_dst) noexcept;
+inline expected<block_node_id> get_output_port(model& dst, int port_dst) noexcept;
 inline status                get_output_port(model&          dst,
                                              int             port_dst,
                                              block_node_id*& p) noexcept;
@@ -5306,7 +5306,7 @@ inline status send_message(simulation&    sim,
  */
 inline auto get_hierarchical_state_machine(simulation& sim,
                                            const u32   idx) noexcept
-  -> result<hierarchical_state_machine*>
+  -> expected<hierarchical_state_machine*>
 {
     if (auto* hsm = sim.hsms.try_to_get_from_pos(idx); hsm)
         return hsm;
@@ -6607,10 +6607,10 @@ inline bool is_ports_compatible(const model& mdl_src,
       mdl_src.type, o_port_index, mdl_dst.type, i_port_index);
 }
 
-inline result<message_id> get_input_port(model& src, int port_src) noexcept
+inline expected<message_id> get_input_port(model& src, int port_src) noexcept
 {
     return dispatch(
-      src, [&]<typename Dynamics>(Dynamics& dyn) -> result<message_id> {
+      src, [&]<typename Dynamics>(Dynamics& dyn) -> expected<message_id> {
           if constexpr (has_input_port<Dynamics>) {
               if (port_src >= 0 && port_src < length(dyn.x)) {
                   return dyn.x[port_src];
@@ -6636,10 +6636,10 @@ inline status get_input_port(model& src, int port_src, message_id*& p) noexcept
                     });
 }
 
-inline result<block_node_id> get_output_port(model& dst, int port_dst) noexcept
+inline expected<block_node_id> get_output_port(model& dst, int port_dst) noexcept
 {
     return dispatch(
-      dst, [&]<typename Dynamics>(Dynamics& dyn) -> result<block_node_id> {
+      dst, [&]<typename Dynamics>(Dynamics& dyn) -> expected<block_node_id> {
           if constexpr (has_output_port<Dynamics>) {
               if (port_dst >= 0 && port_dst < length(dyn.y))
                   return dyn.y[port_dst];

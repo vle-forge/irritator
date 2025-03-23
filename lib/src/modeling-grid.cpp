@@ -376,7 +376,7 @@ bool grid_component::exists_output_connection(const port_id y,
     return false;
 }
 
-result<input_connection_id> grid_component::connect_input(
+expected<input_connection_id> grid_component::connect_input(
   const port_id x,
   const i32     row,
   const i32     col,
@@ -400,7 +400,7 @@ result<input_connection_id> grid_component::connect_input(
     return input_connections.get_id(input_connections.alloc(x, row, col, id));
 }
 
-result<output_connection_id> grid_component::connect_output(
+expected<output_connection_id> grid_component::connect_output(
   const port_id y,
   const i32     row,
   const i32     col,

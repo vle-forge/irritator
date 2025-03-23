@@ -47,7 +47,7 @@ using buffered_file =
  * This function uses a specific Win32 code to convert path in Win32 code
  * page.
  */
-result<buffered_file> open_buffered_file(
+expected<buffered_file> open_buffered_file(
   const std::filesystem::path&       path,
   const bitflags<buffered_file_mode> mode) noexcept;
 

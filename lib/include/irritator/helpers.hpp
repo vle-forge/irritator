@@ -116,12 +116,6 @@ public:
 };
 
 template<typename>
-struct is_result : std::false_type {};
-
-template<typename T>
-struct is_result<::irt::expected<T>> : std::true_type {};
-
-template<typename>
 struct is_expected : std::false_type {};
 
 template<typename T>
@@ -154,7 +148,7 @@ auto try_for_each_data(Data& d, Function&& f) noexcept ->
 {
     using return_t = std::invoke_result_t<Function, typename Data::value_type&>;
 
-    static_assert(std::is_same_v<return_t, bool> || is_result<return_t>::value);
+    static_assert(std::is_same_v<return_t, bool> || is_expected<return_t>::value);
 
     if constexpr (std::is_same_v<return_t, bool>) {
         for (auto& elem : d)
@@ -163,7 +157,7 @@ auto try_for_each_data(Data& d, Function&& f) noexcept ->
         return true;
     }
 
-    if constexpr (is_result<return_t>::value) {
+    if constexpr (is_expected<return_t>::value) {
         for (auto& data : d)
             if (auto ret = f(data); !ret)
                 return ret.error();

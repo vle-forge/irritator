@@ -10,7 +10,7 @@
 
 namespace irt {
 
-static result<buffered_file> open_buffered_file(
+static expected<buffered_file> open_buffered_file(
   const std::integral auto idx,
   const std::string_view   name) noexcept
 {

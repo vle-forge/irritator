@@ -348,7 +348,7 @@ public:
     ///
     /// @return Identifier of the newly allocated child. Can return
     /// error if `dst` can not allocate a new child.
-    result<child_id> copy_to(const child&       c,
+    expected<child_id> copy_to(const child&       c,
                              generic_component& dst) const noexcept;
 
     /// @brief Import children, connections and optionaly properties.
@@ -510,14 +510,14 @@ public:
 
     //! @brief Tries to add this input connection if it does not already exist.
     //! @return `success()` or `connection_already_exists`.
-    result<input_connection_id> connect_input(const port_id x,
+    expected<input_connection_id> connect_input(const port_id x,
                                               const i32     row,
                                               const i32     col,
                                               const port_id id) noexcept;
 
     //! @brief Tries to add this output connection if it does not already exist.
     //! @return `success()` or `connection_already_exists`.
-    result<output_connection_id> connect_output(const port_id y,
+    expected<output_connection_id> connect_output(const port_id y,
                                                 const i32     row,
                                                 const i32     col,
                                                 const port_id id) noexcept;

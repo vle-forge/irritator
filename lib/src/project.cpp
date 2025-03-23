@@ -201,7 +201,7 @@ static auto make_tree_recursive(simulation_copy&       sc,
                                 tree_node&             parent,
                                 component&             compo,
                                 const std::string_view uid) noexcept
-  -> result<tree_node_id>;
+  -> expected<tree_node_id>;
 
 struct parent_t {
     tree_node& parent;
@@ -226,7 +226,7 @@ static auto get_incoming_connection(const generic_component& gen,
 
 static auto get_incoming_connection(const modeling&  mod,
                                     const tree_node& tn,
-                                    const port_id    id) noexcept -> result<int>
+                                    const port_id    id) noexcept -> expected<int>
 {
     const auto* compo = mod.components.try_to_get(tn.id);
     if (not compo)
@@ -244,7 +244,7 @@ static auto get_incoming_connection(const modeling&  mod,
 }
 
 static auto get_incoming_connection(const modeling&  mod,
-                                    const tree_node& tn) noexcept -> result<int>
+                                    const tree_node& tn) noexcept -> expected<int>
 {
     const auto* compo = mod.components.try_to_get(tn.id);
     if (not compo)
@@ -280,7 +280,7 @@ static auto get_outcoming_connection(const generic_component& gen,
 
 static auto get_outcoming_connection(const modeling&  mod,
                                      const tree_node& tn,
-                                     const port_id id) noexcept -> result<int>
+                                     const port_id id) noexcept -> expected<int>
 {
     const auto* compo = mod.components.try_to_get(tn.id);
     if (not compo)
@@ -299,7 +299,7 @@ static auto get_outcoming_connection(const modeling&  mod,
 
 static auto get_outcoming_connection(const modeling&  mod,
                                      const tree_node& tn) noexcept
-  -> result<int>
+  -> expected<int>
 {
     const auto* compo = mod.components.try_to_get(tn.id);
     if (not compo)
@@ -411,7 +411,7 @@ static auto make_tree_leaf(simulation_copy&       sc,
                            const std::string_view uid,
                            dynamics_type          mdl_type,
                            child_id               ch_id,
-                           child& ch) noexcept -> result<model_id>
+                           child& ch) noexcept -> expected<model_id>
 {
     if (not sc.pj.sim.models.can_alloc()) {
         const auto increase =
@@ -692,7 +692,7 @@ static auto make_tree_recursive(simulation_copy&       sc,
                                 tree_node&             parent,
                                 component&             compo,
                                 const std::string_view unique_id) noexcept
-  -> result<tree_node_id>
+  -> expected<tree_node_id>
 {
     if (not sc.tree_nodes.can_alloc())
         return new_error(project_errc::memory_error);
@@ -1102,7 +1102,7 @@ static status make_component_cache(project& /*pj*/, modeling& mod) noexcept
 
 static auto make_tree_from(simulation_copy&                     sc,
                            data_array<tree_node, tree_node_id>& data,
-                           component& parent) noexcept -> result<tree_node_id>
+                           component& parent) noexcept -> expected<tree_node_id>
 {
     if (not data.can_alloc())
         return new_error(project_errc::memory_error);
@@ -1290,7 +1290,7 @@ project::required_data project::compute_memory_required(
     return tn.compute(mod, c);
 }
 
-static result<std::pair<tree_node_id, component_id>> set_project_from_hsm(
+static expected<std::pair<tree_node_id, component_id>> set_project_from_hsm(
   simulation_copy& sc,
   const component& compo) noexcept
 {

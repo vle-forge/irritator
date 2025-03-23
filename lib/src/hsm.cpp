@@ -876,7 +876,7 @@ status hierarchical_state_machine::start(execution&       exec,
     return success();
 }
 
-result<bool> hierarchical_state_machine::dispatch(
+expected<bool> hierarchical_state_machine::dispatch(
   const event_type event,
   execution&       exec,
   external_source& srcs) noexcept
@@ -1029,7 +1029,7 @@ bool hierarchical_state_machine::is_in_state(execution& exec,
     return false;
 }
 
-result<bool> hierarchical_state_machine::handle(const state_id   state,
+expected<bool> hierarchical_state_machine::handle(const state_id   state,
                                                 const event_type event,
                                                 execution&       exec,
                                                 external_source& srcs) noexcept
