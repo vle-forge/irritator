@@ -30,22 +30,27 @@ namespace details {
 
 /** A wrapper to reduce the size of the buffered_file pointer. */
 struct buffered_file_deleter {
-    void operator()(std::FILE* fd) noexcept { std::fclose(fd); }
+    void operator()(std::FILE* fd) const noexcept { std::fclose(fd); }
 };
 
 } // namespace details
 
+/**
+ * @brief A typedef to manage automatically an @a std::FILE pointer.
+ */
 using buffered_file =
   std::unique_ptr<std::FILE, details::buffered_file_deleter>;
 
-/** Return a @c std::FILE pointer wrapped into a @c std::unique_ptr. This
- * function neither returns a nullptr.
+/**
+ * Return a @a std::FILE pointer wrapped into a @a std::unique_ptr. This
+ * function neither returns a nullptr. If an error occured, the unexpected value
+ * stores an @a error_code.
  *
  * This function uses the buffered standard API @c std::fopen/std::fclose to
  * read/write in a text/binary format.
  *
  * This function uses a specific Win32 code to convert path in Win32 code
- * page.
+ * page @a _wfopen_s.
  */
 expected<buffered_file> open_buffered_file(
   const std::filesystem::path&       path,
@@ -59,27 +64,18 @@ class file
 {
 public:
     /**
-      @brief Try to open a file.
-
-      @example
-      auto file =  file::open(filename, file::mode::read,
-                              [&](file::error_code ec) noexcept{
-        if (const auto e = std::get_if<file::open_error>(&ec)) {
-            // gui
-            app.notifications.try_insert("fail to open file");
-
-            // cli
-            fprintf(stderr, "Fail to open %s", filename);
-        });
-
-      if (file) {
-        int x, y, z;
-        return file.read(x) && file.read(y) && file.read(z);
-      }
-      @endexample
-
-      @param  filename File name in utf-8.
-      @return @c file if success @c error_code otherwise.
+     * @brief Try to open a file.
+     *
+     * @example
+     * auto file =  file::open(filename, file::mode::read);
+     * if (file) {
+     *   int x, y, z;
+     *   return file->read(x) && file->read(y) && file->read(z);
+     * }
+     * @endexample
+     *
+     * @param  filename File name in utf-8.
+     * @return @c file if success @c error_code otherwise.
      */
     static expected<file> open(const char*     filename,
                                const open_mode mode) noexcept;

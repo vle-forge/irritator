@@ -65,7 +65,6 @@ expected<buffered_file> open_buffered_file(
     } catch (...) {
         return new_error(file_errc::memory_error);
     }
-
 #else
     try {
         const auto m = mode[buffered_file_mode::text_or_binary]
