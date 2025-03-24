@@ -833,9 +833,13 @@ private:
     static constexpr index_type get_key(Identifier id) noexcept;
 
 public:
-    constexpr id_array() noexcept = default;
+    constexpr id_array() noexcept                                 = default;
+    constexpr id_array(const id_array& other) noexcept            = default;
+    constexpr id_array(id_array&& other) noexcept                 = default;
+    constexpr id_array& operator=(const id_array& other) noexcept = default;
+    constexpr id_array& operator=(id_array&& other) noexcept      = default;
 
-    constexpr id_array(std::integral auto capacity) noexcept;
+    constexpr explicit id_array(std::integral auto capacity) noexcept;
 
     constexpr ~id_array() noexcept = default;
 
@@ -1065,7 +1069,7 @@ class id_data_array
     using allocator_type  = A;
 
     id_array<identifier_type, A> m_ids;
-    std::tuple<vector<Ts, A>...> m_col;
+    std::tuple<Ts*...>           m_col;
 
 private:
     template<typename Function, std::size_t... Is>
@@ -1075,7 +1079,7 @@ private:
     {
         const auto idx = get_index(id);
 
-        fn(id, std::get<Is>(m_col).operator[](idx)...);
+        fn(id, std::get<Is>(m_col)[(idx)]...);
     }
 
     template<typename Function, std::size_t... Is>
@@ -1085,7 +1089,7 @@ private:
     {
         const auto idx = get_index(id);
 
-        fn(id, std::get<Is>(m_col).operator[](idx)...);
+        fn(id, std::get<Is>(m_col)[(idx)]...);
     }
 
     template<typename Function, std::size_t... Is>
@@ -1095,19 +1099,142 @@ private:
     {
         const auto idx = get_index(id);
 
-        fn(id, std::get<Is>(m_col).operator[](idx)...);
+        fn(id, std::get<Is>(m_col)[(idx)]...);
+    }
+
+    template<typename T>
+    void do_construct(T* ptr, const std::integral auto len) noexcept
+    {
+        debug::ensure(ptr);
+        debug::ensure(len > 0);
+
+        std::uninitialized_default_construct_n(ptr, len);
     }
 
     template<std::size_t... Is>
-    void do_resize(std::index_sequence<Is...>,
-                   const std::integral auto len) noexcept
+    void do_construct(const std::integral auto len,
+                      std::index_sequence<Is...>) noexcept
     {
-        (std::get<Is>(m_col).resize(len), ...);
+        debug::ensure(len > 0);
+
+        (do_construct(std::get<Is>(m_col), len), ...);
+    }
+
+    template<typename T>
+    void do_alloc(T*& ptr, const std::integral auto len) noexcept
+    {
+        debug::ensure(ptr == nullptr);
+        debug::ensure(len > 0);
+
+        ptr = reinterpret_cast<T*>(A::allocate(sizeof(T) * len));
+    }
+
+    /**
+     * Allocate a uninitialised buffer for each element in the @a std::tuple @a
+     * m_col.
+     */
+    template<std::size_t... Is>
+    void do_alloc(const std::integral auto len,
+                  std::index_sequence<Is...>) noexcept
+    {
+        debug::ensure(len > 0);
+
+        (do_alloc(std::get<Is>(m_col), len), ...);
+    }
+
+    template<typename T>
+    void do_destroy(const std::integral auto len, T*& ptr) noexcept
+    {
+        if (ptr) {
+            std::destroy_n(ptr, len);
+            A::deallocate(ptr, sizeof(T) * len);
+        }
+
+        ptr = nullptr;
+    }
+
+    /**
+     * Destroy all objects for each element in the @a std::tuple @a m_col and
+     * deallocate the memory used.
+     */
+    template<std::size_t... Is>
+    void do_destroy(const std::integral auto len,
+                    std::index_sequence<Is...>) noexcept
+    {
+        (do_destroy(len, std::get<Is>(m_col)), ...);
+    }
+
+    template<typename T>
+    void do_uninitialised_copy(const T*           src,
+                               T*                 dst,
+                               std::integral auto len) noexcept
+    {
+        debug::ensure(src and dst);
+
+        std::uninitialized_copy_n(src, len, dst);
+    }
+
+    template<std::size_t... Is>
+    void do_uninitialised_copy(const auto& other_m_col,
+                               const auto  len,
+                               std::index_sequence<Is...>) noexcept
+    {
+        (do_uninitialised_copy(
+           std::get<Is>(other_m_col), std::get<Is>(m_col), len),
+         ...);
+    }
+
+    /**
+     * Affect nullptr to any element in the @a std::tuple @a other_m_col.
+     * @param other_m_col
+     */
+    template<std::size_t... Is>
+    void do_reset(auto& other_m_col, std::index_sequence<Is...>) noexcept
+    {
+        ((std::get<Is>(other_m_col) = nullptr), ...);
+    }
+
+    template<typename T>
+    void do_resize(std::integral auto old,
+                   std::integral auto req,
+                   T*&                ptr) noexcept
+    {
+        auto* new_ptr = reinterpret_cast<T*>(A::allocate(sizeof(T) * req));
+
+        if (ptr) {
+            if constexpr (std::is_trivially_copy_constructible_v<T>) {
+                std::uninitialized_copy_n(ptr, old, new_ptr);
+            } else if constexpr (std::is_trivially_move_constructible_v<T>) {
+                std::uninitialized_move_n(ptr, old, new_ptr);
+            } else {
+                std::uninitialized_copy_n(ptr, old, new_ptr);
+            }
+            A::deallocate(ptr, sizeof(T) * old);
+        }
+
+        std::uninitialized_value_construct_n(new_ptr + old, req - old);
+        ptr = new_ptr;
+    }
+
+    template<std::size_t... Is>
+    void do_resize(std::integral auto old,
+                   std::integral auto req,
+                   std::index_sequence<Is...>) noexcept
+    {
+        (do_resize(old, req, std::get<Is>(m_col)), ...);
     }
 
 public:
     using iterator       = id_array<identifier_type, A>::iterator;
     using const_iterator = id_array<identifier_type, A>::const_iterator;
+
+    id_data_array() noexcept = default;
+    ~id_data_array() noexcept;
+
+    id_data_array(const id_data_array& other) noexcept;
+    id_data_array(id_data_array&& other) noexcept;
+    id_data_array& operator=(const id_data_array& other) noexcept;
+    id_data_array& operator=(id_data_array&& other) noexcept;
 
     identifier_type alloc() noexcept;
 
@@ -2386,6 +2513,60 @@ id_array<Identifier, A>::end() const noexcept
 // class id_data_array
 
 template<typename Identifier, typename A, class... Ts>
+id_data_array<Identifier, A, Ts...>::~id_data_array() noexcept
+{
+    do_destroy(capacity(), std::index_sequence_for<Ts...>());
+}
+
+template<typename Identifier, typename A, class... Ts>
+id_data_array<Identifier, A, Ts...>::id_data_array(
+  const id_data_array& other) noexcept
+  : m_ids(other.m_ids)
+{
+    do_alloc(other.capacity(), std::index_sequence_for<Ts...>());
+    do_uninitialised_copy(
+      other.m_col, other.capacity(), std::index_sequence_for<Ts...>());
+}
+
+template<typename Identifier, typename A, class... Ts>
+id_data_array<Identifier, A, Ts...>::id_data_array(
+  id_data_array&& other) noexcept
+  : m_ids(std::move(other.m_ids))
+  , m_col(std::move(other.m_col))
+{
+    do_reset(other.m_col, std::index_sequence_for<Ts...>());
+}
+
+template<typename Identifier, typename A, class... Ts>
+auto id_data_array<Identifier, A, Ts...>::operator=(
+  const id_data_array& other) noexcept -> id_data_array&
+{
+    if (this != &other) {
+        do_destroy(std::index_sequence_for<Ts...>());
+        do_alloc(other.capacity(), std::index_sequence_for<Ts...>());
+        do_uninitialised_copy(
+          other.m_col, other.capacity(), std::index_sequence_for<Ts...>());
+    }
+
+    return *this;
+}
+
+template<typename Identifier, typename A, class... Ts>
+auto id_data_array<Identifier, A, Ts...>::operator=(
+  id_data_array&& other) noexcept -> id_data_array&
+{
+    if (this != &other) {
+        m_ids.destroy();
+        do_destroy(std::index_sequence_for<Ts...>());
+        m_ids = std::move(other.m_ids);
+        std::swap(m_col, other.m_col);
+        do_reset(other.m_col, std::index_sequence_for<Ts...>());
+    }
+
+    return *this;
+}
+
+template<typename Identifier, typename A, class... Ts>
 auto id_data_array<Identifier, A, Ts...>::alloc() noexcept
   -> id_data_array<Identifier, A, Ts...>::identifier_type
 {
@@ -2428,7 +2609,7 @@ template<typename Type>
 auto& id_data_array<Identifier, A, Ts...>::get() noexcept
     requires(not std::is_integral_v<Type>)
 {
-    return std::get<vector<Type>>(m_col);
+    return std::get<Type*>(m_col);
 }
 
 template<typename Identifier, typename A, class... Ts>
@@ -2449,7 +2630,7 @@ auto& id_data_array<Identifier, A, Ts...>::get(
 {
     debug::ensure(m_ids.exists(id));
 
-    return std::get<vector<Type>>(m_col)[get_index(id)];
+    return std::get<Type*>(m_col)[get_index(id)];
 }
 
 template<typename Identifier, typename A, class... Ts>
@@ -2464,7 +2645,7 @@ template<typename Type>
 auto& id_data_array<Identifier, A, Ts...>::get() const noexcept
     requires(not std::is_integral_v<Type>)
 {
-    return std::get<vector<Type>>(m_col);
+    return std::get<Type*>(m_col);
 }
 
 template<typename Identifier, typename A, class... Ts>
@@ -2485,7 +2666,7 @@ auto& id_data_array<Identifier, A, Ts...>::get(
 {
     debug::ensure(m_ids.exists(id));
 
-    return std::get<vector<Type>>(m_col)[get_index(id)];
+    return std::get<Type*>(m_col)[get_index(id)];
 }
 
 template<typename Identifier, typename A, class... Ts>
@@ -2493,12 +2674,12 @@ template<typename Index, typename Function>
 void id_data_array<Identifier, A, Ts...>::if_exists_do(const identifier_type id,
                                                        Function&& fn) noexcept
 {
-    if constexpr (std::is_integral_v<Index>) {
-        if (m_ids.exists(id))
+    if (m_ids.exists(id)) {
+        if constexpr (std::is_integral_v<Index>) {
             fn(id, std::get<Index>(m_col)[get_index(id)]);
-    } else {
-        if (m_ids.exists(id))
-            fn(id, std::get<vector<Index>>(m_col)[get_index(id)]);
+        } else {
+            fn(id, std::get<Index*>(m_col)[get_index(id)]);
+        }
     }
 }
 
@@ -2508,10 +2689,10 @@ void id_data_array<Identifier, A, Ts...>::for_each(Function&& fn) noexcept
 {
     if constexpr (std::is_integral_v<Index>) {
         for (const auto id : m_ids)
-            fn(id, std::get<Index>(m_col).operator[](get_index(id)));
+            fn(id, std::get<Index>(m_col)[get_index(id)]);
     } else {
         for (const auto id : m_ids)
-            fn(id, std::get<vector<Index>>(m_col).operator[](get_index(id)));
+            fn(id, std::get<Index*>(m_col)[get_index(id)]);
     }
 }
 
@@ -2529,10 +2710,10 @@ void id_data_array<Identifier, A, Ts...>::for_each(Function&& fn) const noexcept
 {
     if constexpr (std::is_integral_v<Index>) {
         for (const auto id : m_ids)
-            fn(id, std::get<Index>(m_col).operator[](get_index(id)));
+            fn(id, std::get<Index>(m_col)[get_index(id)]);
     } else {
         for (const auto id : m_ids)
-            fn(id, std::get<vector<Index>>(m_col).operator[](get_index(id)));
+            fn(id, std::get<Index*>(m_col)[get_index(id)]);
     }
 }
 
@@ -2600,8 +2781,8 @@ void id_data_array<Identifier, A, Ts...>::reserve(
   std::integral auto len) noexcept
 {
     if (std::cmp_less(capacity(), len)) {
+        do_resize(capacity(), len, std::index_sequence_for<Ts...>());
         m_ids.reserve(len);
-        do_resize(std::index_sequence_for<Ts...>(), len);
     }
 }
 
@@ -2611,8 +2792,7 @@ void id_data_array<Identifier, A, Ts...>::grow() noexcept
     const auto c     = capacity();
     const auto new_c = std::cmp_equal(c, 0) ? 64 : c * 2;
 
-    m_ids.reserve(new_c);
-    do_resize(std::index_sequence_for<Ts...>(), new_c);
+    reserve(new_c);
 }
 
 template<typename Identifier, typename A, class... Ts>

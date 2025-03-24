@@ -1355,8 +1355,55 @@ int main()
             expect(n.sv() == "HelloWorld!");
         });
 
-        d.clear();
-        expect(eq(d.ssize(), 0));
+        irt::id_data_array<ex1_id,
+                           irt::allocator<irt::new_delete_memory_resource>,
+                           pos3d,
+                           color,
+                           name>
+          e(d);
+
+        expect(eq(d.ssize(), 2));
+        expect(eq(e.ssize(), 2));
+
+        d.for_each([](const auto /*id*/,
+                      const auto& p,
+                      const auto& c,
+                      const auto& n) noexcept {
+            expect(eq(p.x, 0.f));
+            expect(eq(p.x, 0.f));
+            expect(eq(p.x, 0.f));
+            expect(eq(123u, c.rgba));
+            expect(n.sv() == "HelloWorld!");
+        });
+
+        e.for_each([](const auto /*id*/,
+                      const auto& p,
+                      const auto& c,
+                      const auto& n) noexcept {
+            expect(eq(p.x, 0.f));
+            expect(eq(p.x, 0.f));
+            expect(eq(p.x, 0.f));
+            expect(eq(123u, c.rgba));
+            expect(n.sv() == "HelloWorld!");
+        });
+
+        irt::id_data_array<ex1_id,
+                           irt::allocator<irt::new_delete_memory_resource>,
+                           pos3d,
+                           color,
+                           name>
+          f(std::move(e));
+
+        f.for_each([](const auto /*id*/,
+                      const auto& p,
+                      const auto& c,
+                      const auto& n) noexcept {
+            expect(eq(p.x, 0.f));
+            expect(eq(p.x, 0.f));
+            expect(eq(p.x, 0.f));
+            expect(eq(123u, c.rgba));
+            expect(n.sv() == "HelloWorld!");
+        });
     };
 
     "vector-iterator-valid"_test = [] {

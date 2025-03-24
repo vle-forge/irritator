@@ -349,7 +349,7 @@ public:
     /// @return Identifier of the newly allocated child. Can return
     /// error if `dst` can not allocate a new child.
     expected<child_id> copy_to(const child&       c,
-                             generic_component& dst) const noexcept;
+                               generic_component& dst) const noexcept;
 
     /// @brief Import children, connections and optionaly properties.
     ///
@@ -511,16 +511,16 @@ public:
     //! @brief Tries to add this input connection if it does not already exist.
     //! @return `success()` or `connection_already_exists`.
     expected<input_connection_id> connect_input(const port_id x,
-                                              const i32     row,
-                                              const i32     col,
-                                              const port_id id) noexcept;
+                                                const i32     row,
+                                                const i32     col,
+                                                const port_id id) noexcept;
 
     //! @brief Tries to add this output connection if it does not already exist.
     //! @return `success()` or `connection_already_exists`.
     expected<output_connection_id> connect_output(const port_id y,
-                                                const i32     row,
-                                                const i32     col,
-                                                const port_id id) noexcept;
+                                                  const i32     row,
+                                                  const i32     col,
+                                                  const port_id id) noexcept;
 
     data_array<input_connection, input_connection_id>   input_connections;
     data_array<output_connection, output_connection_id> output_connections;
@@ -760,56 +760,52 @@ struct component {
 
     port_id get_x(std::string_view str) const noexcept
     {
-        auto ret = undefined<port_id>();
+        const auto& vec_name = x.get<port_str>();
+        for (const auto elem : x)
+            if (str == vec_name[get_index(elem)].sv())
+                return elem;
 
-        x.for_each<port_str>([&](const auto id, const auto& name) noexcept {
-            if (name.sv() == str)
-                ret = id;
-        });
-
-        return ret;
+        return undefined<port_id>();
     }
 
     port_id get_y(std::string_view str) const noexcept
     {
-        auto ret = undefined<port_id>();
+        const auto& vec_name = y.get<port_str>();
+        for (const auto elem : y)
+            if (str == vec_name[get_index(elem)].sv())
+                return elem;
 
-        y.for_each<port_str>([&](const auto id, const auto& name) noexcept {
-            if (name == str)
-                ret = id;
-        });
-
-        return ret;
+        return undefined<port_id>();
     }
 
     port_id get_or_add_x(std::string_view str) noexcept
     {
-        const auto id = get_x(str);
-        if (is_defined<port_id>(id))
-            return id;
+        auto port_id = get_x(str);
 
-        if (not x.can_alloc(1))
-            return undefined<port_id>();
+        if (is_undefined(port_id)) {
+            if (x.can_alloc(1)) {
+                port_id                  = x.alloc();
+                x.get<port_str>(port_id) = str;
+                x.get<position>(port_id).reset();
+            }
+        }
 
-        return x.alloc([&](auto /*id*/, auto& name, auto& pos) noexcept {
-            name = str;
-            pos.reset();
-        });
+        return port_id;
     }
 
     port_id get_or_add_y(std::string_view str) noexcept
     {
-        const auto id = get_y(str);
-        if (is_defined<port_id>(id))
-            return id;
+        auto port_id = get_y(str);
 
-        if (not y.can_alloc(1))
-            return undefined<port_id>();
+        if (is_undefined(port_id)) {
+            if (y.can_alloc(1)) {
+                port_id                  = y.alloc();
+                y.get<port_str>(port_id) = str;
+                y.get<position>(port_id).reset();
+            }
+        }
 
-        return y.alloc([&](auto /*id*/, auto& name, auto& pos) noexcept {
-            name = str;
-            pos.reset();
-        });
+        return port_id;
     }
 
     description_id    desc     = description_id{ 0 };
