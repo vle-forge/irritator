@@ -24,6 +24,47 @@
 
 #include <boost/ut.hpp>
 
+class counters
+{
+public:
+    static inline int default_ctor  = 0;
+    static inline int copy_ctor     = 0;
+    static inline int move_ctor     = 0;
+    static inline int in_place_ctor = 0;
+    static inline int dtor          = 0;
+    static inline int copy_op       = 0;
+    static inline int move_op       = 0;
+
+public:
+    counters() noexcept { default_ctor++; }
+    counters(const counters&) noexcept { copy_ctor++; }
+    counters(counters&&) noexcept { move_ctor++; }
+    ~counters() noexcept { dtor++; }
+
+    counters& operator=(const counters&) noexcept
+    {
+        copy_op++;
+        return *this;
+    }
+
+    counters& operator=(counters&&) noexcept
+    {
+        move_op++;
+        return *this;
+    }
+
+    static void reset() noexcept
+    {
+        counters::default_ctor  = 0;
+        counters::copy_ctor     = 0;
+        counters::move_ctor     = 0;
+        counters::in_place_ctor = 0;
+        counters::dtor          = 0;
+        counters::copy_op       = 0;
+        counters::move_op       = 0;
+    }
+};
+
 struct file_output {
     using value_type = irt::observation;
 
@@ -317,11 +358,6 @@ struct expected_tester_2 {
     }
 };
 
-static auto build_error_handler(int& num) noexcept
-{
-    return std::make_tuple([&] { num = -1; });
-}
-
 int main()
 {
 #if defined(IRRITATOR_ENABLE_DEBUG)
@@ -411,6 +447,48 @@ int main()
         expect(!!ret.value() >> fatal);
         expect(ret.value().get() >> fatal);
         expect(eq(*ret.value().get(), 230));
+    };
+
+    "counters-expected"_test = [] {
+        ::counters::reset();
+
+        auto fn_1 = [](int a, int b) noexcept -> irt::expected<counters> {
+            if (a == b)
+                return {};
+            else
+                return irt::error_code(0, irt::category::generic);
+        };
+
+        {
+            auto ret_1 = fn_1(0, 1);
+            auto ret_2 = fn_1(1, 1);
+            expect(ret_1.has_error());
+            expect(ret_2.has_value());
+        }
+
+        expect(eq(counters::default_ctor, 1));
+        expect(eq(counters::copy_ctor, 0));
+        expect(eq(counters::move_ctor, 0));
+        expect(eq(counters::in_place_ctor, 0));
+        expect(eq(counters::dtor, 1));
+        expect(eq(counters::copy_op, 0));
+        expect(eq(counters::move_op, 0));
+
+        counters::reset();
+
+        auto fn_2 = [](int a, int b) noexcept -> irt::expected<counters> {
+            if (a == b)
+                return irt::expected<counters>();
+            else
+                return irt::error_code(0, irt::category::generic);
+        };
+
+        {
+            auto ret_1 = fn_2(0, 1);
+            auto ret_2 = fn_2(1, 1);
+            expect(ret_1.has_error());
+            expect(ret_2.has_value());
+        }
     };
 
     "small-function-1"_test = [] {
