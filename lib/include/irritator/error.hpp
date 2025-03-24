@@ -11,7 +11,6 @@
 #include <memory>
 #include <string_view>
 #include <utility>
-#include <variant>
 
 namespace irt {
 
@@ -300,23 +299,24 @@ private:
 public:
     using value_type = Value;
     using error_type = error_code;
-    using this_type  = expected<value_type>;
+    using this_type = expected<value_type>;
 
 private:
     union storage_type {
-        std::monostate _;
-        Value          val;
-        error_code     ec;
+        std::int32_t _;
+        Value val;
+        error_code ec;
 
-        constexpr storage_type() noexcept {}
-        constexpr ~storage_type() noexcept {}
+        constexpr storage_type() noexcept { }
+        constexpr ~storage_type() noexcept { }
     } storage;
 
-    enum class state_type : std::int8_t { value, error } state;
+    enum class state_type : std::int8_t { value,
+        error } state;
 
 public:
     constexpr expected() noexcept
-      : state{ state_type::value }
+        : state { state_type::value }
     {
         if constexpr (std::is_default_constructible_v<value_type>)
             std::construct_at(std::addressof(storage.val));
