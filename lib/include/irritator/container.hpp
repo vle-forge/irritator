@@ -666,6 +666,8 @@ public:
     bool resize(std::integral auto size, const_reference value) noexcept;
 
     bool reserve(std::integral auto new_capacity) noexcept;
+    template<int Num, int Denum>
+    bool grow() noexcept;
 
     void destroy() noexcept; // clear all elements and free memory (size
                              // = 0, capacity = 0 after).
@@ -1217,11 +1219,12 @@ private:
     }
 
     template<std::size_t... Is>
-    void do_resize(std::integral auto old,
+    bool do_resize(std::integral auto old,
                    std::integral auto req,
                    std::index_sequence<Is...>) noexcept
     {
         (do_resize(old, req, std::get<Is>(m_col)), ...);
+        return ((std::get<Is>(m_col) != nullptr) and ... and true);
     }
 
 public:
@@ -1357,8 +1360,9 @@ public:
     constexpr const_iterator end() const noexcept;
 
     void clear() noexcept;
-    void reserve(std::integral auto len) noexcept;
-    void grow() noexcept;
+    bool reserve(std::integral auto len) noexcept;
+    template<int Num, int Denum = 1>
+    bool grow() noexcept;
 
     bool     exists(const identifier_type id) const noexcept;
     bool     can_alloc(std::integral auto nb = 1) const noexcept;
@@ -1463,7 +1467,7 @@ public:
     //! iterator) and all references to the elements are invalidated.
     //!
     //! @attention Use `can_alloc()` to be sure `reserve()` succeed.
-    void reserve(std::integral auto capacity) noexcept;
+    bool reserve(std::integral auto capacity) noexcept;
 
     //! Try to grow the capacity of memory.
     //!
@@ -1478,7 +1482,8 @@ public:
     //! iterator) and all references to the elements are invalidated.
     //!
     //! @attention Use `can_alloc()` to be sure `grow()` succeed.
-    void grow() noexcept;
+    template<int Num, int Denum = 1>
+    bool grow() noexcept;
 
     //! @brief Destroy all items in the data_array but keep memory
     //!  allocation.
@@ -1780,7 +1785,7 @@ public:
     constexpr void swap(ring_buffer& rhs) noexcept;
     constexpr void clear() noexcept;
     constexpr void destroy() noexcept;
-    constexpr void reserve(std::integral auto capacity) noexcept;
+    constexpr bool reserve(std::integral auto capacity) noexcept;
 
     template<typename Compare>
     constexpr void sort(Compare fn) noexcept;
@@ -2348,13 +2353,13 @@ template<typename Identifier, typename A>
 template<int Num, int Denum>
 constexpr bool id_array<Identifier, A>::grow() noexcept
 {
-    static_assert(Num > 0 and Denum > 0);
+    static_assert(Num > 0 and Denum > 0 and Num > Denum);
 
-    const auto nb = std::cmp_equal(m_items.capacity(), 0)
-                      ? 8
-                      : m_items.capacity() * Num / Denum;
+    const auto nb = m_items.capacity() * Num / Denum;
+    const auto req =
+      std::cmp_equal(m_items.capacity(), nb) ? m_items.capacity() + 8 : nb;
 
-    return m_items.reserve(nb);
+    return m_items.reserve(req);
 }
 
 template<typename Identifier, typename A>
@@ -2777,22 +2782,28 @@ void id_data_array<Identifier, A, Ts...>::clear() noexcept
 }
 
 template<typename Identifier, typename A, class... Ts>
-void id_data_array<Identifier, A, Ts...>::reserve(
+bool id_data_array<Identifier, A, Ts...>::reserve(
   std::integral auto len) noexcept
 {
     if (std::cmp_less(capacity(), len)) {
-        do_resize(capacity(), len, std::index_sequence_for<Ts...>());
-        m_ids.reserve(len);
+        if (not do_resize(capacity(), len, std::index_sequence_for<Ts...>()))
+            return false;
+        return m_ids.reserve(len);
     }
+
+    return true;
 }
 
 template<typename Identifier, typename A, class... Ts>
-void id_data_array<Identifier, A, Ts...>::grow() noexcept
+template<int Num, int Denum>
+bool id_data_array<Identifier, A, Ts...>::grow() noexcept
 {
-    const auto c     = capacity();
-    const auto new_c = std::cmp_equal(c, 0) ? 64 : c * 2;
+    static_assert(Num > 0 and Denum > 0 and Num > Denum);
 
-    reserve(new_c);
+    const auto nb  = capacity() * Num / Denum;
+    const auto req = std::cmp_equal(capacity(), nb) ? capacity() + 8 : nb;
+
+    return reserve(req);
 }
 
 template<typename Identifier, typename A, class... Ts>
@@ -2918,7 +2929,7 @@ constexpr data_array<T, Identifier, A>::~data_array() noexcept
 }
 
 template<typename T, typename Identifier, typename A>
-void data_array<T, Identifier, A>::reserve(std::integral auto capacity) noexcept
+bool data_array<T, Identifier, A>::reserve(std::integral auto capacity) noexcept
 {
     static_assert(std::is_trivial_v<T> or std::is_move_constructible_v<T> or
                   std::is_copy_constructible_v<T>);
@@ -2928,12 +2939,12 @@ void data_array<T, Identifier, A>::reserve(std::integral auto capacity) noexcept
 
     if (std::cmp_equal(capacity, 0) or
         std::cmp_less_equal(capacity, m_capacity))
-        return;
+        return false;
 
     item* new_buffer =
       reinterpret_cast<item*>(A::allocate(sizeof(item) * capacity));
     if (new_buffer == nullptr)
-        return;
+        return false;
 
     if constexpr (std::is_trivial_v<T>) {
         std::uninitialized_copy_n(reinterpret_cast<std::byte*>(&m_items[0]),
@@ -2971,22 +2982,19 @@ void data_array<T, Identifier, A>::reserve(std::integral auto capacity) noexcept
 
     m_items    = new_buffer;
     m_capacity = static_cast<index_type>(capacity);
+    return true;
 }
 
 template<typename T, typename Identifier, typename A>
-void data_array<T, Identifier, A>::grow() noexcept
+template<int Num, int Denum>
+bool data_array<T, Identifier, A>::grow() noexcept
 {
-    if (m_capacity <= 4) {
-        reserve(8);
-    } else {
-        const auto capacity =
-          m_max_size == m_capacity ? m_capacity * 2 : m_capacity * 3 / 2;
+    static_assert(Num > 0 and Denum > 0 and Num > Denum);
 
-        if (std::cmp_less(capacity, std::numeric_limits<index_type>::max()))
-            reserve(capacity);
-        else
-            reserve(std::numeric_limits<index_type>::max());
-    }
+    const auto nb  = m_capacity * Num / Denum;
+    const auto req = std::cmp_equal(nb, m_capacity) ? m_capacity + 8 : nb;
+
+    return reserve(req);
 }
 
 template<typename T, typename Identifier, typename A>
@@ -3729,6 +3737,18 @@ bool vector<T, A>::reserve(std::integral auto new_capacity) noexcept
     }
 
     return true;
+}
+
+template<typename T, typename A>
+template<int Num, int Denum>
+bool vector<T, A>::grow() noexcept
+{
+    static_assert(Num > 0 and Denum > 0 and Num > Denum);
+
+    const auto nb  = capacity() * Num / Denum;
+    const auto req = std::cmp_equal(nb, capacity()) ? capacity() + 8 : nb;
+
+    return reserve(req);
 }
 
 template<typename T, typename A>
@@ -5147,13 +5167,16 @@ constexpr void ring_buffer<T, A>::destroy() noexcept
 }
 
 template<class T, typename A>
-constexpr void ring_buffer<T, A>::reserve(std::integral auto capacity) noexcept
+constexpr bool ring_buffer<T, A>::reserve(
+  std::integral auto new_capacity) noexcept
 {
     debug::ensure(
-      std::cmp_less(capacity, std::numeric_limits<index_type>::max()));
+      std::cmp_less(new_capacity, std::numeric_limits<index_type>::max()));
 
-    if (m_capacity < capacity) {
-        ring_buffer<T, A> tmp(capacity);
+    if (m_capacity < new_capacity) {
+        ring_buffer<T, A> tmp(new_capacity);
+        if (tmp.capacity() < capacity())
+            return false;
 
         if constexpr (std::is_move_constructible_v<T>)
             for (auto it = begin(), et = end(); it != et; ++it)
@@ -5164,6 +5187,8 @@ constexpr void ring_buffer<T, A>::reserve(std::integral auto capacity) noexcept
 
         swap(tmp);
     }
+
+    return true;
 }
 
 template<class T, typename A>

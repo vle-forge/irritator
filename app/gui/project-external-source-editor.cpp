@@ -18,9 +18,7 @@ static status try_allocate_external_source(application&        app,
                                            DataArray&          d) noexcept
 {
     if (not d.can_alloc(1)) {
-        d.grow();
-
-        if (not d.can_alloc(1))
+        if (not d.template grow<3, 2>())
             return new_error(external_source_errc::memory_error);
     }
 
@@ -43,20 +41,20 @@ static status display_allocate_external_source(
 
     switch (part) {
     case source::source_type::constant:
-        return (try_allocate_external_source(
-          app, ed, part, ed.pj.sim.srcs.constant_sources));
+        return try_allocate_external_source(
+          app, ed, part, ed.pj.sim.srcs.constant_sources);
 
     case source::source_type::binary_file:
-        return (try_allocate_external_source(
-          app, ed, part, ed.pj.sim.srcs.binary_file_sources));
+        return try_allocate_external_source(
+          app, ed, part, ed.pj.sim.srcs.binary_file_sources);
 
     case source::source_type::text_file:
-        return (try_allocate_external_source(
-          app, ed, part, ed.pj.sim.srcs.text_file_sources));
+        return try_allocate_external_source(
+          app, ed, part, ed.pj.sim.srcs.text_file_sources);
 
     case source::source_type::random:
-        return (try_allocate_external_source(
-          app, ed, part, ed.pj.sim.srcs.random_sources));
+        return try_allocate_external_source(
+          app, ed, part, ed.pj.sim.srcs.random_sources);
     }
 
     irt::unreachable();

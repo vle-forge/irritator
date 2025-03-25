@@ -149,11 +149,9 @@ static void in_out_connection_add(graph_component& compo,
                                   const component& src,
                                   const component& dst) noexcept
 {
-    if (not compo.cache_connections.can_alloc(1)) {
-        compo.cache_connections.grow();
-        if (not compo.cache_connections.can_alloc(1))
+    if (not compo.cache_connections.can_alloc(1))
+        if (not compo.cache_connections.grow<3, 2>())
             return;
-    }
 
     if (const auto p_src = src.get_y("out"); is_defined(p_src)) {
         if (const auto p_dst = dst.get_x("in"); is_defined(p_dst)) {
@@ -168,11 +166,10 @@ static void named_connection_add(graph_component& compo,
                                  const component& src,
                                  const component& dst) noexcept
 {
-    if (not compo.cache_connections.can_alloc(1)) {
-        compo.cache_connections.grow();
-        if (not compo.cache_connections.can_alloc(1))
+    if (not compo.cache_connections.can_alloc(1))
+        if (not compo.cache_connections.grow<3, 2>())
             return;
-    }
+
     src.y.for_each<port_str>([&](const auto sid, const auto& sname) noexcept {
         dst.x.for_each<port_str>(
           [&](const auto did, const auto& dname) noexcept {
@@ -202,11 +199,9 @@ static void named_suffix_connection_add(graph_component& compo,
                                         const component& src,
                                         const component& dst) noexcept
 {
-    if (not compo.cache_connections.can_alloc(1)) {
-        compo.cache_connections.grow();
-        if (not compo.cache_connections.can_alloc(1))
+    if (not compo.cache_connections.can_alloc(1))
+        if (not compo.cache_connections.grow<3, 2>())
             return;
-    }
 
     src.y.for_each<port_str>([&](const auto sid, const auto& sname) noexcept {
         for (const auto did : dst.x) {
@@ -335,10 +330,11 @@ static expected<void> build_scale_free_edges(
             --degree;
 
             if (not graph.g.edges.can_alloc(1)) {
-                graph.g.edges.grow<3, 2>();
-                graph.g.edges_nodes.resize(graph.g.edges.capacity());
+                if (not graph.g.edges.grow<3, 2>())
+                    return new_error(
+                      modeling_errc::graph_children_container_full);
 
-                if (not graph.g.edges.can_alloc(1))
+                if (not graph.g.edges_nodes.resize(graph.g.edges.capacity()))
                     return new_error(
                       modeling_errc::graph_children_container_full);
             }

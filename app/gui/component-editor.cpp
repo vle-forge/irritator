@@ -90,39 +90,39 @@ struct component_editor::impl {
     {
         const auto button_size = ImGui::ComputeButtonSize(4);
 
-        if (ImGui::Button("+constant", button_size)) {
-            if (not compo.srcs.constant_sources.can_alloc(1))
-                compo.srcs.constant_sources.grow();
+        if (not compo.srcs.constant_sources.can_alloc(1))
+            compo.srcs.constant_sources.grow<3, 2>();
+        if (not compo.srcs.binary_file_sources.can_alloc(1))
+            compo.srcs.binary_file_sources.grow<3, 2>();
+        if (not compo.srcs.text_file_sources.can_alloc(1))
+            compo.srcs.text_file_sources.grow<3, 2>();
+        if (not compo.srcs.random_sources.can_alloc(1))
+            compo.srcs.random_sources.grow<3, 2>();
 
-            if (compo.srcs.constant_sources.can_alloc(1))
-                (void)compo.srcs.constant_sources.alloc();
+        if (compo.srcs.constant_sources.can_alloc(1) and
+            ImGui::Button("+constant", button_size)) {
+            (void)compo.srcs.constant_sources.alloc();
         }
 
         ImGui::SameLine();
-        if (ImGui::Button("+binary", button_size)) {
-            if (not compo.srcs.binary_file_sources.can_alloc(1))
-                compo.srcs.binary_file_sources.grow();
 
-            if (compo.srcs.binary_file_sources.can_alloc(1))
-                (void)compo.srcs.binary_file_sources.alloc();
+        if (compo.srcs.binary_file_sources.can_alloc(1) and
+            ImGui::Button("+binary", button_size)) {
+            (void)compo.srcs.binary_file_sources.alloc();
         }
 
         ImGui::SameLine();
-        if (ImGui::Button("+text", button_size)) {
-            if (not compo.srcs.text_file_sources.can_alloc(1))
-                compo.srcs.text_file_sources.grow();
 
-            if (compo.srcs.text_file_sources.can_alloc(1))
-                (void)compo.srcs.text_file_sources.alloc();
+        if (compo.srcs.text_file_sources.can_alloc(1) and
+            ImGui::Button("+text", button_size)) {
+            (void)compo.srcs.text_file_sources.alloc();
         }
 
         ImGui::SameLine();
-        if (ImGui::Button("+random", button_size)) {
-            if (not compo.srcs.random_sources.can_alloc(1))
-                compo.srcs.random_sources.grow();
 
-            if (compo.srcs.random_sources.can_alloc(1))
-                (void)compo.srcs.random_sources.alloc();
+        if (compo.srcs.random_sources.can_alloc(1) and
+            ImGui::Button("+random", button_size)) {
+            (void)compo.srcs.random_sources.alloc();
         }
 
         if (ImGui::TreeNode("Constants")) {

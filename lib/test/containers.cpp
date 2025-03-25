@@ -1273,7 +1273,7 @@ int main()
                            color,
                            name>
           d;
-        d.reserve(1024);
+        expect(d.reserve(1024) >> fatal);
         expect(ge(d.capacity(), 1024u));
         expect(fatal(d.can_alloc(1)));
 
