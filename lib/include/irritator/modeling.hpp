@@ -10,6 +10,7 @@
 #include <irritator/error.hpp>
 #include <irritator/ext.hpp>
 #include <irritator/file.hpp>
+#include <irritator/global.hpp>
 #include <irritator/helpers.hpp>
 #include <irritator/macros.hpp>
 #include <irritator/thread.hpp>

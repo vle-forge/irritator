@@ -212,56 +212,6 @@ constexpr Iterator binary_find(Iterator begin,
     return (!(begin == end) and !comp(value, *begin)) ? begin : end;
 }
 
-//! Enumeration class used everywhere in irritator to produce log data.
-enum class log_level {
-    emergency,
-    alert,
-    critical,
-    error,
-    warning,
-    notice,
-    info,
-    debug
-};
-
-//! Assign a value constrained by the template parameters.
-//!
-//! @code
-//! static int v = 0;
-//! if (ImGui::InputInt("test", &v)) {
-//!     f(v);
-//! }
-//!
-//! void f(constrained_value<int, 0, 100> v)
-//! {
-//!     assert(0 <= *v && *v <= 100);
-//! }
-//! @endcode
-template<typename T = int, T Lower = 0, T Upper = 100>
-class constrained_value
-{
-public:
-    using value_type = T;
-
-private:
-    static_assert(std::is_trivial_v<T>,
-                  "T must be a trivial type in ratio_parameter");
-    static_assert(Lower < Upper);
-
-    T m_value;
-
-public:
-    explicit constexpr constrained_value(const T value_) noexcept
-      : m_value(value_ < Lower   ? Lower
-                : value_ < Upper ? value_
-                                 : Upper)
-    {}
-
-    constexpr explicit   operator T() const noexcept { return m_value; }
-    constexpr value_type operator*() const noexcept { return m_value; }
-    constexpr value_type value() const noexcept { return m_value; }
-};
-
 /*****************************************************************************
  *
  * Return status of many function
@@ -3785,8 +3735,8 @@ public:
     //! If the automata is badly defined, return an modeling error or @c
     //! empty_value_error if the external source fail to update the buffer.
     expected<bool> dispatch(const event_type e,
-                          execution&       exec,
-                          external_source& srcs) noexcept;
+                            execution&       exec,
+                            external_source& srcs) noexcept;
 
     /// Return true if the state machine is currently dispatching an
     /// event.
@@ -3824,9 +3774,9 @@ public:
     //! @c return empty_value_error if the external source fail to update the
     //! buffer.
     expected<bool> handle(const state_id   state,
-                        const event_type event,
-                        execution&       exec,
-                        external_source& srcs) noexcept;
+                          const event_type event,
+                          execution&       exec,
+                          external_source& srcs) noexcept;
 
     int    steps_to_common_root(state_id source, state_id target) noexcept;
     status on_enter_sub_state(execution& state, external_source& srcs) noexcept;
@@ -4965,10 +4915,11 @@ constexpr model& get_model(Dynamics& d) noexcept
 inline expected<message_id> get_input_port(model& src, int port_src) noexcept;
 
 inline status get_input_port(model& src, int port_src, message_id*& p) noexcept;
-inline expected<block_node_id> get_output_port(model& dst, int port_dst) noexcept;
-inline status                get_output_port(model&          dst,
-                                             int             port_dst,
-                                             block_node_id*& p) noexcept;
+inline expected<block_node_id> get_output_port(model& dst,
+                                               int    port_dst) noexcept;
+inline status                  get_output_port(model&          dst,
+                                               int             port_dst,
+                                               block_node_id*& p) noexcept;
 
 inline bool is_ports_compatible(const dynamics_type mdl_src,
                                 const int           o_port_index,
@@ -6621,7 +6572,8 @@ inline status get_input_port(model& src, int port_src, message_id*& p) noexcept
                     });
 }
 
-inline expected<block_node_id> get_output_port(model& dst, int port_dst) noexcept
+inline expected<block_node_id> get_output_port(model& dst,
+                                               int    port_dst) noexcept
 {
     return dispatch(
       dst, [&]<typename Dynamics>(Dynamics& dyn) -> expected<block_node_id> {

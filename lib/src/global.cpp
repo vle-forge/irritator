@@ -403,6 +403,106 @@ vector<recorded_path_id> recorded_paths::sort_by_priorities() const noexcept
     return ret;
 }
 
+stdfile_journal_consumer::~stdfile_journal_consumer() noexcept
+{
+    debug::ensure(m_fp);
+
+    if (not(m_fp == stdout or m_fp == stderr))
+        std::fclose(m_fp);
+}
+
+stdfile_journal_consumer::stdfile_journal_consumer(
+  const std::filesystem::path& path) noexcept
+{
+    try {
+        std::FILE*  out       = nullptr;
+        const auto* unicode_p = path.c_str();
+        const auto* p         = reinterpret_cast<const char*>(unicode_p);
+
+#if defined(_WIN32)
+        if (::_wfopen_s(&out, unicode_p, L"w") == 0) {
+            m_fp = out;
+        }
+#else
+        if (out = std::fopen(path.c_str(), "w"); out) {
+            m_fp = out;
+        }
+#endif
+        else {
+            fmt::print(stderr, "- logging: fail to open {}\n", p);
+        }
+    } catch (...) {
+        fmt::print(stderr, "- logging: memory error\n");
+    }
+
+    fmt::print(m_fp, "irritator start logging\n");
+}
+
+journal_handler::journal_handler() noexcept
+  : journal_handler(constrained_value<int, 4, INT_MAX>(32))
+{}
+
+journal_handler::journal_handler(
+  const constrained_value<int, 4, INT_MAX> len) noexcept
+  : m_ring(len.value())
+{
+    m_logs.reserve(len.value());
+}
+
+void journal_handler::clear() noexcept
+{
+    std::unique_lock lock(m_mutex);
+    m_logs.clear();
+}
+
+void journal_handler::clear(std::span<entry_id> entries) noexcept
+{
+    std::unique_lock lock(m_mutex);
+    for (const auto id : entries)
+        if (m_logs.exists(id))
+            m_logs.free(id);
+}
+
+u64 journal_handler::get_tick_count_in_milliseconds() noexcept
+{
+    namespace sc = std::chrono;
+
+    return duration_cast<sc::milliseconds>(
+             sc::steady_clock::now().time_since_epoch())
+      .count();
+}
+
+u64 journal_handler::get_elapsed_time(const u64 from) noexcept
+{
+    return get_tick_count_in_milliseconds() - from;
+}
+
+void stdfile_journal_consumer::read(journal_handler& lm) noexcept
+{
+    lm.get(
+      [](auto& logs, auto& ring, auto* out) noexcept {
+          auto& titles = logs.template get<journal_handler::title>();
+          auto& descrs = logs.template get<journal_handler::descr>();
+          auto& levels = logs.template get<log_level>();
+
+          for (auto i : ring) {
+              if (logs.exists(i)) {
+                  const auto idx = get_index(i);
+
+                  fmt::print(out,
+                             "- {}: {}\n  {}\n",
+                             log_level_names[ordinal(levels[idx])],
+                             titles[idx].sv(),
+                             descrs[idx].sv());
+              }
+          }
+
+          logs.clear();
+          ring.clear();
+      },
+      m_fp);
+}
+
 config_manager::config_manager() noexcept
   : m_vars{ do_build_default() }
 {}

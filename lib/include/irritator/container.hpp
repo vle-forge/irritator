@@ -245,6 +245,44 @@ struct human_readable_time {
     display_type type;
 };
 
+//! Assign a value constrained by the template parameters.
+//!
+//! @code
+//! static int v = 0;
+//! if (ImGui::InputInt("test", &v)) {
+//!     f(v);
+//! }
+//!
+//! void f(constrained_value<int, 0, 100> v)
+//! {
+//!     assert(0 <= *v && *v <= 100);
+//! }
+//! @endcode
+template<typename T = int, T Lower = 0, T Upper = 100>
+class constrained_value
+{
+public:
+    using value_type = T;
+
+private:
+    static_assert(std::is_trivial_v<T>,
+                  "T must be a trivial type in ratio_parameter");
+    static_assert(Lower < Upper);
+
+    T m_value;
+
+public:
+    constexpr constrained_value(const T value_) noexcept
+      : m_value(value_ < Lower   ? Lower
+                : value_ < Upper ? value_
+                                 : Upper)
+    {}
+
+    constexpr explicit   operator T() const noexcept { return m_value; }
+    constexpr value_type operator*() const noexcept { return m_value; }
+    constexpr value_type value() const noexcept { return m_value; }
+};
+
 class new_delete_memory_resource
 {
 public:
