@@ -1275,8 +1275,7 @@ public:
     /** Get the underlying @c vector in @c tuple using a type (read @c
      * std::get). */
     template<typename Type>
-    auto& get() noexcept
-        requires(not std::is_integral_v<Type>);
+    auto& get() noexcept;
 
     /** Get the underlying object at position @c id @c vector in @c
      * tuple using an index. (read @c std::get). */
@@ -1286,8 +1285,7 @@ public:
     /** Get the underlying object at position @c id in @c vector in @c
      * tuple using a type (read @c std::get). */
     template<typename Type>
-    auto& get(const identifier_type id) noexcept
-        requires(not std::is_integral_v<Type>);
+    auto& get(const identifier_type id) noexcept;
 
     /** Get the underlying @c vector in @c tuple using an index. (read
      * @c std::get). */
@@ -1297,8 +1295,7 @@ public:
     /** Get the underlying @c vector in @c tuple using a type (read @c
      * std::get). */
     template<typename Type>
-    auto& get() const noexcept
-        requires(not std::is_integral_v<Type>);
+    auto& get() const noexcept;
 
     /** Get the underlying object at position @c id @c vector in @c
      * tuple using an index. (read @c std::get). */
@@ -1308,8 +1305,7 @@ public:
     /** Get the underlying object at position @c id in @c vector in @c
      * tuple using a type (read @c std::get). */
     template<typename Type>
-    auto& get(const identifier_type id) const noexcept
-        requires(not std::is_integral_v<Type>);
+    auto& get(const identifier_type id) const noexcept;
 
     //! Call the @c fn function if @c id is valid.
     //!
@@ -2612,7 +2608,6 @@ auto& id_data_array<Identifier, A, Ts...>::get() noexcept
 template<typename Identifier, typename A, class... Ts>
 template<typename Type>
 auto& id_data_array<Identifier, A, Ts...>::get() noexcept
-    requires(not std::is_integral_v<Type>)
 {
     return std::get<Type*>(m_col);
 }
@@ -2631,7 +2626,6 @@ template<typename Identifier, typename A, class... Ts>
 template<typename Type>
 auto& id_data_array<Identifier, A, Ts...>::get(
   const identifier_type id) noexcept
-    requires(not std::is_integral_v<Type>)
 {
     debug::ensure(m_ids.exists(id));
 
@@ -2648,7 +2642,6 @@ auto& id_data_array<Identifier, A, Ts...>::get() const noexcept
 template<typename Identifier, typename A, class... Ts>
 template<typename Type>
 auto& id_data_array<Identifier, A, Ts...>::get() const noexcept
-    requires(not std::is_integral_v<Type>)
 {
     return std::get<Type*>(m_col);
 }
@@ -2667,7 +2660,6 @@ template<typename Identifier, typename A, class... Ts>
 template<typename Type>
 auto& id_data_array<Identifier, A, Ts...>::get(
   const identifier_type id) const noexcept
-    requires(not std::is_integral_v<Type>)
 {
     debug::ensure(m_ids.exists(id));
 
@@ -2679,26 +2671,16 @@ template<typename Index, typename Function>
 void id_data_array<Identifier, A, Ts...>::if_exists_do(const identifier_type id,
                                                        Function&& fn) noexcept
 {
-    if (m_ids.exists(id)) {
-        if constexpr (std::is_integral_v<Index>) {
-            fn(id, std::get<Index>(m_col)[get_index(id)]);
-        } else {
-            fn(id, std::get<Index*>(m_col)[get_index(id)]);
-        }
-    }
+    if (m_ids.exists(id))
+        fn(id, std::get<Index*>(m_col)[get_index(id)]);
 }
 
 template<typename Identifier, typename A, class... Ts>
 template<typename Index, typename Function>
 void id_data_array<Identifier, A, Ts...>::for_each(Function&& fn) noexcept
 {
-    if constexpr (std::is_integral_v<Index>) {
-        for (const auto id : m_ids)
-            fn(id, std::get<Index>(m_col)[get_index(id)]);
-    } else {
-        for (const auto id : m_ids)
-            fn(id, std::get<Index*>(m_col)[get_index(id)]);
-    }
+    for (const auto id : m_ids)
+        fn(id, std::get<Index*>(m_col)[get_index(id)]);
 }
 
 template<typename Identifier, typename A, class... Ts>
