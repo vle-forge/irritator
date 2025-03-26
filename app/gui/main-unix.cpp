@@ -258,7 +258,8 @@ int main([[maybe_unused]] int argc, [[maybe_unused]] char* argv[])
     ImNodes::CreateContext();
 
     {
-        irt::application app;
+        irt::journal_handler jn(irt::constrained_value<int, 4, INT_MAX>(256));
+        irt::application     app(jn);
 
         if (!app.init()) {
             ImNodes::DestroyContext();

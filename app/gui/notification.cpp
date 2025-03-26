@@ -117,39 +117,27 @@ notification_manager::notification_manager() noexcept
     m_data.reserve(notification_number);
 }
 
-notification& notification_manager::alloc() noexcept
+void notification_manager::enqueue(log_level        l,
+                                   std::string_view t,
+                                   std::string_view m,
+                                   u64              date) noexcept
 {
-    std::scoped_lock lock{ m_mutex };
+    std::unique_lock lock(m_mutex);
 
-    if (m_enabled_ids.full()) {
-        const auto front = m_enabled_ids.front();
-        m_data.free(front);
-        m_enabled_ids.dequeue();
+    if (m_data.full()) {
+        debug::ensure(not m_enabled_ids.empty());
+
+        auto id = *(m_enabled_ids.head());
+        m_enabled_ids.pop_head();
+        m_data.free(id);
     }
 
-    return m_data.alloc();
-}
+    auto& notif         = m_data.alloc(l);
+    notif.creation_time = date;
+    notif.message       = m;
+    notif.title         = t;
 
-notification& notification_manager::alloc(log_level level) noexcept
-{
-    auto& n = alloc();
-    n.level = level;
-
-    return n;
-}
-
-void notification_manager::enable(const notification& n) noexcept
-{
-    std::scoped_lock lock{ m_mutex };
-
-    if (m_enabled_ids.full()) {
-        const auto front = m_enabled_ids.front();
-        m_data.free(front);
-        m_enabled_ids.dequeue();
-    }
-
-    const auto id = m_data.get_id(n);
-    m_enabled_ids.enqueue(id);
+    m_enabled_ids.emplace_enqueue(m_data.get_id(notif));
 }
 
 void notification_manager::show() noexcept
@@ -182,9 +170,6 @@ void notification_manager::show() noexcept
                 *it = undefined<notification_id>();
                 continue;
             }
-
-            if (notif->only_log)
-                continue;
 
             const auto opacity = get_fade_percent(*notif);
             auto text_color    = notification_text_color[ordinal(notif->level)];

@@ -124,7 +124,7 @@ static auto combobox_newdir(application&    app,
                 ret = true;
 
                 if (not app.mod.create_directories(new_dir)) {
-                    app.notifications.try_insert(
+                    app.jn.push(
                       log_level::error, [&](auto& title, auto& msg) noexcept {
                           format(
                             title, "Fail to create directory ", dir_name.sv());
@@ -222,10 +222,12 @@ auto file_path_selector(application&              app,
     return ret;
 }
 
-application::application() noexcept
+application::application(journal_handler& jn_) noexcept
   : task_mgr{}
   , pjs(16)
   , config(get_config_home(true))
+  , mod{ jn_ }
+  , jn{ jn_ }
 {
     settings_wnd.apply_style(undefined<gui_theme_id>());
 
@@ -252,13 +254,12 @@ application::~application() noexcept
 std::optional<project_id> application::alloc_project_window() noexcept
 {
     if (not pjs.can_alloc(1)) {
-        notifications.try_insert(
-          log_level::error, [&](auto& title, auto& msg) noexcept {
-              title = "Fail to allocate another project";
-              format(msg,
-                     "There is {} projects opened. Close one before.",
-                     pjs.size());
-          });
+        jn.push(log_level::error, [&](auto& title, auto& msg) noexcept {
+            title = "Fail to allocate another project";
+            format(msg,
+                   "There is {} projects opened. Close one before.",
+                   pjs.size());
+        });
 
         return std::nullopt;
     }
@@ -269,13 +270,12 @@ std::optional<project_id> application::alloc_project_window() noexcept
     auto& pj = pjs.alloc(temp.sv());
 
     if (not pj.pj.init(modeling_initializer{})) {
-        notifications.try_insert(
-          log_level::error, [&](auto& title, auto& msg) noexcept {
-              title = "Fail to initialize project";
-              format(msg,
-                     "There is {} projects opened. Close one before.",
-                     pjs.size());
-          });
+        jn.push(log_level::error, [&](auto& title, auto& msg) noexcept {
+            title = "Fail to initialize project";
+            format(msg,
+                   "There is {} projects opened. Close one before.",
+                   pjs.size());
+        });
     }
 
     return pjs.get_id(pj);
@@ -304,15 +304,15 @@ static void init_registred_path(application& app, config_manager& cfg) noexcept
               new_dir.path     = vars.rec_paths.paths[idx].sv();
               new_dir.priority = vars.rec_paths.priorities[idx];
 
-              app.notifications.try_insert(
-                log_level::info, [&new_dir](auto& title, auto& msg) noexcept {
-                    title = "New directory registred";
-                    format(msg,
-                           "{} registred as path `{}' priority: {}",
-                           new_dir.name.sv(),
-                           new_dir.path.sv(),
-                           new_dir.priority);
-                });
+              app.jn.push(log_level::info,
+                          [&new_dir](auto& title, auto& msg) noexcept {
+                              title = "New directory registred";
+                              format(msg,
+                                     "{} registred as path `{}' priority: {}",
+                                     new_dir.name.sv(),
+                                     new_dir.path.sv(),
+                                     new_dir.priority);
+                          });
 
               app.mod.component_repertories.emplace_back(new_dir_id);
           }
@@ -525,21 +525,37 @@ void application::show_dock() noexcept
 
 auto application::show() noexcept -> show_result_t
 {
-    if (mod.log_entries.have_entry()) {
-        mod.log_entries.try_consume([&](auto& entries) noexcept {
-            for (auto& w : entries) {
-                auto& n = notifications.alloc();
-                n.level = w.level;
-                n.title = w.buffer.sv();
-                notifications.enable(n);
-            }
-
-            entries.clear();
-        });
-    }
-
     auto ret = show_menu();
     show_dock();
+
+    if (jn.ssize() > 0) {
+        add_gui_task([&]() {
+            jn.get([&](const auto& entries, const auto& ring) {
+                auto& titles = entries.template get<journal_handler::title>();
+                auto& descrs = entries.template get<journal_handler::descr>();
+                auto& levels = entries.template get<log_level>();
+                auto& dates  = entries.template get<u64>();
+
+                for (const auto id : ring) {
+                    if (entries.exists(id)) {
+                        const auto idx = get_index(id);
+                        auto&      str = log_wnd.enqueue();
+
+                        format(str,
+                               "- {}: {}\n  {}\n",
+                               log_level_names[ordinal(levels[idx])],
+                               titles[idx].sv(),
+                               descrs[idx].sv());
+
+                        notifications.enqueue(levels[idx],
+                                              titles[idx].sv(),
+                                              descrs[idx].sv(),
+                                              dates[idx]);
+                    }
+                }
+            });
+        });
+    }
 
     if (memory_wnd.is_open)
         memory_wnd.show();
@@ -801,11 +817,10 @@ std::optional<file> application::try_open_file(const char* filename,
         return std::nullopt;
 
     if (auto f = file::open(filename, mode); not f) {
-        notifications.try_insert(log_level::error,
-                                 [&](auto& title, auto& msg) noexcept {
-                                     title = "File open error";
-                                     format(msg, "Open file {}", filename);
-                                 });
+        jn.push(log_level::error, [&](auto& title, auto& msg) noexcept {
+            title = "File open error";
+            format(msg, "Open file {}", filename);
+        });
 
         return std::nullopt;
     } else
@@ -843,92 +858,87 @@ void application::start_load_project(const registred_path_id id,
             std::
               variant<std::monostate, sz, int, std::pair<sz, std::string_view>>
                 v) noexcept {
-              notifications.try_insert(
-                log_level::error, [&](auto& title, auto& msg) noexcept {
-                    format(title,
-                           "Loading project file {} error",
-                           file->path.c_str());
-                    switch (ec) {
-                    case json_dearchiver::error_code::memory_error:
-                        if (auto* ptr = std::get_if<sz>(&v); ptr) {
-                            format(msg,
-                                   "json de-archiving memory error: not "
-                                   "enough memory "
-                                   "(requested: {})\n",
-                                   *ptr);
-                        } else {
-                            format(msg,
-                                   "json de-archiving memory error: not "
-                                   "enough memory\n");
-                        }
-                        break;
+              jn.push(log_level::error, [&](auto& title, auto& msg) noexcept {
+                  format(
+                    title, "Loading project file {} error", file->path.c_str());
+                  switch (ec) {
+                  case json_dearchiver::error_code::memory_error:
+                      if (auto* ptr = std::get_if<sz>(&v); ptr) {
+                          format(msg,
+                                 "json de-archiving memory error: not "
+                                 "enough memory "
+                                 "(requested: {})\n",
+                                 *ptr);
+                      } else {
+                          format(msg,
+                                 "json de-archiving memory error: not "
+                                 "enough memory\n");
+                      }
+                      break;
 
-                    case json_dearchiver::error_code::arg_error:
-                        format(msg, "json de-archiving internal error\n");
-                        break;
+                  case json_dearchiver::error_code::arg_error:
+                      format(msg, "json de-archiving internal error\n");
+                      break;
 
-                    case json_dearchiver::error_code::file_error:
-                        if (auto* ptr = std::get_if<sz>(&v); ptr) {
-                            format(msg,
-                                   "json de-archiving file error: file too "
-                                   "small {}\n",
-                                   *ptr);
-                        } else {
-                            format(msg,
-                                   "json de-archiving memory error: not "
-                                   "enough memory\n");
-                        }
-                        break;
+                  case json_dearchiver::error_code::file_error:
+                      if (auto* ptr = std::get_if<sz>(&v); ptr) {
+                          format(msg,
+                                 "json de-archiving file error: file too "
+                                 "small {}\n",
+                                 *ptr);
+                      } else {
+                          format(msg,
+                                 "json de-archiving memory error: not "
+                                 "enough memory\n");
+                      }
+                      break;
 
-                    case json_dearchiver::error_code::read_error:
-                        if (auto* ptr = std::get_if<int>(&v);
-                            ptr and *ptr != 0) {
-                            format(msg,
-                                   "json de-archiving read error: internal "
-                                   "system {} ({})\n",
-                                   *ptr,
-                                   std::strerror(*ptr));
-                        } else {
-                            format(msg, "json de-archiving read error\n");
-                        }
-                        break;
+                  case json_dearchiver::error_code::read_error:
+                      if (auto* ptr = std::get_if<int>(&v); ptr and *ptr != 0) {
+                          format(msg,
+                                 "json de-archiving read error: internal "
+                                 "system {} ({})\n",
+                                 *ptr,
+                                 std::strerror(*ptr));
+                      } else {
+                          format(msg, "json de-archiving read error\n");
+                      }
+                      break;
 
-                    case json_dearchiver::error_code::format_error:
-                        if (auto* ptr =
-                              std::get_if<std::pair<sz, std::string_view>>(&v);
-                            ptr) {
-                            if (ptr->second.empty()) {
-                                format(msg,
-                                       "json de-archiving json format error at "
-                                       "offset "
-                                       "{}\n",
-                                       ptr->first);
+                  case json_dearchiver::error_code::format_error:
+                      if (auto* ptr =
+                            std::get_if<std::pair<sz, std::string_view>>(&v);
+                          ptr) {
+                          if (ptr->second.empty()) {
+                              format(msg,
+                                     "json de-archiving json format error at "
+                                     "offset "
+                                     "{}\n",
+                                     ptr->first);
 
-                            } else {
-                                format(msg,
-                                       "json de-archiving json format error "
-                                       "`{}' at offset "
-                                       "{}\n",
-                                       ptr->second,
-                                       ptr->first);
-                            }
-                        } else {
-                            format(msg,
-                                   "json de-archiving json format error\n");
-                        }
-                        break;
+                          } else {
+                              format(msg,
+                                     "json de-archiving json format error "
+                                     "`{}' at offset "
+                                     "{}\n",
+                                     ptr->second,
+                                     ptr->first);
+                          }
+                      } else {
+                          format(msg, "json de-archiving json format error\n");
+                      }
+                      break;
 
-                    default:
-                        format(msg, "json de-archiving unknown error\n");
-                    }
-                });
+                  default:
+                      format(msg, "json de-archiving unknown error\n");
+                  }
+              });
           });
 
-        notifications.try_insert(
-          log_level::info, [&](auto& title, auto& /*msg*/) noexcept {
-              format(
-                title, "Loading project file {} success", file->path.c_str());
-          });
+        jn.push(log_level::info, [&](auto& title, auto& /*msg*/) noexcept {
+            format(
+              title, "Loading project file {} success", file->path.c_str());
+        });
     });
 }
 
@@ -960,58 +970,55 @@ void application::start_save_project(const registred_path_id id,
             json_archiver::print_option::indent_2_one_line_array,
             [&](json_archiver::error_code             ec,
                 std::variant<std::monostate, sz, int> v) noexcept {
-                notifications.try_insert(
-                  log_level::error, [&](auto& title, auto& msg) noexcept {
-                      format(title,
-                             "Saving project file {} error",
-                             file->path.c_str());
+                jn.push(log_level::error, [&](auto& title, auto& msg) noexcept {
+                    format(title,
+                           "Saving project file {} error",
+                           file->path.c_str());
 
-                      switch (ec) {
-                      case json_archiver::error_code::memory_error:
-                          if (auto* ptr = std::get_if<sz>(&v); ptr) {
-                              format(msg,
-                                     "json archiving memory error: not "
-                                     "enough memory "
-                                     "(requested: {})\n",
-                                     *ptr);
-                          } else {
-                              format(msg,
-                                     "json archiving memory error: not "
-                                     "enough memory\n");
-                          }
-                          break;
+                    switch (ec) {
+                    case json_archiver::error_code::memory_error:
+                        if (auto* ptr = std::get_if<sz>(&v); ptr) {
+                            format(msg,
+                                   "json archiving memory error: not "
+                                   "enough memory "
+                                   "(requested: {})\n",
+                                   *ptr);
+                        } else {
+                            format(msg,
+                                   "json archiving memory error: not "
+                                   "enough memory\n");
+                        }
+                        break;
 
-                      case json_archiver::error_code::arg_error:
-                          format(msg, "json archiving internal error\n");
-                          break;
+                    case json_archiver::error_code::arg_error:
+                        format(msg, "json archiving internal error\n");
+                        break;
 
-                      case json_archiver::error_code::empty_project:
-                          format(msg, "json archiving empty project error\n");
-                          break;
+                    case json_archiver::error_code::empty_project:
+                        format(msg, "json archiving empty project error\n");
+                        break;
 
-                      case json_archiver::error_code::file_error:
-                          format(msg, "json archiving file access error\n");
-                          break;
+                    case json_archiver::error_code::file_error:
+                        format(msg, "json archiving file access error\n");
+                        break;
 
-                      case json_archiver::error_code::format_error:
-                          format(msg, "json archiving format error\n");
-                          break;
+                    case json_archiver::error_code::format_error:
+                        format(msg, "json archiving format error\n");
+                        break;
 
-                      case json_archiver::error_code::dependency_error:
-                          format(msg, "json archiving format error\n");
-                          break;
+                    case json_archiver::error_code::dependency_error:
+                        format(msg, "json archiving format error\n");
+                        break;
 
-                      default:
-                          format(msg, "json de-archiving unknown error\n");
-                      }
-                  });
+                    default:
+                        format(msg, "json de-archiving unknown error\n");
+                    }
+                });
             });
 
-        notifications.try_insert(
-          log_level::info, [&](auto& title, auto& /*msg*/) noexcept {
-              format(
-                title, "Saving project file {} success", file->path.c_str());
-          });
+        jn.push(log_level::info, [&](auto& title, auto& /*msg*/) noexcept {
+            format(title, "Saving project file {} success", file->path.c_str());
+        });
     });
 }
 
@@ -1020,21 +1027,19 @@ void application::start_save_component(const component_id id) noexcept
     add_gui_task([&, id]() noexcept {
         if (auto* c = mod.components.try_to_get(id); c) {
             if (auto ret = mod.save(*c); not ret) {
-                notifications.try_insert(
-                  log_level::error, [&](auto& title, auto& msg) {
-                      title = "Component save error";
-                      format(msg,
-                             "Fail to save {} (part: {} {}",
-                             c->name.sv(),
-                             ordinal(ret.error().cat()),
-                             ret.error().value());
-                  });
+                jn.push(log_level::error, [&](auto& title, auto& msg) {
+                    title = "Component save error";
+                    format(msg,
+                           "Fail to save {} (part: {} {}",
+                           c->name.sv(),
+                           ordinal(ret.error().cat()),
+                           ret.error().value());
+                });
             } else {
-                notifications.try_insert(
-                  log_level::notice, [&](auto& title, auto& msg) {
-                      title = "Component save";
-                      format(msg, "Save {} success", c->name.sv());
-                  });
+                jn.push(log_level::notice, [&](auto& title, auto& msg) {
+                    title = "Component save";
+                    format(msg, "Save {} success", c->name.sv());
+                });
             }
         }
     });
@@ -1128,12 +1133,12 @@ void application::start_file_remove(const registred_path_id r,
 
         if (reg and dir and file) {
             std::scoped_lock lock(dir->mutex);
-
-            auto& n = notifications.alloc();
-            n.title = "Start remove file";
-            format(n.message, "File `{}' removed", file->path.sv());
             mod.remove_file(*reg, *dir, *file);
-            notifications.enable(n);
+
+            jn.push(log_level::info, [&](auto& t, auto& m) {
+                t = "File manager";
+                format(m, "File `{}' was removed", file->path.sv());
+            });
         }
     });
 }

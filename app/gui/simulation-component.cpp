@@ -39,10 +39,10 @@ template<typename S>
 constexpr static void make_copy_error_msg(application& app,
                                           const S&     str) noexcept
 {
-    auto& n   = app.notifications.alloc(log_level::error);
-    n.title   = "Component copy failed";
-    n.message = str;
-    app.notifications.enable(n);
+    app.jn.push(log_level::error, [&](auto& t, auto& m) {
+        t = "Component copy failed";
+        m = str;
+    });
 }
 
 template<typename S, typename... Args>
@@ -50,10 +50,10 @@ constexpr static void make_copy_error_msg(application& app,
                                           const S&     fmt,
                                           Args&&... args) noexcept
 {
-    auto& n = app.notifications.alloc(log_level::error);
-    n.title = "Component copy failed";
-    format(n.message, fmt, std::forward<Args...>(args...));
-    app.notifications.enable(n);
+    app.jn.push(log_level::error, [&](auto& t, auto& m) {
+        t = "Component copy failed";
+        format(m, fmt, std::forward<Args...>(args...));
+    });
 }
 
 template<typename S, typename... Args>
@@ -61,16 +61,14 @@ static void make_init_error_msg(application& app,
                                 const S&     fmt,
                                 Args&&... args) noexcept
 {
-    auto& n = app.notifications.alloc(log_level::error);
-    n.title = "Simulation initialization fail";
-
-    auto ret = fmt::vformat_to_n(n.message.begin(),
-                                 static_cast<size_t>(n.message.capacity() - 1),
-                                 fmt,
-                                 fmt::make_format_args(args...));
-    n.message.resize(static_cast<int>(ret.size));
-
-    app.notifications.enable(n);
+    app.jn.push(log_level::error, [&](auto& t, auto& m) {
+        t        = "Simulation initialization fail";
+        auto ret = fmt::vformat_to_n(m.begin(),
+                                     static_cast<size_t>(m.capacity() - 1),
+                                     fmt,
+                                     fmt::make_format_args(args...));
+        m.resize(static_cast<int>(ret.size));
+    });
 }
 
 static void simulation_copy(application& app, project_editor& ed) noexcept
@@ -146,14 +144,13 @@ static bool debug_run(application& app, project_editor& sim_ed) noexcept
     if (auto ret = run(sim_ed.tl, sim_ed.pj.sim, sim_ed.pj.sim.t); not ret) {
         sim_ed.simulation_state = simulation_status::finish_requiring;
 
-        app.notifications.try_insert(log_level::error,
-                                     [&](auto& t, auto& msg) noexcept {
-                                         t = "Simulation debug task run error";
-                                         format(msg,
-                                                "Fail in {} with error {}",
-                                                ordinal(ret.error().cat()),
-                                                ret.error().value());
-                                     });
+        app.jn.push(log_level::error, [&](auto& t, auto& msg) noexcept {
+            t = "Simulation debug task run error";
+            format(msg,
+                   "Fail in {} with error {}",
+                   ordinal(ret.error().cat()),
+                   ret.error().value());
+        });
         return false;
     }
 
@@ -165,14 +162,13 @@ static bool run(application& app, project_editor& ed) noexcept
     if (auto ret = ed.pj.sim.run(); not ret) {
         ed.simulation_state = simulation_status::finish_requiring;
 
-        app.notifications.try_insert(log_level::error,
-                                     [&](auto& t, auto& msg) noexcept {
-                                         t = "Simulation debug task run error";
-                                         format(msg,
-                                                "Fail in {} with error {}",
-                                                ordinal(ret.error().cat()),
-                                                ret.error().value());
-                                     });
+        app.jn.push(log_level::error, [&](auto& t, auto& msg) noexcept {
+            t = "Simulation debug task run error";
+            format(msg,
+                   "Fail in {} with error {}",
+                   ordinal(ret.error().cat()),
+                   ret.error().value());
+        });
         return false;
     }
 
@@ -186,10 +182,9 @@ static int new_model(application&                app,
     int rebuild = false;
 
     if (not pj_ed.pj.sim.can_alloc(1)) {
-        app.notifications.try_insert(
-          log_level::error, [](auto& title, auto&) noexcept {
-              title = "Internal error: fail to initialize new model.";
-          });
+        app.jn.push(log_level::error, [](auto& title, auto&) noexcept {
+            title = "Internal error: fail to initialize new model.";
+        });
     } else {
         auto& mdl = pj_ed.pj.sim.alloc(data.type);
         (void)pj_ed.pj.sim.make_initialize(mdl, pj_ed.pj.sim.t);
@@ -233,10 +228,9 @@ static int copy_model(application&                 app,
 {
     if (auto* src_mdl = pj_ed.pj.sim.models.try_to_get(data.mdl_id)) {
         if (not pj_ed.pj.sim.can_alloc(1)) {
-            app.notifications.try_insert(
-              log_level::error, [](auto& title, auto&) noexcept {
-                  title = "Internal error: fail to allocate more models.";
-              });
+            app.jn.push(log_level::error, [](auto& title, auto&) noexcept {
+                title = "Internal error: fail to allocate more models.";
+            });
 
             return 0;
         }
@@ -244,10 +238,9 @@ static int copy_model(application&                 app,
         auto& dst_mdl = pj_ed.pj.sim.clone(*src_mdl);
 
         if (not pj_ed.pj.sim.make_initialize(dst_mdl, pj_ed.pj.sim.t)) {
-            app.notifications.try_insert(
-              log_level::error, [](auto& title, auto&) noexcept {
-                  title = "Internal error: fail to initialize new model.";
-              });
+            app.jn.push(log_level::error, [](auto& title, auto&) noexcept {
+                title = "Internal error: fail to initialize new model.";
+            });
 
             return 0;
         }
@@ -285,10 +278,9 @@ static int new_connection(application&                     app,
     int rebuild = false;
 
     if (not ed.pj.sim.can_connect(1)) {
-        app.notifications.try_insert(
-          log_level::error, [](auto& title, auto&) noexcept {
-              title = "Internal error: fail to initialize new model.";
-          });
+        app.jn.push(log_level::error, [](auto& title, auto&) noexcept {
+            title = "Internal error: fail to initialize new model.";
+        });
     } else {
         if (auto* src = ed.pj.sim.models.try_to_get(data.mdl_src_id)) {
             if (auto* dst = ed.pj.sim.models.try_to_get(data.mdl_dst_id)) {
@@ -301,11 +293,11 @@ static int new_connection(application&                     app,
                     // }
 
                 } else {
-                    app.notifications.try_insert(
-                      log_level::error, [](auto& title, auto&) noexcept {
-                          title = "Internal error: fail to buid new "
-                                  "connection.";
-                      });
+                    app.jn.push(log_level::error,
+                                [](auto& title, auto&) noexcept {
+                                    title = "Internal error: fail to buid new "
+                                            "connection.";
+                                });
                 }
             }
         }
@@ -329,10 +321,9 @@ static int free_connection(application&                      app,
 
             return true;
         } else {
-            app.notifications.try_insert(
-              log_level::error, [](auto& title, auto&) noexcept {
-                  title = "Internal error: fail to buid new connection.";
-              });
+            app.jn.push(log_level::error, [](auto& title, auto&) noexcept {
+                title = "Internal error: fail to buid new connection.";
+            });
         }
     }
 
@@ -349,10 +340,10 @@ static void new_observer(application&                   app,
             auto& obs = ed.pj.sim.observers.alloc();
             ed.pj.sim.observe(*mdl, obs);
         } else {
-            app.notifications.try_insert(
-              log_level::error, [&](auto& title, auto& /*msg*/) noexcept {
-                  title = "Internal error: fail to add observer.";
-              });
+            app.jn.push(log_level::error,
+                        [&](auto& title, auto& /*msg*/) noexcept {
+                            title = "Internal error: fail to add observer.";
+                        });
         }
     }
 }
@@ -364,10 +355,9 @@ static void free_observer(application&                    app,
     if (auto* mdl = ed.pj.sim.models.try_to_get(data.mdl_id)) {
         ed.pj.sim.unobserve(*mdl);
     } else {
-        app.notifications.try_insert(
-          log_level::error, [&](auto& title, auto& /*msg*/) noexcept {
-              title = "Internal error: fail to delete observer.";
-          });
+        app.jn.push(log_level::error, [&](auto& title, auto& /*msg*/) noexcept {
+            title = "Internal error: fail to delete observer.";
+        });
     }
 }
 
@@ -396,10 +386,9 @@ static void send_message(application&                   app,
         }
     }
 
-    app.notifications.try_insert(
-      log_level::error, [&](auto& title, auto& /*msg*/) noexcept {
-          title = "Internal error: fail to send message.";
-      });
+    app.jn.push(log_level::error, [&](auto& title, auto& /*msg*/) noexcept {
+        title = "Internal error: fail to send message.";
+    });
 }
 
 void start_simulation_commands_apply(application& app, project_id id) noexcept
@@ -506,9 +495,8 @@ void project_editor::start_simulation_copy_modeling(application& app) noexcept
     if (state) {
         auto* modeling_head = pj.tn_head();
         if (!modeling_head) {
-            auto& notif = app.notifications.alloc(log_level::error);
-            notif.title = "Empty model";
-            app.notifications.enable(notif);
+            app.jn.push(log_level::error,
+                        [](auto& t, auto& m) { t = "Empty model"; });
         } else {
             force_pause = false;
             force_stop  = false;
@@ -931,17 +919,19 @@ void project_editor::start_simulation_finish(application& app) noexcept
 
         if (store_all_changes) {
             if (auto ret = finalize(tl, pj.sim, pj.sim.t); !ret) {
-                auto& n = app.notifications.alloc();
-                n.title = "Simulation finalizing fail (with store all "
-                          "changes option)";
-                app.notifications.enable(n);
+                app.jn.push(log_level::error, [](auto& t, auto& m) {
+                    t = "Simulation finalizing fail (with store all changes "
+                        "option)";
+                    m = "FIXME from ret";
+                });
             }
         } else {
             pj.sim.t = pj.t_limit.end();
             if (auto ret = pj.sim.finalize(); !ret) {
-                auto& n = app.notifications.alloc();
-                n.title = "simulation finish fail";
-                app.notifications.enable(n);
+                app.jn.push(log_level::error, [](auto& t, auto& m) {
+                    t = "Simulation finalizing fail";
+                    m = "FIXME from ret";
+                });
             }
         };
 
@@ -955,17 +945,15 @@ void project_editor::start_simulation_advance(application& app) noexcept
         if (tl.can_advance()) {
             if (auto ret = advance(tl, pj.sim, pj.sim.t); not ret) {
                 if (ret.error().cat() == category::simulation) {
-                    app.notifications.try_insert(
-                      log_level::error, [](auto& t, auto& m) {
-                          t = "Fail to advance the simulation";
-                          format(m, "Advance message");
-                      });
+                    app.jn.push(log_level::error, [](auto& t, auto& m) {
+                        t = "Fail to advance the simulation";
+                        format(m, "Advance message");
+                    });
                 } else {
-                    app.notifications.try_insert(
-                      log_level::error, [](auto& t, auto& m) {
-                          t = "Fail to advance the simulation";
-                          format(m, "Unknwon message");
-                      });
+                    app.jn.push(log_level::error, [](auto& t, auto& m) {
+                        t = "Fail to advance the simulation";
+                        format(m, "Unknwon message");
+                    });
                 }
             }
         }
@@ -978,17 +966,15 @@ void project_editor::start_simulation_back(application& app) noexcept
         if (tl.can_back()) {
             if (auto ret = back(tl, pj.sim, pj.sim.t); not ret) {
                 if (ret.error().cat() == category::simulation) {
-                    app.notifications.try_insert(
-                      log_level::error, [](auto& t, auto& m) {
-                          t = "Fail to advance the simulation";
-                          format(m, "Advance message");
-                      });
+                    app.jn.push(log_level::error, [](auto& t, auto& m) {
+                        t = "Fail to advance the simulation";
+                        format(m, "Advance message");
+                    });
                 } else {
-                    app.notifications.try_insert(
-                      log_level::error, [](auto& t, auto& m) {
-                          t = "Fail to advance the simulation";
-                          format(m, "Unknwon message");
-                      });
+                    app.jn.push(log_level::error, [](auto& t, auto& m) {
+                        t = "Fail to advance the simulation";
+                        format(m, "Unknwon message");
+                    });
                 }
             }
         }
@@ -1004,20 +990,18 @@ void project_editor::start_enable_or_disable_debug(application& app) noexcept
             simulation_state = simulation_status::not_started;
 
             if (ret.error().cat() == category::simulation) {
-                app.notifications.try_insert(
-                  log_level::error, [&ret](auto& t, auto& m) {
-                      t = "Debug mode failed to initialize";
-                      format(m,
-                             "Fail to initialize the debug mode: {}",
-                             ret.error().value());
-                  });
+                app.jn.push(log_level::error, [&ret](auto& t, auto& m) {
+                    t = "Debug mode failed to initialize";
+                    format(m,
+                           "Fail to initialize the debug mode: {}",
+                           ret.error().value());
+                });
             } else {
-                app.notifications.try_insert(
-                  log_level::error, [](auto& t, auto& m) {
-                      t = "Debug mode failed to initialize";
-                      format(
-                        m, "Fail to initialize the debug mode: Unknown error");
-                  });
+                app.jn.push(log_level::error, [](auto& t, auto& m) {
+                    t = "Debug mode failed to initialize";
+                    format(m,
+                           "Fail to initialize the debug mode: Unknown error");
+                });
             }
         }
     });

@@ -118,12 +118,6 @@ struct notification {
     message_t message;
     u64       creation_time;
     log_level level;
-
-    //! Is @c only_log is true, the notification is displayed only by the @c
-    //! window_logger. If @c only_log boolean is
-    //! false (default value), the notification is displayed both in the @c
-    //! window_logger and in the @c notification_manager.
-    bool only_log = false;
 };
 
 //! @brief Show notification into small auto destructible windows in bottom
@@ -140,35 +134,17 @@ public:
 
     notification_manager() noexcept;
 
-    notification& alloc() noexcept;
-    notification& alloc(log_level level) noexcept;
-
-    void enable(const notification& n) noexcept;
     void show() noexcept;
-
-    template<typename Function>
-    void try_insert(log_level level, Function&& fn) noexcept
-    {
-        std::unique_lock lock(m_mutex);
-
-        if (m_data.can_alloc() and not m_enabled_ids.full()) {
-            auto& d = m_data.alloc();
-            d.level = level;
-            lock.unlock();
-
-            fn(d.title, d.message);
-
-            enable(d);
-        }
-    }
+    void enqueue(log_level        l,
+                 std::string_view t,
+                 std::string_view m,
+                 u64              date) noexcept;
 
 private:
     data_array<notification, notification_id> m_data;
     ring_buffer<notification_id>              m_enabled_ids;
 
-    spin_mutex m_mutex; /** @c alloc() and @c enable() functions lock the mutex
-                           to fill @c data and @c r_buffer. The show function
-                           only try to lock the mutex to display data. */
+    spin_mutex m_mutex;
 };
 
 //! @brief Show notification into a classical window in botton.
@@ -188,7 +164,6 @@ public:
 
     window_logger() noexcept;
 
-    void      clear() noexcept;
     string_t& enqueue() noexcept;
     void      show() noexcept;
 
@@ -198,6 +173,8 @@ public:
 private:
     bool auto_scroll      = true;
     bool scroll_to_bottom = false;
+
+    spin_mutex m_mutex;
 };
 
 class plot_observation_widget
@@ -1173,7 +1150,7 @@ private:
 class application
 {
 public:
-    application() noexcept;
+    explicit application(journal_handler& jn) noexcept;
 
     ~application() noexcept;
 
@@ -1210,6 +1187,7 @@ public:
     task_window     task_wnd;
 
     notification_manager notifications;
+    journal_handler&     jn;
 
     /**
      * Try to allocate a project and affect a new name to the newly allocated

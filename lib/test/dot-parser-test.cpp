@@ -29,7 +29,8 @@ int main()
             A->D
         })";
 
-        auto ret = irt::parse_dot_buffer(irt::modeling{}, buf);
+        irt::journal_handler jn{};
+        auto ret = irt::parse_dot_buffer(irt::modeling{ jn }, buf);
         expect(ret.has_value() >> fatal);
         expect(eq(ret->nodes.ssize(), 4));
         expect(eq(ret->edges.ssize(), 3));
@@ -168,8 +169,10 @@ int main()
         check_buffer(*ret);
         check_buffer(*ret);
 
-        irt::modeling mod;
-        auto          save_buf = irt::write_dot_buffer(mod, *ret);
+        irt::journal_handler jn{};
+        irt::modeling        mod{ jn };
+
+        auto save_buf = irt::write_dot_buffer(mod, *ret);
         expect(save_buf.has_value() >> fatal);
 
         auto load_buf = irt::parse_dot_buffer(

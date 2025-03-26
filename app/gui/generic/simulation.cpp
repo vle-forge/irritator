@@ -609,7 +609,7 @@ struct generic_simulation_editor::impl {
                                .data{ .copy_model{
                                  .tn_id  = self.current,
                                  .mdl_id = self.nodes[index].mdl } } })) {
-                    app.notifications.try_insert(
+                    app.jn.push(
                       log_level::error, [](auto& title, auto& msg) noexcept {
                           title = "Internal error during copy";
                           msg   = "The project commands order list is full";
@@ -634,11 +634,10 @@ struct generic_simulation_editor::impl {
                                           .type  = type,
                                           .x     = click_pos.x,
                                           .y     = click_pos.y } } })) {
-            app.notifications.try_insert(
-              log_level::error, [](auto& title, auto& msg) noexcept {
-                  title = "Internal error during model allocation";
-                  msg   = "Project command order list is full";
-              });
+            app.jn.push(log_level::error, [](auto& title, auto& msg) noexcept {
+                title = "Internal error during model allocation";
+                msg   = "Project command order list is full";
+            });
 
             return false;
         }
@@ -657,7 +656,7 @@ struct generic_simulation_editor::impl {
                       .data{ .free_model{
                         .tn_id  = self.current,
                         .mdl_id = pj_ed.pj.sim.models.get_id(*mdl) } } })) {
-                    app.notifications.try_insert(
+                    app.jn.push(
                       log_level::error, [](auto& title, auto& msg) noexcept {
                           title = "Internal error during model deletion";
                           msg   = "The project commands order list is full";
@@ -692,11 +691,10 @@ struct generic_simulation_editor::impl {
                          .mdl_dst_id = pj_ed.pj.sim.get_id(*in.model),
                          .port_src   = static_cast<i8>(out.port_index),
                          .port_dst   = static_cast<i8>(in.port_index) } } })) {
-            app.notifications.try_insert(
-              log_level::error, [](auto& title, auto& msg) noexcept {
-                  title = "Internal error during connection";
-                  msg   = "Project command order list is full";
-              });
+            app.jn.push(log_level::error, [](auto& title, auto& msg) noexcept {
+                title = "Internal error during connection";
+                msg   = "Project command order list is full";
+            });
 
             return 0;
         }
@@ -721,7 +719,7 @@ struct generic_simulation_editor::impl {
                         .mdl_dst_id = pj_ed.pj.sim.get_id(*in.model),
                         .port_src   = static_cast<i8>(out.port_index),
                         .port_dst   = static_cast<i8>(in.port_index) } } })) {
-                    app.notifications.try_insert(
+                    app.jn.push(
                       log_level::error, [](auto& title, auto& msg) noexcept {
                           title = "Internal error during disconnection";
                           msg   = "Project command order list is full";

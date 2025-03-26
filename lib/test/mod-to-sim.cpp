@@ -51,7 +51,8 @@ int main()
 
     "easy"_test = [] {
         irt::modeling_initializer mod_init;
-        irt::modeling             mod;
+        irt::journal_handler      jn;
+        irt::modeling             mod{ jn };
         irt::project              pj;
 
         expect(!!mod.init(mod_init));
@@ -107,7 +108,8 @@ int main()
 
     "no-connection"_test = [] {
         irt::modeling_initializer mod_init;
-        irt::modeling             mod;
+        irt::journal_handler      jn;
+        irt::modeling             mod{ jn };
         irt::project              pj;
 
         expect(!!mod.init(mod_init));
@@ -139,7 +141,8 @@ int main()
 
     "empty-component"_test = [] {
         irt::modeling_initializer mod_init;
-        irt::modeling             mod;
+        irt::journal_handler      jn;
+        irt::modeling             mod{ jn };
         irt::project              pj;
 
         expect(!!mod.init(mod_init));
@@ -201,7 +204,8 @@ int main()
 
     "graph-small-world"_test = [] {
         irt::modeling_initializer mod_init;
-        irt::modeling             mod;
+        irt::journal_handler      jn;
+        irt::modeling             mod{ jn };
         irt::project              pj;
 
         expect(!!mod.init(mod_init));
@@ -226,7 +230,8 @@ int main()
 
     "graph-scale-free"_test = [] {
         irt::modeling_initializer mod_init;
-        irt::modeling             mod;
+        irt::journal_handler      jn;
+        irt::modeling             mod{ jn };
         irt::project              pj;
 
         expect(!!mod.init(mod_init));
@@ -251,7 +256,8 @@ int main()
 
     "graph-scale-free-sum-in-out"_test = [] {
         irt::modeling_initializer mod_init;
-        irt::modeling             mod;
+        irt::journal_handler      jn;
+        irt::modeling             mod{ jn };
         irt::project              pj;
 
         expect(!!mod.init(mod_init));
@@ -287,7 +293,8 @@ int main()
 
     "graph-scale-free-sum-m-n"_test = [] {
         irt::modeling_initializer mod_init;
-        irt::modeling             mod;
+        irt::journal_handler      jn;
+        irt::modeling             mod{ jn };
         irt::project              pj;
 
         expect(!!mod.init(mod_init));
@@ -329,7 +336,8 @@ int main()
 
     "graph-scale-free-sum-m_3-n_3"_test = [] {
         irt::modeling_initializer mod_init;
-        irt::modeling             mod;
+        irt::journal_handler      jn;
+        irt::modeling             mod{ jn };
         irt::project              pj;
 
         expect(!!mod.init(mod_init));
@@ -395,7 +403,8 @@ int main()
 
     "grid-3x3-empty-con"_test = [] {
         irt::modeling_initializer mod_init;
-        irt::modeling             mod;
+        irt::journal_handler      jn;
+        irt::modeling             mod{ jn };
         irt::project              pj;
 
         expect(!!mod.init(mod_init));
@@ -416,7 +425,8 @@ int main()
 
     "grid-3x3-empty-con-middle"_test = [] {
         irt::modeling_initializer mod_init;
-        irt::modeling             mod;
+        irt::journal_handler      jn;
+        irt::modeling             mod{ jn };
         irt::project              pj;
 
         expect(!!mod.init(mod_init));
@@ -448,7 +458,8 @@ int main()
 
         {
             irt::modeling_initializer mod_init;
-            irt::modeling             mod;
+            irt::journal_handler      jn;
+            irt::modeling             mod{ jn };
             irt::project              pj;
 
             expect(!!mod.init(mod_init));
@@ -547,7 +558,8 @@ int main()
 
         {
             irt::modeling_initializer mod_init;
-            irt::modeling             mod;
+            irt::journal_handler      jn;
+            irt::modeling             mod{ jn };
             irt::project              pj;
 
             expect(!!mod.init(mod_init));
@@ -570,7 +582,8 @@ int main()
     "hsm"_test = [] {
         irt::modeling_initializer mod_init;
         irt::project              pj;
-        irt::modeling             mod;
+        irt::journal_handler      jn;
+        irt::modeling             mod{ jn };
 
         expect(!!mod.init(mod_init)) << fatal;
         expect(!!pj.init(mod_init)) << fatal;
@@ -613,7 +626,8 @@ int main()
         irt::modeling_initializer mod_init;
 
         {
-            irt::modeling mod;
+            irt::journal_handler jn{};
+            irt::modeling        mod{ jn };
 
             expect(!!mod.init(mod_init));
             irt::component_id ids[irt::internal_component_count];
@@ -666,7 +680,8 @@ int main()
         }
 
         {
-            irt::modeling mod;
+            irt::journal_handler jn{};
+            irt::modeling        mod{ jn };
 
             expect(!!mod.init(mod_init));
 
@@ -696,7 +711,8 @@ int main()
 
         {
             irt::modeling_initializer mod_init;
-            irt::modeling             mod;
+            irt::journal_handler      jn;
+            irt::modeling             mod{ jn };
             irt::project              pj;
 
             expect(!!mod.init(mod_init));
@@ -782,7 +798,8 @@ int main()
 
         {
             irt::modeling_initializer mod_init;
-            irt::modeling             mod;
+            irt::journal_handler      jn;
+            irt::modeling             mod{ jn };
             irt::project              pj;
 
             expect(!!mod.init(mod_init));
@@ -877,7 +894,8 @@ int main()
           std::exchange(irt::on_error_callback, nullptr);
 
         irt::modeling_initializer mod_init;
-        irt::modeling             mod;
+        irt::journal_handler      jn;
+        irt::modeling             mod{ jn };
         irt::project              pj;
 
         expect(!!mod.init(mod_init));

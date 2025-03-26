@@ -87,22 +87,20 @@ static void display_allocate_external_source(application&    app,
         if (not ret.has_value()) {
             switch (ret.error().cat()) {
             case category::external_source:
-                app.notifications.try_insert(
-                  log_level::error, [&](auto& title, auto&) {
-                      format(title,
-                             "Fail to initialize {} source",
-                             external_source_str(*part));
-                      // TODO More.
-                  });
+                app.jn.push(log_level::error, [&](auto& title, auto&) {
+                    format(title,
+                           "Fail to initialize {} source",
+                           external_source_str(*part));
+                    // TODO More.
+                });
                 break;
 
             default:
-                app.notifications.try_insert(
-                  log_level::error, [&](auto& title, auto&) {
-                      format(title,
-                             "Fail to initialize {} source",
-                             external_source_str(*part));
-                  });
+                app.jn.push(log_level::error, [&](auto& title, auto&) {
+                    format(title,
+                           "Fail to initialize {} source",
+                           external_source_str(*part));
+                });
             }
         }
     }
@@ -673,9 +671,9 @@ void project_external_source_editor::show(application& app) noexcept
                           ImGuiDataType_U32,
                           reinterpret_cast<void*>(&ptr->max_clients))) {
                         if (auto ret = ptr->init(); !ret) {
-                            auto& n = app.notifications.alloc();
-                            n.title = "Fail to initialize binary file source";
-                            app.notifications.enable(n);
+                            app.jn.push(log_level::error, [](auto& t, auto& m) {
+                                t = "Fail to initialize binary file source";
+                            });
                         }
                     }
 
@@ -708,9 +706,9 @@ void project_external_source_editor::show(application& app) noexcept
                           reinterpret_cast<void*>(&ptr->max_clients))) {
                         up++;
                         if (auto ret = ptr->init(); !ret) {
-                            auto& n = app.notifications.alloc();
-                            n.title = "Fail to initialize random source";
-                            app.notifications.enable(n);
+                            app.jn.push(log_level::error, [](auto& t, auto& m) {
+                                t = "Fail to initialize random source";
+                            });
                         }
                     }
 
@@ -1017,36 +1015,36 @@ void show_menu_external_sources(application&     app,
     if (constant_ptr) {
         src.reset();
         if (auto ret = constant_ptr->init(src); !ret) {
-            auto& n = app.notifications.alloc();
-            n.title = "Fail to initalize constant source";
-            app.notifications.enable(n);
+            app.jn.push(log_level::error, [](auto& t, auto& m) {
+                t = "Fail to initalize constant source";
+            });
         }
     }
 
     if (binary_file_ptr) {
         src.reset();
         if (auto ret = binary_file_ptr->init(src); !ret) {
-            auto& n = app.notifications.alloc();
-            n.title = "Fail to initalize binary file source";
-            app.notifications.enable(n);
+            app.jn.push(log_level::error, [](auto& t, auto& m) {
+                t = "Fail to initalize binary file source";
+            });
         }
     }
 
     if (text_file_ptr) {
         src.reset();
         if (auto ret = text_file_ptr->init(src); !ret) {
-            auto& n = app.notifications.alloc();
-            n.title = "Fail to initalize text file source";
-            app.notifications.enable(n);
+            app.jn.push(log_level::error, [](auto& t, auto& m) {
+                t = "Fail to initalize text file source";
+            });
         }
     }
 
     if (random_ptr) {
         src.reset();
         if (auto ret = random_ptr->init(src); !ret) {
-            auto& n = app.notifications.alloc();
-            n.title = "Fail to initalize random source";
-            app.notifications.enable(n);
+            app.jn.push(log_level::error, [](auto& t, auto& m) {
+                t = "Fail to initalize random source";
+            });
         }
     }
 }
@@ -1088,30 +1086,32 @@ void project_external_source_editor::selection::select(
 bool project_external_source_editor::selection::is(
   constant_source_id id) const noexcept
 {
-    return type_sel.has_value() and
-           *type_sel == source::source_type::constant and id_sel == ordinal(id);
+    return type_sel.has_value() and * type_sel ==
+             source::source_type::constant and
+           id_sel == ordinal(id);
 }
 
 bool project_external_source_editor::selection::is(
   text_file_source_id id) const noexcept
 {
-    return type_sel.has_value() and
-           *type_sel == source::source_type::text_file and
+    return type_sel.has_value() and * type_sel ==
+             source::source_type::text_file and
            id_sel == ordinal(id);
 }
 
 bool project_external_source_editor::selection::is(
   binary_file_source_id id) const noexcept
 {
-    return type_sel.has_value() and
-           *type_sel == source::source_type::binary_file and
+    return type_sel.has_value() and * type_sel ==
+             source::source_type::binary_file and
            id_sel == ordinal(id);
 }
 
 bool project_external_source_editor::selection::is(
   random_source_id id) const noexcept
 {
-    return type_sel.has_value() and *type_sel == source::source_type::random and
+    return type_sel.has_value() and * type_sel ==
+             source::source_type::random and
            id_sel == ordinal(id);
 }
 

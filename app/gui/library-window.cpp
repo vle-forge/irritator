@@ -61,18 +61,16 @@ static bool can_delete_component(application& app, component_id id) noexcept
         return true;
 
     case library_window::is_component_deletable_t::used_by_component:
-        app.notifications.try_insert(
-          log_level::info, [](auto& title, auto& msg) noexcept {
-              title = "Can not delete this component";
-              msg   = "This component is used in another component";
-          });
+        app.jn.push(log_level::info, [](auto& title, auto& msg) noexcept {
+            title = "Can not delete this component";
+            msg   = "This component is used in another component";
+        });
         break;
     case library_window::is_component_deletable_t::used_by_project:
-        app.notifications.try_insert(
-          log_level::info, [](auto& title, auto& msg) noexcept {
-              title = "Can not delete this component";
-              msg   = "This component is used in project";
-          });
+        app.jn.push(log_level::info, [](auto& title, auto& msg) noexcept {
+            title = "Can not delete this component";
+            msg   = "This component is used in project";
+        });
         break;
     }
 
@@ -109,24 +107,23 @@ static void show_component_popup_menu(application& app, component& sel) noexcept
                     new_c.state = component_status::modified;
 
                     if (auto ret = app.mod.copy(sel, new_c); !ret) {
-                        app.notifications.try_insert(
-                          log_level::error,
-                          [](auto& title, auto& msg) noexcept {
-                              title = "Library";
-                              msg   = "Fail to copy model";
-                          });
+                        app.jn.push(log_level::error,
+                                    [](auto& title, auto& msg) noexcept {
+                                        title = "Library";
+                                        msg   = "Fail to copy model";
+                                    });
                     }
 
                     app.add_gui_task(
                       [&app]() noexcept { app.component_sel.update(); });
                 } else {
-                    app.notifications.try_insert(
-                      log_level::error, [&](auto& title, auto& msg) noexcept {
-                          title = "Library";
-                          format(msg,
-                                 "Can not alloc a new component ({})",
-                                 app.mod.components.capacity());
-                      });
+                    app.jn.push(log_level::error,
+                                [&](auto& title, auto& msg) noexcept {
+                                    title = "Library";
+                                    format(msg,
+                                           "Can not alloc a new component ({})",
+                                           app.mod.components.capacity());
+                                });
                 }
             }
 
@@ -142,13 +139,13 @@ static void show_component_popup_menu(application& app, component& sel) noexcept
                         app.component_ed.close(app.mod.components.get_id(sel));
 
                         app.add_gui_task([&]() noexcept {
-                            app.notifications.try_insert(
-                              log_level::notice,
-                              [&](auto& title, auto& msg) noexcept {
-                                  title = "Remove file";
-                                  format(
-                                    msg, "File `{}' removed", file->path.sv());
-                              });
+                            app.jn.push(log_level::notice,
+                                        [&](auto& title, auto& msg) noexcept {
+                                            title = "Remove file";
+                                            format(msg,
+                                                   "File `{}' removed",
+                                                   file->path.sv());
+                                        });
 
                             app.mod.remove_file(*file);
                             if (auto* compo = app.mod.components.try_to_get(id))
@@ -168,7 +165,7 @@ static void show_component_popup_menu(application& app, component& sel) noexcept
 
                         app.add_gui_task(
                           [&app, compo_id, id = sel.file]() noexcept {
-                              app.notifications.try_insert(
+                              app.jn.push(
                                 log_level::notice,
                                 [&](auto& title, auto& /*msg*/) noexcept {
                                     title = "Remove component";
@@ -199,19 +196,19 @@ static void show_component_popup_menu(application& app, component& sel) noexcept
                           enum_cast<internal_component>(sel.id.internal_id),
                           new_c);
                         !ret) {
-                        auto& n = app.notifications.alloc();
-                        n.level = log_level::error;
-                        n.title = "Can not alloc a new component";
-                        app.notifications.enable(n);
+                        app.jn.push(log_level::error, [](auto& t, auto& m) {
+                            t = "Library: copy in generic component";
+                            m = "TODO";
+                        });
                     }
 
                     app.add_gui_task(
                       [&app]() noexcept { app.component_sel.update(); });
                 } else {
-                    auto& n = app.notifications.alloc();
-                    n.level = log_level::error;
-                    n.title = "Can not alloc a new component";
-                    app.notifications.enable(n);
+                    app.jn.push(log_level::error, [](auto& t, auto& m) {
+                        t = "Library: copy in generic component";
+                        m = "Can not allocate a new component";
+                    });
                 }
             }
         }
@@ -550,11 +547,10 @@ void library_window::try_set_component_as_project(
             auto& pj = app.pjs.get(id);
             if (auto* c = app.mod.components.try_to_get(compo_id); c) {
                 if (not pj.pj.set(app.mod, *c)) {
-                    app.notifications.try_insert(
-                      log_level::error, [](auto& title, auto& msg) {
-                          title = "Project failure",
-                          msg   = "Fail to import component as project";
-                      });
+                    app.jn.push(log_level::error, [](auto& title, auto& msg) {
+                        title = "Project failure",
+                        msg   = "Fail to import component as project";
+                    });
                 }
                 pj.disable_access = false;
             }

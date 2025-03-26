@@ -480,9 +480,10 @@ static void show_grid(application&                app,
                                     auto ret = data.connect_input(
                                       s_id, ed.row, ed.col, id);
                                     if (!ret) {
-                                        auto& n = app.notifications.alloc();
-                                        n.title = "Fail to connect input ";
-                                        app.notifications.enable(n);
+                                        app.jn.push(
+                                          log_level::error, [](auto& t, auto&) {
+                                              t = "Fail to connect input ";
+                                          });
                                     }
                                 }
                                 ImGui::PopID();
@@ -512,9 +513,10 @@ static void show_grid(application&                app,
                                     auto ret = data.connect_output(
                                       id, ed.row, ed.col, s_id);
                                     if (!ret) {
-                                        auto& n = app.notifications.alloc();
-                                        n.title = "Fail to connect output ";
-                                        app.notifications.enable(n);
+                                        app.jn.push(
+                                          log_level::error, [](auto& t, auto&) {
+                                              t = "Fail to connect output ";
+                                          });
                                     }
                                 }
                                 ImGui::PopID();

@@ -194,6 +194,8 @@ class main_parameters
     irt::sz         memory = 1024 * 1024 * 8;
     irt::simulation sim;
 
+    irt::journal_handler jn;
+
     irt::modeling_initializer init;
     irt::modeling             mod;
     irt::json_dearchiver      json;
@@ -209,6 +211,7 @@ public:
     main_parameters(int ac, const char* av[])
       : sim(irt::simulation_memory_requirement(1024 * 1024 * 8),
             irt::external_source_memory_requirement(8, 8, 8, 8, 256, 256))
+      , mod(jn)
       , args{ av + 1, static_cast<std::size_t>(ac - 1) }
       , r{ 0.0 }
     {

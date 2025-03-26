@@ -47,7 +47,6 @@ using description_str    = small_string<1022>;
 using registred_path_str = small_string<256 * 16 - 2>;
 using directory_path_str = small_string<512 - 2>;
 using file_path_str      = small_string<512 - 2>;
-using log_str            = small_string<512 - 2>;
 using color              = u32;
 using component_color    = std::array<float, 4>;
 
@@ -123,8 +122,6 @@ enum class component_status {
 enum class modeling_status { modified, unmodified };
 
 class project;
-class log_manager;
-struct log_entry;
 struct connection;
 struct child;
 class generic_component;
@@ -1277,87 +1274,7 @@ public:
     std::span<const double>       get_values() const noexcept;
 };
 
-struct log_entry {
-    log_str   buffer;
-    log_level level;
-};
-
-class log_manager
-{
-public:
-    using value_p = constrained_value<int, 1, 64>;
-
-    constexpr log_manager(const value_p v)
-      : m_data(v.value())
-    {}
-
-    log_manager(const log_manager& other) noexcept            = delete;
-    log_manager& operator=(const log_manager& other) noexcept = delete;
-    log_manager(log_manager&& other) noexcept                 = delete;
-    log_manager& operator=(log_manager&& other) noexcept      = delete;
-
-    template<typename Function>
-    constexpr bool try_push(log_level l, Function&& fn) noexcept
-    {
-        if (ordinal(l) <= ordinal(m_minlevel)) {
-            if (std::unique_lock _(m_mutex, std::try_to_lock); _.owns_lock()) {
-                fn(m_data.force_emplace_enqueue());
-                return true;
-            }
-        }
-
-        return false;
-    }
-
-    template<typename Function>
-    constexpr void push(log_level l, Function&& fn) noexcept
-    {
-        if (ordinal(l) <= ordinal(m_minlevel)) {
-            m_mutex.lock();
-            fn(m_data.force_emplace_enqueue());
-            m_mutex.unlock();
-        }
-    }
-
-    template<typename Function>
-    constexpr bool try_consume(Function&& fn) noexcept
-    {
-        if (std::unique_lock _(m_mutex, std::try_to_lock); _.owns_lock()) {
-            fn(m_data);
-            return true;
-        }
-
-        return false;
-    }
-
-    template<typename Function>
-    constexpr void consume(Function&& fn) noexcept
-    {
-        m_mutex.lock();
-        fn(m_data);
-        m_mutex.unlock();
-    }
-
-    constexpr bool have_entry() const noexcept { return m_data.ssize() > 0; }
-
-    constexpr bool full() const noexcept { return m_data.full(); }
-
-    //! Return true if the underlying container available space is low.
-    //!
-    //! @return true if the remaining entry is lower than 25% of the capacity,
-    //! false otherwise.
-    constexpr bool almost_full() const noexcept
-    {
-        return (m_data.capacity() - m_data.ssize()) <= m_data.capacity() >> 2;
-    }
-
-private:
-    ring_buffer<log_entry> m_data;
-    spin_mutex             m_mutex;
-    log_level              m_minlevel = log_level::notice;
-};
-
-class modeling
+ class modeling
 {
 public:
     /** Stores the description of a component in a text. A description is
@@ -1386,7 +1303,7 @@ public:
 
     modeling_status state = modeling_status::unmodified;
 
-    modeling() noexcept;
+    modeling(journal_handler& jnl) noexcept;
 
     status init(const modeling_initializer& params) noexcept;
 
@@ -1478,7 +1395,7 @@ public:
 
     status save(component& c) noexcept;
 
-    log_manager log_entries;
+    journal_handler& journal;
 
     spin_mutex reg_paths_mutex;
     spin_mutex dir_paths_mutex;

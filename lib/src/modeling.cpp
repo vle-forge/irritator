@@ -18,8 +18,8 @@
 
 namespace irt {
 
-modeling::modeling() noexcept
-  : log_entries(log_manager::value_p(16))
+modeling::modeling(journal_handler& jnl) noexcept
+  : journal(jnl)
 {}
 
 status modeling::init(const modeling_initializer& p) noexcept
@@ -101,16 +101,19 @@ static void prepare_component_loading(modeling&             mod,
                       status = description_status::unread;
                   });
             } else {
-                mod.log_entries.push(log_level::error, [&](auto& e) noexcept {
-                    format(e.buffer,
-                           "Fail to allocate more description ({})",
-                           mod.descriptions.size());
-                });
+                mod.journal.push(
+                  log_level::error, [&](auto& t, auto& m) noexcept {
+                      t = "Modeling initialization error";
+                      format(m,
+                             "Fail to allocate more description ({})",
+                             mod.descriptions.size());
+                  });
             }
         }
     } catch (const std::exception& /*e*/) {
-        mod.log_entries.push(log_level::error, [&](auto& e) noexcept {
-            format(e.buffer,
+        mod.journal.push(log_level::error, [&](auto& t, auto& m) noexcept {
+            t = "Modeling initialization error";
+            format(m,
                    "File system error in {} {} {}",
                    reg_dir.path.sv(),
                    dir.path.sv(),
@@ -279,8 +282,9 @@ static void prepare_component_loading(modeling&             mod,
         }
 
         if (too_many_file) {
-            mod.log_entries.push(log_level::error, [&](auto& e) noexcept {
-                format(e.buffer,
+            mod.journal.push(log_level::error, [&](auto& t, auto& m) noexcept {
+                t = "Modeling initialization error";
+                format(m,
                        "Too many file in application for registred path {} "
                        "directory {}",
                        reg_dir.path.sv(),
@@ -288,8 +292,9 @@ static void prepare_component_loading(modeling&             mod,
             });
         }
     } catch (...) {
-        mod.log_entries.push(log_level::error, [&](auto& e) noexcept {
-            format(e.buffer, "Fail to register path {}", reg_dir.path.sv());
+        mod.journal.push(log_level::error, [&](auto& t, auto& m) noexcept {
+            t = "Modeling initialization error";
+            format(m, "Fail to register path {}", reg_dir.path.sv());
         });
     }
 }
@@ -338,18 +343,20 @@ static void prepare_component_loading(modeling&              mod,
             }
 
             if (too_many_directory) {
-                mod.log_entries.push(log_level::error, [&](auto& e) noexcept {
-                    format(e.buffer,
-                           "Too many directory {} in paths {}\n",
-                           mod.dir_paths.size(),
-                           reg_dir.path.sv());
-                });
+                mod.journal.push(
+                  log_level::error, [&](auto& t, auto& m) noexcept {
+                      t = "Modeling initialization error";
+                      format(m,
+                             "Too many directory {} in paths {}\n",
+                             mod.dir_paths.size(),
+                             reg_dir.path.sv());
+                  });
             }
         }
     } catch (...) {
-        mod.log_entries.push(log_level::error, [&](auto& e) noexcept {
-            format(
-              e.buffer, "File system error in paths {}\n", reg_dir.path.sv());
+        mod.journal.push(log_level::error, [&](auto& t, auto& m) noexcept {
+            t = "Modeling initialization error";
+            format(m, "File system error in paths {}\n", reg_dir.path.sv());
         });
     }
 }
@@ -372,14 +379,15 @@ static void prepare_component_loading(modeling&       mod,
             debug_logi(4, "registered path does not exists");
             reg_dir.status = registred_path::state::error;
 
-            mod.log_entries.push(log_level::error, [&](auto& e) noexcept {
-                format(e.buffer, "Path {} does not exists", reg_dir.path.sv());
+            mod.journal.push(log_level::error, [&](auto& t, auto& m) noexcept {
+                t = "Modeling initialization error";
+                format(m, "Path {} does not exists", reg_dir.path.sv());
             });
         }
     } catch (...) {
-        mod.log_entries.push(log_level::error, [&](auto& e) noexcept {
-            format(
-              e.buffer, "File system error in paths {}\n", reg_dir.path.sv());
+        mod.journal.push(log_level::error, [&](auto& t, auto& m) noexcept {
+            t = "Modeling initialization error";
+            format(m, "File system error in paths {}\n", reg_dir.path.sv());
         });
     }
 }
@@ -505,22 +513,26 @@ status modeling::fill_components() noexcept
 
             if (auto ret = load_component(compo); !ret) {
                 if (compo.state == component_status::unread) {
-                    log_entries.push(log_level::warning, [&](auto& e) noexcept {
-                        format(e.buffer,
-                               "Need to read dependency for component {} ({})",
-                               compo.name.sv(),
-                               static_cast<u64>(components.get_id(compo)));
-                    });
+                    journal.push(
+                      log_level::warning, [&](auto& t, auto& m) noexcept {
+                          t = "Modeling initialization error";
+                          format(
+                            m,
+                            "Need to read dependency for component {} ({})",
+                            compo.name.sv(),
+                            static_cast<u64>(components.get_id(compo)));
+                      });
 
                     have_unread_component = true;
                 }
 
                 if (compo.state == component_status::unreadable) {
-                    log_entries.push(log_level::warning, [&](auto& e) noexcept {
-                        format(e.buffer,
-                               "Fail to read component `{}'",
-                               compo.name.sv());
-                    });
+                    journal.push(
+                      log_level::warning, [&](auto& t, auto& m) noexcept {
+                          t = "Modeling initialization error";
+                          format(
+                            m, "Fail to read component `{}'", compo.name.sv());
+                      });
                 }
             }
         });

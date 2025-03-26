@@ -575,12 +575,11 @@ static void add_popup_menuitem(component_editor&  ed,
 {
     if (not s_parent.children.can_alloc(1)) {
         auto& app = container_of(&ed, &application::component_ed);
-        app.notifications.try_insert(
-          log_level::error, [](auto& title, auto& msg) noexcept {
-              title = "Generic component";
-              msg   = "Can not allocate new model. Delete models or increase "
-                      "generic component default size.";
-          });
+        app.jn.push(log_level::error, [](auto& title, auto& msg) noexcept {
+            title = "Generic component";
+            msg   = "Can not allocate new model. Delete models or increase "
+                    "generic component default size.";
+        });
 
         return;
     }
@@ -599,12 +598,11 @@ static void add_popup_menuitem(component_editor&  ed,
         parent.state = component_status::modified;
 
         auto& app = container_of(&ed, &application::component_ed);
-        app.notifications.try_insert(
-          log_level::info, [type](auto& title, auto& msg) noexcept {
-              title = "Generic component";
-              format(
-                msg, "New model {} added", dynamics_type_names[ordinal(type)]);
-          });
+        app.jn.push(log_level::info, [type](auto& title, auto& msg) noexcept {
+            title = "Generic component";
+            format(
+              msg, "New model {} added", dynamics_type_names[ordinal(type)]);
+        });
     }
 }
 
@@ -659,12 +657,12 @@ static void add_component_to_current(component_editor&  ed,
     const auto compo_to_add_id = app.mod.components.get_id(compo_to_add);
 
     if (app.mod.can_add(parent, compo_to_add)) {
-        auto& notif = app.notifications.alloc(log_level::error);
-        notif.title = "Fail to add component";
-        format(notif.message,
-               "Irritator does not accept recursive component {}",
-               compo_to_add.name.sv());
-        app.notifications.enable(notif);
+        app.jn.push(log_level::error, [&compo_to_add](auto& t, auto& m) {
+            t = "Fail to add component";
+            format(m,
+                   "Irritator does not accept recursive component {}",
+                   compo_to_add.name.sv());
+        });
     }
 
     auto&      c     = parent_compo.children.alloc(compo_to_add_id);
@@ -704,9 +702,9 @@ static void show_popup_menuitem(component_editor&  ed,
                 !app.mod.components.can_alloc() ||
                 !s_parent.children.can_alloc()) {
                 auto& app = container_of(&ed, &application::component_ed);
-                auto& n   = app.notifications.alloc();
-                n.level   = log_level::error;
-                n.title   = "can not allocate a new grid component";
+                app.jn.push(log_level::error, [](auto& t, auto& m) {
+                    t = "can not allocate a new grid component";
+                });
             } else {
                 auto& grid = app.mod.grid_components.alloc();
                 grid.resize(4, 4, undefined<component_id>());
@@ -730,7 +728,7 @@ static void show_popup_menuitem(component_editor&  ed,
             if_data_exists_do(
               app.mod.components, c_id, [&](auto& compo) noexcept {
                   if (compo.type == component_type::hsm)
-                      app.notifications.try_insert(
+                      app.jn.push(
                         log_level::error, [](auto& title, auto& msg) noexcept {
                             title = "Component editor";
                             msg = "Please, use the hsm_wrapper model to add a "
@@ -809,17 +807,17 @@ static void show_popup_menuitem(component_editor&  ed,
 
 static void error_not_enough_connections(application& app, sz capacity) noexcept
 {
-    auto& n = app.notifications.alloc(log_level::error);
-    n.title = "Not enough connection slot in this component";
-    format(n.message, "All connections slots ({}) are used.", capacity);
-    app.notifications.enable(n);
+    app.jn.push(log_level::error, [&](auto& t, auto& m) {
+        t = "Not enough connection slot in this component";
+        format(m, "All connections slots ({}) are used.", capacity);
+    });
 }
 
 static void error_not_connection_auth(application& app) noexcept
 {
-    auto& n = app.notifications.alloc(log_level::error);
-    n.title = "Can not connect component input on output ports";
-    app.notifications.enable(n);
+    app.jn.push(log_level::error, [&](auto& t, auto&) {
+        t = "Can not connect component input on output ports";
+    });
 }
 
 static void is_link_created(application& app,

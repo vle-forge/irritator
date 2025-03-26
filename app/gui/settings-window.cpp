@@ -146,7 +146,7 @@ void settings_window::show() noexcept
                 if (auto ret = app.mod.fill_components(*dir); not ret) {
                     switch (ret.error().cat()) {
                     case category::json_component:
-                        app.notifications.try_insert(
+                        app.jn.push(
                           log_level::error, [](auto& title, auto& msg) {
                               title =
                                 "Refresh components from directory failed";
@@ -155,7 +155,7 @@ void settings_window::show() noexcept
                         break;
 
                     case category::modeling:
-                        app.notifications.try_insert(
+                        app.jn.push(
                           log_level::error, [](auto& title, auto& msg) {
                               title =
                                 "Refresh components from directory failed";
@@ -164,7 +164,7 @@ void settings_window::show() noexcept
                         break;
 
                     default:
-                        app.notifications.try_insert(
+                        app.jn.push(
                           log_level::error, [](auto& title, auto& msg) {
                               title =
                                 "Refresh components from directory failed";
@@ -242,16 +242,16 @@ void settings_window::show() noexcept
             timer_started = false;
             app.add_gui_task([&app]() noexcept {
                 if (auto ret = app.config.save(); ret) {
-                    app.notifications.try_insert(
-                      log_level::error, [ret](auto& title, auto& msg) noexcept {
-                          title = "Settings save failure";
-                          format(msg, "Error in {}", ret.message());
-                      });
+                    app.jn.push(log_level::error,
+                                [ret](auto& title, auto& msg) noexcept {
+                                    title = "Settings save failure";
+                                    format(msg, "Error in {}", ret.message());
+                                });
                 } else {
-                    app.notifications.try_insert(
-                      log_level::info, [](auto& title, auto&) noexcept {
-                          title = "Settings save success";
-                      });
+                    app.jn.push(log_level::info,
+                                [](auto& title, auto&) noexcept {
+                                    title = "Settings save success";
+                                });
                 }
             });
         }

@@ -185,11 +185,10 @@ static void write(application&                    app,
         vobs and vobs->exists(obs_id))
         write(pj, ofs, *vobs, get_index(obs_id));
     else
-        app.notifications.try_insert(log_level::error,
-                                     [](auto& title, auto& msg) noexcept {
-                                         title = "Output editor";
-                                         msg   = "Unknown observation";
-                                     });
+        app.jn.push(log_level::error, [](auto& title, auto& msg) noexcept {
+            title = "Output editor";
+            msg   = "Unknown observation";
+        });
 }
 
 static void write(application&                    app,
@@ -201,13 +200,12 @@ static void write(application&                    app,
     if (auto ofs = std::ofstream{ file_path }; ofs.is_open())
         write(app, pj, ofs, vobs_id, obs_id);
     else
-        app.notifications.try_insert(
-          log_level::error, [&](auto& title, auto& msg) noexcept {
-              title = "Output editor";
-              format(msg,
-                     "Failed to open file `{}' to write observation",
-                     file_path.string());
-          });
+        app.jn.push(log_level::error, [&](auto& title, auto& msg) noexcept {
+            title = "Output editor";
+            format(msg,
+                   "Failed to open file `{}' to write observation",
+                   file_path.string());
+        });
 }
 
 static void write(std::ofstream& ofs, const plot_copy& p) noexcept
@@ -228,11 +226,10 @@ static void write(application&       app,
     if (auto* p = ed.copy_obs.try_to_get(id); p)
         write(ofs, *p);
     else
-        app.notifications.try_insert(log_level::error,
-                                     [](auto& title, auto& msg) noexcept {
-                                         title = "Output editor";
-                                         msg   = "Unknown copy observation";
-                                     });
+        app.jn.push(log_level::error, [](auto& title, auto& msg) noexcept {
+            title = "Output editor";
+            msg   = "Unknown copy observation";
+        });
 }
 
 static void write(application&                 app,
@@ -243,13 +240,12 @@ static void write(application&                 app,
     if (auto ofs = std::ofstream{ file_path }; ofs.is_open())
         write(app, ed, ofs, id);
     else
-        app.notifications.try_insert(
-          log_level::error, [&](auto& title, auto& msg) noexcept {
-              title = "Output editor";
-              format(msg,
-                     "Failed to open file `{}' to write observation",
-                     file_path.string());
-          });
+        app.jn.push(log_level::error, [&](auto& title, auto& msg) noexcept {
+            title = "Output editor";
+            format(msg,
+                   "Failed to open file `{}' to write observation",
+                   file_path.string());
+        });
 }
 
 output_editor::output_editor() noexcept
