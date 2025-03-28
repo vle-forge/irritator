@@ -3294,17 +3294,20 @@ struct json_dearchiver::impl {
         debug::ensure(name.IsString());
 
         if ("dot-file"sv == name.GetString()) {
+            graph.g_type    = graph_component::graph_type::dot_file;
             graph.param.dot = graph_component::dot_file_param{};
             return read_dot_graph_param(val, graph);
         }
 
         if ("scale-free"sv == name.GetString()) {
+            graph.g_type      = graph_component::graph_type::scale_free;
             graph.param.scale = graph_component::scale_free_param{};
             return read_scale_free_graph_param(val, graph) and
                    read_graph_children(val, graph);
         }
 
         if ("small-world"sv == name.GetString()) {
+            graph.g_type      = graph_component::graph_type::small_world;
             graph.param.small = graph_component::small_world_param{};
             return read_small_world_graph_param(val, graph) and
                    read_graph_children(val, graph);
