@@ -1247,8 +1247,8 @@ status modeling::save(component& c) noexcept
             return jfile.error();
 
         json_archiver j;
-        if (not j(*this, c, *jfile))
-            return new_error(json_component_errc::format_error);
+        if (auto ret = j(*this, c, *jfile); ret.has_error())
+            return ret.error();
     }
 
     if (descriptions.exists(c.desc)) {

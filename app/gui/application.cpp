@@ -848,97 +848,50 @@ void application::start_load_project(const registred_path_id id,
             return;
 
         json_dearchiver dearc;
-        dearc(
-          sim_ed->pj,
-          mod,
-          sim_ed->pj.sim,
-          *f_opt,
-          [&](
-            json_dearchiver::error_code ec,
-            std::
-              variant<std::monostate, sz, int, std::pair<sz, std::string_view>>
-                v) noexcept {
-              jn.push(log_level::error, [&](auto& title, auto& msg) noexcept {
-                  format(
-                    title, "Loading project file {} error", file->path.c_str());
-                  switch (ec) {
-                  case json_dearchiver::error_code::memory_error:
-                      if (auto* ptr = std::get_if<sz>(&v); ptr) {
-                          format(msg,
-                                 "json de-archiving memory error: not "
-                                 "enough memory "
-                                 "(requested: {})\n",
-                                 *ptr);
-                      } else {
-                          format(msg,
-                                 "json de-archiving memory error: not "
-                                 "enough memory\n");
-                      }
-                      break;
+        if (auto ret = dearc(sim_ed->pj, mod, sim_ed->pj.sim, *f_opt); ret) {
+            jn.push(log_level::info, [&](auto& title, auto& /*msg*/) noexcept {
+                format(
+                  title, "Loading project file {} success", file->path.c_str());
+            });
 
-                  case json_dearchiver::error_code::arg_error:
-                      format(msg, "json de-archiving internal error\n");
-                      break;
+        } else {
+            jn.push(log_level::error, [&](auto& title, auto& msg) noexcept {
+                format(
+                  title, "Loading project file {} error", file->path.c_str());
 
-                  case json_dearchiver::error_code::file_error:
-                      if (auto* ptr = std::get_if<sz>(&v); ptr) {
-                          format(msg,
-                                 "json de-archiving file error: file too "
-                                 "small {}\n",
-                                 *ptr);
-                      } else {
-                          format(msg,
-                                 "json de-archiving memory error: not "
-                                 "enough memory\n");
-                      }
-                      break;
+                if (ret.error().cat() == category::json) {
+                    switch (static_cast<json_errc>(ret.error().value())) {
+                    case json_errc::memory_error:
+                        format(msg,
+                               "json de-archiving memory error: not "
+                               "enough memory\n");
+                        break;
 
-                  case json_dearchiver::error_code::read_error:
-                      if (auto* ptr = std::get_if<int>(&v); ptr and *ptr != 0) {
-                          format(msg,
-                                 "json de-archiving read error: internal "
-                                 "system {} ({})\n",
-                                 *ptr,
-                                 std::strerror(*ptr));
-                      } else {
-                          format(msg, "json de-archiving read error\n");
-                      }
-                      break;
+                    case json_errc::arg_error:
+                        format(msg, "json de-archiving internal error\n");
+                        break;
 
-                  case json_dearchiver::error_code::format_error:
-                      if (auto* ptr =
-                            std::get_if<std::pair<sz, std::string_view>>(&v);
-                          ptr) {
-                          if (ptr->second.empty()) {
-                              format(msg,
-                                     "json de-archiving json format error at "
-                                     "offset "
-                                     "{}\n",
-                                     ptr->first);
+                    case json_errc::file_error:
+                        format(msg,
+                               "json de-archiving memory error: not "
+                               "enough memory\n");
+                        break;
 
-                          } else {
-                              format(msg,
-                                     "json de-archiving json format error "
-                                     "`{}' at offset "
-                                     "{}\n",
-                                     ptr->second,
-                                     ptr->first);
-                          }
-                      } else {
-                          format(msg, "json de-archiving json format error\n");
-                      }
-                      break;
+                    case json_errc::invalid_project_format:
+                        format(msg,
+                               "json de-archiving json format error "
+                               "`{}' at offset "
+                               "{}\n",
+                               0,
+                               0);
+                        break;
 
-                  default:
-                      format(msg, "json de-archiving unknown error\n");
-                  }
-              });
-          });
-
-        jn.push(log_level::info, [&](auto& title, auto& /*msg*/) noexcept {
-            format(
-              title, "Loading project file {} success", file->path.c_str());
-        });
+                    default:
+                        format(msg, "json de-archiving unknown error\n");
+                    }
+                }
+            });
+        }
     });
 }
 
@@ -963,62 +916,55 @@ void application::start_save_project(const registred_path_id id,
             return;
 
         json_archiver arc;
-        arc(sim_ed->pj,
-            mod,
-            sim_ed->pj.sim,
-            *f_opt,
-            json_archiver::print_option::indent_2_one_line_array,
-            [&](json_archiver::error_code             ec,
-                std::variant<std::monostate, sz, int> v) noexcept {
-                jn.push(log_level::error, [&](auto& title, auto& msg) noexcept {
-                    format(title,
-                           "Saving project file {} error",
-                           file->path.c_str());
+        if (auto ret =
+              arc(sim_ed->pj,
+                  mod,
+                  sim_ed->pj.sim,
+                  *f_opt,
+                  json_archiver::print_option::indent_2_one_line_array);
+            ret) {
+            jn.push(log_level::info, [&](auto& title, auto& /*msg*/) noexcept {
+                format(
+                  title, "Saving project file {} success", file->path.c_str());
+            });
+        } else {
+            jn.push(log_level::error, [&](auto& title, auto& msg) noexcept {
+                format(
+                  title, "Loading project file {} error", file->path.c_str());
 
-                    switch (ec) {
-                    case json_archiver::error_code::memory_error:
-                        if (auto* ptr = std::get_if<sz>(&v); ptr) {
-                            format(msg,
-                                   "json archiving memory error: not "
-                                   "enough memory "
-                                   "(requested: {})\n",
-                                   *ptr);
-                        } else {
-                            format(msg,
-                                   "json archiving memory error: not "
-                                   "enough memory\n");
-                        }
+                if (ret.error().cat() == category::json) {
+                    switch (static_cast<json_errc>(ret.error().value())) {
+                    case json_errc::memory_error:
+                        format(msg,
+                               "json de-archiving memory error: not "
+                               "enough memory\n");
                         break;
 
-                    case json_archiver::error_code::arg_error:
-                        format(msg, "json archiving internal error\n");
+                    case json_errc::arg_error:
+                        format(msg, "json de-archiving internal error\n");
                         break;
 
-                    case json_archiver::error_code::empty_project:
-                        format(msg, "json archiving empty project error\n");
+                    case json_errc::file_error:
+                        format(msg,
+                               "json de-archiving memory error: not "
+                               "enough memory\n");
                         break;
 
-                    case json_archiver::error_code::file_error:
-                        format(msg, "json archiving file access error\n");
-                        break;
-
-                    case json_archiver::error_code::format_error:
-                        format(msg, "json archiving format error\n");
-                        break;
-
-                    case json_archiver::error_code::dependency_error:
-                        format(msg, "json archiving format error\n");
+                    case json_errc::invalid_project_format:
+                        format(msg,
+                               "json de-archiving json format error "
+                               "`{}' at offset "
+                               "{}\n",
+                               0,
+                               0);
                         break;
 
                     default:
                         format(msg, "json de-archiving unknown error\n");
                     }
-                });
+                }
             });
-
-        jn.push(log_level::info, [&](auto& title, auto& /*msg*/) noexcept {
-            format(title, "Saving project file {} success", file->path.c_str());
-        });
+        }
     });
 }
 

@@ -898,10 +898,10 @@ int main()
             sim.alloc<irt::hsm_wrapper>();
 
             irt::json_archiver j;
-            expect(
-              j(sim,
-                out,
-                irt::json_archiver::print_option::indent_2_one_line_array));
+            expect(j(sim,
+                     out,
+                     irt::json_archiver::print_option::indent_2_one_line_array)
+                     .has_value());
 
             expect(out.size() > 0);
         }
@@ -924,7 +924,7 @@ int main()
             auto in = std::span(out.data(), out.size());
 
             irt::json_dearchiver j;
-            expect(j(sim, in));
+            expect(j(sim, in).has_value());
             expect(eq(sim.models.size(), 50u));
         }
     };

@@ -218,7 +218,7 @@ static void named_suffix_connection_add(graph_component& compo,
     });
 }
 
-static std::optional<std::filesystem::path> build_dot_filename(
+static expected<std::filesystem::path> build_dot_filename(
   const modeling&    mod,
   const file_path_id id) noexcept
 {
@@ -229,16 +229,14 @@ static std::optional<std::filesystem::path> build_dot_filename(
                     return std::filesystem::path(r->path.sv()) / d->path.sv() /
                            f->path.sv();
                 } else
-                    debug_log("registred_path not found");
+                    return new_error(modeling_errc::recorded_directory_error);
             } else
-                debug_log("dir_path not found");
+                return new_error(modeling_errc::directory_error);
         } else
-            debug_log("file_path not found");
+            return new_error(modeling_errc::file_error);
     } catch (...) {
-        debug_log("not enough memory");
+        return new_error(modeling_errc::memory_error);
     }
-
-    return std::nullopt;
 }
 
 static expected<void> build_dot_file_edges(
@@ -246,11 +244,8 @@ static expected<void> build_dot_file_edges(
   graph_component&                       graph,
   const graph_component::dot_file_param& params) noexcept
 {
-    if (auto file_opt = build_dot_filename(mod, params.file);
-        file_opt.has_value()) {
-        if (auto dot_graph = parse_dot_file(mod, *file_opt);
-            dot_graph.has_value()) {
-
+    if (auto file = build_dot_filename(mod, params.file); file) {
+        if (auto dot_graph = parse_dot_file(mod, *file); dot_graph) {
             graph.g.nodes = std::move(dot_graph->nodes);
             graph.g.edges = std::move(dot_graph->edges);
 
@@ -264,10 +259,10 @@ static expected<void> build_dot_file_edges(
             graph.g.buffer = std::move(dot_graph->buffer);
         } else
             return dot_graph.error();
-    } else
-        return new_error(file_errc::arg_error);
-
-    return expected<void>();
+    } else {
+        return file.error();
+    }
+    return success();
 }
 
 static constexpr auto edge_exists(const graph&        g,

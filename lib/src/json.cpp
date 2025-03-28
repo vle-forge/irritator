@@ -35,59 +35,44 @@ using namespace std::literals;
 
 namespace irt {
 
-template<typename Callback, typename ErrorCode, typename... Args>
-static constexpr bool report_error(Callback  cb,
-                                   ErrorCode ec,
-                                   Args&&... args) noexcept
-{
-    if (cb) {
-        if constexpr (sizeof...(args) == 0)
-            cb(ec, std::monostate{});
-        else
-            cb(ec, std::forward<Args>(args)...);
-    }
-
-    return false;
-}
-
 enum class connection_type { internal, input, output };
 
 #define report_json_error(error_id__)                                          \
     do {                                                                       \
         error = error_id__;                                                    \
-        if (on_error_callback) {                                               \
-            on_error_callback();                                               \
+        if (m_mod) {                                                           \
+            m_mod->journal.push(log_level::error, [](auto& t, auto& m) {       \
+                t = "Json parser error";                                       \
+                m = error_id__;                                                \
+            });                                                                \
+            for (auto i = 0u; i < stack.size(); ++i) {                         \
+                m_mod->journal.push(log_level::error, [&](auto& t, auto& m) {  \
+                    t = "";                                                    \
+                    m = stack[i];                                              \
+                });                                                            \
+            }                                                                  \
         }                                                                      \
         return false;                                                          \
     } while (0)
 
 struct json_dearchiver::impl {
-    json_dearchiver&          self;
-    json_dearchiver::error_cb cb;
+    json_dearchiver& self;
 
-    impl(json_dearchiver&          self_,
-         modeling&                 mod_,
-         json_dearchiver::error_cb cb_) noexcept
+    impl(json_dearchiver& self_, modeling& mod_) noexcept
       : self(self_)
-      , cb(cb_)
       , m_mod(&mod_)
     {}
 
-    impl(json_dearchiver&          self_,
-         simulation&               sim_,
-         json_dearchiver::error_cb cb_) noexcept
+    impl(json_dearchiver& self_, simulation& sim_) noexcept
       : self(self_)
-      , cb(cb_)
       , m_sim(&sim_)
     {}
 
-    impl(json_dearchiver&          self_,
-         modeling&                 mod_,
-         simulation&               sim_,
-         project&                  pj_,
-         json_dearchiver::error_cb cb_) noexcept
+    impl(json_dearchiver& self_,
+         modeling&        mod_,
+         simulation&      sim_,
+         project&         pj_) noexcept
       : self(self_)
-      , cb(cb_)
       , m_mod(&mod_)
       , m_sim(&sim_)
       , m_pj(&pj_)
@@ -154,7 +139,8 @@ struct json_dearchiver::impl {
                 // debug_logi(stack.ssize(),
                 //            "for-member: unknown element {}\n",
                 //            std::string_view{ it->name.GetString(),
-                //                              it->name.GetStringLength() });
+                //                              it->name.GetStringLength()
+                //                              });
 
                 report_json_error("unknown element");
             }
@@ -163,7 +149,8 @@ struct json_dearchiver::impl {
                 // debug_logi(stack.ssize(),
                 //            "for-member: element {} return false\n",
                 //            std::string_view{ it->name.GetString(),
-                //                              it->name.GetStringLength() });
+                //                              it->name.GetStringLength()
+                //                              });
                 return false;
             }
 
@@ -2045,8 +2032,8 @@ struct json_dearchiver::impl {
     }
 
     /**
-     * Search a directory named @a dir_name into the recorded path @a reg_path
-     * if it exists.
+     * Search a directory named @a dir_name into the recorded path @a
+     * reg_path if it exists.
      * @param reg_path The recorded path to search.
      * @param dir_name The directory name to search.
      */
@@ -2085,11 +2072,12 @@ struct json_dearchiver::impl {
     }
 
     /**
-     * Search a directory named @a dir_name into the recorded path @a reg_path
-     * if it exists.
+     * Search a directory named @a dir_name into the recorded path @a
+     * reg_path if it exists.
      * @param reg_path The recorded path to search.
      * @param dir_name The directory name to search.
-     * @param [out] out Output parameter to store directory identifier found.
+     * @param [out] out Output parameter to store directory identifier
+     * found.
      * @return true if a directory is found, false otherwise.
      */
     auto search_dir(const std::string_view reg_path,
@@ -2216,7 +2204,6 @@ struct json_dearchiver::impl {
         }
 
         report_json_error("unknown element");
-        ;
     }
 
     bool read_child_component(const rapidjson::Value& val,
@@ -3033,7 +3020,6 @@ struct json_dearchiver::impl {
         }
 
         report_json_error("unknown element");
-        ;
     }
 
     bool get_x_port(component&                        compo,
@@ -4760,23 +4746,23 @@ struct json_dearchiver::impl {
         return true;
     }
 
-    bool parse_simulation(const rapidjson::Document& doc) noexcept
+    status parse_simulation(const rapidjson::Document& doc) noexcept
     {
         sim().clear();
 
         if (read_simulation(doc.GetObject()))
-            return true;
+            return success();
 
         debug_logi(2, "read simulation fail with {}\n", *error);
 
         for (auto i = 0u; i < stack.size(); ++i)
             debug_logi(2, "  {}: {}\n", static_cast<int>(i), stack[i]);
 
-        return report_error(cb, json_dearchiver::error_code::format_error);
+        return new_error(json_errc::invalid_simulation_format);
     }
 
-    bool parse_component(const rapidjson::Document& doc,
-                         component&                 compo) noexcept
+    status parse_component(const rapidjson::Document& doc,
+                           component&                 compo) noexcept
     {
         debug::ensure(compo.state != component_status::unmodified);
 
@@ -4790,84 +4776,70 @@ struct json_dearchiver::impl {
             show_error();
 #endif
 
-            return report_error(cb,
-                                json_dearchiver::error_code::dependency_error);
+            return new_error(json_errc::invalid_component_format);
         }
 
-        return true;
+        return success();
     }
 
-    bool parse_project(const rapidjson::Document& doc) noexcept
+    status parse_project(const rapidjson::Document& doc) noexcept
     {
         pj().clear();
         sim().clear();
 
         if (read_project(doc.GetObject()))
-            return true;
+            return success();
 
         debug_log("read project fail with {}\n", *error);
 
         for (auto i = 0u; i < stack.size(); ++i)
             debug_logi(2, "  {}: {}\n", static_cast<int>(i), stack[i]);
 
-        return report_error(cb, json_dearchiver::error_code::format_error);
+        return new_error(json_errc::invalid_project_format);
     }
 };
 
-static bool read_file_to_buffer(vector<char>&             buffer,
-                                file&                     f,
-                                json_dearchiver::error_cb cb) noexcept
+static status read_file_to_buffer(vector<char>& buffer, file& f) noexcept
 {
     debug::ensure(f.is_open());
     debug::ensure(f.get_mode() == open_mode::read);
 
     if (not f.is_open() or f.get_mode() != open_mode::read)
-        return report_error(cb, json_dearchiver::error_code::arg_error);
+        return new_error(file_errc::open_error);
 
     const auto len = f.length();
     if (std::cmp_less(len, 2))
-        return report_error(
-          cb, json_dearchiver::error_code::file_error, static_cast<sz>(len));
+        return new_error(file_errc::empty);
 
     buffer.resize(len);
-
     if (std::cmp_less(buffer.size(), len))
-        return report_error(
-          cb, json_dearchiver::error_code::memory_error, static_cast<sz>(len));
+        return new_error(file_errc::memory_error);
 
     if (not f.read(buffer.data(), len))
-        return report_error(
-          cb, json_dearchiver::error_code::read_error, static_cast<int>(errno));
+        return new_error(file_errc::memory_error);
 
-    return true;
+    return success();
 }
 
-static bool parse_json_data(std::span<char>           buffer,
-                            rapidjson::Document&      doc,
-                            json_dearchiver::error_cb cb) noexcept
+static status parse_json_data(std::span<char>      buffer,
+                              rapidjson::Document& doc) noexcept
 {
     doc.Parse<rapidjson::kParseNanAndInfFlag>(buffer.data(), buffer.size());
 
     if (doc.HasParseError())
-        return report_error(
-          cb,
-          json_dearchiver::error_code::format_error,
-          std::make_pair(doc.GetErrorOffset(),
-                         GetParseError_En(doc.GetParseError())));
+        return new_error(json_errc::invalid_format);
 
-    return true;
+    return success();
 }
 
 //
 //
 
 struct json_archiver::impl {
-    json_archiver&          self;
-    json_archiver::error_cb cb;
+    json_archiver& self;
 
-    impl(json_archiver& self_, json_archiver::error_cb cb_) noexcept
+    impl(json_archiver& self_) noexcept
       : self{ self_ }
-      , cb{ cb_ }
     {}
 
     template<typename Writer, int QssLevel>
@@ -6983,30 +6955,30 @@ struct json_archiver::impl {
     }
 
     template<typename Writer>
-    bool do_project_save(Writer&    w,
-                         project&   pj,
-                         modeling&  mod,
-                         component& compo) noexcept
+    status do_project_save(Writer&    w,
+                           project&   pj,
+                           modeling&  mod,
+                           component& compo) noexcept
     {
         auto* reg = mod.registred_paths.try_to_get(compo.reg_path);
         if (!reg)
-            return report_error(cb, json_archiver::error_code::file_error);
+            return new_error(modeling_errc::recorded_directory_error);
         if (reg->path.empty())
-            return report_error(cb, json_archiver::error_code::file_error);
+            return new_error(modeling_errc::directory_error);
         if (reg->name.empty())
-            return report_error(cb, json_archiver::error_code::file_error);
+            return new_error(modeling_errc::file_error);
 
         auto* dir = mod.dir_paths.try_to_get(compo.dir);
         if (!dir)
-            return report_error(cb, json_archiver::error_code::file_error);
+            return new_error(modeling_errc::directory_error);
         if (dir->path.empty())
-            return report_error(cb, json_archiver::error_code::file_error);
+            return new_error(modeling_errc::directory_error);
 
         auto* file = mod.file_paths.try_to_get(compo.file);
         if (!file)
-            return report_error(cb, json_archiver::error_code::file_error);
+            return new_error(modeling_errc::file_error);
         if (file->path.empty())
-            return report_error(cb, json_archiver::error_code::file_error);
+            return new_error(modeling_errc::file_error);
 
         w.StartObject();
 
@@ -7020,7 +6992,7 @@ struct json_archiver::impl {
         do_project_save_observations(w, pj);
         w.EndObject();
 
-        return true;
+        return success();
     }
 };
 
@@ -7050,21 +7022,19 @@ void json_dearchiver::clear() noexcept
     sim_hsms_mapping.data.clear();
 }
 
-bool irt::json_dearchiver::set_buffer(const u32 buffer_size) noexcept
+status irt::json_dearchiver::set_buffer(const u32 buffer_size) noexcept
 {
     if (std::cmp_less(buffer.capacity(), buffer_size)) {
         buffer.resize(buffer_size);
 
         if (std::cmp_less(buffer.capacity(), buffer_size))
-            return false;
+            return new_error(json_errc::memory_error);
     }
 
-    return true;
+    return success();
 }
 
-bool json_dearchiver::operator()(simulation& sim,
-                                 file&       io,
-                                 error_cb    cb) noexcept
+status json_dearchiver::operator()(simulation& sim, file& io) noexcept
 {
     debug::ensure(io.is_open());
     debug::ensure(io.get_mode() == open_mode::read);
@@ -7072,19 +7042,19 @@ bool json_dearchiver::operator()(simulation& sim,
 
     rapidjson::Document doc;
 
-    if (not(read_file_to_buffer(buffer, io, cb) and
-            parse_json_data(std::span(buffer.data(), buffer.size()), doc, cb)))
-        return false;
-
-    json_dearchiver::impl i(*this, sim, cb);
-
-    return i.parse_simulation(doc);
+    return read_file_to_buffer(buffer, io)
+      .and_then([&]() {
+          return parse_json_data(std::span(buffer.data(), buffer.size()), doc);
+      })
+      .and_then([&]() {
+          json_dearchiver::impl i(*this, sim);
+          return i.parse_simulation(doc);
+      });
 }
 
-bool json_dearchiver::operator()(modeling&  mod,
-                                 component& compo,
-                                 file&      io,
-                                 error_cb   err) noexcept
+status json_dearchiver::operator()(modeling&  mod,
+                                   component& compo,
+                                   file&      io) noexcept
 {
     debug::ensure(io.is_open());
     debug::ensure(io.get_mode() == open_mode::read);
@@ -7092,19 +7062,20 @@ bool json_dearchiver::operator()(modeling&  mod,
 
     rapidjson::Document doc;
 
-    if (not(read_file_to_buffer(buffer, io, err) and
-            parse_json_data(std::span(buffer.data(), buffer.size()), doc, err)))
-        return false;
-
-    json_dearchiver::impl i(*this, mod, err);
-    return i.parse_component(doc, compo);
+    return read_file_to_buffer(buffer, io)
+      .and_then([&]() {
+          return parse_json_data(std::span(buffer.data(), buffer.size()), doc);
+      })
+      .and_then([&]() {
+          json_dearchiver::impl i(*this, mod);
+          return i.parse_component(doc, compo);
+      });
 }
 
-bool json_dearchiver::operator()(project&    pj,
-                                 modeling&   mod,
-                                 simulation& sim,
-                                 file&       io,
-                                 error_cb    err) noexcept
+status json_dearchiver::operator()(project&    pj,
+                                   modeling&   mod,
+                                   simulation& sim,
+                                   file&       io) noexcept
 {
     debug::ensure(io.is_open());
     debug::ensure(io.get_mode() == open_mode::read);
@@ -7112,132 +7083,129 @@ bool json_dearchiver::operator()(project&    pj,
 
     rapidjson::Document doc;
 
-    if (not(read_file_to_buffer(buffer, io, err) and
-            parse_json_data(std::span(buffer.data(), buffer.size()), doc, err)))
-        return false;
-
-    json_dearchiver::impl i(*this, mod, sim, pj, err);
-    return i.parse_project(doc);
+    return read_file_to_buffer(buffer, io)
+      .and_then([&]() {
+          return parse_json_data(std::span(buffer.data(), buffer.size()), doc);
+      })
+      .and_then([&]() {
+          json_dearchiver::impl i(*this, mod, sim, pj);
+          return i.parse_project(doc);
+      });
 }
 
-bool json_dearchiver::operator()(simulation&     sim,
-                                 std::span<char> io,
-                                 error_cb        err) noexcept
+status json_dearchiver::operator()(simulation& sim, std::span<char> io) noexcept
 {
     clear();
     rapidjson::Document doc;
 
-    if (not parse_json_data(io, doc, err))
-        return false;
-
-    json_dearchiver::impl i(*this, sim, err);
-    return i.parse_simulation(doc);
+    return parse_json_data(io, doc).and_then([&]() {
+        json_dearchiver::impl i(*this, sim);
+        return i.parse_simulation(doc);
+    });
 }
 
-bool json_dearchiver::operator()(modeling&       mod,
-                                 component&      compo,
-                                 std::span<char> io,
-                                 error_cb        err) noexcept
+status json_dearchiver::operator()(modeling&       mod,
+                                   component&      compo,
+                                   std::span<char> io) noexcept
 {
     clear();
     rapidjson::Document doc;
 
-    if (not parse_json_data(io, doc, err))
-        return false;
-
-    json_dearchiver::impl i(*this, mod, err);
-    return i.parse_component(doc, compo);
+    return parse_json_data(io, doc).and_then([&]() {
+        json_dearchiver::impl i(*this, mod);
+        return i.parse_component(doc, compo);
+    });
 }
 
-bool json_dearchiver::operator()(project&        pj,
-                                 modeling&       mod,
-                                 simulation&     sim,
-                                 std::span<char> io,
-                                 error_cb        err) noexcept
+status json_dearchiver::operator()(project&        pj,
+                                   modeling&       mod,
+                                   simulation&     sim,
+                                   std::span<char> io) noexcept
 {
     clear();
     rapidjson::Document doc;
 
-    if (not parse_json_data(io, doc, err))
-        return false;
-
-    json_dearchiver::impl i(*this, mod, sim, pj, err);
-    return i.parse_project(doc);
+    return parse_json_data(io, doc).and_then([&]() {
+        json_dearchiver::impl i(*this, mod, sim, pj);
+        return i.parse_project(doc);
+    });
 }
 
-void json_dearchiver::cerr(
-  json_dearchiver::error_code ec,
-  std::variant<std::monostate, sz, int, std::pair<sz, std::string_view>>
-    v) noexcept
-{
-    switch (ec) {
-    case json_dearchiver::error_code::memory_error:
-        if (auto* ptr = std::get_if<sz>(&v); ptr) {
-            fmt::print(std::cerr,
-                       "json de-archiving memory error: not enough memory "
-                       "(requested: {})\n",
-                       *ptr);
-        } else {
-            fmt::print(std::cerr,
-                       "json de-archiving memory error: not enough memory\n");
-        }
-        break;
+// void json_dearchiver::cerr(
+//   json_dearchiver::error_code ec,
+//   std::variant<std::monostate, sz, int, std::pair<sz, std::string_view>>
+//     v) noexcept
+// {
+//     switch (ec) {
+//     case json_dearchiver::error_code::memory_error:
+//         if (auto* ptr = std::get_if<sz>(&v); ptr) {
+//             fmt::print(std::cerr,
+//                        "json de-archiving memory error: not enough memory "
+//                        "(requested: {})\n",
+//                        *ptr);
+//         } else {
+//             fmt::print(std::cerr,
+//                        "json de-archiving memory error: not enough
+//                        memory\n");
+//         }
+//         break;
 
-    case json_dearchiver::error_code::arg_error:
-        fmt::print(std::cerr, "json de-archiving internal error\n");
-        break;
+//     case json_dearchiver::error_code::arg_error:
+//         fmt::print(std::cerr, "json de-archiving internal error\n");
+//         break;
 
-    case json_dearchiver::error_code::file_error:
-        if (auto* ptr = std::get_if<sz>(&v); ptr) {
-            fmt::print(std::cerr,
-                       "json de-archiving file error: file too small {}\n",
-                       *ptr);
-        } else {
-            fmt::print(std::cerr,
-                       "json de-archiving memory error: not enough memory\n");
-        }
-        break;
+//     case json_dearchiver::error_code::file_error:
+//         if (auto* ptr = std::get_if<sz>(&v); ptr) {
+//             fmt::print(std::cerr,
+//                        "json de-archiving file error: file too small {}\n",
+//                        *ptr);
+//         } else {
+//             fmt::print(std::cerr,
+//                        "json de-archiving memory error: not enough
+//                        memory\n");
+//         }
+//         break;
 
-    case json_dearchiver::error_code::read_error:
-        if (auto* ptr = std::get_if<int>(&v); ptr and *ptr != 0) {
-            fmt::print(
-              std::cerr,
-              "json de-archiving read error: internal system {} ({})\n",
-              *ptr,
-              std::strerror(*ptr));
-        } else {
-            fmt::print(std::cerr, "json de-archiving read error\n");
-        }
-        break;
+//     case json_dearchiver::error_code::read_error:
+//         if (auto* ptr = std::get_if<int>(&v); ptr and *ptr != 0) {
+//             fmt::print(
+//               std::cerr,
+//               "json de-archiving read error: internal system {} ({})\n",
+//               *ptr,
+//               std::strerror(*ptr));
+//         } else {
+//             fmt::print(std::cerr, "json de-archiving read error\n");
+//         }
+//         break;
 
-    case json_dearchiver::error_code::format_error:
-        if (auto* ptr = std::get_if<std::pair<sz, std::string_view>>(&v); ptr) {
-            if (ptr->second.empty()) {
-                fmt::print(std::cerr,
-                           "json de-archiving json format error at offset {}\n",
-                           ptr->first);
-            } else {
-                fmt::print(
-                  std::cerr,
-                  "json de-archiving json format error `{}' at offset {}\n",
-                  ptr->second,
-                  ptr->first);
-            }
-        } else {
-            fmt::print(std::cerr, "json de-archiving json format error\n");
-        }
-        break;
+//     case json_dearchiver::error_code::format_error:
+//         if (auto* ptr = std::get_if<std::pair<sz, std::string_view>>(&v);
+//         ptr) {
+//             if (ptr->second.empty()) {
+//                 fmt::print(std::cerr,
+//                            "json de-archiving json format error at offset
+//                            {}\n", ptr->first);
+//             } else {
+//                 fmt::print(
+//                   std::cerr,
+//                   "json de-archiving json format error `{}' at offset {}\n",
+//                   ptr->second,
+//                   ptr->first);
+//             }
+//         } else {
+//             fmt::print(std::cerr, "json de-archiving json format error\n");
+//         }
+//         break;
 
-    default:
-        fmt::print(std::cerr, "json de-archiving unknown error\n");
-    }
-}
+//     default:
+//         fmt::print(std::cerr, "json de-archiving unknown error\n");
+//     }
+// }
 
-bool json_archiver::operator()(modeling&                   mod,
-                               component&                  compo,
-                               file&                       io,
-                               json_archiver::print_option print,
-                               error_cb                    err) noexcept
+status json_archiver::operator()(modeling&                   mod,
+                                 component&                  compo,
+                                 file&                       io,
+                                 json_archiver::print_option print) noexcept
 {
     clear();
 
@@ -7245,7 +7213,7 @@ bool json_archiver::operator()(modeling&                   mod,
     debug::ensure(io.get_mode() == open_mode::write);
 
     if (not(io.is_open() and io.get_mode() == open_mode::write))
-        return report_error(err, json_archiver::error_code::arg_error);
+        return new_error(file_errc::open_error);
 
     auto fp = reinterpret_cast<FILE*>(io.get_handle());
     buffer.resize(4096);
@@ -7258,7 +7226,7 @@ bool json_archiver::operator()(modeling&                   mod,
                             rapidjson::kWriteNanAndInfFlag>
       w(os);
 
-    json_archiver::impl i{ *this, err };
+    json_archiver::impl i{ *this };
 
     switch (print) {
     case json_archiver::print_option::indent_2:
@@ -7277,21 +7245,20 @@ bool json_archiver::operator()(modeling&                   mod,
         break;
     }
 
-    return true;
+    return success();
 }
 
-bool json_archiver::operator()(modeling&                   mod,
-                               component&                  compo,
-                               vector<char>&               out,
-                               json_archiver::print_option print,
-                               error_cb                    err) noexcept
+status json_archiver::operator()(modeling&                   mod,
+                                 component&                  compo,
+                                 vector<char>&               out,
+                                 json_archiver::print_option print) noexcept
 {
     clear();
 
     rapidjson::StringBuffer buffer;
     buffer.Reserve(4096u);
 
-    json_archiver::impl i{ *this, err };
+    json_archiver::impl i{ *this };
 
     switch (print) {
     case json_archiver::print_option::indent_2: {
@@ -7333,13 +7300,12 @@ bool json_archiver::operator()(modeling&                   mod,
     out.resize(static_cast<int>(length));
     std::copy_n(str, length, out.data());
 
-    return true;
+    return success();
 }
 
-bool json_archiver::operator()(const simulation&           sim,
-                               file&                       io,
-                               json_archiver::print_option print,
-                               error_cb                    err) noexcept
+status json_archiver::operator()(const simulation&           sim,
+                                 file&                       io,
+                                 json_archiver::print_option print) noexcept
 {
     clear();
 
@@ -7347,7 +7313,7 @@ bool json_archiver::operator()(const simulation&           sim,
     debug::ensure(io.get_mode() == open_mode::write);
 
     if (not(io.is_open() and io.get_mode() == open_mode::write))
-        return report_error(err, json_archiver::error_code::arg_error);
+        return new_error(file_errc::open_error);
 
     auto fp = reinterpret_cast<FILE*>(io.get_handle());
     buffer.resize(4096);
@@ -7359,7 +7325,7 @@ bool json_archiver::operator()(const simulation&           sim,
                             rapidjson::CrtAllocator,
                             rapidjson::kWriteNanAndInfFlag>
                         w(os);
-    json_archiver::impl i{ *this, err };
+    json_archiver::impl i{ *this };
 
     switch (print) {
     case print_option::indent_2:
@@ -7378,20 +7344,19 @@ bool json_archiver::operator()(const simulation&           sim,
         break;
     }
 
-    return true;
+    return success();
 }
 
-bool json_archiver::operator()(const simulation& sim,
-                               vector<char>&     out,
-                               print_option      print_options,
-                               error_cb          err) noexcept
+status json_archiver::operator()(const simulation& sim,
+                                 vector<char>&     out,
+                                 print_option      print_options) noexcept
 {
     clear();
 
     rapidjson::StringBuffer buffer;
     buffer.Reserve(4096u);
 
-    json_archiver::impl i{ *this, err };
+    json_archiver::impl i{ *this };
 
     switch (print_options) {
     case print_option::indent_2: {
@@ -7436,15 +7401,14 @@ bool json_archiver::operator()(const simulation& sim,
     out.resize(static_cast<int>(length));
     std::copy_n(str, length, out.data());
 
-    return true;
+    return success();
 }
 
-bool json_archiver::operator()(project&  pj,
-                               modeling& mod,
-                               simulation& /* sim */,
-                               file&        io,
-                               print_option print_options,
-                               error_cb     err) noexcept
+status json_archiver::operator()(project&  pj,
+                                 modeling& mod,
+                                 simulation& /* sim */,
+                                 file&        io,
+                                 print_option print_options) noexcept
 {
     clear();
 
@@ -7452,27 +7416,27 @@ bool json_archiver::operator()(project&  pj,
     debug::ensure(io.get_mode() == open_mode::write);
 
     if (not(io.is_open() and io.get_mode() == open_mode::write))
-        return report_error(err, json_archiver::error_code::arg_error);
+        return new_error(file_errc::open_error);
 
     auto* compo  = mod.components.try_to_get(pj.head());
     auto* parent = pj.tn_head();
 
     if (not(compo and parent))
-        return report_error(err, json_archiver::error_code::empty_project);
+        return new_error(project_errc::empty_project);
 
     debug::ensure(mod.components.get_id(compo) == parent->id);
 
     auto* reg = mod.registred_paths.try_to_get(compo->reg_path);
     if (!reg)
-        return report_error(err, json_archiver::error_code::file_error);
+        return new_error(modeling_errc::recorded_directory_error);
 
     auto* dir = mod.dir_paths.try_to_get(compo->dir);
     if (!dir)
-        return report_error(err, json_archiver::error_code::file_error);
+        return new_error(modeling_errc::directory_error);
 
     auto* file = mod.file_paths.try_to_get(compo->file);
     if (!file)
-        return report_error(err, json_archiver::error_code::file_error);
+        return new_error(modeling_errc::file_error);
 
     auto fp = reinterpret_cast<FILE*>(io.get_handle());
     clear();
@@ -7485,7 +7449,7 @@ bool json_archiver::operator()(project&  pj,
                             rapidjson::CrtAllocator,
                             rapidjson::kWriteNanAndInfFlag>
                         w(os);
-    json_archiver::impl i{ *this, err };
+    json_archiver::impl i{ *this };
 
     switch (print_options) {
     case print_option::indent_2:
@@ -7502,12 +7466,11 @@ bool json_archiver::operator()(project&  pj,
     }
 }
 
-bool json_archiver::operator()(project&  pj,
-                               modeling& mod,
-                               simulation& /* sim */,
-                               vector<char>& out,
-                               print_option  print_options,
-                               error_cb      err) noexcept
+status json_archiver::operator()(project&  pj,
+                                 modeling& mod,
+                                 simulation& /* sim */,
+                                 vector<char>& out,
+                                 print_option  print_options) noexcept
 {
     clear();
 
@@ -7515,13 +7478,13 @@ bool json_archiver::operator()(project&  pj,
     auto* parent = pj.tn_head();
 
     if (!(compo && parent))
-        return report_error(err, json_archiver::error_code::empty_project);
+        return new_error(project_errc::empty_project);
 
     debug::ensure(mod.components.get_id(compo) == parent->id);
 
     rapidjson::StringBuffer rbuffer;
     rbuffer.Reserve(4096u);
-    json_archiver::impl i{ *this, err };
+    json_archiver::impl i{ *this };
 
     switch (print_options) {
     case print_option::indent_2: {
@@ -7564,49 +7527,49 @@ bool json_archiver::operator()(project&  pj,
     std::copy_n(str, length, out.data());
     out.back() = '\0';
 
-    return true;
+    return success();
 }
 
-void json_archiver::cerr(json_archiver::error_code             ec,
-                         std::variant<std::monostate, sz, int> v) noexcept
-{
-    switch (ec) {
-    case json_archiver::error_code::memory_error:
-        if (auto* ptr = std::get_if<sz>(&v); ptr) {
-            fmt::print(std::cerr,
-                       "json archiving memory error: not enough memory "
-                       "(requested: {})\n",
-                       *ptr);
-        } else {
-            fmt::print(std::cerr,
-                       "json archiving memory error: not enough memory\n");
-        }
-        break;
+// void json_archiver::cerr(json_archiver::error_code             ec,
+//                          std::variant<std::monostate, sz, int> v) noexcept
+// {
+//     switch (ec) {
+//     case json_archiver::error_code::memory_error:
+//         if (auto* ptr = std::get_if<sz>(&v); ptr) {
+//             fmt::print(std::cerr,
+//                        "json archiving memory error: not enough memory "
+//                        "(requested: {})\n",
+//                        *ptr);
+//         } else {
+//             fmt::print(std::cerr,
+//                        "json archiving memory error: not enough memory\n");
+//         }
+//         break;
 
-    case json_archiver::error_code::arg_error:
-        fmt::print(std::cerr, "json archiving internal error\n");
-        break;
+//     case json_archiver::error_code::arg_error:
+//         fmt::print(std::cerr, "json archiving internal error\n");
+//         break;
 
-    case json_archiver::error_code::empty_project:
-        fmt::print(std::cerr, "json archiving empty project error\n");
-        break;
+//     case json_archiver::error_code::empty_project:
+//         fmt::print(std::cerr, "json archiving empty project error\n");
+//         break;
 
-    case json_archiver::error_code::file_error:
-        fmt::print(std::cerr, "json archiving file access error\n");
-        break;
+//     case json_archiver::error_code::file_error:
+//         fmt::print(std::cerr, "json archiving file access error\n");
+//         break;
 
-    case json_archiver::error_code::format_error:
-        fmt::print(std::cerr, "json archiving format error\n");
-        break;
+//     case json_archiver::error_code::format_error:
+//         fmt::print(std::cerr, "json archiving format error\n");
+//         break;
 
-    case json_archiver::error_code::dependency_error:
-        fmt::print(std::cerr, "json archiving format error\n");
-        break;
+//     case json_archiver::error_code::dependency_error:
+//         fmt::print(std::cerr, "json archiving format error\n");
+//         break;
 
-    default:
-        fmt::print(std::cerr, "json de-archiving unknown error\n");
-    }
-}
+//     default:
+//         fmt::print(std::cerr, "json de-archiving unknown error\n");
+//     }
+// }
 
 void json_archiver::destroy() noexcept
 {

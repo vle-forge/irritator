@@ -545,12 +545,12 @@ int main()
             expect(eq(pj.sim.models.ssize(), g.cells_number() * 2));
 
             irt::json_archiver j;
-            expect(
-              j(pj,
-                mod,
-                pj.sim,
-                buffer,
-                irt::json_archiver::print_option::indent_2_one_line_array));
+            expect(j(pj,
+                     mod,
+                     pj.sim,
+                     buffer,
+                     irt::json_archiver::print_option::indent_2_one_line_array)
+                     .has_value());
         }
 
         expect(buffer.size() > 0u);
@@ -575,7 +575,8 @@ int main()
             std::exchange(irt::on_error_callback, old_cb);
 
             irt::json_dearchiver j;
-            expect(j(pj, mod, pj.sim, std::span(buffer.data(), buffer.size())));
+            expect(j(pj, mod, pj.sim, std::span(buffer.data(), buffer.size()))
+                     .has_value());
         }
     };
 

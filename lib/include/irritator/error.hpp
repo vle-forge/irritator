@@ -31,15 +31,14 @@ inline error_handler* on_error_callback = nullptr;
  */
 enum class category : std::int16_t {
     generic, /**< Equivalent to std::generic_error. */
-    system, /**< Equivalent to std::system_error. */
-    stream, /**< Equivalent to std::stream_error. */
-    future, /**< Equivalent to std::future_error. */
+    system,  /**< Equivalent to std::system_error. */
+    stream,  /**< Equivalent to std::stream_error. */
+    future,  /**< Equivalent to std::future_error. */
 
     fs,
     file,
 
-    json_project,
-    json_component,
+    json,
 
     modeling,
 
@@ -65,10 +64,10 @@ enum class timeline_errc {
 };
 
 enum class file_errc : std::int16_t {
-    memory_error = 1,
-    eof_error,
-    arg_error,
-    open_error,
+    memory_error = 1, /**< Fail to allocate memory. */
+    eof_error,        /**< End of file reach too quickly. */
+    open_error,       /**< Fail to open the file with common API. */
+    empty,            /**< The file can not be empty. */
 };
 
 enum class fs_errc : std::int16_t {
@@ -129,6 +128,8 @@ enum class external_source_errc : std::int16_t {
 enum class project_errc : std::int16_t {
     memory_error = 1,
 
+    empty_project,
+
     import_error,
     component_cache_error,
     component_unknown,
@@ -136,14 +137,16 @@ enum class project_errc : std::int16_t {
     component_port_y_unknown,
 };
 
-enum class json_project_errc : std::int16_t {
+enum class json_errc : std::int16_t {
     memory_error = 1,
-    format_error,
-};
 
-enum class json_component_errc : std::int16_t {
-    memory_error = 1,
-    format_error,
+    invalid_format, /**< The JSON file is invalid. */
+    invalid_simulation_format,
+    invalid_component_format,
+    invalid_project_format,
+    arg_error,
+    file_error,
+    dependency_error,
 };
 
 enum class modeling_errc : std::int16_t {
@@ -200,27 +203,28 @@ enum class modeling_errc : std::int16_t {
  * category which corresponds to the said interface. The error code values are
  * not required to be unique across different error categories.
  */
-class error_code {
+class error_code
+{
 private:
-    std::int16_t m_ec = 0;
-    category m_cat = category::generic;
+    std::int16_t m_ec  = 0;
+    category     m_cat = category::generic;
 
 public:
     constexpr error_code() noexcept = default;
 
     constexpr error_code(std::int16_t error, category cat) noexcept
-        : m_ec(error)
-        , m_cat(cat)
-    {
-    }
+      : m_ec(error)
+      , m_cat(cat)
+    {}
 
-    template <typename ErrorCodeEnum>
-        requires(std::is_enum_v<ErrorCodeEnum> and std::is_convertible_v<std::underlying_type_t<ErrorCodeEnum>, std::int16_t>)
+    template<typename ErrorCodeEnum>
+        requires(std::is_enum_v<ErrorCodeEnum> and
+                 std::is_convertible_v<std::underlying_type_t<ErrorCodeEnum>,
+                                       std::int16_t>)
     constexpr inline error_code(ErrorCodeEnum e_, category cat_) noexcept
-        : m_ec(static_cast<std::int16_t>(e_))
-        , m_cat(cat_)
-    {
-    }
+      : m_ec(static_cast<std::int16_t>(e_))
+      , m_cat(cat_)
+    {}
 
     //!< Returns the platform dependent error code value.
     constexpr std::int16_t value() const noexcept { return m_ec; }
@@ -233,7 +237,7 @@ public:
     constexpr explicit operator bool() const noexcept { return m_ec != 0; }
 };
 
-template <typename ErrorCodeEnum>
+template<typename ErrorCodeEnum>
     requires(std::is_enum_v<ErrorCodeEnum>)
 inline error_code new_error(ErrorCodeEnum e) noexcept
 {
@@ -248,9 +252,11 @@ inline error_code new_error(ErrorCodeEnum e) noexcept
         return error_code(static_cast<std::int16_t>(e), category::project);
     else if constexpr (std::is_same_v<modeling_errc, ErrorCodeEnum>)
         return error_code(static_cast<std::int16_t>(e), category::modeling);
+    else if constexpr (std::is_same_v<json_errc, ErrorCodeEnum>)
+        return error_code(static_cast<std::int16_t>(e), category::json);
     else if constexpr (std::is_same_v<external_source_errc, ErrorCodeEnum>)
         return error_code(static_cast<std::int16_t>(e),
-            category::external_source);
+                          category::external_source);
     else if constexpr (std::is_same_v<fs_errc, ErrorCodeEnum>)
         return error_code(static_cast<std::int16_t>(e), category::fs);
     else if constexpr (std::is_same_v<file_errc, ErrorCodeEnum>)
@@ -260,7 +266,7 @@ inline error_code new_error(ErrorCodeEnum e) noexcept
 }
 
 constexpr inline error_code new_error(std::integral auto e,
-    enum category cat) noexcept
+                                      enum category      cat) noexcept
 {
     debug::ensure(std::cmp_greater_equal(e, INT16_MIN));
     debug::ensure(std::cmp_less_equal(e, INT16_MAX));
@@ -271,14 +277,14 @@ constexpr inline error_code new_error(std::integral auto e,
     return error_code(static_cast<std::int16_t>(e), cat);
 }
 
-template <typename ErrorCodeEnum>
+template<typename ErrorCodeEnum>
     requires(std::is_enum_v<ErrorCodeEnum>)
 inline error_code new_error(ErrorCodeEnum e, enum category cat) noexcept
 {
     debug::ensure(std::cmp_less_equal(
-        static_cast<std::underlying_type_t<ErrorCodeEnum>>(e), INT16_MAX));
+      static_cast<std::underlying_type_t<ErrorCodeEnum>>(e), INT16_MAX));
     debug::ensure(std::cmp_greater_equal(
-        static_cast<std::underlying_type_t<ErrorCodeEnum>>(e), INT16_MIN));
+      static_cast<std::underlying_type_t<ErrorCodeEnum>>(e), INT16_MIN));
 
     if (on_error_callback)
         on_error_callback();
@@ -286,8 +292,9 @@ inline error_code new_error(ErrorCodeEnum e, enum category cat) noexcept
     return error_code(static_cast<std::int16_t>(e), cat);
 }
 
-template <typename Value>
-class expected {
+template<typename Value>
+class expected
+{
 private:
     static_assert(not std::is_reference_v<Value>);
     static_assert(not std::is_function_v<Value>);
@@ -297,24 +304,23 @@ private:
 public:
     using value_type = Value;
     using error_type = error_code;
-    using this_type = expected<value_type>;
+    using this_type  = expected<value_type>;
 
 private:
     union storage_type {
         std::int32_t _;
-        Value val;
-        error_code ec;
+        Value        val;
+        error_code   ec;
 
-        constexpr storage_type() noexcept { }
-        constexpr ~storage_type() noexcept { }
+        constexpr storage_type() noexcept {}
+        constexpr ~storage_type() noexcept {}
     } storage;
 
-    enum class state_type : std::int8_t { value,
-        error } state;
+    enum class state_type : std::int8_t { value, error } state;
 
 public:
     constexpr expected() noexcept
-        : state { state_type::value }
+      : state{ state_type::value }
     {
         if constexpr (std::is_default_constructible_v<value_type>)
             std::construct_at(std::addressof(storage.val));
@@ -330,19 +336,19 @@ public:
     }
 
     constexpr expected(const value_type& value_) noexcept
-        : state { state_type::value }
+      : state{ state_type::value }
     {
         std::construct_at(std::addressof(storage.val), value_);
     }
 
     constexpr expected(value_type&& value_) noexcept
-        : state { state_type::value }
+      : state{ state_type::value }
     {
         std::construct_at(std::addressof(storage.val), std::move(value_));
     }
 
     constexpr expected(const expected& other) noexcept
-        : state { other.state }
+      : state{ other.state }
     {
         static_assert(std::is_copy_constructible_v<value_type>);
 
@@ -354,34 +360,34 @@ public:
     }
 
     constexpr expected(expected&& other) noexcept
-        : state { other.state }
+      : state{ other.state }
     {
         static_assert(std::is_move_constructible_v<value_type>);
 
         if (state == state_type::error) {
             std::construct_at(std::addressof(storage.ec),
-                std::move(other.storage.ec));
+                              std::move(other.storage.ec));
         } else {
             std::construct_at(std::addressof(storage.val),
-                std::move(other.storage.val));
+                              std::move(other.storage.val));
         }
     }
 
     constexpr expected(const error_code& ec) noexcept
-        : state { state_type::error }
+      : state{ state_type::error }
     {
         std::construct_at(std::addressof(storage.ec), ec);
     }
 
     constexpr expected(error_code&& ec) noexcept
-        : state { state_type::error }
+      : state{ state_type::error }
     {
         std::construct_at(std::addressof(storage.ec), std::move(ec));
     }
 
-    template <typename... Args>
+    template<typename... Args>
     constexpr explicit expected(std::in_place_t, Args&&... args) noexcept
-        : state { state_type::error }
+      : state{ state_type::error }
     {
         std::construct_at(storage.val, std::forward<Args>(args)...);
     }
@@ -419,10 +425,10 @@ public:
 
         if (state == state_type::error) {
             std::construct_at(std::addressof(storage.ec),
-                std::move(other.storage.ec));
+                              std::move(other.storage.ec));
         } else {
             std::construct_at(std::addressof(storage.val),
-                std::move(other.storage.val));
+                              std::move(other.storage.val));
         }
 
         return *this;
@@ -431,7 +437,7 @@ public:
     constexpr this_type& operator=(const value_type& value) noexcept
     {
         static_assert(std::is_copy_constructible_v<value_type>,
-            "Value not copy assignable");
+                      "Value not copy assignable");
 
         if constexpr (not std::is_trivially_destructible_v<value_type>) {
             if (state == state_type::value)
@@ -447,7 +453,7 @@ public:
     constexpr this_type& operator=(value_type&& value) noexcept
     {
         static_assert(std::is_move_constructible_v<Value>,
-            "Value not move assignable");
+                      "Value not move assignable");
 
         if constexpr (not std::is_trivially_destructible_v<value_type>) {
             if (state == state_type::value)
@@ -528,7 +534,7 @@ public:
         return not has_value();
     }
 
-    template <typename U>
+    template<typename U>
         requires(std::is_convertible_v<U, value_type>)
     [[nodiscard]]
     constexpr auto value_or(U&& default_value) const& noexcept
@@ -540,8 +546,9 @@ public:
         }
     }
 
-    template <typename U>
-        requires(not std::is_void_v<value_type> and std::is_convertible_v<U, value_type>)
+    template<typename U>
+        requires(not std::is_void_v<value_type> and
+                 std::is_convertible_v<U, value_type>)
     [[nodiscard]]
     constexpr auto value_or(U&& default_value) && noexcept
     {
@@ -573,7 +580,7 @@ public:
         swap(storage, other.storage);
     }
 
-    template <typename... Args>
+    template<typename... Args>
     constexpr value_type& emplace(Args&&... args) noexcept
     {
         if constexpr (not std::is_trivially_destructible_v<value_type>) {
@@ -582,12 +589,12 @@ public:
         }
 
         std::construct_at(std::addressof(storage.val),
-            std::forward<Args>(args)...);
+                          std::forward<Args>(args)...);
 
         return value();
     }
 
-    template <typename U>
+    template<typename U>
     value_type value_or(const U& default_value) const noexcept
     {
         if (has_value()) {
@@ -625,47 +632,47 @@ public:
         return storage.val;
     }
 
-    template <typename Fn, typename... Args>
+    template<typename Fn, typename... Args>
     constexpr auto and_then(Fn&& f, Args&&... args) & noexcept
     {
         if (has_value())
             return std::invoke(
-                std::forward<Fn>(f), storage.val, std::forward<Args>(args)...);
+              std::forward<Fn>(f), storage.val, std::forward<Args>(args)...);
         else
             return storage.ec;
     }
 
-    template <typename Fn, typename... Args>
+    template<typename Fn, typename... Args>
     constexpr auto and_then(Fn&& f, Args&&... args) const& noexcept
     {
         if (has_value())
             return std::invoke(
-                std::forward<Fn>(f), storage.val, std::forward<Args>(args)...);
+              std::forward<Fn>(f), storage.val, std::forward<Args>(args)...);
         else
             return this_type(storage.ec);
     }
 
-    template <typename Fn, typename... Args>
+    template<typename Fn, typename... Args>
     constexpr auto and_then(Fn&& f, Args&&... args) && noexcept
     {
         if (has_value())
             return std::invoke(
-                std::forward<Fn>(f), std::move(storage.val), args...);
+              std::forward<Fn>(f), std::move(storage.val), args...);
         else
             return this_type(storage.ec);
     }
 
-    template <typename Fn, typename... Args>
+    template<typename Fn, typename... Args>
     constexpr auto and_then(Fn&& f, Args&&... args) const&& noexcept
     {
         if (has_value())
             return std::invoke(
-                std::forward<Fn>(f), std::move(storage.val), args...);
+              std::forward<Fn>(f), std::move(storage.val), args...);
         else
             return this_type(storage.ec);
     }
 
-    template <typename Fn, typename... Args>
+    template<typename Fn, typename... Args>
     constexpr auto or_else(Fn&& f, Args&&... args) & noexcept
     {
         if (has_value())
@@ -674,7 +681,7 @@ public:
             return std::invoke(std::forward<Fn>(f), storage.ec, args...);
     }
 
-    template <typename Fn, typename... Args>
+    template<typename Fn, typename... Args>
     constexpr auto or_else(Fn&& f, Args&&... args) const& noexcept
     {
         if (has_value())
@@ -683,71 +690,70 @@ public:
             return std::invoke(std::forward<Fn>(f), storage.ec, args...);
     }
 
-    template <typename Fn, typename... Args>
+    template<typename Fn, typename... Args>
     constexpr auto or_else(Fn&& f, Args&&... args) && noexcept
     {
         if (has_value())
             return this_type(std::move(storage.val));
         else
             return std::invoke(
-                std::forward<Fn>(f), std::move(storage.ec), args...);
+              std::forward<Fn>(f), std::move(storage.ec), args...);
     }
 
-    template <typename Fn, typename... Args>
+    template<typename Fn, typename... Args>
     constexpr auto or_else(Fn&& f, Args&&... args) const&& noexcept
     {
         if (has_value())
             return this_type(std::move(storage.val));
         else
             return std::invoke(
-                std::forward<Fn>(f), std::move(storage.ec), args...);
+              std::forward<Fn>(f), std::move(storage.ec), args...);
     }
 };
 
-template <>
-class expected<void> {
+template<>
+class expected<void>
+{
 public:
     using value_type = void;
     using error_type = error_code;
-    using this_type = expected<value_type>;
+    using this_type  = expected<value_type>;
 
 private:
     error_code storage;
 
-    enum class state_type : std::int8_t { value,
-        error } state;
+    enum class state_type : std::int8_t { value, error } state;
 
 public:
     constexpr expected() noexcept
-        : state { state_type::value }
-    {
-    }
+      : state{ state_type::value }
+    {}
 
     constexpr ~expected() noexcept = default;
 
     constexpr expected(const expected& other) noexcept
-        : state { other.state }
+      : state{ other.state }
     {
         if (state == state_type::error)
             std::construct_at(std::addressof(storage), other.storage);
     }
 
     constexpr expected(expected&& other) noexcept
-        : state { other.state }
+      : state{ other.state }
     {
         if (state == state_type::error)
             std::construct_at(std::addressof(storage),
-                std::move(other.storage));
+                              std::move(other.storage));
     }
 
     constexpr expected(const error_code& ec) noexcept
-        : state { state_type::error }
+      : state{ state_type::error }
     {
         std::construct_at(std::addressof(storage), ec);
     }
 
     constexpr expected(error_code&& ec) noexcept
-        : state { state_type::error }
+      : state{ state_type::error }
     {
         std::construct_at(std::addressof(storage), std::move(ec));
     }
@@ -768,7 +774,7 @@ public:
 
         if (state == state_type::error)
             std::construct_at(std::addressof(storage),
-                std::move(other.storage));
+                              std::move(other.storage));
 
         return *this;
     }
@@ -821,27 +827,27 @@ public:
         return storage;
     }
 
-    template <typename Fn, typename... Args>
+    template<typename Fn, typename... Args>
     constexpr auto and_then(Fn&& f, Args&&... args) & noexcept
     {
         if (has_value())
             return std::invoke(std::forward<Fn>(f),
-                std::forward<Args>(args)...);
+                               std::forward<Args>(args)...);
         else
             return storage;
     }
 
-    template <typename Fn, typename... Args>
+    template<typename Fn, typename... Args>
     constexpr auto and_then(Fn&& f, Args&&... args) const& noexcept
     {
         if (has_value())
             return std::invoke(std::forward<Fn>(f),
-                std::forward<Args>(args)...);
+                               std::forward<Args>(args)...);
         else
             return this_type(storage);
     }
 
-    template <typename Fn, typename... Args>
+    template<typename Fn, typename... Args>
     constexpr auto and_then(Fn&& f, Args&&... args) && noexcept
     {
         if (has_value())
@@ -850,7 +856,7 @@ public:
             return this_type(storage);
     }
 
-    template <typename Fn, typename... Args>
+    template<typename Fn, typename... Args>
     constexpr auto and_then(Fn&& f, Args&&... args) const&& noexcept
     {
         if (has_value())
@@ -859,7 +865,7 @@ public:
             return this_type(storage);
     }
 
-    template <typename Fn, typename... Args>
+    template<typename Fn, typename... Args>
     constexpr auto or_else(Fn&& f, Args&&... args) & noexcept
     {
         if (has_value())
@@ -868,7 +874,7 @@ public:
             return std::invoke(std::forward<Fn>(f), storage, args...);
     }
 
-    template <typename Fn, typename... Args>
+    template<typename Fn, typename... Args>
     constexpr auto or_else(Fn&& f, Args&&... args) const& noexcept
     {
         if (has_value())
@@ -877,24 +883,24 @@ public:
             return std::invoke(std::forward<Fn>(f), storage, args...);
     }
 
-    template <typename Fn, typename... Args>
+    template<typename Fn, typename... Args>
     constexpr auto or_else(Fn&& f, Args&&... args) && noexcept
     {
         if (has_value())
             return *this;
         else
             return std::invoke(
-                std::forward<Fn>(f), std::move(storage), args...);
+              std::forward<Fn>(f), std::move(storage), args...);
     }
 
-    template <typename Fn, typename... Args>
+    template<typename Fn, typename... Args>
     constexpr auto or_else(Fn&& f, Args&&... args) const&& noexcept
     {
         if (has_value())
             return *this;
         else
             return std::invoke(
-                std::forward<Fn>(f), std::move(storage), args...);
+              std::forward<Fn>(f), std::move(storage), args...);
     }
 
     void swap(this_type& other) noexcept
@@ -926,11 +932,11 @@ constexpr inline status success() noexcept
 {
     // Default initialize the status object using the brace initialization,
     // which will set the status to the default "success" state.
-    status successful_status {};
+    status successful_status{};
     return successful_status;
 }
 
-template <typename T, typename T2>
+template<typename T, typename T2>
 constexpr bool operator==(const expected<T>& lhs, const expected<T2>& rhs)
 {
     if (lhs.has_value() != rhs.has_value())
@@ -944,7 +950,7 @@ constexpr bool operator==(const expected<T>& lhs, const expected<T2>& rhs)
     return lhs.error() == rhs.error();
 }
 
-template <typename T, typename T2>
+template<typename T, typename T2>
 constexpr bool operator==(const expected<T>& lhs, const T2& rhs)
 {
     if (not lhs.has_value())
@@ -956,7 +962,7 @@ constexpr bool operator==(const expected<T>& lhs, const T2& rhs)
     return false;
 }
 
-template <typename T>
+template<typename T>
 constexpr bool operator==(const expected<T>& lhs, const error_code& rhs)
 {
     if (lhs.has_value())
@@ -970,19 +976,19 @@ constexpr bool operator==(const error_code& lhs, const error_code& rhs)
     return lhs.value() == rhs.value() and lhs.cat() == rhs.cat();
 }
 
-template <typename T, typename T2>
+template<typename T, typename T2>
 constexpr bool operator!=(const expected<T>& lhs, const expected<T2>& rhs)
 {
     return !(lhs == rhs);
 }
 
-template <typename T, typename T2>
+template<typename T, typename T2>
 constexpr bool operator!=(const expected<T>& lhs, const T2& rhs)
 {
     return !(lhs == rhs);
 }
 
-template <typename T>
+template<typename T>
 constexpr bool operator!=(const expected<T>& lhs, const error_code& rhs)
 {
     return !(lhs == rhs);
@@ -993,7 +999,7 @@ constexpr bool operator!=(const error_code& lhs, const error_code& rhs)
     return !(lhs == rhs);
 }
 
-template <typename T>
+template<typename T>
 constexpr void swap(expected<T>& lhs, expected<T>& rhs)
 {
     lhs.swap(rhs);
@@ -1001,11 +1007,11 @@ constexpr void swap(expected<T>& lhs, expected<T>& rhs)
 
 } // namespace irt
 
-#define irt_check(r)                          \
-    {                                         \
-        auto&& irt_check_value__ = (r);       \
-        if (not irt_check_value__)            \
-            return irt_check_value__.error(); \
+#define irt_check(r)                                                           \
+    {                                                                          \
+        auto&& irt_check_value__ = (r);                                        \
+        if (not irt_check_value__)                                             \
+            return irt_check_value__.error();                                  \
     }
 
 #endif

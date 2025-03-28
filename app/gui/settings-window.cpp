@@ -145,7 +145,7 @@ void settings_window::show() noexcept
             if (ImGui::Button("Refresh")) {
                 if (auto ret = app.mod.fill_components(*dir); not ret) {
                     switch (ret.error().cat()) {
-                    case category::json_component:
+                    case category::json:
                         app.jn.push(
                           log_level::error, [](auto& title, auto& msg) {
                               title =

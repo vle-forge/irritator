@@ -338,7 +338,7 @@ public:
             if (json(pj, mod, sim, *file)) {
                 run();
             } else {
-                return irt::new_error(irt::json_project_errc::format_error);
+                return irt::new_error(irt::json_errc::invalid_project_format);
             }
         } else {
             return file.error();
@@ -587,7 +587,7 @@ public:
 
         if (auto ret = prepare_and_run(); not ret) {
             switch (ret.error().cat()) {
-            case irt::category::json_project:
+            case irt::category::json:
                 warning<ec::json_file>(front.front(),
                                        std::string_view{ "unknown" });
                 return false;
