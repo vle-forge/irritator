@@ -14,11 +14,6 @@
 
 namespace irt {
 
-static constexpr std::string_view simulation_part_names[] = {
-    "messages", "nodes",     "dated_messages", "models",
-    "hsms",     "observers", "scheduler",      "external_sources"
-};
-
 static status simulation_init_observation(modeling& mod, project& pj) noexcept
 {
     for (auto& grid_obs : pj.grid_observers)
@@ -496,7 +491,7 @@ void project_editor::start_simulation_copy_modeling(application& app) noexcept
         auto* modeling_head = pj.tn_head();
         if (!modeling_head) {
             app.jn.push(log_level::error,
-                        [](auto& t, auto& m) { t = "Empty model"; });
+                        [](auto& t, auto&) { t = "Empty model"; });
         } else {
             force_pause = false;
             force_stop  = false;

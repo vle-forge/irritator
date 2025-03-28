@@ -701,8 +701,7 @@ static void show_popup_menuitem(component_editor&  ed,
             if (!app.mod.grid_components.can_alloc() ||
                 !app.mod.components.can_alloc() ||
                 !s_parent.children.can_alloc()) {
-                auto& app = container_of(&ed, &application::component_ed);
-                app.jn.push(log_level::error, [](auto& t, auto& m) {
+                app.jn.push(log_level::error, [](auto& t, auto&) {
                     t = "can not allocate a new grid component";
                 });
             } else {

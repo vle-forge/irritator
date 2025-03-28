@@ -671,7 +671,7 @@ void project_external_source_editor::show(application& app) noexcept
                           ImGuiDataType_U32,
                           reinterpret_cast<void*>(&ptr->max_clients))) {
                         if (auto ret = ptr->init(); !ret) {
-                            app.jn.push(log_level::error, [](auto& t, auto& m) {
+                            app.jn.push(log_level::error, [](auto& t, auto&) {
                                 t = "Fail to initialize binary file source";
                             });
                         }
@@ -706,7 +706,7 @@ void project_external_source_editor::show(application& app) noexcept
                           reinterpret_cast<void*>(&ptr->max_clients))) {
                         up++;
                         if (auto ret = ptr->init(); !ret) {
-                            app.jn.push(log_level::error, [](auto& t, auto& m) {
+                            app.jn.push(log_level::error, [](auto& t, auto&) {
                                 t = "Fail to initialize random source";
                             });
                         }
@@ -1015,7 +1015,7 @@ void show_menu_external_sources(application&     app,
     if (constant_ptr) {
         src.reset();
         if (auto ret = constant_ptr->init(src); !ret) {
-            app.jn.push(log_level::error, [](auto& t, auto& m) {
+            app.jn.push(log_level::error, [](auto& t, auto&) {
                 t = "Fail to initalize constant source";
             });
         }
@@ -1024,7 +1024,7 @@ void show_menu_external_sources(application&     app,
     if (binary_file_ptr) {
         src.reset();
         if (auto ret = binary_file_ptr->init(src); !ret) {
-            app.jn.push(log_level::error, [](auto& t, auto& m) {
+            app.jn.push(log_level::error, [](auto& t, auto&) {
                 t = "Fail to initalize binary file source";
             });
         }
@@ -1033,7 +1033,7 @@ void show_menu_external_sources(application&     app,
     if (text_file_ptr) {
         src.reset();
         if (auto ret = text_file_ptr->init(src); !ret) {
-            app.jn.push(log_level::error, [](auto& t, auto& m) {
+            app.jn.push(log_level::error, [](auto& t, auto&) {
                 t = "Fail to initalize text file source";
             });
         }
@@ -1042,7 +1042,7 @@ void show_menu_external_sources(application&     app,
     if (random_ptr) {
         src.reset();
         if (auto ret = random_ptr->init(src); !ret) {
-            app.jn.push(log_level::error, [](auto& t, auto& m) {
+            app.jn.push(log_level::error, [](auto& t, auto&) {
                 t = "Fail to initalize random source";
             });
         }
@@ -1086,32 +1086,30 @@ void project_external_source_editor::selection::select(
 bool project_external_source_editor::selection::is(
   constant_source_id id) const noexcept
 {
-    return type_sel.has_value() and * type_sel ==
-             source::source_type::constant and
-           id_sel == ordinal(id);
+    return type_sel.has_value() and
+           *type_sel == source::source_type::constant and id_sel == ordinal(id);
 }
 
 bool project_external_source_editor::selection::is(
   text_file_source_id id) const noexcept
 {
-    return type_sel.has_value() and * type_sel ==
-             source::source_type::text_file and
+    return type_sel.has_value() and
+           *type_sel == source::source_type::text_file and
            id_sel == ordinal(id);
 }
 
 bool project_external_source_editor::selection::is(
   binary_file_source_id id) const noexcept
 {
-    return type_sel.has_value() and * type_sel ==
-             source::source_type::binary_file and
+    return type_sel.has_value() and
+           *type_sel == source::source_type::binary_file and
            id_sel == ordinal(id);
 }
 
 bool project_external_source_editor::selection::is(
   random_source_id id) const noexcept
 {
-    return type_sel.has_value() and * type_sel ==
-             source::source_type::random and
+    return type_sel.has_value() and *type_sel == source::source_type::random and
            id_sel == ordinal(id);
 }
 
