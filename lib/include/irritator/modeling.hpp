@@ -1166,6 +1166,7 @@ public:
 
     float scale_min = -100.f;
     float scale_max = +100.f;
+    i32   color_map = 0;
     i32   nodes     = 0;
 };
 
@@ -1274,7 +1275,7 @@ public:
     std::span<const double>       get_values() const noexcept;
 };
 
- class modeling
+class modeling
 {
 public:
     /** Stores the description of a component in a text. A description is

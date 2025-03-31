@@ -938,14 +938,26 @@ static bool show_project_observations(application&    app,
       ImVec2(ImGui::GetContentRegionAvail().x / *ed.tree_node_observation,
              ed.tree_node_observation_height);
 
-    auto pos = 0;
     if (ImGui::BeginTable("##obs-table", *ed.tree_node_observation)) {
         ImGui::TableHeadersRow();
         ImGui::TableNextRow();
         ImGui::TableNextColumn();
 
+        auto pos = 0;
         for_each_data(ed.pj.grid_observers, [&](auto& grid) noexcept {
             ed.grid_obs.show(grid, sub_obs_size);
+
+            ++pos;
+
+            if (pos >= *ed.tree_node_observation) {
+                pos = 0;
+                ImGui::TableNextRow();
+            }
+            ImGui::TableNextColumn();
+        });
+
+        for_each_data(ed.pj.graph_observers, [&](auto& graph) noexcept {
+            ed.graph_obs.show(app, graph, sub_obs_size);
 
             ++pos;
 
@@ -1057,7 +1069,7 @@ static void show_simulation_editor_treenode(application&    app,
             if constexpr (std::is_same_v<T, grid_component>) {
                 ed.grid_sim.display(app, ed, tn, *compo, c);
             } else if constexpr (std::is_same_v<T, graph_component>) {
-                ed.graph_sim.show_observations(tn, *compo, c);
+                ed.graph_sim.display(app, ed, tn, *compo, c);
             } else if constexpr (std::is_same_v<T, generic_component>) {
                 ed.generic_sim.display(app);
             } else if constexpr (std::is_same_v<T, hsm_component>) {

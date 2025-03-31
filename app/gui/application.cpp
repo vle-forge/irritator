@@ -798,6 +798,7 @@ bool show_select_model_box(const char*     button_label,
 
         ImGui::EndPopup();
     }
+    ImGui::EndDisabled();
 
     return ret;
 }

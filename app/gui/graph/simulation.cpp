@@ -30,35 +30,83 @@ bool show_local_observers(application&    app,
     auto to_del      = std::optional<graph_observer_id>();
     bool is_modified = false;
 
-    for_specified_data(
-      ed.pj.graph_observers, tn.graph_observer_ids, [&](auto& graph) noexcept {
-          ImGui::PushID(&graph);
+    if (ImGui::BeginTable("Graph observers", 6)) {
+        for (const auto id : tn.graph_observer_ids) {
+            if (auto* graph = ed.pj.graph_observers.try_to_get(id)) {
+                ImGui::PushID(graph);
 
-          if (ImGui::InputFilteredString("name", graph.name))
-              is_modified = true;
+                ImGui::TableNextRow();
+                ImGui::TableNextColumn();
 
-          ImGui::SameLine();
+                ImGui::PushItemWidth(-1.0f);
+                if (ImGui::InputFilteredString("name", graph->name))
+                    is_modified = true;
+                ImGui::PopItemWidth();
 
-          if (ImGui::Button("del"))
-              to_del = std::make_optional(ed.pj.graph_observers.get_id(graph));
+                ImGui::TableNextColumn();
+                ImGui::PushItemWidth(-1);
+                ImGui::DragFloatRange2(
+                  "##scale", &graph->scale_min, &graph->scale_max, 0.01f);
+                ImGui::PopItemWidth();
+                ImGui::TableNextColumn();
+                if (ImPlot::ColormapButton(
+                      ImPlot::GetColormapName(graph->color_map),
+                      ImVec2(225, 0),
+                      graph->color_map)) {
+                    graph->color_map =
+                      (graph->color_map + 1) % ImPlot::GetColormapCount();
+                }
 
-          ImGui::TextFormatDisabled(
-            "graph-id {} component {} tree-node-id {} model-id {}",
-            ordinal(graph.parent_id),
-            ordinal(graph.compo_id),
-            ordinal(graph.tn_id),
-            ordinal(graph.mdl_id));
+                ImGui::TableNextColumn();
+                ImGui::PushItemWidth(-1);
+                float time_step = graph->time_step;
+                if (ImGui::DragFloat("time-step",
+                                     &time_step,
+                                     0.01f,
+                                     graph->time_step.lower,
+                                     graph->time_step.upper))
+                    graph->time_step.set(time_step);
+                ImGui::PopItemWidth();
 
-          if_data_exists_do(
-            ed.pj.sim.models, graph.mdl_id, [&](auto& mdl) noexcept {
-                ImGui::TextUnformatted(dynamics_type_names[ordinal(mdl.type)]);
-            });
+                ImGui::TableNextColumn();
+                if (show_select_model_box("Select model",
+                                          "Choose model to observe",
+                                          app,
+                                          ed,
+                                          tn,
+                                          *graph)) {
+                    if (auto* mdl = ed.pj.sim.models.try_to_get(graph->mdl_id);
+                        mdl) {
+                        if (mdl->type == dynamics_type::hsm_wrapper) {
+                            if (auto* hsm = ed.pj.sim.hsms.try_to_get_from_pos(
+                                  get_dyn<hsm_wrapper>(*mdl).id);
+                                hsm) {
+                                graph->scale_min = 0.f;
+                                graph->scale_max =
+                                  (float)hsm->compute_max_state_used();
+                            }
+                        }
+                    }
+                }
 
-          show_select_model_box(
-            "Select model", "Choose model to observe", app, ed, tn, graph);
+                if (auto* mdl = ed.pj.sim.models.try_to_get(graph->mdl_id);
+                    mdl) {
+                    ImGui::SameLine();
+                    ImGui::TextUnformatted(
+                      dynamics_type_names[ordinal(mdl->type)]);
+                }
 
-          ImGui::PopID();
-      });
+                ImGui::TableNextColumn();
+
+                if (ImGui::Button("del"))
+                    to_del = id;
+
+                ImGui::PopID();
+            }
+        }
+
+        ImGui::EndTable();
+    }
 
     if (ed.pj.graph_observers.can_alloc() && ImGui::Button("+##graph")) {
         auto&      graph    = ed.pj.alloc_graph_observer();
@@ -93,37 +141,348 @@ bool show_local_observers(application&    app,
     return is_modified;
 }
 
-bool graph_simulation_editor::show_settings(
-  tree_node& /* tn */,
-  component& /*compo*/,
-  graph_component& /* graph */) noexcept
-{
-    // auto* ed  = container_of(this, &simulation_editor::graph_sim);
-    // auto& app = container_of(ed, &application::simulation_ed);
-    //
-    // const auto graph_id = app.mod.graph_components.get_id(graph);
-    // if (graph_id != current_id)
-    //     graph_simulation_rebuild(*this, graph, graph_id);
-    //
-    // return graph_simulation_show_settings(*app, *this, tn, graph);
+struct graph_simulation_editor::impl {
 
-    return true;
+    static void center_camera(graph_simulation_editor& ed,
+                              ImVec2                   top_left,
+                              ImVec2                   bottom_right,
+                              ImVec2                   canvas_sz) noexcept
+    {
+        ImVec2 distance(bottom_right[0] - top_left[0],
+                        bottom_right[1] - top_left[1]);
+        ImVec2 center((bottom_right[0] - top_left[0]) / 2.0f + top_left[0],
+                      (bottom_right[1] - top_left[1]) / 2.0f + top_left[1]);
+
+        ed.scrolling.x = ((-center.x * ed.zoom.x) + (canvas_sz.x / 2.f));
+        ed.scrolling.y = ((-center.y * ed.zoom.y) + (canvas_sz.y / 2.f));
+    }
+
+    static void auto_fit_camera(graph_simulation_editor& ed,
+                                ImVec2                   top_left,
+                                ImVec2                   bottom_right,
+                                ImVec2                   canvas_sz) noexcept
+    {
+        ImVec2 distance(bottom_right[0] - top_left[0],
+                        bottom_right[1] - top_left[1]);
+        ImVec2 center((bottom_right[0] - top_left[0]) / 2.0f + top_left[0],
+                      (bottom_right[1] - top_left[1]) / 2.0f + top_left[1]);
+
+        ed.zoom.x      = canvas_sz.x / distance.x;
+        ed.zoom.y      = canvas_sz.y / distance.y;
+        ed.scrolling.x = ((-center.x * ed.zoom.x) + (canvas_sz.x / 2.f));
+        ed.scrolling.y = ((-center.y * ed.zoom.y) + (canvas_sz.y / 2.f));
+    }
+
+    bool static display_graph_simulation(application& /*app*/,
+                                         project_editor& ed,
+                                         tree_node& /*tn*/,
+                                         component& /*compo*/,
+                                         graph_component& graph) noexcept
+    {
+        float zoom_array[2] = { ed.graph_sim.zoom.x, ed.graph_sim.zoom.y };
+        if (ImGui::InputFloat2("zoom x,y", zoom_array)) {
+            ed.graph_sim.zoom.x = ImClamp(zoom_array[0], 0.1f, 1000.f);
+            ed.graph_sim.zoom.y = ImClamp(zoom_array[1], 0.1f, 1000.f);
+        }
+
+        float distance_array[2] = { ed.graph_sim.distance.x,
+                                    ed.graph_sim.distance.y };
+        if (ImGui::InputFloat2("force x,y", distance_array)) {
+            ed.graph_sim.distance.x = ImClamp(distance_array[0], 0.1f, 100.f);
+            ed.graph_sim.distance.y = ImClamp(distance_array[0], 0.1f, 100.f);
+        }
+
+        ImVec2 canvas_p0 = ImGui::GetCursorScreenPos();
+        ImVec2 canvas_sz = ImGui::GetContentRegionAvail();
+
+        if (canvas_sz.x < 50.0f)
+            canvas_sz.x = 50.0f;
+        if (canvas_sz.y < 50.0f)
+            canvas_sz.y = 50.0f;
+
+        ImVec2 canvas_p1 =
+          ImVec2(canvas_p0.x + canvas_sz.x, canvas_p0.y + canvas_sz.y);
+
+        const ImGuiIO& io        = ImGui::GetIO();
+        ImDrawList*    draw_list = ImGui::GetWindowDrawList();
+
+        if (ed.graph_sim.actions[action::camera_center])
+            center_camera(
+              ed.graph_sim,
+              ImVec2(graph.top_left_limit[0], graph.top_left_limit[1]),
+              ImVec2(graph.bottom_right_limit[0], graph.bottom_right_limit[1]),
+              canvas_sz);
+
+        if (ed.graph_sim.actions[action::camera_auto_fit])
+            auto_fit_camera(
+              ed.graph_sim,
+              ImVec2(graph.top_left_limit[0], graph.top_left_limit[1]),
+              ImVec2(graph.bottom_right_limit[0], graph.bottom_right_limit[1]),
+              canvas_sz);
+
+        draw_list->AddRect(canvas_p0, canvas_p1, IM_COL32(255, 255, 255, 255));
+
+        ImGui::InvisibleButton("Canvas",
+                               canvas_sz,
+                               ImGuiButtonFlags_MouseButtonLeft |
+                                 ImGuiButtonFlags_MouseButtonRight);
+
+        const bool is_hovered = ImGui::IsItemHovered();
+        const bool is_active  = ImGui::IsItemActive();
+
+        const ImVec2 origin(canvas_p0.x + ed.graph_sim.scrolling.x,
+                            canvas_p0.y + ed.graph_sim.scrolling.y);
+        const ImVec2 mouse_pos_in_canvas(io.MousePos.x - origin.x,
+                                         io.MousePos.y - origin.y);
+
+        const float mouse_threshold_for_pan = -1.f;
+        if (is_active) {
+            if (ImGui::IsMouseDragging(ImGuiMouseButton_Right,
+                                       mouse_threshold_for_pan)) {
+                ed.graph_sim.scrolling.x += io.MouseDelta.x;
+                ed.graph_sim.scrolling.y += io.MouseDelta.y;
+            }
+        }
+
+        if (is_hovered and io.MouseWheel != 0.f) {
+            ed.graph_sim.zoom.x = ed.graph_sim.zoom.x +
+                                  (io.MouseWheel * ed.graph_sim.zoom.x * 0.1f);
+            ed.graph_sim.zoom.y = ed.graph_sim.zoom.y +
+                                  (io.MouseWheel * ed.graph_sim.zoom.y * 0.1f);
+            ed.graph_sim.zoom.x = ImClamp(ed.graph_sim.zoom.x, 0.1f, 1000.f);
+            ed.graph_sim.zoom.y = ImClamp(ed.graph_sim.zoom.y, 0.1f, 1000.f);
+        }
+
+        ImVec2 drag_delta = ImGui::GetMouseDragDelta(ImGuiMouseButton_Right);
+        if (drag_delta.x == 0.0f and drag_delta.y == 0.0f and
+            (not ed.graph_sim.selected_nodes.empty())) {
+            ImGui::OpenPopupOnItemClick("Canvas-Context",
+                                        ImGuiPopupFlags_MouseButtonRight);
+        }
+
+        if (is_hovered) {
+            if (not ed.graph_sim.run_selection and
+                ImGui::IsMouseDown(ImGuiMouseButton_Left)) {
+                ed.graph_sim.run_selection   = true;
+                ed.graph_sim.start_selection = io.MousePos;
+            }
+
+            if (ed.graph_sim.run_selection and
+                ImGui::IsMouseReleased(ImGuiMouseButton_Left)) {
+                ed.graph_sim.run_selection = false;
+                ed.graph_sim.end_selection = io.MousePos;
+
+                if (ed.graph_sim.start_selection ==
+                    ed.graph_sim.end_selection) {
+                    ed.graph_sim.selected_nodes.clear();
+                } else {
+                    ImVec2 bmin{
+                        std::min(ed.graph_sim.start_selection.x,
+                                 ed.graph_sim.end_selection.x),
+                        std::min(ed.graph_sim.start_selection.y,
+                                 ed.graph_sim.end_selection.y),
+                    };
+
+                    ImVec2 bmax{
+                        std::max(ed.graph_sim.start_selection.x,
+                                 ed.graph_sim.end_selection.x),
+                        std::max(ed.graph_sim.start_selection.y,
+                                 ed.graph_sim.end_selection.y),
+                    };
+
+                    ed.graph_sim.selected_nodes.clear();
+
+                    for (const auto id : graph.g.nodes) {
+                        const auto i = get_index(id);
+
+                        ImVec2 p_min(origin.x + (graph.g.node_positions[i][0] *
+                                                 ed.graph_sim.zoom.x),
+                                     origin.y + (graph.g.node_positions[i][1] *
+                                                 ed.graph_sim.zoom.y));
+
+                        ImVec2 p_max(origin.x + ((graph.g.node_positions[i][0] +
+                                                  graph.g.node_areas[i]) *
+                                                 ed.graph_sim.zoom.x),
+                                     origin.y + ((graph.g.node_positions[i][1] +
+                                                  graph.g.node_areas[i]) *
+                                                 ed.graph_sim.zoom.y));
+
+                        if (p_min.x >= bmin.x and p_max.x < bmax.x and
+                            p_min.y >= bmin.y and p_max.y < bmax.y) {
+                            ed.graph_sim.selected_nodes.emplace_back(id);
+                        }
+                    }
+
+                    for (const auto id : graph.g.edges) {
+                        const auto us = graph.g.edges_nodes[get_index(id)][0];
+                        const auto vs = graph.g.edges_nodes[get_index(id)][1];
+
+                        if (graph.g.nodes.exists(us) and
+                            graph.g.nodes.exists(vs)) {
+                            ImVec2 p1(
+                              origin.x +
+                                ((graph.g.node_positions[get_index(us)][0] +
+                                  graph.g.node_areas[get_index(us)] / 2.f) *
+                                 ed.graph_sim.zoom.x),
+                              origin.y +
+                                ((graph.g.node_positions[get_index(us)][1] +
+                                  graph.g.node_areas[get_index(vs)] / 2.f) *
+                                 ed.graph_sim.zoom.y));
+
+                            ImVec2 p2(
+                              origin.x +
+                                ((graph.g.node_positions[get_index(vs)][0] +
+                                  graph.g.node_areas[get_index(us)] / 2.f) *
+                                 ed.graph_sim.zoom.x),
+                              origin.y +
+                                ((graph.g.node_positions[get_index(vs)][1] +
+                                  graph.g.node_areas[get_index(vs)] / 2.f) *
+                                 ed.graph_sim.zoom.y));
+                        }
+                    }
+                }
+            }
+        }
+
+        draw_list->PushClipRect(canvas_p0, canvas_p1, true);
+        const float GRID_STEP = 64.0f;
+
+        for (float x = fmodf(ed.graph_sim.scrolling.x, GRID_STEP);
+             x < canvas_sz.x;
+             x += GRID_STEP)
+            draw_list->AddLine(ImVec2(canvas_p0.x + x, canvas_p0.y),
+                               ImVec2(canvas_p0.x + x, canvas_p1.y),
+                               IM_COL32(200, 200, 200, 40));
+
+        for (float y = fmodf(ed.graph_sim.scrolling.y, GRID_STEP);
+             y < canvas_sz.y;
+             y += GRID_STEP)
+            draw_list->AddLine(ImVec2(canvas_p0.x, canvas_p0.y + y),
+                               ImVec2(canvas_p1.x, canvas_p0.y + y),
+                               IM_COL32(200, 200, 200, 40));
+
+        for (const auto id : graph.g.nodes) {
+            const auto i = get_index(id);
+
+            const ImVec2 p_min(
+              origin.x + (graph.g.node_positions[i][0] * ed.graph_sim.zoom.x),
+              origin.y + (graph.g.node_positions[i][1] * ed.graph_sim.zoom.y));
+
+            const ImVec2 p_max(
+              origin.x +
+                ((graph.g.node_positions[i][0] + graph.g.node_areas[i]) *
+                 ed.graph_sim.zoom.x),
+              origin.y +
+                ((graph.g.node_positions[i][1] + graph.g.node_areas[i]) *
+                 ed.graph_sim.zoom.y));
+
+            draw_list->AddRectFilled(
+              p_min, p_max, IM_COL32(255, 255, 255, 255));
+        }
+
+        for (const auto id : ed.graph_sim.selected_nodes) {
+            const auto i = get_index(id);
+
+            ImVec2 p_min(
+              origin.x + (graph.g.node_positions[i][0] * ed.graph_sim.zoom.x),
+              origin.y + (graph.g.node_positions[i][1] * ed.graph_sim.zoom.y));
+
+            ImVec2 p_max(
+              origin.x +
+                ((graph.g.node_positions[i][0] + graph.g.node_areas[i]) *
+                 ed.graph_sim.zoom.x),
+              origin.y +
+                ((graph.g.node_positions[i][1] + graph.g.node_areas[i]) *
+                 ed.graph_sim.zoom.y));
+
+            draw_list->AddRect(
+              p_min, p_max, IM_COL32(255, 255, 255, 255), 0.f, 0, 4.f);
+        }
+
+        for (const auto id : graph.g.edges) {
+            const auto i   = get_index(id);
+            const auto u_c = graph.g.edges_nodes[i][0];
+            const auto v_c = graph.g.edges_nodes[i][1];
+
+            if (not(graph.g.nodes.exists(u_c) and graph.g.nodes.exists(v_c)))
+                continue;
+
+            const auto p_src = get_index(u_c);
+            const auto p_dst = get_index(v_c);
+
+            const auto u_width  = graph.g.node_areas[p_src] / 2.f;
+            const auto u_height = graph.g.node_areas[p_src] / 2.f;
+
+            const auto v_width  = graph.g.node_areas[p_dst] / 2.f;
+            const auto v_height = graph.g.node_areas[p_dst] / 2.f;
+
+            ImVec2 src(
+              origin.x + ((graph.g.node_positions[p_src][0] + u_width) *
+                          ed.graph_sim.zoom.x),
+              origin.y + ((graph.g.node_positions[p_src][1] + u_height) *
+                          ed.graph_sim.zoom.y));
+
+            ImVec2 dst(
+              origin.x + ((graph.g.node_positions[p_dst][0] + v_width) *
+                          ed.graph_sim.zoom.x),
+              origin.y + ((graph.g.node_positions[p_dst][1] + v_height) *
+                          ed.graph_sim.zoom.y));
+
+            draw_list->AddLine(src, dst, IM_COL32(255, 255, 0, 255), 1.f);
+        }
+
+        if (ed.graph_sim.run_selection) {
+            ed.graph_sim.end_selection = io.MousePos;
+
+            if (ed.graph_sim.start_selection == ed.graph_sim.end_selection) {
+                ed.graph_sim.selected_nodes.clear();
+            } else {
+                ImVec2 bmin{
+                    std::min(ed.graph_sim.start_selection.x, io.MousePos.x),
+                    std::min(ed.graph_sim.start_selection.y, io.MousePos.y),
+                };
+
+                ImVec2 bmax{
+                    std::max(ed.graph_sim.start_selection.x, io.MousePos.x),
+                    std::max(ed.graph_sim.start_selection.y, io.MousePos.y),
+                };
+
+                draw_list->AddRectFilled(bmin, bmax, IM_COL32(200, 0, 0, 127));
+            }
+        }
+
+        draw_list->PopClipRect();
+
+        return true;
+    }
+};
+
+void graph_simulation_editor::reset() noexcept
+{
+    distance        = { 15.f, 15.f };
+    scrolling       = { 0.f, 0.f };
+    zoom            = { 1.f, 1.f };
+    start_selection = { 0.f, 0.f };
+    end_selection   = { 0.f, 0.f };
+
+    selected_nodes.clear();
+    run_selection = false;
 }
 
-bool graph_simulation_editor::show_observations(
-  tree_node& /* tn */,
-  component& /*compo*/,
-  graph_component& /* graph */) noexcept
+bool graph_simulation_editor::display(application&     app,
+                                      project_editor&  ed,
+                                      tree_node&       tn,
+                                      component&       compo,
+                                      graph_component& graph) noexcept
 {
-    // auto& ed  = container_of(this, &simulation_editor::graph_sim);
-    // auto& app = container_of(&ed, &application::simulation_ed);
+    const auto graph_id = app.mod.graph_components.get_id(graph);
+    if (graph_id != current_id) {
+        reset();
+        current_id = graph_id;
+    }
 
-    // const auto graph_id = app.mod.graph_components.get_id(graph);
-    // if (graph_id != current_id)
-    //     graph_simulation_rebuild(*this, graph, graph_id);
-    // return graph_simulation_show_observations(*app, *this, tn, graph);
-
-    return true;
+    return graph_simulation_editor::impl::display_graph_simulation(
+      app, ed, tn, compo, graph);
 }
 
 } // namespace irt

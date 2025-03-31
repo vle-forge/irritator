@@ -14,6 +14,7 @@ set(gui_sources application.cpp application.hpp component-editor.cpp
     generic/modeling.cpp
     generic/simulation.cpp
     graph/modeling.cpp
+    graph/observation.cpp
     graph/simulation.cpp
     grid/modeling.cpp
     grid/observation.cpp

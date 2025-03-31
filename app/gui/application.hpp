@@ -212,7 +212,16 @@ class graph_observation_widget
 {
 public:
     //! Display the values vector using the ImGui::PlotHeatMap function.
-    // void show(graph_observation_system& graph) noexcept;
+    void show(application&    app,
+              graph_observer& graph,
+              const ImVec2&   size) noexcept;
+
+private:
+    struct impl;
+
+    ImVec2 zoom{ 1.f, 1.f };
+    ImVec2 scrolling{ 0.f, 0.f };
+    ImVec2 distance{ 0.f, 0.f };
 };
 
 // Callback function use into ImPlot::Plot like functions that use ring_buffer
@@ -590,31 +599,34 @@ public:
     ImVec2 distance{ 5.f, 5.f };
 };
 
-struct graph_simulation_editor {
-    ImVec2             show_position{ 0.f, 0.f };
-    ImVec2             disp{ 1000.f, 1000.f };
-    float              scale           = 10.f;
-    bool               start_selection = false;
-    graph_component_id current_id      = undefined<graph_component_id>();
+class graph_simulation_editor
+{
+public:
+    enum class action { camera_center, camera_auto_fit, Count };
 
-    component_id selected_setting_component = undefined<component_id>();
-    model_id     selected_setting_model     = undefined<model_id>();
+    bool display(application&     app,
+                 project_editor&  ed,
+                 tree_node&       tn,
+                 component&       compo,
+                 graph_component& grid) noexcept;
 
-    component_id selected_observation_component = undefined<component_id>();
-    model_id     selected_observation_model     = undefined<model_id>();
-    tree_node*   selected_tn                    = nullptr;
+    void reset() noexcept;
 
-    vector<component_id> children_class;
+private:
+    struct impl; /**< To access private part in implementation file. */
 
-    void clear() noexcept;
+    graph_component_id current_id = undefined<graph_component_id>();
 
-    bool show_settings(tree_node&       tn,
-                       component&       compo,
-                       graph_component& graph) noexcept;
+    ImVec2 distance{ 15.f, 15.f };
+    ImVec2 scrolling{ 0.f, 0.f }; //!< top left position in canvas.
+    ImVec2 zoom{ 1.f, 1.f };
+    ImVec2 start_selection;
+    ImVec2 end_selection;
 
-    bool show_observations(tree_node&       tn,
-                           component&       compo,
-                           graph_component& graph) noexcept;
+    vector<graph_node_id> selected_nodes;
+    bitflags<action>      actions;
+
+    bool run_selection = false;
 };
 
 struct hsm_simulation_editor {
