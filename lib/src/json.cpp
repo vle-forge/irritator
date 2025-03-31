@@ -2082,8 +2082,11 @@ struct json_dearchiver::impl {
      */
     auto search_dir(const std::string_view reg_path,
                     const std::string_view dir_name,
-                    dir_path_id&           out) const noexcept -> bool
+                    dir_path_id&           out) noexcept -> bool
     {
+        if (reg_path.empty())
+            return search_dir(dir_name, out);
+
         if (auto* dir = search_dir(reg_path, dir_name)) {
             out = mod().dir_paths.get_id(*dir);
             return true;
@@ -3319,7 +3322,7 @@ struct json_dearchiver::impl {
     bool read_dot_graph_param(const rapidjson::Value& val,
                               graph_component&        graph) noexcept
     {
-        auto_stack s(this, "component graph param");
+        auto_stack s(this, "read dot graph paramters");
 
         name_str           reg_path;
         directory_path_str dir_path;
@@ -3350,7 +3353,7 @@ struct json_dearchiver::impl {
     bool read_scale_free_graph_param(const rapidjson::Value& val,
                                      graph_component&        graph) noexcept
     {
-        auto_stack s(this, "component graph param");
+        auto_stack s(this, "read scale free parameters");
 
         return for_each_member(
           val, [&](const auto name, const auto& value) noexcept -> bool {
@@ -3373,7 +3376,7 @@ struct json_dearchiver::impl {
     bool read_small_world_graph_param(const rapidjson::Value& val,
                                       graph_component&        graph) noexcept
     {
-        auto_stack s(this, "component graph param");
+        auto_stack s(this, "read small world parameters");
 
         return for_each_member(
           val, [&](const auto name, const auto& value) noexcept -> bool {
