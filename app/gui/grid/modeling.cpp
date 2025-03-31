@@ -61,16 +61,14 @@ static bool show_row_column_widgets(grid_component& grid) noexcept
     if (ImGui::InputInt("row",
                         &row,
                         grid_component::slimit::lower_bound(),
-                        grid_component::slimit::upper_bound(),
-                        ImGuiInputTextFlags_EnterReturnsTrue)) {
+                        grid_component::slimit::upper_bound())) {
         is_changed = row != grid.row();
     }
 
     if (ImGui::InputInt("column",
                         &column,
                         grid_component::slimit::lower_bound(),
-                        grid_component::slimit::upper_bound(),
-                        ImGuiInputTextFlags_EnterReturnsTrue)) {
+                        grid_component::slimit::upper_bound())) {
         is_changed = is_changed || column != grid.column();
     }
 
