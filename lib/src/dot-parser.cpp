@@ -1124,6 +1124,7 @@ graph::graph(graph&& other) noexcept
   , edges_nodes(std::move(other.edges_nodes))
   , main_id(std::move(other.main_id))
   , buffer(std::move(other.buffer))
+  , file(other.file)
   , is_strict(other.is_strict)
   , is_graph(other.is_graph)
   , is_digraph(other.is_digraph)
@@ -1132,14 +1133,25 @@ graph::graph(graph&& other) noexcept
 graph& graph::operator=(const graph& other) noexcept
 {
     clear();
+    reserve(other.nodes.size(), other.edges.size());
+
+    nodes           = other.nodes;
+    edges           = other.edges;
+    node_names      = other.node_names;
+    node_ids        = other.node_ids;
+    node_positions  = other.node_positions;
+    node_components = other.node_components;
+    node_areas      = other.node_areas;
+    edges_nodes     = other.edges_nodes;
+    main_id         = other.main_id;
+    is_strict       = other.is_strict;
+    is_graph        = other.is_graph;
+    is_digraph      = other.is_digraph;
 
     for (const auto id : other.nodes) {
-        const auto idx       = get_index(id);
-        node_names[idx]      = buffer.append(other.node_names[idx]);
-        node_ids[idx]        = buffer.append(other.node_ids[idx]);
-        node_positions[idx]  = other.node_positions[idx];
-        node_components[idx] = other.node_components[idx];
-        node_areas[idx]      = other.node_areas[idx];
+        const auto idx  = get_index(id);
+        node_names[idx] = buffer.append(other.node_names[idx]);
+        node_ids[idx]   = buffer.append(other.node_ids[idx]);
     }
 
     main_id    = buffer.append(other.main_id);
@@ -1172,6 +1184,53 @@ graph& graph::operator=(graph&& other) noexcept
     return *this;
 }
 
+graph_node_id graph::alloc_node() noexcept
+{
+    if (not nodes.can_alloc(1)) {
+        nodes.grow<2, 1>();
+
+        if (not nodes.can_alloc(1))
+            return undefined<graph_node_id>();
+
+        node_names.resize(nodes.capacity());
+        node_ids.resize(nodes.capacity());
+        node_positions.resize(nodes.capacity());
+        node_components.resize(nodes.capacity());
+        node_areas.resize(nodes.capacity());
+    }
+
+    const auto id        = nodes.alloc();
+    const auto idx       = get_index(id);
+    node_names[idx]      = std::string_view();
+    node_ids[idx]        = std::string_view();
+    node_positions[idx]  = { 0.f, 0.f };
+    node_components[idx] = undefined<component_id>();
+    node_areas[idx]      = 1.f;
+
+    return id;
+}
+
+graph_edge_id graph::alloc_edge(graph_node_id src, graph_node_id dst) noexcept
+{
+    for (auto id : edges)
+        if (edges_nodes[get_index(id)][0] == src and
+            edges_nodes[get_index(id)][1] == dst)
+            return undefined<graph_edge_id>();
+
+    if (not edges.can_alloc(1)) {
+        edges.grow<2, 1>();
+
+        if (not edges.can_alloc(1))
+            return undefined<graph_edge_id>();
+
+        edges_nodes.resize(edges.capacity());
+    }
+
+    const auto id              = edges.alloc();
+    edges_nodes[get_index(id)] = { src, dst };
+    return id;
+}
+
 void graph::reserve(int n, int e) noexcept
 {
     if (n > 0) {
@@ -1188,8 +1247,6 @@ void graph::reserve(int n, int e) noexcept
           e,
           std::array<graph_node_id, 2>{ undefined<graph_node_id>(),
                                         undefined<graph_node_id>() });
-
-        edges_nodes.resize(e);
     }
 }
 

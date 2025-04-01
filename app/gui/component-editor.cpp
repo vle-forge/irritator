@@ -56,27 +56,6 @@ static void add_extension(file_path_str& file) noexcept
     }
 }
 
-static bool all_char_valid(std::string_view v) noexcept
-{
-    for (auto c : v)
-        if (!((c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') ||
-              (c >= '0' && c <= '9') || c == '_' || c == '-' || c == '.'))
-            return false;
-
-    return true;
-}
-
-static bool end_with_irt(std::string_view v) noexcept
-{
-    return v.ends_with(".irt");
-}
-
-static bool is_valid_irt_filename(std::string_view v) noexcept
-{
-    return !v.empty() && v[0] != '.' && v[0] != '-' && all_char_valid(v) &&
-           end_with_irt(v);
-}
-
 template<typename T>
 concept has_store_function = requires(T t, component_editor& ed) {
     { t.store(ed) } -> std::same_as<void>;
@@ -435,7 +414,7 @@ struct component_editor::impl {
                 }
 
                 if (ImGui::InputFilteredString("File##text", file->path)) {
-                    if (not end_with_irt(file->path.sv())) {
+                    if (not file->path.sv().ends_with(".irt")) {
                         add_extension(file->path);
                     }
                 }

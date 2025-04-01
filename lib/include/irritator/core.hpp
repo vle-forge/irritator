@@ -293,6 +293,7 @@ enum class dir_path_id : u32;
 enum class file_path_id : u32;
 
 enum class hsm_id : u32;
+enum class graph_id : u32;
 enum class model_id : u64;
 enum class dynamics_id : u64;
 enum class message_id : u64;

@@ -19,7 +19,7 @@
 
 namespace irt {
 
-static const std::string_view extensions[] = { ".dot", ".irt" };
+static const std::string_view extensions[] = { "", ".dot", ".irt" };
 
 static constexpr const char* empty = "-";
 
@@ -172,15 +172,15 @@ static auto combobox_file(application&              app,
                           dir_path&                 dir,
                           file_path_id&             in_out) noexcept -> bool
 {
-    auto  ret  = false;
     auto* file = app.mod.file_paths.try_to_get(in_out);
 
     if (not file) {
         auto& f     = app.mod.file_paths.alloc();
-        auto  id    = app.mod.file_paths.get_id(f);
+        in_out      = app.mod.file_paths.get_id(f);
         f.component = undefined<component_id>();
         f.parent    = app.mod.dir_paths.get_id(dir);
-        dir.children.emplace_back(id);
+        f.type      = file_path::file_type::dot_file;
+        dir.children.emplace_back(in_out);
         file = &f;
     }
 
@@ -188,10 +188,9 @@ static auto combobox_file(application&              app,
         if (not end_with(file->path.sv(), opt)) {
             add_extension(file->path, extensions[ordinal(opt)]);
         }
-        ret = true;
     }
 
-    return ret;
+    return is_valid_dot_filename(file->path.sv());
 }
 
 auto file_path_selector(application&              app,
@@ -201,22 +200,17 @@ auto file_path_selector(application&              app,
                         file_path_id&             file_id) noexcept -> bool
 {
     auto ret = false;
-    if (combobox_reg(app, reg_id))
-        ret = true;
+    combobox_reg(app, reg_id);
 
     if (auto* reg = app.mod.registred_paths.try_to_get(reg_id)) {
-        if (combobox_dir(app, *reg, dir_id))
-            ret = true;
+        combobox_dir(app, *reg, dir_id);
 
-        if (auto* dir = app.mod.dir_paths.try_to_get(dir_id); not dir) {
-            if (combobox_newdir(app, *reg, dir_id))
-                ret = true;
-        }
+        if (auto* dir = app.mod.dir_paths.try_to_get(dir_id); not dir)
+            combobox_newdir(app, *reg, dir_id);
 
-        if (auto* dir = app.mod.dir_paths.try_to_get(dir_id)) {
+        if (auto* dir = app.mod.dir_paths.try_to_get(dir_id))
             if (combobox_file(app, opt, *dir, file_id))
                 ret = true;
-        }
     }
 
     return ret;

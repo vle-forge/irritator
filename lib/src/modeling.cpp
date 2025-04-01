@@ -4,6 +4,7 @@
 
 #include <irritator/archiver.hpp>
 #include <irritator/core.hpp>
+#include <irritator/dot-parser.hpp>
 #include <irritator/format.hpp>
 #include <irritator/helpers.hpp>
 #include <irritator/io.hpp>
@@ -66,16 +67,21 @@ status modeling::init(const modeling_initializer& p) noexcept
     if (not hsms.can_alloc())
         return new_error(modeling_errc::memory_error);
 
+    graphs.reserve(p.component_capacity);
+    if (not graphs.can_alloc())
+        return new_error(modeling_errc::memory_error);
+
     component_colors.resize(components.capacity());
 
     return success();
 }
 
-static void prepare_component_loading(modeling&             mod,
-                                      registred_path&       reg_dir,
-                                      dir_path&             dir,
-                                      file_path&            file,
-                                      std::filesystem::path path) noexcept
+static void prepare_component_loading(
+  modeling&                    mod,
+  registred_path&              reg_dir,
+  dir_path&                    dir,
+  file_path&                   file,
+  const std::filesystem::path& path) noexcept
 {
     namespace fs = std::filesystem;
 
@@ -234,6 +240,21 @@ auto dir_path::refresh(modeling& mod) noexcept -> vector<file_path_id>
     return ret;
 }
 
+static file_path& add_to_dir(modeling&                  mod,
+                             dir_path&                  dir,
+                             const file_path::file_type type,
+                             const std::u8string&       u8str) noexcept
+{
+    auto* cstr    = reinterpret_cast<const char*>(u8str.c_str());
+    auto& file    = mod.file_paths.alloc();
+    auto  file_id = mod.file_paths.get_id(file);
+    file.path     = cstr;
+    file.parent   = mod.dir_paths.get_id(dir);
+    file.type     = type;
+    dir.children.emplace_back(file_id);
+    return file;
+}
+
 static void prepare_component_loading(modeling&             mod,
                                       registred_path&       reg_dir,
                                       dir_path&             dir,
@@ -248,37 +269,44 @@ static void prepare_component_loading(modeling&             mod,
         auto et            = fs::directory_iterator{};
         bool too_many_file = false;
 
-        while (it != et) {
-            if (it->is_regular_file()) {
-                const auto type = detect_file_type(it->path());
+        for (; it != et; it = it.increment(ec)) {
+            if (not it->is_regular_file())
+                continue;
 
-                if (type != file_path::file_type::undefined_file) {
-                    debug_logi(6, "found file {}\n", it->path().string());
+            const auto type = detect_file_type(it->path());
 
-                    if (mod.file_paths.can_alloc() &&
-                        mod.components.can_alloc()) {
-                        auto  u8str = it->path().filename().u8string();
-                        auto* cstr =
-                          reinterpret_cast<const char*>(u8str.c_str());
-                        auto& file    = mod.file_paths.alloc();
-                        auto  file_id = mod.file_paths.get_id(file);
-                        file.path     = cstr;
-                        file.parent   = mod.dir_paths.get_id(dir);
-                        file.type     = type;
+            switch (type) {
+            case file_path::file_type::undefined_file:
+                break;
+            case file_path::file_type::irt_file:
+                debug_logi(6, "found irt file {}\n", it->path().string());
+                if (mod.file_paths.can_alloc() && mod.components.can_alloc()) {
+                    auto& file = add_to_dir(
+                      mod, dir, type, it->path().filename().u8string());
 
-                        dir.children.emplace_back(file_id);
-
-                        if (type == file_path::file_type::irt_file)
-                            prepare_component_loading(
-                              mod, reg_dir, dir, file, it->path());
-                    } else {
-                        too_many_file = true;
-                        break;
-                    }
+                    prepare_component_loading(
+                      mod, reg_dir, dir, file, it->path());
+                } else {
+                    too_many_file = true;
                 }
-            }
+                break;
+            case file_path::file_type::dot_file:
+                debug_logi(6, "found dot file {}\n", it->path().string());
+                if (mod.file_paths.can_alloc() and mod.graphs.can_alloc()) {
+                    auto& file = add_to_dir(
+                      mod, dir, type, it->path().filename().u8string());
 
-            it = it.increment(ec);
+                    auto& g = mod.graphs.alloc();
+                    g.file  = mod.file_paths.get_id(file);
+                } else {
+                    too_many_file = true;
+                }
+                break;
+            case file_path::file_type::txt_file:
+                break;
+            case file_path::file_type::data_file:
+                break;
+            }
         }
 
         if (too_many_file) {
@@ -547,6 +575,28 @@ status modeling::fill_components() noexcept
 
         debug_component(*this, compo);
     });
+
+    debug_log("{} graphs to load\n", graphs.size());
+    for (auto& g : graphs) {
+        const auto file_id = g.file;
+        auto       file    = make_file(*this, file_id);
+        if (auto ret = irt::parse_dot_file(*this, *file); ret.has_value()) {
+            g      = std::move(*ret);
+            g.file = file_id;
+        } else {
+            journal.push(
+              log_level::warning,
+              [&](auto& t, auto& m, const auto& f) noexcept {
+                  t = "Modeling initialization error";
+                  format(m,
+                         "Fail to read dot graph `{}' ({}:{})",
+                         reinterpret_cast<const char*>(f.c_str()),
+                         ordinal(ret.error().cat()),
+                         ret.error().value());
+              },
+              *file);
+        }
+    }
 
     return success();
 }

@@ -15,7 +15,6 @@
 #include <irritator/macros.hpp>
 #include <irritator/thread.hpp>
 
-#include <mutex>
 #include <optional>
 
 namespace irt {
@@ -574,9 +573,26 @@ public:
     string_buffer buffer; /**< Stores all strings from @a node_names, @a
                              node_ids and @a main_id.*/
 
+    file_path_id file = undefined<file_path_id>();
+
     bool is_strict  = false;
     bool is_graph   = false;
     bool is_digraph = false;
+
+    /**
+     * Add a new node in graph. Grow containers if necessary.
+     * @return
+     */
+    graph_node_id alloc_node() noexcept;
+
+    /**
+     * Add a new edge in graph if the @a src and @a dst exists and the edge doe
+     * not already exist.
+     * @param src
+     * @param dst
+     * @return
+     */
+    graph_edge_id alloc_edge(graph_node_id src, graph_node_id dst) noexcept;
 
     /**
      * Reserve memory for nodes @a data_array and resize memory for @c vector
@@ -1297,6 +1313,7 @@ public:
     data_array<dir_path, dir_path_id>                   dir_paths;
     data_array<file_path, file_path_id>                 file_paths;
     data_array<hierarchical_state_machine, hsm_id>      hsms;
+    data_array<graph, graph_id>                         graphs;
 
     vector<component_color> component_colors;
 

@@ -4,6 +4,7 @@
 
 #include <irritator/archiver.hpp>
 #include <irritator/core.hpp>
+#include <irritator/dot-parser.hpp>
 #include <irritator/file.hpp>
 #include <irritator/format.hpp>
 #include <irritator/helpers.hpp>
@@ -6429,15 +6430,44 @@ struct json_archiver::impl {
         switch (g.g_type) {
         case graph_component::graph_type::dot_file: {
             w.String("dot-file");
-            auto& p = g.param.dot;
-            if (auto* dir = mod.dir_paths.try_to_get(p.dir); dir) {
+            auto&      p    = g.param.dot;
+            dir_path*  dir  = nullptr;
+            file_path* file = nullptr;
+            if (dir = mod.dir_paths.try_to_get(p.dir); dir) {
                 w.Key("dir");
                 w.String(dir->path.begin(), dir->path.size());
             }
 
-            if (auto* file = mod.file_paths.try_to_get(p.file); file) {
+            if (file = mod.file_paths.try_to_get(p.file); file) {
                 w.Key("file");
                 w.String(file->path.begin(), file->path.size());
+            }
+
+            if (dir and file) {
+                if (auto f = make_file(mod, *file); f.has_value()) {
+                    if (not write_dot_file(mod, g.g, *f)) {
+                        mod.journal.push(
+                          log_level::error,
+                          [](auto&       t,
+                             auto&       m,
+                             const auto& dir,
+                             const auto& file) noexcept {
+                              t = "Fail to write dot file";
+                              format(m,
+                                     "Fail to write {} in {}",
+                                     dir.path.c_str(),
+                                     file.path.c_str());
+                          },
+                          *dir,
+                          *file);
+                    }
+                }
+            } else {
+                mod.journal.push(log_level::error,
+                                 [](auto& t, auto& m) noexcept {
+                                     t = "Fail to write dot file";
+                                     m = "File path is undefined";
+                                 });
             }
             break;
         }
@@ -7159,7 +7189,8 @@ status json_dearchiver::operator()(project&        pj,
 //     case json_dearchiver::error_code::memory_error:
 //         if (auto* ptr = std::get_if<sz>(&v); ptr) {
 //             fmt::print(std::cerr,
-//                        "json de-archiving memory error: not enough memory "
+//                        "json de-archiving memory error: not enough memory
+//                        "
 //                        "(requested: {})\n",
 //                        *ptr);
 //         } else {
@@ -7176,8 +7207,8 @@ status json_dearchiver::operator()(project&        pj,
 //     case json_dearchiver::error_code::file_error:
 //         if (auto* ptr = std::get_if<sz>(&v); ptr) {
 //             fmt::print(std::cerr,
-//                        "json de-archiving file error: file too small {}\n",
-//                        *ptr);
+//                        "json de-archiving file error: file too small
+//                        {}\n", *ptr);
 //         } else {
 //             fmt::print(std::cerr,
 //                        "json de-archiving memory error: not enough
@@ -7207,12 +7238,12 @@ status json_dearchiver::operator()(project&        pj,
 //             } else {
 //                 fmt::print(
 //                   std::cerr,
-//                   "json de-archiving json format error `{}' at offset {}\n",
-//                   ptr->second,
-//                   ptr->first);
+//                   "json de-archiving json format error `{}' at offset
+//                   {}\n", ptr->second, ptr->first);
 //             }
 //         } else {
-//             fmt::print(std::cerr, "json de-archiving json format error\n");
+//             fmt::print(std::cerr, "json de-archiving json format
+//             error\n");
 //         }
 //         break;
 
@@ -7550,7 +7581,8 @@ status json_archiver::operator()(project&  pj,
 }
 
 // void json_archiver::cerr(json_archiver::error_code             ec,
-//                          std::variant<std::monostate, sz, int> v) noexcept
+//                          std::variant<std::monostate, sz, int> v)
+//                          noexcept
 // {
 //     switch (ec) {
 //     case json_archiver::error_code::memory_error:
@@ -7561,7 +7593,8 @@ status json_archiver::operator()(project&  pj,
 //                        *ptr);
 //         } else {
 //             fmt::print(std::cerr,
-//                        "json archiving memory error: not enough memory\n");
+//                        "json archiving memory error: not enough
+//                        memory\n");
 //         }
 //         break;
 

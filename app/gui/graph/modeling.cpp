@@ -18,10 +18,6 @@
 
 namespace irt {
 
-static const char* random_graph_type_names[] = { "dot-file",
-                                                 "scale-free",
-                                                 "small-world" };
-
 static auto dir_path_combobox(const modeling& mod, dir_path_id& dir_id) -> bool
 {
     const auto* dir         = mod.dir_paths.try_to_get(dir_id);
@@ -214,48 +210,7 @@ struct graph_component_editor_data::impl {
         return have_big_displacement or ed.iteration < ed.iteration_limit;
     }
 
-    void show_random_graph_type(graph_component& graph) noexcept
-    {
-        auto current = static_cast<int>(graph.g_type);
-
-        if (ImGui::Combo("type",
-                         &current,
-                         random_graph_type_names,
-                         length(random_graph_type_names))) {
-            if (current != static_cast<int>(graph.g_type)) {
-                graph.g_type = enum_cast<graph_component::graph_type>(current);
-                switch (graph.g_type) {
-                case graph_component::graph_type::dot_file:
-                    graph.param.dot = graph_component::dot_file_param{};
-                    break;
-
-                case graph_component::graph_type::scale_free:
-                    graph.param.scale = graph_component::scale_free_param{};
-                    break;
-
-                case graph_component::graph_type::small_world:
-                    graph.param.small = graph_component::small_world_param{};
-                    break;
-                }
-            }
-        }
-
-        if (ordinal(graph.g_type) != current)
-            param_updated = true;
-
-        ImGui::SameLine();
-        HelpMarker(
-          "scale_free: graph typically has a very skewed degree distribution, "
-          "where few vertices have a very high degree and a large number of "
-          "vertices have a very small degree. Many naturally evolving "
-          "networks, such as the World Wide Web, are scale-free graphs, making "
-          "these graphs a good model for certain networking "
-          "problems.\n\nsmall_world: consists of a ring graph (where each "
-          "vertex is connected to its k nearest neighbors) .Edges in the graph "
-          "are randomly rewired to different vertices with a probability p.");
-    }
-
-    void show_project_params(graph_component& graph) noexcept
+    void show_project_params_menu(graph_component& graph) noexcept
     {
         static const char* names[] = { "in-out", "name", "name+suffix" };
 
@@ -263,6 +218,7 @@ struct graph_component_editor_data::impl {
         if (ImGui::Combo("connection type", &type, names, length(names))) {
             graph.type = enum_cast<graph_component::connection_type>(type);
         }
+
         ImGui::SameLine();
         HelpMarker(
           "- in-out: only connect output port `out' to input port `in'.\n"
@@ -274,8 +230,8 @@ struct graph_component_editor_data::impl {
           "M_1 of a thrid model.");
     }
 
-    void show_random_graph_params(application&     app,
-                                  graph_component& graph) noexcept
+    void show_random_graph_params_menu(application&     app,
+                                       graph_component& graph) noexcept
     {
         switch (graph.g_type) {
         case graph_component::graph_type::dot_file: {
@@ -283,7 +239,8 @@ struct graph_component_editor_data::impl {
 
             const auto old_param = p;
             dot_combobox_selector(app.mod, p.dir, p.file);
-            if (p.dir != old_param.dir or p.file != old_param.file) {
+            if ((p.dir != old_param.dir or p.file != old_param.file) and
+                is_defined(p.dir) and is_defined(p.file)) {
                 param_updated       = true;
                 ed.automatic_layout = false;
             }
@@ -374,18 +331,6 @@ struct graph_component_editor_data::impl {
                     graph_component_editor_data& ed,
                     graph_component&             data) noexcept
     {
-        float zoom[2] = { ed.zoom.x, ed.zoom.y };
-        if (ImGui::InputFloat2("zoom x,y", zoom)) {
-            ed.zoom.x = ImClamp(zoom[0], 0.1f, 1000.f);
-            ed.zoom.y = ImClamp(zoom[1], 0.1f, 1000.f);
-        }
-
-        float distance[2] = { ed.distance.x, ed.distance.y };
-        if (ImGui::InputFloat2("force x,y", distance)) {
-            ed.distance.x = ImClamp(distance[0], 0.1f, 100.f);
-            ed.distance.y = ImClamp(distance[0], 0.1f, 100.f);
-        }
-
         ImVec2 canvas_p0 = ImGui::GetCursorScreenPos();
         ImVec2 canvas_sz = ImGui::GetContentRegionAvail();
 
@@ -444,16 +389,40 @@ struct graph_component_editor_data::impl {
         }
 
         ImVec2 drag_delta = ImGui::GetMouseDragDelta(ImGuiMouseButton_Right);
-        if (drag_delta.x == 0.0f and drag_delta.y == 0.0f and
-            (not ed.selected_nodes.empty() or not ed.selected_edges.empty())) {
+        if (drag_delta.x == 0.0f and drag_delta.y == 0.0f)
             ImGui::OpenPopupOnItemClick("Canvas-Context",
                                         ImGuiPopupFlags_MouseButtonRight);
-        }
 
         if (ImGui::BeginPopup("Canvas-Context")) {
+            const auto click = ImGui::GetMousePosOnOpeningCurrentPopup();
             if (ImGui::BeginMenu("Actions")) {
+                if (ImGui::MenuItem("New node")) {
+                    if (auto id = data.g.alloc_node(); is_defined(id)) {
+                        const auto idx = get_index(id);
+
+                        data.g.node_positions[idx] = {
+                            (click.x - origin.x) / ed.zoom.x,
+                            (click.y - origin.y) / ed.zoom.y,
+                        };
+
+                        ed.selected_nodes.emplace_back(id);
+                    }
+                }
+
                 if (not ed.selected_nodes.empty() and
-                    ImGui::MenuItem("Delete selected nodes?")) {
+                    ImGui::MenuItem("Connect")) {
+                    const auto e = ed.selected_nodes.ssize();
+                    for (int i = 0; i < e; ++i) {
+                        for (int j = i + 1; j < e; ++j) {
+                            data.g.alloc_edge(ed.selected_nodes[i],
+                                              ed.selected_nodes[j]);
+                        }
+                    }
+                    ed.selected_nodes.clear();
+                }
+
+                if (not ed.selected_nodes.empty() and
+                    ImGui::MenuItem("Delete nodes")) {
                     for (auto id : ed.selected_nodes) {
                         if (data.g.nodes.exists(id))
                             data.g.nodes.free(id);
@@ -462,7 +431,7 @@ struct graph_component_editor_data::impl {
                 }
 
                 if (not ed.selected_edges.empty() and
-                    ImGui::MenuItem("Delete selected edges?")) {
+                    ImGui::MenuItem("Delete edges")) {
                     for (auto id : ed.selected_edges)
                         if (data.g.edges.exists(id))
                             data.g.edges.free(id);
@@ -735,32 +704,162 @@ struct graph_component_editor_data::impl {
             debug::ensure(compo);
             debug::ensure(graph);
 
-            if (ImGui::CollapsingHeader("Settings",
-                                        ImGuiTreeNodeFlags_DefaultOpen)) {
+            static bool show_save = false;
 
-                if (ImGui::Button(ed.automatic_layout ? "stop" : "start"))
-                    ed.automatic_layout = not ed.automatic_layout;
+            if (ImGui::BeginMenuBar()) {
+                const auto old = graph->g_type;
 
-                ImGui::SameLine();
-                if (ImGui::Button("center"))
-                    ed.st =
-                      graph_component_editor_data::status::center_required;
-
-                ImGui::SameLine();
-                if (ImGui::Button("auto-fit"))
-                    ed.st =
-                      graph_component_editor_data::status::auto_fit_required;
-
-                show_random_graph_type(*graph);
-                show_random_graph_params(app, *graph);
-                show_project_params(*graph);
-
-                if (ed.automatic_layout) {
-                    bool again = compute_automatic_layout(*graph);
-                    if (not again) {
-                        ed.iteration        = 0;
-                        ed.automatic_layout = false;
+                if (ImGui::BeginMenu("Model")) {
+                    if (ImGui::MenuItem("Generate scale free graph")) {
+                        graph->g.clear();
+                        graph->g_type = graph_component::graph_type::scale_free;
+                        graph->param.scale =
+                          graph_component::scale_free_param{};
+                        param_updated = old != graph->g_type;
                     }
+
+                    ImGui::SameLine();
+                    HelpMarker(
+                      "scale_free: graph typically has a very skewed degree "
+                      "distribution, where few vertices have a very high "
+                      "degree and a large number of vertices have a very small "
+                      "degree. Many naturally evolving networks, such as the "
+                      "World Wide Web, are scale-free graphs, making these "
+                      "graphs a good model for certain networking.");
+
+                    if (ImGui::MenuItem("Generate Small world graph")) {
+                        graph->g.clear();
+                        graph->g_type =
+                          graph_component::graph_type::small_world;
+                        graph->param.small =
+                          graph_component::small_world_param{};
+                        param_updated = old != graph->g_type;
+                    }
+
+                    ImGui::SameLine();
+                    HelpMarker(
+                      "small_world: consists of a ring graph (where each "
+                      "vertex is connected to its k nearest neighbors) .Edges "
+                      "in the graph are randomly rewired to different vertices "
+                      "with a probability p.");
+
+                    if (ImGui::MenuItem("Read Dot graph")) {
+                        graph->g.clear();
+                        graph->g_type = graph_component::graph_type::dot_file;
+                        graph->param.dot = graph_component::dot_file_param{};
+                    }
+                    ImGui::SameLine();
+                    HelpMarker("dot: consists of a file defining the graph "
+                               "according to the dot file format.");
+
+                    ImGui::Separator();
+
+                    if (ImGui::MenuItem("Save")) {
+                        show_save = true;
+                    }
+
+                    ImVec2 center = ImGui::GetMainViewport()->GetCenter();
+                    ImGui::SetNextWindowPos(
+                      center, ImGuiCond_Appearing, ImVec2(0.5f, 0.5f));
+
+                    ImGui::EndMenu();
+                }
+
+                if (ImGui::BeginMenu("Display##Menu")) {
+                    if (ImGui::MenuItem("Center"))
+                        ed.st =
+                          graph_component_editor_data::status::center_required;
+                    if (ImGui::MenuItem("Auto-fit"))
+                        ed.st = graph_component_editor_data::status::
+                          auto_fit_required;
+
+                    float zoom[2] = { ed.zoom.x, ed.zoom.y };
+                    if (ImGui::MenuItem("Reset zoom")) {
+                        ed.zoom.x = 1.0f;
+                        ed.zoom.y = 1.0f;
+                    }
+
+                    if (ImGui::InputFloat2("Zoom x,y", zoom)) {
+                        ed.zoom.x = ImClamp(zoom[0], 0.1f, 1000.f);
+                        ed.zoom.y = ImClamp(zoom[1], 0.1f, 1000.f);
+                    }
+
+                    ImGui::Checkbox("Automatic layout", &ed.automatic_layout);
+
+                    float distance[2] = { ed.distance.x, ed.distance.y };
+                    if (ImGui::InputFloat2("Distance between node", distance)) {
+                        ed.distance.x = ImClamp(distance[0], 0.1f, 100.f);
+                        ed.distance.y = ImClamp(distance[0], 0.1f, 100.f);
+                    }
+
+                    ImGui::EndMenu();
+                }
+
+                if (ImGui::BeginMenu("Connectivity")) {
+                    show_project_params_menu(*graph);
+                    ImGui::EndMenu();
+                }
+                ImGui::EndMenuBar();
+            }
+
+            if (show_save)
+                ImGui::OpenPopup("Save dot graph");
+
+            if (ImGui::BeginPopupModal("Save dot graph",
+                                       &show_save,
+                                       ImGuiWindowFlags_AlwaysAutoResize)) {
+                file_path_selector(
+                  app,
+                  file_path_selector_option::force_dot_extension,
+                  ed.reg,
+                  ed.dir,
+                  ed.file);
+
+                if (ImGui::Button("Save")) {
+                    if (auto file = make_file(app.mod, ed.file);
+                        file.has_value()) {
+                        if (write_dot_file(app.mod, graph->g, *file)) {
+                            graph->g_type =
+                              graph_component::graph_type::dot_file;
+                            graph->param = { .dot = { .dir  = ed.dir,
+                                                      .file = ed.file } };
+                        } else {
+                            app.mod.file_paths.free(ed.file);
+                            clear_file_access(ed);
+
+                            app.jn.push(
+                              log_level::error,
+                              [](auto& t, auto& m, const auto& f) {
+                                  t = "Fail to save dot file";
+                                  format(
+                                    m,
+                                    "{}",
+                                    reinterpret_cast<const char*>(f.c_str()));
+                              },
+                              *file);
+                        }
+                    } else {
+                        app.mod.file_paths.free(ed.file);
+                        clear_file_access(ed);
+                    }
+                    show_save = false;
+                    ImGui::CloseCurrentPopup();
+                }
+
+                if (ImGui::Button("Close")) {
+                    show_save = false;
+                    ImGui::CloseCurrentPopup();
+                }
+                ImGui::EndPopup();
+            }
+
+            show_random_graph_params_menu(app, *graph);
+
+            if (ed.automatic_layout) {
+                bool again = compute_automatic_layout(*graph);
+                if (not again) {
+                    ed.iteration        = 0;
+                    ed.automatic_layout = false;
                 }
             }
 
@@ -852,6 +951,13 @@ struct graph_component_editor_data::impl {
             graph_ed->st = graph_component_editor_data::status::none;
         });
     }
+
+    static void clear_file_access(graph_component_editor_data& ed) noexcept
+    {
+        ed.reg  = undefined<registred_path_id>();
+        ed.dir  = undefined<dir_path_id>();
+        ed.file = undefined<file_path_id>();
+    }
 };
 
 graph_component_editor_data::graph_component_editor_data(
@@ -869,13 +975,20 @@ void graph_component_editor_data::clear() noexcept
 
 void graph_component_editor_data::show(component_editor& ed) noexcept
 {
-    auto& app = container_of(&ed, &application::component_ed);
+    if (ImGui::BeginChild("##graph-ed",
+                          ImVec2(0, 0),
+                          ImGuiChildFlags_None,
+                          ImGuiWindowFlags_MenuBar)) {
+        auto& app = container_of(&ed, &application::component_ed);
 
-    graph_component_editor_data::impl impl{ *this };
-    impl.show(app);
+        graph_component_editor_data::impl impl{ *this };
+        impl.show(app);
 
-    if (st == status::update_required)
-        impl.start_update_task(app);
+        if (st == status::update_required)
+            impl.start_update_task(app);
+    }
+
+    ImGui::EndChild();
 }
 
 void graph_component_editor_data::show_selected_nodes(

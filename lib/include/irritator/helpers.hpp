@@ -148,7 +148,8 @@ auto try_for_each_data(Data& d, Function&& f) noexcept ->
 {
     using return_t = std::invoke_result_t<Function, typename Data::value_type&>;
 
-    static_assert(std::is_same_v<return_t, bool> || is_expected<return_t>::value);
+    static_assert(std::is_same_v<return_t, bool> ||
+                  is_expected<return_t>::value);
 
     if constexpr (std::is_same_v<return_t, bool>) {
         for (auto& elem : d)
@@ -316,6 +317,28 @@ auto find_specified_data_if(Data& d, Vector& vec, Predicate&& pred) noexcept ->
     }
 
     return nullptr;
+}
+
+inline bool all_char_valid(const std::string_view v) noexcept
+{
+    for (auto c : v)
+        if (!((c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') ||
+              (c >= '0' && c <= '9') || c == '_' || c == '-' || c == '.'))
+            return false;
+
+    return true;
+}
+
+inline bool is_valid_irt_filename(const std::string_view v) noexcept
+{
+    return !v.empty() && v[0] != '.' && v[0] != '-' && all_char_valid(v) &&
+           v.ends_with(".irt");
+}
+
+inline bool is_valid_dot_filename(const std::string_view v) noexcept
+{
+    return !v.empty() && v[0] != '.' && v[0] != '-' && all_char_valid(v) &&
+           v.ends_with(".dot");
 }
 
 } // namespace irt

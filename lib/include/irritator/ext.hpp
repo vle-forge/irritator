@@ -336,8 +336,10 @@ private:
 
 inline std::string_view string_buffer::append(std::string_view str) noexcept
 {
-    debug::ensure(not str.empty());
     debug::ensure(str.size() < string_buffer_node_length);
+
+    if (str.empty())
+        return std::string_view();
 
     if (m_container.empty() ||
         str.size() + m_position > string_buffer_node_length)

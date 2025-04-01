@@ -348,6 +348,10 @@ private:
     graph_component_id graph_id = undefined<graph_component_id>();
     component_id       m_id     = undefined<component_id>();
 
+    registred_path_id reg  = undefined<registred_path_id>();
+    dir_path_id       dir  = undefined<dir_path_id>();
+    file_path_id      file = undefined<file_path_id>();
+
     spin_mutex mutex;
 
     bool automatic_layout = false;

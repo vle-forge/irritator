@@ -218,25 +218,22 @@ static void named_suffix_connection_add(graph_component& compo,
     });
 }
 
-static expected<std::filesystem::path> build_dot_filename(
-  const modeling&    mod,
-  const file_path_id id) noexcept
+static auto search_graph_id(const modeling&    mod,
+                            const dir_path_id  dir_id,
+                            const file_path_id file_id) -> graph_id
 {
-    try {
-        if (auto* f = mod.file_paths.try_to_get(id); f) {
-            if (auto* d = mod.dir_paths.try_to_get(f->parent); d) {
-                if (auto* r = mod.registred_paths.try_to_get(d->parent); r) {
-                    return std::filesystem::path(r->path.sv()) / d->path.sv() /
-                           f->path.sv();
-                } else
-                    return new_error(modeling_errc::recorded_directory_error);
-            } else
-                return new_error(modeling_errc::directory_error);
-        } else
-            return new_error(modeling_errc::file_error);
-    } catch (...) {
-        return new_error(modeling_errc::memory_error);
+    if (is_defined(dir_id) and is_defined(file_id)) {
+        if (auto* f = mod.file_paths.try_to_get(file_id)) {
+            if (f->parent == dir_id and
+                f->type == file_path::file_type::dot_file) {
+                for (const auto& g : mod.graphs)
+                    if (g.file == file_id)
+                        return mod.graphs.get_id(g);
+            }
+        }
     }
+
+    return undefined<graph_id>();
 }
 
 static expected<void> build_dot_file_edges(
@@ -244,25 +241,13 @@ static expected<void> build_dot_file_edges(
   graph_component&                       graph,
   const graph_component::dot_file_param& params) noexcept
 {
-    if (auto file = build_dot_filename(mod, params.file); file) {
-        if (auto dot_graph = parse_dot_file(mod, *file); dot_graph) {
-            graph.g.nodes = std::move(dot_graph->nodes);
-            graph.g.edges = std::move(dot_graph->edges);
-
-            graph.g.node_names      = std::move(dot_graph->node_names);
-            graph.g.node_ids        = std::move(dot_graph->node_ids);
-            graph.g.node_positions  = std::move(dot_graph->node_positions);
-            graph.g.node_components = std::move(dot_graph->node_components);
-            graph.g.node_areas      = std::move(dot_graph->node_areas);
-            graph.g.edges_nodes     = std::move(dot_graph->edges_nodes);
-
-            graph.g.buffer = std::move(dot_graph->buffer);
-        } else
-            return dot_graph.error();
-    } else {
-        return file.error();
+    if (auto id = search_graph_id(mod, params.dir, params.file);
+        is_defined(id)) {
+        graph.g = mod.graphs.get(id);
+        return success();
     }
-    return success();
+
+    return new_error(file_errc::empty);
 }
 
 static constexpr auto edge_exists(const graph&        g,
@@ -467,15 +452,26 @@ void graph_component::resize(const i32          children_size,
                              const component_id cid) noexcept
 {
     g.clear();
-    g.reserve(children_size, children_size * 8);
-
     input_connections.clear();
     output_connections.clear();
+    g.reserve(children_size, children_size * 8);
 
+    g.main_id    = g.buffer.append("temp");
+    g.is_strict  = true;
+    g.is_digraph = true;
+
+    name_str str;
     for (auto i = 0; i < children_size; ++i) {
-        const auto id          = g.nodes.alloc();
-        const auto idx         = get_index(id);
+        format(str, "{}", i);
+
+        const auto id  = g.nodes.alloc();
+        const auto idx = get_index(id);
+
         g.node_components[idx] = cid;
+        g.node_areas[idx]      = 1.0f;
+        g.node_positions[idx]  = { 0.f, 0.f };
+        g.node_ids[idx]        = g.buffer.append(str.sv());
+        g.node_names[idx]      = g.buffer.append(str.sv());
     }
 }
 
