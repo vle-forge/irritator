@@ -624,8 +624,7 @@ struct json_dearchiver::impl {
     bool project_variable_observers_can_alloc(std::integral auto i) noexcept
     {
         if (!pj().variable_observers.can_alloc(i))
-            return report_error(
-              "can not allocate more variable observers");
+            return report_error("can not allocate more variable observers");
 
         return true;
     }
@@ -2325,8 +2324,7 @@ struct json_dearchiver::impl {
             std::cmp_less_equal(i, external_source_chunk_size))
             return true;
 
-        return report_error(
-          "can not allocate more data in constant source");
+        return report_error("can not allocate more data in constant source");
     }
 
     bool read_constant_source(const rapidjson::Value& val,
@@ -6432,7 +6430,6 @@ struct json_archiver::impl {
         case graph_component::graph_type::dot_file: {
             w.String("dot-file");
             auto& p = g.param.dot;
-
             if (auto* dir = mod.dir_paths.try_to_get(p.dir); dir) {
                 w.Key("dir");
                 w.String(dir->path.begin(), dir->path.size());
@@ -6452,7 +6449,7 @@ struct json_archiver::impl {
             w.Key("beta");
             w.Double(g.param.scale.beta);
             w.Key("nodes");
-            w.Int(g.param.small.nodes);
+            w.Int(g.param.scale.nodes);
 
             w.Key("children");
             w.StartArray();
