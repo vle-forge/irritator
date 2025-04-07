@@ -995,6 +995,7 @@ void graph_component_editor_data::show_selected_nodes(
   component_editor& ed) noexcept
 {
     auto& app = container_of(&ed, &application::component_ed);
+
     if (auto* graph = app.mod.graph_components.try_to_get(graph_id)) {
         if (ImGui::CollapsingHeader("selected nodes")) {
             for (const auto id : selected_nodes) {
@@ -1017,6 +1018,30 @@ void graph_component_editor_data::show_selected_nodes(
                     if (auto newid = graph->g.node_components[idx];
                         app.component_sel.combobox("component", &newid))
                         graph->g.node_components[idx] = newid;
+
+                    if (auto* compo = app.mod.components.try_to_get(
+                          graph->g.node_components[idx])) {
+                        if (not compo->x.empty()) {
+                            if (ImGui::CollapsingHeader("Connect input port")) {
+                                const auto& xnames = compo->x.get<port_str>();
+                                for (const auto id : compo->x) {
+                                    ImGui::TextFormat(
+                                      "{}", xnames[get_index(id)].sv());
+                                }
+                            }
+                        }
+
+                        if (not compo->y.empty()) {
+                            if (ImGui::CollapsingHeader(
+                                  "Connect output port")) {
+                                const auto& ynames = compo->y.get<port_str>();
+                                for (const auto id : compo->y) {
+                                    ImGui::TextFormat(
+                                      "{}", ynames[get_index(id)].sv());
+                                }
+                            }
+                        }
+                    }
                 }
 
                 ImGui::PopID();

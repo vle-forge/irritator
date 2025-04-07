@@ -622,7 +622,9 @@ expected<input_connection_id> graph_component::connect_input(
         return new_error(modeling_errc::graph_input_connection_already_exists);
 
     if (not input_connections.can_alloc(1))
-        return new_error(modeling_errc::graph_input_connection_container_full);
+        if (not input_connections.grow<2, 1>())
+            return new_error(
+              modeling_errc::graph_input_connection_container_full);
 
     return input_connections.get_id(input_connections.alloc(x, v, id));
 }
@@ -636,7 +638,9 @@ expected<output_connection_id> graph_component::connect_output(
         return new_error(modeling_errc::graph_output_connection_already_exists);
 
     if (not output_connections.can_alloc(1))
-        return new_error(modeling_errc::graph_output_connection_container_full);
+        if (not output_connections.grow<2, 1>())
+            return new_error(
+              modeling_errc::graph_output_connection_container_full);
 
     return output_connections.get_id(output_connections.alloc(y, v, id));
 }
