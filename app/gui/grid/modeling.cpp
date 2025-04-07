@@ -528,9 +528,8 @@ static void show_grid(application&                app,
 
                 ImGui::EndMenu();
             }
-
-            ImGui::EndPopup();
         }
+        ImGui::EndPopup();
     } else {
         ed.hovered_component = nullptr;
     }
