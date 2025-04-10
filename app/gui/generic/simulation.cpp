@@ -1007,8 +1007,9 @@ struct generic_simulation_editor::impl {
             debug::ensure(std::cmp_equal(names.size(), length(dyn.x)));
 
             for (sz i = 0, e = names.size(); i != e; ++i) {
-                ImNodes::BeginInputAttribute(make_input_node_id(id, i),
-                                             ImNodesPinShape_TriangleFilled);
+                ImNodes::BeginInputAttribute(
+                  make_input_node_id(id, static_cast<int>(i)),
+                  ImNodesPinShape_TriangleFilled);
                 ImGui::TextUnformatted(names[i]);
                 ImNodes::EndInputAttribute();
             }
@@ -1024,8 +1025,9 @@ struct generic_simulation_editor::impl {
             debug::ensure(std::cmp_equal(names.size(), length(dyn.y)));
 
             for (sz i = 0, e = names.size(); i != e; ++i) {
-                ImNodes::BeginOutputAttribute(make_output_node_id(id, i),
-                                              ImNodesPinShape_TriangleFilled);
+                ImNodes::BeginOutputAttribute(
+                  make_output_node_id(id, static_cast<int>(i)),
+                  ImNodesPinShape_TriangleFilled);
                 ImGui::TextUnformatted(names[i]);
                 ImNodes::EndOutputAttribute();
             }
