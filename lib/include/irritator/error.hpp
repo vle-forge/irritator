@@ -83,7 +83,10 @@ enum class simulation_errc : std::int16_t {
     dated_messages,
     models,
     hsms,
+
     observers,
+    observers_container_full,
+
     scheduler,
     external_sources,
 

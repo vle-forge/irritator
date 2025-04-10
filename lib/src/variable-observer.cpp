@@ -39,19 +39,18 @@ status variable_observer::init(project& pj, simulation& sim) noexcept
                             linearized_buffer_size.value()),
                           time_step.value());
             } else {
-                if (sim.observers.can_alloc()) {
-                    auto& new_obs = sim.observers.alloc();
-                    new_obs.init(
-                      observer::buffer_size_t(raw_buffer_size.value()),
-                      observer::linearized_buffer_size_t(
-                        linearized_buffer_size.value()),
-                      time_step.value());
+                if (not sim.observers.can_alloc() and
+                    not sim.observers.grow<3, 2>())
+                    return new_error(simulation_errc::observers_container_full);
 
-                    obs_id = sim.observers.get_id(new_obs);
-                    sim.observe(*mdl, new_obs);
-                } else {
-                    // Maybe return another status?
-                }
+                auto& new_obs = sim.observers.alloc();
+                new_obs.init(observer::buffer_size_t(raw_buffer_size.value()),
+                             observer::linearized_buffer_size_t(
+                               linearized_buffer_size.value()),
+                             time_step.value());
+
+                obs_id = sim.observers.get_id(new_obs);
+                sim.observe(*mdl, new_obs);
             }
         }
 
