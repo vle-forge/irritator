@@ -103,7 +103,7 @@ constexpr int internal_component_count =
 enum class component_type {
     none,     ///< The component does not reference any container.
     internal, ///< The component reference a c++ code.
-    simple,   ///< A classic component-model graph coupling.
+    generic,  ///< A classic component-model graph coupling.
     grid,     ///< Grid with 4, 8 neighbourhood.
     graph,    ///< Random graph generator
     hsm       ///< HSM component

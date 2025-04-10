@@ -546,7 +546,7 @@ status modeling::copy(internal_component src, component& dst) noexcept
 
     auto& s_compo     = generic_components.alloc();
     auto  s_compo_id  = generic_components.get_id(s_compo);
-    dst.type          = component_type::simple;
+    dst.type          = component_type::generic;
     dst.id.generic_id = s_compo_id;
 
     switch (src) {

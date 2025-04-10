@@ -598,7 +598,7 @@ static void show_select_model_box_recursive(application&    app,
         small_string<64> str;
 
         switch (compo.type) {
-        case component_type::simple:
+        case component_type::generic:
             format(str, "{} generic", compo.name.sv());
             break;
         case component_type::grid:

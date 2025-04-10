@@ -944,7 +944,7 @@ component& modeling::alloc_generic_component() noexcept
     auto& new_compo    = components.alloc();
     auto  new_compo_id = components.get_id(new_compo);
     format(new_compo.name, "simple {}", get_index(new_compo_id));
-    new_compo.type  = component_type::simple;
+    new_compo.type  = component_type::generic;
     new_compo.state = component_status::modified;
 
     auto& new_s_compo       = generic_components.alloc();
@@ -995,7 +995,7 @@ static bool can_add_component(const modeling&       mod,
         }
     } break;
 
-    case component_type::simple: {
+    case component_type::generic: {
         auto id = compo.id.generic_id;
         if (auto* s = mod.generic_components.try_to_get(id); s) {
             for (const auto& ch : s->children)
@@ -1046,7 +1046,7 @@ void modeling::clear(component& compo) noexcept
         break;
     case component_type::internal:
         break;
-    case component_type::simple:
+    case component_type::generic:
         if_data_exists_do(generic_components,
                           compo.id.generic_id,
                           [&](auto& gen) { free(gen); });
@@ -1088,7 +1088,7 @@ void modeling::free(graph_component& gen) noexcept
 void modeling::free(component& compo) noexcept
 {
     switch (compo.type) {
-    case component_type::simple:
+    case component_type::generic:
         if_data_exists_do(
           generic_components, compo.id.generic_id, [&](auto& g) { free(g); });
         break;
@@ -1192,7 +1192,7 @@ status modeling::copy(const component& src, component& dst) noexcept
     case component_type::none:
         break;
 
-    case component_type::simple:
+    case component_type::generic:
         if (const auto* s_src =
               generic_components.try_to_get(src.id.generic_id);
             s_src) {
@@ -1203,7 +1203,7 @@ status modeling::copy(const component& src, component& dst) noexcept
             auto& s_dst       = generic_components.alloc();
             auto  s_dst_id    = generic_components.get_id(s_dst);
             dst.id.generic_id = s_dst_id;
-            dst.type          = component_type::simple;
+            dst.type          = component_type::generic;
 
             if (auto ret = copy(*s_src, s_dst); !ret)
                 return ret.error();

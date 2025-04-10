@@ -129,7 +129,7 @@ bool component_model_selector::observable_model_treenode(
         small_string<64> str;
 
         switch (compo.type) {
-        case component_type::simple:
+        case component_type::generic:
             format(str, "{} generic", compo.name.sv());
             break;
         case component_type::grid:
@@ -143,7 +143,7 @@ bool component_model_selector::observable_model_treenode(
             break;
         }
 
-        if (compo.type == component_type::simple) {
+        if (compo.type == component_type::generic) {
             ImGui::PushID(&tn);
             if (ImGui::TreeNodeEx(str.c_str(),
                                   ImGuiTreeNodeFlags_DefaultOpen)) {

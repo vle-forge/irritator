@@ -2183,7 +2183,7 @@ struct json_dearchiver::impl {
         case component_type::internal:
             return read_child_internal_component(val, c_id);
 
-        case component_type::simple:
+        case component_type::generic:
             return read_child_simple_or_grid_component(val, c_id);
 
         case component_type::grid:
@@ -3228,7 +3228,7 @@ struct json_dearchiver::impl {
         auto_stack s(this, "component generic");
 
         auto& generic       = mod().generic_components.alloc();
-        compo.type          = component_type::simple;
+        compo.type          = component_type::generic;
         compo.id.generic_id = mod().generic_components.get_id(generic);
 
         return for_each_member(
@@ -3726,7 +3726,7 @@ struct json_dearchiver::impl {
         case component_type::internal:
             return read_internal_component(val, compo);
 
-        case component_type::simple:
+        case component_type::generic:
             return read_generic_component(val, compo);
 
         case component_type::grid:
@@ -6048,7 +6048,7 @@ struct json_archiver::impl {
             case component_type::graph:
                 write_child_component_path(mod, *compo, w);
                 break;
-            case component_type::simple:
+            case component_type::generic:
                 write_child_component_path(mod, *compo, w);
                 break;
             case component_type::hsm:
@@ -6676,7 +6676,7 @@ struct json_archiver::impl {
             write_internal_component(mod, compo.id.internal_id, w);
             break;
 
-        case component_type::simple: {
+        case component_type::generic: {
             auto* p = mod.generic_components.try_to_get(compo.id.generic_id);
             if (p)
                 write_generic_component(mod, compo, *p, w);
@@ -6985,7 +6985,7 @@ struct json_archiver::impl {
         case component_type::internal:
             break;
 
-        case component_type::simple:
+        case component_type::generic:
         case component_type::grid:
         case component_type::hsm:
             w.Key("component-path");

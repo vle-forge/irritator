@@ -59,7 +59,7 @@ void project_editor::select(application& app, tree_node_id id) noexcept
             if (auto* compo = app.mod.components.try_to_get(tree->id); compo) {
                 m_selected_tree_node = id;
 
-                if (compo->type == component_type::simple) {
+                if (compo->type == component_type::generic) {
                     if (auto* gen = app.mod.generic_components.try_to_get(
                           compo->id.generic_id)) {
                         generic_sim.init(app, *tree, *compo, *gen);
@@ -280,7 +280,7 @@ static bool show_local_simulation_plot_observers_table(application&    app,
                         tn.variable_observer_ids.set(uid, vobs_id);
 
                         if (auto* c = app.mod.components.try_to_get(tn.id);
-                            c and c->type == component_type::simple) {
+                            c and c->type == component_type::generic) {
                             if (auto* g = app.mod.generic_components.try_to_get(
                                   c->id.generic_id);
                                 g) {
@@ -493,7 +493,7 @@ static bool show_local_simulation_specific_observers(application&    app,
                 return show_local_observers(app, ed, tn, *compo, *g);
             break;
 
-        case component_type::simple:
+        case component_type::generic:
             return show_local_simulation_plot_observers_table(app, ed, tn);
 
         default:

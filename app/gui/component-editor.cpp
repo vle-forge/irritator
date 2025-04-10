@@ -1490,7 +1490,7 @@ struct component_editor::impl {
             break;
         case component_type::internal:
             break;
-        case component_type::simple:
+        case component_type::generic:
             if (auto* g =
                   app.mod.generic_components.try_to_get(compo.id.generic_id))
                 show_input_output_connections(*g, compo);
@@ -1749,7 +1749,7 @@ void component_editor::close(const component_id id) noexcept
 
     if_data_exists_do(app.mod.components, id, [&](auto& compo) noexcept {
         switch (compo.type) {
-        case component_type::simple:
+        case component_type::generic:
             close_component(app.generics, id);
             break;
         case component_type::grid:

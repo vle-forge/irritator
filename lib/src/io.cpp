@@ -75,7 +75,7 @@ auto get_component_type(std::string_view name) noexcept
         { "hsm", component_type::hsm },
         { "internal", component_type::internal },
         { "none", component_type::none },
-        { "simple", component_type::simple },
+        { "simple", component_type::generic },
     };
 
     auto it = binary_find(

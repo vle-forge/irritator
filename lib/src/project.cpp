@@ -235,7 +235,7 @@ static auto get_incoming_connection(const modeling&  mod,
     if (not compo->x.exists(id))
         return new_error(project_errc::import_error);
 
-    if (compo->type == component_type::simple) {
+    if (compo->type == component_type::generic) {
         auto* gen = mod.generic_components.try_to_get(compo->id.generic_id);
         return gen ? get_incoming_connection(*gen, id) : 0;
     }
@@ -252,7 +252,7 @@ static auto get_incoming_connection(const modeling&  mod,
 
     int nb = 0;
     compo->x.for_each_id([&](auto id) noexcept {
-        if (compo->type == component_type::simple) {
+        if (compo->type == component_type::generic) {
             auto* gen = mod.generic_components.try_to_get(compo->id.generic_id);
             if (gen)
                 nb += get_incoming_connection(*gen, id);
@@ -289,7 +289,7 @@ static auto get_outcoming_connection(const modeling&  mod,
     if (not compo->y.exists(id))
         return new_error(project_errc::import_error);
 
-    if (compo->type == component_type::simple) {
+    if (compo->type == component_type::generic) {
         auto* gen = mod.generic_components.try_to_get(compo->id.generic_id);
         return gen ? get_outcoming_connection(*gen, id) : 0;
     }
@@ -307,7 +307,7 @@ static auto get_outcoming_connection(const modeling&  mod,
 
     int nb = 0;
     compo->y.for_each_id([&](auto id) noexcept {
-        if (compo->type == component_type::simple) {
+        if (compo->type == component_type::generic) {
             auto* gen = mod.generic_components.try_to_get(compo->id.generic_id);
             if (gen)
                 nb += get_outcoming_connection(*gen, id);
@@ -706,7 +706,7 @@ static auto make_tree_recursive(simulation_copy&       sc,
     irt_check(update_external_source(sc, compo));
 
     switch (compo.type) {
-    case component_type::simple: {
+    case component_type::generic: {
         auto s_id = compo.id.generic_id;
         if (auto* s = sc.mod.generic_components.try_to_get(s_id); s)
             irt_check(make_tree_recursive(sc, new_tree, *s));
@@ -839,7 +839,7 @@ static void get_input_models(vector<model_port>& inputs,
         return;
 
     switch (compo->type) {
-    case component_type::simple: {
+    case component_type::generic: {
         if (auto* g = mod.generic_components.try_to_get(compo->id.generic_id))
             get_input_models(inputs, mod, tn, *g, p);
     } break;
@@ -944,7 +944,7 @@ static void get_output_models(vector<model_port>& outputs,
         return;
 
     switch (compo->type) {
-    case component_type::simple: {
+    case component_type::generic: {
         if (auto* g = mod.generic_components.try_to_get(compo->id.generic_id))
             get_output_models(outputs, mod, tn, *g, p);
     } break;
@@ -1029,7 +1029,7 @@ static status simulation_copy_connections(simulation_copy& sc,
                                           component&       compo)
 {
     switch (compo.type) {
-    case component_type::simple: {
+    case component_type::generic: {
         if (auto* g = sc.mod.generic_components.try_to_get(compo.id.generic_id);
             g)
             return simulation_copy_connections(
@@ -1125,7 +1125,7 @@ static auto make_tree_from(simulation_copy&                     sc,
     }
 
     switch (parent.type) {
-    case component_type::simple: {
+    case component_type::generic: {
         auto s_id = parent.id.generic_id;
         if (auto* s = sc.mod.generic_components.try_to_get(s_id); s)
             irt_check(make_tree_recursive(sc, new_tree, *s));
@@ -1244,7 +1244,7 @@ public:
             ret = *ptr;
         } else {
             switch (c.type) {
-            case component_type::simple: {
+            case component_type::generic: {
                 auto s_id = c.id.generic_id;
                 if (auto* s = mod.generic_components.try_to_get(s_id); s)
                     ret += compute(mod, *s);

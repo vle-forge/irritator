@@ -102,7 +102,7 @@ static void show_component_popup_menu(application& app, component& sel) noexcept
             if (ImGui::MenuItem("Copy")) {
                 if (app.mod.components.can_alloc()) {
                     auto& new_c = app.mod.components.alloc();
-                    new_c.type  = component_type::simple;
+                    new_c.type  = component_type::generic;
                     new_c.name  = sel.name;
                     new_c.state = component_status::modified;
 
@@ -188,7 +188,7 @@ static void show_component_popup_menu(application& app, component& sel) noexcept
             if (ImGui::MenuItem("Copy in generic component")) {
                 if (app.mod.components.can_alloc()) {
                     auto& new_c = app.mod.components.alloc();
-                    new_c.type  = component_type::simple;
+                    new_c.type  = component_type::generic;
                     new_c.name =
                       internal_component_names[ordinal(sel.id.internal_id)];
                     new_c.state = component_status::modified;
@@ -237,7 +237,7 @@ static void open_component(application& app, component_id id) noexcept
         case component_type::none:
             break;
 
-        case component_type::simple:
+        case component_type::generic:
             if (!is_already_open(app.generics, id) && app.generics.can_alloc())
                 if (auto* gen = app.mod.generic_components.try_to_get(
                       compo.id.generic_id);
@@ -302,7 +302,7 @@ static bool is_component_open(const application& app,
         case component_type::none:
             break;
 
-        case component_type::simple:
+        case component_type::generic:
             for (const auto& g : app.generics)
                 if (g.get_id() == id)
                     return true;
@@ -565,7 +565,7 @@ auto library_window::is_component_deletable(
     {
         for (const auto& c : app.mod.components) {
             switch (c.type) {
-            case component_type::simple:
+            case component_type::generic:
                 if (const auto* g =
                       app.mod.generic_components.try_to_get(c.id.generic_id)) {
                     if (std::any_of(g->children.begin(),

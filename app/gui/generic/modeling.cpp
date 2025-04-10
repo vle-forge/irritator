@@ -510,7 +510,7 @@ static void show_graph(component_editor&  ed,
                 case component_type::none:
                     break;
 
-                case component_type::simple:
+                case component_type::generic:
                     if (auto* s_compo = app.mod.generic_components.try_to_get(
                           compo->id.generic_id)) {
                         show_generic_node(app,
@@ -1041,7 +1041,7 @@ static void remove_nodes(modeling&                      mod,
                          generic_component_editor_data& data,
                          component&                     parent) noexcept
 {
-    if (parent.type == component_type::simple) {
+    if (parent.type == component_type::generic) {
         if_data_exists_do(
           mod.generic_components,
           parent.id.generic_id,
@@ -1301,7 +1301,7 @@ void generic_component_editor_data::store(component_editor& ed) noexcept
     auto& app = container_of(&ed, &application::component_ed);
 
     auto* compo = app.mod.components.try_to_get(m_id);
-    if (not compo or compo->type != component_type::simple)
+    if (not compo or compo->type != component_type::generic)
         return;
 
     auto* gen = app.mod.generic_components.try_to_get(compo->id.generic_id);

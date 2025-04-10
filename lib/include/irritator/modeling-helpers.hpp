@@ -235,7 +235,7 @@ void if_component_is_generic(const modeling&    mod,
                              Function&&         f) noexcept
 {
     if (const auto* compo = mod.components.try_to_get(id); compo) {
-        if (compo->type == component_type::simple) {
+        if (compo->type == component_type::generic) {
             if (const auto* gen =
                   mod.generic_components.try_to_get(compo->id.generic_id);
                 gen)
@@ -255,7 +255,7 @@ void if_component_is_generic(modeling&          mod,
                              Function&&         f) noexcept
 {
     if (auto* compo = mod.components.try_to_get(id); compo) {
-        if (compo->type == component_type::simple) {
+        if (compo->type == component_type::generic) {
             if (auto* gen =
                   mod.generic_components.try_to_get(compo->id.generic_id);
                 gen)
@@ -346,7 +346,7 @@ template<typename Function>
 void for_each_child(modeling& mod, component& compo, Function&& f) noexcept
 {
     switch (compo.type) {
-    case component_type::simple:
+    case component_type::generic:
         if_data_exists_do(mod.generic_components,
                           compo.id.generic_id,
                           [&](auto& generic) noexcept {
@@ -497,7 +497,7 @@ void dispatch_component(modeling& mod, component& compo, Function&& f) noexcept
         break;
     case component_type::internal:
         break;
-    case component_type::simple:
+    case component_type::generic:
         if_data_exists_do(mod.generic_components, compo.id.generic_id, f);
         break;
     case component_type::grid:
