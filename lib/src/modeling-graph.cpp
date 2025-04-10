@@ -257,7 +257,10 @@ static constexpr auto edge_exists(const graph&        g,
     for (auto id : g.edges) {
         const auto idx = get_index(id);
 
-        if (g.edges_nodes[idx][0] == src and g.edges_nodes[idx][1] == dst)
+        if (g.edges_nodes[idx][0].first == src and
+            g.edges_nodes[idx][1].first == dst and
+            g.edges_nodes[idx][0].second.empty() and
+            g.edges_nodes[idx][1].second.empty())
             return true;
     }
 
@@ -322,7 +325,8 @@ static expected<void> build_scale_free_edges(
             auto       new_edge_id  = graph.g.edges.alloc();
             const auto new_edge_idx = get_index(new_edge_id);
 
-            graph.g.edges_nodes[new_edge_idx] = { *first, second };
+            graph.g.edges_nodes[new_edge_idx][0].first = *first;
+            graph.g.edges_nodes[new_edge_idx][1].first = second;
         }
     }
 
@@ -397,8 +401,8 @@ static expected<void> build_small_world_edges(
                 edge_exists(graph.g, *vertex_first, *vertex_second))
                 continue;
 
-            graph.g.edges_nodes[new_edge_idx] = { *vertex_first,
-                                                  *vertex_second };
+            graph.g.edges_nodes[new_edge_idx][0].first = *vertex_first;
+            graph.g.edges_nodes[new_edge_idx][1].first = *vertex_second;
         } while (source + 1 < n);
     }
 
@@ -486,8 +490,8 @@ static void build_graph_connections(
 {
     for (const auto id : graph.g.edges) {
         const auto idx  = get_index(id);
-        const auto u_id = graph.g.edges_nodes[idx][0];
-        const auto v_id = graph.g.edges_nodes[idx][1];
+        const auto u_id = graph.g.edges_nodes[idx][0].first;
+        const auto v_id = graph.g.edges_nodes[idx][1].first;
 
         if (graph.g.nodes.exists(u_id) and graph.g.nodes.exists(v_id)) {
             if (const auto u = vertex.get(u_id)) {

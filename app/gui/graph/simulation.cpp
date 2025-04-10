@@ -314,8 +314,10 @@ struct graph_simulation_editor::impl {
                     }
 
                     for (const auto id : graph.g.edges) {
-                        const auto us = graph.g.edges_nodes[get_index(id)][0];
-                        const auto vs = graph.g.edges_nodes[get_index(id)][1];
+                        const auto us =
+                          graph.g.edges_nodes[get_index(id)][0].first;
+                        const auto vs =
+                          graph.g.edges_nodes[get_index(id)][1].first;
 
                         if (graph.g.nodes.exists(us) and
                             graph.g.nodes.exists(vs)) {
@@ -401,8 +403,8 @@ struct graph_simulation_editor::impl {
 
         for (const auto id : graph.g.edges) {
             const auto i   = get_index(id);
-            const auto u_c = graph.g.edges_nodes[i][0];
-            const auto v_c = graph.g.edges_nodes[i][1];
+            const auto u_c = graph.g.edges_nodes[i][0].first;
+            const auto v_c = graph.g.edges_nodes[i][1].first;
 
             if (not(graph.g.nodes.exists(u_c) and graph.g.nodes.exists(v_c)))
                 continue;

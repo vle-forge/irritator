@@ -418,6 +418,11 @@ private:
         return id;
     }
 
+    auto add_port(std::string_view name) noexcept
+    {
+        return g.buffer.append(name);
+    }
+
     expected<void> grow_strings() noexcept
     {
         if (not strings_ids.can_alloc(1)) {
@@ -713,8 +718,30 @@ private:
         const auto& first  = *it++;
         const auto& second = *it++;
 
-        return first.is_string() and (second[element_type::directed_edge] or
-                                      second[element_type::undirected_edge]);
+        if (first.is_string()) {
+            if (second[element_type::colon]) {
+                if (not check_minimum_tokens(3))
+                    return false;
+
+                const auto& third = *it++;
+                if (third.is_string()) {
+                    if (not check_minimum_tokens(4))
+                        return false;
+
+                    const auto& four = *it++;
+
+                    return four[element_type::directed_edge] or
+                           four[element_type::undirected_edge];
+                } else {
+                    return false;
+                }
+            } else {
+                return second[element_type::directed_edge] or
+                       second[element_type::undirected_edge];
+            }
+        }
+
+        return false;
     }
 
     bool next_is_attributes() noexcept
@@ -873,6 +900,18 @@ private:
             return false;
         }
 
+        std::string_view port_src;
+        std::string_view port_dst;
+
+        if (next_token_is(element_type::colon)) {
+            pop_token();
+            if (next_token_is(element_type::id)) {
+                const auto port     = pop_token();
+                const auto port_str = get_and_free_string(port);
+                port_src            = add_port(port_str);
+            }
+        }
+
         const auto type = pop_token();
         if (not(type.type == element_type::directed_edge or
                 type.type == element_type::undirected_edge))
@@ -889,6 +928,15 @@ private:
             return false;
         }
 
+        if (next_token_is(element_type::colon)) {
+            pop_token();
+            if (next_token_is(element_type::id)) {
+                const auto port     = pop_token();
+                const auto port_str = get_and_free_string(port);
+                port_dst            = add_port(port_str);
+            }
+        }
+
         if (not g.edges.can_alloc(1)) {
             if (not g.edges.grow<2, 1>()) {
                 ec = new_error(modeling_errc::dot_memory_insufficient);
@@ -902,8 +950,11 @@ private:
             }
         }
 
-        const auto new_edge_id                     = g.edges.alloc();
-        g.edges_nodes[irt::get_index(new_edge_id)] = { *from_id, *to_id };
+        const auto new_edge_id                               = g.edges.alloc();
+        g.edges_nodes[irt::get_index(new_edge_id)][0].first  = *from_id;
+        g.edges_nodes[irt::get_index(new_edge_id)][0].second = port_src;
+        g.edges_nodes[irt::get_index(new_edge_id)][1].first  = *to_id;
+        g.edges_nodes[irt::get_index(new_edge_id)][1].second = port_dst;
 
         return next_is_attributes() ? parse_attributes(new_edge_id) : true;
     }
@@ -1257,8 +1308,8 @@ expected<graph_edge_id> graph::alloc_edge(graph_node_id src,
                                           graph_node_id dst) noexcept
 {
     for (auto id : edges)
-        if (edges_nodes[get_index(id)][0] == src and
-            edges_nodes[get_index(id)][1] == dst)
+        if (edges_nodes[get_index(id)][0].first == src and
+            edges_nodes[get_index(id)][1].first == dst)
             return new_error(modeling_errc::graph_connection_already_exist);
 
     if (not edges.can_alloc(1)) {
@@ -1269,8 +1320,11 @@ expected<graph_edge_id> graph::alloc_edge(graph_node_id src,
             return new_error(modeling_errc::graph_connection_container_full);
     }
 
-    const auto id              = edges.alloc();
-    edges_nodes[get_index(id)] = { src, dst };
+    const auto id                        = edges.alloc();
+    edges_nodes[get_index(id)][0].first  = src;
+    edges_nodes[get_index(id)][1].first  = dst;
+    edges_nodes[get_index(id)][0].second = std::string_view();
+    edges_nodes[get_index(id)][1].second = std::string_view();
     return id;
 }
 
@@ -1287,10 +1341,7 @@ expected<void> graph::reserve(int n, int e) noexcept
 
     if (e > edges.capacity()) {
         if (not(edges.reserve(e) and
-                edges_nodes.resize(
-                  e,
-                  std::array<graph_node_id, 2>{ undefined<graph_node_id>(),
-                                                undefined<graph_node_id>() })))
+                edges_nodes.resize(e, std::array<edge, 2>())))
             return new_error(modeling_errc::dot_memory_insufficient);
     }
 
@@ -1412,10 +1463,10 @@ expected<void> write_dot_stream(const modeling& mod,
     for (const auto id : graph.edges) {
         const auto idx = get_index(id);
 
-        if (graph.nodes.exists(graph.edges_nodes[idx][0]) and
-            graph.nodes.exists(graph.edges_nodes[idx][1])) {
-            const auto src = get_index(graph.edges_nodes[idx][0]);
-            const auto dst = get_index(graph.edges_nodes[idx][1]);
+        if (graph.nodes.exists(graph.edges_nodes[idx][0].first) and
+            graph.nodes.exists(graph.edges_nodes[idx][1].first)) {
+            const auto src = get_index(graph.edges_nodes[idx][0].first);
+            const auto dst = get_index(graph.edges_nodes[idx][1].first);
 
             out = fmt::format_to(out,
                                  "  {} {} {};\n",

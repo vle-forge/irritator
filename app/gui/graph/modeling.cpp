@@ -122,19 +122,19 @@ struct graph_component_editor_data::impl {
         for (const auto v_edge_id : graph.g.edges) {
             const auto& v_edge = graph.g.edges_nodes[get_index(v_edge_id)];
 
-            if (not graph.g.nodes.exists(v_edge[1]))
+            if (not graph.g.nodes.exists(v_edge[1].first))
                 continue;
 
-            const auto v          = get_index(v_edge[1]);
+            const auto v          = get_index(v_edge[1].first);
             ed.displacements[v].x = 0.f;
             ed.displacements[v].y = 0.f;
 
             for (const auto u_edge_id : graph.g.edges) {
                 const auto& u_edge = graph.g.edges_nodes[get_index(u_edge_id)];
-                if (not graph.g.nodes.exists(u_edge[0]))
+                if (not graph.g.nodes.exists(u_edge[0].first))
                     continue;
 
-                const auto u = get_index(u_edge[0]);
+                const auto u = get_index(u_edge[0].first);
                 if (u != v) {
                     const auto delta = ImVec2{ graph.g.node_positions[v][0] -
                                                  graph.g.node_positions[u][0],
@@ -157,8 +157,8 @@ struct graph_component_editor_data::impl {
         for (const auto edge_id : graph.g.edges) {
             const auto& edge = graph.g.edges_nodes[get_index(edge_id)];
 
-            const auto  u = get_index(edge[0]);
-            const auto  v = get_index(edge[1]);
+            const auto  u = get_index(edge[0].first);
+            const auto  v = get_index(edge[1].first);
             const float dx =
               graph.g.node_positions[v][0] - graph.g.node_positions[u][0];
             const float dy =
@@ -187,7 +187,7 @@ struct graph_component_editor_data::impl {
         for (const auto edge_id : graph.g.edges) {
             const auto& edge = graph.g.edges_nodes[get_index(edge_id)];
 
-            const auto  v = get_index(edge[1]);
+            const auto  v = get_index(edge[1].first);
             const float d =
               std::sqrt((ed.displacements[v].x * ed.displacements[v].x) +
                         (ed.displacements[v].y * ed.displacements[v].y));
@@ -504,8 +504,10 @@ struct graph_component_editor_data::impl {
                     }
 
                     for (const auto id : data.g.edges) {
-                        const auto us = data.g.edges_nodes[get_index(id)][0];
-                        const auto vs = data.g.edges_nodes[get_index(id)][1];
+                        const auto us =
+                          data.g.edges_nodes[get_index(id)][0].first;
+                        const auto vs =
+                          data.g.edges_nodes[get_index(id)][1].first;
 
                         if (data.g.nodes.exists(us) and
                             data.g.nodes.exists(vs)) {
@@ -590,8 +592,8 @@ struct graph_component_editor_data::impl {
 
         for (const auto id : data.g.edges) {
             const auto i   = get_index(id);
-            const auto u_c = data.g.edges_nodes[i][0];
-            const auto v_c = data.g.edges_nodes[i][1];
+            const auto u_c = data.g.edges_nodes[i][0].first;
+            const auto v_c = data.g.edges_nodes[i][1].first;
 
             if (not(data.g.nodes.exists(u_c) and data.g.nodes.exists(v_c)))
                 continue;
@@ -623,8 +625,8 @@ struct graph_component_editor_data::impl {
 
         for (const auto id : ed.selected_edges) {
             const auto idx = get_index(id);
-            const auto u_c = data.g.edges_nodes[idx][0];
-            const auto v_c = data.g.edges_nodes[idx][1];
+            const auto u_c = data.g.edges_nodes[idx][0].first;
+            const auto v_c = data.g.edges_nodes[idx][1].first;
 
             if (not(data.g.nodes.exists(u_c) and data.g.nodes.exists(v_c)))
                 continue;

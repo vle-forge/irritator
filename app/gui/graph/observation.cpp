@@ -162,11 +162,12 @@ struct graph_observation_widget::impl {
             const auto u_c = compo.g.edges_nodes[i][0];
             const auto v_c = compo.g.edges_nodes[i][1];
 
-            if (not(compo.g.nodes.exists(u_c) and compo.g.nodes.exists(v_c)))
+            if (not(compo.g.nodes.exists(u_c.first) and
+                    compo.g.nodes.exists(v_c.first)))
                 continue;
 
-            const auto p_src = get_index(u_c);
-            const auto p_dst = get_index(v_c);
+            const auto p_src = get_index(u_c.first);
+            const auto p_dst = get_index(v_c.first);
 
             const auto u_width  = compo.g.node_areas[p_src] / 2.f;
             const auto u_height = compo.g.node_areas[p_src] / 2.f;

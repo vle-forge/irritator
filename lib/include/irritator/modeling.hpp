@@ -550,6 +550,8 @@ public:
 class graph
 {
 public:
+    using edge = std::pair<graph_node_id, std::string_view>;
+
     graph() noexcept = default;
 
     explicit graph(const graph& other) noexcept;
@@ -561,12 +563,12 @@ public:
     id_array<graph_node_id> nodes;
     id_array<graph_edge_id> edges;
 
-    vector<std::string_view>             node_names;
-    vector<std::string_view>             node_ids;
-    vector<std::array<float, 2>>         node_positions;
-    vector<component_id>                 node_components;
-    vector<float>                        node_areas;
-    vector<std::array<graph_node_id, 2>> edges_nodes;
+    vector<std::string_view>     node_names;
+    vector<std::string_view>     node_ids;
+    vector<std::array<float, 2>> node_positions;
+    vector<component_id>         node_components;
+    vector<float>                node_areas;
+    vector<std::array<edge, 2>>  edges_nodes;
 
     std::string_view main_id;
 
