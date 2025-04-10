@@ -335,7 +335,10 @@ public:
     graph g;
 
     irt::table<std::string_view, graph_node_id> name_to_node_id;
-    bool                                        sort_before_search = false;
+
+    error_code ec;
+
+    bool sort_before_search = false;
 
     /** Default is to fill the token ring buffer from the @c std::istream.
      *
@@ -372,8 +375,15 @@ public:
     }
 
 private:
-    /*constexpr*/ auto find_or_add_node(std::string_view name) noexcept
-      -> graph_node_id
+    /**
+     * Search the identifier of a node called @a name or add it. This function
+     * returns a valid identifier or an @a error_code if the container can not
+     * be grow to store more nodes.
+     * @param name The string to search into node names.
+     * @return A valid @a graph_node_id or a @a error_code.
+     */
+    auto find_or_add_node(std::string_view name) noexcept
+      -> expected<graph_node_id>
     {
         if (sort_before_search) {
             name_to_node_id.sort();
@@ -384,14 +394,15 @@ private:
             return *found;
 
         if (not g.nodes.can_alloc(1)) {
-            const auto c =
-              g.nodes.capacity() == 0 ? 64 : g.nodes.capacity() * 2;
-            g.nodes.reserve(c);
-            g.node_names.resize(c);
-            g.node_ids.resize(c);
-            g.node_positions.resize(c);
-            g.node_areas.resize(c);
-            g.node_components.resize(c);
+            if (not g.nodes.grow<2, 1>())
+                return new_error(modeling_errc::dot_memory_insufficient);
+
+            const auto c = g.nodes.capacity();
+
+            if (not(g.nodes.reserve(c) and g.node_names.resize(c) and
+                    g.node_ids.resize(c) and g.node_positions.resize(c) and
+                    g.node_areas.resize(c) and g.node_components.resize(c)))
+                return new_error(modeling_errc::dot_memory_insufficient);
         }
 
         const auto id  = g.nodes.alloc();
@@ -407,29 +418,23 @@ private:
         return id;
     }
 
-    constexpr auto find_node(std::string_view name) noexcept -> graph_node_id
+    expected<void> grow_strings() noexcept
     {
-        if (sort_before_search) {
-            name_to_node_id.sort();
-            sort_before_search = false;
+        if (not strings_ids.can_alloc(1)) {
+            if (not strings_ids.grow<2, 1>())
+                return new_error(modeling_errc::dot_memory_insufficient);
+
+            if (not strings.resize(strings_ids.capacity()))
+                return new_error(modeling_errc::dot_memory_insufficient);
         }
 
-        const auto* found = name_to_node_id.get(name);
-        return found ? *found : irt::undefined<graph_node_id>();
+        return {};
     }
 
-    void grow_strings() noexcept
+    expected<token> read_negative_integer() noexcept
     {
-        const auto capacity = strings_ids.capacity();
-
-        strings_ids.reserve(capacity < 64 ? 64 : capacity * 4);
-        strings.resize(strings_ids.capacity());
-    }
-
-    token read_negative_integer() noexcept
-    {
-        if (not strings_ids.can_alloc(1))
-            grow_strings();
+        if (auto ec = grow_strings(); not ec)
+            return ec.error();
 
         const auto id  = strings_ids.alloc();
         auto&      str = strings[irt::get_index(id)];
@@ -446,13 +451,13 @@ private:
             }
         }
 
-        return { element_type::integer, id };
+        return token{ element_type::integer, id };
     }
 
-    token read_integer() noexcept
+    expected<token> read_integer() noexcept
     {
-        if (not strings_ids.can_alloc(1))
-            grow_strings();
+        if (auto ec = grow_strings(); not ec)
+            return ec.error();
 
         const auto id  = strings_ids.alloc();
         auto&      str = strings[irt::get_index(id)];
@@ -468,13 +473,13 @@ private:
             }
         }
 
-        return { element_type::integer, id };
+        return token{ element_type::integer, id };
     }
 
-    token read_id() noexcept
+    expected<token> read_id() noexcept
     {
-        if (not strings_ids.can_alloc(1))
-            grow_strings();
+        if (auto ec = grow_strings(); not ec)
+            return ec.error();
 
         const auto id  = strings_ids.alloc();
         auto&      str = strings[irt::get_index(id)];
@@ -492,13 +497,13 @@ private:
             }
         }
 
-        return { element_type::id, id };
+        return token{ element_type::id, id };
     }
 
-    token read_double_quote() noexcept
+    expected<token> read_double_quote() noexcept
     {
-        if (not strings_ids.can_alloc(1))
-            grow_strings();
+        if (auto ec = grow_strings(); not ec)
+            return ec.error();
 
         const auto id  = strings_ids.alloc();
         auto&      str = strings[irt::get_index(id)];
@@ -513,7 +518,7 @@ private:
             }
         }
 
-        return { element_type::double_quote, id };
+        return token{ element_type::double_quote, id };
     }
 
     /** Continue to read characters from input stream until the string \*\/ is
@@ -522,13 +527,18 @@ private:
     {
         char c;
 
-        while (is.get(c))
-            if (c == '*' and is.get(c) and c == '/')
-                return;
+        while (is.get(c)) {
+            if (c == '*') {
+                if (is.get(c)) {
+                    if (c == '/')
+                        return;
+                }
+            }
+        }
     }
 
-    /** Continue to read characters from input stream until the end of line
-     * is found. */
+    /** Continue to read characters from input stream until the end of
+     * line is found. */
     void forget_cpp_comment() noexcept
     {
         char c;
@@ -538,8 +548,8 @@ private:
                 return;
     }
 
-    /** Continue to read characters from input stream until the end of line
-     * is found. */
+    /** Continue to read characters from input stream until the end of
+     * line is found. */
     void forget_line() noexcept
     {
         char c;
@@ -549,9 +559,10 @@ private:
                 return;
     }
 
-    /** Returns the element of token ring buffer. If the buffer is empty,
-     * read the @c std::istream. If the @c std::istream is empty and token
-     * ring buffer is empty,  the @c element_type::none token is returned.
+    /** Returns the element of token ring buffer. If the buffer is
+     * empty, read the @c std::istream. If the @c std::istream is empty
+     * and token ring buffer is empty,  the @c element_type::none token
+     * is returned.
      */
     token pop_token() noexcept
     {
@@ -589,7 +600,7 @@ private:
         return tokens.head()->is_string();
     }
 
-    void fill_tokens() noexcept
+    expected<void> fill_tokens() noexcept
     {
         char c, c2;
 
@@ -618,17 +629,29 @@ private:
                         tokens.emplace_tail(element_type::directed_edge);
                     else {
                         is.unget();
-                        tokens.emplace_tail(read_negative_integer());
+                        if (auto ret = read_negative_integer(); ret.has_error())
+                            return ret.error();
+                        else
+                            tokens.emplace_tail(*ret);
                     }
                 }
             } else if (starts_as_id(c)) {
                 is.unget();
-                tokens.emplace_tail(read_id());
+                if (auto ret = read_id(); ret.has_error())
+                    return ret.error();
+                else
+                    tokens.emplace_tail(*ret);
             } else if (starts_as_number(c)) {
                 is.unget();
-                tokens.emplace_tail(read_integer());
+                if (auto ret = read_integer(); ret.has_error())
+                    return ret.error();
+                else
+                    tokens.emplace_tail(*ret);
             } else if (c == '\"') {
-                tokens.emplace_tail(read_double_quote());
+                if (auto ret = read_double_quote(); ret.has_error())
+                    return ret.error();
+                else
+                    tokens.emplace_tail(*ret);
             } else if (c == '{') {
                 tokens.emplace_tail(element_type::opening_brace);
             } else if (c == '}') {
@@ -647,6 +670,8 @@ private:
                 tokens.emplace_tail(element_type::equals);
             }
         }
+
+        return {};
     }
 
     bool empty() const noexcept
@@ -843,6 +868,10 @@ private:
 
         const auto from_str = get_and_free_string(from);
         const auto from_id  = find_or_add_node(from_str);
+        if (from_id.has_error()) {
+            ec = from_id.error();
+            return false;
+        }
 
         const auto type = pop_token();
         if (not(type.type == element_type::directed_edge or
@@ -855,16 +884,26 @@ private:
 
         const auto to_str = get_and_free_string(to);
         const auto to_id  = find_or_add_node(to_str);
+        if (to_id.has_error()) {
+            ec = to_id.error();
+            return false;
+        }
 
         if (not g.edges.can_alloc(1)) {
-            const auto c =
-              g.edges.capacity() == 0 ? 64 : g.edges.capacity() * 2;
-            g.edges.reserve(c);
-            g.edges_nodes.resize(c);
+            if (not g.edges.grow<2, 1>()) {
+                ec = new_error(modeling_errc::dot_memory_insufficient);
+                return false;
+            }
+
+            const auto c = g.edges.capacity();
+            if (not g.edges.reserve(c) or not g.edges_nodes.resize(c)) {
+                ec = new_error(modeling_errc::dot_memory_insufficient);
+                return false;
+            }
         }
 
         const auto new_edge_id                     = g.edges.alloc();
-        g.edges_nodes[irt::get_index(new_edge_id)] = { from_id, to_id };
+        g.edges_nodes[irt::get_index(new_edge_id)] = { *from_id, *to_id };
 
         return next_is_attributes() ? parse_attributes(new_edge_id) : true;
     }
@@ -881,7 +920,12 @@ private:
         const auto str = get_and_free_string(node_id);
         const auto id  = find_or_add_node(str);
 
-        return next_is_attributes() ? parse_attributes(id) : true;
+        if (id.has_error()) {
+            ec = id.error();
+            return false;
+        }
+
+        return next_is_attributes() ? parse_attributes(*id) : true;
     }
 
     bool parse_stmt_list() noexcept
@@ -1184,19 +1228,18 @@ graph& graph::operator=(graph&& other) noexcept
     return *this;
 }
 
-graph_node_id graph::alloc_node() noexcept
+expected<graph_node_id> graph::alloc_node() noexcept
 {
     if (not nodes.can_alloc(1)) {
-        nodes.grow<2, 1>();
+        if (not nodes.grow<2, 1>())
+            return new_error(modeling_errc::graph_children_container_full);
 
-        if (not nodes.can_alloc(1))
-            return undefined<graph_node_id>();
+        const auto c = nodes.capacity();
 
-        node_names.resize(nodes.capacity());
-        node_ids.resize(nodes.capacity());
-        node_positions.resize(nodes.capacity());
-        node_components.resize(nodes.capacity());
-        node_areas.resize(nodes.capacity());
+        if (not(node_names.resize(c) and node_ids.resize(c) and
+                node_positions.resize(c) and node_components.resize(c) and
+                node_areas.resize(c)))
+            return new_error(modeling_errc::graph_children_container_full);
     }
 
     const auto id        = nodes.alloc();
@@ -1210,20 +1253,20 @@ graph_node_id graph::alloc_node() noexcept
     return id;
 }
 
-graph_edge_id graph::alloc_edge(graph_node_id src, graph_node_id dst) noexcept
+expected<graph_edge_id> graph::alloc_edge(graph_node_id src,
+                                          graph_node_id dst) noexcept
 {
     for (auto id : edges)
         if (edges_nodes[get_index(id)][0] == src and
             edges_nodes[get_index(id)][1] == dst)
-            return undefined<graph_edge_id>();
+            return new_error(modeling_errc::graph_connection_already_exist);
 
     if (not edges.can_alloc(1)) {
-        edges.grow<2, 1>();
+        if (not edges.grow<2, 1>())
+            return new_error(modeling_errc::graph_connection_container_full);
 
-        if (not edges.can_alloc(1))
-            return undefined<graph_edge_id>();
-
-        edges_nodes.resize(edges.capacity());
+        if (not edges_nodes.resize(edges.capacity()))
+            return new_error(modeling_errc::graph_connection_container_full);
     }
 
     const auto id              = edges.alloc();
@@ -1231,23 +1274,27 @@ graph_edge_id graph::alloc_edge(graph_node_id src, graph_node_id dst) noexcept
     return id;
 }
 
-void graph::reserve(int n, int e) noexcept
+expected<void> graph::reserve(int n, int e) noexcept
 {
-    if (n > 0) {
-        nodes.reserve(n);
-        node_names.resize(n);
-        node_ids.resize(n);
-        node_positions.resize(n, std::array<float, 2>{ 0.f, 0.f });
-        node_components.resize(n, undefined<component_id>());
-        node_areas.resize(n, 1.f);
+    if (n > nodes.capacity()) {
+        if (not(nodes.reserve(n) and node_names.resize(n) and
+                node_ids.resize(n) and
+                node_positions.resize(n, std::array<float, 2>{ 0.f, 0.f }) and
+                node_components.resize(n, undefined<component_id>()) and
+                node_areas.resize(n, 1.f)))
+            return new_error(modeling_errc::dot_memory_insufficient);
     }
 
-    if (e > 0) {
-        edges_nodes.resize(
-          e,
-          std::array<graph_node_id, 2>{ undefined<graph_node_id>(),
-                                        undefined<graph_node_id>() });
+    if (e > edges.capacity()) {
+        if (not(edges.reserve(e) and
+                edges_nodes.resize(
+                  e,
+                  std::array<graph_node_id, 2>{ undefined<graph_node_id>(),
+                                                undefined<graph_node_id>() })))
+            return new_error(modeling_errc::dot_memory_insufficient);
     }
+
+    return success();
 }
 
 void graph::clear() noexcept

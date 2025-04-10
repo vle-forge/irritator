@@ -397,15 +397,26 @@ struct graph_component_editor_data::impl {
             const auto click = ImGui::GetMousePosOnOpeningCurrentPopup();
             if (ImGui::BeginMenu("Actions")) {
                 if (ImGui::MenuItem("New node")) {
-                    if (auto id = data.g.alloc_node(); is_defined(id)) {
-                        const auto idx = get_index(id);
+                    if (auto id = data.g.alloc_node(); id.has_value()) {
+                        const auto idx = get_index(*id);
 
                         data.g.node_positions[idx] = {
                             (click.x - origin.x) / ed.zoom.x,
                             (click.y - origin.y) / ed.zoom.y,
                         };
 
-                        ed.selected_nodes.emplace_back(id);
+                        ed.selected_nodes.emplace_back(*id);
+                    } else {
+                        app.jn.push(
+                          log_level::error,
+                          [](auto& t, auto& m, auto& id) {
+                              t = "Failed to add new node.";
+                              format(m,
+                                     "Error: category {} value {}",
+                                     ordinal(id.error().cat()),
+                                     id.error().value());
+                          },
+                          id);
                     }
                 }
 

@@ -583,7 +583,7 @@ public:
      * Add a new node in graph. Grow containers if necessary.
      * @return
      */
-    graph_node_id alloc_node() noexcept;
+    expected<graph_node_id> alloc_node() noexcept;
 
     /**
      * Add a new edge in graph if the @a src and @a dst exists and the edge doe
@@ -592,15 +592,17 @@ public:
      * @param dst
      * @return
      */
-    graph_edge_id alloc_edge(graph_node_id src, graph_node_id dst) noexcept;
+    expected<graph_edge_id> alloc_edge(graph_node_id src,
+                                       graph_node_id dst) noexcept;
 
     /**
      * Reserve memory for nodes @a data_array and resize memory for @c vector
      * for at least @a i nodes.
      * @param n Nodes number.
      * @param e Edges number.
+     * @return @a success() or an @a error_code.
      */
-    void reserve(int n, int e) noexcept;
+    expected<void> reserve(int n, int e) noexcept;
 
     /**
      * Call @a clear or @a resize(0) for each containers.
@@ -715,7 +717,8 @@ public:
 
     //! Resize `children` vector and clear the `edges`, `input_connections` and
     //! `output_connection`.
-    void resize(const i32 children_size, const component_id id) noexcept;
+    expected<void> resize(const i32          children_size,
+                          const component_id id) noexcept;
 
     /**
      * Build nodes and edges according to the type of graph and theirs

@@ -448,13 +448,15 @@ expected<void> graph_component::update(const modeling& mod) noexcept
     return expected<void>();
 }
 
-void graph_component::resize(const i32          children_size,
-                             const component_id cid) noexcept
+status graph_component::resize(const i32          children_size,
+                               const component_id cid) noexcept
 {
     g.clear();
     input_connections.clear();
     output_connections.clear();
-    g.reserve(children_size, children_size * 8);
+
+    if (auto ret = g.reserve(children_size, children_size * 8); ret.has_error())
+        return ret.error();
 
     g.main_id    = g.buffer.append("temp");
     g.is_strict  = true;
@@ -473,6 +475,8 @@ void graph_component::resize(const i32          children_size,
         g.node_ids[idx]        = g.buffer.append(str.sv());
         g.node_names[idx]      = g.buffer.append(str.sv());
     }
+
+    return {};
 }
 
 static void build_graph_connections(
