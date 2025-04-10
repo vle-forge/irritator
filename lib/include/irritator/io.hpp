@@ -100,7 +100,7 @@ static inline const char* str_generator[] = { "value",
                                               "mult-tr" };
 
 template<typename Dynamics>
-static constexpr const char** get_input_port_names() noexcept
+inline constexpr std::span<const char*> get_input_port_names() noexcept
 {
     if constexpr (std::is_same_v<Dynamics, qss1_integrator> ||
                   std::is_same_v<Dynamics, qss2_integrator> ||
@@ -173,81 +173,7 @@ static constexpr const char** get_input_port_names() noexcept
     unreachable();
 }
 
-static constexpr const char** get_input_port_names(
-  const dynamics_type type) noexcept
-{
-    switch (type) {
-    case dynamics_type::qss1_integrator:
-    case dynamics_type::qss2_integrator:
-    case dynamics_type::qss3_integrator:
-        return str_integrator;
-
-    case dynamics_type::qss1_multiplier:
-    case dynamics_type::qss1_sum_2:
-    case dynamics_type::qss1_wsum_2:
-    case dynamics_type::qss2_multiplier:
-    case dynamics_type::qss2_sum_2:
-    case dynamics_type::qss2_wsum_2:
-    case dynamics_type::qss3_multiplier:
-    case dynamics_type::qss3_sum_2:
-    case dynamics_type::qss3_wsum_2:
-    case dynamics_type::logical_and_2:
-    case dynamics_type::logical_or_2:
-        return str_in_2;
-
-    case dynamics_type::qss1_sum_3:
-    case dynamics_type::qss1_wsum_3:
-    case dynamics_type::qss2_sum_3:
-    case dynamics_type::qss2_wsum_3:
-    case dynamics_type::qss3_sum_3:
-    case dynamics_type::qss3_wsum_3:
-    case dynamics_type::logical_and_3:
-    case dynamics_type::logical_or_3:
-        return str_in_3;
-
-    case dynamics_type::qss1_sum_4:
-    case dynamics_type::qss1_wsum_4:
-    case dynamics_type::qss2_sum_4:
-    case dynamics_type::qss2_wsum_4:
-    case dynamics_type::qss3_sum_4:
-    case dynamics_type::qss3_wsum_4:
-    case dynamics_type::hsm_wrapper:
-        return str_in_4;
-
-    case dynamics_type::counter:
-    case dynamics_type::queue:
-    case dynamics_type::dynamic_queue:
-    case dynamics_type::priority_queue:
-    case dynamics_type::qss1_filter:
-    case dynamics_type::qss2_filter:
-    case dynamics_type::qss3_filter:
-    case dynamics_type::qss1_power:
-    case dynamics_type::qss2_power:
-    case dynamics_type::qss3_power:
-    case dynamics_type::qss1_square:
-    case dynamics_type::qss2_square:
-    case dynamics_type::qss3_square:
-    case dynamics_type::logical_invert:
-        return str_in_1;
-
-    case dynamics_type::generator:
-    case dynamics_type::constant:
-    case dynamics_type::time_func:
-        return str_empty;
-
-    case dynamics_type::qss1_cross:
-    case dynamics_type::qss2_cross:
-    case dynamics_type::qss3_cross:
-        return str_value_if_else;
-
-    case dynamics_type::accumulator_2:
-        return str_in_2_nb_2;
-    }
-
-    unreachable();
-}
-
-static constexpr std::span<const char*> get_input_port_names_v(
+inline constexpr std::span<const char*> get_input_port_names_v(
   const dynamics_type type) noexcept
 {
     switch (type) {
@@ -329,7 +255,7 @@ static inline const char* str_out_cross[]  = { "if-value",
 static inline const char* str_out_filter[] = { "value", "up", "down" };
 
 template<typename Dynamics>
-static constexpr const char** get_output_port_names() noexcept
+inline constexpr std::span<const char*> get_output_port_names() noexcept
 {
     if constexpr (std::is_same_v<Dynamics, qss1_integrator> ||
                   std::is_same_v<Dynamics, qss1_multiplier> ||
@@ -394,7 +320,7 @@ static constexpr const char** get_output_port_names() noexcept
     unreachable();
 }
 
-static constexpr const char** get_output_port_names(
+inline constexpr std::span<const char*> get_output_port_names_v(
   const dynamics_type type) noexcept
 {
     switch (type) {
@@ -461,81 +387,6 @@ static constexpr const char** get_output_port_names(
 
     unreachable();
 }
-
-static constexpr std::span<const char*> get_output_port_names_v(
-  const dynamics_type type) noexcept
-{
-    switch (type) {
-    case dynamics_type::qss1_integrator:
-    case dynamics_type::qss1_multiplier:
-    case dynamics_type::qss1_power:
-    case dynamics_type::qss1_square:
-    case dynamics_type::qss1_sum_2:
-    case dynamics_type::qss1_sum_3:
-    case dynamics_type::qss1_sum_4:
-    case dynamics_type::qss1_wsum_2:
-    case dynamics_type::qss1_wsum_3:
-    case dynamics_type::qss1_wsum_4:
-    case dynamics_type::qss2_integrator:
-    case dynamics_type::qss2_multiplier:
-    case dynamics_type::qss2_power:
-    case dynamics_type::qss2_square:
-    case dynamics_type::qss2_sum_2:
-    case dynamics_type::qss2_sum_3:
-    case dynamics_type::qss2_sum_4:
-    case dynamics_type::qss2_wsum_2:
-    case dynamics_type::qss2_wsum_3:
-    case dynamics_type::qss2_wsum_4:
-    case dynamics_type::qss3_integrator:
-    case dynamics_type::qss3_multiplier:
-    case dynamics_type::qss3_power:
-    case dynamics_type::qss3_square:
-    case dynamics_type::qss3_sum_2:
-    case dynamics_type::qss3_sum_3:
-    case dynamics_type::qss3_sum_4:
-    case dynamics_type::qss3_wsum_2:
-    case dynamics_type::qss3_wsum_3:
-    case dynamics_type::qss3_wsum_4:
-    case dynamics_type::counter:
-    case dynamics_type::queue:
-    case dynamics_type::dynamic_queue:
-    case dynamics_type::priority_queue:
-    case dynamics_type::generator:
-    case dynamics_type::constant:
-    case dynamics_type::time_func:
-    case dynamics_type::logical_and_2:
-    case dynamics_type::logical_or_2:
-    case dynamics_type::logical_and_3:
-    case dynamics_type::logical_or_3:
-    case dynamics_type::logical_invert:
-        return str_out_1;
-
-    case dynamics_type::hsm_wrapper:
-        return str_out_4;
-
-    case dynamics_type::qss1_cross:
-    case dynamics_type::qss2_cross:
-    case dynamics_type::qss3_cross:
-        return str_out_cross;
-
-    case dynamics_type::qss1_filter:
-    case dynamics_type::qss2_filter:
-    case dynamics_type::qss3_filter:
-        return str_out_filter;
-
-    case dynamics_type::accumulator_2:
-        return str_empty;
-    }
-
-    unreachable();
-}
-
-static constexpr inline const char* status_string_names[] = {
-    "io not enough memory",
-    "io filesystem error",
-    "io filesystem make directory error",
-    "io filesystem not directory error"
-};
 
 static inline const char* external_source_type_string[] = { "binary_file",
                                                             "constant",

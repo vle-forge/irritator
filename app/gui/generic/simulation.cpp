@@ -1002,13 +1002,11 @@ struct generic_simulation_editor::impl {
     void show_input_attribute(const Dynamics& dyn, const model_id id) noexcept
     {
         if constexpr (has_input_port<Dynamics>) {
-            const auto** names = get_input_port_names<Dynamics>();
-            const auto   e     = length(dyn.x);
+            const auto names = get_input_port_names<Dynamics>();
 
-            debug::ensure(names != nullptr);
-            debug::ensure(0 <= e && e < 8);
+            debug::ensure(std::cmp_equal(names.size(), length(dyn.x)));
 
-            for (int i = 0; i != e; ++i) {
+            for (sz i = 0, e = names.size(); i != e; ++i) {
                 ImNodes::BeginInputAttribute(make_input_node_id(id, i),
                                              ImNodesPinShape_TriangleFilled);
                 ImGui::TextUnformatted(names[i]);
@@ -1021,13 +1019,11 @@ struct generic_simulation_editor::impl {
     void show_output_attribute(const Dynamics& dyn, const model_id id) noexcept
     {
         if constexpr (has_output_port<Dynamics>) {
-            const auto** names = get_output_port_names<Dynamics>();
-            const auto   e     = length(dyn.y);
+            const auto names = get_output_port_names<Dynamics>();
 
-            debug::ensure(names != nullptr);
-            debug::ensure(0 <= e && e < 8);
+            debug::ensure(std::cmp_equal(names.size(), length(dyn.y)));
 
-            for (int i = 0; i != e; ++i) {
+            for (sz i = 0, e = names.size(); i != e; ++i) {
                 ImNodes::BeginOutputAttribute(make_output_node_id(id, i),
                                               ImNodesPinShape_TriangleFilled);
                 ImGui::TextUnformatted(names[i]);
