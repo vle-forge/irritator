@@ -852,11 +852,13 @@ class id_array
     static constexpr index_type none = std::numeric_limits<index_type>::max();
 
 private:
-    vector<Identifier, A> m_items;
+    Identifier* m_items = nullptr; // items array
 
-    index_type m_valid_item_number = 0; /**< Number of valid item. */
-    index_type m_next_key          = 1; /**< [1..2^[16|32] - 1 (never == 0). */
-    index_type m_free_head         = none; // index of first free entry
+    index_type m_max_size  = 0;    //!< Number of valid item.
+    index_type m_max_used  = 0;    //!< highest index ever allocated
+    index_type m_capacity  = 0;    //!< capacity of the array
+    index_type m_next_key  = 1;    /**< [1..2^[16|32] - 1 (never == 0). */
+    index_type m_free_head = none; // index of first free entry
 
     //! Build a new identifier merging m_next_key and the best free
     //! index.
@@ -873,15 +875,16 @@ private:
     static constexpr index_type get_key(Identifier id) noexcept;
 
 public:
-    constexpr id_array() noexcept                                 = default;
-    constexpr id_array(const id_array& other) noexcept            = default;
-    constexpr id_array(id_array&& other) noexcept                 = default;
-    constexpr id_array& operator=(const id_array& other) noexcept = default;
-    constexpr id_array& operator=(id_array&& other) noexcept      = default;
+    constexpr id_array() noexcept = default;
+
+    constexpr id_array(const id_array& other) noexcept;
+    constexpr id_array(id_array&& other) noexcept;
+    constexpr id_array& operator=(const id_array& other) noexcept;
+    constexpr id_array& operator=(id_array&& other) noexcept;
 
     constexpr explicit id_array(std::integral auto capacity) noexcept;
 
-    constexpr ~id_array() noexcept = default;
+    constexpr ~id_array() noexcept;
 
     constexpr Identifier                alloc() noexcept;
     constexpr std::optional<Identifier> try_alloc() noexcept;
@@ -982,7 +985,7 @@ public:
             auto index = get_index(id);
             ++index;
 
-            for (const auto e = self->m_items.size(); index < e; ++index) {
+            for (; index < self->m_max_used; ++index) {
                 if (is_valid(self->m_items[index])) {
                     id = self->m_items[index];
                     return *this;
@@ -1017,7 +1020,7 @@ public:
             auto       index  = get_index(id);
             ++index;
 
-            for (const auto e = self->m_items.size(); index < e; ++index) {
+            for (; index < self->max_used; ++index) {
                 if (is_valid(self->m_items[index])) {
                     id = self->m_items[index];
                     return iterator_base{ .self = self, .id = old_id };
@@ -2303,33 +2306,130 @@ id_array<Identifier, A>::get_index(Identifier id) noexcept
 
 template<typename Identifier, typename A>
 constexpr id_array<Identifier, A>::id_array(
-  std::integral auto capacity) noexcept
-  : m_items(capacity, reserve_tag{})
+  const id_array<Identifier, A>& o) noexcept
+{
+    if (o.m_items != nullptr) {
+        m_items = reinterpret_cast<identifier_type*>(
+          A::allocate(sizeof(identifier_type) * o.m_capacity));
+        if (m_items != nullptr) {
+            std::copy_n(o.m_items, o.m_max_used, m_items);
+            m_capacity  = o.m_capacity;
+            m_max_size  = o.m_max_size;
+            m_max_used  = o.m_max_used;
+            m_next_key  = o.m_next_key;
+            m_free_head = o.m_free_head;
+        }
+    } else {
+        destroy();
+    }
+}
+
+template<typename Identifier, typename A>
+constexpr id_array<Identifier, A>::id_array(
+  id_array<Identifier, A>&& o) noexcept
+  : m_items{ std::exchange(o.m_items, nullptr) }
+  , m_max_size{ std::exchange(o.m_max_size, 0) }
+  , m_max_used{ std::exchange(o.m_max_used, 0) }
+  , m_capacity{ std::exchange(o.m_capacity, 0) }
+  , m_next_key{ std::exchange(o.m_next_key, 1) }
+  , m_free_head{ std::exchange(o.m_free_head, none) }
 {}
+
+template<typename Identifier, typename A>
+constexpr typename id_array<Identifier, A>::this_container&
+id_array<Identifier, A>::operator=(id_array<Identifier, A>&& o) noexcept
+{
+    if (this != &o) {
+        m_items     = std::exchange(o.m_items, nullptr);
+        m_max_size  = std::exchange(o.m_max_size, 0);
+        m_max_used  = std::exchange(o.m_max_used, 0);
+        m_capacity  = std::exchange(o.m_capacity, 0);
+        m_next_key  = std::exchange(o.m_next_key, 1);
+        m_free_head = std::exchange(o.m_free_head, none);
+    }
+
+    return *this;
+}
+
+template<typename Identifier, typename A>
+constexpr typename id_array<Identifier, A>::this_container&
+id_array<Identifier, A>::operator=(const id_array<Identifier, A>& o) noexcept
+{
+    if (this != &o) {
+        clear();
+
+        if (o.m_items != nullptr) {
+            if (m_capacity < o.m_capacity) {
+                destroy();
+
+                m_items = reinterpret_cast<identifier_type*>(
+                  A::allocate(sizeof(identifier_type) * o.m_capacity));
+                if (m_items == nullptr)
+                    return *this;
+
+                m_capacity = o.m_capacity;
+            }
+
+            std::copy_n(o.m_items, o.m_max_used, m_items);
+            m_max_size  = o.m_max_size;
+            m_max_used  = o.m_max_used;
+            m_next_key  = o.m_next_key;
+            m_free_head = o.m_free_head;
+        } else {
+            destroy();
+        }
+    }
+
+    return *this;
+}
+
+template<typename Identifier, typename A>
+constexpr id_array<Identifier, A>::id_array(
+  std::integral auto capacity) noexcept
+{
+    debug::ensure(std::cmp_greater(capacity, 0));
+    debug::ensure(
+      std::cmp_less(capacity, std::numeric_limits<index_type>::max()));
+
+    m_items = reinterpret_cast<identifier_type*>(
+      A::allocate(sizeof(identifier_type) * capacity));
+    m_max_size  = 0;
+    m_max_used  = 0;
+    m_capacity  = static_cast<index_type>(capacity);
+    m_next_key  = 1;
+    m_free_head = none;
+}
+
+template<typename Identifier, typename A>
+constexpr id_array<Identifier, A>::~id_array() noexcept
+{
+    clear();
+
+    if (m_items)
+        A::deallocate(m_items, sizeof(identifier_type) * m_capacity);
+}
 
 template<typename Identifier, typename A>
 constexpr Identifier id_array<Identifier, A>::alloc() noexcept
 {
     debug::ensure(can_alloc(1));
+    index_type new_index;
 
     if (m_free_head != none) {
-        index_type new_index = m_free_head;
+        new_index = m_free_head;
         if (is_valid(m_items[m_free_head]))
             m_free_head = none;
         else
             m_free_head = get_index(m_items[m_free_head]);
-
-        m_items[new_index] = make_id(m_next_key, new_index);
-        m_next_key         = make_next_key(m_next_key);
-        ++m_valid_item_number;
-        return m_items[new_index];
     } else {
-        m_items.emplace_back(
-          make_id(m_next_key, static_cast<index_type>(m_items.size())));
-        m_next_key = make_next_key(m_next_key);
-        ++m_valid_item_number;
-        return m_items.back();
+        new_index = m_max_used++;
     }
+
+    m_items[new_index] = make_id(m_next_key, new_index);
+    m_next_key         = make_next_key(m_next_key);
+    ++m_max_size;
+
+    return m_items[new_index];
 }
 
 template<typename Identifier, typename A>
@@ -2346,7 +2446,31 @@ template<typename Identifier, typename A>
 constexpr bool id_array<Identifier, A>::reserve(
   std::integral auto capacity) noexcept
 {
-    return m_items.reserve(capacity);
+    debug::ensure(
+      std::cmp_less(capacity, std::numeric_limits<index_type>::max()));
+
+    if (std::cmp_less_equal(capacity, m_capacity))
+        return true;
+
+    if (std::cmp_greater_equal(capacity,
+                               std::numeric_limits<index_type>::max()))
+        return false;
+
+    identifier_type* new_buffer = reinterpret_cast<identifier_type*>(
+      A::allocate(sizeof(identifier_type) * capacity));
+    if (new_buffer == nullptr)
+        return false;
+
+    std::uninitialized_copy_n(reinterpret_cast<std::byte*>(&m_items[0]),
+                              sizeof(identifier_type) * m_max_used,
+                              reinterpret_cast<std::byte*>(&new_buffer[0]));
+
+    if (m_items)
+        A::deallocate(m_items, sizeof(identifier_type) * m_capacity);
+
+    m_items    = new_buffer;
+    m_capacity = static_cast<index_type>(capacity);
+    return true;
 }
 
 template<typename Identifier, typename A>
@@ -2355,32 +2479,34 @@ constexpr void id_array<Identifier, A>::free(const Identifier id) noexcept
     const auto index = get_index(id);
 
     debug::ensure(std::cmp_less_equal(0, index));
-    debug::ensure(std::cmp_less(index, m_items.size()));
+    debug::ensure(std::cmp_less(index, m_max_used));
     debug::ensure(m_items[index] == id);
     debug::ensure(is_valid(id));
 
     m_items[index] = static_cast<Identifier>(m_free_head);
     m_free_head    = static_cast<index_type>(index);
 
-    --m_valid_item_number;
+    --m_max_size;
 }
 
 template<typename Identifier, typename A>
 constexpr void id_array<Identifier, A>::clear() noexcept
 {
-    m_items.clear();
-    m_valid_item_number = 0;
-    m_free_head         = none;
+    m_max_size  = 0;
+    m_max_used  = 0;
+    m_free_head = none;
 }
 
 template<typename Identifier, typename A>
 constexpr void id_array<Identifier, A>::destroy() noexcept
 {
-    m_items.clear();
-    m_valid_item_number = 0;
-    m_free_head         = none;
+    clear();
 
-    m_items.destroy();
+    if (m_items)
+        A::deallocate(m_items, sizeof(identifier_type) * m_capacity);
+
+    m_items    = nullptr;
+    m_capacity = 0;
 }
 
 template<typename Identifier, typename A>
@@ -2389,11 +2515,10 @@ constexpr bool id_array<Identifier, A>::grow() noexcept
 {
     static_assert(Num > 0 and Denum > 0 and Num > Denum);
 
-    const auto nb = m_items.capacity() * Num / Denum;
-    const auto req =
-      std::cmp_equal(m_items.capacity(), nb) ? m_items.capacity() + 8 : nb;
+    const auto nb  = m_capacity * Num / Denum;
+    const auto req = std::cmp_equal(m_capacity, nb) ? m_capacity + 8 : nb;
 
-    return m_items.reserve(req);
+    return reserve(req);
 }
 
 template<typename Identifier, typename A>
@@ -2403,7 +2528,7 @@ id_array<Identifier, A>::get(const Identifier id) const noexcept
     const auto index = get_index(id);
 
     debug::ensure(std::cmp_less_equal(0, index));
-    debug::ensure(std::cmp_less(index, m_items.size()));
+    debug::ensure(std::cmp_less(index, m_max_used));
 
     return m_items[index] == id ? std::make_optional(index) : std::nullopt;
 }
@@ -2415,7 +2540,7 @@ constexpr bool id_array<Identifier, A>::exists(
     const auto index = get_index(id);
 
     return std::cmp_greater_equal(index, 0u) and
-           std::cmp_less(index, m_items.size()) and m_items[index] == id;
+           std::cmp_less(index, m_max_used) and m_items[index] == id;
 }
 
 template<typename Identifier, typename A>
@@ -2423,7 +2548,7 @@ constexpr typename id_array<Identifier, A>::identifier_type
 id_array<Identifier, A>::get_from_index(std::integral auto index) const noexcept
 {
     if (std::cmp_greater_equal(index, 0u) and
-        std::cmp_less(index, m_items.size()) and is_defined(m_items[index]) and
+        std::cmp_less(index, m_max_used) and is_defined(m_items[index]) and
         std::cmp_equal(get_index(m_items[index]), index))
         return m_items[index];
 
@@ -2438,14 +2563,14 @@ constexpr bool id_array<Identifier, A>::next(
         auto index = get_index(*id);
         ++index;
 
-        for (const auto e = m_items.size(); index < e; ++index) {
+        for (; index < m_max_used; ++index) {
             if (is_valid(m_items[index])) {
                 id = &m_items[index];
                 return true;
             }
         }
     } else {
-        for (auto index = 0, e = m_items.ssize(); index < e; ++index) {
+        for (auto index = 0; index < m_max_used; ++index) {
             if (is_valid(m_items[index])) {
                 id = &m_items[index];
                 return true;
@@ -2459,44 +2584,44 @@ constexpr bool id_array<Identifier, A>::next(
 template<typename Identifier, typename A>
 constexpr bool id_array<Identifier, A>::empty() const noexcept
 {
-    return m_items.ssize() == 0;
+    return m_max_size == 0;
 }
 
 template<typename Identifier, typename A>
 constexpr bool id_array<Identifier, A>::full() const noexcept
 {
-    return m_free_head == none && m_items.ssize() == m_items.capacity();
+    return m_free_head == none && m_max_size >= m_capacity;
 }
 
 template<typename Identifier, typename A>
 constexpr unsigned id_array<Identifier, A>::size() const noexcept
 {
-    return m_valid_item_number;
+    return m_max_size;
 }
 
 template<typename Identifier, typename A>
 constexpr int id_array<Identifier, A>::ssize() const noexcept
 {
-    return m_valid_item_number;
+    return m_max_size;
 }
 
 template<typename Identifier, typename A>
 constexpr bool id_array<Identifier, A>::can_alloc(
   std::integral auto nb) const noexcept
 {
-    return std::cmp_greater_equal(m_items.capacity() - m_valid_item_number, nb);
+    return std::cmp_greater_equal(m_capacity - m_max_size, nb);
 }
 
 template<typename Identifier, typename A>
 constexpr int id_array<Identifier, A>::max_used() const noexcept
 {
-    return m_items.size();
+    return m_max_used;
 }
 
 template<typename Identifier, typename A>
 constexpr int id_array<Identifier, A>::capacity() const noexcept
 {
-    return m_items.capacity();
+    return m_capacity;
 }
 
 template<typename Identifier, typename A>
@@ -2516,7 +2641,7 @@ template<typename Identifier, typename A>
 constexpr typename id_array<Identifier, A>::iterator
 id_array<Identifier, A>::begin() noexcept
 {
-    for (index_type index = 0; index < m_items.size(); ++index)
+    for (index_type index = 0; index < m_max_used; ++index)
         if (is_valid(m_items[index]))
             return iterator(this, m_items[index]);
 
@@ -2534,7 +2659,7 @@ template<typename Identifier, typename A>
 constexpr typename id_array<Identifier, A>::const_iterator
 id_array<Identifier, A>::begin() const noexcept
 {
-    for (index_type index = 0; index < m_items.size(); ++index)
+    for (index_type index = 0; m_max_used; ++index)
         if (is_valid(m_items[index]))
             return const_iterator(this, m_items[index]);
 
