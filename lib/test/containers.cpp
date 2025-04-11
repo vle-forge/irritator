@@ -1179,7 +1179,7 @@ int main()
         expect(array.max_size() == 0);
         expect(array.max_used() == 0);
         expect(array.capacity() == 3);
-        expect(array.next_key() == 1);
+        expect(array.next_key() == 4);
         expect(array.is_free_list_empty());
 
         array.reserve(3);
@@ -1195,7 +1195,7 @@ int main()
             expect(array.max_size() == 3);
             expect(array.max_used() == 3);
             expect(array.capacity() == 3);
-            expect(array.next_key() == 4);
+            expect(array.next_key() == 7);
             expect(array.is_free_list_empty());
 
             array.free(d1);
@@ -1205,7 +1205,7 @@ int main()
             expect(array.max_size() == 2);
             expect(array.max_used() == 3);
             expect(array.capacity() == 3);
-            expect(array.next_key() == 4);
+            expect(array.next_key() == 7);
             expect(!array.is_free_list_empty());
 
             array.free(d2);
@@ -1215,7 +1215,7 @@ int main()
             expect(array.max_size() == 1);
             expect(array.max_used() == 3);
             expect(array.capacity() == 3);
-            expect(array.next_key() == 4);
+            expect(array.next_key() == 7);
             expect(!array.is_free_list_empty());
 
             array.free(d3);
@@ -1225,7 +1225,7 @@ int main()
             expect(array.max_size() == 0);
             expect(array.max_used() == 3);
             expect(array.capacity() == 3);
-            expect(array.next_key() == 4);
+            expect(array.next_key() == 7);
             expect(!array.is_free_list_empty());
 
             auto& n1 = array.alloc();
@@ -1239,7 +1239,7 @@ int main()
             expect(array.max_size() == 3);
             expect(array.max_used() == 3);
             expect(array.capacity() == 3);
-            expect(array.next_key() == 7);
+            expect(array.next_key() == 10);
             expect(array.is_free_list_empty());
 
             expect(check_data_array_loop(array));
@@ -1694,7 +1694,7 @@ int main()
         expect(array.max_size() == 0);
         expect(array.max_used() == 0);
         expect(array.capacity() == 32);
-        expect(array.next_key() == 1);
+        expect(array.next_key() == 33);
         expect(array.is_free_list_empty());
 
         auto& d1 = array.alloc(1.f);
@@ -1706,7 +1706,7 @@ int main()
         expect(array.max_size() == 3);
         expect(array.max_used() == 3);
         expect(array.capacity() == 32);
-        expect(array.next_key() == 4);
+        expect(array.next_key() == 36);
         expect(array.is_free_list_empty());
 
         array.free(d1);
@@ -1716,7 +1716,7 @@ int main()
         expect(array.max_size() == 2);
         expect(array.max_used() == 3);
         expect(array.capacity() == 32);
-        expect(array.next_key() == 4);
+        expect(array.next_key() == 36);
         expect(!array.is_free_list_empty());
 
         array.free(d2);
@@ -1726,7 +1726,7 @@ int main()
         expect(array.max_size() == 1);
         expect(array.max_used() == 3);
         expect(array.capacity() == 32);
-        expect(array.next_key() == 4);
+        expect(array.next_key() == 36);
         expect(!array.is_free_list_empty());
 
         array.free(d3);
@@ -1736,7 +1736,7 @@ int main()
         expect(array.max_size() == 0);
         expect(array.max_used() == 3);
         expect(array.capacity() == 32);
-        expect(array.next_key() == 4);
+        expect(array.next_key() == 36);
         expect(!array.is_free_list_empty());
 
         auto& n1 = array.alloc();
@@ -1750,7 +1750,7 @@ int main()
         expect(array.max_size() == 3);
         expect(array.max_used() == 3);
         expect(array.capacity() == 32);
-        expect(array.next_key() == 7);
+        expect(array.next_key() == 39);
         expect(array.is_free_list_empty());
 
         expect(check_data_array_loop(array));

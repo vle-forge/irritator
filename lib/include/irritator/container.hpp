@@ -3162,7 +3162,6 @@ void data_array<T, Identifier, A>::clear() noexcept
 
     m_max_size  = 0;
     m_max_used  = 0;
-    m_next_key  = 1;
     m_free_head = none;
 }
 
