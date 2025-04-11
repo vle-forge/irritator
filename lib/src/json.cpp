@@ -3295,15 +3295,13 @@ struct json_dearchiver::impl {
         if ("scale-free"sv == name.GetString()) {
             graph.g_type      = graph_component::graph_type::scale_free;
             graph.param.scale = graph_component::scale_free_param{};
-            return read_scale_free_graph_param(val, graph) and
-                   read_graph_children(val, graph);
+            return read_scale_free_graph_param(val, graph);
         }
 
         if ("small-world"sv == name.GetString()) {
             graph.g_type      = graph_component::graph_type::small_world;
             graph.param.small = graph_component::small_world_param{};
-            return read_small_world_graph_param(val, graph) and
-                   read_graph_children(val, graph);
+            return read_small_world_graph_param(val, graph);
         }
 
         return report_error("bad graph component type");
@@ -3629,6 +3627,16 @@ struct json_dearchiver::impl {
                is_grid_valid(grid);
     }
 
+    bool graph_component_build_graph(graph_component& graph) noexcept
+    {
+        auto_stack s(this, "component graph build random graph");
+
+        if (auto ret = graph.update(mod()); ret.has_error())
+            return false;
+
+        return true;
+    }
+
     bool read_graph_component(const rapidjson::Value& val,
                               component&              compo) noexcept
     {
@@ -3642,11 +3650,9 @@ struct json_dearchiver::impl {
           val, [&](const auto name, const auto& value) noexcept -> bool {
               if ("graph-type"sv == name)
                   return value.IsString() &&
-                           dispatch_graph_type(val, value, graph) &&
-                           [&]() noexcept -> bool {
-                      graph.update(mod());
-                      return true;
-                  }();
+                         dispatch_graph_type(val, value, graph) &&
+                         graph_component_build_graph(graph) &&
+                         read_graph_children(val, graph);
 
               return true;
           });
