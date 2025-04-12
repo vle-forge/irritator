@@ -292,6 +292,14 @@ private:
     hierarchy<T>* get_prior_sibling_node() const noexcept;
 };
 
+/**
+ * @brief Managed to stores large string buffer.
+ *
+ * A string_buffer stores a forward list of chunks of memory to store strings.
+ * Users can allocate new strings, but the deletion of strings is forgotten.
+ * Use this class when storing new allocated strings is more important than
+ * replacing or deleting.
+ */
 class string_buffer
 {
 public:
@@ -306,28 +314,34 @@ public:
     string_buffer& operator=(string_buffer&&) noexcept = default;
 
     /**
-     * Clear the underlying container (ie. call the @a container_type::clear()
-     * function.
+     * Clear the underlying container using the @a container_type::clear()
+     * function. After the call all @a std::string_view are invalid.
+     *
      * @attention Any use of @a std::string_view after @a clear() is UB.
      */
     void clear() noexcept;
 
-    //! Appends a `std::string_view` into the buffer and returns a new
-    //! `std::string_view` to this new chunck of characters. If necessary, a new
-    //! `value_type` is allocated to storage large number of strings.
-    //!
-    //! @param str A `std::string_view` to copy into the buffer. `str` must be
-    //! greater than `0` and lower than `string_buffer_node_length`.
+    /**
+     * Appends an @a std::string_view into the underlying buffer and returns a
+     * new @a std::string_view to this new chunk of characters. If necessary, a
+     * new @a value_type or chunk is allocated to store more strings.
+     *
+     * @param str A @a std::string_view to copy into the buffer. The @a str
+     *  string must be lower than `string_buffer_node_length`.
+     */
     std::string_view append(std::string_view str) noexcept;
 
-    //! Computes and returns the number of `value_type` allocated.
+    /**
+     * Computes and returns the number of `value_type` allocated.
+     */
     std::size_t size() const noexcept;
 
 private:
     using value_type     = std::array<char, string_buffer_node_length>;
     using container_type = std::forward_list<value_type>;
 
-    //! Alloc a new `value_type` buffer in front of the last allocated buffer.
+    // Allocate a new @c value_type buffer in front of the last allocated
+    // buffer.
     void do_alloc() noexcept;
 
     container_type m_container;
@@ -338,7 +352,7 @@ inline std::string_view string_buffer::append(std::string_view str) noexcept
 {
     debug::ensure(str.size() < string_buffer_node_length);
 
-    if (str.empty())
+    if (str.empty() or str.size() >= string_buffer_node_length)
         return std::string_view();
 
     if (m_container.empty() ||
