@@ -1560,7 +1560,7 @@ public:
     //! @return A pair with a boolean if the allocation success and a
     //! pointer to the newly element.
     template<typename... Args>
-    std::pair<bool, T*> try_alloc(Args&&... args) noexcept;
+    T* try_alloc(Args&&... args) noexcept;
 
     //! @brief Free the element @c t.
     //!
@@ -3208,11 +3208,10 @@ data_array<T, Identifier, A>::alloc(Args&&... args) noexcept
 
 template<typename T, typename Identifier, typename A>
 template<typename... Args>
-std::pair<bool, T*> data_array<T, Identifier, A>::try_alloc(
-  Args&&... args) noexcept
+T* data_array<T, Identifier, A>::try_alloc(Args&&... args) noexcept
 {
     if (!can_alloc(1))
-        return { false, nullptr };
+        return nullptr;
 
     index_type new_index;
 
@@ -3233,7 +3232,7 @@ std::pair<bool, T*> data_array<T, Identifier, A>::try_alloc(
 
     ++m_max_size;
 
-    return { true, &m_items[new_index].item };
+    return &m_items[new_index].item;
 }
 
 template<typename T, typename Identifier, typename A>
