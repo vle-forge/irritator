@@ -2474,6 +2474,10 @@ template<typename Identifier, typename A>
 constexpr Identifier id_array<Identifier, A>::alloc() noexcept
 {
     debug::ensure(can_alloc(1));
+
+    if (not can_alloc(1))
+        return undefined<Identifier>();
+
     index_type new_index;
 
     if (m_free_head != none) {
