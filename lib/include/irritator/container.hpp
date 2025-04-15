@@ -681,7 +681,9 @@ struct allocator {
     {
         debug::ensure(bytes != 0);
 
-        return memory_resource_type::instance().allocate(bytes, alignment);
+        return bytes
+                 ? memory_resource_type::instance().allocate(bytes, alignment)
+                 : nullptr;
     }
 
     static void deallocate(
@@ -692,7 +694,8 @@ struct allocator {
         debug::ensure((p != nullptr and bytes > 0) or
                       (p == nullptr and bytes == 0));
 
-        return memory_resource_type::instance().deallocate(p, bytes, alignment);
+        if (p)
+            memory_resource_type::instance().deallocate(p, bytes, alignment);
     }
 
     static void release() noexcept
