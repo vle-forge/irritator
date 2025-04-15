@@ -133,6 +133,87 @@ inline constexpr auto right(std::unsigned_integral auto v) noexcept
         return static_cast<u32>(v & 0xffffffff);
 }
 
+template<typename T>
+concept is_identifier_type =
+  std::is_enum_v<T> and
+  (std::is_same_v<std::underlying_type_t<T>, std::uint32_t> or
+   std::is_same_v<std::underlying_type_t<T>, std::uint64_t>);
+
+template<typename T>
+concept is_index_type =
+  (std::is_same_v<T, std::uint16_t> or std::is_same_v<T, std::uint32_t>);
+
+template<typename Identifier>
+    requires(is_identifier_type<Identifier>)
+constexpr Identifier undefined() noexcept
+{
+    return static_cast<Identifier>(0);
+}
+
+template<typename Identifier>
+    requires(is_identifier_type<Identifier>)
+constexpr bool is_undefined(Identifier id) noexcept
+{
+    return id == undefined<Identifier>();
+}
+
+template<typename Identifier>
+    requires(is_identifier_type<Identifier>)
+constexpr bool is_defined(Identifier id) noexcept
+{
+    return id != undefined<Identifier>();
+}
+
+template<typename Index>
+    requires(is_index_type<Index>)
+inline constexpr auto g_make_id(Index key, Index index) noexcept
+{
+    if constexpr (std::is_same_v<std::uint16_t, Index>)
+        return (static_cast<std::uint32_t>(key) << 16) |
+               static_cast<std::uint32_t>(index);
+    else
+        return (static_cast<std::uint64_t>(key) << 32) |
+               static_cast<std::uint64_t>(index);
+}
+
+template<typename Index>
+    requires(is_index_type<Index>)
+inline constexpr auto g_make_next_key(Index key) noexcept
+{
+    if constexpr (std::is_same_v<std::uint16_t, Index>)
+        return key == 0xffffffff ? 1u : key + 1u;
+    else
+        return key == 0xffffffffffffffff ? 1u : key + 1u;
+}
+
+template<typename Identifier>
+    requires(is_identifier_type<Identifier>)
+inline constexpr auto g_get_key(Identifier id) noexcept
+{
+    using underlying_type = std::underlying_type_t<Identifier>;
+
+    if constexpr (std::is_same_v<std::uint32_t, underlying_type>)
+        return static_cast<std::uint16_t>(
+          (static_cast<std::uint32_t>(id) >> 16) & 0xffff);
+    else
+        return static_cast<std::uint32_t>(
+          (static_cast<std::uint64_t>(id) >> 32) & 0xffffffff);
+}
+
+template<typename Identifier>
+    requires(is_identifier_type<Identifier>)
+inline constexpr auto g_get_index(Identifier id) noexcept
+{
+    using underlying_type = std::underlying_type_t<Identifier>;
+
+    if constexpr (std::is_same_v<std::uint32_t, underlying_type>)
+        return static_cast<std::uint16_t>(static_cast<std::uint16_t>(id) &
+                                          0xffff);
+    else
+        return static_cast<std::uint32_t>(static_cast<std::uint32_t>(id) &
+                                          0xffffffff);
+}
+
 /**
    Compute the best size to fit the small storage size.
 
@@ -806,12 +887,6 @@ constexpr bool is_valid(Identifier id) noexcept
 {
     return get_key(id) > 0;
 }
-
-template<typename T>
-concept is_identifier_type =
-  std::is_enum_v<T> and
-  (std::is_same_v<std::underlying_type_t<T>, std::uint32_t> or
-   std::is_same_v<std::underlying_type_t<T>, std::uint64_t>);
 
 /**
    An optimized array to store unique identifier.
@@ -2260,48 +2335,28 @@ template<typename Identifier, typename A>
 constexpr typename id_array<Identifier, A>::identifier_type
 id_array<Identifier, A>::make_id(index_type key, index_type index) noexcept
 {
-    if constexpr (std::is_same_v<std::uint16_t, index_type>)
-        return static_cast<identifier_type>(
-          (static_cast<std::uint32_t>(key) << 16) |
-          static_cast<std::uint32_t>(index));
-    else
-        return static_cast<identifier_type>(
-          (static_cast<std::uint64_t>(key) << 32) |
-          static_cast<std::uint64_t>(index));
+    return static_cast<Identifier>(g_make_id(key, index));
 }
 
 template<typename Identifier, typename A>
 constexpr typename id_array<Identifier, A>::index_type
 id_array<Identifier, A>::make_next_key(index_type key) noexcept
 {
-    if constexpr (std::is_same_v<std::uint16_t, index_type>)
-        return key == 0xffffffff ? 1u : key + 1u;
-    else
-        return key == 0xffffffffffffffff ? 1u : key + 1;
+    return g_make_next_key(key);
 }
 
 template<typename Identifier, typename A>
 constexpr typename id_array<Identifier, A>::index_type
 id_array<Identifier, A>::get_key(Identifier id) noexcept
 {
-    if constexpr (std::is_same_v<std::uint16_t, index_type>)
-        return static_cast<std::uint16_t>(
-          (static_cast<std::uint32_t>(id) >> 16) & 0xffff);
-    else
-        return static_cast<std::uint32_t>(
-          (static_cast<std::uint64_t>(id) >> 32) & 0xffffffff);
+    return g_get_key(id);
 }
 
 template<typename Identifier, typename A>
 constexpr typename id_array<Identifier, A>::index_type
 id_array<Identifier, A>::get_index(Identifier id) noexcept
 {
-    if constexpr (std::is_same_v<std::uint16_t, index_type>)
-        return static_cast<std::uint16_t>(static_cast<std::uint32_t>(id) &
-                                          0xffff);
-    else
-        return static_cast<std::uint32_t>(static_cast<std::uint64_t>(id) &
-                                          0xffffffff);
+    return g_get_index(id);
 }
 
 template<typename Identifier, typename A>
@@ -2391,13 +2446,16 @@ constexpr id_array<Identifier, A>::id_array(
     debug::ensure(
       std::cmp_less(capacity, std::numeric_limits<index_type>::max()));
 
-    m_items = reinterpret_cast<identifier_type*>(
-      A::allocate(sizeof(identifier_type) * capacity));
-    m_max_size  = 0;
-    m_max_used  = 0;
-    m_capacity  = static_cast<index_type>(capacity);
-    m_next_key  = 1;
-    m_free_head = none;
+    if (std::cmp_greater(capacity, 0) and
+        std::cmp_less(capacity, std::numeric_limits<index_type>::max())) {
+        m_items = reinterpret_cast<identifier_type*>(
+          A::allocate(sizeof(identifier_type) * capacity));
+        m_max_size  = 0;
+        m_max_used  = 0;
+        m_capacity  = static_cast<index_type>(capacity);
+        m_next_key  = 1;
+        m_free_head = none;
+    }
 }
 
 template<typename Identifier, typename A>
@@ -3004,48 +3062,28 @@ template<typename T, typename Identifier, typename A>
 constexpr typename data_array<T, Identifier, A>::identifier_type
 data_array<T, Identifier, A>::make_id(index_type key, index_type index) noexcept
 {
-    if constexpr (std::is_same_v<std::uint16_t, index_type>)
-        return static_cast<identifier_type>(
-          (static_cast<std::uint32_t>(key) << 16) |
-          static_cast<std::uint32_t>(index));
-    else
-        return static_cast<identifier_type>(
-          (static_cast<std::uint64_t>(key) << 32) |
-          static_cast<std::uint64_t>(index));
+    return static_cast<identifier_type>(g_make_id(key, index));
 }
 
 template<typename T, typename Identifier, typename A>
 constexpr typename data_array<T, Identifier, A>::index_type
 data_array<T, Identifier, A>::make_next_key(index_type key) noexcept
 {
-    if constexpr (std::is_same_v<std::uint16_t, index_type>)
-        return key == 0xffffffff ? 1u : key + 1u;
-    else
-        return key == 0xffffffffffffffff ? 1u : key + 1;
+    return g_make_next_key(key);
 }
 
 template<typename T, typename Identifier, typename A>
 constexpr typename data_array<T, Identifier, A>::index_type
 data_array<T, Identifier, A>::get_key(Identifier id) noexcept
 {
-    if constexpr (std::is_same_v<std::uint16_t, index_type>)
-        return static_cast<std::uint16_t>(
-          (static_cast<std::uint32_t>(id) >> 16) & 0xffff);
-    else
-        return static_cast<std::uint32_t>(
-          (static_cast<std::uint64_t>(id) >> 32) & 0xffffffff);
+    return g_get_key(id);
 }
 
 template<typename T, typename Identifier, typename A>
 constexpr typename data_array<T, Identifier, A>::index_type
 data_array<T, Identifier, A>::get_index(Identifier id) noexcept
 {
-    if constexpr (std::is_same_v<std::uint16_t, index_type>)
-        return static_cast<std::uint16_t>(static_cast<std::uint32_t>(id) &
-                                          0xffff);
-    else
-        return static_cast<std::uint32_t>(static_cast<std::uint64_t>(id) &
-                                          0xffffffff);
+    return g_get_index(id);
 }
 
 template<typename T, typename Identifier, typename A>

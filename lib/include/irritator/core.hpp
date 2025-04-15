@@ -84,36 +84,6 @@ constexpr int length(const T (&array)[N]) noexcept
     return static_cast<int>(N);
 }
 
-template<typename Identifier>
-constexpr Identifier undefined() noexcept
-{
-    static_assert(
-      std::is_enum<Identifier>::value,
-      "Identifier must be a enumeration: enum class id : unsigned {};");
-
-    return static_cast<Identifier>(0);
-}
-
-template<typename Identifier>
-constexpr bool is_undefined(Identifier id) noexcept
-{
-    static_assert(
-      std::is_enum<Identifier>::value,
-      "Identifier must be a enumeration: enum class id : unsigned {};");
-
-    return id == undefined<Identifier>();
-}
-
-template<typename Identifier>
-constexpr bool is_defined(Identifier id) noexcept
-{
-    static_assert(
-      std::is_enum<Identifier>::value,
-      "Identifier must be a enumeration: enum class id : unsigned {};");
-
-    return id != undefined<Identifier>();
-}
-
 //! @brief A simple enumeration to integral helper function.
 //! @tparam Enum An enumeration
 //! @tparam Integer The underlying_type deduce from @c Enum
