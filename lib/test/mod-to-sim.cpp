@@ -50,13 +50,9 @@ int main()
     using namespace boost::ut;
 
     "easy"_test = [] {
-        irt::modeling_initializer mod_init;
-        irt::journal_handler      jn;
-        irt::modeling             mod{ jn };
-        irt::project              pj;
-
-        expect(!!mod.init(mod_init));
-        expect(!!pj.init(mod_init));
+        irt::journal_handler jn;
+        irt::modeling        mod{ jn };
+        irt::project         pj;
 
         auto& c1    = mod.alloc_generic_component();
         auto& s1    = mod.generic_components.get(c1.id.generic_id);
@@ -107,13 +103,9 @@ int main()
     };
 
     "no-connection"_test = [] {
-        irt::modeling_initializer mod_init;
-        irt::journal_handler      jn;
-        irt::modeling             mod{ jn };
-        irt::project              pj;
-
-        expect(!!mod.init(mod_init));
-        expect(!!pj.init(mod_init));
+        irt::journal_handler jn;
+        irt::modeling        mod{ jn };
+        irt::project         pj;
 
         auto& c1 = mod.alloc_generic_component();
         auto& s1 = mod.generic_components.get(c1.id.generic_id);
@@ -140,13 +132,9 @@ int main()
     };
 
     "empty-component"_test = [] {
-        irt::modeling_initializer mod_init;
-        irt::journal_handler      jn;
-        irt::modeling             mod{ jn };
-        irt::project              pj;
-
-        expect(!!mod.init(mod_init));
-        expect(!!pj.init(mod_init));
+        irt::journal_handler jn;
+        irt::modeling        mod{ jn };
+        irt::project         pj;
 
         auto& c1 = mod.alloc_generic_component();
         auto& s1 = mod.generic_components.get(c1.id.generic_id);
@@ -203,13 +191,9 @@ int main()
     };
 
     "graph-small-world"_test = [] {
-        irt::modeling_initializer mod_init;
-        irt::journal_handler      jn;
-        irt::modeling             mod{ jn };
-        irt::project              pj;
-
-        expect(!!mod.init(mod_init));
-        expect(!!pj.init(mod_init));
+        irt::journal_handler jn;
+        irt::modeling        mod{ jn };
+        irt::project         pj;
 
         auto& c = mod.alloc_generic_component();
         auto& s = mod.generic_components.get(c.id.generic_id);
@@ -229,13 +213,9 @@ int main()
     };
 
     "graph-scale-free"_test = [] {
-        irt::modeling_initializer mod_init;
-        irt::journal_handler      jn;
-        irt::modeling             mod{ jn };
-        irt::project              pj;
-
-        expect(!!mod.init(mod_init));
-        expect(!!pj.init(mod_init));
+        irt::journal_handler jn;
+        irt::modeling        mod{ jn };
+        irt::project         pj;
 
         auto& c = mod.alloc_generic_component();
         auto& s = mod.generic_components.get(c.id.generic_id);
@@ -255,13 +235,9 @@ int main()
     };
 
     "graph-scale-free-sum-in-out"_test = [] {
-        irt::modeling_initializer mod_init;
-        irt::journal_handler      jn;
-        irt::modeling             mod{ jn };
-        irt::project              pj;
-
-        expect(!!mod.init(mod_init));
-        expect(!!pj.init(mod_init));
+        irt::journal_handler jn;
+        irt::modeling        mod{ jn };
+        irt::project         pj;
 
         auto& c     = mod.alloc_generic_component();
         auto& s     = mod.generic_components.get(c.id.generic_id);
@@ -292,13 +268,9 @@ int main()
     };
 
     "graph-scale-free-sum-m-n"_test = [] {
-        irt::modeling_initializer mod_init;
-        irt::journal_handler      jn;
-        irt::modeling             mod{ jn };
-        irt::project              pj;
-
-        expect(!!mod.init(mod_init));
-        expect(!!pj.init(mod_init));
+        irt::journal_handler jn;
+        irt::modeling        mod{ jn };
+        irt::project         pj;
 
         auto& c     = mod.alloc_generic_component();
         auto& s     = mod.generic_components.get(c.id.generic_id);
@@ -335,13 +307,9 @@ int main()
     };
 
     "graph-scale-free-sum-m_3-n_3"_test = [] {
-        irt::modeling_initializer mod_init;
-        irt::journal_handler      jn;
-        irt::modeling             mod{ jn };
-        irt::project              pj;
-
-        expect(!!mod.init(mod_init));
-        expect(!!pj.init(mod_init));
+        irt::journal_handler jn;
+        irt::modeling        mod{ jn };
+        irt::project         pj;
 
         auto& c     = mod.alloc_generic_component();
         auto& s     = mod.generic_components.get(c.id.generic_id);
@@ -402,13 +370,9 @@ int main()
     };
 
     "grid-3x3-empty-con"_test = [] {
-        irt::modeling_initializer mod_init;
-        irt::journal_handler      jn;
-        irt::modeling             mod{ jn };
-        irt::project              pj;
-
-        expect(!!mod.init(mod_init));
-        expect(!!pj.init(mod_init));
+        irt::journal_handler jn;
+        irt::modeling        mod{ jn };
+        irt::project         pj;
 
         auto& c = mod.alloc_generic_component();
         auto& s = mod.generic_components.get(c.id.generic_id);
@@ -424,13 +388,9 @@ int main()
     };
 
     "grid-3x3-empty-con-middle"_test = [] {
-        irt::modeling_initializer mod_init;
-        irt::journal_handler      jn;
-        irt::modeling             mod{ jn };
-        irt::project              pj;
-
-        expect(!!mod.init(mod_init));
-        expect(!!pj.init(mod_init));
+        irt::journal_handler jn;
+        irt::modeling        mod{ jn };
+        irt::project         pj;
 
         auto& c = mod.alloc_generic_component();
         auto& s = mod.generic_components.get(c.id.generic_id);
@@ -457,13 +417,9 @@ int main()
         expect(get_temp_registred_path(temp_path) == true);
 
         {
-            irt::modeling_initializer mod_init;
-            irt::journal_handler      jn;
-            irt::modeling             mod{ jn };
-            irt::project              pj;
-
-            expect(!!mod.init(mod_init));
-            expect(!!pj.init(mod_init));
+            irt::journal_handler jn;
+            irt::modeling        mod{ jn };
+            irt::project         pj;
 
             auto& c1    = mod.alloc_generic_component();
             auto& s1    = mod.generic_components.get(c1.id.generic_id);
@@ -557,13 +513,9 @@ int main()
         fmt::print("Buffer: {:{}}\n", buffer.data(), buffer.size());
 
         {
-            irt::modeling_initializer mod_init;
-            irt::journal_handler      jn;
-            irt::modeling             mod{ jn };
-            irt::project              pj;
-
-            expect(!!mod.init(mod_init));
-            expect(!!pj.init(mod_init));
+            irt::journal_handler jn;
+            irt::modeling        mod{ jn };
+            irt::project         pj;
 
             auto& reg = mod.alloc_registred("temp", 0);
             reg.path  = temp_path;
@@ -581,13 +533,9 @@ int main()
     };
 
     "hsm"_test = [] {
-        irt::modeling_initializer mod_init;
-        irt::project              pj;
-        irt::journal_handler      jn;
-        irt::modeling             mod{ jn };
-
-        expect(!!mod.init(mod_init)) << fatal;
-        expect(!!pj.init(mod_init)) << fatal;
+        irt::project         pj;
+        irt::journal_handler jn;
+        irt::modeling        mod{ jn };
 
         expect(mod.hsm_components.can_alloc(1)) << fatal;
         expect(mod.components.can_alloc(1)) << fatal;
@@ -606,9 +554,6 @@ int main()
         hsm.machine.states[2u].enter_action.set_output(
           irt::hierarchical_state_machine::variable::port_0, 1.0f);
 
-        expect(!!mod.init(mod_init));
-        expect(!!pj.init(mod_init));
-
         expect(!!pj.set(mod, compo));
 
         pj.sim.t = 0.0;
@@ -624,13 +569,10 @@ int main()
     };
 
     "internal_component_io"_test = [] {
-        irt::modeling_initializer mod_init;
-
         {
             irt::journal_handler jn{};
             irt::modeling        mod{ jn };
 
-            expect(!!mod.init(mod_init));
             irt::component_id ids[irt::internal_component_count];
 
             mod.registred_paths.reserve(8);
@@ -684,8 +626,6 @@ int main()
             irt::journal_handler jn{};
             irt::modeling        mod{ jn };
 
-            expect(!!mod.init(mod_init));
-
             mod.registred_paths.reserve(8);
             mod.dir_paths.reserve(32);
             mod.file_paths.reserve(256);
@@ -711,13 +651,9 @@ int main()
         irt::vector<char> buffer;
 
         {
-            irt::modeling_initializer mod_init;
-            irt::journal_handler      jn;
-            irt::modeling             mod{ jn };
-            irt::project              pj;
-
-            expect(!!mod.init(mod_init));
-            expect(!!pj.init(mod_init));
+            irt::journal_handler jn;
+            irt::modeling        mod{ jn };
+            irt::project         pj;
 
             auto& c1  = mod.alloc_generic_component();
             auto& s1  = mod.generic_components.get(c1.id.generic_id);
@@ -798,13 +734,9 @@ int main()
         irt::vector<char> buffer;
 
         {
-            irt::modeling_initializer mod_init;
-            irt::journal_handler      jn;
-            irt::modeling             mod{ jn };
-            irt::project              pj;
-
-            expect(!!mod.init(mod_init));
-            expect(!!pj.init(mod_init));
+            irt::journal_handler jn;
+            irt::modeling        mod{ jn };
+            irt::project         pj;
 
             auto& compo_counter = mod.alloc_generic_component();
             auto& gen_counter =
@@ -894,13 +826,9 @@ int main()
         auto old_error_callback =
           std::exchange(irt::on_error_callback, nullptr);
 
-        irt::modeling_initializer mod_init;
-        irt::journal_handler      jn;
-        irt::modeling             mod{ jn };
-        irt::project              pj;
-
-        expect(!!mod.init(mod_init));
-        expect(!!pj.init(mod_init));
+        irt::journal_handler jn;
+        irt::modeling        mod{ jn };
+        irt::project         pj;
 
         auto& c1    = mod.alloc_generic_component();
         auto& s1    = mod.generic_components.get(c1.id.generic_id);

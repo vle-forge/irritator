@@ -191,15 +191,13 @@ static constexpr const option* get_from_long(
 
 class main_parameters
 {
-    irt::sz         memory = 1024 * 1024 * 8;
-    irt::simulation sim;
+    irt::sz memory = 1024 * 1024 * 8;
 
     irt::journal_handler jn;
 
-    irt::modeling_initializer init;
-    irt::modeling             mod;
-    irt::json_dearchiver      json;
-    irt::project              pj;
+    irt::modeling        mod;
+    irt::json_dearchiver json;
+    irt::project         pj;
 
     std::span<const char*> args;
     std::string_view       front;
@@ -209,21 +207,13 @@ class main_parameters
 
 public:
     main_parameters(int ac, const char* av[])
-      : sim(irt::simulation_memory_requirement(1024 * 1024 * 8),
-            irt::external_source_memory_requirement(8, 8, 8, 8, 256, 256))
-      , mod(jn)
+      : mod(jn)
       , args{ av + 1, static_cast<std::size_t>(ac - 1) }
       , r{ 0.0 }
     {
-        auto ret = [&]() -> irt::status {
-            irt_check(mod.init(init));
-            registred_path_add();
-            irt_check(mod.fill_components());
-            irt_check(pj.init(init));
-            return irt::success();
-        }();
+        registred_path_add();
 
-        if (not ret.has_value()) {
+        if (auto ret = mod.fill_components(); ret.has_error()) {
             switch (ret.error().cat()) {
             case irt::category::modeling:
                 warning<ec::modeling_init_error>(ret.error().value());
@@ -246,27 +236,27 @@ public:
     void observation_initialize() noexcept
     {
         for (auto& o : pj.grid_observers) {
-            o.init(pj, mod, sim);
+            o.init(pj, mod, pj.sim);
             pj.file_obs.alloc(pj.grid_observers.get_id(o));
         }
 
         for (auto& o : pj.graph_observers) {
-            o.init(pj, mod, sim);
+            o.init(pj, mod, pj.sim);
             pj.file_obs.alloc(pj.graph_observers.get_id(o));
         }
 
         for (auto& o : pj.variable_observers)
-            if (auto ret = o.init(pj, sim); !!ret)
+            if (auto ret = o.init(pj, pj.sim); !!ret)
                 pj.file_obs.alloc(pj.variable_observers.get_id(o));
 
-        pj.file_obs.initialize(sim, pj);
+        pj.file_obs.initialize(pj.sim, pj);
     }
 
     void observation_update() noexcept
     {
-        for (int i = 0, e = sim.immediate_observers.ssize(); i != e; ++i) {
-            const auto obs_id = sim.immediate_observers[i];
-            if (auto* o = sim.observers.try_to_get(obs_id); o)
+        for (int i = 0, e = pj.sim.immediate_observers.ssize(); i != e; ++i) {
+            const auto obs_id = pj.sim.immediate_observers[i];
+            if (auto* o = pj.sim.observers.try_to_get(obs_id); o)
                 while (o->buffer.ssize() > 2)
                     write_interpolate_data(*o, o->time_step);
         }
@@ -274,24 +264,24 @@ public:
         for (auto& g : pj.grid_observers) {
             const auto g_id = pj.grid_observers.get_id(g);
             if (auto* g = pj.grid_observers.try_to_get(g_id); g)
-                if (g->can_update(sim.t))
-                    g->update(sim);
+                if (g->can_update(pj.sim.t))
+                    g->update(pj.sim);
         }
 
         for (auto& g : pj.graph_observers) {
             const auto g_id = pj.graph_observers.get_id(g);
             if (auto* g = pj.graph_observers.try_to_get(g_id); g)
-                if (g->can_update(sim.t))
-                    g->update(sim);
+                if (g->can_update(pj.sim.t))
+                    g->update(pj.sim);
         }
 
-        if (pj.file_obs.can_update(sim.t))
-            pj.file_obs.update(sim, pj);
+        if (pj.file_obs.can_update(pj.sim.t))
+            pj.file_obs.update(pj.sim, pj);
     }
 
     void observation_finalize() noexcept
     {
-        for (auto& obs : sim.observers)
+        for (auto& obs : pj.sim.observers)
             while (obs.buffer.ssize() > 2)
                 flush_interpolate_data(obs, obs.time_step);
 
@@ -300,12 +290,12 @@ public:
 
     irt::expected<void> run() noexcept
     {
-        sim.t         = pj.t_limit.begin();
+        pj.sim.t      = pj.t_limit.begin();
         irt::real end = pj.t_limit.duration();
 
         observation_initialize();
-        irt_check(sim.srcs.prepare());
-        irt_check(sim.initialize());
+        irt_check(pj.sim.srcs.prepare());
+        irt_check(pj.sim.initialize());
 
         fmt::print("grid-observers: {}\n"
                    "graph-observers: {}\n"
@@ -317,11 +307,11 @@ public:
                    pj.file_obs.ids.ssize());
 
         do {
-            irt_check(sim.run());
+            irt_check(pj.sim.run());
             observation_update();
-        } while (sim.t < end);
+        } while (pj.sim.t < end);
 
-        irt_check(sim.finalize());
+        irt_check(pj.sim.finalize());
         observation_finalize();
 
         return irt::success();
@@ -335,7 +325,7 @@ public:
 
         if (auto file = irt::file::open(str.c_str(), irt::open_mode::read);
             file.has_value()) {
-            if (json(pj, mod, sim, *file)) {
+            if (json(pj, mod, pj.sim, *file)) {
                 run();
             } else {
                 return irt::new_error(irt::json_errc::invalid_project_format);
@@ -508,9 +498,6 @@ public:
     bool read_memory() noexcept
     {
         if (parse_integer() and u > memory) {
-            sim.realloc(irt::simulation_memory_requirement(memory),
-                        irt::external_source_memory_requirement(
-                          16, 16, 16, 16, 256, 256));
             memory = u;
             return true;
         }

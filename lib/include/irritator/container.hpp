@@ -1351,6 +1351,8 @@ public:
     using const_iterator = id_array<identifier_type, A>::const_iterator;
 
     id_data_array() noexcept = default;
+    explicit id_data_array(std::integral auto capacity) noexcept;
+
     ~id_data_array() noexcept;
 
     id_data_array(const id_data_array& other) noexcept;
@@ -2740,6 +2742,13 @@ id_array<Identifier, A>::end() const noexcept
 
 // template<typename Identifier, typename A, class... Ts>
 // class id_data_array
+
+template<typename Identifier, typename A, class... Ts>
+id_data_array<Identifier, A, Ts...>::id_data_array(
+  std::integral auto capacity) noexcept
+{
+    reserve(capacity);
+}
 
 template<typename Identifier, typename A, class... Ts>
 id_data_array<Identifier, A, Ts...>::~id_data_array() noexcept

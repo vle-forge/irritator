@@ -263,15 +263,6 @@ std::optional<project_id> application::alloc_project_window() noexcept
 
     auto& pj = pjs.alloc(temp.sv());
 
-    if (not pj.pj.init(modeling_initializer{})) {
-        jn.push(log_level::error, [&](auto& title, auto& msg) noexcept {
-            title = "Fail to initialize project";
-            format(msg,
-                   "There is {} projects opened. Close one before.",
-                   pjs.size());
-        });
-    }
-
     return pjs.get_id(pj);
 }
 
@@ -316,13 +307,6 @@ static void init_registred_path(application& app, config_manager& cfg) noexcept
 
 bool application::init() noexcept
 {
-    if (not mod.init(modeling_initializer{})) {
-        log_w(*this,
-              log_level::error,
-              "Fail to initialize modeling components: {}\n");
-        return false;
-    }
-
     init_registred_path(*this, config);
 
     if (auto ret = mod.fill_internal_components(); !ret) {

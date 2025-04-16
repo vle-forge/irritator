@@ -27,10 +27,6 @@ project_editor::project_editor(const std::string_view default_name) noexcept
   : tl(32768, 4096, 65536, 65536, 32768, 32768)
   , name{ default_name }
 {
-    if (not pj.init(modeling_initializer{})) {
-        debug::log("Fail to initialize project components\n");
-    }
-
     pj.grid_observers.reserve(8);
     pj.graph_observers.reserve(8);
     pj.variable_observers.reserve(8);

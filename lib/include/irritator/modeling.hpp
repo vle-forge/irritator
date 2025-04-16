@@ -980,27 +980,6 @@ struct file_path {
     spin_mutex           mutex;
 };
 
-struct modeling_initializer {
-    i32 model_capacity              = 32768;
-    i32 tree_capacity               = 256;
-    i32 parameter_capacity          = 4096;
-    i32 description_capacity        = 128;
-    i32 component_capacity          = 512;
-    i32 dir_path_capacity           = 32;
-    i32 file_path_capacity          = 512;
-    i32 children_capacity           = 8192;
-    i32 connection_capacity         = 16384;
-    i32 port_capacity               = 32768;
-    i32 constant_source_capacity    = 32;
-    i32 binary_file_source_capacity = 32;
-    i32 text_file_source_capacity   = 32;
-    i32 random_source_capacity      = 32;
-
-    u64 random_generator_seed = 1234567890;
-
-    bool is_fixed_window_placement = true;
-};
-
 struct tree_node {
     tree_node(component_id id_, const std::string_view unique_id_) noexcept;
 
@@ -1326,9 +1305,28 @@ public:
 
     modeling_status state = modeling_status::unmodified;
 
-    modeling(journal_handler& jnl) noexcept;
-
-    status init(const modeling_initializer& params) noexcept;
+    //! Ctor parameters are used to initialized the default stock of all
+    //! data-array and observations objects.
+    //!
+    //! \param jnl
+    //! \param components
+    //! \param grid
+    //! \param graph
+    //! \param generic
+    //! \param hsms
+    //! \param regs
+    //! \param dirs
+    //! \param files
+    //!
+    modeling(journal_handler&                     jnl,
+             constrained_value<int, 512, INT_MAX> components     = 64,
+             constrained_value<int, 512, INT_MAX> grid_compos    = 64,
+             constrained_value<int, 512, INT_MAX> graph_compos   = 64,
+             constrained_value<int, 512, INT_MAX> generic_compos = 64,
+             constrained_value<int, 512, INT_MAX> hsms_compos    = 64,
+             constrained_value<int, 32, INT_MAX>  regs           = 16,
+             constrained_value<int, 32, INT_MAX>  dirs           = 128,
+             constrained_value<int, 32, INT_MAX>  files = 128) noexcept;
 
     //! Add internal components to component lists.
     status fill_internal_components() noexcept;
@@ -1569,12 +1567,22 @@ inline constexpr time time_limit::end() const noexcept { return m_end; }
 class project
 {
 public:
-    project() noexcept
-      : sim{ simulation_memory_requirement(1u << 16u),
-             irt::external_source_memory_requirement{} }
-    {}
-
-    status init(const modeling_initializer& init) noexcept;
+    //! Ctor parameters are used to initialized the default stock of simulation
+    //! and observations objects.
+    //!
+    //! \param models Stocks of models in the simulation.
+    //! \param nodes Stocks of simulation tree-nodes or coupled models.
+    //! \param grids Stocks of grid observations.
+    //! \param graphs Stocks of graph observations.
+    //! \param vars Stocks of variables observations.
+    //! \param parameters  Stocks of parameters in the simulation.
+    //!
+    project(constrained_value<int, 512, INT_MAX> models     = 256 * 16,
+            constrained_value<int, 256, INT_MAX> nodes      = 256,
+            constrained_value<int, 256, INT_MAX> grids      = 256,
+            constrained_value<int, 256, INT_MAX> graphs     = 256,
+            constrained_value<int, 256, INT_MAX> vars       = 256,
+            constrained_value<int, 256, INT_MAX> parameters = 256 * 4) noexcept;
 
     struct required_data {
         unsigned tree_node_nb{ 1u };

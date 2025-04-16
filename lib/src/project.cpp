@@ -18,13 +18,8 @@ namespace irt {
 template<typename D>
 static bool data_array_reserve_add(D& d, std::integral auto size) noexcept
 {
-    if (not d.can_alloc(size))
-        d.reserve(d.capacity() + size);
-
-    if (not d.can_alloc(size))
+    if (not d.can_alloc(size) and not d.template grow<3, 2>())
         return false;
-
-    d.reserve(size);
 
     return true;
 }
@@ -32,13 +27,8 @@ static bool data_array_reserve_add(D& d, std::integral auto size) noexcept
 template<typename V>
 static bool vector_reserve_add(V& v, std::integral auto size) noexcept
 {
-    if (not v.can_alloc(size))
-        v.reserve(v.capacity() + size);
-
-    if (not v.can_alloc(size))
+    if (not v.can_alloc(size) and not v.template grow<2, 1>())
         return false;
-
-    v.reserve(size);
 
     return true;
 }
@@ -226,7 +216,7 @@ static auto get_incoming_connection(const generic_component& gen,
 
 static auto get_incoming_connection(const modeling&  mod,
                                     const tree_node& tn,
-                                    const port_id    id) noexcept -> expected<int>
+                                    const port_id id) noexcept -> expected<int>
 {
     const auto* compo = mod.components.try_to_get(tn.id);
     if (not compo)
@@ -244,7 +234,8 @@ static auto get_incoming_connection(const modeling&  mod,
 }
 
 static auto get_incoming_connection(const modeling&  mod,
-                                    const tree_node& tn) noexcept -> expected<int>
+                                    const tree_node& tn) noexcept
+  -> expected<int>
 {
     const auto* compo = mod.components.try_to_get(tn.id);
     if (not compo)
@@ -1160,22 +1151,20 @@ static auto make_tree_from(simulation_copy&                     sc,
     return data.get_id(new_tree);
 }
 
-status project::init(const modeling_initializer& init) noexcept
-{
-    parameters.reserve(256);
-
-    tree_nodes.reserve(init.tree_capacity);
-    if (not tree_nodes.can_alloc())
-        return new_error(project_errc::memory_error);
-    variable_observers.reserve(init.tree_capacity);
-    if (not variable_observers.can_alloc())
-        return new_error(project_errc::memory_error);
-    grid_observers.reserve(init.tree_capacity);
-    if (not grid_observers.can_alloc())
-        return new_error(project_errc::memory_error);
-
-    return success();
-}
+project::project(constrained_value<int, 512, INT_MAX> models,
+                 constrained_value<int, 256, INT_MAX> nodes,
+                 constrained_value<int, 256, INT_MAX> grids,
+                 constrained_value<int, 256, INT_MAX> graphs,
+                 constrained_value<int, 256, INT_MAX> vars,
+                 constrained_value<int, 256, INT_MAX> params) noexcept
+  : sim{ simulation_memory_requirement(models.value()),
+         irt::external_source_memory_requirement{} }
+  , tree_nodes{ nodes.value() }
+  , variable_observers{ vars.value() }
+  , grid_observers{ grids.value() }
+  , graph_observers{ graphs.value() }
+  , parameters{ params.value() }
+{}
 
 class treenode_require_computer
 {

@@ -19,61 +19,80 @@
 
 namespace irt {
 
-modeling::modeling(journal_handler& jnl) noexcept
-  : journal(jnl)
-{}
-
-status modeling::init(const modeling_initializer& p) noexcept
+modeling::modeling(journal_handler&                     jnl,
+                   constrained_value<int, 512, INT_MAX> compos,
+                   constrained_value<int, 512, INT_MAX> grid_compos,
+                   constrained_value<int, 512, INT_MAX> graph_compos,
+                   constrained_value<int, 512, INT_MAX> generic_compos,
+                   constrained_value<int, 512, INT_MAX> hsm_compos,
+                   constrained_value<int, 32, INT_MAX>  regs,
+                   constrained_value<int, 32, INT_MAX>  dirs,
+                   constrained_value<int, 32, INT_MAX>  files) noexcept
+  : descriptions(files.value())
+  , generic_components(generic_compos.value())
+  , grid_components(grid_compos.value())
+  , graph_components(graph_compos.value())
+  , hsm_components(hsm_compos.value())
+  , components(compos.value())
+  , registred_paths(regs.value())
+  , dir_paths(dirs.value())
+  , file_paths(files.value())
+  , hsms(hsm_compos.value())
+  , graphs(graph_compos.value())
+  , component_colors(compos.value())
+  , component_repertories(regs.value(), reserve_tag{})
+  , journal(jnl)
 {
-    if (p.description_capacity) {
-        descriptions.reserve(p.description_capacity);
-        if (not descriptions.capacity())
-            return new_error(modeling_errc::memory_error);
-    }
-
-    components.reserve(p.component_capacity);
-    if (not components.can_alloc())
-        return new_error(modeling_errc::memory_error);
-
-    grid_components.reserve(p.component_capacity);
-    if (not grid_components.can_alloc())
-        return new_error(modeling_errc::memory_error);
-
-    graph_components.reserve(p.component_capacity);
-    if (not graph_components.can_alloc())
-        return new_error(modeling_errc::memory_error);
-
-    generic_components.reserve(p.component_capacity);
-    if (not generic_components.can_alloc())
-        return new_error(modeling_errc::memory_error);
-
-    hsm_components.reserve(p.component_capacity);
-    if (not hsm_components.can_alloc())
-        return new_error(modeling_errc::memory_error);
-
-    dir_paths.reserve(p.dir_path_capacity);
-    if (not dir_paths.can_alloc())
-        return new_error(modeling_errc::memory_error);
-
-    file_paths.reserve(p.file_path_capacity);
-    if (not file_paths.can_alloc())
-        return new_error(modeling_errc::memory_error);
-
-    registred_paths.reserve(p.dir_path_capacity);
-    if (not registred_paths.can_alloc())
-        return new_error(modeling_errc::memory_error);
-
-    hsms.reserve(p.component_capacity);
-    if (not hsms.can_alloc())
-        return new_error(modeling_errc::memory_error);
-
-    graphs.reserve(p.component_capacity);
-    if (not graphs.can_alloc())
-        return new_error(modeling_errc::memory_error);
-
-    component_colors.resize(components.capacity());
-
-    return success();
+    if (descriptions.capacity() == 0 or generic_components.capacity() == 0 or
+        grid_components.capacity() == 0 or graph_components.capacity() == 0 or
+        hsm_components.capacity() == 0 or components.capacity() == 0 or
+        registred_paths.capacity() == 0 or dir_paths.capacity() == 0 or
+        file_paths.capacity() == 0 or hsms.capacity() == 0 or
+        graphs.capacity() == 0 or component_colors.capacity() == 0 or
+        component_repertories.capacity() == 0)
+        journal.push(log_level::error, [&](auto& t, auto& m) noexcept {
+            t = "Modeling initialization error";
+            format(m,
+                   "descriptions          {:>8} ({:>8})"
+                   "generic-components    {:>8} ({:>8})"
+                   "grid-components       {:>8} ({:>8})"
+                   "graph-components      {:>8} ({:>8})"
+                   "hsm-components        {:>8} ({:>8})"
+                   "components            {:>8} ({:>8})"
+                   "registred-paths       {:>8} ({:>8})"
+                   "dir-paths             {:>8} ({:>8})"
+                   "file-paths            {:>8} ({:>8})"
+                   "hsms                  {:>8} ({:>8})"
+                   "graphs                {:>8} ({:>8})"
+                   "component-colors      {:>8} ({:>8})"
+                   "component-repertories {:>8} ({:>8})",
+                   descriptions.capacity(),
+                   files.value(),
+                   generic_components.capacity(),
+                   generic_compos.value(),
+                   grid_components.capacity(),
+                   grid_compos.value(),
+                   graph_components.capacity(),
+                   graph_compos.value(),
+                   hsm_components.capacity(),
+                   hsm_compos.value(),
+                   components.capacity(),
+                   compos.value(),
+                   registred_paths.capacity(),
+                   regs.value(),
+                   dir_paths.capacity(),
+                   dirs.value(),
+                   file_paths.capacity(),
+                   files.value(),
+                   hsms.capacity(),
+                   hsm_compos.value(),
+                   graphs.capacity(),
+                   graph_compos.value(),
+                   component_colors.capacity(),
+                   compos.value(),
+                   component_repertories.capacity(),
+                   regs.value());
+        });
 }
 
 static void prepare_component_loading(
