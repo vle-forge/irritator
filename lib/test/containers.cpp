@@ -1223,18 +1223,18 @@ int main()
             expect(check_data_array_loop(array));
 
             expect(array.max_size() == 0);
-            expect(array.max_used() == 3);
+            expect(array.max_used() == 0); // clear() called after free(d3)
             expect(array.capacity() == 3);
             expect(array.next_key() == 7);
-            expect(!array.is_free_list_empty());
+            expect(array.is_free_list_empty());
 
             auto& n1 = array.alloc();
             auto& n2 = array.alloc();
             auto& n3 = array.alloc();
 
-            expect(irt::get_index(array.get_id(n1)) == 2_u);
+            expect(irt::get_index(array.get_id(n1)) == 0_u);
             expect(irt::get_index(array.get_id(n2)) == 1_u);
-            expect(irt::get_index(array.get_id(n3)) == 0_u);
+            expect(irt::get_index(array.get_id(n3)) == 2_u);
 
             expect(array.max_size() == 3);
             expect(array.max_used() == 3);
@@ -1620,6 +1620,184 @@ int main()
         expect(ids.can_alloc(1) == true);
     };
 
+    "id_array_check_free_order"_test = [] {
+        enum class void_id : std::uint32_t;
+
+        irt::id_array<void_id> ids(4);
+
+        expect(eq(ids.size(), 0u));
+        expect(eq(ids.max_used(), 0));
+        expect(eq(ids.capacity(), 4));
+        expect(eq(ids.next_key(), 1));
+        expect(ids.is_free_list_empty());
+        expect(ids.can_alloc(1) == true);
+
+        {
+            auto id_1  = ids.alloc();
+            auto id_2  = ids.alloc();
+            auto id_3  = ids.alloc();
+            auto id_4  = ids.alloc();
+            auto idx_1 = irt::get_index(id_1);
+            auto idx_2 = irt::get_index(id_2);
+            auto idx_3 = irt::get_index(id_3);
+            auto idx_4 = irt::get_index(id_4);
+            expect(eq(idx_1, 0));
+            expect(eq(idx_2, 1));
+            expect(eq(idx_3, 2));
+            expect(eq(idx_4, 3));
+            expect(ids.can_alloc(1) == false);
+            ids.free(id_1);
+            ids.free(id_2);
+            ids.free(id_3);
+            ids.free(id_4);
+        }
+
+        expect(eq(ids.size(), 0u));
+        expect(eq(ids.max_used(), 0));
+        expect(eq(ids.capacity(), 4));
+        expect(eq(ids.next_key(), 5));
+        expect(ids.is_free_list_empty());
+        expect(ids.can_alloc(1) == true);
+
+        {
+            auto id_1  = ids.alloc();
+            auto id_2  = ids.alloc();
+            auto id_3  = ids.alloc();
+            auto id_4  = ids.alloc();
+            auto idx_1 = irt::get_index(id_1);
+            auto idx_2 = irt::get_index(id_2);
+            auto idx_3 = irt::get_index(id_3);
+            auto idx_4 = irt::get_index(id_4);
+            expect(eq(idx_1, 0));
+            expect(eq(idx_2, 1));
+            expect(eq(idx_3, 2));
+            expect(eq(idx_4, 3));
+            expect(ids.can_alloc(1) == false);
+            ids.free(id_1);
+            ids.free(id_2);
+            ids.free(id_3);
+            expect(ids.can_alloc(3) == true);
+            auto free_1     = ids.alloc();
+            auto free_2     = ids.alloc();
+            auto free_3     = ids.alloc();
+            auto idx_free_1 = irt::get_index(free_1);
+            auto idx_free_2 = irt::get_index(free_2);
+            auto idx_free_3 = irt::get_index(free_3);
+            expect(eq(idx_free_1, 0));
+            expect(eq(idx_free_2, 1));
+            expect(eq(idx_free_3, 2));
+        }
+
+        expect(eq(ids.size(), 4u));
+        expect(eq(ids.max_used(), 4));
+        expect(eq(ids.capacity(), 4));
+        expect(eq(ids.next_key(), 12));
+        expect(ids.is_free_list_empty());
+        expect(ids.can_alloc(1) == false);
+    };
+
+    "id_data_array_check_free_order"_test = [] {
+        enum class int_id : std::uint32_t;
+
+        irt::data_array<int, int_id> ids(4);
+
+        expect(eq(ids.size(), 0u));
+        expect(eq(ids.max_used(), 0));
+        expect(eq(ids.capacity(), 4));
+        expect(eq(ids.next_key(), 1));
+        expect(ids.is_free_list_empty());
+        expect(ids.can_alloc(1) == true);
+
+        {
+            auto id_1  = ids.get_id(ids.alloc(1));
+            auto id_2  = ids.get_id(ids.alloc(2));
+            auto id_3  = ids.get_id(ids.alloc(3));
+            auto id_4  = ids.get_id(ids.alloc(4));
+            auto idx_1 = irt::get_index(id_1);
+            auto idx_2 = irt::get_index(id_2);
+            auto idx_3 = irt::get_index(id_3);
+            auto idx_4 = irt::get_index(id_4);
+            expect(eq(idx_1, 0));
+            expect(eq(idx_2, 1));
+            expect(eq(idx_3, 2));
+            expect(eq(idx_4, 3));
+            expect(ids.can_alloc(1) == false);
+            ids.free(id_1);
+            ids.free(id_2);
+            ids.free(id_3);
+            ids.free(id_4);
+        }
+
+        expect(eq(ids.size(), 0u));
+        expect(eq(ids.max_used(), 0));
+        expect(eq(ids.capacity(), 4));
+        expect(eq(ids.next_key(), 5));
+        expect(ids.is_free_list_empty());
+        expect(ids.can_alloc(1) == true);
+
+        {
+            auto id_1  = ids.get_id(ids.alloc(1));
+            auto id_2  = ids.get_id(ids.alloc(2));
+            auto id_3  = ids.get_id(ids.alloc(3));
+            auto id_4  = ids.get_id(ids.alloc(4));
+            auto idx_1 = irt::get_index(id_1);
+            auto idx_2 = irt::get_index(id_2);
+            auto idx_3 = irt::get_index(id_3);
+            auto idx_4 = irt::get_index(id_4);
+            expect(eq(idx_1, 0));
+            expect(eq(idx_2, 1));
+            expect(eq(idx_3, 2));
+            expect(eq(idx_4, 3));
+            expect(ids.can_alloc(1) == false);
+            ids.free(id_1);
+            ids.free(id_2);
+            ids.free(id_3);
+            expect(ids.can_alloc(3) == true);
+            auto free_1     = ids.get_id(ids.alloc(1));
+            auto free_2     = ids.get_id(ids.alloc(2));
+            auto free_3     = ids.get_id(ids.alloc(3));
+            auto idx_free_1 = irt::get_index(free_1);
+            auto idx_free_2 = irt::get_index(free_2);
+            auto idx_free_3 = irt::get_index(free_3);
+            expect(eq(idx_free_1, 0));
+            expect(eq(idx_free_2, 1));
+            expect(eq(idx_free_3, 2));
+        }
+
+        expect(eq(ids.size(), 4u));
+        expect(eq(ids.max_used(), 4));
+        expect(eq(ids.capacity(), 4));
+        expect(eq(ids.next_key(), 12));
+        expect(ids.is_free_list_empty());
+        expect(ids.can_alloc(1) == false);
+        ids.clear();
+        expect(ids.can_alloc(4));
+
+        {
+            auto id_1  = ids.get_id(ids.alloc(1));
+            auto id_2  = ids.get_id(ids.alloc(2));
+            auto id_3  = ids.get_id(ids.alloc(3));
+            auto id_4  = ids.get_id(ids.alloc(4));
+            auto idx_1 = irt::get_index(id_1);
+            auto idx_2 = irt::get_index(id_2);
+            auto idx_3 = irt::get_index(id_3);
+            auto idx_4 = irt::get_index(id_4);
+            expect(eq(idx_1, 0));
+            expect(eq(idx_2, 1));
+            expect(eq(idx_3, 2));
+            expect(eq(idx_4, 3));
+            expect(ids.can_alloc(1) == false);
+            ids.free(id_4);
+        }
+
+        expect(eq(ids.size(), 3u));
+        expect(eq(ids.max_used(), 4));
+        expect(eq(ids.capacity(), 4));
+        expect(eq(ids.next_key(), 16));
+        expect(not ids.is_free_list_empty());
+        expect(ids.can_alloc(1) == true);
+    };
+
     "data_array_api_2"_test = [] {
         struct position {
             position() = default;
@@ -1734,18 +1912,18 @@ int main()
         expect(check_data_array_loop(array));
 
         expect(array.max_size() == 0);
-        expect(array.max_used() == 3);
         expect(array.capacity() == 32);
         expect(array.next_key() == 36);
-        expect(!array.is_free_list_empty());
+        expect(array.max_used() == 0); // clear() was call during the free(d3).
+        expect(array.is_free_list_empty()); // idem.
 
         auto& n1 = array.alloc();
         auto& n2 = array.alloc();
         auto& n3 = array.alloc();
 
-        expect(irt::get_index(array.get_id(n1)) == 2_u);
+        expect(irt::get_index(array.get_id(n1)) == 0_u);
         expect(irt::get_index(array.get_id(n2)) == 1_u);
-        expect(irt::get_index(array.get_id(n3)) == 0_u);
+        expect(irt::get_index(array.get_id(n3)) == 2_u);
 
         expect(array.max_size() == 3);
         expect(array.max_used() == 3);

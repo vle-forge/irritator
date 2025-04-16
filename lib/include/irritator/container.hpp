@@ -934,6 +934,7 @@ constexpr bool is_valid(Identifier id) noexcept
 */
 template<typename Identifier,
          typename A = allocator<new_delete_memory_resource>>
+    requires(is_identifier_type<Identifier>)
 class id_array
 {
     static_assert(is_identifier_type<Identifier>,
@@ -963,8 +964,8 @@ private:
     index_type m_max_size  = 0;    //!< Number of valid item.
     index_type m_max_used  = 0;    //!< highest index ever allocated
     index_type m_capacity  = 0;    //!< capacity of the array
-    index_type m_next_key  = 1;    /**< [1..2^[16|32] - 1 (never == 0). */
-    index_type m_free_head = none; // index of first free entry
+    index_type m_next_key  = 1;    //!< [1..2^[16|32] - 1 (never == 0)
+    index_type m_free_head = none; //!< Index of first free entry
 
     //! Build a new identifier merging m_next_key and the best free
     //! index.
@@ -997,7 +998,18 @@ public:
 
     constexpr bool reserve(std::integral auto capacity) noexcept;
     constexpr void free(const Identifier id) noexcept;
+
+    /**
+     * Make @a size() and @a max_used() returns @a 0 and assign @a none to free
+     * list. This function does not change the @a capacity() nor the @a
+     * next_key().
+     */
     constexpr void clear() noexcept;
+
+    /**
+     * Same as @a clear() and delete the underlying buffer, reset the @a
+     * next_key() and @a capacity().
+     */
     constexpr void destroy() noexcept;
 
     /**
@@ -2365,6 +2377,7 @@ private:
 // class id_array
 
 template<typename Identifier, typename A>
+    requires(is_identifier_type<Identifier>)
 constexpr typename id_array<Identifier, A>::identifier_type
 id_array<Identifier, A>::make_id(index_type key, index_type index) noexcept
 {
@@ -2372,6 +2385,7 @@ id_array<Identifier, A>::make_id(index_type key, index_type index) noexcept
 }
 
 template<typename Identifier, typename A>
+    requires(is_identifier_type<Identifier>)
 constexpr typename id_array<Identifier, A>::index_type
 id_array<Identifier, A>::make_next_key(index_type key) noexcept
 {
@@ -2379,6 +2393,7 @@ id_array<Identifier, A>::make_next_key(index_type key) noexcept
 }
 
 template<typename Identifier, typename A>
+    requires(is_identifier_type<Identifier>)
 constexpr typename id_array<Identifier, A>::index_type
 id_array<Identifier, A>::get_key(Identifier id) noexcept
 {
@@ -2386,6 +2401,7 @@ id_array<Identifier, A>::get_key(Identifier id) noexcept
 }
 
 template<typename Identifier, typename A>
+    requires(is_identifier_type<Identifier>)
 constexpr typename id_array<Identifier, A>::index_type
 id_array<Identifier, A>::get_index(Identifier id) noexcept
 {
@@ -2393,6 +2409,7 @@ id_array<Identifier, A>::get_index(Identifier id) noexcept
 }
 
 template<typename Identifier, typename A>
+    requires(is_identifier_type<Identifier>)
 constexpr id_array<Identifier, A>::id_array(
   const id_array<Identifier, A>& o) noexcept
 {
@@ -2413,6 +2430,7 @@ constexpr id_array<Identifier, A>::id_array(
 }
 
 template<typename Identifier, typename A>
+    requires(is_identifier_type<Identifier>)
 constexpr id_array<Identifier, A>::id_array(
   id_array<Identifier, A>&& o) noexcept
   : m_items{ std::exchange(o.m_items, nullptr) }
@@ -2424,6 +2442,7 @@ constexpr id_array<Identifier, A>::id_array(
 {}
 
 template<typename Identifier, typename A>
+    requires(is_identifier_type<Identifier>)
 constexpr typename id_array<Identifier, A>::this_container&
 id_array<Identifier, A>::operator=(id_array<Identifier, A>&& o) noexcept
 {
@@ -2440,6 +2459,7 @@ id_array<Identifier, A>::operator=(id_array<Identifier, A>&& o) noexcept
 }
 
 template<typename Identifier, typename A>
+    requires(is_identifier_type<Identifier>)
 constexpr typename id_array<Identifier, A>::this_container&
 id_array<Identifier, A>::operator=(const id_array<Identifier, A>& o) noexcept
 {
@@ -2472,6 +2492,7 @@ id_array<Identifier, A>::operator=(const id_array<Identifier, A>& o) noexcept
 }
 
 template<typename Identifier, typename A>
+    requires(is_identifier_type<Identifier>)
 constexpr id_array<Identifier, A>::id_array(
   std::integral auto capacity) noexcept
 {
@@ -2492,6 +2513,7 @@ constexpr id_array<Identifier, A>::id_array(
 }
 
 template<typename Identifier, typename A>
+    requires(is_identifier_type<Identifier>)
 constexpr id_array<Identifier, A>::~id_array() noexcept
 {
     clear();
@@ -2501,6 +2523,7 @@ constexpr id_array<Identifier, A>::~id_array() noexcept
 }
 
 template<typename Identifier, typename A>
+    requires(is_identifier_type<Identifier>)
 constexpr Identifier id_array<Identifier, A>::alloc() noexcept
 {
     fatal::ensure(can_alloc(1));
@@ -2525,6 +2548,7 @@ constexpr Identifier id_array<Identifier, A>::alloc() noexcept
 }
 
 template<typename Identifier, typename A>
+    requires(is_identifier_type<Identifier>)
 constexpr std::optional<Identifier>
 id_array<Identifier, A>::try_alloc() noexcept
 {
@@ -2535,6 +2559,7 @@ id_array<Identifier, A>::try_alloc() noexcept
 }
 
 template<typename Identifier, typename A>
+    requires(is_identifier_type<Identifier>)
 constexpr bool id_array<Identifier, A>::reserve(
   std::integral auto capacity) noexcept
 {
@@ -2566,22 +2591,43 @@ constexpr bool id_array<Identifier, A>::reserve(
 }
 
 template<typename Identifier, typename A>
+    requires(is_identifier_type<Identifier>)
 constexpr void id_array<Identifier, A>::free(const Identifier id) noexcept
 {
     const auto index = get_index(id);
 
     debug::ensure(std::cmp_less_equal(0, index));
     debug::ensure(std::cmp_less(index, m_max_used));
-    debug::ensure(m_items[index] == id);
-    debug::ensure(is_valid(id));
 
-    m_items[index] = static_cast<Identifier>(m_free_head);
-    m_free_head    = static_cast<index_type>(index);
+    if (0 <= index and index < m_max_used) {
+        debug::ensure(m_items[index] == id);
+        debug::ensure(is_valid(id));
 
-    --m_max_size;
+        if (m_max_size == 1) {
+            clear();
+        } else if (m_free_head == none or index < m_free_head) {
+            m_items[index] = static_cast<Identifier>(m_free_head);
+            m_free_head    = static_cast<index_type>(index);
+            --m_max_size;
+        } else {
+            auto prev = m_free_head;
+            auto cur  = get_index(m_items[m_free_head]);
+            do {
+                if (index < cur) {
+                    m_items[prev]  = static_cast<Identifier>(index);
+                    m_items[index] = static_cast<Identifier>(cur);
+                    break;
+                }
+                prev = cur;
+                cur  = get_index(m_items[cur]);
+            } while (prev != none);
+            --m_max_size;
+        }
+    }
 }
 
 template<typename Identifier, typename A>
+    requires(is_identifier_type<Identifier>)
 constexpr void id_array<Identifier, A>::clear() noexcept
 {
     m_max_size  = 0;
@@ -2590,6 +2636,7 @@ constexpr void id_array<Identifier, A>::clear() noexcept
 }
 
 template<typename Identifier, typename A>
+    requires(is_identifier_type<Identifier>)
 constexpr void id_array<Identifier, A>::destroy() noexcept
 {
     clear();
@@ -2602,6 +2649,7 @@ constexpr void id_array<Identifier, A>::destroy() noexcept
 }
 
 template<typename Identifier, typename A>
+    requires(is_identifier_type<Identifier>)
 template<int Num, int Denum>
 constexpr bool id_array<Identifier, A>::grow() noexcept
 {
@@ -2614,6 +2662,7 @@ constexpr bool id_array<Identifier, A>::grow() noexcept
 }
 
 template<typename Identifier, typename A>
+    requires(is_identifier_type<Identifier>)
 constexpr std::optional<typename id_array<Identifier, A>::index_type>
 id_array<Identifier, A>::get(const Identifier id) const noexcept
 {
@@ -2626,6 +2675,7 @@ id_array<Identifier, A>::get(const Identifier id) const noexcept
 }
 
 template<typename Identifier, typename A>
+    requires(is_identifier_type<Identifier>)
 constexpr bool id_array<Identifier, A>::exists(
   const Identifier id) const noexcept
 {
@@ -2636,6 +2686,7 @@ constexpr bool id_array<Identifier, A>::exists(
 }
 
 template<typename Identifier, typename A>
+    requires(is_identifier_type<Identifier>)
 constexpr typename id_array<Identifier, A>::identifier_type
 id_array<Identifier, A>::get_from_index(std::integral auto index) const noexcept
 {
@@ -2648,6 +2699,7 @@ id_array<Identifier, A>::get_from_index(std::integral auto index) const noexcept
 }
 
 template<typename Identifier, typename A>
+    requires(is_identifier_type<Identifier>)
 constexpr bool id_array<Identifier, A>::next(
   const Identifier*& id) const noexcept
 {
@@ -2674,30 +2726,35 @@ constexpr bool id_array<Identifier, A>::next(
 }
 
 template<typename Identifier, typename A>
+    requires(is_identifier_type<Identifier>)
 constexpr bool id_array<Identifier, A>::empty() const noexcept
 {
     return m_max_size == 0;
 }
 
 template<typename Identifier, typename A>
+    requires(is_identifier_type<Identifier>)
 constexpr bool id_array<Identifier, A>::full() const noexcept
 {
     return m_free_head == none && m_max_size >= m_capacity;
 }
 
 template<typename Identifier, typename A>
+    requires(is_identifier_type<Identifier>)
 constexpr unsigned id_array<Identifier, A>::size() const noexcept
 {
     return m_max_size;
 }
 
 template<typename Identifier, typename A>
+    requires(is_identifier_type<Identifier>)
 constexpr int id_array<Identifier, A>::ssize() const noexcept
 {
     return m_max_size;
 }
 
 template<typename Identifier, typename A>
+    requires(is_identifier_type<Identifier>)
 constexpr bool id_array<Identifier, A>::can_alloc(
   std::integral auto nb) const noexcept
 {
@@ -2705,18 +2762,21 @@ constexpr bool id_array<Identifier, A>::can_alloc(
 }
 
 template<typename Identifier, typename A>
+    requires(is_identifier_type<Identifier>)
 constexpr int id_array<Identifier, A>::max_used() const noexcept
 {
     return m_max_used;
 }
 
 template<typename Identifier, typename A>
+    requires(is_identifier_type<Identifier>)
 constexpr int id_array<Identifier, A>::capacity() const noexcept
 {
     return m_capacity;
 }
 
 template<typename Identifier, typename A>
+    requires(is_identifier_type<Identifier>)
 constexpr typename id_array<Identifier, A>::index_type
 id_array<Identifier, A>::next_key() const noexcept
 {
@@ -2724,12 +2784,14 @@ id_array<Identifier, A>::next_key() const noexcept
 }
 
 template<typename Identifier, typename A>
+    requires(is_identifier_type<Identifier>)
 constexpr bool id_array<Identifier, A>::is_free_list_empty() const noexcept
 {
     return m_free_head == none;
 }
 
 template<typename Identifier, typename A>
+    requires(is_identifier_type<Identifier>)
 constexpr typename id_array<Identifier, A>::iterator
 id_array<Identifier, A>::begin() noexcept
 {
@@ -2741,6 +2803,7 @@ id_array<Identifier, A>::begin() noexcept
 }
 
 template<typename Identifier, typename A>
+    requires(is_identifier_type<Identifier>)
 constexpr typename id_array<Identifier, A>::iterator
 id_array<Identifier, A>::end() noexcept
 {
@@ -2748,6 +2811,7 @@ id_array<Identifier, A>::end() noexcept
 }
 
 template<typename Identifier, typename A>
+    requires(is_identifier_type<Identifier>)
 constexpr typename id_array<Identifier, A>::const_iterator
 id_array<Identifier, A>::begin() const noexcept
 {
@@ -2759,6 +2823,7 @@ id_array<Identifier, A>::begin() const noexcept
 }
 
 template<typename Identifier, typename A>
+    requires(is_identifier_type<Identifier>)
 constexpr typename id_array<Identifier, A>::const_iterator
 id_array<Identifier, A>::end() const noexcept
 {
@@ -3317,19 +3382,7 @@ T* data_array<T, Identifier, A>::try_alloc(Args&&... args) noexcept
 template<typename T, typename Identifier, typename A>
 void data_array<T, Identifier, A>::free(T& t) noexcept
 {
-    auto id    = get_id(t);
-    auto index = get_index(id);
-
-    debug::ensure(&m_items[index] == static_cast<void*>(&t));
-    debug::ensure(m_items[index].id == id);
-    debug::ensure(is_valid(id));
-
-    std::destroy_at(&m_items[index].item);
-
-    m_items[index].id = static_cast<Identifier>(m_free_head);
-    m_free_head       = static_cast<index_type>(index);
-
-    --m_max_size;
+    free(get_id(t));
 }
 
 template<typename T, typename Identifier, typename A>
@@ -3337,13 +3390,31 @@ void data_array<T, Identifier, A>::free(Identifier id) noexcept
 {
     auto index = get_index(id);
 
-    if (m_items[index].id == id && is_valid(id)) {
-        std::destroy_at(&m_items[index].item);
+    if (0 <= index and index < m_max_used) {
+        if (m_items[index].id == id && is_valid(id)) {
+            std::destroy_at(&m_items[index].item);
 
-        m_items[index].id = static_cast<Identifier>(m_free_head);
-        m_free_head       = static_cast<index_type>(index);
-
-        --m_max_size;
+            if (m_max_size == 1) {
+                clear();
+            } else if (m_free_head == none or index < m_free_head) {
+                m_items[index].id = static_cast<Identifier>(m_free_head);
+                m_free_head       = static_cast<index_type>(index);
+                --m_max_size;
+            } else {
+                auto prev = m_free_head;
+                auto cur  = get_index(m_items[m_free_head].id);
+                do {
+                    if (index < cur) {
+                        m_items[prev].id  = static_cast<Identifier>(index);
+                        m_items[index].id = static_cast<Identifier>(cur);
+                        break;
+                    }
+                    prev = cur;
+                    cur  = get_index(m_items[cur].id);
+                } while (prev != none);
+                --m_max_size;
+            }
+        }
     }
 }
 
@@ -3353,6 +3424,9 @@ Identifier data_array<T, Identifier, A>::get_id(const T* t) const noexcept
     debug::ensure(t != nullptr);
 
     auto* ptr = reinterpret_cast<const item*>(t);
+
+    fatal::ensure(m_items <= ptr and ptr < m_items + m_max_used);
+
     return ptr->id;
 }
 
@@ -3360,6 +3434,9 @@ template<typename T, typename Identifier, typename A>
 Identifier data_array<T, Identifier, A>::get_id(const T& t) const noexcept
 {
     auto* ptr = reinterpret_cast<const item*>(&t);
+
+    fatal::ensure(m_items <= ptr and ptr < m_items + m_max_used);
+
     return ptr->id;
 }
 
