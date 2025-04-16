@@ -1329,9 +1329,9 @@ status project::set(modeling& mod, component& compo) noexcept
 
     irt_check(make_component_cache(*this, mod));
 
-    simulation_memory_requirement smr(std::bit_ceil(numbers.model_nb));
-    smr.hsms = std::bit_ceil(std::max(numbers.hsm_nb, smr.hsms));
     sim.clear();
+    sim.grow_models_to(numbers.model_nb);
+    sim.grow_connections_to(numbers.model_nb * 8);
 
     simulation_copy sc(*this, mod, tree_nodes);
 

@@ -276,73 +276,6 @@ enum class binary_file_source_id : u64;
 enum class text_file_source_id : u64;
 enum class random_source_id : u64;
 
-/**
-   Helps to calculate the sizes of the `vectors` and `data_array` from a
-   number of bytes. Compute for each `source` the same number and adjust
-   the `max_client` variables for both random and binary source.
- */
-struct external_source_memory_requirement {
-    unsigned constant_nb            = 4u;
-    unsigned text_file_nb           = 4u;
-    unsigned binary_file_nb         = 4u;
-    unsigned random_nb              = 4u;
-    unsigned binary_file_max_client = 8u;
-    unsigned random_max_client      = 8u;
-
-    constexpr external_source_memory_requirement() noexcept = default;
-
-    constexpr external_source_memory_requirement(
-      const unsigned constant,
-      const unsigned text_f,
-      const unsigned bin_f,
-      const unsigned random,
-      const unsigned bin_f_max_client,
-      const unsigned random_max_client) noexcept;
-};
-
-constexpr external_source_memory_requirement::
-  external_source_memory_requirement(const unsigned constant,
-                                     const unsigned text_f,
-                                     const unsigned bin_f,
-                                     const unsigned random,
-                                     const unsigned bin_f_max_client,
-                                     const unsigned random_max_client) noexcept
-  : constant_nb(constant)
-  , text_file_nb(text_f)
-  , binary_file_nb(bin_f)
-  , random_nb(random)
-  , binary_file_max_client(bin_f_max_client)
-  , random_max_client(random_max_client)
-{}
-
-/**
-   Helps to calculate the sizes of the `vectors` and `data_array` from a number
-   of bytes.
- */
-struct simulation_memory_requirement {
-    unsigned models         = 256u;
-    unsigned connections    = models * 8;
-    unsigned hsms           = models * 1 / 10;
-    unsigned dated_messages = models * 1 / 10;
-
-    constexpr simulation_memory_requirement() noexcept = default;
-
-    /**
-       Computes the required memory to build the simulation that can run at
-       least @c model_nb models and @c connection_nb connections.
-
-       @param bytes The numbers of bytes availables.
-       @param external_source Percentage of memory to use in external source.
-       @param source_client_ratio
-       @param connections Percentage of simulation memory dedicated to
-       connections.
-       @param dated_messages Percentage of siulation memory dedicated to fifo,
-       lifo history.
-     */
-    explicit constexpr simulation_memory_requirement(
-      unsigned model_nb) noexcept;
-};
-
 /*****************************************************************************
  *
  * @c source and @c source_id are data from files or random generators.
@@ -1139,17 +1072,30 @@ public:
     /** Call the @C destroy function to free allocated memory */
     ~simulation() noexcept;
 
-    /** Grow models dependant data-array and vectors.
+    /** Grow models dependant data-array and vectors according to the factor Num
+     *  Denum.
      * @return true if success.
      */
     template<int Num, int Denum>
     bool grow_models() noexcept;
 
-    /** Grow connections dependant data-array and vectors.
+    /** Grow models dependant data-array and vectors according to @a capacity.
+     * @return true if success.
+     */
+    bool grow_models_to(std::integral auto capacity) noexcept;
+
+    /** Grow connections dependant data-array and vectors according to the
+     * factor Num Denum.
      * @return true if success.
      */
     template<int Num, int Denum>
     bool grow_connections() noexcept;
+
+    /** Grow connections dependant data-array and vectors according to the
+     * capacity.
+     * @return true if success.
+     */
+    bool grow_connections_to(std::integral auto capacity) noexcept;
 
     /** Clear, delete or destroy any buffer allocated in constructor
      * or in @c realloc() function. Use the @c realloc() function to
@@ -5800,6 +5746,17 @@ bool simulation::grow_models() noexcept
            observers.reserve(req) and sched.reserve(req);
 }
 
+inline bool simulation::grow_models_to(std::integral auto capacity) noexcept
+{
+    if (std::cmp_less(capacity, models.capacity()))
+        return true;
+
+    return models.reserve(capacity) and immediate_models.resize(capacity) and
+           immediate_observers.resize(capacity) and
+           parameters.resize(capacity) and observers.reserve(capacity) and
+           sched.reserve(capacity);
+}
+
 template<int Num, int Denum>
 bool simulation::grow_connections() noexcept
 {
@@ -5811,6 +5768,16 @@ bool simulation::grow_connections() noexcept
 
     return emitting_output_ports.resize(req) and nodes.reserve(req) and
            messages.reserve(req);
+}
+
+inline bool simulation::grow_connections_to(
+  std::integral auto capacity) noexcept
+{
+    if (std::cmp_less(capacity, nodes.capacity()))
+        return true;
+
+    return emitting_output_ports.resize(capacity) and
+           nodes.reserve(capacity) and messages.reserve(capacity);
 }
 
 inline void simulation::destroy() noexcept
@@ -6762,15 +6729,6 @@ inline status priority_queue::transition(simulation& sim,
     }
 
     return success();
-}
-
-inline constexpr simulation_memory_requirement::simulation_memory_requirement(
-  unsigned model_nb) noexcept
-{
-    models         = model_nb < 256u ? 256u : model_nb;
-    connections    = models * 10;
-    hsms           = models / 10;
-    dated_messages = models / 20;
 }
 
 } // namespace irt
