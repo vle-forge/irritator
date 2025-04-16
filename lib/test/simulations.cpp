@@ -196,22 +196,27 @@ int main()
     using namespace boost::ut;
 
     "song_1_simulation"_test = [] {
-        const auto      N = 4u;
-        irt::simulation sim(irt::simulation_memory_requirement(N * N * 8),
-                            irt::external_source_memory_requirement{});
+        const int N = 4;
+
+        irt::simulation sim(irt::simulation_reserve_definition{
+          .models         = N * N * 8,
+          .connections    = N * N * N,
+          .hsms           = 0,
+          .dated_messages = 0,
+        });
 
         expect(sim.can_alloc(N + 2u * N * N + 2u * N * N + 4u * N * N + N +
                              2u * N * N));
 
         std::vector<struct neuron> neurons;
-        for (long unsigned int i = 0; i < N; i++) {
+        for (int i = 0; i < N; i++) {
             struct neuron neuron_model = make_neuron(&sim);
             neurons.emplace_back(neuron_model);
         }
 
         std::vector<struct synapse> synapses;
-        for (long unsigned int i = 0; i < N; i++) {
-            for (long unsigned int j = 0; j < N; j++) {
+        for (int i = 0; i < N; i++) {
+            for (int j = 0; j < N; j++) {
                 struct synapse synapse_model =
                   make_synapse(&sim,
                                i,

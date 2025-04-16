@@ -19,28 +19,21 @@
 
 namespace irt {
 
-modeling::modeling(journal_handler&                     jnl,
-                   constrained_value<int, 512, INT_MAX> compos,
-                   constrained_value<int, 512, INT_MAX> grid_compos,
-                   constrained_value<int, 512, INT_MAX> graph_compos,
-                   constrained_value<int, 512, INT_MAX> generic_compos,
-                   constrained_value<int, 512, INT_MAX> hsm_compos,
-                   constrained_value<int, 32, INT_MAX>  regs,
-                   constrained_value<int, 32, INT_MAX>  dirs,
-                   constrained_value<int, 32, INT_MAX>  files) noexcept
-  : descriptions(files.value())
-  , generic_components(generic_compos.value())
-  , grid_components(grid_compos.value())
-  , graph_components(graph_compos.value())
-  , hsm_components(hsm_compos.value())
-  , components(compos.value())
-  , registred_paths(regs.value())
-  , dir_paths(dirs.value())
-  , file_paths(files.value())
-  , hsms(hsm_compos.value())
-  , graphs(graph_compos.value())
-  , component_colors(compos.value())
-  , component_repertories(regs.value(), reserve_tag{})
+modeling::modeling(journal_handler&                   jnl,
+                   const modeling_reserve_definition& res) noexcept
+  : descriptions(res.files.value())
+  , generic_components(res.generic_compos.value())
+  , grid_components(res.grid_compos.value())
+  , graph_components(res.graph_compos.value())
+  , hsm_components(res.hsm_compos.value())
+  , components(res.components.value())
+  , registred_paths(res.regs.value())
+  , dir_paths(res.dirs.value())
+  , file_paths(res.files.value())
+  , hsms(res.hsm_compos.value())
+  , graphs(res.graph_compos.value())
+  , component_colors(res.components.value())
+  , component_repertories(res.regs.value(), reserve_tag{})
   , journal(jnl)
 {
     if (descriptions.capacity() == 0 or generic_components.capacity() == 0 or
@@ -67,31 +60,31 @@ modeling::modeling(journal_handler&                     jnl,
                    "component-colors      {:>8} ({:>8})"
                    "component-repertories {:>8} ({:>8})",
                    descriptions.capacity(),
-                   files.value(),
+                   res.files.value(),
                    generic_components.capacity(),
-                   generic_compos.value(),
+                   res.generic_compos.value(),
                    grid_components.capacity(),
-                   grid_compos.value(),
+                   res.grid_compos.value(),
                    graph_components.capacity(),
-                   graph_compos.value(),
+                   res.graph_compos.value(),
                    hsm_components.capacity(),
-                   hsm_compos.value(),
+                   res.hsm_compos.value(),
                    components.capacity(),
-                   compos.value(),
+                   res.components.value(),
                    registred_paths.capacity(),
-                   regs.value(),
+                   res.regs.value(),
                    dir_paths.capacity(),
-                   dirs.value(),
+                   res.dirs.value(),
                    file_paths.capacity(),
-                   files.value(),
+                   res.files.value(),
                    hsms.capacity(),
-                   hsm_compos.value(),
+                   res.hsm_compos.value(),
                    graphs.capacity(),
-                   graph_compos.value(),
+                   res.graph_compos.value(),
                    component_colors.capacity(),
-                   compos.value(),
+                   res.components.value(),
                    component_repertories.capacity(),
-                   regs.value());
+                   res.regs.value());
         });
 }
 

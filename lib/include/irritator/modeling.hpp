@@ -1275,6 +1275,17 @@ public:
     std::span<const double>       get_values() const noexcept;
 };
 
+struct modeling_reserve_definition {
+    constrained_value<int, 512, INT_MAX> components{};
+    constrained_value<int, 512, INT_MAX> grid_compos{};
+    constrained_value<int, 512, INT_MAX> graph_compos{};
+    constrained_value<int, 512, INT_MAX> generic_compos{};
+    constrained_value<int, 512, INT_MAX> hsm_compos{};
+    constrained_value<int, 16, INT_MAX>  regs{};
+    constrained_value<int, 32, INT_MAX>  dirs{};
+    constrained_value<int, 512, INT_MAX> files{};
+};
+
 class modeling
 {
 public:
@@ -1318,15 +1329,9 @@ public:
     //! \param dirs
     //! \param files
     //!
-    modeling(journal_handler&                     jnl,
-             constrained_value<int, 512, INT_MAX> components     = 64,
-             constrained_value<int, 512, INT_MAX> grid_compos    = 64,
-             constrained_value<int, 512, INT_MAX> graph_compos   = 64,
-             constrained_value<int, 512, INT_MAX> generic_compos = 64,
-             constrained_value<int, 512, INT_MAX> hsms_compos    = 64,
-             constrained_value<int, 32, INT_MAX>  regs           = 16,
-             constrained_value<int, 32, INT_MAX>  dirs           = 128,
-             constrained_value<int, 32, INT_MAX>  files = 128) noexcept;
+    modeling(journal_handler&                   jnl,
+             const modeling_reserve_definition& res =
+               modeling_reserve_definition()) noexcept;
 
     //! Add internal components to component lists.
     status fill_internal_components() noexcept;
@@ -1564,6 +1569,13 @@ inline constexpr time time_limit::begin() const noexcept { return m_begin; }
 
 inline constexpr time time_limit::end() const noexcept { return m_end; }
 
+struct project_reserve_definition {
+    constrained_value<int, 256, INT_MAX> nodes;
+    constrained_value<int, 256, INT_MAX> grids;
+    constrained_value<int, 256, INT_MAX> graphs;
+    constrained_value<int, 256, INT_MAX> vars;
+};
+
 class project
 {
 public:
@@ -1577,12 +1589,12 @@ public:
     //! \param vars Stocks of variables observations.
     //! \param parameters  Stocks of parameters in the simulation.
     //!
-    project(constrained_value<int, 512, INT_MAX> models     = 256 * 16,
-            constrained_value<int, 256, INT_MAX> nodes      = 256,
-            constrained_value<int, 256, INT_MAX> grids      = 256,
-            constrained_value<int, 256, INT_MAX> graphs     = 256,
-            constrained_value<int, 256, INT_MAX> vars       = 256,
-            constrained_value<int, 256, INT_MAX> parameters = 256 * 4) noexcept;
+    project(
+      const project_reserve_definition&    res = project_reserve_definition(),
+      const simulation_reserve_definition& sim_res =
+        simulation_reserve_definition(),
+      const external_source_reserve_definition& srcs_res =
+        external_source_reserve_definition()) noexcept;
 
     struct required_data {
         unsigned tree_node_nb{ 1u };

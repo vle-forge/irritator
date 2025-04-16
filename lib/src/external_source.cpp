@@ -777,10 +777,14 @@ status external_source::dispatch(source&                      src,
 }
 
 external_source::external_source(
-  const external_source_memory_requirement& init) noexcept
-{
-    realloc(init);
-}
+  const external_source_reserve_definition& res) noexcept
+  : constant_sources{ res.constant_nb.value() }
+  , binary_file_sources{ res.text_file_nb.value() }
+  , text_file_sources{ res.binary_file_nb.value() }
+  , random_sources{ res.random_nb.value() }
+  , binary_file_max_client{ res.binary_file_max_client.value() }
+  , random_max_client{ res.random_max_client.value() }
+{}
 
 void external_source::clear() noexcept
 {
@@ -796,24 +800,6 @@ void external_source::destroy() noexcept
     binary_file_sources.destroy();
     text_file_sources.destroy();
     random_sources.destroy();
-}
-
-void external_source::realloc(
-  const external_source_memory_requirement& init) noexcept
-{
-    destroy();
-
-    if (init.constant_nb > 0)
-        constant_sources.reserve(init.constant_nb);
-
-    if (init.binary_file_nb > 0)
-        binary_file_sources.reserve(init.binary_file_nb);
-
-    if (init.text_file_nb > 0)
-        text_file_sources.reserve(init.text_file_nb);
-
-    if (init.random_nb > 0)
-        random_sources.reserve(init.random_nb);
 }
 
 external_source::~external_source() noexcept { destroy(); }

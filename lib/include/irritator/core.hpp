@@ -572,6 +572,22 @@ public:
     }
 };
 
+struct external_source_reserve_definition {
+    constrained_value<int, 0, INT_MAX> constant_nb{};
+    constrained_value<int, 0, INT_MAX> text_file_nb{};
+    constrained_value<int, 0, INT_MAX> binary_file_nb{};
+    constrained_value<int, 0, INT_MAX> random_nb{};
+    constrained_value<int, 8, INT_MAX> binary_file_max_client{};
+    constrained_value<int, 8, INT_MAX> random_max_client{};
+};
+
+struct simulation_reserve_definition {
+    constrained_value<int, 512, INT_MAX>  models{};
+    constrained_value<int, 1024, INT_MAX> connections{};
+    constrained_value<int, 16, INT_MAX>   hsms{};
+    constrained_value<int, 256, INT_MAX>  dated_messages{};
+};
+
 class external_source
 {
 public:
@@ -579,20 +595,15 @@ public:
     data_array<binary_file_source, binary_file_source_id> binary_file_sources;
     data_array<text_file_source, text_file_source_id>     text_file_sources;
     data_array<random_source, random_source_id>           random_sources;
+    int binary_file_max_client = 8;
+    int random_max_client      = 8;
 
     /** Build empty data-array. Use the @c realloc function after this
      * constructor to allocate memory. */
-    external_source() noexcept = default;
-
-    /** Build data-array according to the @c init structure. Use the @c realloc
-     * function after this constructor to allocate memory. */
-    explicit external_source(
-      const external_source_memory_requirement& init) noexcept;
+    external_source(const external_source_reserve_definition& res =
+                      external_source_reserve_definition()) noexcept;
 
     ~external_source() noexcept;
-
-    /** Destroy then allocate memory according to the @c init parameter .*/
-    void realloc(const external_source_memory_requirement& init) noexcept;
 
     //! Call `clear()` and release memory.
     void destroy() noexcept;
@@ -922,7 +933,8 @@ private:
 public:
     using handle = u32;
 
-    constexpr heap() noexcept = default;
+    explicit constexpr heap(
+      constrained_value<int, 512, INT_MAX> pcapacity) noexcept;
 
     constexpr ~heap() noexcept;
 
@@ -1012,7 +1024,7 @@ public:
     using internal_value_type = heap<A>;
     using handle              = u32;
 
-    constexpr scheduller() = default;
+    explicit scheduller(constrained_value<int, 512, INT_MAX> capacity) noexcept;
 
     bool reserve(std::integral auto new_capacity) noexcept;
     void clear() noexcept;
@@ -1116,39 +1128,32 @@ public:
     template<typename Dynamics>
     model_id get_id(const Dynamics& dyn) const;
 
-private:
-    /** Allocate new buffers for all memory resource and container. Do not call
-     * destroy before. This function is used in `constructors` or in `realloc()`
-     * function after the call to `destroy()`. */
-    void do_realloc(
-      const simulation_memory_requirement&      init,
-      const external_source_memory_requirement& srcs_init) noexcept;
-
 public:
     //! Use the default malloc memory resource to allocate all memory need
     //! by sub-containers.
-    simulation() noexcept;
-
-    //! Use the default malloc memory resource to allocate all memory need
-    //! by sub-containers.
-    explicit simulation(const simulation_memory_requirement& init) noexcept;
-
-    //! Use the default malloc memory resource to allocate all memory need
-    //! by sub-containers.
-    simulation(const simulation_memory_requirement&      init,
-               const external_source_memory_requirement& srcs_init) noexcept;
+    simulation(const simulation_reserve_definition& res =
+                 simulation_reserve_definition(),
+               const external_source_reserve_definition& psrcs =
+                 external_source_reserve_definition()) noexcept;
 
     /** Call the @C destroy function to free allocated memory */
     ~simulation() noexcept;
 
-    /** Call the @c destroy() function then allocate new buffers according to @c
-     * init parameter. */
-    void realloc(const simulation_memory_requirement&      init,
-                 const external_source_memory_requirement& srcs_init) noexcept;
+    /** Grow models dependant data-array and vectors.
+     * @return true if success.
+     */
+    template<int Num, int Denum>
+    bool grow_models() noexcept;
 
-    /** Clear, delete or destroy any buffer allocated in constructor or in @c
-     * realloc() function. Use the @c realloc() function to allocate new buffer
-     * and use simulation again. */
+    /** Grow connections dependant data-array and vectors.
+     * @return true if success.
+     */
+    template<int Num, int Denum>
+    bool grow_connections() noexcept;
+
+    /** Clear, delete or destroy any buffer allocated in constructor
+     * or in @c realloc() function. Use the @c realloc() function to
+     * allocate new buffer and use simulation again. */
     void destroy() noexcept;
 
     bool can_alloc(std::integral auto place) const noexcept;
@@ -1162,7 +1167,8 @@ public:
     //! Clean scheduler and input/output port from message.
     void clean() noexcept;
 
-    //! @brief cleanup simulation and destroy all models and connections
+    //! @brief cleanup simulation and destroy all models and
+    //! connections
     void clear() noexcept;
 
     //! @brief This function allocates dynamics and models.
@@ -1259,8 +1265,9 @@ public:
                     model& dst,
                     int    port_dst) noexcept;
 
-    /** Call the initialize member function for each model of the simulation an
-     * prepare the simulation class to call the `run` function. */
+    /** Call the initialize member function for each model of the
+     * simulation an prepare the simulation class to call the `run`
+     * function. */
     status initialize() noexcept;
     status run() noexcept;
 
@@ -1291,7 +1298,8 @@ public:
 
 /////////////////////////////////////////////////////////////////////////////
 //
-// Some template type-trait to detect function and attribute in DEVS model.
+// Some template type-trait to detect function and attribute in
+// DEVS model.
 //
 /////////////////////////////////////////////////////////////////////////////
 
@@ -2901,40 +2909,49 @@ struct constant {
     time          sigma;
 
     enum class init_type : i8 {
-        // A constant value initialized at startup of the simulation.
+        // A constant value initialized at startup of the
+        // simulation.
         // Use
         // the @c default_value.
         constant,
 
-        // The numbers of incoming connections on all input ports of the
-        // component. The @c default_value is filled via the component
+        // The numbers of incoming connections on all input ports
+        // of the
+        // component. The @c default_value is filled via the
+        // component
         // to
         // simulation algorithm. Otherwise, the default value is
         // unmodified.
         incoming_component_all,
 
-        // The number of outcoming connections on all output ports of
+        // The number of outcoming connections on all output
+        // ports of
         // the
-        // component. The @c default_value is filled via the component
+        // component. The @c default_value is filled via the
+        // component
         // to
         // simulation algorithm. Otherwise, the default value is
         // unmodified.
         outcoming_component_all,
 
-        // The number of incoming connections on the nth input port of
+        // The number of incoming connections on the nth input
+        // port of
         // the
         // component. Use the @c port attribute to specify the
         // identifier of
-        // the port. The @c default_value is filled via the component to
+        // the port. The @c default_value is filled via the
+        // component to
         // simulation algorithm. Otherwise, the default value is
         // unmodified.
         incoming_component_n,
 
-        // The number of incoming connections on the nth output ports of
+        // The number of incoming connections on the nth output
+        // ports of
         // the
         // component. Use the @c port attribute to specify the
         // identifier of
-        // the port. The @c default_value is filled via the component to
+        // the port. The @c default_value is filled via the
+        // component to
         // simulation algorithm. Otherwise, the default value is
         // unmodified.
         outcoming_component_n,
@@ -3395,15 +3412,16 @@ struct logical_invert {
 
 /** Hierarchical state machine.
  *
- * @note This implementation have the standard restriction for HSM:
+ * @note This implementation have the standard restriction for
+ * HSM:
  * 1. You can not call Transition from HSM::event_type::enter and
- * HSM::event_type::exit! These event are provided to execute your
- * construction/destruction.
- * 2. You are not allowed to dispatch an event from within an event
- * dispatch. You should queue events if you want such behavior. This
- * restriction is imposed only to prevent the user from creating
- * extremely complicated to trace state machines (which is what we are
- * trying to avoid).
+ * HSM::event_type::exit! These event are provided to execute
+ * your construction/destruction.
+ * 2. You are not allowed to dispatch an event from within an
+ * event dispatch. You should queue events if you want such
+ * behavior. This restriction is imposed only to prevent the user
+ * from creating extremely complicated to trace state machines
+ * (which is what we are trying to avoid).
  */
 class hierarchical_state_machine
 {
@@ -3425,19 +3443,23 @@ public:
     constexpr static int condition_type_count = 9;
 
     enum class option : u8 {
-        none = 0,
-        use_source =
-          1 << 0 /**< HSM can use external data in the action part. */,
+        none       = 0,
+        use_source = 1 << 0 /**< HSM can use external data in the
+                               action part. */
+        ,
         Count
     };
 
     enum class event_type : u8 {
         enter,
         exit,
-        input_changed, /**< HSM receives an expected input message. */
-        internal, /**< HSM move to the next state if @c check() is valid. */
-        wake_up,  /**< HSM receives an end of a timer message with or without
-                     input message (priority to timer event). */
+        input_changed, /**< HSM receives an expected input
+                          message. */
+        internal,      /**< HSM move to the next state if @c check()
+                          is valid. */
+        wake_up,       /**< HSM receives an end of a timer message with
+                          or without input message (priority to timer
+                          event). */
 
     };
 
@@ -3454,7 +3476,8 @@ public:
         var_timer,
         constant_i,
         constant_r,
-        hsm_constant_0, /**< Real from the HSM component not HSM wrapper. */
+        hsm_constant_0, /**< Real from the HSM component not HSM
+                           wrapper. */
         hsm_constant_1,
         hsm_constant_2,
         hsm_constant_3,
@@ -3463,8 +3486,8 @@ public:
         hsm_constant_6,
         hsm_constant_7,
         source, /**< A value read from external source. The
-                    hsm_t::option::use_value must be defined to receives
-                    external data. */
+                    hsm_t::option::use_value must be defined to
+                   receives external data. */
     };
 
     enum class action_type : u8 {
@@ -3499,9 +3522,10 @@ public:
     };
 
     /**
-       Action available when state is processed during enter, exit or DEVS
-       condition event. @note Only one action (value set/unset, devs output,
-       etc.) by action. To perform more action, use several states.
+       Action available when state is processed during enter,
+       exit or DEVS condition event. @note Only one action (value
+       set/unset, devs output, etc.) by action. To perform more
+       action, use several states.
      */
     struct state_action {
         variable    var1 = variable::none;
@@ -3552,13 +3576,15 @@ public:
     };
 
     /**
-       1. @c value_condition stores the bit for input value corresponding to the
-       user request to satisfy the condition. @c value_mask stores the bit
-       useful in value_condition. If value_mask equal @c 0x0 then, the condition
-       is always true. If @c value_mask equals @c 0xff the @c value_condition
-       bit are mandatory.
-       2. @c condition_state_action stores transition or action conditions.
-       Condition can use input port state or condition on integer a or b.
+       1. @c value_condition stores the bit for input value
+       corresponding to the user request to satisfy the
+       condition. @c value_mask stores the bit useful in
+       value_condition. If value_mask equal @c 0x0 then, the
+       condition is always true. If @c value_mask equals @c 0xff
+       the @c value_condition bit are mandatory.
+       2. @c condition_state_action stores transition or action
+       conditions. Condition can use input port state or
+       condition on integer a or b.
      */
     struct condition_action {
         variable       var1 = variable::none;
@@ -3685,12 +3711,12 @@ public:
     hierarchical_state_machine(const hierarchical_state_machine&) noexcept =
       default;
 
-    //! Initialize the @c execution object from the HSM and start the automate.
-    //! During the handle of the automate, @c srcs may be use to read value from
-    //! external source buffer.
+    //! Initialize the @c execution object from the HSM and start
+    //! the automate. During the handle of the automate, @c srcs
+    //! may be use to read value from external source buffer.
     //!
-    //! @c return @c empty_value_error{} if the external source fail to update
-    //! the buffer.
+    //! @c return @c empty_value_error{} if the external source
+    //! fail to update the buffer.
     status start(execution& state, external_source& srcs) noexcept;
 
     void clear() noexcept
@@ -3702,33 +3728,34 @@ public:
 
     //! Dispatches an event.
     //!
-    //! @return return true if the event was processed, otherwise false.
-    //! If the automata is badly defined, return an modeling error or @c
-    //! empty_value_error if the external source fail to update the buffer.
+    //! @return return true if the event was processed, otherwise
+    //! false. If the automata is badly defined, return an
+    //! modeling error or @c empty_value_error if the external
+    //! source fail to update the buffer.
     expected<bool> dispatch(const event_type e,
                             execution&       exec,
                             external_source& srcs) noexcept;
 
-    /// Return true if the state machine is currently dispatching an
-    /// event.
+    /// Return true if the state machine is currently dispatching
+    /// an event.
     bool is_dispatching(execution& state) const noexcept;
 
-    //! Transitions the state machine. This function can not be called
-    //! from Enter / Exit events in the state handler.
+    //! Transitions the state machine. This function can not be
+    //! called from Enter / Exit events in the state handler.
     //!
-    //! @c return @c empty_value_error if the external source fail to update
-    //! the buffer.
+    //! @c return @c empty_value_error if the external source
+    //! fail to update the buffer.
     status transition(state_id         target,
                       execution&       exec,
                       external_source& srcs) noexcept;
 
-    /// Set a handler for a state ID. This function will overwrite the
-    /// current state handler. \param id state id from 0 to
-    /// max_number_of_state \param super_id id of the super state, if
-    /// invalid_state_id this is a top state. Only one state can be a
-    /// top state. \param sub_id if != invalid_state_id this sub state
-    /// (child state) will be entered after the state Enter event is
-    /// executed.
+    /// Set a handler for a state ID. This function will
+    /// overwrite the current state handler. \param id state id
+    /// from 0 to max_number_of_state \param super_id id of the
+    /// super state, if invalid_state_id this is a top state.
+    /// Only one state can be a top state. \param sub_id if !=
+    /// invalid_state_id this sub state (child state) will be
+    /// entered after the state Enter event is executed.
     status set_state(state_id id,
                      state_id super_id = invalid_state_id,
                      state_id sub_id   = invalid_state_id) noexcept;
@@ -3738,12 +3765,13 @@ public:
 
     bool is_in_state(execution& state, state_id id) const noexcept;
 
-    //! Handle the @c event_type @event for the @c state_id @c state. If a
-    //! underlying action use external source, @c external_source functions may
-    //! be use to update the buffer.
-    //!
-    //! @c return empty_value_error if the external source fail to update the
+    //! Handle the @c event_type @event for the @c state_id @c
+    //! state. If a underlying action use external source, @c
+    //! external_source functions may be use to update the
     //! buffer.
+    //!
+    //! @c return empty_value_error if the external source fail
+    //! to update the buffer.
     expected<bool> handle(const state_id   state,
                           const event_type event,
                           execution&       exec,
@@ -3761,18 +3789,21 @@ public:
         return flags[option::use_source];
     }
 
-    //! Return true if at least one action use the variable::source.
-    //!
-    //! Linear traversal of all valid states to detect if @c if_action,
-    //! @c else_action, @c enter_action or @c exit_action actions use a
+    //! Return true if at least one action use the
     //! variable::source.
+    //!
+    //! Linear traversal of all valid states to detect if @c
+    //! if_action,
+    //! @c else_action, @c enter_action or @c exit_action actions
+    //! use a variable::source.
     bool compute_is_using_source() const noexcept;
 
     //! Return the biggest state index used in the HSM.
     int compute_max_state_used() const noexcept;
 
-    /** @c constants array are real and can be use in the @c state_action or @c
-     * condition_action to perform easy initilization and quick test. */
+    /** @c constants array are real and can be use in the @c
+     * state_action or @c condition_action to perform easy
+     * initilization and quick test. */
     std::array<real, 8> constants;
 
     state_id         top_state = invalid_state_id;
@@ -3793,8 +3824,8 @@ struct hsm_wrapper {
 
     real sigma;
 
-    u32 id = 0; //!< stores the @a ordinal value of an @a hsm_id from the
-                //!< simulation hsms data_array.
+    u32 id = 0; //!< stores the @a ordinal value of an @a hsm_id
+                //!< from the simulation hsms data_array.
 
     hsm_wrapper() noexcept;
     hsm_wrapper(const hsm_wrapper& other) noexcept;
@@ -4520,7 +4551,8 @@ static constexpr dynamics_type dynamics_typeof() noexcept
 }
 
 /**
-   @brief dispatch the callable @c f with @c args argument according to @c type.
+   @brief dispatch the callable @c f with @c args argument
+   according to @c type.
 
    @param type
    @param f
@@ -5177,8 +5209,8 @@ inline status send_message(simulation&    sim,
             }
         }
 
-        if (block->nodes.empty()) { /* If the block is empty, free the block
-                                       from the linked list. */
+        if (block->nodes.empty()) { /* If the block is empty, free the
+                                       block from the linked list. */
 
             if (prev != nullptr) {
                 prev->next = block->next;
@@ -5205,11 +5237,12 @@ inline status send_message(simulation&    sim,
 
 /**
  * Get an @a hierarchical_state_machine pointer from the
- * @a hierarchical_state_machine::exec::id index in the simulation @a hsms
- * data_array.
+ * @a hierarchical_state_machine::exec::id index in the
+ * simulation @a hsms data_array.
  *
- * @return @a the pointer or a new error @c simulation::hsms_error{} @a
- * unknown_error{} and e_ulong_id{ idx }.
+ * @return @a the pointer or a new error @c
+ * simulation::hsms_error{} @a unknown_error{} and e_ulong_id{
+ * idx }.
  */
 inline auto get_hierarchical_state_machine(simulation& sim,
                                            const u32   idx) noexcept
@@ -5225,6 +5258,12 @@ inline auto get_hierarchical_state_machine(simulation& sim,
 // template<typename A>
 // heap<A>
 //
+
+template<typename A>
+constexpr heap<A>::heap(constrained_value<int, 512, INT_MAX> pcapacity) noexcept
+{
+    reserve(pcapacity.value());
+}
 
 template<typename A>
 constexpr heap<A>::~heap() noexcept
@@ -5363,8 +5402,8 @@ constexpr void heap<A>::remove(handle elem) noexcept
 
     debug::ensure(m_size > 0);
 
-    /* If the node `elem` is not already `pop()`, we detach the node and
-     * merge children. */
+    /* If the node `elem` is not already `pop()`, we detach the
+     * node and merge children. */
     if (is_in_tree(elem)) {
         m_size--;
         const auto old_elem = elem;
@@ -5587,6 +5626,12 @@ constexpr void heap<A>::detach_subheap(handle elem) noexcept
 //
 
 template<typename A>
+inline scheduller<A>::scheduller(
+  constrained_value<int, 512, INT_MAX> capacity) noexcept
+  : m_heap(capacity)
+{}
+
+template<typename A>
 inline bool scheduller<A>::reserve(std::integral auto new_capacity) noexcept
 {
     return m_heap.reserve(new_capacity);
@@ -5724,59 +5769,48 @@ inline int scheduller<A>::ssize() const noexcept
 // simulation
 //
 
-inline simulation::simulation() noexcept
-{
-    do_realloc(simulation_memory_requirement{},
-               external_source_memory_requirement{});
-}
-
 inline simulation::simulation(
-  const simulation_memory_requirement& init) noexcept
+  const simulation_reserve_definition&      res,
+  const external_source_reserve_definition& p_srcs) noexcept
+  : emitting_output_ports(res.connections.value())
+  , immediate_models(res.models.value())
+  , immediate_observers(res.models.value())
+  , parameters(res.models.value())
+  , models(res.models.value())
+  , hsms(res.hsms.value())
+  , observers(res.models.value())
+  , nodes(res.connections.value())
+  , messages(res.connections.value())
+  , dated_messages(res.dated_messages.value())
+  , sched(res.models)
+  , srcs(p_srcs)
+{}
+
+template<int Num, int Denum>
+bool simulation::grow_models() noexcept
 {
-    do_realloc(init, external_source_memory_requirement{});
+    static_assert(Num > 0 and Denum > 0 and Num > Denum);
+
+    const auto nb = models.capacity() * Num / Denum;
+    const auto req =
+      std::cmp_equal(nb, models.capacity()) ? models.capacity() + 8 : nb;
+
+    return models.reserve(req) and immediate_models.resize(req) and
+           immediate_observers.resize(req) and parameters.resize(req) and
+           observers.reserve(req) and sched.reserve(req);
 }
 
-inline simulation::simulation(
-  const simulation_memory_requirement&      init,
-  const external_source_memory_requirement& srcs_init) noexcept
+template<int Num, int Denum>
+bool simulation::grow_connections() noexcept
 {
-    do_realloc(init, srcs_init);
-}
+    static_assert(Num > 0 and Denum > 0 and Num > Denum);
 
-inline void simulation::do_realloc(
-  const simulation_memory_requirement&      init,
-  const external_source_memory_requirement& srcs_init) noexcept
-{
-    destroy();
+    const auto nb = nodes.capacity() * Num / Denum;
+    const auto req =
+      std::cmp_equal(nb, nodes.capacity()) ? nodes.capacity() + 8 : nb;
 
-    if (init.models > 0) {
-        models.reserve(init.models);
-        parameters.resize(init.models);
-        observers.reserve(init.models);
-        immediate_models.reserve(init.models);
-        immediate_observers.reserve(init.models);
-
-        nodes.reserve(init.connections);
-        messages.reserve(init.connections);
-        emitting_output_ports.reserve(init.connections);
-
-        dated_messages.reserve(init.dated_messages);
-
-        sched.reserve(init.models);
-    }
-
-    if (init.hsms > 0)
-        hsms.reserve(init.hsms);
-
-    srcs.realloc(srcs_init);
-}
-
-inline void simulation::realloc(
-  const simulation_memory_requirement&      init,
-  const external_source_memory_requirement& srcs_init) noexcept
-{
-    destroy();
-    do_realloc(init, srcs_init);
+    return emitting_output_ports.resize(req) and nodes.reserve(req) and
+           messages.reserve(req);
 }
 
 inline void simulation::destroy() noexcept
@@ -5820,7 +5854,8 @@ inline void simulation::clean() noexcept
     immediate_observers.clear();
 }
 
-//! @brief cleanup simulation and destroy all models and connections
+//! @brief cleanup simulation and destroy all models and
+//! connections
 inline void simulation::clear() noexcept
 {
     clean();
@@ -6420,7 +6455,9 @@ inline bool simulation::can_alloc_dynamics(
 template<typename Dynamics>
 Dynamics& simulation::alloc() noexcept
 {
-    debug::ensure(!models.full());
+    if (not models.can_alloc(1)) {
+        fatal::ensure(grow_models<3, 2>());
+    }
 
     auto& mdl  = models.alloc();
     mdl.type   = dynamics_typeof<Dynamics>();
@@ -6448,8 +6485,9 @@ Dynamics& simulation::alloc() noexcept
 //! @brief This function allocates dynamics and models.
 inline model& simulation::clone(const model& mdl) noexcept
 {
-    /* Use can_alloc before using this function. */
-    debug::ensure(!models.full());
+    if (not models.can_alloc(1)) {
+        fatal::ensure(grow_models<3, 2>());
+    }
 
     auto& new_mdl  = models.alloc();
     new_mdl.type   = mdl.type;
@@ -6477,7 +6515,9 @@ inline model& simulation::clone(const model& mdl) noexcept
 //! @brief This function allocates dynamics and models.
 inline model& simulation::alloc(dynamics_type type) noexcept
 {
-    debug::ensure(!models.full());
+    if (not models.can_alloc(1)) {
+        fatal::ensure(grow_models<3, 2>());
+    }
 
     auto& mdl  = models.alloc();
     mdl.type   = type;

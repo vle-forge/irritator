@@ -1151,19 +1151,15 @@ static auto make_tree_from(simulation_copy&                     sc,
     return data.get_id(new_tree);
 }
 
-project::project(constrained_value<int, 512, INT_MAX> models,
-                 constrained_value<int, 256, INT_MAX> nodes,
-                 constrained_value<int, 256, INT_MAX> grids,
-                 constrained_value<int, 256, INT_MAX> graphs,
-                 constrained_value<int, 256, INT_MAX> vars,
-                 constrained_value<int, 256, INT_MAX> params) noexcept
-  : sim{ simulation_memory_requirement(models.value()),
-         irt::external_source_memory_requirement{} }
-  , tree_nodes{ nodes.value() }
-  , variable_observers{ vars.value() }
-  , grid_observers{ grids.value() }
-  , graph_observers{ graphs.value() }
-  , parameters{ params.value() }
+project::project(const project_reserve_definition&         res,
+                 const simulation_reserve_definition&      sim_res,
+                 const external_source_reserve_definition& srcs_res) noexcept
+  : sim{ sim_res, srcs_res }
+  , tree_nodes{ res.nodes.value() }
+  , variable_observers{ res.vars.value() }
+  , grid_observers{ res.grids.value() }
+  , graph_observers{ res.graphs.value() }
+  , parameters{ sim_res.models.value() }
 {}
 
 class treenode_require_computer
@@ -1335,8 +1331,7 @@ status project::set(modeling& mod, component& compo) noexcept
 
     simulation_memory_requirement smr(std::bit_ceil(numbers.model_nb));
     smr.hsms = std::bit_ceil(std::max(numbers.hsm_nb, smr.hsms));
-    sim.destroy();
-    sim.realloc(smr, external_source_memory_requirement{});
+    sim.clear();
 
     simulation_copy sc(*this, mod, tree_nodes);
 

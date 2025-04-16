@@ -353,6 +353,34 @@ private:
     T m_value;
 
 public:
+    /// Default is to assign @a Lower value.
+    constexpr constrained_value() noexcept
+      : m_value(Lower)
+    {}
+
+    constexpr constrained_value(const constrained_value& o) noexcept
+      : m_value(o.m_value)
+    {}
+
+    constexpr constrained_value(constrained_value&& o) noexcept
+      : m_value(std::exchange(o.m_value, T{}))
+    {}
+
+    constexpr constrained_value& operator=(const constrained_value& o) noexcept
+    {
+        m_value = o.m_value;
+        return *this;
+    }
+
+    constexpr constrained_value& operator=(constrained_value&& o) noexcept
+    {
+        m_value = std::exchange(o.m_value, T{});
+        return *this;
+    }
+
+    /// Assign a clamp value between @a Lower and @a Upper.
+    ///
+    /// \param value_ The value to copy.
     constexpr constrained_value(const T value_) noexcept
       : m_value(value_ < Lower   ? Lower
                 : value_ < Upper ? value_
@@ -3106,14 +3134,16 @@ template<typename T, typename Identifier, typename A>
 constexpr data_array<T, Identifier, A>::data_array(
   std::integral auto capacity) noexcept
 {
-    debug::ensure(std::cmp_greater(capacity, 0));
-    debug::ensure(
-      std::cmp_less(capacity, std::numeric_limits<index_type>::max()));
+    if (capacity > 0) {
+        debug::ensure(
+          std::cmp_less(capacity, std::numeric_limits<index_type>::max()));
 
-    m_items     = reinterpret_cast<item*>(A::allocate(sizeof(item) * capacity));
+        m_items = reinterpret_cast<item*>(A::allocate(sizeof(item) * capacity));
+        m_capacity = static_cast<index_type>(capacity);
+    }
+
     m_max_size  = 0;
     m_max_used  = 0;
-    m_capacity  = static_cast<index_type>(capacity);
     m_next_key  = 1;
     m_free_head = none;
 }
