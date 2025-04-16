@@ -6422,9 +6422,7 @@ inline bool simulation::can_alloc_dynamics(
 template<typename Dynamics>
 Dynamics& simulation::alloc() noexcept
 {
-    if (not models.can_alloc(1)) {
-        fatal::ensure(grow_models<3, 2>());
-    }
+    fatal::ensure(models.can_alloc(1));
 
     auto& mdl  = models.alloc();
     mdl.type   = dynamics_typeof<Dynamics>();
@@ -6452,9 +6450,7 @@ Dynamics& simulation::alloc() noexcept
 //! @brief This function allocates dynamics and models.
 inline model& simulation::clone(const model& mdl) noexcept
 {
-    if (not models.can_alloc(1)) {
-        fatal::ensure(grow_models<3, 2>());
-    }
+    fatal::ensure(models.can_alloc(1));
 
     auto& new_mdl  = models.alloc();
     new_mdl.type   = mdl.type;
@@ -6482,9 +6478,7 @@ inline model& simulation::clone(const model& mdl) noexcept
 //! @brief This function allocates dynamics and models.
 inline model& simulation::alloc(dynamics_type type) noexcept
 {
-    if (not models.can_alloc(1)) {
-        fatal::ensure(grow_models<3, 2>());
-    }
+    fatal::ensure(models.can_alloc(1));
 
     auto& mdl  = models.alloc();
     mdl.type   = type;

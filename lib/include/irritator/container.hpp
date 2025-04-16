@@ -2503,10 +2503,7 @@ constexpr id_array<Identifier, A>::~id_array() noexcept
 template<typename Identifier, typename A>
 constexpr Identifier id_array<Identifier, A>::alloc() noexcept
 {
-    debug::ensure(can_alloc(1));
-
-    if (not can_alloc(1))
-        return undefined<Identifier>();
+    fatal::ensure(can_alloc(1));
 
     index_type new_index;
 
@@ -2836,7 +2833,7 @@ template<typename Identifier, typename A, class... Ts>
 auto id_data_array<Identifier, A, Ts...>::alloc() noexcept
   -> id_data_array<Identifier, A, Ts...>::identifier_type
 {
-    irt::debug::ensure(m_ids.can_alloc(1));
+    irt::fatal::ensure(m_ids.can_alloc(1));
 
     return m_ids.alloc();
 }
@@ -2846,12 +2843,10 @@ template<typename Function>
 auto id_data_array<Identifier, A, Ts...>::alloc(Function&& fn) noexcept
   -> id_data_array<Identifier, A, Ts...>::identifier_type
 {
-    irt::debug::ensure(m_ids.can_alloc(1));
+    irt::fatal::ensure(m_ids.can_alloc(1));
 
     const auto id = m_ids.alloc();
-
     do_call_alloc_fn(fn, id, std::index_sequence_for<Ts...>());
-
     return id;
 }
 
@@ -3266,7 +3261,7 @@ template<typename... Args>
 typename data_array<T, Identifier, A>::value_type&
 data_array<T, Identifier, A>::alloc(Args&&... args) noexcept
 {
-    debug::ensure(can_alloc(1));
+    fatal::ensure(can_alloc(1));
 
     index_type new_index;
 
@@ -4137,8 +4132,10 @@ inline constexpr typename vector<T, A>::reference vector<T, A>::emplace_back(
                   "T must but trivially or nothrow constructible from this "
                   "argument(s)");
 
-    if (m_size >= m_capacity)
+    if (m_size >= m_capacity) {
         reserve(compute_new_capacity(m_size + 1));
+        fatal::ensure(can_alloc(1));
+    }
 
     std::construct_at(data() + m_size, std::forward<Args>(args)...);
 
@@ -4151,8 +4148,10 @@ template<typename T, typename A>
 inline constexpr typename vector<T, A>::reference vector<T, A>::push_back(
   const T& arg) noexcept
 {
-    if (m_size >= m_capacity)
+    if (m_size >= m_capacity) {
         reserve(compute_new_capacity(m_size + 1));
+        fatal::ensure(can_alloc(1));
+    }
 
     std::construct_at(data() + m_size, arg);
 
