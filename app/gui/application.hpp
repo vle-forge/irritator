@@ -1174,6 +1174,10 @@ private:
     task_manager task_mgr;
 
 public:
+    config_manager   config;
+    modeling         mod;
+    journal_handler& jn;
+
     data_array<project_editor, project_id>                            pjs;
     data_array<grid_component_editor_data, grid_editor_data_id>       grids;
     data_array<graph_component_editor_data, graph_editor_data_id>     graphs;
@@ -1185,8 +1189,6 @@ public:
         request_to_close, /**< The window must be closed by the called. */
     };
 
-    config_manager           config;
-    modeling                 mod;
     component_selector       component_sel;
     component_model_selector component_model_sel;
 
@@ -1203,7 +1205,6 @@ public:
     task_window     task_wnd;
 
     notification_manager notifications;
-    journal_handler&     jn;
 
     /**
      * Try to allocate a project and affect a new name to the newly allocated

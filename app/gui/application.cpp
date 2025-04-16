@@ -218,10 +218,14 @@ auto file_path_selector(application&              app,
 
 application::application(journal_handler& jn_) noexcept
   : task_mgr{}
-  , pjs(16)
   , config(get_config_home(true))
   , mod{ jn_ }
   , jn{ jn_ }
+  , pjs(16)
+  , grids{ 32 }
+  , graphs{ 32 }
+  , generics{ 32 }
+  , hsms{ 32 }
 {
     settings_wnd.apply_style(undefined<gui_theme_id>());
 
@@ -315,20 +319,11 @@ bool application::init() noexcept
               "Fail to fill internal component list: {}\n");
     }
 
-    graphs.reserve(32);
-    grids.reserve(32);
-    generics.reserve(32);
-    hsms.reserve(32);
-
     if (auto ret = mod.fill_components(); !ret)
         log_w(*this, log_level::error, "Fail to read all components\n");
 
     // Update the component selector in task.
     add_gui_task([&]() noexcept { this->component_sel.update(); });
-
-    // @TODO at beggining, open a default generic component ?
-    // auto id = component_ed.add_generic_component();
-    // component_ed.open_as_main(id);
 
     return true;
 }
