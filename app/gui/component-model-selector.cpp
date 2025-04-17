@@ -26,7 +26,8 @@ static void try_append(const application&                             app,
           out.end(),
           [&](const auto& elem) noexcept { return elem.second == tn.id; });
         it == out.end()) {
-        if (auto* compo = app.mod.components.try_to_get(tn.id); compo) {
+        if (auto* compo = app.mod.components.try_to_get<component>(tn.id);
+            compo) {
             out.emplace_back(std::make_pair(pj.tree_nodes.get_id(tn), tn.id));
             names.emplace_back(compo->name.sv());
         }
@@ -125,25 +126,25 @@ bool component_model_selector::observable_model_treenode(
     auto& app = container_of(this, &application::component_model_sel);
     bool  ret = false;
 
-    if_data_exists_do(app.mod.components, tn.id, [&](auto& compo) noexcept {
+    if (auto* compo = app.mod.components.try_to_get<component>(tn.id)) {
         small_string<64> str;
 
-        switch (compo.type) {
+        switch (compo->type) {
         case component_type::generic:
-            format(str, "{} generic", compo.name.sv());
+            format(str, "{} generic", compo->name.sv());
             break;
         case component_type::grid:
-            format(str, "{} grid", compo.name.sv());
+            format(str, "{} grid", compo->name.sv());
             break;
         case component_type::graph:
-            format(str, "{} graph", compo.name.sv());
+            format(str, "{} graph", compo->name.sv());
             break;
         default:
-            format(str, "{} unknown", compo.name.sv());
+            format(str, "{} unknown", compo->name.sv());
             break;
         }
 
-        if (compo.type == component_type::generic) {
+        if (compo->type == component_type::generic) {
             ImGui::PushID(&tn);
             if (ImGui::TreeNodeEx(str.c_str(),
                                   ImGuiTreeNodeFlags_DefaultOpen)) {
@@ -173,7 +174,7 @@ bool component_model_selector::observable_model_treenode(
             }
             ImGui::PopID();
         }
-    });
+    }
 
     return ret;
 }

@@ -573,21 +573,21 @@ static void show_select_model_box_recursive(application&    app,
 {
     constexpr auto flags = ImGuiTreeNodeFlags_DefaultOpen;
 
-    if_data_exists_do(app.mod.components, tn.id, [&](auto& compo) noexcept {
+    if (const auto* compo = app.mod.components.try_to_get<component>(tn.id)) {
         small_string<64> str;
 
-        switch (compo.type) {
+        switch (compo->type) {
         case component_type::generic:
-            format(str, "{} generic", compo.name.sv());
+            format(str, "{} generic", compo->name.sv());
             break;
         case component_type::grid:
-            format(str, "{} grid", compo.name.sv());
+            format(str, "{} grid", compo->name.sv());
             break;
         case component_type::graph:
-            format(str, "{} graph", compo.name.sv());
+            format(str, "{} graph", compo->name.sv());
             break;
         default:
-            format(str, "{} unknown", compo.name.sv());
+            format(str, "{} unknown", compo->name.sv());
             break;
         }
 
@@ -619,7 +619,7 @@ static void show_select_model_box_recursive(application&    app,
             ImGui::TreePop();
         }
         ImGui::PopID();
-    });
+    }
 
     if (auto* sibling = tn.tree.get_sibling(); sibling)
         show_select_model_box_recursive(app, ed, *sibling, access);
@@ -638,7 +638,8 @@ auto build_unique_component_vector(application& app, tree_node& tn)
         auto* cur = stack.back();
         stack.pop_back();
 
-        if (auto* compo = app.mod.components.try_to_get(cur->id); compo) {
+        if (auto* compo = app.mod.components.try_to_get<component>(cur->id);
+            compo) {
             if (auto it = std::find(ret.begin(), ret.end(), cur->id);
                 it == ret.end())
                 ret.emplace_back(cur->id);
@@ -945,7 +946,7 @@ void application::start_save_project(const registred_path_id id,
 void application::start_save_component(const component_id id) noexcept
 {
     add_gui_task([&, id]() noexcept {
-        if (auto* c = mod.components.try_to_get(id); c) {
+        if (auto* c = mod.components.try_to_get<component>(id); c) {
             if (auto ret = mod.save(*c); not ret) {
                 jn.push(log_level::error, [&](auto& title, auto& msg) {
                     title = "Component save error";

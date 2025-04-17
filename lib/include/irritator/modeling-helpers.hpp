@@ -115,7 +115,7 @@ inline expected<file> open_file(dir_path& dir_p, file_path& file_p) noexcept
 inline bool component_is_grid_or_graph(const modeling&  mod,
                                        const tree_node& tn) noexcept
 {
-    if (const auto* compo = mod.components.try_to_get(tn.id); compo)
+    if (const auto* compo = mod.components.try_to_get<component>(tn.id))
         return any_equal(
           compo->type, component_type::graph, component_type::grid);
 
@@ -130,10 +130,9 @@ void for_each_component(const modeling&       mod,
 {
     for_specified_data(
       mod.file_paths, dir_path.children, [&](auto& file_path) noexcept {
-          if_data_exists_do(
-            mod.components, file_path.component, [&](auto& compo) noexcept {
-                f(reg_path, dir_path, file_path, compo);
-            });
+          if (auto* c =
+                mod.components.try_to_get<component>(file_path.component))
+              f(reg_path, dir_path, file_path, *c);
       });
 }
 
@@ -145,11 +144,9 @@ void for_each_component(modeling&       mod,
 {
     for_specified_data(
       mod.file_paths, dir_path.children, [&](const auto& file_path) noexcept {
-          if_data_exists_do(mod.components,
-                            file_path.component,
-                            [&](const auto& compo) noexcept {
-                                f(reg_path, dir_path, file_path, compo);
-                            });
+          if (auto* c =
+                mod.components.try_to_get<component>(file_path.component))
+              f(reg_path, dir_path, file_path, *c);
       });
 }
 
@@ -160,10 +157,10 @@ void for_each_component(modeling&  mod,
 {
     for_specified_data(
       mod.file_paths, dir_path.children, [&](auto& file_path) noexcept {
-          if_data_exists_do(
-            mod.components, file_path.component, [&](auto& compo) noexcept {
-                f(dir_path, file_path, compo);
-            });
+          if (auto* c =
+                mod.components.try_to_get<component>(file_path.component)) {
+              f(dir_path, file_path, *c);
+          }
       });
 }
 
@@ -174,10 +171,10 @@ void for_each_component(const modeling& mod,
 {
     for_specified_data(
       mod.file_paths, dir_path.children, [&](const auto& file_path) noexcept {
-          if_data_exists_do(
-            mod.components,
-            file_path.component,
-            [&](const auto& compo) noexcept { f(dir_path, file_path, compo); });
+          if (auto* c =
+                mod.components.try_to_get<component>(file_path.component)) {
+              f(dir_path, file_path, *c);
+          }
       });
 }
 
@@ -234,7 +231,7 @@ void if_component_is_generic(const modeling&    mod,
                              const component_id id,
                              Function&&         f) noexcept
 {
-    if (const auto* compo = mod.components.try_to_get(id); compo) {
+    if (const auto* compo = mod.components.try_to_get<component>(id)) {
         if (compo->type == component_type::generic) {
             if (const auto* gen =
                   mod.generic_components.try_to_get(compo->id.generic_id);
@@ -254,7 +251,7 @@ void if_component_is_generic(modeling&          mod,
                              const component_id id,
                              Function&&         f) noexcept
 {
-    if (auto* compo = mod.components.try_to_get(id); compo) {
+    if (auto* compo = mod.components.try_to_get<component>(id); compo) {
         if (compo->type == component_type::generic) {
             if (auto* gen =
                   mod.generic_components.try_to_get(compo->id.generic_id);
@@ -274,7 +271,7 @@ void if_component_is_grid(const modeling&    mod,
                           const component_id id,
                           Function&&         f) noexcept
 {
-    if (const auto* compo = mod.components.try_to_get(id); compo) {
+    if (const auto* compo = mod.components.try_to_get<component>(id); compo) {
         if (compo->type == component_type::grid) {
             if (const auto* gen =
                   mod.grid_components.try_to_get(compo->id.grid_id);
@@ -294,7 +291,7 @@ void if_component_is_grid(modeling&          mod,
                           const component_id id,
                           Function&&         f) noexcept
 {
-    if (auto* compo = mod.components.try_to_get(id); compo) {
+    if (auto* compo = mod.components.try_to_get<component>(id); compo) {
         if (compo->type == component_type::grid) {
             if (auto* gen = mod.grid_components.try_to_get(compo->id.grid_id);
                 gen)
@@ -313,7 +310,7 @@ void if_component_is_graph(const modeling&    mod,
                            const component_id id,
                            Function&&         f) noexcept
 {
-    if (const auto* compo = mod.components.try_to_get(id); compo) {
+    if (const auto* compo = mod.components.try_to_get<component>(id); compo) {
         if (compo->type == component_type::graph) {
             if (const auto* gen =
                   mod.graph_components.try_to_get(compo->id.graph_id);
@@ -333,7 +330,7 @@ void if_component_is_graph(modeling&          mod,
                            const component_id id,
                            Function&&         f) noexcept
 {
-    if (auto* compo = mod.components.try_to_get(id); compo) {
+    if (auto* compo = mod.components.try_to_get<component>(id); compo) {
         if (compo->type == component_type::graph) {
             if (auto* gen = mod.graph_components.try_to_get(compo->id.graph_id);
                 gen)
@@ -455,7 +452,7 @@ void if_tree_node_is_grid_do(project&     pj,
     grid_component* g_compo{};
 
     if (grid_tn = pj.tree_nodes.try_to_get(tn_id); grid_tn) {
-        if (compo = mod.components.try_to_get(grid_tn->id); compo) {
+        if (compo = mod.components.try_to_get<component>(grid_tn->id); compo) {
             if (compo->type == component_type::grid) {
                 if (g_compo = mod.grid_components.try_to_get(compo->id.grid_id);
                     g_compo) {
@@ -477,7 +474,7 @@ void if_tree_node_is_graph_do(project&     pj,
     graph_component* g_compo{};
 
     if (graph_tn = pj.tree_nodes.try_to_get(tn_id); graph_tn) {
-        if (compo = mod.components.try_to_get(graph_tn->id); compo) {
+        if (compo = mod.components.try_to_get<component>(graph_tn->id); compo) {
             if (compo->type == component_type::graph) {
                 if (g_compo =
                       mod.graph_components.try_to_get(compo->id.graph_id);

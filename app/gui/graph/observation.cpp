@@ -201,7 +201,7 @@ void graph_observation_widget::show(application&    app,
                                     graph_observer& graph,
                                     const ImVec2& /*size*/) noexcept
 {
-    if (auto* c = app.mod.components.try_to_get(graph.compo_id)) {
+    if (auto* c = app.mod.components.try_to_get<component>(graph.compo_id)) {
         if (c->type == component_type::graph) {
             if (auto* g = app.mod.graph_components.try_to_get(c->id.graph_id)) {
                 graph_observation_widget::impl::show(*g, *this, graph);

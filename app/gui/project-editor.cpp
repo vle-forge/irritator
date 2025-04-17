@@ -52,7 +52,9 @@ void project_editor::select(application& app, tree_node_id id) noexcept
         m_selected_tree_node = undefined<tree_node_id>();
 
         if (auto* tree = pj.node(id); tree) {
-            if (auto* compo = app.mod.components.try_to_get(tree->id); compo) {
+            if (auto* compo =
+                  app.mod.components.try_to_get<component>(tree->id);
+                compo) {
                 m_selected_tree_node = id;
 
                 if (compo->type == component_type::generic) {
@@ -275,7 +277,8 @@ static bool show_local_simulation_plot_observers_table(application&    app,
                         sub_obs_id = vobs.push_back(tn_id, mdl_id);
                         tn.variable_observer_ids.set(uid, vobs_id);
 
-                        if (auto* c = app.mod.components.try_to_get(tn.id);
+                        if (auto* c =
+                              app.mod.components.try_to_get<component>(tn.id);
                             c and c->type == component_type::generic) {
                             if (auto* g = app.mod.generic_components.try_to_get(
                                   c->id.generic_id);
@@ -476,7 +479,7 @@ static bool show_local_simulation_specific_observers(application&    app,
 {
     auto& mod = app.mod;
 
-    if (auto* compo = mod.components.try_to_get(tn.id); compo) {
+    if (auto* compo = mod.components.try_to_get<component>(tn.id); compo) {
         switch (compo->type) {
         case component_type::graph:
             if (auto* g = mod.graph_components.try_to_get(compo->id.graph_id);
@@ -1058,7 +1061,7 @@ static void show_simulation_editor_treenode(application&    app,
                                             project_editor& ed,
                                             tree_node&      tn) noexcept
 {
-    if (auto* compo = app.mod.components.try_to_get(tn.id); compo) {
+    if (auto* compo = app.mod.components.try_to_get<component>(tn.id); compo) {
         dispatch_component(app.mod, *compo, [&](auto& c) noexcept {
             using T = std::decay_t<decltype(c)>;
 

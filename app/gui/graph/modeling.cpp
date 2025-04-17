@@ -570,8 +570,8 @@ struct graph_component_editor_data::impl {
             draw_list->AddRectFilled(
               p_min,
               p_max,
-              to_ImU32(app.mod.component_colors[get_index(
-                data.g.node_components[i])]));
+              to_ImU32(app.mod.components.get<component_color>(
+                data.g.node_components[i])));
         }
 
         for (const auto id : ed.selected_nodes) {
@@ -711,7 +711,7 @@ struct graph_component_editor_data::impl {
             lock.owns_lock()) {
             debug::ensure(ed.st != status::updating);
 
-            auto* compo = app.mod.components.try_to_get(ed.m_id);
+            auto* compo = app.mod.components.try_to_get<component>(ed.m_id);
             auto* graph = app.mod.graph_components.try_to_get(ed.graph_id);
 
             debug::ensure(compo);
@@ -1042,7 +1042,7 @@ void graph_component_editor_data::show_selected_nodes(
                         app.component_sel.combobox("component", &newid))
                         graph->g.node_components[idx] = newid;
 
-                    if (auto* compo = app.mod.components.try_to_get(
+                    if (auto* compo = app.mod.components.try_to_get<component>(
                           graph->g.node_components[idx])) {
                         if (not compo->x.empty()) {
                             if (ImGui::TreeNodeEx("input ports")) {

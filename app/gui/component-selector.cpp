@@ -54,7 +54,7 @@ static void cs_select(const modeling&    mod,
 {
     cs_make_selected_name(name);
 
-    if (auto* compo = mod.components.try_to_get(id); compo) {
+    if (auto* compo = mod.components.try_to_get<component>(id); compo) {
         if (compo->type == component_type::internal) {
             cs_make_selected_name(
               internal_component_names[ordinal(compo->id.internal_id)], name);
@@ -117,17 +117,18 @@ static update_t update_lists(const modeling& mod) noexcept
 
     ret.files = ret.ids.ssize();
 
-    for_each_data(mod.components, [&](auto& compo) noexcept {
+    const auto& vec = mod.components.get<component>();
+    for (const auto id : mod.components) {
+        const auto& compo = vec[get_index(id)];
+
         if (compo.type != component_type::internal &&
             mod.file_paths.try_to_get(compo.file) == nullptr) {
-
-            const auto id = mod.components.get_id(compo);
             ret.ids.emplace_back(id);
             auto& str = ret.names.emplace_back();
 
             cs_make_selected_name(compo.name.sv(), id, str);
         }
-    });
+    }
 
     ret.unsaved = ret.ids.size();
 
@@ -170,7 +171,7 @@ bool component_selector::combobox(const char*   label,
             for (sz i = 1, e = ids.size(); i != e; ++i) {
                 ImGui::ColorButton(
                   "Component",
-                  to_ImVec4(app.mod.component_colors[get_index(ids[i])]));
+                  to_ImVec4(app.mod.components.get<component_color>(ids[i])));
                 ImGui::SameLine(50.f);
                 if (ImGui::Selectable(names[i].c_str(),
                                       ids[i] == *new_selected)) {
@@ -212,7 +213,7 @@ bool component_selector::combobox(const char*   label,
             for (sz i = 1, e = ids.size(); i != e; ++i) {
                 ImGui::ColorButton(
                   "#color",
-                  to_ImVec4(app.mod.component_colors[get_index(ids[i])]));
+                  to_ImVec4(app.mod.components.get<component_color>(ids[i])));
                 ImGui::SameLine(50.f);
                 if (ImGui::Selectable(names[i].c_str(),
                                       *hyphen == false &&

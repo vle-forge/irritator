@@ -1034,7 +1034,7 @@ public:
     constexpr bool       full() const noexcept;
     constexpr unsigned   size() const noexcept;
     constexpr int        ssize() const noexcept;
-    constexpr bool       can_alloc(std::integral auto nb) const noexcept;
+    constexpr bool       can_alloc(std::integral auto nb = 1) const noexcept;
     constexpr int        max_used() const noexcept;
     constexpr int        capacity() const noexcept;
     constexpr index_type next_key() const noexcept;
@@ -1398,7 +1398,7 @@ public:
     /** Return the identifier type at index `idx` if and only if `idx`
      * is in range `[0, size()[` and if the value `is_defined` otherwise
      * return `undefined<identifier_type>()`. */
-    identifier_type get_id(std::integral auto idx) const noexcept;
+    identifier_type get_from_index(std::integral auto idx) const noexcept;
 
     /** Release the @c identifier from the @c id_array. @attention To
      * improve memory access, the destructors of underlying objects in
@@ -1457,6 +1457,19 @@ public:
      * tuple using a type (read @c std::get). */
     template<typename Type>
     auto& get(const identifier_type id) const noexcept;
+
+    template<typename Type>
+    identifier_type get_id(const Type& t) const noexcept;
+
+    /** Get the underlying object at position @c id @c vector in @c
+     * tuple using an index. (read @c std::get). */
+    template<std::size_t Index>
+    auto* try_to_get(const identifier_type id) const noexcept;
+
+    /** Get the underlying object at position @c id in @c vector in @c
+     * tuple using a type (read @c std::get). */
+    template<typename Type>
+    auto* try_to_get(const identifier_type id) const noexcept;
 
     //! Call the @c fn function if @c id is valid.
     //!
@@ -2982,6 +2995,42 @@ auto& id_data_array<Identifier, A, Ts...>::get(
 }
 
 template<typename Identifier, typename A, class... Ts>
+template<typename Type>
+typename id_data_array<Identifier, A, Ts...>::identifier_type
+id_data_array<Identifier, A, Ts...>::get_id(const Type& t) const noexcept
+{
+    const auto* ptr   = &t;
+    const auto* start = &(std::get<Type*>(m_col)[0]);
+    const auto* last  = start + m_ids.size();
+
+    fatal::ensure(start <= ptr and ptr < last);
+
+    const auto pos = ptr - start;
+
+    return m_ids.get_from_index(pos);
+}
+
+template<typename Identifier, typename A, class... Ts>
+template<std::size_t Index>
+auto* id_data_array<Identifier, A, Ts...>::try_to_get(
+  const identifier_type id) const noexcept
+{
+    return m_ids.exists(id)
+             ? std::addressof(std::get<Index>(m_col)[get_index(id)])
+             : nullptr;
+}
+
+template<typename Identifier, typename A, class... Ts>
+template<typename Type>
+auto* id_data_array<Identifier, A, Ts...>::try_to_get(
+  const identifier_type id) const noexcept
+{
+    return m_ids.exists(id)
+             ? std::addressof(std::get<Type*>(m_col)[get_index(id)])
+             : nullptr;
+}
+
+template<typename Identifier, typename A, class... Ts>
 template<typename Index, typename Function>
 void id_data_array<Identifier, A, Ts...>::if_exists_do(const identifier_type id,
                                                        Function&& fn) noexcept
@@ -3112,7 +3161,7 @@ bool id_data_array<Identifier, A, Ts...>::exists(
 
 template<typename Identifier, typename A, class... Ts>
 typename id_data_array<Identifier, A, Ts...>::identifier_type
-id_data_array<Identifier, A, Ts...>::get_id(
+id_data_array<Identifier, A, Ts...>::get_from_index(
   std::integral auto idx) const noexcept
 {
     return m_ids.get_from_index(idx);

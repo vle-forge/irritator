@@ -71,7 +71,7 @@ static void simulation_copy(application& app, project_editor& ed) noexcept
     ed.simulation_state = simulation_status::initializing;
 
     auto  compo_id = ed.pj.head();
-    auto* compo    = app.mod.components.try_to_get(compo_id);
+    auto* compo    = app.mod.components.try_to_get<component>(compo_id);
     auto* head     = ed.pj.tn_head();
 
     if (!head || !compo) {

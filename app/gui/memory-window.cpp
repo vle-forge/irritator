@@ -24,9 +24,8 @@ void memory_window::show() noexcept
         ImGui::TextFormat("descriptions: {} / {}",
                           app.mod.descriptions.size(),
                           app.mod.descriptions.capacity());
-        ImGui::TextFormat("components: {} / {} / {}",
+        ImGui::TextFormat("components: {} / {}",
                           app.mod.components.size(),
-                          app.mod.components.max_used(),
                           app.mod.components.capacity());
         ImGui::TextFormat("registred_paths: {} / {} / {}",
                           app.mod.registred_paths.size(),
@@ -84,7 +83,10 @@ void memory_window::show() noexcept
     }
 
     if (ImGui::CollapsingHeader("Components")) {
-        for (const auto& compo : app.mod.components) {
+        const auto& vec = app.mod.components.get<component>();
+        for (const auto id : app.mod.components) {
+            const auto& compo = vec[get_index(id)];
+
             if (compo.type != component_type::internal) {
                 const auto id  = app.mod.components.get_id(compo);
                 const auto idx = get_index(id);

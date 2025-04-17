@@ -1916,11 +1916,13 @@ struct json_dearchiver::impl {
     {
         auto_stack a(this, "copy internal component");
 
-        component* compo = nullptr;
-        while (mod().components.next(compo)) {
-            if (compo->type == component_type::internal &&
-                compo->id.internal_id == type) {
-                c_id = mod().components.get_id(*compo);
+        const auto& compo_vec = mod().components.get<component>();
+        for (const auto id : mod().components) {
+            const auto idx = get_index(id);
+
+            if (compo_vec[idx].type == component_type::internal &&
+                compo_vec[idx].id.internal_id == type) {
+                c_id = id;
                 return true;
             }
         }
@@ -2098,11 +2100,10 @@ struct json_dearchiver::impl {
 
     auto search_component(std::string_view name) const noexcept -> component*
     {
-        component* c = nullptr;
-        while (mod().components.next(c)) {
-            if (c->name.sv() == name)
-                return c;
-        }
+        const auto& compo_vec = mod().components.get<component>();
+        for (const auto id : mod().components)
+            if (compo_vec[get_index(id)].name.sv() == name)
+                return std::addressof(compo_vec[get_index(id)]);
 
         return nullptr;
     }
@@ -2127,9 +2128,9 @@ struct json_dearchiver::impl {
 
         if (file_ptr) {
             c_id = file_ptr->component;
-            debug::ensure(mod().components.try_to_get(c_id) != nullptr);
+            debug::ensure(mod().components.exists(c_id));
 
-            if (auto* c = mod().components.try_to_get(c_id); c) {
+            if (auto* c = mod().components.try_to_get<component>(c_id); c) {
                 if (c->state == component_status::unmodified)
                     return true;
 
@@ -2958,16 +2959,16 @@ struct json_dearchiver::impl {
                 if (child->type != child_type::component)
                     return report_error("unknwon generic component port");
 
-                auto* compo = mod().components.try_to_get(child->id.compo_id);
-                if (!compo)
+                if (auto* compo = mod().components.try_to_get<component>(
+                      child->id.compo_id)) {
+                    auto p_id = compo->get_x(*dst_str_port);
+                    if (is_undefined(p_id))
+                        return report_error("unknown input component");
+                    out = std::make_optional(connection::port{ .compo = p_id });
+                    return true;
+                } else {
                     return report_error("unknown component");
-
-                auto p_id = compo->get_x(*dst_str_port);
-                if (is_undefined(p_id))
-                    return report_error("unknown input component");
-
-                out = std::make_optional(connection::port{ .compo = p_id });
-                return true;
+                }
             } else {
                 unreachable();
             }
@@ -2997,16 +2998,18 @@ struct json_dearchiver::impl {
                 if (child->type != child_type::component)
                     return report_error("unknwon generic component port");
 
-                auto* compo = mod().components.try_to_get(child->id.compo_id);
-                if (!compo)
+                if (auto* compo = mod().components.try_to_get<component>(
+                      child->id.compo_id);
+                    compo) {
+                    auto p_id = compo->get_y(*src_str_port);
+                    if (is_undefined(p_id))
+                        return report_error("unknown output  component");
+
+                    out = std::make_optional(connection::port{ .compo = p_id });
+                    return true;
+                } else {
                     return report_error("unknown component");
-
-                auto p_id = compo->get_y(*src_str_port);
-                if (is_undefined(p_id))
-                    return report_error("unknown output  component");
-
-                out = std::make_optional(connection::port{ .compo = p_id });
-                return true;
+                }
             } else {
                 unreachable();
             }
@@ -3464,7 +3467,9 @@ struct json_dearchiver::impl {
             const auto pos        = grid.pos(*row, *col);
             const auto c_compo_id = grid.children()[pos];
 
-            if (const auto* c = mod().components.try_to_get(c_compo_id); c) {
+            if (const auto* c =
+                  mod().components.try_to_get<component>(c_compo_id);
+                c) {
                 const auto con_id = c->get_x(*id);
                 const auto con_x  = compo.get_x(*x);
 
@@ -3519,7 +3524,9 @@ struct json_dearchiver::impl {
             const auto pos        = grid.pos(*row, *col);
             const auto c_compo_id = grid.children()[pos];
 
-            if (const auto* c = mod().components.try_to_get(c_compo_id); c) {
+            if (const auto* c =
+                  mod().components.try_to_get<component>(c_compo_id);
+                c) {
                 const auto con_id = c->get_x(*id);
                 const auto con_y  = compo.get_y(*y);
 
@@ -3867,8 +3874,8 @@ struct json_dearchiver::impl {
               if ("colors"sv == name)
                   return read_component_colors(
                     value,
-                    mod().component_colors[get_index(
-                      mod().components.get_id(compo))]);
+                    mod().components.get<component_color>(
+                      mod().components.get_id(compo)));
 
               return true;
           });
@@ -4156,7 +4163,7 @@ struct json_dearchiver::impl {
     {
         auto_stack s(this, "project set components");
 
-        if (auto* compo = mod().components.try_to_get(c_id); compo) {
+        if (auto* compo = mod().components.try_to_get<component>(c_id); compo) {
             if (auto ret = pj().set(mod(), *compo); ret)
                 return true;
             else
@@ -5646,10 +5653,11 @@ struct json_archiver::impl {
 
         writer.Key("hsm");
         writer.StartObject();
-        if_data_exists_do(
-          mod.components,
-          enum_cast<component_id>(p.integers[0]),
-          [&](auto& compo) { write_child_component_path(mod, compo, writer); });
+
+        const auto id = enum_cast<component_id>(p.integers[0]);
+        if (auto* c = mod.components.try_to_get<component>(id))
+            write_child_component_path(mod, *c, writer);
+
         writer.EndObject();
 
         writer.Key("i1");
@@ -6036,7 +6044,8 @@ struct json_archiver::impl {
                                const component_id compo_id,
                                Writer&            w) noexcept
     {
-        if (auto* compo = mod.components.try_to_get(compo_id); compo) {
+        if (auto* compo = mod.components.try_to_get<component>(compo_id);
+            compo) {
             w.Key("component-type");
             w.String(component_type_names[ordinal(compo->type)]);
 
@@ -6116,7 +6125,8 @@ struct json_archiver::impl {
 
         if (ch.type == child_type::component) {
             const auto compo_id = ch.id.compo_id;
-            if (auto* compo = mod.components.try_to_get(compo_id); compo) {
+            if (auto* compo = mod.components.try_to_get<component>(compo_id);
+                compo) {
                 w.Key("type");
                 w.String("component");
 
@@ -6219,7 +6229,7 @@ struct json_archiver::impl {
             w.Int(dst_x.model);
         } else {
             const auto* compo_child =
-              mod.components.try_to_get(dst.id.compo_id);
+              mod.components.try_to_get<component>(dst.id.compo_id);
             if (compo_child and compo_child->x.exists(dst_x.compo))
                 w.String(compo_child->x.get<port_str>(dst_x.compo).c_str());
         }
@@ -6249,7 +6259,7 @@ struct json_archiver::impl {
             w.Int(src_y.model);
         } else {
             const auto* compo_child =
-              mod.components.try_to_get(src.id.compo_id);
+              mod.components.try_to_get<component>(src.id.compo_id);
             if (compo_child and compo_child->y.exists(src_y.compo)) {
                 w.String(compo_child->y.get<port_str>(src_y.compo).c_str());
             }
@@ -6272,14 +6282,14 @@ struct json_archiver::impl {
         int         dst_int = -1;
 
         if (src.type == child_type::component) {
-            auto* compo = mod.components.try_to_get(src.id.compo_id);
+            auto* compo = mod.components.try_to_get<component>(src.id.compo_id);
             if (compo and compo->y.exists(src_y.compo))
                 src_str = compo->y.get<port_str>(src_y.compo).c_str();
         } else
             src_int = src_y.model;
 
         if (dst.type == child_type::component) {
-            auto* compo = mod.components.try_to_get(dst.id.compo_id);
+            auto* compo = mod.components.try_to_get<component>(dst.id.compo_id);
             if (compo and compo->x.exists(dst_x.compo))
                 dst_str = compo->x.get<port_str>(dst_x.compo).c_str();
         } else
@@ -6383,7 +6393,9 @@ struct json_archiver::impl {
             const auto pos            = grid.pos(con.row, con.col);
             const auto child_compo_id = grid.children()[pos];
 
-            if (const auto* c = mod.components.try_to_get(child_compo_id); c) {
+            if (const auto* c =
+                  mod.components.try_to_get<component>(child_compo_id);
+                c) {
                 if (c->x.exists(con.id)) {
                     w.StartObject();
                     w.Key("type");
@@ -6405,7 +6417,9 @@ struct json_archiver::impl {
             const auto pos            = grid.pos(con.row, con.col);
             const auto child_compo_id = grid.children()[pos];
 
-            if (const auto* c = mod.components.try_to_get(child_compo_id); c) {
+            if (const auto* c =
+                  mod.components.try_to_get<component>(child_compo_id);
+                c) {
                 if (c->x.exists(con.id)) {
                     w.StartObject();
                     w.Key("type");
@@ -6662,7 +6676,7 @@ struct json_archiver::impl {
         w.Key("colors");
         w.StartArray();
         auto& color =
-          mod.component_colors[get_index(mod.components.get_id(compo))];
+          mod.components.get<component_color>(mod.components.get_id(compo));
         w.Double(color[0]);
         w.Double(color[1]);
         w.Double(color[2]);
@@ -7474,13 +7488,13 @@ status json_archiver::operator()(project&  pj,
     if (not(io.is_open() and io.get_mode() == open_mode::write))
         return new_error(file_errc::open_error);
 
-    auto* compo  = mod.components.try_to_get(pj.head());
+    auto* compo  = mod.components.try_to_get<component>(pj.head());
     auto* parent = pj.tn_head();
 
     if (not(compo and parent))
         return new_error(project_errc::empty_project);
 
-    debug::ensure(mod.components.get_id(compo) == parent->id);
+    debug::ensure(mod.components.get_id(*compo) == parent->id);
 
     auto* reg = mod.registred_paths.try_to_get(compo->reg_path);
     if (!reg)
@@ -7530,13 +7544,13 @@ status json_archiver::operator()(project&  pj,
 {
     clear();
 
-    auto* compo  = mod.components.try_to_get(pj.head());
+    auto* compo  = mod.components.try_to_get<component>(pj.head());
     auto* parent = pj.tn_head();
 
     if (!(compo && parent))
         return new_error(project_errc::empty_project);
 
-    debug::ensure(mod.components.get_id(compo) == parent->id);
+    debug::ensure(mod.components.get_id(*compo) == parent->id);
 
     rapidjson::StringBuffer rbuffer;
     rbuffer.Reserve(4096u);

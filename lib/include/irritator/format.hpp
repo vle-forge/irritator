@@ -78,7 +78,7 @@ inline void debug_component(const modeling& mod, const component& c) noexcept
 
     debug_log(
       "component id {} in registered path {} directory {} file {} status {}\n",
-      ordinal(mod.components.get_id(c)),
+      c.name.sv(),
       reg ? reg->path.sv() : empty_path,
       dir ? dir->path.sv() : empty_path,
       file ? file->path.sv() : empty_path,
@@ -88,7 +88,7 @@ inline void debug_component(const modeling& mod, const component& c) noexcept
 //! Use @c debug_log to display component data into debug console.
 inline void debug_component(const modeling& mod, const component_id id) noexcept
 {
-    if (auto* compo = mod.components.try_to_get(id); compo) {
+    if (auto* compo = mod.components.try_to_get<component>(id)) {
         debug_component(mod, *compo);
     } else {
         debug_log("component id {} unknown\n", ordinal(id));

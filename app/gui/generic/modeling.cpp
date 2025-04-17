@@ -505,7 +505,8 @@ static void show_graph(component_editor&  ed,
             const auto cidx = get_index(cid);
             auto       id   = c.id.compo_id;
 
-            if (auto* compo = app.mod.components.try_to_get(id); compo) {
+            if (auto* compo = app.mod.components.try_to_get<component>(id);
+                compo) {
                 switch (compo->type) {
                 case component_type::none:
                     break;
@@ -699,7 +700,7 @@ static void show_popup_menuitem(component_editor&  ed,
         auto& app = container_of(&ed, &application::component_ed);
         if (ImGui::MenuItem("Add grid component")) {
             if (!app.mod.grid_components.can_alloc() ||
-                !app.mod.components.can_alloc() ||
+                !app.mod.components.can_alloc(1) ||
                 !s_parent.children.can_alloc()) {
                 app.jn.push(log_level::error, [](auto& t, auto&) {
                     t = "can not allocate a new grid component";
@@ -709,7 +710,8 @@ static void show_popup_menuitem(component_editor&  ed,
                 grid.resize(4, 4, undefined<component_id>());
 
                 auto  grid_id    = app.mod.grid_components.get_id(grid);
-                auto& compo      = app.mod.components.alloc();
+                auto  compo_id   = app.mod.components.alloc();
+                auto& compo      = app.mod.components.get<component>(compo_id);
                 compo.name       = "Grid";
                 compo.type       = component_type::grid;
                 compo.id.grid_id = grid_id;
@@ -723,19 +725,19 @@ static void show_popup_menuitem(component_editor&  ed,
 
         component_id c_id = undefined<component_id>();
         app.component_sel.menu("Component?", &c_id);
-        if (c_id != undefined<component_id>())
-            if_data_exists_do(
-              app.mod.components, c_id, [&](auto& compo) noexcept {
-                  if (compo.type == component_type::hsm)
-                      app.jn.push(
-                        log_level::error, [](auto& title, auto& msg) noexcept {
-                            title = "Component editor";
-                            msg = "Please, use the hsm_wrapper model to add a "
+        if (c_id != undefined<component_id>()) {
+            if (auto* c = app.mod.components.try_to_get<component>(c_id)) {
+                if (c->type == component_type::hsm)
+                    app.jn.push(
+                      log_level::error, [](auto& title, auto& msg) noexcept {
+                          title = "Component editor";
+                          msg   = "Please, use the hsm_wrapper model to add a "
                                   "hierarchical state machine";
-                        });
-                  else
-                      add_component_to_current(ed, parent, s_parent, compo);
-              });
+                      });
+                else
+                    add_component_to_current(ed, parent, s_parent, *c);
+            }
+        }
 
         ImGui::Separator();
 
@@ -833,7 +835,7 @@ static void is_link_created(application& app,
 
         if (is_input_X(start)) {
             auto port_idx = unpack_X(start);
-            auto port_id  = parent.x.get_id(port_idx);
+            auto port_id  = parent.x.get_from_index(port_idx);
             debug::ensure(is_defined(port_id));
 
             if (is_output_Y(end)) {
@@ -856,11 +858,12 @@ static void is_link_created(application& app,
                 parent.state = component_status::modified;
             } else {
                 const auto compo_dst =
-                  app.mod.components.try_to_get(child->id.compo_id);
+                  app.mod.components.try_to_get<component>(child->id.compo_id);
                 if (not compo_dst)
                     return;
 
-                const auto port_dst_id = compo_dst->x.get_id(child_port.second);
+                const auto port_dst_id =
+                  compo_dst->x.get_from_index(child_port.second);
                 if (is_undefined(port_dst_id))
                     return;
 
@@ -880,7 +883,7 @@ static void is_link_created(application& app,
 
             if (is_output_Y(end)) {
                 auto port_idx = unpack_Y(end);
-                auto port_id  = parent.y.get_id(port_idx);
+                auto port_id  = parent.y.get_from_index(port_idx);
                 debug::ensure(is_defined(port_id));
 
                 if (ch_src->type == child_type::model) {
@@ -895,12 +898,13 @@ static void is_link_created(application& app,
                     parent.state = component_status::modified;
                 } else {
                     const auto compo_src =
-                      app.mod.components.try_to_get(ch_src->id.compo_id);
+                      app.mod.components.try_to_get<component>(
+                        ch_src->id.compo_id);
                     if (not compo_src)
                         return;
 
                     const auto port_out =
-                      compo_src->y.get_id(ch_port_src.second);
+                      compo_src->y.get_from_index(ch_port_src.second);
                     if (is_undefined(port_out))
                         return;
 
@@ -934,12 +938,13 @@ static void is_link_created(application& app,
                         parent.state = component_status::modified;
                     } else {
                         const auto compo_dst =
-                          app.mod.components.try_to_get(ch_dst->id.compo_id);
+                          app.mod.components.try_to_get<component>(
+                            ch_dst->id.compo_id);
                         if (not compo_dst)
                             return;
 
                         const auto port_dst_id =
-                          compo_dst->x.get_id(ch_port_dst.second);
+                          compo_dst->x.get_from_index(ch_port_dst.second);
                         if (is_undefined(port_dst_id))
                             return;
 
@@ -955,12 +960,13 @@ static void is_link_created(application& app,
                     }
                 } else {
                     const auto compo_src =
-                      app.mod.components.try_to_get(ch_src->id.compo_id);
+                      app.mod.components.try_to_get<component>(
+                        ch_src->id.compo_id);
                     if (not compo_src)
                         return;
 
                     const auto port_out =
-                      compo_src->y.get_id(ch_port_src.second);
+                      compo_src->y.get_from_index(ch_port_src.second);
                     if (is_undefined(port_out))
                         return;
 
@@ -978,12 +984,13 @@ static void is_link_created(application& app,
                         parent.state = component_status::modified;
                     } else {
                         const auto compo_dst =
-                          app.mod.components.try_to_get(ch_dst->id.compo_id);
+                          app.mod.components.try_to_get<component>(
+                            ch_dst->id.compo_id);
                         if (not compo_dst)
                             return;
 
                         const auto port_in =
-                          compo_dst->x.get_id(ch_port_dst.second);
+                          compo_dst->x.get_from_index(ch_port_dst.second);
                         if (is_undefined(port_in))
                             return;
 
@@ -1198,7 +1205,8 @@ void generic_component_editor_data::show(component_editor& ed) noexcept
 {
     auto& app = container_of(&ed, &application::component_ed);
 
-    if (auto* compo = app.mod.components.try_to_get(get_id()); compo) {
+    if (auto* compo = app.mod.components.try_to_get<component>(get_id());
+        compo) {
         const auto s_id = compo->id.generic_id;
 
         if (auto* s = app.mod.generic_components.try_to_get(s_id); s)
@@ -1300,7 +1308,7 @@ void generic_component_editor_data::store(component_editor& ed) noexcept
 {
     auto& app = container_of(&ed, &application::component_ed);
 
-    auto* compo = app.mod.components.try_to_get(m_id);
+    auto* compo = app.mod.components.try_to_get<component>(m_id);
     if (not compo or compo->type != component_type::generic)
         return;
 

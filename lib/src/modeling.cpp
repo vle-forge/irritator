@@ -32,7 +32,6 @@ modeling::modeling(journal_handler&                   jnl,
   , file_paths(res.files.value())
   , hsms(res.hsm_compos.value())
   , graphs(res.graph_compos.value())
-  , component_colors(res.components.value())
   , component_repertories(res.regs.value(), reserve_tag{})
   , journal(jnl)
 {
@@ -41,8 +40,7 @@ modeling::modeling(journal_handler&                   jnl,
         hsm_components.capacity() == 0 or components.capacity() == 0 or
         registred_paths.capacity() == 0 or dir_paths.capacity() == 0 or
         file_paths.capacity() == 0 or hsms.capacity() == 0 or
-        graphs.capacity() == 0 or component_colors.capacity() == 0 or
-        component_repertories.capacity() == 0)
+        graphs.capacity() == 0 or component_repertories.capacity() == 0)
         journal.push(log_level::error, [&](auto& t, auto& m) noexcept {
             t = "Modeling initialization error";
             format(m,
@@ -57,7 +55,6 @@ modeling::modeling(journal_handler&                   jnl,
                    "file-paths            {:>8} ({:>8})"
                    "hsms                  {:>8} ({:>8})"
                    "graphs                {:>8} ({:>8})"
-                   "component-colors      {:>8} ({:>8})"
                    "component-repertories {:>8} ({:>8})",
                    descriptions.capacity(),
                    res.files.value(),
@@ -81,7 +78,6 @@ modeling::modeling(journal_handler&                   jnl,
                    res.hsm_compos.value(),
                    graphs.capacity(),
                    res.graph_compos.value(),
-                   component_colors.capacity(),
                    res.components.value(),
                    component_repertories.capacity(),
                    res.regs.value());
@@ -97,11 +93,15 @@ static void prepare_component_loading(
 {
     namespace fs = std::filesystem;
 
-    auto& compo    = mod.components.alloc();
+    if (not mod.components.can_alloc(1) and mod.components.grow<3, 2>())
+        return;
+
+    auto  compo_id = mod.components.alloc();
+    auto& compo    = mod.components.get<component>(compo_id);
     compo.reg_path = mod.registred_paths.get_id(reg_dir);
     compo.dir      = mod.dir_paths.get_id(dir);
     compo.file     = mod.file_paths.get_id(file);
-    file.component = mod.components.get_id(compo);
+    file.component = compo_id;
     compo.type     = component_type::none;
     compo.state    = component_status::unread;
 
@@ -292,7 +292,7 @@ static void prepare_component_loading(modeling&             mod,
                 break;
             case file_path::file_type::irt_file:
                 debug_logi(6, "found irt file {}\n", it->path().string());
-                if (mod.file_paths.can_alloc() && mod.components.can_alloc()) {
+                if (mod.file_paths.can_alloc() && mod.components.can_alloc(1)) {
                     auto& file = add_to_dir(
                       mod, dir, type, it->path().filename().u8string());
 
@@ -519,7 +519,8 @@ status modeling::fill_internal_components() noexcept
         return new_error(modeling_errc::component_container_full);
 
     for (int i = 0, e = internal_component_count; i < e; ++i) {
-        auto& compo          = components.alloc();
+        auto  compo_id       = components.alloc();
+        auto& compo          = components.get<component>(compo_id);
         compo.type           = component_type::internal;
         compo.id.internal_id = enum_cast<internal_component>(i);
     }
@@ -532,24 +533,27 @@ status modeling::fill_components() noexcept
     prepare_component_loading(*this);
     bool have_unread_component = components.size() > 0u;
 
-    for_each_data(components, [&](auto& compo) -> void {
+    auto& compos = components.get<component>();
+    for (auto id : components) {
+        auto& compo = compos[get_index(id)];
         debug_logi(2,
                    "Component type {} id {} name {} location: {} {} {}\n",
                    component_type_names[ordinal(compo.type)],
-                   ordinal(components.get_id(compo)),
+                   ordinal(id),
                    compo.name.sv(),
                    ordinal(compo.reg_path),
                    ordinal(compo.dir),
                    ordinal(compo.file));
-    });
+    }
 
     while (have_unread_component) {
         have_unread_component = false;
 
-        for_each_data(components, [&](auto& compo) {
+        for (auto id : components) {
+            auto& compo = compos[get_index(id)];
             if (compo.type == component_type::internal or
                 compo.state == component_status::unmodified)
-                return;
+                continue;
 
             if (auto ret = load_component(compo); !ret) {
                 if (compo.state == component_status::unread) {
@@ -560,7 +564,7 @@ status modeling::fill_components() noexcept
                             m,
                             "Need to read dependency for component {} ({})",
                             compo.name.sv(),
-                            static_cast<u64>(components.get_id(compo)));
+                            ordinal(id));
                       });
 
                     have_unread_component = true;
@@ -575,18 +579,20 @@ status modeling::fill_components() noexcept
                       });
                 }
             }
-        });
+        }
     }
 
     debug_log("{} components loaded\n", components.size());
-    for_each_data(components, [&](auto& compo) noexcept {
-        debug_logi(2,
-                   "{} {} - ",
-                   ordinal(components.get_id(compo)),
-                   component_type_names[ordinal(compo.type)]);
+    const auto& compo_vec = components.get<component>();
+    for (const auto id : components) {
+        debug_logi(
+          2,
+          "{} {} - ",
+          ordinal(id),
+          component_type_names[ordinal(compo_vec[get_index(id)].type)]);
 
-        debug_component(*this, compo);
-    });
+        debug_component(*this, compo_vec[get_index(id)]);
+    }
 
     debug_log("{} graphs to load\n", graphs.size());
     for (auto& g : graphs) {
@@ -707,7 +713,7 @@ component_id modeling::search_component_by_name(
         file_ptr = search_file(*this, *dir_ptr, file);
 
     if (file_ptr) {
-        if (auto* c = components.try_to_get(file_ptr->component); c)
+        if (auto* c = components.try_to_get<component>(file_ptr->component); c)
             return components.get_id(*c);
     }
 
@@ -844,7 +850,7 @@ void modeling::remove_file(registred_path& reg,
         std::filesystem::remove(*opt, ec);
     }
 
-    if (auto* c = components.try_to_get(file.component)) {
+    if (auto* c = components.try_to_get<component>(file.component)) {
         free(*c);
     }
 }
@@ -879,30 +885,30 @@ void modeling::move_file(registred_path& /*reg*/,
 
 bool modeling::can_alloc_grid_component() const noexcept
 {
-    return components.can_alloc() && grid_components.can_alloc();
+    return components.can_alloc(1) && grid_components.can_alloc();
 }
 
 bool modeling::can_alloc_graph_component() const noexcept
 {
-    return components.can_alloc() && graph_components.can_alloc();
+    return components.can_alloc(1) && graph_components.can_alloc();
 }
 
 bool modeling::can_alloc_generic_component() const noexcept
 {
-    return components.can_alloc() && generic_components.can_alloc();
+    return components.can_alloc(1) && generic_components.can_alloc();
 }
 
 bool modeling::can_alloc_hsm_component() const noexcept
 {
-    return components.can_alloc() && hsm_components.can_alloc();
+    return components.can_alloc(1) && hsm_components.can_alloc();
 }
 
 component& modeling::alloc_grid_component() noexcept
 {
     debug::ensure(can_alloc_grid_component());
 
-    auto& new_compo    = components.alloc();
-    auto  new_compo_id = components.get_id(new_compo);
+    auto  new_compo_id = components.alloc();
+    auto& new_compo    = components.get<component>(new_compo_id);
     format(new_compo.name, "grid {}", get_index(new_compo_id));
     new_compo.type  = component_type::grid;
     new_compo.state = component_status::modified;
@@ -918,8 +924,8 @@ component& modeling::alloc_graph_component() noexcept
 {
     debug::ensure(can_alloc_graph_component());
 
-    auto& new_compo    = components.alloc();
-    auto  new_compo_id = components.get_id(new_compo);
+    auto  new_compo_id = components.alloc();
+    auto& new_compo    = components.get<component>(new_compo_id);
     format(new_compo.name, "graph {}", get_index(new_compo_id));
     new_compo.type  = component_type::graph;
     new_compo.state = component_status::modified;
@@ -934,8 +940,8 @@ component& modeling::alloc_hsm_component() noexcept
 {
     debug::ensure(can_alloc_hsm_component());
 
-    auto& new_compo    = components.alloc();
-    auto  new_compo_id = components.get_id(new_compo);
+    auto  new_compo_id = components.alloc();
+    auto& new_compo    = components.get<component>(new_compo_id);
     format(new_compo.name, "hsm {}", get_index(new_compo_id));
     new_compo.type  = component_type::hsm;
     new_compo.state = component_status::modified;
@@ -953,8 +959,8 @@ component& modeling::alloc_generic_component() noexcept
 {
     debug::ensure(can_alloc_generic_component());
 
-    auto& new_compo    = components.alloc();
-    auto  new_compo_id = components.get_id(new_compo);
+    auto  new_compo_id = components.alloc();
+    auto& new_compo    = components.get<component>(new_compo_id);
     format(new_compo.name, "simple {}", get_index(new_compo_id));
     new_compo.type  = component_type::generic;
     new_compo.state = component_status::modified;
@@ -973,7 +979,7 @@ static bool can_add_component(const modeling&       mod,
     if (c == search)
         return false;
 
-    if (auto* compo = mod.components.try_to_get(c); compo)
+    if (auto* compo = mod.components.try_to_get<component>(c); compo)
         out.emplace_back(c);
 
     return true;
@@ -1042,7 +1048,7 @@ bool modeling::can_add(const component& parent,
         auto id = stack.back();
         stack.pop_back();
 
-        if (auto* compo = components.try_to_get(id); compo) {
+        if (auto* compo = components.try_to_get<component>(id); compo) {
             if (not can_add_component(*this, *compo, stack, parent_id))
                 return false;
         }
@@ -1129,7 +1135,7 @@ void modeling::free(component& compo) noexcept
     if (auto* path = file_paths.try_to_get(compo.file); path)
         file_paths.free(*path);
 
-    components.free(compo);
+    components.free(components.get_id(compo));
 }
 
 child& modeling::alloc(generic_component& parent, component_id id) noexcept
@@ -1267,7 +1273,7 @@ status modeling::copy(const component& src, component& dst) noexcept
 
 void modeling::free(file_path& file) noexcept
 {
-    if (auto* compo = components.try_to_get(file.component); compo)
+    if (auto* compo = components.try_to_get<component>(file.component); compo)
         free(*compo);
 }
 

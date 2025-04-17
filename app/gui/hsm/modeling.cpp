@@ -930,7 +930,7 @@ void hsm_component_editor_data::show_panel(application&   app,
             hsm.machine.flags.set(hsm_t::option::use_source,
                                   hsm.machine.compute_is_using_source());
 
-        if (auto* compo = app.mod.components.try_to_get(m_id)) {
+        if (auto* compo = app.mod.components.try_to_get<component>(m_id)) {
             if (hsm.machine.flags[hsm_t::option::use_source]) {
                 show_combobox_external_sources(compo->srcs, hsm.src);
             } else {

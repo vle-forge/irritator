@@ -1390,7 +1390,7 @@ static std::optional<reg_dir_file> build_component_string(
   const modeling&    mod,
   const component_id id) noexcept
 {
-    if (const auto* compo = mod.components.try_to_get(id)) {
+    if (const auto* compo = mod.components.try_to_get<component>(id)) {
         auto* reg = mod.registred_paths.try_to_get(compo->reg_path);
         if (not reg or reg->path.empty() or reg->name.empty()) {
             warning<msg_id::missing_reg_path>();

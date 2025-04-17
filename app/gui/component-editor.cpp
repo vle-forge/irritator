@@ -650,7 +650,7 @@ struct component_editor::impl {
         if (grid.is_coord_valid(v[0], v[1])) {
             const auto ch_id = grid.children()[selected];
 
-            if (auto* ch = app.mod.components.try_to_get(ch_id)) {
+            if (auto* ch = app.mod.components.try_to_get<component>(ch_id)) {
                 temp = ch->x.exists(p_selected)
                          ? ch->x.get<port_str>(p_selected).sv()
                          : "-";
@@ -743,7 +743,7 @@ struct component_editor::impl {
         if (grid.is_coord_valid(v[0], v[1])) {
             const auto ch_id = grid.children()[selected];
 
-            if (auto* ch = app.mod.components.try_to_get(ch_id)) {
+            if (auto* ch = app.mod.components.try_to_get<component>(ch_id)) {
                 temp = ch->y.exists(p_selected)
                          ? ch->y.get<port_str>(p_selected).sv()
                          : "-";
@@ -822,8 +822,8 @@ struct component_editor::impl {
 
         if (auto* ch = g.children.try_to_get(selected)) {
             if (ch->type == child_type::component) {
-                if (auto* sel_compo =
-                      app.mod.components.try_to_get(ch->id.compo_id)) {
+                if (auto* sel_compo = app.mod.components.try_to_get<component>(
+                      ch->id.compo_id)) {
 
                     temp = sel_compo->x.exists(p_selected)
                              ? sel_compo->x.get<port_str>(p_selected).sv()
@@ -947,8 +947,8 @@ struct component_editor::impl {
 
         if (auto* ch = g.children.try_to_get(selected)) {
             if (ch->type == child_type::component) {
-                if (auto* sel_compo =
-                      app.mod.components.try_to_get(ch->id.compo_id)) {
+                if (auto* sel_compo = app.mod.components.try_to_get<component>(
+                      ch->id.compo_id)) {
 
                     temp = sel_compo->y.exists(p_selected)
                              ? sel_compo->y.get<port_str>(p_selected).sv()
@@ -1072,7 +1072,8 @@ struct component_editor::impl {
         if (is_defined(selected)) {
             const auto sel_compo_id =
               graph.g.node_components[get_index(selected)];
-            if (auto* sel_compo = app.mod.components.try_to_get(sel_compo_id)) {
+            if (auto* sel_compo =
+                  app.mod.components.try_to_get<component>(sel_compo_id)) {
                 temp = sel_compo->x.exists(p_selected)
                          ? sel_compo->x.get<port_str>(p_selected).sv()
                          : "-";
@@ -1152,7 +1153,8 @@ struct component_editor::impl {
         if (is_defined(selected)) {
             const auto sel_compo_id =
               graph.g.node_components[get_index(selected)];
-            if (auto* sel_compo = app.mod.components.try_to_get(sel_compo_id)) {
+            if (auto* sel_compo =
+                  app.mod.components.try_to_get<component>(sel_compo_id)) {
                 temp = sel_compo->y.exists(p_selected)
                          ? sel_compo->y.get<port_str>(p_selected).sv()
                          : "-";
@@ -1224,8 +1226,9 @@ struct component_editor::impl {
 
                 if (auto* child = g.children.try_to_get(con.dst)) {
                     if (child->type == child_type::component) {
-                        if (auto* sub_compo = app.mod.components.try_to_get(
-                              child->id.compo_id)) {
+                        if (auto* sub_compo =
+                              app.mod.components.try_to_get<component>(
+                                child->id.compo_id)) {
                             if (sub_compo->x.exists(con.port.compo)) {
                                 ImGui::TextFormat(
                                   "{} connected to component {} ({}) port {}\n",
@@ -1274,8 +1277,9 @@ struct component_editor::impl {
 
                 if (auto* child = g.children.try_to_get(con.src)) {
                     if (child->type == child_type::component) {
-                        if (auto* sub_compo = app.mod.components.try_to_get(
-                              child->id.compo_id)) {
+                        if (auto* sub_compo =
+                              app.mod.components.try_to_get<component>(
+                                child->id.compo_id)) {
                             if (sub_compo->x.exists(con.port.compo)) {
                                 ImGui::TextFormat(
                                   "{} connected to component {} ({}) port {}\n",
@@ -1331,7 +1335,8 @@ struct component_editor::impl {
                     const auto pos          = g.pos(con.row, con.col);
                     auto       sub_compo_id = g.children()[pos];
                     if (auto* sub_compo =
-                          app.mod.components.try_to_get(sub_compo_id)) {
+                          app.mod.components.try_to_get<component>(
+                            sub_compo_id)) {
                         if (sub_compo->x.exists(con.id)) {
                             ImGui::SetNextItemAllowOverlap();
 
@@ -1373,7 +1378,8 @@ struct component_editor::impl {
                     const auto pos          = g.pos(con.row, con.col);
                     auto       sub_compo_id = g.children()[pos];
                     if (auto* sub_compo =
-                          app.mod.components.try_to_get(sub_compo_id)) {
+                          app.mod.components.try_to_get<component>(
+                            sub_compo_id)) {
                         if (sub_compo->y.exists(con.id)) {
                             ImGui::SetNextItemAllowOverlap();
 
@@ -1418,7 +1424,8 @@ struct component_editor::impl {
                 if (g.g.nodes.exists(con.v)) {
                     auto sub_compo_id = g.g.node_components[get_index(con.v)];
                     if (auto* sub_compo =
-                          app.mod.components.try_to_get(sub_compo_id)) {
+                          app.mod.components.try_to_get<component>(
+                            sub_compo_id)) {
                         if (sub_compo->x.exists(con.id)) {
                             ImGui::SetNextItemAllowOverlap();
 
@@ -1455,7 +1462,8 @@ struct component_editor::impl {
                 if (g.g.nodes.exists(con.v)) {
                     auto sub_compo_id = g.g.node_components[get_index(con.v)];
                     if (auto* sub_compo =
-                          app.mod.components.try_to_get(sub_compo_id)) {
+                          app.mod.components.try_to_get<component>(
+                            sub_compo_id)) {
                         if (sub_compo->y.exists(con.id)) {
                             ImGui::SetNextItemAllowOverlap();
 
@@ -1665,7 +1673,7 @@ struct component_editor::impl {
 
         for (auto& element : data) {
             const auto compo_id = element.get_id();
-            auto&      compo    = app.mod.components.get(compo_id);
+            auto&      compo    = app.mod.components.get<component>(compo_id);
 
             auto tab_item_flags = ImGuiTabItemFlags_None;
             format(ed.title, "{}##{}", compo.name.c_str(), get_index(compo_id));
@@ -1747,8 +1755,8 @@ void component_editor::close(const component_id id) noexcept
 {
     auto& app = container_of(this, &application::component_ed);
 
-    if_data_exists_do(app.mod.components, id, [&](auto& compo) noexcept {
-        switch (compo.type) {
+    if (auto* c = app.mod.components.try_to_get<component>(id)) {
+        switch (c->type) {
         case component_type::generic:
             close_component(app.generics, id);
             break;
@@ -1764,7 +1772,7 @@ void component_editor::close(const component_id id) noexcept
         default:
             break;
         }
-    });
+    }
 }
 
 } // namespace irt

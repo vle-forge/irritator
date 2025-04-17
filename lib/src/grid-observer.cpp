@@ -113,7 +113,7 @@ void grid_observer::init(project& pj, modeling& mod, simulation& sim) noexcept
     values_2nd.clear();
 
     if (auto* tn = pj.tree_nodes.try_to_get(parent_id); tn) {
-        if (auto* compo = mod.components.try_to_get(tn->id);
+        if (auto* compo = mod.components.try_to_get<component>(tn->id);
             compo and compo->type == component_type::grid) {
             if (auto* grid = mod.grid_components.try_to_get(compo->id.grid_id);
                 grid) {

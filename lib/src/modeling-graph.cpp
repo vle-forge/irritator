@@ -116,7 +116,7 @@ static auto build_graph_children(modeling& mod, graph_component& graph) noexcept
         child_id   new_id   = undefined<child_id>();
         const auto compo_id = graph.g.node_components[get_index(node_id)];
 
-        if (auto* c = mod.components.try_to_get(compo_id); c) {
+        if (auto* c = mod.components.try_to_get<component>(compo_id); c) {
             auto& new_ch = graph.cache.alloc(compo_id);
             new_id       = graph.cache.get_id(new_ch);
         }
@@ -502,9 +502,11 @@ static void build_graph_connections(
                             dst and dst->type == child_type::component) {
 
                             const auto* c_src =
-                              mod.components.try_to_get(src->id.compo_id);
+                              mod.components.try_to_get<component>(
+                                src->id.compo_id);
                             const auto* c_dst =
-                              mod.components.try_to_get(dst->id.compo_id);
+                              mod.components.try_to_get<component>(
+                                dst->id.compo_id);
 
                             switch (graph.type) {
                             case graph_component::connection_type::in_out:

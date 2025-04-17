@@ -433,8 +433,8 @@ static void show_grid(application&                app,
             draw_list->AddRectFilled(
               p_min,
               p_max,
-              to_ImU32(app.mod.component_colors[get_index(
-                data.children()[data.pos(row, col)])]));
+              to_ImU32(app.mod.components.get<component_color>(
+                data.children()[data.pos(row, col)])));
         }
     }
 
@@ -451,7 +451,7 @@ static void show_grid(application&                app,
 
         if (0 <= ed.row and ed.row < data.row() and 0 <= ed.col and
             ed.col < data.column())
-            ed.hovered_component = app.mod.components.try_to_get(
+            ed.hovered_component = app.mod.components.try_to_get<component>(
               data.children()[data.pos(ed.row, ed.col)]);
 
         if (ed.hovered_component) {
@@ -555,7 +555,7 @@ void grid_component_editor_data::clear() noexcept
 void grid_component_editor_data::show(component_editor& ed) noexcept
 {
     auto& app   = container_of(&ed, &application::component_ed);
-    auto* compo = app.mod.components.try_to_get(m_id);
+    auto* compo = app.mod.components.try_to_get<component>(m_id);
     auto* grid  = app.mod.grid_components.try_to_get(grid_id);
 
     debug::ensure(compo && grid);
@@ -594,7 +594,7 @@ static void display_input_output_connections(modeling&       mod,
                           compo.x.get<port_str>()[get_index(con.x)].sv();
 
                     auto id = grid.children()[grid.pos(con.row, con.col)];
-                    if (auto* c = mod.components.try_to_get(id); c) {
+                    if (auto* c = mod.components.try_to_get<component>(id); c) {
                         if (c->x.exists(con.id)) {
                             child_port =
                               c->x.get<port_str>()[get_index(con.id)].sv();
@@ -652,7 +652,7 @@ static void display_input_output_connections(modeling&       mod,
                           compo.y.get<port_str>()[get_index(con.y)].sv();
 
                     auto id = grid.children()[grid.pos(con.row, con.col)];
-                    if (auto* c = mod.components.try_to_get(id); c) {
+                    if (auto* c = mod.components.try_to_get<component>(id); c) {
                         if (c->y.exists(con.id)) {
                             child_port =
                               c->y.get<port_str>()[get_index(con.id)].sv();
@@ -694,7 +694,7 @@ void grid_component_editor_data::show_selected_nodes(
 {
     auto& app = container_of(&ed, &application::component_ed);
 
-    if (auto* compo = app.mod.components.try_to_get(m_id);
+    if (auto* compo = app.mod.components.try_to_get<component>(m_id);
         compo and compo->type == component_type::grid) {
         if (auto* grid = app.mod.grid_components.try_to_get(compo->id.grid_id);
             grid) {

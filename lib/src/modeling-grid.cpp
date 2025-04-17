@@ -111,7 +111,7 @@ static auto build_grid_children(modeling& mod, grid_component& grid) noexcept
     for (int i = 0; i != children_nb; ++i) {
         auto id = undefined<child_id>();
 
-        if (mod.components.try_to_get(grid.children()[i])) {
+        if (mod.components.try_to_get<component>(grid.children()[i])) {
             auto& new_ch   = grid.cache.alloc(grid.children()[i]);
             id             = grid.cache.get_id(new_ch);
             const auto idx = get_index(id);
@@ -162,8 +162,10 @@ static void connection_add(modeling&        mod,
     debug::ensure(child_src->type == child_type::component);
     debug::ensure(child_dst->type == child_type::component);
 
-    auto* compo_src = mod.components.try_to_get(child_src->id.compo_id);
-    auto* compo_dst = mod.components.try_to_get(child_dst->id.compo_id);
+    auto* compo_src =
+      mod.components.try_to_get<component>(child_src->id.compo_id);
+    auto* compo_dst =
+      mod.components.try_to_get<component>(child_dst->id.compo_id);
     if (not compo_src or not compo_dst)
         return;
 

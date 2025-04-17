@@ -56,7 +56,7 @@ bool show_external_sources_combo(external_source& srcs,
 static void build_selected_source_label(const source::source_type src_type,
                                         const u64                 src_id,
                                         const external_source&    srcs,
-                                        small_string<63>&         label) noexcept
+                                        small_string<63>& label) noexcept
 {
     switch (src_type) {
     case source::source_type::binary_file: {
@@ -508,7 +508,7 @@ bool show_extented_constant_parameter(const modeling&    mod,
 {
     int ret = false;
 
-    if (const auto* c = mod.components.try_to_get(id)) {
+    if (const auto* c = mod.components.try_to_get<component>(id)) {
         const auto type = enum_cast<constant::init_type>(p.integers[0]);
         const auto port = enum_cast<port_id>(p.integers[1]);
 
@@ -740,13 +740,13 @@ static bool show_parameter(logical_invert_tag,
     return false;
 }
 
-static auto build_default_hsm_name(const modeling& mod,
-                                   parameter&      p) noexcept -> const char*
+static auto build_default_hsm_name(const modeling& mod, parameter& p) noexcept
+  -> const char*
 {
     static constexpr auto undefined_name = "-";
 
-    auto compo =
-      mod.components.try_to_get(enum_cast<component_id>(p.integers[0]));
+    auto compo = mod.components.try_to_get<component>(
+      enum_cast<component_id>(p.integers[0]));
 
     if (compo->type != component_type::hsm) {
         p.integers[0] = 0;
@@ -770,7 +770,10 @@ bool show_extented_hsm_parameter(const modeling& mod, parameter& p) noexcept
         }
         ImGui::PopID();
 
-        for (const auto& c : mod.components) {
+        auto& compo_vec = mod.components.get<component>();
+        for (const auto id : mod.components) {
+            auto& c = compo_vec[get_index(id)];
+
             if (c.type == component_type::hsm) {
                 ImGui::PushID(imgui_id++);
                 const auto c_id = static_cast<i64>(mod.components.get_id(c));

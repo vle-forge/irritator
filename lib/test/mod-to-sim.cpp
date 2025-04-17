@@ -602,8 +602,8 @@ int main()
                 irt::format(
                   file.path, "{}.irt", irt::internal_component_names[i]);
 
-                auto& c    = mod.components.alloc();
-                auto  c_id = mod.components.get_id(c);
+                auto  c_id = mod.components.alloc();
+                auto& c    = mod.components.get<irt::component>(c_id);
                 c.reg_path = reg_id;
                 c.dir      = dir_id;
                 c.file     = file_id;
@@ -614,7 +614,7 @@ int main()
             }
 
             for (int i = 0, e = irt::internal_component_count; i != e; ++i) {
-                auto* c = mod.components.try_to_get(ids[i]);
+                auto* c = mod.components.try_to_get<irt::component>(ids[i]);
                 expect(c != nullptr);
                 expect(!!mod.save(*c));
             }

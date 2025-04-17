@@ -1303,14 +1303,17 @@ public:
     data_array<grid_component, grid_component_id>       grid_components;
     data_array<graph_component, graph_component_id>     graph_components;
     data_array<hsm_component, hsm_component_id>         hsm_components;
-    data_array<component, component_id>                 components;
-    data_array<registred_path, registred_path_id>       registred_paths;
-    data_array<dir_path, dir_path_id>                   dir_paths;
-    data_array<file_path, file_path_id>                 file_paths;
-    data_array<hierarchical_state_machine, hsm_id>      hsms;
-    data_array<graph, graph_id>                         graphs;
 
-    vector<component_color> component_colors;
+    id_data_array<component_id,
+                  allocator<new_delete_memory_resource>,
+                  component,
+                  component_color>
+                                                   components;
+    data_array<registred_path, registred_path_id>  registred_paths;
+    data_array<dir_path, dir_path_id>              dir_paths;
+    data_array<file_path, file_path_id>            file_paths;
+    data_array<hierarchical_state_machine, hsm_id> hsms;
+    data_array<graph, graph_id>                    graphs;
 
     vector<registred_path_id> component_repertories;
 

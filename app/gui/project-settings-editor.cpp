@@ -91,7 +91,7 @@ static tree_node_id show_project_hierarchy(application& app,
 {
     tree_node_id ret = id;
 
-    if (auto* compo = app.mod.components.try_to_get(parent.id); compo) {
+    if (auto* compo = app.mod.components.try_to_get<component>(parent.id)) {
         ImGui::PushID(&parent);
 
         const auto have_children = parent.tree.get_child() != nullptr;
