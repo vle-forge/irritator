@@ -877,16 +877,6 @@ public:
 
     constexpr int  index_from_ptr(const T* data) const noexcept;
     constexpr bool is_iterator_valid(const_iterator it) const noexcept;
-
-private:
-    constexpr bool make(std::integral auto capacity) noexcept;
-    constexpr bool make(std::integral auto capacity,
-                        std::integral auto size) noexcept;
-    constexpr bool make(std::integral auto capacity,
-                        std::integral auto size,
-                        const T&           default_value) noexcept;
-
-    int compute_new_capacity(int new_capacity) const;
 };
 
 template<typename Identifier>
@@ -3652,100 +3642,47 @@ data_array<T, Identifier, A>::end() const noexcept
 //
 
 template<typename T, typename A>
-constexpr bool vector<T, A>::make(std::integral auto capacity) noexcept
-{
-    debug::ensure(std::cmp_greater(capacity, 0));
-    debug::ensure(std::cmp_less(sizeof(T) * capacity,
-                                std::numeric_limits<index_type>::max()));
-
-    if (std::cmp_greater(capacity, 0)) {
-        if (auto* ret = A::allocate(sizeof(T) * capacity)) {
-            m_data     = reinterpret_cast<T*>(ret);
-            m_size     = static_cast<index_type>(0);
-            m_capacity = static_cast<index_type>(capacity);
-        }
-    }
-
-    return m_data != nullptr;
-}
-
-template<typename T, typename A>
-constexpr bool vector<T, A>::make(std::integral auto capacity,
-                                  std::integral auto size) noexcept
-{
-    debug::ensure(std::cmp_greater(capacity, 0));
-    debug::ensure(std::cmp_greater_equal(size, 0));
-    debug::ensure(std::cmp_greater_equal(capacity, size));
-    debug::ensure(std::cmp_less(sizeof(T) * capacity,
-                                std::numeric_limits<index_type>::max()));
-
-    static_assert(std::is_constructible_v<T>,
-                  "T must be nothrow or trivially default constructible");
-
-    if (make(capacity)) {
-        if (std::cmp_greater_equal(size, capacity)) {
-            m_size     = static_cast<index_type>(capacity);
-            m_capacity = static_cast<index_type>(capacity);
-        } else {
-            m_size     = static_cast<index_type>(size);
-            m_capacity = static_cast<index_type>(capacity);
-        }
-
-        std::uninitialized_value_construct_n(m_data, m_size);
-        // std::uninitialized_default_construct_n(m_data, size);
-    }
-
-    return m_data != nullptr;
-}
-
-template<typename T, typename A>
-constexpr bool vector<T, A>::make(std::integral auto capacity,
-                                  std::integral auto size,
-                                  const T&           default_value) noexcept
-{
-    debug::ensure(std::cmp_greater(capacity, 0));
-    debug::ensure(std::cmp_greater_equal(size, 0));
-    debug::ensure(std::cmp_greater_equal(capacity, size));
-    debug::ensure(std::cmp_less(sizeof(T) * capacity,
-                                std::numeric_limits<index_type>::max()));
-
-    static_assert(std::is_copy_constructible_v<T>,
-                  "T must be nothrow or trivially default constructible");
-
-    if (make(capacity)) {
-        if (std::cmp_greater_equal(size, capacity)) {
-            m_size     = static_cast<index_type>(capacity);
-            m_capacity = static_cast<index_type>(capacity);
-        } else {
-            m_size     = static_cast<index_type>(size);
-            m_capacity = static_cast<index_type>(capacity);
-        }
-
-        std::uninitialized_fill_n(m_data, m_size, default_value);
-        // std::uninitialized_default_construct_n(m_data, size);
-    }
-
-    return m_data != nullptr;
-}
-
-template<typename T, typename A>
 inline vector<T, A>::vector(std::integral auto size) noexcept
 {
-    make(size, size);
+    debug::ensure(std::cmp_greater(size, 0));
+    debug::ensure(std::cmp_less(size, std::numeric_limits<index_type>::max()));
+
+    if (T* new_data = reinterpret_cast<T*>(A::allocate(sizeof(T) * size))) {
+        m_data     = new_data;
+        m_size     = static_cast<index_type>(size);
+        m_capacity = static_cast<index_type>(size);
+
+        std::uninitialized_fill_n(data(), m_size, T{});
+    }
 }
 
 template<typename T, typename A>
-inline vector<T, A>::vector(std::integral auto capacity,
-                            const reserve_tag) noexcept
+inline vector<T, A>::vector(std::integral auto size, const reserve_tag) noexcept
 {
-    make(capacity);
+    debug::ensure(std::cmp_greater(size, 0));
+    debug::ensure(std::cmp_less(size, std::numeric_limits<index_type>::max()));
+
+    if (T* new_data = reinterpret_cast<T*>(A::allocate(sizeof(T) * size))) {
+        m_data     = new_data;
+        m_size     = static_cast<index_type>(0);
+        m_capacity = static_cast<index_type>(size);
+    }
 }
 
 template<typename T, typename A>
 inline vector<T, A>::vector(std::integral auto size,
                             const_reference    value) noexcept
 {
-    make(size, size, value);
+    debug::ensure(std::cmp_greater(size, 0));
+    debug::ensure(std::cmp_less(size, std::numeric_limits<index_type>::max()));
+
+    if (T* new_data = reinterpret_cast<T*>(A::allocate(sizeof(T) * size))) {
+        m_data     = new_data;
+        m_size     = static_cast<index_type>(size);
+        m_capacity = static_cast<index_type>(size);
+
+        std::uninitialized_fill_n(data(), m_size, value);
+    }
 }
 
 template<typename T, typename A>
@@ -3753,7 +3690,18 @@ inline vector<T, A>::vector(std::integral auto capacity,
                             std::integral auto size,
                             const T&           default_value) noexcept
 {
-    make(capacity, size, default_value);
+    debug::ensure(std::cmp_greater(capacity, 0));
+    debug::ensure(
+      std::cmp_less(capacity, std::numeric_limits<index_type>::max()));
+    debug::ensure(std::cmp_less_equal(size, capacity));
+
+    if (T* new_data = reinterpret_cast<T*>(A::allocate(sizeof(T) * capacity))) {
+        m_data     = new_data;
+        m_size     = static_cast<index_type>(std::min(size, capacity));
+        m_capacity = static_cast<index_type>(std::max(size, capacity));
+
+        std::uninitialized_fill_n(data(), m_size, default_value);
+    }
 }
 
 template<typename T, typename A>
@@ -3869,7 +3817,7 @@ constexpr typename vector<T, A>::iterator vector<T, A>::insert(
         std::construct_at(begin() + distance, std::move(value));
         ++m_size;
     } else {
-        const auto new_capacity = compute_new_capacity(m_capacity * 2);
+        const auto new_capacity = m_capacity == 0 ? 16u : m_capacity * 2;
         if (auto* ret = A::allocate(sizeof(T) * new_capacity)) {
             auto new_data = reinterpret_cast<T*>(ret);
             std::uninitialized_move_n(m_data, distance, new_data);
@@ -3905,7 +3853,7 @@ constexpr typename vector<T, A>::iterator vector<T, A>::insert(
         std::construct_at(begin() + distance, std::move(value));
         ++m_size;
     } else {
-        const auto new_capacity = compute_new_capacity(m_capacity * 2);
+        const auto new_capacity = m_capacity == 0 ? 16u : m_capacity * 2;
         if (auto* ret = A::allocate(sizeof(T) * new_capacity)) {
             auto new_data = reinterpret_cast<T*>(ret);
             std::uninitialized_move_n(m_data, distance, new_data);
@@ -3969,7 +3917,7 @@ bool vector<T, A>::resize(std::integral auto size) noexcept
         std::destroy_n(data() + size, m_size - size);
     } else {
         if (std::cmp_greater(size, m_capacity)) {
-            if (!reserve(compute_new_capacity(static_cast<index_type>(size))))
+            if (!reserve(size))
                 return false;
         }
 
@@ -3999,7 +3947,7 @@ bool vector<T, A>::resize(std::integral auto size,
         std::destroy_n(data() + size, m_size - size);
     } else {
         if (std::cmp_greater(size, m_capacity)) {
-            if (!reserve(compute_new_capacity(static_cast<index_type>(size))))
+            if (!reserve(size))
                 return false;
         }
 
@@ -4209,10 +4157,10 @@ inline constexpr typename vector<T, A>::reference vector<T, A>::emplace_back(
                   "T must but trivially or nothrow constructible from this "
                   "argument(s)");
 
-    if (m_size >= m_capacity) {
-        reserve(compute_new_capacity(m_size + 1));
-        fatal::ensure(can_alloc(1));
-    }
+    if (m_size >= m_capacity)
+        grow<2, 1>();
+
+    fatal::ensure(can_alloc(1));
 
     std::construct_at(data() + m_size, std::forward<Args>(args)...);
 
@@ -4225,10 +4173,10 @@ template<typename T, typename A>
 inline constexpr typename vector<T, A>::reference vector<T, A>::push_back(
   const T& arg) noexcept
 {
-    if (m_size >= m_capacity) {
-        reserve(compute_new_capacity(m_size + 1));
-        fatal::ensure(can_alloc(1));
-    }
+    if (m_size >= m_capacity)
+        grow<2, 1>();
+
+    fatal::ensure(can_alloc(1));
 
     std::construct_at(data() + m_size, arg);
 
@@ -4349,13 +4297,6 @@ inline constexpr bool vector<T, A>::is_iterator_valid(
   const_iterator it) const noexcept
 {
     return it >= m_data && it < m_data + m_size;
-}
-
-template<typename T, typename A>
-int vector<T, A>::compute_new_capacity(int size) const
-{
-    int new_capacity = m_capacity ? (m_capacity + m_capacity / 2) : 8;
-    return new_capacity > size ? new_capacity : size;
 }
 
 //

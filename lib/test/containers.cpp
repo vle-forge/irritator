@@ -1002,7 +1002,7 @@ int main()
 
         pos.emplace_back(4.f, 0.f);
         expect((pos.size() == 5) >> fatal);
-        expect((pos.capacity() == 4 + 4 / 2));
+        expect((pos.capacity() == 4 * 2));
     };
 
     "table"_test = [] {
