@@ -277,7 +277,7 @@ status generic_component::import(
 bool generic_component::exists_child(const std::string_view str) const noexcept
 {
     for (const auto& c : children)
-        if (children_names[get_index(children.get_id(c))].sv() == str)
+        if (children_names[children.get_id(c)].sv() == str)
             return true;
 
     return false;

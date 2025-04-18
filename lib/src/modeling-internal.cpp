@@ -75,7 +75,7 @@ static status add_integrator_component_port(component&         dst,
     irt_check(com.connect_output(
       y_port_id, com.children.get(id), connection::port{ .model = 0 }));
 
-    com.children_names[get_index(id)] = com.make_unique_name_id(id);
+    com.children_names[id] = com.make_unique_name_id(id);
 
     return success();
 }

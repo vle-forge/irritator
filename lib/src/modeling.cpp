@@ -535,7 +535,7 @@ status modeling::fill_components() noexcept
 
     auto& compos = components.get<component>();
     for (auto id : components) {
-        auto& compo = compos[get_index(id)];
+        auto& compo = compos[id];
         debug_logi(2,
                    "Component type {} id {} name {} location: {} {} {}\n",
                    component_type_names[ordinal(compo.type)],
@@ -550,7 +550,7 @@ status modeling::fill_components() noexcept
         have_unread_component = false;
 
         for (auto id : components) {
-            auto& compo = compos[get_index(id)];
+            auto& compo = compos[id];
             if (compo.type == component_type::internal or
                 compo.state == component_status::unmodified)
                 continue;
@@ -589,9 +589,9 @@ status modeling::fill_components() noexcept
           2,
           "{} {} - ",
           ordinal(id),
-          component_type_names[ordinal(compo_vec[get_index(id)].type)]);
+          component_type_names[ordinal(compo_vec[id].type)]);
 
-        debug_component(*this, compo_vec[get_index(id)]);
+        debug_component(*this, compo_vec[id]);
     }
 
     debug_log("{} graphs to load\n", graphs.size());
@@ -1006,7 +1006,7 @@ static bool can_add_component(const modeling&       mod,
             for (const auto edge_id : g->g.nodes)
                 if (not can_add_component(
                       mod,
-                      g->g.node_components[get_index(edge_id)],
+                      g->g.node_components[edge_id],
                       out,
                       search))
                     return false;
@@ -1325,7 +1325,7 @@ status modeling::save(component& c) noexcept
         p.replace_extension(".desc");
         std::ofstream ofs{ p };
 
-        auto& str = descriptions.get<0>()[get_index(c.desc)];
+        auto& str = descriptions.get<0>()[c.desc];
         ofs.write(str.c_str(), str.size());
     }
 

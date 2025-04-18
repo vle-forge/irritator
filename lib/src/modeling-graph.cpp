@@ -84,7 +84,7 @@ struct local_rng {
 bool graph_component::exists_child(const std::string_view name) const noexcept
 {
     for (const auto id : g.nodes)
-        if (g.node_names[get_index(id)] == name)
+        if (g.node_names[id] == name)
             return true;
 
     return false;
@@ -98,7 +98,7 @@ name_str graph_component::make_unique_name_id(
     name_str ret;
 
     if (g_type == graph_type::dot_file) {
-        format(ret, "{}", g.node_names[get_index(v)]);
+        format(ret, "{}", g.node_names[v]);
     } else {
         format(ret, "{}", get_index(v));
     }
@@ -114,7 +114,7 @@ static auto build_graph_children(modeling& mod, graph_component& graph) noexcept
 
     for (const auto node_id : graph.g.nodes) {
         child_id   new_id   = undefined<child_id>();
-        const auto compo_id = graph.g.node_components[get_index(node_id)];
+        const auto compo_id = graph.g.node_components[node_id];
 
         if (auto* c = mod.components.try_to_get<component>(compo_id); c) {
             auto& new_ch = graph.cache.alloc(compo_id);
@@ -128,12 +128,12 @@ static auto build_graph_children(modeling& mod, graph_component& graph) noexcept
 
     if (graph.g_type == graph_component::graph_type::dot_file) {
         for (const auto x : tr.data) {
-            graph.cache_names[get_index(x.value)] =
-              graph.g.node_names[get_index(x.id)];
+            graph.cache_names[x.value] =
+              graph.g.node_names[x.id];
         }
     } else {
         for (const auto x : tr.data) {
-            graph.cache_names[get_index(x.value)] =
+            graph.cache_names[x.value] =
               graph.make_unique_name_id(x.id);
         }
     }

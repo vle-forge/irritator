@@ -781,7 +781,7 @@ struct component {
     {
         const auto& vec_name = x.get<port_str>();
         for (const auto elem : x)
-            if (str == vec_name[get_index(elem)].sv())
+            if (str == vec_name[elem].sv())
                 return elem;
 
         return undefined<port_id>();
@@ -791,7 +791,7 @@ struct component {
     {
         const auto& vec_name = y.get<port_str>();
         for (const auto elem : y)
-            if (str == vec_name[get_index(elem)].sv())
+            if (str == vec_name[elem].sv())
                 return elem;
 
         return undefined<port_id>();
@@ -1024,12 +1024,12 @@ struct tree_node {
 
     bool is_model(const child_id id) const noexcept
     {
-        return children[get_index(id)].type == child_node::type::model;
+        return children[id].type == child_node::type::model;
     }
 
     bool is_tree_node(const child_id id) const noexcept
     {
-        return children[get_index(id)].type == child_node::type::tree_node;
+        return children[id].type == child_node::type::tree_node;
     }
 
     /// A unique identifier provided by component parent.

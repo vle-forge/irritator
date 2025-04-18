@@ -6066,7 +6066,7 @@ status simulation::make_initialize(model& mdl, Dynamics& dyn, time t) noexcept
         }
     }
 
-    parameters[get_index(models.get_id(mdl))].copy_to(mdl);
+    parameters[models.get_id(mdl)].copy_to(mdl);
 
     if constexpr (has_initialize_function<Dynamics>)
         irt_check(dyn.initialize(*this));
@@ -6428,7 +6428,7 @@ Dynamics& simulation::alloc() noexcept
     mdl.type   = dynamics_typeof<Dynamics>();
     mdl.handle = invalid_heap_handle;
 
-    parameters[get_index(models.get_id(mdl))].init_from(mdl.type);
+    parameters[models.get_id(mdl)].init_from(mdl.type);
 
     std::construct_at(reinterpret_cast<Dynamics*>(&mdl.dyn));
     auto& dyn = get_dyn<Dynamics>(mdl);
@@ -6460,8 +6460,7 @@ inline model& simulation::clone(const model& mdl) noexcept
         const auto& src_dyn = get_dyn<Dynamics>(mdl);
         std::construct_at(&dyn, src_dyn);
 
-        parameters[get_index(models.get_id(new_mdl))] =
-          parameters[get_index(models.get_id(mdl))];
+        parameters[models.get_id(new_mdl)] = parameters[models.get_id(mdl)];
 
         if constexpr (has_input_port<Dynamics>)
             for (int i = 0, e = length(dyn.x); i != e; ++i)

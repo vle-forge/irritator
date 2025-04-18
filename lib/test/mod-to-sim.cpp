@@ -776,7 +776,7 @@ int main()
             // ordinal(p31_id);
 
             const auto ch5_id = s3.children.get_id(ch5);
-            auto&      p_ch5  = s3.children_parameters[get_index(ch5_id)];
+            auto&      p_ch5  = s3.children_parameters[ch5_id];
             p_ch5.reals[0]    = 0.0;
             p_ch5.integers[0] =
               ordinal(irt::constant::init_type::incoming_component_n);
@@ -851,7 +851,7 @@ int main()
         auto& ch5 = mod.alloc(s3, irt::dynamics_type::constant);
 
         const auto ch5_id = s3.children.get_id(ch5);
-        auto&      p_ch5  = s3.children_parameters[get_index(ch5_id)];
+        auto&      p_ch5  = s3.children_parameters[ch5_id];
         p_ch5.reals[0]    = 0.0;
         p_ch5.integers[0] =
           ordinal(irt::constant::init_type::incoming_component_n);

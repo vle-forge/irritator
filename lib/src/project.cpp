@@ -324,7 +324,7 @@ static auto make_tree_hsm_leaf(simulation_copy&   sc,
     debug::ensure(sc.mod.hsm_components.try_to_get(hsm_id));
     const auto* shsm = sc.hsm_mod_to_sim.get(hsm_id);
     dyn.id           = get_index(*shsm);
-    sc.pj.sim.parameters[get_index(new_mdl_id)].integers[0] =
+    sc.pj.sim.parameters[new_mdl_id].integers[0] =
       static_cast<i32>(get_index(*shsm));
     dyn.exec.i1 =
       static_cast<i32>(gen.children_parameters[child_index].integers[1]);
@@ -432,16 +432,16 @@ static auto make_tree_leaf(simulation_copy&       sc,
               for (int i = 0, e = length(dyn.y); i != e; ++i)
                   dyn.y[i] = undefined<block_node_id>();
 
-          sc.pj.sim.parameters[get_index(new_mdl_id)] =
+          sc.pj.sim.parameters[new_mdl_id] =
             gen.children_parameters[ch_idx];
 
           if (auto* compo = sc.srcs_mod_to_sim.get(parent.id)) {
               convert_source(std::span(compo->data(), compo->size()),
                              new_mdl.type,
-                             sc.pj.sim.parameters[get_index(new_mdl_id)]);
+                             sc.pj.sim.parameters[new_mdl_id]);
           }
 
-          sc.pj.sim.parameters[get_index(new_mdl_id)].copy_to(new_mdl);
+          sc.pj.sim.parameters[new_mdl_id].copy_to(new_mdl);
 
           if constexpr (std::is_same_v<Dynamics, hsm_wrapper>) {
               irt_check(make_tree_hsm_leaf(sc, gen, ch_id, new_mdl_id, dyn));
@@ -489,7 +489,7 @@ static status make_tree_recursive(simulation_copy&   sc,
                 if (not tn_id.has_value())
                     return tn_id.error();
 
-                new_tree.children[get_index(child_id)].set(
+                new_tree.children[child_id].set(
                   sc.tree_nodes.try_to_get(*tn_id));
             }
         } else {
@@ -505,7 +505,7 @@ static status make_tree_recursive(simulation_copy&   sc,
             if (not mdl_id)
                 return mdl_id.error();
 
-            new_tree.children[get_index(child_id)].set(
+            new_tree.children[child_id].set(
               sc.pj.sim.models.try_to_get(*mdl_id));
         }
     }
@@ -537,11 +537,11 @@ static status make_tree_recursive(simulation_copy& sc,
                   sc,
                   new_tree,
                   *compo,
-                  src.cache_names[get_index(child_id)].sv());
+                  src.cache_names[child_id].sv());
                 if (not tn_id)
                     return tn_id.error();
 
-                new_tree.children[get_index(child_id)].set(
+                new_tree.children[child_id].set(
                   sc.tree_nodes.try_to_get(*tn_id));
             }
         }
@@ -574,12 +574,12 @@ static status make_tree_recursive(simulation_copy& sc,
                   sc,
                   new_tree,
                   *compo,
-                  src.cache_names[get_index(child_id)].sv());
+                  src.cache_names[child_id].sv());
 
                 if (not tn_id.has_value())
                     return tn_id.error();
 
-                new_tree.children[get_index(child_id)].set(
+                new_tree.children[child_id].set(
                   sc.tree_nodes.try_to_get(*tn_id));
             }
         }
@@ -772,14 +772,14 @@ static void get_input_models(vector<model_port>&      inputs,
             continue;
 
         if (child->type == child_type::model) {
-            debug::ensure(tn.children[get_index(con.dst)].mdl);
+            debug::ensure(tn.children[con.dst].mdl);
 
-            inputs.emplace_back(tn.children[get_index(con.dst)].mdl,
+            inputs.emplace_back(tn.children[con.dst].mdl,
                                 con.port.model);
         } else {
-            debug::ensure(tn.children[get_index(con.dst)].tn);
+            debug::ensure(tn.children[con.dst].tn);
             get_input_models(
-              inputs, mod, *tn.children[get_index(con.dst)].tn, con.port.compo);
+              inputs, mod, *tn.children[con.dst].tn, con.port.compo);
         }
     }
 }
@@ -875,15 +875,15 @@ static void get_output_models(vector<model_port>&      outputs,
             continue;
 
         if (child->type == child_type::model) {
-            debug::ensure(tn.children[get_index(con.src)].mdl);
+            debug::ensure(tn.children[con.src].mdl);
 
-            outputs.emplace_back(tn.children[get_index(con.src)].mdl,
+            outputs.emplace_back(tn.children[con.src].mdl,
                                  con.port.model);
         } else {
-            debug::ensure(tn.children[get_index(con.src)].tn);
+            debug::ensure(tn.children[con.src].tn);
             get_output_models(outputs,
                               mod,
-                              *tn.children[get_index(con.src)].tn,
+                              *tn.children[con.src].tn,
                               con.port.compo);
         }
     }

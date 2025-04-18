@@ -1308,8 +1308,8 @@ expected<graph_edge_id> graph::alloc_edge(graph_node_id src,
                                           graph_node_id dst) noexcept
 {
     for (auto id : edges)
-        if (edges_nodes[get_index(id)][0].first == src and
-            edges_nodes[get_index(id)][1].first == dst)
+        if (edges_nodes[id][0].first == src and
+            edges_nodes[id][1].first == dst)
             return new_error(modeling_errc::graph_connection_already_exist);
 
     if (not edges.can_alloc(1)) {
@@ -1321,10 +1321,10 @@ expected<graph_edge_id> graph::alloc_edge(graph_node_id src,
     }
 
     const auto id                        = edges.alloc();
-    edges_nodes[get_index(id)][0].first  = src;
-    edges_nodes[get_index(id)][1].first  = dst;
-    edges_nodes[get_index(id)][0].second = std::string_view();
-    edges_nodes[get_index(id)][1].second = std::string_view();
+    edges_nodes[id][0].first  = src;
+    edges_nodes[id][1].first  = dst;
+    edges_nodes[id][0].second = std::string_view();
+    edges_nodes[id][1].second = std::string_view();
     return id;
 }
 

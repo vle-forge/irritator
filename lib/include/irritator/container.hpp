@@ -920,6 +920,9 @@ public:
     constexpr reference       back() noexcept;
     constexpr const_reference back() const noexcept;
 
+    constexpr reference       operator[](identifier auto id) noexcept;
+    constexpr const_reference operator[](identifier auto id) const noexcept;
+
     constexpr reference       operator[](std::integral auto index) noexcept;
     constexpr const_reference operator[](
       std::integral auto index) const noexcept;
@@ -1066,8 +1069,8 @@ public:
     constexpr void free(const Identifier id) noexcept;
 
     /**
-     * Make @a size() and @a max_used() returns @a 0 and assign @a none to free
-     * list. This function does not change the @a capacity() nor the @a
+     * Make @a size() and @a max_used() returns @a 0 and assign @a none to
+     * free list. This function does not change the @a capacity() nor the @a
      * next_key().
      */
     constexpr void clear() noexcept;
@@ -1079,9 +1082,9 @@ public:
     constexpr void destroy() noexcept;
 
     /**
-     * Use @a reserve function with a @a factor to grow the capacity. If the @a
-     * capacity equals zero, default size is @a 8 otherwise, the capactiy will
-     * be @a capacity() multiples @a grow_factor.
+     * Use @a reserve function with a @a factor to grow the capacity. If the
+     * @a capacity equals zero, default size is @a 8 otherwise, the capactiy
+     * will be @a capacity() multiples @a grow_factor.
      * @param grow_factor The growing factor.
      * @return true is success, false otherwise.
      */
@@ -1231,7 +1234,8 @@ public:
 };
 
 /**
-   An optimized SOA structure to store unique identifier and mutiples vector.
+   An optimized SOA structure to store unique identifier and mutiples
+   vector.
 
    A container to handle only identifier.
    - linear memory/iteration
@@ -1295,8 +1299,8 @@ class id_data_array
     using value_type      = Identifier;
     using allocator_type  = A;
 
-    id_array<identifier_type, A> m_ids;
-    std::tuple<Ts*...>           m_col;
+    id_array<identifier_type, A>   m_ids;
+    std::tuple<buffer_view<Ts>...> m_col;
 
 private:
     template<typename Function, std::size_t... Is>
@@ -1304,9 +1308,7 @@ private:
                     const identifier_type id,
                     std::index_sequence<Is...>) noexcept
     {
-        const auto idx = get_index(id);
-
-        fn(id, std::get<Is>(m_col)[(idx)]...);
+        fn(id, std::get<Is>(m_col)[id]...);
     }
 
     template<typename Function, std::size_t... Is>
@@ -1314,9 +1316,7 @@ private:
                     const identifier_type id,
                     std::index_sequence<Is...>) const noexcept
     {
-        const auto idx = get_index(id);
-
-        fn(id, std::get<Is>(m_col)[(idx)]...);
+        fn(id, std::get<Is>(m_col)[id]...);
     }
 
     template<typename Function, std::size_t... Is>
@@ -1324,18 +1324,17 @@ private:
                           const identifier_type id,
                           std::index_sequence<Is...>) noexcept
     {
-        const auto idx = get_index(id);
-
-        fn(id, std::get<Is>(m_col)[(idx)]...);
+        fn(id, std::get<Is>(m_col)[id]...);
     }
 
     template<typename T>
-    void do_construct(T* ptr, const std::integral auto len) noexcept
+    void do_construct(buffer_view<T>&          buffer,
+                      const std::integral auto len) noexcept
     {
-        debug::ensure(ptr);
+        debug::ensure(buffer.get());
         debug::ensure(len > 0);
 
-        std::uninitialized_default_construct_n(ptr, len);
+        std::uninitialized_default_construct_n(buffer.get(), len);
     }
 
     template<std::size_t... Is>
@@ -1348,17 +1347,18 @@ private:
     }
 
     template<typename T>
-    void do_alloc(T*& ptr, const std::integral auto len) noexcept
+    void do_alloc(buffer_view<T>& buffer, const std::integral auto len) noexcept
     {
-        debug::ensure(ptr == nullptr);
+        debug::ensure(buffer.get() == nullptr);
         debug::ensure(len > 0);
 
-        ptr = reinterpret_cast<T*>(A::allocate(sizeof(T) * len));
+        buffer.reset(
+          reinterpret_cast<std::byte*>(A::allocate(sizeof(T) * len)));
     }
 
     /**
-     * Allocate a uninitialised buffer for each element in the @a std::tuple @a
-     * m_col.
+     * Allocate a uninitialised buffer for each element in the @a std::tuple
+     * @a m_col.
      */
     template<std::size_t... Is>
     void do_alloc(const std::integral auto len,
@@ -1370,19 +1370,19 @@ private:
     }
 
     template<typename T>
-    void do_destroy(const std::integral auto len, T*& ptr) noexcept
+    void do_destroy(const std::integral auto len,
+                    buffer_view<T>&          buffer) noexcept
     {
-        if (ptr) {
-            std::destroy_n(ptr, len);
-            A::deallocate(ptr, sizeof(T) * len);
+        if (buffer.get()) {
+            std::destroy_n(buffer.get(), len);
+            A::deallocate(buffer.get(), sizeof(T) * len);
+            buffer.reset(nullptr);
         }
-
-        ptr = nullptr;
     }
 
     /**
-     * Destroy all objects for each element in the @a std::tuple @a m_col and
-     * deallocate the memory used.
+     * Destroy all objects for each element in the @a std::tuple @a m_col
+     * and deallocate the memory used.
      */
     template<std::size_t... Is>
     void do_destroy(const std::integral auto len,
@@ -1392,13 +1392,13 @@ private:
     }
 
     template<typename T>
-    void do_uninitialised_copy(const T*           src,
-                               T*                 dst,
-                               std::integral auto len) noexcept
+    void do_uninitialised_copy(const buffer_view<T>& src,
+                               buffer_view<T>&       dst,
+                               std::integral auto    len) noexcept
     {
-        debug::ensure(src and dst);
+        debug::ensure(src.get() and dst.get());
 
-        std::uninitialized_copy_n(src, len, dst);
+        std::uninitialized_copy_n(src.get(), len, dst.get());
     }
 
     template<std::size_t... Is>
@@ -1418,29 +1418,31 @@ private:
     template<std::size_t... Is>
     void do_reset(auto& other_m_col, std::index_sequence<Is...>) noexcept
     {
-        ((std::get<Is>(other_m_col) = nullptr), ...);
+        ((std::get<Is>(other_m_col).reset(nullptr)), ...);
     }
 
     template<typename T>
     void do_resize(std::integral auto old,
                    std::integral auto req,
-                   T*&                ptr) noexcept
+                   buffer_view<T>&    buffer) noexcept
     {
-        auto* new_ptr = reinterpret_cast<T*>(A::allocate(sizeof(T) * req));
+        auto* ptr = reinterpret_cast<std::byte*>(A::allocate(sizeof(T) * req));
+        auto* new_ptr = reinterpret_cast<T*>(ptr);
 
-        if (ptr) {
+        if (buffer.get()) {
             if constexpr (std::is_trivially_copy_constructible_v<T>) {
-                std::uninitialized_copy_n(ptr, old, new_ptr);
+                std::uninitialized_copy_n(buffer.get(), old, new_ptr);
             } else if constexpr (std::is_trivially_move_constructible_v<T>) {
-                std::uninitialized_move_n(ptr, old, new_ptr);
+                std::uninitialized_move_n(buffer.get(), old, new_ptr);
             } else {
-                std::uninitialized_copy_n(ptr, old, new_ptr);
+                std::uninitialized_copy_n(buffer.get(), old, new_ptr);
             }
-            A::deallocate(ptr, sizeof(T) * old);
+            A::deallocate(buffer.get(), sizeof(T) * old);
+            buffer.reset(nullptr);
         }
 
         std::uninitialized_value_construct_n(new_ptr + old, req - old);
-        ptr = new_ptr;
+        buffer.reset(ptr);
     }
 
     template<std::size_t... Is>
@@ -1449,7 +1451,7 @@ private:
                    std::index_sequence<Is...>) noexcept
     {
         (do_resize(old, req, std::get<Is>(m_col)), ...);
-        return ((std::get<Is>(m_col) != nullptr) and ... and true);
+        return ((std::get<Is>(m_col).get() != nullptr) and ... and true);
     }
 
 public:
@@ -1547,10 +1549,20 @@ public:
     template<typename Type>
     auto* try_to_get(const identifier_type id) const noexcept;
 
+    /** Get the underlying object at position @c id @c vector in @c
+     * tuple using an index. (read @c std::get). */
+    template<std::size_t Index>
+    auto* try_to_get(const identifier_type id) noexcept;
+
+    /** Get the underlying object at position @c id in @c vector in @c
+     * tuple using a type (read @c std::get). */
+    template<typename Type>
+    auto* try_to_get(const identifier_type id) noexcept;
+
     //! Call the @c fn function if @c id is valid.
     //!
     //! The function take one value from Index (integer or type).
-    template<typename Index, typename Function>
+    template<typename Type, typename Function>
     void if_exists_do(const identifier_type id, Function&& fn) noexcept;
 
     //! Call the @c fn function if @c id is valid.
@@ -1571,7 +1583,7 @@ public:
     void for_each_id(Function&& fn) const noexcept;
 
     //! Call the @c fn function for each valid identifier.
-    template<typename Index, typename Function>
+    template<typename Type, typename Function>
     void for_each(Function&& fn) noexcept;
 
     //! Call the @c fn function for each valid identifier.
@@ -2226,6 +2238,8 @@ public:
     constexpr T*       data() noexcept;
     constexpr const T* data() const noexcept;
 
+    constexpr reference       operator[](identifier auto id) noexcept;
+    constexpr const_reference operator[](identifier auto id) const noexcept;
     constexpr reference       operator[](std::integral auto index) noexcept;
     constexpr const_reference operator[](
       std::integral auto index) const noexcept;
@@ -3013,7 +3027,7 @@ template<typename Identifier, typename A, class... Ts>
 template<typename Type>
 auto& id_data_array<Identifier, A, Ts...>::get() noexcept
 {
-    return std::get<Type*>(m_col);
+    return std::get<buffer_view<Type>>(m_col);
 }
 
 template<typename Identifier, typename A, class... Ts>
@@ -3033,7 +3047,7 @@ auto& id_data_array<Identifier, A, Ts...>::get(
 {
     debug::ensure(m_ids.exists(id));
 
-    return std::get<Type*>(m_col)[get_index(id)];
+    return std::get<buffer_view<Type>>(m_col)[get_index(id)];
 }
 
 template<typename Identifier, typename A, class... Ts>
@@ -3047,7 +3061,7 @@ template<typename Identifier, typename A, class... Ts>
 template<typename Type>
 auto& id_data_array<Identifier, A, Ts...>::get() const noexcept
 {
-    return std::get<Type*>(m_col);
+    return std::get<buffer_view<Type>>(m_col);
 }
 
 template<typename Identifier, typename A, class... Ts>
@@ -3067,7 +3081,7 @@ auto& id_data_array<Identifier, A, Ts...>::get(
 {
     debug::ensure(m_ids.exists(id));
 
-    return std::get<Type*>(m_col)[get_index(id)];
+    return std::get<buffer_view<Type>>(m_col)[get_index(id)];
 }
 
 template<typename Identifier, typename A, class... Ts>
@@ -3076,7 +3090,7 @@ typename id_data_array<Identifier, A, Ts...>::identifier_type
 id_data_array<Identifier, A, Ts...>::get_id(const Type& t) const noexcept
 {
     const auto* ptr   = &t;
-    const auto* start = &(std::get<Type*>(m_col)[0]);
+    const auto* start = std::get<buffer_view<Type>>(m_col).get();
     const auto* last  = start + m_ids.size();
 
     fatal::ensure(start <= ptr and ptr < last);
@@ -3102,25 +3116,45 @@ auto* id_data_array<Identifier, A, Ts...>::try_to_get(
   const identifier_type id) const noexcept
 {
     return m_ids.exists(id)
-             ? std::addressof(std::get<Type*>(m_col)[get_index(id)])
+             ? std::addressof(std::get<buffer_view<Type>>(m_col)[get_index(id)])
              : nullptr;
 }
 
 template<typename Identifier, typename A, class... Ts>
-template<typename Index, typename Function>
+template<std::size_t Index>
+auto* id_data_array<Identifier, A, Ts...>::try_to_get(
+  const identifier_type id) noexcept
+{
+    return m_ids.exists(id)
+             ? std::addressof(std::get<Index>(m_col)[get_index(id)])
+             : nullptr;
+}
+
+template<typename Identifier, typename A, class... Ts>
+template<typename Type>
+auto* id_data_array<Identifier, A, Ts...>::try_to_get(
+  const identifier_type id) noexcept
+{
+    return m_ids.exists(id)
+             ? std::addressof(std::get<buffer_view<Type>>(m_col)[get_index(id)])
+             : nullptr;
+}
+
+template<typename Identifier, typename A, class... Ts>
+template<typename Type, typename Function>
 void id_data_array<Identifier, A, Ts...>::if_exists_do(const identifier_type id,
                                                        Function&& fn) noexcept
 {
     if (m_ids.exists(id))
-        fn(id, std::get<Index*>(m_col)[get_index(id)]);
+        fn(id, std::get<buffer_view<Type>>(m_col)[get_index(id)]);
 }
 
 template<typename Identifier, typename A, class... Ts>
-template<typename Index, typename Function>
+template<typename Type, typename Function>
 void id_data_array<Identifier, A, Ts...>::for_each(Function&& fn) noexcept
 {
     for (const auto id : m_ids)
-        fn(id, std::get<Index*>(m_col)[get_index(id)]);
+        fn(id, std::get<buffer_view<Type>>(m_col)[get_index(id)]);
 }
 
 template<typename Identifier, typename A, class... Ts>
@@ -3132,16 +3166,11 @@ void id_data_array<Identifier, A, Ts...>::for_each(Function&& fn) noexcept
 }
 
 template<typename Identifier, typename A, class... Ts>
-template<typename Index, typename Function>
+template<typename Type, typename Function>
 void id_data_array<Identifier, A, Ts...>::for_each(Function&& fn) const noexcept
 {
-    if constexpr (std::is_integral_v<Index>) {
-        for (const auto id : m_ids)
-            fn(id, std::get<Index>(m_col)[get_index(id)]);
-    } else {
-        for (const auto id : m_ids)
-            fn(id, std::get<Index*>(m_col)[get_index(id)]);
-    }
+    for (const auto id : m_ids)
+        fn(id, std::get<buffer_view<Type>>(m_col)[get_index(id)]);
 }
 
 template<typename Identifier, typename A, class... Ts>
@@ -4166,6 +4195,20 @@ inline constexpr typename vector<T, A>::const_reference vector<T, A>::back()
 }
 
 template<typename T, typename A>
+inline constexpr typename vector<T, A>::const_reference
+vector<T, A>::operator[](identifier auto id) const noexcept
+{
+    return operator[](get_index(id));
+}
+
+template<typename T, typename A>
+inline constexpr typename vector<T, A>::reference vector<T, A>::operator[](
+  identifier auto id) noexcept
+{
+    return operator[](get_index(id));
+}
+
+template<typename T, typename A>
 inline constexpr typename vector<T, A>::reference vector<T, A>::operator[](
   std::integral auto index) noexcept
 {
@@ -4681,6 +4724,20 @@ small_vector<T, length>::back() const noexcept
 {
     debug::ensure(m_size > 0);
     return data()[m_size - 1];
+}
+
+template<typename T, int length>
+constexpr typename small_vector<T, length>::reference
+small_vector<T, length>::operator[](identifier auto id) noexcept
+{
+    return operator[](get_index(id));
+}
+
+template<typename T, int length>
+constexpr typename small_vector<T, length>::const_reference
+small_vector<T, length>::operator[](identifier auto id) const noexcept
+{
+    return operator[](get_index(id));
 }
 
 template<typename T, int length>

@@ -56,7 +56,7 @@ static gui_theme_id get_theme(const gui_themes&      g,
                               const std::string_view str) noexcept
 {
     for (auto id : g.ids)
-        if (g.names[get_index(id)].sv() == str)
+        if (g.names[id].sv() == str)
             return id;
 
     return undefined<gui_theme_id>();
@@ -75,10 +75,10 @@ static std::shared_ptr<variables> do_build_default() noexcept
         std::error_code ec;
         if (std::filesystem::exists(*sys, ec)) {
             const auto idx = v->rec_paths.ids.alloc();
-            v->rec_paths.paths[get_index(idx)] =
+            v->rec_paths.paths[idx] =
               (const char*)sys->u8string().c_str();
-            v->rec_paths.priorities[get_index(idx)] = 20;
-            v->rec_paths.names[get_index(idx)]      = "system";
+            v->rec_paths.priorities[idx] = 20;
+            v->rec_paths.names[idx]      = "system";
         }
     }
 
@@ -86,10 +86,10 @@ static std::shared_ptr<variables> do_build_default() noexcept
         std::error_code ec;
         if (std::filesystem::exists(*sys, ec)) {
             const auto idx = v->rec_paths.ids.alloc();
-            v->rec_paths.paths[get_index(idx)] =
+            v->rec_paths.paths[idx] =
               (const char*)sys->u8string().c_str();
-            v->rec_paths.priorities[get_index(idx)] = 10;
-            v->rec_paths.names[get_index(idx)]      = "p-system";
+            v->rec_paths.priorities[idx] = 10;
+            v->rec_paths.names[idx]      = "p-system";
         }
     }
 
@@ -97,10 +97,10 @@ static std::shared_ptr<variables> do_build_default() noexcept
         std::error_code ec;
         if (std::filesystem::exists(*sys, ec)) {
             const auto idx = v->rec_paths.ids.alloc();
-            v->rec_paths.paths[get_index(idx)] =
+            v->rec_paths.paths[idx] =
               (const char*)sys->u8string().c_str();
-            v->rec_paths.priorities[get_index(idx)] = 0;
-            v->rec_paths.names[get_index(idx)]      = "user";
+            v->rec_paths.priorities[idx] = 0;
+            v->rec_paths.names[idx]      = "user";
         }
     }
 
@@ -139,7 +139,7 @@ static std::error_code do_write(const variables& vars,
                               ? vars.g_themes.selected
                               : *vars.g_themes.ids.begin();
 
-            os << "selected=" << vars.g_themes.names[get_index(id)].sv()
+            os << "selected=" << vars.g_themes.names[id].sv()
                << '\n';
         }
     }

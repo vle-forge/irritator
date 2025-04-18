@@ -143,7 +143,7 @@ void file_observers::grow() noexcept
 void file_observers::clear() noexcept
 {
     for (const auto id : ids)
-        files[get_index(id)].reset();
+        files[id].reset();
 
     ids.clear();
 }

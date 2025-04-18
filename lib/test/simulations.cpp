@@ -57,25 +57,25 @@ struct neuron make_neuron(irt::simulation* sim) noexcept
     };
 
     {
-        auto& p    = sim->parameters[get_index(sim->get_id(sum_lif))];
+        auto& p    = sim->parameters[sim->get_id(sum_lif)];
         p.reals[2] = -irt::one;
         p.reals[3] = irt::two * Vt_lif;
     }
     {
-        auto& p    = sim->parameters[get_index(sim->get_id(prod_lif))];
+        auto& p    = sim->parameters[sim->get_id(prod_lif)];
         p.reals[2] = irt::one / tau_lif;
         p.reals[3] = irt::zero;
     }
     {
-        auto& p    = sim->parameters[get_index(sim->get_id(constant_lif))];
+        auto& p    = sim->parameters[sim->get_id(constant_lif)];
         p.reals[0] = irt::one;
     }
     {
-        auto& p = sim->parameters[get_index(sim->get_id(constant_cross_lif))];
+        auto& p = sim->parameters[sim->get_id(constant_cross_lif)];
         p.reals[0] = Vr_lif;
     }
     {
-        auto& p    = sim->parameters[get_index(sim->get_id(cross_lif))];
+        auto& p    = sim->parameters[sim->get_id(cross_lif)];
         p.reals[0] = Vt_lif;
     }
 
@@ -96,7 +96,7 @@ struct neuron make_neuron(irt::simulation* sim) noexcept
 template<typename Dynamics>
 irt::parameter& get_p(irt::simulation* sim, const Dynamics& d) noexcept
 {
-    return sim->parameters[get_index(sim->get_id(d))];
+    return sim->parameters[sim->get_id(d)];
 }
 
 struct synapse make_synapse(irt::simulation* sim,

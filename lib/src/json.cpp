@@ -1843,17 +1843,17 @@ struct json_dearchiver::impl {
                      if ("x"sv == name)
                          return read_temp_real(value) and
                                 copy_real_to(
-                                  generic.children_positions[get_index(c_id)]
+                                  generic.children_positions[c_id]
                                     .x);
                      if ("y"sv == name)
                          return read_temp_real(value) and
                                 copy_real_to(
-                                  generic.children_positions[get_index(c_id)]
+                                  generic.children_positions[c_id]
                                     .y);
                      if ("name"sv == name)
                          return read_temp_string(value) and
                                 copy_string_to(
-                                  generic.children_names[get_index(c_id)]);
+                                  generic.children_names[c_id]);
                      if ("configurable"sv == name)
                          return read_temp_bool(value) and
                                 affect_configurable_to(c.flags);
@@ -2098,12 +2098,12 @@ struct json_dearchiver::impl {
         return nullptr;
     }
 
-    auto search_component(std::string_view name) const noexcept -> component*
+    auto search_component(std::string_view name) const noexcept -> const component*
     {
         const auto& compo_vec = mod().components.get<component>();
         for (const auto id : mod().components)
-            if (compo_vec[get_index(id)].name.sv() == name)
-                return std::addressof(compo_vec[get_index(id)]);
+            if (compo_vec[id].name.sv() == name)
+                return std::addressof(compo_vec[id]);
 
         return nullptr;
     }

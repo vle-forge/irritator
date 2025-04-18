@@ -13,7 +13,7 @@ namespace irt {
 template<typename Dynamics>
 inline auto get_p(simulation& sim, const Dynamics& d) noexcept -> parameter&
 {
-    return sim.parameters[get_index(sim.get_id(d))];
+    return sim.parameters[sim.get_id(d)];
 }
 
 /** @brief Implements Lotka-Volterra model for QSS1, QSS2 and QSS3.
