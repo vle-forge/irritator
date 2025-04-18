@@ -140,6 +140,9 @@ concept is_identifier_type =
    std::is_same_v<std::underlying_type_t<T>, std::uint64_t>);
 
 template<typename T>
+concept identifier = is_identifier_type<T>;
+
+template<typename T>
 concept is_index_type =
   (std::is_same_v<T, std::uint16_t> or std::is_same_v<T, std::uint32_t>);
 
