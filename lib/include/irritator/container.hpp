@@ -747,6 +747,79 @@ struct allocator {
 ////////////////////////////////////////////////////////////////////////
 
 /**
+ * @brief A non-owning buffer of @a std::bytes.
+ *
+ * The container stores a pointer. The buffer must be allocated and dealocated
+ * upstream of this class. Users must use @a std::construct_at and @a
+ * std::destruct_at if @a T is not @a std::trivial.
+ *
+ * This container is mainly used in @a id_data_array container.
+ *
+ * @tparam T Use in @a operator[] to compute the index and cast the result.
+ */
+template<typename T>
+class buffer_view
+{
+public:
+    constexpr buffer_view() noexcept = default;
+
+    explicit constexpr buffer_view(std::byte* buf) noexcept
+      : m_buffer{ buf }
+    {}
+
+    constexpr ~buffer_view() noexcept = default;
+
+    constexpr buffer_view(const buffer_view& o) noexcept            = default;
+    constexpr buffer_view& operator=(const buffer_view& o) noexcept = default;
+
+    constexpr buffer_view(buffer_view&& o) noexcept
+      : m_buffer{ std::exchange(o.m_buffer, nullptr) }
+    {}
+
+    constexpr buffer_view& operator=(buffer_view&& o) noexcept
+    {
+        buffer_view{ std::move(o) }.swap(*this);
+        return *this;
+    }
+
+    constexpr T& operator[](std::integral auto position) noexcept
+    {
+        return *(reinterpret_cast<T*>(m_buffer) + position);
+    }
+
+    constexpr const T& operator[](std::integral auto position) const noexcept
+    {
+        return *(reinterpret_cast<const T*>(m_buffer) + position);
+    }
+
+    constexpr T& operator[](identifier auto id) noexcept
+    {
+        return operator[](g_get_index(id));
+    }
+
+    constexpr const T& operator[](identifier auto id) const noexcept
+    {
+        return operator[](g_get_index(id));
+    }
+
+    constexpr void swap(buffer_view& o) noexcept
+    {
+        std::swap(m_buffer, o.m_buffer);
+    }
+
+    constexpr T*       get() noexcept { return reinterpret_cast<T*>(m_buffer); }
+    constexpr const T* get() const noexcept
+    {
+        return reinterpret_cast<const T*>(m_buffer);
+    }
+
+    constexpr void reset(std::byte* ptr) noexcept { m_buffer = ptr; }
+
+protected:
+    std::byte* m_buffer = nullptr;
+};
+
+/**
    @brief A vector like class with dynamic allocation.
 
    @tparam T Any type (trivial or not).
