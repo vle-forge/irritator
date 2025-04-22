@@ -17,12 +17,32 @@
 
 namespace irt {
 
-constexpr static inline i32                  simulation_task_number = 64;
+constexpr static inline i32 simulation_task_number = 64;
+
 constexpr static inline std::array<float, 4> black_color{ 0.f, 0.f, 0.f, 0.f };
 constexpr static inline std::array<float, 4> default_component_color{ 0.5f,
                                                                       0.5f,
                                                                       0.5f,
                                                                       0.0f };
+constexpr static inline std::array<float, 4> selected_component_color{ 1.0f,
+                                                                       1.0f,
+                                                                       1.0f,
+                                                                       0.0f };
+
+constexpr static inline ImU32 default_grid_u32color =
+  IM_COL32(255, 255, 255, 255);
+constexpr static inline ImU32 default_subgrid_u32color =
+  IM_COL32(150, 150, 150, 255);
+constexpr static inline ImU32 default_edge_u32color =
+  IM_COL32(255, 255, 0, 255);
+constexpr static inline ImU32 default_selected_edge_u32color =
+  IM_COL32(255, 0, 0, 255);
+constexpr static inline ImU32 default_selection_node_u32color =
+  IM_COL32(255, 0, 0, 75);
+constexpr static inline ImU32 default_component_u32color =
+  IM_COL32(127, 127, 127, 255);
+constexpr static inline ImU32 selected_component_u32color =
+  IM_COL32(255, 255, 255, 255);
 
 inline ImVec4& to_ImVec4(std::array<float, 4>& array) noexcept
 {

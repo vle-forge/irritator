@@ -18,6 +18,42 @@
 
 namespace irt {
 
+/**
+ * @brief Get the color of the component in the @a float[4] format.
+ *
+ * If the @a component identifier @a id is undefined this function returns the
+ * @a default_component_color.
+ *
+ * @param mod To access components array.
+ * @param id The ID to test and get.
+ *
+ * @return A @a component_color.
+ */
+static auto get_component_color(const modeling&    mod,
+                                const component_id id) noexcept
+  -> const component_color&
+{
+    return mod.components.exists(id) ? mod.components.get<component_color>(id)
+                                     : default_component_color;
+}
+
+/**
+ * @brief Get the color of the component in the @a ImU32 format.
+ *
+ * If the @a component identifier @a id is undefined this function returns the
+ * @a default_component_color.
+ *
+ * @param mod To access components array.
+ * @param id The ID to test and get.
+ *
+ * @return A undefined integer ImU32.
+ */
+static auto get_component_u32color(const modeling&    mod,
+                                   const component_id id) noexcept -> ImU32
+{
+    return to_ImU32(get_component_color(mod, id));
+}
+
 static auto dir_path_combobox(const modeling& mod, dir_path_id& dir_id) -> bool
 {
     const auto* dir         = mod.dir_paths.try_to_get(dir_id);
@@ -357,7 +393,7 @@ struct graph_component_editor_data::impl {
               ImVec2(data.bottom_right_limit[0], data.bottom_right_limit[1]),
               canvas_sz);
 
-        draw_list->AddRect(canvas_p0, canvas_p1, IM_COL32(255, 255, 255, 255));
+        draw_list->AddRect(canvas_p0, canvas_p1, default_grid_u32color);
 
         ImGui::InvisibleButton("Canvas",
                                canvas_sz,
@@ -546,13 +582,13 @@ struct graph_component_editor_data::impl {
              x += GRID_STEP)
             draw_list->AddLine(ImVec2(canvas_p0.x + x, canvas_p0.y),
                                ImVec2(canvas_p0.x + x, canvas_p1.y),
-                               IM_COL32(200, 200, 200, 40));
+                               default_subgrid_u32color);
 
         for (float y = fmodf(ed.scrolling.y, GRID_STEP); y < canvas_sz.y;
              y += GRID_STEP)
             draw_list->AddLine(ImVec2(canvas_p0.x, canvas_p0.y + y),
                                ImVec2(canvas_p1.x, canvas_p0.y + y),
-                               IM_COL32(200, 200, 200, 40));
+                               default_subgrid_u32color);
 
         for (const auto id : data.g.nodes) {
             const auto i = get_index(id);
@@ -570,8 +606,7 @@ struct graph_component_editor_data::impl {
             draw_list->AddRectFilled(
               p_min,
               p_max,
-              to_ImU32(app.mod.components.get<component_color>(
-                data.g.node_components[i])));
+              get_component_u32color(app.mod, data.g.node_components[i]));
         }
 
         for (const auto id : ed.selected_nodes) {
@@ -587,7 +622,7 @@ struct graph_component_editor_data::impl {
                           ed.zoom.y));
 
             draw_list->AddRect(
-              p_min, p_max, IM_COL32(255, 255, 255, 255), 0.f, 0, 4.f);
+              p_min, p_max, selected_component_u32color, 0.f, 0, 4.f);
         }
 
         for (const auto id : data.g.edges) {
@@ -619,8 +654,7 @@ struct graph_component_editor_data::impl {
               origin.y +
                 ((data.g.node_positions[p_dst][1] + v_height) * ed.zoom.y));
 
-            draw_list->AddLine(src, dst, IM_COL32(255, 255, 0, 255), 1.f);
-            // IM_COL32(200, 200, 200, 40), 1.0f);
+            draw_list->AddLine(src, dst, default_edge_u32color, 1.f);
         }
 
         for (const auto id : ed.selected_edges) {
@@ -648,7 +682,7 @@ struct graph_component_editor_data::impl {
                                     data.g.node_areas[p_dst] / 2.f) *
                                    ed.zoom.y));
 
-            draw_list->AddLine(src, dst, IM_COL32(255, 0, 0, 255), 1.0f);
+            draw_list->AddLine(src, dst, default_selected_edge_u32color, 1.0f);
         }
 
         if (ed.run_selection) {
@@ -668,7 +702,8 @@ struct graph_component_editor_data::impl {
                     std::max(ed.start_selection.y, io.MousePos.y),
                 };
 
-                draw_list->AddRectFilled(bmin, bmax, IM_COL32(200, 0, 0, 127));
+                draw_list->AddRectFilled(
+                  bmin, bmax, default_selection_node_u32color);
             }
         }
 
