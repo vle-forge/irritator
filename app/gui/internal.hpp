@@ -19,31 +19,6 @@ namespace irt {
 
 constexpr static inline i32 simulation_task_number = 64;
 
-constexpr static inline std::array<float, 4> black_color{ 0.f, 0.f, 0.f, 0.f };
-constexpr static inline std::array<float, 4> default_component_color{ 0.5f,
-                                                                      0.5f,
-                                                                      0.5f,
-                                                                      0.0f };
-constexpr static inline std::array<float, 4> selected_component_color{ 1.0f,
-                                                                       1.0f,
-                                                                       1.0f,
-                                                                       0.0f };
-
-constexpr static inline ImU32 default_grid_u32color =
-  IM_COL32(255, 255, 255, 255);
-constexpr static inline ImU32 default_subgrid_u32color =
-  IM_COL32(150, 150, 150, 255);
-constexpr static inline ImU32 default_edge_u32color =
-  IM_COL32(255, 255, 0, 255);
-constexpr static inline ImU32 default_selected_edge_u32color =
-  IM_COL32(255, 0, 0, 255);
-constexpr static inline ImU32 default_selection_node_u32color =
-  IM_COL32(255, 0, 0, 75);
-constexpr static inline ImU32 default_component_u32color =
-  IM_COL32(127, 127, 127, 255);
-constexpr static inline ImU32 selected_component_u32color =
-  IM_COL32(255, 255, 255, 255);
-
 inline ImVec4& to_ImVec4(std::array<float, 4>& array) noexcept
 {
     return reinterpret_cast<ImVec4&>(array);
@@ -74,7 +49,7 @@ constexpr inline u8 float_to_u8_sat(const float v) noexcept
     return static_cast<u8>(saturate(v) * 255.0f + 0.5f);
 }
 
-constexpr ImU32 to_ImU32(const std::array<float, 4>& in) noexcept
+constexpr ImU32 to_ImU32(const std::span<const float, 4> in) noexcept
 {
     ImU32 out = float_to_u8_sat(in[0]) << IM_COL32_R_SHIFT;
     out |= float_to_u8_sat(in[1]) << IM_COL32_G_SHIFT;
@@ -82,6 +57,11 @@ constexpr ImU32 to_ImU32(const std::array<float, 4>& in) noexcept
     out |= float_to_u8_sat(in[3]) << IM_COL32_A_SHIFT;
 
     return out;
+}
+
+constexpr ImVec4 to_ImVec4(const std::span<const float, 4> in) noexcept
+{
+    return ImVec4(in[0], in[1], in[2], in[3]);
 }
 
 //! Helper to display a little (?) mark which shows a tooltip when hovered.

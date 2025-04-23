@@ -370,7 +370,9 @@ static void show_grid(application&                app,
     const ImGuiIO& io        = ImGui::GetIO();
     ImDrawList*    draw_list = ImGui::GetWindowDrawList();
 
-    draw_list->AddRect(canvas_p0, canvas_p1, IM_COL32(255, 255, 255, 255));
+    draw_list->AddRect(canvas_p0,
+                       canvas_p1,
+                       to_ImU32(app.config.colors[style_color::outer_border]));
 
     ImGui::InvisibleButton("Canvas",
                            canvas_sz,
@@ -405,15 +407,17 @@ static void show_grid(application&                app,
 
     for (float x = fmodf(ed.scrolling.x, GRID_STEP); x < canvas_sz.x;
          x += GRID_STEP)
-        draw_list->AddLine(ImVec2(canvas_p0.x + x, canvas_p0.y),
-                           ImVec2(canvas_p0.x + x, canvas_p1.y),
-                           IM_COL32(200, 200, 200, 40));
+        draw_list->AddLine(
+          ImVec2(canvas_p0.x + x, canvas_p0.y),
+          ImVec2(canvas_p0.x + x, canvas_p1.y),
+          to_ImU32(app.config.colors[style_color::inner_border]));
 
     for (float y = fmodf(ed.scrolling.y, GRID_STEP); y < canvas_sz.y;
          y += GRID_STEP)
-        draw_list->AddLine(ImVec2(canvas_p0.x, canvas_p0.y + y),
-                           ImVec2(canvas_p1.x, canvas_p0.y + y),
-                           IM_COL32(200, 200, 200, 40));
+        draw_list->AddLine(
+          ImVec2(canvas_p0.x, canvas_p0.y + y),
+          ImVec2(canvas_p1.x, canvas_p0.y + y),
+          to_ImU32(app.config.colors[style_color::inner_border]));
 
     for (int row = 0; row < data.row(); ++row) {
         for (int col = 0; col < data.column(); ++col) {
@@ -433,8 +437,7 @@ static void show_grid(application&                app,
             draw_list->AddRectFilled(
               p_min,
               p_max,
-              to_ImU32(app.mod.components.get<component_color>(
-                data.children()[data.pos(row, col)])));
+              get_component_u32color(app, data.children()[data.pos(row, col)]));
         }
     }
 

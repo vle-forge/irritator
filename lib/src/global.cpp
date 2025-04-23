@@ -41,27 +41,6 @@ constexpr Iterator sorted_vector_find(Iterator begin,
     return (begin != end && !comp(value, *begin)) ? begin : end;
 }
 
-static gui_theme_id alloc_gui_theme(const std::string_view str,
-                                    gui_themes&            g) noexcept
-{
-    const auto id  = g.ids.alloc();
-    const auto idx = get_index(id);
-
-    g.names[idx] = str;
-
-    return id;
-}
-
-static gui_theme_id get_theme(const gui_themes&      g,
-                              const std::string_view str) noexcept
-{
-    for (auto id : g.ids)
-        if (g.names[id].sv() == str)
-            return id;
-
-    return undefined<gui_theme_id>();
-}
-
 static std::shared_ptr<variables> do_build_default() noexcept
 {
     auto v = std::make_shared<variables>();
@@ -74,9 +53,8 @@ static std::shared_ptr<variables> do_build_default() noexcept
     if (auto sys = get_system_component_dir(); sys.has_value()) {
         std::error_code ec;
         if (std::filesystem::exists(*sys, ec)) {
-            const auto idx = v->rec_paths.ids.alloc();
-            v->rec_paths.paths[idx] =
-              (const char*)sys->u8string().c_str();
+            const auto idx               = v->rec_paths.ids.alloc();
+            v->rec_paths.paths[idx]      = (const char*)sys->u8string().c_str();
             v->rec_paths.priorities[idx] = 20;
             v->rec_paths.names[idx]      = "system";
         }
@@ -85,9 +63,8 @@ static std::shared_ptr<variables> do_build_default() noexcept
     if (auto sys = get_system_prefix_component_dir(); sys.has_value()) {
         std::error_code ec;
         if (std::filesystem::exists(*sys, ec)) {
-            const auto idx = v->rec_paths.ids.alloc();
-            v->rec_paths.paths[idx] =
-              (const char*)sys->u8string().c_str();
+            const auto idx               = v->rec_paths.ids.alloc();
+            v->rec_paths.paths[idx]      = (const char*)sys->u8string().c_str();
             v->rec_paths.priorities[idx] = 10;
             v->rec_paths.names[idx]      = "p-system";
         }
@@ -96,29 +73,18 @@ static std::shared_ptr<variables> do_build_default() noexcept
     if (auto sys = get_default_user_component_dir(); sys.has_value()) {
         std::error_code ec;
         if (std::filesystem::exists(*sys, ec)) {
-            const auto idx = v->rec_paths.ids.alloc();
-            v->rec_paths.paths[idx] =
-              (const char*)sys->u8string().c_str();
+            const auto idx               = v->rec_paths.ids.alloc();
+            v->rec_paths.paths[idx]      = (const char*)sys->u8string().c_str();
             v->rec_paths.priorities[idx] = 0;
             v->rec_paths.names[idx]      = "user";
         }
     }
 
-    v->g_themes.ids.reserve(16);
-    v->g_themes.names.resize(16);
-    v->g_themes.selected = alloc_gui_theme("Modern", v->g_themes);
-    alloc_gui_theme("Dark", v->g_themes);
-    alloc_gui_theme("Light", v->g_themes);
-    alloc_gui_theme("Bess Dark", v->g_themes);
-    alloc_gui_theme("Catpuccin Mocha", v->g_themes);
-    alloc_gui_theme("Material You", v->g_themes);
-    alloc_gui_theme("Fluent UI", v->g_themes);
-    alloc_gui_theme("Fluent UI - Light", v->g_themes);
-
     return v;
 }
 
 static std::error_code do_write(const variables& vars,
+                                const int        theme,
                                 std::ostream&    os) noexcept
 {
     if (os << "[paths]\n") {
@@ -135,12 +101,7 @@ static std::error_code do_write(const variables& vars,
         }
 
         if (os << "[themes]\n") {
-            const auto id = vars.g_themes.ids.exists(vars.g_themes.selected)
-                              ? vars.g_themes.selected
-                              : *vars.g_themes.ids.begin();
-
-            os << "selected=" << vars.g_themes.names[id].sv()
-               << '\n';
+            os << "selected=" << themes[theme] << '\n';
         }
     }
 
@@ -151,7 +112,8 @@ static std::error_code do_write(const variables& vars,
 }
 
 static std::error_code do_save(const char*      filename,
-                               const variables& vars) noexcept
+                               const variables& vars,
+                               const int        theme) noexcept
 {
     auto file = std::ofstream{ filename };
     if (!file.is_open())
@@ -162,7 +124,7 @@ static std::error_code do_save(const char*      filename,
     if (file.bad())
         return std::make_error_code(std::errc(std::errc::io_error));
 
-    return do_write(vars, file);
+    return do_write(vars, theme, file);
 }
 
 enum { section_colors, section_paths, section_COUNT };
@@ -196,22 +158,32 @@ static bool do_read_section(variables& /*vars*/,
 }
 
 static bool do_read_affect(variables&             vars,
+                           int&                   theme,
                            const std::bitset<2>&  current_section,
                            const std::string_view key,
                            const std::string_view val) noexcept
 {
     if (current_section.test(section_colors) and key == "themes") {
-        for (const auto id : vars.g_themes.ids) {
-            const auto idx = get_index(id);
+        if (val == std::string_view("Modern"))
+            theme = 0;
+        if (val == std::string_view("Dark"))
+            theme = 1;
+        if (val == std::string_view("Light"))
+            theme = 2;
+        if (val == std::string_view("Bess Dark"))
+            theme = 3;
+        if (val == std::string_view("Catpuccin Mocha"))
+            theme = 4;
+        if (val == std::string_view("Material You"))
+            theme = 5;
+        if (val == std::string_view("Fluent UI"))
+            theme = 6;
+        if (val == std::string_view("Fluent UI - Light"))
+            theme = 7;
+        else
+            theme = 0;
 
-            if (vars.g_themes.names[idx] == val) {
-                vars.g_themes.selected = id;
-                return true;
-            }
-        }
-
-        if (vars.g_themes.ids.ssize() != 0)
-            vars.g_themes.selected = *(vars.g_themes.ids.begin());
+        return true;
     }
 
     return false;
@@ -237,15 +209,6 @@ static bool do_read_elem(variables&             vars,
                          const std::bitset<2>&  current_section,
                          const std::string_view element) noexcept
 {
-    if (current_section.test(section_colors)) {
-        if (auto id = get_theme(vars.g_themes, element); is_defined(id)) {
-            vars.g_themes.selected = id;
-            return true;
-        }
-
-        return false;
-    }
-
     if (current_section.test(section_paths)) {
         if (not vars.rec_paths.ids.can_alloc(1))
             return false;
@@ -304,7 +267,9 @@ static_assert(not in_range("totoa"sv, 5));
 
 }
 
-static std::error_code do_parse(variables& v, std::string_view buffer) noexcept
+static std::error_code do_parse(variables&       v,
+                                int&             theme,
+                                std::string_view buffer) noexcept
 {
     std::bitset<2> s;
 
@@ -339,6 +304,7 @@ static std::error_code do_parse(variables& v, std::string_view buffer) noexcept
 
             auto new_line = buffer.find('\n', pos + 1u);
             if (not do_read_affect(v,
+                                   theme,
                                    s,
                                    buffer.substr(0, pos),
                                    buffer.substr(pos + 1u, new_line)))
@@ -364,7 +330,8 @@ static std::error_code do_parse(variables& v, std::string_view buffer) noexcept
 }
 
 static std::error_code do_load(const char*                 filename,
-                               std::shared_ptr<variables>& vars) noexcept
+                               std::shared_ptr<variables>& vars,
+                               int&                        theme) noexcept
 {
     auto file = std::ifstream{ filename };
     if (not file.is_open())
@@ -380,7 +347,7 @@ static std::error_code do_load(const char*                 filename,
 
     file.close();
 
-    return do_parse(*vars, latest);
+    return do_parse(*vars, theme, latest);
 }
 
 vector<recorded_path_id> recorded_paths::sort_by_priorities() const noexcept
@@ -511,7 +478,7 @@ config_manager::config_manager(const std::string config_path) noexcept
   : m_path{ config_path }
   , m_vars{ do_build_default() }
 {
-    if (do_load(config_path.c_str(), m_vars)) {
+    if (do_load(config_path.c_str(), m_vars, theme)) {
         (void)save();
     }
 }
@@ -520,13 +487,13 @@ std::error_code config_manager::save() const noexcept
 {
     std::shared_lock lock(m_mutex);
 
-    return do_save(m_path.c_str(), *m_vars);
+    return do_save(m_path.c_str(), *m_vars, theme);
 }
 
 std::error_code config_manager::load() noexcept
 {
     auto ret             = std::make_shared<variables>();
-    auto is_load_success = do_load(m_path.c_str(), ret);
+    auto is_load_success = do_load(m_path.c_str(), ret, theme);
     if (not is_load_success)
         return is_load_success;
 

@@ -24,48 +24,26 @@ static ImVec4 alpha(const ImVec4& vec, const float f) noexcept
 
 static auto display_themes_selector(application& app) noexcept -> bool
 {
-    auto theme_id     = undefined<gui_theme_id>();
-    auto old_theme_id = undefined<gui_theme_id>();
+    auto old_theme_id = app.config.theme;
 
-    app.config.try_read(
-      [](auto& vars, auto& theme_id, auto& old_theme_id) {
-          old_theme_id              = vars.g_themes.selected;
-          theme_id                  = old_theme_id;
-          const char* previous_name = "-";
+    const char* previous_name = "-";
 
-          if (vars.g_themes.ids.exists(old_theme_id)) {
-              const auto selected_idx = get_index(old_theme_id);
-              previous_name = vars.g_themes.names[selected_idx].c_str();
-          } else {
-              theme_id = undefined<gui_theme_id>();
-          }
-
-          if (ImGui::BeginCombo("Choose style", previous_name)) {
-              for (const auto id : vars.g_themes.ids) {
-                  const auto  idx  = get_index(id);
-                  const auto& name = vars.g_themes.names[idx];
-
-                  if (ImGui::Selectable(name.c_str(), id == theme_id)) {
-                      theme_id = id;
-                  }
-              }
-              ImGui::EndCombo();
-          }
-      },
-      theme_id,
-      old_theme_id);
-
-    if (old_theme_id != theme_id) {
-        app.config.read_write(
-          [](auto& vars, auto theme_id) noexcept {
-              vars.g_themes.selected = theme_id;
-          },
-          theme_id);
-
-        return true;
+    if (0 <= old_theme_id and old_theme_id < 8) {
+        previous_name = themes[old_theme_id];
+    } else {
+        app.config.theme = 0;
     }
 
-    return false;
+    if (ImGui::BeginCombo("Choose style", previous_name)) {
+        for (int i = 0, e = length(themes); i != e; ++i) {
+            if (ImGui::Selectable(themes[i], i == app.config.theme)) {
+                app.config.theme = i;
+            }
+        }
+        ImGui::EndCombo();
+    }
+
+    return app.config.theme != old_theme_id;
 }
 
 void settings_window::show() noexcept
@@ -209,7 +187,7 @@ void settings_window::show() noexcept
     ImGui::Text("Graphics");
 
     if (display_themes_selector(app)) {
-        apply_style(undefined<gui_theme_id>());
+        apply_style(app.config.theme);
         changes++;
     }
 
@@ -269,22 +247,54 @@ void apply_theme_FluentUILightTheme_colors() noexcept;
 
 void apply_imnodes_theme_colors() noexcept;
 
-void settings_window::apply_style(const gui_theme_id id) noexcept
-{
-    auto& app = container_of(this, &application::settings_wnd);
-    auto  idx = 0u;
+struct color_copy {
+    ImVec4 color;
 
-    if (is_undefined(id)) {
-        app.config.read(
-          [](auto& vars, auto& idx) noexcept {
-              idx = get_index(vars.g_themes.selected);
-          },
-          idx);
-    } else {
-        idx = get_index(id);
+    color_copy(const ImVec4 color_) noexcept
+      : color(color_)
+    {}
+
+    color_copy& to(std::span<float, 4> out) noexcept
+    {
+        out[0] = color.x;
+        out[1] = color.y;
+        out[2] = color.z;
+        out[3] = color.w;
+        return *this;
     }
 
-    switch (idx) {
+    color_copy& alpha(const float value) noexcept
+    {
+        color.w = value;
+        return *this;
+    }
+
+    color_copy& invert_red_green() noexcept
+    {
+        std::swap(color.x, color.z);
+        return *this;
+    }
+
+    color_copy& invert_blue_green() noexcept
+    {
+        std::swap(color.y, color.z);
+        return *this;
+    }
+
+    color_copy& invert_red_blue() noexcept
+    {
+        std::swap(color.x, color.y);
+        return *this;
+    }
+};
+
+static color_copy ccopy(const ImVec4& color) { return color_copy{ color }; }
+
+void settings_window::apply_style(const int theme) noexcept
+{
+    auto& app = container_of(this, &application::settings_wnd);
+
+    switch (theme) {
     case 1:
         apply_theme_DarkTheme_colors();
         break;
@@ -310,6 +320,56 @@ void settings_window::apply_style(const gui_theme_id id) noexcept
         apply_theme_Modern_colors();
         break;
     }
+
+    ImGuiStyle* style  = &ImGui::GetStyle();
+    ImVec4*     colors = style->Colors;
+
+    ccopy(colors[ImGuiCol_FrameBg])
+      .alpha(1.f)
+      .to(app.config.colors[style_color::background]);
+    ccopy(colors[ImGuiCol_FrameBgActive])
+      .alpha(0.5f)
+      .to(app.config.colors[style_color::background_selection]);
+    ccopy(colors[ImGuiCol_Border])
+      .alpha(1.f)
+      .to(app.config.colors[style_color::inner_border]);
+    ccopy(colors[ImGuiCol_BorderShadow])
+      .alpha(1.f)
+      .to(app.config.colors[style_color::outer_border]);
+
+    ccopy(colors[ImGuiCol_FrameBg])
+      .alpha(1.f)
+      .to(app.config.colors[style_color::component_undefined]);
+    ccopy(colors[ImGuiCol_Button])
+      .alpha(0.5f)
+      .to(app.config.colors[style_color::edge]);
+    ccopy(colors[ImGuiCol_ButtonActive])
+      .alpha(1.f)
+      .to(app.config.colors[style_color::edge_hovered]);
+    ccopy(colors[ImGuiCol_ButtonHovered])
+      .alpha(1.f)
+      .to(app.config.colors[style_color::edge_active]);
+    ccopy(colors[ImGuiCol_Button])
+      .alpha(1.f)
+      .to(app.config.colors[style_color::node]);
+    ccopy(colors[ImGuiCol_ButtonActive])
+      .alpha(0.5f)
+      .to(app.config.colors[style_color::node_hovered]);
+    ccopy(colors[ImGuiCol_ButtonHovered])
+      .alpha(1.f)
+      .to(app.config.colors[style_color::node_active]);
+    ccopy(colors[ImGuiCol_Button])
+      .alpha(1.f)
+      .invert_red_green()
+      .to(app.config.colors[style_color::node_2]);
+    ccopy(colors[ImGuiCol_ButtonActive])
+      .alpha(0.5f)
+      .invert_red_green()
+      .to(app.config.colors[style_color::node_2_hovered]);
+    ccopy(colors[ImGuiCol_ButtonHovered])
+      .alpha(1.f)
+      .invert_red_green()
+      .to(app.config.colors[style_color::node_2_active]);
 
     apply_imnodes_theme_colors();
 }

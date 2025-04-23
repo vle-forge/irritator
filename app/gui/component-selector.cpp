@@ -161,7 +161,9 @@ bool component_selector::combobox(const char*   label,
         cs_select(app.mod, *new_selected, selected_name);
 
         if (ImGui::BeginCombo(label, selected_name.c_str())) {
-            ImGui::ColorButton("Undefined color", to_ImVec4(black_color));
+            ImGui::ColorButton(
+              "Undefined color",
+              to_ImVec4(app.config.colors[style_color::component_undefined]));
             ImGui::SameLine(50.f);
             if (ImGui::Selectable(names[0].c_str(), ids[0] == *new_selected)) {
                 *new_selected = ids[0];
@@ -200,7 +202,9 @@ bool component_selector::combobox(const char*   label,
         cs_select(app.mod, *new_selected, selected_name);
 
         if (ImGui::BeginCombo(label, selected_name.c_str())) {
-            ImGui::ColorButton("Undefined color", to_ImVec4(black_color));
+            ImGui::ColorButton(
+              "Undefined color",
+              to_ImVec4(app.config.colors[style_color::component_undefined]));
             ImGui::SameLine(50.f);
             if (ImGui::Selectable(names[0].c_str(),
                                   *hyphen == false &&

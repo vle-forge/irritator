@@ -193,6 +193,20 @@ static auto combobox_file(application&              app,
     return is_valid_dot_filename(file->path.sv());
 }
 
+auto get_component_color(const application& app, const component_id id) noexcept
+  -> const std::span<const float, 4>
+{
+    return app.mod.components.exists(id)
+             ? app.mod.components.get<component_color>(id)
+             : app.config.colors[style_color::component_undefined];
+}
+
+auto get_component_u32color(const application& app,
+                            const component_id id) noexcept -> ImU32
+{
+    return to_ImU32(get_component_color(app, id));
+}
+
 auto file_path_selector(application&              app,
                         file_path_selector_option opt,
                         registred_path_id&        reg_id,
@@ -227,7 +241,7 @@ application::application(journal_handler& jn_) noexcept
   , generics{ 32 }
   , hsms{ 32 }
 {
-    settings_wnd.apply_style(undefined<gui_theme_id>());
+    settings_wnd.apply_style(0);
 
     log_w(*this, log_level::info, "Irritator start\n");
 

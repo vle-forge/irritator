@@ -310,12 +310,14 @@ static bool show_node(component_editor&  ed,
     auto& app      = container_of(&ed, &application::component_ed);
     auto& settings = app.settings_wnd;
 
-    ImNodes::PushColorStyle(ImNodesCol_TitleBar, settings.gui_model_color);
-
-    ImNodes::PushColorStyle(ImNodesCol_TitleBarHovered,
-                            settings.gui_hovered_model_color);
-    ImNodes::PushColorStyle(ImNodesCol_TitleBarSelected,
-                            settings.gui_selected_model_color);
+    ImNodes::PushColorStyle(ImNodesCol_TitleBar,
+                            to_ImU32(app.config.colors[style_color::node_2]));
+    ImNodes::PushColorStyle(
+      ImNodesCol_TitleBarHovered,
+      to_ImU32(app.config.colors[style_color::node_2_hovered]));
+    ImNodes::PushColorStyle(
+      ImNodesCol_TitleBarSelected,
+      to_ImU32(app.config.colors[style_color::node_2_active]));
 
     ImNodes::BeginNode(pack_node_child(id));
     ImNodes::BeginNodeTitleBar();
@@ -385,12 +387,13 @@ static void show_generic_node(application&       app,
     const auto c_id = s_compo.children.get_id(c);
 
     ImNodes::PushColorStyle(ImNodesCol_TitleBar,
-                            app.settings_wnd.gui_component_color);
-
-    ImNodes::PushColorStyle(ImNodesCol_TitleBarHovered,
-                            app.settings_wnd.gui_hovered_component_color);
-    ImNodes::PushColorStyle(ImNodesCol_TitleBarSelected,
-                            app.settings_wnd.gui_selected_component_color);
+                            to_ImU32(app.config.colors[style_color::node]));
+    ImNodes::PushColorStyle(
+      ImNodesCol_TitleBarHovered,
+      to_ImU32(app.config.colors[style_color::node_hovered]));
+    ImNodes::PushColorStyle(
+      ImNodesCol_TitleBarSelected,
+      to_ImU32(app.config.colors[style_color::node_active]));
 
     ImNodes::BeginNode(pack_node_child(c_id));
     ImNodes::BeginNodeTitleBar();
@@ -410,12 +413,13 @@ static void show_grid_node(application&     app,
                            child_id         c_id) noexcept
 {
     ImNodes::PushColorStyle(ImNodesCol_TitleBar,
-                            app.settings_wnd.gui_component_color);
-
-    ImNodes::PushColorStyle(ImNodesCol_TitleBarHovered,
-                            app.settings_wnd.gui_hovered_component_color);
-    ImNodes::PushColorStyle(ImNodesCol_TitleBarSelected,
-                            app.settings_wnd.gui_selected_component_color);
+                            to_ImU32(app.config.colors[style_color::node]));
+    ImNodes::PushColorStyle(
+      ImNodesCol_TitleBarHovered,
+      to_ImU32(app.config.colors[style_color::node_hovered]));
+    ImNodes::PushColorStyle(
+      ImNodesCol_TitleBarSelected,
+      to_ImU32(app.config.colors[style_color::node_active]));
 
     ImNodes::BeginNode(pack_node_child(c_id));
     ImNodes::BeginNodeTitleBar();
@@ -436,12 +440,13 @@ static void show_graph_node(application&     app,
                             child_id         c_id) noexcept
 {
     ImNodes::PushColorStyle(ImNodesCol_TitleBar,
-                            app.settings_wnd.gui_component_color);
-
-    ImNodes::PushColorStyle(ImNodesCol_TitleBarHovered,
-                            app.settings_wnd.gui_hovered_component_color);
-    ImNodes::PushColorStyle(ImNodesCol_TitleBarSelected,
-                            app.settings_wnd.gui_selected_component_color);
+                            to_ImU32(app.config.colors[style_color::node]));
+    ImNodes::PushColorStyle(
+      ImNodesCol_TitleBarHovered,
+      to_ImU32(app.config.colors[style_color::node_hovered]));
+    ImNodes::PushColorStyle(
+      ImNodesCol_TitleBarSelected,
+      to_ImU32(app.config.colors[style_color::node_active]));
 
     ImNodes::BeginNode(pack_node_child(c_id));
     ImNodes::BeginNodeTitleBar();
@@ -465,12 +470,13 @@ static void show_graph(component_editor&  ed,
 
     parent.x.for_each<port_str>([&](auto id, const auto& name) noexcept {
         ImNodes::PushColorStyle(ImNodesCol_TitleBar,
-                                settings.gui_component_color);
-
-        ImNodes::PushColorStyle(ImNodesCol_TitleBarHovered,
-                                settings.gui_hovered_component_color);
-        ImNodes::PushColorStyle(ImNodesCol_TitleBarSelected,
-                                settings.gui_selected_component_color);
+                                to_ImU32(app.config.colors[style_color::node]));
+        ImNodes::PushColorStyle(
+          ImNodesCol_TitleBarHovered,
+          to_ImU32(app.config.colors[style_color::node_hovered]));
+        ImNodes::PushColorStyle(
+          ImNodesCol_TitleBarSelected,
+          to_ImU32(app.config.colors[style_color::node_active]));
 
         ImNodes::BeginNode(pack_node_X(id));
         ImNodes::BeginOutputAttribute(pack_X(id),
@@ -482,12 +488,13 @@ static void show_graph(component_editor&  ed,
 
     parent.y.for_each<port_str>([&](auto id, const auto& name) noexcept {
         ImNodes::PushColorStyle(ImNodesCol_TitleBar,
-                                settings.gui_component_color);
-
-        ImNodes::PushColorStyle(ImNodesCol_TitleBarHovered,
-                                settings.gui_hovered_component_color);
-        ImNodes::PushColorStyle(ImNodesCol_TitleBarSelected,
-                                settings.gui_selected_component_color);
+                                to_ImU32(app.config.colors[style_color::node]));
+        ImNodes::PushColorStyle(
+          ImNodesCol_TitleBarHovered,
+          to_ImU32(app.config.colors[style_color::node_hovered]));
+        ImNodes::PushColorStyle(
+          ImNodesCol_TitleBarSelected,
+          to_ImU32(app.config.colors[style_color::node_active]));
 
         ImNodes::BeginNode(pack_node_Y(id));
         ImNodes::BeginInputAttribute(pack_Y(id),

@@ -16,14 +16,49 @@
 namespace irt {
 
 enum class recorded_path_id : u32 {};
-enum class gui_theme_id : u32 {};
 
-struct gui_themes {
-    id_array<gui_theme_id> ids;
+constexpr static const char* themes[] = {
+    "Modern",          "Dark",         "Light",     "Bess Dark",
+    "Catpuccin Mocha", "Material You", "Fluent UI", "Fluent UI - Light"
+};
 
-    vector<small_string<31>> names;
+enum class style_color {
+    background,           // Background of generic, grid, graph, hsm components
+    background_selection, //
+    inner_border,         //
+    outer_border,         //
+    component_undefined,  // Color of undefined object in components
+    edge,
+    edge_hovered,
+    edge_active,
+    node,
+    node_hovered,
+    node_active,
+    node_2,
+    node_2_hovered,
+    node_2_active,
+    COUNT,
+};
 
-    gui_theme_id selected{ 0 };
+struct theme_colors {
+
+    std::span<const float, 4> operator[](const style_color c) const noexcept
+    {
+        fatal::ensure(c != style_color::COUNT);
+
+        return std::span(
+          colors[static_cast<std::underlying_type_t<style_color>>(c)]);
+    }
+
+    std::span<float, 4> operator[](const style_color c) noexcept
+    {
+        fatal::ensure(c != style_color::COUNT);
+
+        return std::span(
+          colors[static_cast<std::underlying_type_t<style_color>>(c)]);
+    }
+
+    std::array<std::array<float, 4>, ordinal(style_color::COUNT)> colors;
 };
 
 struct recorded_paths {
@@ -37,7 +72,6 @@ struct recorded_paths {
 };
 
 struct variables {
-    gui_themes     g_themes;
     recorded_paths rec_paths;
 };
 
@@ -50,7 +84,7 @@ enum class log_level {
     warning,
     notice,
     info,
-    debug
+    fatal
 };
 
 /**
@@ -348,6 +382,9 @@ public:
 
     void                       swap(std::shared_ptr<variables>& other) noexcept;
     std::shared_ptr<variables> copy() const noexcept;
+
+    theme_colors colors;
+    int          theme;
 
 private:
     /**

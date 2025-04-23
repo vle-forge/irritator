@@ -78,6 +78,28 @@ void show_menu_external_sources(external_source& srcs,
                                 const char*      title,
                                 source&          src) noexcept;
 
+/** brief Get the color of the component in the @a float[4] format.
+ * If the @a component identifier @a id is undefined this function returns the
+ * @a default_component_color.
+ *
+ * @param mod To access components array.
+ * @param id The ID to test and get.
+ * @return A @a component_color.
+ */
+auto get_component_color(const application& app, const component_id id) noexcept
+  -> const std::span<const float, 4>;
+
+/** brief Get the color of the component in the @a ImU32 format.
+ * If the @a component identifier @a id is undefined this function returns the
+ * @a default_component_color.
+ *
+ * @param mod To access components array.
+ * @param id The ID to test and get.
+ * @return A undefined integer ImU32.
+ */
+auto get_component_u32color(const application& app,
+                            const component_id id) noexcept -> ImU32;
+
 enum class file_path_selector_option {
     none,
     force_dot_extension,
@@ -991,14 +1013,7 @@ public:
     settings_window() noexcept = default;
 
     void show() noexcept;
-    void apply_style(gui_theme_id id) noexcept;
-
-    u32 gui_model_color;
-    u32 gui_component_color;
-    u32 gui_hovered_model_color;
-    u32 gui_selected_model_color;
-    u32 gui_hovered_component_color;
-    u32 gui_selected_component_color;
+    void apply_style(const int theme) noexcept;
 
     int   automatic_layout_iteration_limit = 2048;
     float automatic_layout_x_distance      = 350.f;
