@@ -10,6 +10,7 @@
 
 #include <atomic>
 #include <chrono>
+#include <functional>
 #include <thread>
 #include <type_traits>
 
@@ -62,6 +63,20 @@ public:
     void lock() noexcept;
     void unlock() noexcept;
 };
+
+/** Run a function @a fn according to the test of the @a std::atomic_flag.
+ * The function is called if and only if the @a std::atomic_flag is false. */
+template<typename Fn, typename... Args>
+constexpr void scoped_flag_run(std::atomic_flag& flag,
+                               Fn&&              fn,
+                               Args&&... args) noexcept
+{
+    if (not flag.test_and_set()) { /* If the flag is false, then set to true
+                                      and call the function. */
+        std::invoke(std::forward<Fn>(fn), std::forward<Args>(args)...);
+        flag.clear();
+    }
+}
 
 template<typename T, int Size>
 class static_buffer
