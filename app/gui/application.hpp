@@ -1052,60 +1052,63 @@ struct memory_window {
     bool is_open = false;
 };
 
+ /**
+  * @brief Display component selection widgets.
+  * The @a update() function uses a @a unique_lock to protect write access to
+  * component cache. The widget functions use a @a shared_lock and a @a
+  * try_lock to protect component cache access.
+  */
 class component_selector
 {
 public:
     component_selector() noexcept = default;
 
-    /** Update the components cache with added/renamed/removed component. This
-       function lock the mutex to write new data.
+    /** Update the components cache with added/renamed/removed component.
+     * This function lock the @a shared_mutex to write new data using a
+     * @a std::unique_lock.
      */
     void update() noexcept;
 
     /** Show @c ImGui::ComboBox for all @c component_id.
-
-       Show all @c component_id in @c modeling. This function can lock the mutex
-       if an update is in progress.
-
-       @param label The ImGui::ComboBox label.
-       @param new_selected Output parameters.
-       @return The underlying ImGui::ComboBox return.
-    */
+     * Show all @c component_id in @c modeling. This function can lock the mutex
+     * if an update is in progress.
+     * @param label The ImGui::ComboBox label.
+     * @param new_selected Output parameters.
+     * @return The underlying ImGui::ComboBox return.
+     */
     bool combobox(const char* label, component_id* new_selected) const noexcept;
 
     /** Show @c ImGui::ComboBox for all @c component_id plus hyphen. This symbol
-       means user let the @c component_id value untouch.
-
-       Show all @c component_id in @c modeling. This function can lock the mutex
-       if an update is in progress.
-
-       @param label The ImGui::ComboBox label.
-       @param[out] new_selected Store the selected @c component_id.
-       @param[out] hyphen Store if the user select the hyphen
-       @return The underlying ImGui::ComboBox return.
-    */
+     * means user let the @c component_id value untouch.
+     * Show all @c component_id in @c modeling. This function can lock the mutex
+     * if an update is in progress.
+     * @param label The ImGui::ComboBox label.
+     * @param[out] new_selected Store the selected @c component_id.
+     * @param[out] hyphen Store if the user select the hyphen
+     * @return The underlying ImGui::ComboBox return.
+     */
     bool combobox(const char*   label,
                   component_id* new_selected,
                   bool*         hyphen) const noexcept;
 
     /** Display a @c ImGui::Menu for all @c component_id.
-
-      Show all @c component_id in @c modeling. This function can lock the mutex
-      if an update is in progress.
-
-    */
+     * Show all @c component_id in @c modeling. This function can lock the mutex
+     * if an update is in progress.
+     */
     bool menu(const char* label, component_id* new_selected) const noexcept;
 
 private:
     vector<component_id>      ids;
+    vector<component_id>      ids_2nd;
     vector<small_string<254>> names;
+    vector<small_string<254>> names_2nd;
+
+    std::atomic_flag updating = ATOMIC_FLAG_INIT;
 
     int files   = 0; //! Number of component in registred directories
     int unsaved = 0; //! Number of unsaved component
 
-    mutable std::shared_mutex m_mutex; /**< @c update() lock the class to read
-                           modeling data and build the @c ids and @c names
-                           vectors. Other functions try to lock. */
+    mutable std::shared_mutex m_mutex;
 };
 
 class component_model_selector

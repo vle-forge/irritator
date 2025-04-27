@@ -80,23 +80,16 @@ static void cs_select(const modeling&    mod,
 }
 
 struct update_t {
-    vector<component_id>      ids;
-    vector<small_string<254>> names;
-
-    int files   = 0;
-    int unsaved = 0;
+    int files;
+    int unsaved;
 };
 
-static update_t update_lists(const modeling& mod) noexcept
+static update_t update_lists(const modeling&            mod,
+                             vector<component_id>&      ids,
+                             vector<small_string<254>>& names) noexcept
 {
-    update_t ret;
-    ret.ids.clear();
-    ret.names.clear();
-    ret.files   = 0;
-    ret.unsaved = 0;
-
-    ret.ids.emplace_back(undefined<component_id>());
-    cs_make_selected_name(ret.names.emplace_back());
+    ids.emplace_back(undefined<component_id>());
+    cs_make_selected_name(names.emplace_back());
 
     for_each_component(mod,
                        mod.component_repertories,
@@ -104,8 +97,8 @@ static update_t update_lists(const modeling& mod) noexcept
                            const auto& dir,
                            const auto& file,
                            const auto& compo) noexcept {
-                           ret.ids.emplace_back(file.component);
-                           auto& str = ret.names.emplace_back();
+                           ids.emplace_back(file.component);
+                           auto& str = names.emplace_back();
 
                            cs_make_selected_name(reg.name.sv(),
                                                  dir.path.sv(),
@@ -115,7 +108,7 @@ static update_t update_lists(const modeling& mod) noexcept
                                                  str);
                        });
 
-    ret.files = ret.ids.ssize();
+    const auto saved = ids.ssize();
 
     const auto& vec = mod.components.get<component>();
     for (const auto id : mod.components) {
@@ -123,30 +116,33 @@ static update_t update_lists(const modeling& mod) noexcept
 
         if (compo.type != component_type::internal &&
             mod.file_paths.try_to_get(compo.file) == nullptr) {
-            ret.ids.emplace_back(id);
-            auto& str = ret.names.emplace_back();
+            ids.emplace_back(id);
+            auto& str = names.emplace_back();
 
             cs_make_selected_name(compo.name.sv(), id, str);
         }
     }
 
-    ret.unsaved = ret.ids.size();
+    const auto unsaved = ids.ssize() - saved;
 
-    return ret;
+    return update_t{ .files = saved, .unsaved = unsaved };
 }
 
 void component_selector::update() noexcept
 {
-    const auto& app = container_of(this, &application::component_sel);
-    const auto& mod = app.mod;
+    // Skip the update if a thread is currently running an update.
+    scoped_flag_run(updating, [&]() { 
+        const auto& app = container_of(this, &application::component_sel);
+        const auto& mod = app.mod;
 
-    auto ret = update_lists(mod);
+        auto ret = update_lists(mod, ids_2nd, names_2nd);
 
-    std::shared_lock lock{ m_mutex };
-    ids     = std::move(ret.ids);
-    names   = std::move(ret.names);
-    files   = ret.files;
-    unsaved = ret.unsaved;
+        std::unique_lock lock{ m_mutex };
+        ids.swap(ids_2nd);
+        names.swap(names_2nd);
+        files   = ret.files;
+        unsaved = ret.unsaved;
+    });
 }
 
 bool component_selector::combobox(const char*   label,
