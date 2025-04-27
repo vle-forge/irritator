@@ -87,10 +87,10 @@ public:
     using size_type  = small_storage_size_t<Size>;
     using index_type = std::make_signed_t<size_type>;
 
-    static_buffer(const static_buffer& o) noexcept = delete;
-    static_buffer(static_buffer&& o) noexcept = delete;
+    static_buffer(const static_buffer& o) noexcept            = delete;
+    static_buffer(static_buffer&& o) noexcept                 = delete;
     static_buffer& operator=(const static_buffer& o) noexcept = delete;
-    static_buffer& operator=(static_buffer&& o) noexcept = delete;
+    static_buffer& operator=(static_buffer&& o) noexcept      = delete;
 
     T& operator[](std::integral auto position) noexcept
     {
@@ -124,10 +124,10 @@ public:
       : m_buffer(static_cast<std::byte*>(A::allocate(sizeof(T) * Size)))
     {}
 
-    dynamic_buffer(const dynamic_buffer& o) noexcept = delete;
-    dynamic_buffer(dynamic_buffer&& o) noexcept = delete;
+    dynamic_buffer(const dynamic_buffer& o) noexcept            = delete;
+    dynamic_buffer(dynamic_buffer&& o) noexcept                 = delete;
     dynamic_buffer& operator=(const dynamic_buffer& o) noexcept = delete;
-    dynamic_buffer& operator=(dynamic_buffer&& o) noexcept = delete;
+    dynamic_buffer& operator=(dynamic_buffer&& o) noexcept      = delete;
 
     ~dynamic_buffer() noexcept
     {
@@ -211,7 +211,7 @@ public:
             return false;
 
         if constexpr (std::is_trivially_move_assignable_v<T> or
-                           std::is_nothrow_move_assignable_v<T>) {
+                      std::is_nothrow_move_assignable_v<T>) {
             value = std::move(m_buffer[tail]);
         } else {
             value = m_buffer[tail];
