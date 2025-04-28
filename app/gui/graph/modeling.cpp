@@ -741,6 +741,7 @@ struct graph_component_editor_data::impl {
 
                 if (ImGui::BeginMenu("Model")) {
                     if (ImGui::MenuItem("Generate scale free graph")) {
+                        ed.clear_selected_nodes();
                         graph->g.clear();
                         graph->g_type = graph_component::graph_type::scale_free;
                         graph->param.scale =
@@ -758,6 +759,7 @@ struct graph_component_editor_data::impl {
                       "graphs a good model for certain networking.");
 
                     if (ImGui::MenuItem("Generate Small world graph")) {
+                        ed.clear_selected_nodes();
                         graph->g.clear();
                         graph->g_type =
                           graph_component::graph_type::small_world;
@@ -774,6 +776,7 @@ struct graph_component_editor_data::impl {
                       "with a probability p.");
 
                     if (ImGui::MenuItem("Read Dot graph")) {
+                        ed.clear_selected_nodes();
                         graph->g.clear();
                         graph->g_type = graph_component::graph_type::dot_file;
                         graph->param.dot = graph_component::dot_file_param{};
