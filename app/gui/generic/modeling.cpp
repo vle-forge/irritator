@@ -307,8 +307,7 @@ static bool show_node(component_editor&  ed,
     const auto id  = gen.children.get_id(c);
     const auto idx = get_index(id);
 
-    auto& app      = container_of(&ed, &application::component_ed);
-    auto& settings = app.settings_wnd;
+    auto& app = container_of(&ed, &application::component_ed);
 
     ImNodes::PushColorStyle(ImNodesCol_TitleBar,
                             to_ImU32(app.config.colors[style_color::node_2]));
@@ -465,8 +464,7 @@ static void show_graph(component_editor&  ed,
                        component&         parent,
                        generic_component& s_parent) noexcept
 {
-    auto& app      = container_of(&ed, &application::component_ed);
-    auto& settings = app.settings_wnd;
+    auto& app = container_of(&ed, &application::component_ed);
 
     parent.x.for_each<port_str>([&](auto id, const auto& name) noexcept {
         ImNodes::PushColorStyle(ImNodesCol_TitleBar,
