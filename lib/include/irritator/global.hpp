@@ -400,7 +400,7 @@ public:
     std::shared_ptr<variables> copy() const noexcept;
 
     theme_colors colors;
-    int          theme;
+    int          theme = 0;
 
 private:
     /**
