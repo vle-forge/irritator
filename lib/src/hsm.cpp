@@ -9,9 +9,9 @@ namespace irt {
 using hsm_t = hierarchical_state_machine;
 
 template<typename T, typename... Args>
-constexpr bool all_equal(const T& s, Args... args) noexcept
+constexpr bool all_equal(const T& s, Args&&... args) noexcept
 {
-    return ((s == args) && ... && true);
+    return ((s == std::forward<Args>(args)) && ... && true);
 }
 
 static constexpr i32 copy_to_i32(
@@ -1029,10 +1029,11 @@ bool hierarchical_state_machine::is_in_state(execution& exec,
     return false;
 }
 
-expected<bool> hierarchical_state_machine::handle(const state_id   state,
-                                                const event_type event,
-                                                execution&       exec,
-                                                external_source& srcs) noexcept
+expected<bool> hierarchical_state_machine::handle(
+  const state_id   state,
+  const event_type event,
+  execution&       exec,
+  external_source& srcs) noexcept
 {
     if (is_using_source()) { /* If this HSM use an external source and if the
                                 underlying buffer is empty, we update the

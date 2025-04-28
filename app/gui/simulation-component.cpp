@@ -47,7 +47,7 @@ constexpr static void make_copy_error_msg(application& app,
 {
     app.jn.push(log_level::error, [&](auto& t, auto& m) {
         t = "Component copy failed";
-        format(m, fmt, std::forward<Args...>(args...));
+        format(m, fmt, std::forward<Args>(args)...);
     });
 }
 

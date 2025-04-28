@@ -1242,21 +1242,21 @@ public:
     void if_exists_do(const sub_id id, Function&& fn) noexcept
     {
         if (m_ids.exists(id))
-            fn(id);
+            std::invoke(std::forward<Function>(fn), id);
     }
 
     template<typename Function>
-    void for_each(Function&& f) noexcept
+    void for_each(Function&& fn) noexcept
     {
         for (const auto id : m_ids)
-            f(id);
+            std::invoke(std::forward<Function>(fn), id);
     }
 
     template<typename Function>
-    void for_each(Function&& f) const noexcept
+    void for_each(Function&& fn) const noexcept
     {
         for (const auto id : m_ids)
-            f(id);
+            std::invoke(std::forward<Function>(fn), id);
     }
 
     std::span<tree_node_id>       get_tn_ids() noexcept;
@@ -1658,7 +1658,9 @@ public:
     auto node(const tree_node& node) const noexcept -> tree_node_id;
 
     template<typename Function, typename... Args>
-    void for_each_children(tree_node& tn, Function&& f, Args... args) noexcept;
+    void for_each_children(tree_node& tn,
+                           Function&& f,
+                           Args&&... args) noexcept;
 
     /// Return the size and the capacity of the tree_nodes data_array.
     auto tree_nodes_size() const noexcept -> std::pair<int, int>;
@@ -1910,7 +1912,7 @@ inline tree_node::tree_node(component_id           id_,
 template<typename Function, typename... Args>
 inline void project::for_each_children(tree_node& tn,
                                        Function&& f,
-                                       Args... args) noexcept
+                                       Args&&... args) noexcept
 {
     auto* child = tn.tree.get_child();
     if (!child)
@@ -1922,7 +1924,8 @@ inline void project::for_each_children(tree_node& tn,
         auto cur = stack.back();
         stack.pop_back();
 
-        f(*child, args...);
+        std::invoke(
+          std::forward<Function>(f), *child, std::forward<Args>(args)...);
 
         if (auto* sibling = cur->tree.get_sibling(); sibling)
             stack.emplace_back(sibling);

@@ -130,7 +130,7 @@ auto for_each_data(Data& d, Function&& f) noexcept -> void
     static_assert(std::is_same_v<return_t, void>);
 
     for (auto& data : d)
-        f(data);
+        std::invoke(std::forward<Function>(f), data);
 }
 
 //! @brief Apply function @c f until an error occurend in @f.
@@ -153,14 +153,14 @@ auto try_for_each_data(Data& d, Function&& f) noexcept ->
 
     if constexpr (std::is_same_v<return_t, bool>) {
         for (auto& elem : d)
-            if (!f(elem))
+            if (!std::invoke(std::forward<Function>(f), elem))
                 return false;
         return true;
     }
 
     if constexpr (is_expected<return_t>::value) {
         for (auto& data : d)
-            if (auto ret = f(data); !ret)
+            if (auto ret = std::invoke(std::forward<Function>(f), data); !ret)
                 return ret.error();
         return success();
     }
@@ -177,7 +177,7 @@ void if_data_exists_do(Data&                          d,
     static_assert(std::is_same_v<return_t, void>);
 
     if (auto* ptr = d.try_to_get(id); ptr)
-        f(*ptr);
+        std::invoke(std::forward<Function>(f), *ptr);
 }
 
 //! @brief Call function @c f_if if @c id exists in @c data_array otherwise call
@@ -196,9 +196,9 @@ auto if_data_exists_do(Data&                          d,
     static_assert(std::is_same_v<ret_if_t, ret_else_t>);
 
     if (auto* ptr = d.try_to_get(id); ptr)
-        return f_if(*ptr);
+        return std::invoke(std::forward<FunctionIf>(f_if), *ptr);
     else
-        return f_else();
+        return std::invoke(std::forward<FunctionElse>(f_else));
 }
 
 //! @brief Apply function @c f for all element in vector @c.
@@ -216,13 +216,13 @@ void for_specified_data(Data& d, Vector& vec, Function&& f) noexcept
 
     if constexpr (std::is_const_v<Vector>) {
         for (auto i = 0, e = vec.ssize(); i != e; ++i)
-            if_data_exists_do(d, vec[i], f);
+            if_data_exists_do(d, vec[i], std::forward<Function>(f));
     } else {
         auto i = 0;
 
         while (i < vec.ssize()) {
             if (auto* ptr = d.try_to_get(vec[i]); ptr) {
-                f(*ptr);
+                std::invoke(std::forward<Function>(f), *ptr);
                 ++i;
             } else {
                 vec.swap_pop_back(i);
@@ -251,7 +251,7 @@ void remove_data_if(Data& d, Predicate&& pred) noexcept
             to_del = nullptr;
         }
 
-        if (pred(*current) == true)
+        if (std::invoke(std::forward<Predicate>(pred), *current) == true)
             to_del = current;
     }
 
@@ -275,7 +275,7 @@ void remove_specified_data_if(Data& d, Vector& vec, Predicate&& pred) noexcept
 
     while (i < vec.ssize()) {
         if (auto* ptr = d.try_to_get(vec[i]); ptr) {
-            if (pred(*ptr)) {
+            if (std::invoke(std::forward<Predicate>(pred), *ptr)) {
                 d.free(*ptr);
                 vec.swap_pop_back(i);
             } else {
@@ -307,7 +307,7 @@ auto find_specified_data_if(Data& d, Vector& vec, Predicate&& pred) noexcept ->
 
     while (i < vec.ssize()) {
         if (auto* ptr = d.try_to_get(vec[i]); ptr) {
-            if (pred(*ptr))
+            if (std::invoke(std::forward<Predicate>(pred), *ptr))
                 return ptr;
             else
                 ++i;

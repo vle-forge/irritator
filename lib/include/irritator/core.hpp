@@ -189,9 +189,9 @@ constexpr Iterator binary_find(Iterator begin,
  ****************************************************************************/
 
 template<typename T, typename... Args>
-constexpr bool any_equal(const T& s, Args... args) noexcept
+constexpr bool any_equal(const T& s, Args&&... args) noexcept
 {
-    return ((s == args) || ... || false);
+    return ((s == std::forward<Args>(args)) || ... || false);
 }
 
 template<class T, class... Rest>
@@ -1155,7 +1155,10 @@ public:
 
             for (auto it = block->nodes.begin(); it != block->nodes.end();) {
                 if (auto* mdl = models.try_to_get(it->model)) {
-                    fn(*mdl, it->port_index, args...);
+                    std::invoke(std::forward<Function>(fn),
+                                *mdl,
+                                it->port_index,
+                                std::forward<Args>(args)...);
                     ++it;
                 } else {
                     block->nodes.swap_pop_back(it);
@@ -1194,7 +1197,10 @@ public:
             for (auto it = block->nodes.begin(); it != block->nodes.end();
                  ++it) {
                 if (auto* mdl = models.try_to_get(it->model)) {
-                    fn(*mdl, it->port_index, args...);
+                    std::invoke(std::forward<Function>(fn),
+                                *mdl,
+                                it->port_index,
+                                std::forward<Args>(args)...);
                 }
             }
         }
@@ -4312,9 +4318,9 @@ public:
 constexpr sz max(sz a) { return a; }
 
 template<typename... Args>
-constexpr sz max(sz a, Args... args)
+constexpr sz max(sz a, Args&&... args)
 {
-    return std::max(max(args...), a);
+    return std::max(max(std::forward<Args>(args)...), a);
 }
 
 constexpr sz max_size_in_bytes() noexcept
@@ -4522,196 +4528,347 @@ constexpr auto dispatch(const dynamics_type type,
     case dynamics_type::qss1_integrator:
     case dynamics_type::qss2_integrator:
     case dynamics_type::qss3_integrator:
-        return f(qss_integrator_tag{}, args...);
+        return std::invoke(std::forward<Function>(f),
+                           qss_integrator_tag{},
+                           std::forward<Args>(args)...);
     case dynamics_type::qss1_multiplier:
     case dynamics_type::qss2_multiplier:
     case dynamics_type::qss3_multiplier:
-        return f(qss_multiplier_tag{}, args...);
+        return std::invoke(std::forward<Function>(f),
+                           qss_multiplier_tag{},
+                           std::forward<Args>(args)...);
     case dynamics_type::qss1_cross:
     case dynamics_type::qss2_cross:
     case dynamics_type::qss3_cross:
-        return f(qss_cross_tag{}, args...);
+        return std::invoke(std::forward<Function>(f),
+                           qss_cross_tag{},
+                           std::forward<Args>(args)...);
     case dynamics_type::qss1_filter:
     case dynamics_type::qss2_filter:
     case dynamics_type::qss3_filter:
-        return f(qss_filter_tag{}, args...);
+        return std::invoke(std::forward<Function>(f),
+                           qss_filter_tag{},
+                           std::forward<Args>(args)...);
     case dynamics_type::qss1_power:
     case dynamics_type::qss2_power:
     case dynamics_type::qss3_power:
-        return f(qss_power_tag{}, args...);
+        return std::invoke(std::forward<Function>(f),
+                           qss_power_tag{},
+                           std::forward<Args>(args)...);
     case dynamics_type::qss1_square:
     case dynamics_type::qss2_square:
     case dynamics_type::qss3_square:
-        return f(qss_square_tag{}, args...);
+        return std::invoke(std::forward<Function>(f),
+                           qss_square_tag{},
+                           std::forward<Args>(args)...);
     case dynamics_type::qss1_sum_2:
     case dynamics_type::qss2_sum_2:
     case dynamics_type::qss3_sum_2:
-        return f(qss_sum_2_tag{}, args...);
+        return std::invoke(std::forward<Function>(f),
+                           qss_sum_2_tag{},
+                           std::forward<Args>(args)...);
     case dynamics_type::qss1_sum_3:
     case dynamics_type::qss2_sum_3:
     case dynamics_type::qss3_sum_3:
-        return f(qss_sum_3_tag{}, args...);
+        return std::invoke(std::forward<Function>(f),
+                           qss_sum_3_tag{},
+                           std::forward<Args>(args)...);
     case dynamics_type::qss1_sum_4:
     case dynamics_type::qss2_sum_4:
     case dynamics_type::qss3_sum_4:
-        return f(qss_sum_4_tag{}, args...);
+        return std::invoke(std::forward<Function>(f),
+                           qss_sum_4_tag{},
+                           std::forward<Args>(args)...);
     case dynamics_type::qss1_wsum_2:
     case dynamics_type::qss2_wsum_2:
     case dynamics_type::qss3_wsum_2:
-        return f(qss_wsum_2_tag{}, args...);
+        return std::invoke(std::forward<Function>(f),
+                           qss_wsum_2_tag{},
+                           std::forward<Args>(args)...);
     case dynamics_type::qss1_wsum_3:
     case dynamics_type::qss2_wsum_3:
     case dynamics_type::qss3_wsum_3:
-        return f(qss_wsum_3_tag{}, args...);
+        return std::invoke(std::forward<Function>(f),
+                           qss_wsum_3_tag{},
+                           std::forward<Args>(args)...);
     case dynamics_type::qss1_wsum_4:
     case dynamics_type::qss2_wsum_4:
     case dynamics_type::qss3_wsum_4:
-        return f(qss_wsum_4_tag{}, args...);
+        return std::invoke(std::forward<Function>(f),
+                           qss_wsum_4_tag{},
+                           std::forward<Args>(args)...);
 
     case dynamics_type::counter:
-        return f(counter_tag{}, args...);
+        return std::invoke(std::forward<Function>(f),
+                           counter_tag{},
+                           std::forward<Args>(args)...);
     case dynamics_type::queue:
-        return f(queue_tag{}, args...);
+        return std::invoke(
+          std::forward<Function>(f), queue_tag{}, std::forward<Args>(args)...);
     case dynamics_type::dynamic_queue:
-        return f(dynamic_queue_tag{}, args...);
+        return std::invoke(std::forward<Function>(f),
+                           dynamic_queue_tag{},
+                           std::forward<Args>(args)...);
     case dynamics_type::priority_queue:
-        return f(priority_queue_tag{}, args...);
+        return std::invoke(std::forward<Function>(f),
+                           priority_queue_tag{},
+                           std::forward<Args>(args)...);
     case dynamics_type::generator:
-        return f(generator_tag{}, args...);
+        return std::invoke(std::forward<Function>(f),
+                           generator_tag{},
+                           std::forward<Args>(args)...);
     case dynamics_type::constant:
-        return f(constant_tag{}, args...);
+        return std::invoke(std::forward<Function>(f),
+                           constant_tag{},
+                           std::forward<Args>(args)...);
     case dynamics_type::accumulator_2:
-        return f(accumulator_2_tag{}, args...);
+        return std::invoke(std::forward<Function>(f),
+                           accumulator_2_tag{},
+                           std::forward<Args>(args)...);
     case dynamics_type::time_func:
-        return f(time_func_tag{}, args...);
+        return std::invoke(std::forward<Function>(f),
+                           time_func_tag{},
+                           std::forward<Args>(args)...);
 
     case dynamics_type::logical_and_2:
-        return f(logical_and_2_tag{}, args...);
+        return std::invoke(std::forward<Function>(f),
+                           logical_and_2_tag{},
+                           std::forward<Args>(args)...);
     case dynamics_type::logical_and_3:
-        return f(logical_and_3_tag{}, args...);
+        return std::invoke(std::forward<Function>(f),
+                           logical_and_3_tag{},
+                           std::forward<Args>(args)...);
     case dynamics_type::logical_or_2:
-        return f(logical_or_2_tag{}, args...);
+        return std::invoke(std::forward<Function>(f),
+                           logical_or_2_tag{},
+                           std::forward<Args>(args)...);
     case dynamics_type::logical_or_3:
-        return f(logical_or_3_tag{}, args...);
+        return std::invoke(std::forward<Function>(f),
+                           logical_or_3_tag{},
+                           std::forward<Args>(args)...);
     case dynamics_type::logical_invert:
-        return f(logical_invert_tag{}, args...);
+        return std::invoke(std::forward<Function>(f),
+                           logical_invert_tag{},
+                           std::forward<Args>(args)...);
 
     case dynamics_type::hsm_wrapper:
-        return f(hsm_wrapper_tag{}, args...);
+        return std::invoke(std::forward<Function>(f),
+                           hsm_wrapper_tag{},
+                           std::forward<Args>(args)...);
     }
 
     unreachable();
 }
 
-template<typename Function>
-constexpr auto dispatch(const model& mdl, Function&& f) noexcept
+template<typename Function, typename... Args>
+constexpr auto dispatch(const model& mdl, Function&& f, Args&&... args) noexcept
 {
     switch (mdl.type) {
     case dynamics_type::qss1_integrator:
-        return f(*reinterpret_cast<const qss1_integrator*>(&mdl.dyn));
+        return std::invoke(std::forward<Function>(f),
+                           *reinterpret_cast<const qss1_integrator*>(&mdl.dyn),
+                           std::forward<Args>(args)...);
     case dynamics_type::qss1_multiplier:
-        return f(*reinterpret_cast<const qss1_multiplier*>(&mdl.dyn));
+        return std::invoke(std::forward<Function>(f),
+                           *reinterpret_cast<const qss1_multiplier*>(&mdl.dyn),
+                           std::forward<Args>(args)...);
     case dynamics_type::qss1_cross:
-        return f(*reinterpret_cast<const qss1_cross*>(&mdl.dyn));
+        return std::invoke(std::forward<Function>(f),
+                           *reinterpret_cast<const qss1_cross*>(&mdl.dyn),
+                           std::forward<Args>(args)...);
     case dynamics_type::qss1_filter:
-        return f(*reinterpret_cast<const qss1_filter*>(&mdl.dyn));
+        return std::invoke(std::forward<Function>(f),
+                           *reinterpret_cast<const qss1_filter*>(&mdl.dyn),
+                           std::forward<Args>(args)...);
     case dynamics_type::qss1_power:
-        return f(*reinterpret_cast<const qss1_power*>(&mdl.dyn));
+        return std::invoke(std::forward<Function>(f),
+                           *reinterpret_cast<const qss1_power*>(&mdl.dyn),
+                           std::forward<Args>(args)...);
     case dynamics_type::qss1_square:
-        return f(*reinterpret_cast<const qss1_square*>(&mdl.dyn));
+        return std::invoke(std::forward<Function>(f),
+                           *reinterpret_cast<const qss1_square*>(&mdl.dyn),
+                           std::forward<Args>(args)...);
     case dynamics_type::qss1_sum_2:
-        return f(*reinterpret_cast<const qss1_sum_2*>(&mdl.dyn));
+        return std::invoke(std::forward<Function>(f),
+                           *reinterpret_cast<const qss1_sum_2*>(&mdl.dyn),
+                           std::forward<Args>(args)...);
     case dynamics_type::qss1_sum_3:
-        return f(*reinterpret_cast<const qss1_sum_3*>(&mdl.dyn));
+        return std::invoke(std::forward<Function>(f),
+                           *reinterpret_cast<const qss1_sum_3*>(&mdl.dyn),
+                           std::forward<Args>(args)...);
     case dynamics_type::qss1_sum_4:
-        return f(*reinterpret_cast<const qss1_sum_4*>(&mdl.dyn));
+        return std::invoke(std::forward<Function>(f),
+                           *reinterpret_cast<const qss1_sum_4*>(&mdl.dyn),
+                           std::forward<Args>(args)...);
     case dynamics_type::qss1_wsum_2:
-        return f(*reinterpret_cast<const qss1_wsum_2*>(&mdl.dyn));
+        return std::invoke(std::forward<Function>(f),
+                           *reinterpret_cast<const qss1_wsum_2*>(&mdl.dyn),
+                           std::forward<Args>(args)...);
     case dynamics_type::qss1_wsum_3:
-        return f(*reinterpret_cast<const qss1_wsum_3*>(&mdl.dyn));
+        return std::invoke(std::forward<Function>(f),
+                           *reinterpret_cast<const qss1_wsum_3*>(&mdl.dyn),
+                           std::forward<Args>(args)...);
     case dynamics_type::qss1_wsum_4:
-        return f(*reinterpret_cast<const qss1_wsum_4*>(&mdl.dyn));
+        return std::invoke(std::forward<Function>(f),
+                           *reinterpret_cast<const qss1_wsum_4*>(&mdl.dyn),
+                           std::forward<Args>(args)...);
 
     case dynamics_type::qss2_integrator:
-        return f(*reinterpret_cast<const qss2_integrator*>(&mdl.dyn));
+        return std::invoke(std::forward<Function>(f),
+                           *reinterpret_cast<const qss2_integrator*>(&mdl.dyn),
+                           std::forward<Args>(args)...);
     case dynamics_type::qss2_multiplier:
-        return f(*reinterpret_cast<const qss2_multiplier*>(&mdl.dyn));
+        return std::invoke(std::forward<Function>(f),
+                           *reinterpret_cast<const qss2_multiplier*>(&mdl.dyn),
+                           std::forward<Args>(args)...);
     case dynamics_type::qss2_cross:
-        return f(*reinterpret_cast<const qss2_cross*>(&mdl.dyn));
+        return std::invoke(std::forward<Function>(f),
+                           *reinterpret_cast<const qss2_cross*>(&mdl.dyn),
+                           std::forward<Args>(args)...);
     case dynamics_type::qss2_filter:
-        return f(*reinterpret_cast<const qss2_filter*>(&mdl.dyn));
+        return std::invoke(std::forward<Function>(f),
+                           *reinterpret_cast<const qss2_filter*>(&mdl.dyn),
+                           std::forward<Args>(args)...);
     case dynamics_type::qss2_power:
-        return f(*reinterpret_cast<const qss2_power*>(&mdl.dyn));
+        return std::invoke(std::forward<Function>(f),
+                           *reinterpret_cast<const qss2_power*>(&mdl.dyn),
+                           std::forward<Args>(args)...);
     case dynamics_type::qss2_square:
-        return f(*reinterpret_cast<const qss2_square*>(&mdl.dyn));
+        return std::invoke(std::forward<Function>(f),
+                           *reinterpret_cast<const qss2_square*>(&mdl.dyn),
+                           std::forward<Args>(args)...);
     case dynamics_type::qss2_sum_2:
-        return f(*reinterpret_cast<const qss2_sum_2*>(&mdl.dyn));
+        return std::invoke(std::forward<Function>(f),
+                           *reinterpret_cast<const qss2_sum_2*>(&mdl.dyn),
+                           std::forward<Args>(args)...);
     case dynamics_type::qss2_sum_3:
-        return f(*reinterpret_cast<const qss2_sum_3*>(&mdl.dyn));
+        return std::invoke(std::forward<Function>(f),
+                           *reinterpret_cast<const qss2_sum_3*>(&mdl.dyn),
+                           std::forward<Args>(args)...);
     case dynamics_type::qss2_sum_4:
-        return f(*reinterpret_cast<const qss2_sum_4*>(&mdl.dyn));
+        return std::invoke(std::forward<Function>(f),
+                           *reinterpret_cast<const qss2_sum_4*>(&mdl.dyn),
+                           std::forward<Args>(args)...);
     case dynamics_type::qss2_wsum_2:
-        return f(*reinterpret_cast<const qss2_wsum_2*>(&mdl.dyn));
+        return std::invoke(std::forward<Function>(f),
+                           *reinterpret_cast<const qss2_wsum_2*>(&mdl.dyn),
+                           std::forward<Args>(args)...);
     case dynamics_type::qss2_wsum_3:
-        return f(*reinterpret_cast<const qss2_wsum_3*>(&mdl.dyn));
+        return std::invoke(std::forward<Function>(f),
+                           *reinterpret_cast<const qss2_wsum_3*>(&mdl.dyn),
+                           std::forward<Args>(args)...);
     case dynamics_type::qss2_wsum_4:
-        return f(*reinterpret_cast<const qss2_wsum_4*>(&mdl.dyn));
+        return std::invoke(std::forward<Function>(f),
+                           *reinterpret_cast<const qss2_wsum_4*>(&mdl.dyn),
+                           std::forward<Args>(args)...);
 
     case dynamics_type::qss3_integrator:
-        return f(*reinterpret_cast<const qss3_integrator*>(&mdl.dyn));
+        return std::invoke(std::forward<Function>(f),
+                           *reinterpret_cast<const qss3_integrator*>(&mdl.dyn),
+                           std::forward<Args>(args)...);
     case dynamics_type::qss3_multiplier:
-        return f(*reinterpret_cast<const qss3_multiplier*>(&mdl.dyn));
+        return std::invoke(std::forward<Function>(f),
+                           *reinterpret_cast<const qss3_multiplier*>(&mdl.dyn),
+                           std::forward<Args>(args)...);
     case dynamics_type::qss3_cross:
-        return f(*reinterpret_cast<const qss3_cross*>(&mdl.dyn));
+        return std::invoke(std::forward<Function>(f),
+                           *reinterpret_cast<const qss3_cross*>(&mdl.dyn),
+                           std::forward<Args>(args)...);
     case dynamics_type::qss3_filter:
-        return f(*reinterpret_cast<const qss3_filter*>(&mdl.dyn));
+        return std::invoke(std::forward<Function>(f),
+                           *reinterpret_cast<const qss3_filter*>(&mdl.dyn),
+                           std::forward<Args>(args)...);
     case dynamics_type::qss3_power:
-        return f(*reinterpret_cast<const qss3_power*>(&mdl.dyn));
+        return std::invoke(std::forward<Function>(f),
+                           *reinterpret_cast<const qss3_power*>(&mdl.dyn),
+                           std::forward<Args>(args)...);
     case dynamics_type::qss3_square:
-        return f(*reinterpret_cast<const qss3_square*>(&mdl.dyn));
+        return std::invoke(std::forward<Function>(f),
+                           *reinterpret_cast<const qss3_square*>(&mdl.dyn),
+                           std::forward<Args>(args)...);
     case dynamics_type::qss3_sum_2:
-        return f(*reinterpret_cast<const qss3_sum_2*>(&mdl.dyn));
+        return std::invoke(std::forward<Function>(f),
+                           *reinterpret_cast<const qss3_sum_2*>(&mdl.dyn),
+                           std::forward<Args>(args)...);
     case dynamics_type::qss3_sum_3:
-        return f(*reinterpret_cast<const qss3_sum_3*>(&mdl.dyn));
+        return std::invoke(std::forward<Function>(f),
+                           *reinterpret_cast<const qss3_sum_3*>(&mdl.dyn),
+                           std::forward<Args>(args)...);
     case dynamics_type::qss3_sum_4:
-        return f(*reinterpret_cast<const qss3_sum_4*>(&mdl.dyn));
+        return std::invoke(std::forward<Function>(f),
+                           *reinterpret_cast<const qss3_sum_4*>(&mdl.dyn),
+                           std::forward<Args>(args)...);
     case dynamics_type::qss3_wsum_2:
-        return f(*reinterpret_cast<const qss3_wsum_2*>(&mdl.dyn));
+        return std::invoke(std::forward<Function>(f),
+                           *reinterpret_cast<const qss3_wsum_2*>(&mdl.dyn),
+                           std::forward<Args>(args)...);
     case dynamics_type::qss3_wsum_3:
-        return f(*reinterpret_cast<const qss3_wsum_3*>(&mdl.dyn));
+        return std::invoke(std::forward<Function>(f),
+                           *reinterpret_cast<const qss3_wsum_3*>(&mdl.dyn),
+                           std::forward<Args>(args)...);
     case dynamics_type::qss3_wsum_4:
-        return f(*reinterpret_cast<const qss3_wsum_4*>(&mdl.dyn));
+        return std::invoke(std::forward<Function>(f),
+                           *reinterpret_cast<const qss3_wsum_4*>(&mdl.dyn),
+                           std::forward<Args>(args)...);
 
     case dynamics_type::counter:
-        return f(*reinterpret_cast<const counter*>(&mdl.dyn));
+        return std::invoke(std::forward<Function>(f),
+                           *reinterpret_cast<const counter*>(&mdl.dyn),
+                           std::forward<Args>(args)...);
     case dynamics_type::queue:
-        return f(*reinterpret_cast<const queue*>(&mdl.dyn));
+        return std::invoke(std::forward<Function>(f),
+                           *reinterpret_cast<const queue*>(&mdl.dyn),
+                           std::forward<Args>(args)...);
     case dynamics_type::dynamic_queue:
-        return f(*reinterpret_cast<const dynamic_queue*>(&mdl.dyn));
+        return std::invoke(std::forward<Function>(f),
+                           *reinterpret_cast<const dynamic_queue*>(&mdl.dyn),
+                           std::forward<Args>(args)...);
     case dynamics_type::priority_queue:
-        return f(*reinterpret_cast<const priority_queue*>(&mdl.dyn));
+        return std::invoke(std::forward<Function>(f),
+                           *reinterpret_cast<const priority_queue*>(&mdl.dyn),
+                           std::forward<Args>(args)...);
     case dynamics_type::generator:
-        return f(*reinterpret_cast<const generator*>(&mdl.dyn));
+        return std::invoke(std::forward<Function>(f),
+                           *reinterpret_cast<const generator*>(&mdl.dyn),
+                           std::forward<Args>(args)...);
     case dynamics_type::constant:
-        return f(*reinterpret_cast<const constant*>(&mdl.dyn));
+        return std::invoke(std::forward<Function>(f),
+                           *reinterpret_cast<const constant*>(&mdl.dyn),
+                           std::forward<Args>(args)...);
     case dynamics_type::accumulator_2:
-        return f(*reinterpret_cast<const accumulator_2*>(&mdl.dyn));
+        return std::invoke(std::forward<Function>(f),
+                           *reinterpret_cast<const accumulator_2*>(&mdl.dyn),
+                           std::forward<Args>(args)...);
     case dynamics_type::time_func:
-        return f(*reinterpret_cast<const time_func*>(&mdl.dyn));
+        return std::invoke(std::forward<Function>(f),
+                           *reinterpret_cast<const time_func*>(&mdl.dyn),
+                           std::forward<Args>(args)...);
 
     case dynamics_type::logical_and_2:
-        return f(*reinterpret_cast<const logical_and_2*>(&mdl.dyn));
+        return std::invoke(std::forward<Function>(f),
+                           *reinterpret_cast<const logical_and_2*>(&mdl.dyn),
+                           std::forward<Args>(args)...);
     case dynamics_type::logical_and_3:
-        return f(*reinterpret_cast<const logical_and_3*>(&mdl.dyn));
+        return std::invoke(std::forward<Function>(f),
+                           *reinterpret_cast<const logical_and_3*>(&mdl.dyn),
+                           std::forward<Args>(args)...);
     case dynamics_type::logical_or_2:
-        return f(*reinterpret_cast<const logical_or_2*>(&mdl.dyn));
+        return std::invoke(std::forward<Function>(f),
+                           *reinterpret_cast<const logical_or_2*>(&mdl.dyn),
+                           std::forward<Args>(args)...);
     case dynamics_type::logical_or_3:
-        return f(*reinterpret_cast<const logical_or_3*>(&mdl.dyn));
+        return std::invoke(std::forward<Function>(f),
+                           *reinterpret_cast<const logical_or_3*>(&mdl.dyn),
+                           std::forward<Args>(args)...);
     case dynamics_type::logical_invert:
-        return f(*reinterpret_cast<const logical_invert*>(&mdl.dyn));
+        return std::invoke(std::forward<Function>(f),
+                           *reinterpret_cast<const logical_invert*>(&mdl.dyn),
+                           std::forward<Args>(args)...);
 
     case dynamics_type::hsm_wrapper:
-        return f(*reinterpret_cast<const hsm_wrapper*>(&mdl.dyn));
+        return std::invoke(std::forward<Function>(f),
+                           *reinterpret_cast<const hsm_wrapper*>(&mdl.dyn),
+                           std::forward<Args>(args)...);
     }
 
     unreachable();

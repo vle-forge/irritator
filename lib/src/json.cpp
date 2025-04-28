@@ -91,7 +91,7 @@ struct json_dearchiver::impl {
     template<typename Function, typename... Args>
     bool for_each_array(const rapidjson::Value& array,
                         Function&&              f,
-                        Args... args) noexcept
+                        Args&&... args) noexcept
     {
         if (!array.IsArray())
             return report_error("json value is not an array");
@@ -100,7 +100,10 @@ struct json_dearchiver::impl {
         for (; i != e; ++i) {
             // debug_logi(stack.ssize(), "for-array: {}/{}\n", i, e);
 
-            if (!f(i, array.GetArray()[i], args...))
+            if (!std::invoke(std::forward<Function>(f),
+                             i,
+                             array.GetArray()[i],
+                             std::forward<Args>(args)...))
                 return false;
         }
 
@@ -135,7 +138,9 @@ struct json_dearchiver::impl {
                 return report_error("unknown element");
             }
 
-            if (!fn(std::distance(std::begin(names), x), it->value)) {
+            if (!std::invoke(std::forward<Function>(fn),
+                             std::distance(std::begin(names), x),
+                             it->value)) {
                 // debug_logi(stack.ssize(),
                 //            "for-member: element {} return false\n",
                 //            std::string_view{ it->name.GetString(),
@@ -153,7 +158,7 @@ struct json_dearchiver::impl {
     template<typename Function, typename... Args>
     bool for_each_member(const rapidjson::Value& val,
                          Function&&              f,
-                         Args... args) noexcept
+                         Args&&... args) noexcept
     {
         if (!val.IsObject())
             return report_error("json value is not an object");
@@ -162,7 +167,10 @@ struct json_dearchiver::impl {
              ++it) {
             // debug_logi(stack.ssize(), "for-member: {}\n",
             // it->name.GetString());
-            if (!f(it->name.GetString(), it->value, args...))
+            if (!std::invoke(std::forward<Function>(f),
+                             it->name.GetString(),
+                             it->value,
+                             std::forward<Args>(args)...))
                 return false;
         }
 
@@ -173,14 +181,16 @@ struct json_dearchiver::impl {
     bool for_first_member(const rapidjson::Value& val,
                           std::string_view        name,
                           Function&&              f,
-                          Args... args) noexcept
+                          Args&&... args) noexcept
     {
         if (!val.IsObject())
             return report_error("json value is not an object");
 
         for (auto it = val.MemberBegin(), et = val.MemberEnd(); it != et; ++it)
             if (name == it->name.GetString())
-                return f(it->value, args...);
+                return std::invoke(std::forward<Function>(f),
+                                   it->value,
+                                   std::forward<Args>(args)...);
 
         return report_error("json object member not found");
     }
@@ -1843,17 +1853,14 @@ struct json_dearchiver::impl {
                      if ("x"sv == name)
                          return read_temp_real(value) and
                                 copy_real_to(
-                                  generic.children_positions[c_id]
-                                    .x);
+                                  generic.children_positions[c_id].x);
                      if ("y"sv == name)
                          return read_temp_real(value) and
                                 copy_real_to(
-                                  generic.children_positions[c_id]
-                                    .y);
+                                  generic.children_positions[c_id].y);
                      if ("name"sv == name)
                          return read_temp_string(value) and
-                                copy_string_to(
-                                  generic.children_names[c_id]);
+                                copy_string_to(generic.children_names[c_id]);
                      if ("configurable"sv == name)
                          return read_temp_bool(value) and
                                 affect_configurable_to(c.flags);
@@ -2098,7 +2105,8 @@ struct json_dearchiver::impl {
         return nullptr;
     }
 
-    auto search_component(std::string_view name) const noexcept -> const component*
+    auto search_component(std::string_view name) const noexcept
+      -> const component*
     {
         const auto& compo_vec = mod().components.get<component>();
         for (const auto id : mod().components)

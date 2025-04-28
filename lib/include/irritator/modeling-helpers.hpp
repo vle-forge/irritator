@@ -132,7 +132,8 @@ void for_each_component(const modeling&       mod,
       mod.file_paths, dir_path.children, [&](auto& file_path) noexcept {
           if (auto* c =
                 mod.components.try_to_get<component>(file_path.component))
-              f(reg_path, dir_path, file_path, *c);
+              std::invoke(
+                std::forward<Function>(f), reg_path, dir_path, file_path, *c);
       });
 }
 
@@ -146,7 +147,8 @@ void for_each_component(modeling&       mod,
       mod.file_paths, dir_path.children, [&](const auto& file_path) noexcept {
           if (auto* c =
                 mod.components.try_to_get<component>(file_path.component))
-              f(reg_path, dir_path, file_path, *c);
+              std::invoke(
+                std::forward<Function>(f), reg_path, dir_path, file_path, *c);
       });
 }
 
@@ -159,7 +161,7 @@ void for_each_component(modeling&  mod,
       mod.file_paths, dir_path.children, [&](auto& file_path) noexcept {
           if (auto* c =
                 mod.components.try_to_get<component>(file_path.component)) {
-              f(dir_path, file_path, *c);
+              std::invoke(std::forward<Function>(f), dir_path, file_path, *c);
           }
       });
 }
@@ -173,7 +175,7 @@ void for_each_component(const modeling& mod,
       mod.file_paths, dir_path.children, [&](const auto& file_path) noexcept {
           if (auto* c =
                 mod.components.try_to_get<component>(file_path.component)) {
-              f(dir_path, file_path, *c);
+              std::invoke(std::forward<Function>(f), dir_path, file_path, *c);
           }
       });
 }
@@ -185,7 +187,8 @@ void for_each_component(modeling&       mod,
 {
     for_specified_data(
       mod.dir_paths, reg_path.children, [&](auto& dir_path) noexcept {
-          return for_each_component(mod, reg_path, dir_path, f);
+          return for_each_component(
+            mod, reg_path, dir_path, std::forward<Function>(f));
       });
 }
 
@@ -196,7 +199,8 @@ void for_each_component(const modeling&       mod,
 {
     for_specified_data(
       mod.dir_paths, reg_path.children, [&](const auto& dir_path) noexcept {
-          return for_each_component(mod, reg_path, dir_path, f);
+          return for_each_component(
+            mod, reg_path, dir_path, std::forward<Function>(f));
       });
 }
 
@@ -206,7 +210,7 @@ void for_each_component(modeling&                  mod,
                         Function&&                 f) noexcept
 {
     for_specified_data(mod.registred_paths, dirs, [&](auto& reg_path) noexcept {
-        return for_each_component(mod, reg_path, f);
+        return for_each_component(mod, reg_path, std::forward<Function>(f));
     });
 }
 
@@ -217,7 +221,7 @@ void for_each_component(const modeling&                  mod,
 {
     for_specified_data(
       mod.registred_paths, dirs, [&](const auto& reg_path) noexcept {
-          return for_each_component(mod, reg_path, f);
+          return for_each_component(mod, reg_path, std::forward<Function>(f));
       });
 }
 
@@ -236,7 +240,7 @@ void if_component_is_generic(const modeling&    mod,
             if (const auto* gen =
                   mod.generic_components.try_to_get(compo->id.generic_id);
                 gen)
-                f(*compo, *gen);
+                std::invoke(std::forward<Function>(f), *compo, *gen);
         }
     }
 }
@@ -256,7 +260,7 @@ void if_component_is_generic(modeling&          mod,
             if (auto* gen =
                   mod.generic_components.try_to_get(compo->id.generic_id);
                 gen)
-                f(*compo, *gen);
+                std::invoke(std::forward<Function>(f), *compo, *gen);
         }
     }
 }
@@ -276,7 +280,7 @@ void if_component_is_grid(const modeling&    mod,
             if (const auto* gen =
                   mod.grid_components.try_to_get(compo->id.grid_id);
                 gen)
-                f(*compo, *gen);
+                std::invoke(std::forward<Function>(f), *compo, *gen);
         }
     }
 }
@@ -295,7 +299,7 @@ void if_component_is_grid(modeling&          mod,
         if (compo->type == component_type::grid) {
             if (auto* gen = mod.grid_components.try_to_get(compo->id.grid_id);
                 gen)
-                f(*compo, *gen);
+                std::invoke(std::forward<Function>(f), *compo, *gen);
         }
     }
 }
@@ -315,7 +319,7 @@ void if_component_is_graph(const modeling&    mod,
             if (const auto* gen =
                   mod.graph_components.try_to_get(compo->id.graph_id);
                 gen)
-                f(*compo, *gen);
+                std::invoke(std::forward<Function>(f), *compo, *gen);
         }
     }
 }
@@ -334,7 +338,7 @@ void if_component_is_graph(modeling&          mod,
         if (compo->type == component_type::graph) {
             if (auto* gen = mod.graph_components.try_to_get(compo->id.graph_id);
                 gen)
-                f(*compo, *gen);
+                std::invoke(std::forward<Function>(f), *compo, *gen);
         }
     }
 }
@@ -347,7 +351,8 @@ void for_each_child(modeling& mod, component& compo, Function&& f) noexcept
         if_data_exists_do(mod.generic_components,
                           compo.id.generic_id,
                           [&](auto& generic) noexcept {
-                              for_each_child(mod, compo, generic, f);
+                              for_each_child(
+                                mod, compo, generic, std::forward<Function>(f));
                           });
         break;
 
@@ -357,14 +362,14 @@ void for_each_child(modeling& mod, component& compo, Function&& f) noexcept
     case component_type::grid:
         if_data_exists_do(
           mod.grid_components, compo.id.grid_id, [&](auto& grid) noexcept {
-              for_each_child(mod, compo, grid, f);
+              for_each_child(mod, compo, grid, std::forward<Function>(f));
           });
         break;
 
     case component_type::graph:
         if_data_exists_do(
           mod.graph_components, compo.id.graph_id, [&](auto& graph) noexcept {
-              for_each_child(mod, compo, graph, f);
+              for_each_child(mod, compo, graph, std::forward<Function>(f));
           });
         break;
 
@@ -377,24 +382,25 @@ template<typename Function>
 void for_each_child(modeling& mod, tree_node& tn, Function&& f) noexcept
 {
     if_data_exists_do(mod.components, tn.id, [&](auto& compo) noexcept {
-        for_each_child(mod, compo, f);
+        for_each_child(mod, compo, std::forward<Function>(f));
     });
 }
 
 //! \brief if child exists and is a component, invoke the function \c f
 //! otherwise do nothing. \param f a invokable with no const \c child and \c
 //! component references.
-template<typename function>
+template<typename Function>
 void if_child_is_component_do(modeling&                    mod,
                               data_array<child, child_id>& data,
                               child_id                     id,
-                              function&&                   f) noexcept
+                              Function&&                   f) noexcept
 {
     if_data_exists_do(data, id, [&](auto& child) noexcept {
         if (child.type == child_type::component) {
-            if_data_exists_do(mod.components,
-                              child.id.compo_id,
-                              [&](component& compo) { f(child, compo); });
+            if_data_exists_do(
+              mod.components, child.id.compo_id, [&](component& compo) {
+                  std::invoke(std::forward<Function>(f), child, compo);
+              });
         }
     });
 }
@@ -402,17 +408,18 @@ void if_child_is_component_do(modeling&                    mod,
 //! \brief if child exists and is a component, invoke the function \c f
 //! otherwise do nothing. \param f a invokable with no const \c child and \c
 //! component references.
-template<typename function>
+template<typename Function>
 void if_child_is_model_do(modeling&                    mod,
                           data_array<child, child_id>& data,
                           child_id                     id,
-                          function&&                   f) noexcept
+                          Function&&                   f) noexcept
 {
     if_data_exists_do(data, id, [&](auto& child) noexcept {
         if (child.type == child_type::component) {
-            if_data_exists_do(mod.components,
-                              child.id.compo_id,
-                              [&](component& compo) { f(child, compo); });
+            if_data_exists_do(
+              mod.components, child.id.compo_id, [&](component& compo) {
+                  std::invoke(std::forward<Function>(f), child, compo);
+              });
         }
     });
 }
@@ -424,7 +431,9 @@ void for_each_model(simulation& sim, tree_node& tn, Function&& f) noexcept
     for (int i = 0, e = tn.unique_id_to_model_id.data.ssize(); i < e; ++i) {
         if_data_exists_do(
           sim.models, tn.unique_id_to_model_id.data[i].value, [&](auto& mdl) {
-              f(tn.unique_id_to_model_id.data[i].id.sv(), mdl);
+              std::invoke(std::forward<Function>(f),
+                          tn.unique_id_to_model_id.data[i].id.sv(),
+                          mdl);
           });
     }
 }
@@ -437,7 +446,9 @@ void for_each_model(const simulation& sim,
     for (int i = 0, e = tn.unique_id_to_model_id.data.ssize(); i < e; ++i) {
         const auto mdl_id = tn.unique_id_to_model_id.data[i].value;
         if (const auto* mdl = sim.models.try_to_get(mdl_id); mdl)
-            f(tn.unique_id_to_model_id.data[i].id.sv(), *mdl);
+            std::invoke(std::forward<Function>(f),
+                        tn.unique_id_to_model_id.data[i].id.sv(),
+                        *mdl);
     }
 }
 
@@ -456,7 +467,8 @@ void if_tree_node_is_grid_do(project&     pj,
             if (compo->type == component_type::grid) {
                 if (g_compo = mod.grid_components.try_to_get(compo->id.grid_id);
                     g_compo) {
-                    f(*grid_tn, *compo, *g_compo);
+                    std::invoke(
+                      std::forward<Function>(f), *grid_tn, *compo, *g_compo);
                 }
             }
         }
@@ -479,7 +491,8 @@ void if_tree_node_is_graph_do(project&     pj,
                 if (g_compo =
                       mod.graph_components.try_to_get(compo->id.graph_id);
                     g_compo) {
-                    f(*graph_tn, *compo, *g_compo);
+                    std::invoke(
+                      std::forward<Function>(f), *graph_tn, *compo, *g_compo);
                 }
             }
         }
@@ -495,16 +508,21 @@ void dispatch_component(modeling& mod, component& compo, Function&& f) noexcept
     case component_type::internal:
         break;
     case component_type::generic:
-        if_data_exists_do(mod.generic_components, compo.id.generic_id, f);
+        if_data_exists_do(mod.generic_components,
+                          compo.id.generic_id,
+                          std::forward<Function>(f));
         break;
     case component_type::grid:
-        if_data_exists_do(mod.grid_components, compo.id.grid_id, f);
+        if_data_exists_do(
+          mod.grid_components, compo.id.grid_id, std::forward<Function>(f));
         break;
     case component_type::graph:
-        if_data_exists_do(mod.graph_components, compo.id.graph_id, f);
+        if_data_exists_do(
+          mod.graph_components, compo.id.graph_id, std::forward<Function>(f));
         break;
     case component_type::hsm:
-        if_data_exists_do(mod.hsm_components, compo.id.hsm_id, f);
+        if_data_exists_do(
+          mod.hsm_components, compo.id.hsm_id, std::forward<Function>(f));
         break;
     }
 }

@@ -9,6 +9,7 @@
 
 #include <algorithm>
 #include <bitset>
+#include <functional>
 #include <initializer_list>
 #include <iterator>
 #include <limits>
@@ -1308,7 +1309,7 @@ private:
                     const identifier_type id,
                     std::index_sequence<Is...>) noexcept
     {
-        fn(id, std::get<Is>(m_col)[id]...);
+        std::invoke(std::forward<Function>(fn), id, std::get<Is>(m_col)[id]...);
     }
 
     template<typename Function, std::size_t... Is>
@@ -1316,7 +1317,7 @@ private:
                     const identifier_type id,
                     std::index_sequence<Is...>) const noexcept
     {
-        fn(id, std::get<Is>(m_col)[id]...);
+        std::invoke(std::forward<Function>(fn), id, std::get<Is>(m_col)[id]...);
     }
 
     template<typename Function, std::size_t... Is>
@@ -1324,7 +1325,7 @@ private:
                           const identifier_type id,
                           std::index_sequence<Is...>) noexcept
     {
-        fn(id, std::get<Is>(m_col)[id]...);
+        std::invoke(std::forward<Function>(fn), id, std::get<Is>(m_col)[id]...);
     }
 
     template<typename T>
@@ -3004,7 +3005,8 @@ auto id_data_array<Identifier, A, Ts...>::alloc(Function&& fn) noexcept
     irt::fatal::ensure(m_ids.can_alloc(1));
 
     const auto id = m_ids.alloc();
-    do_call_alloc_fn(fn, id, std::index_sequence_for<Ts...>());
+    do_call_alloc_fn(
+      std::forward<Function>(fn), id, std::index_sequence_for<Ts...>());
     return id;
 }
 
@@ -3146,7 +3148,9 @@ void id_data_array<Identifier, A, Ts...>::if_exists_do(const identifier_type id,
                                                        Function&& fn) noexcept
 {
     if (m_ids.exists(id))
-        fn(id, std::get<buffer_view<Type>>(m_col)[get_index(id)]);
+        std::invoke(std::forward<Function>(fn),
+                    id,
+                    std::get<buffer_view<Type>>(m_col)[get_index(id)]);
 }
 
 template<typename Identifier, typename A, class... Ts>
@@ -3154,7 +3158,9 @@ template<typename Type, typename Function>
 void id_data_array<Identifier, A, Ts...>::for_each(Function&& fn) noexcept
 {
     for (const auto id : m_ids)
-        fn(id, std::get<buffer_view<Type>>(m_col)[get_index(id)]);
+        std::invoke(std::forward<Function>(fn),
+                    id,
+                    std::get<buffer_view<Type>>(m_col)[get_index(id)]);
 }
 
 template<typename Identifier, typename A, class... Ts>
@@ -3162,7 +3168,8 @@ template<typename Function>
 void id_data_array<Identifier, A, Ts...>::for_each(Function&& fn) noexcept
 {
     for (const auto id : m_ids)
-        do_call_fn(fn, id, std::index_sequence_for<Ts...>());
+        do_call_fn(
+          std::forward<Function>(fn), id, std::index_sequence_for<Ts...>());
 }
 
 template<typename Identifier, typename A, class... Ts>
@@ -3170,7 +3177,9 @@ template<typename Type, typename Function>
 void id_data_array<Identifier, A, Ts...>::for_each(Function&& fn) const noexcept
 {
     for (const auto id : m_ids)
-        fn(id, std::get<buffer_view<Type>>(m_col)[get_index(id)]);
+        std::invoke(std::forward<Function>(fn),
+                    id,
+                    std::get<buffer_view<Type>>(m_col)[get_index(id)]);
 }
 
 template<typename Identifier, typename A, class... Ts>
@@ -3178,7 +3187,8 @@ template<typename Function>
 void id_data_array<Identifier, A, Ts...>::for_each(Function&& fn) const noexcept
 {
     for (const auto id : m_ids)
-        do_call_fn(fn, id, std::index_sequence_for<Ts...>());
+        do_call_fn(
+          std::forward<Function>(fn), id, std::index_sequence_for<Ts...>());
 }
 
 template<typename Identifier, typename A, class... Ts>
@@ -3186,7 +3196,7 @@ template<typename Function>
 void id_data_array<Identifier, A, Ts...>::for_each_id(Function&& fn) noexcept
 {
     for (const auto id : m_ids)
-        fn(id);
+        std::invoke(std::forward<Function>(fn), id);
 }
 
 template<typename Identifier, typename A, class... Ts>
@@ -3195,7 +3205,7 @@ void id_data_array<Identifier, A, Ts...>::for_each_id(
   Function&& fn) const noexcept
 {
     for (const auto id : m_ids)
-        fn(id);
+        std::invoke(std::forward<Function>(fn), id);
 }
 
 template<typename Identifier, typename A, class... Ts>

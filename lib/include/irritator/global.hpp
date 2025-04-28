@@ -12,6 +12,7 @@
 #include <filesystem>
 #include <mutex>
 #include <shared_mutex>
+#include <span>
 
 namespace irt {
 
@@ -128,7 +129,10 @@ public:
     void get(Function&& fn, Args&&... args) noexcept
     {
         std::unique_lock<std::shared_mutex> lock(m_mutex);
-        fn(m_logs, m_ring, std::forward<Args>(args)...);
+        std::invoke(std::forward<Function>(fn),
+                    m_logs,
+                    m_ring,
+                    std::forward<Args>(args)...);
         m_logs.clear();
         m_ring.clear();
         m_number = 0;
@@ -147,7 +151,10 @@ public:
     {
         if (std::unique_lock<std::shared_mutex> lock(m_mutex, std::try_to_lock);
             lock.owns_lock()) {
-            fn(m_logs, m_ring, std::forward<Args>(args)...);
+            std::invoke(std::forward<Function>(fn),
+                        m_logs,
+                        m_ring,
+                        std::forward<Args>(args)...);
             m_logs.clear();
             m_ring.clear();
             m_number = 0;
@@ -158,9 +165,10 @@ public:
     void read(Function&& fn, Args&&... args) const noexcept
     {
         std::shared_lock<std::shared_mutex> lock(m_mutex);
-        fn(std::as_const(m_logs),
-           std::as_const(m_ring),
-           std::forward<Args>(args)...);
+        std::invoke(std::forward<Function>(fn),
+                    std::as_const(m_logs),
+                    std::as_const(m_ring),
+                    std::forward<Args>(args)...);
     }
 
     template<typename Function, typename... Args>
@@ -169,9 +177,10 @@ public:
         if (std::shared_lock<std::shared_mutex> lock(m_mutex, std::try_to_lock);
             lock.owns_lock()) {
             if (m_ring.empty()) {
-                fn(std::as_const(m_logs),
-                   std::as_const(m_ring),
-                   std::forward<Args>(args)...);
+                std::invoke(std::forward<Function>(fn),
+                            std::as_const(m_logs),
+                            std::as_const(m_ring),
+                            std::forward<Args>(args)...);
                 return true;
             }
         }
@@ -191,9 +200,10 @@ public:
         m_logs.get<log_level>()[idx] = level;
         m_logs.get<u64>()[idx]       = get_tick_count_in_milliseconds();
 
-        fn(m_logs.get<title>()[idx],
-           m_logs.get<descr>()[idx],
-           std::forward<Args>(args)...);
+        std::invoke(std::forward<Function>(fn),
+                    m_logs.get<title>()[idx],
+                    m_logs.get<descr>()[idx],
+                    std::forward<Args>(args)...);
 
         m_ring.emplace_tail(id);
         ++m_number;
@@ -212,9 +222,10 @@ public:
             m_logs.get<log_level>()[idx] = level;
             m_logs.get<u64>()[idx]       = get_tick_count_in_milliseconds();
 
-            fn(m_logs.get<title>()[idx],
-               m_logs.get<descr>()[idx],
-               std::forward<Args>(args)...);
+            std::invoke(std::forward<Function>(fn),
+                        m_logs.get<title>()[idx],
+                        m_logs.get<descr>()[idx],
+                        std::forward<Args>(args)...);
 
             m_ring.emplace_tail(id);
             ++m_number;
@@ -319,7 +330,9 @@ public:
     void read(Function&& fn, Args&&... args) noexcept
     {
         std::shared_lock<std::shared_mutex> lock(m_mutex);
-        fn(std::as_const(*m_vars), args...);
+        std::invoke(std::forward<Function>(fn),
+                    std::as_const(*m_vars),
+                    std::forward<Args>(args)...);
     }
 
     /**
@@ -344,7 +357,8 @@ public:
     void read_write(Function&& fn, Args&&... args) noexcept
     {
         std::unique_lock<std::shared_mutex> lock(m_mutex);
-        fn(*m_vars, args...);
+        std::invoke(
+          std::forward<Function>(fn), *m_vars, std::forward<Args>(args)...);
     }
 
     /**
@@ -373,7 +387,9 @@ public:
     {
         if (std::shared_lock<std::shared_mutex> lock(m_mutex, std::try_to_lock);
             lock.owns_lock()) {
-            fn(std::as_const(*m_vars), args...);
+            std::invoke(std::forward<Function>(fn),
+                        std::as_const(*m_vars),
+                        std::forward<Args>(args)...);
         }
     }
 
