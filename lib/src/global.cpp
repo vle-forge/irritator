@@ -157,7 +157,7 @@ static bool do_read_section(variables& /*vars*/,
     return true;
 }
 
-static bool do_read_affect(variables&             vars,
+static bool do_read_affect(variables& /*vars*/,
                            int&                   theme,
                            const std::bitset<2>&  current_section,
                            const std::string_view key,
