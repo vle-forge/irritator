@@ -1308,8 +1308,7 @@ expected<graph_edge_id> graph::alloc_edge(graph_node_id src,
                                           graph_node_id dst) noexcept
 {
     for (auto id : edges)
-        if (edges_nodes[id][0].first == src and
-            edges_nodes[id][1].first == dst)
+        if (edges_nodes[id][0].first == src and edges_nodes[id][1].first == dst)
             return new_error(modeling_errc::graph_connection_already_exist);
 
     if (not edges.can_alloc(1)) {
@@ -1320,7 +1319,7 @@ expected<graph_edge_id> graph::alloc_edge(graph_node_id src,
             return new_error(modeling_errc::graph_connection_container_full);
     }
 
-    const auto id                        = edges.alloc();
+    const auto id             = edges.alloc();
     edges_nodes[id][0].first  = src;
     edges_nodes[id][1].first  = dst;
     edges_nodes[id][0].second = std::string_view();
@@ -1330,20 +1329,14 @@ expected<graph_edge_id> graph::alloc_edge(graph_node_id src,
 
 expected<void> graph::reserve(int n, int e) noexcept
 {
-    if (n > nodes.capacity()) {
-        if (not(nodes.reserve(n) and node_names.resize(n) and
-                node_ids.resize(n) and
-                node_positions.resize(n, std::array<float, 2>{ 0.f, 0.f }) and
-                node_components.resize(n, undefined<component_id>()) and
-                node_areas.resize(n, 1.f)))
-            return new_error(modeling_errc::dot_memory_insufficient);
-    }
+    if (not(nodes.reserve(n) and node_names.resize(n) and node_ids.resize(n) and
+            node_positions.resize(n, std::array<float, 2>{ 0.f, 0.f }) and
+            node_components.resize(n, undefined<component_id>()) and
+            node_areas.resize(n, 1.f)))
+        return new_error(modeling_errc::dot_memory_insufficient);
 
-    if (e > edges.capacity()) {
-        if (not(edges.reserve(e) and
-                edges_nodes.resize(e, std::array<edge, 2>())))
-            return new_error(modeling_errc::dot_memory_insufficient);
-    }
+    if (not(edges.reserve(e) and edges_nodes.resize(e, std::array<edge, 2>())))
+        return new_error(modeling_errc::dot_memory_insufficient);
 
     return success();
 }
