@@ -96,8 +96,7 @@ static auto dot_combobox_selector(const modeling& mod,
 
 struct graph_component_editor_data::impl {
     graph_component_editor_data& ed;
-
-    bool param_updated = false;
+    bool                         disable_change = false;
 
     bool compute_automatic_layout(graph_component& graph) noexcept
     {
@@ -230,70 +229,6 @@ struct graph_component_editor_data::impl {
           "M_1 of a thrid model.");
     }
 
-    void show_random_graph_params_menu(application&     app,
-                                       graph_component& graph) noexcept
-    {
-        switch (graph.g_type) {
-        case graph_component::graph_type::dot_file: {
-            auto& p = graph.param.dot;
-
-            const auto old_param = p;
-            dot_combobox_selector(app.mod, p.dir, p.file);
-            if ((p.dir != old_param.dir or p.file != old_param.file) and
-                is_defined(p.dir) and is_defined(p.file)) {
-                param_updated       = true;
-                ed.automatic_layout = false;
-            }
-        } break;
-
-        case graph_component::graph_type::scale_free: {
-            auto& p = graph.param.scale;
-
-            if (ImGui::InputInt("size", &p.nodes)) {
-                p.nodes = std::clamp(p.nodes, 1, graph_component::children_max);
-                param_updated = true;
-            }
-
-            if (ImGui::InputDouble("alpha", &p.alpha)) {
-                p.alpha       = std::clamp(p.alpha, 0.0, 1000.0);
-                param_updated = true;
-            }
-
-            if (ImGui::InputDouble("beta", &p.beta)) {
-                p.beta        = std::clamp(p.beta, 0.0, 1000.0);
-                param_updated = true;
-            }
-
-            if (app.component_sel.combobox("component", &p.id)) {
-                param_updated = true;
-            }
-        } break;
-
-        case graph_component::graph_type::small_world: {
-            auto& p = graph.param.small;
-
-            if (ImGui::InputInt("size", &p.nodes)) {
-                p.nodes = std::clamp(p.nodes, 1, graph_component::children_max);
-                param_updated = true;
-            }
-
-            if (ImGui::InputDouble("probability", &p.probability)) {
-                p.probability = std::clamp(p.probability, 0.0, 1.0);
-                param_updated = true;
-            }
-
-            if (ImGui::InputInt("k", &p.k, 1, 2)) {
-                p.k           = std::clamp(p.k, 1, 8);
-                param_updated = true;
-            }
-
-            if (app.component_sel.combobox("component", &p.id)) {
-                param_updated = true;
-            }
-        } break;
-        }
-    }
-
     constexpr static bool is_line_intersects_box(ImVec2 p1,
                                                  ImVec2 p2,
                                                  ImVec2 bmin,
@@ -332,30 +267,18 @@ struct graph_component_editor_data::impl {
                     graph_component&             data) noexcept
     {
         ImVec2 canvas_p0 = ImGui::GetCursorScreenPos();
-        ImVec2 canvas_sz = ImGui::GetContentRegionAvail();
+        ed.canvas_sz     = ImGui::GetContentRegionAvail();
 
-        if (canvas_sz.x < 50.0f)
-            canvas_sz.x = 50.0f;
-        if (canvas_sz.y < 50.0f)
-            canvas_sz.y = 50.0f;
+        if (ed.canvas_sz.x < 50.0f)
+            ed.canvas_sz.x = 50.0f;
+        if (ed.canvas_sz.y < 50.0f)
+            ed.canvas_sz.y = 50.0f;
 
         ImVec2 canvas_p1 =
-          ImVec2(canvas_p0.x + canvas_sz.x, canvas_p0.y + canvas_sz.y);
+          ImVec2(canvas_p0.x + ed.canvas_sz.x, canvas_p0.y + ed.canvas_sz.y);
 
         const ImGuiIO& io        = ImGui::GetIO();
         ImDrawList*    draw_list = ImGui::GetWindowDrawList();
-
-        if (ed.st == graph_component_editor_data::status::center_required)
-            center_camera(
-              ImVec2(data.top_left_limit[0], data.top_left_limit[1]),
-              ImVec2(data.bottom_right_limit[0], data.bottom_right_limit[1]),
-              canvas_sz);
-
-        if (ed.st == graph_component_editor_data::status::auto_fit_required)
-            auto_fit_camera(
-              ImVec2(data.top_left_limit[0], data.top_left_limit[1]),
-              ImVec2(data.bottom_right_limit[0], data.bottom_right_limit[1]),
-              canvas_sz);
 
         draw_list->AddRect(
           canvas_p0,
@@ -363,7 +286,7 @@ struct graph_component_editor_data::impl {
           to_ImU32(app.config.colors[style_color::outer_border]));
 
         ImGui::InvisibleButton("Canvas",
-                               canvas_sz,
+                               ed.canvas_sz,
                                ImGuiButtonFlags_MouseButtonLeft |
                                  ImGuiButtonFlags_MouseButtonRight);
 
@@ -545,14 +468,14 @@ struct graph_component_editor_data::impl {
         draw_list->PushClipRect(canvas_p0, canvas_p1, true);
         const float GRID_STEP = 64.0f;
 
-        for (float x = fmodf(ed.scrolling.x, GRID_STEP); x < canvas_sz.x;
+        for (float x = fmodf(ed.scrolling.x, GRID_STEP); x < ed.canvas_sz.x;
              x += GRID_STEP)
             draw_list->AddLine(
               ImVec2(canvas_p0.x + x, canvas_p0.y),
               ImVec2(canvas_p0.x + x, canvas_p1.y),
               to_ImU32(app.config.colors[style_color::inner_border]));
 
-        for (float y = fmodf(ed.scrolling.y, GRID_STEP); y < canvas_sz.y;
+        for (float y = fmodf(ed.scrolling.y, GRID_STEP); y < ed.canvas_sz.y;
              y += GRID_STEP)
             draw_list->AddLine(
               ImVec2(canvas_p0.x, canvas_p0.y + y),
@@ -703,7 +626,7 @@ struct graph_component_editor_data::impl {
 
         ed.scrolling.x = ((-center.x * ed.zoom.x) + (canvas_sz.x / 2.f));
         ed.scrolling.y = ((-center.y * ed.zoom.y) + (canvas_sz.y / 2.f));
-        ed.st          = graph_component_editor_data::status::none;
+        ed.st          = graph_component_editor_data::job::none;
     }
 
     void auto_fit_camera(ImVec2 top_left,
@@ -719,14 +642,106 @@ struct graph_component_editor_data::impl {
         ed.zoom.y      = canvas_sz.y / distance.y;
         ed.scrolling.x = ((-center.x * ed.zoom.x) + (canvas_sz.x / 2.f));
         ed.scrolling.y = ((-center.y * ed.zoom.y) + (canvas_sz.y / 2.f));
-        ed.st          = graph_component_editor_data::status::none;
+        ed.st          = graph_component_editor_data::job::none;
+    }
+
+    void show_scale_free_menu(application& app, graph_component& graph) noexcept
+    {
+        if (ImGui::BeginMenu("Generate scale free graph")) {
+            HelpMarker(
+              "scale_free: graph typically has a very skewed degree "
+              "distribution, where few vertices have a very high "
+              "degree and a large number of vertices have a very "
+              "small degree. Many naturally evolving networks, such as "
+              "the World Wide Web, are scale-free graphs, making these "
+              "graphs a good model for certain networking.");
+
+            if (ImGui::InputInt("size", &ed.psf.nodes))
+                ed.psf.nodes =
+                  std::clamp(ed.psf.nodes, 1, graph_component::children_max);
+
+            if (ImGui::InputDouble("alpha", &ed.psf.alpha))
+                ed.psf.alpha = std::clamp(ed.psf.alpha, 0.0, 1000.0);
+
+            if (ImGui::InputDouble("beta", &ed.psf.beta))
+                ed.psf.beta = std::clamp(ed.psf.beta, 0.0, 1000.0);
+
+            app.component_sel.combobox("component", &ed.psf.id);
+
+            if (ImGui::Button("generate")) {
+                ed.clear_selected_nodes();
+                graph.g.clear();
+                graph.g_type      = graph_component::graph_type::scale_free;
+                graph.param.scale = ed.psf;
+                ed.st             = job::build_scale_free_required;
+                ImGui::CloseCurrentPopup();
+            }
+
+            ImGui::EndMenu();
+        }
+    }
+
+    void show_small_world_menu(application&     app,
+                               graph_component& graph) noexcept
+    {
+        if (ImGui::BeginMenu("Generate Small world graph")) {
+            HelpMarker(
+              "small_world: consists of a ring graph (where each vertex is "
+              "connected to its k nearest neighbors).Edges in the graph are "
+              "randomly rewired to different vertices with a probability p.");
+
+            if (ImGui::InputInt("size", &ed.psw.nodes))
+                ed.psw.nodes =
+                  std::clamp(ed.psw.nodes, 1, graph_component::children_max);
+
+            if (ImGui::InputDouble("probability", &ed.psw.probability))
+                ed.psw.probability = std::clamp(ed.psw.probability, 0.0, 1.0);
+
+            if (ImGui::InputInt("k", &ed.psw.k, 1, 2))
+                ed.psw.k = std::clamp(ed.psw.k, 1, 8);
+
+            app.component_sel.combobox("component", &ed.psw.id);
+
+            if (ImGui::Button("generate")) {
+                ed.clear_selected_nodes();
+                graph.g.clear();
+                graph.g_type      = graph_component::graph_type::small_world;
+                graph.param.small = ed.psw;
+                ed.st             = job::build_small_world_required;
+                ImGui::CloseCurrentPopup();
+            }
+
+            ImGui::EndMenu();
+        }
+    }
+
+    void show_dot_file_menu(application& app, graph_component& graph) noexcept
+    {
+        if (ImGui::BeginMenu("Read Dot graph")) {
+            HelpMarker("dot: consists of a file defining the graph "
+                       "according to the dot file format.");
+
+            dot_combobox_selector(app.mod, ed.pdf.dir, ed.pdf.file);
+
+            if (is_defined(ed.pdf.dir) and is_defined(ed.pdf.file)) {
+                if (ImGui::Button("load")) {
+                    ed.clear_selected_nodes();
+                    graph.g.clear();
+                    graph.g_type    = graph_component::graph_type::dot_file;
+                    graph.param.dot = ed.pdf;
+                    ed.st           = job::build_dot_graph_required;
+                    ImGui::CloseCurrentPopup();
+                }
+            }
+
+            ImGui::EndMenu();
+        }
     }
 
     void show(application& app) noexcept
     {
         if (std::unique_lock lock(ed.mutex, std::try_to_lock);
             lock.owns_lock()) {
-            debug::ensure(ed.st != status::updating);
 
             auto* compo = app.mod.components.try_to_get<component>(ed.m_id);
             auto* graph = app.mod.graph_components.try_to_get(ed.graph_id);
@@ -736,57 +751,14 @@ struct graph_component_editor_data::impl {
 
             static bool show_save = false;
 
+            ImGui::BeginDisabled(disable_change);
+
             if (ImGui::BeginMenuBar()) {
-                const auto old = graph->g_type;
-
                 if (ImGui::BeginMenu("Model")) {
-                    if (ImGui::MenuItem("Generate scale free graph")) {
-                        ed.clear_selected_nodes();
-                        graph->g.clear();
-                        graph->g_type = graph_component::graph_type::scale_free;
-                        graph->param.scale =
-                          graph_component::scale_free_param{};
-                        param_updated = old != graph->g_type;
-                    }
-
-                    ImGui::SameLine();
-                    HelpMarker(
-                      "scale_free: graph typically has a very skewed degree "
-                      "distribution, where few vertices have a very high "
-                      "degree and a large number of vertices have a very small "
-                      "degree. Many naturally evolving networks, such as the "
-                      "World Wide Web, are scale-free graphs, making these "
-                      "graphs a good model for certain networking.");
-
-                    if (ImGui::MenuItem("Generate Small world graph")) {
-                        ed.clear_selected_nodes();
-                        graph->g.clear();
-                        graph->g_type =
-                          graph_component::graph_type::small_world;
-                        graph->param.small =
-                          graph_component::small_world_param{};
-                        param_updated = old != graph->g_type;
-                    }
-
-                    ImGui::SameLine();
-                    HelpMarker(
-                      "small_world: consists of a ring graph (where each "
-                      "vertex is connected to its k nearest neighbors) .Edges "
-                      "in the graph are randomly rewired to different vertices "
-                      "with a probability p.");
-
-                    if (ImGui::MenuItem("Read Dot graph")) {
-                        ed.clear_selected_nodes();
-                        graph->g.clear();
-                        graph->g_type = graph_component::graph_type::dot_file;
-                        graph->param.dot = graph_component::dot_file_param{};
-                    }
-                    ImGui::SameLine();
-                    HelpMarker("dot: consists of a file defining the graph "
-                               "according to the dot file format.");
-
+                    show_scale_free_menu(app, *graph);
+                    show_small_world_menu(app, *graph);
+                    show_dot_file_menu(app, *graph);
                     ImGui::Separator();
-
                     if (ImGui::MenuItem("Save")) {
                         show_save = true;
                     }
@@ -801,10 +773,10 @@ struct graph_component_editor_data::impl {
                 if (ImGui::BeginMenu("Display##Menu")) {
                     if (ImGui::MenuItem("Center"))
                         ed.st =
-                          graph_component_editor_data::status::center_required;
+                          graph_component_editor_data::job::center_required;
                     if (ImGui::MenuItem("Auto-fit"))
-                        ed.st = graph_component_editor_data::status::
-                          auto_fit_required;
+                        ed.st =
+                          graph_component_editor_data::job::auto_fit_required;
 
                     float zoom[2] = { ed.zoom.x, ed.zoom.y };
                     if (ImGui::MenuItem("Reset zoom")) {
@@ -834,6 +806,8 @@ struct graph_component_editor_data::impl {
                 }
                 ImGui::EndMenuBar();
             }
+
+            ImGui::EndDisabled();
 
             if (show_save)
                 ImGui::OpenPopup("Save dot graph");
@@ -886,8 +860,6 @@ struct graph_component_editor_data::impl {
                 ImGui::EndPopup();
             }
 
-            show_random_graph_params_menu(app, *graph);
-
             if (ed.automatic_layout) {
                 bool again = compute_automatic_layout(*graph);
                 if (not again) {
@@ -897,8 +869,6 @@ struct graph_component_editor_data::impl {
             }
 
             show_graph(app, *compo, ed, *graph);
-            if (param_updated)
-                ed.st = status::update_required;
         }
     }
 
@@ -958,33 +928,6 @@ struct graph_component_editor_data::impl {
         graph_ed.iteration        = 0;
     }
 
-    void start_update_task(application& app) noexcept
-    {
-        debug::ensure(ed.st == status::update_required);
-        ed.st = graph_component_editor_data::status::updating;
-
-        const auto id   = app.graphs.get_id(ed);
-        const auto g_id = ed.graph_id;
-
-        app.add_gui_task([&app, id, g_id]() {
-            auto* graph_ed = app.graphs.try_to_get(id);
-            auto* graph    = app.mod.graph_components.try_to_get(g_id);
-
-            if (not graph_ed or not graph)
-                return;
-
-            std::scoped_lock lock(graph_ed->mutex);
-
-            graph->update(app.mod);
-
-            if (not graph->g.nodes.empty() and
-                graph->g_type != graph_component::graph_type::dot_file)
-                update_position_to_grid(*graph, *graph_ed);
-
-            graph_ed->st = graph_component_editor_data::status::none;
-        });
-    }
-
     static void clear_file_access(graph_component_editor_data& ed) noexcept
     {
         ed.reg  = undefined<registred_path_id>();
@@ -1014,14 +957,135 @@ void graph_component_editor_data::show(component_editor& ed) noexcept
                           ImGuiWindowFlags_MenuBar)) {
         auto& app = container_of(&ed, &application::component_ed);
 
-        graph_component_editor_data::impl impl{ *this };
+        graph_component_editor_data::impl impl{ .ed = *this,
+                                                .disable_change =
+                                                  running.test() };
+
         impl.show(app);
 
-        if (st == status::update_required)
-            impl.start_update_task(app);
-    }
+        if (st != job::none) {
+            scoped_flag_run(running, [&]() {
+                const auto id   = app.graphs.get_id(*this);
+                const auto g_id = graph_id;
 
-    ImGui::EndChild();
+                switch (st) {
+                case job::none:
+                    break;
+
+                case job::center_required:
+                    if (auto* graph_compo =
+                          app.mod.graph_components.try_to_get(g_id)) {
+                        impl.center_camera(
+                          ImVec2(graph_compo->top_left_limit[0],
+                                 graph_compo->top_left_limit[1]),
+                          ImVec2(graph_compo->bottom_right_limit[0],
+                                 graph_compo->bottom_right_limit[1]),
+                          canvas_sz);
+                    }
+                    st = job::none;
+                    break;
+
+                case job::auto_fit_required:
+                    if (auto* graph_compo =
+                          app.mod.graph_components.try_to_get(g_id)) {
+                        impl.auto_fit_camera(
+                          ImVec2(graph_compo->top_left_limit[0],
+                                 graph_compo->top_left_limit[1]),
+                          ImVec2(graph_compo->bottom_right_limit[0],
+                                 graph_compo->bottom_right_limit[1]),
+                          canvas_sz);
+                    }
+                    st = job::none;
+                    break;
+
+                case job::build_scale_free_required:
+                    app.add_gui_task([&, id, g_id]() {
+                        auto& graph_ed    = app.graphs.get(id);
+                        auto& graph_compo = app.mod.graph_components.get(g_id);
+
+                        if (g.init_scale_free_graph(graph_ed.psf.alpha,
+                                                    graph_ed.psf.beta,
+                                                    graph_ed.psf.id,
+                                                    graph_ed.psf.nodes,
+                                                    seed,
+                                                    key)) {
+                            std::scoped_lock lock(graph_ed.mutex);
+                            g.swap(graph_compo.g);
+                            graph_compo.param.scale = graph_ed.psf;
+                            graph_compo.g_type =
+                              graph_component::graph_type::scale_free;
+
+                            if (not graph_compo.g.nodes.empty()) {
+                                impl.update_position_to_grid(graph_compo,
+                                                             graph_ed);
+                                graph_compo.update();
+                                graph_ed.psf.reset();
+                            }
+                            graph_ed.st = job::none;
+                        }
+                    });
+                    break;
+
+                case job::build_small_world_required:
+                    app.add_gui_task([&, id, g_id]() {
+                        auto& graph_ed    = app.graphs.get(id);
+                        auto& graph_compo = app.mod.graph_components.get(g_id);
+
+                        if (g.init_small_world_graph(psw.probability,
+                                                     psw.k,
+                                                     psw.id,
+                                                     psw.nodes,
+                                                     seed,
+                                                     key)) {
+
+                            std::scoped_lock lock(graph_ed.mutex);
+                            g.swap(graph_compo.g);
+                            graph_compo.param.small = graph_ed.psw;
+                            graph_compo.g_type =
+                              graph_component::graph_type::small_world;
+
+                            if (not graph_compo.g.nodes.empty()) {
+                                impl.update_position_to_grid(graph_compo,
+                                                             graph_ed);
+                                graph_compo.update();
+                                graph_ed.psw.reset();
+                            }
+                        }
+                        graph_ed.st = job::none;
+                    });
+                    break;
+
+                case job::build_dot_graph_required:
+                    app.add_gui_task([&, id, g_id]() {
+                        auto& graph_ed    = app.graphs.get(id);
+                        auto& graph_compo = app.mod.graph_components.get(g_id);
+                        auto  id = app.mod.search_graph_id(graph_ed.pdf.dir,
+                                                          graph_ed.pdf.file);
+
+                        if (const auto* g_glob =
+                              app.mod.graphs.try_to_get(id)) {
+                            std::scoped_lock lock(graph_ed.mutex);
+                            g.swap(graph_compo.g);
+                            graph_compo.g         = *g_glob;
+                            graph_compo.param.dot = graph_ed.pdf;
+                            graph_compo.g_type =
+                              graph_component::graph_type::dot_file;
+                            graph_ed.pdf.reset();
+
+                            if (not graph_compo.g.nodes.empty()) {
+                                graph_compo.update();
+                            }
+                        }
+
+                        graph_ed.st = job::none;
+                    });
+                    break;
+                }
+            });
+        }
+
+        ImGui::EndChild();
+    }
 }
 
 void graph_component_editor_data::show_selected_nodes(

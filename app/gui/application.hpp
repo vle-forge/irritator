@@ -353,12 +353,21 @@ public:
 private:
     struct impl;
 
+    graph_component::scale_free_param  psf{};
+    graph_component::small_world_param psw{};
+    graph_component::dot_file_param    pdf{};
+    graph                              g;
+
+    u64 seed[4];
+    u64 key[2];
+
     vector<ImVec2> displacements;
 
     vector<graph_node_id> selected_nodes;
     vector<graph_edge_id> selected_edges;
     ImVec2                start_selection;
     ImVec2                end_selection;
+    ImVec2                canvas_sz;
 
     ImVec2 distance{ 15.f, 15.f };
     ImVec2 scrolling{ 0.f, 0.f }; //!< top left position in canvas.
@@ -374,18 +383,21 @@ private:
     dir_path_id       dir  = undefined<dir_path_id>();
     file_path_id      file = undefined<file_path_id>();
 
+    std::atomic_flag running = ATOMIC_FLAG_INIT;
+
     spin_mutex mutex;
 
     bool automatic_layout = false;
     bool run_selection    = false;
 
-    enum class status : u8 {
+    enum class job : u8 {
         none,
         center_required,
         auto_fit_required,
-        update_required,
-        updating
-    } st = status::none;
+        build_scale_free_required,
+        build_small_world_required,
+        build_dot_graph_required,
+    } st = job::none;
 };
 
 class hsm_component_editor_data
@@ -1052,12 +1064,12 @@ struct memory_window {
     bool is_open = false;
 };
 
- /**
-  * @brief Display component selection widgets.
-  * The @a update() function uses a @a unique_lock to protect write access to
-  * component cache. The widget functions use a @a shared_lock and a @a
-  * try_lock to protect component cache access.
-  */
+/**
+ * @brief Display component selection widgets.
+ * The @a update() function uses a @a unique_lock to protect write access to
+ * component cache. The widget functions use a @a shared_lock and a @a
+ * try_lock to protect component cache access.
+ */
 class component_selector
 {
 public:

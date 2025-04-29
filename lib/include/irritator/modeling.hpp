@@ -581,6 +581,35 @@ public:
     bool is_graph   = false;
     bool is_digraph = false;
 
+    /** Reserve memory for nodes @a data_array and resize memory for @c
+     * vector for at least @a i nodes.
+     * @param n Nodes number.
+     * @param e Edges number.
+     * @return @a success() or an @a error_code.
+     */
+    expected<void> reserve(int n, int e) noexcept;
+
+    /** Call @a clear or @a resize(0) for each containers.
+     */
+    void clear() noexcept;
+
+    /** Swap the content of the graph with @a other. */
+    void swap(graph& g) noexcept;
+
+    expected<void> init_scale_free_graph(double            alpha,
+                                         double            beta,
+                                         component_id      id,
+                                         int               nodes,
+                                         std::span<u64, 4> seed,
+                                         std::span<u64, 2> key) noexcept;
+
+    expected<void> init_small_world_graph(double            probability,
+                                          i32               k,
+                                          component_id      id,
+                                          int               nodes,
+                                          std::span<u64, 4> seed,
+                                          std::span<u64, 2> key) noexcept;
+
     /**
      * Add a new node in graph. Grow containers if necessary.
      * @return
@@ -588,8 +617,8 @@ public:
     expected<graph_node_id> alloc_node() noexcept;
 
     /**
-     * Add a new edge in graph if the @a src and @a dst exists and the edge doe
-     * not already exist.
+     * Add a new edge in graph if the @a src and @a dst exists and the edge
+     * doe not already exist.
      * @param src
      * @param dst
      * @return
@@ -597,36 +626,36 @@ public:
     expected<graph_edge_id> alloc_edge(graph_node_id src,
                                        graph_node_id dst) noexcept;
 
-    /**
-     * Reserve memory for nodes @a data_array and resize memory for @c vector
-     * for at least @a i nodes.
-     * @param n Nodes number.
-     * @param e Edges number.
-     * @return @a success() or an @a error_code.
+    /** Return true if an edge exists in vector.
+     * The input and output ports names are not used in the comparison result.
      */
-    expected<void> reserve(int n, int e) noexcept;
-
-    /**
-     * Call @a clear or @a resize(0) for each containers.
-     */
-    void clear() noexcept;
+    bool exists_edge(graph_node_id src, graph_node_id dst) const noexcept
+    {
+        return std::any_of(
+          edges.begin(), edges.end(), [&](const auto id) noexcept -> bool {
+              return edges_nodes[id][0].first == src and
+                     edges_nodes[id][1].first == dst;
+          });
+    }
 
     /**
      * @brief Build a @c irt::table from node name to node identifier.
-     * This function use the @c node_names and @c nodes object, do not change
-     * this object after building a toc.
+     * This function use the @c node_names and @c nodes object, do not
+     * change this object after building a toc.
      * @return A string-to-node table.
      */
     table<std::string_view, graph_node_id> make_toc() const noexcept;
 };
 
 /// random-graph type:
-/// - scale_free: graph typically has a very skewed degree distribution, where
-///   few vertices have a very high degree and a large number of vertices have a
-///   very small degree. Many naturally evolving networks, such as the World
-///   Wide Web, are scale-free graphs, making these graphs a good model for
-///   certain networking problems.
-/// - small_world: consists of a ring graph (where each vertex is connected to
+/// - scale_free: graph typically has a very skewed degree distribution,
+/// where
+///   few vertices have a very high degree and a large number of vertices
+///   have a very small degree. Many naturally evolving networks, such as
+///   the World Wide Web, are scale-free graphs, making these graphs a good
+///   model for certain networking problems.
+/// - small_world: consists of a ring graph (where each vertex is connected
+/// to
 ///   its k nearest neighbors). Edges in the graph are randomly rewired to
 ///   different vertices with a probability p.
 class graph_component
@@ -663,13 +692,19 @@ public:
     enum class connection_type : i8 {
         in_out,      //!< Connect only output port 'out' to input port 'in'.
         name,        //!< Connect output port to input port with same name.
-        name_suffix, //!< Connect output port to inport port with the same name
-                     //!< and an integer.
+        name_suffix, //!< Connect output port to inport port with the same
+                     //!< name and an integer.
     };
 
     struct dot_file_param {
         dir_path_id  dir  = undefined<dir_path_id>();
         file_path_id file = undefined<file_path_id>();
+
+        void reset() noexcept
+        {
+            dir  = undefined<dir_path_id>();
+            file = undefined<file_path_id>();
+        }
     };
 
     struct scale_free_param {
@@ -677,6 +712,14 @@ public:
         double       beta  = 1.e3;
         component_id id    = undefined<component_id>();
         int          nodes = 32;
+
+        void reset() noexcept
+        {
+            alpha = 2.5;
+            beta  = 1.e3;
+            id    = undefined<component_id>();
+            nodes = 32;
+        }
     };
 
     struct small_world_param {
@@ -684,6 +727,14 @@ public:
         i32          k           = 6;
         component_id id          = undefined<component_id>();
         int          nodes       = 32;
+
+        void reset() noexcept
+        {
+            probability = 3e-2;
+            k           = 6;
+            id          = undefined<component_id>();
+            nodes       = 32;
+        }
     };
 
     union random_graph_param {
@@ -717,17 +768,13 @@ public:
     bool     exists_child(const std::string_view name) const noexcept;
     name_str make_unique_name_id(const graph_node_id v) const noexcept;
 
-    //! Resize `children` vector and clear the `edges`, `input_connections` and
-    //! `output_connection`.
+    //! Resize `children` vector and clear the `edges`, `input_connections`
+    //! and `output_connection`.
     expected<void> resize(const i32          children_size,
                           const component_id id) noexcept;
 
-    /**
-     * Build nodes and edges according to the type of graph and theirs
-     * parameters.
-     * @param mod Use when reading @c file_path for the dot graph.
-     */
-    expected<void> update(const modeling& mod) noexcept;
+    /** Compute top, left and bottom, right limits. */
+    void update() noexcept;
 
     //! @brief Check if the input connection already exits.
     bool exists_input_connection(const port_id       x,
@@ -739,13 +786,15 @@ public:
                                   const graph_node_id v,
                                   const port_id       id) const noexcept;
 
-    //! @brief Tries to add this input connection if it does not already exist.
+    //! @brief Tries to add this input connection if it does not already
+    //! exist.
     //! @return `success()` or `connection_already_exists`.
     expected<input_connection_id> connect_input(const port_id       x,
                                                 const graph_node_id v,
                                                 const port_id id) noexcept;
 
-    //! @brief Tries to add this output connection if it does not already exist.
+    //! @brief Tries to add this output connection if it does not already
+    //! exist.
     //! @return `success()` or `connection_already_exists`.
     expected<output_connection_id> connect_output(const port_id       y,
                                                   const graph_node_id v,
@@ -835,7 +884,8 @@ struct component {
 
     /**
       Checks if the component have registred_path, dir_path and file_path
-      defined. @attention This function does not check if the file can be saved.
+      defined. @attention This function does not check if the file can be
+      saved.
 
       @return True paths attributes are defined.
      */
@@ -865,8 +915,8 @@ struct file_path;
 
 struct registred_path {
     enum class state : u8 {
-        lock,   /**< `dir-path` is locked during I/O operation. Do not use this
-                   class in writing mode. */
+        lock,   /**< `dir-path` is locked during I/O operation. Do not use
+                   this class in writing mode. */
         read,   /**< underlying directory is read and the `children` vector is
                    filled. */
         unread, /**< underlying directory is not read. */
@@ -881,8 +931,8 @@ struct registred_path {
     };
 
     /**
-     * Linear search a directory with the name @a dir_name in the @a children
-     * vector.
+     * Linear search a directory with the name @a dir_name in the @a
+     * children vector.
      * @param data A @a data_array of @a dir_path.
      * @param dir_name The name to search.
      * @return The directory identifier or @a undefined otherwise.
@@ -891,8 +941,8 @@ struct registred_path {
                        const std::string_view dir_name) noexcept;
 
     /**
-     * Returns true if a directory with the name @a dir_name in the @a children
-     * vector exists in this @a registred_path.
+     * Returns true if a directory with the name @a dir_name in the @a
+     * children vector exists in this @a registred_path.
      * @param data A @a data_array of @a dir_path.
      * @param dir_name The name to search.
      * @return @a true is the directory exists, false otherwise.
@@ -913,8 +963,8 @@ struct registred_path {
 
 struct dir_path {
     enum class state : u8 {
-        lock,   /**< `dir-path` is locked during I/O operation. Do not use this
-                   class in writing mode. */
+        lock,   /**< `dir-path` is locked during I/O operation. Do not use
+                   this class in writing mode. */
         read,   /**< underlying directory is read and the `children` vector is
                    filled. */
         unread, /**< underlying directory is not read. */
@@ -940,17 +990,17 @@ struct dir_path {
     /**
      * Refresh the `children` vector with new file in the filesystem.
      *
-     * Files that disappear from the filesystem are not remove from the vector
-     * but a flag is added in the `file_path` to indicate an absence of
-     * existence in the filesystem.
+     * Files that disappear from the filesystem are not remove from the
+     * vector but a flag is added in the `file_path` to indicate an absence
+     * of existence in the filesystem.
      */
     vector<file_path_id> refresh(modeling& mod) noexcept;
 };
 
 struct file_path {
     enum class state : u8 {
-        lock,   /**< `file-path` is locked during I/O operation. Do not use this
-                   class in writing mode. */
+        lock,   /**< `file-path` is locked during I/O operation. Do not use
+                   this   class in writing mode. */
         read,   /**< underlying file is read. */
         unread, /**< underlying file  is not read. */
     };
@@ -983,7 +1033,8 @@ struct file_path {
 struct tree_node {
     tree_node(component_id id_, const std::string_view unique_id_) noexcept;
 
-    /// Intrusive hierarchy to the children, sibling and parent @c tree_node.
+    /// Intrusive hierarchy to the children, sibling and parent @c
+    /// tree_node.
     hierarchy<tree_node> tree;
 
     /// Reference the current component
@@ -1016,10 +1067,11 @@ struct tree_node {
         }
     };
 
-    //! Filled during the `project::set` or `project::rebuild` functions, the
-    //! size of this vector is the same as `generic_component::children`,
-    //! `grid_component::cache` or `graph_component::cache` capacity. Use the
-    //! `get_index(child_id)` to get the correct value.
+    //! Filled during the `project::set` or `project::rebuild` functions,
+    //! the size of this vector is the same as
+    //! `generic_component::children`, `grid_component::cache` or
+    //! `graph_component::cache` capacity. Use the `get_index(child_id)` to
+    //! get the correct value.
     vector<child_node> children;
 
     bool is_model(const child_id id) const noexcept
@@ -1093,8 +1145,8 @@ public:
 
     name_str name;
 
-    tree_node_id parent_id; //!< @c tree_node identifier ancestor of the model a
-                            //!< grid component.
+    tree_node_id parent_id; //!< @c tree_node identifier ancestor of the
+                            //!< model a grid component.
     component_id compo_id;  //!< @c component in the grid to observe.
     tree_node_id tn_id;     //!< @c tree_node identifier parent of the model.
     model_id     mdl_id;    //!< @c model to observe.
@@ -1117,8 +1169,8 @@ public:
     /** Check if the simulation time is greater than wake up time @c tn. */
     bool can_update(const time t) const noexcept { return t > tn; }
 
-    // For each `observer`, get the latest observation value and fill the values
-    // vector.
+    // For each `observer`, get the latest observation value and fill the
+    // values vector.
     void update(const simulation& sim) noexcept;
 
     float scale_min = -100.f;
@@ -1136,8 +1188,8 @@ public:
 
     name_str name;
 
-    tree_node_id parent_id; ///< @c tree_node identifier ancestor of the model.
-                            ///< A graph component.
+    tree_node_id parent_id; ///< @c tree_node identifier ancestor of the
+                            ///< model. A graph component.
     component_id compo_id;  //< @c component in the graph to observe.
     tree_node_id tn_id;     //< @c tree_node identifier parent of the model.
     model_id     mdl_id;    //< @c model to observe.
@@ -1160,8 +1212,8 @@ public:
     /** Check if the simulation time is greater than wake up time @c tn. */
     bool can_update(const time t) const noexcept { return t > tn; }
 
-    // For each `observer`, get the latest observation value and fill the values
-    // vector.
+    // For each `observer`, get the latest observation value and fill the
+    // values vector.
     void update(const simulation& sim) noexcept;
 
     float scale_min = -100.f;
@@ -1206,8 +1258,9 @@ private:
 public:
     //! @brief Fill the `observer_id` vector and initialize buffers.
     //!
-    //! @details Build or reuse existing observer in `obs_id` vector for each
-    //! pair `tn_id` and `mdl_id` and (re)initialize buffer reserve buffer.
+    //! @details Build or reuse existing observer in `obs_id` vector for
+    //! each pair `tn_id` and `mdl_id` and (re)initialize buffer reserve
+    //! buffer.
     status init(project& pj, simulation& sim) noexcept;
 
     //! @brief Fill the `observer_id` vector with undefined value.
@@ -1217,8 +1270,8 @@ public:
     sub_id find(const tree_node_id tn, const model_id mdl) noexcept;
     bool   exists(const tree_node_id tn) noexcept;
 
-    //! @brief Remove `sub_id` for all ` m_tn_ids` equal to `tn` and `mdl_ids`
-    //! equal to `mdl`.
+    //! @brief Remove `sub_id` for all ` m_tn_ids` equal to `tn` and
+    //! `mdl_ids` equal to `mdl`.
     //!
     //! @details Do nothing if `tn` and `mdl` is not found.
     void erase(const tree_node_id tn, const model_id mdl) noexcept;
@@ -1290,8 +1343,9 @@ class modeling
 {
 public:
     /** Stores the description of a component in a text. A description is
-     * attached to only one component (@c description_id). The file name of the
-     * description is the same than the component except the extension ".desc".
+     * attached to only one component (@c description_id). The file name of
+     * the description is the same than the component except the extension
+     * ".desc".
      * @attention The size of the buffer is static for now. */
     id_data_array<description_id,
                   allocator<new_delete_memory_resource>,
@@ -1356,11 +1410,20 @@ public:
                                           std::string_view dir,
                                           std::string_view file) const noexcept;
 
-    /// Clear and free all dependencies of the component but let the component
-    /// alive.
+    /** Search a @a graph object into modeling.
+     * @param dir_id Directory identifier where the dot file exists.
+     * @param file_id File identifier of the dot file.
+     * @return The found @a graph_id in modeling.
+     */
+    auto search_graph_id(const dir_path_id  dir_id,
+                         const file_path_id file_id) const noexcept -> graph_id;
+
+    /// Clear and free all dependencies of the component but let the
+    /// component alive.
     void clear(component& c) noexcept;
 
-    /// Deletes the component, the file (@c file_path_id) and the description
+    /// Deletes the component, the file (@c file_path_id) and the
+    /// description
     /// (@c description_id) objects attached.
     void free(component& c) noexcept;
     void free(generic_component& c) noexcept;
@@ -1406,8 +1469,9 @@ public:
     component& alloc_graph_component() noexcept;
     component& alloc_hsm_component() noexcept;
 
-    /// Checks if the child can be added to the parent to avoid recursive loop
-    /// (ie. a component child which need the same component in sub-child).
+    /// Checks if the child can be added to the parent to avoid recursive
+    /// loop (ie. a component child which need the same component in
+    /// sub-child).
     bool can_add(const component& parent,
                  const component& other) const noexcept;
 
@@ -1437,12 +1501,12 @@ public:
     /** Increases size of the @c id_array and all sub vectors. */
     void grow() noexcept;
 
-    /** Clears the id_array and all buffers. After this function @c ids.size()
-     * equals zero and all sub vector too. */
+    /** Clears the id_array and all buffers. After this function @c
+     * ids.size() equals zero and all sub vector too. */
     void clear() noexcept;
 
-    /** For each variable_observers, grid_observers and graph_observers from @c
-     * project try to initialize the @c buffered_file in @c files. */
+    /** For each variable_observers, grid_observers and graph_observers from
+     * @c project try to initialize the @c buffered_file in @c files. */
     void initialize(const simulation& sim, project& pj) noexcept;
 
     /** Check if the @c tn is lower than @c t. */
@@ -1514,7 +1578,8 @@ inline bool file_observers::alloc(const T subobs_id, bool enable) noexcept
     return true;
 }
 
-/** Stores two simulation time values, the begin `]-oo, +oo[` and the end value
+/** Stores two simulation time values, the begin `]-oo, +oo[` and the end
+ * value
  * `]begin, +oo]`. This function take care to keep @c begin less than @c end
  * value. */
 class time_limit
@@ -1582,8 +1647,8 @@ struct project_reserve_definition {
 class project
 {
 public:
-    //! Ctor parameters are used to initialized the default stock of simulation
-    //! and observations objects.
+    //! Ctor parameters are used to initialized the default stock of
+    //! simulation and observations objects.
     //!
     //! \param models Stocks of models in the simulation.
     //! \param nodes Stocks of simulation tree-nodes or coupled models.
@@ -1644,7 +1709,8 @@ public:
     /// hierarchy is removed and a newly one is allocated.
     status set(modeling& mod, component& compo) noexcept;
 
-    /// Build the complete @c tree_node hierarchy from the @c component head.
+    /// Build the complete @c tree_node hierarchy from the @c component
+    /// head.
     status rebuild(modeling& mod) noexcept;
 
     /// Remove @c tree_node hierarchy and clear the @c component head.
@@ -1693,9 +1759,9 @@ public:
     auto get_model_path(const std::string_view id) const noexcept
       -> std::optional<std::pair<tree_node_id, model_id>>;
 
-    /** Search a model from the @c path. The first element is the root node (top
-     * of the hierarchy), next element are tree nodes and finally, at the last
-     * position in the @c unique_id_path, the name of the model. */
+    /** Search a model from the @c path. The first element is the root node
+     * (top of the hierarchy), next element are tree nodes and finally, at
+     * the last position in the @c unique_id_path, the name of the model. */
     auto get_model_path(const unique_id_path& path) const noexcept
       -> std::optional<std::pair<tree_node_id, model_id>>;
 
@@ -1721,22 +1787,22 @@ public:
 
     /**
        @brief Alloc a new variable observer and assign a name.
-       @return The new instance. Be carreful, use `can_alloc()` before running
-       this function to ensure allocation is possible.
+       @return The new instance. Be carreful, use `can_alloc()` before
+       running this function to ensure allocation is possible.
      */
     variable_observer& alloc_variable_observer() noexcept;
 
     /**
        @brief Alloc a new grid observer and assign a name.
-       @return The new instance. Be carreful, use `can_alloc()` before running
-       this function to ensure allocation is possible.
+       @return The new instance. Be carreful, use `can_alloc()` before
+       running this function to ensure allocation is possible.
      */
     grid_observer& alloc_grid_observer() noexcept;
 
     /**
        @brief Alloc a new graph observer and assign a name.
-       @return The new instance. Be carreful, use `can_alloc()` before running
-       this function to ensure allocation is possible.
+       @return The new instance. Be carreful, use `can_alloc()` before
+       running this function to ensure allocation is possible.
      */
     graph_observer& alloc_graph_observer() noexcept;
 

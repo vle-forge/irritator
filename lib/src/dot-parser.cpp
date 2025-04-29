@@ -9,6 +9,7 @@
 #include <charconv>
 #include <fstream>
 #include <istream>
+#include <random>
 #include <streambuf>
 #include <string_view>
 
@@ -16,7 +17,72 @@
 #include <fmt/format.h>
 #include <fmt/ostream.h>
 
+#ifndef R123_USE_CXX11
+#define R123_USE_CXX11 1
+#endif
+
+#ifdef __GNUC__
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wconversion"
+#endif
+
+#include <Random123/philox.h>
+#include <Random123/uniform.hpp>
+
+#ifdef __GNUC__
+#pragma GCC diagnostic pop
+#endif
+
 namespace irt {
+
+struct local_rng {
+    using rng          = r123::Philox4x64;
+    using counter_type = r123::Philox4x64::ctr_type;
+    using key_type     = r123::Philox4x64::key_type;
+    using result_type  = counter_type::value_type;
+
+    static_assert(counter_type::static_size == 4);
+    static_assert(key_type::static_size == 2);
+
+    result_type operator()() noexcept
+    {
+        if (last_elem == 0) {
+            c.incr();
+
+            rng b{};
+            rdata = b(c, k);
+
+            n++;
+            last_elem = rdata.size();
+        }
+
+        return rdata[--last_elem];
+    }
+
+    local_rng(std::span<const u64> c0, std::span<const u64> uk) noexcept
+      : n(0)
+      , last_elem(0)
+    {
+        std::copy_n(c0.data(), c0.size(), c.data());
+        std::copy_n(uk.data(), uk.size(), k.data());
+    }
+
+    constexpr static result_type min R123_NO_MACRO_SUBST() noexcept
+    {
+        return std::numeric_limits<result_type>::min();
+    }
+
+    constexpr static result_type max R123_NO_MACRO_SUBST() noexcept
+    {
+        return std::numeric_limits<result_type>::max();
+    }
+
+    counter_type c;
+    key_type     k;
+    counter_type rdata{ 0u, 0u, 0u, 0u };
+    u64          n;
+    sz           last_elem;
+};
 
 //
 // dot-parser
@@ -1279,6 +1345,157 @@ graph& graph::operator=(graph&& other) noexcept
     return *this;
 }
 
+expected<void> graph::init_scale_free_graph(double            alpha,
+                                            double            beta,
+                                            component_id      compo_id,
+                                            int               n,
+                                            std::span<u64, 4> seed,
+                                            std::span<u64, 2> key) noexcept
+{
+    clear();
+
+    if (const auto r = reserve(n, n * 8); r.has_error())
+        return r.error();
+
+    for (auto i = 0; i < n; ++i) {
+        const auto id       = nodes.alloc();
+        node_names[id]      = std::string_view();
+        node_ids[id]        = std::string_view();
+        node_positions[id]  = { 0.f, 0.f };
+        node_components[id] = compo_id;
+        node_areas[id]      = 1.f;
+    }
+
+    if (const unsigned n = nodes.max_used(); n > 1) {
+        local_rng                               r(seed, key);
+        std::uniform_int_distribution<unsigned> d(0u, n - 1);
+
+        auto first = nodes.begin();
+        bool stop  = false;
+
+        while (not stop) {
+            unsigned xv = d(r);
+            unsigned degree =
+              (xv == 0 ? 0 : unsigned(beta * std::pow(xv, -alpha)));
+
+            while (degree == 0) {
+                ++first;
+                if (first == nodes.end()) {
+                    stop = true;
+                    break;
+                }
+
+                xv     = d(r);
+                degree = (xv == 0 ? 0 : unsigned(beta * std::pow(xv, -alpha)));
+            }
+
+            if (stop)
+                break;
+
+            auto second = undefined<graph_node_id>();
+            do {
+                const auto idx = d(r);
+                second         = nodes.get_from_index(idx);
+            } while (not is_defined(second) or *first == second or
+                     exists_edge(*first, second));
+            --degree;
+
+            if (not edges.can_alloc(1)) {
+                if (not edges.grow<3, 2>())
+                    return new_error(
+                      modeling_errc::graph_children_container_full);
+
+                if (not edges_nodes.resize(edges.capacity()))
+                    return new_error(
+                      modeling_errc::graph_children_container_full);
+            }
+
+            auto new_edge_id                  = edges.alloc();
+            edges_nodes[new_edge_id][0].first = *first;
+            edges_nodes[new_edge_id][1].first = second;
+        }
+    }
+
+    return expected<void>();
+}
+
+expected<void> graph::init_small_world_graph(double            probability,
+                                             i32               k,
+                                             component_id      compo_id,
+                                             int               n,
+                                             std::span<u64, 4> seed,
+                                             std::span<u64, 2> key) noexcept
+{
+    clear();
+    if (const auto r = reserve(n, n * 8); r.has_error())
+        return r.error();
+
+    for (auto i = 0; i < n; ++i) {
+        const auto id       = nodes.alloc();
+        node_names[id]      = std::string_view();
+        node_ids[id]        = std::string_view();
+        node_positions[id]  = { 0.f, 0.f };
+        node_components[id] = compo_id;
+        node_areas[id]      = 1.f;
+    }
+
+    if (const auto n = nodes.max_used(); n > 1) {
+        local_rng                          r(seed, key);
+        std::uniform_real_distribution<>   dr(0.0, 1.0);
+        std::uniform_int_distribution<int> di(0, n - 1);
+
+        int first  = 0;
+        int second = 1;
+        int source = 0;
+        int target = 1;
+
+        do {
+            target = (target + 1) % n;
+            if (target == (source + k / 2 + 1) % n) {
+                ++source;
+                target = (source + 1) % n;
+            }
+            first = source;
+
+            double x = dr(r);
+            if (x < probability) {
+                auto lower = (source + n - k / 2) % n;
+                auto upper = (source + k / 2) % n;
+                do {
+                    second = di(r);
+                } while (
+                  (second >= lower && second <= upper) ||
+                  (upper < lower && (second >= lower || second <= upper)));
+            } else {
+                second = target;
+            }
+
+            const auto vertex_first  = nodes.get_from_index(first);
+            const auto vertex_second = nodes.get_from_index(second);
+
+            if (not edges.can_alloc(1)) {
+                if (not edges.grow<3, 2>())
+                    return new_error(
+                      modeling_errc::graph_connection_container_full);
+
+                if (not edges_nodes.resize(edges.capacity()))
+                    return new_error(
+                      modeling_errc::graph_connection_container_full);
+            }
+
+            if (vertex_first == vertex_second or
+                exists_edge(vertex_first, vertex_second))
+                continue;
+
+            const auto new_edge_id            = edges.alloc();
+            edges_nodes[new_edge_id][0].first = vertex_first;
+            edges_nodes[new_edge_id][1].first = vertex_second;
+        } while (source + 1 < n);
+    }
+
+    return expected<void>();
+}
+
 expected<graph_node_id> graph::alloc_node() noexcept
 {
     if (not nodes.can_alloc(1)) {
@@ -1339,6 +1556,25 @@ expected<void> graph::reserve(int n, int e) noexcept
         return new_error(modeling_errc::dot_memory_insufficient);
 
     return success();
+}
+
+void graph::swap(graph& g) noexcept
+{
+    nodes.swap(g.nodes);
+    edges.swap(g.edges);
+    node_names.swap(g.node_names);
+    node_ids.swap(g.node_ids);
+    node_positions.swap(g.node_positions);
+    node_components.swap(g.node_components);
+    node_areas.swap(g.node_areas);
+    edges_nodes.swap(g.edges_nodes);
+    main_id.swap(g.main_id);
+
+    std::swap(buffer, g.buffer);
+
+    std::swap(is_strict, g.is_strict);
+    std::swap(is_graph, g.is_graph);
+    std::swap(is_digraph, g.is_digraph);
 }
 
 void graph::clear() noexcept

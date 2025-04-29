@@ -3646,8 +3646,35 @@ struct json_dearchiver::impl {
     {
         auto_stack s(this, "component graph build random graph");
 
-        if (auto ret = graph.update(mod()); ret.has_error())
+        switch (graph.g_type) {
+        case graph_component::graph_type::dot_file:
+            if (auto* g = mod().graphs.try_to_get(mod().search_graph_id(
+                  graph.param.dot.dir, graph.param.dot.file))) {
+                graph.g = *g;
+                return true;
+            }
             return false;
+
+        case graph_component::graph_type::scale_free:
+            return graph.g
+              .init_scale_free_graph(graph.param.scale.alpha,
+                                     graph.param.scale.beta,
+                                     graph.param.scale.id,
+                                     graph.param.scale.nodes,
+                                     graph.seed,
+                                     graph.key)
+              .has_value();
+
+        case graph_component::graph_type::small_world:
+            return graph.g
+              .init_small_world_graph(graph.param.small.probability,
+                                      graph.param.small.k,
+                                      graph.param.small.id,
+                                      graph.param.small.nodes,
+                                      graph.seed,
+                                      graph.key)
+              .has_value();
+        }
 
         return true;
     }

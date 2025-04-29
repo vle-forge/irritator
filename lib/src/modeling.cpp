@@ -585,11 +585,10 @@ status modeling::fill_components() noexcept
     debug_log("{} components loaded\n", components.size());
     const auto& compo_vec = components.get<component>();
     for (const auto id : components) {
-        debug_logi(
-          2,
-          "{} {} - ",
-          ordinal(id),
-          component_type_names[ordinal(compo_vec[id].type)]);
+        debug_logi(2,
+                   "{} {} - ",
+                   ordinal(id),
+                   component_type_names[ordinal(compo_vec[id].type)]);
 
         debug_component(*this, compo_vec[id]);
     }
@@ -692,6 +691,24 @@ auto search_file(const modeling&  mod,
                 return file;
 
     return nullptr;
+}
+
+auto modeling::search_graph_id(const dir_path_id  dir_id,
+                               const file_path_id file_id) const noexcept
+  -> graph_id
+{
+    if (is_defined(dir_id) and is_defined(file_id)) {
+        if (auto* f = file_paths.try_to_get(file_id)) {
+            if (f->parent == dir_id and
+                f->type == file_path::file_type::dot_file) {
+                for (const auto& g : graphs)
+                    if (g.file == file_id)
+                        return graphs.get_id(g);
+            }
+        }
+    }
+
+    return undefined<graph_id>();
 }
 
 component_id modeling::search_component_by_name(
@@ -1005,10 +1022,7 @@ static bool can_add_component(const modeling&       mod,
         if (auto* g = mod.graph_components.try_to_get(id); g) {
             for (const auto edge_id : g->g.nodes)
                 if (not can_add_component(
-                      mod,
-                      g->g.node_components[edge_id],
-                      out,
-                      search))
+                      mod, g->g.node_components[edge_id], out, search))
                     return false;
         }
     } break;

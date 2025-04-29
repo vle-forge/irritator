@@ -128,13 +128,11 @@ static auto build_graph_children(modeling& mod, graph_component& graph) noexcept
 
     if (graph.g_type == graph_component::graph_type::dot_file) {
         for (const auto x : tr.data) {
-            graph.cache_names[x.value] =
-              graph.g.node_names[x.id];
+            graph.cache_names[x.value] = graph.g.node_names[x.id];
         }
     } else {
         for (const auto x : tr.data) {
-            graph.cache_names[x.value] =
-              graph.make_unique_name_id(x.id);
+            graph.cache_names[x.value] = graph.make_unique_name_id(x.id);
         }
     }
 
@@ -218,214 +216,8 @@ static void named_suffix_connection_add(graph_component& compo,
     });
 }
 
-static auto search_graph_id(const modeling&    mod,
-                            const dir_path_id  dir_id,
-                            const file_path_id file_id) -> graph_id
+void graph_component::update() noexcept
 {
-    if (is_defined(dir_id) and is_defined(file_id)) {
-        if (auto* f = mod.file_paths.try_to_get(file_id)) {
-            if (f->parent == dir_id and
-                f->type == file_path::file_type::dot_file) {
-                for (const auto& g : mod.graphs)
-                    if (g.file == file_id)
-                        return mod.graphs.get_id(g);
-            }
-        }
-    }
-
-    return undefined<graph_id>();
-}
-
-static expected<void> build_dot_file_edges(
-  const modeling&                        mod,
-  graph_component&                       graph,
-  const graph_component::dot_file_param& params) noexcept
-{
-    if (auto id = search_graph_id(mod, params.dir, params.file);
-        is_defined(id)) {
-        graph.g = mod.graphs.get(id);
-        return success();
-    }
-
-    return new_error(file_errc::empty);
-}
-
-static constexpr auto edge_exists(const graph&        g,
-                                  const graph_node_id src,
-                                  const graph_node_id dst) noexcept -> bool
-{
-    for (auto id : g.edges) {
-        const auto idx = get_index(id);
-
-        if (g.edges_nodes[idx][0].first == src and
-            g.edges_nodes[idx][1].first == dst and
-            g.edges_nodes[idx][0].second.empty() and
-            g.edges_nodes[idx][1].second.empty())
-            return true;
-    }
-
-    return false;
-}
-
-static expected<void> build_scale_free_edges(
-  graph_component&                         graph,
-  const graph_component::scale_free_param& params) noexcept
-{
-    graph.resize(params.nodes, params.id);
-
-    if (const unsigned n = graph.g.nodes.max_used(); n > 1) {
-        local_rng r(std::span<const u64>(graph.seed),
-                    std::span<const u64>(graph.key));
-        std::uniform_int_distribution<unsigned> d(0u, n - 1);
-
-        auto first = graph.g.nodes.begin();
-        bool stop  = false;
-
-        while (not stop) {
-            unsigned xv = d(r);
-            unsigned degree =
-              (xv == 0 ? 0
-                       : unsigned(params.beta * std::pow(xv, -params.alpha)));
-
-            while (degree == 0) {
-                ++first;
-                if (first == graph.g.nodes.end()) {
-                    stop = true;
-                    break;
-                }
-
-                xv = d(r);
-                degree =
-                  (xv == 0
-                     ? 0
-                     : unsigned(params.beta * std::pow(xv, -params.alpha)));
-            }
-
-            if (stop)
-                break;
-
-            auto second = undefined<graph_node_id>();
-            do {
-                const auto idx = d(r);
-                second         = graph.g.nodes.get_from_index(idx);
-            } while (not is_defined(second) or *first == second or
-                     edge_exists(graph.g, *first, second));
-            --degree;
-
-            if (not graph.g.edges.can_alloc(1)) {
-                if (not graph.g.edges.grow<3, 2>())
-                    return new_error(
-                      modeling_errc::graph_children_container_full);
-
-                if (not graph.g.edges_nodes.resize(graph.g.edges.capacity()))
-                    return new_error(
-                      modeling_errc::graph_children_container_full);
-            }
-
-            auto       new_edge_id  = graph.g.edges.alloc();
-            const auto new_edge_idx = get_index(new_edge_id);
-
-            graph.g.edges_nodes[new_edge_idx][0].first = *first;
-            graph.g.edges_nodes[new_edge_idx][1].first = second;
-        }
-    }
-
-    return expected<void>();
-}
-
-static expected<void> build_small_world_edges(
-  graph_component&                          graph,
-  const graph_component::small_world_param& params) noexcept
-{
-    graph.resize(params.nodes, params.id);
-
-    if (const auto n = graph.g.nodes.ssize(); n > 1) {
-        local_rng r(std::span<const u64>(graph.seed),
-                    std::span<const u64>(graph.key));
-
-        std::uniform_real_distribution<>   dr(0.0, 1.0);
-        std::uniform_int_distribution<int> di(0, n - 1);
-
-        int first  = 0;
-        int second = 1;
-        int source = 0;
-        int target = 1;
-
-        do {
-            target = (target + 1) % n;
-            if (target == (source + params.k / 2 + 1) % n) {
-                ++source;
-                target = (source + 1) % n;
-            }
-            first = source;
-
-            double x = dr(r);
-            if (x < params.probability) {
-                auto lower = (source + n - params.k / 2) % n;
-                auto upper = (source + params.k / 2) % n;
-                do {
-                    second = di(r);
-                } while (
-                  (second >= lower && second <= upper) ||
-                  (upper < lower && (second >= lower || second <= upper)));
-            } else {
-                second = target;
-            }
-
-            debug::ensure(first >= 0 && first < n);
-            debug::ensure(second >= 0 && second < n);
-
-            auto vertex_first = graph.g.nodes.begin();
-            for (int i = 0; i <= first; ++i)
-                ++vertex_first;
-
-            auto vertex_second = graph.g.nodes.begin();
-            for (int i = 0; i <= second; ++i)
-                ++vertex_second;
-
-            if (not graph.g.edges.can_alloc(1)) {
-                graph.g.edges.grow<3, 2>();
-                graph.g.edges_nodes.resize(graph.g.edges.capacity());
-
-                if (not graph.g.edges.can_alloc(1))
-                    return new_error(
-                      modeling_errc::graph_connection_container_full);
-            }
-
-            const auto new_edge_id  = graph.g.edges.alloc();
-            const auto new_edge_idx = get_index(new_edge_id);
-
-            if (not is_defined(*vertex_first) or
-                not is_defined(*vertex_second) or
-                vertex_first == vertex_second or
-                edge_exists(graph.g, *vertex_first, *vertex_second))
-                continue;
-
-            graph.g.edges_nodes[new_edge_idx][0].first = *vertex_first;
-            graph.g.edges_nodes[new_edge_idx][1].first = *vertex_second;
-        } while (source + 1 < n);
-    }
-
-    return expected<void>();
-}
-
-expected<void> graph_component::update(const modeling& mod) noexcept
-{
-    switch (g_type) {
-    case graph_type::dot_file:
-        if (auto ret = build_dot_file_edges(mod, *this, param.dot); not ret)
-            return ret.error();
-        break;
-    case graph_type::scale_free:
-        if (auto ret = build_scale_free_edges(*this, param.scale); not ret)
-            return ret.error();
-        break;
-    case graph_type::small_world:
-        if (auto ret = build_small_world_edges(*this, param.small); not ret)
-            return ret.error();
-        break;
-    };
-
     for (const auto id : g.nodes) {
         const auto idx = get_index(id);
 
@@ -448,8 +240,6 @@ expected<void> graph_component::update(const modeling& mod) noexcept
         top_left_limit[1]     = -1.f;
         bottom_right_limit[1] = 1.f;
     }
-
-    return expected<void>();
 }
 
 status graph_component::resize(const i32          children_size,

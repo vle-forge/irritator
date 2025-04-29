@@ -432,8 +432,7 @@ static auto make_tree_leaf(simulation_copy&       sc,
               for (int i = 0, e = length(dyn.y); i != e; ++i)
                   dyn.y[i] = undefined<block_node_id>();
 
-          sc.pj.sim.parameters[new_mdl_id] =
-            gen.children_parameters[ch_idx];
+          sc.pj.sim.parameters[new_mdl_id] = gen.children_parameters[ch_idx];
 
           if (auto* compo = sc.srcs_mod_to_sim.get(parent.id)) {
               convert_source(std::span(compo->data(), compo->size()),
@@ -534,10 +533,7 @@ static status make_tree_recursive(simulation_copy& sc,
             if (auto* compo = sc.mod.components.try_to_get<component>(compo_id);
                 compo) {
                 auto tn_id = make_tree_recursive(
-                  sc,
-                  new_tree,
-                  *compo,
-                  src.cache_names[child_id].sv());
+                  sc, new_tree, *compo, src.cache_names[child_id].sv());
                 if (not tn_id)
                     return tn_id.error();
 
@@ -571,10 +567,7 @@ static status make_tree_recursive(simulation_copy& sc,
             if (auto* compo = sc.mod.components.try_to_get<component>(compo_id);
                 compo) {
                 auto tn_id = make_tree_recursive(
-                  sc,
-                  new_tree,
-                  *compo,
-                  src.cache_names[child_id].sv());
+                  sc, new_tree, *compo, src.cache_names[child_id].sv());
 
                 if (not tn_id.has_value())
                     return tn_id.error();
@@ -774,8 +767,7 @@ static void get_input_models(vector<model_port>&      inputs,
         if (child->type == child_type::model) {
             debug::ensure(tn.children[con.dst].mdl);
 
-            inputs.emplace_back(tn.children[con.dst].mdl,
-                                con.port.model);
+            inputs.emplace_back(tn.children[con.dst].mdl, con.port.model);
         } else {
             debug::ensure(tn.children[con.dst].tn);
             get_input_models(
@@ -877,14 +869,11 @@ static void get_output_models(vector<model_port>&      outputs,
         if (child->type == child_type::model) {
             debug::ensure(tn.children[con.src].mdl);
 
-            outputs.emplace_back(tn.children[con.src].mdl,
-                                 con.port.model);
+            outputs.emplace_back(tn.children[con.src].mdl, con.port.model);
         } else {
             debug::ensure(tn.children[con.src].tn);
-            get_output_models(outputs,
-                              mod,
-                              *tn.children[con.src].tn,
-                              con.port.compo);
+            get_output_models(
+              outputs, mod, *tn.children[con.src].tn, con.port.compo);
         }
     }
 }
@@ -1085,9 +1074,6 @@ static status make_component_cache(project& /*pj*/, modeling& mod) noexcept
         irt_check(grid.build_cache(mod));
 
     for (auto& graph : mod.graph_components) {
-        if (auto ret = graph.update(mod); not ret.has_value())
-            return new_error(project_errc::component_cache_error);
-
         if (auto ret = graph.build_cache(mod); not ret.has_value())
             return new_error(project_errc::component_cache_error);
     }

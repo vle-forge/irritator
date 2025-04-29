@@ -1232,6 +1232,8 @@ public:
     constexpr const_iterator begin() const noexcept;
     constexpr iterator       end() noexcept;
     constexpr const_iterator end() const noexcept;
+
+    constexpr void swap(this_container& other) noexcept;
 };
 
 /**
@@ -2922,6 +2924,20 @@ constexpr typename id_array<Identifier, A>::const_iterator
 id_array<Identifier, A>::end() const noexcept
 {
     return const_iterator(this, identifier_type{});
+}
+
+template<typename Identifier, typename A>
+    requires(is_identifier_type<Identifier>)
+constexpr void id_array<Identifier, A>::swap(this_container& other) noexcept
+{
+    using std::swap;
+
+    swap(m_items, other.m_items);
+    swap(m_max_size, other.m_max_size);
+    swap(m_max_used, other.m_max_used);
+    swap(m_capacity, other.m_capacity);
+    swap(m_next_key, other.m_next_key);
+    swap(m_free_head, other.m_free_head);
 }
 
 // template<typename Identifier, typename A, class... Ts>
