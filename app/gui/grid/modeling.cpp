@@ -51,32 +51,18 @@ constexpr inline auto get_default_component_id(const grid_component& g) noexcept
                                 : g.children().front();
 }
 
-static bool show_row_column_widgets(grid_component& grid) noexcept
+static void show_row_column_widgets(grid_component_editor_data& data,
+                                    grid_component&             grid) noexcept
 {
-    bool is_changed = false;
+    ImGui::InputInt("row",
+                    &data.row,
+                    grid_component::slimit::lower_bound(),
+                    grid_component::slimit::upper_bound());
 
-    int row    = grid.row();
-    int column = grid.column();
-
-    if (ImGui::InputInt("row",
-                        &row,
-                        grid_component::slimit::lower_bound(),
-                        grid_component::slimit::upper_bound())) {
-        is_changed = row != grid.row();
-    }
-
-    if (ImGui::InputInt("column",
-                        &column,
-                        grid_component::slimit::lower_bound(),
-                        grid_component::slimit::upper_bound())) {
-        is_changed = is_changed || column != grid.column();
-    }
-
-    if (is_changed) {
-        grid.resize(row, column, get_default_component_id(grid));
-    }
-
-    return is_changed;
+    ImGui::InputInt("column",
+                    &data.col,
+                    grid_component::slimit::lower_bound(),
+                    grid_component::slimit::upper_bound());
 }
 
 static void show_grid_component_options(grid_component& grid) noexcept
@@ -564,10 +550,37 @@ void grid_component_editor_data::show(component_editor& ed) noexcept
     debug::ensure(compo && grid);
 
     if (compo and grid) {
-        show_row_column_widgets(*grid);
-        show_grid_component_options(*grid);
-        show_grid_editor_options(app, *this, *grid);
-        show_grid(app, *compo, *this, *grid);
+        if (ImGui::BeginChild("##grid-ed",
+                              ImVec2(0, 0),
+                              ImGuiChildFlags_None,
+                              ImGuiWindowFlags_MenuBar)) {
+            if (ImGui::BeginMenuBar()) {
+                if (ImGui::BeginMenu("Model")) {
+                    show_row_column_widgets(*this, *grid);
+                    if (ImGui::Button("generate")) {
+                        grid->resize(row, col, undefined<component_id>());
+                        ImGui::CloseCurrentPopup();
+                    }
+                    ImGui::EndMenu();
+                }
+
+                if (ImGui::BeginMenu("Options")) {
+                    show_grid_component_options(*grid);
+                    ImGui::EndMenu();
+                }
+
+                if (ImGui::BeginMenu("Edit")) {
+                    show_grid_editor_options(app, *this, *grid);
+                    ImGui::EndMenu();
+                }
+
+                ImGui::EndMenuBar();
+            }
+
+            show_grid(app, *compo, *this, *grid);
+        }
+
+        ImGui::EndChild();
     }
 }
 

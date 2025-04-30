@@ -323,12 +323,12 @@ public:
     ImVec2     scrolling{ 0.f, 0.f };
     float      zoom[2]{ 1.f, 1.f };
     component* hovered_component = nullptr;
-    int        row               = 0;
-    int        col               = 0;
 
-    component_id selected_id = undefined<component_id>();
+    int row = 10;
+    int col = 10;
 
-    grid_component_id grid_id = undefined<grid_component_id>();
+    component_id      selected_id = undefined<component_id>();
+    grid_component_id grid_id     = undefined<grid_component_id>();
 
 private:
     component_id m_id = undefined<component_id>();
