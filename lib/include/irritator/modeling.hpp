@@ -768,11 +768,6 @@ public:
     bool     exists_child(const std::string_view name) const noexcept;
     name_str make_unique_name_id(const graph_node_id v) const noexcept;
 
-    //! Resize `children` vector and clear the `edges`, `input_connections`
-    //! and `output_connection`.
-    expected<void> resize(const i32          children_size,
-                          const component_id id) noexcept;
-
     /** Compute top, left and bottom, right limits. */
     void update() noexcept;
 

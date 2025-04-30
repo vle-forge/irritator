@@ -242,37 +242,6 @@ void graph_component::update() noexcept
     }
 }
 
-status graph_component::resize(const i32          children_size,
-                               const component_id cid) noexcept
-{
-    g.clear();
-    input_connections.clear();
-    output_connections.clear();
-
-    if (auto ret = g.reserve(children_size, children_size * 8); ret.has_error())
-        return ret.error();
-
-    g.main_id    = g.buffer.append("temp");
-    g.is_strict  = true;
-    g.is_digraph = true;
-
-    name_str str;
-    for (auto i = 0; i < children_size; ++i) {
-        format(str, "{}", i);
-
-        const auto id  = g.nodes.alloc();
-        const auto idx = get_index(id);
-
-        g.node_components[idx] = cid;
-        g.node_areas[idx]      = 1.0f;
-        g.node_positions[idx]  = { 0.f, 0.f };
-        g.node_ids[idx]        = g.buffer.append(str.sv());
-        g.node_names[idx]      = g.buffer.append(str.sv());
-    }
-
-    return {};
-}
-
 static void build_graph_connections(
   modeling&                             mod,
   graph_component&                      graph,
