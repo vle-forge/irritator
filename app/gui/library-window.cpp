@@ -9,6 +9,8 @@
 #include "imgui.h"
 #include "internal.hpp"
 
+#include <ranges>
+
 namespace irt {
 
 static void add_generic_component_data(application& app) noexcept
@@ -282,38 +284,34 @@ static bool is_component_open(const application& app,
     if (const auto* compo = app.mod.components.try_to_get<component>(id)) {
         switch (compo->type) {
         case component_type::graph:
-            for (const auto& g : app.graphs)
-                if (g.get_id() == id)
-                    return true;
-            break;
+            return std::ranges::any_of(
+              app.graphs,
+              [id](const auto& g) noexcept { return g.get_id() == id; });
 
         case component_type::grid:
-            for (const auto& g : app.grids)
-                if (g.get_id() == id)
-                    return true;
-            break;
+            return std::ranges::any_of(app.grids, [id](const auto& g) noexcept {
+                return g.get_id() == id;
+            });
 
         case component_type::hsm:
-            for (const auto& g : app.hsms)
-                if (g.get_id() == id)
-                    return true;
-            break;
+            return std::ranges::any_of(app.hsms, [id](const auto& g) noexcept {
+                return g.get_id() == id;
+            });
 
         case component_type::internal:
-            break;
+            return false;
 
         case component_type::none:
-            break;
+            return false;
 
         case component_type::generic:
-            for (const auto& g : app.generics)
-                if (g.get_id() == id)
-                    return true;
-            break;
+            return std::ranges::any_of(
+              app.generics,
+              [id](const auto& g) noexcept { return g.get_id() == id; });
         }
     }
 
-    return false;
+    irt::unreachable();
 }
 
 static void show_file_component(application& app,
