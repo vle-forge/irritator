@@ -78,7 +78,7 @@ void show_menu_external_sources(external_source& srcs,
                                 const char*      title,
                                 source&          src) noexcept;
 
-/** brief Get the color of the component in the @a float[4] format.
+/** @brief Get the color of the component in the @a float[4] format.
  * If the @a component identifier @a id is undefined this function returns the
  * @a default_component_color.
  *
@@ -89,7 +89,7 @@ void show_menu_external_sources(external_source& srcs,
 auto get_component_color(const application& app, const component_id id) noexcept
   -> const std::span<const float, 4>;
 
-/** brief Get the color of the component in the @a ImU32 format.
+/** @brief Get the color of the component in the @a ImU32 format.
  * If the @a component identifier @a id is undefined this function returns the
  * @a default_component_color.
  *
