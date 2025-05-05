@@ -3562,27 +3562,29 @@ void data_array<T, Identifier, A>::free(Identifier id) noexcept
 
     if (0 <= index and index < m_max_used) {
         if (m_items[index].id == id && is_valid(id)) {
-            std::destroy_at(&m_items[index].item);
-
             if (m_max_size == 1) {
                 clear();
-            } else if (m_free_head == none or index < m_free_head) {
-                m_items[index].id = static_cast<Identifier>(m_free_head);
-                m_free_head       = static_cast<index_type>(index);
-                --m_max_size;
             } else {
-                auto prev = m_free_head;
-                auto cur  = get_index(m_items[m_free_head].id);
-                do {
-                    if (index < cur) {
-                        m_items[prev].id  = static_cast<Identifier>(index);
-                        m_items[index].id = static_cast<Identifier>(cur);
-                        break;
-                    }
-                    prev = cur;
-                    cur  = get_index(m_items[cur].id);
-                } while (prev != none);
-                --m_max_size;
+                std::destroy_at(&m_items[index].item);
+
+                if (m_free_head == none or index < m_free_head) {
+                    m_items[index].id = static_cast<Identifier>(m_free_head);
+                    m_free_head       = static_cast<index_type>(index);
+                    --m_max_size;
+                } else {
+                    auto prev = m_free_head;
+                    auto cur  = get_index(m_items[m_free_head].id);
+                    do {
+                        if (index < cur) {
+                            m_items[prev].id  = static_cast<Identifier>(index);
+                            m_items[index].id = static_cast<Identifier>(cur);
+                            break;
+                        }
+                        prev = cur;
+                        cur  = get_index(m_items[cur].id);
+                    } while (prev != none);
+                    --m_max_size;
+                }
             }
         }
     }
