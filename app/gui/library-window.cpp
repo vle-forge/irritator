@@ -329,12 +329,19 @@ static void show_file_component(application& app,
 
         ImGui::PushID(&c);
 
-        if (ImGui::ColorEdit4(
-              "Color selection",
-              to_float_ptr(app.mod.components.get<component_color>(id)),
-              ImGuiColorEditFlags_NoInputs | ImGuiColorEditFlags_NoLabel |
-                ImGuiColorEditFlags_NoAlpha))
-            app.mod.components.get<component_color>(id)[3] = 1.f;
+        const auto col = get_component_color(app, id);
+        auto       im  = std::array<float, 4>{ col[0], col[1], col[2], col[3] };
+
+        if (ImGui::ColorEdit4("Color selection",
+                              im.data(),
+                              ImGuiColorEditFlags_NoInputs |
+                                ImGuiColorEditFlags_NoLabel |
+                                ImGuiColorEditFlags_NoAlpha)) {
+            if (app.mod.components.exists(id)) {
+                auto& data = app.mod.components.get<component_color>(id);
+                data       = im;
+            }
+        }
 
         format(buffer, "{} ({})", c.name.sv(), file.path.sv());
 
@@ -410,15 +417,14 @@ static void show_notsaved_components(irt::component_editor& ed) noexcept
     auto& compos = app.mod.components.get<component>();
     auto& colors = app.mod.components.get<component_color>();
     for (const auto id : app.mod.components) {
-        auto& compo = compos[get_index(id)];
-        auto& color = colors[get_index(id)];
+        auto& compo = compos[id];
 
         const auto is_not_saved =
           compo.type != component_type::internal &&
           app.mod.file_paths.try_to_get(compo.file) == nullptr;
 
         if (is_not_saved) {
-            const auto id       = app.mod.components.get_id(compo);
+            auto&      color    = colors[id];
             const bool selected = is_component_open(app, id);
 
             ImGui::PushID(reinterpret_cast<const void*>(&compo));

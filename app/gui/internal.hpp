@@ -19,6 +19,11 @@ namespace irt {
 
 constexpr static inline i32 simulation_task_number = 64;
 
+inline ImVec4 to_ImVec4(std::span<const float, 4>& array) noexcept
+{
+    return ImVec4(array[0], array[1], array[2], array[3]);
+}
+
 inline ImVec4& to_ImVec4(std::array<float, 4>& array) noexcept
 {
     return reinterpret_cast<ImVec4&>(array);
@@ -27,6 +32,11 @@ inline ImVec4& to_ImVec4(std::array<float, 4>& array) noexcept
 inline const ImVec4& to_ImVec4(const std::array<float, 4>& array) noexcept
 {
     return reinterpret_cast<const ImVec4&>(array);
+}
+
+inline const float* to_float_ptr(std::span<float, 4>& array) noexcept
+{
+    return array.data();
 }
 
 inline float* to_float_ptr(std::array<float, 4>& array) noexcept

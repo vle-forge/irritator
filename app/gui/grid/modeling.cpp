@@ -51,8 +51,7 @@ constexpr inline auto get_default_component_id(const grid_component& g) noexcept
                                 : g.children().front();
 }
 
-static void show_row_column_widgets(grid_component_editor_data& data,
-                                    grid_component&             grid) noexcept
+static void show_row_column_widgets(grid_component_editor_data& data) noexcept
 {
     ImGui::InputInt("row",
                     &data.row,
@@ -556,7 +555,7 @@ void grid_component_editor_data::show(component_editor& ed) noexcept
                               ImGuiWindowFlags_MenuBar)) {
             if (ImGui::BeginMenuBar()) {
                 if (ImGui::BeginMenu("Model")) {
-                    show_row_column_widgets(*this, *grid);
+                    show_row_column_widgets(*this);
                     if (ImGui::Button("generate")) {
                         grid->resize(row, col, undefined<component_id>());
                         ImGui::CloseCurrentPopup();

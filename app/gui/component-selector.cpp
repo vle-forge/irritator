@@ -131,7 +131,7 @@ static update_t update_lists(const modeling&            mod,
 void component_selector::update() noexcept
 {
     // Skip the update if a thread is currently running an update.
-    scoped_flag_run(updating, [&]() { 
+    scoped_flag_run(updating, [&]() {
         const auto& app = container_of(this, &application::component_sel);
         const auto& mod = app.mod;
 
@@ -167,9 +167,9 @@ bool component_selector::combobox(const char*   label,
             }
 
             for (sz i = 1, e = ids.size(); i != e; ++i) {
-                ImGui::ColorButton(
-                  "Component",
-                  to_ImVec4(app.mod.components.get<component_color>(ids[i])));
+                const auto col = get_component_color(app, ids[i]);
+                const auto im  = ImVec4{ col[0], col[1], col[2], col[3] };
+                ImGui::ColorButton("Component", im);
                 ImGui::SameLine(50.f);
                 if (ImGui::Selectable(names[i].c_str(),
                                       ids[i] == *new_selected)) {
@@ -211,9 +211,10 @@ bool component_selector::combobox(const char*   label,
             }
 
             for (sz i = 1, e = ids.size(); i != e; ++i) {
-                ImGui::ColorButton(
-                  "#color",
-                  to_ImVec4(app.mod.components.get<component_color>(ids[i])));
+                const auto col = get_component_color(app, ids[i]);
+                const auto im  = ImVec4(col[0], col[1], col[2], col[3]);
+
+                ImGui::ColorButton("#color", im);
                 ImGui::SameLine(50.f);
                 if (ImGui::Selectable(names[i].c_str(),
                                       *hyphen == false &&

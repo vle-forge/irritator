@@ -113,8 +113,7 @@ static bool display_grid_simulation(application& app,
             draw_list->AddRectFilled(
               p_min,
               p_max,
-              to_ImU32(app.mod.components.get<component_color>(
-                grid.children()[grid.pos(row, col)])));
+              get_component_u32color(app, grid.children()[grid.pos(row, col)]));
         }
     }
 
