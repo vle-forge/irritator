@@ -983,7 +983,9 @@ class library_window
 public:
     constexpr static inline const char* name = "Library";
 
-    library_window() noexcept = default;
+    library_window() noexcept
+      : stack(max_component_stack_size, reserve_tag{})
+    {}
 
     void try_set_component_as_project(application&       app,
                                       const component_id id) noexcept;
@@ -998,11 +1000,14 @@ public:
      * other projects. */
     is_component_deletable_t is_component_deletable(
       const application& app,
-      const component_id id) const noexcept;
+      const component_id id) noexcept;
 
     void show() noexcept;
 
     bool is_open = true;
+
+private:
+    vector<tree_node*> stack;
 };
 
 /** An ImGui TabBAr to display project settings, project hierarchy, simulation

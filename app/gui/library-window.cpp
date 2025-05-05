@@ -9,7 +9,6 @@
 #include "imgui.h"
 #include "internal.hpp"
 
-#include <ranges>
 
 namespace irt {
 
@@ -223,17 +222,15 @@ static void show_component_popup_menu(application& app, component& sel) noexcept
     }
 }
 
-template<typename T, typename ID>
-static bool is_already_open(const data_array<T, ID>& data,
-                            component_id             id) noexcept
+/** Returns true if the @a data does not hold a component identifier @a id and
+ * if it can allocate a new element. */
+template<typename DataArray>
+static bool must_alloc_data_editor(const DataArray& data,
+                                   component_id     id) noexcept
 {
-    const typename data_array<T, ID>::value_type* g = nullptr;
+    const auto is_open = [id](const auto& d) { return d.get_id() == id; };
 
-    while (data.next(g))
-        if (g->get_id() == id)
-            return true;
-
-    return false;
+    return std::ranges::none_of(data, is_open) and data.can_alloc();
 }
 
 static void open_component(application& app, component_id id) noexcept
@@ -244,27 +241,26 @@ static void open_component(application& app, component_id id) noexcept
             break;
 
         case component_type::generic:
-            if (!is_already_open(app.generics, id) && app.generics.can_alloc())
-                if (auto* gen =
-                      app.mod.generic_components.try_to_get(c->id.generic_id);
-                    gen)
-                    app.generics.alloc(id, *c, c->id.generic_id, *gen);
+            if (must_alloc_data_editor(app.generics, id))
+                if (auto* g =
+                      app.mod.generic_components.try_to_get(c->id.generic_id))
+                    app.generics.alloc(id, *c, c->id.generic_id, *g);
             break;
 
         case component_type::grid:
-            if (!is_already_open(app.grids, id) && app.grids.can_alloc())
+            if (must_alloc_data_editor(app.grids, id))
                 if (app.mod.grid_components.try_to_get(c->id.grid_id))
                     app.grids.alloc(id, c->id.grid_id);
             break;
 
         case component_type::graph:
-            if (!is_already_open(app.graphs, id) && app.graphs.can_alloc())
+            if (must_alloc_data_editor(app.graphs, id))
                 if (app.mod.graph_components.try_to_get(c->id.graph_id))
                     app.graphs.alloc(id, c->id.graph_id);
             break;
 
         case component_type::hsm:
-            if (!is_already_open(app.hsms, id) && app.hsms.can_alloc())
+            if (must_alloc_data_editor(app.hsms, id))
                 if (auto* h = app.mod.hsm_components.try_to_get(c->id.hsm_id);
                     h)
                     app.hsms.alloc(id, c->id.hsm_id, *h);
@@ -281,22 +277,19 @@ static void open_component(application& app, component_id id) noexcept
 static bool is_component_open(const application& app,
                               const component_id id) noexcept
 {
+
     if (const auto* compo = app.mod.components.try_to_get<component>(id)) {
+        const auto is_open = [id](const auto& d) { return d.get_id() == id; };
+
         switch (compo->type) {
         case component_type::graph:
-            return std::ranges::any_of(
-              app.graphs,
-              [id](const auto& g) noexcept { return g.get_id() == id; });
+            return std::ranges::any_of(app.graphs, is_open);
 
         case component_type::grid:
-            return std::ranges::any_of(app.grids, [id](const auto& g) noexcept {
-                return g.get_id() == id;
-            });
+            return std::ranges::any_of(app.grids, is_open);
 
         case component_type::hsm:
-            return std::ranges::any_of(app.hsms, [id](const auto& g) noexcept {
-                return g.get_id() == id;
-            });
+            return std::ranges::any_of(app.hsms, is_open);
 
         case component_type::internal:
             return false;
@@ -305,9 +298,7 @@ static bool is_component_open(const application& app,
             return false;
 
         case component_type::generic:
-            return std::ranges::any_of(
-              app.generics,
-              [id](const auto& g) noexcept { return g.get_id() == id; });
+            return std::ranges::any_of(app.generics, is_open);
         }
     }
 
@@ -553,82 +544,92 @@ void library_window::try_set_component_as_project(
     }
 }
 
-auto library_window::is_component_deletable(
-  const application& app,
-  const component_id id) const noexcept -> is_component_deletable_t
+static auto is_component_used_in_component =
+  [](const application& app, const component_id id) noexcept -> bool {
+    for (const auto c_id : app.mod.components) {
+        const auto& c = app.mod.components.get<component>(c_id);
+
+        switch (c.type) {
+        case component_type::generic:
+            if (const auto* g =
+                  app.mod.generic_components.try_to_get(c.id.generic_id)) {
+                if (std::ranges::any_of(
+                      g->children, [id](const auto& ch) noexcept -> bool {
+                          return ch.type == child_type::component and
+                                 ch.id.compo_id == id;
+                      }))
+                    return true;
+            }
+            break;
+        case component_type::grid:
+            if (const auto* g =
+                  app.mod.grid_components.try_to_get(c.id.grid_id)) {
+                if (std::ranges::any_of(
+                      g->children(),
+                      [id](const auto c) noexcept -> bool { return c == id; }))
+                    return true;
+            }
+            break;
+        case component_type::graph:
+            if (const auto* g =
+                  app.mod.graph_components.try_to_get(c.id.graph_id)) {
+                for (const auto i : g->g.nodes) {
+                    if (g->g.node_components[get_index(i)] == id)
+                        return true;
+                }
+            }
+            break;
+        case component_type::hsm:
+        case component_type::internal:
+        case component_type::none:
+            break;
+        }
+    }
+
+    return false;
+};
+
+static auto is_component_used_in_project(const application&  app,
+                                         const component_id  id,
+                                         vector<tree_node*>& stack) noexcept
+  -> bool
 {
-    {
-        for (const auto c_id : app.mod.components) {
-            const auto& c = app.mod.components.get<component>(c_id);
+    stack.clear();
 
-            switch (c.type) {
-            case component_type::generic:
-                if (const auto* g =
-                      app.mod.generic_components.try_to_get(c.id.generic_id)) {
-                    if (std::any_of(g->children.begin(),
-                                    g->children.end(),
-                                    [id](const auto& ch) noexcept -> bool {
-                                        return ch.type ==
-                                                 child_type::component and
-                                               ch.id.compo_id == id;
-                                    }))
-                        return is_component_deletable_t::used_by_component;
-                }
-                break;
-            case component_type::grid:
-                if (const auto* g =
-                      app.mod.grid_components.try_to_get(c.id.grid_id)) {
-                    if (std::any_of(g->children().begin(),
-                                    g->children().end(),
-                                    [id](const auto c) noexcept -> bool {
-                                        return c == id;
-                                    }))
-                        return is_component_deletable_t::used_by_component;
-                }
-                break;
-            case component_type::graph:
-                if (const auto* g =
-                      app.mod.graph_components.try_to_get(c.id.graph_id)) {
-                    for (const auto i : g->g.nodes) {
-                        if (g->g.node_components[get_index(i)] == id)
-                            return is_component_deletable_t::used_by_component;
-                    }
-                }
-                break;
-            case component_type::hsm:
-            case component_type::internal:
-            case component_type::none:
-                break;
-            }
+    for (const auto& pj : app.pjs) {
+        stack.clear();
+        auto* head = pj.pj.tn_head();
+        if (head->id == id)
+            return true;
+
+        stack.push_back(head);
+        while (not stack.empty()) {
+            auto cur = stack.back();
+            stack.pop_back();
+
+            if (cur->id == id)
+                return true;
+
+            if (auto* sibling = cur->tree.get_sibling(); sibling)
+                stack.emplace_back(sibling);
+
+            if (auto* child = cur->tree.get_child(); child)
+                stack.emplace_back(child);
         }
     }
 
-    {
-        vector<tree_node*> stack;
-        for (const auto& pj : app.pjs) {
-            stack.clear();
-            auto* head = pj.pj.tn_head();
-            if (head->id == id)
-                return is_component_deletable_t::used_by_project;
+    return false;
+}
 
-            stack.push_back(head);
-            while (not stack.empty()) {
-                auto cur = stack.back();
-                stack.pop_back();
-
-                if (cur->id == id)
-                    return is_component_deletable_t::used_by_project;
-
-                if (auto* sibling = cur->tree.get_sibling(); sibling)
-                    stack.emplace_back(sibling);
-
-                if (auto* child = cur->tree.get_child(); child)
-                    stack.emplace_back(child);
-            }
-        }
-    }
-
-    return is_component_deletable_t::deletable;
+auto library_window::is_component_deletable(const application& app,
+                                            const component_id id) noexcept
+  -> is_component_deletable_t
+{
+    return is_component_used_in_component(app, id)
+             ? is_component_deletable_t::used_by_component
+           : is_component_used_in_project(app, id, stack)
+             ? is_component_deletable_t::used_by_project
+             : is_component_deletable_t::deletable;
 }
 
 void library_window::show() noexcept
