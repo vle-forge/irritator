@@ -472,26 +472,6 @@ static void show_dirpath_component(irt::component_editor& ed,
     }
 }
 
-static void show_component_library_new_component(application& app) noexcept
-{
-    const auto button_size = ImGui::ComputeButtonSize(4);
-
-    if (ImGui::Button("+generic", button_size))
-        add_generic_component_data(app);
-
-    ImGui::SameLine();
-    if (ImGui::Button("+grid", button_size))
-        add_grid_component_data(app);
-
-    ImGui::SameLine();
-    if (ImGui::Button("+graph", button_size))
-        add_graph_component_data(app);
-
-    ImGui::SameLine();
-    if (ImGui::Button("+hsm", button_size))
-        add_hsm_component_data(app);
-}
-
 static void show_repertories_components(irt::application& app) noexcept
 {
     for (auto id : app.mod.component_repertories) {
@@ -657,12 +637,31 @@ void library_window::show() noexcept
 {
     auto& app = container_of(this, &application::library_wnd);
 
-    if (!ImGui::Begin(library_window::name, &is_open)) {
+    if (!ImGui::Begin(
+          library_window::name, &is_open, ImGuiWindowFlags_MenuBar)) {
         ImGui::End();
         return;
     }
 
-    show_component_library_new_component(app);
+    if (ImGui::BeginMenuBar()) {
+        if (ImGui::BeginMenu("New")) {
+            if (ImGui::MenuItem("generic component"))
+                add_generic_component_data(app);
+
+            if (ImGui::MenuItem("grid component"))
+                add_grid_component_data(app);
+
+            if (ImGui::MenuItem("graph component"))
+                add_graph_component_data(app);
+
+            if (ImGui::MenuItem("hsm component"))
+                add_hsm_component_data(app);
+            ImGui::EndMenu();
+        }
+
+        ImGui::EndMenuBar();
+    }
+
     show_component_library(app);
 
     ImGui::End();
