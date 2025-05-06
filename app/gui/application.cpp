@@ -236,10 +236,6 @@ application::application(journal_handler& jn_) noexcept
   , mod{ jn_ }
   , jn{ jn_ }
   , pjs(16)
-  , grids{ 32 }
-  , graphs{ 32 }
-  , generics{ 32 }
-  , hsms{ 32 }
 {
     settings_wnd.apply_style(0);
 

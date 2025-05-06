@@ -11,49 +11,6 @@
 
 namespace irt {
 
-static void add_generic_component_data(application& app) noexcept
-{
-    auto& compo    = app.mod.alloc_generic_component();
-    auto  compo_id = app.mod.components.get_id(compo);
-    app.generics.alloc(compo_id,
-                       compo,
-                       compo.id.generic_id,
-                       app.mod.generic_components.get(compo.id.generic_id));
-    app.component_ed.request_to_open(compo_id);
-
-    app.add_gui_task([&app]() noexcept { app.component_sel.update(); });
-}
-
-static void add_grid_component_data(application& app) noexcept
-{
-    auto& compo    = app.mod.alloc_grid_component();
-    auto  compo_id = app.mod.components.get_id(compo);
-    app.grids.alloc(compo_id, compo.id.grid_id);
-    app.component_ed.request_to_open(compo_id);
-    app.add_gui_task([&app]() noexcept { app.component_sel.update(); });
-}
-
-static void add_graph_component_data(application& app) noexcept
-{
-    auto& compo    = app.mod.alloc_graph_component();
-    auto  compo_id = app.mod.components.get_id(compo);
-    app.graphs.alloc(compo_id, compo.id.graph_id);
-    app.component_ed.request_to_open(compo_id);
-
-    app.add_gui_task([&app]() noexcept { app.component_sel.update(); });
-}
-
-static void add_hsm_component_data(application& app) noexcept
-{
-    auto& compo    = app.mod.alloc_hsm_component();
-    auto  compo_id = app.mod.components.get_id(compo);
-    app.hsms.alloc(
-      compo_id, compo.id.hsm_id, app.mod.hsm_components.get(compo.id.hsm_id));
-    app.component_ed.request_to_open(compo_id);
-
-    app.add_gui_task([&app]() noexcept { app.component_sel.update(); });
-}
-
 static bool can_delete_component(application& app, component_id id) noexcept
 {
     switch (app.library_wnd.is_component_deletable(app, id)) {
@@ -81,21 +38,17 @@ static bool can_delete_component(application& app, component_id id) noexcept
 static void show_component_popup_menu(application& app, component& sel) noexcept
 {
     if (ImGui::BeginPopupContextItem()) {
-        if (app.mod.can_alloc_generic_component() && app.generics.can_alloc() &&
-            ImGui::MenuItem("New generic component"))
-            add_generic_component_data(app);
+        if (ImGui::MenuItem("New generic component"))
+            app.component_ed.add_generic_component_data();
 
-        if (app.mod.can_alloc_grid_component() && app.grids.can_alloc() &&
-            ImGui::MenuItem("New grid component"))
-            add_grid_component_data(app);
+        if (ImGui::MenuItem("New grid component"))
+            app.component_ed.add_grid_component_data();
 
-        if (app.mod.can_alloc_graph_component() && app.graphs.can_alloc() &&
-            ImGui::MenuItem("New graph component"))
-            add_graph_component_data(app);
+        if (ImGui::MenuItem("New graph component"))
+            app.component_ed.add_graph_component_data();
 
-        if (app.mod.can_alloc_hsm_component() && app.hsms.can_alloc() &&
-            ImGui::MenuItem("New HSM component"))
-            add_hsm_component_data(app);
+        if (ImGui::MenuItem("New HSM component"))
+            app.component_ed.add_hsm_component_data();
 
         ImGui::Separator();
 
@@ -222,96 +175,13 @@ static void show_component_popup_menu(application& app, component& sel) noexcept
     }
 }
 
-/** Returns true if the @a data does not hold a component identifier @a id and
- * if it can allocate a new element. */
-template<typename DataArray>
-static bool must_alloc_data_editor(const DataArray& data,
-                                   component_id     id) noexcept
-{
-    const auto is_open = [id](const auto& d) { return d.get_id() == id; };
-
-    return std::ranges::none_of(data, is_open) and data.can_alloc();
-}
-
-static void open_component(application& app, component_id id) noexcept
-{
-    if (auto* c = app.mod.components.try_to_get<component>(id)) {
-        switch (c->type) {
-        case component_type::none:
-            break;
-
-        case component_type::generic:
-            if (must_alloc_data_editor(app.generics, id))
-                if (auto* g =
-                      app.mod.generic_components.try_to_get(c->id.generic_id))
-                    app.generics.alloc(id, *c, c->id.generic_id, *g);
-            break;
-
-        case component_type::grid:
-            if (must_alloc_data_editor(app.grids, id))
-                if (app.mod.grid_components.try_to_get(c->id.grid_id))
-                    app.grids.alloc(id, c->id.grid_id);
-            break;
-
-        case component_type::graph:
-            if (must_alloc_data_editor(app.graphs, id))
-                if (app.mod.graph_components.try_to_get(c->id.graph_id))
-                    app.graphs.alloc(id, c->id.graph_id);
-            break;
-
-        case component_type::hsm:
-            if (must_alloc_data_editor(app.hsms, id))
-                if (auto* h = app.mod.hsm_components.try_to_get(c->id.hsm_id);
-                    h)
-                    app.hsms.alloc(id, c->id.hsm_id, *h);
-            break;
-
-        case component_type::internal:
-            break;
-        }
-
-        app.component_ed.request_to_open(id);
-    }
-}
-
-static bool is_component_open(const application& app,
-                              const component_id id) noexcept
-{
-
-    if (const auto* compo = app.mod.components.try_to_get<component>(id)) {
-        const auto is_open = [id](const auto& d) { return d.get_id() == id; };
-
-        switch (compo->type) {
-        case component_type::graph:
-            return std::ranges::any_of(app.graphs, is_open);
-
-        case component_type::grid:
-            return std::ranges::any_of(app.grids, is_open);
-
-        case component_type::hsm:
-            return std::ranges::any_of(app.hsms, is_open);
-
-        case component_type::internal:
-            return false;
-
-        case component_type::none:
-            return false;
-
-        case component_type::generic:
-            return std::ranges::any_of(app.generics, is_open);
-        }
-    }
-
-    irt::unreachable();
-}
-
 static void show_file_component(application& app,
                                 file_path&   file,
                                 component&   c) noexcept
 {
     if (std::unique_lock lock(file.mutex, std::try_to_lock); lock.owns_lock()) {
         const auto id       = app.mod.components.get_id(c);
-        const bool selected = is_component_open(app, id);
+        const bool selected = app.component_ed.is_component_open(id);
         const auto state    = c.state;
 
         small_string<254> buffer;
@@ -341,7 +211,7 @@ static void show_file_component(application& app,
             if (ImGui::IsMouseDoubleClicked(0))
                 app.library_wnd.try_set_component_as_project(app, id);
             else
-                open_component(app, id);
+                app.component_ed.request_to_open(id);
         }
         ImGui::PopID();
 
@@ -414,7 +284,7 @@ static void show_notsaved_components(irt::component_editor& ed) noexcept
 
         if (is_not_saved) {
             auto&      color    = colors[id];
-            const bool selected = is_component_open(app, id);
+            const bool selected = app.component_ed.is_component_open(id);
 
             ImGui::PushID(reinterpret_cast<const void*>(&compo));
             if (ImGui::ColorEdit4("Color selection",
@@ -431,7 +301,7 @@ static void show_notsaved_components(irt::component_editor& ed) noexcept
                 if (ImGui::IsMouseDoubleClicked(0))
                     app.library_wnd.try_set_component_as_project(app, id);
                 else
-                    open_component(app, id);
+                    app.component_ed.request_to_open(id);
             }
             ImGui::PopID();
 
@@ -645,16 +515,16 @@ void library_window::show() noexcept
     if (ImGui::BeginMenuBar()) {
         if (ImGui::BeginMenu("New")) {
             if (ImGui::MenuItem("generic component"))
-                add_generic_component_data(app);
+                app.component_ed.add_generic_component_data();
 
             if (ImGui::MenuItem("grid component"))
-                add_grid_component_data(app);
+                app.component_ed.add_grid_component_data();
 
             if (ImGui::MenuItem("graph component"))
-                add_graph_component_data(app);
+                app.component_ed.add_graph_component_data();
 
             if (ImGui::MenuItem("hsm component"))
-                add_hsm_component_data(app);
+                app.component_ed.add_hsm_component_data();
             ImGui::EndMenu();
         }
 

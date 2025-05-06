@@ -464,7 +464,7 @@ public:
     generic_component_editor_data(const component_id         id,
                                   component&                 compo,
                                   const generic_component_id gid,
-                                  generic_component&         gen) noexcept;
+                                  const generic_component&   gen) noexcept;
     ~generic_component_editor_data() noexcept;
 
     void show(component_editor& ed) noexcept;
@@ -966,6 +966,13 @@ class component_editor
 public:
     constexpr static inline const char* name = "Component editor";
 
+    component_editor() noexcept
+      : grids(32)
+      , graphs(32)
+      , generics(32)
+      , hsms(32)
+    {}
+
     /** Draw the editor into a ImGui::Begin/ImGui::End window. */
     void display() noexcept;
 
@@ -981,10 +988,49 @@ public:
 
     bool is_open = true;
 
+    void add_generic_component_data() noexcept;
+    void add_grid_component_data() noexcept;
+    void add_graph_component_data() noexcept;
+    void add_hsm_component_data() noexcept;
+
+    void create_component_data(const component_id id) noexcept;
+    bool is_component_open(const component_id id) const noexcept;
+
+    template<typename IdentifierType>
+    auto try_to_get(const IdentifierType id) noexcept
+    {
+        if constexpr (std::is_same_v<IdentifierType, grid_editor_data_id>)
+            return grids.try_to_get(id);
+        if constexpr (std::is_same_v<IdentifierType, graph_editor_data_id>)
+            return graphs.try_to_get(id);
+        if constexpr (std::is_same_v<IdentifierType, generic_editor_data_id>)
+            return generics.try_to_get(id);
+        if constexpr (std::is_same_v<IdentifierType, hsm_editor_data_id>)
+            return hsms.try_to_get(id);
+    }
+
+    template<typename T>
+    auto get_id(const T& elem) const noexcept
+    {
+        if constexpr (std::is_same_v<T, grid_component_editor_data>)
+            return grids.get_id(elem);
+        if constexpr (std::is_same_v<T, graph_component_editor_data>)
+            return graphs.get_id(elem);
+        if constexpr (std::is_same_v<T, generic_component_editor_data>)
+            return generics.get_id(elem);
+        if constexpr (std::is_same_v<T, hsm_component_editor_data>)
+            return hsms.get_id(elem);
+    }
+
 private:
     struct impl;
 
     enum { tabitem_open_save, tabitem_open_in_out };
+
+    data_array<grid_component_editor_data, grid_editor_data_id>       grids;
+    data_array<graph_component_editor_data, graph_editor_data_id>     graphs;
+    data_array<generic_component_editor_data, generic_editor_data_id> generics;
+    data_array<hsm_component_editor_data, hsm_editor_data_id>         hsms;
 
     std::bitset<2> tabitem_open;
     component_id   m_request_to_open = undefined<component_id>();
@@ -1218,11 +1264,7 @@ public:
     modeling         mod;
     journal_handler& jn;
 
-    data_array<project_editor, project_id>                            pjs;
-    data_array<grid_component_editor_data, grid_editor_data_id>       grids;
-    data_array<graph_component_editor_data, graph_editor_data_id>     graphs;
-    data_array<generic_component_editor_data, generic_editor_data_id> generics;
-    data_array<hsm_component_editor_data, hsm_editor_data_id>         hsms;
+    data_array<project_editor, project_id> pjs;
 
     enum class show_result_t {
         success,          /**< Nothing to do. */
@@ -1406,21 +1448,6 @@ inline bool project_editor::is_simulation_running() const noexcept
 inline tree_node_id project_editor::selected_tn() noexcept
 {
     return m_selected_tree_node;
-}
-
-inline void component_editor::request_to_open(const component_id id) noexcept
-{
-    m_request_to_open = id;
-}
-
-inline bool component_editor::need_to_open(const component_id id) const noexcept
-{
-    return m_request_to_open == id;
-};
-
-inline void component_editor::clear_request_to_open() noexcept
-{
-    m_request_to_open = undefined<component_id>();
 }
 
 } // namespace irt

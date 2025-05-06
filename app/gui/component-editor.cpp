@@ -1723,15 +1723,14 @@ void component_editor::display() noexcept
 
     component_editor::impl impl{ .app = app, .ed = *this };
 
-    const auto have_component = not app.generics.empty() or
-                                not app.grids.empty() or
-                                not app.graphs.empty() or not app.hsms.empty();
+    const auto have_component = not generics.empty() or not grids.empty() or
+                                not graphs.empty() or not hsms.empty();
 
     if (have_component and ImGui::BeginTabBar("Editors")) {
-        impl.display_component_editor(app.generics, "generic");
-        impl.display_component_editor(app.grids, "grid");
-        impl.display_component_editor(app.graphs, "graph");
-        impl.display_component_editor(app.hsms, "hsm");
+        impl.display_component_editor(generics, "generic");
+        impl.display_component_editor(grids, "grid");
+        impl.display_component_editor(graphs, "graph");
+        impl.display_component_editor(hsms, "hsm");
         ImGui::EndTabBar();
     }
 
@@ -1758,21 +1757,208 @@ void component_editor::close(const component_id id) noexcept
     if (auto* c = app.mod.components.try_to_get<component>(id)) {
         switch (c->type) {
         case component_type::generic:
-            close_component(app.generics, id);
+            close_component(generics, id);
             break;
         case component_type::grid:
-            close_component(app.grids, id);
+            close_component(grids, id);
             break;
         case component_type::graph:
-            close_component(app.graphs, id);
+            close_component(graphs, id);
             break;
         case component_type::hsm:
-            close_component(app.hsms, id);
+            close_component(hsms, id);
             break;
         default:
             break;
         }
     }
+}
+
+/** Returns true if the @a data does not hold a component identifier @a id and
+ * if it can allocate a new element. */
+template<typename DataArray>
+static bool already_exist(const DataArray& data, component_id id) noexcept
+{
+    const auto is_open = [id](const auto& d) { return d.get_id() == id; };
+
+    return std::ranges::any_of(data, is_open) and data.can_alloc();
+}
+
+void component_editor::request_to_open(const component_id id) noexcept
+{
+    auto& app = container_of(this, &application::component_ed);
+    if (app.mod.components.exists(id)) {
+        auto& compo = app.mod.components.get<component>(id);
+        switch (compo.type) {
+        case component_type::none:
+            break;
+        case component_type::internal:
+            break;
+
+        case component_type::generic:
+            if (not already_exist(generics, id))
+                generics.alloc(
+                  id,
+                  compo,
+                  compo.id.generic_id,
+                  app.mod.generic_components.get(compo.id.generic_id));
+            break;
+
+        case component_type::grid:
+            if (not already_exist(grids, id))
+                grids.alloc(id, compo.id.grid_id);
+            break;
+
+        case component_type::graph:
+            if (not already_exist(graphs, id))
+                graphs.alloc(id, compo.id.graph_id);
+            break;
+
+        case component_type::hsm:
+            if (not already_exist(hsms, id))
+                hsms.alloc(id,
+                           compo.id.hsm_id,
+                           app.mod.hsm_components.get(compo.id.hsm_id));
+            break;
+        }
+    }
+
+    m_request_to_open = id;
+}
+
+bool component_editor::need_to_open(const component_id id) const noexcept
+{
+    return m_request_to_open == id;
+};
+
+void component_editor::clear_request_to_open() noexcept
+{
+    m_request_to_open = undefined<component_id>();
+}
+
+void component_editor::create_component_data(const component_id id) noexcept
+{
+    auto& app = container_of(this, &application::component_ed);
+    if (app.mod.components.exists(id)) {
+        auto& compo = app.mod.components.get<component>(id);
+        switch (compo.type) {
+        case component_type::none:
+            break;
+        case component_type::internal:
+            break;
+
+        case component_type::generic:
+            if (not already_exist(generics, id))
+                generics.alloc(
+                  id,
+                  compo,
+                  compo.id.generic_id,
+                  app.mod.generic_components.get(compo.id.generic_id));
+            break;
+
+        case component_type::grid:
+            if (not already_exist(grids, id))
+                grids.alloc(id, compo.id.grid_id);
+            break;
+
+        case component_type::graph:
+            if (not already_exist(graphs, id))
+                graphs.alloc(id, compo.id.graph_id);
+            break;
+
+        case component_type::hsm:
+            if (not already_exist(hsms, id))
+                hsms.alloc(id,
+                           compo.id.hsm_id,
+                           app.mod.hsm_components.get(compo.id.hsm_id));
+            break;
+        }
+
+        app.component_ed.request_to_open(id);
+    }
+}
+
+bool component_editor::is_component_open(const component_id id) const noexcept
+{
+    const auto& app = container_of(this, &application::component_ed);
+
+    if (app.mod.components.exists(id)) {
+        const auto& compo = app.mod.components.get<component>(id);
+
+        const auto is_open = [id](const auto& d) { return d.get_id() == id; };
+
+        switch (compo.type) {
+        case component_type::graph:
+            return std::ranges::any_of(graphs, is_open);
+
+        case component_type::grid:
+            return std::ranges::any_of(grids, is_open);
+
+        case component_type::hsm:
+            return std::ranges::any_of(hsms, is_open);
+
+        case component_type::internal:
+            return false;
+
+        case component_type::none:
+            return false;
+
+        case component_type::generic:
+            return std::ranges::any_of(generics, is_open);
+        }
+    }
+
+    irt::unreachable();
+}
+
+void component_editor::add_generic_component_data() noexcept
+{
+    auto& app      = container_of(this, &application::component_ed);
+    auto& compo    = app.mod.alloc_generic_component();
+    auto  compo_id = app.mod.components.get_id(compo);
+    generics.alloc(compo_id,
+                   compo,
+                   compo.id.generic_id,
+                   app.mod.generic_components.get(compo.id.generic_id));
+    request_to_open(compo_id);
+
+    app.add_gui_task([&app]() noexcept { app.component_sel.update(); });
+}
+
+void component_editor::add_grid_component_data() noexcept
+{
+    auto& app      = container_of(this, &application::component_ed);
+    auto& compo    = app.mod.alloc_grid_component();
+    auto  compo_id = app.mod.components.get_id(compo);
+    grids.alloc(compo_id, compo.id.grid_id);
+    request_to_open(compo_id);
+
+    app.add_gui_task([&app]() noexcept { app.component_sel.update(); });
+}
+
+void component_editor::add_graph_component_data() noexcept
+{
+    auto& app      = container_of(this, &application::component_ed);
+    auto& compo    = app.mod.alloc_graph_component();
+    auto  compo_id = app.mod.components.get_id(compo);
+
+    graphs.alloc(compo_id, compo.id.graph_id);
+    request_to_open(compo_id);
+
+    app.add_gui_task([&app]() noexcept { app.component_sel.update(); });
+}
+
+void component_editor::add_hsm_component_data() noexcept
+{
+    auto& app      = container_of(this, &application::component_ed);
+    auto& compo    = app.mod.alloc_hsm_component();
+    auto  compo_id = app.mod.components.get_id(compo);
+
+    hsms.alloc(
+      compo_id, compo.id.hsm_id, app.mod.hsm_components.get(compo.id.hsm_id));
+    request_to_open(compo_id);
+
+    app.add_gui_task([&app]() noexcept { app.component_sel.update(); });
 }
 
 } // namespace irt

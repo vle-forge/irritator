@@ -1154,7 +1154,7 @@ generic_component_editor_data::generic_component_editor_data(
   const component_id id,
   component&         compo,
   const generic_component_id /*gid*/,
-  generic_component& gen) noexcept
+  const generic_component& gen) noexcept
   : options(5u)
   , m_id{ id }
 {

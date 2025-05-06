@@ -965,7 +965,7 @@ void graph_component_editor_data::show(component_editor& ed) noexcept
 
         if (st != job::none) {
             scoped_flag_run(running, [&]() {
-                const auto id   = app.graphs.get_id(*this);
+                const auto id   = ed.get_id(*this);
                 const auto g_id = graph_id;
 
                 switch (st) {
@@ -1000,35 +1000,35 @@ void graph_component_editor_data::show(component_editor& ed) noexcept
 
                 case job::build_scale_free_required:
                     app.add_gui_task([&, id, g_id]() {
-                        auto& graph_ed    = app.graphs.get(id);
+                        auto* graph_ed    = ed.try_to_get(id);
                         auto& graph_compo = app.mod.graph_components.get(g_id);
 
-                        if (g.init_scale_free_graph(graph_ed.psf.alpha,
-                                                    graph_ed.psf.beta,
-                                                    graph_ed.psf.id,
-                                                    graph_ed.psf.nodes,
+                        if (g.init_scale_free_graph(graph_ed->psf.alpha,
+                                                    graph_ed->psf.beta,
+                                                    graph_ed->psf.id,
+                                                    graph_ed->psf.nodes,
                                                     seed,
                                                     key)) {
-                            std::scoped_lock lock(graph_ed.mutex);
+                            std::scoped_lock lock(graph_ed->mutex);
                             g.swap(graph_compo.g);
-                            graph_compo.param.scale = graph_ed.psf;
+                            graph_compo.param.scale = graph_ed->psf;
                             graph_compo.g_type =
                               graph_component::graph_type::scale_free;
 
                             if (not graph_compo.g.nodes.empty()) {
                                 impl.update_position_to_grid(graph_compo,
-                                                             graph_ed);
+                                                             *graph_ed);
                                 graph_compo.update();
-                                graph_ed.psf.reset();
+                                graph_ed->psf.reset();
                             }
-                            graph_ed.st = job::none;
+                            graph_ed->st = job::none;
                         }
                     });
                     break;
 
                 case job::build_small_world_required:
                     app.add_gui_task([&, id, g_id]() {
-                        auto& graph_ed    = app.graphs.get(id);
+                        auto* graph_ed    = ed.try_to_get(id);
                         auto& graph_compo = app.mod.graph_components.get(g_id);
 
                         if (g.init_small_world_graph(psw.probability,
@@ -1038,46 +1038,46 @@ void graph_component_editor_data::show(component_editor& ed) noexcept
                                                      seed,
                                                      key)) {
 
-                            std::scoped_lock lock(graph_ed.mutex);
+                            std::scoped_lock lock(graph_ed->mutex);
                             g.swap(graph_compo.g);
-                            graph_compo.param.small = graph_ed.psw;
+                            graph_compo.param.small = graph_ed->psw;
                             graph_compo.g_type =
                               graph_component::graph_type::small_world;
 
                             if (not graph_compo.g.nodes.empty()) {
                                 impl.update_position_to_grid(graph_compo,
-                                                             graph_ed);
+                                                             *graph_ed);
                                 graph_compo.update();
-                                graph_ed.psw.reset();
+                                graph_ed->psw.reset();
                             }
                         }
-                        graph_ed.st = job::none;
+                        graph_ed->st = job::none;
                     });
                     break;
 
                 case job::build_dot_graph_required:
                     app.add_gui_task([&, id, g_id]() {
-                        auto& graph_ed    = app.graphs.get(id);
+                        auto* graph_ed    = ed.try_to_get(id);
                         auto& graph_compo = app.mod.graph_components.get(g_id);
-                        auto  id = app.mod.search_graph_id(graph_ed.pdf.dir,
-                                                          graph_ed.pdf.file);
+                        auto  id = app.mod.search_graph_id(graph_ed->pdf.dir,
+                                                          graph_ed->pdf.file);
 
                         if (const auto* g_glob =
                               app.mod.graphs.try_to_get(id)) {
-                            std::scoped_lock lock(graph_ed.mutex);
+                            std::scoped_lock lock(graph_ed->mutex);
                             g.swap(graph_compo.g);
                             graph_compo.g         = *g_glob;
-                            graph_compo.param.dot = graph_ed.pdf;
+                            graph_compo.param.dot = graph_ed->pdf;
                             graph_compo.g_type =
                               graph_component::graph_type::dot_file;
-                            graph_ed.pdf.reset();
+                            graph_ed->pdf.reset();
 
                             if (not graph_compo.g.nodes.empty()) {
                                 graph_compo.update();
                             }
                         }
 
-                        graph_ed.st = job::none;
+                        graph_ed->st = job::none;
                     });
                     break;
                 }
