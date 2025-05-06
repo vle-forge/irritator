@@ -760,13 +760,14 @@ struct generic_simulation_editor::impl {
         }
     }
 
-    void compute_automatic_layout(application&    app,
-                                  vector<ImVec2>& displacements) noexcept
+    void compute_automatic_layout(
+      vector<ImVec2>& displacements,
+      const float     automatic_layout_x_distance,
+      const float     automatic_layout_y_distance,
+      const int       automatic_layout_iteration_limit) noexcept
     {
         if (self.nodes.empty())
             return;
-
-        auto& settings = app.settings_wnd;
 
         /* See. Graph drawing by Forced-directed Placement by Thomas M. J.
            Fruchterman and Edward M. Reingold in Software--Pratice and
@@ -780,10 +781,9 @@ struct generic_simulation_editor::impl {
         const auto remaining = size - (column * line);
 
         const float W =
-          static_cast<float>(column) * settings.automatic_layout_x_distance;
-        const float L =
-          static_cast<float>(line) +
-          ((remaining > 0) ? settings.automatic_layout_y_distance : 0.f);
+          static_cast<float>(column) * automatic_layout_x_distance;
+        const float L = static_cast<float>(line) +
+                        ((remaining > 0) ? automatic_layout_y_distance : 0.f);
         const float area     = W * L;
         const float k_square = area / static_cast<float>(size);
         const float k        = std::sqrt(k_square);
@@ -794,8 +794,8 @@ struct generic_simulation_editor::impl {
 
         displacements.resize(size);
 
-        float t = 1.f - 1.f / static_cast<float>(
-                                settings.automatic_layout_iteration_limit);
+        float t =
+          1.f - 1.f / static_cast<float>(automatic_layout_iteration_limit);
 
         for (int i_v = 0; i_v < size; ++i_v) {
             const int v = get_index(self.nodes[i_v].mdl);
@@ -847,10 +847,9 @@ struct generic_simulation_editor::impl {
         }
     }
 
-    void compute_grid_layout(application& app) noexcept
+    void compute_grid_layout(const float grid_layout_x_distance,
+                             const float grid_layout_y_distance) noexcept
     {
-        auto& settings = app.settings_wnd;
-
         const auto size  = self.nodes.ssize();
         const auto fsize = static_cast<float>(size);
 
@@ -865,12 +864,12 @@ struct generic_simulation_editor::impl {
 
         int index = 0;
         for (auto i = 0; i < line; ++i) {
-            new_pos.y = panning.y +
-                        static_cast<float>(i) * settings.grid_layout_y_distance;
+            new_pos.y =
+              panning.y + static_cast<float>(i) * grid_layout_y_distance;
 
             for (auto j = 0; j < column; ++j) {
-                new_pos.x = panning.x + static_cast<float>(j) *
-                                          settings.grid_layout_x_distance;
+                new_pos.x =
+                  panning.x + static_cast<float>(j) * grid_layout_x_distance;
                 ImNodes::SetNodeEditorSpacePos(get_index(self.nodes[index].mdl),
                                                new_pos);
                 ++index;
@@ -878,11 +877,11 @@ struct generic_simulation_editor::impl {
         }
 
         new_pos.x = panning.x;
-        new_pos.y = panning.y + column * settings.grid_layout_y_distance;
+        new_pos.y = panning.y + column * grid_layout_y_distance;
 
         for (auto j = 0; j < remaining; ++j) {
-            new_pos.x = panning.x +
-                        static_cast<float>(j) * settings.grid_layout_x_distance;
+            new_pos.x =
+              panning.x + static_cast<float>(j) * grid_layout_x_distance;
             ImNodes::SetNodeEditorSpacePos(get_index(self.nodes[index].mdl),
                                            new_pos);
             ++index;
@@ -971,12 +970,13 @@ struct generic_simulation_editor::impl {
 
         if (ImGui::BeginPopup("Context menu")) {
             if (ImGui::MenuItem("Force grid layout")) {
-                compute_grid_layout(app);
+                compute_grid_layout(self.grid_layout_x_distance,
+                                    self.grid_layout_y_distance);
             }
 
             if (ImGui::MenuItem("Force automatic layout")) {
                 self.automatic_layout_iteration =
-                  app.settings_wnd.automatic_layout_iteration_limit;
+                  self.automatic_layout_iteration_limit;
             }
 
             ImGui::MenuItem(
@@ -1238,7 +1238,10 @@ bool generic_simulation_editor::display(application& app) noexcept
             auto& pj_ed = container_of(this, &project_editor::generic_sim);
 
             if (automatic_layout_iteration > 0) {
-                impl.compute_automatic_layout(app, displacements);
+                impl.compute_automatic_layout(displacements,
+                                              automatic_layout_x_distance,
+                                              automatic_layout_y_distance,
+                                              automatic_layout_iteration_limit);
                 --automatic_layout_iteration;
             }
 

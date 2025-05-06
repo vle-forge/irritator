@@ -191,22 +191,6 @@ void settings_window::show() noexcept
         changes++;
     }
 
-    ImGui::Separator();
-    ImGui::Text("Automatic layout parameters");
-    changes += ImGui::DragInt(
-      "max iteration", &automatic_layout_iteration_limit, 1.f, 0, 1000);
-    changes += ImGui::DragFloat(
-      "a-x-distance", &automatic_layout_x_distance, 1.f, 150.f, 500.f);
-    changes += ImGui::DragFloat(
-      "a-y-distance", &automatic_layout_y_distance, 1.f, 150.f, 500.f);
-
-    ImGui::Separator();
-    ImGui::Text("Grid layout parameters");
-    changes += ImGui::DragFloat(
-      "g-x-distance", &grid_layout_x_distance, 1.f, 150.f, 500.f);
-    changes += ImGui::DragFloat(
-      "g-y-distance", &grid_layout_y_distance, 1.f, 150.f, 500.f);
-
     ImGui::End();
 
     if (changes > 0) {

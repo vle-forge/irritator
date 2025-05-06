@@ -573,14 +573,13 @@ static void show_graph(component_editor&  ed,
                    });
 }
 
-static void add_popup_menuitem(component_editor&  ed,
+static void add_popup_menuitem(application&       app,
                                component&         parent,
                                generic_component& s_parent,
                                dynamics_type      type,
                                ImVec2             click_pos)
 {
     if (not s_parent.children.can_alloc(1)) {
-        auto& app = container_of(&ed, &application::component_ed);
         app.jn.push(log_level::error, [](auto& title, auto& msg) noexcept {
             title = "Generic component";
             msg   = "Can not allocate new model. Delete models or increase "
@@ -603,7 +602,6 @@ static void add_popup_menuitem(component_editor&  ed,
 
         parent.state = component_status::modified;
 
-        auto& app = container_of(&ed, &application::component_ed);
         app.jn.push(log_level::info, [type](auto& title, auto& msg) noexcept {
             title = "Generic component";
             format(
@@ -612,18 +610,19 @@ static void add_popup_menuitem(component_editor&  ed,
     }
 }
 
-static void add_popup_menuitem(component_editor&  ed,
+static void add_popup_menuitem(application&       app,
                                component&         parent,
                                generic_component& s_parent,
                                int                type,
                                ImVec2             click_pos)
 {
     auto d_type = enum_cast<dynamics_type>(type);
-    add_popup_menuitem(ed, parent, s_parent, d_type, click_pos);
+    add_popup_menuitem(app, parent, s_parent, d_type, click_pos);
 }
 
-static void compute_grid_layout(settings_window&   settings,
-                                generic_component& s_compo) noexcept
+static void compute_grid_layout(generic_component& s_compo,
+                                const float        grid_layout_y_distance,
+                                const float grid_layout_x_distance) noexcept
 {
     const auto size  = s_compo.children.ssize();
     const auto fsize = static_cast<float>(size);
@@ -641,9 +640,9 @@ static void compute_grid_layout(settings_window&   settings,
         const auto idx = get_index(id);
 
         s_compo.children_positions[idx].x =
-          panning.y + i * settings.grid_layout_y_distance;
+          panning.y + i * grid_layout_y_distance;
         s_compo.children_positions[idx].y =
-          panning.x + j * settings.grid_layout_x_distance;
+          panning.x + j * grid_layout_x_distance;
         ++j;
 
         if (j >= static_cast<int>(column)) {
@@ -653,13 +652,12 @@ static void compute_grid_layout(settings_window&   settings,
     });
 }
 
-static void add_component_to_current(component_editor&  ed,
+static void add_component_to_current(application&       app,
                                      component&         parent,
                                      generic_component& parent_compo,
                                      component&         compo_to_add,
                                      ImVec2             click_pos = ImVec2())
 {
-    auto&      app             = container_of(&ed, &application::component_ed);
     const auto compo_to_add_id = app.mod.components.get_id(compo_to_add);
 
     if (app.mod.can_add(parent, compo_to_add)) {
@@ -680,8 +678,9 @@ static void add_component_to_current(component_editor&  ed,
     ImNodes::SetNodeEditorSpacePos(pack_node_child(c_id), click_pos);
 }
 
-static void show_popup_menuitem(component_editor&  ed,
-                                component&         parent,
+static void show_popup_menuitem(application&                   app,
+                                generic_component_editor_data& data,
+                                component&                     parent,
                                 generic_component& s_parent) noexcept
 {
     const bool open_popup =
@@ -696,13 +695,13 @@ static void show_popup_menuitem(component_editor&  ed,
         const auto click_pos = ImGui::GetMousePosOnOpeningCurrentPopup();
 
         if (ImGui::MenuItem("Force grid layout")) {
-            auto& app = container_of(&ed, &application::component_ed);
-            compute_grid_layout(app.settings_wnd, s_parent);
+            compute_grid_layout(s_parent,
+                                data.grid_layout_x_distance,
+                                data.grid_layout_y_distance);
         }
 
         ImGui::Separator();
 
-        auto& app = container_of(&ed, &application::component_ed);
         if (ImGui::MenuItem("Add grid component")) {
             if (!app.mod.grid_components.can_alloc() ||
                 !app.mod.components.can_alloc(1) ||
@@ -722,7 +721,7 @@ static void show_popup_menuitem(component_editor&  ed,
                 compo.id.grid_id = grid_id;
 
                 add_component_to_current(
-                  ed, parent, s_parent, compo, click_pos);
+                  app, parent, s_parent, compo, click_pos);
             }
         }
 
@@ -740,7 +739,7 @@ static void show_popup_menuitem(component_editor&  ed,
                                   "hierarchical state machine";
                       });
                 else
-                    add_component_to_current(ed, parent, s_parent, *c);
+                    add_component_to_current(app, parent, s_parent, *c);
             }
         }
 
@@ -750,7 +749,7 @@ static void show_popup_menuitem(component_editor&  ed,
             auto       i = ordinal(dynamics_type::qss1_integrator);
             const auto e = ordinal(dynamics_type::qss1_wsum_4);
             for (; i < e; ++i)
-                add_popup_menuitem(ed, parent, s_parent, i, click_pos);
+                add_popup_menuitem(app, parent, s_parent, i, click_pos);
             ImGui::EndMenu();
         }
 
@@ -759,7 +758,7 @@ static void show_popup_menuitem(component_editor&  ed,
             const auto e = ordinal(dynamics_type::qss2_wsum_4);
 
             for (; i < e; ++i)
-                add_popup_menuitem(ed, parent, s_parent, i, click_pos);
+                add_popup_menuitem(app, parent, s_parent, i, click_pos);
             ImGui::EndMenu();
         }
 
@@ -768,42 +767,42 @@ static void show_popup_menuitem(component_editor&  ed,
             const auto e = ordinal(dynamics_type::qss3_wsum_4);
 
             for (; i < e; ++i)
-                add_popup_menuitem(ed, parent, s_parent, i, click_pos);
+                add_popup_menuitem(app, parent, s_parent, i, click_pos);
             ImGui::EndMenu();
         }
 
         if (ImGui::BeginMenu("Logical")) {
             add_popup_menuitem(
-              ed, parent, s_parent, dynamics_type::logical_and_2, click_pos);
+              app, parent, s_parent, dynamics_type::logical_and_2, click_pos);
             add_popup_menuitem(
-              ed, parent, s_parent, dynamics_type::logical_or_2, click_pos);
+              app, parent, s_parent, dynamics_type::logical_or_2, click_pos);
             add_popup_menuitem(
-              ed, parent, s_parent, dynamics_type::logical_and_3, click_pos);
+              app, parent, s_parent, dynamics_type::logical_and_3, click_pos);
             add_popup_menuitem(
-              ed, parent, s_parent, dynamics_type::logical_or_3, click_pos);
+              app, parent, s_parent, dynamics_type::logical_or_3, click_pos);
             add_popup_menuitem(
-              ed, parent, s_parent, dynamics_type::logical_invert, click_pos);
+              app, parent, s_parent, dynamics_type::logical_invert, click_pos);
             ImGui::EndMenu();
         }
 
         add_popup_menuitem(
-          ed, parent, s_parent, dynamics_type::counter, click_pos);
+          app, parent, s_parent, dynamics_type::counter, click_pos);
         add_popup_menuitem(
-          ed, parent, s_parent, dynamics_type::queue, click_pos);
+          app, parent, s_parent, dynamics_type::queue, click_pos);
         add_popup_menuitem(
-          ed, parent, s_parent, dynamics_type::dynamic_queue, click_pos);
+          app, parent, s_parent, dynamics_type::dynamic_queue, click_pos);
         add_popup_menuitem(
-          ed, parent, s_parent, dynamics_type::priority_queue, click_pos);
+          app, parent, s_parent, dynamics_type::priority_queue, click_pos);
         add_popup_menuitem(
-          ed, parent, s_parent, dynamics_type::generator, click_pos);
+          app, parent, s_parent, dynamics_type::generator, click_pos);
         add_popup_menuitem(
-          ed, parent, s_parent, dynamics_type::constant, click_pos);
+          app, parent, s_parent, dynamics_type::constant, click_pos);
         add_popup_menuitem(
-          ed, parent, s_parent, dynamics_type::time_func, click_pos);
+          app, parent, s_parent, dynamics_type::time_func, click_pos);
         add_popup_menuitem(
-          ed, parent, s_parent, dynamics_type::accumulator_2, click_pos);
+          app, parent, s_parent, dynamics_type::accumulator_2, click_pos);
         add_popup_menuitem(
-          ed, parent, s_parent, dynamics_type::hsm_wrapper, click_pos);
+          app, parent, s_parent, dynamics_type::hsm_wrapper, click_pos);
 
         ImGui::EndPopup();
     }
@@ -1115,7 +1114,7 @@ static void show_component_editor(component_editor&              ed,
     ImNodes::EditorContextSet(data.context);
     ImNodes::BeginNodeEditor();
 
-    show_popup_menuitem(ed, compo, s_compo);
+    show_popup_menuitem(app, data, compo, s_compo);
     show_graph(ed, compo, s_compo);
 
     if (data.show_minimap)

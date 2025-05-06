@@ -496,11 +496,17 @@ public:
         force_update_position,
     };
 
-    std::bitset<6> options;
-
     ImVector<int>    selected_links;
     ImVector<int>    selected_nodes;
     vector<child_id> update_position_list;
+
+    int   automatic_layout_iteration_limit = 2048;
+    float automatic_layout_x_distance      = 350.f;
+    float automatic_layout_y_distance      = 350.f;
+    float grid_layout_x_distance           = 240.f;
+    float grid_layout_y_distance           = 200.f;
+
+    std::bitset<6> options;
 
 private:
     component_id m_id = undefined<component_id>();
@@ -597,7 +603,12 @@ private:
     vector<node>   nodes_2nd;
     vector<ImVec2> displacements;
 
-    int automatic_layout_iteration = 0;
+    int   automatic_layout_iteration       = 0;
+    int   automatic_layout_iteration_limit = 2048;
+    float automatic_layout_x_distance      = 350.f;
+    float automatic_layout_y_distance      = 350.f;
+    float grid_layout_x_distance           = 240.f;
+    float grid_layout_y_distance           = 200.f;
 
     bool show_identifiers      = true;
     bool show_internal_values  = false;
@@ -967,7 +978,8 @@ public:
 
     small_string<31> title;
     small_string<31> component_name;
-    bool             is_open = true;
+
+    bool is_open = true;
 
 private:
     struct impl;
@@ -1032,20 +1044,13 @@ public:
     void show() noexcept;
     void apply_style(const int theme) noexcept;
 
-    int   automatic_layout_iteration_limit = 2048;
-    float automatic_layout_x_distance      = 350.f;
-    float automatic_layout_y_distance      = 350.f;
-    float grid_layout_x_distance           = 240.f;
-    float grid_layout_y_distance           = 200.f;
-
-    bool show_dynamics_inputs_in_editor = false;
-
     bool is_open = false;
 
     /** Stores the clock when settings are changed. If after five second user
      * does not change anything, a save settings task is launch. */
     std::chrono::time_point<std::chrono::steady_clock> last_change;
-    bool                                               timer_started = false;
+
+    bool timer_started = false;
 };
 
 struct task_window {
