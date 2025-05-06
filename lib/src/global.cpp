@@ -2,6 +2,7 @@
 // Version 1.0. (See accompanying file LICENSE_1_0.txt or copy at
 // http://www.boost.org/LICENSE_1_0.txt)
 
+#include <charconv>
 #include <irritator/format.hpp>
 #include <irritator/global.hpp>
 
@@ -138,8 +139,8 @@ static bool do_read_section(variables& /*vars*/,
         int              section;
     };
 
-    static const map m[] = { { "colors", section_colors },
-                             { "paths", section_paths } };
+    static const map m[] = { { "paths", section_paths },
+                             { "themes", section_colors } };
 
     auto it = sorted_vector_find(
       std::begin(m), std::end(m), section, [](auto a, auto b) noexcept {
@@ -163,27 +164,42 @@ static bool do_read_affect(variables& /*vars*/,
                            const std::string_view key,
                            const std::string_view val) noexcept
 {
-    if (current_section.test(section_colors) and key == "themes") {
-        if (val == std::string_view("Modern"))
+    if (current_section.test(section_colors) and key == "selected") {
+        if (val == std::string_view("Modern")) {
             theme = 0;
-        if (val == std::string_view("Dark"))
+            return true;
+        }
+        if (val == std::string_view("Dark")) {
             theme = 1;
-        if (val == std::string_view("Light"))
+            return true;
+        }
+        if (val == std::string_view("Light")) {
             theme = 2;
-        if (val == std::string_view("Bess Dark"))
+            return true;
+        }
+        if (val == std::string_view("Bess Dark")) {
             theme = 3;
-        if (val == std::string_view("Catpuccin Mocha"))
+            return true;
+        }
+        if (val == std::string_view("Catpuccin Mocha")) {
             theme = 4;
-        if (val == std::string_view("Material You"))
+            return true;
+        }
+        if (val == std::string_view("Material You")) {
             theme = 5;
-        if (val == std::string_view("Fluent UI"))
+            return true;
+        }
+        if (val == std::string_view("Fluent UI")) {
             theme = 6;
-        if (val == std::string_view("Fluent UI - Light"))
+            return true;
+        }
+        if (val == std::string_view("Fluent UI - Light")) {
             theme = 7;
-        else
+            return true;
+        } else {
             theme = 0;
-
-        return true;
+            return true;
+        }
     }
 
     return false;
@@ -205,6 +221,18 @@ static recorded_path_id find_name(const recorded_paths&  rec_paths,
     return undefined<recorded_path_id>();
 }
 
+std::optional<int> do_read_integer(const std::string_view value) noexcept
+{
+    int i = 0;
+    if (const auto ec =
+          std::from_chars(value.data(), value.data() + value.size(), i);
+        ec.ec == std::errc{}) {
+        return i;
+    } else {
+        return std::nullopt;
+    }
+}
+
 static bool do_read_elem(variables&             vars,
                          const std::bitset<2>&  current_section,
                          const std::string_view element) noexcept
@@ -220,9 +248,23 @@ static bool do_read_elem(variables&             vars,
         vars.rec_paths.names[idx].clear();
         vars.rec_paths.paths[idx].clear();
 
-        imemstream in(element.data(), element.size());
-        in >> vars.rec_paths.names[idx] >> vars.rec_paths.priorities[idx] >>
-          vars.rec_paths.paths[idx];
+        const auto sep_1 = element.find(' ');
+        if (sep_1 == std::string_view::npos or sep_1 + 1 > element.size())
+            return false;
+
+        const auto name              = element.substr(0, sep_1);
+        const auto priority_and_path = element.substr(sep_1 + 1);
+        const auto sep_2             = priority_and_path.find(' ');
+        if (sep_2 == std::string_view::npos or
+            sep_2 + 1 > priority_and_path.size())
+            return false;
+
+        const auto priority = priority_and_path.substr(0, sep_2);
+        const auto path     = priority_and_path.substr(sep_2 + 1);
+
+        vars.rec_paths.names[idx]      = name;
+        vars.rec_paths.paths[idx]      = path;
+        vars.rec_paths.priorities[idx] = do_read_integer(priority).value_or(10);
 
         if (vars.rec_paths.names[idx].empty() or
             vars.rec_paths.paths[idx].empty()) {
@@ -232,7 +274,7 @@ static bool do_read_elem(variables&             vars,
             vars.rec_paths.ids.free(f_id);
         }
 
-        return in.good();
+        return true;
     }
 
     return false;
@@ -303,18 +345,19 @@ static std::error_code do_parse(variables&       v,
                 return std::make_error_code(std::errc::io_error);
 
             auto new_line = buffer.find('\n', pos + 1u);
-            if (not do_read_affect(v,
-                                   theme,
-                                   s,
-                                   buffer.substr(0, pos),
-                                   buffer.substr(pos + 1u, new_line)))
+            if (not do_read_affect(
+                  v,
+                  theme,
+                  s,
+                  buffer.substr(0, pos),
+                  buffer.substr(pos + 1u, new_line - pos - 1u)))
                 return std::make_error_code(std::errc::argument_out_of_domain);
             if (not in_range(buffer, new_line + 1u))
                 return std::error_code();
             buffer = buffer.substr(new_line + 1u);
         } else if (buffer[pos] == '\n') { // Read elemet in list
             if (pos > 0u) {
-                if (not do_read_elem(v, s, buffer.substr(0, pos - 1u)))
+                if (not do_read_elem(v, s, buffer.substr(0, pos)))
                     return std::make_error_code(
                       std::errc::argument_out_of_domain);
 
