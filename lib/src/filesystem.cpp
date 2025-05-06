@@ -26,7 +26,10 @@
 #endif
 
 #include <fmt/format.h>
+
+#include <irritator/container.hpp>
 #include <irritator/error.hpp>
+#include <irritator/format.hpp>
 
 #include <filesystem>
 #include <string>
@@ -325,13 +328,13 @@ public:
 #endif
     }
 
-    std::pair<bool, std::string> operator()(const char* dir_name,
-                                            const char* subdir_name,
-                                            const char* file_name) noexcept
+    std::pair<bool, std::string> operator()(std::string_view dir_name,
+                                            std::string_view subdir_name,
+                                            std::string_view file_name) noexcept
     {
-        debug::ensure(dir_name);
-        debug::ensure(subdir_name);
-        debug::ensure(file_name);
+        debug::ensure(not dir_name.empty());
+        debug::ensure(not subdir_name.empty());
+        debug::ensure(not file_name.empty());
 
         auto path = std::filesystem::path(dir_name);
         log(0, "- check directory: {}\n", path.string());
@@ -452,45 +455,34 @@ std::string get_config_home(bool log) noexcept
 {
 #if defined(__linux__) || defined(__APPLE__) || defined(__unix__)
     config_home_manager m(log);
-    char                home_dir[64];
+    small_string<64>    home_dir;
 
-    fmt::format_to_n(home_dir,
-                     std::size(home_dir),
-                     "irritator-{}.{}",
-                     VERSION_MAJOR,
-                     VERSION_MINOR);
+    format(home_dir, "irritator-{}.{}", VERSION_MAJOR, VERSION_MINOR);
+
     if (auto* xdg = getenv("XDG_CONFIG_HOME"); xdg)
-        if (auto ret = m(xdg, home_dir, "config.ini"); ret.first)
+        if (auto ret = m(xdg, home_dir.sv(), "config.ini"); ret.first)
             return ret.second;
 
     if (auto* home = getenv("HOME"); home) {
         auto p = std::filesystem::path(home);
         p /= ".config";
 
-        fmt::format_to_n(home_dir,
-                         std::size(home_dir),
-                         "irritator-{}.{}",
-                         VERSION_MAJOR,
-                         VERSION_MINOR);
-        if (auto ret = m(p.c_str(), home_dir, "config.ini"); ret.first)
+        format(home_dir, "irritator-{}.{}", VERSION_MAJOR, VERSION_MINOR);
+        if (auto ret = m(p.c_str(), home_dir.sv(), "config.ini"); ret.first)
             return ret.second;
 
-        fmt::format_to_n(home_dir,
-                         std::size(home_dir),
-                         ".irritator-{}.{}",
-                         VERSION_MAJOR,
-                         VERSION_MINOR);
+        format(home_dir, ".irritator-{}.{}", VERSION_MAJOR, VERSION_MINOR);
 
-        if (auto ret = m(home, home_dir, "config.ini"); ret.first)
+        if (auto ret = m(home, home_dir.sv(), "config.ini"); ret.first)
             return ret.second;
     }
 
     std::error_code ec;
     if (auto path = std::filesystem::current_path(ec); ec)
-        if (auto ret = m(path.c_str(), home_dir, "config.ini"); ret.first)
+        if (auto ret = m(path.string(), home_dir.sv(), "config.ini"); ret.first)
             return ret.second;
 
-    if (auto ret = m(".", home_dir, "config.ini"); ret.first)
+    if (auto ret = m(".", home_dir.sv(), "config.ini"); ret.first)
         return ret.second;
 
     return "config.ini";
