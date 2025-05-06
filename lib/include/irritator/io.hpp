@@ -15,18 +15,6 @@
 
 namespace irt {
 
-template<int Size>
-std::istream& operator>>(std::istream& is, small_string<Size>& s)
-{
-    const auto before = is.tellg();
-    is >> s.m_buffer;
-    const auto after = is.tellg();
-
-    s.resize(after - before);
-
-    return is;
-}
-
 static inline constexpr const std::string_view log_level_names[] = {
     "emergency", "alert",  "critical", "error",
     "warning",   "notice", "info",     "debug",

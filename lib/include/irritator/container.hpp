@@ -2171,9 +2171,6 @@ public:
     constexpr bool operator!=(const char* rhs) const noexcept;
     constexpr bool operator>(const char* rhs) const noexcept;
     constexpr bool operator<(const char* rhs) const noexcept;
-
-    template<int Size>
-    friend std::istream& operator>>(std::istream& is, small_string<Size>& s);
 };
 
 //! @brief A vector like class but without dynamic allocation.
