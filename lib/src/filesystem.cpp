@@ -328,9 +328,10 @@ public:
 #endif
     }
 
-    std::pair<bool, std::string> operator()(std::string_view dir_name,
-                                            std::string_view subdir_name,
-                                            std::string_view file_name) noexcept
+    expected<std::filesystem::path> operator()(
+      std::string_view dir_name,
+      std::string_view subdir_name,
+      std::string_view file_name) noexcept
     {
         debug::ensure(not dir_name.empty());
         debug::ensure(not subdir_name.empty());
@@ -341,7 +342,7 @@ public:
 
         if (not is_directory_and_usable(path)) {
             log(1, "Is not a directory or bad permissions\n");
-            return { false, std::string{} };
+            return new_error(fs_errc::user_directory_access_fail);
         }
 
         path /= subdir_name;
@@ -350,7 +351,7 @@ public:
             log(2, "Directory not exists and not usable try to fix\n");
             if (not create_dir(path)) {
                 log(3, "Fail to create directory or change permissions\n");
-                return { false, std::string{} };
+                return new_error(fs_errc::user_directory_access_fail);
             }
         }
 
@@ -358,11 +359,11 @@ public:
         log(1, "- {}\n", path.string());
         if (not is_file_and_usable(path)) {
             log(2, "Fail to read or create the file. Abort.\n");
-            return { false, std::string{} };
+            return new_error(fs_errc::user_directory_access_fail);
         }
 
         log(1, "- irritator config file configured:\n", path.string());
-        return { true, path.string() };
+        return path;
     }
 
 private:
@@ -460,30 +461,32 @@ std::string get_config_home(bool log) noexcept
     format(home_dir, "irritator-{}.{}", VERSION_MAJOR, VERSION_MINOR);
 
     if (auto* xdg = getenv("XDG_CONFIG_HOME"); xdg)
-        if (auto ret = m(xdg, home_dir.sv(), "config.ini"); ret.first)
-            return ret.second;
+        if (auto ret = m(xdg, home_dir.sv(), "config.ini"); ret.has_value())
+            return ret.value().string();
 
     if (auto* home = getenv("HOME"); home) {
         auto p = std::filesystem::path(home);
         p /= ".config";
 
         format(home_dir, "irritator-{}.{}", VERSION_MAJOR, VERSION_MINOR);
-        if (auto ret = m(p.c_str(), home_dir.sv(), "config.ini"); ret.first)
-            return ret.second;
+        if (auto ret = m(p.c_str(), home_dir.sv(), "config.ini");
+            ret.has_value())
+            return ret.value().string();
 
         format(home_dir, ".irritator-{}.{}", VERSION_MAJOR, VERSION_MINOR);
 
-        if (auto ret = m(home, home_dir.sv(), "config.ini"); ret.first)
-            return ret.second;
+        if (auto ret = m(home, home_dir.sv(), "config.ini"); ret.has_value())
+            return ret.value().string();
     }
 
     std::error_code ec;
     if (auto path = std::filesystem::current_path(ec); ec)
-        if (auto ret = m(path.string(), home_dir.sv(), "config.ini"); ret.first)
-            return ret.second;
+        if (auto ret = m(path.string(), home_dir.sv(), "config.ini");
+            ret.has_value())
+            return ret.value().string();
 
-    if (auto ret = m(".", home_dir.sv(), "config.ini"); ret.first)
-        return ret.second;
+    if (auto ret = m(".", home_dir.sv(), "config.ini"); ret.has_value())
+        return ret.value().string();
 
     return "config.ini";
 #elif defined(_WIN32)
