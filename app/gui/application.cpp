@@ -254,6 +254,8 @@ application::application(journal_handler& jn_) noexcept
     task_mgr.start();
 
     log_w(*this, log_level::info, "Initialization successfull");
+
+    settings_wnd.apply_style(config.theme);
 }
 
 application::~application() noexcept
