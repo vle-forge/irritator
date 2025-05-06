@@ -9,7 +9,6 @@
 #include "imgui.h"
 #include "internal.hpp"
 
-
 namespace irt {
 
 static void add_generic_component_data(application& app) noexcept
@@ -67,6 +66,7 @@ static bool can_delete_component(application& app, component_id id) noexcept
             msg   = "This component is used in another component";
         });
         break;
+
     case library_window::is_component_deletable_t::used_by_project:
         app.jn.push(log_level::info, [](auto& title, auto& msg) noexcept {
             title = "Can not delete this component";
@@ -385,7 +385,7 @@ static void show_internal_components(component_editor& ed) noexcept
 
     auto& vec = app.mod.components.get<component>();
     for (const auto id : app.mod.components) {
-        auto&      compo       = vec[get_index(id)];
+        auto&      compo       = vec[id];
         const auto is_internal = compo.type == component_type::internal;
 
         if (is_internal) {
@@ -544,8 +544,10 @@ void library_window::try_set_component_as_project(
     }
 }
 
-static auto is_component_used_in_component =
-  [](const application& app, const component_id id) noexcept -> bool {
+static auto is_component_used_in_components(const application& app,
+                                            const component_id id) noexcept
+  -> bool
+{
     for (const auto c_id : app.mod.components) {
         const auto& c = app.mod.components.get<component>(c_id);
 
@@ -574,7 +576,7 @@ static auto is_component_used_in_component =
             if (const auto* g =
                   app.mod.graph_components.try_to_get(c.id.graph_id)) {
                 for (const auto i : g->g.nodes) {
-                    if (g->g.node_components[get_index(i)] == id)
+                    if (g->g.node_components[i] == id)
                         return true;
                 }
             }
@@ -589,13 +591,11 @@ static auto is_component_used_in_component =
     return false;
 };
 
-static auto is_component_used_in_project(const application&  app,
-                                         const component_id  id,
-                                         vector<tree_node*>& stack) noexcept
+static auto is_component_used_in_projects(const application&  app,
+                                          const component_id  id,
+                                          vector<tree_node*>& stack) noexcept
   -> bool
 {
-    stack.clear();
-
     for (const auto& pj : app.pjs) {
         stack.clear();
         auto* head = pj.pj.tn_head();
@@ -625,9 +625,9 @@ auto library_window::is_component_deletable(const application& app,
                                             const component_id id) noexcept
   -> is_component_deletable_t
 {
-    return is_component_used_in_component(app, id)
+    return is_component_used_in_components(app, id)
              ? is_component_deletable_t::used_by_component
-           : is_component_used_in_project(app, id, stack)
+           : is_component_used_in_projects(app, id, stack)
              ? is_component_deletable_t::used_by_project
              : is_component_deletable_t::deletable;
 }
