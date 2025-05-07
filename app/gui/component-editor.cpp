@@ -1784,46 +1784,69 @@ static bool already_exist(const DataArray& data, component_id id) noexcept
     return std::ranges::any_of(data, is_open) and data.can_alloc();
 }
 
+auto log_not_enough_memory = [](auto& title, auto& msg) noexcept {
+    title = "Component editor failure";
+    msg   = "Fail to allocate more component editor";
+};
+
 void component_editor::request_to_open(const component_id id) noexcept
 {
-    auto& app = container_of(this, &application::component_ed);
-    if (app.mod.components.exists(id)) {
-        auto& compo = app.mod.components.get<component>(id);
-        switch (compo.type) {
-        case component_type::none:
-            break;
-        case component_type::internal:
-            break;
+    auto& app     = container_of(this, &application::component_ed);
+    auto  success = true;
 
-        case component_type::generic:
-            if (not already_exist(generics, id))
+    debug::ensure(app.mod.components.exists(id));
+    if (not app.mod.components.exists(id))
+        return;
+
+    auto& compo = app.mod.components.get<component>(id);
+    switch (compo.type) {
+    case component_type::generic:
+        if (not already_exist(generics, id))
+            if (generics.can_alloc(1) or generics.grow<3, 2>())
                 generics.alloc(
                   id,
                   compo,
                   compo.id.generic_id,
                   app.mod.generic_components.get(compo.id.generic_id));
-            break;
+            else
+                success = false;
+        break;
 
-        case component_type::grid:
-            if (not already_exist(grids, id))
+    case component_type::grid:
+        if (not already_exist(grids, id))
+            if (grids.can_alloc(1) or grids.grow<3, 2>())
                 grids.alloc(id, compo.id.grid_id);
-            break;
+            else
+                success = false;
+        break;
 
-        case component_type::graph:
-            if (not already_exist(graphs, id))
+    case component_type::graph:
+        if (not already_exist(graphs, id))
+            if (graphs.can_alloc(1) or graphs.grow<3, 2>())
                 graphs.alloc(id, compo.id.graph_id);
-            break;
+            else
+                success = false;
+        break;
 
-        case component_type::hsm:
-            if (not already_exist(hsms, id))
+    case component_type::hsm:
+        if (not already_exist(hsms, id))
+            if (hsms.can_alloc(1) or hsms.grow<3, 2>())
                 hsms.alloc(id,
                            compo.id.hsm_id,
                            app.mod.hsm_components.get(compo.id.hsm_id));
-            break;
-        }
+            else
+                success = false;
+        break;
+
+    default:
+        success = false;
+        break;
     }
 
-    m_request_to_open = id;
+    if (success)
+        m_request_to_open = id;
+    else
+        app.jn.push(log_level::error, log_not_enough_memory);
 }
 
 bool component_editor::need_to_open(const component_id id) const noexcept
