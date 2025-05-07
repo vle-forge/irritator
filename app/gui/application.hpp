@@ -971,6 +971,7 @@ public:
       , graphs(32)
       , generics(32)
       , hsms(32)
+      , tabs(32)
     {}
 
     /** Draw the editor into a ImGui::Begin/ImGui::End window. */
@@ -1027,10 +1028,22 @@ private:
 
     enum { tabitem_open_save, tabitem_open_in_out };
 
+    struct tab {
+        component_type type;
+        union {
+            grid_editor_data_id    grid;
+            graph_editor_data_id   graph;
+            generic_editor_data_id generic;
+            hsm_editor_data_id     hsm;
+        } id;
+    };
+
     data_array<grid_component_editor_data, grid_editor_data_id>       grids;
     data_array<graph_component_editor_data, graph_editor_data_id>     graphs;
     data_array<generic_component_editor_data, generic_editor_data_id> generics;
     data_array<hsm_component_editor_data, hsm_editor_data_id>         hsms;
+
+    vector<tab> tabs;
 
     std::bitset<2> tabitem_open;
     component_id   m_request_to_open = undefined<component_id>();
