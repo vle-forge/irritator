@@ -15,11 +15,6 @@
 
 namespace irt {
 
-static inline constexpr const std::string_view log_level_names[] = {
-    "emergency", "alert",  "critical", "error",
-    "warning",   "notice", "info",     "debug",
-};
-
 static inline constexpr const std::string_view component_status_string[] = {
     "unread",
     "read_only",

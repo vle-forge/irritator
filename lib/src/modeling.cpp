@@ -528,6 +528,34 @@ status modeling::fill_internal_components() noexcept
     return success();
 }
 
+//! Use @c debug_log to display component data into debug console.
+inline void debug_component(const modeling& mod, const component& c) noexcept
+{
+    constexpr std::string_view empty_path = "empty";
+
+    auto* reg  = mod.registred_paths.try_to_get(c.reg_path);
+    auto* dir  = mod.dir_paths.try_to_get(c.dir);
+    auto* file = mod.file_paths.try_to_get(c.file);
+
+    debug_log(
+      "component id {} in registered path {} directory {} file {} status {}\n",
+      c.name.sv(),
+      reg ? reg->path.sv() : empty_path,
+      dir ? dir->path.sv() : empty_path,
+      file ? file->path.sv() : empty_path,
+      component_status_string[ordinal(c.state)]);
+}
+
+//! Use @c debug_log to display component data into debug console.
+inline void debug_component(const modeling& mod, const component_id id) noexcept
+{
+    if (auto* compo = mod.components.try_to_get<component>(id)) {
+        debug_component(mod, *compo);
+    } else {
+        debug_log("component id {} unknown\n", ordinal(id));
+    }
+}
+
 status modeling::fill_components() noexcept
 {
     prepare_component_loading(*this);

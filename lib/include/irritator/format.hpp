@@ -6,8 +6,6 @@
 #define ORG_VLEPROJECT_IRRITATOR_2022_LIB_FORMAT_HPP
 
 #include <irritator/core.hpp>
-#include <irritator/io.hpp>
-#include <irritator/modeling.hpp>
 
 #include <fmt/compile.h>
 #include <fmt/format.h>
@@ -15,6 +13,11 @@
 #include <cstdio>
 
 namespace irt {
+
+static inline constexpr const std::string_view log_level_names[] = {
+    "emergency", "alert",  "critical", "error",
+    "warning",   "notice", "info",     "debug",
+};
 
 /// Debug log. Use the underlying @c fmt::print function.
 ///
@@ -65,34 +68,6 @@ constexpr void format(small_string<N>& str, const S& fmt, Args&&... args)
                                  fmt,
                                  fmt::make_format_args(args...));
     str.resize(ret.size);
-}
-
-//! Use @c debug_log to display component data into debug console.
-inline void debug_component(const modeling& mod, const component& c) noexcept
-{
-    constexpr std::string_view empty_path = "empty";
-
-    auto* reg  = mod.registred_paths.try_to_get(c.reg_path);
-    auto* dir  = mod.dir_paths.try_to_get(c.dir);
-    auto* file = mod.file_paths.try_to_get(c.file);
-
-    debug_log(
-      "component id {} in registered path {} directory {} file {} status {}\n",
-      c.name.sv(),
-      reg ? reg->path.sv() : empty_path,
-      dir ? dir->path.sv() : empty_path,
-      file ? file->path.sv() : empty_path,
-      component_status_string[ordinal(c.state)]);
-}
-
-//! Use @c debug_log to display component data into debug console.
-inline void debug_component(const modeling& mod, const component_id id) noexcept
-{
-    if (auto* compo = mod.components.try_to_get<component>(id)) {
-        debug_component(mod, *compo);
-    } else {
-        debug_log("component id {} unknown\n", ordinal(id));
-    }
 }
 
 } //  irt
