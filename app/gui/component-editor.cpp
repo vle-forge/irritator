@@ -1666,51 +1666,107 @@ struct component_editor::impl {
     };
 
     template<typename T, typename ID>
-    void display_component_editor(data_array<T, ID>& data,
-                                  std::string_view /*title*/) noexcept
+    bool display_component_editor(data_array<T, ID>& data,
+                                  const ID           id,
+                                  const component_id compo_id) noexcept
     {
-        std::optional<ID> to_del;
+        auto* compo = app.mod.components.try_to_get<component>(compo_id);
+        if (not compo)
+            return true;
 
-        for (auto& element : data) {
-            const auto compo_id = element.get_id();
-            auto&      compo    = app.mod.components.get<component>(compo_id);
+        auto* element = data.try_to_get(id);
+        if (not element)
+            return true;
 
-            auto tab_item_flags = ImGuiTabItemFlags_None;
-            format(ed.title, "{}##{}", compo.name.c_str(), get_index(compo_id));
+        auto tab_item_flags = ImGuiTabItemFlags_None;
+        format(ed.title, "{}##{}", compo->name.c_str(), get_index(compo_id));
 
-            if (ed.need_to_open(compo_id)) {
-                tab_item_flags = ImGuiTabItemFlags_SetSelected;
-                ed.clear_request_to_open();
-            }
-
-            auto open = true;
-            if (ImGui::BeginTabItem(ed.title.c_str(), &open, tab_item_flags)) {
-                constexpr auto flags =
-                  ImGuiTableFlags_SizingFixedFit | ImGuiTableFlags_RowBg |
-                  ImGuiTableFlags_Borders | ImGuiTableFlags_Resizable |
-                  ImGuiTableFlags_Reorderable;
-
-                if (compo.is_file_defined() and
-                    ImGui::Shortcut(ImGuiMod_Ctrl | ImGuiKey_S)) {
-                    if constexpr (has_store_function<T>) {
-                        element.store(ed);
-                    }
-                    app.start_save_component(compo_id);
-                }
-
-                display_component_editor_subtable(element, compo, flags);
-
-                ImGui::EndTabItem();
-            }
-
-            if (open == false)
-                to_del = data.get_id(element);
+        if (ed.need_to_open(compo_id)) {
+            tab_item_flags = ImGuiTabItemFlags_SetSelected;
+            ed.clear_request_to_open();
         }
 
-        if (to_del.has_value())
-            data.free(*to_del);
+        auto open = true;
+        if (ImGui::BeginTabItem(ed.title.c_str(), &open, tab_item_flags)) {
+            constexpr auto flags =
+              ImGuiTableFlags_SizingFixedFit | ImGuiTableFlags_RowBg |
+              ImGuiTableFlags_Borders | ImGuiTableFlags_Resizable |
+              ImGuiTableFlags_Reorderable;
+
+            if (compo->is_file_defined() and
+                ImGui::Shortcut(ImGuiMod_Ctrl | ImGuiKey_S)) {
+                if constexpr (has_store_function<T>) {
+                    element->store(ed);
+                }
+                app.start_save_component(compo_id);
+            }
+
+            display_component_editor_subtable(*element, *compo, flags);
+
+            ImGui::EndTabItem();
+        }
+
+        return (open == false);
+    }
+
+    void display_tabs() noexcept
+    {
+        auto it = ed.tabs.begin();
+
+        while (it != ed.tabs.end()) {
+            auto to_del = false;
+
+            switch (it->type) {
+            case component_type::generic:
+                if (display_component_editor(
+                      ed.generics, it->data.generic, it->id)) {
+                    ed.generics.free(it->data.generic);
+                    to_del = true;
+                }
+                break;
+
+            case component_type::grid:
+                if (display_component_editor(ed.grids, it->data.grid, it->id)) {
+                    ed.grids.free(it->data.grid);
+                    to_del = true;
+                }
+                break;
+
+            case component_type::graph:
+                if (display_component_editor(
+                      ed.graphs, it->data.graph, it->id)) {
+                    ed.graphs.free(it->data.graph);
+                    to_del = true;
+                }
+                break;
+
+            case component_type::hsm:
+                if (display_component_editor(ed.hsms, it->data.hsm, it->id)) {
+                    ed.hsms.free(it->data.hsm);
+                    to_del = true;
+                }
+                break;
+
+            default:
+                to_del = true;
+                break;
+            }
+
+            if (to_del)
+                it = ed.tabs.erase(it);
+            else
+                ++it;
+        }
     }
 };
+
+component_editor::component_editor() noexcept
+  : grids(16)
+  , graphs(16)
+  , generics(16)
+  , hsms(16)
+  , tabs(32, reserve_tag{})
+{}
 
 void component_editor::display() noexcept
 {
@@ -1723,65 +1779,51 @@ void component_editor::display() noexcept
 
     component_editor::impl impl{ .app = app, .ed = *this };
 
-    const auto have_component = not generics.empty() or not grids.empty() or
-                                not graphs.empty() or not hsms.empty();
-
-    if (have_component and ImGui::BeginTabBar("Editors")) {
-        impl.display_component_editor(generics, "generic");
-        impl.display_component_editor(grids, "grid");
-        impl.display_component_editor(graphs, "graph");
-        impl.display_component_editor(hsms, "hsm");
-        ImGui::EndTabBar();
+    if (not tabs.empty()) {
+        if (ImGui::BeginTabBar("Editors")) {
+            impl.display_tabs();
+            ImGui::EndTabBar();
+        }
     }
 
     ImGui::End();
 }
 
-template<typename T, typename ID>
-static void close_component(data_array<T, ID>& data,
-                            const component_id id) noexcept
+static auto find_in_tabs(const vector<component_editor::tab>& v,
+                         const component_id                   id) noexcept
+  -> vector<component_editor::tab>::const_iterator
 {
-    auto it = std::find_if(
-      data.begin(), data.end(), [&](const auto& d) noexcept -> bool {
-          return id == d.get_id();
-      });
+    const auto is_id = [id](const auto& d) { return id == d.id; };
 
-    if (it != data.end())
-        data.free(*it);
+    return std::ranges::find_if(v, is_id);
 }
 
 void component_editor::close(const component_id id) noexcept
 {
-    auto& app = container_of(this, &application::component_ed);
-
-    if (auto* c = app.mod.components.try_to_get<component>(id)) {
-        switch (c->type) {
+    if (auto it = find_in_tabs(tabs, id); it != tabs.end()) {
+        switch (it->type) {
         case component_type::generic:
-            close_component(generics, id);
+            generics.free(it->data.generic);
             break;
+
         case component_type::grid:
-            close_component(grids, id);
+            grids.free(it->data.grid);
             break;
+
         case component_type::graph:
-            close_component(graphs, id);
+            graphs.free(it->data.graph);
             break;
+
         case component_type::hsm:
-            close_component(hsms, id);
+            hsms.free(it->data.hsm);
             break;
+
         default:
             break;
         }
+
+        tabs.erase(it);
     }
-}
-
-/** Returns true if the @a data does not hold a component identifier @a id and
- * if it can allocate a new element. */
-template<typename DataArray>
-static bool already_exist(const DataArray& data, component_id id) noexcept
-{
-    const auto is_open = [id](const auto& d) { return d.get_id() == id; };
-
-    return std::ranges::any_of(data, is_open) and data.can_alloc();
 }
 
 auto log_not_enough_memory = [](auto& title, auto& msg) noexcept {
@@ -1791,62 +1833,68 @@ auto log_not_enough_memory = [](auto& title, auto& msg) noexcept {
 
 void component_editor::request_to_open(const component_id id) noexcept
 {
-    auto& app     = container_of(this, &application::component_ed);
-    auto  success = true;
+    if (auto it = find_in_tabs(tabs, id); it == tabs.end()) {
+        auto& app   = container_of(this, &application::component_ed);
+        auto& compo = app.mod.components.get<component>(id);
 
-    debug::ensure(app.mod.components.exists(id));
-    if (not app.mod.components.exists(id))
-        return;
+        switch (compo.type) {
+        case component_type::generic:
+            if (generics.can_alloc(1)) {
+                tabs.push_back(component_editor::tab{
+                  .id   = id,
+                  .type = component_type::generic,
+                  .data{ .generic = generics.get_id(
+                           generics.alloc(id,
+                                          compo,
+                                          compo.id.generic_id,
+                                          app.mod.generic_components.get(
+                                            compo.id.generic_id))) } });
+                m_request_to_open = id;
+            } else
+                app.jn.push(log_level::error, log_not_enough_memory);
+            break;
 
-    auto& compo = app.mod.components.get<component>(id);
-    switch (compo.type) {
-    case component_type::generic:
-        if (not already_exist(generics, id))
-            if (generics.can_alloc(1) or generics.grow<3, 2>())
-                generics.alloc(
-                  id,
-                  compo,
-                  compo.id.generic_id,
-                  app.mod.generic_components.get(compo.id.generic_id));
-            else
-                success = false;
-        break;
+        case component_type::grid:
+            if (grids.can_alloc(1)) {
+                tabs.push_back(component_editor::tab{
+                  .id   = id,
+                  .type = component_type::grid,
+                  .data{ .grid =
+                           grids.get_id(grids.alloc(id, compo.id.grid_id)) } });
+                m_request_to_open = id;
+            } else
+                app.jn.push(log_level::error, log_not_enough_memory);
+            break;
 
-    case component_type::grid:
-        if (not already_exist(grids, id))
-            if (grids.can_alloc(1) or grids.grow<3, 2>())
-                grids.alloc(id, compo.id.grid_id);
-            else
-                success = false;
-        break;
+        case component_type::graph:
+            if (graphs.can_alloc(1)) {
+                tabs.push_back(component_editor::tab{
+                  .id   = id,
+                  .type = component_type::graph,
+                  .data{ .graph = graphs.get_id(
+                           graphs.alloc(id, compo.id.graph_id)) } });
+                m_request_to_open = id;
+            } else
+                app.jn.push(log_level::error, log_not_enough_memory);
+            break;
 
-    case component_type::graph:
-        if (not already_exist(graphs, id))
-            if (graphs.can_alloc(1) or graphs.grow<3, 2>())
-                graphs.alloc(id, compo.id.graph_id);
-            else
-                success = false;
-        break;
-
-    case component_type::hsm:
-        if (not already_exist(hsms, id))
-            if (hsms.can_alloc(1) or hsms.grow<3, 2>())
-                hsms.alloc(id,
+        case component_type::hsm:
+            if (hsms.can_alloc(1)) {
+                tabs.push_back(component_editor::tab{
+                  .id   = id,
+                  .type = component_type::hsm,
+                  .data{ .hsm = hsms.get_id(hsms.alloc(
+                           id,
                            compo.id.hsm_id,
-                           app.mod.hsm_components.get(compo.id.hsm_id));
-            else
-                success = false;
-        break;
-
-    default:
-        success = false;
-        break;
-    }
-
-    if (success)
+                           app.mod.hsm_components.get(compo.id.hsm_id))) } });
+                m_request_to_open = id;
+            } else
+                app.jn.push(log_level::error, log_not_enough_memory);
+            break;
+        }
+    } else {
         m_request_to_open = id;
-    else
-        app.jn.push(log_level::error, log_not_enough_memory);
+    }
 }
 
 bool component_editor::need_to_open(const component_id id) const noexcept
@@ -1859,79 +1907,9 @@ void component_editor::clear_request_to_open() noexcept
     m_request_to_open = undefined<component_id>();
 }
 
-void component_editor::create_component_data(const component_id id) noexcept
-{
-    auto& app = container_of(this, &application::component_ed);
-    if (app.mod.components.exists(id)) {
-        auto& compo = app.mod.components.get<component>(id);
-        switch (compo.type) {
-        case component_type::none:
-            break;
-        case component_type::internal:
-            break;
-
-        case component_type::generic:
-            if (not already_exist(generics, id))
-                generics.alloc(
-                  id,
-                  compo,
-                  compo.id.generic_id,
-                  app.mod.generic_components.get(compo.id.generic_id));
-            break;
-
-        case component_type::grid:
-            if (not already_exist(grids, id))
-                grids.alloc(id, compo.id.grid_id);
-            break;
-
-        case component_type::graph:
-            if (not already_exist(graphs, id))
-                graphs.alloc(id, compo.id.graph_id);
-            break;
-
-        case component_type::hsm:
-            if (not already_exist(hsms, id))
-                hsms.alloc(id,
-                           compo.id.hsm_id,
-                           app.mod.hsm_components.get(compo.id.hsm_id));
-            break;
-        }
-
-        app.component_ed.request_to_open(id);
-    }
-}
-
 bool component_editor::is_component_open(const component_id id) const noexcept
 {
-    const auto& app = container_of(this, &application::component_ed);
-
-    if (app.mod.components.exists(id)) {
-        const auto& compo = app.mod.components.get<component>(id);
-
-        const auto is_open = [id](const auto& d) { return d.get_id() == id; };
-
-        switch (compo.type) {
-        case component_type::graph:
-            return std::ranges::any_of(graphs, is_open);
-
-        case component_type::grid:
-            return std::ranges::any_of(grids, is_open);
-
-        case component_type::hsm:
-            return std::ranges::any_of(hsms, is_open);
-
-        case component_type::internal:
-            return false;
-
-        case component_type::none:
-            return false;
-
-        case component_type::generic:
-            return std::ranges::any_of(generics, is_open);
-        }
-    }
-
-    irt::unreachable();
+    return find_in_tabs(tabs, id) != tabs.end();
 }
 
 void component_editor::add_generic_component_data() noexcept
@@ -1939,10 +1917,7 @@ void component_editor::add_generic_component_data() noexcept
     auto& app      = container_of(this, &application::component_ed);
     auto& compo    = app.mod.alloc_generic_component();
     auto  compo_id = app.mod.components.get_id(compo);
-    generics.alloc(compo_id,
-                   compo,
-                   compo.id.generic_id,
-                   app.mod.generic_components.get(compo.id.generic_id));
+
     request_to_open(compo_id);
 
     app.add_gui_task([&app]() noexcept { app.component_sel.update(); });
@@ -1953,7 +1928,7 @@ void component_editor::add_grid_component_data() noexcept
     auto& app      = container_of(this, &application::component_ed);
     auto& compo    = app.mod.alloc_grid_component();
     auto  compo_id = app.mod.components.get_id(compo);
-    grids.alloc(compo_id, compo.id.grid_id);
+
     request_to_open(compo_id);
 
     app.add_gui_task([&app]() noexcept { app.component_sel.update(); });
@@ -1965,7 +1940,6 @@ void component_editor::add_graph_component_data() noexcept
     auto& compo    = app.mod.alloc_graph_component();
     auto  compo_id = app.mod.components.get_id(compo);
 
-    graphs.alloc(compo_id, compo.id.graph_id);
     request_to_open(compo_id);
 
     app.add_gui_task([&app]() noexcept { app.component_sel.update(); });
@@ -1977,8 +1951,6 @@ void component_editor::add_hsm_component_data() noexcept
     auto& compo    = app.mod.alloc_hsm_component();
     auto  compo_id = app.mod.components.get_id(compo);
 
-    hsms.alloc(
-      compo_id, compo.id.hsm_id, app.mod.hsm_components.get(compo.id.hsm_id));
     request_to_open(compo_id);
 
     app.add_gui_task([&app]() noexcept { app.component_sel.update(); });

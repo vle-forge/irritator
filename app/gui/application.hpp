@@ -966,13 +966,7 @@ class component_editor
 public:
     constexpr static inline const char* name = "Component editor";
 
-    component_editor() noexcept
-      : grids(32)
-      , graphs(32)
-      , generics(32)
-      , hsms(32)
-      , tabs(32)
-    {}
+    component_editor() noexcept;
 
     /** Draw the editor into a ImGui::Begin/ImGui::End window. */
     void display() noexcept;
@@ -994,7 +988,6 @@ public:
     void add_graph_component_data() noexcept;
     void add_hsm_component_data() noexcept;
 
-    void create_component_data(const component_id id) noexcept;
     bool is_component_open(const component_id id) const noexcept;
 
     template<typename IdentifierType>
@@ -1023,20 +1016,21 @@ public:
             return hsms.get_id(elem);
     }
 
-private:
-    struct impl;
-
-    enum { tabitem_open_save, tabitem_open_in_out };
-
     struct tab {
+        component_id   id;
         component_type type;
         union {
             grid_editor_data_id    grid;
             graph_editor_data_id   graph;
             generic_editor_data_id generic;
             hsm_editor_data_id     hsm;
-        } id;
+        } data;
     };
+
+private:
+    struct impl;
+
+    enum { tabitem_open_save, tabitem_open_in_out };
 
     data_array<grid_component_editor_data, grid_editor_data_id>       grids;
     data_array<graph_component_editor_data, graph_editor_data_id>     graphs;
