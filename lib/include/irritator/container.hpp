@@ -952,8 +952,11 @@ public:
     constexpr void pop_back() noexcept;
     constexpr void swap_pop_back(std::integral auto index) noexcept;
 
-    constexpr iterator erase(iterator it) noexcept;
-    constexpr iterator erase(iterator begin, iterator end) noexcept;
+    constexpr iterator       erase(iterator it) noexcept;
+    constexpr const_iterator erase(const_iterator it) noexcept;
+    constexpr iterator       erase(iterator begin, iterator end) noexcept;
+    constexpr const_iterator erase(const_iterator begin,
+                                   const_iterator end) noexcept;
 
     constexpr int  index_from_ptr(const T* data) const noexcept;
     constexpr bool is_iterator_valid(const_iterator it) const noexcept;
@@ -4428,15 +4431,13 @@ inline constexpr typename vector<T, A>::iterator vector<T, A>::erase(
     if (it == end())
         return end();
 
-    iterator prev = it == begin() ? end() : it - 1;
     std::destroy_at(it);
 
-    auto last = data() + m_size - 1;
-
-    if (auto next = it + 1; next != end()) {
+    if (auto next = it + 1; next < end()) {
         if constexpr (std::is_move_constructible_v<T>) {
             std::uninitialized_move(next, end(), it);
         } else {
+            auto last = data() + m_size - 1;
             std::uninitialized_copy(next, end(), it);
             std::destroy_at(last);
         }
@@ -4444,7 +4445,7 @@ inline constexpr typename vector<T, A>::iterator vector<T, A>::erase(
 
     --m_size;
 
-    return prev;
+    return it;
 }
 
 template<typename T, typename A>
@@ -4471,6 +4472,21 @@ inline constexpr typename vector<T, A>::iterator vector<T, A>::erase(
     m_size -= static_cast<int>(count);
 
     return prev;
+}
+
+template<typename T, typename A>
+inline constexpr typename vector<T, A>::const_iterator vector<T, A>::erase(
+  const_iterator it) noexcept
+{
+    return erase(const_cast<iterator>(it));
+}
+
+template<typename T, typename A>
+inline constexpr typename vector<T, A>::const_iterator vector<T, A>::erase(
+  const_iterator first,
+  const_iterator last) noexcept
+{
+    return erase(const_cast<iterator>(first), const_cast<iterator>(last));
 }
 
 template<typename T, typename A>
