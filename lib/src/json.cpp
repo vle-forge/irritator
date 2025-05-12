@@ -14,6 +14,7 @@
 
 #include <fmt/format.h>
 #include <fmt/ostream.h>
+
 #include <rapidjson/document.h>
 #include <rapidjson/error/en.h>
 #include <rapidjson/filereadstream.h>
@@ -23,7 +24,6 @@
 #include <rapidjson/reader.h>
 #include <rapidjson/writer.h>
 
-#include <iostream>
 #include <limits>
 #include <optional>
 #include <string_view>
@@ -39,8 +39,124 @@ namespace irt {
 enum class connection_type { internal, input, output };
 
 struct json_dearchiver::impl {
-
     json_dearchiver& self;
+
+    modeling*   m_mod = nullptr;
+    simulation* m_sim = nullptr;
+    project*    m_pj  = nullptr;
+
+    i64         temp_i64    = 0;
+    u64         temp_u64    = 0;
+    double      temp_double = 0.0;
+    bool        temp_bool   = false;
+    std::string temp_string;
+
+    small_vector<std::string_view, 16> stack;
+
+    bool has_error = false;
+
+    bool have_error() const noexcept { return has_error; }
+
+    template<typename... T>
+    void warning(fmt::format_string<T...> fmt, T&&... args) noexcept
+    {
+        if (m_mod) {
+            m_mod->journal.push(
+              log_level::warning,
+              [](auto& title, auto& msg, auto& stack, auto& format, auto args) {
+                  title = "json parser warning";
+
+                  auto data      = msg.data();
+                  auto remaining = static_cast<int>(msg.capacity()) - 1;
+                  auto write     = 0;
+
+                  for (auto i = 0u; i < stack.size() and remaining > 0; ++i) {
+                      auto ret = fmt::format_to_n(data,
+                                                  remaining,
+                                                  "  {}: {}\n",
+                                                  static_cast<int>(i),
+                                                  stack[i]);
+                      write += ret.size;
+                      msg.resize(write);
+                      data = ret.out;
+                      remaining -= ret.size;
+                  }
+
+                  auto ret = fmt::vformat_to_n(data, remaining, format, args);
+                  msg.resize(write + ret.size);
+              },
+              std::as_const(stack),
+              fmt,
+              fmt::make_format_args(args...));
+        }
+    }
+
+    template<typename... T>
+    bool error(fmt::format_string<T...> fmt, T&&... args) noexcept
+    {
+        if (m_mod) {
+            m_mod->journal.push(
+              log_level::error,
+              [](auto& title, auto& msg, auto& stack, auto& format, auto args) {
+                  title = "json parser error";
+
+                  auto data      = msg.data();
+                  auto remaining = static_cast<int>(msg.capacity()) - 1;
+                  auto write     = 0;
+
+                  for (auto i = 0u; i < stack.size() and remaining > 0; ++i) {
+                      auto ret = fmt::format_to_n(data,
+                                                  remaining,
+                                                  "  {}: {}\n",
+                                                  static_cast<int>(i),
+                                                  stack[i]);
+                      write += ret.size;
+                      msg.resize(write);
+                      data = ret.out;
+                      remaining -= ret.size;
+                  }
+
+                  auto ret = fmt::vformat_to_n(data, remaining, format, args);
+                  msg.resize(write + ret.size);
+              },
+              std::as_const(stack),
+              fmt,
+              fmt::make_format_args(args...));
+        }
+
+        has_error = true;
+
+        return false;
+    }
+
+    void clear() noexcept
+    {
+        temp_i64    = 0;
+        temp_u64    = 0;
+        temp_double = 0.0;
+        temp_bool   = false;
+        temp_string.clear();
+        stack.clear();
+        has_error = false;
+    }
+
+    modeling& mod() const noexcept
+    {
+        debug::ensure(m_mod);
+        return *m_mod;
+    }
+
+    simulation& sim() const noexcept
+    {
+        debug::ensure(m_sim);
+        return *m_sim;
+    }
+
+    project& pj() const noexcept
+    {
+        debug::ensure(m_pj);
+        return *m_pj;
+    }
 
     impl(json_dearchiver& self_, modeling& mod_) noexcept
       : self(self_)
@@ -82,19 +198,13 @@ struct json_dearchiver::impl {
         json_dearchiver::impl* r = nullptr;
     };
 
-    bool report_error(const std::string_view error_id__) noexcept
-    {
-        error.emplace(error_id__);
-        return false;
-    }
-
     template<typename Function, typename... Args>
     bool for_each_array(const rapidjson::Value& array,
                         Function&&              f,
                         Args&&... args) noexcept
     {
         if (!array.IsArray())
-            return report_error("json value is not an array");
+            return error("json value is not an array");
 
         rapidjson::SizeType i = 0, e = array.GetArray().Size();
         for (; i != e; ++i) {
@@ -116,7 +226,7 @@ struct json_dearchiver::impl {
                      Function&& fn) noexcept
     {
         if (!val.IsObject())
-            return report_error("json value is not an object");
+            return error("json value is not an object");
 
         auto       it = val.MemberBegin();
         const auto et = val.MemberEnd();
@@ -135,7 +245,7 @@ struct json_dearchiver::impl {
                 //                              it->name.GetStringLength()
                 //                              });
 
-                return report_error("unknown element");
+                return error("unknown element {}", it->name.GetString());
             }
 
             if (!std::invoke(std::forward<Function>(fn),
@@ -161,7 +271,7 @@ struct json_dearchiver::impl {
                          Args&&... args) noexcept
     {
         if (!val.IsObject())
-            return report_error("json value is not an object");
+            return error("json value is not an object");
 
         for (auto it = val.MemberBegin(), et = val.MemberEnd(); it != et;
              ++it) {
@@ -184,7 +294,7 @@ struct json_dearchiver::impl {
                           Args&&... args) noexcept
     {
         if (!val.IsObject())
-            return report_error("json value is not an object");
+            return error("json value is not an object");
 
         for (auto it = val.MemberBegin(), et = val.MemberEnd(); it != et; ++it)
             if (name == it->name.GetString())
@@ -192,13 +302,13 @@ struct json_dearchiver::impl {
                                    it->value,
                                    std::forward<Args>(args)...);
 
-        return report_error("json object member not found");
+        return error("json object member {} not found", name);
     }
 
     bool read_temp_i64(const rapidjson::Value& val) noexcept
     {
         if (!val.IsInt64())
-            return report_error("missing integer");
+            return error("missing integer");
 
         temp_i64 = val.GetInt64();
 
@@ -208,7 +318,7 @@ struct json_dearchiver::impl {
     bool read_temp_bool(const rapidjson::Value& val) noexcept
     {
         if (!val.IsBool())
-            return report_error("missing bool");
+            return error("missing bool");
 
         temp_bool = val.GetBool();
 
@@ -238,7 +348,7 @@ struct json_dearchiver::impl {
     bool read_temp_u64(const rapidjson::Value& val) noexcept
     {
         if (!val.IsUint64())
-            return report_error("missing u64");
+            return error("missing u64");
 
         temp_u64 = val.GetUint64();
 
@@ -252,7 +362,7 @@ struct json_dearchiver::impl {
             return true;
         }
 
-        return report_error("missing u64");
+        return error("missing u64");
     }
 
     bool read_real(const rapidjson::Value& val, double& r) noexcept
@@ -262,13 +372,13 @@ struct json_dearchiver::impl {
             return true;
         }
 
-        return report_error("missing double");
+        return error("missing double");
     }
 
     bool read_temp_real(const rapidjson::Value& val) noexcept
     {
         if (!val.IsDouble())
-            return report_error("missing double");
+            return error("missing double");
 
         temp_double = val.GetDouble();
 
@@ -278,7 +388,7 @@ struct json_dearchiver::impl {
     bool read_temp_string(const rapidjson::Value& val) noexcept
     {
         if (!val.IsString())
-            return report_error("missing string");
+            return error("missing string");
 
         temp_string = val.GetString();
 
@@ -293,7 +403,7 @@ struct json_dearchiver::impl {
         } catch (...) {
         }
 
-        return report_error("binary file missing");
+        return error("binary file missing {}", temp_string);
     }
 
     bool copy_string_to(text_file_source& src) noexcept
@@ -304,7 +414,7 @@ struct json_dearchiver::impl {
         } catch (...) {
         }
 
-        return report_error("text file missing");
+        return error("text file missing {}", temp_string);
     }
 
     bool copy_string_to(std::optional<constant::init_type>& type) noexcept
@@ -320,7 +430,7 @@ struct json_dearchiver::impl {
         else if (temp_string == "outcoming_component_n"sv)
             type = constant::init_type::outcoming_component_n;
         else
-            return report_error("bad constant init type");
+            return error("bad constant init type {}", temp_string);
 
         return true;
     }
@@ -334,7 +444,7 @@ struct json_dearchiver::impl {
         else if (temp_string == "input"sv)
             type = connection_type::input;
         else
-            return report_error("bad connection type");
+            return error("bad connection type {}", temp_string);
 
         return true;
     }
@@ -347,7 +457,7 @@ struct json_dearchiver::impl {
             return true;
         }
 
-        return report_error("bad distribution type");
+        return error("bad distribution type {}", temp_string);
     }
 
     bool copy_string_to(dynamics_type& dst) noexcept
@@ -357,7 +467,7 @@ struct json_dearchiver::impl {
             return true;
         }
 
-        return report_error("bad dynamics type");
+        return error("bad dynamics type {}", temp_string);
     }
 
     bool copy_string_to(child_type& dst_1, dynamics_type& dst_2) noexcept
@@ -372,7 +482,7 @@ struct json_dearchiver::impl {
                 dst_2 = opt.value();
                 return true;
             } else {
-                return report_error("bad dynamics type");
+                return error("bad dynamics type {}", temp_string);
             }
         }
     }
@@ -384,7 +494,7 @@ struct json_dearchiver::impl {
             return true;
         }
 
-        return report_error("bad grid component type");
+        return error("bad grid component type {}", temp_i64);
     }
 
     bool copy_string_to(component_type& dst) noexcept
@@ -394,7 +504,7 @@ struct json_dearchiver::impl {
             return true;
         }
 
-        return report_error("bad component type");
+        return error("bad component type {}", temp_string);
     }
 
     bool copy_string_to(internal_component& dst) noexcept
@@ -405,7 +515,7 @@ struct json_dearchiver::impl {
             return true;
         }
 
-        return report_error("bad internal component type");
+        return error("bad internal component type {}", temp_string);
     }
 
     template<int Length>
@@ -440,7 +550,7 @@ struct json_dearchiver::impl {
     bool copy_i64_to(i32& dst) noexcept
     {
         if (!(INT32_MIN <= temp_i64 && temp_i64 <= INT32_MAX))
-            return report_error("not a 32 bits integer");
+            return error("not a 32 bits integer: {}", temp_i64);
 
         dst = static_cast<i32>(temp_i64);
 
@@ -450,7 +560,7 @@ struct json_dearchiver::impl {
     bool copy_u64_to(u32& dst) noexcept
     {
         if (temp_u64 >= UINT32_MAX)
-            return report_error("not a 32 bits unsigned integer");
+            return error("not a 32 bits unsigned integer: {}", temp_u64);
 
         dst = static_cast<u8>(temp_u64);
 
@@ -460,7 +570,7 @@ struct json_dearchiver::impl {
     bool copy_i64_to(i8& dst) noexcept
     {
         if (!(0 <= temp_i64 && temp_i64 <= INT8_MAX))
-            return report_error("not a 8 bits integer");
+            return error("not a 8 bits integer: {}", temp_i64);
 
         dst = static_cast<i8>(temp_i64);
 
@@ -470,7 +580,7 @@ struct json_dearchiver::impl {
     bool copy_u64_to(u8& dst) noexcept
     {
         if (!(temp_u64 <= UINT8_MAX))
-            return report_error("not a 8 bits unsigned integer");
+            return error("not a 8 bits unsigned integer: {}", temp_u64);
 
         dst = static_cast<u8>(temp_u64);
 
@@ -481,7 +591,7 @@ struct json_dearchiver::impl {
     {
         if (!(0 <= temp_i64 &&
               temp_i64 < hierarchical_state_machine::action_type_count))
-            return report_error("bad HSM action type");
+            return error("bad HSM action type: {}", temp_i64);
 
         dst = enum_cast<hierarchical_state_machine::action_type>(temp_i64);
 
@@ -492,7 +602,7 @@ struct json_dearchiver::impl {
     {
         if (!(0 <= temp_i64 &&
               temp_i64 < hierarchical_state_machine::condition_type_count))
-            return report_error("bad HSM condition type");
+            return error("bad HSM condition type: {}", temp_i64);
 
         dst = enum_cast<hierarchical_state_machine::condition_type>(temp_i64);
 
@@ -503,7 +613,7 @@ struct json_dearchiver::impl {
     {
         if (!(0 <= temp_i64 &&
               temp_i64 < hierarchical_state_machine::variable_count))
-            return report_error("bad HSM variable type");
+            return error("bad HSM variable type: {}", temp_i64);
 
         dst = enum_cast<hierarchical_state_machine::variable>(temp_i64);
 
@@ -519,7 +629,7 @@ struct json_dearchiver::impl {
         else if (temp_string == "sin"sv)
             dst = &sin_time_function;
         else
-            return report_error("bad function type");
+            return error("bad function type: {}", temp_string);
 
         return true;
     }
@@ -530,7 +640,7 @@ struct json_dearchiver::impl {
         if (v.has_value())
             return true;
 
-        return report_error("missing value");
+        return error("missing value");
     }
 
     bool copy_u64_to(u64& dst) const noexcept
@@ -572,7 +682,7 @@ struct json_dearchiver::impl {
     bool copy_u64_to(std::optional<u8>& dst) noexcept
     {
         if (!(temp_u64 <= UINT8_MAX))
-            return report_error("bad 8 bits unsigned integer");
+            return error("bad 8 bits unsigned integer: {}", temp_u64);
 
         dst = static_cast<u8>(temp_u64);
         return true;
@@ -587,7 +697,7 @@ struct json_dearchiver::impl {
     bool copy_i64_to(std::optional<i8>& dst) noexcept
     {
         if (!(INT8_MIN <= temp_i64 && temp_i64 <= INT8_MAX))
-            return report_error("bad 8 bits integer");
+            return error("bad 8 bits integer: {}", temp_i64);
 
         dst = static_cast<i8>(temp_i64);
         return true;
@@ -596,7 +706,7 @@ struct json_dearchiver::impl {
     bool copy_i64_to(std::optional<i32>& dst) noexcept
     {
         if (!(INT32_MIN <= temp_i64 && temp_i64 <= INT32_MAX))
-            return report_error("bad 32 bits integer");
+            return error("bad 32 bits integer: {}", temp_i64);
 
         dst = static_cast<int>(temp_i64);
         return true;
@@ -627,7 +737,8 @@ struct json_dearchiver::impl {
     bool project_global_parameters_can_alloc(std::integral auto i) noexcept
     {
         if (!pj().parameters.can_alloc(i))
-            return report_error("can not allocate more global parameters");
+            return error("can not allocate more global parameters (max: {})",
+                         pj().parameters.capacity());
 
         return true;
     }
@@ -635,7 +746,8 @@ struct json_dearchiver::impl {
     bool project_variable_observers_can_alloc(std::integral auto i) noexcept
     {
         if (!pj().variable_observers.can_alloc(i))
-            return report_error("can not allocate more variable observers");
+            return error("can not allocate more variable observers (max: {})",
+                         pj().variable_observers.capacity());
 
         return true;
     }
@@ -643,7 +755,8 @@ struct json_dearchiver::impl {
     bool project_grid_observers_can_alloc(std::integral auto i) noexcept
     {
         if (!pj().grid_observers.can_alloc(i))
-            return report_error("can not allocate more grid observers");
+            return error("can not allocate more grid observers (max: {})",
+                         pj().grid_observers.capacity());
 
         return true;
     }
@@ -652,8 +765,9 @@ struct json_dearchiver::impl {
                            std::integral auto       i) noexcept
     {
         if (not compo.children.can_alloc(i))
-            return report_error(
-              "can not allocate more child in generic component");
+            return error(
+              "can not allocate more child in generic component (max: {})",
+              compo.children.capacity());
 
         return true;
     }
@@ -661,7 +775,8 @@ struct json_dearchiver::impl {
     bool is_double_greater_than(double excluded_min) noexcept
     {
         if (temp_double <= excluded_min)
-            return report_error("bad real greater than");
+            return error(
+              "bad real greater than {} > {}", temp_double, excluded_min);
 
         return true;
     }
@@ -669,7 +784,8 @@ struct json_dearchiver::impl {
     bool is_double_greater_equal_than(double included_min) noexcept
     {
         if (temp_double < included_min)
-            return report_error("bad real greater or equal");
+            return error(
+              "bad real greater or equal {} >= {}", temp_double, included_min);
 
         return true;
     }
@@ -677,7 +793,8 @@ struct json_dearchiver::impl {
     bool is_i64_less_than(int excluded_max) noexcept
     {
         if (temp_i64 >= excluded_max)
-            return report_error("bad integer less than");
+            return error(
+              "bad integer less than {} < {}", temp_i64, excluded_max);
 
         return true;
     }
@@ -685,7 +802,8 @@ struct json_dearchiver::impl {
     bool is_i64_greater_equal_than(int included_min) noexcept
     {
         if (temp_i64 < included_min)
-            return report_error("bad integer greater or equal");
+            return error(
+              "bad integer greater or equal {} >= {}", temp_i64, included_min);
 
         return true;
     }
@@ -697,13 +815,13 @@ struct json_dearchiver::impl {
         if (std::cmp_equal(val.GetArray().Size(), to))
             return true;
 
-        return report_error("to many elements in array");
+        return error("to many elements in array ({})", to);
     }
 
     bool is_value_array(const rapidjson::Value& val) noexcept
     {
         if (!val.IsArray())
-            return report_error("value is not an array");
+            return error("value is not an array");
 
         return true;
     }
@@ -725,13 +843,14 @@ struct json_dearchiver::impl {
         if (std::cmp_less(val.GetArray().Size(), i))
             return true;
 
-        return report_error("too many elements in array");
+        return error(
+          "too many elements in array ({} vs {})", i, val.GetArray().Size());
     }
 
     bool is_value_object(const rapidjson::Value& val) noexcept
     {
         if (!val.IsObject())
-            return report_error("json value is not an array");
+            return error("json value is not an array");
 
         return true;
     }
@@ -765,7 +884,7 @@ struct json_dearchiver::impl {
             case 1:
                 return read_real(value, p.reals[1]);
             default:
-                return report_error("unknown element");
+                return error("unknown element");
             }
         });
     }
@@ -795,7 +914,7 @@ struct json_dearchiver::impl {
               case 1:
                   return read_real(value, p.reals[1]);
               default:
-                  return report_error("unknown element");
+                  return error("unknown element");
               }
           });
     }
@@ -820,7 +939,7 @@ struct json_dearchiver::impl {
               case 2:
                   return read_real(value, p.reals[2]);
               default:
-                  return report_error("unknown element");
+                  return error("unknown element");
               }
           });
     }
@@ -847,7 +966,7 @@ struct json_dearchiver::impl {
               case 3:
                   return read_real(value, p.reals[3]);
               default:
-                  return report_error("unknown element");
+                  return error("unknown element");
               }
           });
     }
@@ -874,7 +993,7 @@ struct json_dearchiver::impl {
               case 3:
                   return read_real(value, p.reals[1]);
               default:
-                  return report_error("unknown element");
+                  return error("unknown element");
               }
           });
     }
@@ -905,7 +1024,7 @@ struct json_dearchiver::impl {
               case 5:
                   return read_real(value, p.reals[2]);
               default:
-                  return report_error("unknown element");
+                  return error("unknown element");
               }
           });
     }
@@ -941,7 +1060,7 @@ struct json_dearchiver::impl {
               case 7:
                   return read_real(value, p.reals[3]);
               default:
-                  return report_error("unknown element");
+                  return error("unknown element");
               }
           });
     }
@@ -967,7 +1086,7 @@ struct json_dearchiver::impl {
                   return read_temp_real(value) && is_double_greater_than(0.0) &&
                          copy_real_to(p.reals[0]);
 
-              return report_error("unknown element");
+              return error("unknown element");
           });
     }
 
@@ -1074,7 +1193,7 @@ struct json_dearchiver::impl {
                          return read_temp_bool(value) &&
                                 copy_bool_to(p.integers[0]);
 
-                     return report_error("unknown element");
+                     return error("unknown element");
                  }) and
                copy_to_source(type, id, p.integers[1], p.integers[2]);
     }
@@ -1106,7 +1225,7 @@ struct json_dearchiver::impl {
                          return read_temp_bool(value) &&
                                 copy_bool_to(p.integers[0]);
 
-                     return report_error("unknown element");
+                     return error("unknown element");
                  }) and
                copy_to_source(type, id, p.integers[1], p.integers[2]);
     }
@@ -1150,7 +1269,7 @@ struct json_dearchiver::impl {
                          return false;
                      }
 
-                     return report_error("unknown element");
+                     return error("unknown element");
                  }) and
                copy_to_source(type_ta, id_ta, p.integers[1], p.integers[2]) and
                copy_to_source(
@@ -1173,7 +1292,7 @@ struct json_dearchiver::impl {
                          is_double_greater_equal_than(0.0) &&
                          copy_real_to(p.reals[1]);
 
-              return report_error("unknown element");
+              return error("unknown element");
           });
     }
 
@@ -1184,7 +1303,7 @@ struct json_dearchiver::impl {
     {
         if (type != constant::init_type::incoming_component_n and
             type != constant::init_type::outcoming_component_n)
-            return report_error("constant port not necessary");
+            return error("constant port not necessary");
 
         const auto port = type == constant::init_type::incoming_component_n
                             ? compo.get_or_add_x(temp_string)
@@ -1240,7 +1359,7 @@ struct json_dearchiver::impl {
               if ("detect-up"sv == name)
                   return read_bool(value, p.integers[0]);
 
-              return report_error("unknown element");
+              return error("unknown element");
           });
     }
 
@@ -1257,7 +1376,7 @@ struct json_dearchiver::impl {
               if ("upper-threshold"sv == name)
                   return read_temp_real(value) && copy_real_to(p.reals[1]);
 
-              return report_error("unknown element");
+              return error("unknown element");
           });
     }
 
@@ -1272,7 +1391,7 @@ struct json_dearchiver::impl {
               if ("n"sv == name)
                   return read_temp_real(value) && copy_real_to(p.reals[0]);
 
-              return report_error("unknown element");
+              return error("unknown element");
           });
     }
 
@@ -1312,7 +1431,7 @@ struct json_dearchiver::impl {
               if ("timestep"sv == name)
                   return read_real(value, p.reals[1]);
 
-              return report_error("unknown element");
+              return error("unknown element");
           });
 
         if (ret) {
@@ -1341,7 +1460,7 @@ struct json_dearchiver::impl {
               if ("value-1"sv == name)
                   return read_bool(value, p.integers[1]);
 
-              return report_error("unknown element");
+              return error("unknown element");
           });
     }
 
@@ -1359,7 +1478,7 @@ struct json_dearchiver::impl {
               if ("value-1"sv == name)
                   return read_bool(value, p.integers[1]);
 
-              return report_error("unknown element");
+              return error("unknown element");
           });
     }
 
@@ -1380,7 +1499,7 @@ struct json_dearchiver::impl {
               if ("value-2"sv == name)
                   return read_bool(value, p.integers[2]);
 
-              return report_error("unknown element");
+              return error("unknown element");
           });
     }
 
@@ -1401,7 +1520,7 @@ struct json_dearchiver::impl {
               if ("value-2"sv == name)
                   return read_bool(value, p.integers[2]);
 
-              return report_error("unknown element");
+              return error("unknown element");
           });
     }
 
@@ -1456,7 +1575,7 @@ struct json_dearchiver::impl {
               if ("constant-r"sv == name)
                   return read_temp_real(value) && copy_real_to(f);
 
-              return report_error("unknown element");
+              return error("unknown element");
           });
 
         if (not ret)
@@ -1506,7 +1625,7 @@ struct json_dearchiver::impl {
               if ("constant-r"sv == name)
                   return read_temp_real(value) && copy_real_to(f);
 
-              return report_error("unknown element");
+              return error("unknown element");
           });
 
         if (not ret)
@@ -1581,7 +1700,7 @@ struct json_dearchiver::impl {
                   if ("y"sv == name)
                       return read_temp_real(value) && copy_real_to(pos.y);
 
-                  return report_error("unknown element");
+                  return error("unknown element");
               }) or
             not id.has_value())
             return false;
@@ -1639,7 +1758,7 @@ struct json_dearchiver::impl {
                   if ("sub-id"sv == name)
                       return read_temp_u64(value) && copy_u64_to(s.sub_id);
 
-                  return report_error("unknown element");
+                  return error("unknown element");
               }) or
             not id.has_value())
             return false;
@@ -1711,7 +1830,7 @@ struct json_dearchiver::impl {
             case 5:
                 return read_temp_real(value) && copy_real_to(p.reals[2]);
             default:
-                return report_error("unknown element");
+                return error("unknown element");
                 ;
             }
         });
@@ -1748,7 +1867,7 @@ struct json_dearchiver::impl {
             case 5:
                 return read_temp_real(value) && copy_real_to(p.reals[2]);
             default:
-                return report_error("unknown element");
+                return error("unknown element");
                 ;
             }
         });
@@ -1765,7 +1884,7 @@ struct json_dearchiver::impl {
             return true;
         }
 
-        return report_error("integer convertion error");
+        return error("integer convertion error");
     }
 
     template<typename T>
@@ -1782,7 +1901,7 @@ struct json_dearchiver::impl {
                 return true;
             }
 
-            return report_error("integer convertion error");
+            return error("integer convertion error from {}", from);
         }
 
         if constexpr (std::is_same_v<T, std::optional<u64>>) {
@@ -1790,7 +1909,7 @@ struct json_dearchiver::impl {
             return true;
         }
 
-        return report_error("integer convertion error");
+        return error("integer convertion error {}", from);
     }
 
     template<typename T>
@@ -1807,7 +1926,7 @@ struct json_dearchiver::impl {
                 return true;
             }
 
-            return report_error("integer convertion error");
+            return error("integer convertion error from {}", from);
         }
 
         if constexpr (std::is_same_v<T, std::optional<u64>>) {
@@ -1816,10 +1935,10 @@ struct json_dearchiver::impl {
                 return true;
             }
 
-            return report_error("integer convertion error");
+            return error("integer convertion error from {}", from);
         }
 
-        return report_error("integer convertion error");
+        return error("integer convertion error from {}", from);
     }
 
     bool fix_child_name(generic_component& generic, child& c) noexcept
@@ -1934,7 +2053,7 @@ struct json_dearchiver::impl {
             }
         }
 
-        return report_error("bad internal component");
+        return error("bad internal component");
     }
 
     bool read_child_internal_component(const rapidjson::Value& val,
@@ -1988,7 +2107,7 @@ struct json_dearchiver::impl {
             }
         }
 
-        return report_error("directory not found");
+        return error("directory not found");
     }
 
     bool search_file(dir_path_id      id,
@@ -2009,7 +2128,7 @@ struct json_dearchiver::impl {
             }
         }
 
-        return report_error("file not found");
+        return error("file not found");
     }
 
     /**
@@ -2147,7 +2266,7 @@ struct json_dearchiver::impl {
             }
         }
 
-        return report_error("fail to found component");
+        return error("fail to found component");
     }
 
     bool read_child_simple_or_grid_component(const rapidjson::Value& val,
@@ -2205,7 +2324,7 @@ struct json_dearchiver::impl {
             return read_child_simple_or_grid_component(val, c_id);
         }
 
-        return report_error("unknown element");
+        return error("unknown element");
     }
 
     bool read_child_component(const rapidjson::Value& val,
@@ -2298,7 +2417,8 @@ struct json_dearchiver::impl {
         if (srcs.constant_sources.can_alloc(i))
             return true;
 
-        return report_error("can not allocate more constant source");
+        return error("can not allocate more constant source ({})",
+                     srcs.constant_sources.capacity());
     }
 
     bool text_file_sources_can_alloc(external_source&   srcs,
@@ -2307,7 +2427,8 @@ struct json_dearchiver::impl {
         if (srcs.text_file_sources.can_alloc(i))
             return true;
 
-        return report_error("can not allocate more text file source");
+        return error("can not allocate more text file source ({})",
+                     srcs.text_file_sources.capacity());
     }
 
     bool binary_file_sources_can_alloc(external_source&   srcs,
@@ -2316,7 +2437,8 @@ struct json_dearchiver::impl {
         if (srcs.binary_file_sources.can_alloc(i))
             return true;
 
-        return report_error("can not allocate more binary file source");
+        return error("can not allocate more binary file source ({})",
+                     srcs.binary_file_sources.capacity());
     }
 
     bool random_sources_can_alloc(external_source&   srcs,
@@ -2325,7 +2447,8 @@ struct json_dearchiver::impl {
         if (srcs.random_sources.can_alloc(i))
             return true;
 
-        return report_error("can not allocate more random source");
+        return error("can not allocate more random source ({})",
+                     srcs.random_sources.capacity());
     }
 
     bool constant_buffer_size_can_alloc(std::integral auto i) noexcept
@@ -2334,7 +2457,10 @@ struct json_dearchiver::impl {
             std::cmp_less_equal(i, external_source_chunk_size))
             return true;
 
-        return report_error("can not allocate more data in constant source");
+        return error(
+          "can not allocate more data in constant source 0 <= {} < {}",
+          i,
+          external_source_chunk_size);
     }
 
     bool read_constant_source(const rapidjson::Value& val,
@@ -2543,7 +2669,7 @@ struct json_dearchiver::impl {
             return true;
         }
 
-        return report_error("unknown constant source");
+        return error("unknown constant source (id: {})", id_in_file);
     }
 
     bool cache_text_file_mapping_get(u64                  id_in_file,
@@ -2554,7 +2680,7 @@ struct json_dearchiver::impl {
             return true;
         }
 
-        return report_error("unknown text file source");
+        return error("unknown text file source (id: {})", id_in_file);
     }
 
     bool cache_random_mapping_get(u64 id_in_file, random_source_id& id) noexcept
@@ -2564,7 +2690,7 @@ struct json_dearchiver::impl {
             return true;
         }
 
-        return report_error("unknown random source");
+        return error("unknown random source (id: {})", id_in_file);
     }
 
     bool cache_binary_file_mapping_get(u64                    id_in_file,
@@ -2575,7 +2701,7 @@ struct json_dearchiver::impl {
             return true;
         }
 
-        return report_error("unknown binary file source");
+        return error("unknown binary file source (id: {})", id_in_file);
     }
 
     bool read_binary_file_sources(const rapidjson::Value& val,
@@ -2896,7 +3022,7 @@ struct json_dearchiver::impl {
                 if (compo.connect(mod(), *c_src, p_src, *c_dst, p_dst))
                     return true;
 
-        return report_error("fail to connect generic component children");
+        return error("fail to connect generic component children");
     }
 
     bool modeling_connect_input(generic_component& compo,
@@ -2910,7 +3036,7 @@ struct json_dearchiver::impl {
             if (compo.connect_input(src_port, *c_dst, p_dst))
                 return true;
 
-        return report_error("fail to connect generic component children");
+        return error("fail to connect generic component children");
     }
 
     bool modeling_connect_output(generic_component& compo,
@@ -2924,7 +3050,7 @@ struct json_dearchiver::impl {
             if (compo.connect_output(dst_port, *c_src, p_src))
                 return true;
 
-        return report_error("fail to connect generic component children");
+        return error("fail to connect generic component children");
     }
 
     bool cache_model_mapping_to(child_id& dst) noexcept
@@ -2934,7 +3060,7 @@ struct json_dearchiver::impl {
             return true;
         }
 
-        return report_error("unknown generic component child");
+        return error("unknown generic component child");
     }
 
     bool cache_model_mapping_to(std::optional<child_id>& dst) noexcept
@@ -2944,7 +3070,7 @@ struct json_dearchiver::impl {
             return true;
         }
 
-        return report_error("unknown generic component child");
+        return error("unknown generic component child");
     }
 
     bool get_x_port(generic_component&                generic,
@@ -2958,32 +3084,31 @@ struct json_dearchiver::impl {
         if (auto* child = generic.children.try_to_get(dst_id); child) {
             if (dst_int_port.has_value()) {
                 if (child->type != child_type::model)
-                    return report_error("unknwon generic component port");
+                    return error("unknwon generic component port");
 
                 out = std::make_optional(
                   connection::port{ .model = *dst_int_port });
                 return true;
             } else if (dst_str_port.has_value()) {
                 if (child->type != child_type::component)
-                    return report_error("unknwon generic component port");
+                    return error("unknwon generic component port");
 
                 if (auto* compo = mod().components.try_to_get<component>(
                       child->id.compo_id)) {
                     auto p_id = compo->get_x(*dst_str_port);
                     if (is_undefined(p_id))
-                        return report_error("unknown input component");
+                        return error("unknown input component");
                     out = std::make_optional(connection::port{ .compo = p_id });
                     return true;
                 } else {
-                    return report_error("unknown component");
+                    return error("unknown component");
                 }
             } else {
                 unreachable();
             }
         }
 
-        return report_error("unknown element");
-        ;
+        return error("unknown element");
     }
 
     bool get_y_port(generic_component&                generic,
@@ -2997,33 +3122,33 @@ struct json_dearchiver::impl {
         if (auto* child = generic.children.try_to_get(src_id); child) {
             if (src_int_port.has_value()) {
                 if (child->type != child_type::model)
-                    return report_error("unknwon generic component port");
+                    return error("unknwon generic component port");
 
                 out = std::make_optional(
                   connection::port{ .model = *src_int_port });
                 return true;
             } else if (src_str_port.has_value()) {
                 if (child->type != child_type::component)
-                    return report_error("unknwon generic component port");
+                    return error("unknwon generic component port");
 
                 if (auto* compo = mod().components.try_to_get<component>(
                       child->id.compo_id);
                     compo) {
                     auto p_id = compo->get_y(*src_str_port);
                     if (is_undefined(p_id))
-                        return report_error("unknown output  component");
+                        return error("unknown output component");
 
                     out = std::make_optional(connection::port{ .compo = p_id });
                     return true;
                 } else {
-                    return report_error("unknown component");
+                    return error("unknown component");
                 }
             } else {
                 unreachable();
             }
         }
 
-        return report_error("unknown element");
+        return error("unknown element");
     }
 
     bool get_x_port(component&                        compo,
@@ -3031,11 +3156,11 @@ struct json_dearchiver::impl {
                     std::optional<port_id>&           out) noexcept
     {
         if (!str_port.has_value())
-            return report_error("unknown input port");
+            return error("unknown input port");
 
         auto port_id = compo.get_x(*str_port);
         if (is_undefined(port_id))
-            return report_error("missing input port in component");
+            return error("missing input port in component");
 
         out = port_id;
         return true;
@@ -3046,11 +3171,11 @@ struct json_dearchiver::impl {
                     std::optional<port_id>&           out) noexcept
     {
         if (!str_port.has_value())
-            return report_error("unknown output port");
+            return error("unknown output port");
 
         auto port_id = compo.get_y(*str_port);
         if (is_undefined(port_id))
-            return report_error("missing output port in component");
+            return error("missing output port in component");
 
         out = port_id;
         return true;
@@ -3315,7 +3440,7 @@ struct json_dearchiver::impl {
             return read_small_world_graph_param(val, graph);
         }
 
-        return report_error("bad graph component type");
+        return error("bad graph component type");
     }
 
     bool read_dot_graph_param(const rapidjson::Value& val,
@@ -3465,12 +3590,10 @@ struct json_dearchiver::impl {
               }) and
             optional_has_value(row) and optional_has_value(col) and
             optional_has_value(id) and optional_has_value(x))
-            return report_error("bad grid component size");
+            return error("bad grid component size");
 
         if (not grid.is_coord_valid(*row, *col)) {
-            return report_error(
-              "bad child coordinates"); // TODO Report a warning in console
-                                        // or log window instead.
+            return error("bad child coordinates {}x{}", *row, *col);
         } else {
             const auto pos        = grid.pos(*row, *col);
             const auto c_compo_id = grid.children()[pos];
@@ -3522,12 +3645,10 @@ struct json_dearchiver::impl {
               }) and
             optional_has_value(row) and optional_has_value(col) and
             optional_has_value(id) and optional_has_value(y))
-            return report_error("bad grid component size");
+            return error("bad grid component size");
 
         if (not grid.is_coord_valid(*row, *col)) {
-            return report_error(
-              "bad child coordinates"); // TODO Report a warning in console
-                                        // or log window instead.
+            return error("bad child coordinates: {}x{}", *row, *col);
         } else {
             const auto pos        = grid.pos(*row, *col);
             const auto c_compo_id = grid.children()[pos];
@@ -3787,7 +3908,9 @@ struct json_dearchiver::impl {
             return read_hsm_component(val, compo);
         }
 
-        return report_error("unknown element");
+        return error("unknown component type: {} ({})",
+                     ordinal(compo.type),
+                     component_type_names[ordinal(compo.type)]);
         ;
     }
 
@@ -3798,7 +3921,7 @@ struct json_dearchiver::impl {
             return true;
         }
 
-        return report_error("bad component type");
+        return error("bad component type {}", temp_string);
     }
 
     bool read_port(const rapidjson::Value&  val,
@@ -3862,7 +3985,7 @@ struct json_dearchiver::impl {
                          return read_port(value, port);
                      }
 
-                     return report_error("unknown json element");
+                     return error("unknown json element");
                  });
     }
 
@@ -3974,7 +4097,7 @@ struct json_dearchiver::impl {
             return true;
         }
 
-        return report_error("unknown HSM component");
+        return error("unknown HSM component id {}", id_in_file);
     }
 
     bool sim_hsms_mapping_sort() noexcept
@@ -4037,7 +4160,8 @@ struct json_dearchiver::impl {
         if (sim().models.can_alloc(i))
             return true;
 
-        return report_error("can not allocate more simulation models");
+        return error("can not allocate more simulation models ({})",
+                     sim().models.capacity());
     }
 
     bool sim_hsms_can_alloc(std::integral auto i) noexcept
@@ -4045,7 +4169,8 @@ struct json_dearchiver::impl {
         if (sim().hsms.can_alloc(i))
             return true;
 
-        return report_error("can not allocate more HSM models");
+        return error("can not allocate more HSM models ({})",
+                     sim().hsms.capacity());
     }
 
     bool read_simulation_hsms(const rapidjson::Value& val) noexcept
@@ -4093,34 +4218,34 @@ struct json_dearchiver::impl {
 
         auto* mdl_src_id = self.model_mapping.get(src);
         if (!mdl_src_id)
-            return report_error("unknown source model");
+            return error("unknown source model");
 
         auto* mdl_dst_id = self.model_mapping.get(dst);
         if (!mdl_dst_id)
-            return report_error("unknown destination model");
+            return error("unknown destination model");
 
         auto* mdl_src =
           sim().models.try_to_get(enum_cast<model_id>(*mdl_src_id));
         if (!mdl_src)
-            return report_error("unknown source model");
+            return error("unknown source model");
 
         auto* mdl_dst =
           sim().models.try_to_get(enum_cast<model_id>(*mdl_dst_id));
         if (!mdl_dst)
-            return report_error("unknown destination model");
+            return error("unknown destination model");
 
         block_node_id* out = nullptr;
         message_id*    in  = nullptr;
 
         if (auto ret = get_output_port(*mdl_src, port_src, out); !ret)
-            return report_error("unknown source model port");
+            return error("unknown source model port");
 
         if (auto ret = get_input_port(*mdl_dst, port_dst, in); !ret)
-            return report_error("unknown destination model port");
+            return error("unknown destination model port");
 
         if (auto ret = sim().connect(*mdl_src, port_src, *mdl_dst, port_dst);
             !ret)
-            return report_error("can not connect model");
+            return error("can not connect model");
 
         return true;
     }
@@ -4189,7 +4314,7 @@ struct json_dearchiver::impl {
               if ("connections"sv == name)
                   return read_simulation_connections(value);
 
-              return report_error("unknown element");
+              return error("unknown element");
               ;
           });
     }
@@ -4202,9 +4327,9 @@ struct json_dearchiver::impl {
             if (auto ret = pj().set(mod(), *compo); ret)
                 return true;
             else
-                return report_error("fail to build project");
+                return error("fail to build project");
         } else
-            return report_error("fail to read component");
+            return error("fail to read component");
     }
 
     bool read_project_top_component(const rapidjson::Value& val) noexcept
@@ -4369,8 +4494,7 @@ struct json_dearchiver::impl {
               if ("global"sv == name)
                   return read_global_parameters(value);
 
-              return report_error("unknown element");
-              ;
+              return error("unknown element: {}", name);
           });
     }
 
@@ -4386,8 +4510,7 @@ struct json_dearchiver::impl {
               if ("grid"sv == name)
                   return read_project_grid_observations(value);
 
-              return report_error("unknown element");
-              ;
+              return error("unknown element: {}", name);
           });
     }
 
@@ -4403,8 +4526,7 @@ struct json_dearchiver::impl {
             return true;
         }
 
-        return report_error(
-          "fail to convert access to tree node and model ids");
+        return error("fail to convert access to tree node and model ids");
     }
 
     bool convert_to_tn_model_ids(const unique_id_path& path,
@@ -4419,8 +4541,7 @@ struct json_dearchiver::impl {
             return true;
         }
 
-        return report_error(
-          "fail to convert access to tree node and model ids");
+        return error("fail to convert access to tree node and model ids");
     }
 
     bool convert_to_tn_id(const unique_id_path&        path,
@@ -4433,8 +4554,7 @@ struct json_dearchiver::impl {
             return true;
         }
 
-        return report_error(
-          "fail to convert access to tree node and model ids");
+        return error("fail to convert access to tree node and model ids");
     }
 
     template<typename T, int L>
@@ -4539,8 +4659,7 @@ struct json_dearchiver::impl {
                      if ("type"sv == name)
                          return read_temp_string(value);
 
-                     return report_error("unknown element");
-                     ;
+                     return error("unknown element {}", name);
                  }) &&
                optional_has_value(parent_id) and optional_has_value(mdl_id) and
                plot_observation_init(plot, *parent_id, *mdl_id, c, t, str.sv());
@@ -4555,7 +4674,7 @@ struct json_dearchiver::impl {
         if (temp_string == "dash")
             type = variable_observer::type_options::dash;
 
-        return report_error("unknown element");
+        return error("unknown element {}", temp_string);
     }
 
     bool read_project_plot_observation_children(
@@ -4718,92 +4837,12 @@ struct json_dearchiver::impl {
                project_time_limit_affect(begin, end);
     }
 
-    void clear() noexcept
-    {
-        temp_i64    = 0;
-        temp_u64    = 0;
-        temp_double = 0.0;
-        temp_bool   = false;
-        temp_string.clear();
-        stack.clear();
-        error.reset();
-    }
-
-    modeling*   m_mod = nullptr;
-    simulation* m_sim = nullptr;
-    project*    m_pj  = nullptr;
-
-    i64         temp_i64    = 0;
-    u64         temp_u64    = 0;
-    double      temp_double = 0.0;
-    bool        temp_bool   = false;
-    std::string temp_string;
-
-    small_vector<std::string_view, 16> stack;
-    std::optional<std::string_view>    error;
-
-    bool have_error() const noexcept { return error.has_value(); }
-
-    void show_stack() const noexcept
-    {
-        for (int i = 0, e = stack.ssize(); i != e; ++i)
-            fmt::print("{:{}} {}\n", "", i, stack[i]);
-    }
-
-    void show_state() const noexcept
-    {
-        if (error.has_value())
-            fmt::print("error: {}\n", *error);
-        else
-            fmt::print("unidentified error\n");
-    }
-
-    void show_error() const noexcept
-    {
-        show_state();
-        show_stack();
-    }
-
-    modeling& mod() const noexcept
-    {
-        debug::ensure(m_mod);
-        return *m_mod;
-    }
-
-    simulation& sim() const noexcept
-    {
-        debug::ensure(m_sim);
-        return *m_sim;
-    }
-
-    project& pj() const noexcept
-    {
-        debug::ensure(m_pj);
-        return *m_pj;
-    }
-
-    bool return_true() const noexcept { return true; }
-    bool return_false() const noexcept { return false; }
-
-    bool warning(const std::string_view str,
-                 const log_level        level) const noexcept
-    {
-        std::clog << log_level_names[ordinal(level)] << ' ' << str << '\n';
-
-        return true;
-    }
-
     status parse_simulation(const rapidjson::Document& doc) noexcept
     {
         sim().clear();
 
         if (read_simulation(doc.GetObject()))
             return success();
-
-        debug_logi(2, "read simulation fail with {}\n", *error);
-
-        for (auto i = 0u; i < stack.size(); ++i)
-            debug_logi(2, "  {}: {}\n", static_cast<int>(i), stack[i]);
 
         return new_error(json_errc::invalid_simulation_format);
     }
@@ -4815,40 +4854,13 @@ struct json_dearchiver::impl {
 
         if (read_component(doc.GetObject(), compo)) {
             compo.state = component_status::unmodified;
-        } else {
-            if (error.has_value()) {
-                mod().journal.push(
-                  log_level::error,
-                  [](auto& t, auto& m, auto str) {
-                      t = "Fail to parse component";
-                      m = str;
-                  },
-                  *error);
-            } else {
-                mod().journal.push(log_level::error, [](auto& t, auto& m) {
-                    t = "Fail to parse component";
-                    m = "Unknwon error";
-                });
-            }
-
-            for (auto i = 0u; i < stack.size(); ++i) {
-                mod().journal.push(log_level::error, [&](auto& t, auto& m) {
-                    t = "";
-                    m = stack[i];
-                });
-            }
-
-            compo.state = component_status::unreadable;
-            mod().clear(compo);
-
-#ifdef IRRITATOR_ENABLE_DEBUG
-            show_error();
-#endif
-
-            return new_error(json_errc::invalid_component_format);
+            return success();
         }
 
-        return success();
+        compo.state = component_status::unreadable;
+        mod().clear(compo);
+
+        return new_error(json_errc::invalid_component_format);
     }
 
     status parse_project(const rapidjson::Document& doc) noexcept
@@ -4858,11 +4870,6 @@ struct json_dearchiver::impl {
 
         if (read_project(doc.GetObject()))
             return success();
-
-        debug_log("read project fail with {}\n", *error);
-
-        for (auto i = 0u; i < stack.size(); ++i)
-            debug_logi(2, "  {}: {}\n", static_cast<int>(i), stack[i]);
 
         return new_error(json_errc::invalid_project_format);
     }
@@ -7235,78 +7242,6 @@ status json_dearchiver::operator()(project&        pj,
     });
 }
 
-// void json_dearchiver::cerr(
-//   json_dearchiver::error_code ec,
-//   std::variant<std::monostate, sz, int, std::pair<sz, std::string_view>>
-//     v) noexcept
-// {
-//     switch (ec) {
-//     case json_dearchiver::error_code::memory_error:
-//         if (auto* ptr = std::get_if<sz>(&v); ptr) {
-//             fmt::print(std::cerr,
-//                        "json de-archiving memory error: not enough memory
-//                        "
-//                        "(requested: {})\n",
-//                        *ptr);
-//         } else {
-//             fmt::print(std::cerr,
-//                        "json de-archiving memory error: not enough
-//                        memory\n");
-//         }
-//         break;
-
-//     case json_dearchiver::error_code::arg_error:
-//         fmt::print(std::cerr, "json de-archiving internal error\n");
-//         break;
-
-//     case json_dearchiver::error_code::file_error:
-//         if (auto* ptr = std::get_if<sz>(&v); ptr) {
-//             fmt::print(std::cerr,
-//                        "json de-archiving file error: file too small
-//                        {}\n", *ptr);
-//         } else {
-//             fmt::print(std::cerr,
-//                        "json de-archiving memory error: not enough
-//                        memory\n");
-//         }
-//         break;
-
-//     case json_dearchiver::error_code::read_error:
-//         if (auto* ptr = std::get_if<int>(&v); ptr and *ptr != 0) {
-//             fmt::print(
-//               std::cerr,
-//               "json de-archiving read error: internal system {} ({})\n",
-//               *ptr,
-//               std::strerror(*ptr));
-//         } else {
-//             fmt::print(std::cerr, "json de-archiving read error\n");
-//         }
-//         break;
-
-//     case json_dearchiver::error_code::format_error:
-//         if (auto* ptr = std::get_if<std::pair<sz, std::string_view>>(&v);
-//         ptr) {
-//             if (ptr->second.empty()) {
-//                 fmt::print(std::cerr,
-//                            "json de-archiving json format error at offset
-//                            {}\n", ptr->first);
-//             } else {
-//                 fmt::print(
-//                   std::cerr,
-//                   "json de-archiving json format error `{}' at offset
-//                   {}\n", ptr->second, ptr->first);
-//             }
-//         } else {
-//             fmt::print(std::cerr, "json de-archiving json format
-//             error\n");
-//         }
-//         break;
-
-//     default:
-//         fmt::print(std::cerr, "json de-archiving unknown error\n");
-//     }
-// }
-
 status json_archiver::operator()(modeling&                   mod,
                                  component&                  compo,
                                  file&                       io,
@@ -7634,49 +7569,6 @@ status json_archiver::operator()(project&  pj,
 
     return success();
 }
-
-// void json_archiver::cerr(json_archiver::error_code             ec,
-//                          std::variant<std::monostate, sz, int> v)
-//                          noexcept
-// {
-//     switch (ec) {
-//     case json_archiver::error_code::memory_error:
-//         if (auto* ptr = std::get_if<sz>(&v); ptr) {
-//             fmt::print(std::cerr,
-//                        "json archiving memory error: not enough memory "
-//                        "(requested: {})\n",
-//                        *ptr);
-//         } else {
-//             fmt::print(std::cerr,
-//                        "json archiving memory error: not enough
-//                        memory\n");
-//         }
-//         break;
-
-//     case json_archiver::error_code::arg_error:
-//         fmt::print(std::cerr, "json archiving internal error\n");
-//         break;
-
-//     case json_archiver::error_code::empty_project:
-//         fmt::print(std::cerr, "json archiving empty project error\n");
-//         break;
-
-//     case json_archiver::error_code::file_error:
-//         fmt::print(std::cerr, "json archiving file access error\n");
-//         break;
-
-//     case json_archiver::error_code::format_error:
-//         fmt::print(std::cerr, "json archiving format error\n");
-//         break;
-
-//     case json_archiver::error_code::dependency_error:
-//         fmt::print(std::cerr, "json archiving format error\n");
-//         break;
-
-//     default:
-//         fmt::print(std::cerr, "json de-archiving unknown error\n");
-//     }
-// }
 
 void json_archiver::destroy() noexcept
 {
