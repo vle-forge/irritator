@@ -5,10 +5,10 @@
 #ifndef ORG_VLEPROJECT_IRRITATOR_HELPERS_2023
 #define ORG_VLEPROJECT_IRRITATOR_HELPERS_2023
 
-#include <concepts>
 #include <irritator/core.hpp>
 #include <irritator/error.hpp>
 
+#include <concepts>
 #include <type_traits>
 
 namespace irt {
@@ -339,6 +339,19 @@ inline bool is_valid_dot_filename(const std::string_view v) noexcept
 {
     return !v.empty() && v[0] != '.' && v[0] != '-' && all_char_valid(v) &&
            v.ends_with(".dot");
+}
+
+template<int Size>
+inline void add_extension(small_string<Size>&    str,
+                          const std::string_view extension) noexcept
+{
+    const std::decay_t<decltype(str)> tmp(str);
+
+    if (auto dot = tmp.sv().find_last_of('.'); dot != std::string_view::npos) {
+        format(str, "{}{}", tmp.sv().substr(0, dot), extension);
+    } else {
+        format(str, "{}{}", tmp.sv(), extension);
+    }
 }
 
 } // namespace irt

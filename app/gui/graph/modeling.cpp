@@ -815,12 +815,14 @@ struct graph_component_editor_data::impl {
             if (ImGui::BeginPopupModal("Save dot graph",
                                        &show_save,
                                        ImGuiWindowFlags_AlwaysAutoResize)) {
-                file_path_selector(
+                const auto can_save = file_path_selector(
                   app,
                   file_path_selector_option::force_dot_extension,
                   ed.reg,
                   ed.dir,
                   ed.file);
+
+                ImGui::BeginDisabled(can_save == false);
 
                 if (ImGui::Button("Save")) {
                     if (auto file = make_file(app.mod, ed.file);
@@ -852,6 +854,9 @@ struct graph_component_editor_data::impl {
                     show_save = false;
                     ImGui::CloseCurrentPopup();
                 }
+
+                ImGui::EndDisabled();
+                ImGui::SameLine();
 
                 if (ImGui::Button("Close")) {
                     show_save = false;
