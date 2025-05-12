@@ -1666,7 +1666,7 @@ expected<void> write_dot_stream(const modeling& mod,
         if (compo.has_value()) {
             out = fmt::format_to(out,
                                  "  {} [id={}, area={},"
-                                 " pos=\"{},{}\""
+                                 " pos=\"{},{}\","
                                  " component=\"{}:{}:{}\"];\n",
                                  graph.node_names[idx],
                                  graph.node_ids[idx],
