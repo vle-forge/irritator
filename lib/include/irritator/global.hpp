@@ -24,11 +24,17 @@ constexpr static const char* themes[] = {
 };
 
 enum class style_color {
-    background,           // Background of generic, grid, graph, hsm components
-    background_selection, //
-    inner_border,         //
-    outer_border,         //
-    component_undefined,  // Color of undefined object in components
+    background_error_notification,   /**< Background of error notification
+                                        windows. */
+    background_warning_notification, /**< Background of warning notification
+                                        windows. */
+    background_info_notification, /**< Background of info notification windows.
+                                   */
+    background, /** Background of generic, grid, graph, hsm components. */
+    background_selection,
+    inner_border,
+    outer_border,
+    component_undefined, /**< Color of undefined object in components. */
     edge,
     edge_hovered,
     edge_active,
@@ -42,24 +48,28 @@ enum class style_color {
 };
 
 struct theme_colors {
+    using color_type = std::array<float, 4>;
+
+    static constexpr auto color_size = static_cast<int>(style_color::COUNT);
+
+    static constexpr int color_of(const style_color elem) noexcept
+    {
+        fatal::ensure(elem != style_color::COUNT);
+
+        return static_cast<int>(elem);
+    }
 
     std::span<const float, 4> operator[](const style_color c) const noexcept
     {
-        fatal::ensure(c != style_color::COUNT);
-
-        return std::span(
-          colors[static_cast<std::underlying_type_t<style_color>>(c)]);
+        return std::span(colors[color_of(c)]);
     }
 
     std::span<float, 4> operator[](const style_color c) noexcept
     {
-        fatal::ensure(c != style_color::COUNT);
-
-        return std::span(
-          colors[static_cast<std::underlying_type_t<style_color>>(c)]);
+        return std::span(colors[color_of(c)]);
     }
 
-    std::array<std::array<float, 4>, ordinal(style_color::COUNT)> colors;
+    std::array<color_type, color_size> colors;
 };
 
 struct recorded_paths {

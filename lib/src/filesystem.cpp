@@ -9,7 +9,6 @@
 #endif
 
 #if defined(__linux__)
-#include <errno.h>
 #include <pwd.h>
 #include <unistd.h>
 #elif defined(__APPLE__)
@@ -342,7 +341,8 @@ public:
 
         if (not is_directory_and_usable(path)) {
             log(1, "Is not a directory or bad permissions\n");
-            return new_error(fs_errc::user_directory_access_fail);
+            return error_code(fs_errc::user_directory_access_fail,
+                              category::fs);
         }
 
         path /= subdir_name;
@@ -351,7 +351,8 @@ public:
             log(2, "Directory not exists and not usable try to fix\n");
             if (not create_dir(path)) {
                 log(3, "Fail to create directory or change permissions\n");
-                return new_error(fs_errc::user_directory_access_fail);
+                return error_code(fs_errc::user_directory_access_fail,
+                                  category::fs);
             }
         }
 
@@ -359,7 +360,8 @@ public:
         log(1, "- {}\n", path.string());
         if (not is_file_and_usable(path)) {
             log(2, "Fail to read or create the file. Abort.\n");
-            return new_error(fs_errc::user_directory_access_fail);
+            return error_code(fs_errc::user_directory_access_fail,
+                              category::fs);
         }
 
         log(1, "- irritator config file configured:\n", path.string());

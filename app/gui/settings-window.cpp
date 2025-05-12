@@ -308,6 +308,17 @@ void settings_window::apply_style(const int theme) noexcept
     ImGuiStyle* style  = &ImGui::GetStyle();
     ImVec4*     colors = style->Colors;
 
+    ccopy(colors[ImGuiCol_PlotHistogramHovered])
+      .alpha(0.f)
+      .to(app.config.colors[style_color::background_error_notification]);
+    ccopy(colors[ImGuiCol_PlotHistogram])
+      .alpha(0.f)
+      .to(app.config.colors[style_color::background_warning_notification]);
+    ccopy(colors[ImGuiCol_PlotHistogram])
+      .alpha(0.f)
+      .invert_red_blue()
+      .to(app.config.colors[style_color::background_info_notification]);
+
     ccopy(colors[ImGuiCol_FrameBg])
       .alpha(1.f)
       .to(app.config.colors[style_color::background]);

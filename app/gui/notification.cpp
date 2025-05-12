@@ -28,20 +28,6 @@ constexpr ImGuiWindowFlags notification_flags =
 
 enum class notification_state { fadein, wait, fadeout, expired };
 
-static inline const ImVec4 notification_text_color[] = {
-    { 0.46f, 0.59f, 0.78f, 1.f }, { 0.46f, 0.59f, 0.78f, 1.f },
-    { 0.46f, 0.78f, 0.59f, 1.f }, { 0.78f, 0.49f, 0.46f, 1.f },
-    { 0.46f, 0.59f, 0.78f, 1.f }, { 0.46f, 0.59f, 0.78f, 1.f },
-    { 0.46f, 0.59f, 0.78f, 1.f }, { 0.46f, 0.59f, 0.78f, 1.f },
-};
-
-static inline const ImVec4 notification_color[] = {
-    { 0.16f, 0.29f, 0.48f, 1.f }, { 0.16f, 0.29f, 0.48f, 1.f },
-    { 0.16f, 0.48f, 0.29f, 1.f }, { 0.48f, 0.29f, 0.16f, 1.f },
-    { 0.16f, 0.29f, 0.48f, 1.f }, { 0.16f, 0.29f, 0.48f, 1.f },
-    { 0.16f, 0.29f, 0.48f, 1.f }, { 0.16f, 0.29f, 0.48f, 1.f },
-};
-
 static inline const char* notification_prefix[] = { "emergency error ",
                                                     "alert error ",
                                                     "critical error ",
@@ -140,15 +126,41 @@ void notification_manager::enqueue(log_level        l,
     m_enabled_ids.emplace_enqueue(m_data.get_id(notif));
 }
 
+static ImU32 get_background_color(const theme_colors& t,
+                                  const log_level     l) noexcept
+{
+    switch (l) {
+    case log_level::emergency:
+        return to_ImU32(t[style_color::background_error_notification]);
+    case log_level::alert:
+        return to_ImU32(t[style_color::background_error_notification]);
+    case log_level::critical:
+        return to_ImU32(t[style_color::background_error_notification]);
+    case log_level::error:
+        return to_ImU32(t[style_color::background_error_notification]);
+    case log_level::warning:
+        return to_ImU32(t[style_color::background_warning_notification]);
+    case log_level::notice:
+        return to_ImU32(t[style_color::background_info_notification]);
+    case log_level::info:
+        return to_ImU32(t[style_color::background_info_notification]);
+    case log_level::fatal:
+        return to_ImU32(t[style_color::background_error_notification]);
+    }
+
+    irt::unreachable();
+}
+
 void notification_manager::show() noexcept
 {
-    ImGui::PushStyleVar(ImGuiStyleVar_WindowRounding, 5.f);
-
-    const auto vp_size = ImGui::GetMainViewport()->Size;
-    auto       height  = 0.f;
-    auto       i       = 0;
 
     if (std::unique_lock lock(m_mutex, std::try_to_lock); lock.owns_lock()) {
+        const auto vp_size = ImGui::GetMainViewport()->Size;
+        auto       height  = 0.f;
+        auto       i       = 0;
+
+        ImGui::PushStyleVar(ImGuiStyleVar_WindowRounding, 5.f);
+
         for (auto it = m_enabled_ids.head(); it != m_enabled_ids.end(); ++it) {
             auto* notif = m_data.try_to_get(*it);
             if (!notif) {
@@ -156,8 +168,8 @@ void notification_manager::show() noexcept
                 continue;
             }
 
+            auto& app = container_of(this, &application::notifications);
             if (get_state(*notif) == notification_state::expired) {
-                auto& app = container_of(this, &application::notifications);
                 auto& msg = app.log_wnd.enqueue();
 
                 if (notif->message.empty())
@@ -172,8 +184,6 @@ void notification_manager::show() noexcept
             }
 
             const auto opacity = get_fade_percent(*notif);
-            auto text_color    = notification_text_color[ordinal(notif->level)];
-            text_color.w       = opacity;
 
             ImGui::SetNextWindowBgAlpha(opacity);
             ImGui::SetNextWindowPos(
@@ -182,19 +192,19 @@ void notification_manager::show() noexcept
               ImGuiCond_Always,
               ImVec2(1.0f, 1.0f));
 
-            ImGui::PushStyleColor(ImGuiCol_WindowBg,
-                                  notification_color[ordinal(notif->level)]);
+            ImGui::PushStyleColor(
+              ImGuiCol_WindowBg,
+              get_background_color(app.config.colors, notif->level));
+
             small_string<16> name;
             format(name, "##{}toast", i);
             ImGui::Begin(name.c_str(), nullptr, notification_flags);
             ImGui::PopStyleColor(1);
 
             ImGui::PushTextWrapPos(vp_size.x / 3.f);
-            ImGui::PushStyleColor(ImGuiCol_Text, text_color);
             ImGui::TextUnformatted(notification_prefix[ordinal(notif->level)]);
             ImGui::SameLine();
             ImGui::TextUnformatted(notif->title.c_str());
-            ImGui::PopStyleColor();
 
             if (!notif->message.empty()) {
                 ImGui::SetCursorPosY(ImGui::GetCursorPosY() + 5.f);
