@@ -1627,7 +1627,7 @@ static std::optional<reg_dir_file> build_component_string(
         }
 
         auto* dir = mod.dir_paths.try_to_get(compo->dir);
-        if (not dir or not dir->path.empty()) {
+        if (not dir or dir->path.empty()) {
             warning<msg_id::missing_dir_path>();
             return std::nullopt;
         }
