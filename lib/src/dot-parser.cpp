@@ -118,92 +118,6 @@ static constexpr std::string_view msg_fmt[] = {
     "missing file path\n"
 };
 
-template<msg_id Index, typename... Args>
-static constexpr void warning(Args&&... args) noexcept
-{
-    constexpr auto idx = static_cast<std::underlying_type_t<msg_id>>(Index);
-    static_assert(0 <= idx and idx < std::size(msg_fmt));
-
-    fmt::vprint(stderr, msg_fmt[idx], fmt::make_format_args(args...));
-}
-
-template<msg_id Index, typename Ret, typename... Args>
-static constexpr auto error(Ret&& ret, Args&&... args) noexcept -> Ret
-{
-    constexpr auto idx = static_cast<std::underlying_type_t<msg_id>>(Index);
-    static_assert(0 <= idx and idx < std::size(msg_fmt));
-
-    fmt::vprint(stderr,
-                fg(fmt::terminal_color::red),
-                msg_fmt[idx],
-                fmt::make_format_args(args...));
-
-    return ret;
-}
-
-#if !defined(__APPLE__)
-static auto to_float_str(std::string_view str) noexcept
-  -> std::optional<std::pair<float, std::string_view>>
-{
-    auto f = 0.f;
-    if (auto ret = std::from_chars(str.data(), str.data() + str.size(), f);
-        ret.ec == std::errc{})
-        return std::make_pair(f, str.substr(ret.ptr - str.data()));
-
-    return std::nullopt;
-}
-
-static auto to_float(std::string_view str) noexcept -> float
-{
-    auto f = 0.f;
-
-    if (auto ret = std::from_chars(str.data(), str.data() + str.size(), f);
-        ret.ec == std::errc{})
-        return f;
-
-    warning<msg_id::parse_real>(str);
-
-    return 0.f;
-}
-#else
-static auto to_float_str(std::string_view str) noexcept
-  -> std::optional<std::pair<float, std::string_view>>
-{
-    const std::string copy(str.data(), str.size());
-    char*             copy_end = nullptr;
-
-    const auto flt = std::strtof(copy.c_str(), &copy_end);
-    if (flt == 0.0 and copy_end == copy.c_str()) {
-        return std::nullopt;
-    } else {
-        return std::make_pair(flt, str.substr(copy_end - copy.c_str()));
-    }
-}
-
-static auto to_float(std::string_view str) noexcept -> float
-{
-    const std::string copy(str.data(), str.size());
-
-    return std::strtof(copy.c_str(), nullptr);
-}
-#endif
-
-static auto to_2float(std::string_view str) noexcept -> std::array<float, 2>
-{
-    if (const auto first = to_float_str(str); first.has_value()) {
-        const auto& [first_float, substr] = *first;
-
-        if (not substr.empty() or substr[0] == ',') {
-            const auto second_str = substr.substr(1u, std::string_view::npos);
-            return std::array<float, 2>{ first_float, to_float(second_str) };
-        } else {
-            warning<msg_id::missing_comma>(substr);
-        }
-    }
-
-    return std::array<float, 2>{};
-}
-
 enum class element_type : irt::u16 {
     none,
 
@@ -385,6 +299,121 @@ static constexpr bool starts_as_number(int c) noexcept
 
 class input_stream_buffer
 {
+private:
+    template<msg_id Index, typename... Args>
+    constexpr void warning(Args&&... args) noexcept
+    {
+        constexpr auto idx = static_cast<std::underlying_type_t<msg_id>>(Index);
+        static_assert(0 <= idx and idx < std::size(msg_fmt));
+
+        if (mod) {
+            mod->journal.push(
+              log_level::warning,
+              [](auto& title, auto& msg, auto& format, auto args) {
+                  title = "Dot parser warning";
+
+                  auto ret = fmt::vformat_to_n(
+                    msg.data(), msg.capacity() - 1, format, args);
+                  msg.resize(ret.size);
+              },
+              msg_fmt[idx],
+              fmt::make_format_args(args...));
+        }
+    }
+
+    template<msg_id Index, typename... Args>
+    constexpr auto error(Args&&... args) noexcept -> bool
+    {
+        constexpr auto idx = static_cast<std::underlying_type_t<msg_id>>(Index);
+        static_assert(0 <= idx and idx < std::size(msg_fmt));
+
+        if (mod) {
+            mod->journal.push(
+              log_level::error,
+              [](auto& title, auto& msg, auto& format, auto args) {
+                  title = "Dot parser error";
+
+                  auto ret = fmt::vformat_to_n(
+                    msg.data(), msg.capacity() - 1, format, args);
+                  msg.resize(ret.size);
+              },
+              msg_fmt[idx],
+              fmt::make_format_args(args...));
+        }
+
+        return false;
+    }
+
+#if !defined(__APPLE__)
+    auto to_float_str(std::string_view str) noexcept
+      -> std::optional<std::pair<float, std::string_view>>
+    {
+        auto f = 0.f;
+        if (auto ret = std::from_chars(str.data(), str.data() + str.size(), f);
+            ret.ec == std::errc{})
+            return std::make_pair(f, str.substr(ret.ptr - str.data()));
+
+        return std::nullopt;
+    }
+
+    auto to_float(std::string_view str) noexcept -> float
+    {
+        auto f = 0.f;
+
+        if (auto ret = std::from_chars(str.data(), str.data() + str.size(), f);
+            ret.ec == std::errc{})
+            return f;
+
+        warning<msg_id::parse_real>(str);
+
+        return 0.f;
+    }
+#else
+    auto to_float_str(std::string_view str) noexcept
+      -> std::optional<std::pair<float, std::string_view>>
+    {
+        const std::string copy(str.data(), str.size());
+        char*             copy_end = nullptr;
+
+        const auto flt = std::strtof(copy.c_str(), &copy_end);
+        if (flt == 0.0 and copy_end == copy.c_str()) {
+            return std::nullopt;
+        } else {
+            return std::make_pair(flt, str.substr(copy_end - copy.c_str()));
+        }
+    }
+
+    auto to_float(std::string_view str) noexcept -> float
+    {
+        const std::string copy(str.data(), str.size());
+
+        const auto ret = std::strtof(copy.c_str(), nullptr);
+        if (ret == 0.f and errno != 0) {
+            warning<msg_id::parse_real>(str);
+            return 0.f;
+        }
+        return ret;
+    }
+#endif
+
+    auto to_2float(std::string_view str) noexcept -> std::array<float, 2>
+    {
+        if (const auto first = to_float_str(str); first.has_value()) {
+            const auto& [first_float, substr] = *first;
+
+            if (not substr.empty() or substr[0] == ',') {
+                const auto second_str =
+                  substr.substr(1u, std::string_view::npos);
+                return std::array<float, 2>{ first_float,
+                                             to_float(second_str) };
+            } else {
+                warning<msg_id::missing_comma>(substr);
+            }
+        }
+
+        return std::array<float, 2>{};
+    }
+
 public:
     static constexpr int ring_length = 32;
 
@@ -653,7 +682,7 @@ private:
             fill_tokens();
 
         if (tokens.empty())
-            return false;
+            return error<msg_id::missing_token>(line);
 
         return tokens.head()->operator[](type);
     }
@@ -666,7 +695,7 @@ private:
             fill_tokens();
 
         if (tokens.empty())
-            return false;
+            return error<msg_id::missing_token>(line);
 
         return tokens.head()->is_string();
     }
@@ -778,7 +807,7 @@ private:
     bool next_is_edge() noexcept
     {
         if (not check_minimum_tokens(2))
-            return false;
+            return error<msg_id::missing_token>(line);
 
         auto        it     = tokens.head();
         const auto& first  = *it++;
@@ -787,19 +816,19 @@ private:
         if (first.is_string()) {
             if (second[element_type::colon]) {
                 if (not check_minimum_tokens(3))
-                    return false;
+                    return error<msg_id::missing_token>(line);
 
                 const auto& third = *it++;
                 if (third.is_string()) {
                     if (not check_minimum_tokens(4))
-                        return false;
+                        return error<msg_id::missing_token>(line);
 
                     const auto& four = *it++;
 
                     return four[element_type::directed_edge] or
                            four[element_type::undirected_edge];
                 } else {
-                    return false;
+                    return error<msg_id::missing_token>(line);
                 }
             } else {
                 return second[element_type::directed_edge] or
@@ -807,13 +836,13 @@ private:
             }
         }
 
-        return false;
+        return error<msg_id::missing_token>(line);
     }
 
     bool next_is_attributes() noexcept
     {
         if (not check_minimum_tokens(2))
-            return false;
+            return error<msg_id::missing_token>(line);
 
         auto        it     = tokens.head();
         const auto& first  = *it++;
@@ -891,33 +920,33 @@ private:
         using namespace std::string_view_literals;
 
         if (not check_minimum_tokens(1))
-            return false;
+            return error<msg_id::missing_token>(line);
 
         auto bracket = pop_token();
         if (not bracket[element_type::opening_bracket])
-            return false;
+            return error<msg_id::missing_token>(line);
 
         for (;;) {
             if (not check_minimum_tokens(1))
-                return false;
+                return error<msg_id::missing_token>(line);
 
             auto left = pop_token();
             if (left[element_type::closing_bracket])
                 return true;
 
             if (not check_minimum_tokens(3))
-                return false;
+                return error<msg_id::missing_token>(line);
 
             if (not left.is_string())
-                return false;
+                return error<msg_id::missing_token>(line);
 
             auto middle = pop_token();
             if (not middle[element_type::equals])
-                return false;
+                return error<msg_id::missing_token>(line);
 
             auto right = pop_token();
             if (not right.is_string())
-                return false;
+                return error<msg_id::missing_token>(line);
 
             const auto left_str  = get_and_free_string(left);
             const auto right_str = get_and_free_string(right);
@@ -943,7 +972,7 @@ private:
             } else if (close_backet_or_comma[element_type::closing_bracket]) {
                 return true;
             } else {
-                return false;
+                return error<msg_id::missing_token>(line);
             }
         }
     }
@@ -953,17 +982,17 @@ private:
     bool parse_edge() noexcept
     {
         if (not check_minimum_tokens(3))
-            return false;
+            return error<msg_id::missing_token>(line);
 
         const auto from = pop_token();
         if (not from.is_string())
-            return false;
+            return error<msg_id::missing_token>(line);
 
         const auto from_str = get_and_free_string(from);
         const auto from_id  = find_or_add_node(from_str);
         if (from_id.has_error()) {
             ec = from_id.error();
-            return false;
+            return error<msg_id::missing_token>(line);
         }
 
         std::string_view port_src;
@@ -981,17 +1010,17 @@ private:
         const auto type = pop_token();
         if (not(type.type == element_type::directed_edge or
                 type.type == element_type::undirected_edge))
-            return false;
+            return error<msg_id::missing_token>(line);
 
         const auto to = pop_token();
         if (not to.is_string())
-            return false;
+            return error<msg_id::missing_token>(line);
 
         const auto to_str = get_and_free_string(to);
         const auto to_id  = find_or_add_node(to_str);
         if (to_id.has_error()) {
             ec = to_id.error();
-            return false;
+            return error<msg_id::missing_token>(line);
         }
 
         if (next_token_is(element_type::colon)) {
@@ -1006,13 +1035,13 @@ private:
         if (not g.edges.can_alloc(1)) {
             if (not g.edges.grow<2, 1>()) {
                 ec = new_error(modeling_errc::dot_memory_insufficient);
-                return false;
+                return error<msg_id::missing_token>(line);
             }
 
             const auto c = g.edges.capacity();
             if (not g.edges.reserve(c) or not g.edges_nodes.resize(c)) {
                 ec = new_error(modeling_errc::dot_memory_insufficient);
-                return false;
+                return error<msg_id::missing_token>(line);
             }
         }
 
@@ -1028,18 +1057,18 @@ private:
     bool parse_node() noexcept
     {
         if (not check_minimum_tokens(1))
-            return false;
+            return error<msg_id::missing_token>(line);
 
         const auto node_id = pop_token();
         if (not node_id.is_string())
-            return false;
+            return error<msg_id::missing_token>(line);
 
         const auto str = get_and_free_string(node_id);
         const auto id  = find_or_add_node(str);
 
         if (id.has_error()) {
             ec = id.error();
-            return false;
+            return error<msg_id::missing_token>(line);
         }
 
         return next_is_attributes() ? parse_attributes(*id) : true;
@@ -1048,11 +1077,11 @@ private:
     bool parse_stmt_list() noexcept
     {
         if (not check_minimum_tokens(2))
-            return false;
+            return error<msg_id::missing_token>(line);
 
         const auto open = pop_token();
         if (not open[element_type::opening_brace])
-            return false;
+            return error<msg_id::missing_token>(line);
 
         while (check_minimum_tokens(1)) {
             if (next_token_is(element_type::closing_brace)) {
@@ -1062,7 +1091,7 @@ private:
 
             const auto success = next_is_edge() ? parse_edge() : parse_node();
             if (not success)
-                return false;
+                return error<msg_id::missing_token>(line);
 
             if (check_minimum_tokens(1) and
                 next_token_is(element_type::semicolon))
@@ -1070,7 +1099,7 @@ private:
         }
 
         if (not check_minimum_tokens(1))
-            return false;
+            return error<msg_id::missing_token>(line);
 
         auto closing = pop_token();
         return closing.type == element_type::closing_brace;
@@ -1106,7 +1135,7 @@ private:
     bool parse_graph() noexcept
     {
         if (not check_minimum_tokens(1))
-            return false;
+            return error<msg_id::missing_token>(line);
 
         const auto strict_or_graph = pop_token();
         if (not strict_or_graph.is_string())
@@ -1118,18 +1147,19 @@ private:
             g.is_strict = true;
 
             if (not check_minimum_tokens(1))
-                return false;
+                return error<msg_id::missing_token>(line);
 
             const auto graph_type = pop_token();
             if (not parse_graph_type(graph_type))
-                return false;
+                return error<msg_id::missing_token>(line);
+
         } else {
             if (not parse_graph_type(s))
-                return false;
+                return error<msg_id::missing_token>(line);
         }
 
         if (not check_minimum_tokens(1))
-            return false;
+            return error<msg_id::missing_token>(line);
 
         if (next_token_is_string()) {
             const auto m_id = pop_token();
@@ -1622,19 +1652,16 @@ static std::optional<reg_dir_file> build_component_string(
     if (const auto* compo = mod.components.try_to_get<component>(id)) {
         auto* reg = mod.registred_paths.try_to_get(compo->reg_path);
         if (not reg or reg->path.empty() or reg->name.empty()) {
-            warning<msg_id::missing_reg_path>();
             return std::nullopt;
         }
 
         auto* dir = mod.dir_paths.try_to_get(compo->dir);
         if (not dir or dir->path.empty()) {
-            warning<msg_id::missing_dir_path>();
             return std::nullopt;
         }
 
         auto* file = mod.file_paths.try_to_get(compo->file);
         if (not file or file->path.empty()) {
-            warning<msg_id::missing_file_path>();
             return std::nullopt;
         }
 
