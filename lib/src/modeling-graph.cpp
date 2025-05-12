@@ -216,8 +216,10 @@ static void named_suffix_connection_add(graph_component& compo,
     });
 }
 
-void graph_component::update() noexcept
+void graph_component::update_position() noexcept
 {
+    reset_position();
+
     for (const auto id : g.nodes) {
         const auto idx = get_index(id);
 
@@ -240,6 +242,12 @@ void graph_component::update() noexcept
         top_left_limit[1]     = -1.f;
         bottom_right_limit[1] = 1.f;
     }
+}
+
+void graph_component::reset_position() noexcept
+{
+    top_left_limit     = { +INFINITY, +INFINITY };
+    bottom_right_limit = { -INFINITY, -INFINITY };
 }
 
 static void build_graph_connections(

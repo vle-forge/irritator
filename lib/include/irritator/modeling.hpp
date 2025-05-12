@@ -768,8 +768,12 @@ public:
     bool     exists_child(const std::string_view name) const noexcept;
     name_str make_unique_name_id(const graph_node_id v) const noexcept;
 
-    /** Compute top, left and bottom, right limits. */
-    void update() noexcept;
+    /** Compute top-left and bottom-right limits according to the position and
+     * the area of each nodes. */
+    void update_position() noexcept;
+
+    /** Assign top-left and bottom, right limits in infinity position. */
+    void reset_position() noexcept;
 
     //! @brief Check if the input connection already exits.
     bool exists_input_connection(const port_id       x,

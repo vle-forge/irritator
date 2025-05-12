@@ -724,7 +724,7 @@ struct graph_component_editor_data::impl {
             dot_combobox_selector(app.mod, ed.pdf.dir, ed.pdf.file);
 
             if (is_defined(ed.pdf.dir) and is_defined(ed.pdf.file)) {
-                if (ImGui::Button("load")) {
+                if (ImGui::Button("Load")) {
                     ed.clear_selected_nodes();
                     graph.g.clear();
                     graph.g_type    = graph_component::graph_type::dot_file;
@@ -1023,10 +1023,10 @@ void graph_component_editor_data::show(component_editor& ed) noexcept
                             if (not graph_compo.g.nodes.empty()) {
                                 impl.update_position_to_grid(graph_compo,
                                                              *graph_ed);
-                                graph_compo.update();
+                                graph_compo.update_position();
                                 graph_ed->psf.reset();
                             }
-                            graph_ed->st = job::none;
+                            graph_ed->st = job::auto_fit_required;
                         }
                     });
                     break;
@@ -1052,11 +1052,11 @@ void graph_component_editor_data::show(component_editor& ed) noexcept
                             if (not graph_compo.g.nodes.empty()) {
                                 impl.update_position_to_grid(graph_compo,
                                                              *graph_ed);
-                                graph_compo.update();
+                                graph_compo.update_position();
                                 graph_ed->psw.reset();
                             }
                         }
-                        graph_ed->st = job::none;
+                        graph_ed->st = job::auto_fit_required;
                     });
                     break;
 
@@ -1078,11 +1078,11 @@ void graph_component_editor_data::show(component_editor& ed) noexcept
                             graph_ed->pdf.reset();
 
                             if (not graph_compo.g.nodes.empty()) {
-                                graph_compo.update();
+                                graph_compo.update_position();
                             }
                         }
 
-                        graph_ed->st = job::none;
+                        graph_ed->st = job::auto_fit_required;
                     });
                     break;
                 }
