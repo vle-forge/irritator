@@ -1891,6 +1891,10 @@ void component_editor::request_to_open(const component_id id) noexcept
             } else
                 app.jn.push(log_level::error, log_not_enough_memory);
             break;
+
+        case component_type::none:
+        case component_type::internal:
+            break;
         }
     } else {
         m_request_to_open = id;
