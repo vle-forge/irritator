@@ -391,11 +391,13 @@ struct component_editor::impl {
                         compo.dir      = dir_id;
 
                         if (!app.mod.create_directories(new_dir)) {
-                            log_w(app,
-                                  log_level::error,
-                                  "Fail to create directory `%.*s'",
-                                  new_dir.path.ssize(),
-                                  new_dir.path.begin());
+                            app.jn.push(
+                              log_level::error,
+                              [&](auto& title, auto& /*msg*/) noexcept {
+                                  format(title,
+                                         "Fail to create directory {}",
+                                         new_dir.path.sv());
+                              });
                         }
                     }
                 }
@@ -693,7 +695,8 @@ struct component_editor::impl {
                                    ordinal(
                                      modeling_errc::
                                        graph_input_connection_container_full))
-                              m = "Not enough memory to allocate more input "
+                              m = "Not enough memory to allocate more "
+                                  "input "
                                   "connection.";
                       },
                       ret.error());
@@ -786,7 +789,8 @@ struct component_editor::impl {
                                    ordinal(
                                      modeling_errc::
                                        graph_input_connection_container_full))
-                              m = "Not enough memory to allocate more input "
+                              m = "Not enough memory to allocate more "
+                                  "input "
                                   "connection.";
                       },
                       ret.error());
@@ -910,7 +914,8 @@ struct component_editor::impl {
                                    ordinal(
                                      modeling_errc::
                                        graph_input_connection_container_full))
-                              m = "Not enough memory to allocate more input "
+                              m = "Not enough memory to allocate more "
+                                  "input "
                                   "connection.";
                       },
                       ret.error());
@@ -1035,7 +1040,8 @@ struct component_editor::impl {
                                    ordinal(
                                      modeling_errc::
                                        graph_output_connection_container_full))
-                              m = "Not enough memory to allocate more output "
+                              m = "Not enough memory to allocate more "
+                                  "output "
                                   "connection.";
                       },
                       ret.error());
@@ -1117,7 +1123,8 @@ struct component_editor::impl {
                                    ordinal(
                                      modeling_errc::
                                        graph_input_connection_container_full))
-                              m = "Not enough memory to allocate more input "
+                              m = "Not enough memory to allocate more "
+                                  "input "
                                   "connection.";
                       },
                       ret.error());
@@ -1198,7 +1205,8 @@ struct component_editor::impl {
                                    ordinal(
                                      modeling_errc::
                                        graph_output_connection_container_full))
-                              m = "Not enough memory to allocate more output "
+                              m = "Not enough memory to allocate more "
+                                  "output "
                                   "connection.";
                       },
                       ret.error());
@@ -1231,7 +1239,9 @@ struct component_editor::impl {
                                 child->id.compo_id)) {
                             if (sub_compo->x.exists(con.port.compo)) {
                                 ImGui::TextFormat(
-                                  "{} connected to component {} ({}) port {}\n",
+                                  "{} connected to component {} ({}) "
+                                  "port "
+                                  "{}\n",
                                   c.x.get<port_str>(con.x).sv(),
                                   g.children_names[get_index(con.dst)].sv(),
                                   ordinal(con.dst),
@@ -1282,7 +1292,9 @@ struct component_editor::impl {
                                 child->id.compo_id)) {
                             if (sub_compo->x.exists(con.port.compo)) {
                                 ImGui::TextFormat(
-                                  "{} connected to component {} ({}) port {}\n",
+                                  "{} connected to component {} ({}) "
+                                  "port "
+                                  "{}\n",
                                   c.x.get<port_str>(con.y).sv(),
                                   g.children_names[get_index(con.src)].sv(),
                                   ordinal(con.src),
@@ -1430,7 +1442,8 @@ struct component_editor::impl {
                             ImGui::SetNextItemAllowOverlap();
 
                             ImGui::TextFormat(
-                              "{} connected to node {} (name: {}) port {}\n",
+                              "{} connected to node {} (name: {}) port "
+                              "{}\n",
                               c.x.get<port_str>(con.x).sv(),
                               g.g.node_ids[get_index(con.v)],
                               g.g.node_names[get_index(con.v)],
@@ -1468,7 +1481,8 @@ struct component_editor::impl {
                             ImGui::SetNextItemAllowOverlap();
 
                             ImGui::TextFormat(
-                              "{} connected to node {} (name: {}) port {}\n",
+                              "{} connected to node {} (name: {}) port "
+                              "{}\n",
                               c.y.get<port_str>(con.y).sv(),
                               g.g.node_ids[get_index(con.v)],
                               g.g.node_names[get_index(con.v)],
@@ -1626,10 +1640,12 @@ struct component_editor::impl {
 
                     if (compo.type == component_type::hsm) {
                         ImGui::TextWrapped(
-                          "HSM component have four input and four output "
+                          "HSM component have four input and four "
+                          "output "
                           "ports. You can select input ports from the "
                           "state "
-                          "conditions and the output ports from the state "
+                          "conditions and the output ports from the "
+                          "state "
                           "actions.");
                     } else {
                         element.clear_selected_nodes();

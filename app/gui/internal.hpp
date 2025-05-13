@@ -95,42 +95,6 @@ inline int portable_filename_dirname_callback(
              : 1;
 }
 
-//! Copy a formatted string into the \c logger window.
-//!
-//! The formatted string in take from the \c logger-window \c ring-buffer.
-//! \param app A reference to the global application.
-//! \param level Log level of the message 0 and 7.
-//! \param fmt A format string for the fmtlib library.
-//! \param args Arguments for the fmtlib library.
-template<typename S, typename... Args>
-constexpr void log_w(application& app,
-                     log_level    level,
-                     const S&     fmt,
-                     Args&&... args) noexcept
-{
-    using size_type = typename window_logger::string_t::size_type;
-
-    auto level_msg     = log_level_names[ordinal(level)];
-    auto level_msg_len = level_msg.size();
-
-    auto& str = app.log_wnd.enqueue();
-    debug::ensure(std::cmp_greater(str.capacity(), level_msg_len));
-
-    std::copy_n(level_msg.data(), level_msg.size(), str.begin());
-    str[level_msg_len] = ' ';
-    str.resize(++level_msg_len);
-
-    auto remaining = static_cast<sz>(str.capacity()) - level_msg_len;
-    if (remaining > 1) {
-        auto ret = fmt::vformat_to_n(str.begin() + level_msg_len,
-                                     remaining - 1,
-                                     fmt,
-                                     fmt::make_format_args(args...));
-
-        str.resize(static_cast<size_type>(ret.size + level_msg_len));
-    }
-}
-
 } // namespace irt
 
 namespace ImGui {

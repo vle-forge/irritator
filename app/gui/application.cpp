@@ -237,28 +237,30 @@ application::application(journal_handler& jn_) noexcept
   , jn{ jn_ }
   , pjs(16)
 {
-    settings_wnd.apply_style(0);
-
-    log_w(*this, log_level::info, "Irritator start\n");
-
-    log_w(*this,
-          log_level::info,
-          "Starting with {} main threads and {} generic workers\n",
-          task_mgr.ordered_task_workers.ssize(),
-          task_mgr.unordered_task_workers.ssize());
+    settings_wnd.apply_style(config.theme);
 
     task_mgr.start();
 
-    log_w(*this, log_level::info, "Initialization successfull");
-
-    settings_wnd.apply_style(config.theme);
+    jn.push(
+      log_level::info,
+      [](auto&, auto& msg, auto& task_mgr) {
+          format(msg,
+                 "Starting with {} main threads and {} generic workers\n",
+                 task_mgr.ordered_task_workers.ssize(),
+                 task_mgr.unordered_task_workers.ssize());
+      },
+      std::as_const(task_mgr));
 }
 
 application::~application() noexcept
 {
-    log_w(*this, log_level::info, "Task manager shutdown\n");
+    jn.push(log_level::info,
+            [](auto&, auto& msg) { msg = "Task manager shutdown\n"; });
+
     task_mgr.finalize();
-    log_w(*this, log_level::info, "Application shutdown\n");
+
+    jn.push(log_level::info,
+            [](auto&, auto& msg) { msg = "Application shutdown\n"; });
 }
 
 std::optional<project_id> application::alloc_project_window() noexcept
@@ -326,13 +328,17 @@ bool application::init() noexcept
     init_registred_path(*this, config);
 
     if (auto ret = mod.fill_internal_components(); !ret) {
-        log_w(*this,
-              log_level::error,
-              "Fail to fill internal component list: {}\n");
+        jn.push(log_level::error, [&](auto& title, auto& msg) noexcept {
+            title = "Modeling initialization error";
+            msg   = "Fail to fill internal component list";
+        });
     }
 
     if (auto ret = mod.fill_components(); !ret)
-        log_w(*this, log_level::error, "Fail to read all components\n");
+        jn.push(log_level::warning, [&](auto& title, auto& msg) noexcept {
+            title = "Modeling initialization error";
+            msg   = "Fail to fill read component list";
+        });
 
     // Update the component selector in task.
     add_gui_task([&]() noexcept { this->component_sel.update(); });
