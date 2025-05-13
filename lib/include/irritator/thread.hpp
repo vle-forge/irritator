@@ -27,11 +27,11 @@ class task_manager;
 
 enum class main_task : i8 { simulation_0 = 0, simulation_1, simulation_2, gui };
 
-static inline constexpr int  unordered_task_list_tasks_number = 256;
-static inline constexpr int  task_list_tasks_number           = 16;
-static inline constexpr auto ordered_task_worker_size         = 4;
-static inline constexpr auto unordered_task_worker_size       = 4;
-static inline constexpr auto task_work_size =
+static inline constexpr int unordered_task_list_tasks_number = 256;
+static inline constexpr int task_list_tasks_number           = 16;
+static inline constexpr int ordered_task_worker_size         = 4;
+static inline constexpr int unordered_task_worker_size       = 4;
+static inline constexpr int task_work_size =
   ordered_task_worker_size + unordered_task_worker_size;
 
 //! A `std::mutex` like based on `std::atomic_flag::wait` and
@@ -304,7 +304,9 @@ struct job {
     std::atomic_int* counter = nullptr;
 };
 
-//! @brief Simple task list access by only one thread
+/**
+ * Simple task list access by only one thread.
+ */
 struct task_list {
     worker_stats&                                 stats;
     circular_buffer<task, task_list_tasks_number> tasks;
@@ -360,7 +362,7 @@ struct unordered_task_list {
 
 template<typename T>
 struct worker_base {
-    enum class phase { start, run, stop };
+    enum class phase { starting, start, run, stop, done };
 
     worker_base() noexcept = default;
     ~worker_base() noexcept;
@@ -379,7 +381,7 @@ struct worker_base {
     std::thread              thread;
     std::chrono::nanoseconds exec_time{};
 
-    std::atomic_int phase = ordinal(phase::start);
+    std::atomic_int phase = ordinal(phase::starting);
 };
 
 struct worker_main : public worker_base<worker_main> {
@@ -413,6 +415,8 @@ struct worker_stats {
 class task_manager
 {
 public:
+    enum class phase { starting, running, done };
+
     small_vector<task_list, ordered_task_worker_size>   ordered_task_lists;
     small_vector<worker_main, ordered_task_worker_size> ordered_task_workers;
 
@@ -424,6 +428,8 @@ public:
     worker_stats ordered_task_stats[ordered_task_worker_size];
     worker_stats unordered_task_stats[unordered_task_worker_size];
 
+    std::atomic_int phase = ordinal(phase::starting);
+
     task_manager() noexcept;
     ~task_manager() noexcept;
 
@@ -432,8 +438,12 @@ public:
     task_manager& operator=(const task_manager&) = delete;
     task_manager& operator=(task_manager&&)      = delete;
 
-    // creating task lists and spawning workers
+    /** Creating task lists and spawning workers and wait for them so they can
+     * start their run loops. */
     void start() noexcept;
+
+    /** Send message to thread to stop theirs run loops and wait for
+     * termination. */
     void finalize() noexcept;
 };
 
@@ -669,7 +679,8 @@ inline worker_base<T>::~worker_base() noexcept
 template<typename T>
 inline void worker_base<T>::start() noexcept
 {
-    debug::ensure(any_equal(phase, ordinal(phase::start)));
+    debug::ensure(any_equal(phase, ordinal(phase::starting)));
+    phase = ordinal(phase::start);
 
     try {
         thread = std::thread{ &T::run, static_cast<T*>(this) };
@@ -716,6 +727,8 @@ inline void worker_main::run() noexcept
             }
         }
     }
+
+    phase = ordinal(phase::done);
 }
 
 inline worker_generic::worker_generic(worker_generic&& other) noexcept
@@ -742,6 +755,8 @@ inline void worker_generic::run() noexcept
             }
         }
     }
+
+    phase = ordinal(phase::done);
 }
 
 /*
@@ -750,48 +765,77 @@ inline void worker_generic::run() noexcept
 
 inline task_manager::task_manager() noexcept
 {
-    const auto hc         = std::thread::hardware_concurrency();
-    const auto max_thread = hc <= 2u ? 2u
-                            : unordered_task_worker_size < hc
-                              ? unordered_task_worker_size
-                              : hc - 2u;
+    const auto hc = numeric_cast<int>(std::thread::hardware_concurrency());
+    const auto max_thread_ordered = std::clamp(hc, 2, ordered_task_worker_size);
+    const auto max_thread_unordered =
+      std::clamp(hc, 2, unordered_task_worker_size);
 
-    for (auto i = 0; i < ordered_task_worker_size; ++i)
+    for (auto i = 0; i < max_thread_ordered; ++i)
         ordered_task_lists.emplace_back(ordered_task_stats[i]);
 
-    for (auto i = 0; i < ordered_task_worker_size; ++i)
+    for (auto i = 0; i < max_thread_ordered; ++i)
         ordered_task_workers.emplace_back();
 
-    for (auto i = 0; i < ordered_task_worker_size; ++i)
+    for (auto i = 0; i < max_thread_unordered; ++i)
         unordered_task_lists.emplace_back(unordered_task_stats[i]);
 
-    for (auto i = 0u; i < max_thread; ++i)
+    for (auto i = 0; i < max_thread_unordered; ++i)
         unordered_task_workers.emplace_back();
 
-    for (auto i = 0; i < ordered_task_worker_size; ++i)
-        for (auto j = 0u; j < max_thread; ++j)
+    for (auto i = 0; i < max_thread_unordered; ++i)
+        for (auto j = 0; j < max_thread_unordered; ++j)
             unordered_task_lists[i].workers.emplace_back(
               &unordered_task_workers[j]);
 
-    for (auto i = 0; i < ordered_task_worker_size; ++i) {
+    for (auto i = 0; i < max_thread_ordered; ++i) {
         ordered_task_lists[i].worker = &ordered_task_workers[i];
         ordered_task_workers[i].tl   = &ordered_task_lists[i];
     }
 }
 
-inline task_manager::~task_manager() noexcept { finalize(); }
+inline task_manager::~task_manager() noexcept
+{
+    if (phase != ordinal(phase::done))
+        finalize();
+}
 
 inline void task_manager::start() noexcept
 {
-    for (auto i = 0; i < ordered_task_worker_size; ++i)
+    debug::ensure(phase == ordinal(phase::starting));
+
+    for (auto i = 0; i < ordered_task_workers.ssize(); ++i)
         ordered_task_workers[i].start();
 
     for (auto i = 0; i < unordered_task_workers.ssize(); ++i)
         unordered_task_workers[i].start();
+
+    int remaining;
+
+    do {
+        std::this_thread::sleep_for(std::chrono::milliseconds{ 1 });
+
+        remaining =
+          ordered_task_workers.ssize() + unordered_task_workers.ssize();
+        for (auto i = 0; i < ordered_task_workers.ssize(); ++i)
+            if (any_equal(ordered_task_workers[i].phase,
+                          ordinal(worker_base<worker_main>::phase::start),
+                          ordinal(worker_base<worker_main>::phase::run)))
+                remaining--;
+
+        for (auto i = 0; i < unordered_task_workers.ssize(); ++i)
+            if (any_equal(unordered_task_workers[i].phase,
+                          ordinal(worker_base<worker_main>::phase::start),
+                          ordinal(worker_base<worker_main>::phase::run)))
+                remaining--;
+    } while (remaining > 0);
+
+    phase = ordinal(phase::running);
 }
 
 inline void task_manager::finalize() noexcept
 {
+    debug::ensure(phase == ordinal(phase::running));
+
     for (auto i = 0, e = unordered_task_workers.ssize(); i != e; ++i)
         unordered_task_workers[i].terminate();
 
@@ -804,10 +848,31 @@ inline void task_manager::finalize() noexcept
     for (auto i = 0, e = ordered_task_lists.ssize(); i != e; ++i)
         ordered_task_lists[i].terminate();
 
+    int remaining;
+
+    do {
+        std::this_thread::sleep_for(std::chrono::milliseconds{ 1 });
+
+        remaining =
+          ordered_task_workers.ssize() + unordered_task_workers.ssize();
+
+        for (auto i = 0; i < ordered_task_workers.ssize(); ++i)
+            if (ordered_task_workers[i].phase ==
+                ordinal(worker_base<worker_main>::phase::done))
+                remaining--;
+
+        for (auto i = 0; i < unordered_task_workers.ssize(); ++i)
+            if (unordered_task_workers[i].phase ==
+                ordinal(worker_base<worker_main>::phase::done))
+                remaining--;
+    } while (remaining > 0);
+
     ordered_task_lists.clear();
     ordered_task_workers.clear();
     unordered_task_lists.clear();
     unordered_task_workers.clear();
+
+    phase = ordinal(phase::done);
 }
 
 } // namespace irt
