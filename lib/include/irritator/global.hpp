@@ -116,7 +116,7 @@ public:
                                 */
 
     using title = small_string<127>;
-    using descr = small_string<510>;
+    using descr = small_string<1022>;
 
     /**
      * @brief Reserve memory for both @a ring_buffer and @a id_data_array for 32
