@@ -241,15 +241,11 @@ application::application(journal_handler& jn_) noexcept
 
     task_mgr.start();
 
-    jn.push(
-      log_level::info,
-      [](auto&, auto& msg, auto& task_mgr) {
-          format(msg,
-                 "Starting with {} main threads and {} generic workers\n",
-                 task_mgr.ordered_task_workers.ssize(),
-                 task_mgr.unordered_task_workers.ssize());
-      },
-      std::as_const(task_mgr));
+    auto& msg = log_wnd.enqueue();
+    format(msg,
+           "Starting with {} main threads and {} generic workers\n",
+           task_mgr.ordered_task_workers.ssize(),
+           task_mgr.unordered_task_workers.ssize());
 }
 
 application::~application() noexcept
@@ -530,13 +526,6 @@ auto application::show() noexcept -> show_result_t
                 for (const auto id : ring) {
                     if (entries.exists(id)) {
                         const auto idx = get_index(id);
-                        auto&      str = log_wnd.enqueue();
-
-                        format(str,
-                               "- {}: {}\n  {}\n",
-                               log_level_names[ordinal(levels[idx])],
-                               titles[idx].sv(),
-                               descrs[idx].sv());
 
                         notifications.enqueue(levels[idx],
                                               titles[idx].sv(),

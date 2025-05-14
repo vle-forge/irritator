@@ -153,7 +153,6 @@ static ImU32 get_background_color(const theme_colors& t,
 
 void notification_manager::show() noexcept
 {
-
     if (std::unique_lock lock(m_mutex, std::try_to_lock); lock.owns_lock()) {
         const auto vp_size = ImGui::GetMainViewport()->Size;
         auto       height  = 0.f;

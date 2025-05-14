@@ -157,6 +157,7 @@ public:
     notification_manager() noexcept;
 
     void show() noexcept;
+
     void enqueue(log_level        l,
                  std::string_view t,
                  std::string_view m,
@@ -189,10 +190,11 @@ public:
     string_t& enqueue() noexcept;
     void      show() noexcept;
 
-    ring_t entries;
-    bool   is_open = true;
+    bool is_open = true;
 
 private:
+    ring_t entries;
+
     bool auto_scroll      = true;
     bool scroll_to_bottom = false;
 
