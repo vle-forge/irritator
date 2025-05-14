@@ -110,10 +110,10 @@ struct json_dearchiver::impl {
                                                   "  {}: {}\n",
                                                   static_cast<int>(i),
                                                   stack[i]);
-                      write += ret.size;
+                      write += static_cast<int>(ret.size);
                       msg.resize(write);
                       data = ret.out;
-                      remaining -= ret.size;
+                      remaining -= static_cast<int>(ret.size);
                   }
 
                   auto ret = fmt::vformat_to_n(data, remaining, format, args);
