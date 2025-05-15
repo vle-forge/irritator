@@ -141,79 +141,49 @@ static auto build_graph_children(modeling& mod, graph_component& graph) noexcept
     return tr;
 }
 
-static void in_out_connection_add(graph_component& compo,
-                                  const child_id   src_id,
-                                  const child_id   dst_id,
-                                  const component& src,
-                                  const component& dst) noexcept
+struct get_edges_result {
+    child_id         src;
+    child_id         dst;
+    component&       c_src;
+    component&       c_dst;
+    std::string_view p_src;
+    std::string_view p_dst;
+};
+
+static auto get_edges(modeling&                             mod,
+                      graph_component&                      graph,
+                      const table<graph_node_id, child_id>& vertex,
+                      const u16                             index) noexcept
+  -> std::optional<get_edges_result>
 {
-    if (not compo.cache_connections.can_alloc(1))
-        if (not compo.cache_connections.grow<3, 2>())
-            return;
+    const auto u_id = graph.g.edges_nodes[index][0].first;
+    const auto v_id = graph.g.edges_nodes[index][1].first;
 
-    if (const auto p_src = src.get_y("out"); is_defined(p_src)) {
-        if (const auto p_dst = dst.get_x("in"); is_defined(p_dst)) {
-            compo.cache_connections.alloc(src_id, p_src, dst_id, p_dst);
-        }
-    }
-}
+    if (graph.g.nodes.exists(u_id) and graph.g.nodes.exists(v_id)) {
+        const auto u = vertex.get(u_id);
+        const auto v = vertex.get(v_id);
 
-static void named_connection_add(graph_component& compo,
-                                 const child_id   src_id,
-                                 const child_id   dst_id,
-                                 const component& src,
-                                 const component& dst) noexcept
-{
-    if (not compo.cache_connections.can_alloc(1))
-        if (not compo.cache_connections.grow<3, 2>())
-            return;
-
-    src.y.for_each<port_str>([&](const auto sid, const auto& sname) noexcept {
-        dst.x.for_each<port_str>(
-          [&](const auto did, const auto& dname) noexcept {
-              if (sname == dname)
-                  compo.cache_connections.alloc(src_id, sid, dst_id, did);
-          });
-    });
-}
-
-static constexpr auto exists_connection(const graph_component& graph,
-                                        const child_id         src_id,
-                                        const port_id          p_src,
-                                        const child_id         dst_id,
-                                        const port_id p_dst) noexcept -> bool
-{
-    for (const auto& elem : graph.cache_connections)
-        if (elem.src == src_id and elem.dst == dst_id and
-            elem.index_src.compo == p_src and elem.index_dst.compo == p_dst)
-            return true;
-
-    return false;
-}
-
-static void named_suffix_connection_add(graph_component& compo,
-                                        const child_id   src_id,
-                                        const child_id   dst_id,
-                                        const component& src,
-                                        const component& dst) noexcept
-{
-    if (not compo.cache_connections.can_alloc(1))
-        if (not compo.cache_connections.grow<3, 2>())
-            return;
-
-    src.y.for_each<port_str>([&](const auto sid, const auto& sname) noexcept {
-        for (const auto did : dst.x) {
-            const auto dname = dst.x.get<port_str>(did).sv();
-            const auto dual  = split(dname, '_');
-            if (dual.first == sname.sv()) {
-                if (exists_connection(compo, src_id, sid, dst_id, did))
-                    continue;
-
-                compo.cache_connections.alloc(src_id, sid, dst_id, did);
-                return;
+        if (auto* src = graph.cache.try_to_get(*u);
+            src and src->type == child_type::component) {
+            if (auto* dst = graph.cache.try_to_get(*v);
+                dst and dst->type == child_type::component) {
+                if (auto* c_src =
+                      mod.components.try_to_get<component>(src->id.compo_id))
+                    if (auto* c_dst = mod.components.try_to_get<component>(
+                          dst->id.compo_id))
+                        return get_edges_result{
+                            .src   = *u,
+                            .dst   = *v,
+                            .c_src = *c_src,
+                            .c_dst = *c_dst,
+                            .p_src = graph.g.edges_nodes[index][0].second,
+                            .p_dst = graph.g.edges_nodes[index][1].second,
+                        };
             }
         }
-    });
+    }
+
+    return std::nullopt;
 }
 
 void graph_component::update_position() noexcept
@@ -250,57 +220,127 @@ void graph_component::reset_position() noexcept
     bottom_right_limit = { -INFINITY, -INFINITY };
 }
 
-static void build_graph_connections(
+enum connection_add_result { done, nomem, noexist };
+
+static connection_add_result in_out_connection_add(
+  graph_component&        compo,
+  const get_edges_result& edge) noexcept
+{
+    const auto oport = edge.p_src.empty() ? "out" : edge.p_src;
+    const auto iport = edge.p_dst.empty() ? "in" : edge.p_dst;
+
+    if (const auto p_src = edge.c_src.get_y(oport); is_defined(p_src)) {
+        if (const auto p_dst = edge.c_dst.get_x(iport); is_defined(p_dst)) {
+            if (not compo.cache_connections.can_alloc(1) and
+                not compo.cache_connections.grow<3, 2>())
+                return connection_add_result::nomem;
+
+            compo.cache_connections.alloc(edge.src, p_src, edge.dst, p_dst);
+            return connection_add_result::done;
+        }
+    }
+
+    return connection_add_result::noexist;
+}
+
+static void named_connection_add(graph_component&        compo,
+                                 const get_edges_result& edge) noexcept
+{
+    if (not compo.cache_connections.can_alloc(1))
+        if (not compo.cache_connections.grow<3, 2>())
+            return;
+
+    edge.c_src.y.for_each<port_str>(
+      [&](const auto sid, const auto& sname) noexcept {
+          edge.c_dst.x.for_each<port_str>(
+            [&](const auto did, const auto& dname) noexcept {
+                if (sname == dname)
+                    compo.cache_connections.alloc(edge.src, sid, edge.dst, did);
+            });
+      });
+}
+
+static constexpr auto exists_connection(const graph_component& graph,
+                                        const child_id         src_id,
+                                        const port_id          p_src,
+                                        const child_id         dst_id,
+                                        const port_id p_dst) noexcept -> bool
+{
+    for (const auto& elem : graph.cache_connections)
+        if (elem.src == src_id and elem.dst == dst_id and
+            elem.index_src.compo == p_src and elem.index_dst.compo == p_dst)
+            return true;
+
+    return false;
+}
+
+static void named_suffix_connection_add(graph_component&        compo,
+                                        const get_edges_result& edge) noexcept
+{
+    if (not compo.cache_connections.can_alloc(1))
+        if (not compo.cache_connections.grow<3, 2>())
+            return;
+
+    edge.c_src.y.for_each<port_str>(
+      [&](const auto sid, const auto& sname) noexcept {
+          for (const auto did : edge.c_dst.x) {
+              const auto dname = edge.c_dst.x.get<port_str>(did).sv();
+              const auto dual  = split(dname, '_');
+              if (dual.first == sname.sv()) {
+                  if (exists_connection(compo, edge.src, sid, edge.dst, did))
+                      continue;
+
+                  compo.cache_connections.alloc(edge.src, sid, edge.dst, did);
+                  return;
+              }
+          }
+      });
+}
+
+static status build_graph_connections(
   modeling&                             mod,
   graph_component&                      graph,
   const table<graph_node_id, child_id>& vertex) noexcept
 {
-    for (const auto id : graph.g.edges) {
-        const auto idx  = get_index(id);
-        const auto u_id = graph.g.edges_nodes[idx][0].first;
-        const auto v_id = graph.g.edges_nodes[idx][1].first;
+    if (not graph.cache_connections.reserve(graph.g.edges.capacity() * 2))
+        return new_error(modeling_errc::graph_connection_container_full);
 
-        if (graph.g.nodes.exists(u_id) and graph.g.nodes.exists(v_id)) {
-            if (const auto u = vertex.get(u_id)) {
-                if (const auto v = vertex.get(v_id)) {
-                    if (auto* src = graph.cache.try_to_get(*u);
-                        src and src->type == child_type::component) {
-                        if (auto* dst = graph.cache.try_to_get(*u);
-                            dst and dst->type == child_type::component) {
+    switch (graph.type) {
+    case graph_component::connection_type::in_out:
+        for (const auto id : graph.g.edges) {
+            const auto idx       = get_index(id);
+            const auto edges_opt = get_edges(mod, graph, vertex, idx);
 
-                            const auto* c_src =
-                              mod.components.try_to_get<component>(
-                                src->id.compo_id);
-                            const auto* c_dst =
-                              mod.components.try_to_get<component>(
-                                dst->id.compo_id);
-
-                            switch (graph.type) {
-                            case graph_component::connection_type::in_out:
-                                graph.cache_connections.reserve(
-                                  graph.g.edges.size());
-                                in_out_connection_add(
-                                  graph, *u, *v, *c_src, *c_dst);
-                                break;
-                            case graph_component::connection_type::name:
-                                graph.cache_connections.reserve(
-                                  graph.g.edges.size() * 4);
-                                named_connection_add(
-                                  graph, *u, *v, *c_src, *c_dst);
-                                break;
-                            case graph_component::connection_type::name_suffix:
-                                graph.cache_connections.reserve(
-                                  graph.g.edges.size() * 4);
-                                named_suffix_connection_add(
-                                  graph, *u, *v, *c_src, *c_dst);
-                                break;
-                            }
-                        }
-                    }
-                }
+            if (edges_opt.has_value()) {
+                in_out_connection_add(graph, *edges_opt);
             }
         }
+        break;
+
+    case graph_component::connection_type::name:
+        for (const auto id : graph.g.edges) {
+            const auto idx       = get_index(id);
+            const auto edges_opt = get_edges(mod, graph, vertex, idx);
+
+            if (edges_opt.has_value()) {
+                named_connection_add(graph, *edges_opt);
+            }
+        }
+        break;
+
+    case graph_component::connection_type::name_suffix:
+        for (const auto id : graph.g.edges) {
+            const auto idx       = get_index(id);
+            const auto edges_opt = get_edges(mod, graph, vertex, idx);
+
+            if (edges_opt.has_value()) {
+                named_suffix_connection_add(graph, *edges_opt);
+            }
+        }
+        break;
     }
+
+    return success();
 }
 
 expected<void> graph_component::build_cache(modeling& mod) noexcept
@@ -312,9 +352,7 @@ expected<void> graph_component::build_cache(modeling& mod) noexcept
         return new_error(modeling_errc::graph_children_container_full);
 
     const auto vec = build_graph_children(mod, *this);
-    build_graph_connections(mod, *this, vec);
-
-    return expected<void>{};
+    return build_graph_connections(mod, *this, vec);
 }
 
 void graph_component::clear_cache() noexcept
