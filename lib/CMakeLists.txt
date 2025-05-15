@@ -42,7 +42,6 @@ set(private_irritator_sources
     src/modeling-grid.cpp
     src/modeling-internal.cpp
     src/parameter.cpp
-    src/parameter.hpp
     src/project.cpp
     src/timeline.cpp
     src/variable-observer.cpp)
