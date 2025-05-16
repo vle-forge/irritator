@@ -3394,11 +3394,18 @@ bool data_array<T, Identifier, A>::reserve(std::integral auto capacity) noexcept
                   std::is_copy_constructible_v<T>);
 
     debug::ensure(
+      std::cmp_less_equal(capacity, 0) or
       std::cmp_less(capacity, std::numeric_limits<index_type>::max()));
 
-    if (std::cmp_equal(capacity, 0) or
-        std::cmp_less_equal(capacity, m_capacity))
+    if (std::cmp_less_equal(capacity, m_capacity))
+        return true;
+
+    if (std::cmp_greater_equal(capacity,
+                               std::numeric_limits<index_type>::max()))
         return false;
+
+    if (std::cmp_less_equal(capacity, 0))
+        capacity = 8;
 
     item* new_buffer =
       reinterpret_cast<item*>(A::allocate(sizeof(item) * capacity));
