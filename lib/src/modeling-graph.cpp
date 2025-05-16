@@ -220,46 +220,6 @@ void graph_component::reset_position() noexcept
     bottom_right_limit = { -INFINITY, -INFINITY };
 }
 
-enum connection_add_result { done, nomem, noexist };
-
-static connection_add_result in_out_connection_add(
-  graph_component&        compo,
-  const get_edges_result& edge) noexcept
-{
-    const auto oport = edge.p_src.empty() ? "out" : edge.p_src;
-    const auto iport = edge.p_dst.empty() ? "in" : edge.p_dst;
-
-    if (const auto p_src = edge.c_src.get_y(oport); is_defined(p_src)) {
-        if (const auto p_dst = edge.c_dst.get_x(iport); is_defined(p_dst)) {
-            if (not compo.cache_connections.can_alloc(1) and
-                not compo.cache_connections.grow<3, 2>())
-                return connection_add_result::nomem;
-
-            compo.cache_connections.alloc(edge.src, p_src, edge.dst, p_dst);
-            return connection_add_result::done;
-        }
-    }
-
-    return connection_add_result::noexist;
-}
-
-static void named_connection_add(graph_component&        compo,
-                                 const get_edges_result& edge) noexcept
-{
-    if (not compo.cache_connections.can_alloc(1))
-        if (not compo.cache_connections.grow<3, 2>())
-            return;
-
-    edge.c_src.y.for_each<port_str>(
-      [&](const auto sid, const auto& sname) noexcept {
-          edge.c_dst.x.for_each<port_str>(
-            [&](const auto did, const auto& dname) noexcept {
-                if (sname == dname)
-                    compo.cache_connections.alloc(edge.src, sid, edge.dst, did);
-            });
-      });
-}
-
 static constexpr auto exists_connection(const graph_component& graph,
                                         const child_id         src_id,
                                         const port_id          p_src,
@@ -274,27 +234,110 @@ static constexpr auto exists_connection(const graph_component& graph,
     return false;
 }
 
-static void named_suffix_connection_add(graph_component&        compo,
-                                        const get_edges_result& edge) noexcept
+enum connection_add_result { done, nomem, noexist };
+
+static connection_add_result connection_add(graph_component& compo,
+                                            const child_id   src,
+                                            const port_id    p_src,
+                                            const child_id   dst,
+                                            const port_id    p_dst) noexcept
 {
-    if (not compo.cache_connections.can_alloc(1))
-        if (not compo.cache_connections.grow<3, 2>())
-            return;
+    if (not compo.cache_connections.can_alloc(1) and
+        not compo.cache_connections.grow<3, 2>())
+        return connection_add_result::nomem;
 
-    edge.c_src.y.for_each<port_str>(
-      [&](const auto sid, const auto& sname) noexcept {
-          for (const auto did : edge.c_dst.x) {
-              const auto dname = edge.c_dst.x.get<port_str>(did).sv();
-              const auto dual  = split(dname, '_');
-              if (dual.first == sname.sv()) {
-                  if (exists_connection(compo, edge.src, sid, edge.dst, did))
-                      continue;
+    compo.cache_connections.alloc(src, p_src, dst, p_dst);
+    return connection_add_result::done;
+}
 
-                  compo.cache_connections.alloc(edge.src, sid, edge.dst, did);
-                  return;
-              }
-          }
-      });
+static connection_add_result in_out_connection_add(
+  graph_component&        compo,
+  const get_edges_result& edge) noexcept
+{
+    const auto oport = edge.p_src.empty() ? "out" : edge.p_src;
+    const auto iport = edge.p_dst.empty() ? "in" : edge.p_dst;
+
+    if (const auto p_src = edge.c_src.get_y(oport); is_defined(p_src))
+        if (const auto p_dst = edge.c_dst.get_x(iport); is_defined(p_dst))
+            return connection_add(compo, edge.src, p_src, edge.dst, p_dst);
+
+    return connection_add_result::noexist;
+}
+
+static connection_add_result named_connection_add(
+  graph_component&        compo,
+  const get_edges_result& edge) noexcept
+{
+    // No input and output ports are defined. Trying to connect input and output
+    // port with the same name.
+
+    if (edge.p_src.empty() and edge.p_dst.empty()) {
+        edge.c_src.y.for_each<port_str>(
+          [&](const auto sid, const auto& sname) noexcept {
+              edge.c_dst.x.for_each<port_str>([&](const auto  did,
+                                                  const auto& dname) noexcept {
+                  if (sname == dname) {
+                      if (connection_add(compo, edge.src, sid, edge.dst, did) ==
+                          connection_add_result::nomem)
+                          return;
+                  }
+              });
+          });
+        return connection_add_result::done;
+    }
+
+    // At least one port is defined, trying to connect input and output port
+    // with the same name. If the two ports are defined, force the connection
+    // without searching input or output port with the sane name.
+
+    auto p_src = edge.c_src.get_y(edge.p_src);
+    auto p_dst = edge.c_dst.get_x(edge.p_dst);
+
+    p_src = is_undefined(p_src) ? edge.c_src.get_y(edge.p_dst) : p_src;
+    p_dst = is_undefined(p_dst) ? edge.c_dst.get_x(edge.p_src) : p_dst;
+
+    return (is_defined(p_src) and is_defined(p_dst))
+             ? connection_add(compo, edge.src, p_src, edge.dst, p_dst)
+             : connection_add_result::noexist;
+}
+
+static connection_add_result named_suffix_connection_add(
+  graph_component&        compo,
+  const get_edges_result& edge) noexcept
+{
+    if (edge.p_src.empty() and edge.p_dst.empty()) {
+        edge.c_src.y.for_each<port_str>([&](const auto  sid,
+                                            const auto& sname) noexcept {
+            for (const auto did : edge.c_dst.x) {
+                const auto dname = edge.c_dst.x.get<port_str>(did).sv();
+                const auto dual  = split(dname, '_');
+                if (dual.first == sname.sv()) {
+                    if (exists_connection(compo, edge.src, sid, edge.dst, did))
+                        continue;
+
+                    if (connection_add(compo, edge.src, sid, edge.dst, did) ==
+                        connection_add_result::nomem)
+                        return;
+                }
+            }
+        });
+
+        return connection_add_result::done;
+    }
+
+    // At least one port is defined, trying to connect input and output port
+    // with the same name. If the two ports are defined, force the
+    // connection without searching input or output port with the sane name.
+
+    auto p_src = edge.c_src.get_y(edge.p_src);
+    auto p_dst = edge.c_dst.get_x(edge.p_dst);
+
+    p_src = is_undefined(p_src) ? edge.c_src.get_y(edge.p_dst) : p_src;
+    p_dst = is_undefined(p_dst) ? edge.c_dst.get_x(edge.p_src) : p_dst;
+
+    return (is_defined(p_src) and is_defined(p_dst))
+             ? connection_add(compo, edge.src, p_src, edge.dst, p_dst)
+             : connection_add_result::noexist;
 }
 
 static status build_graph_connections(
@@ -302,7 +345,8 @@ static status build_graph_connections(
   graph_component&                      graph,
   const table<graph_node_id, child_id>& vertex) noexcept
 {
-    if (not graph.cache_connections.reserve(graph.g.edges.capacity() * 2))
+    if (not graph.cache_connections.reserve(graph.g.edges.capacity()) and
+        not graph.cache_connections.grow<2, 1>())
         return new_error(modeling_errc::graph_connection_container_full);
 
     switch (graph.type) {
