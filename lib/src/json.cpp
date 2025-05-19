@@ -507,6 +507,18 @@ struct json_dearchiver::impl {
         return error("bad component type {}", temp_string);
     }
 
+    bool copy_string_to(input_port_type& type) noexcept
+    {
+        for (auto i = 0, e = length(input_port_type_names); i != e; ++i) {
+            if (temp_string == input_port_type_names[i]) {
+                type = enum_cast<input_port_type>(i);
+                return true;
+            }
+        }
+
+        return error("bad input port type {}", temp_string);
+    }
+
     bool copy_string_to(internal_component& dst) noexcept
     {
         if (auto compo_opt = get_internal_component_type(temp_string);
@@ -3924,68 +3936,103 @@ struct json_dearchiver::impl {
         return error("bad component type {}", temp_string);
     }
 
-    bool read_port(const rapidjson::Value&  val,
-                   id_data_array<port_id,
-                                 allocator<new_delete_memory_resource>,
-                                 port_str,
-                                 position>& port) noexcept
+    bool read_input_port(const rapidjson::Value&  val,
+                         id_data_array<port_id,
+                                       allocator<new_delete_memory_resource>,
+                                       input_port_type,
+                                       port_str,
+                                       position>& port,
+                         port_id                  id) noexcept
     {
-        port_str port_name;
-        double   x = 0, y = 0;
+        auto_stack s(this, "component input port");
 
-        if (not for_each_member(
-              val, [&](const auto name, const auto& value) noexcept -> bool {
-                  if ("name"sv == name)
-                      return read_temp_string(value) &&
-                             copy_string_to(port_name);
-                  if ("x"sv == name)
-                      return read_temp_real(value) && copy_real_to(x);
-                  if ("y"sv == name)
-                      return read_temp_real(value) && copy_real_to(y);
+        static constexpr std::string_view n[] = { "name", "type", "x", "y" };
 
-                  return true;
-              }))
-            return false;
+        return for_members(val, n, [&](auto idx, const auto& value) noexcept {
+            switch (idx) {
+            case 0:
+                return read_temp_string(value) &&
+                       copy_string_to(port.get<port_str>(id));
 
-        if (not port.can_alloc(1))
-            return false;
+            case 1:
+                return read_temp_string(value) &&
+                       copy_string_to(port.get<input_port_type>(id));
 
-        port.alloc([&](auto /*id*/, auto& str, auto& position) noexcept {
-            str        = port_name.sv();
-            position.x = static_cast<float>(x);
-            position.y = static_cast<float>(y);
+            case 2:
+                return read_temp_real(value) &&
+                       copy_real_to(port.get<position>(id).x);
+
+            case 3:
+                return read_temp_real(value) &&
+                       copy_real_to(port.get<position>(id).y);
+
+            default:
+                return error("unknown element");
+            }
         });
-
-        return true;
     }
 
-    bool read_ports(const rapidjson::Value&  val,
-                    id_data_array<port_id,
-                                  allocator<new_delete_memory_resource>,
-                                  port_str,
-                                  position>& port) noexcept
+    bool read_input_ports(const rapidjson::Value&  val,
+                          id_data_array<port_id,
+                                        allocator<new_delete_memory_resource>,
+                                        input_port_type,
+                                        port_str,
+                                        position>& port) noexcept
     {
-        auto_stack s(this, "component ports");
+        auto_stack s(this, "component input ports");
 
         return is_value_array(val) && port.can_alloc(val.GetArray().Size()) &&
                for_each_array(
                  val,
                  [&](const auto /*i*/, const auto& value) noexcept -> bool {
-                     if (value.IsString()) {
-                         if (read_temp_string(value)) {
-                             port.alloc(
-                               [&](auto /*id*/, auto& str, auto& pos) noexcept {
-                                   str = temp_string;
-                                   pos.reset();
-                               });
-                             return true;
-                         }
-                         return false;
-                     } else if (value.IsObject()) {
-                         return read_port(value, port);
-                     }
+                     return read_input_port(value, port, port.alloc());
+                 });
+    }
 
-                     return error("unknown json element");
+    bool read_output_port(const rapidjson::Value&  val,
+                          id_data_array<port_id,
+                                        allocator<new_delete_memory_resource>,
+                                        port_str,
+                                        position>& port,
+                          port_id                  id) noexcept
+    {
+        auto_stack s(this, "component output port");
+
+        static constexpr std::string_view n[] = { "name", "x", "y" };
+
+        return for_members(val, n, [&](auto idx, const auto& value) noexcept {
+            switch (idx) {
+            case 0:
+                return read_temp_string(value) &&
+                       copy_string_to(port.get<port_str>(id));
+
+            case 1:
+                return read_temp_real(value) &&
+                       copy_real_to(port.get<position>(id).x);
+
+            case 2:
+                return read_temp_real(value) &&
+                       copy_real_to(port.get<position>(id).y);
+
+            default:
+                return error("unknown element");
+            }
+        });
+    }
+
+    bool read_output_ports(const rapidjson::Value&  val,
+                           id_data_array<port_id,
+                                         allocator<new_delete_memory_resource>,
+                                         port_str,
+                                         position>& port) noexcept
+    {
+        auto_stack s(this, "component output ports");
+
+        return is_value_array(val) && port.can_alloc(val.GetArray().Size()) &&
+               for_each_array(
+                 val,
+                 [&](const auto /*i*/, const auto& value) noexcept -> bool {
+                     return read_output_port(value, port, port.alloc());
                  });
     }
 
@@ -4022,9 +4069,9 @@ struct json_dearchiver::impl {
                   return read_random_sources(value, compo.srcs) and
                          cache_random_mapping_sort();
               if ("x"sv == name)
-                  return read_ports(value, compo.x);
+                  return read_input_ports(value, compo.x);
               if ("y"sv == name)
-                  return read_ports(value, compo.y);
+                  return read_output_ports(value, compo.y);
               if ("type"sv == name)
                   return read_temp_string(value) &&
                          convert_to_component(compo) &&
@@ -6214,17 +6261,21 @@ struct json_archiver::impl {
             w.Key("x");
             w.StartArray();
 
-            compo.x.for_each(
-              [&](auto /*id*/, const auto& str, auto& pos) noexcept {
-                  w.StartObject();
-                  w.Key("name");
-                  w.String(str.c_str());
-                  w.Key("x");
-                  w.Double(pos.x);
-                  w.Key("y");
-                  w.Double(pos.y);
-                  w.EndObject();
-              });
+            compo.x.for_each([&](auto /*id*/,
+                                 const auto& type,
+                                 const auto& str,
+                                 auto&       pos) noexcept {
+                w.StartObject();
+                w.Key("name");
+                w.String(str.c_str());
+                w.Key("type");
+                w.String(input_port_type_names[ordinal(type)]);
+                w.Key("x");
+                w.Double(pos.x);
+                w.Key("y");
+                w.Double(pos.y);
+                w.EndObject();
+            });
 
             w.EndArray();
         }

@@ -114,8 +114,9 @@ static bool get_or_add_x(component& compo, std::string_view name) noexcept
         return true;
 
     if (compo.x.can_alloc(1)) {
-        compo.x.alloc([&](auto /*id*/, auto& str, auto& pos) {
-            str = name;
+        compo.x.alloc([&](auto /*id*/, auto& type, auto& str, auto& pos) {
+            type = input_port_type::classic;
+            str  = name;
             pos.reset();
         });
         return true;

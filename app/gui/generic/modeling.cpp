@@ -357,14 +357,17 @@ static bool show_node(component_editor&  ed,
 static void show_input_an_output_ports(component&     compo,
                                        const child_id c_id) noexcept
 {
-    compo.x.for_each(
-      [&](const auto id, const auto& name, const auto& /*pos*/) noexcept {
-          const auto pack_id = pack_in(c_id, id);
+    compo.x.for_each([&](const auto  id,
+                         const auto  type,
+                         const auto& name,
+                         const auto& /*pos*/) noexcept {
+        const auto pack_id = pack_in(c_id, id);
 
-          ImNodes::BeginInputAttribute(pack_id, ImNodesPinShape_TriangleFilled);
-          ImGui::TextUnformatted(name.c_str());
-          ImNodes::EndInputAttribute();
-      });
+        ImNodes::BeginInputAttribute(pack_id, ImNodesPinShape_TriangleFilled);
+        ImGui::TextUnformatted(name.c_str());
+        ImGui::TextUnformatted(input_port_type_names[ordinal(type)]);
+        ImNodes::EndInputAttribute();
+    });
 
     compo.y.for_each(
       [&](const auto id, const auto& name, const auto& /*pos*/) noexcept {

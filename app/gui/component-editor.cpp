@@ -1536,24 +1536,50 @@ struct component_editor::impl {
     {
         if (ImGui::TreeNodeEx("X ports", ImGuiTreeNodeFlags_DefaultOpen)) {
             std::optional<port_id> to_del;
-            compo.x.for_each<port_str>([&](auto id, auto& name) noexcept {
-                ImGui::PushID(ordinal(id));
+
+            auto& names = compo.x.get<port_str>();
+            auto& types = compo.x.get<input_port_type>();
+
+            for (const auto id : compo.x) {
+                const auto idx = get_index(id);
+                ImGui::PushID(idx);
 
                 if (ImGui::SmallButton("del"))
                     to_del = id;
+
                 ImGui::SameLine();
                 ImGui::PushItemWidth(-1.f);
-                ImGui::InputFilteredString("##in-name", name);
+
+                const auto* preview =
+                  input_port_type_names[ordinal(types[idx])];
+
+                if (ImGui::BeginCombo("##in-type", preview)) {
+                    for (auto i = 0, e = length(input_port_type_names); i != e;
+                         ++i) {
+                        if (ImGui::Selectable(input_port_type_names[i],
+                                              i == ordinal(types[idx]))) {
+                            types[idx] = enum_cast<input_port_type>(i);
+                        }
+                    }
+                    ImGui::EndCombo();
+                }
+                ImGui::PopItemWidth();
+
+                ImGui::SameLine();
+                ImGui::PushItemWidth(-1.f);
+                ImGui::InputFilteredString("##in-name", names[idx]);
                 ImGui::PopItemWidth();
 
                 ImGui::PopID();
-            });
+            }
 
             if (compo.x.can_alloc(1) && ImGui::SmallButton("+##in-port")) {
-                compo.x.alloc([&](auto /*id*/, auto& name, auto& pos) noexcept {
-                    name = "-";
-                    pos.reset();
-                });
+                compo.x.alloc(
+                  [&](auto /*id*/, auto& type, auto& name, auto& pos) noexcept {
+                      name = "-";
+                      type = input_port_type::classic;
+                      pos.reset();
+                  });
             }
 
             if (to_del.has_value())
