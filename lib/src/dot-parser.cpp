@@ -67,14 +67,14 @@ struct local_rng {
         std::copy_n(uk.data(), uk.size(), k.data());
     }
 
-    constexpr static result_type min R123_NO_MACRO_SUBST() noexcept
+    constexpr static result_type(min)() noexcept
     {
-        return std::numeric_limits<result_type>::min();
+        return (std::numeric_limits<result_type>::min)();
     }
 
-    constexpr static result_type max R123_NO_MACRO_SUBST() noexcept
+    constexpr static result_type(max)() noexcept
     {
-        return std::numeric_limits<result_type>::max();
+        return (std::numeric_limits<result_type>::max)();
     }
 
     counter_type c;
@@ -306,19 +306,17 @@ private:
         constexpr auto idx = static_cast<std::underlying_type_t<msg_id>>(Index);
         static_assert(0 <= idx and idx < std::size(msg_fmt));
 
-        if (mod) {
-            mod->journal.push(
-              log_level::warning,
-              [](auto& title, auto& msg, auto& format, auto args) {
-                  title = "Dot parser warning";
+        mod.journal.push(
+          log_level::warning,
+          [](auto& title, auto& msg, auto& format, auto args) {
+              title = "Dot parser warning";
 
-                  auto ret = fmt::vformat_to_n(
-                    msg.data(), msg.capacity() - 1, format, args);
-                  msg.resize(ret.size);
-              },
-              msg_fmt[idx],
-              fmt::make_format_args(args...));
-        }
+              auto ret =
+                fmt::vformat_to_n(msg.data(), msg.capacity() - 1, format, args);
+              msg.resize(ret.size);
+          },
+          msg_fmt[idx],
+          fmt::make_format_args(args...));
     }
 
     template<msg_id Index, typename... Args>
@@ -327,19 +325,17 @@ private:
         constexpr auto idx = static_cast<std::underlying_type_t<msg_id>>(Index);
         static_assert(0 <= idx and idx < std::size(msg_fmt));
 
-        if (mod) {
-            mod->journal.push(
-              log_level::error,
-              [](auto& title, auto& msg, auto& format, auto args) {
-                  title = "Dot parser error";
+        mod.journal.push(
+          log_level::error,
+          [](auto& title, auto& msg, auto& format, auto args) {
+              title = "Dot parser error";
 
-                  auto ret = fmt::vformat_to_n(
-                    msg.data(), msg.capacity() - 1, format, args);
-                  msg.resize(ret.size);
-              },
-              msg_fmt[idx],
-              fmt::make_format_args(args...));
-        }
+              auto ret =
+                fmt::vformat_to_n(msg.data(), msg.capacity() - 1, format, args);
+              msg.resize(ret.size);
+          },
+          msg_fmt[idx],
+          fmt::make_format_args(args...));
 
         return false;
     }
@@ -417,8 +413,9 @@ private:
 public:
     static constexpr int ring_length = 32;
 
-    using token_ring_t  = irt::small_ring_buffer<token, ring_length>;
-    const modeling* mod = nullptr;
+    using token_ring_t = irt::small_ring_buffer<token, ring_length>;
+
+    const modeling& mod;
 
     irt::id_array<str_id>    strings_ids;
     irt::vector<std::string> strings;
@@ -444,24 +441,8 @@ public:
     explicit input_stream_buffer(const modeling& mod_,
                                  std::istream&   stream,
                                  bool start_fill_tokens = true) noexcept
-      : mod{ &mod_ }
+      : mod{ mod_ }
       , strings_ids(64)
-      , strings(64)
-      , is(stream)
-    {
-        if (start_fill_tokens)
-            fill_tokens();
-    }
-
-    /** Default is to fill the token ring buffer from the @c std::istream.
-     *
-     *  @param mod To get component
-     *  @param stream The default input stream.
-     *  @param start_fill_tokens Start the parsing/tokenizing in constructor.
-     */
-    explicit input_stream_buffer(std::istream& stream,
-                                 bool start_fill_tokens = true) noexcept
-      : strings_ids(64)
       , strings(64)
       , is(stream)
     {
@@ -911,7 +892,8 @@ private:
     component_id search_component(const std::string_view str) noexcept
     {
         const auto dot_compo = split_colon(str);
-        return mod->search_component_by_name(
+
+        return mod.search_component_by_name(
           dot_compo.reg, dot_compo.dir, dot_compo.file);
     }
 
@@ -956,9 +938,8 @@ private:
             } else if (iequals(left_str, "area"sv)) {
                 g.node_areas[irt::get_index(id)] = to_float(right_str);
             } else if (iequals(left_str, "component"sv)) {
-                if (mod)
-                    g.node_components[irt::get_index(id)] =
-                      search_component(right_str);
+                g.node_components[irt::get_index(id)] =
+                  search_component(right_str);
             } else if (iequals(left_str, "pos"sv)) {
                 g.node_positions[irt::get_index(id)] = to_2float(right_str);
             } else {
@@ -1255,17 +1236,6 @@ expected<graph> parse_dot_buffer(const modeling&        mod,
 
     istring_view_stream isvs{ buffer.data(), buffer.size() };
     input_stream_buffer sb{ mod, isvs };
-
-    return sb.parse();
-}
-
-expected<graph> parse_dot_buffer(const std::string_view buffer) noexcept
-{
-    if (buffer.empty())
-        return new_error(modeling_errc::dot_buffer_empty);
-
-    istring_view_stream isvs{ buffer.data(), buffer.size() };
-    input_stream_buffer sb{ isvs };
 
     return sb.parse();
 }

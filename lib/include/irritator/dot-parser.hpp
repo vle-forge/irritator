@@ -12,8 +12,6 @@ namespace irt {
 expected<graph> parse_dot_buffer(const modeling&        mod,
                                  const std::string_view buffer) noexcept;
 
-expected<graph> parse_dot_buffer(const std::string_view buffer) noexcept;
-
 expected<graph> parse_dot_file(const modeling&              mod,
                                const std::filesystem::path& p) noexcept;
 
