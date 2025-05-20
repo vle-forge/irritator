@@ -528,28 +528,31 @@ struct generic_simulation_editor::impl {
     void build_links(const simulation& sim, const tree_node& tn) noexcept
     {
         for (const auto& child : tn.children) {
-            if (child.type == tree_node::child_node::type::model and
-                child.mdl) {
-                dispatch(
-                  *child.mdl, [&]<typename Dynamics>(Dynamics& dyn) noexcept {
-                      if constexpr (has_output_port<Dynamics>) {
-                          const auto src_id  = sim.get_id(dyn);
-                          const auto src_idx = get_index_from_nodes_2nd(src_id);
-                          for (int i = 0, e = length(dyn.y); i != e; ++i) {
-                              sim.for_each(
-                                dyn.y[i], [&](auto& dst, auto dst_port) {
-                                    const auto dst_id = sim.get_id(dst);
-                                    if (is_in_node(dst_id)) {
-                                        self.links_2nd.emplace_back(
-                                          make_output_node_id(src_id, i),
-                                          make_input_node_id(dst_id, dst_port),
-                                          src_idx,
-                                          get_index_from_nodes_2nd(dst_id));
-                                    }
-                                });
+            if (child.type == tree_node::child_node::type::model) {
+                if (auto* mdl = sim.models.try_to_get(child.mdl)) {
+                    dispatch(
+                      *mdl, [&]<typename Dynamics>(Dynamics& dyn) noexcept {
+                          if constexpr (has_output_port<Dynamics>) {
+                              const auto src_id = sim.get_id(dyn);
+                              const auto src_idx =
+                                get_index_from_nodes_2nd(src_id);
+                              for (int i = 0, e = length(dyn.y); i != e; ++i) {
+                                  sim.for_each(
+                                    dyn.y[i], [&](auto& dst, auto dst_port) {
+                                        const auto dst_id = sim.get_id(dst);
+                                        if (is_in_node(dst_id)) {
+                                            self.links_2nd.emplace_back(
+                                              make_output_node_id(src_id, i),
+                                              make_input_node_id(dst_id,
+                                                                 dst_port),
+                                              src_idx,
+                                              get_index_from_nodes_2nd(dst_id));
+                                        }
+                                    });
+                              }
                           }
-                      }
-                  });
+                      });
+                }
             }
         }
     }
@@ -557,15 +560,14 @@ struct generic_simulation_editor::impl {
     void build_nodes(const simulation& sim, const tree_node& tn) noexcept
     {
         for (const auto& child : tn.children) {
-            if (child.type == tree_node::child_node::type::model and
-                child.mdl) {
-                const auto mdl_id = sim.models.get_id(*child.mdl);
-
-                if (const auto* name = tn.model_id_to_unique_id.get(mdl_id))
-                    self.nodes_2nd.emplace_back(sim.get_id(*child.mdl),
-                                                name->sv());
-                else
-                    self.nodes_2nd.emplace_back(sim.get_id(*child.mdl));
+            if (child.type == tree_node::child_node::type::model) {
+                if (sim.models.try_to_get(child.mdl)) {
+                    if (const auto* name =
+                          tn.model_id_to_unique_id.get(child.mdl))
+                        self.nodes_2nd.emplace_back(child.mdl, name->sv());
+                    else
+                        self.nodes_2nd.emplace_back(child.mdl);
+                }
             }
         }
     }

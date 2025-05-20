@@ -186,7 +186,8 @@ static int new_model(application&                app,
 
         if (auto* tn = pj_ed.pj.tree_nodes.try_to_get(data.tn_id)) {
             tn->children.push_back(tree_node::child_node{
-              .mdl = &mdl, .type = tree_node::child_node::type::model });
+              .mdl  = pj_ed.pj.sim.get_id(mdl),
+              .type = tree_node::child_node::type::model });
         }
         ++rebuild;
     }
@@ -198,12 +199,12 @@ static int free_model(application& /*app*/,
                       project_editor&              pj_ed,
                       const command::free_model_t& data) noexcept
 {
-    if (auto* mdl = pj_ed.pj.sim.models.try_to_get(data.mdl_id)) {
+    if (pj_ed.pj.sim.models.try_to_get(data.mdl_id)) {
         if (auto* tn = pj_ed.pj.tree_nodes.try_to_get(data.tn_id)) {
             for (auto i = 0, e = tn->children.ssize(); i < e; ++i) {
                 if (tn->children[i].type ==
                       tree_node::child_node::type::model and
-                    tn->children[i].mdl == mdl) {
+                    tn->children[i].mdl == data.mdl_id) {
                     tn->children[i].disable();
                     break;
                 }

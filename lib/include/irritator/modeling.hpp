@@ -1051,19 +1051,19 @@ struct tree_node {
 
     struct child_node {
         union {
-            model*     mdl{}; /* `mdl_id` Always valid in `data_array`. */
-            tree_node* tn;    /* `tn_id` is valid in `data_array`. */
+            model_id   mdl; /* `mdl_id` Always valid in `data_array`. */
+            tree_node* tn;  /* `tn_id` is valid in `data_array`. */
         };
 
         enum class type { empty, model, tree_node } type = type::empty;
 
         void disable() noexcept
         {
-            mdl  = nullptr;
+            mdl  = undefined<model_id>();
             type = type::empty;
         }
 
-        void set(model* id) noexcept
+        void set(const model_id id) noexcept
         {
             mdl  = id;
             type = type::model;

@@ -134,15 +134,94 @@ constexpr void convert_source(const std::span<const mod_to_sim_srcs> srcs,
 }
 
 struct model_port {
-    model_port() noexcept = default;
+    model_id mdl  = undefined<model_id>();
+    int      port = 0;
+};
 
-    model_port(model* mdl_, int port_) noexcept
-      : mdl{ mdl_ }
-      , port{ port_ }
+class sum_connection
+{
+private:
+    const tree_node* tn = nullptr;
+    port_id          id = undefined<port_id>();
+
+    model_id output_mdl = undefined<model_id>();
+    model_id mdl        = undefined<model_id>();
+    int      port       = 0;
+
+    bool output_already_connected = false;
+
+    status add_sum_model(simulation& sim) noexcept
+    {
+        if (not sim.models.can_alloc(1) and not sim.models.grow<2, 1>())
+            return new_error(project_errc::component_cache_error);
+
+        output_mdl = sim.models.get_id(sim.alloc(dynamics_type::qss3_sum_4));
+        mdl        = output_mdl;
+        port       = 0;
+
+        return success();
+    }
+
+public:
+    sum_connection(const tree_node* tn_, port_id id_) noexcept
+      : tn{ tn_ }
+      , id{ id_ }
     {}
 
-    model* mdl{};
-    int    port{};
+    constexpr bool is_equal(const tree_node* tn_,
+                            const port_id    p_id_) const noexcept
+    {
+        return tn == tn_ and id == p_id_;
+    }
+
+    status add_output_connection(simulation&    sim,
+                                 const model_id dst,
+                                 int            port_dst) noexcept
+    {
+        if (is_undefined(output_mdl))
+            if (auto ret = add_sum_model(sim); not ret)
+                return ret.error();
+
+        if (output_already_connected)
+            return success();
+
+        output_already_connected = true;
+
+        return sim.connect(
+          sim.models.get(output_mdl), 0, sim.models.get(dst), port_dst);
+    }
+
+    status add_source_connection(simulation& sim,
+                                 model_id    src,
+                                 int         port_src) noexcept
+    {
+        if (is_undefined(output_mdl))
+            if (auto ret = add_sum_model(sim); not ret)
+                return ret.error();
+
+        if (port > 3) {
+            auto& new_mdl = sim.alloc(dynamics_type::qss3_sum_4);
+            if (auto ret = sim.connect(new_mdl, 0, sim.models.get(mdl), port);
+                not ret)
+                return ret.error();
+
+            mdl  = sim.models.get_id(new_mdl);
+            port = 0;
+        }
+
+        return sim.connect(
+          sim.models.get(src), port_src, sim.models.get(mdl), port++);
+    }
+
+    constexpr bool operator==(const sum_connection& other) const noexcept
+    {
+        return tn == other.tn and ordinal(id) == ordinal(other.id);
+    }
+
+    constexpr bool operator<(const sum_connection& other) const noexcept
+    {
+        return tn == other.tn ? ordinal(id) < ordinal(other.id) : tn < other.tn;
+    }
 };
 
 struct simulation_copy {
@@ -176,6 +255,9 @@ struct simulation_copy {
     vector<tree_node*> stack;
     vector<model_port> inputs;
     vector<model_port> outputs;
+
+    vector<sum_connection> sum_connections;
+    vector<sum_connection> wsum_connections;
 
     table<u64, constant_source_id>    constants;
     table<u64, binary_file_source_id> binary_files;
@@ -504,8 +586,7 @@ static status make_tree_recursive(simulation_copy&   sc,
             if (not mdl_id)
                 return mdl_id.error();
 
-            new_tree.children[child_id].set(
-              sc.pj.sim.models.try_to_get(*mdl_id));
+            new_tree.children[child_id].set(*mdl_id);
         }
     }
 
@@ -736,7 +817,10 @@ static status simulation_copy_connections(const vector<model_port>& inputs,
 {
     for (auto src : outputs) {
         for (auto dst : inputs) {
-            if (auto ret = sim.connect(*src.mdl, src.port, *dst.mdl, dst.port);
+            if (auto ret = sim.connect(sim.models.get(src.mdl),
+                                       src.port,
+                                       sim.models.get(dst.mdl),
+                                       dst.port);
                 !ret)
                 return new_error(project_errc::import_error);
         }
@@ -746,11 +830,13 @@ static status simulation_copy_connections(const vector<model_port>& inputs,
 }
 
 static void get_input_models(vector<model_port>& inputs,
+                             const simulation&   sim,
                              const modeling&     mod,
                              const tree_node&    tn,
                              const port_id       p) noexcept;
 
 static void get_input_models(vector<model_port>&      inputs,
+                             const simulation&        sim,
                              const modeling&          mod,
                              const tree_node&         tn,
                              const generic_component& gen,
@@ -771,12 +857,13 @@ static void get_input_models(vector<model_port>&      inputs,
         } else {
             debug::ensure(tn.children[con.dst].tn);
             get_input_models(
-              inputs, mod, *tn.children[con.dst].tn, con.port.compo);
+              inputs, sim, mod, *tn.children[con.dst].tn, con.port.compo);
         }
     }
 }
 
 static void get_input_models(vector<model_port>&    inputs,
+                             const simulation&      sim,
                              const modeling&        mod,
                              const tree_node&       tn,
                              const graph_component& graph,
@@ -791,11 +878,12 @@ static void get_input_models(vector<model_port>&    inputs,
 
         const auto idx = get_index(con.v);
         debug::ensure(tn.children[idx].tn);
-        get_input_models(inputs, mod, *tn.children[idx].tn, con.id);
+        get_input_models(inputs, sim, mod, *tn.children[idx].tn, con.id);
     }
 }
 
 static void get_input_models(vector<model_port>&   inputs,
+                             const simulation&     sim,
                              const modeling&       mod,
                              const tree_node&      tn,
                              const grid_component& grid,
@@ -810,11 +898,12 @@ static void get_input_models(vector<model_port>&   inputs,
             continue;
 
         debug::ensure(tn.children[idx].tn);
-        get_input_models(inputs, mod, *tn.children[idx].tn, con.id);
+        get_input_models(inputs, sim, mod, *tn.children[idx].tn, con.id);
     }
 }
 
 static void get_input_models(vector<model_port>& inputs,
+                             const simulation&   sim,
                              const modeling&     mod,
                              const tree_node&    tn,
                              const port_id       p) noexcept
@@ -827,17 +916,17 @@ static void get_input_models(vector<model_port>& inputs,
     switch (compo->type) {
     case component_type::generic: {
         if (auto* g = mod.generic_components.try_to_get(compo->id.generic_id))
-            get_input_models(inputs, mod, tn, *g, p);
+            get_input_models(inputs, sim, mod, tn, *g, p);
     } break;
 
     case component_type::graph: {
         if (auto* g = mod.graph_components.try_to_get(compo->id.graph_id))
-            get_input_models(inputs, mod, tn, *g, p);
+            get_input_models(inputs, sim, mod, tn, *g, p);
     } break;
 
     case component_type::grid: {
         if (auto* g = mod.grid_components.try_to_get(compo->id.grid_id))
-            get_input_models(inputs, mod, tn, *g, p);
+            get_input_models(inputs, sim, mod, tn, *g, p);
     } break;
 
     case component_type::hsm:
@@ -848,11 +937,13 @@ static void get_input_models(vector<model_port>& inputs,
 }
 
 static void get_output_models(vector<model_port>& outputs,
+                              const simulation&   sim,
                               const modeling&     mod,
                               const tree_node&    tn,
                               const port_id       p) noexcept;
 
 static void get_output_models(vector<model_port>&      outputs,
+                              const simulation&        sim,
                               const modeling&          mod,
                               const tree_node&         tn,
                               const generic_component& gen,
@@ -873,12 +964,13 @@ static void get_output_models(vector<model_port>&      outputs,
         } else {
             debug::ensure(tn.children[con.src].tn);
             get_output_models(
-              outputs, mod, *tn.children[con.src].tn, con.port.compo);
+              outputs, sim, mod, *tn.children[con.src].tn, con.port.compo);
         }
     }
 }
 
 static void get_output_models(vector<model_port>&    outputs,
+                              const simulation&      sim,
                               const modeling&        mod,
                               const tree_node&       tn,
                               const graph_component& graph,
@@ -893,11 +985,12 @@ static void get_output_models(vector<model_port>&    outputs,
 
         const auto idx = get_index(con.v);
         debug::ensure(tn.children[idx].tn);
-        get_output_models(outputs, mod, *tn.children[idx].tn, con.id);
+        get_output_models(outputs, sim, mod, *tn.children[idx].tn, con.id);
     }
 }
 
 static void get_output_models(vector<model_port>&   outputs,
+                              const simulation&     sim,
                               const modeling&       mod,
                               const tree_node&      tn,
                               const grid_component& grid,
@@ -912,11 +1005,12 @@ static void get_output_models(vector<model_port>&   outputs,
             continue;
 
         debug::ensure(tn.children[idx].tn);
-        get_output_models(outputs, mod, *tn.children[idx].tn, con.id);
+        get_output_models(outputs, sim, mod, *tn.children[idx].tn, con.id);
     }
 }
 
 static void get_output_models(vector<model_port>& outputs,
+                              const simulation&   sim,
                               const modeling&     mod,
                               const tree_node&    tn,
                               const port_id       p) noexcept
@@ -929,17 +1023,17 @@ static void get_output_models(vector<model_port>& outputs,
     switch (compo->type) {
     case component_type::generic: {
         if (auto* g = mod.generic_components.try_to_get(compo->id.generic_id))
-            get_output_models(outputs, mod, tn, *g, p);
+            get_output_models(outputs, sim, mod, tn, *g, p);
     } break;
 
     case component_type::graph: {
         if (auto* g = mod.graph_components.try_to_get(compo->id.graph_id))
-            get_output_models(outputs, mod, tn, *g, p);
+            get_output_models(outputs, sim, mod, tn, *g, p);
     } break;
 
     case component_type::grid: {
         if (auto* g = mod.grid_components.try_to_get(compo->id.grid_id))
-            get_output_models(outputs, mod, tn, *g, p);
+            get_output_models(outputs, sim, mod, tn, *g, p);
     } break;
 
     case component_type::hsm:
@@ -949,12 +1043,178 @@ static void get_output_models(vector<model_port>& outputs,
     }
 }
 
+/** Build the cache table @a sum_connections and @a wsum_connections.
+ * For each input port of type @a sum or @a wsum add a @a
+ * sum_connection struct. These structs will be fill during the
+ * component connections construct. */
+static auto prepare_sum_connections(
+  const tree_node&                             tree,
+  const data_array<connection, connection_id>& connections,
+  simulation_copy&                             sc) -> status
+{
+    sc.sum_connections.clear();
+    sc.wsum_connections.clear();
+
+    auto contains =
+      [](const auto& vec, const auto* tn, const auto p_id) noexcept -> bool {
+        return std::ranges::any_of(vec,
+                                   [tn, p_id](const auto& e) noexcept -> bool {
+                                       return e.is_equal(tn, p_id);
+                                   });
+    };
+
+    for (const auto& cnx : connections) {
+        if (tree.is_tree_node(cnx.dst)) {
+            const auto  dst_idx  = get_index(cnx.dst);
+            const auto* tn       = tree.children[dst_idx].tn;
+            const auto  compo_id = tn->id;
+            const auto  port_id  = cnx.index_dst.compo;
+            const auto& c        = sc.mod.components.get<component>(compo_id);
+
+            if (c.x.exists(port_id)) {
+                switch (c.x.get<input_port_type>(port_id)) {
+                case input_port_type::sum:
+                    if (not sc.sum_connections.can_alloc(1) and
+                        not sc.sum_connections.grow<2, 1>())
+                        return new_error(project_errc::component_cache_error);
+
+                    if (not contains(sc.sum_connections, tn, port_id))
+                        sc.sum_connections.emplace_back(tn, port_id);
+                    break;
+
+                case input_port_type::wsum:
+                    if (not sc.wsum_connections.can_alloc(1) and
+                        not sc.wsum_connections.grow<2, 1>())
+                        return new_error(project_errc::component_cache_error);
+
+                    if (not contains(sc.sum_connections, tn, port_id))
+                        sc.wsum_connections.emplace_back(tn, port_id);
+                    break;
+
+                default:
+                    break;
+                }
+            }
+        }
+    }
+
+    // const auto& types = compo.x.get<input_port_type>();
+    // for (const auto id : compo.x) {
+    //     switch (types[id]) {
+    //     case input_port_type::sum:
+    //         if (not sc.sum_connections.data.can_alloc(1) and
+    //             not sc.sum_connections.data.grow<2, 1>())
+    //             return new_error(project_errc::component_cache_error);
+    //         sc.sum_connections.data.emplace_back().id = id;
+    //         break;
+
+    //    case input_port_type::wsum:
+    //        if (not sc.wsum_connections.data.can_alloc(1) and
+    //            not sc.wsum_connections.data.grow<2, 1>())
+    //            return new_error(project_errc::component_cache_error);
+    //        sc.wsum_connections.data.emplace_back().id = id;
+    //        break;
+
+    //    default:
+    //        break;
+    //    }
+    //}
+
+    // sc.sum_connections.sort();
+    // sc.wsum_connections.sort();
+
+    return success();
+};
+
+/** Get the @a input_port_type of the @a p_id port of the @a compo_id
+ * component. */
+static auto get_input_connection_type(const modeling&    mod,
+                                      const component_id compo_id,
+                                      const port_id&     p_id) noexcept
+  -> input_port_type
+{
+    const auto& compo = mod.components.get<component>(compo_id);
+    return compo.x.get<input_port_type>(p_id);
+}
+
+/** Adds @a qss3_sum_4 connections in place of the @a port to sum all the input
+ * connection of the component @a compo.
+ *
+ * From a component graph:
+ * @code
+ * ┌───┐
+ * │a  ┼───┐     ┌───────────────┐
+ * └───┘   │     │               │
+ * ┌───┐   │     │               │
+ * │b  ┼───┤     │    ┌─────┐    │
+ * └───┘   │     │    │ X   │    │
+ * ┌───┐   │     │    │     │    │
+ * │c  ┼───┼────►│    └─────┘    │
+ * └───┘   │     │sum            │
+ * ┌───┐   │     │               │
+ * │d  ┼───┤     │               │
+ * └───┘   │     │     component │
+ * ┌───┐   │     └───────────────┘
+ * │e  ┼───┘
+ * └───┘
+ * @endcode
+ *
+ * To the simulation graph:
+ * @code
+ * ┌───┐
+ * │a  ┼────┐
+ * └───┘    │  ┌───┐
+ * ┌───┐    └──┼s  │
+ * │b  ┼───────┼u  ┼┐          ┌──────┐
+ * └───┘    ┌──┼m  ││          │ X    │
+ * ┌───┐    │┌─┼1  ││        ┌─┼      │
+ * │c  ┼────┘│ └───┘│ ┌───┐  │ └──────┘
+ * └───┘     │      └─┤s  │  │
+ * ┌───┐     │        │u  ┼──┘
+ * │d  ┼─────┘    ┌───┼m  │
+ * └───┘          │   │2  │
+ * ┌───┐          │   └───┘
+ * │e  ┼──────────┘
+ * └───┘
+ * @endcode
+ */
+static status simulation_copy_sum_connections(
+  const vector<model_port>& inputs,
+  const vector<model_port>& outputs,
+  const tree_node&          tn,
+  const port_id             p_id,
+  vector<sum_connection>&   connections,
+  simulation&               sim) noexcept
+{
+    if (auto it = std::ranges::find_if(
+          connections,
+          [&](auto& elem) noexcept { return elem.is_equal(&tn, p_id); });
+        it != connections.end()) {
+
+        for (const auto& dst : inputs) {
+            if (auto ret = it->add_output_connection(sim, dst.mdl, dst.port);
+                not ret)
+                return ret.error();
+        }
+
+        for (const auto& src : outputs)
+            if (auto ret = it->add_source_connection(sim, src.mdl, src.port);
+                not ret)
+                return ret.error();
+    }
+
+    return success();
+}
+
 static status simulation_copy_connections(
   simulation_copy&                             sc,
   tree_node&                                   tree,
   const data_array<child, child_id>&           children,
-  const data_array<connection, connection_id>& connections)
+  const data_array<connection, connection_id>& connections) noexcept
 {
+    if (auto ret = prepare_sum_connections(tree, connections, sc); not ret)
+        return ret.error();
+
     for (const auto& cnx : connections) {
         sc.inputs.clear();
         sc.outputs.clear();
@@ -970,6 +1230,10 @@ static status simulation_copy_connections(
         const auto src_idx = get_index(cnx.src);
         const auto dst_idx = get_index(cnx.dst);
 
+        auto       port = undefined<port_id>();
+        auto       type = input_port_type::classic;
+        tree_node* tn   = nullptr;
+
         if (tree.is_model(cnx.src)) {
             sc.outputs.emplace_back(tree.children[src_idx].mdl,
                                     cnx.index_src.model);
@@ -978,13 +1242,15 @@ static status simulation_copy_connections(
                 sc.inputs.emplace_back(tree.children[dst_idx].mdl,
                                        cnx.index_dst.model);
             } else {
-                get_input_models(sc.inputs,
-                                 sc.mod,
-                                 *tree.children[dst_idx].tn,
-                                 cnx.index_dst.compo);
+                port = cnx.index_dst.compo;
+                tn   = tree.children[dst_idx].tn;
+                get_input_models(sc.inputs, sc.pj.sim, sc.mod, *tn, port);
+
+                type = get_input_connection_type(sc.mod, tn->id, port);
             }
         } else {
             get_output_models(sc.outputs,
+                              sc.pj.sim,
                               sc.mod,
                               *tree.children[src_idx].tn,
                               cnx.index_src.compo);
@@ -993,15 +1259,28 @@ static status simulation_copy_connections(
                 sc.inputs.emplace_back(tree.children[dst_idx].mdl,
                                        cnx.index_dst.model);
             } else {
-                get_input_models(sc.inputs,
-                                 sc.mod,
-                                 *tree.children[dst_idx].tn,
-                                 cnx.index_dst.compo);
+                port = cnx.index_dst.compo;
+                tn   = tree.children[dst_idx].tn;
+                get_input_models(sc.inputs, sc.pj.sim, sc.mod, *tn, port);
+
+                type = get_input_connection_type(sc.mod, tn->id, port);
             }
         }
 
-        irt_check(
-          simulation_copy_connections(sc.inputs, sc.outputs, sc.pj.sim));
+        switch (type) {
+        case input_port_type::classic:
+            irt_check(
+              simulation_copy_connections(sc.inputs, sc.outputs, sc.pj.sim));
+            break;
+        case input_port_type::sum:
+            irt_check(simulation_copy_sum_connections(
+              sc.inputs, sc.outputs, *tn, port, sc.sum_connections, sc.pj.sim));
+            break;
+        case input_port_type::wsum:
+            irt_check(simulation_copy_sum_connections(
+              sc.inputs, sc.outputs, *tn, port, sc.sum_connections, sc.pj.sim));
+            break;
+        }
     }
 
     return success();
