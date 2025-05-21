@@ -1138,11 +1138,20 @@ public:
 
     bool can_connect(int number) const noexcept;
 
-    status connect(model& src, int port_src, model& dst, int port_dst) noexcept;
-    bool   can_connect(const model& src,
-                       int          port_src,
-                       const model& dst,
-                       int          port_dst) const noexcept;
+    status connect(model&       src,
+                   int          port_src,
+                   const model& dst,
+                   int          port_dst) noexcept;
+
+    bool can_connect(const model& src,
+                     int          port_src,
+                     const model& dst,
+                     int          port_dst) const noexcept;
+    void disconnect(model& src,
+                    int    port_src,
+                    model& dst,
+                    int    port_dst) noexcept;
+
     status connect(block_node_id& port, model_id dst, int port_dst) noexcept;
 
     template<typename Function, typename... Args>
@@ -1207,15 +1216,10 @@ public:
     }
 
     template<typename DynamicsSrc, typename DynamicsDst>
-    status connect(DynamicsSrc& src,
-                   int          port_src,
-                   DynamicsDst& dst,
-                   int          port_dst) noexcept;
-
-    void disconnect(model& src,
-                    int    port_src,
-                    model& dst,
-                    int    port_dst) noexcept;
+    status connect_dynamics(DynamicsSrc& src,
+                            int          port_src,
+                            DynamicsDst& dst,
+                            int          port_dst) noexcept;
 
     /** Call the initialize member function for each model of the
      * simulation an prepare the simulation class to call the `run`
@@ -6047,10 +6051,10 @@ inline bool simulation::can_connect(int number) const noexcept
     return nodes.can_alloc(number);
 }
 
-inline status simulation::connect(model& src,
-                                  int    port_src,
-                                  model& dst,
-                                  int    port_dst) noexcept
+inline status simulation::connect(model&       src,
+                                  int          port_src,
+                                  const model& dst,
+                                  int          port_dst) noexcept
 {
     if (not is_ports_compatible(src, port_src, dst, port_dst))
         return new_error(simulation_errc::connection_incompatible);
@@ -6126,10 +6130,10 @@ inline bool simulation::can_connect(const model& src,
 }
 
 template<typename DynamicsSrc, typename DynamicsDst>
-status simulation::connect(DynamicsSrc& src,
-                           int          port_src,
-                           DynamicsDst& dst,
-                           int          port_dst) noexcept
+status simulation::connect_dynamics(DynamicsSrc& src,
+                                    int          port_src,
+                                    DynamicsDst& dst,
+                                    int          port_dst) noexcept
 {
     return connect(get_model(src), port_src, get_model(dst), port_dst);
 }

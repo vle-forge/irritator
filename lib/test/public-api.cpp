@@ -936,8 +936,8 @@ int main()
         get_p(sim, c1).set_constant(0, 0);
         get_p(sim, c2).set_constant(0, 0);
 
-        expect(!!sim.connect(c1, 0, cnt, 0));
-        expect(!!sim.connect(c2, 0, cnt, 0));
+        expect(!!sim.connect_dynamics(c1, 0, cnt, 0));
+        expect(!!sim.connect_dynamics(c2, 0, cnt, 0));
 
         sim.t = irt::zero;
         expect(!!sim.initialize());
@@ -962,10 +962,10 @@ int main()
         get_p(sim, c1).set_constant(3.0, 0);
         get_p(sim, cross1).set_cross(0, true);
 
-        expect(!!sim.connect(c1, 0, cross1, 0));
-        expect(!!sim.connect(c1, 0, cross1, 1));
-        expect(!!sim.connect(c1, 0, cross1, 2));
-        expect(!!sim.connect(cross1, 0, cnt, 0));
+        expect(!!sim.connect_dynamics(c1, 0, cross1, 0));
+        expect(!!sim.connect_dynamics(c1, 0, cross1, 1));
+        expect(!!sim.connect_dynamics(c1, 0, cross1, 2));
+        expect(!!sim.connect_dynamics(cross1, 0, cnt, 0));
 
         sim.t = 0.0;
         expect(!!sim.initialize());
@@ -1114,9 +1114,9 @@ int main()
         auto& hsmw = sim.alloc<irt::hsm_wrapper>();
         get_p(sim, hsmw).set_hsm_wrapper(get_index(sim.hsms.get_id(hsm)));
 
-        expect(!!sim.connect(gen, 0, hsmw, 0));
-        expect(!!sim.connect(gen, 0, hsmw, 1));
-        expect(!!sim.connect(hsmw, 0, cnt, 0));
+        expect(!!sim.connect_dynamics(gen, 0, hsmw, 0));
+        expect(!!sim.connect_dynamics(gen, 0, hsmw, 1));
+        expect(!!sim.connect_dynamics(hsmw, 0, cnt, 0));
 
         sim.t = 0.0;
         expect(!!sim.srcs.prepare());
@@ -1193,9 +1193,9 @@ int main()
         auto& hsmw = sim.alloc<irt::hsm_wrapper>();
         get_p(sim, hsmw).set_hsm_wrapper(get_index(sim.hsms.get_id(hsm)));
 
-        expect(!!sim.connect(gen, 0, hsmw, 0));
-        expect(!!sim.connect(gen, 0, hsmw, 1));
-        expect(!!sim.connect(hsmw, 0, cnt, 0));
+        expect(!!sim.connect_dynamics(gen, 0, hsmw, 0));
+        expect(!!sim.connect_dynamics(gen, 0, hsmw, 1));
+        expect(!!sim.connect_dynamics(hsmw, 0, cnt, 0));
 
         sim.t = 0.0;
         expect(!!sim.srcs.prepare());
@@ -1252,9 +1252,9 @@ int main()
         auto& hsmw = sim.alloc<irt::hsm_wrapper>();
         get_p(sim, hsmw).set_hsm_wrapper(get_index(sim.hsms.get_id(hsm)));
 
-        expect(!!sim.connect(gen, 0, hsmw, 0));
-        expect(!!sim.connect(gen, 0, hsmw, 1));
-        expect(!!sim.connect(hsmw, 0, cnt, 0));
+        expect(!!sim.connect_dynamics(gen, 0, hsmw, 0));
+        expect(!!sim.connect_dynamics(gen, 0, hsmw, 1));
+        expect(!!sim.connect_dynamics(hsmw, 0, cnt, 0));
 
         sim.t = 0.0;
         expect(!!sim.srcs.prepare());
@@ -1313,9 +1313,9 @@ int main()
         auto& hsmw = sim.alloc<irt::hsm_wrapper>();
         get_p(sim, hsmw).set_hsm_wrapper(get_index(sim.hsms.get_id(hsm)));
 
-        expect(!!sim.connect(gen1, 0, hsmw, 0));
-        expect(!!sim.connect(gen2, 0, hsmw, 1));
-        expect(!!sim.connect(hsmw, 0, cnt, 0));
+        expect(!!sim.connect_dynamics(gen1, 0, hsmw, 0));
+        expect(!!sim.connect_dynamics(gen2, 0, hsmw, 1));
+        expect(!!sim.connect_dynamics(hsmw, 0, cnt, 0));
 
         sim.t = 0.0;
         expect(!!sim.srcs.prepare());
@@ -1377,9 +1377,9 @@ int main()
         auto& hsmw = sim.alloc<irt::hsm_wrapper>();
         get_p(sim, hsmw).set_hsm_wrapper(get_index(sim.hsms.get_id(hsm)));
 
-        expect(!!sim.connect(gen1, 0, hsmw, 0));
-        expect(!!sim.connect(gen2, 0, hsmw, 1));
-        expect(!!sim.connect(hsmw, 0, cnt, 0));
+        expect(!!sim.connect_dynamics(gen1, 0, hsmw, 0));
+        expect(!!sim.connect_dynamics(gen2, 0, hsmw, 1));
+        expect(!!sim.connect_dynamics(hsmw, 0, cnt, 0));
 
         sim.t = 0.0;
         expect(!!sim.srcs.prepare());
@@ -1431,7 +1431,7 @@ int main()
         get_p(sim, gen).integers[2] =
           ordinal(irt::source::source_type::constant);
 
-        expect(!!sim.connect(gen, 0, cnt, 0));
+        expect(!!sim.connect_dynamics(gen, 0, cnt, 0));
 
         sim.t = 0.0;
         expect(!!sim.srcs.prepare());
@@ -1475,8 +1475,8 @@ int main()
         get_p(sim, gen).integers[2] =
           ordinal(irt::source::source_type::constant);
 
-        expect(!!sim.connect(gen, 0, l_and, 0));
-        expect(!!sim.connect(l_and, 0, l_or, 0));
+        expect(!!sim.connect_dynamics(gen, 0, l_and, 0));
+        expect(!!sim.connect_dynamics(l_and, 0, l_or, 0));
 
         get_p(sim, l_and).integers[0] = false;
         get_p(sim, l_and).integers[1] = true;
@@ -1521,7 +1521,7 @@ int main()
 
         get_p(sim, time_fun).set_time_func(timestep, timestep, 1);
 
-        expect(!!sim.connect(time_fun, 0, cnt, 0));
+        expect(!!sim.connect_dynamics(time_fun, 0, cnt, 0));
 
         irt::real c = 0;
         sim.t       = 0;
@@ -1554,7 +1554,7 @@ int main()
 
         get_p(sim, time_fun).set_time_func(timestep, timestep, 2);
 
-        expect(!!sim.connect(time_fun, 0, cnt, 0));
+        expect(!!sim.connect_dynamics(time_fun, 0, cnt, 0));
 
         sim.t       = 0;
         irt::real c = irt::zero;
@@ -1588,17 +1588,17 @@ int main()
 
         expect((sim.models.size() == 5_ul) >> fatal);
 
-        expect(!!sim.connect(sum_a, 0, integrator_a, 0));
-        expect(!!sim.connect(sum_b, 0, integrator_b, 0));
+        expect(!!sim.connect_dynamics(sum_a, 0, integrator_a, 0));
+        expect(!!sim.connect_dynamics(sum_b, 0, integrator_b, 0));
 
-        expect(!!sim.connect(integrator_a, 0, sum_a, 0));
-        expect(!!sim.connect(integrator_b, 0, sum_b, 0));
+        expect(!!sim.connect_dynamics(integrator_a, 0, sum_a, 0));
+        expect(!!sim.connect_dynamics(integrator_b, 0, sum_b, 0));
 
-        expect(!!sim.connect(integrator_a, 0, product, 0));
-        expect(!!sim.connect(integrator_b, 0, product, 1));
+        expect(!!sim.connect_dynamics(integrator_a, 0, product, 0));
+        expect(!!sim.connect_dynamics(integrator_b, 0, product, 1));
 
-        expect(!!sim.connect(product, 0, sum_a, 1));
-        expect(!!sim.connect(product, 0, sum_b, 1));
+        expect(!!sim.connect_dynamics(product, 0, sum_a, 1));
+        expect(!!sim.connect_dynamics(product, 0, sum_b, 1));
 
         auto&       obs_a = sim.observers.alloc();
         file_output fo_a(obs_a, "lotka-volterra-qss1_a.csv");
@@ -1646,17 +1646,17 @@ int main()
 
         expect((sim.models.size() == 5_ul) >> fatal);
 
-        expect(!!sim.connect(sum_a, 0, integrator_a, 0));
-        expect(!!sim.connect(sum_b, 0, integrator_b, 0));
+        expect(!!sim.connect_dynamics(sum_a, 0, integrator_a, 0));
+        expect(!!sim.connect_dynamics(sum_b, 0, integrator_b, 0));
 
-        expect(!!sim.connect(integrator_a, 0, sum_a, 0));
-        expect(!!sim.connect(integrator_b, 0, sum_b, 0));
+        expect(!!sim.connect_dynamics(integrator_a, 0, sum_a, 0));
+        expect(!!sim.connect_dynamics(integrator_b, 0, sum_b, 0));
 
-        expect(!!sim.connect(integrator_a, 0, product, 0));
-        expect(!!sim.connect(integrator_b, 0, product, 1));
+        expect(!!sim.connect_dynamics(integrator_a, 0, product, 0));
+        expect(!!sim.connect_dynamics(integrator_b, 0, product, 1));
 
-        expect(!!sim.connect(product, 0, sum_a, 1));
-        expect(!!sim.connect(product, 0, sum_b, 1));
+        expect(!!sim.connect_dynamics(product, 0, sum_a, 1));
+        expect(!!sim.connect_dynamics(product, 0, sum_b, 1));
 
         auto&       obs_a = sim.observers.alloc();
         file_output fo_a(obs_a, "lotka-volterra-qss2_a.csv");
@@ -1712,13 +1712,13 @@ int main()
 
         // Connections
 
-        expect(!!sim.connect(cross, 0, integrator, 1));
-        expect(!!sim.connect(cross, 1, sum, 0));
-        expect(!!sim.connect(integrator, 0, cross, 0));
-        expect(!!sim.connect(integrator, 0, cross, 2));
-        expect(!!sim.connect(constant_cross, 0, cross, 1));
-        expect(!!sim.connect(constant, 0, sum, 1));
-        expect(!!sim.connect(sum, 0, integrator, 0));
+        expect(!!sim.connect_dynamics(cross, 0, integrator, 1));
+        expect(!!sim.connect_dynamics(cross, 1, sum, 0));
+        expect(!!sim.connect_dynamics(integrator, 0, cross, 0));
+        expect(!!sim.connect_dynamics(integrator, 0, cross, 2));
+        expect(!!sim.connect_dynamics(constant_cross, 0, cross, 1));
+        expect(!!sim.connect_dynamics(constant, 0, sum, 1));
+        expect(!!sim.connect_dynamics(sum, 0, integrator, 0));
 
         auto&       obs_a = sim.observers.alloc();
         file_output fo_a(obs_a, "lif-qss1.csv");
@@ -1768,16 +1768,16 @@ int main()
 
         // Connections
 
-        // expect(sim.connect(cross.y[1], integrator.x[0]) ==
+        // expect(sim.connect_dynamics(cross.y[1], integrator.x[0]) ==
         // irt::status::success);
-        expect(!!sim.connect(cross, 0, integrator, 1));
-        expect(!!sim.connect(cross, 1, sum, 0));
+        expect(!!sim.connect_dynamics(cross, 0, integrator, 1));
+        expect(!!sim.connect_dynamics(cross, 1, sum, 0));
 
-        expect(!!sim.connect(integrator, 0, cross, 0));
-        expect(!!sim.connect(integrator, 0, cross, 2));
-        expect(!!sim.connect(constant_cross, 0, cross, 1));
-        expect(!!sim.connect(constant, 0, sum, 1));
-        expect(!!sim.connect(sum, 0, integrator, 0));
+        expect(!!sim.connect_dynamics(integrator, 0, cross, 0));
+        expect(!!sim.connect_dynamics(integrator, 0, cross, 2));
+        expect(!!sim.connect_dynamics(constant_cross, 0, cross, 1));
+        expect(!!sim.connect_dynamics(constant, 0, sum, 1));
+        expect(!!sim.connect_dynamics(sum, 0, integrator, 0));
 
         auto&       obs_a = sim.observers.alloc();
         file_output fo_a(obs_a, "lif-qss2.csv");
@@ -1846,35 +1846,35 @@ int main()
 
         expect((sim.models.size() == 12_ul) >> fatal);
 
-        expect(!!sim.connect(integrator_a, 0, cross, 0));
-        expect(!!sim.connect(constant2, 0, cross, 1));
-        expect(!!sim.connect(integrator_a, 0, cross, 2));
+        expect(!!sim.connect_dynamics(integrator_a, 0, cross, 0));
+        expect(!!sim.connect_dynamics(constant2, 0, cross, 1));
+        expect(!!sim.connect_dynamics(integrator_a, 0, cross, 2));
 
-        expect(!!sim.connect(cross, 1, product, 0));
-        expect(!!sim.connect(cross, 1, product, 1));
-        expect(!!sim.connect(product, 0, sum_c, 0));
-        expect(!!sim.connect(cross, 1, sum_c, 1));
-        expect(!!sim.connect(cross, 1, sum_b, 1));
+        expect(!!sim.connect_dynamics(cross, 1, product, 0));
+        expect(!!sim.connect_dynamics(cross, 1, product, 1));
+        expect(!!sim.connect_dynamics(product, 0, sum_c, 0));
+        expect(!!sim.connect_dynamics(cross, 1, sum_c, 1));
+        expect(!!sim.connect_dynamics(cross, 1, sum_b, 1));
 
-        expect(!!sim.connect(constant, 0, sum_c, 2));
-        expect(!!sim.connect(constant3, 0, sum_c, 3));
+        expect(!!sim.connect_dynamics(constant, 0, sum_c, 2));
+        expect(!!sim.connect_dynamics(constant3, 0, sum_c, 3));
 
-        expect(!!sim.connect(sum_c, 0, sum_a, 0));
-        // expect(sim.connect(integrator_b, 0, sum_a, 1) ==
+        expect(!!sim.connect_dynamics(sum_c, 0, sum_a, 0));
+        // expect(sim.connect_dynamics(integrator_b, 0, sum_a, 1) ==
         // irt::status::success);
-        expect(!!sim.connect(cross2, 1, sum_a, 1));
-        expect(!!sim.connect(sum_a, 0, integrator_a, 0));
-        expect(!!sim.connect(cross, 0, integrator_a, 1));
+        expect(!!sim.connect_dynamics(cross2, 1, sum_a, 1));
+        expect(!!sim.connect_dynamics(sum_a, 0, integrator_a, 0));
+        expect(!!sim.connect_dynamics(cross, 0, integrator_a, 1));
 
-        expect(!!sim.connect(cross2, 1, sum_b, 0));
-        expect(!!sim.connect(sum_b, 0, integrator_b, 0));
+        expect(!!sim.connect_dynamics(cross2, 1, sum_b, 0));
+        expect(!!sim.connect_dynamics(sum_b, 0, integrator_b, 0));
 
-        expect(!!sim.connect(cross2, 0, integrator_b, 1));
-        expect(!!sim.connect(integrator_a, 0, cross2, 0));
-        expect(!!sim.connect(integrator_b, 0, cross2, 2));
-        expect(!!sim.connect(sum_d, 0, cross2, 1));
-        expect(!!sim.connect(integrator_b, 0, sum_d, 0));
-        expect(!!sim.connect(constant, 0, sum_d, 1));
+        expect(!!sim.connect_dynamics(cross2, 0, integrator_b, 1));
+        expect(!!sim.connect_dynamics(integrator_a, 0, cross2, 0));
+        expect(!!sim.connect_dynamics(integrator_b, 0, cross2, 2));
+        expect(!!sim.connect_dynamics(sum_d, 0, cross2, 1));
+        expect(!!sim.connect_dynamics(integrator_b, 0, sum_d, 0));
+        expect(!!sim.connect_dynamics(constant, 0, sum_d, 1));
 
         auto&       obs_a = sim.observers.alloc();
         file_output fo_a(obs_a, "izhikevitch-qss1_a.csv");
@@ -1949,35 +1949,35 @@ int main()
 
         expect((sim.models.size() == 12_ul) >> fatal);
 
-        expect(!!sim.connect(integrator_a, 0, cross, 0));
-        expect(!!sim.connect(constant2, 0, cross, 1));
-        expect(!!sim.connect(integrator_a, 0, cross, 2));
+        expect(!!sim.connect_dynamics(integrator_a, 0, cross, 0));
+        expect(!!sim.connect_dynamics(constant2, 0, cross, 1));
+        expect(!!sim.connect_dynamics(integrator_a, 0, cross, 2));
 
-        expect(!!sim.connect(cross, 1, product, 0));
-        expect(!!sim.connect(cross, 1, product, 1));
-        expect(!!sim.connect(product, 0, sum_c, 0));
-        expect(!!sim.connect(cross, 1, sum_c, 1));
-        expect(!!sim.connect(cross, 1, sum_b, 1));
+        expect(!!sim.connect_dynamics(cross, 1, product, 0));
+        expect(!!sim.connect_dynamics(cross, 1, product, 1));
+        expect(!!sim.connect_dynamics(product, 0, sum_c, 0));
+        expect(!!sim.connect_dynamics(cross, 1, sum_c, 1));
+        expect(!!sim.connect_dynamics(cross, 1, sum_b, 1));
 
-        expect(!!sim.connect(constant, 0, sum_c, 2));
-        expect(!!sim.connect(constant3, 0, sum_c, 3));
+        expect(!!sim.connect_dynamics(constant, 0, sum_c, 2));
+        expect(!!sim.connect_dynamics(constant3, 0, sum_c, 3));
 
-        expect(!!sim.connect(sum_c, 0, sum_a, 0));
-        // expect(sim.connect(integrator_b, 0, sum_a, 1) ==
+        expect(!!sim.connect_dynamics(sum_c, 0, sum_a, 0));
+        // expect(sim.connect_dynamics(integrator_b, 0, sum_a, 1) ==
         // irt::status::success);
-        expect(!!sim.connect(cross2, 1, sum_a, 1));
-        expect(!!sim.connect(sum_a, 0, integrator_a, 0));
-        expect(!!sim.connect(cross, 0, integrator_a, 1));
+        expect(!!sim.connect_dynamics(cross2, 1, sum_a, 1));
+        expect(!!sim.connect_dynamics(sum_a, 0, integrator_a, 0));
+        expect(!!sim.connect_dynamics(cross, 0, integrator_a, 1));
 
-        expect(!!sim.connect(cross2, 1, sum_b, 0));
-        expect(!!sim.connect(sum_b, 0, integrator_b, 0));
+        expect(!!sim.connect_dynamics(cross2, 1, sum_b, 0));
+        expect(!!sim.connect_dynamics(sum_b, 0, integrator_b, 0));
 
-        expect(!!sim.connect(cross2, 0, integrator_b, 1));
-        expect(!!sim.connect(integrator_a, 0, cross2, 0));
-        expect(!!sim.connect(integrator_b, 0, cross2, 2));
-        expect(!!sim.connect(sum_d, 0, cross2, 1));
-        expect(!!sim.connect(integrator_b, 0, sum_d, 0));
-        expect(!!sim.connect(constant, 0, sum_d, 1));
+        expect(!!sim.connect_dynamics(cross2, 0, integrator_b, 1));
+        expect(!!sim.connect_dynamics(integrator_a, 0, cross2, 0));
+        expect(!!sim.connect_dynamics(integrator_b, 0, cross2, 2));
+        expect(!!sim.connect_dynamics(sum_d, 0, cross2, 1));
+        expect(!!sim.connect_dynamics(integrator_b, 0, sum_d, 0));
+        expect(!!sim.connect_dynamics(constant, 0, sum_d, 1));
 
         auto&       obs_a = sim.observers.alloc();
         file_output fo_a(obs_a, "izhikevitch-qss2_a.csv");
@@ -2026,17 +2026,17 @@ int main()
 
         expect((sim.models.size() == 5_ul) >> fatal);
 
-        expect(!!sim.connect(sum_a, 0, integrator_a, 0));
-        expect(!!sim.connect(sum_b, 0, integrator_b, 0));
+        expect(!!sim.connect_dynamics(sum_a, 0, integrator_a, 0));
+        expect(!!sim.connect_dynamics(sum_b, 0, integrator_b, 0));
 
-        expect(!!sim.connect(integrator_a, 0, sum_a, 0));
-        expect(!!sim.connect(integrator_b, 0, sum_b, 0));
+        expect(!!sim.connect_dynamics(integrator_a, 0, sum_a, 0));
+        expect(!!sim.connect_dynamics(integrator_b, 0, sum_b, 0));
 
-        expect(!!sim.connect(integrator_a, 0, product, 0));
-        expect(!!sim.connect(integrator_b, 0, product, 1));
+        expect(!!sim.connect_dynamics(integrator_a, 0, product, 0));
+        expect(!!sim.connect_dynamics(integrator_b, 0, product, 1));
 
-        expect(!!sim.connect(product, 0, sum_a, 1));
-        expect(!!sim.connect(product, 0, sum_b, 1));
+        expect(!!sim.connect_dynamics(product, 0, sum_a, 1));
+        expect(!!sim.connect_dynamics(product, 0, sum_b, 1));
 
         auto&       obs_a = sim.observers.alloc();
         file_output fo_a(obs_a, "lotka-volterra-qss3_a.csv");
@@ -2092,16 +2092,16 @@ int main()
 
         // Connections
 
-        // expect(sim.connect(cross.y[1], integrator.x[0]) ==
+        // expect(sim.connect_dynamics(cross.y[1], integrator.x[0]) ==
         // irt::status::success);
-        expect(!!sim.connect(cross, 0, integrator, 1));
-        expect(!!sim.connect(cross, 1, sum, 0));
+        expect(!!sim.connect_dynamics(cross, 0, integrator, 1));
+        expect(!!sim.connect_dynamics(cross, 1, sum, 0));
 
-        expect(!!sim.connect(integrator, 0, cross, 0));
-        expect(!!sim.connect(integrator, 0, cross, 2));
-        expect(!!sim.connect(constant_cross, 0, cross, 1));
-        expect(!!sim.connect(constant, 0, sum, 1));
-        expect(!!sim.connect(sum, 0, integrator, 0));
+        expect(!!sim.connect_dynamics(integrator, 0, cross, 0));
+        expect(!!sim.connect_dynamics(integrator, 0, cross, 2));
+        expect(!!sim.connect_dynamics(constant_cross, 0, cross, 1));
+        expect(!!sim.connect_dynamics(constant, 0, sum, 1));
+        expect(!!sim.connect_dynamics(sum, 0, integrator, 0));
 
         auto&       obs_a = sim.observers.alloc();
         file_output fo_a(obs_a, "lif-qss3.csv");
@@ -2169,35 +2169,35 @@ int main()
 
         expect((sim.models.size() == 12_ul) >> fatal);
 
-        expect(!!sim.connect(integrator_a, 0, cross, 0));
-        expect(!!sim.connect(constant2, 0, cross, 1));
-        expect(!!sim.connect(integrator_a, 0, cross, 2));
+        expect(!!sim.connect_dynamics(integrator_a, 0, cross, 0));
+        expect(!!sim.connect_dynamics(constant2, 0, cross, 1));
+        expect(!!sim.connect_dynamics(integrator_a, 0, cross, 2));
 
-        expect(!!sim.connect(cross, 1, product, 0));
-        expect(!!sim.connect(cross, 1, product, 1));
-        expect(!!sim.connect(product, 0, sum_c, 0));
-        expect(!!sim.connect(cross, 1, sum_c, 1));
-        expect(!!sim.connect(cross, 1, sum_b, 1));
+        expect(!!sim.connect_dynamics(cross, 1, product, 0));
+        expect(!!sim.connect_dynamics(cross, 1, product, 1));
+        expect(!!sim.connect_dynamics(product, 0, sum_c, 0));
+        expect(!!sim.connect_dynamics(cross, 1, sum_c, 1));
+        expect(!!sim.connect_dynamics(cross, 1, sum_b, 1));
 
-        expect(!!sim.connect(constant, 0, sum_c, 2));
-        expect(!!sim.connect(constant3, 0, sum_c, 3));
+        expect(!!sim.connect_dynamics(constant, 0, sum_c, 2));
+        expect(!!sim.connect_dynamics(constant3, 0, sum_c, 3));
 
-        expect(!!sim.connect(sum_c, 0, sum_a, 0));
-        // expect(sim.connect(integrator_b, 0, sum_a, 1) ==
+        expect(!!sim.connect_dynamics(sum_c, 0, sum_a, 0));
+        // expect(sim.connect_dynamics(integrator_b, 0, sum_a, 1) ==
         // irt::status::success);
-        expect(!!sim.connect(cross2, 1, sum_a, 1));
-        expect(!!sim.connect(sum_a, 0, integrator_a, 0));
-        expect(!!sim.connect(cross, 0, integrator_a, 1));
+        expect(!!sim.connect_dynamics(cross2, 1, sum_a, 1));
+        expect(!!sim.connect_dynamics(sum_a, 0, integrator_a, 0));
+        expect(!!sim.connect_dynamics(cross, 0, integrator_a, 1));
 
-        expect(!!sim.connect(cross2, 1, sum_b, 0));
-        expect(!!sim.connect(sum_b, 0, integrator_b, 0));
+        expect(!!sim.connect_dynamics(cross2, 1, sum_b, 0));
+        expect(!!sim.connect_dynamics(sum_b, 0, integrator_b, 0));
 
-        expect(!!sim.connect(cross2, 0, integrator_b, 1));
-        expect(!!sim.connect(integrator_a, 0, cross2, 0));
-        expect(!!sim.connect(integrator_b, 0, cross2, 2));
-        expect(!!sim.connect(sum_d, 0, cross2, 1));
-        expect(!!sim.connect(integrator_b, 0, sum_d, 0));
-        expect(!!sim.connect(constant, 0, sum_d, 1));
+        expect(!!sim.connect_dynamics(cross2, 0, integrator_b, 1));
+        expect(!!sim.connect_dynamics(integrator_a, 0, cross2, 0));
+        expect(!!sim.connect_dynamics(integrator_b, 0, cross2, 2));
+        expect(!!sim.connect_dynamics(sum_d, 0, cross2, 1));
+        expect(!!sim.connect_dynamics(integrator_b, 0, sum_d, 0));
+        expect(!!sim.connect_dynamics(constant, 0, sum_d, 1));
 
         auto&       obs_a = sim.observers.alloc();
         file_output fo_a(obs_a, "izhikevitch-qss3_a.csv");
@@ -2247,17 +2247,17 @@ int main()
 
         expect(sim.models.size() == 5_ul);
 
-        expect(!!sim.connect(integrator_b, 0, integrator_a, 0));
-        expect(!!sim.connect(sum, 0, integrator_b, 0));
+        expect(!!sim.connect_dynamics(integrator_b, 0, integrator_a, 0));
+        expect(!!sim.connect_dynamics(sum, 0, integrator_b, 0));
 
-        expect(!!sim.connect(integrator_b, 0, sum, 0));
-        expect(!!sim.connect(product2, 0, sum, 1));
-        expect(!!sim.connect(integrator_a, 0, sum, 2));
+        expect(!!sim.connect_dynamics(integrator_b, 0, sum, 0));
+        expect(!!sim.connect_dynamics(product2, 0, sum, 1));
+        expect(!!sim.connect_dynamics(integrator_a, 0, sum, 2));
 
-        expect(!!sim.connect(integrator_b, 0, product1, 0));
-        expect(!!sim.connect(integrator_a, 0, product1, 1));
-        expect(!!sim.connect(product1, 0, product2, 0));
-        expect(!!sim.connect(integrator_a, 0, product2, 1));
+        expect(!!sim.connect_dynamics(integrator_b, 0, product1, 0));
+        expect(!!sim.connect_dynamics(integrator_a, 0, product1, 1));
+        expect(!!sim.connect_dynamics(product1, 0, product2, 0));
+        expect(!!sim.connect_dynamics(integrator_a, 0, product2, 1));
 
         auto&       obs_a = sim.observers.alloc();
         file_output fo_a(obs_a, "van_der_pol_qss3_a.csv");
@@ -2313,15 +2313,15 @@ int main()
 
         // Connections
 
-        // expect(sim.connect(cross.y[1], integrator.x[0]) ==
+        // expect(sim.connect_dynamics(cross.y[1], integrator.x[0]) ==
         // irt::status::success);
-        expect(!!sim.connect(cross, 0, integrator, 1));
-        expect(!!sim.connect(cross, 1, sum, 0));
-        expect(!!sim.connect(integrator, 0, cross, 0));
-        expect(!!sim.connect(integrator, 0, cross, 2));
-        expect(!!sim.connect(constant_cross, 0, cross, 1));
-        expect(!!sim.connect(constant, 0, sum, 1));
-        expect(!!sim.connect(sum, 0, integrator, 0));
+        expect(!!sim.connect_dynamics(cross, 0, integrator, 1));
+        expect(!!sim.connect_dynamics(cross, 1, sum, 0));
+        expect(!!sim.connect_dynamics(integrator, 0, cross, 0));
+        expect(!!sim.connect_dynamics(integrator, 0, cross, 2));
+        expect(!!sim.connect_dynamics(constant_cross, 0, cross, 1));
+        expect(!!sim.connect_dynamics(constant, 0, sum, 1));
+        expect(!!sim.connect_dynamics(sum, 0, integrator, 0));
 
         auto&       obs_a = sim.observers.alloc();
         file_output fo_a(obs_a, "neg-lif-qss1.csv");
@@ -2370,15 +2370,15 @@ int main()
 
         // Connections
 
-        // expect(sim.connect(cross.y[1], integrator.x[0]) ==
+        // expect(sim.connect_dynamics(cross.y[1], integrator.x[0]) ==
         // irt::status::success);
-        expect(!!sim.connect(cross, 0, integrator, 1));
-        expect(!!sim.connect(cross, 1, sum, 0));
-        expect(!!sim.connect(integrator, 0, cross, 0));
-        expect(!!sim.connect(integrator, 0, cross, 2));
-        expect(!!sim.connect(constant_cross, 0, cross, 1));
-        expect(!!sim.connect(constant, 0, sum, 1));
-        expect(!!sim.connect(sum, 0, integrator, 0));
+        expect(!!sim.connect_dynamics(cross, 0, integrator, 1));
+        expect(!!sim.connect_dynamics(cross, 1, sum, 0));
+        expect(!!sim.connect_dynamics(integrator, 0, cross, 0));
+        expect(!!sim.connect_dynamics(integrator, 0, cross, 2));
+        expect(!!sim.connect_dynamics(constant_cross, 0, cross, 1));
+        expect(!!sim.connect_dynamics(constant, 0, sum, 1));
+        expect(!!sim.connect_dynamics(sum, 0, integrator, 0));
 
         auto&       obs_a = sim.observers.alloc();
         file_output fo_a(obs_a, "neg-lif-qss2.csv");
@@ -2428,15 +2428,15 @@ int main()
 
         // Connections
 
-        // expect(sim.connect(cross.y[1], integrator.x[0]) ==
+        // expect(sim.connect_dynamics(cross.y[1], integrator.x[0]) ==
         // irt::status::success);
-        expect(!!sim.connect(cross, 0, integrator, 1));
-        expect(!!sim.connect(cross, 1, sum, 0));
-        expect(!!sim.connect(integrator, 0, cross, 0));
-        expect(!!sim.connect(integrator, 0, cross, 2));
-        expect(!!sim.connect(constant_cross, 0, cross, 1));
-        expect(!!sim.connect(constant, 0, sum, 1));
-        expect(!!sim.connect(sum, 0, integrator, 0));
+        expect(!!sim.connect_dynamics(cross, 0, integrator, 1));
+        expect(!!sim.connect_dynamics(cross, 1, sum, 0));
+        expect(!!sim.connect_dynamics(integrator, 0, cross, 0));
+        expect(!!sim.connect_dynamics(integrator, 0, cross, 2));
+        expect(!!sim.connect_dynamics(constant_cross, 0, cross, 1));
+        expect(!!sim.connect_dynamics(constant, 0, sum, 1));
+        expect(!!sim.connect_dynamics(sum, 0, integrator, 0));
 
         auto&       obs_a = sim.observers.alloc();
         file_output fo_a(obs_a, "neg-lif-qss3.csv");

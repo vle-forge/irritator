@@ -54,14 +54,14 @@ status example_qss_lotka_volterra(simulation& sim, F f) noexcept
     get_p(sim, sum_b).reals[2] = -1.0_r;
     get_p(sim, sum_b).reals[3] = 0.1_r;
 
-    irt_check(sim.connect(sum_a, 0, integrator_a, 0));
-    irt_check(sim.connect(sum_b, 0, integrator_b, 0));
-    irt_check(sim.connect(integrator_a, 0, sum_a, 0));
-    irt_check(sim.connect(integrator_b, 0, sum_b, 0));
-    irt_check(sim.connect(integrator_a, 0, product, 0));
-    irt_check(sim.connect(integrator_b, 0, product, 1));
-    irt_check(sim.connect(product, 0, sum_a, 1));
-    irt_check(sim.connect(product, 0, sum_b, 1));
+    irt_check(sim.connect_dynamics(sum_a, 0, integrator_a, 0));
+    irt_check(sim.connect_dynamics(sum_b, 0, integrator_b, 0));
+    irt_check(sim.connect_dynamics(integrator_a, 0, sum_a, 0));
+    irt_check(sim.connect_dynamics(integrator_b, 0, sum_b, 0));
+    irt_check(sim.connect_dynamics(integrator_a, 0, product, 0));
+    irt_check(sim.connect_dynamics(integrator_b, 0, product, 1));
+    irt_check(sim.connect_dynamics(product, 0, sum_a, 1));
+    irt_check(sim.connect_dynamics(product, 0, sum_b, 1));
 
     f(sim.get_id(sum_a));
     f(sim.get_id(sum_b));
@@ -103,13 +103,13 @@ status example_qss_lif(simulation& sim, F f) noexcept
     auto& cross                = sim.alloc<abstract_cross<QssLevel>>();
     get_p(sim, cross).reals[0] = Vt;
 
-    irt_check(sim.connect(cross, 0, integrator, 1));
-    irt_check(sim.connect(cross, 1, sum, 0));
-    irt_check(sim.connect(integrator, 0, cross, 0));
-    irt_check(sim.connect(integrator, 0, cross, 2));
-    irt_check(sim.connect(cst_cross, 0, cross, 1));
-    irt_check(sim.connect(cst, 0, sum, 1));
-    irt_check(sim.connect(sum, 0, integrator, 0));
+    irt_check(sim.connect_dynamics(cross, 0, integrator, 1));
+    irt_check(sim.connect_dynamics(cross, 1, sum, 0));
+    irt_check(sim.connect_dynamics(integrator, 0, cross, 0));
+    irt_check(sim.connect_dynamics(integrator, 0, cross, 2));
+    irt_check(sim.connect_dynamics(cst_cross, 0, cross, 1));
+    irt_check(sim.connect_dynamics(cst, 0, sum, 1));
+    irt_check(sim.connect_dynamics(sum, 0, integrator, 0));
 
     f(sim.get_id(sum));
     f(sim.get_id(cst));
@@ -171,33 +171,33 @@ status example_qss_izhikevich(simulation& sim, F f) noexcept
     get_p(sim, sum_d).reals[2] = 1.0_r;
     get_p(sim, sum_d).reals[3] = d;
 
-    irt_check(sim.connect(integrator_a, 0, cross, 0));
-    irt_check(sim.connect(cst2, 0, cross, 1));
-    irt_check(sim.connect(integrator_a, 0, cross, 2));
+    irt_check(sim.connect_dynamics(integrator_a, 0, cross, 0));
+    irt_check(sim.connect_dynamics(cst2, 0, cross, 1));
+    irt_check(sim.connect_dynamics(integrator_a, 0, cross, 2));
 
-    irt_check(sim.connect(cross, 1, product, 0));
-    irt_check(sim.connect(cross, 1, product, 1));
-    irt_check(sim.connect(product, 0, sum_c, 0));
-    irt_check(sim.connect(cross, 1, sum_c, 1));
-    irt_check(sim.connect(cross, 1, sum_b, 1));
+    irt_check(sim.connect_dynamics(cross, 1, product, 0));
+    irt_check(sim.connect_dynamics(cross, 1, product, 1));
+    irt_check(sim.connect_dynamics(product, 0, sum_c, 0));
+    irt_check(sim.connect_dynamics(cross, 1, sum_c, 1));
+    irt_check(sim.connect_dynamics(cross, 1, sum_b, 1));
 
-    irt_check(sim.connect(cst, 0, sum_c, 2));
-    irt_check(sim.connect(cst3, 0, sum_c, 3));
+    irt_check(sim.connect_dynamics(cst, 0, sum_c, 2));
+    irt_check(sim.connect_dynamics(cst3, 0, sum_c, 3));
 
-    irt_check(sim.connect(sum_c, 0, sum_a, 0));
-    irt_check(sim.connect(cross2, 1, sum_a, 1));
-    irt_check(sim.connect(sum_a, 0, integrator_a, 0));
-    irt_check(sim.connect(cross, 0, integrator_a, 1));
+    irt_check(sim.connect_dynamics(sum_c, 0, sum_a, 0));
+    irt_check(sim.connect_dynamics(cross2, 1, sum_a, 1));
+    irt_check(sim.connect_dynamics(sum_a, 0, integrator_a, 0));
+    irt_check(sim.connect_dynamics(cross, 0, integrator_a, 1));
 
-    irt_check(sim.connect(cross2, 1, sum_b, 0));
-    irt_check(sim.connect(sum_b, 0, integrator_b, 0));
+    irt_check(sim.connect_dynamics(cross2, 1, sum_b, 0));
+    irt_check(sim.connect_dynamics(sum_b, 0, integrator_b, 0));
 
-    irt_check(sim.connect(cross2, 0, integrator_b, 1));
-    irt_check(sim.connect(integrator_a, 0, cross2, 0));
-    irt_check(sim.connect(integrator_b, 0, cross2, 2));
-    irt_check(sim.connect(sum_d, 0, cross2, 1));
-    irt_check(sim.connect(integrator_b, 0, sum_d, 0));
-    irt_check(sim.connect(cst, 0, sum_d, 1));
+    irt_check(sim.connect_dynamics(cross2, 0, integrator_b, 1));
+    irt_check(sim.connect_dynamics(integrator_a, 0, cross2, 0));
+    irt_check(sim.connect_dynamics(integrator_b, 0, cross2, 2));
+    irt_check(sim.connect_dynamics(sum_d, 0, cross2, 1));
+    irt_check(sim.connect_dynamics(integrator_b, 0, sum_d, 0));
+    irt_check(sim.connect_dynamics(cst, 0, sum_d, 1));
 
     f(sim.get_id(cst));
     f(sim.get_id(cst2));
@@ -242,15 +242,15 @@ status example_qss_van_der_pol(simulation& sim, F f) noexcept
     get_p(sim, sum).reals[4] = -mu;
     get_p(sim, sum).reals[5] = -1.0_r;
 
-    irt_check(sim.connect(integrator_b, 0, integrator_a, 0));
-    irt_check(sim.connect(sum, 0, integrator_b, 0));
-    irt_check(sim.connect(integrator_b, 0, sum, 0));
-    irt_check(sim.connect(product2, 0, sum, 1));
-    irt_check(sim.connect(integrator_a, 0, sum, 2));
-    irt_check(sim.connect(integrator_b, 0, product1, 0));
-    irt_check(sim.connect(integrator_a, 0, product1, 1));
-    irt_check(sim.connect(product1, 0, product2, 0));
-    irt_check(sim.connect(integrator_a, 0, product2, 1));
+    irt_check(sim.connect_dynamics(integrator_b, 0, integrator_a, 0));
+    irt_check(sim.connect_dynamics(sum, 0, integrator_b, 0));
+    irt_check(sim.connect_dynamics(integrator_b, 0, sum, 0));
+    irt_check(sim.connect_dynamics(product2, 0, sum, 1));
+    irt_check(sim.connect_dynamics(integrator_a, 0, sum, 2));
+    irt_check(sim.connect_dynamics(integrator_b, 0, product1, 0));
+    irt_check(sim.connect_dynamics(integrator_a, 0, product1, 1));
+    irt_check(sim.connect_dynamics(product1, 0, product2, 0));
+    irt_check(sim.connect_dynamics(integrator_a, 0, product2, 1));
 
     f(sim.get_id(sum));
     f(sim.get_id(product1));
@@ -294,13 +294,13 @@ status example_qss_negative_lif(simulation& sim, F f) noexcept
     get_p(sim, cross).reals[0]    = Vt;
     get_p(sim, cross).integers[0] = false;
 
-    irt_check(sim.connect(cross, 0, integrator, 1));
-    irt_check(sim.connect(cross, 1, sum, 0));
-    irt_check(sim.connect(integrator, 0, cross, 0));
-    irt_check(sim.connect(integrator, 0, cross, 2));
-    irt_check(sim.connect(cst_cross, 0, cross, 1));
-    irt_check(sim.connect(cst, 0, sum, 1));
-    irt_check(sim.connect(sum, 0, integrator, 0));
+    irt_check(sim.connect_dynamics(cross, 0, integrator, 1));
+    irt_check(sim.connect_dynamics(cross, 1, sum, 0));
+    irt_check(sim.connect_dynamics(integrator, 0, cross, 0));
+    irt_check(sim.connect_dynamics(integrator, 0, cross, 2));
+    irt_check(sim.connect_dynamics(cst_cross, 0, cross, 1));
+    irt_check(sim.connect_dynamics(cst, 0, sum, 1));
+    irt_check(sim.connect_dynamics(sum, 0, integrator, 0));
 
     f(sim.get_id(sum));
     f(sim.get_id(integrator));

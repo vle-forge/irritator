@@ -71,7 +71,7 @@ struct neuron make_neuron(irt::simulation* sim) noexcept
         p.reals[0] = irt::one;
     }
     {
-        auto& p = sim->parameters[sim->get_id(constant_cross_lif)];
+        auto& p    = sim->parameters[sim->get_id(constant_cross_lif)];
         p.reals[0] = Vr_lif;
     }
     {
@@ -80,15 +80,15 @@ struct neuron make_neuron(irt::simulation* sim) noexcept
     }
 
     // Connections
-    expect(!!sim->connect(prod_lif, 0, integrator_lif, 0));
-    expect(!!sim->connect(cross_lif, 0, integrator_lif, 1));
-    expect(!!sim->connect(cross_lif, 0, sum_lif, 0));
-    expect(!!sim->connect(integrator_lif, 0, cross_lif, 0));
-    expect(!!sim->connect(integrator_lif, 0, cross_lif, 2));
-    expect(!!sim->connect(constant_cross_lif, 0, cross_lif, 1));
-    expect(!!sim->connect(constant_lif, 0, sum_lif, 1));
-    expect(!!sim->connect(sum_lif, 0, prod_lif, 0));
-    expect(!!sim->connect(constant_lif, 0, prod_lif, 1));
+    expect(!!sim->connect_dynamics(prod_lif, 0, integrator_lif, 0));
+    expect(!!sim->connect_dynamics(cross_lif, 0, integrator_lif, 1));
+    expect(!!sim->connect_dynamics(cross_lif, 0, sum_lif, 0));
+    expect(!!sim->connect_dynamics(integrator_lif, 0, cross_lif, 0));
+    expect(!!sim->connect_dynamics(integrator_lif, 0, cross_lif, 2));
+    expect(!!sim->connect_dynamics(constant_cross_lif, 0, cross_lif, 1));
+    expect(!!sim->connect_dynamics(constant_lif, 0, sum_lif, 1));
+    expect(!!sim->connect_dynamics(sum_lif, 0, prod_lif, 0));
+    expect(!!sim->connect_dynamics(constant_lif, 0, prod_lif, 1));
 
     return neuron_model;
 }
@@ -154,28 +154,28 @@ struct synapse make_synapse(irt::simulation* sim,
     };
 
     // Connections
-    expect(!!sim->connect(cross_pre, 0, int_pre, 0));
-    expect(!!sim->connect(mult_pre, 0, int_pre, 0));
-    expect(!!sim->connect(cross_pre, 0, int_pre, 1));
-    expect(!!sim->connect(int_pre, 0, cross_pre, 2));
-    expect(!!sim->connect(cross_pre, 0, mult_pre, 0));
-    expect(!!sim->connect(const_syn, 0, mult_pre, 1));
-    expect(!!sim->connect(int_pre, 0, sum_pre, 0));
-    expect(!!sim->connect(const_syn, 0, sum_pre, 1));
-    expect(!!sim->connect(sum_pre, 0, cross_pre, 1));
+    expect(!!sim->connect_dynamics(cross_pre, 0, int_pre, 0));
+    expect(!!sim->connect_dynamics(mult_pre, 0, int_pre, 0));
+    expect(!!sim->connect_dynamics(cross_pre, 0, int_pre, 1));
+    expect(!!sim->connect_dynamics(int_pre, 0, cross_pre, 2));
+    expect(!!sim->connect_dynamics(cross_pre, 0, mult_pre, 0));
+    expect(!!sim->connect_dynamics(const_syn, 0, mult_pre, 1));
+    expect(!!sim->connect_dynamics(int_pre, 0, sum_pre, 0));
+    expect(!!sim->connect_dynamics(const_syn, 0, sum_pre, 1));
+    expect(!!sim->connect_dynamics(sum_pre, 0, cross_pre, 1));
     expect(!!sim->connect(
       presynaptic_model, presynaptic_port, irt::get_model(cross_pre), 0))
       << fatal;
 
-    expect(!!sim->connect(cross_post, 0, int_post, 0));
-    expect(!!sim->connect(mult_post, 0, int_post, 0));
-    expect(!!sim->connect(cross_post, 0, int_post, 1));
-    expect(!!sim->connect(int_post, 0, cross_post, 2));
-    expect(!!sim->connect(cross_post, 0, mult_post, 0));
-    expect(!!sim->connect(const_syn, 0, mult_post, 1));
-    expect(!!sim->connect(int_post, 0, sum_post, 0));
-    expect(!!sim->connect(const_syn, 0, sum_post, 1));
-    expect(!!sim->connect(sum_post, 0, cross_post, 1));
+    expect(!!sim->connect_dynamics(cross_post, 0, int_post, 0));
+    expect(!!sim->connect_dynamics(mult_post, 0, int_post, 0));
+    expect(!!sim->connect_dynamics(cross_post, 0, int_post, 1));
+    expect(!!sim->connect_dynamics(int_post, 0, cross_post, 2));
+    expect(!!sim->connect_dynamics(cross_post, 0, mult_post, 0));
+    expect(!!sim->connect_dynamics(const_syn, 0, mult_post, 1));
+    expect(!!sim->connect_dynamics(int_post, 0, sum_post, 0));
+    expect(!!sim->connect_dynamics(const_syn, 0, sum_post, 1));
+    expect(!!sim->connect_dynamics(sum_post, 0, cross_post, 1));
     expect(!!sim->connect(
       postsynaptic_model, postsynaptic_port, irt::get_model(cross_post), 0));
 
@@ -185,8 +185,8 @@ struct synapse make_synapse(irt::simulation* sim,
                           postsynaptic_port,
                           irt::get_model(accumulator_syn),
                           1));
-    expect(!!sim->connect(cross_post, 0, accumulator_syn, 2));
-    expect(!!sim->connect(cross_pre, 0, accumulator_syn, 3));
+    expect(!!sim->connect_dynamics(cross_post, 0, accumulator_syn, 2));
+    expect(!!sim->connect_dynamics(cross_pre, 0, accumulator_syn, 3));
 
     return synapse_model;
 }
