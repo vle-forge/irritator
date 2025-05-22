@@ -136,6 +136,11 @@ constexpr void convert_source(const std::span<const mod_to_sim_srcs> srcs,
 struct model_port {
     model_id mdl  = undefined<model_id>();
     int      port = 0;
+
+    model_port(const model_id mdl_, const int port_) noexcept
+      : mdl{ mdl_ }
+      , port{ port_ }
+    {}
 };
 
 class sum_connection
