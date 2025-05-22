@@ -4381,6 +4381,56 @@ constexpr sz max_size_in_bytes() noexcept
                sizeof(hsm_wrapper));
 }
 
+template<typename Dynamics>
+concept dynamics =
+  std::is_same_v<Dynamics, qss1_integrator> or
+  std::is_same_v<Dynamics, qss1_multiplier> or
+  std::is_same_v<Dynamics, qss1_cross> or
+  std::is_same_v<Dynamics, qss1_filter> or
+  std::is_same_v<Dynamics, qss1_power> or
+  std::is_same_v<Dynamics, qss1_square> or
+  std::is_same_v<Dynamics, qss1_sum_2> or
+  std::is_same_v<Dynamics, qss1_sum_3> or
+  std::is_same_v<Dynamics, qss1_sum_4> or
+  std::is_same_v<Dynamics, qss1_wsum_2> or
+  std::is_same_v<Dynamics, qss1_wsum_3> or
+  std::is_same_v<Dynamics, qss1_wsum_4> or
+  std::is_same_v<Dynamics, qss2_integrator> or
+  std::is_same_v<Dynamics, qss2_multiplier> or
+  std::is_same_v<Dynamics, qss2_cross> or
+  std::is_same_v<Dynamics, qss2_filter> or
+  std::is_same_v<Dynamics, qss2_power> or
+  std::is_same_v<Dynamics, qss2_square> or
+  std::is_same_v<Dynamics, qss2_sum_2> or
+  std::is_same_v<Dynamics, qss2_sum_3> or
+  std::is_same_v<Dynamics, qss2_sum_4> or
+  std::is_same_v<Dynamics, qss2_wsum_2> or
+  std::is_same_v<Dynamics, qss2_wsum_3> or
+  std::is_same_v<Dynamics, qss2_wsum_4> or
+  std::is_same_v<Dynamics, qss3_integrator> or
+  std::is_same_v<Dynamics, qss3_multiplier> or
+  std::is_same_v<Dynamics, qss3_cross> or
+  std::is_same_v<Dynamics, qss3_filter> or
+  std::is_same_v<Dynamics, qss3_power> or
+  std::is_same_v<Dynamics, qss3_square> or
+  std::is_same_v<Dynamics, qss3_sum_2> or
+  std::is_same_v<Dynamics, qss3_sum_3> or
+  std::is_same_v<Dynamics, qss3_sum_4> or
+  std::is_same_v<Dynamics, qss3_wsum_2> or
+  std::is_same_v<Dynamics, qss3_wsum_3> or
+  std::is_same_v<Dynamics, qss3_wsum_4> or std::is_same_v<Dynamics, counter> or
+  std::is_same_v<Dynamics, queue> or std::is_same_v<Dynamics, dynamic_queue> or
+  std::is_same_v<Dynamics, priority_queue> or
+  std::is_same_v<Dynamics, generator> or std::is_same_v<Dynamics, constant> or
+  std::is_same_v<Dynamics, accumulator_2> or
+  std::is_same_v<Dynamics, time_func> or
+  std::is_same_v<Dynamics, logical_and_2> or
+  std::is_same_v<Dynamics, logical_and_3> or
+  std::is_same_v<Dynamics, logical_or_2> or
+  std::is_same_v<Dynamics, logical_or_3> or
+  std::is_same_v<Dynamics, logical_invert> or
+  std::is_same_v<Dynamics, hsm_wrapper>;
+
 struct model {
     real tl     = 0.0;
     real tn     = time_domain<time>::infinity;
@@ -4392,7 +4442,7 @@ struct model {
     alignas(8) std::byte dyn[max_size_in_bytes()];
 };
 
-template<typename Dynamics>
+template<dynamics Dynamics>
 static constexpr dynamics_type dynamics_typeof() noexcept
 {
     if constexpr (std::is_same_v<Dynamics, qss1_integrator>)
@@ -4992,7 +5042,7 @@ constexpr auto dispatch(model& mdl, Function&& f) noexcept
     unreachable();
 }
 
-template<typename Dynamics>
+template<dynamics Dynamics>
 Dynamics& get_dyn(model& mdl) noexcept
 {
     debug::ensure(dynamics_typeof<Dynamics>() == mdl.type);
@@ -5000,7 +5050,7 @@ Dynamics& get_dyn(model& mdl) noexcept
     return *reinterpret_cast<Dynamics*>(&mdl.dyn);
 }
 
-template<typename Dynamics>
+template<dynamics Dynamics>
 const Dynamics& get_dyn(const model& mdl) noexcept
 {
     debug::ensure(dynamics_typeof<Dynamics>() == mdl.type);
@@ -5008,14 +5058,14 @@ const Dynamics& get_dyn(const model& mdl) noexcept
     return *reinterpret_cast<const Dynamics*>(&mdl.dyn);
 }
 
-template<typename Dynamics>
+template<dynamics Dynamics>
 constexpr const model& get_model(const Dynamics& d) noexcept
 {
     const Dynamics* __mptr = &d;
     return *(const model*)((const char*)__mptr - offsetof(model, dyn));
 }
 
-template<typename Dynamics>
+template<dynamics Dynamics>
 constexpr model& get_model(Dynamics& d) noexcept
 {
     Dynamics* __mptr = &d;
