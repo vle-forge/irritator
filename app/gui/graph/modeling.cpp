@@ -626,7 +626,8 @@ struct graph_component_editor_data::impl {
 
         ed.scrolling.x = ((-center.x * ed.zoom.x) + (canvas_sz.x / 2.f));
         ed.scrolling.y = ((-center.y * ed.zoom.y) + (canvas_sz.y / 2.f));
-        ed.st          = graph_component_editor_data::job::none;
+
+        ed.st = graph_component_editor_data::job::none;
     }
 
     void auto_fit_camera(ImVec2 top_left,
@@ -638,8 +639,12 @@ struct graph_component_editor_data::impl {
         ImVec2 center((bottom_right[0] - top_left[0]) / 2.0f + top_left[0],
                       (bottom_right[1] - top_left[1]) / 2.0f + top_left[1]);
 
-        ed.zoom.x      = canvas_sz.x / distance.x;
-        ed.zoom.y      = canvas_sz.y / distance.y;
+        ed.zoom.x = canvas_sz.x / distance.x;
+        ed.zoom.y = canvas_sz.y / distance.y;
+
+        ed.zoom.x = almost_equal(ed.zoom.x, 0.f, 100) ? 1.f : ed.zoom.x;
+        ed.zoom.y = almost_equal(ed.zoom.y, 0.f, 100) ? 1.f : ed.zoom.y;
+
         ed.scrolling.x = ((-center.x * ed.zoom.x) + (canvas_sz.x / 2.f));
         ed.scrolling.y = ((-center.y * ed.zoom.y) + (canvas_sz.y / 2.f));
         ed.st          = graph_component_editor_data::job::none;
