@@ -241,8 +241,6 @@ public:
               const ImVec2&   size) noexcept;
 
 private:
-    struct impl;
-
     ImVec2 zoom{ 1.f, 1.f };
     ImVec2 scrolling{ 0.f, 0.f };
     ImVec2 distance{ 0.f, 0.f };
