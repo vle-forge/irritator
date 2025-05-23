@@ -203,19 +203,21 @@ static void show_file_component(application& app,
         }
 
         format(buffer, "{} ({})", c.name.sv(), file.path.sv());
-
         ImGui::SameLine(75.f);
-        if (ImGui::Selectable(buffer.c_str(),
-                              selected,
-                              ImGuiSelectableFlags_AllowDoubleClick)) {
-            if (ImGui::IsMouseDoubleClicked(0))
-                app.library_wnd.try_set_component_as_project(app, id);
-            else
-                app.component_ed.request_to_open(id);
+        if (state == component_status::unreadable) {
+            ImGui::TextDisabled(buffer.c_str());
+        } else {
+            if (ImGui::Selectable(buffer.c_str(),
+                                  selected,
+                                  ImGuiSelectableFlags_AllowDoubleClick)) {
+                if (ImGui::IsMouseDoubleClicked(0))
+                    app.library_wnd.try_set_component_as_project(app, id);
+                else
+                    app.component_ed.request_to_open(id);
+            }
+            show_component_popup_menu(app, c);
         }
         ImGui::PopID();
-
-        show_component_popup_menu(app, c);
 
         ImGui::PushStyleColor(ImGuiCol_Text,
                               ImGui::GetStyle().Colors[ImGuiCol_TextDisabled]);
