@@ -1815,6 +1815,9 @@ public:
      */
     graph_observer& alloc_graph_observer() noexcept;
 
+    registred_path_id
+      observation_dir; /**< The output directory used by all text observation
+                          file. If undefined, the current repertory is used. */
 private:
     component_id m_head    = undefined<component_id>();
     tree_node_id m_tn_head = undefined<tree_node_id>();

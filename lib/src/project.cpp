@@ -1434,6 +1434,7 @@ project::project(const project_reserve_definition&         res,
   , grid_observers{ res.grids.value() }
   , graph_observers{ res.graphs.value() }
   , parameters{ sim_res.models.value() }
+  , observation_dir{ undefined<registred_path_id>() }
 {}
 
 class treenode_require_computer
