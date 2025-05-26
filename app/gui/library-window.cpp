@@ -205,7 +205,7 @@ static void show_file_component(application& app,
         format(buffer, "{} ({})", c.name.sv(), file.path.sv());
         ImGui::SameLine(75.f);
         if (state == component_status::unreadable) {
-            ImGui::TextDisabled(buffer.c_str());
+            ImGui::TextDisabled("%s", buffer.c_str());
         } else {
             if (ImGui::Selectable(buffer.c_str(),
                                   selected,
