@@ -41,6 +41,33 @@ void memory_window::show() noexcept
                           app.mod.file_paths.capacity());
     }
 
+    if (ImGui::CollapsingHeader("Graph")) {
+        for (const auto& g : app.mod.graphs) {
+            const auto id = app.mod.graphs.get_id(g);
+
+            if (ImGui::TreeNode(&g, "%u", ordinal(id))) {
+                ImGui::LabelFormat("main-id", "{}", g.main_id);
+                ImGui::LabelFormat("nodes", "{}", g.nodes.size());
+                ImGui::LabelFormat("edges", "{}", g.edges.size());
+                ImGui::TreePop();
+            }
+        }
+    }
+
+    if (ImGui::CollapsingHeader("HSM")) {
+        for (const auto& g : app.mod.hsms) {
+            const auto id = app.mod.hsms.get_id(g);
+
+            if (ImGui::TreeNode(&g, "%u", ordinal(id))) {
+                ImGui::LabelFormat(
+                  "max state", "{}", g.compute_max_state_used());
+                ImGui::LabelFormat("edges", "{}", g.top_state);
+                ImGui::LabelFormat("using source", "{}", g.is_using_source());
+                ImGui::TreePop();
+            }
+        }
+    }
+
     if (ImGui::CollapsingHeader("Project", ImGuiTreeNodeFlags_DefaultOpen)) {
         for (const auto& p : app.pjs) {
             const auto id  = app.pjs.get_id(p);
@@ -95,6 +122,31 @@ void memory_window::show() noexcept
                 if (ImGui::TreeNode(compo.name.c_str())) {
                     ImGui::LabelFormat(
                       "type", "{}", component_type_names[ordinal(compo.type)]);
+
+                    switch (compo.type) {
+                    case component_type::generic:
+                        ImGui::LabelFormat(
+                          "id", "{}", ordinal(compo.id.generic_id));
+                        break;
+                    case component_type::grid:
+                        ImGui::LabelFormat(
+                          "id", "{}", ordinal(compo.id.grid_id));
+                        break;
+                    case component_type::graph:
+                        ImGui::LabelFormat(
+                          "id", "{}", ordinal(compo.id.graph_id));
+                        break;
+                    case component_type::hsm:
+                        ImGui::LabelFormat(
+                          "id", "{}", ordinal(compo.id.hsm_id));
+                        break;
+                    case component_type::internal:
+                        ImGui::LabelFormat(
+                          "id", "{}", ordinal(compo.id.internal_id));
+                        break;
+                    case component_type::none:
+                        break;
+                    }
 
                     ImGui::LabelFormat("Dir", "{}", ordinal(compo.dir));
                     ImGui::LabelFormat(
