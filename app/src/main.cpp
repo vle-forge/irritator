@@ -29,6 +29,8 @@ irritator-cli [-h][-v][-tmin:max]
 Options:
   -h,--help                This help message
   -v, --version            The version of irritator
+  -o path                  The output path of the simulation result.
+  --output path            If path does not exist, current dir is used.
   -t:begin[,duration]      Define the beginning date of the simulation and
   --time begin[,duration]  ptionaly the duration. The begin date default is
                            0.0, the duration is +infiny. Duration can only
@@ -85,6 +87,7 @@ enum class ec {
     project_init_error,
     modeling_init_error,
     simulation_init_error,
+    unknown_output_path,
     unknown_error
 };
 
@@ -101,6 +104,7 @@ static constexpr report_parameter report_parameters[] = {
     { "project init error: {},", 1 },
     { "modeling init error: {},", 1 },
     { "simulation init error: {}", 1 },
+    { "unknown output path `{}'", 1 },
     { "unknown error", 0 }
 };
 
@@ -130,7 +134,7 @@ static constexpr auto error(Ret&& ret, Args&&... args) noexcept -> Ret
     return ret;
 }
 
-enum class option_id { unknown, help, memory, time, version };
+enum class option_id { unknown, help, memory, output, time, version };
 
 struct option {
     const std::string_view short_opt;
@@ -143,6 +147,7 @@ struct option {
 static inline constexpr option options[] = {
     { "h", "help", option_id::help, 0, 0 },
     { "m", "memory", option_id::memory, 1, 1 },
+    { "o", "output", option_id::output, 1, 1 },
     { "t", "time", option_id::time, 1, 2 },
     { "v", "version", option_id::version, 0, 0 },
 };
@@ -505,6 +510,25 @@ public:
         return error<ec::arg_missing>(false, "memory");
     }
 
+    bool read_output_dir() noexcept
+    {
+        try {
+            auto o  = std::filesystem::path(front);
+            auto ec = std::error_code();
+            if (std::filesystem::exists(o, ec)) {
+                auto&      dir     = mod.registred_paths.alloc();
+                const auto dir_id  = mod.registred_paths.get_id(dir);
+                dir.name           = "output-directory";
+                dir.path           = o.string().c_str();
+                pj.observation_dir = dir_id;
+                return true;
+            }
+        } catch (...) {
+        }
+
+        return false;
+    }
+
     constexpr bool dispatch(const option& opt) noexcept
     {
         switch (opt.id) {
@@ -517,6 +541,12 @@ public:
                 consume_data(1u);
 
             return read_memory();
+
+        case option_id::output:
+            if (front[0] == '=' or front[0] == ':')
+                consume_data(1u);
+
+            return read_output_dir();
 
         case option_id::version:
             show_version();
