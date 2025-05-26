@@ -3549,20 +3549,27 @@ struct json_dearchiver::impl {
     {
         auto_stack s(this, "component graph children");
 
-        compo.g.nodes.clear();
+        auto it = val.FindMember("children");
+        auto et = val.MemberEnd();
 
-        if (auto it = val.FindMember("children");
-            it != val.MemberEnd() and it->value.IsArray()) {
+        if (it != et) {
+            if (!it->value.IsArray())
+                return error("json value is not an array");
 
-            return reserve_graph_node(compo, it->value.GetArray().Size()) and
-                   for_each_array(
-                     it->value.GetArray(),
-                     [&](const auto /*i*/, const auto& value) noexcept -> bool {
-                         component_id c_id = undefined<component_id>();
+            rapidjson::SizeType i = 0, e = it->value.GetArray().Size();
+            if (e == 0)
+                return true;
 
-                         return read_child_component(value, c_id) &&
-                                graph_children_add(compo, c_id);
-                     });
+            for (const auto id : compo.g.nodes) {
+                if (not(read_child_component(it->value.GetArray()[i],
+                                             compo.g.node_components[id])))
+                    return false;
+
+                i++;
+
+                if (i >= e)
+                    break;
+            }
         }
 
         return true;

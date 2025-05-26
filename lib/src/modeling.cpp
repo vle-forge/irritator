@@ -561,6 +561,28 @@ status modeling::fill_components() noexcept
     prepare_component_loading(*this);
     bool have_unread_component = components.size() > 0u;
 
+    debug_log("{} graphs to load\n", graphs.size());
+    for (auto& g : graphs) {
+        const auto file_id = g.file;
+        auto       file    = make_file(*this, file_id);
+        if (auto ret = irt::parse_dot_file(*this, *file); ret.has_value()) {
+            g      = std::move(*ret);
+            g.file = file_id;
+        } else {
+            journal.push(
+              log_level::warning,
+              [&](auto& t, auto& m, const auto& f) noexcept {
+                  t = "Modeling initialization error";
+                  format(m,
+                         "Fail to read dot graph `{}' ({}:{})",
+                         reinterpret_cast<const char*>(f.c_str()),
+                         ordinal(ret.error().cat()),
+                         ret.error().value());
+              },
+              *file);
+        }
+    }
+
     auto& compos = components.get<component>();
     for (auto id : components) {
         auto& compo = compos[id];
@@ -619,28 +641,6 @@ status modeling::fill_components() noexcept
                    component_type_names[ordinal(compo_vec[id].type)]);
 
         debug_component(*this, compo_vec[id]);
-    }
-
-    debug_log("{} graphs to load\n", graphs.size());
-    for (auto& g : graphs) {
-        const auto file_id = g.file;
-        auto       file    = make_file(*this, file_id);
-        if (auto ret = irt::parse_dot_file(*this, *file); ret.has_value()) {
-            g      = std::move(*ret);
-            g.file = file_id;
-        } else {
-            journal.push(
-              log_level::warning,
-              [&](auto& t, auto& m, const auto& f) noexcept {
-                  t = "Modeling initialization error";
-                  format(m,
-                         "Fail to read dot graph `{}' ({}:{})",
-                         reinterpret_cast<const char*>(f.c_str()),
-                         ordinal(ret.error().cat()),
-                         ret.error().value());
-              },
-              *file);
-        }
     }
 
     return success();

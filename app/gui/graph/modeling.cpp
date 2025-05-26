@@ -100,6 +100,9 @@ struct graph_component_editor_data::impl {
 
     bool compute_automatic_layout(graph_component& graph) noexcept
     {
+        if (ed.iteration == 0)
+            update_position_to_grid(graph, ed);
+
         const auto size = graph.g.nodes.size();
         if (size < 2)
             return false;
@@ -794,7 +797,11 @@ struct graph_component_editor_data::impl {
                         ed.zoom.y = ImClamp(zoom[1], 0.1f, 1000.f);
                     }
 
-                    ImGui::Checkbox("Automatic layout", &ed.automatic_layout);
+                    if (ImGui::Checkbox("Automatic layout",
+                                        &ed.automatic_layout)) {
+                        if (ed.automatic_layout)
+                            ed.iteration = 0;
+                    }
 
                     float distance[2] = { ed.distance.x, ed.distance.y };
                     if (ImGui::InputFloat2("Distance between node", distance)) {
@@ -1104,6 +1111,17 @@ void graph_component_editor_data::show_selected_nodes(
     auto& app = container_of(&ed, &application::component_ed);
 
     if (auto* graph = app.mod.graph_components.try_to_get(graph_id)) {
+        ImGui::TextFormatDisabled("nodes: {} edges: {}",
+                                  graph->g.nodes.ssize(),
+                                  graph->g.edges.ssize());
+
+        for (auto id : graph->g.nodes) {
+            ImGui::TextFormatDisabled("{} -> {}x{}",
+                                      get_index(id),
+                                      graph->g.node_positions[id][0],
+                                      graph->g.node_positions[id][1]);
+        }
+
         if (ImGui::TreeNodeEx("selected nodes")) {
             for (const auto id : selected_nodes) {
                 if (graph->g.nodes.exists(id)) {
