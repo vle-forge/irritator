@@ -1516,7 +1516,9 @@ public:
 
     /** For each variable_observers, grid_observers and graph_observers from
      * @c project try to initialize the @c buffered_file in @c files. */
-    void initialize(const simulation& sim, project& pj) noexcept;
+    void initialize(const simulation& sim,
+                    project&          pj,
+                    std::string_view  output_dir) noexcept;
 
     /** Check if the @c tn is lower than @c t. */
     bool can_update(const time t) const noexcept;
@@ -1814,6 +1816,16 @@ public:
        running this function to ensure allocation is possible.
      */
     graph_observer& alloc_graph_observer() noexcept;
+
+    /** Get the observation directory used by all text observation
+     * files. If the @c observation_dir is undefined this function returns an
+     * empty string.
+     *
+     * @param mod The modeling object to get the observation directory.
+     * @return A string_view to the observation directory.
+     */
+    std::string_view get_observation_dir(
+      const irt::modeling& mod) const noexcept;
 
     registred_path_id
       observation_dir; /**< The output directory used by all text observation

@@ -25,7 +25,7 @@ static status simulation_init_observation(modeling& mod, project& pj) noexcept
     for (auto& v_obs : pj.variable_observers)
         irt_check(v_obs.init(pj, pj.sim));
 
-    pj.file_obs.initialize(pj.sim, pj);
+    pj.file_obs.initialize(pj.sim, pj, pj.get_observation_dir(mod));
 
     return success();
 }

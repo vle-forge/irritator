@@ -254,7 +254,7 @@ public:
             if (auto ret = o.init(pj, pj.sim); !!ret)
                 pj.file_obs.alloc(pj.variable_observers.get_id(o));
 
-        pj.file_obs.initialize(pj.sim, pj);
+        pj.file_obs.initialize(pj.sim, pj, pj.get_observation_dir(mod));
     }
 
     void observation_update() noexcept

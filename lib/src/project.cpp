@@ -1437,6 +1437,13 @@ project::project(const project_reserve_definition&         res,
   , observation_dir{ undefined<registred_path_id>() }
 {}
 
+std::string_view project::get_observation_dir(
+  const irt::modeling& mod) const noexcept
+{
+    const auto* dir = mod.registred_paths.try_to_get(observation_dir);
+    return dir ? dir->path.sv() : std::string_view{};
+}
+
 class treenode_require_computer
 {
 public:
