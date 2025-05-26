@@ -137,6 +137,71 @@ static constexpr bool project_name_already_exists(
     return false;
 }
 
+static bool show_registred_obseravation_path(application&    app,
+                                             project_editor& ed) noexcept
+{
+    static bool show_registred_path = false;
+    const auto  old_observation_dir = ed.pj.observation_dir;
+
+    const auto* reg_dir =
+      app.mod.registred_paths.try_to_get(ed.pj.observation_dir);
+    const auto preview = reg_dir ? reg_dir->name.c_str() : "-";
+
+    if (ImGui::BeginCombo("obs. path", preview)) {
+        if (ImGui::Selectable("-", reg_dir == nullptr)) {
+            ed.pj.observation_dir = undefined<registred_path_id>();
+        }
+
+        for (const auto& r : app.mod.registred_paths) {
+            const auto r_id = app.mod.registred_paths.get_id(r);
+            ImGui::PushID(ordinal(r_id));
+            if (ImGui::Selectable(r.name.c_str(),
+                                  ed.pj.observation_dir == r_id)) {
+                ed.pj.observation_dir = r_id;
+            }
+            ImGui::PopID();
+        }
+        ImGui::EndCombo();
+    }
+
+    ImGui::SameLine();
+    if (const auto* rr =
+          app.mod.registred_paths.try_to_get(ed.pj.observation_dir)) {
+        HelpMarker(rr->path.c_str());
+    } else {
+        if (ImGui::Button("+"))
+            show_registred_path = true;
+    }
+
+    if (show_registred_path) {
+        ImGui::OpenPopup("Select new output path");
+        if (app.f_dialog.show_select_directory("Select new output path")) {
+            if (app.f_dialog.state == file_dialog::status::ok) {
+                if (app.mod.registred_paths.can_alloc(1)) {
+                    auto& path = app.mod.registred_paths.alloc();
+                    ed.pj.observation_dir =
+                      app.mod.registred_paths.get_id(path);
+                    path.path = reinterpret_cast<const char*>(
+                      app.f_dialog.result.u8string().c_str());
+                    path.name =
+                      app.f_dialog.result.has_stem()
+                        ? reinterpret_cast<const char*>(
+                            app.f_dialog.result.stem().u8string().c_str())
+                        : reinterpret_cast<const char*>(
+                            app.f_dialog.result.parent_path()
+                              .stem()
+                              .u8string()
+                              .c_str());
+                }
+            }
+            show_registred_path = false;
+            app.f_dialog.clear();
+        }
+    }
+
+    return old_observation_dir != ed.pj.observation_dir;
+}
+
 static bool show_project_simulation_settings(application&    app,
                                              project_editor& ed) noexcept
 {
@@ -216,6 +281,8 @@ static bool show_project_simulation_settings(application&    app,
       "phase", "{}", simulation_status_names[ordinal(ed.simulation_state)]);
     ImGui::SameLine();
     HelpMarker("Display the simulation phase. Only for debug.");
+
+    up += show_registred_obseravation_path(app, ed);
 
     const auto sz = ImGui::ComputeButtonSize(2);
     ImGui::BeginDisabled(is_undefined(ed.project_file));
