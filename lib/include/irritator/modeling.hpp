@@ -781,6 +781,13 @@ public:
      * the area of each nodes. */
     void update_position() noexcept;
 
+    /** Assign for each node a position based on a grid.
+     * @param distance_x The distance between node x position.
+     * @param distance_y The distance between node y position.
+     */
+    void assign_grid_position(float distance_x = 10.f,
+                              float distance_y = 10.f) noexcept;
+
     /** Assign top-left and bottom, right limits in infinity position. */
     void reset_position() noexcept;
 

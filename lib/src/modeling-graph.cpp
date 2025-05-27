@@ -214,6 +214,40 @@ void graph_component::update_position() noexcept
     }
 }
 
+void graph_component::assign_grid_position(float distance_x,
+                                           float distance_y) noexcept
+{
+    debug::ensure(not g.nodes.empty());
+    debug::ensure(g_type != graph_component::graph_type::dot_file);
+
+    const auto nb        = g.nodes.size();
+    const auto sqrt      = std::sqrt(nb);
+    const auto line      = static_cast<unsigned>(sqrt);
+    const auto col       = nb / line;
+    const auto remaining = nb - (col * line);
+
+    auto it = g.nodes.begin();
+    for (auto l = 0u; l < line; ++l) {
+        for (auto c = 0u; c < col; ++c) {
+            g.node_positions[get_index(*it)][0] =
+              (distance_x + g.node_areas[get_index(*it)]) * c;
+            g.node_positions[get_index(*it)][1] =
+              (distance_y + g.node_areas[get_index(*it)]) * l;
+            ++it;
+        }
+    }
+
+    for (auto r = 0u; r < remaining; ++r) {
+        g.node_positions[get_index(*it)][0] =
+          (distance_x + g.node_areas[get_index(*it)]) * r;
+        g.node_positions[get_index(*it)][1] =
+          (distance_y + g.node_areas[get_index(*it)]) * line;
+        ++it;
+    }
+
+    update_position();
+}
+
 void graph_component::reset_position() noexcept
 {
     top_left_limit     = { +INFINITY, +INFINITY };
