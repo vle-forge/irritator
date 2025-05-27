@@ -927,6 +927,7 @@ graph_component_editor_data::graph_component_editor_data(
   const graph_component_id graph_id_) noexcept
   : graph_id(graph_id_)
   , m_id(id_)
+  , st(job::auto_fit_required)
 {}
 
 void graph_component_editor_data::clear() noexcept
