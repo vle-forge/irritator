@@ -317,6 +317,22 @@ static connection_add_result named_connection_add(
                   }
               });
           });
+
+        if (compo.g.is_digraph /* fIXME OR EDGE IS UNDIRECT */) {
+            edge.c_dst.y.for_each<port_str>(
+              [&](const auto sid, const auto& sname) noexcept {
+                  edge.c_src.x.for_each<port_str>(
+                    [&](const auto did, const auto& dname) noexcept {
+                        if (sname == dname) {
+                            if (connection_add(
+                                  compo, edge.dst, sid, edge.src, did) ==
+                                connection_add_result::nomem)
+                                return;
+                        }
+                    });
+              });
+        }
+
         return connection_add_result::done;
     }
 

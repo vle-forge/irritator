@@ -4,6 +4,7 @@
 
 #include <irritator/archiver.hpp>
 #include <irritator/core.hpp>
+#include <irritator/dot-parser.hpp>
 #include <irritator/error.hpp>
 #include <irritator/format.hpp>
 #include <irritator/io.hpp>
@@ -14,7 +15,8 @@
 #include <boost/ut.hpp>
 
 #include <fmt/format.h>
-#include <utility>
+
+using namespace std::literals;
 
 std::size_t get_connection_number(
   const irt::data_array<irt::block_node, irt::block_node_id>& data) noexcept
@@ -26,6 +28,21 @@ std::size_t get_connection_number(
 
     return sum;
 }
+
+#if 0
+void display_connection(
+  const irt::data_array<irt::block_node, irt::block_node_id>& data)
+{
+    for (const auto& elem : data) {
+        fmt::print("block ({})\n", elem.nodes.size());
+        for (const auto subelem : elem.nodes) {
+            fmt::print("  mdl: {} to port {}\n",
+                       irt::get_index(subelem.model),
+                       subelem.port_index);
+        }
+    }
+}
+#endif
 
 template<int length>
 static bool get_temp_registred_path(irt::small_string<length>& str) noexcept
@@ -1034,6 +1051,100 @@ int main()
             expect(eq(nb_counter_model, g.cells_number()));
             expect(eq(nb_constant_model, g.cells_number()));
             expect(eq(nb_unknown_model, 0));
+        }
+    };
+
+    "graph-dot-m-n-ports"_test = [] {
+        //         component
+        //      +----------------+
+        //      | +----+  +----+ |
+        //    m | |cnt |  | cst| |m
+        //    --+>|    |  |    +-+>
+        //      | +----+  +----+ |
+        //      |                |
+        //    n | +----+  +----+ |n
+        //    --+>|cnt |  | cst+-+>
+        //      | |    |  |    | |
+        //      | +----+  +----+ |
+        //      +----------------+
+
+        {
+            irt::journal_handler jn;
+            irt::modeling        mod{ jn };
+            irt::project         pj;
+
+            auto& compo = mod.alloc_generic_component();
+            auto& gen   = mod.generic_components.get(compo.id.generic_id);
+
+            auto& ch_m_ct  = mod.alloc(gen, irt::dynamics_type::counter);
+            auto& ch_m_cst = mod.alloc(gen, irt::dynamics_type::constant);
+            auto& ch_n_ct  = mod.alloc(gen, irt::dynamics_type::counter);
+            auto& ch_n_cst = mod.alloc(gen, irt::dynamics_type::constant);
+
+            auto p_m_in  = compo.get_or_add_x("m");
+            auto p_m_out = compo.get_or_add_y("m");
+            auto p_n_in  = compo.get_or_add_x("n");
+            auto p_n_out = compo.get_or_add_y("n");
+
+            // compo.x.get<irt::input_port_type>(p_m_in) =
+            //   irt::input_port_type::sum;
+            // compo.x.get<irt::input_port_type>(p_n_in) =
+            //   irt::input_port_type::sum;
+
+            expect(gen
+                     .connect_input(
+                       p_m_in, ch_m_ct, irt::connection::port{ .model = 0 })
+                     .has_value());
+            expect(gen
+                     .connect_input(
+                       p_n_in, ch_n_ct, irt::connection::port{ .model = 0 })
+                     .has_value());
+
+            expect(gen
+                     .connect_output(
+                       p_m_out, ch_m_cst, irt::connection::port{ .model = 0 })
+                     .has_value());
+            expect(gen
+                     .connect_output(
+                       p_n_out, ch_n_cst, irt::connection::port{ .model = 0 })
+                     .has_value());
+
+            auto& cg = mod.alloc_graph_component();
+            auto& g  = mod.graph_components.get(cg.id.graph_id);
+
+            const std::string_view buf = R"(digraph D {
+            A
+            B
+            C
+            A -- B
+            B -- C
+            C -- A
+        })";
+
+            auto ret = irt::parse_dot_buffer(mod, buf);
+            expect(ret.has_value() >> fatal);
+
+            expect(eq(ret->nodes.size(), 3u));
+
+            const auto table = ret->make_toc();
+            expect(eq(table.ssize(), 3));
+
+            expect(table.get("A"sv) >> fatal);
+            expect(table.get("B"sv) >> fatal);
+            expect(table.get("C"sv) >> fatal);
+
+            g.g = *ret;
+
+            for (const auto id : g.g.nodes)
+                g.g.node_components[id] = mod.components.get_id(compo);
+
+            g.type         = irt::graph_component::connection_type::name;
+            g.g.is_digraph = true;
+
+            expect(pj.set(mod, cg).has_value());
+            expect(eq(pj.sim.models.ssize(), 3 * 4));
+            expect(eq(get_connection_number(pj.sim.nodes),
+                      g.g.edges.size() * 2u * 2u));
         }
     };
 }
