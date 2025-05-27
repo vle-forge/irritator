@@ -908,38 +908,7 @@ struct graph_component_editor_data::impl {
 
     static void update_position_to_grid(auto& graph, auto& graph_ed) noexcept
     {
-        debug::ensure(not graph.g.nodes.empty());
-        debug::ensure(graph.g_type != graph_component::graph_type::dot_file);
-
-        const auto nb        = graph.g.nodes.size();
-        const auto sqrt      = std::sqrt(nb);
-        const auto line      = static_cast<unsigned>(sqrt);
-        const auto col       = nb / line;
-        const auto remaining = nb - (col * line);
-
-        auto it = graph.g.nodes.begin();
-        for (auto l = 0u; l < line; ++l) {
-            for (auto c = 0u; c < col; ++c) {
-                graph.g.node_positions[get_index(*it)][0] =
-                  (graph_ed.distance.x + graph.g.node_areas[get_index(*it)]) *
-                  c;
-                graph.g.node_positions[get_index(*it)][1] =
-                  (graph_ed.distance.y + graph.g.node_areas[get_index(*it)]) *
-                  l;
-                update_bound(graph, get_index(*it));
-                ++it;
-            }
-        }
-
-        for (auto r = 0u; r < remaining; ++r) {
-            graph.g.node_positions[get_index(*it)][0] =
-              (graph_ed.distance.x + graph.g.node_areas[get_index(*it)]) * r;
-            graph.g.node_positions[get_index(*it)][1] =
-              (graph_ed.distance.y + graph.g.node_areas[get_index(*it)]) * line;
-            update_bound(graph, get_index(*it));
-            ++it;
-        }
-
+        graph.assign_grid_position(graph_ed.distance.x, graph_ed.distance.y);
         graph_ed.displacements.resize(graph.g.nodes.size());
         graph_ed.automatic_layout = true;
         graph_ed.iteration        = 0;

@@ -3791,29 +3791,36 @@ struct json_dearchiver::impl {
             if (auto* g = mod().graphs.try_to_get(mod().search_graph_id(
                   graph.param.dot.dir, graph.param.dot.file))) {
                 graph.g = *g;
+                graph.update_position();
                 return true;
             }
             return false;
 
         case graph_component::graph_type::scale_free:
-            return graph.g
-              .init_scale_free_graph(graph.param.scale.alpha,
-                                     graph.param.scale.beta,
-                                     graph.param.scale.id,
-                                     graph.param.scale.nodes,
-                                     graph.seed,
-                                     graph.key)
-              .has_value();
+            if (auto ret =
+                  graph.g.init_scale_free_graph(graph.param.scale.alpha,
+                                                graph.param.scale.beta,
+                                                graph.param.scale.id,
+                                                graph.param.scale.nodes,
+                                                graph.seed,
+                                                graph.key);
+                ret.has_value())
+                graph.assign_grid_position();
+            else
+                return false;
 
         case graph_component::graph_type::small_world:
-            return graph.g
-              .init_small_world_graph(graph.param.small.probability,
-                                      graph.param.small.k,
-                                      graph.param.small.id,
-                                      graph.param.small.nodes,
-                                      graph.seed,
-                                      graph.key)
-              .has_value();
+            if (auto ret =
+                  graph.g.init_small_world_graph(graph.param.small.probability,
+                                                 graph.param.small.k,
+                                                 graph.param.small.id,
+                                                 graph.param.small.nodes,
+                                                 graph.seed,
+                                                 graph.key);
+                ret.has_value())
+                graph.assign_grid_position();
+            else
+                return false;
         }
 
         return true;
