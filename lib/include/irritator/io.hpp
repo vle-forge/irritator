@@ -90,9 +90,11 @@ static inline const char* str_generator[] = { "value",
                                               "add-tr",
                                               "mult-tr" };
 
-template<typename Dynamics>
+template<typename RawDynamics>
 inline constexpr std::span<const char*> get_input_port_names() noexcept
 {
+    using Dynamics = std::decay_t<RawDynamics>;
+
     if constexpr (std::is_same_v<Dynamics, qss1_integrator> ||
                   std::is_same_v<Dynamics, qss2_integrator> ||
                   std::is_same_v<Dynamics, qss3_integrator>)
@@ -245,9 +247,11 @@ static inline const char* str_out_cross[]  = { "if-value",
                                                "event" };
 static inline const char* str_out_filter[] = { "value", "up", "down" };
 
-template<typename Dynamics>
+template<typename RawDynamics>
 inline constexpr std::span<const char*> get_output_port_names() noexcept
 {
+    using Dynamics = std::decay_t<RawDynamics>;
+
     if constexpr (std::is_same_v<Dynamics, qss1_integrator> ||
                   std::is_same_v<Dynamics, qss1_multiplier> ||
                   std::is_same_v<Dynamics, qss1_power> ||
