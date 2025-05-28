@@ -1086,11 +1086,6 @@ int main()
             auto p_n_in  = compo.get_or_add_x("n");
             auto p_n_out = compo.get_or_add_y("n");
 
-            // compo.x.get<irt::input_port_type>(p_m_in) =
-            //   irt::input_port_type::sum;
-            // compo.x.get<irt::input_port_type>(p_n_in) =
-            //   irt::input_port_type::sum;
-
             expect(gen
                      .connect_input(
                        p_m_in, ch_m_ct, irt::connection::port{ .model = 0 })
@@ -1145,6 +1140,111 @@ int main()
             expect(eq(pj.sim.models.ssize(), 3 * 4));
             expect(eq(get_connection_number(pj.sim.nodes),
                       g.g.edges.size() * 2u * 2u));
+        }
+    };
+
+    "graph-dot-m-n-ports-sum-port"_test = [] {
+        //         component
+        //      +----------------+
+        //      | +----+  +----+ |
+        //    m | |cnt |  | cst| |m
+        //    --+>|    |  |    +-+>
+        //      | +----+  +----+ |
+        //      |                |
+        //    n | +----+  +----+ |n
+        //    --+>|cnt |  | cst+-+>
+        //      | |    |  |    | |
+        //      | +----+  +----+ |
+        //      +----------------+
+
+        {
+            irt::journal_handler jn;
+            irt::modeling        mod{ jn };
+            irt::project         pj;
+
+            auto& compo = mod.alloc_generic_component();
+            auto& gen   = mod.generic_components.get(compo.id.generic_id);
+
+            auto& ch_m_ct  = mod.alloc(gen, irt::dynamics_type::counter);
+            auto& ch_m_cst = mod.alloc(gen, irt::dynamics_type::constant);
+            auto& ch_n_ct  = mod.alloc(gen, irt::dynamics_type::counter);
+            auto& ch_n_cst = mod.alloc(gen, irt::dynamics_type::constant);
+
+            auto p_m_in  = compo.get_or_add_x("m");
+            auto p_m_out = compo.get_or_add_y("m");
+            auto p_n_in  = compo.get_or_add_x("n");
+            auto p_n_out = compo.get_or_add_y("n");
+
+            compo.x.get<irt::input_port_type>(p_m_in) =
+              irt::input_port_type::sum;
+            compo.x.get<irt::input_port_type>(p_n_in) =
+              irt::input_port_type::sum;
+
+            expect(gen
+                     .connect_input(
+                       p_m_in, ch_m_ct, irt::connection::port{ .model = 0 })
+                     .has_value());
+            expect(gen
+                     .connect_input(
+                       p_n_in, ch_n_ct, irt::connection::port{ .model = 0 })
+                     .has_value());
+
+            expect(gen
+                     .connect_output(
+                       p_m_out, ch_m_cst, irt::connection::port{ .model = 0 })
+                     .has_value());
+            expect(gen
+                     .connect_output(
+                       p_n_out, ch_n_cst, irt::connection::port{ .model = 0 })
+                     .has_value());
+
+            auto& cg = mod.alloc_graph_component();
+            auto& g  = mod.graph_components.get(cg.id.graph_id);
+
+            const std::string_view buf = R"(digraph D {
+            A
+            B
+            C
+            D
+            E
+            F
+            A -- F
+            B -- F
+            C -- F
+            D -- F
+            E -- F
+        })";
+
+            auto ret = irt::parse_dot_buffer(mod, buf);
+            expect(ret.has_value() >> fatal);
+
+            expect(eq(ret->nodes.size(), 6u));
+
+            const auto table = ret->make_toc();
+            expect(eq(table.ssize(), 6));
+
+            expect(table.get("A"sv) >> fatal);
+            expect(table.get("B"sv) >> fatal);
+            expect(table.get("C"sv) >> fatal);
+
+            g.g = *ret;
+
+            for (const auto id : g.g.nodes)
+                g.g.node_components[id] = mod.components.get_id(compo);
+
+            g.type = irt::graph_component::connection_type::name;
+
+            expect(pj.set(mod, cg).has_value());
+
+            // Six components plus 2 automatic 4 sum models (5 input models A,
+            // .., E for port m and 2 for port n.
+
+            expect(eq(pj.sim.models.ssize(), 6 * 4 + 2 + 2));
+
+            // 5 edges + 2 edge for sum models for port m and n.
+
+            expect(eq(get_connection_number(pj.sim.nodes),
+                      (g.g.edges.size() + 2u) * 2u));
         }
     };
 }
