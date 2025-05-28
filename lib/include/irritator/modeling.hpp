@@ -561,6 +561,8 @@ class graph
 public:
     using edge = std::pair<graph_node_id, std::string_view>;
 
+    enum class option_flags { strict = 1, directed = 2, Count };
+
     graph() noexcept = default;
 
     explicit graph(const graph& other) noexcept;
@@ -586,9 +588,8 @@ public:
 
     file_path_id file = undefined<file_path_id>();
 
-    bool is_strict  = false;
-    bool is_graph   = false;
-    bool is_digraph = false;
+    /// Default an unstrict undirected graph.
+    bitflags<option_flags> flags;
 
     /** Reserve memory for nodes @a data_array and resize memory for @c
      * vector for at least @a i nodes.

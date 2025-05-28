@@ -1099,11 +1099,11 @@ private:
     {
         switch (convert_to_element_type(type)) {
         case element_type::graph:
-            g.is_graph = true;
+            g.flags.reset(graph::option_flags::directed);
             return true;
 
         case element_type::digraph:
-            g.is_digraph = true;
+            g.flags.set(graph::option_flags::directed);
             return true;
 
         default:
@@ -1125,7 +1125,7 @@ private:
         const auto s = get_and_free_string(strict_or_graph);
 
         if (convert_to_element_type(s) == element_type::strict) {
-            g.is_strict = true;
+            g.flags.set(graph::option_flags::strict);
 
             if (not check_minimum_tokens(1))
                 return error<msg_id::missing_token>(line);
@@ -1261,9 +1261,7 @@ graph::graph(const graph& other) noexcept
   , node_areas(other.node_areas)
   , edges_nodes(other.edges_nodes)
   , main_id(other.main_id)
-  , is_strict(other.is_strict)
-  , is_graph(other.is_graph)
-  , is_digraph(other.is_digraph)
+  , flags(other.flags)
 {
     for (const auto id : other.nodes) {
         const auto idx  = get_index(id);
@@ -1286,9 +1284,7 @@ graph::graph(graph&& other) noexcept
   , main_id(std::move(other.main_id))
   , buffer(std::move(other.buffer))
   , file(other.file)
-  , is_strict(other.is_strict)
-  , is_graph(other.is_graph)
-  , is_digraph(other.is_digraph)
+  , flags(other.flags)
 {}
 
 graph& graph::operator=(const graph& other) noexcept
@@ -1305,9 +1301,7 @@ graph& graph::operator=(const graph& other) noexcept
     node_areas      = other.node_areas;
     edges_nodes     = other.edges_nodes;
     main_id         = other.main_id;
-    is_strict       = other.is_strict;
-    is_graph        = other.is_graph;
-    is_digraph      = other.is_digraph;
+    flags           = other.flags;
 
     for (const auto id : other.nodes) {
         const auto idx  = get_index(id);
@@ -1315,10 +1309,7 @@ graph& graph::operator=(const graph& other) noexcept
         node_ids[idx]   = buffer.append(other.node_ids[idx]);
     }
 
-    main_id    = buffer.append(other.main_id);
-    is_strict  = other.is_strict;
-    is_graph   = other.is_graph;
-    is_digraph = other.is_digraph;
+    main_id = buffer.append(other.main_id);
 
     return *this;
 }
@@ -1338,9 +1329,7 @@ graph& graph::operator=(graph&& other) noexcept
     main_id         = std::move(other.main_id);
     buffer          = std::move(other.buffer);
     main_id         = other.main_id;
-    is_strict       = other.is_strict;
-    is_graph        = other.is_graph;
-    is_digraph      = other.is_digraph;
+    flags           = other.flags;
 
     return *this;
 }
@@ -1572,9 +1561,7 @@ void graph::swap(graph& g) noexcept
 
     std::swap(buffer, g.buffer);
 
-    std::swap(is_strict, g.is_strict);
-    std::swap(is_graph, g.is_graph);
-    std::swap(is_digraph, g.is_digraph);
+    std::swap(flags, g.flags);
 }
 
 void graph::clear() noexcept
@@ -1591,9 +1578,7 @@ void graph::clear() noexcept
 
     buffer.clear();
 
-    is_strict  = false;
-    is_graph   = true;
-    is_digraph = false;
+    flags.reset();
 }
 
 irt::table<std::string_view, graph_node_id> graph::make_toc() const noexcept
@@ -1645,60 +1630,60 @@ static std::optional<reg_dir_file> build_component_string(
 
 template<typename OutputIterator>
 expected<void> write_dot_stream(const modeling& mod,
-                                const graph&    graph,
+                                const graph&    g,
                                 OutputIterator  out) noexcept
 {
-    if (graph.is_strict)
+    if (g.flags[graph::option_flags::strict])
         out = fmt::format_to(out, "strict ");
 
-    if (graph.is_graph)
-        out = fmt::format_to(out, "graph {} {{\n", graph.main_id);
+    if (g.flags[graph::option_flags::directed])
+        out = fmt::format_to(out, "digraph {} {{\n", g.main_id);
     else
-        out = fmt::format_to(out, "digraph {} {{\n", graph.main_id);
+        out = fmt::format_to(out, "graph {} {{\n", g.main_id);
 
-    for (const auto id : graph.nodes) {
+    for (const auto id : g.nodes) {
         const auto idx = get_index(id);
 
-        auto compo = build_component_string(mod, graph.node_components[idx]);
+        auto compo = build_component_string(mod, g.node_components[idx]);
         if (compo.has_value()) {
             out = fmt::format_to(out,
                                  "  {} [id={}, area={},"
                                  " pos=\"{},{}\","
                                  " component=\"{}:{}:{}\"];\n",
-                                 graph.node_names[idx],
-                                 graph.node_ids[idx],
-                                 graph.node_areas[idx],
-                                 graph.node_positions[idx][0],
-                                 graph.node_positions[idx][1],
+                                 g.node_names[idx],
+                                 g.node_ids[idx],
+                                 g.node_areas[idx],
+                                 g.node_positions[idx][0],
+                                 g.node_positions[idx][1],
                                  compo->r,
                                  compo->d,
                                  compo->f);
         } else {
             out = fmt::format_to(out,
                                  "  {} [id={}, area={}, pos=\"{},{}\"];\n",
-                                 graph.node_names[idx],
-                                 graph.node_ids[idx],
-                                 graph.node_areas[idx],
-                                 graph.node_positions[idx][0],
-                                 graph.node_positions[idx][1]);
+                                 g.node_names[idx],
+                                 g.node_ids[idx],
+                                 g.node_areas[idx],
+                                 g.node_positions[idx][0],
+                                 g.node_positions[idx][1]);
         }
     }
 
-    std::string_view edge_type = graph.is_graph ? "--" : "->";
+    const auto edge_type = g.flags[graph::option_flags::directed] ? "->" : "--";
 
-    for (const auto id : graph.edges) {
+    for (const auto id : g.edges) {
         const auto idx = get_index(id);
 
-        if (graph.nodes.exists(graph.edges_nodes[idx][0].first) and
-            graph.nodes.exists(graph.edges_nodes[idx][1].first)) {
-            const auto src = get_index(graph.edges_nodes[idx][0].first);
-            const auto dst = get_index(graph.edges_nodes[idx][1].first);
+        if (g.nodes.exists(g.edges_nodes[idx][0].first) and
+            g.nodes.exists(g.edges_nodes[idx][1].first)) {
+            const auto src = get_index(g.edges_nodes[idx][0].first);
+            const auto dst = get_index(g.edges_nodes[idx][1].first);
 
             out = fmt::format_to(out,
                                  "  {} {} {};\n",
-                                 graph.node_names[src],
+                                 g.node_names[src],
                                  edge_type,
-                                 graph.node_names[dst]);
+                                 g.node_names[dst]);
         }
     }
 

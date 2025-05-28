@@ -1138,8 +1138,8 @@ int main()
             for (const auto id : g.g.nodes)
                 g.g.node_components[id] = mod.components.get_id(compo);
 
-            g.type         = irt::graph_component::connection_type::name;
-            g.g.is_digraph = true;
+            g.type = irt::graph_component::connection_type::name;
+            g.g.flags.reset(irt::graph::option_flags::directed);
 
             expect(pj.set(mod, cg).has_value());
             expect(eq(pj.sim.models.ssize(), 3 * 4));
