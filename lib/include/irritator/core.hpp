@@ -6112,6 +6112,20 @@ inline status simulation::connect(model&       src,
     if (not can_connect(src, port_src, dst, port_dst))
         return new_error(simulation_errc::connection_already_exists);
 
+    auto ret = dispatch(dst, [&]<typename Dynamics>(Dynamics& dyn) -> status {
+        if constexpr (has_input_port<Dynamics>) {
+            if (0 <= port_dst and port_dst < length(dyn.x))
+                return success();
+
+            return new_error(simulation_errc::input_port_error);
+        }
+
+        irt::unreachable();
+    });
+
+    if (ret.has_error())
+        return ret.error();
+
     return dispatch(src, [&]<typename Dynamics>(Dynamics& dyn) -> status {
         if constexpr (has_output_port<Dynamics>) {
             return connect(dyn.y[port_src], get_id(dst), port_dst);
