@@ -894,7 +894,7 @@ int main()
     };
 #endif
 
-    "grid-3x3-4-neighbors-input-port-type"_test = [] {
+    "grid-5x5-4-neighbors-input-port-type"_test = [] {
         irt::vector<char> buffer;
 
         /* The component in a 5x5 grid:
@@ -967,14 +967,16 @@ int main()
                     ++nb_unknown_model;
             }
 
-            expect(eq(nb_sum_model, g.cells_number()));
+            // The 3x3 in the 5x5 need two sum models.
+
+            expect(eq(nb_sum_model, g.cells_number() + 9));
             expect(eq(nb_counter_model, g.cells_number()));
             expect(eq(nb_constant_model, g.cells_number()));
             expect(eq(nb_unknown_model, 0));
         }
     };
 
-    "grid-3x3-8-neighbors-input-port-type"_test = [] {
+    "grid-5x5-8-neighbors-input-port-type"_test = [] {
         irt::vector<char> buffer;
 
         /* The component in a 5x5 grid:
@@ -1047,7 +1049,9 @@ int main()
                     ++nb_unknown_model;
             }
 
-            expect(eq(nb_sum_model, 1 * 4 + 2 * 12 + 2 * 9));
+            // The 3x3 in the 5x5 need two sum models.
+
+            expect(eq(nb_sum_model, 1 * 4 + 2 * 12 + 2 * 9 + 9));
             expect(eq(nb_counter_model, g.cells_number()));
             expect(eq(nb_constant_model, g.cells_number()));
             expect(eq(nb_unknown_model, 0));

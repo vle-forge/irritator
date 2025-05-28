@@ -1519,7 +1519,7 @@ public:
     void grow() noexcept;
 
     /** Clears the id_array and all buffers. After this function @c
-     * ids.size() equals zero and all sub vector too. */
+     * ids.size() equals zero, the buffered files are are reseted. */
     void clear() noexcept;
 
     /** For each variable_observers, grid_observers and graph_observers from

@@ -204,7 +204,7 @@ public:
             if (auto ret = add_sum_model(sim); not ret)
                 return ret.error();
 
-        if (port > 3) {
+        if (port > 2) {
             auto& new_mdl = sim.alloc(dynamics_type::qss3_sum_4);
             if (auto ret = sim.connect(new_mdl, 0, sim.models.get(mdl), port);
                 not ret)
