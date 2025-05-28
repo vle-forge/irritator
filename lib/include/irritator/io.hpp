@@ -446,6 +446,58 @@ inline int generate_random_file(std::ostream&          os,
     return 0;
 }
 
+inline void write_dot_graph_simulation(std::ostream&     os,
+                                       const simulation& sim) noexcept
+{
+    os << "digraph simulation {\n";
+
+    for (const auto& mdl : sim.models) {
+        const auto id  = sim.models.get_id(mdl);
+        const auto idx = get_index(id);
+        const auto dyn = dynamics_type_names[ordinal(mdl.type)];
+
+        os << ' ' << idx << " [dynamics=" << dyn << "];\n";
+    }
+
+    for (const auto& mdl : sim.models) {
+        dispatch(
+          mdl,
+          []<typename Dynamics>(
+            Dynamics& dyn, const auto& sim, const auto src_mdl_id, auto& os) {
+              if constexpr (has_output_port<Dynamics>) {
+                  for (int i = 0, e = length(dyn.y); i != e; ++i) {
+                      for (auto* block = sim.nodes.try_to_get(dyn.y[i]); block;
+                           block       = sim.nodes.try_to_get(block->next)) {
+
+                          const auto src_idx = get_index(src_mdl_id);
+                          const auto port_out =
+                            get_output_port_names<Dynamics>()[i];
+
+                          for (auto it = block->nodes.begin(),
+                                    et = block->nodes.end();
+                               it != et;
+                               ++it) {
+                              if (const auto* dst =
+                                    sim.models.try_to_get(it->model)) {
+                                  os << " " << src_idx << ":" << port_out
+                                     << " -> " << get_index(it->model) << ":"
+                                     << get_input_port_names_v(
+                                          dst->type)[it->port_index]
+                                     << "\n";
+                              }
+                          }
+                      }
+                  }
+              }
+          },
+          sim,
+          sim.models.get_id(mdl),
+          os);
+    }
+
+    os << "}\n";
+}
+
 } // namespace irt
 
 #endif
