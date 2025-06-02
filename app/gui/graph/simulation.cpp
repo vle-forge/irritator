@@ -225,6 +225,7 @@ struct graph_simulation_editor::impl {
         ImGui::InvisibleButton("Canvas",
                                canvas_sz,
                                ImGuiButtonFlags_MouseButtonLeft |
+                                 ImGuiButtonFlags_MouseButtonMiddle |
                                  ImGuiButtonFlags_MouseButtonRight);
 
         const bool is_hovered = ImGui::IsItemHovered();
@@ -237,7 +238,7 @@ struct graph_simulation_editor::impl {
 
         const float mouse_threshold_for_pan = -1.f;
         if (is_active) {
-            if (ImGui::IsMouseDragging(ImGuiMouseButton_Right,
+            if (ImGui::IsMouseDragging(ImGuiMouseButton_Middle,
                                        mouse_threshold_for_pan)) {
                 ed.graph_sim.scrolling.x += io.MouseDelta.x;
                 ed.graph_sim.scrolling.y += io.MouseDelta.y;
