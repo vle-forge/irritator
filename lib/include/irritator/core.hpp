@@ -1225,7 +1225,11 @@ public:
      * simulation an prepare the simulation class to call the `run`
      * function. */
     status initialize() noexcept;
+
     status run() noexcept;
+
+    template<typename Fn, typename... Args>
+    status run_with_cb(Fn&& fn, Args&&... args) noexcept;
 
     template<typename Dynamics>
     status make_initialize(model& mdl, Dynamics& dyn, time t) noexcept;
@@ -6422,6 +6426,65 @@ inline status simulation::run() noexcept
     for (const auto id : immediate_models)
         if (auto* mdl = models.try_to_get(id); mdl)
             irt_check(make_transition(*mdl, t));
+
+    for (int i = 0, e = length(emitting_output_ports); i != e; ++i) {
+        auto* mdl = models.try_to_get(emitting_output_ports[i].model);
+        if (!mdl)
+            continue;
+
+        debug::ensure(sched.is_in_tree(mdl->handle));
+        sched.update(*mdl, t);
+
+        if (not messages.can_alloc(1))
+            return new_error(simulation_errc::messages_container_full);
+
+        auto  port = emitting_output_ports[i].port;
+        auto& msg  = emitting_output_ports[i].msg;
+
+        dispatch(*mdl, [&]<typename Dynamics>(Dynamics& dyn) {
+            if constexpr (has_input_port<Dynamics>) {
+                auto* list = messages.try_to_get(dyn.x[port]);
+                if (not list) {
+                    auto& new_list = messages.alloc();
+                    dyn.x[port]    = messages.get_id(new_list);
+                    list           = &new_list;
+                }
+
+                list->push_back({ msg[0], msg[1], msg[2] });
+            }
+        });
+    }
+
+    return success();
+}
+
+template<typename Fn, typename... Args>
+inline status simulation::run_with_cb(Fn&& fn, Args&&... args) noexcept
+{
+    debug::ensure(std::isfinite(t));
+
+    immediate_models.clear();
+    immediate_observers.clear();
+
+    if (sched.empty()) {
+        t = time_domain<time>::infinity;
+        return success();
+    }
+
+    last_valid_t = t;
+    if (t = sched.tn(); time_domain<time>::is_infinity(t))
+        return success();
+
+    sched.pop(immediate_models);
+
+    emitting_output_ports.clear();
+    for (const auto id : immediate_models)
+        if (auto* mdl = models.try_to_get(id); mdl)
+            irt_check(make_transition(*mdl, t));
+
+    fn(std::as_const(*this),
+       std::span(immediate_models.data(), immediate_models.size()),
+       std::forward<Args>(args)...);
 
     for (int i = 0, e = length(emitting_output_ports); i != e; ++i) {
         auto* mdl = models.try_to_get(emitting_output_ports[i].model);
