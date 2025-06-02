@@ -3796,34 +3796,34 @@ struct json_dearchiver::impl {
             }
             return false;
 
-        case graph_component::graph_type::scale_free:
-            if (auto ret =
-                  graph.g.init_scale_free_graph(graph.param.scale.alpha,
-                                                graph.param.scale.beta,
-                                                graph.param.scale.id,
-                                                graph.param.scale.nodes,
-                                                graph.seed,
-                                                graph.key);
-                ret.has_value())
+        case graph_component::graph_type::scale_free: {
+            auto ret = graph.g.init_scale_free_graph(graph.param.scale.alpha,
+                                                     graph.param.scale.beta,
+                                                     graph.param.scale.id,
+                                                     graph.param.scale.nodes,
+                                                     graph.seed,
+                                                     graph.key);
+            if (ret.has_value())
                 graph.assign_grid_position();
-            else
-                return false;
 
-        case graph_component::graph_type::small_world:
-            if (auto ret =
-                  graph.g.init_small_world_graph(graph.param.small.probability,
-                                                 graph.param.small.k,
-                                                 graph.param.small.id,
-                                                 graph.param.small.nodes,
-                                                 graph.seed,
-                                                 graph.key);
-                ret.has_value())
-                graph.assign_grid_position();
-            else
-                return false;
+            return ret.has_value();
         }
 
-        return true;
+        case graph_component::graph_type::small_world:
+            auto ret =
+              graph.g.init_small_world_graph(graph.param.small.probability,
+                                             graph.param.small.k,
+                                             graph.param.small.id,
+                                             graph.param.small.nodes,
+                                             graph.seed,
+                                             graph.key);
+            if (ret.has_value())
+                graph.assign_grid_position();
+
+            return ret.has_value();
+        }
+
+        unreachable();
     }
 
     bool read_graph_component(const rapidjson::Value& val,
