@@ -93,19 +93,40 @@ static void show_component_popup_menu(application& app, component& sel) noexcept
                     if (can_delete_component(app, id)) {
                         app.component_ed.close(app.mod.components.get_id(sel));
 
-                        app.add_gui_task([&]() noexcept {
-                            app.jn.push(log_level::notice,
-                                        [&](auto& title, auto& msg) noexcept {
-                                            title = "Remove file";
-                                            format(msg,
-                                                   "File `{}' removed",
-                                                   file->path.sv());
-                                        });
+                        app.add_gui_task([&app, id = sel.file]() noexcept {
+                            if (auto* f = app.mod.file_paths.try_to_get(id)) {
+                                const auto compo_id = f->component;
 
-                            app.mod.remove_file(*file);
-                            if (auto* compo =
-                                  app.mod.components.try_to_get<component>(id))
-                                app.mod.free(*compo);
+                                if (app.mod.components.exists(compo_id)) {
+                                    const auto name =
+                                      app.mod.components
+                                        .get<component>(compo_id)
+                                        .name.sv();
+
+                                    app.jn.push(
+                                      log_level::notice,
+                                      [&](auto& title, auto& msg) noexcept {
+                                          title = "Remove component file";
+                                          format(msg,
+                                                 "File `{}' and component {} "
+                                                 "removed",
+                                                 f->path.sv(),
+                                                 name);
+                                      });
+                                } else {
+                                    app.jn.push(
+                                      log_level::notice,
+                                      [&](auto& title, auto& msg) noexcept {
+                                          title = "Remove component file";
+                                          format(msg,
+                                                 "File `{}' removed",
+                                                 f->path.sv());
+                                      });
+                                }
+
+                                app.mod.remove_file(*f);
+                                app.mod.components.free(compo_id);
+                            }
                         });
 
                         app.add_gui_task(
