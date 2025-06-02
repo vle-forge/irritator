@@ -1232,7 +1232,8 @@ struct component_editor::impl {
                 ImGui::PushID(&con);
                 to_del = g.input_connections.get_id(con);
 
-                if (auto* child = g.children.try_to_get(con.dst)) {
+                if (auto* child = g.children.try_to_get(con.dst);
+                    child and c.x.exists(con.x)) {
                     if (child->type == child_type::component) {
                         if (auto* sub_compo =
                               app.mod.components.try_to_get<component>(
@@ -1285,7 +1286,8 @@ struct component_editor::impl {
                 ImGui::PushID(&con);
                 to_del = g.output_connections.get_id(con);
 
-                if (auto* child = g.children.try_to_get(con.src)) {
+                if (auto* child = g.children.try_to_get(con.src);
+                    child and c.y.exists(con.y)) {
                     if (child->type == child_type::component) {
                         if (auto* sub_compo =
                               app.mod.components.try_to_get<component>(
@@ -1307,7 +1309,7 @@ struct component_editor::impl {
                     } else {
                         ImGui::TextFormat(
                           "{} connected to component {} ({}) port {}\n",
-                          c.x.get<port_str>(con.y).sv(),
+                          c.y.get<port_str>(con.y).sv(),
                           g.children_names[get_index(con.src)].sv(),
                           ordinal(con.src),
                           con.port.model);
@@ -1517,7 +1519,6 @@ struct component_editor::impl {
                   app.mod.generic_components.try_to_get(compo.id.generic_id))
                 show_input_output_connections(*g, compo);
             break;
-            break;
         case component_type::grid:
             if (auto* g = app.mod.grid_components.try_to_get(compo.id.grid_id))
                 show_input_output_connections(*g, compo);
@@ -1548,6 +1549,11 @@ struct component_editor::impl {
                     to_del = id;
 
                 ImGui::SameLine();
+                ImGui::PushItemWidth(64.f);
+                ImGui::InputFilteredString("##in-name", names[idx]);
+                ImGui::PopItemWidth();
+
+                ImGui::SameLine();
                 ImGui::PushItemWidth(-1.f);
 
                 const auto* preview =
@@ -1563,11 +1569,6 @@ struct component_editor::impl {
                     }
                     ImGui::EndCombo();
                 }
-                ImGui::PopItemWidth();
-
-                ImGui::SameLine();
-                ImGui::PushItemWidth(-1.f);
-                ImGui::InputFilteredString("##in-name", names[idx]);
                 ImGui::PopItemWidth();
 
                 ImGui::PopID();
@@ -1597,7 +1598,7 @@ struct component_editor::impl {
                 if (ImGui::SmallButton("del"))
                     to_del = id;
                 ImGui::SameLine();
-                ImGui::PushItemWidth(-1.f);
+                ImGui::PushItemWidth(64.f);
                 ImGui::InputFilteredString("##out-name", name);
                 ImGui::PopItemWidth();
 
