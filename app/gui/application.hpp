@@ -868,6 +868,10 @@ struct project_editor {
     bool save_project_file    = false;
     bool save_as_project_file = false;
 
+    enum class raw_data_type : u8 { none, graph, binary, text };
+
+    raw_data_type save_simulation_raw_data = raw_data_type::none;
+
     bool is_dock_init   = false;
     bool disable_access = true;
 
@@ -949,6 +953,10 @@ struct project_editor {
     tree_node_id m_selected_tree_node = undefined<tree_node_id>();
 
     project_external_source_editor data_ed;
+
+    /// For each simulation, and according to the @a save_simulation_raw_data,
+    /// an output stream to store all model state during simulation.
+    buffered_file raw_ofs;
 };
 
 inline bool project_editor::can_edit() const noexcept

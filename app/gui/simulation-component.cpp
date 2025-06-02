@@ -2,17 +2,48 @@
 // Version 1.0. (See accompanying file LICENSE_1_0.txt or copy at
 // http://www.boost.org/LICENSE_1_0.txt)
 
+#include <irritator/core.hpp>
+#include <irritator/format.hpp>
+#include <irritator/helpers.hpp>
 #include <irritator/io.hpp>
+#include <irritator/modeling.hpp>
 
 #include <fmt/chrono.h>
+#include <fmt/format.h>
 
 #include "application.hpp"
-#include "irritator/core.hpp"
-#include "irritator/format.hpp"
-#include "irritator/helpers.hpp"
-#include "irritator/modeling.hpp"
 
 namespace irt {
+
+static void save_simulation_graph(const simulation&      sim,
+                                  const std::string_view absolute_path) noexcept
+{
+    try {
+        std::filesystem::path path(absolute_path);
+        path /= "simulation-graph.dot";
+        if (std::ofstream ofs(path); ofs.is_open())
+            write_dot_graph_simulation(ofs, sim);
+    } catch (...) {
+    }
+}
+
+static expected<buffered_file> save_simulation_raw_data(
+  const std::string_view absolute_path,
+  const bool             is_binary) noexcept
+{
+    try {
+        std::filesystem::path path(absolute_path);
+        path /= "simulation-raw.txt";
+
+        bitflags<buffered_file_mode> options(buffered_file_mode::write);
+        if (is_binary)
+            options.set(buffered_file_mode::text_or_binary);
+
+        return open_buffered_file(path, options);
+    } catch (...) {
+        return new_error(fs_errc::user_directory_access_fail);
+    }
+}
 
 static status simulation_init_observation(modeling& mod, project& pj) noexcept
 {
@@ -132,6 +163,23 @@ static void simulation_init(application& app, project_editor& ed) noexcept
         make_init_error_msg(app, "Empty component");
         return;
     }
+
+    if (ed.save_simulation_raw_data != project_editor::raw_data_type::none)
+        save_simulation_graph(ed.pj.sim, ed.pj.get_observation_dir(app.mod));
+
+    if (ed.save_simulation_raw_data != project_editor::raw_data_type::none) {
+        auto ret = save_simulation_raw_data(
+          ed.pj.get_observation_dir(app.mod),
+          ed.save_simulation_raw_data == project_editor::raw_data_type::binary);
+
+        if (ret.has_value())
+            ed.raw_ofs = std::move(ret.value());
+        else {
+            ed.simulation_state = simulation_status::not_started;
+            make_init_error_msg(app, "Fail to open raw data file");
+            ed.save_simulation_raw_data = project_editor::raw_data_type::none;
+        }
+    }
 }
 
 static bool debug_run(application& app, project_editor& sim_ed) noexcept
@@ -150,6 +198,158 @@ static bool debug_run(application& app, project_editor& sim_ed) noexcept
     }
 
     return true;
+}
+
+static void finalize_raw_obs(project_editor& ed) noexcept
+{
+    debug::ensure(ed.raw_ofs);
+    debug::ensure(std::ferror(ed.raw_ofs.get()) == 0);
+
+    if (ed.save_simulation_raw_data == project_editor::raw_data_type::binary) {
+        for (const auto& mdl : ed.pj.sim.models) {
+            dispatch(
+              mdl,
+              []<typename Dynamics>(const Dynamics& dyn,
+                                    auto&           ofs,
+                                    const auto      index,
+                                    const auto      t,
+                                    const auto      tl) noexcept {
+                  if constexpr (has_observation_function<Dynamics>) {
+                      const auto obs = dyn.observation(t, t - tl);
+
+                      std::fwrite(&t, sizeof(t), 1, ofs.get());
+                      std::fwrite(&index, sizeof(index), 1, ofs.get());
+                      std::fwrite(obs.data(), obs.size(), 1, ofs.get());
+                  }
+              },
+              ed.raw_ofs,
+              get_index(ed.pj.sim.get_id(mdl)),
+              ed.pj.sim.t,
+              mdl.tl);
+        }
+    } else {
+        for (const auto& mdl : ed.pj.sim.models) {
+            dispatch(
+              mdl,
+              []<typename Dynamics>(const Dynamics& dyn,
+                                    auto&           ofs,
+                                    const auto      index,
+                                    const auto      t,
+                                    const auto      tl) noexcept {
+                  if constexpr (has_observation_function<Dynamics>) {
+                      const auto obs = dyn.observation(t, t - tl);
+
+                      fmt::print(ofs.get(),
+                                 "{};{};{};{};{};{};{}\n",
+                                 t,
+                                 index,
+                                 obs[0],
+                                 obs[1],
+                                 obs[2],
+                                 obs[3],
+                                 obs[4]);
+                  }
+              },
+              ed.raw_ofs,
+              get_index(ed.pj.sim.get_id(mdl)),
+              ed.pj.sim.t,
+              mdl.tl);
+        }
+    }
+
+    ed.raw_ofs.reset();
+}
+
+static bool run_raw_obs(application& app, project_editor& ed) noexcept
+{
+    debug::ensure(ed.raw_ofs);
+    debug::ensure(std::ferror(ed.raw_ofs.get()) == 0);
+
+    const auto ret = ed.pj.sim.run_with_cb(
+      [](const auto& sim, const auto mdls, auto& ofs, auto type) noexcept {
+          if (type == project_editor::raw_data_type::binary) {
+              for (const auto mdl_id : mdls) {
+                  if (const auto* mdl = sim.models.try_to_get(mdl_id)) {
+                      dispatch(
+                        *mdl,
+                        []<typename Dynamics>(const Dynamics& dyn,
+                                              auto&           ofs,
+                                              const auto      index,
+                                              const auto      t,
+                                              const auto      tl) noexcept {
+                            if constexpr (has_observation_function<Dynamics>) {
+                                const auto obs = dyn.observation(t, t - tl);
+
+                                std::fwrite(&t, sizeof(t), 1, ofs.get());
+                                std::fwrite(
+                                  &index, sizeof(index), 1, ofs.get());
+                                std::fwrite(
+                                  obs.data(), obs.size(), 1, ofs.get());
+                            }
+                        },
+                        ofs,
+                        get_index(mdl_id),
+                        sim.t,
+                        mdl->tl);
+                  }
+              }
+          } else {
+              for (const auto mdl_id : mdls) {
+                  if (const auto* mdl = sim.models.try_to_get(mdl_id)) {
+                      dispatch(
+                        *mdl,
+                        []<typename Dynamics>(const Dynamics& dyn,
+                                              auto&           ofs,
+                                              const auto      index,
+                                              const auto      t,
+                                              const auto      tl) noexcept {
+                            if constexpr (has_observation_function<Dynamics>) {
+                                const auto obs = dyn.observation(t, t - tl);
+
+                                fmt::print(ofs.get(),
+                                           "{};{};{};{};{};{};{}\n",
+                                           t,
+                                           index,
+                                           obs[0],
+                                           obs[1],
+                                           obs[2],
+                                           obs[3],
+                                           obs[4]);
+                            }
+                        },
+                        ofs,
+                        get_index(mdl_id),
+                        sim.t,
+                        mdl->tl);
+                  }
+              }
+          }
+      },
+      ed.raw_ofs,
+      ed.save_simulation_raw_data);
+
+    if (ret.has_error()) {
+        ed.simulation_state = simulation_status::finish_requiring;
+
+        app.jn.push(log_level::error, [&](auto& t, auto& msg) noexcept {
+            t = "Simulation debug task run error";
+            format(msg,
+                   "Fail in {} with error {}",
+                   ordinal(ret.error().cat()),
+                   ret.error().value());
+        });
+    }
+
+    if (std::ferror(ed.raw_ofs.get())) {
+        app.jn.push(log_level::error, [&](auto& t, auto& msg) noexcept {
+            t = "Simulation debug task run error";
+            format(msg, "Fail to write raw data to file");
+        });
+        ed.save_simulation_raw_data = project_editor::raw_data_type::none;
+        ed.raw_ofs.reset();
+    }
+
+    return ret.has_value();
 }
 
 static bool run(application& app, project_editor& ed) noexcept
@@ -792,18 +992,23 @@ void project_editor::start_simulation_static_run(application& app) noexcept
             if (simulation_state != simulation_status::running)
                 return;
 
-            if (store_all_changes) {
+            if (save_simulation_raw_data !=
+                project_editor::raw_data_type::none) {
+                if (auto ret = run_raw_obs(app, *this); !ret) {
+                    simulation_state = simulation_status::finish_requiring;
+                    simulation_display_current = pj.sim.t;
+                    return;
+                }
+            } else if (store_all_changes) {
                 if (auto ret = debug_run(app, *this); !ret) {
                     simulation_state = simulation_status::finish_requiring;
                     simulation_display_current = pj.sim.t;
                     return;
                 }
-            } else {
-                if (auto ret = run(app, *this); !ret) {
-                    simulation_state = simulation_status::finish_requiring;
-                    simulation_display_current = pj.sim.t;
-                    return;
-                }
+            } else if (auto ret = run(app, *this); !ret) {
+                simulation_state = simulation_status::finish_requiring;
+                simulation_display_current = pj.sim.t;
+                return;
             }
 
             start_simulation_observation(app);
@@ -928,6 +1133,11 @@ void project_editor::start_simulation_finish(application& app) noexcept
                     t = "Simulation finalizing fail";
                     m = "FIXME from ret";
                 });
+            }
+
+            if (save_simulation_raw_data !=
+                project_editor::raw_data_type::none) {
+                finalize_raw_obs(*this);
             }
         };
 

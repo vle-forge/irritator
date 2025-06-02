@@ -147,7 +147,7 @@ static bool show_registred_obseravation_path(application&    app,
       app.mod.registred_paths.try_to_get(ed.pj.observation_dir);
     const auto preview = reg_dir ? reg_dir->name.c_str() : "-";
 
-    if (ImGui::BeginCombo("obs. path", preview)) {
+    if (ImGui::BeginCombo("Path", preview)) {
         if (ImGui::Selectable("-", reg_dir == nullptr)) {
             ed.pj.observation_dir = undefined<registred_path_id>();
         }
@@ -282,6 +282,8 @@ static bool show_project_simulation_settings(application&    app,
     ImGui::SameLine();
     HelpMarker("Display the simulation phase. Only for debug.");
 
+    ImGui::SeparatorText("observation");
+
     up += show_registred_obseravation_path(app, ed);
 
     const auto sz = ImGui::ComputeButtonSize(2);
@@ -293,6 +295,36 @@ static bool show_project_simulation_settings(application&    app,
 
     if (ImGui::Button("Save as...", sz))
         ed.save_as_project_file = true;
+
+    static const char* raw_data_type_str[] = {
+        "None",
+        "Graph (dot file)",
+        "Binary (dot file + all transitions)",
+        "Text (dot file + all transitions)"
+    };
+
+    int current = ordinal(ed.save_simulation_raw_data);
+
+    if (ImGui::Combo("Type",
+                     &current,
+                     raw_data_type_str,
+                     IM_ARRAYSIZE(raw_data_type_str))) {
+        if (current != ordinal(ed.save_simulation_raw_data)) {
+            ed.save_simulation_raw_data =
+              enum_cast<project_editor::raw_data_type>(current);
+            ++up;
+        }
+    }
+
+    ImGui::SameLine();
+    HelpMarker(
+      "None: do nothing.\n"
+      "Graph: writes the simulation graph using a dot format into the "
+      "observation directory path defined above"
+      "Binary or Text: writes graph and all transition for all models during "
+      "the simulation. A csv file format is used and the file is opened into "
+      "the observation directroy defined above.\nPlease note, the file "
+      "may be large.");
 
     return up > 0;
 }
