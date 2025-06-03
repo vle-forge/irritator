@@ -956,7 +956,7 @@ static bool show_project_observations(application&    app,
         });
 
         for_each_data(ed.pj.graph_observers, [&](auto& graph) noexcept {
-            ed.graph_obs.show(app, graph, sub_obs_size);
+            ed.graph_obs.show(app, ed, graph, sub_obs_size);
 
             ++pos;
 
@@ -1022,7 +1022,20 @@ static void show_component_observations(application&    app,
                            selected.grid_observer_ids,
                            [&](auto& grid) noexcept {
                                sim_ed.grid_obs.show(grid, sub_obs_size);
+                               ++pos;
 
+                               if (pos >= *sim_ed.tree_node_observation) {
+                                   pos = 0;
+                                   ImGui::TableNextRow();
+                               }
+                               ImGui::TableNextColumn();
+                           });
+
+        for_specified_data(sim_ed.pj.graph_observers,
+                           selected.graph_observer_ids,
+                           [&](auto& graph) noexcept {
+                               sim_ed.graph_obs.show(
+                                 app, sim_ed, graph, sub_obs_size);
                                ++pos;
 
                                if (pos >= *sim_ed.tree_node_observation) {

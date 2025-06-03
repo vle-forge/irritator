@@ -237,6 +237,7 @@ class graph_observation_widget
 public:
     //! Display the values vector using the ImGui::PlotHeatMap function.
     void show(application&    app,
+              project_editor& ed,
               graph_observer& graph,
               const ImVec2&   size) noexcept;
 
