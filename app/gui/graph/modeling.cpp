@@ -1120,8 +1120,7 @@ void graph_component_editor_data::show_selected_nodes(
                             if (ImGui::TreeNodeEx("input ports")) {
                                 const auto& xnames = compo->x.get<port_str>();
                                 for (const auto id : compo->x) {
-                                    ImGui::TextFormat(
-                                      "{}", xnames[get_index(id)].sv());
+                                    ImGui::TextFormat("{}", xnames[id].sv());
                                 }
                                 ImGui::TreePop();
                             }
@@ -1131,8 +1130,7 @@ void graph_component_editor_data::show_selected_nodes(
                             if (ImGui::TreeNodeEx("output ports")) {
                                 const auto& ynames = compo->y.get<port_str>();
                                 for (const auto id : compo->y) {
-                                    ImGui::TextFormat(
-                                      "{}", ynames[get_index(id)].sv());
+                                    ImGui::TextFormat("{}", ynames[id].sv());
                                 }
                                 ImGui::TreePop();
                             }
