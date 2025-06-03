@@ -1106,7 +1106,7 @@ void graph_component_editor_data::show_selected_nodes(
                                        graph->g.node_positions[idx][1]);
 
                     if (auto area = graph->g.node_areas[idx];
-                        ImGui::SliderFloat("area", &area, 0.01f, 1000.f)) {
+                        ImGui::DragFloat("area", &area, 0.001f, 0.f, FLT_MAX)) {
                         graph->g.node_areas[idx] = area;
                     }
 
@@ -1153,18 +1153,16 @@ void graph_component_editor_data::show_selected_nodes(
                 app.component_sel.combobox("component", &newid)) {
                 for (const auto id : selected_nodes) {
                     if (graph->g.nodes.exists(id)) {
-                        const auto idx                = get_index(id);
-                        graph->g.node_components[idx] = newid;
+                        graph->g.node_components[id] = newid;
                     }
                 }
             }
 
-            if (auto area = 1.f;
-                ImGui::SliderFloat("area", &area, 0.01f, 1000.f)) {
+            static auto area = 1.f;
+            if (ImGui::DragFloat("area", &area, 0.001f, 0.f, FLT_MAX)) {
                 for (const auto id : selected_nodes) {
                     if (graph->g.nodes.exists(id)) {
-                        const auto idx           = get_index(id);
-                        graph->g.node_areas[idx] = area;
+                        graph->g.node_areas[id] = area;
                     }
                 }
             }
