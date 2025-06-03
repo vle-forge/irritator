@@ -878,7 +878,7 @@ struct graph_component_editor_data::impl {
                 ImGui::EndPopup();
             }
 
-            if (ed.automatic_layout) {
+            if (ed.automatic_layout and not graph->g.nodes.empty()) {
                 bool again = compute_automatic_layout(*graph);
                 if (not again) {
                     ed.iteration        = 0;
