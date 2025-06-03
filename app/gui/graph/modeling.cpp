@@ -1082,17 +1082,6 @@ void graph_component_editor_data::show_selected_nodes(
     auto& app = container_of(&ed, &application::component_ed);
 
     if (auto* graph = app.mod.graph_components.try_to_get(graph_id)) {
-        ImGui::TextFormatDisabled("nodes: {} edges: {}",
-                                  graph->g.nodes.ssize(),
-                                  graph->g.edges.ssize());
-
-        for (auto id : graph->g.nodes) {
-            ImGui::TextFormatDisabled("{} -> {}x{}",
-                                      get_index(id),
-                                      graph->g.node_positions[id][0],
-                                      graph->g.node_positions[id][1]);
-        }
-
         if (ImGui::TreeNodeEx("selected nodes")) {
             for (const auto id : selected_nodes) {
                 if (graph->g.nodes.exists(id)) {
