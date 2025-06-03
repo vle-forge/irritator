@@ -3826,6 +3826,135 @@ struct json_dearchiver::impl {
         unreachable();
     }
 
+    bool read_graph_input_connection(const rapidjson::Value& val,
+                                     const component&        compo,
+                                     graph_component&        graph) noexcept
+    {
+        auto_stack s(this, "component input graph connection");
+
+        std::optional<i32>         v_opt;
+        std::optional<std::string> id_opt;
+        std::optional<std::string> x_opt;
+
+        if (not for_each_member(
+              val,
+              [&](const auto name, const auto& value) noexcept -> bool {
+                  if ("v"sv == name)
+                      return read_temp_i64(value) and copy_i64_to(v_opt);
+
+                  if ("id"sv == name)
+                      return read_temp_string(value) and copy_string_to(id_opt);
+
+                  if ("x"sv == name)
+                      return read_temp_string(value) and copy_string_to(x_opt);
+
+                  return true;
+              }) and
+            optional_has_value(v_opt) and optional_has_value(id_opt) and
+            optional_has_value(x_opt))
+            return error("bad grid component size");
+
+        const auto id = graph.g.nodes.get_from_index(*v_opt);
+        if (is_undefined(id)) {
+            return error("bad child vertex {}", *v_opt);
+        } else {
+            const auto c_compo_id = graph.g.node_components[id];
+            if (mod().components.exists(c_compo_id)) {
+                const auto& c = mod().components.get<component>(c_compo_id);
+                const auto  con_id = c.get_x(*id_opt);
+                const auto  con_x  = compo.get_x(*x_opt);
+
+                if (is_defined(con_id) and is_defined(con_x)) {
+                    if (auto ret = graph.connect_input(con_x, id, con_id);
+                        !!ret)
+                        return true;
+                }
+            }
+        }
+
+        return false;
+    }
+
+    bool read_graph_output_connection(const rapidjson::Value& val,
+                                      const component&        compo,
+                                      graph_component&        graph) noexcept
+    {
+        auto_stack s(this, "component output graph connection");
+
+        std::optional<i32>         v_opt;
+        std::optional<std::string> id_opt;
+        std::optional<std::string> y_opt;
+
+        if (not for_each_member(
+              val,
+              [&](const auto name, const auto& value) noexcept -> bool {
+                  if ("v"sv == name)
+                      return read_temp_i64(value) and copy_i64_to(v_opt);
+
+                  if ("id"sv == name)
+                      return read_temp_string(value) and copy_string_to(id_opt);
+
+                  if ("y"sv == name)
+                      return read_temp_string(value) and copy_string_to(y_opt);
+
+                  return true;
+              }) and
+            optional_has_value(v_opt) and optional_has_value(id_opt) and
+            optional_has_value(y_opt))
+            return error("bad grid component size");
+
+        const auto id = graph.g.nodes.get_from_index(*v_opt);
+        if (is_undefined(id)) {
+            return error("bad child vertex {}", *v_opt);
+        } else {
+            const auto c_compo_id = graph.g.node_components[id];
+            if (mod().components.exists(c_compo_id)) {
+                const auto& c = mod().components.get<component>(c_compo_id);
+                const auto  con_id = c.get_x(*id_opt);
+                const auto  con_y  = compo.get_y(*y_opt);
+
+                if (is_defined(con_id) and is_defined(con_y)) {
+                    if (auto ret = graph.connect_output(con_y, id, con_id);
+                        !!ret)
+                        return true;
+                }
+            }
+        }
+
+        return false;
+    }
+
+    bool read_graph_connection(const rapidjson::Value& val,
+                               const component&        compo,
+                               graph_component&        graph) noexcept
+    {
+        auto_stack s(this, "component graph connection");
+
+        return for_first_member(
+          val, "type", [&](const auto& value) noexcept -> bool {
+              return read_temp_string(value) and
+                     ((temp_string == "input" and
+                       read_graph_input_connection(val, compo, graph)) or
+                      (temp_string == "output" and
+                       read_graph_output_connection(val, compo, graph)));
+          });
+    }
+
+    bool read_graph_connections(const rapidjson::Value& val,
+                                component&              compo,
+                                graph_component&        graph) noexcept
+    {
+        auto_stack s(this, "component graph connections");
+
+        return is_value_array(val) and
+               for_each_array(
+                 val,
+                 [&](const auto /*i*/, const auto& value) noexcept -> bool {
+                     return is_value_object(value) and
+                            read_graph_connection(value, compo, graph);
+                 });
+    }
+
     bool read_graph_component(const rapidjson::Value& val,
                               component&              compo) noexcept
     {
@@ -3842,6 +3971,9 @@ struct json_dearchiver::impl {
                          dispatch_graph_type(val, value, graph) &&
                          graph_component_build_graph(graph) &&
                          read_graph_children(val, graph);
+
+              if ("connections"sv == name)
+                  return read_graph_connections(value, compo, graph);
 
               return true;
           });
@@ -6549,6 +6681,7 @@ struct json_archiver::impl {
 
     template<typename Writer>
     void write_graph_component(const modeling&        mod,
+                               const component&       compo,
                                const graph_component& g,
                                Writer&                w) noexcept
     {
@@ -6611,9 +6744,8 @@ struct json_archiver::impl {
             w.Key("children");
             w.StartArray();
             for (const auto id : g.g.nodes) {
-                const auto idx = get_index(id);
                 w.StartObject();
-                write_child_component(mod, g.g.node_components[idx], w);
+                write_child_component(mod, g.g.node_components[id], w);
                 w.EndObject();
             }
             w.EndArray();
@@ -6632,15 +6764,65 @@ struct json_archiver::impl {
             w.Key("children");
             w.StartArray();
             for (const auto id : g.g.nodes) {
-                const auto idx = get_index(id);
+
                 w.StartObject();
-                write_child_component(mod, g.g.node_components[idx], w);
+                write_child_component(mod, g.g.node_components[id], w);
                 w.EndObject();
             }
             w.EndArray();
             break;
         }
         }
+
+        w.Key("connections");
+        w.StartArray();
+        for (const auto& con : g.input_connections) {
+            if (not g.g.nodes.exists(con.v))
+                continue;
+
+            const auto child_compo_id = g.g.node_components[con.v];
+            if (not mod.components.exists(child_compo_id))
+                continue;
+
+            const auto& c = mod.components.get<component>(child_compo_id);
+            if (c.x.exists(con.id)) {
+                w.StartObject();
+                w.Key("type");
+                w.String("input");
+                w.Key("v");
+                w.Int(get_index(con.v));
+                w.Key("id");
+                w.String(c.x.get<port_str>(con.id).c_str());
+                w.Key("x");
+                w.String(compo.x.get<port_str>(con.x).c_str());
+                w.EndObject();
+            }
+        }
+
+        for (const auto& con : g.output_connections) {
+            if (not g.g.nodes.exists(con.v))
+                continue;
+
+            const auto child_compo_id = g.g.node_components[con.v];
+            if (not mod.components.exists(child_compo_id))
+                continue;
+
+            const auto& c = mod.components.get<component>(child_compo_id);
+            if (c.x.exists(con.id)) {
+                w.StartObject();
+                w.Key("type");
+                w.String("output");
+                w.Key("v");
+                w.Int(get_index(con.v));
+                w.Key("id");
+                w.String(c.y.get<port_str>(con.id).c_str());
+                w.Key("y");
+                w.String(compo.x.get<port_str>(con.y).c_str());
+                w.EndObject();
+            }
+        }
+
+        w.EndArray();
     }
 
     template<typename Writer>
@@ -6818,7 +7000,7 @@ struct json_archiver::impl {
         case component_type::graph: {
             auto* p = mod.graph_components.try_to_get(compo.id.graph_id);
             if (p)
-                write_graph_component(mod, *p, w);
+                write_graph_component(mod, compo, *p, w);
         } break;
 
         case component_type::hsm: {
