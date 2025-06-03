@@ -6144,7 +6144,7 @@ inline status simulation::connect(block_node_id& port,
                                   int            port_dst) noexcept
 {
     if (auto* block = nodes.try_to_get(port); not block) {
-        if (not nodes.can_alloc(1))
+        if (not nodes.can_alloc(1) and not nodes.grow<2, 1>())
             return new_error(simulation_errc::connection_container_full);
 
         auto& new_block = nodes.alloc();

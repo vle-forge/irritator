@@ -155,9 +155,9 @@ private:
 
     bool output_already_connected = false;
 
-    status add_sum_model(simulation& sim) noexcept
+    status add_output_sum_model(simulation& sim) noexcept
     {
-        if (not sim.models.can_alloc(1) and not sim.models.grow<2, 1>())
+        if (not sim.models.can_alloc(1) and not sim.grow_models<2, 1>())
             return new_error(project_errc::component_cache_error);
 
         output_mdl = sim.models.get_id(sim.alloc(dynamics_type::qss3_sum_4));
@@ -165,6 +165,24 @@ private:
         port       = 0;
 
         return success();
+    }
+
+    status add_input_sum_model(simulation& sim) noexcept
+    {
+        debug::ensure(is_defined(output_mdl));
+
+        if (not sim.models.can_alloc(1) and not sim.grow_models<2, 1>())
+            return new_error(project_errc::component_cache_error);
+
+        auto& new_mdl = sim.alloc(dynamics_type::qss3_sum_4);
+        if (not sim.can_connect(1) and not sim.grow_connections<2, 1>())
+            return new_error(project_errc::component_cache_error);
+
+        const auto& old_mdl = sim.models.get(mdl);
+        mdl                 = sim.models.get_id(new_mdl);
+        port                = 0;
+
+        return sim.connect(new_mdl, 0, old_mdl, port);
     }
 
 public:
@@ -184,7 +202,7 @@ public:
                                  int            port_dst) noexcept
     {
         if (is_undefined(output_mdl))
-            if (auto ret = add_sum_model(sim); not ret)
+            if (auto ret = add_output_sum_model(sim); not ret)
                 return ret.error();
 
         if (output_already_connected)
@@ -201,17 +219,12 @@ public:
                                  int         port_src) noexcept
     {
         if (is_undefined(output_mdl))
-            if (auto ret = add_sum_model(sim); not ret)
+            if (auto ret = add_output_sum_model(sim); not ret)
                 return ret.error();
 
         if (port > 2) {
-            auto& new_mdl = sim.alloc(dynamics_type::qss3_sum_4);
-            if (auto ret = sim.connect(new_mdl, 0, sim.models.get(mdl), port);
-                not ret)
+            if (auto ret = add_input_sum_model(sim); not ret)
                 return ret.error();
-
-            mdl  = sim.models.get_id(new_mdl);
-            port = 0;
         }
 
         return sim.connect(
