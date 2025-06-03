@@ -75,6 +75,7 @@ void graph_observer::init(project& pj, modeling& mod, simulation& sim) noexcept
 
                 observers.resize(len);
                 values.resize(len);
+                values_2nd.resize(len);
 
                 std::fill_n(observers.data(), len, undefined<observer_id>());
                 std::fill_n(values.data(), len, zero);
@@ -99,11 +100,10 @@ void graph_observer::clear() noexcept
 
 void graph_observer::update(const simulation& sim) noexcept
 {
-    debug::ensure(nodes == observers.ssize());
     debug::ensure(values.ssize() == observers.ssize());
 
     std::fill_n(values_2nd.data(), values_2nd.capacity(), 0.0);
-    for (int i = 0; i < nodes; ++i) {
+    for (int i = 0, e = observers.ssize(); i < e; ++i) {
         if (const auto* obs = sim.observers.try_to_get(observers[i]); obs) {
             if (obs->states[observer_flags::use_linear_buffer]) {
                 values_2nd[i] = not obs->linearized_buffer.empty()

@@ -95,15 +95,7 @@ name_str graph_component::make_unique_name_id(
 {
     debug::ensure(g.nodes.exists(v));
 
-    name_str ret;
-
-    if (g_type == graph_type::dot_file) {
-        format(ret, "{}", g.node_names[v]);
-    } else {
-        format(ret, "{}", get_index(v));
-    }
-
-    return ret;
+    return format_n<31>("{}", get_index(v));
 }
 
 static auto build_graph_children(modeling& mod, graph_component& graph) noexcept
@@ -124,19 +116,12 @@ static auto build_graph_children(modeling& mod, graph_component& graph) noexcept
         tr.data.emplace_back(node_id, new_id);
     }
 
+    tr.sort();
     graph.cache_names.resize(tr.size());
 
-    if (graph.g_type == graph_component::graph_type::dot_file) {
-        for (const auto x : tr.data) {
-            graph.cache_names[x.value] = graph.g.node_names[x.id];
-        }
-    } else {
-        for (const auto x : tr.data) {
-            graph.cache_names[x.value] = graph.make_unique_name_id(x.id);
-        }
+    for (const auto x : tr.data) {
+        graph.cache_names[x.value] = graph.make_unique_name_id(x.id);
     }
-
-    tr.sort();
 
     return tr;
 }

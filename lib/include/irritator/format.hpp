@@ -70,6 +70,20 @@ constexpr void format(small_string<N>& str, const S& fmt, Args&&... args)
     str.resize(ret.size);
 }
 
+template<int N, typename S, typename... Args>
+constexpr small_string<N> format_n(const S& fmt, Args&&... args) noexcept
+{
+    small_string<N> str;
+
+    const auto ret = fmt::vformat_to_n(str.begin(),
+                                       static_cast<size_t>(N - 1),
+                                       fmt,
+                                       fmt::make_format_args(args...));
+    str.resize(ret.size);
+
+    return str;
+}
+
 } //  irt
 
 template<>

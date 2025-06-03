@@ -1236,7 +1236,6 @@ public:
     float scale_min = -100.f;
     float scale_max = +100.f;
     i32   color_map = 0;
-    i32   nodes     = 0;
 };
 
 class variable_observer
