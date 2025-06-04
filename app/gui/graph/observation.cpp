@@ -122,6 +122,8 @@ static void show_graph_observer(graph_component& compo,
                            ImVec2(canvas_p1.x, canvas_p0.y + y),
                            IM_COL32(200, 200, 200, 40));
 
+    std::unique_lock lock{ obs.mutex };
+
     for (const auto id : compo.g.nodes) {
         const auto i = get_index(id);
 
