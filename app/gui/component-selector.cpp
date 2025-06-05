@@ -88,6 +88,9 @@ static update_t update_lists(const modeling&            mod,
                              vector<component_id>&      ids,
                              vector<small_string<254>>& names) noexcept
 {
+    ids.clear();
+    names.clear();
+
     ids.emplace_back(undefined<component_id>());
     cs_make_selected_name(names.emplace_back());
 
