@@ -363,10 +363,11 @@ static void cleanup_sim_or_gui_task(DataArray& d_array) noexcept
         d_array.free(*to_del);
 }
 
-static void open_project(application& app) noexcept
+static bool open_project(application& app) noexcept
 {
     const char*    title     = "Select project file path to load";
     const char8_t* filters[] = { u8".irt", nullptr };
+    auto           ret       = true;
 
     ImGui::OpenPopup(title);
     if (app.f_dialog.show_load_file(title, filters)) {
@@ -386,9 +387,11 @@ static void open_project(application& app) noexcept
                 }
             }
         }
-
+        ret = false;
         app.f_dialog.clear();
     }
+
+    return ret;
 }
 
 void application::request_open_directory_dlg(
@@ -402,6 +405,8 @@ void application::request_open_directory_dlg(
 
 auto application::show_menu() noexcept -> show_result_t
 {
+    static bool show_menu_load_project = false;
+
     show_result_t ret = show_result_t::success;
 
     if (ImGui::BeginMainMenuBar()) {
@@ -410,7 +415,7 @@ auto application::show_menu() noexcept -> show_result_t
                 alloc_project_window();
 
             if (ImGui::MenuItem("Open project"))
-                menu_load_project_file = true;
+                show_menu_load_project = true;
 
             if (ImGui::MenuItem("Quit"))
                 ret = show_result_t::request_to_close;
@@ -442,8 +447,8 @@ auto application::show_menu() noexcept -> show_result_t
         ImGui::EndMainMenuBar();
     }
 
-    if (menu_load_project_file)
-        open_project(*this);
+    if (show_menu_load_project)
+        show_menu_load_project = open_project(*this);
 
     if (show_imgui_demo)
         ImGui::ShowDemoWindow(&show_imgui_demo);

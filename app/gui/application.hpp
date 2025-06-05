@@ -1386,9 +1386,6 @@ private:
     bool show_imgui_demo  = false;
     bool show_implot_demo = false;
 
-    bool menu_new_project_file  = false;
-    bool menu_load_project_file = false;
-
     show_result_t show_menu() noexcept;
     void          show_dock() noexcept;
     void          show_select_directory_dlg() noexcept;
