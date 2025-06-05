@@ -162,7 +162,8 @@ bool component_selector::combobox(const char*   label,
         if (ImGui::BeginCombo(label, selected_name.c_str())) {
             ImGui::ColorButton(
               "Undefined color",
-              to_ImVec4(app.config.colors[style_color::component_undefined]));
+              to_ImVec4(app.config.colors[style_color::component_undefined]),
+              ImGuiColorEditFlags_NoInputs | ImGuiColorEditFlags_NoLabel);
             ImGui::SameLine(50.f);
             ImGui::PushID(0);
             if (ImGui::Selectable(names[0].c_str(), ids[0] == *new_selected)) {
@@ -175,7 +176,10 @@ bool component_selector::combobox(const char*   label,
                 ImGui::PushID(i);
                 const auto col = get_component_color(app, ids[i]);
                 const auto im  = ImVec4{ col[0], col[1], col[2], col[3] };
-                ImGui::ColorButton("Component", im);
+                ImGui::ColorButton("Component",
+                                   im,
+                                   ImGuiColorEditFlags_NoInputs |
+                                     ImGuiColorEditFlags_NoLabel);
                 ImGui::SameLine(50.f);
                 if (ImGui::Selectable(names[i].c_str(),
                                       ids[i] == *new_selected)) {
@@ -207,7 +211,8 @@ bool component_selector::combobox(const char*   label,
         if (ImGui::BeginCombo(label, selected_name.c_str())) {
             ImGui::ColorButton(
               "Undefined color",
-              to_ImVec4(app.config.colors[style_color::component_undefined]));
+              to_ImVec4(app.config.colors[style_color::component_undefined]),
+              ImGuiColorEditFlags_NoInputs | ImGuiColorEditFlags_NoLabel);
             ImGui::SameLine(50.f);
             ImGui::PushID(0);
             if (ImGui::Selectable(names[0].c_str(),
@@ -224,7 +229,10 @@ bool component_selector::combobox(const char*   label,
                 const auto col = get_component_color(app, ids[i]);
                 const auto im  = ImVec4(col[0], col[1], col[2], col[3]);
 
-                ImGui::ColorButton("#color", im);
+                ImGui::ColorButton("#color",
+                                   im,
+                                   ImGuiColorEditFlags_NoInputs |
+                                     ImGuiColorEditFlags_NoLabel);
                 ImGui::SameLine(50.f);
                 if (ImGui::Selectable(names[i].c_str(),
                                       *hyphen == false &&

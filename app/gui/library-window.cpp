@@ -215,8 +215,7 @@ static void show_file_component(application& app,
         if (ImGui::ColorEdit4("Color selection",
                               im.data(),
                               ImGuiColorEditFlags_NoInputs |
-                                ImGuiColorEditFlags_NoLabel |
-                                ImGuiColorEditFlags_NoAlpha)) {
+                                ImGuiColorEditFlags_NoLabel)) {
             if (app.mod.components.exists(id)) {
                 auto& data = app.mod.components.get<component_color>(id);
                 data       = im;
@@ -310,12 +309,10 @@ static void show_notsaved_components(irt::component_editor& ed) noexcept
             const bool selected = app.component_ed.is_component_open(id);
 
             ImGui::PushID(reinterpret_cast<const void*>(&compo));
-            if (ImGui::ColorEdit4("Color selection",
-                                  to_float_ptr(color),
-                                  ImGuiColorEditFlags_NoInputs |
-                                    ImGuiColorEditFlags_NoLabel |
-                                    ImGuiColorEditFlags_NoAlpha))
-                color[3] = 1.f;
+            ImGui::ColorEdit4("Color selection",
+                              to_float_ptr(color),
+                              ImGuiColorEditFlags_NoInputs |
+                                ImGuiColorEditFlags_NoLabel);
 
             ImGui::SameLine(50.f);
             if (ImGui::Selectable(compo.name.c_str(),
