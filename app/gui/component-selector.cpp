@@ -164,12 +164,15 @@ bool component_selector::combobox(const char*   label,
               "Undefined color",
               to_ImVec4(app.config.colors[style_color::component_undefined]));
             ImGui::SameLine(50.f);
+            ImGui::PushID(0);
             if (ImGui::Selectable(names[0].c_str(), ids[0] == *new_selected)) {
                 *new_selected = ids[0];
                 ret           = true;
             }
+            ImGui::PopID();
 
             for (sz i = 1, e = ids.size(); i != e; ++i) {
+                ImGui::PushID(i);
                 const auto col = get_component_color(app, ids[i]);
                 const auto im  = ImVec4{ col[0], col[1], col[2], col[3] };
                 ImGui::ColorButton("Component", im);
@@ -179,6 +182,7 @@ bool component_selector::combobox(const char*   label,
                     *new_selected = ids[i];
                     ret           = true;
                 }
+                ImGui::PopID();
             }
 
             ImGui::EndCombo();
@@ -205,6 +209,7 @@ bool component_selector::combobox(const char*   label,
               "Undefined color",
               to_ImVec4(app.config.colors[style_color::component_undefined]));
             ImGui::SameLine(50.f);
+            ImGui::PushID(0);
             if (ImGui::Selectable(names[0].c_str(),
                                   *hyphen == false &&
                                     ids[0] == *new_selected)) {
@@ -212,8 +217,10 @@ bool component_selector::combobox(const char*   label,
                 *hyphen       = false;
                 ret           = true;
             }
+            ImGui::PopID();
 
             for (sz i = 1, e = ids.size(); i != e; ++i) {
+                ImGui::PushID(i);
                 const auto col = get_component_color(app, ids[i]);
                 const auto im  = ImVec4(col[0], col[1], col[2], col[3]);
 
@@ -226,6 +233,7 @@ bool component_selector::combobox(const char*   label,
                     *hyphen       = false;
                     ret           = true;
                 }
+                ImGui::PopID();
             }
 
             if (ImGui::Selectable("-", *hyphen == true)) {
@@ -250,25 +258,29 @@ bool component_selector::menu(const char*   label,
             small_string<254> selected_name("undefined");
 
             cs_select(app.mod, *new_selected, selected_name);
+            int push_id = 0;
 
             if (ImGui::BeginMenu("Files components")) {
+                ImGui::PushID(push_id++);
                 for (int i = 0, e = files; i < e; ++i) {
                     if (ImGui::MenuItem(names[i].c_str())) {
                         ret           = true;
                         *new_selected = ids[i];
                     }
                 }
+                ImGui::PopID();
                 ImGui::EndMenu();
             }
 
             if (ImGui::BeginMenu("Unsaved components")) {
+                ImGui::PushID(push_id++);
                 for (int i = files, e = unsaved; i < e; ++i) {
                     if (ImGui::MenuItem(names[i].c_str())) {
                         ret           = true;
                         *new_selected = ids[i];
                     }
                 }
-
+                ImGui::PopID();
                 ImGui::EndMenu();
             }
 
