@@ -147,6 +147,9 @@ static void simulation_init(application& app, project_editor& ed) noexcept
     ed.tl.reset();
 
     if (ed.pj.tn_head()) {
+        ed.pj.sim.clean();
+        ed.pj.sim.observers.clear();
+
         ed.pj.sim.t                   = ed.pj.t_limit.begin();
         ed.simulation_last_finite_t   = ed.pj.sim.t;
         ed.simulation_display_current = ed.pj.sim.t;
