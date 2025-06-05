@@ -339,7 +339,7 @@ void project_settings_editor::show(project_editor& ed) noexcept
         if (ImGui::BeginTabBar("Project")) {
             if (ImGui::BeginTabItem("Settings")) {
                 if (ImGui::BeginChild("###settings",
-                                      ImGui::GetContentRegionMax()))
+                                      ImGui::GetContentRegionAvail()))
                     show_project_simulation_settings(app, ed);
 
                 ImGui::EndChild();
@@ -348,7 +348,7 @@ void project_settings_editor::show(project_editor& ed) noexcept
 
             if (ImGui::BeginTabItem("Hierarchy")) {
                 if (ImGui::BeginChild("###hierarchy",
-                                      ImGui::GetContentRegionMax())) {
+                                      ImGui::GetContentRegionAvail())) {
                     auto selection = show_project_hierarchy(
                       app, ed.pj, *parent, ed.m_selected_tree_node);
                     if (selection != ed.m_selected_tree_node)

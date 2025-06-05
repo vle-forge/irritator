@@ -166,17 +166,6 @@ static void show_simulation_action_buttons(application&    app,
         ed.start_simulation_advance(app);
     ImGui::EndDisabled();
 
-    ImGui::TextFormat("Current time {:.6f}", ed.simulation_display_current);
-
-    ImGui::SameLine();
-
-    if (ed.tl.current_bag != ed.tl.points.end()) {
-        ImGui::TextFormat(
-          "debug bag: {}/{}", ed.tl.current_bag->bag, ed.tl.bag);
-    } else {
-        ImGui::TextFormat("debug bag: {}", ed.tl.bag);
-    }
-
     ImGui::EndDisabled();
 }
 
@@ -1104,22 +1093,11 @@ auto project_editor::show(application& app) noexcept -> show_result_t
     }
 
     bool is_open = true;
-    if (not ImGui::Begin(name.c_str(), &is_open, ImGuiWindowFlags_MenuBar)) {
+    if (not ImGui::Begin(name.c_str(), &is_open)) {
         ImGui::End();
         return is_open ? show_result_t::success
                        : show_result_t::request_to_close;
     }
-
-    if (not ImGui::BeginChild("##sim", ImVec2(0.f, 0.f))) {
-        ImGui::End();
-        return is_open ? show_result_t::success
-                       : show_result_t::request_to_close;
-    }
-
-    constexpr ImGuiTableFlags flags =
-      ImGuiTableFlags_SizingFixedFit | ImGuiTableFlags_RowBg |
-      ImGuiTableFlags_Borders | ImGuiTableFlags_Resizable |
-      ImGuiTableFlags_Reorderable;
 
     const bool can_be_initialized = !any_equal(simulation_state,
                                                simulation_status::not_started,
@@ -1144,7 +1122,7 @@ auto project_editor::show(application& app) noexcept -> show_result_t
                                            simulation_status::paused,
                                            simulation_status::pause_forced);
 
-    if (ImGui::BeginTable("##ed", 2, flags)) {
+    if (ImGui::BeginTable("##ed", 2, ImGuiTableFlags_Resizable)) {
         ImGui::TableSetupColumn(
           "Hierarchy", ImGuiTableColumnFlags_WidthStretch, 0.2f);
         ImGui::TableSetupColumn(
@@ -1155,62 +1133,65 @@ auto project_editor::show(application& app) noexcept -> show_result_t
         app.project_wnd.show(*this);
 
         ImGui::TableSetColumnIndex(1);
-        show_simulation_action_buttons(app,
-                                       *this,
-                                       can_be_initialized,
-                                       can_be_started,
-                                       can_be_paused,
-                                       can_be_restarted,
-                                       can_be_stopped);
+        if (ImGui::BeginChild("##ed-sim", ImGui::GetContentRegionAvail())) {
+            show_simulation_action_buttons(app,
+                                           *this,
+                                           can_be_initialized,
+                                           can_be_started,
+                                           can_be_paused,
+                                           can_be_restarted,
+                                           can_be_stopped);
 
-        auto* selected = pj.node(m_selected_tree_node);
+            auto* selected = pj.node(m_selected_tree_node);
 
-        if (ImGui::BeginTabBar("##SimulationTabBar")) {
-            if (ImGui::BeginTabItem("Parameters")) {
-                show_project_parameters(app, *this);
-                ImGui::EndTabItem();
-            }
-
-            if (ImGui::BeginTabItem("Observations")) {
-                show_project_observations(app, *this);
-                ImGui::EndTabItem();
-            }
-
-            if (selected) {
-                if (ImGui::BeginTabItem("Component parameters")) {
-                    show_local_simulation_settings(app, *this, *selected);
+            if (ImGui::BeginTabBar("##SimulationTabBar")) {
+                if (ImGui::BeginTabItem("Parameters")) {
+                    show_project_parameters(app, *this);
                     ImGui::EndTabItem();
                 }
 
-                if (ImGui::BeginTabItem("Component observations")) {
-                    show_component_observations(app, *this, *selected);
+                if (ImGui::BeginTabItem("Observations")) {
+                    show_project_observations(app, *this);
                     ImGui::EndTabItem();
                 }
-            }
 
-            if (ImGui::BeginTabItem("Simulation graph")) {
-                if (can_display_graph_editor()) {
-                    if (selected) {
-                        show_simulation_editor_treenode(app, *this, *selected);
-                    } else {
-                        generic_sim.display(app);
+                if (selected) {
+                    if (ImGui::BeginTabItem("Component parameters")) {
+                        show_local_simulation_settings(app, *this, *selected);
+                        ImGui::EndTabItem();
+                    }
+
+                    if (ImGui::BeginTabItem("Component observations")) {
+                        show_component_observations(app, *this, *selected);
+                        ImGui::EndTabItem();
                     }
                 }
-                ImGui::EndTabItem();
-            }
 
-            if (ImGui::BeginTabItem("Input data")) {
-                data_ed.show(app);
-                ImGui::EndTabItem();
-            }
+                if (ImGui::BeginTabItem("Simulation graph")) {
+                    if (can_display_graph_editor()) {
+                        if (selected) {
+                            show_simulation_editor_treenode(
+                              app, *this, *selected);
+                        } else {
+                            generic_sim.display(app);
+                        }
+                    }
+                    ImGui::EndTabItem();
+                }
 
-            ImGui::EndTabBar();
+                if (ImGui::BeginTabItem("Input data")) {
+                    data_ed.show(app);
+                    ImGui::EndTabItem();
+                }
+
+                ImGui::EndTabBar();
+            }
         }
 
+        ImGui::EndChild();
         ImGui::EndTable();
     }
 
-    ImGui::EndChild();
     ImGui::End();
 
     if (save_project_file) {
