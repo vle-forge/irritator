@@ -192,26 +192,37 @@ static void show_path(const std::filesystem::path& current,
                       bool*                        path_click,
                       std::filesystem::path*       next) noexcept
 {
+    auto push_id          = 0;
+    auto selected_path_it = current.end();
+
     for (auto it = current.begin(), et = current.end(); it != et; ++it) {
         if (it != current.begin())
             ImGui::SameLine();
 
-        auto  name  = it->u8string();
-        auto* c_str = reinterpret_cast<const char*>(name.c_str());
-        if (ImGui::Button(c_str)) {
-            next->clear();
-#if _WIN32
-            if (it == current.begin())
-                ++it;
-#endif
-            for (auto jt = current.begin(); jt != it; ++jt)
-                *next /= jt->native();
-            *next /= it->native();
+        auto  u8name = it->u8string();
+        auto* c_str  = reinterpret_cast<const char*>(u8name.c_str());
 
-            selected.clear();
-            *path_click = true;
-            break;
-        }
+        ImGui::PushID(push_id++);
+        if (ImGui::Button(c_str))
+            selected_path_it = it;
+        ImGui::PopID();
+    }
+
+    if (selected_path_it != current.end()) {
+        next->clear();
+
+#if _WIN32
+        if (selected_path_it == current.begin())
+            ++selected_path_it;
+#endif
+
+        for (auto jt = current.begin(); jt != selected_path_it; ++jt)
+            *next /= jt->native();
+
+        *next /= selected_path_it->native();
+
+        selected.clear();
+        *path_click = true;
     }
 }
 
