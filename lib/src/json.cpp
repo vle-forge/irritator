@@ -3872,7 +3872,7 @@ struct json_dearchiver::impl {
             }
         }
 
-        return false;
+        return true;
     }
 
     bool read_graph_output_connection(const rapidjson::Value& val,
