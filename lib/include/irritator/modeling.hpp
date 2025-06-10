@@ -309,6 +309,23 @@ public:
     vector<name_str>  children_names;
     vector<parameter> children_parameters;
 
+    /** Grow the children @a data_array and resize theq
+     *  @a children_positions, @a children_names and @a children_parameters
+     *  vectors to match the new capacity.
+     *
+     *  @return `true` if the operation is successful, otherwise `false`.
+     */
+    [[nodiscard]] inline bool grow_children() noexcept
+    {
+        if (children.can_alloc(1))
+            return true;
+
+        return children.grow<2, 1>() and
+               children_positions.resize(children.capacity()) and
+               children_names.resize(children.capacity()) and
+               children_parameters.resize(children.capacity());
+    }
+
     bool exists_input_connection(const port_id          x,
                                  const child&           dst,
                                  const connection::port port) const noexcept;
