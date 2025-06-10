@@ -675,7 +675,8 @@ struct graph_component_editor_data::impl {
             if (ImGui::InputDouble("beta", &ed.psf.beta))
                 ed.psf.beta = std::clamp(ed.psf.beta, 0.0, 1000.0);
 
-            app.component_sel.combobox("component", &ed.psf.id);
+            if (auto r = app.component_sel.combobox("component", ed.psf.id); r)
+                ed.psf.id = r.id;
 
             if (ImGui::Button("generate")) {
                 ed.clear_selected_nodes();
@@ -709,7 +710,8 @@ struct graph_component_editor_data::impl {
             if (ImGui::InputInt("k", &ed.psw.k, 1, 2))
                 ed.psw.k = std::clamp(ed.psw.k, 1, 8);
 
-            app.component_sel.combobox("component", &ed.psw.id);
+            if (auto r = app.component_sel.combobox("component", ed.psw.id); r)
+                ed.psw.id = r.id;
 
             if (ImGui::Button("generate")) {
                 ed.clear_selected_nodes();
@@ -1110,9 +1112,10 @@ void graph_component_editor_data::show_selected_nodes(
                         graph->g.node_areas[idx] = area;
                     }
 
-                    if (auto newid = graph->g.node_components[idx];
-                        app.component_sel.combobox("component", &newid))
-                        graph->g.node_components[idx] = newid;
+                    if (auto r = app.component_sel.combobox(
+                          "component", graph->g.node_components[idx]);
+                        r)
+                        graph->g.node_components[idx] = r.id;
 
                     if (auto* compo = app.mod.components.try_to_get<component>(
                           graph->g.node_components[idx])) {
@@ -1147,11 +1150,12 @@ void graph_component_editor_data::show_selected_nodes(
         ImGui::Spacing();
 
         if (ImGui::TreeNodeEx("apply for all selected")) {
-            if (auto newid = undefined<component_id>();
-                app.component_sel.combobox("component", &newid)) {
+            if (auto r = app.component_sel.combobox("component",
+                                                    undefined<component_id>());
+                r) {
                 for (const auto id : selected_nodes) {
                     if (graph->g.nodes.exists(id)) {
-                        graph->g.node_components[id] = newid;
+                        graph->g.node_components[id] = r.id;
                     }
                 }
             }

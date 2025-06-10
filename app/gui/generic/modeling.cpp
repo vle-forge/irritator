@@ -748,10 +748,11 @@ static void show_popup_menuitem(application&                   app,
 
         ImGui::Separator();
 
-        component_id c_id = undefined<component_id>();
-        app.component_sel.menu("Component?", &c_id);
-        if (c_id != undefined<component_id>()) {
-            if (auto* c = app.mod.components.try_to_get<component>(c_id)) {
+        if (auto res = app.component_sel.menu("Choose component");
+            res.is_done) {
+            debug::ensure(is_defined(res.id));
+
+            if (auto* c = app.mod.components.try_to_get<component>(res.id)) {
                 if (c->type == component_type::hsm)
                     app.jn.push(
                       log_level::error, [](auto& title, auto& msg) noexcept {

@@ -1153,44 +1153,52 @@ public:
      */
     void update() noexcept;
 
-    /** Show @c ImGui::ComboBox for all @c component_id.
-     * Show all @c component_id in @c modeling. This function can lock the mutex
-     * if an update is in progress.
-     * @param label The ImGui::ComboBox label.
-     * @param new_selected Output parameters.
-     * @return The underlying ImGui::ComboBox return.
-     */
-    bool combobox(const char* label, component_id* new_selected) const noexcept;
+    struct result_t {
+        component_id id;
+        bool         is_done;
 
-    /** Show @c ImGui::ComboBox for all @c component_id plus hyphen. This symbol
-     * means user let the @c component_id value untouch.
-     * Show all @c component_id in @c modeling. This function can lock the mutex
-     * if an update is in progress.
-     * @param label The ImGui::ComboBox label.
-     * @param[out] new_selected Store the selected @c component_id.
-     * @param[out] hyphen Store if the user select the hyphen
-     * @return The underlying ImGui::ComboBox return.
-     */
-    bool combobox(const char*   label,
-                  component_id* new_selected,
-                  bool*         hyphen) const noexcept;
+        operator bool() const noexcept { return is_done; }
+    };
 
-    /** Display a @c ImGui::Menu for all @c component_id.
-     * Show all @c component_id in @c modeling. This function can lock the mutex
-     * if an update is in progress.
+    /**
+     * Dispay @c ImGui::ComboBox for all @c component_id. This function can lock
+     * the mutex if an update is in progress.
+     *
+     * @param label The @a ImGui::ComboBox label.
+     * @param current The current @a component_id to be selected in the
+     * combobox.
+     * @return a simple structure with a valid @a component_id if the structure
+     * is valid.
      */
-    bool menu(const char* label, component_id* new_selected) const noexcept;
+    result_t combobox(const char*        label,
+                      const component_id current) const noexcept;
+
+    /**
+     * Display a @c ImGui::MenuItem for all @c component_id in different
+     * category. This function can lock the mutex if an update is in progress.
+     *
+     * @param label The @c ImGui::BeginMenu label
+     * @return a simple structure with a valid @a component_id if the structure
+     * is valid.
+     */
+    result_t menu(const char* label) const noexcept;
 
 private:
-    vector<component_id>      ids;
-    vector<component_id>      ids_2nd;
-    vector<small_string<254>> names;
-    vector<small_string<254>> names_2nd;
+    vector<std::pair<component_id, name_str>>      by_names;
+    vector<std::pair<component_id, file_path_str>> by_files;
+    vector<std::pair<component_id, name_str>>      by_generics;
+    vector<std::pair<component_id, name_str>>      by_grids;
+    vector<std::pair<component_id, name_str>>      by_graphs;
+
+    vector<std::pair<component_id, name_str>>      by_names_2nd;
+    vector<std::pair<component_id, file_path_str>> by_files_2nd;
+    vector<std::pair<component_id, name_str>>      by_generics_2nd;
+    vector<std::pair<component_id, name_str>>      by_grids_2nd;
+    vector<std::pair<component_id, name_str>>      by_graphs_2nd;
 
     std::atomic_flag updating = ATOMIC_FLAG_INIT;
 
-    int files   = 0; //! Number of component in registred directories
-    int unsaved = 0; //! Number of unsaved component
+    void swap_buffers() noexcept;
 
     mutable std::shared_mutex m_mutex;
 };

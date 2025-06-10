@@ -289,7 +289,12 @@ static void show_grid_editor_options(application&                app,
     auto id = get_default_component_id(grid);
 
     {
-        auto updated = app.component_sel.combobox("Default component", &id);
+        bool updated = false;
+        if (auto r = app.component_sel.combobox("Default component", id); r) {
+            id      = r.id;
+            updated = true;
+        }
+
         ImGui::SameLine();
         HelpMarker(
           "Reset the content of the grid with the selected component.");
@@ -299,7 +304,10 @@ static void show_grid_editor_options(application&                app,
     }
 
     {
-        app.component_sel.combobox("Paint component", &ed.selected_id);
+        if (auto r =
+              app.component_sel.combobox("Paint component", ed.selected_id);
+            r)
+            ed.selected_id = r.id;
         ImGui::SameLine();
         HelpMarker("Select a component in the list and draw the grid using the "
                    "left button of your mouse.");
