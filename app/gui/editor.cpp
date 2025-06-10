@@ -745,10 +745,10 @@ static auto build_default_hsm_name(const modeling& mod, parameter& p) noexcept
 {
     static constexpr auto undefined_name = "-";
 
-    auto compo = mod.components.try_to_get<component>(
-      enum_cast<component_id>(p.integers[0]));
+    const auto  compo_id = enum_cast<component_id>(p.integers[0]);
+    const auto* compo    = mod.components.try_to_get<component>(compo_id);
 
-    if (compo->type != component_type::hsm) {
+    if (compo == nullptr or compo->type != component_type::hsm) {
         p.integers[0] = 0;
         compo         = nullptr;
     }
