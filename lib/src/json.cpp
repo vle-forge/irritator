@@ -507,11 +507,11 @@ struct json_dearchiver::impl {
         return error("bad component type {}", temp_string);
     }
 
-    bool copy_string_to(input_port_type& type) noexcept
+    bool copy_string_to(port_option& type) noexcept
     {
-        for (auto i = 0, e = length(input_port_type_names); i != e; ++i) {
-            if (temp_string == input_port_type_names[i]) {
-                type = enum_cast<input_port_type>(i);
+        for (auto i = 0, e = length(port_option_names); i != e; ++i) {
+            if (temp_string == port_option_names[i]) {
+                type = enum_cast<port_option>(i);
                 return true;
             }
         }
@@ -4082,13 +4082,9 @@ struct json_dearchiver::impl {
         return error("bad component type {}", temp_string);
     }
 
-    bool read_input_port(const rapidjson::Value&  val,
-                         id_data_array<port_id,
-                                       allocator<new_delete_memory_resource>,
-                                       input_port_type,
-                                       port_str,
-                                       position>& port,
-                         port_id                  id) noexcept
+    bool read_input_port(const rapidjson::Value& val,
+                         component::port_type&   port,
+                         port_id                 id) noexcept
     {
         auto_stack s(this, "component input port");
 
@@ -4102,7 +4098,7 @@ struct json_dearchiver::impl {
 
             case 1:
                 return read_temp_string(value) &&
-                       copy_string_to(port.get<input_port_type>(id));
+                       copy_string_to(port.get<port_option>(id));
 
             case 2:
                 return read_temp_real(value) &&
@@ -4118,12 +4114,8 @@ struct json_dearchiver::impl {
         });
     }
 
-    bool read_input_ports(const rapidjson::Value&  val,
-                          id_data_array<port_id,
-                                        allocator<new_delete_memory_resource>,
-                                        input_port_type,
-                                        port_str,
-                                        position>& port) noexcept
+    bool read_input_ports(const rapidjson::Value& val,
+                          component::port_type&   port) noexcept
     {
         auto_stack s(this, "component input ports");
 
@@ -4135,16 +4127,13 @@ struct json_dearchiver::impl {
                  });
     }
 
-    bool read_output_port(const rapidjson::Value&  val,
-                          id_data_array<port_id,
-                                        allocator<new_delete_memory_resource>,
-                                        port_str,
-                                        position>& port,
-                          port_id                  id) noexcept
+    bool read_output_port(const rapidjson::Value& val,
+                          component::port_type&   port,
+                          port_id                 id) noexcept
     {
         auto_stack s(this, "component output port");
 
-        static constexpr std::string_view n[] = { "name", "x", "y" };
+        static constexpr std::string_view n[] = { "name", "type", "x", "y" };
 
         return for_members(val, n, [&](auto idx, const auto& value) noexcept {
             switch (idx) {
@@ -4153,10 +4142,14 @@ struct json_dearchiver::impl {
                        copy_string_to(port.get<port_str>(id));
 
             case 1:
+                return read_temp_string(value) &&
+                       copy_string_to(port.get<port_option>(id));
+
+            case 2:
                 return read_temp_real(value) &&
                        copy_real_to(port.get<position>(id).x);
 
-            case 2:
+            case 3:
                 return read_temp_real(value) &&
                        copy_real_to(port.get<position>(id).y);
 
@@ -4166,11 +4159,8 @@ struct json_dearchiver::impl {
         });
     }
 
-    bool read_output_ports(const rapidjson::Value&  val,
-                           id_data_array<port_id,
-                                         allocator<new_delete_memory_resource>,
-                                         port_str,
-                                         position>& port) noexcept
+    bool read_output_ports(const rapidjson::Value& val,
+                           component::port_type&   port) noexcept
     {
         auto_stack s(this, "component output ports");
 
@@ -6415,7 +6405,7 @@ struct json_archiver::impl {
                 w.Key("name");
                 w.String(str.c_str());
                 w.Key("type");
-                w.String(input_port_type_names[ordinal(type)]);
+                w.String(port_option_names[ordinal(type)]);
                 w.Key("x");
                 w.Double(pos.x);
                 w.Key("y");
@@ -6430,17 +6420,21 @@ struct json_archiver::impl {
             w.Key("y");
             w.StartArray();
 
-            compo.y.for_each(
-              [&](auto /*id*/, const auto& str, auto& pos) noexcept {
-                  w.StartObject();
-                  w.Key("name");
-                  w.String(str.c_str());
-                  w.Key("x");
-                  w.Double(pos.x);
-                  w.Key("y");
-                  w.Double(pos.y);
-                  w.EndObject();
-              });
+            compo.y.for_each([&](auto /*id*/,
+                                 const auto& type,
+                                 const auto& str,
+                                 auto&       pos) noexcept {
+                w.StartObject();
+                w.Key("name");
+                w.String(str.c_str());
+                w.Key("type");
+                w.String(port_option_names[ordinal(type)]);
+                w.Key("x");
+                w.Double(pos.x);
+                w.Key("y");
+                w.Double(pos.y);
+                w.EndObject();
+            });
 
             w.EndArray();
         }

@@ -1028,6 +1028,7 @@ public:
     struct tab {
         component_id   id;
         component_type type;
+
         union {
             grid_editor_data_id    grid;
             graph_editor_data_id   graph;
@@ -1046,7 +1047,12 @@ private:
     data_array<generic_component_editor_data, generic_editor_data_id> generics;
     data_array<hsm_component_editor_data, hsm_editor_data_id>         hsms;
 
+    /// List of tabulation opened in the @a ImGui::BeginTabBar.
     vector<tab> tabs;
+
+    vector<component_id> component_list;
+    spin_mutex           component_list_mutex;
+    std::atomic_flag     component_list_updating = ATOMIC_FLAG_INIT;
 
     std::bitset<2> tabitem_open;
     component_id   m_request_to_open = undefined<component_id>();

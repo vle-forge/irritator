@@ -159,7 +159,7 @@ struct position {
     void reset() noexcept;
 };
 
-enum class input_port_type {
+enum class port_option {
     classic, /**< Classic connection between two components. */
     sum,     /**< Sum of all inputs messages (Adding @a abstract_sum models to
                 perform the sum for all input connections) between components. */
@@ -845,70 +845,75 @@ public:
     expected<void> build_cache(modeling& mod) noexcept;
 };
 
+/// A connection pack makes a link between a X or Y port of a component to a
+/// pair of component identifier and port identifier in the children component.
+struct connection_pack {
+    /// The input or output port.
+    port_id parent_port = undefined<port_id>();
+
+    /// The component identifier to be search in component children (grid,
+    /// graph, generic children vectors).
+    port_id child_port = undefined<port_id>();
+
+    /// The port identifier in the component @a component.
+    component_id child_component;
+};
+
 struct component {
+
+    using port_type = id_data_array<port_id,
+                                    allocator<new_delete_memory_resource>,
+                                    port_option,
+                                    port_str,
+                                    position>;
+
     component() noexcept;
 
-    id_data_array<port_id,
-                  allocator<new_delete_memory_resource>,
-                  input_port_type,
-                  port_str,
-                  position>
-      x;
-    id_data_array<port_id,
-                  allocator<new_delete_memory_resource>,
-                  port_str,
-                  position>
-      y;
+    /** Stores input ports with names and positions. */
+    port_type x;
 
-    port_id get_x(std::string_view str) const noexcept
-    {
-        const auto& vec_name = x.get<port_str>();
-        for (const auto elem : x)
-            if (str == vec_name[elem].sv())
-                return elem;
+    /** Stores output ports with names and positions. */
+    port_type y;
 
-        return undefined<port_id>();
-    }
+    /** Stores input connection pack (links input port with all component
+     * children with @a component_port::component identifier and @a
+     * component_port::port port identifier. */
+    vector<connection_pack> input_connection_pack;
 
-    port_id get_y(std::string_view str) const noexcept
-    {
-        const auto& vec_name = y.get<port_str>();
-        for (const auto elem : y)
-            if (str == vec_name[elem].sv())
-                return elem;
+    /** Stores input connection pack (links input port with all component
+     * children with @a component_port::component identifier and @a
+     * component_port::port port identifier. */
+    vector<connection_pack> output_connection_pack;
 
-        return undefined<port_id>();
-    }
+    /** Get the port identifier of the input port with the name @a str.
+     * @param str The name of the input port.
+     * @return The port identifier or @c undefined<port_id>() if not found.
+     */
+    port_id get_x(std::string_view str) const noexcept;
 
-    port_id get_or_add_x(std::string_view str) noexcept
-    {
-        auto port_id = get_x(str);
+    /** Get the port identifier of the output port with the name @a str.
+     * @param str The name of the input port.
+     * @return The port identifier or @c undefined<port_id>() if not found.
+     */
+    port_id get_y(std::string_view str) const noexcept;
 
-        if (is_undefined(port_id)) {
-            if (x.can_alloc(1)) {
-                port_id                  = x.alloc();
-                x.get<port_str>(port_id) = str;
-                x.get<position>(port_id).reset();
-            }
-        }
+    /** Get or add the input port with the name @a str.
+     * If the port does not exist, it is created and added to the @c x
+     * data_array.
+     * @param str The name of the input port.
+     * @return The port identifier or @c undefined<port_id>() if allocation
+     * fails.
+     */
+    port_id get_or_add_x(std::string_view str) noexcept;
 
-        return port_id;
-    }
-
-    port_id get_or_add_y(std::string_view str) noexcept
-    {
-        auto port_id = get_y(str);
-
-        if (is_undefined(port_id)) {
-            if (y.can_alloc(1)) {
-                port_id                  = y.alloc();
-                y.get<port_str>(port_id) = str;
-                y.get<position>(port_id).reset();
-            }
-        }
-
-        return port_id;
-    }
+    /** Get or add the output port with the name @a str.
+     * If the port does not exist, it is created and added to the @c x
+     * data_array.
+     * @param str The name of the output port.
+     * @return The port identifier or @c undefined<port_id>() if allocation
+     * fails.
+     */
+    port_id get_or_add_y(std::string_view str) noexcept;
 
     description_id    desc     = description_id{ 0 };
     registred_path_id reg_path = registred_path_id{ 0 };
@@ -939,8 +944,8 @@ struct component {
     component_type   type  = component_type::none;
     component_status state = component_status::unread;
 
-    external_source
-      srcs; /**<! Each component stores potential external source. */
+    /**< Each component stores potential external source. */
+    external_source srcs;
 };
 
 struct registred_path;
@@ -1872,6 +1877,56 @@ inline component::component() noexcept
     srcs.binary_file_sources.reserve(4);
     srcs.text_file_sources.reserve(4);
     srcs.random_sources.reserve(4);
+}
+
+inline port_id component::get_x(std::string_view str) const noexcept
+{
+    const auto& vec_name = x.get<port_str>();
+    for (const auto elem : x)
+        if (str == vec_name[elem].sv())
+            return elem;
+
+    return undefined<port_id>();
+}
+
+inline port_id component::get_y(std::string_view str) const noexcept
+{
+    const auto& vec_name = y.get<port_str>();
+    for (const auto elem : y)
+        if (str == vec_name[elem].sv())
+            return elem;
+
+    return undefined<port_id>();
+}
+
+inline port_id component::get_or_add_x(std::string_view str) noexcept
+{
+    auto port_id = get_x(str);
+
+    if (is_undefined(port_id)) {
+        if (x.can_alloc(1)) {
+            port_id                  = x.alloc();
+            x.get<port_str>(port_id) = str;
+            x.get<position>(port_id).reset();
+        }
+    }
+
+    return port_id;
+}
+
+inline port_id component::get_or_add_y(std::string_view str) noexcept
+{
+    auto port_id = get_y(str);
+
+    if (is_undefined(port_id)) {
+        if (y.can_alloc(1)) {
+            port_id                  = y.alloc();
+            y.get<port_str>(port_id) = str;
+            y.get<position>(port_id).reset();
+        }
+    }
+
+    return port_id;
 }
 
 inline connection::connection(child_id src_,

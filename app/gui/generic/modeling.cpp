@@ -365,19 +365,21 @@ static void show_input_an_output_ports(component&     compo,
 
         ImNodes::BeginInputAttribute(pack_id, ImNodesPinShape_TriangleFilled);
         ImGui::TextUnformatted(name.c_str());
-        ImGui::TextUnformatted(input_port_type_names[ordinal(type)]);
+        ImGui::TextUnformatted(port_option_names[ordinal(type)]);
         ImNodes::EndInputAttribute();
     });
 
-    compo.y.for_each(
-      [&](const auto id, const auto& name, const auto& /*pos*/) noexcept {
-          const auto pack_id = pack_out(c_id, id);
+    compo.y.for_each([&](const auto  id,
+                         const auto  type,
+                         const auto& name,
+                         const auto& /*pos*/) noexcept {
+        const auto pack_id = pack_out(c_id, id);
 
-          ImNodes::BeginOutputAttribute(pack_id,
-                                        ImNodesPinShape_TriangleFilled);
-          ImGui::TextUnformatted(name.c_str());
-          ImNodes::EndOutputAttribute();
-      });
+        ImNodes::BeginOutputAttribute(pack_id, ImNodesPinShape_TriangleFilled);
+        ImGui::TextUnformatted(name.c_str());
+        ImGui::TextUnformatted(port_option_names[ordinal(type)]);
+        ImNodes::EndOutputAttribute();
+    });
 }
 
 static void show_generic_node(application&     app,

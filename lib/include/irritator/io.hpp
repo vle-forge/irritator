@@ -27,9 +27,9 @@ static constexpr inline const char* component_type_names[] = {
     "none", "internal", "simple", "grid", "graph", "hsm"
 };
 
-static constexpr inline const char* input_port_type_names[] = { "classic",
-                                                                "sum",
-                                                                "wsum" };
+static constexpr inline const char* port_option_names[] = { "classic",
+                                                            "sum",
+                                                            "wsum" };
 
 //! Try to get the component type from a string. If the string is unknown,
 //! optional returns \c std::nullopt.
