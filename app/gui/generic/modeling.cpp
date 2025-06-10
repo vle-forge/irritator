@@ -671,9 +671,8 @@ static void add_component_to_current(application&       app,
                                      component&         compo_to_add,
                                      ImVec2             click_pos = ImVec2())
 {
-    const auto compo_to_add_id = app.mod.components.get_id(compo_to_add);
 
-    if (app.mod.can_add(parent, compo_to_add)) {
+    if (not app.mod.can_add(parent, compo_to_add)) {
         app.jn.push(log_level::error, [&compo_to_add](auto& t, auto& m) {
             t = "Fail to add component";
             format(m,
@@ -682,9 +681,18 @@ static void add_component_to_current(application&       app,
         });
     }
 
-    auto&      c     = parent_compo.children.alloc(compo_to_add_id);
-    const auto c_id  = parent_compo.children.get_id(c);
-    const auto c_idx = get_index(c_id);
+    if (not parent_compo.children.can_alloc(1) and
+        not parent_compo.grow_children())
+        app.jn.push(log_level::error, [](auto& t, auto& m) {
+            t = "Generic component";
+            m = "Can not allocate new model. Delete models or increase "
+                "generic component default size.";
+        });
+
+    const auto compo_to_add_id = app.mod.components.get_id(compo_to_add);
+    auto&      c               = parent_compo.children.alloc(compo_to_add_id);
+    const auto c_id            = parent_compo.children.get_id(c);
+    const auto c_idx           = get_index(c_id);
 
     parent_compo.children_positions[c_idx].x = click_pos.x;
     parent_compo.children_positions[c_idx].y = click_pos.y;
@@ -1222,11 +1230,10 @@ void generic_component_editor_data::show(component_editor& ed) noexcept
 {
     auto& app = container_of(&ed, &application::component_ed);
 
-    if (auto* compo = app.mod.components.try_to_get<component>(get_id());
-        compo) {
+    if (auto* compo = app.mod.components.try_to_get<component>(get_id())) {
         const auto s_id = compo->id.generic_id;
 
-        if (auto* s = app.mod.generic_components.try_to_get(s_id); s)
+        if (auto* s = app.mod.generic_components.try_to_get(s_id))
             show_component_editor(ed, *this, *compo, *s);
     }
 }
