@@ -400,7 +400,11 @@ static void show_generic_node(application&     app,
     ImNodes::BeginNodeTitleBar();
     ImGui::TextFormat("{}\n{}", name, compo.name.c_str());
     ImNodes::EndNodeTitleBar();
-    show_input_an_output_ports(compo, c_id);
+    if (compo.x.empty() and compo.y.empty()) {
+        ImGui::TextUnformatted("No ports defined.");
+    } else {
+        show_input_an_output_ports(compo, c_id);
+    }
     ImNodes::EndNode();
 
     ImNodes::PopColorStyle();
@@ -427,7 +431,11 @@ static void show_grid_node(application&     app,
     ImGui::TextFormat("{}\n{}", name, compo.name.sv());
     ImGui::TextFormat("{}x{}", grid.row(), grid.column());
     ImNodes::EndNodeTitleBar();
-    show_input_an_output_ports(compo, c_id);
+    if (compo.x.empty() and compo.y.empty()) {
+        ImGui::TextUnformatted("No ports defined.");
+    } else {
+        show_input_an_output_ports(compo, c_id);
+    }
     ImNodes::EndNode();
 
     ImNodes::PopColorStyle();
@@ -453,9 +461,12 @@ static void show_graph_node(application&     app,
     ImNodes::BeginNodeTitleBar();
     ImGui::TextFormat("{}\n{}", name, compo.name.sv());
     ImGui::TextFormat("{}v {}e", graph.g.nodes.size(), graph.g.edges.size());
-
     ImNodes::EndNodeTitleBar();
-    show_input_an_output_ports(compo, c_id);
+    if (compo.x.empty() and compo.y.empty()) {
+        ImGui::TextUnformatted("No ports defined.");
+    } else {
+        show_input_an_output_ports(compo, c_id);
+    }
     ImNodes::EndNode();
 
     ImNodes::PopColorStyle();
