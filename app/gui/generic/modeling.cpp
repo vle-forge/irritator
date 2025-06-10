@@ -380,14 +380,13 @@ static void show_input_an_output_ports(component&     compo,
       });
 }
 
-static void show_generic_node(application&       app,
-                              std::string_view   name,
-                              component&         compo,
-                              generic_component& s_compo,
-                              child&             c) noexcept
+static void show_generic_node(application&     app,
+                              std::string_view name,
+                              component&       compo,
+                              generic_component& /*s_compo*/,
+                              const child_id c_id,
+                              child& /*c*/) noexcept
 {
-    const auto c_id = s_compo.children.get_id(c);
-
     ImNodes::PushColorStyle(ImNodesCol_TitleBar,
                             to_ImU32(app.config.colors[style_color::node]));
     ImNodes::PushColorStyle(
@@ -513,8 +512,7 @@ static void show_graph(component_editor&  ed,
             const auto cidx = get_index(cid);
             auto       id   = c.id.compo_id;
 
-            if (auto* compo = app.mod.components.try_to_get<component>(id);
-                compo) {
+            if (auto* compo = app.mod.components.try_to_get<component>(id)) {
                 switch (compo->type) {
                 case component_type::none:
                     break;
@@ -526,6 +524,7 @@ static void show_graph(component_editor&  ed,
                                           s_parent.children_names[cidx].sv(),
                                           *compo,
                                           *s_compo,
+                                          cid,
                                           c);
                     }
                     break;
