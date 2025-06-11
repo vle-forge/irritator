@@ -12,20 +12,6 @@
 
 namespace irt {
 
-static void cs_make_selected_name(const std::string_view reg,
-                                  const std::string_view dir,
-                                  const std::string_view file,
-                                  const component&       compo,
-                                  const component_id     id,
-                                  file_path_str&         name) noexcept
-{
-    if (compo.name.empty()) {
-        format(name, "{}/{}/{} {}", reg, dir, file, ordinal(id));
-    } else {
-        format(name, "{}/{}/{} {}", reg, dir, file, compo.name.sv());
-    }
-}
-
 static void update_lists(
   const modeling&                                 mod,
   vector<std::pair<component_id, name_str>>&      by_names,
@@ -50,17 +36,15 @@ static void update_lists(
 
                            by_names.emplace_back(id, compo.name.sv());
                            by_files.emplace_back(id, std::string_view());
-                           cs_make_selected_name(reg.name.sv(),
-                                                 dir.path.sv(),
-                                                 file.path.sv(),
-                                                 compo,
-                                                 id,
-                                                 by_files.back().second);
+                           format(by_files.back().second,
+                                  "{}/{}/{} {}",
+                                  reg.name.sv(),
+                                  dir.path.sv(),
+                                  file.path.sv(),
+                                  compo.name.sv());
+                           ;
 
                            switch (compo.type) {
-                           case component_type::none:
-                               break;
-
                            case component_type::generic:
                                by_generics.emplace_back(id, compo.name.sv());
                                break;
@@ -72,20 +56,19 @@ static void update_lists(
                            case component_type::graph:
                                by_graphs.emplace_back(id, compo.name.sv());
                                break;
+
+                           case component_type::none:
+                           case component_type::hsm:
+                           case component_type::internal:
+                               break;
                            }
                        });
 
-    auto sort_by_string = [](auto& vec) {
-        std::sort(vec.begin(), vec.end(), [](const auto& lhs, const auto& rhs) {
-            return lhs.second.sv() < rhs.second.sv();
-        });
-    };
-
-    sort_by_string(by_names);
-    sort_by_string(by_files);
-    sort_by_string(by_generics);
-    sort_by_string(by_grids);
-    sort_by_string(by_graphs);
+    std::ranges::sort(by_names);
+    std::ranges::sort(by_files);
+    std::ranges::sort(by_generics);
+    std::ranges::sort(by_grids);
+    std::ranges::sort(by_graphs);
 }
 
 void component_selector::update() noexcept
@@ -201,8 +184,6 @@ component_selector::result_t component_selector::menu(
 
     if (std::shared_lock lock(m_mutex, std::try_to_lock); lock.owns_lock()) {
         if (ImGui::BeginMenu(label)) {
-            const auto& app = container_of(this, &application::component_sel);
-
             ret = display_menu("Names", by_names);
             if (not ret) {
                 ret = display_menu("Files", by_files);

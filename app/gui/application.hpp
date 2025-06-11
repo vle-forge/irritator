@@ -1207,70 +1207,64 @@ class component_model_selector
 {
 public:
     struct access {
-        tree_node_id parent_id;
-        component_id compo_id;
-        tree_node_id tn_id;
-        model_id     mdl_id;
+        tree_node_id parent_id = undefined<tree_node_id>();
+        component_id compo_id  = undefined<component_id>();
+        tree_node_id tn_id     = undefined<tree_node_id>();
+        model_id     mdl_id    = undefined<model_id>();
     };
 
     component_model_selector() noexcept = default;
 
-    /** Get the parent, component, treenode and model identifiers store in
-     * the last call to the @c update function. */
-    const access& get_update_access() noexcept { return m_access; }
+    /**
+     * Display a @c ImGui::ComboBox and a @c ImGui::TreeNode for the hierarchy
+     * of @c tree_node given in update function. This function can lock the
+     * mutex if an update is in progress.
+     *
+     * @param label The @a ImGui::ComboBox label.
+     * @param pj The project to use to build the combobox.
+     * @return An optional access structure with valid data if a component is
+     * selected.
+     */
+    std::optional<access> combobox(const char*    label,
+                                   const project& pj) noexcept;
 
-    bool combobox(const char*   label,
-                  project&      pj,
-                  tree_node_id& parent_id,
-                  component_id& compo_id,
-                  tree_node_id& tn_id,
-                  model_id&     mdl_id) const noexcept;
-
-    /** A boolean to indicate that an update task is in progress. To be use to
-     * disable control to avoid double update. */
-    bool update_in_progress() const noexcept { return task_in_progress; }
-
-    void start_update(const project&     pj,
-                      const tree_node_id parent_id,
-                      const component_id compo_id,
-                      const tree_node_id tn_id,
-                      const model_id     mdl_id) noexcept;
-
-private:
-    // Used in the component ComboBox to select the grid element.
-    vector<std::pair<tree_node_id, component_id>> components;
-    vector<small_string<254>>                     names;
-
-    access m_access;
-
-    mutable int component_selected = -1;
-    bool        task_in_progress   = false;
-
-    /** Clean and rebuild the components and names vector to be used with the @c
-     * combobox function. */
-    void update(const tree_node_id parent_id,
+    /**
+     * Update the components cache with component. This function lock the @a
+     * shared_mutex to write new data using a @a std::unique_lock.
+     */
+    void update(const project&     pj,
+                const tree_node_id parent_id,
                 const component_id compo_id,
                 const tree_node_id tn_id,
                 const model_id     mdl_id) noexcept;
 
-    bool component_comboxbox(const char*   label,
-                             component_id& compo_id,
-                             tree_node_id& tn_id) const noexcept;
+private:
+    vector<std::pair<tree_node_id, component_id>> components;
+    vector<std::pair<tree_node_id, component_id>> components_2nd;
+    vector<name_str>                              names;
+    vector<name_str>                              names_2nd;
+    vector<tree_node*>                            stack_tree_nodes;
 
-    bool observable_model_treenode(const project& pj,
-                                   component_id&  compo_id,
-                                   tree_node_id&  tn_id,
-                                   model_id&      mdl_id) const noexcept;
+    tree_node_id parent_id = undefined<tree_node_id>();
+    tree_node_id tn_id     = undefined<tree_node_id>();
+    model_id     mdl_id    = undefined<model_id>();
+    component_id compo_id  = undefined<component_id>();
 
-    bool observable_model_treenode(const project& pj,
-                                   tree_node&     tn,
-                                   component_id&  compo_id,
-                                   tree_node_id&  tn_id,
-                                   model_id&      mdl_id) const noexcept;
+    mutable int component_selected = -1;
 
     mutable std::shared_mutex m_mutex; /**< @c update() lock the class to read
                            modeling data and build the @c ids and @c names
                            vectors. Other functions try to lock. */
+
+    std::atomic_flag updating = ATOMIC_FLAG_INIT; /**< A flag to indicate
+                           that an update is in progress. */
+
+    void component_comboxbox(const char* label) noexcept;
+    void observable_model_treenode(const project& pj) noexcept;
+    void observable_model_treenode(const project& pj, tree_node& tn) noexcept;
+
+    void swap_buffers() noexcept;
+    void clear_selection() noexcept;
 };
 
 class application

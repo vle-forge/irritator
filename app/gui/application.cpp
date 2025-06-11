@@ -676,14 +676,13 @@ bool show_select_model_box(const char*     button_label,
 {
     auto ret = false;
 
-    ImGui::BeginDisabled(app.component_model_sel.update_in_progress());
     if (ImGui::Button(button_label)) {
         debug::ensure(ed.pj.tree_nodes.get_id(tn) == access.parent_id);
-        app.component_model_sel.start_update(ed.pj,
-                                             access.parent_id,
-                                             access.compo_id,
-                                             access.tn_id,
-                                             access.mdl_id);
+        app.component_model_sel.update(ed.pj,
+                                       access.parent_id,
+                                       access.compo_id,
+                                       access.tn_id,
+                                       access.mdl_id);
 
         ImGui::OpenPopup(popup_label);
     }
@@ -693,37 +692,31 @@ bool show_select_model_box(const char*     button_label,
     if (ImGui::BeginPopupModal(
           popup_label, nullptr, ImGuiWindowFlags_AlwaysAutoResize)) {
 
-        if (not app.component_model_sel.update_in_progress()) {
-            app.component_model_sel.combobox("Select model to observe grid",
-                                             ed.pj,
-                                             access.parent_id,
-                                             access.compo_id,
-                                             access.tn_id,
-                                             access.mdl_id);
+        if (const auto r = app.component_model_sel.combobox(
+              "Select model to observe grid", ed.pj);
+            r.has_value()) {
+            if (ImGui::Button("OK", ImVec2(120, 0))) {
+                access.parent_id = r->parent_id;
+                access.compo_id  = r->compo_id;
+                access.tn_id     = r->tn_id;
+                access.mdl_id    = r->mdl_id;
+                ImGui::CloseCurrentPopup();
+                ret = true;
+            }
+
+            ImGui::SetItemDefaultFocus();
+            ImGui::SameLine();
+            if (ImGui::Button("Cancel", ImVec2(120, 0))) {
+                ImGui::CloseCurrentPopup();
+            }
         } else {
-            ImGui::Text("Computing observable children");
-        }
-
-        if (ImGui::Button("OK", ImVec2(120, 0))) {
-            ImGui::CloseCurrentPopup();
-            ret = true;
-        }
-
-        ImGui::SetItemDefaultFocus();
-        ImGui::SameLine();
-        if (ImGui::Button("Cancel", ImVec2(120, 0))) {
-            const auto& old_access =
-              app.component_model_sel.get_update_access();
-            access.parent_id = old_access.parent_id;
-            access.compo_id  = old_access.compo_id;
-            access.tn_id     = old_access.tn_id;
-            access.mdl_id    = old_access.mdl_id;
-            ImGui::CloseCurrentPopup();
+            if (ImGui::Button("Cancel", ImVec2(120, 0))) {
+                ImGui::CloseCurrentPopup();
+            }
         }
 
         ImGui::EndPopup();
     }
-    ImGui::EndDisabled();
 
     return ret;
 }
@@ -737,14 +730,13 @@ bool show_select_model_box(const char*     button_label,
 {
     auto ret = false;
 
-    ImGui::BeginDisabled(app.component_model_sel.update_in_progress());
     if (ImGui::Button(button_label)) {
         debug::ensure(ed.pj.tree_nodes.get_id(tn) == access.parent_id);
-        app.component_model_sel.start_update(ed.pj,
-                                             access.parent_id,
-                                             access.compo_id,
-                                             access.tn_id,
-                                             access.mdl_id);
+        app.component_model_sel.update(ed.pj,
+                                       access.parent_id,
+                                       access.compo_id,
+                                       access.tn_id,
+                                       access.mdl_id);
 
         ImGui::OpenPopup(popup_label);
     }
@@ -754,37 +746,32 @@ bool show_select_model_box(const char*     button_label,
     if (ImGui::BeginPopupModal(
           popup_label, nullptr, ImGuiWindowFlags_AlwaysAutoResize)) {
 
-        if (not app.component_model_sel.update_in_progress()) {
-            app.component_model_sel.combobox("Select model to observe graph",
-                                             ed.pj,
-                                             access.parent_id,
-                                             access.compo_id,
-                                             access.tn_id,
-                                             access.mdl_id);
+        if (const auto r = app.component_model_sel.combobox(
+              "Select model to observe graph", ed.pj);
+            r.has_value()) {
+
+            if (ImGui::Button("OK", ImVec2(120, 0))) {
+                access.parent_id = r->parent_id;
+                access.compo_id  = r->compo_id;
+                access.tn_id     = r->tn_id;
+                access.mdl_id    = r->mdl_id;
+                ImGui::CloseCurrentPopup();
+                ret = true;
+            }
+
+            ImGui::SetItemDefaultFocus();
+            ImGui::SameLine();
+            if (ImGui::Button("Cancel", ImVec2(120, 0))) {
+                ImGui::CloseCurrentPopup();
+            }
         } else {
-            ImGui::Text("Computing observable children");
-        }
-
-        if (ImGui::Button("OK", ImVec2(120, 0))) {
-            ImGui::CloseCurrentPopup();
-            ret = true;
-        }
-
-        ImGui::SetItemDefaultFocus();
-        ImGui::SameLine();
-        if (ImGui::Button("Cancel", ImVec2(120, 0))) {
-            const auto& old_access =
-              app.component_model_sel.get_update_access();
-            access.parent_id = old_access.parent_id;
-            access.compo_id  = old_access.compo_id;
-            access.tn_id     = old_access.tn_id;
-            access.mdl_id    = old_access.mdl_id;
-            ImGui::CloseCurrentPopup();
+            if (ImGui::Button("Cancel", ImVec2(120, 0))) {
+                ImGui::CloseCurrentPopup();
+            }
         }
 
         ImGui::EndPopup();
     }
-    ImGui::EndDisabled();
 
     return ret;
 }
