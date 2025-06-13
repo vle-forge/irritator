@@ -66,7 +66,6 @@ int main()
 
     using namespace boost::ut;
 
-#if 0
     "easy"_test = [] {
         irt::journal_handler jn;
         irt::modeling        mod{ jn };
@@ -892,7 +891,6 @@ int main()
 
         irt::on_error_callback = old_error_callback;
     };
-#endif
 
     "grid-5x5-4-neighbors-input-port-type"_test = [] {
         irt::vector<char> buffer;
@@ -1055,6 +1053,86 @@ int main()
             expect(eq(nb_counter_model, g.cells_number()));
             expect(eq(nb_constant_model, g.cells_number()));
             expect(eq(nb_unknown_model, 0));
+        }
+    };
+
+    "grid-5x5-8-neighbors-input-port-type"_test = [] {
+        irt::vector<char> buffer;
+
+        /* The component in a 5x5 grid:
+         +-----------------------------+
+         |component                    |
+         |                             |
+         |   +---------+ +--------+    |
+         +-->| counter | |constant| -->|
+         |   +---------+ +--------+    |
+         |in                        out|
+         |                             |
+         +-----------------------------+
+          */
+
+        {
+            irt::journal_handler jn;
+            irt::modeling        mod{ jn };
+            irt::project         pj;
+
+            auto& compo = mod.alloc_generic_component();
+            auto& gen   = mod.generic_components.get(compo.id.generic_id);
+
+            auto& ch_ct  = mod.alloc(gen, irt::dynamics_type::counter);
+            auto& ch_cst = mod.alloc(gen, irt::dynamics_type::constant);
+
+            auto p_in  = compo.get_or_add_x("in");
+            auto p_out = compo.get_or_add_y("out");
+
+            auto& cg = mod.alloc_grid_component();
+            auto& g  = mod.grid_components.get(cg.id.grid_id);
+            g.resize(5, 5, mod.components.get_id(compo));
+            g.in_connection_type   = irt::grid_component::type::in_out;
+            g.out_connection_type  = irt::grid_component::type::in_out;
+            g.neighbors            = irt::grid_component::neighborhood::eight;
+            auto cg_output_port_id = cg.get_or_add_y("out");
+
+            auto& root     = mod.alloc_generic_component();
+            auto& root_gen = mod.generic_components.get(root.id.generic_id);
+
+            auto& grid_child = mod.alloc(root_gen, mod.components.get_id(cg));
+            auto& counter_child =
+              mod.alloc(root_gen, irt::dynamics_type::counter);
+
+            expect(
+              root_gen
+                .connect(mod,
+                         grid_child,
+                         irt::connection::port{ .compo = cg_output_port_id },
+                         counter_child,
+                         irt::connection::port{ .model = 0 })
+                .has_value());
+
+            expect(pj.set(mod, root).has_value());
+
+            int nb_sum_model      = 0;
+            int nb_counter_model  = 0;
+            int nb_constant_model = 0;
+            int nb_unknown_model  = 0;
+
+            for (const auto& mdl : pj.sim.models) {
+                if (mdl.type == irt::dynamics_type::constant)
+                    ++nb_constant_model;
+                else if (mdl.type == irt::dynamics_type::counter)
+                    ++nb_counter_model;
+                else if (mdl.type == irt::dynamics_type::qss3_sum_4)
+                    ++nb_sum_model;
+                else
+                    ++nb_unknown_model;
+            }
+
+            expect(eq(nb_sum_model, 0));
+            expect(eq(nb_counter_model, 5 * 5 + 1));
+            expect(eq(nb_constant_model, 5 * 5));
+            expect(eq(nb_unknown_model, 0));
+            expect(eq(get_connection_number(pj.sim.nodes),
+                       5u * 5u));
         }
     };
 

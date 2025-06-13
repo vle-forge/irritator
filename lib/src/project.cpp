@@ -920,6 +920,31 @@ static void get_input_models(vector<model_port>&   inputs,
     }
 }
 
+static void get_input_pack_models(
+  vector<model_port>&                inputs,
+  const simulation&                  sim,
+  const modeling&                    mod,
+  const tree_node&                   tn,
+  const component&                   compo,
+  const port_id                      p,
+  const data_array<child, child_id>& children) noexcept
+{
+    for (const auto& con : compo.input_connection_pack) {
+        if (con.parent_port != p)
+            continue;
+
+        for (const auto& c : children) {
+            if (c.type == child_type::component and
+                c.id.compo_id == con.child_component) {
+                const auto idx = get_index(children.get_id(c));
+                debug::ensure(tn.children[idx].tn);
+                get_input_models(
+                  inputs, sim, mod, *tn.children[idx].tn, con.child_port);
+            }
+        }
+    }
+}
+
 static void get_input_models(vector<model_port>& inputs,
                              const simulation&   sim,
                              const modeling&     mod,
@@ -933,18 +958,25 @@ static void get_input_models(vector<model_port>& inputs,
 
     switch (compo->type) {
     case component_type::generic: {
-        if (auto* g = mod.generic_components.try_to_get(compo->id.generic_id))
+        if (auto* g = mod.generic_components.try_to_get(compo->id.generic_id)) {
             get_input_models(inputs, sim, mod, tn, *g, p);
+            get_input_pack_models(inputs, sim, mod, tn, *compo, p, g->children);
+        }
     } break;
 
     case component_type::graph: {
-        if (auto* g = mod.graph_components.try_to_get(compo->id.graph_id))
+        if (auto* g = mod.graph_components.try_to_get(compo->id.graph_id)) {
             get_input_models(inputs, sim, mod, tn, *g, p);
+            get_input_pack_models(inputs, sim, mod, tn, *compo, p, g->cache);
+        }
+
     } break;
 
     case component_type::grid: {
-        if (auto* g = mod.grid_components.try_to_get(compo->id.grid_id))
+        if (auto* g = mod.grid_components.try_to_get(compo->id.grid_id)) {
             get_input_models(inputs, sim, mod, tn, *g, p);
+            get_input_pack_models(inputs, sim, mod, tn, *compo, p, g->cache);
+        }
     } break;
 
     case component_type::hsm:
@@ -1027,6 +1059,31 @@ static void get_output_models(vector<model_port>&   outputs,
     }
 }
 
+static void get_output_pack_models(
+  vector<model_port>&                outputs,
+  const simulation&                  sim,
+  const modeling&                    mod,
+  const tree_node&                   tn,
+  const component&                   compo,
+  const port_id                      p,
+  const data_array<child, child_id>& children) noexcept
+{
+    for (const auto& con : compo.output_connection_pack) {
+        if (con.parent_port != p)
+            continue;
+
+        for (const auto& c : children) {
+            if (c.type == child_type::component and
+                c.id.compo_id == con.child_component) {
+                const auto idx = get_index(children.get_id(c));
+                debug::ensure(tn.children[idx].tn);
+                get_output_models(
+                  outputs, sim, mod, *tn.children[idx].tn, con.child_port);
+            }
+        }
+    }
+}
+
 static void get_output_models(vector<model_port>& outputs,
                               const simulation&   sim,
                               const modeling&     mod,
@@ -1040,18 +1097,25 @@ static void get_output_models(vector<model_port>& outputs,
 
     switch (compo->type) {
     case component_type::generic: {
-        if (auto* g = mod.generic_components.try_to_get(compo->id.generic_id))
+        if (auto* g = mod.generic_components.try_to_get(compo->id.generic_id)) {
             get_output_models(outputs, sim, mod, tn, *g, p);
+            get_output_pack_models(
+              outputs, sim, mod, tn, *compo, p, g->children);
+        }
     } break;
 
     case component_type::graph: {
-        if (auto* g = mod.graph_components.try_to_get(compo->id.graph_id))
+        if (auto* g = mod.graph_components.try_to_get(compo->id.graph_id)) {
             get_output_models(outputs, sim, mod, tn, *g, p);
+            get_output_pack_models(outputs, sim, mod, tn, *compo, p, g->cache);
+        }
     } break;
 
     case component_type::grid: {
-        if (auto* g = mod.grid_components.try_to_get(compo->id.grid_id))
+        if (auto* g = mod.grid_components.try_to_get(compo->id.grid_id)) {
             get_output_models(outputs, sim, mod, tn, *g, p);
+            get_output_pack_models(outputs, sim, mod, tn, *compo, p, g->cache);
+        }
     } break;
 
     case component_type::hsm:

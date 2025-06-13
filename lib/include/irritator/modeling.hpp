@@ -22,8 +22,6 @@ namespace irt {
 enum class port_id : u32;
 enum class input_connection_id : u32;
 enum class output_connection_id : u32;
-enum class input_connection_pack_id : u32;
-enum class output_connection_pack_id : u32;
 enum class component_id : u32;
 enum class hsm_component_id : u32;
 enum class generic_component_id : u32;
@@ -847,22 +845,18 @@ public:
     expected<void> build_cache(modeling& mod) noexcept;
 };
 
-/** A connection port is a pair of component identifier and port identifier.
- * Mainly used to build input and output connection pack.
- */
-struct connection_port {
-    connection_port() noexcept = default;
+/// A connection pack makes a link between a X or Y port of a component to a
+/// pair of component identifier and port identifier in the children component.
+struct connection_pack {
+    /// The input or output port.
+    port_id parent_port = undefined<port_id>();
 
-    connection_port(component_id c, port_id p) noexcept
-      : component(c)
-      , port(p)
-    {}
+    /// The component identifier to be search in component children (grid,
+    /// graph, generic children vectors).
+    port_id child_port = undefined<port_id>();
 
-    component_id component; /**< The component identifier to be search in
-                               component children (grid, graph, generic
-                               children vectors). */
-    port_id port;           /**< The port identifier in the component
-                                         @a component. */
+    /// The port identifier in the component @a component.
+    component_id child_component;
 };
 
 struct component {
@@ -886,20 +880,12 @@ struct component {
     /** Stores input connection pack (links input port with all component
      * children with @a component_port::component identifier and @a
      * component_port::port port identifier. */
-    id_data_array<input_connection_pack_id,
-                  allocator<new_delete_memory_resource>,
-                  port_id,
-                  connection_port>
-      input_connection_pack;
+    vector<connection_pack> input_connection_pack;
 
     /** Stores input connection pack (links input port with all component
      * children with @a component_port::component identifier and @a
      * component_port::port port identifier. */
-    id_data_array<output_connection_pack_id,
-                  allocator<new_delete_memory_resource>,
-                  port_id,
-                  connection_port>
-      output_connection_pack;
+    vector<connection_pack> output_connection_pack;
 
     /** Get the port identifier of the input port with the name @a str.
      * @param str The name of the input port.
