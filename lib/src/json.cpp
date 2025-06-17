@@ -36,7 +36,7 @@ using namespace std::literals;
 
 namespace irt {
 
-enum class connection_type { internal, input, output };
+enum class connection_type { internal, input, output, input_pack, output_pack };
 
 struct json_dearchiver::impl {
     json_dearchiver& self;
@@ -443,6 +443,10 @@ struct json_dearchiver::impl {
             type = connection_type::output;
         else if (temp_string == "input"sv)
             type = connection_type::input;
+        else if (temp_string == "input-pack"sv)
+            type = connection_type::input_pack;
+        else if (temp_string == "output-pack"sv)
+            type = connection_type::output_pack;
         else
             return error("bad connection type {}", temp_string);
 
@@ -3324,6 +3328,76 @@ struct json_dearchiver::impl {
                modeling_connect_input(gen, *port, dst_id, *dst_port);
     }
 
+    bool read_input_pack_connection(const rapidjson::Value& val,
+                                    component&              compo) noexcept
+    {
+        auto_stack s(this, "component input pack connection");
+
+        auto child      = undefined<component_id>();
+        auto port       = undefined<port_id>();
+        auto child_port = undefined<port_id>();
+
+        if (not read_child_simple_or_grid_component(val, child))
+            return false;
+
+        if (auto it = val.FindMember("port"); it != val.MemberEnd()) {
+            if (read_temp_string(it->value))
+                port = compo.get_x(temp_string);
+            else
+                return error("bad input pack connection port");
+        }
+
+        if (auto it = val.FindMember("child-port"); it != val.MemberEnd()) {
+            if (read_temp_string(it->value))
+                child_port =
+                  mod().components.get<component>(child).get_x(temp_string);
+            else
+                return error("bad input pack connection child-port");
+        }
+
+        compo.input_connection_pack.push_back(
+          connection_pack{ .parent_port     = port,
+                           .child_port      = child_port,
+                           .child_component = child });
+
+        return true;
+    }
+
+    bool read_output_pack_connection(const rapidjson::Value& val,
+                                     component&              compo) noexcept
+    {
+        auto_stack s(this, "component output pack connection");
+
+        auto child      = undefined<component_id>();
+        auto port       = undefined<port_id>();
+        auto child_port = undefined<port_id>();
+
+        if (not read_child_simple_or_grid_component(val, child))
+            return false;
+
+        if (auto it = val.FindMember("port"); it != val.MemberEnd()) {
+            if (read_temp_string(it->value))
+                port = compo.get_y(temp_string);
+            else
+                return error("bad output pack connection port");
+        }
+
+        if (auto it = val.FindMember("child-port"); it != val.MemberEnd()) {
+            if (read_temp_string(it->value))
+                child_port =
+                  mod().components.get<component>(child).get_y(temp_string);
+            else
+                return error("bad output pack connection child-port");
+        }
+
+        compo.output_connection_pack.push_back(
+          connection_pack{ .parent_port     = port,
+                           .child_port      = child_port,
+                           .child_component = child });
+
+        return true;
+    }
+
     bool dispatch_connection_type(const rapidjson::Value& val,
                                   connection_type         type,
                                   component&              compo,
@@ -3338,6 +3412,10 @@ struct json_dearchiver::impl {
             return read_output_connection(val, compo, gen);
         case connection_type::input:
             return read_input_connection(val, compo, gen);
+        case connection_type::input_pack:
+            return read_input_pack_connection(val, compo);
+        case connection_type::output_pack:
+            return read_output_pack_connection(val, compo);
         }
 
         unreachable();
@@ -3691,7 +3769,7 @@ struct json_dearchiver::impl {
     }
 
     bool read_grid_connection(const rapidjson::Value& val,
-                              const component&        compo,
+                              component&              compo,
                               grid_component&         grid) noexcept
     {
         auto_stack s(this, "component grid");
@@ -3702,12 +3780,16 @@ struct json_dearchiver::impl {
                      ((temp_string == "input" and
                        read_grid_input_connection(val, compo, grid)) or
                       (temp_string == "output" and
-                       read_grid_output_connection(val, compo, grid)));
+                       read_grid_output_connection(val, compo, grid)) or
+                      (temp_string == "input-pack" and
+                       read_input_pack_connection(val, compo)) or
+                      (temp_string == "output-pack" and
+                       read_output_pack_connection(val, compo)));
           });
     }
 
     bool read_grid_connections(const rapidjson::Value& val,
-                               const component&        compo,
+                               component&              compo,
                                grid_component&         grid) noexcept
     {
         auto_stack s(this, "component grid");
@@ -3925,7 +4007,7 @@ struct json_dearchiver::impl {
     }
 
     bool read_graph_connection(const rapidjson::Value& val,
-                               const component&        compo,
+                               component&              compo,
                                graph_component&        graph) noexcept
     {
         auto_stack s(this, "component graph connection");
@@ -3936,7 +4018,11 @@ struct json_dearchiver::impl {
                      ((temp_string == "input" and
                        read_graph_input_connection(val, compo, graph)) or
                       (temp_string == "output" and
-                       read_graph_output_connection(val, compo, graph)));
+                       read_graph_output_connection(val, compo, graph)) or
+                      (temp_string == "input-pack" and
+                       read_input_pack_connection(val, compo)) or
+                      (temp_string == "output-pack" and
+                       read_output_pack_connection(val, compo)));
           });
     }
 
@@ -6322,6 +6408,50 @@ struct json_archiver::impl {
     }
 
     template<typename Writer>
+    void write_connection_packs(const modeling&  mod,
+                                const component& compo,
+                                Writer&          w) noexcept
+    {
+        for (const auto& con : compo.input_connection_pack) {
+            if (compo.x.exists(con.parent_port) and
+                mod.components.exists(con.child_component) and
+                mod.components.get<component>(con.child_component)
+                  .x.exists(con.child_port)) {
+                w.StartObject();
+                w.Key("type");
+                w.String("input-pack");
+                w.Key("port");
+                w.String(compo.x.get<port_str>(con.parent_port).c_str());
+                write_child_component(mod, con.child_component, w);
+                w.String("child-port");
+                w.String(mod.components.get<component>(con.child_component)
+                           .x.get<port_str>(con.child_port)
+                           .c_str());
+                w.EndObject();
+            }
+        }
+
+        for (const auto& con : compo.output_connection_pack) {
+            if (compo.y.exists(con.parent_port) and
+                mod.components.exists(con.child_component) and
+                mod.components.get<component>(con.child_component)
+                  .y.exists(con.child_port)) {
+                w.StartObject();
+                w.Key("type");
+                w.String("output-pack");
+                w.Key("port");
+                w.String(compo.y.get<port_str>(con.parent_port).c_str());
+                write_child_component(mod, con.child_component, w);
+                w.String("child-port");
+                w.String(mod.components.get<component>(con.child_component)
+                           .y.get<port_str>(con.child_port)
+                           .c_str());
+                w.EndObject();
+            }
+        }
+    }
+
+    template<typename Writer>
     void write_child(const modeling&          mod,
                      const component&         compo,
                      const generic_component& gen,
@@ -6583,6 +6713,8 @@ struct json_archiver::impl {
                     write_output_connection(
                       mod, compo, gen, con.y, *c, con.port, w);
 
+        write_connection_packs(mod, compo, w);
+
         w.EndArray();
     }
 
@@ -6669,6 +6801,8 @@ struct json_archiver::impl {
                 }
             }
         }
+
+        write_connection_packs(mod, compo, w);
 
         w.EndArray();
     }
@@ -6815,6 +6949,8 @@ struct json_archiver::impl {
                 w.EndObject();
             }
         }
+
+        write_connection_packs(mod, compo, w);
 
         w.EndArray();
     }
