@@ -11,6 +11,8 @@
 #include <irritator/modeling.hpp>
 
 #include <filesystem>
+#include <fstream>
+#include <numeric>
 
 #include <boost/ut.hpp>
 
@@ -18,31 +20,56 @@
 
 using namespace std::literals;
 
-std::size_t get_connection_number(
+static auto get_connection_number(
   const irt::data_array<irt::block_node, irt::block_node_id>& data) noexcept
+{
+    return std::accumulate(data.begin(),
+                           data.end(),
+                           std::size_t(0u),
+                           [](std::size_t acc, const irt::block_node& elem) {
+                               return acc + elem.nodes.size();
+                           });
+}
+
+static auto get_input_connection_number(
+  const irt::data_array<irt::block_node, irt::block_node_id>& data,
+  const irt::model_id                                         id,
+  const int                                                   port) noexcept
 {
     std::size_t sum = 0;
 
-    for (const auto& elem : data)
-        sum += elem.nodes.size();
+    for (const auto& block : data) {
+        sum += std::ranges::count_if(block.nodes, [&](const irt::node& elem) {
+            return id == elem.model and port == elem.port_index;
+        });
+    }
 
     return sum;
 }
 
-#if 0
-void display_connection(
-  const irt::data_array<irt::block_node, irt::block_node_id>& data)
-{
-    for (const auto& elem : data) {
-        fmt::print("block ({})\n", elem.nodes.size());
-        for (const auto subelem : elem.nodes) {
-            fmt::print("  mdl: {} to port {}\n",
-                       irt::get_index(subelem.model),
-                       subelem.port_index);
-        }
-    }
-}
-#endif
+// static auto display_connection(
+//   const irt::data_array<irt::block_node, irt::block_node_id>& data) noexcept
+// {
+//     fmt::print("{0:-^{1}}\n", "", 70);
+//     for (const auto& elem : data) {
+//         fmt::print("block ({})\n", elem.nodes.size());
+//         for (const auto subelem : elem.nodes) {
+//             fmt::print("  mdl: {} to port {}\n",
+//                        irt::get_index(subelem.model),
+//                        subelem.port_index);
+//         }
+//     }
+//     fmt::print("{0:-^{1}}\n", "", 70);
+// }
+
+// template<typename T>
+// static auto write_dot_graph(const irt::simulation& sim, T suffix) noexcept
+// {
+//     if (std::ofstream ofs(fmt::format("file-{}", suffix)); ofs.is_open()) {
+//         irt::write_dot_graph_simulation(ofs, sim);
+//         ofs.close();
+//     }
+// }
 
 template<int length>
 static bool get_temp_registred_path(irt::small_string<length>& str) noexcept
@@ -1189,6 +1216,61 @@ int main()
                         + 12u * 3u // The 12 border models with 3 connections
                         + 25u      // The connection-pack.
                       ));
+            expect(eq(get_input_connection_number(
+                        pj.sim.nodes,
+                        pj.tn_head()
+                          ->children[root_gen.children.get_id(counter_child)]
+                          .mdl,
+                        0),
+                      25u));
+
+            // We replace the @c port_option::classic component output port to a
+            // @c port_option::sum.
+            expect(cg.y.get<irt::port_option>(cg_output_port_id) ==
+                   irt::port_option::classic);
+
+            cg.y.get<irt::port_option>(cg_output_port_id) =
+              irt::port_option::sum;
+
+            expect(cg.y.get<irt::port_option>(cg_output_port_id) ==
+                   irt::port_option::sum);
+
+            expect(pj.set(mod, root).has_value());
+
+            nb_sum_model      = 0;
+            nb_counter_model  = 0;
+            nb_constant_model = 0;
+            nb_unknown_model  = 0;
+
+            for (const auto& mdl : pj.sim.models) {
+                if (mdl.type == irt::dynamics_type::constant)
+                    ++nb_constant_model;
+                else if (mdl.type == irt::dynamics_type::counter)
+                    ++nb_counter_model;
+                else if (mdl.type == irt::dynamics_type::qss3_sum_4)
+                    ++nb_sum_model;
+                else
+                    ++nb_unknown_model;
+            }
+
+            expect(eq(nb_sum_model, 25 / 3 + 1));
+            expect(eq(nb_counter_model, 5 * 5 + 1));
+            expect(eq(nb_constant_model, 5 * 5));
+            expect(eq(nb_unknown_model, 0));
+            expect(eq(get_connection_number(pj.sim.nodes),
+                      9u * 4u      // The 3x3 center models with 4 connections
+                        + 4u * 2u  // The 4 corner models with 2 connections
+                        + 12u * 3u // The 12 border models with 3 connections
+                        + 25u      // The connection-pack.
+                        + 25u / 3u + 1u // The 9 sum models
+                      ));
+            expect(eq(get_input_connection_number(
+                        pj.sim.nodes,
+                        pj.tn_head()
+                          ->children[root_gen.children.get_id(counter_child)]
+                          .mdl,
+                        0),
+                      1u));
         }
     };
 

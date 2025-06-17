@@ -182,7 +182,7 @@ private:
         mdl                 = sim.models.get_id(new_mdl);
         port                = 0;
 
-        return sim.connect(new_mdl, 0, old_mdl, port);
+        return sim.connect(new_mdl, 0, old_mdl, 3);
     }
 
 public:
@@ -274,8 +274,8 @@ struct simulation_copy {
     vector<model_port> inputs;
     vector<model_port> outputs;
 
-    vector<sum_connection> sum_connections;
-    vector<sum_connection> wsum_connections;
+    vector<sum_connection> sum_input_connections;
+    vector<sum_connection> sum_output_connections;
 
     table<u64, constant_source_id>    constants;
     table<u64, binary_file_source_id> binary_files;
@@ -1125,8 +1125,8 @@ static void get_output_models(vector<model_port>& outputs,
     }
 }
 
-/** Build the cache table @a sum_connections and @a wsum_connections.
- * For each input port of type @a sum or @a wsum add a @a
+/** Build the cache table @a sum_connections and for both input and output.
+ * For each input port of type @a sum add a @a
  * sum_connection struct. These structs will be fill during the
  * component connections construct. */
 static auto prepare_sum_connections(
@@ -1134,8 +1134,8 @@ static auto prepare_sum_connections(
   const data_array<connection, connection_id>& connections,
   simulation_copy&                             sc) -> status
 {
-    sc.sum_connections.clear();
-    sc.wsum_connections.clear();
+    sc.sum_input_connections.clear();
+    sc.sum_output_connections.clear();
 
     auto contains =
       [](const auto& vec, const auto* tn, const auto p_id) noexcept -> bool {
@@ -1154,56 +1154,36 @@ static auto prepare_sum_connections(
             const auto& c        = sc.mod.components.get<component>(compo_id);
 
             if (c.x.exists(port_id)) {
-                switch (c.x.get<port_option>(port_id)) {
-                case port_option::sum:
-                    if (not sc.sum_connections.can_alloc(1) and
-                        not sc.sum_connections.grow<2, 1>())
+                if (c.x.get<port_option>(port_id) == port_option::sum) {
+                    if (not sc.sum_input_connections.can_alloc(1) and
+                        not sc.sum_input_connections.grow<2, 1>())
                         return new_error(project_errc::component_cache_error);
 
-                    if (not contains(sc.sum_connections, tn, port_id))
-                        sc.sum_connections.emplace_back(tn, port_id);
-                    break;
+                    if (not contains(sc.sum_input_connections, tn, port_id))
+                        sc.sum_input_connections.emplace_back(tn, port_id);
+                }
+            }
+        }
 
-                case port_option::wsum:
-                    if (not sc.wsum_connections.can_alloc(1) and
-                        not sc.wsum_connections.grow<2, 1>())
+        if (tree.is_tree_node(cnx.src)) {
+            const auto  src_idx  = get_index(cnx.src);
+            const auto* tn       = tree.children[src_idx].tn;
+            const auto  compo_id = tn->id;
+            const auto  port_id  = cnx.index_src.compo;
+            const auto& c        = sc.mod.components.get<component>(compo_id);
+
+            if (c.y.exists(port_id)) {
+                if (c.y.get<port_option>(port_id) == port_option::sum) {
+                    if (not sc.sum_output_connections.can_alloc(1) and
+                        not sc.sum_output_connections.grow<2, 1>())
                         return new_error(project_errc::component_cache_error);
 
-                    if (not contains(sc.sum_connections, tn, port_id))
-                        sc.wsum_connections.emplace_back(tn, port_id);
-                    break;
-
-                default:
-                    break;
+                    if (not contains(sc.sum_output_connections, tn, port_id))
+                        sc.sum_output_connections.emplace_back(tn, port_id);
                 }
             }
         }
     }
-
-    // const auto& types = compo.x.get<port_option>();
-    // for (const auto id : compo.x) {
-    //     switch (types[id]) {
-    //     case port_option::sum:
-    //         if (not sc.sum_connections.data.can_alloc(1) and
-    //             not sc.sum_connections.data.grow<2, 1>())
-    //             return new_error(project_errc::component_cache_error);
-    //         sc.sum_connections.data.emplace_back().id = id;
-    //         break;
-
-    //    case port_option::wsum:
-    //        if (not sc.wsum_connections.data.can_alloc(1) and
-    //            not sc.wsum_connections.data.grow<2, 1>())
-    //            return new_error(project_errc::component_cache_error);
-    //        sc.wsum_connections.data.emplace_back().id = id;
-    //        break;
-
-    //    default:
-    //        break;
-    //    }
-    //}
-
-    // sc.sum_connections.sort();
-    // sc.wsum_connections.sort();
 
     return success();
 };
@@ -1217,6 +1197,17 @@ static auto get_input_connection_type(const modeling&    mod,
 {
     const auto& compo = mod.components.get<component>(compo_id);
     return compo.x.get<port_option>(p_id);
+}
+
+/** Get the @a port_option of the @a p_id port of the @a compo_id
+ * component. */
+static auto get_output_connection_type(const modeling&    mod,
+                                       const component_id compo_id,
+                                       const port_id&     p_id) noexcept
+  -> port_option
+{
+    const auto& compo = mod.components.get<component>(compo_id);
+    return compo.y.get<port_option>(p_id);
 }
 
 /** Adds @a qss3_sum_4 connections in place of the @a port to sum all the input
@@ -1312,9 +1303,10 @@ static status simulation_copy_connections(
         const auto src_idx = get_index(cnx.src);
         const auto dst_idx = get_index(cnx.dst);
 
-        auto       port = undefined<port_id>();
-        auto       type = port_option::classic;
-        tree_node* tn   = nullptr;
+        auto       port        = undefined<port_id>();
+        auto       input_type  = port_option::classic;
+        auto       output_type = port_option::classic;
+        tree_node* tn          = nullptr;
 
         if (tree.is_model(cnx.src)) {
             sc.outputs.emplace_back(tree.children[src_idx].mdl,
@@ -1328,14 +1320,15 @@ static status simulation_copy_connections(
                 tn   = tree.children[dst_idx].tn;
                 get_input_models(sc.inputs, sc.pj.sim, sc.mod, *tn, port);
 
-                type = get_input_connection_type(sc.mod, tn->id, port);
+                input_type = get_input_connection_type(sc.mod, tn->id, port);
             }
         } else {
-            get_output_models(sc.outputs,
-                              sc.pj.sim,
-                              sc.mod,
-                              *tree.children[src_idx].tn,
-                              cnx.index_src.compo);
+            port = cnx.index_src.compo;
+            tn   = tree.children[src_idx].tn;
+            get_output_models(sc.outputs, sc.pj.sim, sc.mod, *tn, port);
+
+            output_type = get_output_connection_type(
+              sc.mod, tree.children[src_idx].tn->id, cnx.index_src.compo);
 
             if (tree.is_model(cnx.dst)) {
                 sc.inputs.emplace_back(tree.children[dst_idx].mdl,
@@ -1345,23 +1338,38 @@ static status simulation_copy_connections(
                 tn   = tree.children[dst_idx].tn;
                 get_input_models(sc.inputs, sc.pj.sim, sc.mod, *tn, port);
 
-                type = get_input_connection_type(sc.mod, tn->id, port);
+                input_type = get_input_connection_type(sc.mod, tn->id, port);
             }
         }
 
-        switch (type) {
-        case port_option::classic:
-            irt_check(
-              simulation_copy_connections(sc.inputs, sc.outputs, sc.pj.sim));
-            break;
-        case port_option::sum:
-            irt_check(simulation_copy_sum_connections(
-              sc.inputs, sc.outputs, *tn, port, sc.sum_connections, sc.pj.sim));
-            break;
-        case port_option::wsum:
-            irt_check(simulation_copy_sum_connections(
-              sc.inputs, sc.outputs, *tn, port, sc.sum_connections, sc.pj.sim));
-            break;
+        if (input_type == port_option::sum and output_type == port_option::sum)
+            return new_error(project_errc::component_cache_error);
+
+        if (input_type == port_option::classic) {
+            if (output_type == port_option::classic) {
+                irt_check(simulation_copy_connections(
+                  sc.inputs, sc.outputs, sc.pj.sim));
+            } else {
+                irt_check(
+                  simulation_copy_sum_connections(sc.inputs,
+                                                  sc.outputs,
+                                                  *tn,
+                                                  port,
+                                                  sc.sum_output_connections,
+                                                  sc.pj.sim));
+            }
+        } else {
+            if (output_type == port_option::classic) {
+                irt_check(
+                  simulation_copy_sum_connections(sc.inputs,
+                                                  sc.outputs,
+                                                  *tn,
+                                                  port,
+                                                  sc.sum_input_connections,
+                                                  sc.pj.sim));
+            } else {
+                return new_error(project_errc::component_cache_error);
+            }
         }
     }
 

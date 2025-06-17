@@ -163,9 +163,6 @@ enum class port_option {
     classic, /**< Classic connection between two components. */
     sum,     /**< Sum of all inputs messages (Adding @a abstract_sum models to
                 perform the sum for all input connections) between components. */
-    wsum,    /**< Same at @c sum but with weights. The @a abstract_wsum model is
-               used to    perform the weighted sum for all input connections
-               between    components. The weights come from ? */
 };
 
 inline void position::reset() noexcept { x = y = 0.f; }
