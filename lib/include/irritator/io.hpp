@@ -74,315 +74,6 @@ auto get_dynamics_type(std::string_view dynamics_name) noexcept
 static_assert(std::size(dynamics_type_names) ==
               static_cast<sz>(dynamics_type_size()));
 
-static inline const char* str_empty[]      = { "" };
-static inline const char* str_integrator[] = { "x-dot", "reset" };
-static inline const char* str_in_1[]       = { "in" };
-static inline const char* str_in_2[]       = { "in-1", "in-2" };
-static inline const char* str_in_3[]       = { "in-1", "in-2", "in-3" };
-static inline const char* str_in_4[]       = { "in-1", "in-2", "in-3", "in-4" };
-static inline const char* str_value_if_else[] = { "value",
-                                                  "if",
-                                                  "else",
-                                                  "threshold" };
-static inline const char* str_in_2_nb_2[] = { "in-1", "in-2", "nb-1", "nb-2" };
-static inline const char* str_generator[] = { "value",
-                                              "set-t",
-                                              "add-tr",
-                                              "mult-tr" };
-
-template<typename RawDynamics>
-inline constexpr std::span<const char*> get_input_port_names() noexcept
-{
-    using Dynamics = std::decay_t<RawDynamics>;
-
-    if constexpr (std::is_same_v<Dynamics, qss1_integrator> ||
-                  std::is_same_v<Dynamics, qss2_integrator> ||
-                  std::is_same_v<Dynamics, qss3_integrator>)
-        return str_integrator;
-
-    if constexpr (std::is_same_v<Dynamics, qss1_multiplier> ||
-                  std::is_same_v<Dynamics, qss1_sum_2> ||
-                  std::is_same_v<Dynamics, qss1_wsum_2> ||
-                  std::is_same_v<Dynamics, qss2_multiplier> ||
-                  std::is_same_v<Dynamics, qss2_sum_2> ||
-                  std::is_same_v<Dynamics, qss2_wsum_2> ||
-                  std::is_same_v<Dynamics, qss3_multiplier> ||
-                  std::is_same_v<Dynamics, qss3_sum_2> ||
-                  std::is_same_v<Dynamics, qss3_wsum_2> ||
-                  std::is_same_v<Dynamics, logical_and_2> ||
-                  std::is_same_v<Dynamics, logical_or_2>)
-        return str_in_2;
-
-    if constexpr (std::is_same_v<Dynamics, qss1_sum_3> ||
-                  std::is_same_v<Dynamics, qss1_wsum_3> ||
-                  std::is_same_v<Dynamics, qss2_sum_3> ||
-                  std::is_same_v<Dynamics, qss2_wsum_3> ||
-                  std::is_same_v<Dynamics, qss3_sum_3> ||
-                  std::is_same_v<Dynamics, qss3_wsum_3> ||
-                  std::is_same_v<Dynamics, logical_and_3> ||
-                  std::is_same_v<Dynamics, logical_or_3>)
-        return str_in_3;
-
-    if constexpr (std::is_same_v<Dynamics, qss1_sum_4> ||
-                  std::is_same_v<Dynamics, qss1_wsum_4> ||
-                  std::is_same_v<Dynamics, qss2_sum_4> ||
-                  std::is_same_v<Dynamics, qss2_wsum_4> ||
-                  std::is_same_v<Dynamics, qss3_sum_4> ||
-                  std::is_same_v<Dynamics, qss3_wsum_4> ||
-                  std::is_same_v<Dynamics, hsm_wrapper>)
-        return str_in_4;
-
-    if constexpr (std::is_same_v<Dynamics, counter> ||
-                  std::is_same_v<Dynamics, queue> ||
-                  std::is_same_v<Dynamics, dynamic_queue> ||
-                  std::is_same_v<Dynamics, priority_queue> ||
-                  std::is_same_v<Dynamics, qss1_filter> ||
-                  std::is_same_v<Dynamics, qss2_filter> ||
-                  std::is_same_v<Dynamics, qss3_filter> ||
-                  std::is_same_v<Dynamics, qss1_power> ||
-                  std::is_same_v<Dynamics, qss2_power> ||
-                  std::is_same_v<Dynamics, qss3_power> ||
-                  std::is_same_v<Dynamics, qss1_square> ||
-                  std::is_same_v<Dynamics, qss2_square> ||
-                  std::is_same_v<Dynamics, qss3_square> ||
-                  std::is_same_v<Dynamics, logical_invert>)
-        return str_in_1;
-
-    if constexpr (std::is_same_v<Dynamics, generator>)
-        return str_generator;
-
-    if constexpr (std::is_same_v<Dynamics, constant> ||
-                  std::is_same_v<Dynamics, time_func>)
-        return str_empty;
-
-    if constexpr (std::is_same_v<Dynamics, qss1_cross> ||
-                  std::is_same_v<Dynamics, qss2_cross> ||
-                  std::is_same_v<Dynamics, qss3_cross>)
-        return str_value_if_else;
-
-    if constexpr (std::is_same_v<Dynamics, accumulator_2>)
-        return str_in_2_nb_2;
-
-    unreachable();
-}
-
-inline constexpr std::span<const char*> get_input_port_names_v(
-  const dynamics_type type) noexcept
-{
-    switch (type) {
-    case dynamics_type::qss1_integrator:
-    case dynamics_type::qss2_integrator:
-    case dynamics_type::qss3_integrator:
-        return str_integrator;
-
-    case dynamics_type::qss1_multiplier:
-    case dynamics_type::qss1_sum_2:
-    case dynamics_type::qss1_wsum_2:
-    case dynamics_type::qss2_multiplier:
-    case dynamics_type::qss2_sum_2:
-    case dynamics_type::qss2_wsum_2:
-    case dynamics_type::qss3_multiplier:
-    case dynamics_type::qss3_sum_2:
-    case dynamics_type::qss3_wsum_2:
-    case dynamics_type::logical_and_2:
-    case dynamics_type::logical_or_2:
-        return str_in_2;
-
-    case dynamics_type::qss1_sum_3:
-    case dynamics_type::qss1_wsum_3:
-    case dynamics_type::qss2_sum_3:
-    case dynamics_type::qss2_wsum_3:
-    case dynamics_type::qss3_sum_3:
-    case dynamics_type::qss3_wsum_3:
-    case dynamics_type::logical_and_3:
-    case dynamics_type::logical_or_3:
-        return str_in_3;
-
-    case dynamics_type::qss1_sum_4:
-    case dynamics_type::qss1_wsum_4:
-    case dynamics_type::qss2_sum_4:
-    case dynamics_type::qss2_wsum_4:
-    case dynamics_type::qss3_sum_4:
-    case dynamics_type::qss3_wsum_4:
-    case dynamics_type::hsm_wrapper:
-        return str_in_4;
-
-    case dynamics_type::counter:
-    case dynamics_type::queue:
-    case dynamics_type::dynamic_queue:
-    case dynamics_type::priority_queue:
-    case dynamics_type::qss1_filter:
-    case dynamics_type::qss2_filter:
-    case dynamics_type::qss3_filter:
-    case dynamics_type::qss1_power:
-    case dynamics_type::qss2_power:
-    case dynamics_type::qss3_power:
-    case dynamics_type::qss1_square:
-    case dynamics_type::qss2_square:
-    case dynamics_type::qss3_square:
-    case dynamics_type::logical_invert:
-        return str_in_1;
-
-    case dynamics_type::generator:
-    case dynamics_type::constant:
-    case dynamics_type::time_func:
-        return str_empty;
-
-    case dynamics_type::qss1_cross:
-    case dynamics_type::qss2_cross:
-    case dynamics_type::qss3_cross:
-        return str_value_if_else;
-
-    case dynamics_type::accumulator_2:
-        return str_in_2_nb_2;
-    }
-
-    unreachable();
-}
-
-static inline const char* str_out_1[] = { "out" };
-static inline const char* str_out_4[] = { "out-1", "out-2", "out-3", "out-4" };
-static inline const char* str_out_cross[]  = { "if-value",
-                                               "else-value",
-                                               "event" };
-static inline const char* str_out_filter[] = { "value", "up", "down" };
-
-template<typename RawDynamics>
-inline constexpr std::span<const char*> get_output_port_names() noexcept
-{
-    using Dynamics = std::decay_t<RawDynamics>;
-
-    if constexpr (std::is_same_v<Dynamics, qss1_integrator> ||
-                  std::is_same_v<Dynamics, qss1_multiplier> ||
-                  std::is_same_v<Dynamics, qss1_power> ||
-                  std::is_same_v<Dynamics, qss1_square> ||
-                  std::is_same_v<Dynamics, qss1_sum_2> ||
-                  std::is_same_v<Dynamics, qss1_sum_3> ||
-                  std::is_same_v<Dynamics, qss1_sum_4> ||
-                  std::is_same_v<Dynamics, qss1_wsum_2> ||
-                  std::is_same_v<Dynamics, qss1_wsum_3> ||
-                  std::is_same_v<Dynamics, qss1_wsum_4> ||
-                  std::is_same_v<Dynamics, qss2_integrator> ||
-                  std::is_same_v<Dynamics, qss2_multiplier> ||
-                  std::is_same_v<Dynamics, qss2_power> ||
-                  std::is_same_v<Dynamics, qss2_square> ||
-                  std::is_same_v<Dynamics, qss2_sum_2> ||
-                  std::is_same_v<Dynamics, qss2_sum_3> ||
-                  std::is_same_v<Dynamics, qss2_sum_4> ||
-                  std::is_same_v<Dynamics, qss2_wsum_2> ||
-                  std::is_same_v<Dynamics, qss2_wsum_3> ||
-                  std::is_same_v<Dynamics, qss2_wsum_4> ||
-                  std::is_same_v<Dynamics, qss3_integrator> ||
-                  std::is_same_v<Dynamics, qss3_multiplier> ||
-                  std::is_same_v<Dynamics, qss3_power> ||
-                  std::is_same_v<Dynamics, qss3_square> ||
-                  std::is_same_v<Dynamics, qss3_sum_2> ||
-                  std::is_same_v<Dynamics, qss3_sum_3> ||
-                  std::is_same_v<Dynamics, qss3_sum_4> ||
-                  std::is_same_v<Dynamics, qss3_wsum_2> ||
-                  std::is_same_v<Dynamics, qss3_wsum_3> ||
-                  std::is_same_v<Dynamics, qss3_wsum_4> ||
-                  std::is_same_v<Dynamics, counter> ||
-                  std::is_same_v<Dynamics, queue> ||
-                  std::is_same_v<Dynamics, dynamic_queue> ||
-                  std::is_same_v<Dynamics, priority_queue> ||
-                  std::is_same_v<Dynamics, generator> ||
-                  std::is_same_v<Dynamics, constant> ||
-                  std::is_same_v<Dynamics, time_func> ||
-                  std::is_same_v<Dynamics, logical_and_2> ||
-                  std::is_same_v<Dynamics, logical_and_3> ||
-                  std::is_same_v<Dynamics, logical_or_2> ||
-                  std::is_same_v<Dynamics, logical_or_3> ||
-                  std::is_same_v<Dynamics, logical_invert>)
-        return str_out_1;
-
-    if constexpr (std::is_same_v<Dynamics, qss1_filter> ||
-                  std::is_same_v<Dynamics, qss2_filter> ||
-                  std::is_same_v<Dynamics, qss3_filter>)
-        return str_out_filter;
-
-    if constexpr (std::is_same_v<Dynamics, qss1_cross> ||
-                  std::is_same_v<Dynamics, qss2_cross> ||
-                  std::is_same_v<Dynamics, qss3_cross>)
-        return str_out_cross;
-
-    if constexpr (std::is_same_v<Dynamics, hsm_wrapper>)
-        return str_out_4;
-
-    if constexpr (std::is_same_v<Dynamics, accumulator_2>)
-        return str_empty;
-
-    unreachable();
-}
-
-inline constexpr std::span<const char*> get_output_port_names_v(
-  const dynamics_type type) noexcept
-{
-    switch (type) {
-    case dynamics_type::qss1_integrator:
-    case dynamics_type::qss1_multiplier:
-    case dynamics_type::qss1_power:
-    case dynamics_type::qss1_square:
-    case dynamics_type::qss1_sum_2:
-    case dynamics_type::qss1_sum_3:
-    case dynamics_type::qss1_sum_4:
-    case dynamics_type::qss1_wsum_2:
-    case dynamics_type::qss1_wsum_3:
-    case dynamics_type::qss1_wsum_4:
-    case dynamics_type::qss2_integrator:
-    case dynamics_type::qss2_multiplier:
-    case dynamics_type::qss2_power:
-    case dynamics_type::qss2_square:
-    case dynamics_type::qss2_sum_2:
-    case dynamics_type::qss2_sum_3:
-    case dynamics_type::qss2_sum_4:
-    case dynamics_type::qss2_wsum_2:
-    case dynamics_type::qss2_wsum_3:
-    case dynamics_type::qss2_wsum_4:
-    case dynamics_type::qss3_integrator:
-    case dynamics_type::qss3_multiplier:
-    case dynamics_type::qss3_power:
-    case dynamics_type::qss3_square:
-    case dynamics_type::qss3_sum_2:
-    case dynamics_type::qss3_sum_3:
-    case dynamics_type::qss3_sum_4:
-    case dynamics_type::qss3_wsum_2:
-    case dynamics_type::qss3_wsum_3:
-    case dynamics_type::qss3_wsum_4:
-    case dynamics_type::counter:
-    case dynamics_type::queue:
-    case dynamics_type::dynamic_queue:
-    case dynamics_type::priority_queue:
-    case dynamics_type::generator:
-    case dynamics_type::constant:
-    case dynamics_type::time_func:
-    case dynamics_type::logical_and_2:
-    case dynamics_type::logical_or_2:
-    case dynamics_type::logical_and_3:
-    case dynamics_type::logical_or_3:
-    case dynamics_type::logical_invert:
-        return str_out_1;
-
-    case dynamics_type::hsm_wrapper:
-        return str_out_4;
-
-    case dynamics_type::qss1_cross:
-    case dynamics_type::qss2_cross:
-    case dynamics_type::qss3_cross:
-        return str_out_cross;
-
-    case dynamics_type::qss1_filter:
-    case dynamics_type::qss2_filter:
-    case dynamics_type::qss3_filter:
-        return str_out_filter;
-
-    case dynamics_type::accumulator_2:
-        return str_empty;
-    }
-
-    unreachable();
-}
-
 static inline const char* external_source_type_string[] = { "binary_file",
                                                             "constant",
                                                             "random",
@@ -446,57 +137,462 @@ inline int generate_random_file(std::ostream&          os,
     return 0;
 }
 
-inline void write_dot_graph_simulation(std::ostream&     os,
-                                       const simulation& sim) noexcept
+constexpr static inline auto dot_output_names =
+  std::to_array<std::string_view>({ "out",
+                                    "out1",
+                                    "out2",
+                                    "out3",
+                                    "out4",
+                                    "if-value",
+                                    "else-value",
+                                    "event",
+                                    "value",
+                                    "up",
+                                    "down" });
+
+constexpr static inline auto output_names =
+  std::to_array<std::string_view>({ "out",
+                                    "out1",
+                                    "out2",
+                                    "out3",
+                                    "out4",
+                                    "ifvalue",
+                                    "elsevalue",
+                                    "event",
+                                    "value",
+                                    "up",
+                                    "down" });
+
+constexpr static inline auto dot_output_index =
+  std::to_array<std::pair<unsigned char, unsigned char>>(
+    { { 0, 0 },  // 0. empty
+      { 0, 1 },  // 1. out
+      { 1, 4 },  // 2. out1, out2, out3
+      { 4, 3 },  // 3. ifvalue, elsevalue, event
+      { 8, 3 } } // 4. value, up, down
+  );
+
+constexpr static inline auto dot_output_dyn_index =
+  std::to_array<unsigned char>({
+    1, // qss1_integrator,
+    1, // qss1_multiplier,
+    3, // qss1_cross,
+    2, // qss1_filter,
+    1, // qss1_power,
+    1, // qss1_square,
+    1, // qss1_sum_2,
+    1, // qss1_sum_3,
+    1, // qss1_sum_4,
+    1, // qss1_wsum_2,
+    1, // qss1_wsum_3,
+    1, // qss1_wsum_4,
+    1, // qss2_integrator,
+    1, // qss2_multiplier,
+    3, // qss2_cross,
+    2, // qss2_filter,
+    1, // qss2_power,
+    1, // qss2_square,
+    1, // qss2_sum_2,
+    1, // qss2_sum_3,
+    1, // qss2_sum_4,
+    1, // qss2_wsum_2,
+    1, // qss2_wsum_3,
+    1, // qss2_wsum_4,
+    1, // qss3_integrator,
+    1, // qss3_multiplier,
+    3, // qss3_cross,
+    2, // qss3_filter,
+    1, // qss3_power,
+    1, // qss3_square,
+    1, // qss3_sum_2,
+    1, // qss3_sum_3,
+    1, // qss3_sum_4,
+    1, // qss3_wsum_2,
+    1, // qss3_wsum_3,
+    1, // qss3_wsum_4,
+    1, // counter,
+    1, // queue,
+    1, // dynamic_queue,
+    1, // priority_queue,
+    1, // generator,
+    1, // constant,
+    1, // time_func,
+    0, // accumulator_2,
+    1, // logical_and_2,
+    1, // logical_and_3,
+    1, // logical_or_2,
+    1, // logical_or_3,
+    1, // logical_invert,
+    4, // hsm_wrapper
+  });
+
+inline constexpr std::span<const std::string_view> get_output_port_names(
+  const int                               index,
+  const std::span<const std::string_view> names = output_names) noexcept
 {
-    os << "digraph simulation {\n";
-
-    for (const auto& mdl : sim.models) {
-        const auto id  = sim.models.get_id(mdl);
-        const auto idx = get_index(id);
-        const auto dyn = dynamics_type_names[ordinal(mdl.type)];
-
-        os << ' ' << idx << " [dynamics=" << dyn << "];\n";
-    }
-
-    for (const auto& mdl : sim.models) {
-        dispatch(
-          mdl,
-          []<typename Dynamics>(
-            Dynamics& dyn, const auto& sim, const auto src_mdl_id, auto& os) {
-              if constexpr (has_output_port<Dynamics>) {
-                  for (int i = 0, e = length(dyn.y); i != e; ++i) {
-                      for (auto* block = sim.nodes.try_to_get(dyn.y[i]); block;
-                           block       = sim.nodes.try_to_get(block->next)) {
-
-                          const auto src_idx = get_index(src_mdl_id);
-                          const auto port_out =
-                            get_output_port_names<Dynamics>()[i];
-
-                          for (auto it = block->nodes.begin(),
-                                    et = block->nodes.end();
-                               it != et;
-                               ++it) {
-                              if (const auto* dst =
-                                    sim.models.try_to_get(it->model)) {
-                                  os << " " << src_idx << ":" << port_out
-                                     << " -> " << get_index(it->model) << ":"
-                                     << get_input_port_names_v(
-                                          dst->type)[it->port_index]
-                                     << "\n";
-                              }
-                          }
-                      }
-                  }
-              }
-          },
-          sim,
-          sim.models.get_id(mdl),
-          os);
-    }
-
-    os << "}\n";
+    return std::span<const std::string_view>(
+      names.data() + dot_output_index[dot_output_dyn_index[index]].first,
+      dot_output_index[dot_output_dyn_index[index]].second);
 }
+
+inline constexpr std::span<const std::string_view> get_output_port_names(
+  const dynamics_type                     type,
+  const std::span<const std::string_view> names = output_names) noexcept
+{
+    return get_output_port_names(ordinal(type), names);
+}
+
+template<typename RawDynamics>
+constexpr std::span<const std::string_view> get_output_port_names(
+  const std::span<const std::string_view> names = output_names) noexcept
+{
+    using Dynamics = std::decay_t<RawDynamics>;
+
+    if constexpr (std::is_same_v<Dynamics, qss1_integrator>)
+        return get_output_port_names(1, names);
+    if constexpr (std::is_same_v<Dynamics, qss1_multiplier>)
+        return get_output_port_names(1, names);
+    if constexpr (std::is_same_v<Dynamics, qss1_cross>)
+        return get_output_port_names(3, names);
+    if constexpr (std::is_same_v<Dynamics, qss1_filter>)
+        return get_output_port_names(2, names);
+    if constexpr (std::is_same_v<Dynamics, qss1_power>)
+        return get_output_port_names(1, names);
+    if constexpr (std::is_same_v<Dynamics, qss1_square>)
+        return get_output_port_names(1, names);
+    if constexpr (std::is_same_v<Dynamics, qss1_sum_2>)
+        return get_output_port_names(1, names);
+    if constexpr (std::is_same_v<Dynamics, qss1_sum_3>)
+        return get_output_port_names(1, names);
+    if constexpr (std::is_same_v<Dynamics, qss1_sum_4>)
+        return get_output_port_names(1, names);
+    if constexpr (std::is_same_v<Dynamics, qss1_wsum_2>)
+        return get_output_port_names(1, names);
+    if constexpr (std::is_same_v<Dynamics, qss1_wsum_3>)
+        return get_output_port_names(1, names);
+    if constexpr (std::is_same_v<Dynamics, qss1_wsum_4>)
+        return get_output_port_names(1, names);
+    if constexpr (std::is_same_v<Dynamics, qss2_integrator>)
+        return get_output_port_names(1, names);
+    if constexpr (std::is_same_v<Dynamics, qss2_multiplier>)
+        return get_output_port_names(1, names);
+    if constexpr (std::is_same_v<Dynamics, qss2_cross>)
+        return get_output_port_names(3, names);
+    if constexpr (std::is_same_v<Dynamics, qss2_filter>)
+        return get_output_port_names(2, names);
+    if constexpr (std::is_same_v<Dynamics, qss2_power>)
+        return get_output_port_names(1, names);
+    if constexpr (std::is_same_v<Dynamics, qss2_square>)
+        return get_output_port_names(1, names);
+    if constexpr (std::is_same_v<Dynamics, qss2_sum_2>)
+        return get_output_port_names(1, names);
+    if constexpr (std::is_same_v<Dynamics, qss2_sum_3>)
+        return get_output_port_names(1, names);
+    if constexpr (std::is_same_v<Dynamics, qss2_sum_4>)
+        return get_output_port_names(1, names);
+    if constexpr (std::is_same_v<Dynamics, qss2_wsum_2>)
+        return get_output_port_names(1, names);
+    if constexpr (std::is_same_v<Dynamics, qss2_wsum_3>)
+        return get_output_port_names(1, names);
+    if constexpr (std::is_same_v<Dynamics, qss2_wsum_4>)
+        return get_output_port_names(1, names);
+    if constexpr (std::is_same_v<Dynamics, qss3_integrator>)
+        return get_output_port_names(1, names);
+    if constexpr (std::is_same_v<Dynamics, qss3_multiplier>)
+        return get_output_port_names(1, names);
+    if constexpr (std::is_same_v<Dynamics, qss3_cross>)
+        return get_output_port_names(3, names);
+    if constexpr (std::is_same_v<Dynamics, qss3_filter>)
+        return get_output_port_names(2, names);
+    if constexpr (std::is_same_v<Dynamics, qss3_power>)
+        return get_output_port_names(1, names);
+    if constexpr (std::is_same_v<Dynamics, qss3_square>)
+        return get_output_port_names(1, names);
+    if constexpr (std::is_same_v<Dynamics, qss3_sum_2>)
+        return get_output_port_names(1, names);
+    if constexpr (std::is_same_v<Dynamics, qss3_sum_3>)
+        return get_output_port_names(1, names);
+    if constexpr (std::is_same_v<Dynamics, qss3_sum_4>)
+        return get_output_port_names(1, names);
+    if constexpr (std::is_same_v<Dynamics, qss3_wsum_2>)
+        return get_output_port_names(1, names);
+    if constexpr (std::is_same_v<Dynamics, qss3_wsum_3>)
+        return get_output_port_names(1, names);
+    if constexpr (std::is_same_v<Dynamics, qss3_wsum_4>)
+        return get_output_port_names(1, names);
+    if constexpr (std::is_same_v<Dynamics, counter>)
+        return get_output_port_names(1, names);
+    if constexpr (std::is_same_v<Dynamics, queue>)
+        return get_output_port_names(1, names);
+    if constexpr (std::is_same_v<Dynamics, dynamic_queue>)
+        return get_output_port_names(1, names);
+    if constexpr (std::is_same_v<Dynamics, priority_queue>)
+        return get_output_port_names(1, names);
+    if constexpr (std::is_same_v<Dynamics, generator>)
+        return get_output_port_names(1, names);
+    if constexpr (std::is_same_v<Dynamics, constant>)
+        return get_output_port_names(1, names);
+    if constexpr (std::is_same_v<Dynamics, time_func>)
+        return get_output_port_names(1, names);
+    if constexpr (std::is_same_v<Dynamics, accumulator_2>)
+        return get_output_port_names(0, names);
+    if constexpr (std::is_same_v<Dynamics, logical_and_2>)
+        return get_output_port_names(1, names);
+    if constexpr (std::is_same_v<Dynamics, logical_and_3>)
+        return get_output_port_names(1, names);
+    if constexpr (std::is_same_v<Dynamics, logical_or_2>)
+        return get_output_port_names(1, names);
+    if constexpr (std::is_same_v<Dynamics, logical_or_3>)
+        return get_output_port_names(1, names);
+    if constexpr (std::is_same_v<Dynamics, logical_invert>)
+        return get_output_port_names(1, names);
+    if constexpr (std::is_same_v<Dynamics, hsm_wrapper>)
+        return get_output_port_names(4, names);
+
+    unreachable();
+}
+
+constexpr static inline auto dot_input_names =
+  std::to_array<std::string_view>({ "x_dot",
+                                    "reset",
+                                    "in",
+                                    "in_1",
+                                    "in_2",
+                                    "in_3",
+                                    "in_4",
+                                    "value",
+                                    "if",
+                                    "else",
+                                    "threshold",
+                                    "in_1",
+                                    "in_2",
+                                    "nb_1",
+                                    "nb_2",
+                                    "value",
+                                    "set_t",
+                                    "add_tr",
+                                    "mult_tr" });
+
+constexpr static inline auto input_names =
+  std::to_array<std::string_view>({ "x-dot",
+                                    "reset",
+                                    "in",
+                                    "in-1",
+                                    "in-2",
+                                    "in-3",
+                                    "in-4",
+                                    "value",
+                                    "if",
+                                    "else",
+                                    "threshold",
+                                    "in-1",
+                                    "in-2",
+                                    "nb-1",
+                                    "nb-2",
+                                    "value",
+                                    "set-t",
+                                    "add-tr",
+                                    "mult-tr" });
+
+constexpr static inline auto dot_input_index =
+  std::to_array<std::pair<unsigned char, unsigned char>>(
+    { { 0, 0 },   // 0. empty
+      { 0, 2 },   // 1. integrator
+      { 2, 1 },   // 2. in
+      { 3, 2 },   // 3. in-[1,2]
+      { 3, 3 },   // 4. in-[1,..,3]
+      { 3, 4 },   // 5. in-[1,..,4]
+      { 7, 4 },   // 6. value..threshold
+      { 11, 4 },  // 7. in-1..nb-2
+      { 15, 4 } } // 8. value..mult-tr
+  );
+
+constexpr static inline auto dot_input_dyn_index =
+  std::to_array<unsigned char>({
+    1, // qss1_integrator,
+    3, // qss1_multiplier,
+    6, // qss1_cross,
+    2, // qss1_filter,
+    2, // qss1_power,
+    2, // qss1_square,
+    3, // qss1_sum_2,
+    4, // qss1_sum_3,
+    5, // qss1_sum_4,
+    3, // qss1_wsum_2,
+    4, // qss1_wsum_3,
+    5, // qss1_wsum_4,
+    1, // qss2_integrator,
+    3, // qss2_multiplier,
+    6, // qss2_cross,
+    2, // qss2_filter,
+    2, // qss2_power,
+    2, // qss2_square,
+    3, // qss2_sum_2,
+    4, // qss2_sum_3,
+    5, // qss2_sum_4,
+    3, // qss2_wsum_2,
+    4, // qss2_wsum_3,
+    5, // qss2_wsum_4,
+    1, // qss3_integrator,
+    3, // qss3_multiplier,
+    6, // qss3_cross,
+    2, // qss3_filter,
+    2, // qss3_power,
+    2, // qss3_square,
+    3, // qss3_sum_2,
+    4, // qss3_sum_3,
+    5, // qss3_sum_4,
+    3, // qss3_wsum_2,
+    4, // qss3_wsum_3,
+    5, // qss3_wsum_4,
+    2, // counter,
+    2, // queue,
+    2, // dynamic_queue,
+    2, // priority_queue,
+    8, // generator,
+    0, // constant,
+    0, // time_func,
+    7, // accumulator_2,
+    3, // logical_and_2,
+    4, // logical_and_3,
+    3, // logical_or_2,
+    4, // logical_or_3,
+    2, // logical_invert,
+    5, // hsm_wrapper
+  });
+
+inline constexpr std::span<const std::string_view> get_input_port_names(
+  const int                               index,
+  const std::span<const std::string_view> names = input_names) noexcept
+{
+    return std::span<const std::string_view>(
+      names.data() + dot_input_index[dot_input_dyn_index[index]].first,
+      dot_input_index[dot_input_dyn_index[index]].second);
+}
+
+inline constexpr std::span<const std::string_view> get_input_port_names(
+  const dynamics_type                     type,
+  const std::span<const std::string_view> names = input_names) noexcept
+{
+    return get_input_port_names(ordinal(type), names);
+}
+
+template<typename RawDynamics>
+constexpr std::span<const std::string_view> get_input_port_names(
+  std::span<const std::string_view> names = input_names) noexcept
+{
+    using Dynamics = std::decay_t<RawDynamics>;
+
+    if constexpr (std::is_same_v<Dynamics, qss1_integrator>)
+        return get_input_port_names(1, names);
+    if constexpr (std::is_same_v<Dynamics, qss1_multiplier>)
+        return get_input_port_names(3, names);
+    if constexpr (std::is_same_v<Dynamics, qss1_cross>)
+        return get_input_port_names(6, names);
+    if constexpr (std::is_same_v<Dynamics, qss1_filter>)
+        return get_input_port_names(2, names);
+    if constexpr (std::is_same_v<Dynamics, qss1_power>)
+        return get_input_port_names(2, names);
+    if constexpr (std::is_same_v<Dynamics, qss1_square>)
+        return get_input_port_names(2, names);
+    if constexpr (std::is_same_v<Dynamics, qss1_sum_2>)
+        return get_input_port_names(3, names);
+    if constexpr (std::is_same_v<Dynamics, qss1_sum_3>)
+        return get_input_port_names(4, names);
+    if constexpr (std::is_same_v<Dynamics, qss1_sum_4>)
+        return get_input_port_names(5, names);
+    if constexpr (std::is_same_v<Dynamics, qss1_wsum_2>)
+        return get_input_port_names(3, names);
+    if constexpr (std::is_same_v<Dynamics, qss1_wsum_3>)
+        return get_input_port_names(4, names);
+    if constexpr (std::is_same_v<Dynamics, qss1_wsum_4>)
+        return get_input_port_names(5, names);
+    if constexpr (std::is_same_v<Dynamics, qss2_integrator>)
+        return get_input_port_names(1, names);
+    if constexpr (std::is_same_v<Dynamics, qss2_multiplier>)
+        return get_input_port_names(3, names);
+    if constexpr (std::is_same_v<Dynamics, qss2_cross>)
+        return get_input_port_names(6, names);
+    if constexpr (std::is_same_v<Dynamics, qss2_filter>)
+        return get_input_port_names(2, names);
+    if constexpr (std::is_same_v<Dynamics, qss2_power>)
+        return get_input_port_names(2, names);
+    if constexpr (std::is_same_v<Dynamics, qss2_square>)
+        return get_input_port_names(2, names);
+    if constexpr (std::is_same_v<Dynamics, qss2_sum_2>)
+        return get_input_port_names(3, names);
+    if constexpr (std::is_same_v<Dynamics, qss2_sum_3>)
+        return get_input_port_names(4, names);
+    if constexpr (std::is_same_v<Dynamics, qss2_sum_4>)
+        return get_input_port_names(5, names);
+    if constexpr (std::is_same_v<Dynamics, qss2_wsum_2>)
+        return get_input_port_names(3, names);
+    if constexpr (std::is_same_v<Dynamics, qss2_wsum_3>)
+        return get_input_port_names(4, names);
+    if constexpr (std::is_same_v<Dynamics, qss2_wsum_4>)
+        return get_input_port_names(5, names);
+    if constexpr (std::is_same_v<Dynamics, qss3_integrator>)
+        return get_input_port_names(1, names);
+    if constexpr (std::is_same_v<Dynamics, qss3_multiplier>)
+        return get_input_port_names(3, names);
+    if constexpr (std::is_same_v<Dynamics, qss3_cross>)
+        return get_input_port_names(6, names);
+    if constexpr (std::is_same_v<Dynamics, qss3_filter>)
+        return get_input_port_names(2, names);
+    if constexpr (std::is_same_v<Dynamics, qss3_power>)
+        return get_input_port_names(2, names);
+    if constexpr (std::is_same_v<Dynamics, qss3_square>)
+        return get_input_port_names(2, names);
+    if constexpr (std::is_same_v<Dynamics, qss3_sum_2>)
+        return get_input_port_names(3, names);
+    if constexpr (std::is_same_v<Dynamics, qss3_sum_3>)
+        return get_input_port_names(4, names);
+    if constexpr (std::is_same_v<Dynamics, qss3_sum_4>)
+        return get_input_port_names(5, names);
+    if constexpr (std::is_same_v<Dynamics, qss3_wsum_2>)
+        return get_input_port_names(3, names);
+    if constexpr (std::is_same_v<Dynamics, qss3_wsum_3>)
+        return get_input_port_names(4, names);
+    if constexpr (std::is_same_v<Dynamics, qss3_wsum_4>)
+        return get_input_port_names(5, names);
+    if constexpr (std::is_same_v<Dynamics, counter>)
+        return get_input_port_names(2, names);
+    if constexpr (std::is_same_v<Dynamics, queue>)
+        return get_input_port_names(2, names);
+    if constexpr (std::is_same_v<Dynamics, dynamic_queue>)
+        return get_input_port_names(2, names);
+    if constexpr (std::is_same_v<Dynamics, priority_queue>)
+        return get_input_port_names(2, names);
+    if constexpr (std::is_same_v<Dynamics, generator>)
+        return get_input_port_names(8, names);
+    if constexpr (std::is_same_v<Dynamics, constant>)
+        return get_input_port_names(0, names);
+    if constexpr (std::is_same_v<Dynamics, time_func>)
+        return get_input_port_names(0, names);
+    if constexpr (std::is_same_v<Dynamics, accumulator_2>)
+        return get_input_port_names(7, names);
+    if constexpr (std::is_same_v<Dynamics, logical_and_2>)
+        return get_input_port_names(3, names);
+    if constexpr (std::is_same_v<Dynamics, logical_and_3>)
+        return get_input_port_names(4, names);
+    if constexpr (std::is_same_v<Dynamics, logical_or_2>)
+        return get_input_port_names(3, names);
+    if constexpr (std::is_same_v<Dynamics, logical_or_3>)
+        return get_input_port_names(4, names);
+    if constexpr (std::is_same_v<Dynamics, logical_invert>)
+        return get_input_port_names(2, names);
+    if constexpr (std::is_same_v<Dynamics, hsm_wrapper>)
+        return get_input_port_names(5, names);
+
+    unreachable();
+}
+
+/// Write the DEVS graph simulation into the @a os stream.
+///
+/// The directed graph writes nodes only with integer index (not string) and the
+/// edges by theirs names.
+void write_dot_graph_simulation(std::ostream&     os,
+                                const simulation& sim) noexcept;
 
 } // namespace irt
 

@@ -4,6 +4,8 @@
 
 #include <irritator/io.hpp>
 
+using namespace std::string_view_literals;
+
 namespace irt {
 
 auto get_internal_component_type(std::string_view name) noexcept
@@ -221,6 +223,59 @@ auto get_distribution_type(std::string_view name) noexcept
       });
 
     return it == std::end(table) ? std::nullopt : std::make_optional(it->type);
+}
+
+void write_dot_graph_simulation(std::ostream&     os,
+                                const simulation& sim) noexcept
+{
+    os << "digraph simulation {\n";
+
+    for (const auto& mdl : sim.models) {
+        const auto id  = sim.models.get_id(mdl);
+        const auto idx = get_index(id);
+        const auto dyn = dynamics_type_names[ordinal(mdl.type)];
+
+        os << ' ' << idx << " [dynamics=" << dyn << "];\n";
+    }
+
+    for (const auto& mdl : sim.models) {
+        dispatch(
+          mdl,
+          []<typename Dynamics>(
+            Dynamics& dyn, const auto& sim, const auto src_mdl_id, auto& os) {
+              if constexpr (has_output_port<Dynamics>) {
+                  for (int i = 0, e = length(dyn.y); i != e; ++i) {
+                      for (auto* block = sim.nodes.try_to_get(dyn.y[i]); block;
+                           block       = sim.nodes.try_to_get(block->next)) {
+
+                          const auto src_idx  = get_index(src_mdl_id);
+                          const auto port_out = get_output_port_names<Dynamics>(
+                            dot_output_names)[i];
+
+                          for (auto it = block->nodes.begin(),
+                                    et = block->nodes.end();
+                               it != et;
+                               ++it) {
+                              if (const auto* dst =
+                                    sim.models.try_to_get(it->model)) {
+                                  os << " " << src_idx << ":" << port_out
+                                     << " -> " << get_index(it->model) << ":"
+                                     << get_input_port_names(
+                                          dst->type,
+                                          dot_input_names)[it->port_index]
+                                     << "\n";
+                              }
+                          }
+                      }
+                  }
+              }
+          },
+          sim,
+          sim.models.get_id(mdl),
+          os);
+    }
+
+    os << "}\n";
 }
 
 }

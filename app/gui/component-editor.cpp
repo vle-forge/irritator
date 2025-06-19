@@ -1071,7 +1071,7 @@ struct component_editor::impl {
                 }
             } else {
                 const auto dyn_type = ch->id.mdl_type;
-                const auto dyn_port = get_input_port_names_v(dyn_type);
+                const auto dyn_port = get_input_port_names(dyn_type);
                 const auto dyn_size = static_cast<int>(dyn_port.size());
 
                 if (dyn_size > 0) {
@@ -1087,7 +1087,8 @@ struct component_editor::impl {
 
                         for (auto i = 0, e = (int)dyn_port.size(); i < e; ++i) {
                             ImGui::PushID(i);
-                            if (ImGui::Selectable(dyn_port[i],
+                            name_str name(dyn_port[i]);
+                            if (ImGui::Selectable(name.c_str(),
                                                   pp_selected == i)) {
                                 pp_selected = i;
                             }
@@ -1197,7 +1198,7 @@ struct component_editor::impl {
                 }
             } else {
                 const auto dyn_type = ch->id.mdl_type;
-                const auto dyn_port = get_output_port_names_v(dyn_type);
+                const auto dyn_port = get_output_port_names(dyn_type);
                 const auto dyn_size = static_cast<int>(dyn_port.size());
 
                 if (dyn_size > 0) {
@@ -1213,7 +1214,8 @@ struct component_editor::impl {
 
                         for (auto i = 0, e = (int)dyn_port.size(); i < e; ++i) {
                             ImGui::PushID(i);
-                            if (ImGui::Selectable(dyn_port[i],
+                            name_str name(dyn_port[i]);
+                            if (ImGui::Selectable(name.c_str(),
                                                   pp_selected == i)) {
                                 pp_selected = i;
                             }

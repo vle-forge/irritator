@@ -1012,7 +1012,8 @@ struct generic_simulation_editor::impl {
                 ImNodes::BeginInputAttribute(
                   make_input_node_id(id, static_cast<int>(i)),
                   ImNodesPinShape_TriangleFilled);
-                ImGui::TextUnformatted(names[i]);
+                ImGui::TextUnformatted(names[i].data(),
+                                       names[i].data() + names[i].size());
                 ImNodes::EndInputAttribute();
             }
         }
@@ -1030,7 +1031,8 @@ struct generic_simulation_editor::impl {
                 ImNodes::BeginOutputAttribute(
                   make_output_node_id(id, static_cast<int>(i)),
                   ImNodesPinShape_TriangleFilled);
-                ImGui::TextUnformatted(names[i]);
+                ImGui::TextUnformatted(names[i].data(),
+                                       names[i].data() + names[i].size());
                 ImNodes::EndOutputAttribute();
             }
         }
