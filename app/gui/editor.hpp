@@ -24,6 +24,11 @@ bool show_parameter_editor(application&     app,
                            dynamics_type    type,
                            parameter&       p) noexcept;
 
+bool show_external_sources_combo(external_source&     srcs,
+                                 const char*          title,
+                                 u64&                 src_id,
+                                 source::source_type& src_type) noexcept;
+
 bool show_external_sources_combo(external_source& srcs,
                                  const char*      title,
                                  source&          src) noexcept;
