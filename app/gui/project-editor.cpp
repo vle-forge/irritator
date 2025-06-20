@@ -1165,18 +1165,16 @@ auto project_editor::show(application& app) noexcept -> show_result_t
                         show_component_observations(app, *this, *selected);
                         ImGui::EndTabItem();
                     }
-                }
 
-                if (ImGui::BeginTabItem("Simulation graph")) {
-                    if (can_display_graph_editor()) {
-                        if (selected) {
-                            show_simulation_editor_treenode(
-                              app, *this, *selected);
-                        } else {
-                            generic_sim.display(app);
-                        }
+                    if (ImGui::BeginTabItem("Component graph")) {
+                        show_simulation_editor_treenode(app, *this, *selected);
+                        ImGui::EndTabItem();
                     }
-                    ImGui::EndTabItem();
+                } else {
+                    if (ImGui::BeginTabItem("Full simulation graph")) {
+                        generic_sim.display(app);
+                        ImGui::EndTabItem();
+                    }
                 }
 
                 if (ImGui::BeginTabItem("Input data")) {
