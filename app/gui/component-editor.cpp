@@ -278,6 +278,13 @@ static void show_connection_pack(const modeling&          mod,
     }
 }
 
+static const char* get_file_path_cstr(const modeling&    mod,
+                                      const file_path_id id) noexcept
+{
+    const auto* file = mod.file_paths.try_to_get(id);
+    return file ? file->path.c_str() : "-";
+}
+
 struct component_editor::impl {
     application&      app;
     component_editor& ed;
@@ -410,6 +417,7 @@ struct component_editor::impl {
         }
         if (ImGui::TreeNode("Binary files")) {
             static decltype(constant_source::name) name_tmp;
+            static file_path_id id_tmp = undefined<file_path_id>();
 
             for (auto& s : compo.srcs.binary_file_sources) {
                 const auto id = compo.srcs.binary_file_sources.get_id(s);
@@ -418,11 +426,12 @@ struct component_editor::impl {
                     ImGui::LabelFormat("id", "{}", ordinal(id));
                     ImGui::LabelFormat("name", "{}", s.name.sv());
                     ImGui::LabelFormat(
-                      "path", "{}", (const char*)s.file_path.c_str());
+                      "path", "{}", get_file_path_cstr(app.mod, s.file_id));
 
                     if (ImGui::Button("Edit")) {
                         ImGui::OpenPopup("Change binary values");
                         name_tmp = s.name;
+                        id_tmp   = s.file_id;
                     }
 
                     ImVec2 center = ImGui::GetMainViewport()->GetCenter();
@@ -435,10 +444,12 @@ struct component_editor::impl {
                           ImGuiWindowFlags_AlwaysAutoResize)) {
 
                         ImGui::InputFilteredString("name", name_tmp);
-                        show_data_file_input(app.mod, compo, s.file_id);
+                        id_tmp =
+                          show_data_file_input(app.mod, compo.dir, id_tmp);
 
                         if (ImGui::Button("OK", ImVec2(120, 0))) {
-                            s.name = name_tmp;
+                            s.name    = name_tmp;
+                            s.file_id = id_tmp;
                             ImGui::CloseCurrentPopup();
                         }
                         ImGui::SetItemDefaultFocus();
@@ -454,6 +465,7 @@ struct component_editor::impl {
         }
         if (ImGui::TreeNode("Text files")) {
             static decltype(constant_source::name) name_tmp;
+            static file_path_id id_tmp = undefined<file_path_id>();
 
             for (auto& s : compo.srcs.text_file_sources) {
                 const auto id = compo.srcs.text_file_sources.get_id(s);
@@ -462,11 +474,12 @@ struct component_editor::impl {
                     ImGui::LabelFormat("id", "{}", ordinal(id));
                     ImGui::LabelFormat("name", "{}", s.name.sv());
                     ImGui::LabelFormat(
-                      "path", "{}", (const char*)s.file_path.c_str());
+                      "path", "{}", get_file_path_cstr(app.mod, s.file_id));
 
                     if (ImGui::Button("Edit")) {
                         ImGui::OpenPopup("Change binary values");
                         name_tmp = s.name;
+                        id_tmp   = s.file_id;
                     }
 
                     ImVec2 center = ImGui::GetMainViewport()->GetCenter();
@@ -479,10 +492,12 @@ struct component_editor::impl {
                           ImGuiWindowFlags_AlwaysAutoResize)) {
 
                         ImGui::InputFilteredString("name", name_tmp);
-                        show_data_file_input(app.mod, compo, s.file_id);
+                        id_tmp =
+                          show_data_file_input(app.mod, compo.dir, id_tmp);
 
                         if (ImGui::Button("OK", ImVec2(120, 0))) {
-                            s.name = name_tmp;
+                            s.name    = name_tmp;
+                            s.file_id = id_tmp;
                             ImGui::CloseCurrentPopup();
                         }
                         ImGui::SetItemDefaultFocus();

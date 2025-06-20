@@ -106,27 +106,29 @@ static void display_allocate_external_source(application&    app,
     }
 }
 
-auto show_data_file_input(const modeling&  mod,
-                          const component& compo,
-                          file_path_id&    id) noexcept -> bool
+auto show_data_file_input(const modeling&    mod,
+                          const dir_path_id  dir_id,
+                          const file_path_id file_id) noexcept -> file_path_id
 {
-    const auto old_id = id;
+    auto ret = undefined<file_path_id>();
 
-    if (auto* dir = mod.dir_paths.try_to_get(compo.dir); dir) {
+    if (auto* dir = mod.dir_paths.try_to_get(dir_id); dir) {
         const auto preview = [](file_path* f) noexcept -> const char* {
             return f ? f->path.c_str() : "-";
-        }(mod.file_paths.try_to_get(id));
+        }(mod.file_paths.try_to_get(file_id));
+        ret = file_id;
 
         if (ImGui::BeginCombo("Select file", preview)) {
-            for (auto f_id : dir->children) {
-                if (auto* file = mod.file_paths.try_to_get(f_id); file) {
+            for (const auto f_id : dir->children) {
+                if (const auto* file = mod.file_paths.try_to_get(f_id); file) {
                     const auto str = file->path.sv();
                     const auto dot = str.find_last_of(".");
                     const auto ext = str.substr(dot);
 
                     if (not(ext == ".irt" or ext == ".txt")) {
-                        if (ImGui::Selectable(file->path.c_str(), id == f_id)) {
-                            id = f_id;
+                        if (ImGui::Selectable(file->path.c_str(),
+                                              file_id == f_id)) {
+                            ret = f_id;
                         }
                     }
                 }
@@ -137,7 +139,7 @@ auto show_data_file_input(const modeling&  mod,
         ImGui::TextFormatDisabled("This component is not saved");
     }
 
-    return old_id != id;
+    return ret;
 }
 
 bool show_random_distribution_input(random_source& src) noexcept
@@ -1086,30 +1088,32 @@ void project_external_source_editor::selection::select(
 bool project_external_source_editor::selection::is(
   constant_source_id id) const noexcept
 {
-    return type_sel.has_value() and
-           *type_sel == source::source_type::constant and id_sel == ordinal(id);
+    return type_sel.has_value() and * type_sel ==
+             source::source_type::constant and
+           id_sel == ordinal(id);
 }
 
 bool project_external_source_editor::selection::is(
   text_file_source_id id) const noexcept
 {
-    return type_sel.has_value() and
-           *type_sel == source::source_type::text_file and
+    return type_sel.has_value() and * type_sel ==
+             source::source_type::text_file and
            id_sel == ordinal(id);
 }
 
 bool project_external_source_editor::selection::is(
   binary_file_source_id id) const noexcept
 {
-    return type_sel.has_value() and
-           *type_sel == source::source_type::binary_file and
+    return type_sel.has_value() and * type_sel ==
+             source::source_type::binary_file and
            id_sel == ordinal(id);
 }
 
 bool project_external_source_editor::selection::is(
   random_source_id id) const noexcept
 {
-    return type_sel.has_value() and *type_sel == source::source_type::random and
+    return type_sel.has_value() and * type_sel ==
+             source::source_type::random and
            id_sel == ordinal(id);
 }
 
