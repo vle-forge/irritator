@@ -284,261 +284,202 @@ struct component_editor::impl {
 
     void display_external_source(component& compo) noexcept
     {
-        const auto button_size = ImGui::ComputeButtonSize(4);
+        constexpr auto tn_def = ImGuiTreeNodeFlags_DefaultOpen;
 
-        if (not compo.srcs.constant_sources.can_alloc(1))
-            compo.srcs.constant_sources.grow<3, 2>();
-        if (not compo.srcs.binary_file_sources.can_alloc(1))
-            compo.srcs.binary_file_sources.grow<3, 2>();
-        if (not compo.srcs.text_file_sources.can_alloc(1))
-            compo.srcs.text_file_sources.grow<3, 2>();
-        if (not compo.srcs.random_sources.can_alloc(1))
-            compo.srcs.random_sources.grow<3, 2>();
+        if (ImGui::TreeNodeEx("Constants", tn_def)) {
+            static constant_source r_src;
 
-        if (compo.srcs.constant_sources.can_alloc(1) and
-            ImGui::Button("+constant", button_size)) {
-            (void)compo.srcs.constant_sources.alloc();
-        }
+            ImGui::SameLine();
+            if (ImGui::SmallButton("new")) {
+                auto& news = compo.srcs.constant_sources.alloc();
+                news.name  = "unamed";
+            }
 
-        ImGui::SameLine();
-
-        if (compo.srcs.binary_file_sources.can_alloc(1) and
-            ImGui::Button("+binary", button_size)) {
-            (void)compo.srcs.binary_file_sources.alloc();
-        }
-
-        ImGui::SameLine();
-
-        if (compo.srcs.text_file_sources.can_alloc(1) and
-            ImGui::Button("+text", button_size)) {
-            (void)compo.srcs.text_file_sources.alloc();
-        }
-
-        ImGui::SameLine();
-
-        if (compo.srcs.random_sources.can_alloc(1) and
-            ImGui::Button("+random", button_size)) {
-            (void)compo.srcs.random_sources.alloc();
-        }
-
-        if (ImGui::TreeNode("Constants")) {
-            static decltype(constant_source::name) name_tmp;
-
+            auto to_del = undefined<constant_source_id>();
             for (auto& s : compo.srcs.constant_sources) {
+                r_src         = s;
                 const auto id = compo.srcs.constant_sources.get_id(s);
                 ImGui::PushID(&s);
-                if (ImGui::TreeNode(s.name.c_str())) {
-                    ImGui::LabelFormat("id", "{}", ordinal(id));
-                    ImGui::LabelFormat("name", "{}", s.name.sv());
-                    ImGui::LabelFormat("value",
-                                       "{} {} {}...",
-                                       s.buffer[0],
-                                       s.buffer[1],
-                                       s.buffer[2]);
+                if (ImGui::TreeNodeEx(&s,
+                                      ImGuiTreeNodeFlags_SpanLabelWidth,
+                                      "%s",
+                                      r_src.name.c_str())) {
+                    ImGui::SameLine();
+                    if (ImGui::SmallButton("x"))
+                        to_del = id;
 
-                    if (ImGui::Button("Edit")) {
-                        ImGui::OpenPopup("Change constant values");
-                        name_tmp = s.name;
+                    if (ImGui::InputFilteredString("name", r_src.name)) {
+                        s.name = r_src.name;
                     }
 
-                    ImVec2 center = ImGui::GetMainViewport()->GetCenter();
-                    ImGui::SetNextWindowPos(
-                      center, ImGuiCond_Appearing, ImVec2(0.5f, 0.5f));
+                    u32 len = s.length;
+                    if (ImGui::InputScalar("length", ImGuiDataType_U32, &len)) {
+                        if (len > 0 and len < external_source_chunk_size)
+                            s.length = len;
+                    }
 
-                    if (ImGui::BeginPopupModal(
-                          "Change constant values",
-                          NULL,
-                          ImGuiWindowFlags_AlwaysAutoResize)) {
+                    s.length          = s.length == 0 ? 1 : s.length;
+                    const int columns = 3 < s.length ? 3 : s.length;
+                    const int rows =
+                      (s.length / columns) + ((s.length % columns) > 0 ? 1 : 0);
+                    if (ImGui::BeginChild(
+                          "##zone",
+                          ImVec2(ImGui::GetContentRegionAvail().x,
+                                 ImGui::GetFrameHeightWithSpacing() * rows))) {
+                        if (ImGui::BeginTable("Values", columns)) {
+                            for (int j = 0; j < columns; ++j)
+                                ImGui::TableSetupColumn(
+                                  "",
+                                  ImGuiTableColumnFlags_WidthFixed,
+                                  ImGui::GetContentRegionAvail().x / 3.f);
 
-                        ImGui::InputFilteredString("name", name_tmp);
-
-                        u32 len = s.length;
-                        if (ImGui::InputScalar(
-                              "length", ImGuiDataType_U32, &len)) {
-                            if (len > 0 and len < external_source_chunk_size)
-                                s.length = len;
-                        }
-
-                        s.length          = s.length == 0 ? 1 : s.length;
-                        const int columns = 4 < s.length ? 4 : s.length;
-                        const int rows    = (s.length / columns) +
-                                         ((s.length % columns) > 0 ? 1 : 0);
-                        if (ImGui::BeginChild(
-                              "##zone",
-                              ImVec2(ImGui::GetContentRegionAvail().x,
-                                     200.f))) {
-
-                            if (ImGui::BeginTable("Values", columns)) {
-                                for (int j = 0; j < columns; ++j)
-                                    ImGui::TableSetupColumn(
-                                      "",
-                                      ImGuiTableColumnFlags_WidthFixed,
-                                      60.f);
-
-                                for (int i = 0; i < rows; ++i) {
-                                    ImGui::TableNextRow();
-                                    for (int j = 0; j < columns; ++j) {
-                                        ImGui::TableSetColumnIndex(j);
-                                        ImGui::PushID(i * columns + j);
-                                        ImGui::PushItemWidth(-1);
-                                        ImGui::InputDouble("",
-                                                           s.buffer.data() +
-                                                             (i * columns + j));
-                                        ImGui::PopItemWidth();
-                                        ImGui::PopID();
-                                    }
+                            for (int i = 0; i < rows; ++i) {
+                                ImGui::TableNextRow();
+                                for (int j = 0; j < columns; ++j) {
+                                    ImGui::TableSetColumnIndex(j);
+                                    ImGui::PushID(i * columns + j);
+                                    ImGui::PushItemWidth(-1);
+                                    ImGui::InputDouble(
+                                      "", s.buffer.data() + (i * columns + j));
+                                    ImGui::PopItemWidth();
+                                    ImGui::PopID();
                                 }
-                                ImGui::EndTable();
                             }
+                            ImGui::EndTable();
                         }
-                        ImGui::EndChild();
-
-                        if (ImGui::Button("OK", ImVec2(120, 0))) {
-                            s.name = name_tmp;
-                            ImGui::CloseCurrentPopup();
-                        }
-                        ImGui::SetItemDefaultFocus();
-                        ImGui::EndPopup();
                     }
-
+                    ImGui::EndChild();
                     ImGui::TreePop();
                 }
                 ImGui::PopID();
             }
 
+            if (is_defined(to_del))
+                compo.srcs.constant_sources.free(to_del);
+
             ImGui::TreePop();
         }
-        if (ImGui::TreeNode("Binary files")) {
-            static decltype(constant_source::name) name_tmp;
 
+        if (ImGui::TreeNodeEx("Binary files", tn_def)) {
+            static decltype(constant_source::name) name_tmp;
+            static file_path_id id_tmp = undefined<file_path_id>();
+            ImGui::SameLine();
+            if (ImGui::SmallButton("new")) {
+                auto& news = compo.srcs.binary_file_sources.alloc();
+                news.name  = "unamed";
+            }
+
+            auto to_del = undefined<binary_file_source_id>();
             for (auto& s : compo.srcs.binary_file_sources) {
+                name_tmp      = s.name;
+                id_tmp        = s.file_id;
                 const auto id = compo.srcs.binary_file_sources.get_id(s);
                 ImGui::PushID(&s);
-                if (ImGui::TreeNode(s.name.c_str())) {
-                    ImGui::LabelFormat("id", "{}", ordinal(id));
-                    ImGui::LabelFormat("name", "{}", s.name.sv());
-                    ImGui::LabelFormat(
-                      "path", "{}", (const char*)s.file_path.c_str());
+                if (ImGui::TreeNodeEx(&s,
+                                      ImGuiTreeNodeFlags_SpanLabelWidth,
+                                      "%s",
+                                      s.name.c_str())) {
+                    ImGui::SameLine();
+                    if (ImGui::SmallButton("x"))
+                        to_del = id;
 
-                    if (ImGui::Button("Edit")) {
-                        ImGui::OpenPopup("Change binary values");
-                        name_tmp = s.name;
+                    if (ImGui::InputFilteredString("name", name_tmp)) {
+                        s.name = name_tmp;
                     }
 
-                    ImVec2 center = ImGui::GetMainViewport()->GetCenter();
-                    ImGui::SetNextWindowPos(
-                      center, ImGuiCond_Appearing, ImVec2(0.5f, 0.5f));
-
-                    if (ImGui::BeginPopupModal(
-                          "Change binary values",
-                          NULL,
-                          ImGuiWindowFlags_AlwaysAutoResize)) {
-
-                        ImGui::InputFilteredString("name", name_tmp);
-                        show_data_file_input(app.mod, compo, s.file_id);
-
-                        if (ImGui::Button("OK", ImVec2(120, 0))) {
-                            s.name = name_tmp;
-                            ImGui::CloseCurrentPopup();
-                        }
-                        ImGui::SetItemDefaultFocus();
-                        ImGui::EndPopup();
-                    }
+                    s.file_id =
+                      show_data_file_input(app.mod, compo.dir, id_tmp);
 
                     ImGui::TreePop();
                 }
                 ImGui::PopID();
             }
 
+            if (is_defined(to_del))
+                compo.srcs.binary_file_sources.free(to_del);
+
             ImGui::TreePop();
         }
-        if (ImGui::TreeNode("Text files")) {
-            static decltype(constant_source::name) name_tmp;
 
+        if (ImGui::TreeNodeEx("Text files", tn_def)) {
+            static decltype(constant_source::name) name_tmp;
+            static file_path_id id_tmp = undefined<file_path_id>();
+            ImGui::SameLine();
+            if (ImGui::SmallButton("new")) {
+                auto& news = compo.srcs.text_file_sources.alloc();
+                news.name  = "unamed";
+            }
+
+            auto to_del = undefined<text_file_source_id>();
             for (auto& s : compo.srcs.text_file_sources) {
+                name_tmp      = s.name;
+                id_tmp        = s.file_id;
                 const auto id = compo.srcs.text_file_sources.get_id(s);
                 ImGui::PushID(&s);
-                if (ImGui::TreeNode(s.name.c_str())) {
-                    ImGui::LabelFormat("id", "{}", ordinal(id));
-                    ImGui::LabelFormat("name", "{}", s.name.sv());
-                    ImGui::LabelFormat(
-                      "path", "{}", (const char*)s.file_path.c_str());
+                if (ImGui::TreeNodeEx(&s,
+                                      ImGuiTreeNodeFlags_SpanLabelWidth,
+                                      "%s",
+                                      s.name.c_str())) {
+                    ImGui::SameLine();
+                    if (ImGui::SmallButton("x"))
+                        to_del = id;
 
-                    if (ImGui::Button("Edit")) {
-                        ImGui::OpenPopup("Change binary values");
-                        name_tmp = s.name;
+                    if (ImGui::InputFilteredString("name", name_tmp)) {
+                        s.name = name_tmp;
                     }
 
-                    ImVec2 center = ImGui::GetMainViewport()->GetCenter();
-                    ImGui::SetNextWindowPos(
-                      center, ImGuiCond_Appearing, ImVec2(0.5f, 0.5f));
-
-                    if (ImGui::BeginPopupModal(
-                          "Change binary values",
-                          NULL,
-                          ImGuiWindowFlags_AlwaysAutoResize)) {
-
-                        ImGui::InputFilteredString("name", name_tmp);
-                        show_data_file_input(app.mod, compo, s.file_id);
-
-                        if (ImGui::Button("OK", ImVec2(120, 0))) {
-                            s.name = name_tmp;
-                            ImGui::CloseCurrentPopup();
-                        }
-                        ImGui::SetItemDefaultFocus();
-                        ImGui::EndPopup();
-                    }
+                    s.file_id =
+                      show_data_file_input(app.mod, compo.dir, id_tmp);
 
                     ImGui::TreePop();
                 }
                 ImGui::PopID();
             }
+
+            if (is_defined(to_del))
+                compo.srcs.text_file_sources.free(to_del);
 
             ImGui::TreePop();
         }
-        if (ImGui::TreeNode("Random")) {
-            static decltype(constant_source::name) name_tmp;
 
+        if (ImGui::TreeNodeEx("Random", tn_def)) {
+            // @TODO providing a better API to fill the distribution.
+            static random_source r_src;
+
+            ImGui::SameLine();
+            if (ImGui::SmallButton("new")) {
+                auto& news = compo.srcs.random_sources.alloc();
+                news.name  = "unamed";
+            }
+
+            auto to_del = undefined<random_source_id>();
             for (auto& s : compo.srcs.random_sources) {
+                r_src         = s;
                 const auto id = compo.srcs.random_sources.get_id(s);
                 ImGui::PushID(&s);
-                if (ImGui::TreeNode(s.name.c_str())) {
-                    ImGui::LabelFormat("id", "{}", ordinal(id));
-                    ImGui::LabelFormat("name", "{}", s.name.sv());
-                    ImGui::LabelFormat(
-                      "name",
-                      "{}",
-                      distribution_type_string[ordinal(s.distribution)]);
+                if (ImGui::TreeNodeEx(&s,
+                                      ImGuiTreeNodeFlags_SpanLabelWidth,
+                                      "%s",
+                                      r_src.name.c_str())) {
+                    ImGui::SameLine();
+                    if (ImGui::SmallButton("x"))
+                        to_del = id;
 
-                    if (ImGui::Button("Edit")) {
-                        ImGui::OpenPopup("Change constant values");
-                        name_tmp = s.name;
+                    if (ImGui::InputFilteredString("name", r_src.name)) {
+                        s.name = r_src.name.sv();
                     }
 
-                    ImVec2 center = ImGui::GetMainViewport()->GetCenter();
-                    ImGui::SetNextWindowPos(
-                      center, ImGuiCond_Appearing, ImVec2(0.5f, 0.5f));
-
-                    if (ImGui::BeginPopupModal(
-                          "Change constant values",
-                          NULL,
-                          ImGuiWindowFlags_AlwaysAutoResize)) {
-
-                        ImGui::InputFilteredString("name", name_tmp);
-                        show_random_distribution_input(s);
-
-                        if (ImGui::Button("OK", ImVec2(120, 0))) {
-                            s.name = name_tmp;
-                            ImGui::CloseCurrentPopup();
-                        }
-                        ImGui::SetItemDefaultFocus();
-                        ImGui::EndPopup();
+                    if (show_random_distribution_input(r_src)) {
+                        s = r_src;
                     }
 
                     ImGui::TreePop();
                 }
                 ImGui::PopID();
             }
+
+            if (is_defined(to_del))
+                compo.srcs.random_sources.free(to_del);
 
             ImGui::TreePop();
         }
