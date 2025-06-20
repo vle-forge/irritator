@@ -325,8 +325,9 @@ static bool show_node(component_editor&  ed,
                       dynamics_type_names[ordinal(c.id.mdl_type)]);
     ImNodes::EndNodeTitleBar();
 
-    const auto [X, Y] = get_dynamics_input_output_names(c.id.mdl_type);
-    auto ret          = 0;
+    const auto X   = get_input_port_names(c.id.mdl_type);
+    const auto Y   = get_output_port_names(c.id.mdl_type);
+    auto       ret = 0;
 
     add_input_attribute(X, id);
     ImGui::PushItemWidth(120.0f);
