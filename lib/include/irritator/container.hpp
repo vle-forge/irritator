@@ -67,7 +67,7 @@ inline constexpr auto u16_to_u8s(u16 halfword) noexcept -> std::pair<u8, u8>
 
 inline constexpr auto u16s_to_u32(u16 a, u16 b) noexcept
 {
-    return static_cast<u32>((static_cast<u32>(a) << 16) | static_cast<u32>(b));
+    return (static_cast<u32>(a) << 16) | static_cast<u32>(b);
 }
 
 inline constexpr auto u32_to_u16s(u32 word) noexcept -> std::pair<u16, u16>
@@ -78,7 +78,7 @@ inline constexpr auto u32_to_u16s(u32 word) noexcept -> std::pair<u16, u16>
 
 inline constexpr auto u32s_to_u64(u32 a, u32 b) noexcept
 {
-    return static_cast<u64>((static_cast<u64>(a) << 32) | static_cast<u64>(b));
+    return (static_cast<u64>(a) << 32) | static_cast<u64>(b);
 }
 
 inline constexpr auto u64_to_u32s(u64 doubleword) noexcept
@@ -195,11 +195,9 @@ inline constexpr auto g_get_index(Identifier id) noexcept
     using underlying_type = std::underlying_type_t<Identifier>;
 
     if constexpr (std::is_same_v<std::uint32_t, underlying_type>)
-        return static_cast<std::uint16_t>(static_cast<std::uint16_t>(id) &
-                                          0xffff);
+        return static_cast<std::uint16_t>(id) & 0xffff;
     else
-        return static_cast<std::uint32_t>(static_cast<std::uint32_t>(id) &
-                                          0xffffffff);
+        return static_cast<std::uint32_t>(id) & 0xffffffff;
 }
 
 /**
