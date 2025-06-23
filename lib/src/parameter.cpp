@@ -18,7 +18,7 @@ static inline u64 get_source_id(i64 id) noexcept
     return static_cast<u64>(id);
 }
 
-template<int QssLevel>
+template<size_t QssLevel>
 static void model_init(const parameter&               param,
                        abstract_integrator<QssLevel>& dyn) noexcept
 {
@@ -52,12 +52,12 @@ static void parameter_init(parameter& param, const constant& dyn) noexcept
     param.integers[1] = dyn.port;
 }
 
-template<int PortNumber>
+template<size_t PortNumber>
 static void model_init(const parameter& /*param*/,
                        accumulator<PortNumber>& /*dyn*/) noexcept
 {}
 
-template<int PortNumber>
+template<size_t PortNumber>
 static void parameter_init(parameter& /*param*/,
                            const accumulator<PortNumber>& /*dyn*/) noexcept
 {}
@@ -134,7 +134,7 @@ static void parameter_init(parameter& param, const generator& dyn) noexcept
     }
 }
 
-template<int QssLevel>
+template<size_t QssLevel>
 static void parameter_init(parameter&                           param,
                            const abstract_integrator<QssLevel>& dyn) noexcept
 {
@@ -142,18 +142,18 @@ static void parameter_init(parameter&                           param,
     param.reals[1] = dyn.dQ;
 }
 
-template<int QssLevel>
+template<size_t QssLevel>
 static void model_init(const parameter& /*param*/,
                        abstract_multiplier<QssLevel>& /*dyn*/) noexcept
 {}
 
-template<int QssLevel>
+template<size_t QssLevel>
 static void parameter_init(
   parameter& /*param*/,
   const abstract_multiplier<QssLevel>& /*dyn*/) noexcept
 {}
 
-template<int QssLevel>
+template<size_t QssLevel>
 static void model_init(const parameter&           param,
                        abstract_sum<QssLevel, 2>& dyn) noexcept
 {
@@ -161,7 +161,7 @@ static void model_init(const parameter&           param,
     dyn.values[1] = param.reals[1];
 }
 
-template<int QssLevel>
+template<size_t QssLevel>
 static void parameter_init(parameter&                       param,
                            const abstract_sum<QssLevel, 2>& dyn) noexcept
 {
@@ -169,7 +169,7 @@ static void parameter_init(parameter&                       param,
     param.reals[1] = dyn.values[1];
 }
 
-template<int QssLevel>
+template<size_t QssLevel>
 static void model_init(const parameter&           param,
                        abstract_sum<QssLevel, 3>& dyn) noexcept
 {
@@ -178,7 +178,7 @@ static void model_init(const parameter&           param,
     dyn.values[2] = param.reals[2];
 }
 
-template<int QssLevel>
+template<size_t QssLevel>
 static void parameter_init(parameter&                       param,
                            const abstract_sum<QssLevel, 3>& dyn) noexcept
 {
@@ -187,7 +187,7 @@ static void parameter_init(parameter&                       param,
     param.reals[2] = dyn.values[2];
 }
 
-template<int QssLevel>
+template<size_t QssLevel>
 static void model_init(const parameter&           param,
                        abstract_sum<QssLevel, 4>& dyn) noexcept
 {
@@ -197,7 +197,7 @@ static void model_init(const parameter&           param,
     dyn.values[3] = param.reals[3];
 }
 
-template<int QssLevel>
+template<size_t QssLevel>
 static void parameter_init(parameter&                       param,
                            const abstract_sum<QssLevel, 4>& dyn) noexcept
 {
@@ -207,7 +207,7 @@ static void parameter_init(parameter&                       param,
     param.reals[3] = dyn.values[3];
 }
 
-template<int QssLevel>
+template<size_t QssLevel>
 static void model_init(const parameter&            param,
                        abstract_wsum<QssLevel, 2>& dyn) noexcept
 {
@@ -217,7 +217,7 @@ static void model_init(const parameter&            param,
     dyn.input_coeffs[1] = param.reals[3];
 }
 
-template<int QssLevel>
+template<size_t QssLevel>
 static void parameter_init(parameter&                        param,
                            const abstract_wsum<QssLevel, 2>& dyn) noexcept
 {
@@ -227,7 +227,7 @@ static void parameter_init(parameter&                        param,
     param.reals[3] = dyn.input_coeffs[1];
 }
 
-template<int QssLevel>
+template<size_t QssLevel>
 static void model_init(const parameter&            param,
                        abstract_wsum<QssLevel, 3>& dyn) noexcept
 {
@@ -239,7 +239,7 @@ static void model_init(const parameter&            param,
     dyn.input_coeffs[2] = param.reals[5];
 }
 
-template<int QssLevel>
+template<size_t QssLevel>
 static void parameter_init(parameter&                        param,
                            const abstract_wsum<QssLevel, 3>& dyn) noexcept
 {
@@ -251,7 +251,7 @@ static void parameter_init(parameter&                        param,
     param.reals[5] = dyn.input_coeffs[2];
 }
 
-template<int QssLevel>
+template<size_t QssLevel>
 static void model_init(const parameter&            param,
                        abstract_wsum<QssLevel, 4>& dyn) noexcept
 {
@@ -265,7 +265,7 @@ static void model_init(const parameter&            param,
     dyn.input_coeffs[3] = param.reals[7];
 }
 
-template<int QssLevel, int PortNumber>
+template<size_t QssLevel, std::size_t PortNumber>
 static void parameter_init(
   parameter&                                 param,
   const abstract_wsum<QssLevel, PortNumber>& dyn) noexcept
@@ -280,7 +280,7 @@ static void parameter_init(
     param.reals[7] = dyn.input_coeffs[3];
 }
 
-template<int QssLevel>
+template<size_t QssLevel>
 static void model_init(const parameter&          param,
                        abstract_cross<QssLevel>& dyn) noexcept
 {
@@ -288,7 +288,7 @@ static void model_init(const parameter&          param,
     dyn.detect_up = param.integers[0] ? true : false;
 }
 
-template<int QssLevel>
+template<size_t QssLevel>
 static void parameter_init(parameter&                      param,
                            const abstract_cross<QssLevel>& dyn) noexcept
 {
@@ -296,7 +296,7 @@ static void parameter_init(parameter&                      param,
     param.integers[0] = dyn.detect_up;
 }
 
-template<int QssLevel>
+template<size_t QssLevel>
 static void model_init(const parameter&           param,
                        abstract_filter<QssLevel>& dyn) noexcept
 {
@@ -304,7 +304,7 @@ static void model_init(const parameter&           param,
     dyn.upper_threshold = param.reals[1];
 }
 
-template<int QssLevel>
+template<size_t QssLevel>
 static void parameter_init(parameter&                       param,
                            const abstract_filter<QssLevel>& dyn) noexcept
 {
@@ -312,31 +312,31 @@ static void parameter_init(parameter&                       param,
     param.reals[1] = dyn.upper_threshold;
 }
 
-template<int QssLevel>
+template<size_t QssLevel>
 static void model_init(const parameter&          param,
                        abstract_power<QssLevel>& dyn) noexcept
 {
     dyn.n = param.reals[0];
 }
 
-template<int QssLevel>
+template<size_t QssLevel>
 static void parameter_init(parameter&                      param,
                            const abstract_power<QssLevel>& dyn) noexcept
 {
     param.reals[0] = dyn.n;
 }
 
-template<int QssLevel>
+template<size_t QssLevel>
 static void model_init(const parameter& /*param*/,
                        abstract_square<QssLevel>& /*dyn*/) noexcept
 {}
 
-template<int QssLevel>
+template<size_t QssLevel>
 static void parameter_init(parameter& /*param*/,
                            const abstract_square<QssLevel>& /*dyn*/) noexcept
 {}
 
-template<typename AbstractLogicalTester, int PortNumber>
+template<typename AbstractLogicalTester, std::size_t PortNumber>
 static void model_init(
   const parameter&                                     param,
   abstract_logical<AbstractLogicalTester, PortNumber>& dyn) noexcept
@@ -348,7 +348,7 @@ static void model_init(
         dyn.values[2] = param.integers[2];
 }
 
-template<typename AbstractLogicalTester, int PortNumber>
+template<typename AbstractLogicalTester, std::size_t PortNumber>
 static void parameter_init(
   parameter&                                                 param,
   const abstract_logical<AbstractLogicalTester, PortNumber>& dyn) noexcept

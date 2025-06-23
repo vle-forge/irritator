@@ -1354,7 +1354,7 @@ inline status send_message(simulation&    sim,
  *
  ****************************************************************************/
 
-template<int QssLevel>
+template<std::size_t QssLevel>
 struct abstract_integrator;
 
 template<>
@@ -1968,7 +1968,7 @@ using qss1_integrator = abstract_integrator<1>;
 using qss2_integrator = abstract_integrator<2>;
 using qss3_integrator = abstract_integrator<3>;
 
-template<int QssLevel>
+template<std::size_t QssLevel>
 struct abstract_power {
     static_assert(1 <= QssLevel && QssLevel <= 3, "Only for Qss1, 2 and 3");
 
@@ -2080,7 +2080,7 @@ using qss1_power = abstract_power<1>;
 using qss2_power = abstract_power<2>;
 using qss3_power = abstract_power<3>;
 
-template<int QssLevel>
+template<std::size_t QssLevel>
 struct abstract_square {
     static_assert(1 <= QssLevel && QssLevel <= 3, "Only for Qss1, 2 and 3");
 
@@ -2180,7 +2180,7 @@ using qss1_square = abstract_square<1>;
 using qss2_square = abstract_square<2>;
 using qss3_square = abstract_square<3>;
 
-template<int QssLevel, int PortNumber>
+template<std::size_t QssLevel, std::size_t PortNumber>
 struct abstract_sum {
     static_assert(1 <= QssLevel && QssLevel <= 3, "Only for Qss1, 2 and 3");
     static_assert(PortNumber > 1, "sum model need at least two input port");
@@ -2215,7 +2215,7 @@ struct abstract_sum {
     {
         if constexpr (QssLevel == 1) {
             real value = 0.;
-            for (int i = 0; i != PortNumber; ++i)
+            for (size_t i = 0; i != PortNumber; ++i)
                 value += values[i];
 
             return send_message(sim, y[0], value);
@@ -2225,7 +2225,7 @@ struct abstract_sum {
             real value = 0.;
             real slope = 0.;
 
-            for (int i = 0; i != PortNumber; ++i) {
+            for (size_t i = 0; i != PortNumber; ++i) {
                 value += values[i];
                 slope += values[i + PortNumber];
             }
@@ -2355,7 +2355,7 @@ using qss3_sum_2 = abstract_sum<3, 2>;
 using qss3_sum_3 = abstract_sum<3, 3>;
 using qss3_sum_4 = abstract_sum<3, 4>;
 
-template<int QssLevel, int PortNumber>
+template<std::size_t QssLevel, std::size_t PortNumber>
 struct abstract_wsum {
     static_assert(1 <= QssLevel && QssLevel <= 3, "Only for Qss1, 2 and 3");
     static_assert(PortNumber > 1, "sum model need at least two input port");
@@ -2396,7 +2396,7 @@ struct abstract_wsum {
         if constexpr (QssLevel == 1) {
             real value = zero;
 
-            for (int i = 0; i != PortNumber; ++i)
+            for (size_t i = 0; i != PortNumber; ++i)
                 value += input_coeffs[i] * values[i];
 
             return send_message(sim, y[0], value);
@@ -2406,7 +2406,7 @@ struct abstract_wsum {
             real value = zero;
             real slope = zero;
 
-            for (int i = 0; i != PortNumber; ++i) {
+            for (size_t i = 0; i != PortNumber; ++i) {
                 value += input_coeffs[i] * values[i];
                 slope += input_coeffs[i] * values[i + PortNumber];
             }
@@ -2419,7 +2419,7 @@ struct abstract_wsum {
             real slope      = zero;
             real derivative = zero;
 
-            for (int i = 0; i != PortNumber; ++i) {
+            for (size_t i = 0; i != PortNumber; ++i) {
                 value += input_coeffs[i] * values[i];
                 slope += input_coeffs[i] * values[i + PortNumber];
                 derivative +=
@@ -2499,7 +2499,7 @@ struct abstract_wsum {
         if constexpr (QssLevel == 1) {
             real value = zero;
 
-            for (int i = 0; i != PortNumber; ++i)
+            for (size_t i = 0; i != PortNumber; ++i)
                 value += input_coeffs[i] * values[i];
 
             return { t, value };
@@ -2509,7 +2509,7 @@ struct abstract_wsum {
             real value = zero;
             real slope = zero;
 
-            for (int i = 0; i != PortNumber; ++i) {
+            for (size_t i = 0; i != PortNumber; ++i) {
                 value += input_coeffs[i] * values[i];
                 slope += input_coeffs[i] * values[i + PortNumber];
             }
@@ -2522,7 +2522,7 @@ struct abstract_wsum {
             real slope      = zero;
             real derivative = zero;
 
-            for (int i = 0; i != PortNumber; ++i) {
+            for (size_t i = 0; i != PortNumber; ++i) {
                 value += input_coeffs[i] * values[i];
                 slope += input_coeffs[i] * values[i + PortNumber];
                 derivative +=
@@ -2544,7 +2544,7 @@ using qss3_wsum_2 = abstract_wsum<3, 2>;
 using qss3_wsum_3 = abstract_wsum<3, 3>;
 using qss3_wsum_4 = abstract_wsum<3, 4>;
 
-template<int QssLevel>
+template<std::size_t QssLevel>
 struct abstract_multiplier {
     static_assert(1 <= QssLevel && QssLevel <= 3, "Only for Qss1, 2 and 3");
 
@@ -3036,7 +3036,7 @@ inline time compute_wake_up(real threshold,
     return ret;
 }
 
-template<int QssLevel>
+template<std::size_t QssLevel>
 struct abstract_filter {
     message_id    x[1] = {};
     block_node_id y[3] = {};
@@ -3258,7 +3258,7 @@ struct abstract_or_check {
     }
 };
 
-template<typename AbstractLogicalTester, int PortNumber>
+template<typename AbstractLogicalTester, std::size_t PortNumber>
 struct abstract_logical {
     message_id    x[PortNumber];
     block_node_id y[1];
@@ -3294,7 +3294,7 @@ struct abstract_logical {
     {
         const bool old_is_value = is_valid;
 
-        for (int i = 0; i < PortNumber; ++i) {
+        for (sz i = 0; i < PortNumber; ++i) {
             if (auto* lst = sim.messages.try_to_get(x[i]);
                 lst and not lst->empty()) {
                 if (not is_zero(lst->front()[0])) {
@@ -3810,9 +3810,9 @@ struct hsm_wrapper {
     observation_message observation(time t, time e) const noexcept;
 };
 
-template<int PortNumber>
+template<std::size_t PortNumber>
 struct accumulator {
-    message_id x[2 * PortNumber] = {};
+    message_id x[2u * PortNumber] = {};
     time       sigma;
     real       number;
     real       numbers[PortNumber];
@@ -3841,14 +3841,14 @@ struct accumulator {
                       time /*e*/,
                       time /*r*/) noexcept
     {
-        for (sz i = 0; i != PortNumber; ++i) {
+        for (size_t i = 0; i != PortNumber; ++i) {
             if (auto* lst = sim.messages.try_to_get(x[i + PortNumber]);
                 lst and not lst->empty()) {
                 numbers[i] = lst->front()[0];
             }
         }
 
-        for (sz i = 0; i != PortNumber; ++i) {
+        for (size_t i = 0; i != PortNumber; ++i) {
             if (auto* lst = sim.messages.try_to_get(x[i]);
                 lst and not lst->empty()) {
                 if (not is_zero(lst->front()[0]))
@@ -3865,7 +3865,7 @@ struct accumulator {
     }
 };
 
-template<int QssLevel>
+template<std::size_t QssLevel>
 struct abstract_cross {
     static_assert(1 <= QssLevel && QssLevel <= 3, "Only for Qss1, 2 and 3");
 

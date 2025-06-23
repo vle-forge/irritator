@@ -71,7 +71,7 @@ static auto get_input_connection_number(
 //     }
 // }
 
-template<int length>
+template<std::size_t length>
 static bool get_temp_registred_path(irt::small_string<length>& str) noexcept
 {
     std::error_code ec;

@@ -534,7 +534,7 @@ struct json_dearchiver::impl {
         return error("bad internal component type {}", temp_string);
     }
 
-    template<int Length>
+    template<std::size_t Length>
     bool copy_string_to(small_string<Length>& dst) noexcept
     {
         dst.assign(temp_string);
@@ -5187,7 +5187,7 @@ struct json_archiver::impl {
       : self{ self_ }
     {}
 
-    template<typename Writer, int QssLevel>
+    template<typename Writer, std::size_t QssLevel>
     void write(Writer& writer,
                const abstract_integrator<QssLevel>& /*dyn*/,
                const parameter& p) noexcept
@@ -5200,7 +5200,7 @@ struct json_archiver::impl {
         writer.EndObject();
     }
 
-    template<typename Writer, int QssLevel>
+    template<typename Writer, std::size_t QssLevel>
     void write(Writer& writer,
                const abstract_multiplier<QssLevel>& /*dyn*/,
                const parameter& /*p*/) noexcept
@@ -5837,7 +5837,7 @@ struct json_archiver::impl {
         writer.EndObject();
     }
 
-    template<typename Writer, int QssLevel>
+    template<typename Writer, std::size_t QssLevel>
     void write(Writer& writer,
                const abstract_square<QssLevel>& /*dyn*/,
                const parameter& /*p*/) noexcept
@@ -5846,7 +5846,7 @@ struct json_archiver::impl {
         writer.EndObject();
     }
 
-    template<typename Writer, int PortNumber>
+    template<typename Writer, std::size_t PortNumber>
     void write(Writer& writer,
                const accumulator<PortNumber>& /*dyn*/,
                const parameter& /*p*/) noexcept

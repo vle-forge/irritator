@@ -353,7 +353,7 @@ static void show_dynamics_values(project_editor& sim, constant& dyn)
     }
 }
 
-template<int QssLevel>
+template<std::size_t QssLevel>
 static void show_dynamics_values(project_editor& /*sim*/,
                                  const abstract_cross<QssLevel>& dyn)
 {
@@ -368,7 +368,7 @@ static void show_dynamics_values(project_editor& /*sim*/,
         ImGui::TextFormat("down detection");
 }
 
-template<int QssLevel>
+template<std::size_t QssLevel>
 static void show_dynamics_values(project_editor& /*sim*/,
                                  const abstract_filter<QssLevel>& dyn)
 {
