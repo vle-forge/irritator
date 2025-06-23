@@ -35,7 +35,8 @@ static bool can_delete_component(application& app, component_id id) noexcept
     return false;
 }
 
-static void show_component_popup_menu(application& app, component& sel) noexcept
+static void show_component_popup_menu(application&     app,
+                                      const component& sel) noexcept
 {
     if (ImGui::BeginPopupContextItem()) {
         if (ImGui::MenuItem("New generic component"))
@@ -196,79 +197,75 @@ static void show_component_popup_menu(application& app, component& sel) noexcept
     }
 }
 
-static void show_file_component(application& app,
-                                file_path&   file,
-                                component&   c) noexcept
+static void show_file_component(application&     app,
+                                const file_path& file,
+                                const component& c) noexcept
 {
-    if (std::unique_lock lock(file.mutex, std::try_to_lock); lock.owns_lock()) {
-        const auto id       = app.mod.components.get_id(c);
-        const bool selected = app.component_ed.is_component_open(id);
-        const auto state    = c.state;
+    const auto id       = app.mod.components.get_id(c);
+    const bool selected = app.component_ed.is_component_open(id);
+    const auto state    = c.state;
 
-        small_string<254> buffer;
+    small_string<254> buffer;
 
-        ImGui::PushID(&c);
+    ImGui::PushID(&c);
 
-        const auto col = get_component_color(app, id);
-        auto       im  = std::array<float, 4>{ col[0], col[1], col[2], col[3] };
+    const auto col = get_component_color(app, id);
+    auto       im  = std::array<float, 4>{ col[0], col[1], col[2], col[3] };
 
-        if (ImGui::ColorEdit4("Color selection",
-                              im.data(),
-                              ImGuiColorEditFlags_NoInputs |
-                                ImGuiColorEditFlags_NoLabel)) {
-            if (app.mod.components.exists(id)) {
-                auto& data = app.mod.components.get<component_color>(id);
-                data       = im;
-            }
+    if (ImGui::ColorEdit4("Color selection",
+                          im.data(),
+                          ImGuiColorEditFlags_NoInputs |
+                            ImGuiColorEditFlags_NoLabel)) {
+        if (app.mod.components.exists(id)) {
+            auto& data = app.mod.components.get<component_color>(id);
+            data       = im;
         }
-
-        format(buffer, "{} ({})", c.name.sv(), file.path.sv());
-        ImGui::SameLine(75.f);
-        if (state == component_status::unreadable) {
-            ImGui::TextDisabled("%s", buffer.c_str());
-        } else {
-            if (ImGui::Selectable(buffer.c_str(),
-                                  selected,
-                                  ImGuiSelectableFlags_AllowDoubleClick)) {
-                if (ImGui::IsMouseDoubleClicked(0))
-                    app.library_wnd.try_set_component_as_project(app, id);
-                else
-                    app.component_ed.request_to_open(id);
-            }
-            show_component_popup_menu(app, c);
-        }
-        ImGui::PopID();
-
-        ImGui::PushStyleColor(ImGuiCol_Text,
-                              ImGui::GetStyle().Colors[ImGuiCol_TextDisabled]);
-
-        switch (state) {
-        case component_status::unread:
-            ImGui::SameLine();
-            ImGui::TextUnformatted(" (unread)");
-            break;
-        case component_status::read_only:
-            ImGui::SameLine();
-            ImGui::TextUnformatted(" (read-only)");
-            break;
-        case component_status::modified:
-            ImGui::SameLine();
-            ImGui::TextUnformatted(" (not-saved)");
-            break;
-        case component_status::unmodified:
-            ImGui::SameLine();
-            ImGui::TextUnformatted(" (modified)");
-            break;
-        case component_status::unreadable:
-            ImGui::SameLine();
-            ImGui::TextUnformatted(" (unreadable)");
-            break;
-        }
-
-        ImGui::PopStyleColor();
-    } else {
-        ImGui::TextDisabled("file is being updated");
     }
+
+    format(buffer, "{} ({})", c.name.sv(), file.path.sv());
+    ImGui::SameLine(75.f);
+    if (state == component_status::unreadable) {
+        ImGui::TextDisabled("%s", buffer.c_str());
+    } else {
+        if (ImGui::Selectable(buffer.c_str(),
+                              selected,
+                              ImGuiSelectableFlags_AllowDoubleClick)) {
+            if (ImGui::IsMouseDoubleClicked(0))
+                app.library_wnd.try_set_component_as_project(app, id);
+            else
+                app.component_ed.request_to_open(id);
+        }
+        show_component_popup_menu(app, c);
+    }
+    ImGui::PopID();
+
+    ImGui::PushStyleColor(ImGuiCol_Text,
+                          ImGui::GetStyle().Colors[ImGuiCol_TextDisabled]);
+
+    switch (state) {
+    case component_status::unread:
+        ImGui::SameLine();
+        ImGui::TextUnformatted(" (unread)");
+        break;
+    case component_status::read_only:
+        ImGui::SameLine();
+        ImGui::TextUnformatted(" (read-only)");
+        break;
+    case component_status::modified:
+        ImGui::SameLine();
+        ImGui::TextUnformatted(" (not-saved)");
+        break;
+    case component_status::unmodified:
+        ImGui::SameLine();
+        ImGui::TextUnformatted(" (modified)");
+        break;
+    case component_status::unreadable:
+        ImGui::SameLine();
+        ImGui::TextUnformatted(" (unreadable)");
+        break;
+    }
+
+    ImGui::PopStyleColor();
 }
 
 static void show_internal_components(component_editor& ed) noexcept
@@ -330,12 +327,9 @@ static void show_notsaved_components(irt::component_editor& ed) noexcept
     }
 }
 
-static void show_dirpath_component(irt::component_editor& ed,
-                                   dir_path&              dir) noexcept
+static void show_dirpath_component(application& app, dir_path& dir) noexcept
 {
     if (std::unique_lock lock(dir.mutex, std::try_to_lock); lock.owns_lock()) {
-        auto& app = container_of(&ed, &application::component_ed);
-
         if (ImGui::TreeNodeEx(&dir,
                               ImGuiTreeNodeFlags_DefaultOpen,
                               "%.*s",
@@ -345,7 +339,11 @@ static void show_dirpath_component(irt::component_editor& ed,
               app.mod,
               dir,
               [&](auto& /*dir*/, auto& file, auto& compo) noexcept {
-                  show_file_component(app, file, compo);
+                  if (std::unique_lock lock(file.mutex, std::try_to_lock);
+                      lock.owns_lock())
+                      show_file_component(app, file, compo);
+                  else
+                      ImGui::TextDisabled("file is being updated");
               });
 
             ImGui::TreePop();
@@ -355,13 +353,14 @@ static void show_dirpath_component(irt::component_editor& ed,
     }
 }
 
-static void show_repertories_components(irt::application& app) noexcept
+static void show_repertories_components(application&    app,
+                                        const modeling& mod) noexcept
 {
-    for (auto id : app.mod.component_repertories) {
+    for (auto id : mod.component_repertories) {
         small_string<31>  s;
         small_string<31>* select;
 
-        auto* reg_dir = app.mod.registred_paths.try_to_get(id);
+        auto* reg_dir = mod.registred_paths.try_to_get(id);
         if (!reg_dir || reg_dir->status == registred_path::state::error)
             continue;
 
@@ -378,10 +377,10 @@ static void show_repertories_components(irt::application& app) noexcept
             int i = 0;
             while (i != reg_dir->children.ssize()) {
                 auto  dir_id = reg_dir->children[i];
-                auto* dir    = app.mod.dir_paths.try_to_get(dir_id);
+                auto* dir    = mod.dir_paths.try_to_get(dir_id);
 
                 if (dir) {
-                    show_dirpath_component(app.component_ed, *dir);
+                    show_dirpath_component(app, *dir);
                     ++i;
                 } else {
                     reg_dir->children.swap_pop_back(i);
@@ -399,15 +398,15 @@ static void show_component_library(application& app) noexcept
                               ImGui::GetContentRegionAvail())) {
         ImGui::EndChild();
     } else {
-        show_repertories_components(app);
-
-        if (ImGui::TreeNodeEx("Internal")) {
-            show_internal_components(app.component_ed);
-            ImGui::TreePop();
-        }
+        show_repertories_components(app, app.mod);
 
         if (ImGui::TreeNodeEx("Not saved", ImGuiTreeNodeFlags_DefaultOpen)) {
             show_notsaved_components(app.component_ed);
+            ImGui::TreePop();
+        }
+
+        if (ImGui::TreeNodeEx("Internal")) {
+            show_internal_components(app.component_ed);
             ImGui::TreePop();
         }
 
