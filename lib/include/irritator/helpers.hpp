@@ -341,7 +341,7 @@ inline bool is_valid_dot_filename(const std::string_view v) noexcept
            v.ends_with(".dot");
 }
 
-template<int Size>
+template<std::size_t Size>
 inline void add_extension(small_string<Size>&    str,
                           const std::string_view extension) noexcept
 {
