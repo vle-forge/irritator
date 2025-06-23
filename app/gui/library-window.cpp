@@ -336,7 +336,11 @@ static void show_dirpath_component(irt::component_editor& ed,
     if (std::unique_lock lock(dir.mutex, std::try_to_lock); lock.owns_lock()) {
         auto& app = container_of(&ed, &application::component_ed);
 
-        if (ImGui::TreeNodeEx(dir.path.c_str())) {
+        if (ImGui::TreeNodeEx(&dir,
+                              ImGuiTreeNodeFlags_DefaultOpen,
+                              "%.*s",
+                              dir.path.ssize(),
+                              dir.path.data())) {
             for_each_component(
               app.mod,
               dir,
