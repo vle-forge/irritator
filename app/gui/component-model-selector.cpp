@@ -112,27 +112,26 @@ void component_model_selector::observable_model_treenode(const project& pj,
     auto& app = container_of(this, &application::component_model_sel);
 
     if (auto* compo = app.mod.components.try_to_get<component>(tn.id)) {
-        small_string<64> str;
-
-        switch (compo->type) {
-        case component_type::generic:
-            format(str, "{} generic", compo->name.sv());
-            break;
-        case component_type::grid:
-            format(str, "{} grid", compo->name.sv());
-            break;
-        case component_type::graph:
-            format(str, "{} graph", compo->name.sv());
-            break;
-        default:
-            format(str, "{} unknown", compo->name.sv());
-            break;
-        }
+        const auto* fmt = [](const auto type) noexcept -> const char* {
+            switch (type) {
+            case component_type::generic:
+                return "%.*s (generic)";
+            case component_type::grid:
+                return "%.*s (grid)";
+            case component_type::graph:
+                return "%.*s (graph)";
+            default:
+                return "%.*s (unknown)";
+            }
+        }(compo->type);
 
         if (compo->type == component_type::generic) {
             ImGui::PushID(&tn);
-            if (ImGui::TreeNodeEx(str.c_str(),
-                                  ImGuiTreeNodeFlags_DefaultOpen)) {
+            if (ImGui::TreeNodeEx(&tn,
+                                  ImGuiTreeNodeFlags_DefaultOpen,
+                                  fmt,
+                                  compo->name.size(),
+                                  compo->name.data())) {
                 for_each_model(
                   pj.sim,
                   tn,
@@ -142,9 +141,8 @@ void component_model_selector::observable_model_treenode(const project& pj,
                       ImGui::PushID(get_index(current_mdl_id));
 
                       const auto current_tn_id = pj.node(tn);
-                      str = dynamics_type_names[ordinal(mdl.type)];
                       if (ImGui::Selectable(
-                            str.c_str(),
+                            dynamics_type_names[ordinal(mdl.type)],
                             tn_id == current_tn_id && mdl_id == current_mdl_id,
                             ImGuiSelectableFlags_DontClosePopups)) {
                           tn_id  = current_tn_id;
