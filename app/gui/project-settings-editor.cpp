@@ -37,8 +37,11 @@ static tree_node_id show_tree_node_children(application& app,
     auto       next_selection = id;
     auto       copy_selected  = is_selected;
 
+    small_string<127> str;
+    format(str, "{} ({})", compo.name.sv(), parent.unique_id.sv());
+
     auto is_open = ImGui::TreeNodeExSelectableWithHint(
-      compo.name.c_str(),
+      str.c_str(),
       component_type_names[ordinal(compo.type)],
       &is_selected,
       ImGuiTreeNodeFlags_OpenOnArrow | ImGuiTreeNodeFlags_SpanAvailWidth);
@@ -72,7 +75,10 @@ static tree_node_id show_tree_node_no_children(application& /*app*/,
     auto       next_selection = id;
     auto       is_selected    = parent_id == id;
 
-    if (ImGui::SelectableWithHint(compo.name.c_str(),
+    small_string<127> str;
+    format(str, "{} ({})", compo.name.sv(), parent.unique_id.sv());
+
+    if (ImGui::SelectableWithHint(str.c_str(),
                                   component_type_names[ordinal(compo.type)],
                                   &is_selected)) {
         if (is_selected)
@@ -95,21 +101,21 @@ static tree_node_id show_project_hierarchy(application& app,
         ImGui::PushID(&parent);
 
         const auto have_children = parent.tree.get_child() != nullptr;
-        const auto selection =
+        const auto child_selection =
           have_children
             ? show_tree_node_children(app, pj, parent, *compo, id)
             : show_tree_node_no_children(app, pj, parent, *compo, id);
 
-        if (selection != id)
-            ret = selection;
+        if (child_selection != id)
+            ret = child_selection;
 
         ImGui::PopID();
 
         if (auto* sibling = parent.tree.get_sibling(); sibling) {
-            const auto selection =
+            const auto sibling_selection =
               show_project_hierarchy(app, pj, *sibling, id);
-            if (id != selection)
-                ret = selection;
+            if (id != sibling_selection)
+                ret = sibling_selection;
         }
     }
 
