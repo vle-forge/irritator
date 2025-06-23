@@ -245,6 +245,16 @@ struct time_domain<time> {
     }
 };
 
+constexpr bool is_infinity(const std::floating_point auto x) noexcept
+{
+    return std::fpclassify(x) == FP_INFINITE;
+}
+
+constexpr bool is_zero(const std::floating_point auto x) noexcept
+{
+    return std::fpclassify(x) == FP_ZERO;
+}
+
 /*****************************************************************************
  *
  * Containers
@@ -1393,8 +1403,8 @@ struct abstract_integrator<1> {
         X += e * u;
         u = msg[0];
 
-        if (sigma != zero) {
-            if (u == zero)
+        if (not is_zero(sigma)) {
+            if (is_zero(u))
                 sigma = time_domain<time>::infinity;
             else if (u > zero)
                 sigma = (q + dQ - X) / u;
@@ -1418,7 +1428,7 @@ struct abstract_integrator<1> {
         X += sigma * u;
         q = X;
 
-        sigma = u == zero ? time_domain<time>::infinity : dQ / std::abs(u);
+        sigma = is_zero(u) ? time_domain<time>::infinity : dQ / std::abs(u);
 
         return success();
     }
@@ -1518,7 +1528,7 @@ struct abstract_integrator<2> {
         u  = value_x;
         mu = value_slope;
 
-        if (sigma != zero) {
+        if (not is_zero(sigma)) {
             q += mq * e;
             const real a = mu / two;
             const real b = u - mq;
@@ -1526,8 +1536,8 @@ struct abstract_integrator<2> {
             real       s;
             sigma = time_domain<time>::infinity;
 
-            if (a == zero) {
-                if (b != zero) {
+            if (is_zero(a)) {
+                if (not is_zero(b)) {
                     s = -c / b;
                     if (s > zero)
                         sigma = s;
@@ -1570,8 +1580,8 @@ struct abstract_integrator<2> {
         u += mu * sigma;
         mq = u;
 
-        sigma = mu == zero ? time_domain<time>::infinity
-                           : std::sqrt(two * dQ / std::abs(mu));
+        sigma = is_zero(mu) ? time_domain<time>::infinity
+                            : std::sqrt(two * dQ / std::abs(mu));
 
         return success();
     }
@@ -1683,7 +1693,7 @@ struct abstract_integrator<3> {
         mu = value_slope;
         pu = value_derivative;
 
-        if (sigma != zero) {
+        if (not is_zero(sigma)) {
             q      = q + mq * e + pq * e * e;
             mq     = mq + two * pq * e;
             auto a = mu / two - pq;
@@ -1691,7 +1701,7 @@ struct abstract_integrator<3> {
             auto c = X - q - dQ;
             auto s = zero;
 
-            if (pu != zero) {
+            if (not is_zero(pu)) {
                 a       = three * a / pu;
                 b       = three * b / pu;
                 c       = three * c / pu;
@@ -1717,7 +1727,7 @@ struct abstract_integrator<3> {
                     s = A + B - a / three;
                     if (s < zero)
                         s = time_domain<time>::infinity;
-                } else if (i2 == zero) {
+                } else if (is_zero(i2)) {
                     auto A = i1;
                     if (A > zero)
                         A = std::pow(A, one / three);
@@ -1776,7 +1786,7 @@ struct abstract_integrator<3> {
                     if (s < sigma || sigma < zero) {
                         sigma = s;
                     }
-                } else if (i2 == zero) {
+                } else if (is_zero(i2)) {
                     auto A = i1;
                     if (A > zero)
                         A = std::pow(A, one / three);
@@ -1821,7 +1831,7 @@ struct abstract_integrator<3> {
                     }
                 }
             } else {
-                if (a != zero) {
+                if (not is_zero(a)) {
                     auto x1 = b * b - four * a * c;
                     if (x1 < zero) {
                         s = time_domain<time>::infinity;
@@ -1868,7 +1878,7 @@ struct abstract_integrator<3> {
                     if (s < sigma)
                         sigma = s;
                 } else {
-                    if (b != zero) {
+                    if (not is_zero(b)) {
                         auto x1 = -c / b;
                         auto x2 = x1 - two * dQ / b;
                         if (x1 < zero)
@@ -1901,8 +1911,8 @@ struct abstract_integrator<3> {
         mu = mu + two * pu * sigma;
         pq = mu / two;
 
-        sigma = pu == zero ? time_domain<time>::infinity
-                           : std::pow(std::abs(three * dQ / pu), one / three);
+        sigma = is_zero(pu) ? time_domain<time>::infinity
+                            : std::pow(std::abs(three * dQ / pu), one / three);
 
         return success();
     }
@@ -3008,7 +3018,7 @@ inline time compute_wake_up(real threshold,
                     if (x2 > 0)
                         ret = x2;
                 }
-            } else if (d == zero) {
+            } else if (is_zero(d)) {
                 const auto x = -b / (two * a);
                 if (x > zero)
                     ret = x;
@@ -3287,7 +3297,7 @@ struct abstract_logical {
         for (int i = 0; i < PortNumber; ++i) {
             if (auto* lst = sim.messages.try_to_get(x[i]);
                 lst and not lst->empty()) {
-                if (lst->front()[0] != zero) {
+                if (not is_zero(lst->front()[0])) {
                     if (values[i] == false) {
                         values[i] = true;
                     }
@@ -3358,7 +3368,7 @@ struct logical_invert {
         if (lst and not lst->empty()) {
             const auto& msg = lst->front();
 
-            if ((msg[0] != zero && !value) || (msg[0] == zero && value))
+            if ((not is_zero(msg[0]) && !value) || (is_zero(msg[0]) && value))
                 value_changed = true;
         }
 
@@ -3841,7 +3851,7 @@ struct accumulator {
         for (sz i = 0; i != PortNumber; ++i) {
             if (auto* lst = sim.messages.try_to_get(x[i]);
                 lst and not lst->empty()) {
-                if (lst->front()[0] != zero)
+                if (not is_zero(lst->front()[0]))
                     number += numbers[i];
             }
         }
