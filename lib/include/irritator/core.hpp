@@ -4069,13 +4069,7 @@ using qss3_cross = abstract_cross<3>;
 inline real sin_time_function(real t) noexcept
 {
     constexpr real f0 = to_real(0.1L);
-
-#if irt_have_numbers == 1
-    constexpr real pi = std::numbers::pi_v<real>;
-#else
-    // std::acos(-1) is not a constexpr in MVSC 2019
     constexpr real pi = 3.141592653589793238462643383279502884;
-#endif
 
     constexpr const real mult = two * pi * f0;
 
