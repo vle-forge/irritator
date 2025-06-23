@@ -236,10 +236,13 @@ struct time_domain<time> {
 
     static constexpr bool is_infinity(time t) noexcept
     {
-        return t == infinity || t == negative_infinity;
+        return std::fpclassify(t) == FP_INFINITE;
     }
 
-    static constexpr bool is_zero(time t) noexcept { return t == zero; }
+    static constexpr bool is_zero(time t) noexcept
+    {
+        return std::fpclassify(t) == FP_ZERO;
+    }
 };
 
 /*****************************************************************************
