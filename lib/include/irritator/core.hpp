@@ -261,8 +261,21 @@ inline bool is_zero(const std::floating_point auto x) noexcept
  *
  ****************************************************************************/
 
-using message             = std::array<real, 3>;
-using dated_message       = std::array<real, 4>;
+/// @brief A message is a simple array of 3 real numbers.
+/// A three real value to store in the worst case a piiecewise parabolic input
+/// trajectory of the quantized integrator.
+using message = std::array<real, 3>;
+
+/// @brief A dated-message is a simple array of 4 real numbers.
+/// A first real to store a date (wakeup date in queue) and a three real value
+/// to store in the worst case a piiecewise parabolic input trajectory of the
+/// quantized integrator.
+using dated_message = std::array<real, 4>;
+
+/// @brief A observation-message is a simple array of 5 real numbers.
+/// The first three real value to store in the worst case a piiecewise parabolic
+/// input trajectory of the quantized integrator, the 4th stores the current
+/// date and the 5th stores the elapsed time since last transition.
 using observation_message = std::array<real, 5>;
 
 struct parameter;
