@@ -621,7 +621,6 @@ private:
     bool show_internal_values  = false;
     bool show_parameter_values = false;
     bool show_minimap          = true;
-    bool can_edit              = false;
     bool can_edit_parameters   = true;
 
     bool enable_show =

@@ -38,10 +38,6 @@ inline static std::FILE* to_handle(void* f) noexcept
     return reinterpret_cast<std::FILE*>(f);
 }
 
-inline static void* to_void(std::FILE* f) noexcept
-{
-    return reinterpret_cast<void*>(f);
-}
 expected<buffered_file> open_buffered_file(
   const std::filesystem::path&       path,
   const bitflags<buffered_file_mode> mode) noexcept

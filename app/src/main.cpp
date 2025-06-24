@@ -19,8 +19,6 @@
 
 #include <cstdio>
 
-constexpr irt::sz default_memory_size = 1024u * 1024u * 8u;
-
 static void show_help() noexcept
 {
     std::puts(R"(
