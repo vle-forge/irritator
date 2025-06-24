@@ -21,6 +21,8 @@ struct only_copy_ctor {
     only_copy_ctor& operator=(const only_copy_ctor&) noexcept = delete;
     only_copy_ctor& operator=(only_copy_ctor&&) noexcept      = delete;
 
+    auto get_a() const noexcept -> int { return a; }
+
 private:
     int a;
 };
@@ -34,6 +36,8 @@ struct only_move_ctor {
     only_move_ctor(const only_move_ctor&) noexcept            = delete;
     only_move_ctor& operator=(const only_move_ctor&) noexcept = delete;
     only_move_ctor& operator=(only_move_ctor&&) noexcept      = delete;
+
+    auto get_a() const noexcept -> int { return a; }
 
 private:
     int a;
