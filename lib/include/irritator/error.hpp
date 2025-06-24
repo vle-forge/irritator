@@ -940,7 +940,8 @@ constexpr inline status success() noexcept
 }
 
 template<typename T, typename T2>
-constexpr bool operator==(const expected<T>& lhs, const expected<T2>& rhs)
+constexpr bool operator==(const expected<T>&  lhs,
+                          const expected<T2>& rhs) noexcept
 {
     if (lhs.has_value() != rhs.has_value())
         return false;
@@ -954,7 +955,7 @@ constexpr bool operator==(const expected<T>& lhs, const expected<T2>& rhs)
 }
 
 template<typename T, typename T2>
-constexpr bool operator==(const expected<T>& lhs, const T2& rhs)
+constexpr bool operator==(const expected<T>& lhs, const T2& rhs) noexcept
 {
     if (not lhs.has_value())
         return false;
@@ -966,7 +967,8 @@ constexpr bool operator==(const expected<T>& lhs, const T2& rhs)
 }
 
 template<typename T>
-constexpr bool operator==(const expected<T>& lhs, const error_code& rhs)
+constexpr bool operator==(const expected<T>& lhs,
+                          const error_code&  rhs) noexcept
 {
     if (lhs.has_value())
         return false;
@@ -974,36 +976,38 @@ constexpr bool operator==(const expected<T>& lhs, const error_code& rhs)
     return lhs.error() == rhs;
 }
 
-constexpr bool operator==(const error_code& lhs, const error_code& rhs)
+constexpr bool operator==(const error_code& lhs, const error_code& rhs) noexcept
 {
     return lhs.value() == rhs.value() and lhs.cat() == rhs.cat();
 }
 
 template<typename T, typename T2>
-constexpr bool operator!=(const expected<T>& lhs, const expected<T2>& rhs)
+constexpr bool operator!=(const expected<T>&  lhs,
+                          const expected<T2>& rhs) noexcept
 {
     return !(lhs == rhs);
 }
 
 template<typename T, typename T2>
-constexpr bool operator!=(const expected<T>& lhs, const T2& rhs)
+constexpr bool operator!=(const expected<T>& lhs, const T2& rhs) noexcept
 {
     return !(lhs == rhs);
 }
 
 template<typename T>
-constexpr bool operator!=(const expected<T>& lhs, const error_code& rhs)
+constexpr bool operator!=(const expected<T>& lhs,
+                          const error_code&  rhs) noexcept
 {
     return !(lhs == rhs);
 }
 
-constexpr bool operator!=(const error_code& lhs, const error_code& rhs)
+constexpr bool operator!=(const error_code& lhs, const error_code& rhs) noexcept
 {
     return !(lhs == rhs);
 }
 
 template<typename T>
-constexpr void swap(expected<T>& lhs, expected<T>& rhs)
+constexpr void swap(expected<T>& lhs, expected<T>& rhs) noexcept
 {
     lhs.swap(rhs);
 }
