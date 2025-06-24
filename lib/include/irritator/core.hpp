@@ -6160,20 +6160,20 @@ inline status simulation::connect(block_node_id& port,
         return success();
     } else {
         block_node* prev = nullptr;
-        for (auto* block = nodes.try_to_get(port); block;
-             block       = nodes.try_to_get(block->next)) {
+        for (auto* current = block; current;
+             current       = nodes.try_to_get(current->next)) {
 
-            if (block->nodes.can_alloc(1)) {
-                block->nodes.emplace_back(dst, port_dst);
+            if (current->nodes.can_alloc(1)) {
+                current->nodes.emplace_back(dst, port_dst);
                 return success();
             }
 
-            prev = block;
+            prev = current;
         }
 
         debug::ensure(prev != nullptr);
 
-        if (not nodes.can_alloc(1))
+        if (not nodes.can_alloc(1) and not nodes.grow<2, 1>())
             return new_error(simulation_errc::connection_container_full);
 
         auto& new_block = nodes.alloc();
