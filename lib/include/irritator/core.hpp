@@ -632,6 +632,7 @@ enum class dynamics_type : i32 {
     qss1_wsum_2,
     qss1_wsum_3,
     qss1_wsum_4,
+    qss1_integer,
     qss2_integrator,
     qss2_multiplier,
     qss2_cross,
@@ -644,6 +645,7 @@ enum class dynamics_type : i32 {
     qss2_wsum_2,
     qss2_wsum_3,
     qss2_wsum_4,
+    qss2_integer,
     qss3_integrator,
     qss3_multiplier,
     qss3_cross,
@@ -656,6 +658,7 @@ enum class dynamics_type : i32 {
     qss3_wsum_2,
     qss3_wsum_3,
     qss3_wsum_4,
+    qss3_integer,
     counter,
     queue,
     dynamic_queue,
@@ -684,6 +687,7 @@ struct qss_sum_4_tag {};
 struct qss_wsum_2_tag {};
 struct qss_wsum_3_tag {};
 struct qss_wsum_4_tag {};
+struct qss_integer_tag {};
 struct counter_tag {};
 struct queue_tag {};
 struct dynamic_queue_tag {};
@@ -1364,6 +1368,67 @@ constexpr observation_message qss_observation(real X,
              X + u * e + (mu * e * e) / two + (pu * e * e * e) / three,
              u + mu * e + pu * e * e,
              mu / two + pu * e };
+}
+
+inline time compute_wake_up(real threshold, real value_0, real value_1) noexcept
+{
+    time ret = time_domain<time>::infinity;
+
+    if (value_1 != 0) {
+        const auto a = value_1;
+        const auto b = value_0 - threshold;
+        const auto d = -b * a;
+
+        ret = (d > zero) ? d : time_domain<time>::infinity;
+    }
+
+    return ret;
+}
+
+inline time compute_wake_up(real threshold,
+                            real value_0,
+                            real value_1,
+                            real value_2) noexcept
+{
+    time ret = time_domain<time>::infinity;
+
+    if (value_1 != 0) {
+        if (value_2 != 0) {
+            const auto a = value_2;
+            const auto b = value_1;
+            const auto c = value_0 - threshold;
+            const auto d = b * b - four * a * c;
+
+            if (d > zero) {
+                const auto x1 = (-b + std::sqrt(d)) / (two * a);
+                const auto x2 = (-b - std::sqrt(d)) / (two * a);
+
+                if (x1 > zero) {
+                    if (x2 > zero) {
+                        ret = std::min(x1, x2);
+                    } else {
+                        ret = x1;
+                    }
+                } else {
+                    if (x2 > 0)
+                        ret = x2;
+                }
+            } else if (is_zero(d)) {
+                const auto x = -b / (two * a);
+                if (x > zero)
+                    ret = x;
+            }
+        } else {
+            const auto a = value_1;
+            const auto b = value_0 - threshold;
+            const auto d = -b * a;
+
+            if (d > zero)
+                ret = d;
+        }
+    }
+
+    return ret;
 }
 
 inline status send_message(simulation&    sim,
@@ -2711,6 +2776,138 @@ using qss1_multiplier = abstract_multiplier<1>;
 using qss2_multiplier = abstract_multiplier<2>;
 using qss3_multiplier = abstract_multiplier<3>;
 
+template<typename std::size_t QssLevel>
+struct abstract_integer {
+    static_assert(1 <= QssLevel && QssLevel <= 3, "Only for Qss1, 2 and 3");
+
+    message_id    x[1] = {};
+    block_node_id y[1] = {};
+
+    time                       sigma      = time_domain<time>::infinity;
+    time                       last_reset = time_domain<time>::infinity;
+    real                       upper   = std::numeric_limits<real>::infinity();
+    real                       lower   = -std::numeric_limits<real>::infinity();
+    real                       to_send = zero;
+    std::array<real, QssLevel> value;
+
+    bool reach_upper = false;
+    bool reach_lower = false;
+
+    abstract_integer() noexcept = default;
+
+    abstract_integer(const abstract_integer& other) noexcept
+      : sigma(other.sigma)
+      , last_reset(other.last_reset)
+      , upper(other.upper)
+      , lower(other.lower)
+      , reach_upper(other.reach_upper)
+      , reach_lower(other.reach_lower)
+      , to_send(other.to_send)
+    {
+        std::copy_n(other.value.data(), other.value.size(), value.data());
+    }
+
+    status initialize(simulation& /*sim*/) noexcept
+    {
+        sigma      = time_domain<time>::infinity;
+        last_reset = time_domain<time>::infinity;
+        upper      = std::numeric_limits<real>::infinity();
+        lower      = -std::numeric_limits<real>::infinity();
+        value.fill(zero);
+        reach_upper = false;
+        reach_lower = false;
+        to_send     = zero;
+
+        return success();
+    }
+
+    status transition(simulation& sim, time t, time e, time /*r*/) noexcept
+    {
+        auto* lst = sim.messages.try_to_get(x[0]);
+
+        reach_upper = false;
+        reach_lower = false;
+
+        if (not lst or lst->empty()) {
+            if constexpr (QssLevel == 2)
+                value[0] += value[1] * e;
+            if constexpr (QssLevel == 3) {
+                value[0] += value[1] * e + value[2] * e * e;
+                value[1] += two * value[2] * e;
+            }
+        } else {
+            const auto& msg = lst->front();
+            reach_upper     = msg[0] >= upper;
+            reach_lower     = msg[0] <= lower;
+
+            upper = std::floor(msg[0]);
+            lower = upper - 1.0;
+
+            value[0] = msg[0];
+            if constexpr (QssLevel >= 2)
+                value[1] = msg[1];
+            if constexpr (QssLevel == 3)
+                value[2] = msg[2];
+
+            if (reach_upper or reach_lower) {
+                t       = last_reset;
+                to_send = std::floor(msg[0]);
+                sigma   = time_domain<time>::zero;
+                return success();
+            }
+        }
+
+        if (t != last_reset) {
+            if (value[0] >= upper) {
+                last_reset  = t;
+                reach_upper = true;
+                sigma       = time_domain<time>::zero;
+                to_send     = upper;
+                lower       = upper;
+                upper       = upper + 1.0;
+                return success();
+            }
+
+            if (value[0] <= lower) {
+                reach_lower = true;
+                sigma       = time_domain<time>::zero;
+                to_send     = lower;
+                upper       = lower;
+                lower       = lower - 1.0;
+                return success();
+            }
+        }
+
+        if constexpr (QssLevel == 1)
+            sigma = time_domain<time>::infinity;
+
+        if constexpr (QssLevel == 2)
+            sigma = std::min(compute_wake_up(upper, value[0], value[1]),
+                             compute_wake_up(lower, value[0], value[1]));
+
+        if constexpr (QssLevel == 3)
+            sigma =
+              std::min(compute_wake_up(lower, value[0], value[1], value[2]),
+                       compute_wake_up(lower, value[0], value[1], value[2]));
+
+        return success();
+    }
+
+    status lambda(simulation& sim) noexcept
+    {
+        return send_message(sim, y[0], to_send);
+    }
+
+    observation_message observation(time t, time e) const noexcept
+    {
+        return { t, to_send };
+    }
+};
+
+using qss1_integer = abstract_integer<1>;
+using qss2_integer = abstract_integer<2>;
+using qss3_integer = abstract_integer<3>;
+
 struct counter {
     message_id x[1] = {};
     time       sigma;
@@ -2998,67 +3195,6 @@ struct constant {
         return { t, value };
     }
 };
-
-inline time compute_wake_up(real threshold, real value_0, real value_1) noexcept
-{
-    time ret = time_domain<time>::infinity;
-
-    if (value_1 != 0) {
-        const auto a = value_1;
-        const auto b = value_0 - threshold;
-        const auto d = -b * a;
-
-        ret = (d > zero) ? d : time_domain<time>::infinity;
-    }
-
-    return ret;
-}
-
-inline time compute_wake_up(real threshold,
-                            real value_0,
-                            real value_1,
-                            real value_2) noexcept
-{
-    time ret = time_domain<time>::infinity;
-
-    if (value_1 != 0) {
-        if (value_2 != 0) {
-            const auto a = value_2;
-            const auto b = value_1;
-            const auto c = value_0 - threshold;
-            const auto d = b * b - four * a * c;
-
-            if (d > zero) {
-                const auto x1 = (-b + std::sqrt(d)) / (two * a);
-                const auto x2 = (-b - std::sqrt(d)) / (two * a);
-
-                if (x1 > zero) {
-                    if (x2 > zero) {
-                        ret = std::min(x1, x2);
-                    } else {
-                        ret = x1;
-                    }
-                } else {
-                    if (x2 > 0)
-                        ret = x2;
-                }
-            } else if (is_zero(d)) {
-                const auto x = -b / (two * a);
-                if (x > zero)
-                    ret = x;
-            }
-        } else {
-            const auto a = value_1;
-            const auto b = value_0 - threshold;
-            const auto d = -b * a;
-
-            if (d > zero)
-                ret = d;
-        }
-    }
-
-    return ret;
-}
 
 template<std::size_t QssLevel>
 struct abstract_filter {
@@ -4430,6 +4566,7 @@ concept dynamics =
   std::is_same_v<Dynamics, qss1_wsum_2> or
   std::is_same_v<Dynamics, qss1_wsum_3> or
   std::is_same_v<Dynamics, qss1_wsum_4> or
+  std::is_same_v<Dynamics, qss1_integer> or
   std::is_same_v<Dynamics, qss2_integrator> or
   std::is_same_v<Dynamics, qss2_multiplier> or
   std::is_same_v<Dynamics, qss2_cross> or
@@ -4442,6 +4579,7 @@ concept dynamics =
   std::is_same_v<Dynamics, qss2_wsum_2> or
   std::is_same_v<Dynamics, qss2_wsum_3> or
   std::is_same_v<Dynamics, qss2_wsum_4> or
+  std::is_same_v<Dynamics, qss2_integer> or
   std::is_same_v<Dynamics, qss3_integrator> or
   std::is_same_v<Dynamics, qss3_multiplier> or
   std::is_same_v<Dynamics, qss3_cross> or
@@ -4453,7 +4591,8 @@ concept dynamics =
   std::is_same_v<Dynamics, qss3_sum_4> or
   std::is_same_v<Dynamics, qss3_wsum_2> or
   std::is_same_v<Dynamics, qss3_wsum_3> or
-  std::is_same_v<Dynamics, qss3_wsum_4> or std::is_same_v<Dynamics, counter> or
+  std::is_same_v<Dynamics, qss3_wsum_4> or
+  std::is_same_v<Dynamics, qss3_integer> or std::is_same_v<Dynamics, counter> or
   std::is_same_v<Dynamics, queue> or std::is_same_v<Dynamics, dynamic_queue> or
   std::is_same_v<Dynamics, priority_queue> or
   std::is_same_v<Dynamics, generator> or std::is_same_v<Dynamics, constant> or
@@ -4504,6 +4643,8 @@ static constexpr dynamics_type dynamics_typeof() noexcept
         return dynamics_type::qss1_wsum_3;
     if constexpr (std::is_same_v<Dynamics, qss1_wsum_4>)
         return dynamics_type::qss1_wsum_4;
+    if constexpr (std::is_same_v<Dynamics, qss1_integrator>)
+        return dynamics_type::qss1_integrator;
 
     if constexpr (std::is_same_v<Dynamics, qss2_integrator>)
         return dynamics_type::qss2_integrator;
@@ -4529,6 +4670,8 @@ static constexpr dynamics_type dynamics_typeof() noexcept
         return dynamics_type::qss2_wsum_3;
     if constexpr (std::is_same_v<Dynamics, qss2_wsum_4>)
         return dynamics_type::qss2_wsum_4;
+    if constexpr (std::is_same_v<Dynamics, qss2_integrator>)
+        return dynamics_type::qss2_integrator;
 
     if constexpr (std::is_same_v<Dynamics, qss3_integrator>)
         return dynamics_type::qss3_integrator;
@@ -4554,6 +4697,8 @@ static constexpr dynamics_type dynamics_typeof() noexcept
         return dynamics_type::qss3_wsum_3;
     if constexpr (std::is_same_v<Dynamics, qss3_wsum_4>)
         return dynamics_type::qss3_wsum_4;
+    if constexpr (std::is_same_v<Dynamics, qss3_integrator>)
+        return dynamics_type::qss3_integrator;
 
     if constexpr (std::is_same_v<Dynamics, counter>)
         return dynamics_type::counter;
@@ -4687,6 +4832,13 @@ constexpr auto dispatch(const dynamics_type type,
                            qss_wsum_4_tag{},
                            std::forward<Args>(args)...);
 
+    case dynamics_type::qss1_integer:
+    case dynamics_type::qss2_integer:
+    case dynamics_type::qss3_integer:
+        return std::invoke(std::forward<Function>(f),
+                           qss_integer_tag{},
+                           std::forward<Args>(args)...);
+
     case dynamics_type::counter:
         return std::invoke(std::forward<Function>(f),
                            counter_tag{},
@@ -4801,6 +4953,10 @@ constexpr auto dispatch(const model& mdl, Function&& f, Args&&... args) noexcept
         return std::invoke(std::forward<Function>(f),
                            *reinterpret_cast<const qss1_wsum_4*>(&mdl.dyn),
                            std::forward<Args>(args)...);
+    case dynamics_type::qss1_integer:
+        return std::invoke(std::forward<Function>(f),
+                           *reinterpret_cast<const qss1_integer*>(&mdl.dyn),
+                           std::forward<Args>(args)...);
 
     case dynamics_type::qss2_integrator:
         return std::invoke(std::forward<Function>(f),
@@ -4850,6 +5006,10 @@ constexpr auto dispatch(const model& mdl, Function&& f, Args&&... args) noexcept
         return std::invoke(std::forward<Function>(f),
                            *reinterpret_cast<const qss2_wsum_4*>(&mdl.dyn),
                            std::forward<Args>(args)...);
+    case dynamics_type::qss2_integer:
+        return std::invoke(std::forward<Function>(f),
+                           *reinterpret_cast<const qss2_integer*>(&mdl.dyn),
+                           std::forward<Args>(args)...);
 
     case dynamics_type::qss3_integrator:
         return std::invoke(std::forward<Function>(f),
@@ -4898,6 +5058,10 @@ constexpr auto dispatch(const model& mdl, Function&& f, Args&&... args) noexcept
     case dynamics_type::qss3_wsum_4:
         return std::invoke(std::forward<Function>(f),
                            *reinterpret_cast<const qss3_wsum_4*>(&mdl.dyn),
+                           std::forward<Args>(args)...);
+    case dynamics_type::qss3_integer:
+        return std::invoke(std::forward<Function>(f),
+                           *reinterpret_cast<const qss3_integer*>(&mdl.dyn),
                            std::forward<Args>(args)...);
 
     case dynamics_type::counter:
@@ -4991,6 +5155,8 @@ constexpr auto dispatch(model& mdl, Function&& f) noexcept
         return f(*reinterpret_cast<qss1_wsum_3*>(&mdl.dyn));
     case dynamics_type::qss1_wsum_4:
         return f(*reinterpret_cast<qss1_wsum_4*>(&mdl.dyn));
+    case dynamics_type::qss1_integer:
+        return f(*reinterpret_cast<qss1_integer*>(&mdl.dyn));
 
     case dynamics_type::qss2_integrator:
         return f(*reinterpret_cast<qss2_integrator*>(&mdl.dyn));
@@ -5016,6 +5182,8 @@ constexpr auto dispatch(model& mdl, Function&& f) noexcept
         return f(*reinterpret_cast<qss2_wsum_3*>(&mdl.dyn));
     case dynamics_type::qss2_wsum_4:
         return f(*reinterpret_cast<qss2_wsum_4*>(&mdl.dyn));
+    case dynamics_type::qss2_integer:
+        return f(*reinterpret_cast<qss2_integer*>(&mdl.dyn));
 
     case dynamics_type::qss3_integrator:
         return f(*reinterpret_cast<qss3_integrator*>(&mdl.dyn));
@@ -5041,6 +5209,8 @@ constexpr auto dispatch(model& mdl, Function&& f) noexcept
         return f(*reinterpret_cast<qss3_wsum_3*>(&mdl.dyn));
     case dynamics_type::qss3_wsum_4:
         return f(*reinterpret_cast<qss3_wsum_4*>(&mdl.dyn));
+    case dynamics_type::qss3_integer:
+        return f(*reinterpret_cast<qss3_integer*>(&mdl.dyn));
 
     case dynamics_type::counter:
         return f(*reinterpret_cast<counter*>(&mdl.dyn));
@@ -5169,6 +5339,9 @@ inline bool is_ports_compatible(const dynamics_type mdl_src,
     case dynamics_type::time_func:
     case dynamics_type::hsm_wrapper:
     case dynamics_type::accumulator_2:
+    case dynamics_type::qss1_integer:
+    case dynamics_type::qss2_integer:
+    case dynamics_type::qss3_integer:
         return true;
 
     case dynamics_type::constant:

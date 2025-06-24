@@ -292,6 +292,13 @@ static void show_dynamics_values(project_editor& /*sim*/,
     ImGui::TextFormat("{} {}", dyn.values[3], dyn.values[7]);
 }
 
+template<sz QssLevel>
+static void show_dynamics_values(project_editor& /*sim*/,
+                                 const abstract_integer<QssLevel>& dyn)
+{
+    ImGui::TextFormat("value {}", dyn.value[0]);
+}
+
 static void show_dynamics_values(project_editor& /*sim*/, const counter& dyn)
 {
     ImGui::TextFormat("number {}", dyn.number);
@@ -906,7 +913,7 @@ struct generic_simulation_editor::impl {
 
         if (ImGui::BeginMenu("QSS1")) {
             auto       i = static_cast<int>(dynamics_type::qss1_integrator);
-            const auto e = static_cast<int>(dynamics_type::qss1_wsum_4) + 1;
+            const auto e = static_cast<int>(dynamics_type::qss1_integer) + 1;
             for (; i != e; ++i)
                 r += popup_menu(app, static_cast<dynamics_type>(i), click_pos);
             ImGui::EndMenu();
@@ -914,7 +921,7 @@ struct generic_simulation_editor::impl {
 
         if (ImGui::BeginMenu("QSS2")) {
             auto       i = static_cast<int>(dynamics_type::qss2_integrator);
-            const auto e = static_cast<int>(dynamics_type::qss2_wsum_4) + 1;
+            const auto e = static_cast<int>(dynamics_type::qss2_integer) + 1;
 
             for (; i != e; ++i)
                 r += popup_menu(app, static_cast<dynamics_type>(i), click_pos);
@@ -923,7 +930,7 @@ struct generic_simulation_editor::impl {
 
         if (ImGui::BeginMenu("QSS3")) {
             auto       i = static_cast<int>(dynamics_type::qss3_integrator);
-            const auto e = static_cast<int>(dynamics_type::qss3_wsum_4) + 1;
+            const auto e = static_cast<int>(dynamics_type::qss3_integer) + 1;
 
             for (; i != e; ++i)
                 r += popup_menu(app, static_cast<dynamics_type>(i), click_pos);

@@ -772,26 +772,26 @@ static void show_popup_menuitem(application&                   app,
 
         if (ImGui::BeginMenu("QSS1")) {
             auto       i = ordinal(dynamics_type::qss1_integrator);
-            const auto e = ordinal(dynamics_type::qss1_wsum_4);
-            for (; i < e; ++i)
+            const auto e = ordinal(dynamics_type::qss1_integer) + 1;
+            for (; i != e; ++i)
                 add_popup_menuitem(app, parent, s_parent, i, click_pos);
             ImGui::EndMenu();
         }
 
         if (ImGui::BeginMenu("QSS2")) {
             auto       i = ordinal(dynamics_type::qss2_integrator);
-            const auto e = ordinal(dynamics_type::qss2_wsum_4);
+            const auto e = ordinal(dynamics_type::qss2_integer) + 1;
 
-            for (; i < e; ++i)
+            for (; i != e; ++i)
                 add_popup_menuitem(app, parent, s_parent, i, click_pos);
             ImGui::EndMenu();
         }
 
         if (ImGui::BeginMenu("QSS3")) {
             auto       i = ordinal(dynamics_type::qss3_integrator);
-            const auto e = ordinal(dynamics_type::qss3_wsum_4);
+            const auto e = ordinal(dynamics_type::qss3_integer) + 1;
 
-            for (; i < e; ++i)
+            for (; i != e; ++i)
                 add_popup_menuitem(app, parent, s_parent, i, click_pos);
             ImGui::EndMenu();
         }
