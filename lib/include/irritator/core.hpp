@@ -44,7 +44,7 @@ namespace literals {
 //! @param v The floating point number to convert to float, double or long
 //! double.
 //! @return A real.
-inline constexpr real operator"" _r(long double v) noexcept
+inline constexpr real operator""_r(long double v) noexcept
 {
     return static_cast<real>(v);
 }
