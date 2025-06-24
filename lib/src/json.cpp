@@ -1082,6 +1082,15 @@ struct json_dearchiver::impl {
     }
 
     bool read_dynamics(const rapidjson::Value& /*val*/,
+                       qss_integer_tag,
+                       parameter& /*p*/) noexcept
+    {
+        auto_stack a(this, "dynamics integer function");
+
+        return true;
+    }
+
+    bool read_dynamics(const rapidjson::Value& /*val*/,
                        counter_tag,
                        parameter& /*p*/) noexcept
     {
@@ -5575,6 +5584,15 @@ struct json_archiver::impl {
         writer.Key("coeff-3");
         writer.Double(p.reals[7]);
 
+        writer.EndObject();
+    }
+
+    template<typename Writer, sz QssLevel>
+    void write(Writer& writer,
+               const abstract_integer<QssLevel>& /*dyn*/,
+               const parameter& /*p*/) noexcept
+    {
+        writer.StartObject();
         writer.EndObject();
     }
 

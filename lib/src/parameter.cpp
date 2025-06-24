@@ -26,6 +26,16 @@ static void model_init(const parameter&               param,
     dyn.dQ = param.reals[1];
 }
 
+template<size_t QssLevel>
+static void model_init(const parameter& /*param*/,
+                       abstract_integer<QssLevel>& /*dyn*/) noexcept
+{}
+
+template<size_t QssLevel>
+static void parameter_init(parameter& /*param*/,
+                           const abstract_integer<QssLevel>& /*dyn*/) noexcept
+{}
+
 static void model_init(const parameter& /*param*/, counter& /*dyn*/) noexcept {}
 
 static void parameter_init(parameter& /*param*/,
