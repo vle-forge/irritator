@@ -861,7 +861,7 @@ struct output_message {
     output_message() noexcept  = default;
     ~output_message() noexcept = default;
 
-    message  msg;
+    message  msg{};
     model_id model = undefined<model_id>();
     i8       port  = 0;
 };
