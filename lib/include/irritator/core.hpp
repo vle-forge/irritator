@@ -341,9 +341,11 @@ enum class distribution_type {
 class constant_source
 {
 public:
+    static constexpr u32 default_length = 8u; // default length of the buffer.
+
     name_str   name;
     chunk_type buffer;
-    u32        length = 8u;
+    u32        length = default_length;
 
     constant_source() noexcept = default;
     constant_source(const constant_source& src) noexcept;
@@ -376,13 +378,15 @@ public:
 
     std::filesystem::path file_path;
     std::ifstream         ifs;
-    file_path_id          file_id;
+    file_path_id          file_id     = undefined<file_path_id>();
     u32                   next_client = 0;
     u64                   next_offset = 0;
 
     binary_file_source() noexcept = default;
     binary_file_source(const binary_file_source& other) noexcept;
+    binary_file_source(binary_file_source&& other) noexcept = delete;
     binary_file_source& operator=(const binary_file_source& other) noexcept;
+    binary_file_source& operator=(binary_file_source&& other) noexcept = delete;
 
     void swap(binary_file_source& other) noexcept;
 
@@ -408,15 +412,17 @@ class text_file_source
 public:
     name_str   name;
     chunk_type buffer;
-    u64        offset;
+    u64        offset = 0u;
 
     std::filesystem::path file_path;
     std::ifstream         ifs;
-    file_path_id          file_id;
+    file_path_id          file_id = undefined<file_path_id>();
 
     text_file_source() noexcept = default;
     text_file_source(const text_file_source& other) noexcept;
+    text_file_source(text_file_source&& other) noexcept = delete;
     text_file_source& operator=(const text_file_source& other) noexcept;
+    text_file_source& operator=(text_file_source&& other) noexcept = delete;
 
     void swap(text_file_source& other) noexcept;
 
@@ -448,12 +454,13 @@ public:
     u32          max_clients   = 1; // number of source max (must be >= 1).
     u32          start_counter = 0; // provided by @c external_source class.
     u32          next_client   = 0;
-    counter_type ctr;
-    key_type     key; // provided by @c external_source class.
+    counter_type ctr{};
+    key_type     key{}; // provided by @c external_source class.
 
     distribution_type distribution = distribution_type::uniform_real;
-    double a = 0, b = 1, p, mean, lambda, alpha, beta, stddev, m, s, n;
-    int    a32, b32, t32, k32;
+    double a = 0, b = 1, p = 0, mean = 0, lambda = 0, alpha = 0, beta = 0,
+           stddev = 0, m = 0, s = 0, n = 0;
+    int a32 = 0, b32 = 0, t32 = 0, k32 = 0;
 
     random_source() noexcept = default;
     random_source(const random_source& other) noexcept;
@@ -479,27 +486,29 @@ class source
 {
 public:
     enum class source_type : i16 {
-        binary_file, /* Best solution to reproductible simulation. Each
+        binary_file, /**< Best solution to reproductible simulation. Each
                         client take a part of the stream (substream). */
-        constant,    /* Just an easy source to use mode. */
-        random,      /* How to retrieve old position in debug mode? */
-        text_file    /* How to retreive old position in debug mode? */
+        constant,    /**< Just an easy source to use mode. */
+        random,      /**< How to retrieve old position in debug mode? */
+        text_file    /**< How to retreive old position in debug mode? */
     };
 
     static inline constexpr int source_type_count = 5;
 
     enum class operation_type {
-        initialize, // Use to initialize the buffer at simulation init step.
-        update,     // Use to update the buffer when all values are read.
-        restore,    // Use to restore the buffer when debug mode activated.
-        finalize    // Use to clear the buffer at simulation finalize step.
+        initialize, /**< Use to initialize the buffer at simulation init step.
+                     */
+        update,     /**< Use to update the buffer when all values are read. */
+        restore,    /**< Use to restore the buffer when debug mode activated. */
+        finalize    /**< Use to clear the buffer at simulation finalize step. */
     };
 
     std::span<double> buffer;
     u64               id   = 0;
     source_type       type = source_type::constant;
-    i16 index = 0; // The index of the next double to read in current chunk.
-    std::array<u64, 4> chunk_id; // Current chunk. Use when restore is apply.
+    i16 index = 0; ///< The index of the next double to read in current chunk.
+    std::array<u64, 4>
+      chunk_id{}; ///< Current chunk. Use when restore is apply.
 
     //! Call to reset the position in the current chunk.
     void reset() noexcept { index = 0u; }
