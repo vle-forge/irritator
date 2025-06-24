@@ -234,23 +234,23 @@ struct time_domain<time> {
       -std::numeric_limits<real>::infinity();
     static constexpr const real zero = 0;
 
-    static constexpr bool is_infinity(time t) noexcept
+    static bool is_infinity(time t) noexcept
     {
         return std::fpclassify(t) == FP_INFINITE;
     }
 
-    static constexpr bool is_zero(time t) noexcept
+    static bool is_zero(time t) noexcept
     {
         return std::fpclassify(t) == FP_ZERO;
     }
 };
 
-constexpr bool is_infinity(const std::floating_point auto x) noexcept
+inline bool is_infinity(const std::floating_point auto x) noexcept
 {
     return std::fpclassify(x) == FP_INFINITE;
 }
 
-constexpr bool is_zero(const std::floating_point auto x) noexcept
+inline bool is_zero(const std::floating_point auto x) noexcept
 {
     return std::fpclassify(x) == FP_ZERO;
 }
