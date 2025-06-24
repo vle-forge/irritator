@@ -41,7 +41,6 @@ enum class graph_node_id : irt::u32;
 enum class graph_edge_id : irt::u32;
 
 using port_str           = small_string<7>;
-using name_str           = small_string<31>;
 using description_str    = small_string<1022>;
 using registred_path_str = small_string<256 * 16 - 2>;
 using directory_path_str = small_string<512 - 2>;

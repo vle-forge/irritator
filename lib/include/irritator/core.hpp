@@ -310,6 +310,9 @@ enum class random_source_id : u64;
 
 static constexpr int external_source_chunk_size = 512;
 static constexpr int default_max_client_number  = 32;
+static constexpr int default_name_string_size   = 32 - 1; // -1 for length;
+
+using name_str = small_string<default_name_string_size>;
 
 using chunk_type = std::array<double, external_source_chunk_size>;
 
@@ -338,9 +341,9 @@ enum class distribution_type {
 class constant_source
 {
 public:
-    small_string<23> name;
-    chunk_type       buffer;
-    u32              length = 8u;
+    name_str   name;
+    chunk_type buffer;
+    u32        length = 8u;
 
     constant_source() noexcept = default;
     constant_source(const constant_source& src) noexcept;
@@ -365,7 +368,7 @@ public:
 class binary_file_source
 {
 public:
-    small_string<23>   name;
+    name_str           name;
     vector<chunk_type> buffers; // buffer, size is defined by max_clients
     vector<u64>        offsets; // offset, size is defined by max_clients
     u32                max_clients = 1; // number of source max (must be >= 1).
@@ -403,9 +406,9 @@ public:
 class text_file_source
 {
 public:
-    small_string<23> name;
-    chunk_type       buffer;
-    u64              offset;
+    name_str   name;
+    chunk_type buffer;
+    u64        offset;
 
     std::filesystem::path file_path;
     std::ifstream         ifs;
@@ -439,7 +442,7 @@ public:
     using key_type     = std::array<u64, 4>;
     using result_type  = std::array<u64, 4>;
 
-    small_string<23>           name;
+    name_str                   name;
     vector<chunk_type>         buffers;
     vector<std::array<u64, 4>> counters;
     u32          max_clients   = 1; // number of source max (must be >= 1).
