@@ -292,7 +292,6 @@ enum class hsm_id : u32;
 enum class graph_id : u32;
 enum class model_id : u64;
 enum class dynamics_id : u64;
-enum class message_id : u64;
 enum class observer_id : u64;
 enum class block_node_id : u64;
 enum class message_id : u64;
