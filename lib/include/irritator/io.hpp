@@ -85,7 +85,7 @@ inline const char* external_source_str(const source::source_type type) noexcept
     return external_source_type_string[ordinal(type)];
 }
 
-static const char* distribution_type_string[] = {
+static constexpr inline const char* distribution_type_string[] = {
     "bernouilli",        "binomial", "cauchy",  "chi_squared", "exponential",
     "exterme_value",     "fisher_f", "gamma",   "geometric",   "lognormal",
     "negative_binomial", "normal",   "poisson", "student_t",   "uniform_int",
