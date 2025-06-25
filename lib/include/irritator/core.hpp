@@ -3197,6 +3197,8 @@ struct constant {
 
 template<std::size_t QssLevel>
 struct abstract_filter {
+    static_assert(1 <= QssLevel && QssLevel <= 3, "Only for Qss1, 2 and 3");
+
     message_id    x[1] = {};
     block_node_id y[3] = {};
 
@@ -3206,8 +3208,6 @@ struct abstract_filter {
     real value[QssLevel];
     bool reach_lower_threshold = false;
     bool reach_upper_threshold = false;
-
-    struct threshold_condition_error {};
 
     abstract_filter() noexcept = default;
 
