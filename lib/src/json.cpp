@@ -67,15 +67,12 @@ struct json_dearchiver::impl {
                   title = "json parser warning";
 
                   auto data      = msg.data();
-                  auto remaining = static_cast<int>(msg.capacity()) - 1;
-                  auto write     = 0;
+                  sz   remaining = msg.capacity() - 1u;
+                  sz   write     = 0;
 
                   for (auto i = 0u; i < stack.size() and remaining > 0; ++i) {
-                      auto ret = fmt::format_to_n(data,
-                                                  remaining,
-                                                  "  {}: {}\n",
-                                                  static_cast<int>(i),
-                                                  stack[i]);
+                      auto ret = fmt::format_to_n(
+                        data, remaining, "{:{}}{}\n", "", i, stack[i]);
                       write += ret.size;
                       msg.resize(write);
                       data = ret.out;
@@ -183,17 +180,11 @@ struct json_dearchiver::impl {
                    const std::string_view id) noexcept
           : r(r_)
         {
-            debug::ensure(r->stack.can_alloc(1));
+            fatal::ensure(r->stack.can_alloc(1));
             r->stack.emplace_back(id);
         }
 
-        ~auto_stack() noexcept
-        {
-            if (!r->have_error()) {
-                debug::ensure(!r->stack.empty());
-                r->stack.pop_back();
-            }
-        }
+        ~auto_stack() noexcept { r->stack.pop_back(); }
 
         json_dearchiver::impl* r = nullptr;
     };
