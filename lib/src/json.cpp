@@ -1868,9 +1868,10 @@ struct json_dearchiver::impl {
                 if (read_child_simple_or_grid_component(value, c)) {
                     p.integers[0] = static_cast<i64>(c);
                     return true;
+                } else {
+                    warning("HSM component not found");
+                    return true;
                 }
-
-                return false;
             }
             case 1:
                 return read_temp_i64(value) && copy_i64_to(p.integers[1]);
@@ -1884,7 +1885,6 @@ struct json_dearchiver::impl {
                 return read_temp_real(value) && copy_real_to(p.reals[2]);
             default:
                 return error("unknown element");
-                ;
             }
         });
     }
