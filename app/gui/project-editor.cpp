@@ -962,12 +962,22 @@ static bool show_project_observations(application&    app,
                 ImPlot::PushStyleVar(ImPlotStyleVar_LineWeight, 1.f);
                 ImPlot::PushStyleVar(ImPlotStyleVar_MarkerSize, 1.f);
 
-                vobs.for_each([&](const auto id) noexcept {
-                    const auto  idx = get_index(id);
-                    const auto* obs =
-                      ed.pj.sim.observers.try_to_get(vobs.get_obs_ids()[idx]);
+                ImPlot::SetupAxis(ImAxis_X1,
+                                  "t",
+                                  ImPlotAxisFlags_AutoFit |
+                                    ImPlotAxisFlags_RangeFit);
+                ImPlot::SetupAxis(ImAxis_Y1,
+                                  vobs.name.c_str(),
+                                  ImPlotAxisFlags_AutoFit |
+                                    ImPlotAxisFlags_RangeFit);
 
-                    if (obs)
+                ImPlot::SetupLegend(ImPlotLocation_North);
+                ImPlot::SetupFinish();
+
+                vobs.for_each([&](const auto id) noexcept {
+                    const auto idx = get_index(id);
+                    if (const auto* obs = ed.pj.sim.observers.try_to_get(
+                          vobs.get_obs_ids()[idx]))
                         ed.plot_obs.show_plot_line(
                           *obs, vobs.get_options()[idx], vobs.get_names()[idx]);
                 });
@@ -1041,6 +1051,17 @@ static void show_component_observations(application&    app,
                 if (ImPlot::BeginPlot(vobs.name.c_str(), ImVec2(-1, 200))) {
                     ImPlot::PushStyleVar(ImPlotStyleVar_LineWeight, 1.f);
                     ImPlot::PushStyleVar(ImPlotStyleVar_MarkerSize, 1.f);
+                    ImPlot::SetupAxis(ImAxis_X1,
+                                      "t",
+                                      ImPlotAxisFlags_AutoFit |
+                                        ImPlotAxisFlags_RangeFit);
+                    ImPlot::SetupAxis(ImAxis_Y1,
+                                      vobs.name.c_str(),
+                                      ImPlotAxisFlags_AutoFit |
+                                        ImPlotAxisFlags_RangeFit);
+
+                    ImPlot::SetupLegend(ImPlotLocation_North);
+                    ImPlot::SetupFinish();
                     show_local_variables_plot(sim_ed, vobs, tn_id);
                     ImPlot::PopStyleVar(2);
                     ImPlot::EndPlot();
