@@ -791,11 +791,9 @@ struct observation {
 };
 
 enum class observer_flags : u8 {
-    none              = 0,
-    data_available    = 1,
-    buffer_full       = 2,
-    data_lost         = 4,
-    use_linear_buffer = 8,
+    buffer_full,
+    data_lost,
+    use_linear_buffer,
     Count
 };
 
@@ -833,7 +831,6 @@ struct observer {
     void clear() noexcept;
     void update(const observation_message& msg) noexcept;
     bool full() const noexcept;
-    void push_back(const observation& vec) noexcept;
 
     ring_buffer<observation_message> buffer;
     ring_buffer<observation>         linearized_buffer;
@@ -5497,54 +5494,28 @@ inline void observer::reset() noexcept
 {
     buffer.clear();
     linearized_buffer.clear();
-    limits = std::make_pair(-std::numeric_limits<real>::infinity(),
-                            +std::numeric_limits<real>::infinity());
     states.reset();
 }
 
 inline void observer::clear() noexcept
 {
-    buffer.clear();
-    linearized_buffer.clear();
-    limits = std::make_pair(-std::numeric_limits<real>::infinity(),
-                            +std::numeric_limits<real>::infinity());
-
     const auto have_data_lost = states[observer_flags::data_lost];
-    states.reset();
-    if (have_data_lost)
-        states.set(observer_flags::data_lost);
+
+    reset();
+
+    states.set(observer_flags::data_lost, have_data_lost);
 }
 
 inline void observer::update(const observation_message& msg) noexcept
 {
-    bitflags<observer_flags> new_states(observer_flags::data_available);
-    if (states[observer_flags::data_lost])
-        new_states.set(observer_flags::data_lost);
-
-    if (states[observer_flags::buffer_full])
-        states.set(observer_flags::data_lost);
+    states.set(observer_flags::data_lost, states[observer_flags::buffer_full]);
 
     if (!buffer.empty() && buffer.tail()->data()[0] == msg[0])
-        *(buffer.tail()) = msg;
+        *(buffer.tail()) = msg; // overwrite value with at same date.
     else
         buffer.force_enqueue(msg);
 
-    if (states[observer_flags::use_linear_buffer]) {
-        if (linearized_buffer.ssize() >= 1) {
-            limits.first  = linearized_buffer.front().x;
-            limits.second = linearized_buffer.back().y;
-        }
-    }
-
-    if (buffer.available() <= 1)
-        new_states.set(observer_flags::buffer_full);
-
-    states = new_states;
-}
-
-inline void observer::push_back(const observation& vec) noexcept
-{
-    linearized_buffer.push_tail(vec);
+    states.set(observer_flags::buffer_full, buffer.available() <= 1);
 }
 
 inline bool observer::full() const noexcept

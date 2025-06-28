@@ -1062,7 +1062,12 @@ static void show_component_observations(application&    app,
 
                     ImPlot::SetupLegend(ImPlotLocation_North);
                     ImPlot::SetupFinish();
-                    show_local_variables_plot(sim_ed, vobs, tn_id);
+                    if (sim_ed.simulation_state != // TODO may be adding a
+                                                   // spin_mutex in observer and
+                                                   // lock/try_lock the linear
+                                                   // buffer?
+                        simulation_status::initializing)
+                        show_local_variables_plot(sim_ed, vobs, tn_id);
                     ImPlot::PopStyleVar(2);
                     ImPlot::EndPlot();
                 }
