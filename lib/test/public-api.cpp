@@ -25,16 +25,14 @@
 struct file_output {
     using value_type = irt::observation;
 
-    std::FILE*            os = nullptr;
-    irt::observer&        obs;
-    irt::interpolate_type type        = irt::interpolate_type::none;
-    irt::real             time_step   = 1e-1;
-    bool                  interpolate = true;
+    std::FILE*     os = nullptr;
+    irt::observer& obs;
+    irt::real      time_step   = 1e-1;
+    bool           interpolate = true;
 
     file_output(irt::observer& obs_, const char* filename) noexcept
       : os{ nullptr }
       , obs{ obs_ }
-      , type{ get_interpolate_type(obs.type) }
     {
         if (os = std::fopen(filename, "w"); os)
             fmt::print(os, "t,v\n");

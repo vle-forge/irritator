@@ -163,7 +163,7 @@ void plot_observation_widget::show_plot_line(
 
     ImGui::PushID(&obs);
 
-    if (get_interpolate_type(obs.type) == interpolate_type::none) {
+    if (obs.type == interpolate_type::none) {
         show_discrete_plot_line(options, name, obs);
     } else {
         show_continuous_plot_line(options, name, obs);

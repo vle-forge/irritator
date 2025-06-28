@@ -791,12 +791,18 @@ struct observation {
 };
 
 enum class observer_flags : u8 {
-    none              = 0,
-    data_available    = 1,
-    buffer_full       = 2,
-    data_lost         = 4,
-    use_linear_buffer = 8,
+    buffer_full,
+    data_lost,
+    use_linear_buffer,
     Count
+};
+
+//! How to use @c observation_message and interpolate functions.
+enum class interpolate_type : u8 {
+    none,
+    qss1,
+    qss2,
+    qss3,
 };
 
 struct observer {
@@ -825,15 +831,14 @@ struct observer {
     void clear() noexcept;
     void update(const observation_message& msg) noexcept;
     bool full() const noexcept;
-    void push_back(const observation& vec) noexcept;
 
     ring_buffer<observation_message> buffer;
     ring_buffer<observation>         linearized_buffer;
 
-    model_id                 model     = undefined<model_id>();
-    dynamics_type            type      = dynamics_type::qss1_integrator;
-    float                    time_step = 1e-2f;
-    std::pair<real, real>    limits;
+    model_id         model     = undefined<model_id>();
+    interpolate_type type      = interpolate_type::none;
+    float            time_step = 1e-2f;
+
     bitflags<observer_flags> states;
 };
 
@@ -5488,54 +5493,28 @@ inline void observer::reset() noexcept
 {
     buffer.clear();
     linearized_buffer.clear();
-    limits = std::make_pair(-std::numeric_limits<real>::infinity(),
-                            +std::numeric_limits<real>::infinity());
     states.reset();
 }
 
 inline void observer::clear() noexcept
 {
-    buffer.clear();
-    linearized_buffer.clear();
-    limits = std::make_pair(-std::numeric_limits<real>::infinity(),
-                            +std::numeric_limits<real>::infinity());
-
     const auto have_data_lost = states[observer_flags::data_lost];
-    states.reset();
-    if (have_data_lost)
-        states.set(observer_flags::data_lost);
+
+    reset();
+
+    states.set(observer_flags::data_lost, have_data_lost);
 }
 
 inline void observer::update(const observation_message& msg) noexcept
 {
-    bitflags<observer_flags> new_states(observer_flags::data_available);
-    if (states[observer_flags::data_lost])
-        new_states.set(observer_flags::data_lost);
-
-    if (states[observer_flags::buffer_full])
-        states.set(observer_flags::data_lost);
+    states.set(observer_flags::data_lost, states[observer_flags::buffer_full]);
 
     if (!buffer.empty() && buffer.tail()->data()[0] == msg[0])
-        *(buffer.tail()) = msg;
+        *(buffer.tail()) = msg; // overwrite value with at same date.
     else
         buffer.force_enqueue(msg);
 
-    if (states[observer_flags::use_linear_buffer]) {
-        if (linearized_buffer.ssize() >= 1) {
-            limits.first  = linearized_buffer.front().x;
-            limits.second = linearized_buffer.back().y;
-        }
-    }
-
-    if (buffer.available() <= 1)
-        new_states.set(observer_flags::buffer_full);
-
-    states = new_states;
-}
-
-inline void observer::push_back(const observation& vec) noexcept
-{
-    linearized_buffer.push_tail(vec);
+    states.set(observer_flags::buffer_full, buffer.available() <= 1);
 }
 
 inline bool observer::full() const noexcept
@@ -6250,11 +6229,64 @@ inline void simulation::clear() noexcept
     observers.clear();
 }
 
+constexpr inline auto get_interpolate_type(const dynamics_type type) noexcept
+  -> interpolate_type
+{
+    switch (type) {
+    case dynamics_type::qss1_integrator:
+    case dynamics_type::qss1_multiplier:
+    case dynamics_type::qss1_cross:
+    case dynamics_type::qss1_power:
+    case dynamics_type::qss1_square:
+    case dynamics_type::qss1_sum_2:
+    case dynamics_type::qss1_sum_3:
+    case dynamics_type::qss1_sum_4:
+    case dynamics_type::qss1_wsum_2:
+    case dynamics_type::qss1_wsum_3:
+    case dynamics_type::qss1_wsum_4:
+    case dynamics_type::qss1_integer:
+        return interpolate_type::qss1;
+
+    case dynamics_type::qss2_integrator:
+    case dynamics_type::qss2_multiplier:
+    case dynamics_type::qss2_cross:
+    case dynamics_type::qss2_power:
+    case dynamics_type::qss2_square:
+    case dynamics_type::qss2_sum_2:
+    case dynamics_type::qss2_sum_3:
+    case dynamics_type::qss2_sum_4:
+    case dynamics_type::qss2_wsum_2:
+    case dynamics_type::qss2_wsum_3:
+    case dynamics_type::qss2_wsum_4:
+    case dynamics_type::qss2_integer:
+        return interpolate_type::qss2;
+
+    case dynamics_type::qss3_integrator:
+    case dynamics_type::qss3_multiplier:
+    case dynamics_type::qss3_cross:
+    case dynamics_type::qss3_power:
+    case dynamics_type::qss3_square:
+    case dynamics_type::qss3_sum_2:
+    case dynamics_type::qss3_sum_3:
+    case dynamics_type::qss3_sum_4:
+    case dynamics_type::qss3_wsum_2:
+    case dynamics_type::qss3_wsum_3:
+    case dynamics_type::qss3_wsum_4:
+    case dynamics_type::qss3_integer:
+        return interpolate_type::qss3;
+
+    default:
+        return interpolate_type::none;
+    }
+
+    unreachable();
+}
+
 inline void simulation::observe(model& mdl, observer& obs) const noexcept
 {
     mdl.obs_id = observers.get_id(obs);
     obs.model  = models.get_id(mdl);
-    obs.type   = mdl.type;
+    obs.type   = get_interpolate_type(mdl.type);
 }
 
 inline void simulation::unobserve(model& mdl) noexcept

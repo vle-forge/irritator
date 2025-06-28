@@ -9,64 +9,6 @@
 
 namespace irt {
 
-//! How to use @c observation_message and interpolate functions.
-enum class interpolate_type {
-    none,
-    qss1,
-    qss2,
-    qss3,
-};
-
-constexpr inline auto get_interpolate_type(const dynamics_type type) noexcept
-  -> interpolate_type
-{
-    switch (type) {
-    case dynamics_type::qss1_integrator:
-    case dynamics_type::qss1_multiplier:
-    case dynamics_type::qss1_cross:
-    case dynamics_type::qss1_power:
-    case dynamics_type::qss1_square:
-    case dynamics_type::qss1_sum_2:
-    case dynamics_type::qss1_sum_3:
-    case dynamics_type::qss1_sum_4:
-    case dynamics_type::qss1_wsum_2:
-    case dynamics_type::qss1_wsum_3:
-    case dynamics_type::qss1_wsum_4:
-        return interpolate_type::qss1;
-
-    case dynamics_type::qss2_integrator:
-    case dynamics_type::qss2_multiplier:
-    case dynamics_type::qss2_cross:
-    case dynamics_type::qss2_power:
-    case dynamics_type::qss2_square:
-    case dynamics_type::qss2_sum_2:
-    case dynamics_type::qss2_sum_3:
-    case dynamics_type::qss2_sum_4:
-    case dynamics_type::qss2_wsum_2:
-    case dynamics_type::qss2_wsum_3:
-    case dynamics_type::qss2_wsum_4:
-        return interpolate_type::qss2;
-
-    case dynamics_type::qss3_integrator:
-    case dynamics_type::qss3_multiplier:
-    case dynamics_type::qss3_cross:
-    case dynamics_type::qss3_power:
-    case dynamics_type::qss3_square:
-    case dynamics_type::qss3_sum_2:
-    case dynamics_type::qss3_sum_3:
-    case dynamics_type::qss3_sum_4:
-    case dynamics_type::qss3_wsum_2:
-    case dynamics_type::qss3_wsum_3:
-    case dynamics_type::qss3_wsum_4:
-        return interpolate_type::qss3;
-
-    default:
-        return interpolate_type::none;
-    }
-
-    unreachable();
-}
-
 template<int QssLevel>
 constexpr auto compute_value(const observation_message& msg,
                              const time elapsed) noexcept -> real
@@ -210,7 +152,7 @@ auto write_interpolate_data(observer&      obs,
     auto head = obs.buffer.head();
     auto tail = obs.buffer.tail();
 
-    switch (get_interpolate_type(obs.type)) {
+    switch (obs.type) {
     case interpolate_type::none:
         while (head != tail) {
             *it++ = observation(head->data()[0], head->data()[1]);
@@ -248,15 +190,15 @@ auto write_interpolate_data(observer&      obs,
     }
 }
 
-inline auto write_interpolate_data(observer& obs,
-                                   real      time_step) noexcept -> void
+inline auto write_interpolate_data(observer& obs, real time_step) noexcept
+  -> void
 {
     debug::ensure(obs.buffer.ssize() >= 2);
 
     auto head = obs.buffer.head();
     auto tail = obs.buffer.tail();
 
-    switch (get_interpolate_type(obs.type)) {
+    switch (obs.type) {
     case interpolate_type::none:
         while (head != tail) {
             obs.linearized_buffer.force_emplace_tail(
