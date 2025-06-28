@@ -799,6 +799,14 @@ enum class observer_flags : u8 {
     Count
 };
 
+//! How to use @c observation_message and interpolate functions.
+enum class interpolate_type : u8 {
+    none,
+    qss1,
+    qss2,
+    qss3,
+};
+
 struct observer {
     static inline constexpr auto default_buffer_size            = 4;
     static inline constexpr auto default_linearized_buffer_size = 256;
@@ -830,10 +838,10 @@ struct observer {
     ring_buffer<observation_message> buffer;
     ring_buffer<observation>         linearized_buffer;
 
-    model_id                 model     = undefined<model_id>();
-    dynamics_type            type      = dynamics_type::qss1_integrator;
-    float                    time_step = 1e-2f;
-    std::pair<real, real>    limits;
+    model_id         model     = undefined<model_id>();
+    interpolate_type type      = interpolate_type::none;
+    float            time_step = 1e-2f;
+
     bitflags<observer_flags> states;
 };
 
@@ -6251,11 +6259,64 @@ inline void simulation::clear() noexcept
     observers.clear();
 }
 
+constexpr inline auto get_interpolate_type(const dynamics_type type) noexcept
+  -> interpolate_type
+{
+    switch (type) {
+    case dynamics_type::qss1_integrator:
+    case dynamics_type::qss1_multiplier:
+    case dynamics_type::qss1_cross:
+    case dynamics_type::qss1_power:
+    case dynamics_type::qss1_square:
+    case dynamics_type::qss1_sum_2:
+    case dynamics_type::qss1_sum_3:
+    case dynamics_type::qss1_sum_4:
+    case dynamics_type::qss1_wsum_2:
+    case dynamics_type::qss1_wsum_3:
+    case dynamics_type::qss1_wsum_4:
+    case dynamics_type::qss1_integer:
+        return interpolate_type::qss1;
+
+    case dynamics_type::qss2_integrator:
+    case dynamics_type::qss2_multiplier:
+    case dynamics_type::qss2_cross:
+    case dynamics_type::qss2_power:
+    case dynamics_type::qss2_square:
+    case dynamics_type::qss2_sum_2:
+    case dynamics_type::qss2_sum_3:
+    case dynamics_type::qss2_sum_4:
+    case dynamics_type::qss2_wsum_2:
+    case dynamics_type::qss2_wsum_3:
+    case dynamics_type::qss2_wsum_4:
+    case dynamics_type::qss2_integer:
+        return interpolate_type::qss2;
+
+    case dynamics_type::qss3_integrator:
+    case dynamics_type::qss3_multiplier:
+    case dynamics_type::qss3_cross:
+    case dynamics_type::qss3_power:
+    case dynamics_type::qss3_square:
+    case dynamics_type::qss3_sum_2:
+    case dynamics_type::qss3_sum_3:
+    case dynamics_type::qss3_sum_4:
+    case dynamics_type::qss3_wsum_2:
+    case dynamics_type::qss3_wsum_3:
+    case dynamics_type::qss3_wsum_4:
+    case dynamics_type::qss3_integer:
+        return interpolate_type::qss3;
+
+    default:
+        return interpolate_type::none;
+    }
+
+    unreachable();
+}
+
 inline void simulation::observe(model& mdl, observer& obs) const noexcept
 {
     mdl.obs_id = observers.get_id(obs);
     obs.model  = models.get_id(mdl);
-    obs.type   = mdl.type;
+    obs.type   = get_interpolate_type(mdl.type);
 }
 
 inline void simulation::unobserve(model& mdl) noexcept
