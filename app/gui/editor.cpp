@@ -227,6 +227,19 @@ static bool show_parameter(qss_integer_tag,
     return false;
 }
 
+static bool show_parameter(qss_compare_tag,
+                           application& /*app*/,
+                           external_source& /*srcs*/,
+                           parameter& p) noexcept
+{
+    const auto b1 = ImGui::InputReal("a", &p.reals[0]);
+    const auto b2 = ImGui::InputReal("b", &p.reals[1]);
+    const auto b3 = ImGui::InputReal("a < b", &p.reals[2]);
+    const auto b4 = ImGui::InputReal("not a < b", &p.reals[3]);
+
+    return b1 or b2 or b3 or b4;
+}
+
 static bool show_parameter(counter_tag,
                            application& /*app*/,
                            external_source& /*srcs*/,

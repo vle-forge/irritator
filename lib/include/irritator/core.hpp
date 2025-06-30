@@ -633,6 +633,7 @@ enum class dynamics_type : i32 {
     qss1_wsum_3,
     qss1_wsum_4,
     qss1_integer,
+    qss1_compare,
     qss2_integrator,
     qss2_multiplier,
     qss2_cross,
@@ -646,6 +647,7 @@ enum class dynamics_type : i32 {
     qss2_wsum_3,
     qss2_wsum_4,
     qss2_integer,
+    qss2_compare,
     qss3_integrator,
     qss3_multiplier,
     qss3_cross,
@@ -659,6 +661,7 @@ enum class dynamics_type : i32 {
     qss3_wsum_3,
     qss3_wsum_4,
     qss3_integer,
+    qss3_compare,
     counter,
     queue,
     dynamic_queue,
@@ -688,6 +691,7 @@ struct qss_wsum_2_tag {};
 struct qss_wsum_3_tag {};
 struct qss_wsum_4_tag {};
 struct qss_integer_tag {};
+struct qss_compare_tag {};
 struct counter_tag {};
 struct queue_tag {};
 struct dynamic_queue_tag {};
@@ -2912,6 +2916,157 @@ using qss1_integer = abstract_integer<1>;
 using qss2_integer = abstract_integer<2>;
 using qss3_integer = abstract_integer<3>;
 
+template<typename std::size_t QssLevel>
+struct abstract_compare {
+    static_assert(1 <= QssLevel && QssLevel <= 3, "Only for Qss1, 2 and 3");
+
+    message_id    x[2] = {};
+    block_node_id y[1] = {};
+
+    time                       sigma = time_domain<time>::infinity;
+    std::array<real, QssLevel> a;
+    std::array<real, QssLevel> b;
+    std::array<real, 2>        output; // output[0] for is_a_less_b false and
+                                       // output[1] for is_a_less_b true.
+    bool is_a_less_b = false;
+
+    abstract_compare() noexcept = default;
+
+    abstract_compare(const abstract_compare& other) noexcept
+      : sigma(other.sigma)
+      , is_a_less_b(other.is_a_less_b)
+    {
+        std::copy_n(other.a.data(), other.a.size(), a.data());
+        std::copy_n(other.b.data(), other.b.size(), b.data());
+        std::copy_n(other.output.data(), other.output.size(), output.data());
+    }
+
+    status initialize(simulation& /*sim*/) noexcept
+    {
+        sigma       = time_domain<time>::infinity;
+        is_a_less_b = false;
+
+        return success();
+    }
+
+    time compute_next_cross() const noexcept
+    {
+        if constexpr (QssLevel == 2) {
+            const auto y = a[1] - b[1];
+            const auto x = a[0] - b[0];
+            const auto s1 =
+              not is_zero(y) ? -x / y : time_domain<time>::infinity;
+
+            return s1 > 0 ? s1 : time_domain<time>::infinity;
+        }
+
+        if constexpr (QssLevel == 3) {
+            const auto z  = a[2] - b[2];
+            const auto y  = a[1] - b[1];
+            const auto x  = a[0] - b[0];
+            auto       s1 = time_domain<time>::infinity;
+            auto       s2 = time_domain<time>::infinity;
+
+            if (is_zero(z)) {
+                if (not is_zero(y))
+                    s1 = -x / y;
+            } else {
+                s1 = (-y + std::sqrt(y * y - four * z * x)) / two / z;
+                s2 = (-y - std::sqrt(y * y - four * z * x)) / two / z;
+            }
+
+            if ((s1 > zero) and ((s1 < s2) or (s2 < zero)))
+                return s1;
+
+            if (s2 > zero)
+                return s2;
+        }
+
+        return time_domain<time>::infinity;
+    }
+
+    status transition(simulation& sim, time t, time e, time /*r*/) noexcept
+    {
+        auto*      port_a    = sim.messages.try_to_get(x[0]);
+        auto*      port_b    = sim.messages.try_to_get(x[1]);
+        const auto message_a = port_a and not port_a->empty();
+        const auto message_b = port_b and not port_b->empty();
+
+        if (not message_a and not message_b) {
+            if constexpr (QssLevel == 2) {
+                a[0] += a[1] * e;
+                b[0] += b[1] * e;
+            } else if constexpr (QssLevel == 3) {
+                a[0] += a[1] * e + a[2] * e * e;
+                a[1] += two * a[2] * e;
+                b[0] += b[1] * e + b[2] * e * e;
+                b[1] += two * b[2] * e;
+            }
+        } else {
+            if (message_a) {
+                const auto& msg = port_a->front();
+
+                a[0] = msg[0];
+                if constexpr (QssLevel >= 2)
+                    a[1] = msg[1];
+                if constexpr (QssLevel == 3)
+                    a[2] = msg[2];
+            } else {
+                if constexpr (QssLevel == 2) {
+                    a[0] += a[1] * e;
+                } else if constexpr (QssLevel == 3) {
+                    a[0] += a[1] * e + a[2] * e * e;
+                    a[1] += two * a[2] * e;
+                }
+            }
+
+            if (message_b) {
+                const auto& msg = port_b->front();
+
+                b[0] = msg[0];
+                if constexpr (QssLevel >= 2)
+                    b[1] = msg[1];
+                if constexpr (QssLevel == 3)
+                    b[2] = msg[2];
+            } else {
+                if constexpr (QssLevel == 2) {
+                    b[0] += b[1] * e;
+                } else if constexpr (QssLevel == 3) {
+                    b[0] += b[1] * e + b[2] * e * e;
+                    b[1] += two * b[2] * e;
+                }
+            }
+        }
+
+        const auto cross = compute_next_cross();
+        if (a[0] - b[0] > 0 and is_a_less_b) {
+            is_a_less_b = false;
+            sigma       = zero;
+        } else if (a[0] - b[0] < 0 and not is_a_less_b) {
+            is_a_less_b = true;
+            sigma       = zero;
+        } else {
+            sigma = cross;
+        }
+
+        return success();
+    }
+
+    status lambda(simulation& sim) noexcept
+    {
+        return send_message(sim, y[0], output[is_a_less_b]);
+    }
+
+    observation_message observation(time t, time /*e*/) const noexcept
+    {
+        return { t, output[is_a_less_b] };
+    }
+};
+
+using qss1_compare = abstract_compare<1>;
+using qss2_compare = abstract_compare<2>;
+using qss3_compare = abstract_compare<3>;
+
 struct counter {
     message_id x[1] = {};
     time       sigma;
@@ -4571,6 +4726,7 @@ concept dynamics =
   std::is_same_v<Dynamics, qss1_wsum_3> or
   std::is_same_v<Dynamics, qss1_wsum_4> or
   std::is_same_v<Dynamics, qss1_integer> or
+  std::is_same_v<Dynamics, qss1_compare> or
   std::is_same_v<Dynamics, qss2_integrator> or
   std::is_same_v<Dynamics, qss2_multiplier> or
   std::is_same_v<Dynamics, qss2_cross> or
@@ -4584,6 +4740,7 @@ concept dynamics =
   std::is_same_v<Dynamics, qss2_wsum_3> or
   std::is_same_v<Dynamics, qss2_wsum_4> or
   std::is_same_v<Dynamics, qss2_integer> or
+  std::is_same_v<Dynamics, qss2_compare> or
   std::is_same_v<Dynamics, qss3_integrator> or
   std::is_same_v<Dynamics, qss3_multiplier> or
   std::is_same_v<Dynamics, qss3_cross> or
@@ -4596,7 +4753,8 @@ concept dynamics =
   std::is_same_v<Dynamics, qss3_wsum_2> or
   std::is_same_v<Dynamics, qss3_wsum_3> or
   std::is_same_v<Dynamics, qss3_wsum_4> or
-  std::is_same_v<Dynamics, qss3_integer> or std::is_same_v<Dynamics, counter> or
+  std::is_same_v<Dynamics, qss3_integer> or
+  std::is_same_v<Dynamics, qss3_compare> or std::is_same_v<Dynamics, counter> or
   std::is_same_v<Dynamics, queue> or std::is_same_v<Dynamics, dynamic_queue> or
   std::is_same_v<Dynamics, priority_queue> or
   std::is_same_v<Dynamics, generator> or std::is_same_v<Dynamics, constant> or
@@ -4649,6 +4807,8 @@ static constexpr dynamics_type dynamics_typeof() noexcept
         return dynamics_type::qss1_wsum_4;
     if constexpr (std::is_same_v<Dynamics, qss1_integer>)
         return dynamics_type::qss1_integer;
+    if constexpr (std::is_same_v<Dynamics, qss1_compare>)
+        return dynamics_type::qss1_compare;
 
     if constexpr (std::is_same_v<Dynamics, qss2_integrator>)
         return dynamics_type::qss2_integrator;
@@ -4676,6 +4836,8 @@ static constexpr dynamics_type dynamics_typeof() noexcept
         return dynamics_type::qss2_wsum_4;
     if constexpr (std::is_same_v<Dynamics, qss2_integer>)
         return dynamics_type::qss2_integer;
+    if constexpr (std::is_same_v<Dynamics, qss2_compare>)
+        return dynamics_type::qss2_compare;
 
     if constexpr (std::is_same_v<Dynamics, qss3_integrator>)
         return dynamics_type::qss3_integrator;
@@ -4703,6 +4865,8 @@ static constexpr dynamics_type dynamics_typeof() noexcept
         return dynamics_type::qss3_wsum_4;
     if constexpr (std::is_same_v<Dynamics, qss3_integer>)
         return dynamics_type::qss3_integer;
+    if constexpr (std::is_same_v<Dynamics, qss3_compare>)
+        return dynamics_type::qss3_compare;
 
     if constexpr (std::is_same_v<Dynamics, counter>)
         return dynamics_type::counter;
@@ -4843,6 +5007,13 @@ constexpr auto dispatch(const dynamics_type type,
                            qss_integer_tag{},
                            std::forward<Args>(args)...);
 
+    case dynamics_type::qss1_compare:
+    case dynamics_type::qss2_compare:
+    case dynamics_type::qss3_compare:
+        return std::invoke(std::forward<Function>(f),
+                           qss_compare_tag{},
+                           std::forward<Args>(args)...);
+
     case dynamics_type::counter:
         return std::invoke(std::forward<Function>(f),
                            counter_tag{},
@@ -4961,7 +5132,10 @@ constexpr auto dispatch(const model& mdl, Function&& f, Args&&... args) noexcept
         return std::invoke(std::forward<Function>(f),
                            *reinterpret_cast<const qss1_integer*>(&mdl.dyn),
                            std::forward<Args>(args)...);
-
+    case dynamics_type::qss1_compare:
+        return std::invoke(std::forward<Function>(f),
+                           *reinterpret_cast<const qss1_compare*>(&mdl.dyn),
+                           std::forward<Args>(args)...);
     case dynamics_type::qss2_integrator:
         return std::invoke(std::forward<Function>(f),
                            *reinterpret_cast<const qss2_integrator*>(&mdl.dyn),
@@ -5013,6 +5187,10 @@ constexpr auto dispatch(const model& mdl, Function&& f, Args&&... args) noexcept
     case dynamics_type::qss2_integer:
         return std::invoke(std::forward<Function>(f),
                            *reinterpret_cast<const qss2_integer*>(&mdl.dyn),
+                           std::forward<Args>(args)...);
+    case dynamics_type::qss2_compare:
+        return std::invoke(std::forward<Function>(f),
+                           *reinterpret_cast<const qss2_compare*>(&mdl.dyn),
                            std::forward<Args>(args)...);
 
     case dynamics_type::qss3_integrator:
@@ -5066,6 +5244,10 @@ constexpr auto dispatch(const model& mdl, Function&& f, Args&&... args) noexcept
     case dynamics_type::qss3_integer:
         return std::invoke(std::forward<Function>(f),
                            *reinterpret_cast<const qss3_integer*>(&mdl.dyn),
+                           std::forward<Args>(args)...);
+    case dynamics_type::qss3_compare:
+        return std::invoke(std::forward<Function>(f),
+                           *reinterpret_cast<const qss3_compare*>(&mdl.dyn),
                            std::forward<Args>(args)...);
 
     case dynamics_type::counter:
@@ -5161,6 +5343,8 @@ constexpr auto dispatch(model& mdl, Function&& f) noexcept
         return f(*reinterpret_cast<qss1_wsum_4*>(&mdl.dyn));
     case dynamics_type::qss1_integer:
         return f(*reinterpret_cast<qss1_integer*>(&mdl.dyn));
+    case dynamics_type::qss1_compare:
+        return f(*reinterpret_cast<qss1_compare*>(&mdl.dyn));
 
     case dynamics_type::qss2_integrator:
         return f(*reinterpret_cast<qss2_integrator*>(&mdl.dyn));
@@ -5188,6 +5372,8 @@ constexpr auto dispatch(model& mdl, Function&& f) noexcept
         return f(*reinterpret_cast<qss2_wsum_4*>(&mdl.dyn));
     case dynamics_type::qss2_integer:
         return f(*reinterpret_cast<qss2_integer*>(&mdl.dyn));
+    case dynamics_type::qss2_compare:
+        return f(*reinterpret_cast<qss2_compare*>(&mdl.dyn));
 
     case dynamics_type::qss3_integrator:
         return f(*reinterpret_cast<qss3_integrator*>(&mdl.dyn));
@@ -5215,6 +5401,8 @@ constexpr auto dispatch(model& mdl, Function&& f) noexcept
         return f(*reinterpret_cast<qss3_wsum_4*>(&mdl.dyn));
     case dynamics_type::qss3_integer:
         return f(*reinterpret_cast<qss3_integer*>(&mdl.dyn));
+    case dynamics_type::qss3_compare:
+        return f(*reinterpret_cast<qss3_compare*>(&mdl.dyn));
 
     case dynamics_type::counter:
         return f(*reinterpret_cast<counter*>(&mdl.dyn));
@@ -5346,6 +5534,9 @@ inline bool is_ports_compatible(const dynamics_type mdl_src,
     case dynamics_type::qss1_integer:
     case dynamics_type::qss2_integer:
     case dynamics_type::qss3_integer:
+    case dynamics_type::qss1_compare:
+    case dynamics_type::qss2_compare:
+    case dynamics_type::qss3_compare:
         return true;
 
     case dynamics_type::constant:
@@ -6245,6 +6436,11 @@ constexpr inline auto get_interpolate_type(const dynamics_type type) noexcept
     case dynamics_type::qss1_wsum_3:
     case dynamics_type::qss1_wsum_4:
     case dynamics_type::qss1_integer:
+    case dynamics_type::qss2_integer:
+    case dynamics_type::qss3_integer:
+    case dynamics_type::qss1_compare:
+    case dynamics_type::qss2_compare:
+    case dynamics_type::qss3_compare:
         return interpolate_type::qss1;
 
     case dynamics_type::qss2_integrator:
@@ -6258,7 +6454,6 @@ constexpr inline auto get_interpolate_type(const dynamics_type type) noexcept
     case dynamics_type::qss2_wsum_2:
     case dynamics_type::qss2_wsum_3:
     case dynamics_type::qss2_wsum_4:
-    case dynamics_type::qss2_integer:
         return interpolate_type::qss2;
 
     case dynamics_type::qss3_integrator:
@@ -6272,7 +6467,6 @@ constexpr inline auto get_interpolate_type(const dynamics_type type) noexcept
     case dynamics_type::qss3_wsum_2:
     case dynamics_type::qss3_wsum_3:
     case dynamics_type::qss3_wsum_4:
-    case dynamics_type::qss3_integer:
         return interpolate_type::qss3;
 
     default:

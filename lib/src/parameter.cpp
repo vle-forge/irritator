@@ -27,9 +27,29 @@ static void model_init(const parameter&               param,
 }
 
 template<size_t QssLevel>
+static void model_init(const parameter&            param,
+                       abstract_compare<QssLevel>& dyn) noexcept
+{
+    dyn.a[0]      = param.reals[0];
+    dyn.b[0]      = param.reals[1];
+    dyn.output[0] = param.reals[2];
+    dyn.output[1] = param.reals[3];
+}
+
+template<size_t QssLevel>
 static void model_init(const parameter& /*param*/,
                        abstract_integer<QssLevel>& /*dyn*/) noexcept
 {}
+
+template<size_t QssLevel>
+static void parameter_init(parameter&                        param,
+                           const abstract_compare<QssLevel>& dyn) noexcept
+{
+    param.reals[0] = dyn.a[0];
+    param.reals[1] = dyn.b[0];
+    param.reals[2] = dyn.output[0];
+    param.reals[3] = dyn.output[1];
+}
 
 template<size_t QssLevel>
 static void parameter_init(parameter& /*param*/,
@@ -472,6 +492,13 @@ void parameter::init_from(const dynamics_type type) noexcept
                          dynamics_type::qss2_cross,
                          dynamics_type::qss3_cross)) {
         integers[0] = 1;
+    } else if (any_equal(type,
+                         dynamics_type::qss1_compare,
+                         dynamics_type::qss2_compare,
+                         dynamics_type::qss3_compare)) {
+        reals[0]    = std::numeric_limits<real>::epsilon();
+        integers[0] = 0; // equal_to
+        integers[1] = 1;
     } else if (any_equal(type, dynamics_type::time_func)) {
         reals[1] = 0.01;
     } else if (any_equal(

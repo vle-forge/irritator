@@ -121,6 +121,7 @@ auto get_dynamics_type(std::string_view dynamics_name) noexcept
         { "logical_or_2", dynamics_type::logical_or_2 },
         { "logical_or_3", dynamics_type::logical_or_3 },
         { "priority_queue", dynamics_type::priority_queue },
+        { "qss1_compare", dynamics_type::qss1_compare },
         { "qss1_cross", dynamics_type::qss1_cross },
         { "qss1_filter", dynamics_type::qss1_filter },
         { "qss1_integer", dynamics_type::qss1_integer },
@@ -134,6 +135,7 @@ auto get_dynamics_type(std::string_view dynamics_name) noexcept
         { "qss1_wsum_2", dynamics_type::qss1_wsum_2 },
         { "qss1_wsum_3", dynamics_type::qss1_wsum_3 },
         { "qss1_wsum_4", dynamics_type::qss1_wsum_4 },
+        { "qss2_compare", dynamics_type::qss2_compare },
         { "qss2_cross", dynamics_type::qss2_cross },
         { "qss2_filter", dynamics_type::qss2_filter },
         { "qss2_integer", dynamics_type::qss2_integer },
@@ -147,6 +149,7 @@ auto get_dynamics_type(std::string_view dynamics_name) noexcept
         { "qss2_wsum_2", dynamics_type::qss2_wsum_2 },
         { "qss2_wsum_3", dynamics_type::qss2_wsum_3 },
         { "qss2_wsum_4", dynamics_type::qss2_wsum_4 },
+        { "qss3_compare", dynamics_type::qss3_compare },
         { "qss3_cross", dynamics_type::qss3_cross },
         { "qss3_filter", dynamics_type::qss3_filter },
         { "qss3_integer", dynamics_type::qss3_integer },
@@ -280,5 +283,4 @@ void write_dot_graph_simulation(std::ostream&     os,
 
     os << "}\n";
 }
-
 }

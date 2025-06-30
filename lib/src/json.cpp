@@ -1081,6 +1081,35 @@ struct json_dearchiver::impl {
         return true;
     }
 
+    bool read_dynamics(const rapidjson::Value& val,
+                       qss_compare_tag,
+                       parameter& p) noexcept
+    {
+        auto_stack a(this, "dynamics compare");
+
+        static constexpr std::string_view n[] = {
+            "a", "a-less-b", "b", "not-a-less-b"
+        };
+
+        return for_members(val, n, [&](auto idx, const auto& value) noexcept {
+            switch (idx) {
+            case 0:
+                return read_real(value, p.reals[0]);
+            case 1:
+                return read_real(value, p.reals[2]);
+            case 2:
+                return read_real(value, p.reals[1]);
+            case 3:
+                return read_real(value, p.reals[3]);
+
+            default:
+                return error("unknown element");
+            }
+        });
+
+        return true;
+    }
+
     bool read_dynamics(const rapidjson::Value& /*val*/,
                        counter_tag,
                        parameter& /*p*/) noexcept
@@ -5584,6 +5613,23 @@ struct json_archiver::impl {
                const parameter& /*p*/) noexcept
     {
         writer.StartObject();
+        writer.EndObject();
+    }
+
+    template<typename Writer, sz QssLevel>
+    void write(Writer&                           writer,
+               const abstract_compare<QssLevel>& dyn,
+               const parameter&                  p) noexcept
+    {
+        writer.StartObject();
+        writer.Key("a");
+        writer.Double(p.reals[0]);
+        writer.Key("b");
+        writer.Double(p.reals[1]);
+        writer.Key("a-less-b");
+        writer.Double(p.reals[2]);
+        writer.Key("not-a-less-b");
+        writer.Double(p.reals[3]);
         writer.EndObject();
     }
 
