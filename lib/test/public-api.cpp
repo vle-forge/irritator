@@ -319,60 +319,63 @@ int main()
     };
 
     "sizeof"_test = [] {
-        fmt::print("qss1_integrator {}\n", sizeof(irt::qss1_integrator));
-        fmt::print("qss1_multiplier {}\n", sizeof(irt::qss1_multiplier));
-        fmt::print("qss1_cross      {}\n", sizeof(irt::qss1_cross));
-        fmt::print("qss1_power      {}\n", sizeof(irt::qss1_power));
-        fmt::print("qss1_square     {}\n", sizeof(irt::qss1_square));
-        fmt::print("qss1_sum_2      {}\n", sizeof(irt::qss1_sum_2));
-        fmt::print("qss1_sum_3      {}\n", sizeof(irt::qss1_sum_3));
-        fmt::print("qss1_sum_4      {}\n", sizeof(irt::qss1_sum_4));
-        fmt::print("qss1_wsum_2     {}\n", sizeof(irt::qss1_wsum_2));
-        fmt::print("qss1_wsum_3     {}\n", sizeof(irt::qss1_wsum_3));
-        fmt::print("qss1_wsum_4     {}\n", sizeof(irt::qss1_wsum_4));
-        fmt::print("qss1_integer     {}\n", sizeof(irt::qss1_integer));
-        fmt::print("qss1_compare     {}\n", sizeof(irt::qss1_compare));
-        fmt::print("qss2_integrator {}\n", sizeof(irt::qss2_integrator));
-        fmt::print("qss2_multiplier {}\n", sizeof(irt::qss2_multiplier));
-        fmt::print("qss2_cross      {}\n", sizeof(irt::qss2_cross));
-        fmt::print("qss2_power      {}\n", sizeof(irt::qss2_power));
-        fmt::print("qss2_square     {}\n", sizeof(irt::qss2_square));
-        fmt::print("qss2_sum_2      {}\n", sizeof(irt::qss2_sum_2));
-        fmt::print("qss2_sum_3      {}\n", sizeof(irt::qss2_sum_3));
-        fmt::print("qss2_sum_4      {}\n", sizeof(irt::qss2_sum_4));
-        fmt::print("qss2_wsum_2     {}\n", sizeof(irt::qss2_wsum_2));
-        fmt::print("qss2_wsum_3     {}\n", sizeof(irt::qss2_wsum_3));
-        fmt::print("qss2_wsum_4     {}\n", sizeof(irt::qss2_wsum_4));
-        fmt::print("qss2_integer     {}\n", sizeof(irt::qss2_integer));
-        fmt::print("qss2_compare     {}\n", sizeof(irt::qss2_compare));
-        fmt::print("qss3_integrator {}\n", sizeof(irt::qss3_integrator));
-        fmt::print("qss3_multiplier {}\n", sizeof(irt::qss3_multiplier));
-        fmt::print("qss3_power      {}\n", sizeof(irt::qss3_power));
-        fmt::print("qss3_square     {}\n", sizeof(irt::qss3_square));
-        fmt::print("qss3_cross      {}\n", sizeof(irt::qss3_cross));
-        fmt::print("qss3_sum_2      {}\n", sizeof(irt::qss3_sum_2));
-        fmt::print("qss3_sum_3      {}\n", sizeof(irt::qss3_sum_3));
-        fmt::print("qss3_sum_4      {}\n", sizeof(irt::qss3_sum_4));
-        fmt::print("qss3_wsum_2     {}\n", sizeof(irt::qss3_wsum_2));
-        fmt::print("qss3_wsum_3     {}\n", sizeof(irt::qss3_wsum_3));
-        fmt::print("qss3_wsum_4     {}\n", sizeof(irt::qss3_wsum_4));
-        fmt::print("qss3_integer     {}\n", sizeof(irt::qss3_integer));
-        fmt::print("qss3_compare     {}\n", sizeof(irt::qss3_compare));
-        fmt::print("counter         {}\n", sizeof(irt::counter));
-        fmt::print("queue           {}\n", sizeof(irt::queue));
-        fmt::print("dynamic_queue   {}\n", sizeof(irt::dynamic_queue));
-        fmt::print("priority_queue  {}\n", sizeof(irt::priority_queue));
-        fmt::print("generator       {}\n", sizeof(irt::generator));
-        fmt::print("constant        {}\n", sizeof(irt::constant));
-        fmt::print("time_func       {}\n", sizeof(irt::time_func));
-        fmt::print("accumulator     {}\n", sizeof(irt::accumulator_2));
-        fmt::print("hsm_wrapper     {}\n", sizeof(irt::hsm_wrapper));
-        fmt::print("model           {}\n", sizeof(irt::model));
-        fmt::print("message         {}\n", sizeof(irt::message));
-        fmt::print("node            {}\n", sizeof(irt::node));
-        fmt::print("---------------------\n", sizeof(irt::node));
+        fmt::print("qss1_integrator   {}\n", sizeof(irt::qss1_integrator));
+        fmt::print("qss1_multiplier   {}\n", sizeof(irt::qss1_multiplier));
+        fmt::print("qss1_cross        {}\n", sizeof(irt::qss1_cross));
+        fmt::print("qss1_power        {}\n", sizeof(irt::qss1_power));
+        fmt::print("qss1_square       {}\n", sizeof(irt::qss1_square));
+        fmt::print("qss1_sum_2        {}\n", sizeof(irt::qss1_sum_2));
+        fmt::print("qss1_sum_3        {}\n", sizeof(irt::qss1_sum_3));
+        fmt::print("qss1_sum_4        {}\n", sizeof(irt::qss1_sum_4));
+        fmt::print("qss1_wsum_2       {}\n", sizeof(irt::qss1_wsum_2));
+        fmt::print("qss1_wsum_3       {}\n", sizeof(irt::qss1_wsum_3));
+        fmt::print("qss1_wsum_4       {}\n", sizeof(irt::qss1_wsum_4));
+        fmt::print("qss1_integer      {}\n", sizeof(irt::qss1_integer));
+        fmt::print("qss1_compare      {}\n", sizeof(irt::qss1_compare));
+        fmt::print("qss2_integrator   {}\n", sizeof(irt::qss2_integrator));
+        fmt::print("qss2_multiplier   {}\n", sizeof(irt::qss2_multiplier));
+        fmt::print("qss2_cross        {}\n", sizeof(irt::qss2_cross));
+        fmt::print("qss2_power        {}\n", sizeof(irt::qss2_power));
+        fmt::print("qss2_square       {}\n", sizeof(irt::qss2_square));
+        fmt::print("qss2_sum_2        {}\n", sizeof(irt::qss2_sum_2));
+        fmt::print("qss2_sum_3        {}\n", sizeof(irt::qss2_sum_3));
+        fmt::print("qss2_sum_4        {}\n", sizeof(irt::qss2_sum_4));
+        fmt::print("qss2_wsum_2       {}\n", sizeof(irt::qss2_wsum_2));
+        fmt::print("qss2_wsum_3       {}\n", sizeof(irt::qss2_wsum_3));
+        fmt::print("qss2_wsum_4       {}\n", sizeof(irt::qss2_wsum_4));
+        fmt::print("qss2_integer      {}\n", sizeof(irt::qss2_integer));
+        fmt::print("qss2_compare      {}\n", sizeof(irt::qss2_compare));
+        fmt::print("qss3_integrator   {}\n", sizeof(irt::qss3_integrator));
+        fmt::print("qss3_multiplier   {}\n", sizeof(irt::qss3_multiplier));
+        fmt::print("qss3_power        {}\n", sizeof(irt::qss3_power));
+        fmt::print("qss3_square       {}\n", sizeof(irt::qss3_square));
+        fmt::print("qss3_cross        {}\n", sizeof(irt::qss3_cross));
+        fmt::print("qss3_sum_2        {}\n", sizeof(irt::qss3_sum_2));
+        fmt::print("qss3_sum_3        {}\n", sizeof(irt::qss3_sum_3));
+        fmt::print("qss3_sum_4        {}\n", sizeof(irt::qss3_sum_4));
+        fmt::print("qss3_wsum_2       {}\n", sizeof(irt::qss3_wsum_2));
+        fmt::print("qss3_wsum_3       {}\n", sizeof(irt::qss3_wsum_3));
+        fmt::print("qss3_wsum_4       {}\n", sizeof(irt::qss3_wsum_4));
+        fmt::print("qss3_integer      {}\n", sizeof(irt::qss3_integer));
+        fmt::print("qss3_compare      {}\n", sizeof(irt::qss3_compare));
+        fmt::print("counter           {}\n", sizeof(irt::counter));
+        fmt::print("queue             {}\n", sizeof(irt::queue));
+        fmt::print("dynamic_queue     {}\n", sizeof(irt::dynamic_queue));
+        fmt::print("priority_queue    {}\n", sizeof(irt::priority_queue));
+        fmt::print("generator         {}\n", sizeof(irt::generator));
+        fmt::print("constant          {}\n", sizeof(irt::constant));
+        fmt::print("time_func         {}\n", sizeof(irt::time_func));
+        fmt::print("accumulator       {}\n", sizeof(irt::accumulator_2));
+        fmt::print("hsm_wrapper       {}\n", sizeof(irt::hsm_wrapper));
+        fmt::print("--------------------\n");
         fmt::print("dynamic number:   {}\n", irt::dynamics_type_size());
         fmt::print("max dynamic size: {}\n", irt::max_size_in_bytes());
+        fmt::print("--------------------\n");
+        fmt::print("model             {}\n", sizeof(irt::model));
+        fmt::print("message           {}\n", sizeof(irt::message));
+        fmt::print("observer          {}\n", sizeof(irt::observer));
+        fmt::print("node              {}\n", sizeof(irt::node));
+        fmt::print("parameter         {}\n", sizeof(irt::parameter));
         fmt::print("model size:       {}\n", sizeof(irt::model));
     };
 
@@ -842,6 +845,7 @@ int main()
 
         {
             irt::simulation sim;
+            expect(sim.can_alloc(irt::dynamics_type_size()));
 
             sim.alloc<irt::qss1_integrator>();
             sim.alloc<irt::qss1_multiplier>();
@@ -855,6 +859,8 @@ int main()
             sim.alloc<irt::qss1_wsum_2>();
             sim.alloc<irt::qss1_wsum_3>();
             sim.alloc<irt::qss1_wsum_4>();
+            sim.alloc<irt::qss1_integer>();
+            sim.alloc<irt::qss1_compare>();
             sim.alloc<irt::qss2_integrator>();
             sim.alloc<irt::qss2_multiplier>();
             sim.alloc<irt::qss2_cross>();
@@ -867,6 +873,8 @@ int main()
             sim.alloc<irt::qss2_wsum_2>();
             sim.alloc<irt::qss2_wsum_3>();
             sim.alloc<irt::qss2_wsum_4>();
+            sim.alloc<irt::qss2_integer>();
+            sim.alloc<irt::qss2_compare>();
             sim.alloc<irt::qss3_integrator>();
             sim.alloc<irt::qss3_multiplier>();
             sim.alloc<irt::qss3_cross>();
@@ -879,6 +887,8 @@ int main()
             sim.alloc<irt::qss3_wsum_2>();
             sim.alloc<irt::qss3_wsum_3>();
             sim.alloc<irt::qss3_wsum_4>();
+            sim.alloc<irt::qss3_integer>();
+            sim.alloc<irt::qss3_compare>();
             sim.alloc<irt::counter>();
             sim.alloc<irt::queue>();
             sim.alloc<irt::dynamic_queue>();
@@ -893,6 +903,8 @@ int main()
             sim.alloc<irt::logical_or_3>();
             sim.alloc<irt::logical_invert>();
             sim.alloc<irt::hsm_wrapper>();
+
+            expect(eq(irt::dynamics_type_size(), sim.models.size()));
 
             irt::json_archiver j;
             expect(j(sim,
@@ -922,7 +934,7 @@ int main()
 
             irt::json_dearchiver j;
             expect(j(sim, in).has_value());
-            expect(eq(sim.models.size(), 50u));
+            expect(eq(sim.models.size(), irt::dynamics_type_size()));
         }
     };
 
