@@ -126,26 +126,39 @@ static void show_discrete_plot_line(
     }
 }
 
+inline static auto local_ring_buffer_getter(int idx, void* data) noexcept
+  -> ImPlotPoint
+{
+    const auto* obs    = reinterpret_cast<observer*>(data);
+    const auto  index  = obs->linearized_buffer.index_from_begin(idx);
+    const auto& values = obs->linearized_buffer[index];
+
+    return ImPlotPoint(values.x, values.y);
+};
+
 static void show_continuous_plot_line(
   const variable_observer::type_options options,
   const name_str&                       name,
   const observer&                       obs) noexcept
 {
+    debug::ensure(obs.linearized_buffer.data());
+    debug::ensure(not obs.linearized_buffer.empty());
+
     switch (options) {
     case variable_observer::type_options::line:
-        ImPlot::PlotLineG(name.c_str(),
-                          ring_buffer_getter,
-                          const_cast<void*>(reinterpret_cast<const void*>(
-                            &obs.linearized_buffer)),
-                          obs.linearized_buffer.ssize());
+        ImPlot::PlotLineG(
+          name.c_str(),
+          local_ring_buffer_getter,
+          const_cast<void*>(reinterpret_cast<const void*>(&obs)),
+          obs.linearized_buffer.ssize());
         break;
 
     case variable_observer::type_options::dash:
-        ImPlot::PlotScatterG(name.c_str(),
-                             ring_buffer_getter,
-                             const_cast<void*>(reinterpret_cast<const void*>(
-                               &obs.linearized_buffer)),
-                             obs.linearized_buffer.ssize());
+        ImPlot::PlotScatterG(
+          name.c_str(),
+          local_ring_buffer_getter,
+          const_cast<void*>(reinterpret_cast<const void*>(&obs)),
+          obs.linearized_buffer.ssize());
         break;
 
     default:
@@ -160,6 +173,10 @@ void plot_observation_widget::show_plot_line(
 {
     if (obs.linearized_buffer.size() <= 1)
         return;
+
+    debug::ensure(obs.linearized_buffer.data() != nullptr);
+    debug::ensure(not obs.linearized_buffer.empty());
+    debug::ensure(obs.linearized_buffer.ssize() > 1);
 
     ImGui::PushID(&obs);
 
