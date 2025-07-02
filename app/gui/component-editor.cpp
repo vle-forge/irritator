@@ -1956,68 +1956,44 @@ struct component_editor::impl {
 
             ImGui::TableSetColumnIndex(0);
 
-            auto copy_name = compo.name;
+            name_str copy_name = compo.name;
             if (ImGui::InputFilteredString("Name", copy_name)) {
                 ed.request_to_open(app.mod.components.get_id(compo));
                 compo.name = copy_name;
             }
 
-            if (ImGui::BeginTabBar("Settings", ImGuiTabBarFlags_None)) {
-                if (ImGui::BeginTabItem("Save")) {
-                    if (not ed.tabitem_open
-                              [component_editor::tabitem_open_save]) {
-                        element.clear_selected_nodes();
-                        ed.tabitem_open.flip();
-                    }
+            if (ImGui::CollapsingHeader("Save component"))
+                show_file_access(app, element, compo);
 
-                    show_file_access(app, element, compo);
-                    ImGui::EndTabItem();
+            if (ImGui::CollapsingHeader("External sources"))
+                display_external_source(compo);
+
+            if (ImGui::CollapsingHeader("Component In/Out")) {
+                if (compo.type == component_type::hsm) {
+                    ImGui::TextWrapped(
+                      "HSM component have four input and four "
+                      "output ports. You can select input ports from the "
+                      "state conditions and the output ports from the "
+                      "state actions.");
+                } else {
+                    element.clear_selected_nodes();
+                    show_input_output_ports(compo);
+                    show_input_output_connections(compo);
+                    show_connection_packs(compo);
                 }
+            }
 
-                if (ImGui::BeginTabItem("External source")) {
-                    display_external_source(compo);
-                    ImGui::EndTabItem();
-                }
+            const auto specific_flags = element.need_show_selected_nodes(ed)
+                                          ? ImGuiTreeNodeFlags_DefaultOpen
+                                          : ImGuiTreeNodeFlags_None;
 
-                if (ImGui::BeginTabItem("In/Out")) {
-                    if (not ed.tabitem_open
-                              [component_editor::tabitem_open_in_out]) {
-                        element.clear_selected_nodes();
-                        ed.tabitem_open.flip();
-                    }
+            if (ImGui::CollapsingHeader("Nodes Editor", specific_flags)) {
+                ed.tabitem_open.reset();
 
-                    if (compo.type == component_type::hsm) {
-                        ImGui::TextWrapped(
-                          "HSM component have four input and four "
-                          "output ports. You can select input ports from the "
-                          "state conditions and the output ports from the "
-                          "state actions.");
-                    } else {
-                        element.clear_selected_nodes();
-                        show_input_output_ports(compo);
-                        show_input_output_connections(compo);
-                        show_connection_packs(compo);
-                    }
-                    ImGui::EndTabItem();
-                }
-
-                const auto specific_flags = element.need_show_selected_nodes(ed)
-                                              ? ImGuiTabItemFlags_SetSelected
-                                              : ImGuiTabItemFlags_None;
-
-                if (ImGui::BeginTabItem("Specific", nullptr, specific_flags)) {
-                    ed.tabitem_open.reset();
-
-                    if (ImGui::BeginChild("##zone",
-                                          ImGui::GetContentRegionAvail())) {
-                        element.show_selected_nodes(ed);
-                    }
-                    ImGui::EndChild();
-
-                    ImGui::EndTabItem();
-                }
-
-                ImGui::EndTabBar();
+                if (ImGui::BeginChild("DrawZone",
+                                      ImGui::GetContentRegionAvail()))
+                    element.show_selected_nodes(ed);
+                ImGui::EndChild();
             }
 
             ImGui::TableSetColumnIndex(1);
@@ -2025,7 +2001,7 @@ struct component_editor::impl {
 
             ImGui::EndTable();
         }
-    };
+    }
 
     template<typename T, typename ID>
     bool display_component_editor(data_array<T, ID>& data,
