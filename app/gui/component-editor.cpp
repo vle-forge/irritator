@@ -279,10 +279,9 @@ static void show_connection_pack(const modeling&          mod,
 }
 
 struct component_editor::impl {
-    application&      app;
-    component_editor& ed;
 
-    void display_external_source(component& compo) noexcept
+    static void display_external_source(application& app,
+                                        component&   compo) noexcept
     {
         constexpr auto tn_def = ImGuiTreeNodeFlags_DefaultOpen;
 
@@ -486,9 +485,9 @@ struct component_editor::impl {
     }
 
     template<typename ComponentEditor>
-    void show_file_access(application&     app,
-                          ComponentEditor& ed,
-                          component&       compo) noexcept
+    static void show_file_access(application&     app,
+                                 ComponentEditor& ed,
+                                 component&       compo) noexcept
     {
         static constexpr const char* empty = "";
 
@@ -622,7 +621,8 @@ struct component_editor::impl {
         }
     }
 
-    port_id show_input_port(component& gcompo, port_id g_port_id) noexcept
+    static port_id show_input_port(component& gcompo,
+                                   port_id    g_port_id) noexcept
     {
         const auto* c_str = gcompo.x.exists(g_port_id)
                               ? gcompo.x.get<port_str>(g_port_id).c_str()
@@ -648,7 +648,8 @@ struct component_editor::impl {
         return g_port_id;
     }
 
-    port_id show_output_port(component& gcompo, port_id g_port_id) noexcept
+    static port_id show_output_port(component& gcompo,
+                                    port_id    g_port_id) noexcept
     {
         const auto* c_str = gcompo.y.exists(g_port_id)
                               ? gcompo.y.get<port_str>(g_port_id).c_str()
@@ -674,9 +675,9 @@ struct component_editor::impl {
         return g_port_id;
     }
 
-    child_id show_node_selection(ImGuiTextFilter&   filter,
-                                 generic_component& g,
-                                 child_id           selected) noexcept
+    static child_id show_node_selection(ImGuiTextFilter&   filter,
+                                        generic_component& g,
+                                        child_id           selected) noexcept
     {
         static std::string temp;
 
@@ -724,9 +725,9 @@ struct component_editor::impl {
         return selected;
     }
 
-    graph_node_id show_node_selection(ImGuiTextFilter& filter,
-                                      graph_component& graph,
-                                      graph_node_id    selected) noexcept
+    static graph_node_id show_node_selection(ImGuiTextFilter& filter,
+                                             graph_component& graph,
+                                             graph_node_id    selected) noexcept
     {
         static std::string temp;
 
@@ -773,8 +774,9 @@ struct component_editor::impl {
         return selected;
     }
 
-    void show_input_connections_new(grid_component& grid,
-                                    component&      gcompo) noexcept
+    static void show_input_connections_new(application&    app,
+                                           grid_component& grid,
+                                           component&      gcompo) noexcept
     {
         static port_id     g_port_id  = undefined<port_id>();
         static int         selected   = 0;
@@ -867,8 +869,9 @@ struct component_editor::impl {
         }
     }
 
-    void show_output_connections_new(grid_component& grid,
-                                     component&      gcompo) noexcept
+    static void show_output_connections_new(application&    app,
+                                            grid_component& grid,
+                                            component&      gcompo) noexcept
     {
         static port_id     g_port_id  = undefined<port_id>();
         static int         selected   = 0;
@@ -961,8 +964,9 @@ struct component_editor::impl {
         }
     }
 
-    void show_input_connections_new(generic_component& g,
-                                    component&         gcompo) noexcept
+    static void show_input_connections_new(application&       app,
+                                           generic_component& g,
+                                           component&         gcompo) noexcept
     {
         static ImGuiTextFilter filter;
         static port_id         g_port_id   = undefined<port_id>();
@@ -1088,8 +1092,9 @@ struct component_editor::impl {
         }
     }
 
-    void show_output_connections_new(generic_component& g,
-                                     component&         gcompo) noexcept
+    static void show_output_connections_new(application&       app,
+                                            generic_component& g,
+                                            component&         gcompo) noexcept
     {
         static ImGuiTextFilter filter;
         static port_id         g_port_id   = undefined<port_id>();
@@ -1215,8 +1220,9 @@ struct component_editor::impl {
         }
     }
 
-    void show_input_connections_new(graph_component& graph,
-                                    component&       gcompo) noexcept
+    static void show_input_connections_new(application&     app,
+                                           graph_component& graph,
+                                           component&       gcompo) noexcept
     {
         static ImGuiTextFilter filter;
         static port_id         g_port_id  = undefined<port_id>();
@@ -1297,8 +1303,9 @@ struct component_editor::impl {
         }
     }
 
-    void show_output_connections_new(graph_component& graph,
-                                     component&       gcompo) noexcept
+    static void show_output_connections_new(application&     app,
+                                            graph_component& graph,
+                                            component&       gcompo) noexcept
     {
         static ImGuiTextFilter filter;
         static port_id         g_port_id  = undefined<port_id>();
@@ -1379,8 +1386,9 @@ struct component_editor::impl {
         }
     }
 
-    void show_input_output_connections(generic_component& g,
-                                       component&         c) noexcept
+    static void show_input_output_connections(application&       app,
+                                              generic_component& g,
+                                              component&         c) noexcept
     {
         static std::string str;
 
@@ -1434,7 +1442,7 @@ struct component_editor::impl {
             if (to_del.has_value())
                 g.input_connections.free(*to_del);
 
-            show_input_connections_new(g, c);
+            show_input_connections_new(app, g, c);
             ImGui::TreePop();
         }
 
@@ -1488,12 +1496,14 @@ struct component_editor::impl {
             if (to_del.has_value())
                 g.output_connections.free(*to_del);
 
-            show_output_connections_new(g, c);
+            show_output_connections_new(app, g, c);
             ImGui::TreePop();
         }
     }
 
-    void show_input_output_connections(grid_component& g, component& c) noexcept
+    static void show_input_output_connections(application&    app,
+                                              grid_component& g,
+                                              component&      c) noexcept
     {
         static std::string str;
 
@@ -1536,7 +1546,7 @@ struct component_editor::impl {
             if (to_del.has_value())
                 g.input_connections.free(*to_del);
 
-            show_input_connections_new(g, c);
+            show_input_connections_new(app, g, c);
             ImGui::TreePop();
         }
 
@@ -1578,13 +1588,14 @@ struct component_editor::impl {
             if (to_del.has_value())
                 g.output_connections.free(*to_del);
 
-            show_output_connections_new(g, c);
+            show_output_connections_new(app, g, c);
             ImGui::TreePop();
         }
     }
 
-    void show_input_output_connections(graph_component& g,
-                                       component&       c) noexcept
+    static void show_input_output_connections(application&     app,
+                                              graph_component& g,
+                                              component&       c) noexcept
     {
         static std::string str;
 
@@ -1623,7 +1634,7 @@ struct component_editor::impl {
             if (to_del.has_value())
                 g.input_connections.free(*to_del);
 
-            show_input_connections_new(g, c);
+            show_input_connections_new(app, g, c);
             ImGui::TreePop();
         }
 
@@ -1662,12 +1673,13 @@ struct component_editor::impl {
             if (to_del.has_value())
                 g.output_connections.free(*to_del);
 
-            show_output_connections_new(g, c);
+            show_output_connections_new(app, g, c);
             ImGui::TreePop();
         }
     }
 
-    void show_input_output_connections(component& compo) noexcept
+    static void show_input_output_connections(application& app,
+                                              component&   compo) noexcept
     {
         switch (compo.type) {
         case component_type::none:
@@ -1676,18 +1688,18 @@ struct component_editor::impl {
         case component_type::generic:
             if (auto* g =
                   app.mod.generic_components.try_to_get(compo.id.generic_id))
-                show_input_output_connections(*g, compo);
+                show_input_output_connections(app, *g, compo);
             break;
 
         case component_type::grid:
             if (auto* g = app.mod.grid_components.try_to_get(compo.id.grid_id))
-                show_input_output_connections(*g, compo);
+                show_input_output_connections(app, *g, compo);
             break;
 
         case component_type::graph:
             if (auto* g =
                   app.mod.graph_components.try_to_get(compo.id.graph_id))
-                show_input_output_connections(*g, compo);
+                show_input_output_connections(app, *g, compo);
             break;
 
         case component_type::hsm:
@@ -1695,7 +1707,7 @@ struct component_editor::impl {
         }
     }
 
-    void show_input_output_ports(component& compo) noexcept
+    static void show_input_output_ports(component& compo) noexcept
     {
         if (ImGui::TreeNodeEx("X ports", ImGuiTreeNodeFlags_DefaultOpen)) {
             std::optional<port_id> to_del;
@@ -1783,8 +1795,11 @@ struct component_editor::impl {
         }
     }
 
-    void show_connection_packs(component& compo) noexcept
+    static void show_connection_packs(application& app,
+                                      component&   compo) noexcept
     {
+        auto& ed = app.component_ed;
+
         if (ImGui::TreeNode("input connection pack")) {
             show_connection_pack(
               app.mod,
@@ -1941,10 +1956,14 @@ struct component_editor::impl {
     }
 
     template<typename ComponentEditor>
-    void display_component_editor_subtable(ComponentEditor& element,
-                                           component&       compo,
-                                           ImGuiTableFlags  flags) noexcept
+    static void display_component_editor_subtable(
+      application&     app,
+      ComponentEditor& element,
+      component&       compo,
+      ImGuiTableFlags  flags) noexcept
     {
+        auto& ed = app.component_ed;
+
         if (ImGui::BeginTable("##ed", 2, flags)) {
             ImGui::TableSetupColumn(
               "Component settings", ImGuiTableColumnFlags_WidthStretch, 0.2f);
@@ -1958,7 +1977,8 @@ struct component_editor::impl {
 
             name_str copy_name = compo.name;
             if (ImGui::InputFilteredString("Name", copy_name)) {
-                ed.request_to_open(app.mod.components.get_id(compo));
+                app.component_ed.request_to_open(
+                  app.mod.components.get_id(compo));
                 compo.name = copy_name;
             }
 
@@ -1966,7 +1986,7 @@ struct component_editor::impl {
                 show_file_access(app, element, compo);
 
             if (ImGui::CollapsingHeader("External sources"))
-                display_external_source(compo);
+                display_external_source(app, compo);
 
             if (ImGui::CollapsingHeader("Component In/Out")) {
                 if (compo.type == component_type::hsm) {
@@ -1978,8 +1998,8 @@ struct component_editor::impl {
                 } else {
                     element.clear_selected_nodes();
                     show_input_output_ports(compo);
-                    show_input_output_connections(compo);
-                    show_connection_packs(compo);
+                    show_input_output_connections(app, compo);
+                    show_connection_packs(app, compo);
                 }
             }
 
@@ -2004,9 +2024,10 @@ struct component_editor::impl {
     }
 
     template<typename T, typename ID>
-    bool display_component_editor(data_array<T, ID>& data,
-                                  const ID           id,
-                                  const component_id compo_id) noexcept
+    static bool display_component_editor(application&       app,
+                                         data_array<T, ID>& data,
+                                         const ID           id,
+                                         const component_id compo_id) noexcept
     {
         auto* compo = app.mod.components.try_to_get<component>(compo_id);
         if (not compo)
@@ -2015,6 +2036,8 @@ struct component_editor::impl {
         auto* element = data.try_to_get(id);
         if (not element)
             return true;
+
+        auto& ed = app.component_ed;
 
         auto tab_item_flags = ImGuiTabItemFlags_None;
         format(ed.title, "{}##{}", compo->name.c_str(), get_index(compo_id));
@@ -2039,7 +2062,7 @@ struct component_editor::impl {
                 app.start_save_component(compo_id);
             }
 
-            display_component_editor_subtable(*element, *compo, flags);
+            display_component_editor_subtable(app, *element, *compo, flags);
 
             ImGui::EndTabItem();
         }
@@ -2047,40 +2070,44 @@ struct component_editor::impl {
         return (open == false);
     }
 
-    void display_tabs() noexcept
+    static void display_tabs(application& app) noexcept
     {
-        auto it = ed.tabs.begin();
+        auto it = app.component_ed.tabs.begin();
 
-        while (it != ed.tabs.end()) {
+        while (it != app.component_ed.tabs.end()) {
             auto to_del = false;
 
             switch (it->type) {
             case component_type::generic:
-                if (display_component_editor(
-                      ed.generics, it->data.generic, it->id)) {
-                    ed.generics.free(it->data.generic);
+                if (display_component_editor(app,
+                                             app.component_ed.generics,
+                                             it->data.generic,
+                                             it->id)) {
+                    app.component_ed.generics.free(it->data.generic);
                     to_del = true;
                 }
                 break;
 
             case component_type::grid:
-                if (display_component_editor(ed.grids, it->data.grid, it->id)) {
-                    ed.grids.free(it->data.grid);
+                if (display_component_editor(
+                      app, app.component_ed.grids, it->data.grid, it->id)) {
+                    app.component_ed.grids.free(it->data.grid);
                     to_del = true;
                 }
                 break;
 
             case component_type::graph:
                 if (display_component_editor(
-                      ed.graphs, it->data.graph, it->id)) {
-                    ed.graphs.free(it->data.graph);
+                      app, app.component_ed.graphs, it->data.graph, it->id)) {
+                    app.component_ed.graphs.free(it->data.graph);
                     to_del = true;
                 }
                 break;
 
             case component_type::hsm:
-                if (display_component_editor(ed.hsms, it->data.hsm, it->id)) {
-                    ed.hsms.free(it->data.hsm);
+                if (display_component_editor(
+                      app, app.component_ed.hsms, it->data.hsm, it->id)) {
+                    app.component_ed.hsms.free(it->data.hsm);
                     to_del = true;
                 }
                 break;
@@ -2091,7 +2118,7 @@ struct component_editor::impl {
             }
 
             if (to_del)
-                it = ed.tabs.erase(it);
+                it = app.component_ed.tabs.erase(it);
             else
                 ++it;
         }
@@ -2113,13 +2140,10 @@ void component_editor::display() noexcept
         return;
     }
 
-    auto& app = container_of(this, &application::component_ed);
-
-    component_editor::impl impl{ .app = app, .ed = *this };
-
     if (not tabs.empty()) {
         if (ImGui::BeginTabBar("Editors")) {
-            impl.display_tabs();
+            auto& app = container_of(this, &application::component_ed);
+            component_editor::impl::display_tabs(app);
             ImGui::EndTabBar();
         }
     }
