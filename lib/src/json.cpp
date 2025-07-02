@@ -5561,9 +5561,9 @@ struct json_archiver::impl {
     }
 
     template<typename Writer, sz QssLevel>
-    void write(Writer&                           writer,
-               const abstract_compare<QssLevel>& dyn,
-               const parameter&                  p) noexcept
+    void write(Writer& writer,
+               const abstract_compare<QssLevel>& /*dyn*/,
+               const parameter& p) noexcept
     {
         writer.StartObject();
         writer.Key("a");

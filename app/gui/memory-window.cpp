@@ -112,12 +112,9 @@ void memory_window::show() noexcept
     if (ImGui::CollapsingHeader("Components")) {
         const auto& vec = app.mod.components.get<component>();
         for (const auto id : app.mod.components) {
-            const auto& compo = vec[get_index(id)];
+            const auto& compo = vec[id];
 
-            const auto id  = app.mod.components.get_id(compo);
-            const auto idx = get_index(id);
-
-            ImGui::PushID(idx);
+            ImGui::PushID(get_index(id));
             if (ImGui::TreeNode(compo.name.c_str())) {
                 ImGui::LabelFormat(
                   "type", "{}", component_type_names[ordinal(compo.type)]);

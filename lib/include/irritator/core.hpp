@@ -2841,7 +2841,7 @@ struct abstract_integer {
         }
     }
 
-    status transition(simulation& sim, time t, time e, time /*r*/) noexcept
+    status transition(simulation& sim, time /*t*/, time e, time /*r*/) noexcept
     {
         const auto* lst            = sim.messages.try_to_get(x[0]);
         const auto  have_msg       = lst and not lst->empty();
@@ -2985,7 +2985,7 @@ struct abstract_compare {
         return time_domain<time>::infinity;
     }
 
-    status transition(simulation& sim, time t, time e, time /*r*/) noexcept
+    status transition(simulation& sim, time /*t*/, time e, time /*r*/) noexcept
     {
         auto*      port_a    = sim.messages.try_to_get(x[0]);
         auto*      port_b    = sim.messages.try_to_get(x[1]);
