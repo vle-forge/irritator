@@ -53,142 +53,109 @@ static void show_component_popup_menu(application&     app,
 
         ImGui::Separator();
 
-        if (sel.type != component_type::internal) {
-            if (ImGui::MenuItem("Copy")) {
-                if (app.mod.components.can_alloc(1)) {
-                    auto  new_c_id = app.mod.components.alloc();
-                    auto& new_c = app.mod.components.get<component>(new_c_id);
-                    new_c.type  = component_type::generic;
-                    new_c.name  = sel.name;
-                    new_c.state = component_status::modified;
+        if (ImGui::MenuItem("Copy")) {
+            if (app.mod.components.can_alloc(1)) {
+                auto  new_c_id = app.mod.components.alloc();
+                auto& new_c    = app.mod.components.get<component>(new_c_id);
+                new_c.type     = component_type::generic;
+                new_c.name     = sel.name;
+                new_c.state    = component_status::modified;
 
-                    if (auto ret = app.mod.copy(sel, new_c); !ret) {
-                        app.jn.push(log_level::error,
-                                    [](auto& title, auto& msg) noexcept {
-                                        title = "Library";
-                                        msg   = "Fail to copy model";
-                                    });
-                    }
+                if (auto ret = app.mod.copy(sel, new_c); !ret) {
+                    app.jn.push(log_level::error,
+                                [](auto& title, auto& msg) noexcept {
+                                    title = "Library";
+                                    msg   = "Fail to copy model";
+                                });
+                }
+
+                app.add_gui_task(
+                  [&app]() noexcept { app.component_sel.update(); });
+            } else {
+                app.jn.push(log_level::error,
+                            [&](auto& title, auto& msg) noexcept {
+                                title = "Library";
+                                format(msg,
+                                       "Can not alloc a new component ({})",
+                                       app.mod.components.capacity());
+                            });
+            }
+        }
+
+        if (ImGui::MenuItem("Set as main project model")) {
+            const auto compo_id = app.mod.components.get_id(sel);
+            app.library_wnd.try_set_component_as_project(app, compo_id);
+        }
+
+        if (auto* file = app.mod.file_paths.try_to_get(sel.file); file) {
+            if (ImGui::MenuItem("Delete component and file")) {
+                const auto id = app.mod.components.get_id(sel);
+                if (can_delete_component(app, id)) {
+                    app.component_ed.close(app.mod.components.get_id(sel));
+
+                    app.add_gui_task([&app, id = sel.file]() noexcept {
+                        if (auto* f = app.mod.file_paths.try_to_get(id)) {
+                            const auto compo_id = f->component;
+
+                            if (app.mod.components.exists(compo_id)) {
+                                const auto name =
+                                  app.mod.components.get<component>(compo_id)
+                                    .name.sv();
+
+                                app.jn.push(
+                                  log_level::notice,
+                                  [&](auto& title, auto& msg) noexcept {
+                                      title = "Remove component file";
+                                      format(msg,
+                                             "File `{}' and component {} "
+                                             "removed",
+                                             f->path.sv(),
+                                             name);
+                                  });
+                            } else {
+                                app.jn.push(
+                                  log_level::notice,
+                                  [&](auto& title, auto& msg) noexcept {
+                                      title = "Remove component file";
+                                      format(
+                                        msg, "File `{}' removed", f->path.sv());
+                                  });
+                            }
+
+                            app.mod.remove_file(*f);
+                            app.mod.components.free(compo_id);
+                        }
+                    });
 
                     app.add_gui_task(
                       [&app]() noexcept { app.component_sel.update(); });
-                } else {
-                    app.jn.push(log_level::error,
-                                [&](auto& title, auto& msg) noexcept {
-                                    title = "Library";
-                                    format(msg,
-                                           "Can not alloc a new component ({})",
-                                           app.mod.components.capacity());
-                                });
-                }
-            }
-
-            if (ImGui::MenuItem("Set as main project model")) {
-                const auto compo_id = app.mod.components.get_id(sel);
-                app.library_wnd.try_set_component_as_project(app, compo_id);
-            }
-
-            if (auto* file = app.mod.file_paths.try_to_get(sel.file); file) {
-                if (ImGui::MenuItem("Delete component and file")) {
-                    const auto id = app.mod.components.get_id(sel);
-                    if (can_delete_component(app, id)) {
-                        app.component_ed.close(app.mod.components.get_id(sel));
-
-                        app.add_gui_task([&app, id = sel.file]() noexcept {
-                            if (auto* f = app.mod.file_paths.try_to_get(id)) {
-                                const auto compo_id = f->component;
-
-                                if (app.mod.components.exists(compo_id)) {
-                                    const auto name =
-                                      app.mod.components
-                                        .get<component>(compo_id)
-                                        .name.sv();
-
-                                    app.jn.push(
-                                      log_level::notice,
-                                      [&](auto& title, auto& msg) noexcept {
-                                          title = "Remove component file";
-                                          format(msg,
-                                                 "File `{}' and component {} "
-                                                 "removed",
-                                                 f->path.sv(),
-                                                 name);
-                                      });
-                                } else {
-                                    app.jn.push(
-                                      log_level::notice,
-                                      [&](auto& title, auto& msg) noexcept {
-                                          title = "Remove component file";
-                                          format(msg,
-                                                 "File `{}' removed",
-                                                 f->path.sv());
-                                      });
-                                }
-
-                                app.mod.remove_file(*f);
-                                app.mod.components.free(compo_id);
-                            }
-                        });
-
-                        app.add_gui_task(
-                          [&app]() noexcept { app.component_sel.update(); });
-                    }
-                }
-            } else {
-                if (ImGui::MenuItem("Delete component")) {
-                    const auto id = app.mod.components.get_id(sel);
-                    if (can_delete_component(app, id)) {
-                        const auto compo_id = app.mod.components.get_id(sel);
-                        app.component_ed.close(compo_id);
-
-                        app.add_gui_task(
-                          [&app, compo_id, id = sel.file]() noexcept {
-                              app.jn.push(
-                                log_level::notice,
-                                [&](auto& title, auto& /*msg*/) noexcept {
-                                    title = "Remove component";
-                                });
-
-                              if (auto* f = app.mod.file_paths.try_to_get(id))
-                                  app.mod.remove_file(*f);
-
-                              if (auto* c =
-                                    app.mod.components.try_to_get<component>(
-                                      compo_id))
-                                  app.mod.free(*c);
-                          });
-
-                        app.add_gui_task(
-                          [&app]() noexcept { app.component_sel.update(); });
-                    }
                 }
             }
         } else {
-            if (ImGui::MenuItem("Copy in generic component")) {
-                if (app.mod.components.can_alloc(1)) {
-                    auto  new_c_id = app.mod.components.alloc();
-                    auto& new_c = app.mod.components.get<component>(new_c_id);
-                    new_c.type  = component_type::generic;
-                    new_c.name =
-                      internal_component_names[ordinal(sel.id.internal_id)];
-                    new_c.state = component_status::modified;
-                    if (auto ret = app.mod.copy(
-                          enum_cast<internal_component>(sel.id.internal_id),
-                          new_c);
-                        !ret) {
-                        app.jn.push(log_level::error, [](auto& t, auto& m) {
-                            t = "Library: copy in generic component";
-                            m = "TODO";
-                        });
-                    }
+            if (ImGui::MenuItem("Delete component")) {
+                const auto id = app.mod.components.get_id(sel);
+                if (can_delete_component(app, id)) {
+                    const auto compo_id = app.mod.components.get_id(sel);
+                    app.component_ed.close(compo_id);
+
+                    app.add_gui_task(
+                      [&app, compo_id, id = sel.file]() noexcept {
+                          app.jn.push(log_level::notice,
+                                      [&](auto& title, auto& /*msg*/) noexcept {
+                                          title = "Remove component";
+                                      });
+
+                          if (auto* f = app.mod.file_paths.try_to_get(id))
+                              app.mod.remove_file(*f);
+
+                          if (auto* c =
+                                app.mod.components.try_to_get<component>(
+                                  compo_id))
+                              app.mod.free(*c);
+                      });
 
                     app.add_gui_task(
                       [&app]() noexcept { app.component_sel.update(); });
-                } else {
-                    app.jn.push(log_level::error, [](auto& t, auto& m) {
-                        t = "Library: copy in generic component";
-                        m = "Can not allocate a new component";
-                    });
                 }
             }
         }
@@ -268,26 +235,6 @@ static void show_file_component(application&     app,
     ImGui::PopStyleColor();
 }
 
-static void show_internal_components(component_editor& ed) noexcept
-{
-    auto& app = container_of(&ed, &application::component_ed);
-
-    auto& vec = app.mod.components.get<component>();
-    for (const auto id : app.mod.components) {
-        auto&      compo       = vec[id];
-        const auto is_internal = compo.type == component_type::internal;
-
-        if (is_internal) {
-            ImGui::PushID(get_index(id));
-            ImGui::Selectable(
-              internal_component_names[ordinal(compo.id.internal_id)]);
-            ImGui::PopID();
-
-            show_component_popup_menu(app, compo);
-        }
-    }
-}
-
 static void show_notsaved_components(irt::component_editor& ed) noexcept
 {
     auto& app = container_of(&ed, &application::component_ed);
@@ -297,9 +244,7 @@ static void show_notsaved_components(irt::component_editor& ed) noexcept
     for (const auto id : app.mod.components) {
         auto& compo = compos[id];
 
-        const auto is_not_saved =
-          compo.type != component_type::internal &&
-          app.mod.file_paths.try_to_get(compo.file) == nullptr;
+        const auto is_not_saved = not app.mod.file_paths.try_to_get(compo.file);
 
         if (is_not_saved) {
             auto&      color    = colors[id];
@@ -405,11 +350,6 @@ static void show_component_library(application& app) noexcept
             ImGui::TreePop();
         }
 
-        if (ImGui::TreeNodeEx("Internal")) {
-            show_internal_components(app.component_ed);
-            ImGui::TreePop();
-        }
-
         ImGui::EndChild();
     }
 }
@@ -456,6 +396,7 @@ static auto is_component_used_in_components(const application& app,
                     return true;
             }
             break;
+
         case component_type::grid:
             if (const auto* g =
                   app.mod.grid_components.try_to_get(c.id.grid_id)) {
@@ -465,6 +406,7 @@ static auto is_component_used_in_components(const application& app,
                     return true;
             }
             break;
+
         case component_type::graph:
             if (const auto* g =
                   app.mod.graph_components.try_to_get(c.id.graph_id)) {
@@ -474,8 +416,8 @@ static auto is_component_used_in_components(const application& app,
                 }
             }
             break;
+
         case component_type::hsm:
-        case component_type::internal:
         case component_type::none:
             break;
         }
@@ -548,6 +490,38 @@ void library_window::show() noexcept
 
             if (ImGui::MenuItem("hsm component"))
                 app.component_ed.add_hsm_component_data();
+            ImGui::EndMenu();
+        }
+
+        if (ImGui::BeginMenu("Examples")) {
+            for (auto i = 0; i < internal_component_count; ++i) {
+                if (ImGui::MenuItem(internal_component_names[i])) {
+                    if (app.mod.components.can_alloc(1)) {
+                        auto  new_c_id = app.mod.components.alloc();
+                        auto& new_c =
+                          app.mod.components.get<component>(new_c_id);
+                        new_c.type  = component_type::generic;
+                        new_c.name  = internal_component_names[i];
+                        new_c.state = component_status::modified;
+                        if (auto ret = app.mod.copy(
+                              enum_cast<internal_component>(i), new_c);
+                            !ret) {
+                            app.jn.push(log_level::error, [](auto& t, auto& m) {
+                                t = "Library: copy in generic component";
+                                m = "TODO";
+                            });
+                        }
+
+                        app.add_gui_task(
+                          [&app]() noexcept { app.component_sel.update(); });
+                    } else {
+                        app.jn.push(log_level::error, [](auto& t, auto& m) {
+                            t = "Library: copy in generic component";
+                            m = "Can not allocate a new component";
+                        });
+                    }
+                }
+            }
             ImGui::EndMenu();
         }
 

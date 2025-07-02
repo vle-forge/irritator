@@ -356,9 +356,6 @@ void for_each_child(modeling& mod, component& compo, Function&& f) noexcept
                           });
         break;
 
-    case component_type::internal:
-        break;
-
     case component_type::grid:
         if_data_exists_do(
           mod.grid_components, compo.id.grid_id, [&](auto& grid) noexcept {
@@ -504,8 +501,6 @@ void dispatch_component(modeling& mod, component& compo, Function&& f) noexcept
 {
     switch (compo.type) {
     case component_type::none:
-        break;
-    case component_type::internal:
         break;
     case component_type::generic:
         if_data_exists_do(mod.generic_components,

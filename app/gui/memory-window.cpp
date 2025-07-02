@@ -114,49 +114,43 @@ void memory_window::show() noexcept
         for (const auto id : app.mod.components) {
             const auto& compo = vec[get_index(id)];
 
-            if (compo.type != component_type::internal) {
-                const auto id  = app.mod.components.get_id(compo);
-                const auto idx = get_index(id);
+            const auto id  = app.mod.components.get_id(compo);
+            const auto idx = get_index(id);
 
-                ImGui::PushID(idx);
-                if (ImGui::TreeNode(compo.name.c_str())) {
+            ImGui::PushID(idx);
+            if (ImGui::TreeNode(compo.name.c_str())) {
+                ImGui::LabelFormat(
+                  "type", "{}", component_type_names[ordinal(compo.type)]);
+
+                switch (compo.type) {
+                case component_type::generic:
                     ImGui::LabelFormat(
-                      "type", "{}", component_type_names[ordinal(compo.type)]);
+                      "id", "{}", ordinal(compo.id.generic_id));
+                    break;
 
-                    switch (compo.type) {
-                    case component_type::generic:
-                        ImGui::LabelFormat(
-                          "id", "{}", ordinal(compo.id.generic_id));
-                        break;
-                    case component_type::grid:
-                        ImGui::LabelFormat(
-                          "id", "{}", ordinal(compo.id.grid_id));
-                        break;
-                    case component_type::graph:
-                        ImGui::LabelFormat(
-                          "id", "{}", ordinal(compo.id.graph_id));
-                        break;
-                    case component_type::hsm:
-                        ImGui::LabelFormat(
-                          "id", "{}", ordinal(compo.id.hsm_id));
-                        break;
-                    case component_type::internal:
-                        ImGui::LabelFormat(
-                          "id", "{}", ordinal(compo.id.internal_id));
-                        break;
-                    case component_type::none:
-                        break;
-                    }
+                case component_type::grid:
+                    ImGui::LabelFormat("id", "{}", ordinal(compo.id.grid_id));
+                    break;
 
-                    ImGui::LabelFormat("Dir", "{}", ordinal(compo.dir));
-                    ImGui::LabelFormat(
-                      "Description", "{}", ordinal(compo.desc));
-                    ImGui::LabelFormat("File", "{}", ordinal(compo.file));
+                case component_type::graph:
+                    ImGui::LabelFormat("id", "{}", ordinal(compo.id.graph_id));
+                    break;
 
-                    ImGui::TreePop();
+                case component_type::hsm:
+                    ImGui::LabelFormat("id", "{}", ordinal(compo.id.hsm_id));
+                    break;
+
+                case component_type::none:
+                    break;
                 }
-                ImGui::PopID();
+
+                ImGui::LabelFormat("Dir", "{}", ordinal(compo.dir));
+                ImGui::LabelFormat("Description", "{}", ordinal(compo.desc));
+                ImGui::LabelFormat("File", "{}", ordinal(compo.file));
+
+                ImGui::TreePop();
             }
+            ImGui::PopID();
         }
     }
 

@@ -23,9 +23,13 @@ static inline constexpr const std::string_view component_status_string[] = {
     "unreadable"
 };
 
-static constexpr inline const char* component_type_names[] = {
-    "none", "internal", "simple", "grid", "graph", "hsm"
-};
+static constexpr inline const char* component_type_names[] = { "none",
+                                                               "simple",
+                                                               "grid",
+                                                               "graph",
+                                                               "hsm" };
+
+static_assert(component_type_count == length(component_type_names));
 
 static constexpr inline const char* port_option_names[] = { "classic",
                                                             "sum",

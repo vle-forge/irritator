@@ -617,7 +617,7 @@ int main()
             irt::journal_handler jn{};
             irt::modeling        mod{ jn };
 
-            irt::component_id ids[irt::internal_component_count];
+            std::array<irt::component_id, irt::internal_component_count> ids;
 
             mod.registred_paths.reserve(8);
             mod.dir_paths.reserve(32);
@@ -642,25 +642,25 @@ int main()
             for (int i = 0, e = irt::internal_component_count; i != e; ++i) {
                 auto& file     = mod.alloc_file(dir);
                 auto  file_id  = mod.file_paths.get_id(file);
-                file.component = ids[i];
+                file.component = irt::undefined<irt::component_id>();
                 irt::format(
                   file.path, "{}.irt", irt::internal_component_names[i]);
 
-                auto  c_id = mod.components.alloc();
-                auto& c    = mod.components.get<irt::component>(c_id);
+                auto& c    = mod.alloc_generic_component();
+                auto  c_id = mod.components.get_id(c);
                 c.reg_path = reg_id;
                 c.dir      = dir_id;
                 c.file     = file_id;
 
-                expect(
-                  !!mod.copy(irt::enum_cast<irt::internal_component>(i), c));
+                expect(mod.copy(irt::enum_cast<irt::internal_component>(i), c)
+                         .has_value());
                 ids[i] = c_id;
             }
 
             for (int i = 0, e = irt::internal_component_count; i != e; ++i) {
                 auto* c = mod.components.try_to_get<irt::component>(ids[i]);
-                expect(c != nullptr);
-                expect(!!mod.save(*c));
+                expect(fatal(c != nullptr));
+                expect(mod.save(*c).has_value());
             }
 
             expect(mod.components.ssize() == irt::internal_component_count);

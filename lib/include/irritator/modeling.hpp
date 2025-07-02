@@ -100,13 +100,14 @@ constexpr int internal_component_count =
   ordinal(internal_component::qss3_van_der_pol) + 1;
 
 enum class component_type {
-    none,     ///< The component does not reference any container.
-    internal, ///< The component reference a c++ code.
-    generic,  ///< A classic component-model graph coupling.
-    grid,     ///< Grid with 4, 8 neighbourhood.
-    graph,    ///< Random graph generator
-    hsm       ///< HSM component
+    none,    ///< The component does not reference any container.
+    generic, ///< A classic component-model graph coupling.
+    grid,    ///< Grid with 4, 8 neighbourhood.
+    graph,   ///< Random graph generator
+    hsm      ///< HSM component
 };
+
+constexpr int component_type_count = ordinal(component_type::hsm) + 1;
 
 enum class component_status {
     unread,     ///< The component is not read (It is referenced by another
@@ -930,7 +931,6 @@ struct component {
     }
 
     union id {
-        internal_component   internal_id;
         generic_component_id generic_id;
         grid_component_id    grid_id;
         graph_component_id   graph_id;
@@ -1423,9 +1423,6 @@ public:
     modeling(journal_handler&                   jnl,
              const modeling_reserve_definition& res =
                modeling_reserve_definition()) noexcept;
-
-    //! Add internal components to component lists.
-    status fill_internal_components() noexcept;
 
     //! Reads the component @c compo and all dependencies recursively.
     status load_component(component& compo) noexcept;

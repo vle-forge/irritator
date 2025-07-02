@@ -91,6 +91,9 @@ struct json_dearchiver::impl {
     template<typename... T>
     bool error(fmt::format_string<T...> fmt, T&&... args) noexcept
     {
+        if (on_error_callback)
+            on_error_callback();
+
         if (m_mod) {
             m_mod->journal.push(
               log_level::error,
@@ -512,17 +515,6 @@ struct json_dearchiver::impl {
         }
 
         return error("bad input port type {}", temp_string);
-    }
-
-    bool copy_string_to(internal_component& dst) noexcept
-    {
-        if (auto compo_opt = get_internal_component_type(temp_string);
-            compo_opt.has_value()) {
-            dst = compo_opt.value();
-            return true;
-        }
-
-        return error("bad internal component type {}", temp_string);
     }
 
     template<std::size_t Length>
@@ -2082,36 +2074,6 @@ struct json_dearchiver::impl {
         return read_child_model_dynamics(val, compo, gen, c);
     }
 
-    bool copy_internal_component(internal_component type,
-                                 component_id&      c_id) noexcept
-    {
-        auto_stack a(this, "copy internal component");
-
-        const auto& compo_vec = mod().components.get<component>();
-        for (const auto id : mod().components) {
-            const auto idx = get_index(id);
-
-            if (compo_vec[idx].type == component_type::internal &&
-                compo_vec[idx].id.internal_id == type) {
-                c_id = id;
-                return true;
-            }
-        }
-
-        return error("bad internal component");
-    }
-
-    bool read_child_internal_component(const rapidjson::Value& val,
-                                       component_id&           c_id) noexcept
-    {
-        auto_stack a(this, "child internal component");
-
-        internal_component compo = internal_component::qss1_izhikevich;
-
-        return read_temp_string(val) && copy_string_to(compo) &&
-               copy_internal_component(compo, c_id);
-    }
-
     auto search_reg(std::string_view name) const noexcept -> registred_path*
     {
         registred_path* reg = nullptr;
@@ -2352,9 +2314,6 @@ struct json_dearchiver::impl {
         switch (type) {
         case component_type::none:
             return true;
-
-        case component_type::internal:
-            return read_child_internal_component(val, c_id);
 
         case component_type::generic:
             return read_child_simple_or_grid_component(val, c_id);
@@ -3040,18 +2999,6 @@ struct json_dearchiver::impl {
                             optional_has_value(id_in_file) &&
                             cache_random_mapping_add(*id_in_file, id);
                  });
-    }
-
-    bool read_internal_component(const rapidjson::Value& val,
-                                 component&              compo) noexcept
-    {
-        auto_stack a(this, "internal component");
-
-        return for_first_member(
-          val, "component"sv, [&](const auto& value) noexcept -> bool {
-              return read_temp_string(value) &&
-                     copy_string_to(compo.id.internal_id);
-          });
     }
 
     bool modeling_connect(generic_component&     compo,
@@ -4164,9 +4111,6 @@ struct json_dearchiver::impl {
         switch (compo.type) {
         case component_type::none:
             return true;
-
-        case component_type::internal:
-            return read_internal_component(val, compo);
 
         case component_type::generic:
             return read_generic_component(val, compo);
@@ -6418,11 +6362,6 @@ struct json_archiver::impl {
             switch (compo->type) {
             case component_type::none:
                 break;
-            case component_type::internal:
-                w.Key("parameter");
-                w.String(
-                  internal_component_names[ordinal(compo->id.internal_id)]);
-                break;
             case component_type::grid:
                 write_child_component_path(mod, *compo, w);
                 break;
@@ -7126,15 +7065,6 @@ struct json_archiver::impl {
     }
 
     template<typename Writer>
-    void write_internal_component(const modeling& /* mod */,
-                                  const internal_component id,
-                                  Writer&                  w) noexcept
-    {
-        w.Key("component");
-        w.String(internal_component_names[ordinal(id)]);
-    }
-
-    template<typename Writer>
     void do_component_save(Writer& w, modeling& mod, component& compo) noexcept
     {
         w.StartObject();
@@ -7164,10 +7094,6 @@ struct json_archiver::impl {
 
         switch (compo.type) {
         case component_type::none:
-            break;
-
-        case component_type::internal:
-            write_internal_component(mod, compo.id.internal_id, w);
             break;
 
         case component_type::generic: {
@@ -7476,9 +7402,6 @@ struct json_archiver::impl {
         w.String(component_type_names[ordinal(compo.type)]);
 
         switch (compo.type) {
-        case component_type::internal:
-            break;
-
         case component_type::generic:
         case component_type::grid:
         case component_type::hsm:

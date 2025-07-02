@@ -323,13 +323,6 @@ bool application::init() noexcept
 {
     init_registred_path(*this, config);
 
-    if (auto ret = mod.fill_internal_components(); !ret) {
-        jn.push(log_level::error, [&](auto& title, auto& msg) noexcept {
-            title = "Modeling initialization error";
-            msg   = "Fail to fill internal component list";
-        });
-    }
-
     if (auto ret = mod.fill_components(); !ret)
         jn.push(log_level::warning, [&](auto& title, auto& msg) noexcept {
             title = "Modeling initialization error";

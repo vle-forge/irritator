@@ -1672,22 +1672,24 @@ struct component_editor::impl {
         switch (compo.type) {
         case component_type::none:
             break;
-        case component_type::internal:
-            break;
+
         case component_type::generic:
             if (auto* g =
                   app.mod.generic_components.try_to_get(compo.id.generic_id))
                 show_input_output_connections(*g, compo);
             break;
+
         case component_type::grid:
             if (auto* g = app.mod.grid_components.try_to_get(compo.id.grid_id))
                 show_input_output_connections(*g, compo);
             break;
+
         case component_type::graph:
             if (auto* g =
                   app.mod.graph_components.try_to_get(compo.id.graph_id))
                 show_input_output_connections(*g, compo);
             break;
+
         case component_type::hsm:
             break;
         }
@@ -2253,7 +2255,6 @@ void component_editor::request_to_open(const component_id id) noexcept
             break;
 
         case component_type::none:
-        case component_type::internal:
             break;
         }
     } else {

@@ -513,21 +513,6 @@ status modeling::load_component(component& compo) noexcept
     return success();
 }
 
-status modeling::fill_internal_components() noexcept
-{
-    if (!components.can_alloc(internal_component_count))
-        return new_error(modeling_errc::component_container_full);
-
-    for (int i = 0, e = internal_component_count; i < e; ++i) {
-        auto  compo_id       = components.alloc();
-        auto& compo          = components.get<component>(compo_id);
-        compo.type           = component_type::internal;
-        compo.id.internal_id = enum_cast<internal_component>(i);
-    }
-
-    return success();
-}
-
 //! Use @c debug_log to display component data into debug console.
 inline void debug_component(const modeling& mod, const component& c) noexcept
 {
@@ -601,8 +586,7 @@ status modeling::fill_components() noexcept
 
         for (auto id : components) {
             auto& compo = compos[id];
-            if (compo.type == component_type::internal or
-                compo.state == component_status::unmodified)
+            if (compo.state == component_status::unmodified)
                 continue;
 
             if (auto ret = load_component(compo); !ret) {
@@ -1104,8 +1088,6 @@ void modeling::clear(component& compo) noexcept
     switch (compo.type) {
     case component_type::none:
         break;
-    case component_type::internal:
-        break;
     case component_type::generic:
         if_data_exists_do(generic_components,
                           compo.id.generic_id,
@@ -1310,9 +1292,6 @@ status modeling::copy(const component& src, component& dst) noexcept
             dst.id.hsm_id = d_id;
             dst.type      = component_type::hsm;
         }
-        break;
-
-    case component_type::internal:
         break;
     }
 

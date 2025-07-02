@@ -816,9 +816,6 @@ static auto make_tree_recursive(simulation_copy&       sc,
                                                            tn_id);
     } break;
 
-    case component_type::internal:
-        break;
-
     case component_type::none:
         break;
 
@@ -981,7 +978,6 @@ static void get_input_models(vector<model_port>& inputs,
 
     case component_type::hsm:
     case component_type::none:
-    case component_type::internal:
         break;
     }
 }
@@ -1120,7 +1116,6 @@ static void get_output_models(vector<model_port>& outputs,
 
     case component_type::hsm:
     case component_type::none:
-    case component_type::internal:
         break;
     }
 }
@@ -1400,9 +1395,6 @@ static status simulation_copy_connections(simulation_copy& sc,
               sc, tree, g->cache, g->cache_connections);
         break;
 
-    case component_type::internal:
-        break;
-
     case component_type::none:
         break;
 
@@ -1499,9 +1491,6 @@ static auto make_tree_from(simulation_copy&                     sc,
             irt_check(make_tree_recursive(sc, new_tree, *h));
         break;
     }
-
-    case component_type::internal:
-        break;
 
     case component_type::none:
         break;
@@ -1617,9 +1606,6 @@ public:
 
             case component_type::hsm:
                 ret.hsm_nb++;
-                break;
-
-            case component_type::internal:
                 break;
 
             case component_type::none:

@@ -59,7 +59,6 @@ static void update_lists(
 
                            case component_type::none:
                            case component_type::hsm:
-                           case component_type::internal:
                                break;
                            }
                        });
