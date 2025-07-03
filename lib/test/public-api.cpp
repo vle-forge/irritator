@@ -1120,7 +1120,7 @@ int main()
           0u, irt::hierarchical_state_machine::invalid_state_id, 1u));
 
         expect(!!hsm.set_state(1u, 0u));
-        hsm.states[1u].condition.set(0b0011u, 0b0011u);
+        hsm.states[1u].condition.set(0b1100u, 0b1100u);
         hsm.states[1u].if_transition = 2u;
 
         expect(!!hsm.set_state(2u, 0u));
@@ -1199,7 +1199,7 @@ int main()
         hsm.states[1u].exit_action.set_plus(
           irt::hierarchical_state_machine::variable::var_i1, 10.0f);
 
-        hsm.states[1u].condition.set(0b0011u, 0b0011u);
+        hsm.states[1u].condition.set(0b1100u, 0b1100u);
         hsm.states[1u].if_transition = 2u;
 
         expect(!!hsm.set_state(2u, 0u));
@@ -1252,7 +1252,7 @@ int main()
           0u, irt::hierarchical_state_machine::invalid_state_id, 1u));
 
         expect(!!hsm.set_state(1u, 0u));
-        hsm.states[1u].condition.set(0b0011u, 0b0011u);
+        hsm.states[1u].condition.set(0b1100u, 0b1100u);
         hsm.states[1u].if_transition = 2u;
 
         expect(!!hsm.set_state(2u, 0u));
@@ -1313,12 +1313,12 @@ int main()
           0u, irt::hierarchical_state_machine::invalid_state_id, 1u));
 
         expect(!!hsm.set_state(1u, 0u));
-        hsm.states[1u].condition.set(0b0011u, 0b0011u);
+        hsm.states[1u].condition.set(0b1100u, 0b1100u);
         hsm.states[1u].if_transition = 2u;
 
         expect(!!hsm.set_state(2u, 0u));
         hsm.states[2u].enter_action.set_affect(
-          irt::hierarchical_state_machine::variable::var_timer, 10.f);
+          irt::hierarchical_state_machine::variable::var_timer, 4.f);
         hsm.states[2u].condition.set_timer();
         hsm.states[2u].if_transition = 3u;
 

@@ -3891,6 +3891,8 @@ public:
 
         void set(u8 port, u8 mask) noexcept;
         void get(u8& port, u8& mask) const noexcept;
+
+        void set(const std::bitset<4> port, const std::bitset<4> mask) noexcept;
         std::pair<std::bitset<4>, std::bitset<4>> get_bitset() const noexcept;
 
         void set_timer() noexcept;

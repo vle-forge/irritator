@@ -696,6 +696,14 @@ void hierarchical_state_machine::condition_action::get(u8& port,
     mask = constant.u & 0b1111;
 }
 
+void hierarchical_state_machine::condition_action::set(
+  const std::bitset<4> port,
+  const std::bitset<4> mask) noexcept
+{
+    type       = condition_type::port;
+    constant.u = static_cast<u32>(port.to_ulong() << 4 | mask.to_ulong());
+}
+
 std::pair<std::bitset<4>, std::bitset<4>>
 hierarchical_state_machine::condition_action::get_bitset() const noexcept
 {
