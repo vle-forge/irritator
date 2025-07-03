@@ -33,16 +33,22 @@ public:
 
     //! Load a simulation structure from a json memory buffer. This function is
     //! mainly used in unit-test to check i/o functions.
-    status operator()(simulation& sim, file& io) noexcept;
+    status operator()(simulation&      sim,
+                      std::string_view path,
+                      file&            io) noexcept;
 
     //! Load a component structure from a json file.
-    status operator()(modeling& mod, component& compo, file& io) noexcept;
+    status operator()(modeling&        mod,
+                      component&       compo,
+                      std::string_view path,
+                      file&            io) noexcept;
 
     //! Load a project from a project json file.
-    status operator()(project&    pj,
-                      modeling&   mod,
-                      simulation& sim,
-                      file&       io) noexcept;
+    status operator()(project&         pj,
+                      modeling&        mod,
+                      simulation&      sim,
+                      std::string_view path,
+                      file&            io) noexcept;
 
     //! Load a simulation structure from a json memory buffer. This function is
     //! mainly used in unit-test to check i/o functions.

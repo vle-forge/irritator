@@ -460,8 +460,9 @@ status modeling::load_component(component& compo) noexcept
 
     try {
         std::filesystem::path p{ reg->path.sv() };
-        p /= dir->path.sv();
-        p /= file->path.sv();
+        std::filesystem::path d_f{ dir->path.sv() };
+        d_f /= file->path.sv();
+        p /= d_f;
 
         std::string str{ p.string() };
 
@@ -473,7 +474,7 @@ status modeling::load_component(component& compo) noexcept
             }
 
             json_dearchiver j;
-            if (not j(*this, compo, *f)) {
+            if (not j(*this, compo, d_f.string(), *f)) {
                 compo.state = component_status::unreadable;
                 return new_error(modeling_errc::component_load_error);
             }

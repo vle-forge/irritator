@@ -756,7 +756,9 @@ void application::start_load_project(const registred_path_id id,
             return;
 
         json_dearchiver dearc;
-        if (auto ret = dearc(sim_ed->pj, mod, sim_ed->pj.sim, *f_opt); ret) {
+        if (auto ret =
+              dearc(sim_ed->pj, mod, sim_ed->pj.sim, file->path.sv(), *f_opt);
+            ret) {
             jn.push(log_level::info, [&](auto& title, auto& /*msg*/) noexcept {
                 format(
                   title, "Loading project file {} success", file->path.c_str());

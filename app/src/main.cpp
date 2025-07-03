@@ -328,7 +328,7 @@ public:
 
         if (auto file = irt::file::open(str.c_str(), irt::open_mode::read);
             file.has_value()) {
-            if (json(pj, mod, pj.sim, *file)) {
+            if (json(pj, mod, pj.sim, str, *file)) {
                 run();
             } else {
                 return irt::new_error(irt::json_errc::invalid_project_format);

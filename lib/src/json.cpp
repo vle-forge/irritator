@@ -41,9 +41,10 @@ enum class connection_type { internal, input, output, input_pack, output_pack };
 struct json_dearchiver::impl {
     json_dearchiver& self;
 
-    modeling*   m_mod = nullptr;
-    simulation* m_sim = nullptr;
-    project*    m_pj  = nullptr;
+    modeling*        m_mod = nullptr;
+    simulation*      m_sim = nullptr;
+    project*         m_pj  = nullptr;
+    std::string_view m_path;
 
     i64         temp_i64    = 0;
     u64         temp_u64    = 0;
@@ -60,32 +61,46 @@ struct json_dearchiver::impl {
     template<typename... T>
     void warning(fmt::format_string<T...> fmt, T&&... args) noexcept
     {
-        if (m_mod) {
-            m_mod->journal.push(
-              log_level::warning,
-              [](auto& title, auto& msg, auto& stack, auto& format, auto args) {
-                  title = "json parser warning";
+        if (not m_mod)
+            return;
 
-                  auto data      = msg.data();
-                  sz   remaining = msg.capacity() - 1u;
-                  sz   write     = 0;
+        m_mod->journal.push(
+          log_level::warning,
+          [](auto& title,
+             auto& msg,
+             auto  path,
+             auto& stack,
+             auto& fmt,
+             auto  args) {
+              format(title, "json warning {}\n", path);
 
-                  for (auto i = 0u; i < stack.size() and remaining > 0; ++i) {
-                      auto ret = fmt::format_to_n(
-                        data, remaining, "{:{}}{}\n", "", i, stack[i]);
-                      write += ret.size;
-                      msg.resize(write);
-                      data = ret.out;
-                      remaining -= ret.size;
-                  }
+              auto data      = msg.data();
+              sz   remaining = msg.capacity() - 1u;
+              sz   write     = 0;
 
-                  auto ret = fmt::vformat_to_n(data, remaining, format, args);
-                  msg.resize(write + ret.size);
-              },
-              std::as_const(stack),
-              fmt,
-              fmt::make_format_args(args...));
-        }
+              for (auto i = 0u; i < stack.size() and remaining > 0; ++i) {
+                  auto ret = fmt::format_to_n(
+                    data, remaining, "{:{}}{}\n", "", i, stack[i]);
+                  write += ret.size;
+                  msg.resize(write);
+                  data = ret.out;
+                  remaining -= ret.size;
+              }
+
+              auto ret = fmt::format_to_n(
+                data, remaining, "{:{}}", "", stack.size() + 1);
+              write += ret.size;
+              msg.resize(write);
+              data = ret.out;
+              remaining -= ret.size;
+
+              ret = fmt::vformat_to_n(data, remaining, fmt, args);
+              msg.resize(write + ret.size);
+          },
+          m_path,
+          std::as_const(stack),
+          fmt,
+          fmt::make_format_args(args...));
     }
 
     template<typename... T>
@@ -97,12 +112,17 @@ struct json_dearchiver::impl {
         if (m_mod) {
             m_mod->journal.push(
               log_level::error,
-              [](auto& title, auto& msg, auto& stack, auto& format, auto args) {
-                  title = "json parser error";
+              [](auto& title,
+                 auto& msg,
+                 auto  path,
+                 auto& stack,
+                 auto& fmt,
+                 auto  args) {
+                  format(title, "json error {}\n", path);
 
                   auto data      = msg.data();
-                  auto remaining = static_cast<int>(msg.capacity()) - 1;
-                  auto write     = 0;
+                  sz   remaining = static_cast<int>(msg.capacity()) - 1;
+                  sz   write     = 0;
 
                   for (auto i = 0u; i < stack.size() and remaining > 0; ++i) {
                       auto ret = fmt::format_to_n(data,
@@ -110,15 +130,23 @@ struct json_dearchiver::impl {
                                                   "  {}: {}\n",
                                                   static_cast<int>(i),
                                                   stack[i]);
-                      write += static_cast<int>(ret.size);
+                      write += ret.size;
                       msg.resize(write);
                       data = ret.out;
-                      remaining -= static_cast<int>(ret.size);
+                      remaining -= ret.size;
                   }
 
-                  auto ret = fmt::vformat_to_n(data, remaining, format, args);
+                  auto ret = fmt::format_to_n(
+                    data, remaining, "{:{}}", "", stack.size() + 1);
+                  write += ret.size;
+                  msg.resize(write);
+                  data = ret.out;
+                  remaining -= ret.size;
+
+                  ret = fmt::vformat_to_n(data, remaining, fmt, args);
                   msg.resize(write + ret.size);
               },
+              m_path,
               std::as_const(stack),
               fmt,
               fmt::make_format_args(args...));
@@ -158,24 +186,32 @@ struct json_dearchiver::impl {
         return *m_pj;
     }
 
-    impl(json_dearchiver& self_, modeling& mod_) noexcept
+    impl(json_dearchiver& self_,
+         modeling&        mod_,
+         std::string_view path = std::string_view{}) noexcept
       : self(self_)
       , m_mod(&mod_)
+      , m_path(path)
     {}
 
-    impl(json_dearchiver& self_, simulation& sim_) noexcept
+    impl(json_dearchiver& self_,
+         simulation&      sim_,
+         std::string_view path = std::string_view{}) noexcept
       : self(self_)
       , m_sim(&sim_)
+      , m_path(path)
     {}
 
     impl(json_dearchiver& self_,
          modeling&        mod_,
          simulation&      sim_,
-         project&         pj_) noexcept
+         project&         pj_,
+         std::string_view path = std::string_view{}) noexcept
       : self(self_)
       , m_mod(&mod_)
       , m_sim(&sim_)
       , m_pj(&pj_)
+      , m_path(path)
     {}
 
     struct auto_stack {
@@ -1873,6 +1909,70 @@ struct json_dearchiver::impl {
         });
     }
 
+    bool try_modeling_copy_component_id(const small_string<31>&   reg,
+                                        const directory_path_str& dir,
+                                        const file_path_str&      file,
+                                        component_id&             c_id)
+    {
+        registred_path* reg_ptr  = search_reg(reg.sv());
+        dir_path*       dir_ptr  = nullptr;
+        file_path*      file_ptr = nullptr;
+
+        if (reg_ptr)
+            dir_ptr = search_dir_in_reg(*reg_ptr, dir.sv());
+
+        if (!dir_ptr)
+            dir_ptr = search_dir(dir.sv());
+
+        if (dir_ptr)
+            file_ptr = search_file(*dir_ptr, file.sv());
+
+        if (file_ptr) {
+            c_id = file_ptr->component;
+            debug::ensure(mod().components.exists(c_id));
+
+            if (auto* c = mod().components.try_to_get<component>(c_id); c) {
+                if (c->state == component_status::unmodified)
+                    return true;
+
+                if (auto ret = mod().load_component(*c); ret)
+                    return true;
+            }
+        }
+
+        return false;
+    }
+
+    bool try_read_child_hsm_component(const rapidjson::Value& val,
+                                      component_id&           c_id) noexcept
+    {
+        auto_stack a(this, "child simple or grid component");
+
+        name_str           reg_name;
+        directory_path_str dir_path;
+        file_path_str      file_path;
+
+        return for_each_member(
+                 val,
+                 [&](const auto name, const auto& value) noexcept -> bool {
+                     if ("path"sv == name)
+                         return read_temp_string(value) &&
+                                copy_string_to(reg_name);
+
+                     if ("directory"sv == name)
+                         return read_temp_string(value) &&
+                                copy_string_to(dir_path);
+
+                     if ("file"sv == name)
+                         return read_temp_string(value) &&
+                                copy_string_to(file_path);
+
+                     return true;
+                 }) &&
+               try_modeling_copy_component_id(
+                 reg_name, dir_path, file_path, c_id);
+    }
+
     bool read_modeling_dynamics(const rapidjson::Value& val,
                                 hsm_wrapper_tag,
                                 parameter& p) noexcept
@@ -1886,7 +1986,7 @@ struct json_dearchiver::impl {
             switch (idx) {
             case 0: {
                 component_id c;
-                if (read_child_simple_or_grid_component(value, c)) {
+                if (try_read_child_hsm_component(value, c)) {
                     p.integers[0] = static_cast<i64>(c);
                     return true;
                 } else {
@@ -7500,7 +7600,9 @@ status irt::json_dearchiver::set_buffer(const u32 buffer_size) noexcept
     return success();
 }
 
-status json_dearchiver::operator()(simulation& sim, file& io) noexcept
+status json_dearchiver::operator()(simulation&      sim,
+                                   std::string_view path,
+                                   file&            io) noexcept
 {
     debug::ensure(io.is_open());
     debug::ensure(io.get_mode() == open_mode::read);
@@ -7513,14 +7615,15 @@ status json_dearchiver::operator()(simulation& sim, file& io) noexcept
           return parse_json_data(std::span(buffer.data(), buffer.size()), doc);
       })
       .and_then([&]() {
-          json_dearchiver::impl i(*this, sim);
+          json_dearchiver::impl i(*this, sim, path);
           return i.parse_simulation(doc);
       });
 }
 
-status json_dearchiver::operator()(modeling&  mod,
-                                   component& compo,
-                                   file&      io) noexcept
+status json_dearchiver::operator()(modeling&        mod,
+                                   component&       compo,
+                                   std::string_view path,
+                                   file&            io) noexcept
 {
     debug::ensure(io.is_open());
     debug::ensure(io.get_mode() == open_mode::read);
@@ -7533,15 +7636,16 @@ status json_dearchiver::operator()(modeling&  mod,
           return parse_json_data(std::span(buffer.data(), buffer.size()), doc);
       })
       .and_then([&]() {
-          json_dearchiver::impl i(*this, mod);
+          json_dearchiver::impl i(*this, mod, path);
           return i.parse_component(doc, compo);
       });
 }
 
-status json_dearchiver::operator()(project&    pj,
-                                   modeling&   mod,
-                                   simulation& sim,
-                                   file&       io) noexcept
+status json_dearchiver::operator()(project&         pj,
+                                   modeling&        mod,
+                                   simulation&      sim,
+                                   std::string_view path,
+                                   file&            io) noexcept
 {
     debug::ensure(io.is_open());
     debug::ensure(io.get_mode() == open_mode::read);
@@ -7554,7 +7658,7 @@ status json_dearchiver::operator()(project&    pj,
           return parse_json_data(std::span(buffer.data(), buffer.size()), doc);
       })
       .and_then([&]() {
-          json_dearchiver::impl i(*this, mod, sim, pj);
+          json_dearchiver::impl i(*this, mod, sim, pj, path);
           return i.parse_project(doc);
       });
 }
