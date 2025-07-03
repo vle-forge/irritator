@@ -379,6 +379,51 @@ static constexpr hsm_t::state_action do_affect(hsm_t::action_type type,
                                 .constant = { .i = 0 } };
 }
 
+void hierarchical_state_machine::state_action::set_default(
+  const action_type t) noexcept
+{
+    type       = t;
+    var1       = variable::none;
+    var2       = variable::none;
+    constant.i = 0;
+
+    switch (t) {
+    case action_type::none:
+        break;
+    case action_type::set:
+        var1 = variable::port_0;
+        break;
+    case action_type::unset:
+        var1 = variable::port_0;
+        break;
+    case action_type::reset:
+        break;
+    case action_type::output:
+        var1       = variable::port_0;
+        var2       = variable::constant_i;
+        constant.i = 1;
+        break;
+    case action_type::affect:
+    case action_type::plus:
+    case action_type::minus:
+    case action_type::negate:
+    case action_type::multiplies:
+    case action_type::divides:
+    case action_type::modulus:
+        var1       = variable::var_i1;
+        var2       = variable::constant_i;
+        constant.i = 1;
+        break;
+    case action_type::bit_and:
+    case action_type::bit_or:
+    case action_type::bit_not:
+    case action_type::bit_xor:
+        var1 = variable::var_i1;
+        var2 = variable::var_i2;
+        break;
+    }
+}
+
 void hierarchical_state_machine::state_action::set_setport(variable v1) noexcept
 {
     debug::ensure(is_port(v1));

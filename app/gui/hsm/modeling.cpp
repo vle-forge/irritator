@@ -539,8 +539,9 @@ static void show_state_action(hsm_t::state_action& action) noexcept
 
     ImGui::PushItemWidth(-1);
     if (ImGui::Combo(
-          "##event", &action_type, action_names, length(action_names)))
-        action.type = enum_cast<hsm_t::action_type>(action_type);
+          "##event", &action_type, action_names, length(action_names))) {
+        action.set_default(enum_cast<hsm_t::action_type>(action_type));
+    }
     ImGui::PopItemWidth();
 
     switch (action.type) {

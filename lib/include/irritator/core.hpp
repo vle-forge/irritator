@@ -3829,6 +3829,15 @@ public:
             float f;
         } constant;
 
+        /**
+         * Assign the @a action_type @a t to the @a this state_action and set
+         * the @a var1, @a var2 and @a constant union to the default @a
+         * action_type.
+         *
+         * @param t The type of action to assign.
+         */
+        void set_default(const action_type t) noexcept;
+
         void set_setport(variable v1) noexcept;
         void set_unsetport(variable v1) noexcept;
         void set_reset() noexcept;
