@@ -3891,6 +3891,7 @@ public:
 
         void set(u8 port, u8 mask) noexcept;
         void get(u8& port, u8& mask) const noexcept;
+        std::pair<std::bitset<4>, std::bitset<4>> get_bitset() const noexcept;
 
         void set_timer() noexcept;
         void set_equal_to(variable v1, variable v2) noexcept;
@@ -3958,7 +3959,7 @@ public:
 
         std::bitset<4>
           values; //<! Bit storage message available on X port in big endian.
-                  //values[0] stores value of input port_3.
+                  // values[0] stores value of input port_3.
 
         state_id current_state        = invalid_state_id;
         state_id next_state           = invalid_state_id;
