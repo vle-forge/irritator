@@ -3941,19 +3941,24 @@ public:
     };
 
     struct execution {
-        i32                 i1    = 0;
-        i32                 i2    = 0;
-        real                r1    = 0.0;
-        real                r2    = 0.0;
-        time                timer = time_domain<time>::infinity;
-        std::array<real, 4> ports; //<! Stores first part of input message.
+        i32  i1    = 0;
+        i32  i2    = 0;
+        real r1    = 0.0;
+        real r2    = 0.0;
+        time timer = time_domain<time>::infinity;
+
+        std::array<real, 4> ports; //<! Stores value of input messages in big
+                                   //<! endian order. ports[0] is port_3 etc..
 
         std::array<real, 4> message_values;
         std::array<u8, 4>   message_ports;
         int                 messages = 0;
-        source              source_value;
 
-        std::bitset<4> values; //<! Bit storage message available on X port.
+        source source_value;
+
+        std::bitset<4>
+          values; //<! Bit storage message available on X port in big endian.
+                  //values[0] stores value of input port_3.
 
         state_id current_state        = invalid_state_id;
         state_id next_state           = invalid_state_id;
@@ -7008,10 +7013,10 @@ inline status hsm_wrapper::transition(simulation& sim,
         for (int i = 0, e = length(x); i != e; ++i) {
             auto* lst = sim.messages.try_to_get(x[i]);
             if (lst and not lst->empty()) {
-                exec.values.set(i, true);
+                exec.values.set(e - 1 - i, true);
 
                 for (auto& elem : *lst)
-                    exec.ports[i] = elem[0];
+                    exec.ports[e - 1 - i] = elem[0];
             }
         }
 

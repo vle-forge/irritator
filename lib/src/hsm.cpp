@@ -4,6 +4,8 @@
 
 #include <irritator/core.hpp>
 
+#include <fmt/format.h>
+
 namespace irt {
 
 using hsm_t = hierarchical_state_machine;
@@ -25,16 +27,16 @@ static constexpr i32 copy_to_i32(
         return 0;
 
     case hsm_t::variable::port_0:
-        return static_cast<i32>(e.ports[0]);
+        return static_cast<i32>(e.ports[3]);
 
     case hsm_t::variable::port_1:
-        return static_cast<i32>(e.ports[1]);
-
-    case hsm_t::variable::port_2:
         return static_cast<i32>(e.ports[2]);
 
+    case hsm_t::variable::port_2:
+        return static_cast<i32>(e.ports[1]);
+
     case hsm_t::variable::port_3:
-        return static_cast<i32>(e.ports[3]);
+        return static_cast<i32>(e.ports[0]);
 
     case hsm_t::variable::var_i1:
         return e.i1;
@@ -85,13 +87,13 @@ static constexpr real copy_to_real(
     case hsm_t::variable::none:
         return 0.0;
     case hsm_t::variable::port_0:
-        return e.ports[0];
-    case hsm_t::variable::port_1:
-        return e.ports[1];
-    case hsm_t::variable::port_2:
-        return e.ports[2];
-    case hsm_t::variable::port_3:
         return e.ports[3];
+    case hsm_t::variable::port_1:
+        return e.ports[2];
+    case hsm_t::variable::port_2:
+        return e.ports[1];
+    case hsm_t::variable::port_3:
+        return e.ports[0];
     case hsm_t::variable::var_i1:
         return static_cast<real>(e.i1);
     case hsm_t::variable::var_i2:
@@ -163,26 +165,26 @@ struct wrap_var {
             break;
 
         case hsm_t::variable::port_0:
-            r    = e.ports[0];
-            i    = static_cast<i32>(e.ports[0]);
+            r    = e.ports[3];
+            i    = static_cast<i32>(e.ports[3]);
             type = type::real_t;
             break;
 
         case hsm_t::variable::port_1:
-            r    = e.ports[1];
-            i    = static_cast<i32>(e.ports[1]);
-            type = type::real_t;
-            break;
-
-        case hsm_t::variable::port_2:
             r    = e.ports[2];
             i    = static_cast<i32>(e.ports[2]);
             type = type::real_t;
             break;
 
+        case hsm_t::variable::port_2:
+            r    = e.ports[1];
+            i    = static_cast<i32>(e.ports[1]);
+            type = type::real_t;
+            break;
+
         case hsm_t::variable::port_3:
-            r    = e.ports[3];
-            i    = static_cast<i32>(e.ports[3]);
+            r    = e.ports[0];
+            i    = static_cast<i32>(e.ports[0]);
             type = type::real_t;
             break;
 
@@ -1078,19 +1080,18 @@ expected<bool> hierarchical_state_machine::handle(
         } else {
             debug::ensure(states[state].condition.type == condition_type::port);
             if (states[state].condition.check(constants, exec)) {
-                exec.values.reset();
                 affect_action(states[state].if_action, exec);
+                exec.values.reset();
                 if (states[state].if_transition != invalid_state_id)
                     irt_check(
                       transition(states[state].if_transition, exec, srcs));
                 return true;
             } else {
-                exec.values.reset();
                 affect_action(states[state].else_action, exec);
                 if (states[state].else_transition != invalid_state_id)
                     irt_check(
                       transition(states[state].else_transition, exec, srcs));
-                return true; // If the use does not assign an else transition,
+                return true; // If the user does not assign an else transition,
                              // he want to wait until the real wake up.
             }
         }
@@ -1111,7 +1112,7 @@ expected<bool> hierarchical_state_machine::handle(
             if (states[state].else_transition != invalid_state_id)
                 irt_check(
                   transition(states[state].else_transition, exec, srcs));
-            return true; // If the use does not assign an else transition, he
+            return true; // If the user does not assign an else transition, he
                          // want to wait until the real wake up.
         }
         break;
@@ -1155,16 +1156,16 @@ void hierarchical_state_machine::affect_action(const state_action& action,
 
         switch (action.var2) {
         case variable::port_0:
-            e.push_message(e.ports[0], port);
+            e.push_message(e.ports[3], port);
             break;
         case variable::port_1:
-            e.push_message(e.ports[1], port);
-            break;
-        case variable::port_2:
             e.push_message(e.ports[2], port);
             break;
+        case variable::port_2:
+            e.push_message(e.ports[1], port);
+            break;
         case variable::port_3:
-            e.push_message(e.ports[3], port);
+            e.push_message(e.ports[0], port);
             break;
 
         case variable::var_i1:
@@ -1459,7 +1460,7 @@ bool hierarchical_state_machine::condition_action::check(
         std::bitset<4> p(port);
         std::bitset<4> m(mask);
 
-        return ((e.values ^ p) & m).flip().any();
+        return ((e.values ^ p) & m).flip().all();
     }
 
     case condition_type::sigma:
