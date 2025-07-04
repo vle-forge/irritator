@@ -243,12 +243,9 @@ static bool show_parameter(qss_compare_tag,
 static bool show_parameter(counter_tag,
                            application& /*app*/,
                            external_source& /*srcs*/,
-                           parameter& p) noexcept
+                           parameter& /*p*/) noexcept
 {
-    const auto b1 = ImGui::InputReal("value", &p.reals[0]);
-    const auto b2 = ImGui::InputReal("dQ", &p.reals[1]);
-
-    return b1 or b2;
+    return false;
 }
 
 static bool show_parameter(qss_integrator_tag,
