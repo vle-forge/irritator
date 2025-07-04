@@ -312,6 +312,7 @@ static void show_dynamics_values(project_editor& /*sim*/,
 static void show_dynamics_values(project_editor& /*sim*/, const counter& dyn)
 {
     ImGui::TextFormat("number {}", dyn.number);
+    ImGui::TextFormat("last-value {}", dyn.last_value);
 }
 
 static void show_dynamics_values(project_editor& sim, const queue& dyn)

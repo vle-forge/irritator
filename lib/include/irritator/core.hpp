@@ -3070,19 +3070,22 @@ using qss3_compare = abstract_compare<3>;
 struct counter {
     message_id x[1] = {};
     time       sigma;
-    i64        number;
+    i64        number     = 0;
+    real       last_value = 0;
 
     counter() noexcept = default;
 
     counter(const counter& other) noexcept
       : sigma(other.sigma)
       , number(other.number)
+      , last_value(other.last_value)
     {}
 
     status initialize(simulation& /*sim*/) noexcept
     {
-        number = { 0 };
-        sigma  = time_domain<time>::infinity;
+        number     = 0;
+        last_value = zero;
+        sigma      = time_domain<time>::infinity;
 
         return success();
     }
@@ -3092,8 +3095,12 @@ struct counter {
                       time /*e*/,
                       time /*r*/) noexcept
     {
-        if (auto* lst = sim.messages.try_to_get(x[0]); lst)
+        if (auto* lst = sim.messages.try_to_get(x[0]); lst) {
             number += lst->ssize();
+
+            for (const auto& elem : *lst)
+                last_value = elem[0];
+        }
 
         return success();
     }
