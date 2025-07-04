@@ -226,6 +226,87 @@ static void add_output_attribute(const std::span<const std::string_view> names,
     }
 }
 
+static void delete_link(component&         compo,
+                        generic_component& gen,
+                        int                link_id) noexcept
+{
+    if (link_id >= 8192) {
+        const auto id = static_cast<u32>(link_id - 8192);
+        if (auto* con = gen.output_connections.try_to_get_from_pos(id); con) {
+            gen.output_connections.free(*con);
+            compo.state = component_status::modified;
+        }
+    } else if (link_id >= 4096) {
+        const auto id = static_cast<u32>(link_id - 4096);
+        if (auto* con = gen.input_connections.try_to_get_from_pos(id); con) {
+            gen.input_connections.free(*con);
+            compo.state = component_status::modified;
+        }
+    } else {
+        const auto id = static_cast<u32>(link_id);
+        if (auto* con = gen.connections.try_to_get_from_pos(id); con) {
+            gen.connections.free(*con);
+            compo.state = component_status::modified;
+        }
+    }
+}
+
+static void remove_nodes(modeling&                      mod,
+                         generic_component_editor_data& data,
+                         component&                     parent) noexcept
+{
+    if (parent.type == component_type::generic) {
+        if_data_exists_do(
+          mod.generic_components,
+          parent.id.generic_id,
+          [&](auto& generic) noexcept {
+              for (i32 i = 0, e = data.selected_nodes.size(); i != e; ++i) {
+                  if (is_node_child(data.selected_nodes[i])) {
+                      auto idx = unpack_node_child(data.selected_nodes[i]);
+
+                      if (auto* child =
+                            generic.children.try_to_get_from_pos(idx);
+                          child) {
+                          generic.children.free(*child);
+                          parent.state = component_status::modified;
+                      }
+                  }
+              }
+          });
+    }
+
+    data.selected_nodes.clear();
+    ImNodes::ClearNodeSelection();
+}
+
+static void remove_links(generic_component_editor_data& data,
+                         component&                     parent,
+                         generic_component&             s_parent) noexcept
+{
+    std::sort(data.selected_links.begin(),
+              data.selected_links.end(),
+              std::greater<int>());
+
+    for (i32 i = 0, e = data.selected_links.size(); i != e; ++i)
+        delete_link(parent, s_parent, data.selected_links[i]);
+
+    data.selected_links.clear();
+    ImNodes::ClearLinkSelection();
+
+    parent.state = component_status::modified;
+}
+
+static void remove_component_input_output(ImVector<int>& v) noexcept
+{
+    int i = 0;
+    while (i < v.size()) {
+        if (!is_node_child(v[i]))
+            v.erase(v.Data + i);
+        else
+            ++i;
+    };
+}
+
 static bool show_connection(
   const component&                           compo,
   const generic_component&                   gen,
@@ -715,6 +796,14 @@ static void show_popup_menuitem(application&                   app,
     if (ImGui::BeginPopup("Context menu")) {
         const auto click_pos = ImGui::GetMousePosOnOpeningCurrentPopup();
 
+        if (not data.selected_links.empty())
+            if (ImGui::MenuItem("Delete selected links"))
+                remove_links(data, parent, s_parent);
+
+        if (not data.selected_nodes.empty())
+            if (ImGui::MenuItem("Delete selected nodes"))
+                remove_nodes(app.mod, data, parent);
+
         if (ImGui::MenuItem("Force grid layout")) {
             compute_grid_layout(s_parent,
                                 data.grid_layout_x_distance,
@@ -1036,31 +1125,6 @@ static void is_link_created(application& app,
     }
 }
 
-static void delete_link(component&         compo,
-                        generic_component& gen,
-                        int                link_id) noexcept
-{
-    if (link_id >= 8192) {
-        const auto id = static_cast<u32>(link_id - 8192);
-        if (auto* con = gen.output_connections.try_to_get_from_pos(id); con) {
-            gen.output_connections.free(*con);
-            compo.state = component_status::modified;
-        }
-    } else if (link_id >= 4096) {
-        const auto id = static_cast<u32>(link_id - 4096);
-        if (auto* con = gen.input_connections.try_to_get_from_pos(id); con) {
-            gen.input_connections.free(*con);
-            compo.state = component_status::modified;
-        }
-    } else {
-        const auto id = static_cast<u32>(link_id);
-        if (auto* con = gen.connections.try_to_get_from_pos(id); con) {
-            gen.connections.free(*con);
-            compo.state = component_status::modified;
-        }
-    }
-}
-
 static void is_link_destroyed(component&         parent,
                               generic_component& s_parent) noexcept
 {
@@ -1068,62 +1132,6 @@ static void is_link_destroyed(component&         parent,
 
     if (ImNodes::IsLinkDestroyed(&link_id))
         delete_link(parent, s_parent, link_id);
-}
-
-static void remove_nodes(modeling&                      mod,
-                         generic_component_editor_data& data,
-                         component&                     parent) noexcept
-{
-    if (parent.type == component_type::generic) {
-        if_data_exists_do(
-          mod.generic_components,
-          parent.id.generic_id,
-          [&](auto& generic) noexcept {
-              for (i32 i = 0, e = data.selected_nodes.size(); i != e; ++i) {
-                  if (is_node_child(data.selected_nodes[i])) {
-                      auto idx = unpack_node_child(data.selected_nodes[i]);
-
-                      if (auto* child =
-                            generic.children.try_to_get_from_pos(idx);
-                          child) {
-                          generic.children.free(*child);
-                          parent.state = component_status::modified;
-                      }
-                  }
-              }
-          });
-    }
-
-    data.selected_nodes.clear();
-    ImNodes::ClearNodeSelection();
-}
-
-static void remove_links(generic_component_editor_data& data,
-                         component&                     parent,
-                         generic_component&             s_parent) noexcept
-{
-    std::sort(data.selected_links.begin(),
-              data.selected_links.end(),
-              std::greater<int>());
-
-    for (i32 i = 0, e = data.selected_links.size(); i != e; ++i)
-        delete_link(parent, s_parent, data.selected_links[i]);
-
-    data.selected_links.clear();
-    ImNodes::ClearLinkSelection();
-
-    parent.state = component_status::modified;
-}
-
-static void remove_component_input_output(ImVector<int>& v) noexcept
-{
-    int i = 0;
-    while (i < v.size()) {
-        if (!is_node_child(v[i]))
-            v.erase(v.Data + i);
-        else
-            ++i;
-    };
 }
 
 static void show_component_editor(component_editor&              ed,
