@@ -44,6 +44,8 @@ enum class project_id : u32;
 
 enum class task_status { not_started, started, finished };
 
+enum class main_task : i8 { simulation_0 = 0, simulation_1, simulation_2, gui };
+
 enum class simulation_status {
     not_started,
     initializing,
@@ -1303,7 +1305,7 @@ public:
     ~application() noexcept;
 
 private:
-    task_manager task_mgr;
+    task_manager<4, 1> task_mgr;
 
 public:
     config_manager   config;
@@ -1374,8 +1376,9 @@ public:
     void add_gui_task(Fn&& fn) noexcept;
 
     /**
-     * Helpers function to get an @a unordered_task_list according to the @a idx
-     * index. This index can be produced from project identifier.
+     * Helpers function to get an @a unordered_task_list according to the
+     * integer modulo operation on @a idx index. This index can be produced from
+     * project identifier.
      *
      * @param idx The index in range `[0, unordered_task_worker_size - 1]`.
      * @return The reference to the @a unordered_task_list

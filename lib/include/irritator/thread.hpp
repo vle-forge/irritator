@@ -25,16 +25,12 @@ struct worker_generic;
 struct task_list;
 struct unordered_task_list;
 struct worker_stats;
-class task_manager;
 
-enum class main_task : i8 { simulation_0 = 0, simulation_1, simulation_2, gui };
+template<std::size_t ordered, std::size_t unordered>
+class task_manager;
 
 static inline constexpr int unordered_task_list_tasks_number = 256;
 static inline constexpr int task_list_tasks_number           = 16;
-static inline constexpr int ordered_task_worker_size         = 4;
-static inline constexpr int unordered_task_worker_size       = 4;
-static inline constexpr int task_work_size =
-  ordered_task_worker_size + unordered_task_worker_size;
 
 //! A `std::mutex` like based on `std::atomic_flag::wait` and
 //! `std::atomic_flag::notify_one` standard functions.
@@ -414,21 +410,23 @@ struct worker_stats {
     std::chrono::steady_clock::time_point start_time;
 };
 
+template<std::size_t ordered = 4, std::size_t unordered = 1>
 class task_manager
 {
 public:
+    static_assert(ordered > 0);
+    static_assert(unordered > 0);
+
     enum class phase { starting, running, done };
 
-    small_vector<task_list, ordered_task_worker_size>   ordered_task_lists;
-    small_vector<worker_main, ordered_task_worker_size> ordered_task_workers;
+    small_vector<task_list, ordered>   ordered_task_lists;
+    small_vector<worker_main, ordered> ordered_task_workers;
 
-    small_vector<unordered_task_list, unordered_task_worker_size>
-      unordered_task_lists;
-    small_vector<worker_generic, unordered_task_worker_size>
-      unordered_task_workers;
+    small_vector<unordered_task_list, unordered> unordered_task_lists;
+    small_vector<worker_generic, unordered>      unordered_task_workers;
 
-    worker_stats ordered_task_stats[ordered_task_worker_size];
-    worker_stats unordered_task_stats[unordered_task_worker_size];
+    worker_stats ordered_task_stats[ordered];
+    worker_stats unordered_task_stats[unordered];
 
     std::atomic_int phase = ordinal(phase::starting);
 
@@ -765,43 +763,45 @@ inline void worker_generic::run() noexcept
     task_manager
  */
 
-inline task_manager::task_manager() noexcept
+template<std::size_t ordered, std::size_t unordered>
+inline task_manager<ordered, unordered>::task_manager() noexcept
 {
-    const auto hc = numeric_cast<int>(std::thread::hardware_concurrency());
-    const auto max_thread_ordered = std::clamp(hc, 2, ordered_task_worker_size);
-    const auto max_thread_unordered =
-      std::clamp(hc, 2, unordered_task_worker_size);
+    const auto hc = numeric_cast<sz>(std::thread::hardware_concurrency());
+    const auto max_thread_ordered   = std::clamp(hc, sz{ 0 }, ordered);
+    const auto max_thread_unordered = std::clamp(hc, sz{ 0 }, unordered);
 
-    for (auto i = 0; i < max_thread_ordered; ++i)
+    for (sz i = 0; i < max_thread_ordered; ++i)
         ordered_task_lists.emplace_back(ordered_task_stats[i]);
 
-    for (auto i = 0; i < max_thread_ordered; ++i)
+    for (sz i = 0; i < max_thread_ordered; ++i)
         ordered_task_workers.emplace_back();
 
-    for (auto i = 0; i < max_thread_unordered; ++i)
+    for (sz i = 0; i < max_thread_unordered; ++i)
         unordered_task_lists.emplace_back(unordered_task_stats[i]);
 
-    for (auto i = 0; i < max_thread_unordered; ++i)
+    for (sz i = 0; i < max_thread_unordered; ++i)
         unordered_task_workers.emplace_back();
 
-    for (auto i = 0; i < max_thread_unordered; ++i)
+    for (sz i = 0; i < max_thread_unordered; ++i)
         for (auto j = 0; j < max_thread_unordered; ++j)
             unordered_task_lists[i].workers.emplace_back(
               &unordered_task_workers[j]);
 
-    for (auto i = 0; i < max_thread_ordered; ++i) {
+    for (sz i = 0; i < max_thread_ordered; ++i) {
         ordered_task_lists[i].worker = &ordered_task_workers[i];
         ordered_task_workers[i].tl   = &ordered_task_lists[i];
     }
 }
 
-inline task_manager::~task_manager() noexcept
+template<std::size_t ordered, std::size_t unordered>
+inline task_manager<ordered, unordered>::~task_manager() noexcept
 {
     if (phase != ordinal(phase::done))
         finalize();
 }
 
-inline void task_manager::start() noexcept
+template<std::size_t ordered, std::size_t unordered>
+inline void task_manager<ordered, unordered>::start() noexcept
 {
     debug::ensure(phase == ordinal(phase::starting));
 
@@ -834,7 +834,8 @@ inline void task_manager::start() noexcept
     phase = ordinal(phase::running);
 }
 
-inline void task_manager::finalize() noexcept
+template<std::size_t ordered, std::size_t unordered>
+inline void task_manager<ordered, unordered>::finalize() noexcept
 {
     debug::ensure(phase == ordinal(phase::running));
 

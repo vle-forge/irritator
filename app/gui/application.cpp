@@ -793,8 +793,10 @@ bool show_select_model_box(const char*     button_label,
 
 unordered_task_list& application::get_unordered_task_list(int idx) noexcept
 {
-    return task_mgr
-      .unordered_task_lists[std::clamp(idx, 0, unordered_task_worker_size - 1)];
+    const auto size = task_mgr.unordered_task_lists.ssize();
+    const auto mod  = ((idx % size) + size) % size;
+
+    return task_mgr.unordered_task_lists[mod];
 }
 
 std::optional<file> application::try_open_file(const char* filename,
