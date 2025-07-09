@@ -63,11 +63,23 @@ constexpr static inline real three = to_real(3.L);
 constexpr static inline real four  = to_real(4.L);
 constexpr static inline real zero  = to_real(0.L);
 
-template<typename Integer>
-constexpr typename std::make_unsigned<Integer>::type to_unsigned(Integer value)
+template<std::signed_integral Integer>
+constexpr typename std::make_unsigned_t<Integer> to_unsigned(
+  Integer value) noexcept
 {
+    using dest_type = typename std::make_unsigned_t<Integer>;
+
     debug::ensure(value >= 0);
-    return static_cast<typename std::make_unsigned<Integer>::type>(value);
+    return static_cast<dest_type>(value);
+}
+
+template<std::unsigned_integral Integer>
+constexpr typename std::make_signed_t<Integer> to_signed(Integer value) noexcept
+{
+    using dest_type = typename std::make_signed_t<Integer>;
+
+    debug::ensure(std::cmp_less(value, std::numeric_limits<dest_type>::max()));
+    return static_cast<dest_type>(value);
 }
 
 template<class C>

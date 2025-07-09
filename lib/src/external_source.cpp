@@ -195,8 +195,8 @@ status binary_file_source::init(source& src) noexcept
 {
     src.buffer      = std::span(buffers[next_client]);
     src.index       = 0;
-    src.chunk_id[0] = to_unsigned(next_client);
-    src.chunk_id[1] = to_unsigned(next_offset);
+    src.chunk_id[0] = next_client;
+    src.chunk_id[1] = next_offset;
     offsets[numeric_cast<int>(src.chunk_id[0])] = next_offset;
 
     next_client += 1;
