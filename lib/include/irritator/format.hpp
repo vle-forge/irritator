@@ -100,13 +100,13 @@ struct fmt::formatter<::irt::human_readable_bytes> {
     {
         switch (hr.type) {
         case ::irt::human_readable_bytes::display_type::B:
-            return format_to(ctx.out(), "{:+8.3} B", hr.size);
+            return format_to(ctx.out(), "{:.4f} B", hr.size);
         case ::irt::human_readable_bytes::display_type::KB:
-            return format_to(ctx.out(), "{:+8.3} KB", hr.size);
+            return format_to(ctx.out(), "{:.4f} KB", hr.size);
         case ::irt::human_readable_bytes::display_type::MB:
-            return format_to(ctx.out(), "{:+8.3} MB", hr.size);
+            return format_to(ctx.out(), "{:.4f} MB", hr.size);
         case ::irt::human_readable_bytes::display_type::GB:
-            return format_to(ctx.out(), "{:+8.3} GB", hr.size);
+            return format_to(ctx.out(), "{:.4f} GB", hr.size);
         }
 
         irt::unreachable();
@@ -127,17 +127,17 @@ struct fmt::formatter<::irt::human_readable_time> {
     {
         switch (hr.type) {
         case irt::human_readable_time::display_type::nanoseconds:
-            return format_to(ctx.out(), "{:8.3} ns", hr.value);
+            return format_to(ctx.out(), "{:.4f} ns", hr.value);
         case irt::human_readable_time::display_type::microseconds:
-            return format_to(ctx.out(), "{:8.3} us", hr.value);
+            return format_to(ctx.out(), "{:.4f} us", hr.value);
         case irt::human_readable_time::display_type::milliseconds:
-            return format_to(ctx.out(), "{:8.3} ms", hr.value);
+            return format_to(ctx.out(), "{:.4f} ms", hr.value);
         case irt::human_readable_time::display_type::seconds:
-            return format_to(ctx.out(), "{:8.3} s", hr.value);
+            return format_to(ctx.out(), "{:.4f} s", hr.value);
         case irt::human_readable_time::display_type::minutes:
-            return format_to(ctx.out(), "{:8.3} m", hr.value);
+            return format_to(ctx.out(), "{:.4f} m", hr.value);
         case irt::human_readable_time::display_type::hours:
-            return format_to(ctx.out(), "{:8.3} h", hr.value);
+            return format_to(ctx.out(), "{:.4f} h", hr.value);
         }
 
         irt::unreachable();
