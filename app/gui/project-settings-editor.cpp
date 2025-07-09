@@ -332,6 +332,8 @@ static bool show_project_simulation_settings(application&    app,
       "the observation directroy defined above.\nPlease note, the file "
       "may be large.");
 
+    app.sim_to_cpp.show(std::as_const(ed));
+
     return up > 0;
 }
 

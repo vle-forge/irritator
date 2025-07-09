@@ -2,19 +2,20 @@
 // Version 1.0. (See accompanying file LICENSE_1_0.txt or copy at
 // http://www.boost.org/LICENSE_1_0.txt)
 
+#include <irritator/archiver.hpp>
 #include <irritator/core.hpp>
+#include <irritator/file.hpp>
 #include <irritator/io.hpp>
 #include <irritator/modeling-helpers.hpp>
+#include <irritator/modeling.hpp>
 
 #include "application.hpp"
 #include "dialog.hpp"
 #include "internal.hpp"
-#include "irritator/archiver.hpp"
-#include "irritator/modeling.hpp"
 
 #include <imgui.h>
 #include <imgui_internal.h>
-#include <irritator/file.hpp>
+
 #include <mutex>
 
 namespace irt {
@@ -228,6 +229,86 @@ auto file_path_selector(application&              app,
     }
 
     return ret;
+}
+
+void simulation_to_cpp::show(const project_editor& ed) noexcept
+{
+    ImGui::SeparatorText("C++");
+
+    static const char* names[] = { "models and connections",
+                                   "and final tests",
+                                   "and tests in progress" };
+
+    debug::ensure(options <= 2u);
+
+    auto opt = static_cast<int>(options);
+    if (ImGui::Combo("##", &opt, names, length(names))) {
+        if (opt != static_cast<int>(options)) {
+            options = static_cast<u8>(opt);
+            status  = status_type::none;
+        }
+    }
+
+    ImGui::SameLine();
+
+    if (ImGui::Button("generate")) {
+        auto& app = container_of(this, &application::sim_to_cpp);
+
+        app.add_gui_task([&]() {
+            const auto ret = write_test_simulation(
+              std::cout,
+              ed.pj.name.sv(),
+              ed.pj.sim,
+              ed.pj.t_limit.begin(),
+              ed.pj.t_limit.end(),
+              enum_cast<write_test_simulation_options>(options));
+
+            std::cout.flush();
+
+            switch (ret) {
+            case write_test_simulation_result::success:
+                status = status_type::success;
+                break;
+
+            case write_test_simulation_result::output_error:
+                status = status_type::output_error;
+                break;
+
+            case write_test_simulation_result::external_source_error:
+                status = status_type::external_source_error;
+                break;
+
+            case write_test_simulation_result::hsm_error:
+                status = status_type::hsm_error;
+                break;
+
+            default:
+                status = status_type::none;
+            }
+        });
+    }
+
+    switch (status) {
+    case status_type::none:
+        break;
+
+    case status_type::success:
+        ImGui::TextUnformatted("write success");
+        break;
+
+    case status_type::output_error:
+        ImGui::TextUnformatted("error writing simulation to output stream");
+        break;
+
+    case status_type::external_source_error:
+        ImGui::TextUnformatted(
+          "error in external source: only use constant-source");
+        break;
+
+    case status_type::hsm_error:
+        ImGui::TextUnformatted("error in project: missing HSM definition");
+        break;
+    }
 }
 
 application::application(journal_handler& jn_) noexcept

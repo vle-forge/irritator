@@ -1278,6 +1278,23 @@ private:
     void clear_selection() noexcept;
 };
 
+class simulation_to_cpp
+{
+public:
+    void show(const project_editor& ed) noexcept;
+
+private:
+    u8 options = 0u;
+
+    enum class status_type : u8 {
+        none,
+        success,
+        output_error,
+        external_source_error,
+        hsm_error,
+    } status = status_type::none;
+};
+
 class application
 {
 public:
@@ -1314,6 +1331,8 @@ public:
     memory_window   memory_wnd;
     window_logger   log_wnd;
     task_window     task_wnd;
+
+    simulation_to_cpp sim_to_cpp;
 
     notification_manager notifications;
 
