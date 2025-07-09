@@ -418,22 +418,27 @@ static auto make_tree_hsm_leaf(simulation_copy&   sc,
     const auto compo_id =
       enum_cast<component_id>(gen.children_parameters[child_index].integers[0]);
 
-    const auto& compo = sc.mod.components.get<component>(compo_id);
-    debug::ensure(compo.type == component_type::hsm);
-    const auto hsm_id = compo.id.hsm_id;
-    debug::ensure(sc.mod.hsm_components.try_to_get(hsm_id));
-    const auto* shsm    = sc.hsm_mod_to_sim.get(hsm_id);
-    const auto  shsm_id = *shsm;
-    sc.pj.sim.parameters[new_mdl_id].integers[0] = ordinal(shsm_id);
-    dyn.exec.i1 =
-      static_cast<i32>(gen.children_parameters[child_index].integers[1]);
-    dyn.exec.i2 =
-      static_cast<i32>(gen.children_parameters[child_index].integers[2]);
-    dyn.exec.r1    = gen.children_parameters[child_index].reals[0];
-    dyn.exec.r2    = gen.children_parameters[child_index].reals[1];
-    dyn.exec.timer = gen.children_parameters[child_index].reals[2];
+    if (const auto* compo = sc.mod.components.try_to_get<component>(compo_id)) {
+        if (compo->type == component_type::hsm) {
+            const auto hsm_id = compo->id.hsm_id;
+            debug::ensure(sc.mod.hsm_components.try_to_get(hsm_id));
+            const auto* shsm    = sc.hsm_mod_to_sim.get(hsm_id);
+            const auto  shsm_id = *shsm;
+            sc.pj.sim.parameters[new_mdl_id].integers[0] = ordinal(shsm_id);
 
-    return success();
+            dyn.exec.i1 = static_cast<i32>(
+              gen.children_parameters[child_index].integers[1]);
+            dyn.exec.i2 = static_cast<i32>(
+              gen.children_parameters[child_index].integers[2]);
+            dyn.exec.r1    = gen.children_parameters[child_index].reals[0];
+            dyn.exec.r2    = gen.children_parameters[child_index].reals[1];
+            dyn.exec.timer = gen.children_parameters[child_index].reals[2];
+
+            return success();
+        }
+    }
+
+    return new_error(project_errc::component_unknown);
 }
 
 static auto make_tree_constant_leaf(simulation_copy&   sc,
