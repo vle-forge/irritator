@@ -636,6 +636,39 @@ constexpr std::span<const std::string_view> get_input_port_names(
 void write_dot_graph_simulation(std::ostream&     os,
                                 const simulation& sim) noexcept;
 
+enum class write_test_simulation_options : u8 {
+    none,        //!< Write only the structure of the simulation.
+    test_finish, //!< Add constant number and last-value tests at end of the
+                 //!< simulation.
+    test_trace,  //!< Add constant number and last-value tests during the
+                 //!< simulation.
+};
+
+enum class write_test_simulation_result : u8 {
+    success,
+    output_error,          //!< Output stream internal error (not writable).
+    external_source_error, //!< Can not convert binary/text files or random
+                           //!< sources. Prefer using constant external source.
+    hsm_error,             //!< Missing HSM definition in simulation.
+};
+
+/// Write a C++ code from the simulation into @a os output stream.
+///
+/// The simulation is written in a way that it can be used as a unit test and
+/// can be directly store into unit-test.
+/// @param os
+/// @param sim
+/// @param begin
+/// @param end
+/// @param opts
+auto write_test_simulation(std::ostream&                       os,
+                           const std::string_view              name,
+                           const simulation&                   sim,
+                           const time                          begin,
+                           const time                          end,
+                           const write_test_simulation_options opts) noexcept
+  -> write_test_simulation_result;
+
 } // namespace irt
 
 #endif
