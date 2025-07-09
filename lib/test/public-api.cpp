@@ -1128,7 +1128,7 @@ int main()
           irt::hierarchical_state_machine::variable::port_0, 1.0f);
 
         auto& hsmw = sim.alloc<irt::hsm_wrapper>();
-        get_p(sim, hsmw).set_hsm_wrapper(get_index(sim.hsms.get_id(hsm)));
+        get_p(sim, hsmw).set_hsm_wrapper(ordinal(sim.hsms.get_id(hsm)));
 
         expect(!!sim.connect_dynamics(gen, 0, hsmw, 0));
         expect(!!sim.connect_dynamics(gen, 0, hsmw, 1));
@@ -1207,7 +1207,7 @@ int main()
           irt::hierarchical_state_machine::variable::port_0, 1.0f);
 
         auto& hsmw = sim.alloc<irt::hsm_wrapper>();
-        get_p(sim, hsmw).set_hsm_wrapper(get_index(sim.hsms.get_id(hsm)));
+        get_p(sim, hsmw).set_hsm_wrapper(ordinal(sim.hsms.get_id(hsm)));
 
         expect(!!sim.connect_dynamics(gen, 0, hsmw, 0));
         expect(!!sim.connect_dynamics(gen, 0, hsmw, 1));
@@ -1266,7 +1266,7 @@ int main()
           irt::hierarchical_state_machine::variable::port_0, 1.f);
 
         auto& hsmw = sim.alloc<irt::hsm_wrapper>();
-        get_p(sim, hsmw).set_hsm_wrapper(get_index(sim.hsms.get_id(hsm)));
+        get_p(sim, hsmw).set_hsm_wrapper(ordinal(sim.hsms.get_id(hsm)));
 
         expect(!!sim.connect_dynamics(gen, 0, hsmw, 0));
         expect(!!sim.connect_dynamics(gen, 0, hsmw, 1));
@@ -1327,7 +1327,7 @@ int main()
           irt::hierarchical_state_machine::variable::port_0, 1.f);
 
         auto& hsmw = sim.alloc<irt::hsm_wrapper>();
-        get_p(sim, hsmw).set_hsm_wrapper(get_index(sim.hsms.get_id(hsm)));
+        get_p(sim, hsmw).set_hsm_wrapper(ordinal(sim.hsms.get_id(hsm)));
 
         expect(!!sim.connect_dynamics(gen1, 0, hsmw, 0));
         expect(!!sim.connect_dynamics(gen2, 0, hsmw, 1));
@@ -1391,7 +1391,7 @@ int main()
         expect(!!hsm.set_state(4u, 0u));
 
         auto& hsmw = sim.alloc<irt::hsm_wrapper>();
-        get_p(sim, hsmw).set_hsm_wrapper(get_index(sim.hsms.get_id(hsm)));
+        get_p(sim, hsmw).set_hsm_wrapper(ordinal(sim.hsms.get_id(hsm)));
 
         expect(!!sim.connect_dynamics(gen1, 0, hsmw, 0));
         expect(!!sim.connect_dynamics(gen2, 0, hsmw, 1));

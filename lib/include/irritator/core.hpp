@@ -3743,9 +3743,8 @@ public:
 
     enum class option : u8 {
         none       = 0,
-        use_source = 1 << 0 /**< HSM can use external data in the
+        use_source = 1 << 0, /**< HSM can use external data in the
                                action part. */
-        ,
         Count
     };
 
@@ -4138,10 +4137,8 @@ struct hsm_wrapper {
 
     hsm::execution exec;
 
-    real sigma;
-
-    u32 id = 0; //!< stores the @a ordinal value of an @a hsm_id
-                //!< from the simulation hsms data_array.
+    real   sigma;
+    hsm_id id = undefined<hsm_id>();
 
     hsm_wrapper() noexcept;
     hsm_wrapper(const hsm_wrapper& other) noexcept;
@@ -5802,11 +5799,11 @@ inline status send_message(simulation&    sim,
  * simulation::hsms_error{} @a unknown_error{} and e_ulong_id{
  * idx }.
  */
-inline auto get_hierarchical_state_machine(simulation& sim,
-                                           const u32   idx) noexcept
+inline auto get_hierarchical_state_machine(simulation&  sim,
+                                           const hsm_id id) noexcept
   -> expected<hierarchical_state_machine*>
 {
-    if (auto* hsm = sim.hsms.try_to_get_from_pos(idx); hsm)
+    if (auto* hsm = sim.hsms.try_to_get(id))
         return hsm;
 
     return new_error(simulation_errc::hsm_unknown);
@@ -7183,7 +7180,7 @@ Dynamics& simulation::alloc() noexcept
             dyn.y[i] = undefined<block_node_id>();
 
     if constexpr (std::is_same_v<Dynamics, hsm_wrapper>)
-        dyn.id = 0;
+        dyn.id = undefined<hsm_id>();
 
     return dyn;
 }
@@ -7236,7 +7233,7 @@ inline model& simulation::alloc(dynamics_type type) noexcept
                 dyn.y[i] = undefined<block_node_id>();
 
         if constexpr (std::is_same_v<Dynamics, hsm_wrapper>) {
-            dyn.id = 0u;
+            dyn.id = undefined<hsm_id>();
         }
     });
 

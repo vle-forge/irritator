@@ -402,7 +402,7 @@ static void parameter_init(parameter& param, const logical_invert& dyn) noexcept
 
 static void model_init(const parameter& param, hsm_wrapper& dyn) noexcept
 {
-    dyn.id                     = static_cast<u32>(param.integers[0]);
+    dyn.id                     = enum_cast<hsm_id>(param.integers[0]);
     dyn.exec.i1                = static_cast<i32>(param.integers[1]);
     dyn.exec.i2                = static_cast<i32>(param.integers[2]);
     dyn.exec.source_value.id   = get_source_id(param.integers[3]);
@@ -414,7 +414,7 @@ static void model_init(const parameter& param, hsm_wrapper& dyn) noexcept
 
 static void parameter_init(parameter& param, const hsm_wrapper& dyn) noexcept
 {
-    param.integers[0] = static_cast<i64>(dyn.id);
+    param.integers[0] = ordinal(dyn.id);
     param.integers[1] = static_cast<i64>(dyn.exec.i1);
     param.integers[2] = static_cast<i64>(dyn.exec.i2);
     param.integers[3] = static_cast<i64>(dyn.exec.source_value.id);

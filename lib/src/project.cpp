@@ -422,10 +422,9 @@ static auto make_tree_hsm_leaf(simulation_copy&   sc,
     debug::ensure(compo.type == component_type::hsm);
     const auto hsm_id = compo.id.hsm_id;
     debug::ensure(sc.mod.hsm_components.try_to_get(hsm_id));
-    const auto* shsm = sc.hsm_mod_to_sim.get(hsm_id);
-    dyn.id           = get_index(*shsm);
-    sc.pj.sim.parameters[new_mdl_id].integers[0] =
-      static_cast<i32>(get_index(*shsm));
+    const auto* shsm    = sc.hsm_mod_to_sim.get(hsm_id);
+    const auto  shsm_id = *shsm;
+    sc.pj.sim.parameters[new_mdl_id].integers[0] = ordinal(shsm_id);
     dyn.exec.i1 =
       static_cast<i32>(gen.children_parameters[child_index].integers[1]);
     dyn.exec.i2 =
@@ -1659,7 +1658,7 @@ static expected<std::pair<tree_node_id, component_id>> set_project_from_hsm(
     const auto mdl_idx = get_index(mdl_id);
 
     sc.pj.sim.parameters[mdl_idx]
-      .set_hsm_wrapper(get_index(*sim_hsm_id))
+      .set_hsm_wrapper(ordinal(*sim_hsm_id))
       .set_hsm_wrapper(com_hsm->src.id, com_hsm->src.type)
       .set_hsm_wrapper(
         com_hsm->i1, com_hsm->i2, com_hsm->r1, com_hsm->r2, com_hsm->timeout);

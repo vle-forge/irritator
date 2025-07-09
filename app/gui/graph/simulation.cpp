@@ -78,7 +78,7 @@ bool show_local_observers(application&    app,
                     if (auto* mdl = ed.pj.sim.models.try_to_get(graph->mdl_id);
                         mdl) {
                         if (mdl->type == dynamics_type::hsm_wrapper) {
-                            if (auto* hsm = ed.pj.sim.hsms.try_to_get_from_pos(
+                            if (auto* hsm = ed.pj.sim.hsms.try_to_get(
                                   get_dyn<hsm_wrapper>(*mdl).id);
                                 hsm) {
                                 graph->scale_min = 0.f;
