@@ -41,11 +41,13 @@ bool show_external_sources_combo(external_source&     srcs,
 /**
  * Display widgets to control the HSM component from modeling.
  *
- * The parameter @c p must be a parameter of an @c hsm_rapper.
+ * @param app Get access to @c modeling and @c component_selector.
+ * @param p Access to @c parameter (@c p must be a parameter of an @c
+ * hsm_rapper).
  *
  * @return True if the parameter @c is changed.
  */
-bool show_extented_hsm_parameter(const modeling& mod, parameter& p) noexcept;
+bool show_extented_hsm_parameter(const application& app, parameter& p) noexcept;
 
 /**
  * Display widgets to control the constant model incoming/outcoming port.

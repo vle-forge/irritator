@@ -758,55 +758,22 @@ static bool show_parameter(logical_invert_tag,
     return false;
 }
 
-static auto build_default_hsm_name(const modeling& mod, parameter& p) noexcept
-  -> const char*
+bool show_extented_hsm_parameter(const application& app, parameter& p) noexcept
 {
-    static constexpr auto undefined_name = "-";
+    const auto param_compo_id = enum_cast<component_id>(p.integers[0]);
+    const auto compo_id =
+      is_defined(param_compo_id) and app.mod.components.exists(param_compo_id)
+        ? param_compo_id
+        : undefined<component_id>();
 
-    const auto  compo_id = enum_cast<component_id>(p.integers[0]);
-    const auto* compo    = mod.components.try_to_get<component>(compo_id);
-
-    if (compo == nullptr or compo->type != component_type::hsm) {
-        p.integers[0] = 0;
-        compo         = nullptr;
+    const auto ret = app.component_sel.combobox(
+      "hsm component", component_type::hsm, compo_id);
+    if (ret.is_done) {
+        p.integers[0] = ordinal(ret.id);
+        return true;
     }
 
-    return compo ? compo->name.c_str() : undefined_name;
-}
-
-bool show_extented_hsm_parameter(const modeling& mod, parameter& p) noexcept
-{
-    int changed = false;
-
-    if (ImGui::BeginCombo("hsm component", build_default_hsm_name(mod, p))) {
-        auto imgui_id = 0;
-
-        ImGui::PushID(imgui_id++);
-        if (ImGui::Selectable("-", p.integers[0] == 0)) {
-            p.integers[0] = 0;
-            ++changed;
-        }
-        ImGui::PopID();
-
-        auto& compo_vec = mod.components.get<component>();
-        for (const auto id : mod.components) {
-            auto& c = compo_vec[get_index(id)];
-
-            if (c.type == component_type::hsm) {
-                ImGui::PushID(imgui_id++);
-                const auto c_id = static_cast<i64>(mod.components.get_id(c));
-                if (ImGui::Selectable(c.name.c_str(), p.integers[0] == c_id)) {
-                    p.integers[0] = c_id;
-                    ++changed;
-                }
-                ImGui::PopID();
-            }
-        }
-
-        ImGui::EndCombo();
-    }
-
-    return changed;
+    return false;
 }
 
 static bool show_parameter(hsm_wrapper_tag,
