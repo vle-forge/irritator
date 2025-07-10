@@ -1174,8 +1174,7 @@ public:
     };
 
     /**
-     * Dispay @c ImGui::ComboBox for all @c component_id. This function can lock
-     * the mutex if an update is in progress.
+     * Dispay @c ImGui::ComboBox for all @c component.
      *
      * @param label The @a ImGui::ComboBox label.
      * @param current The current @a component_id to be selected in the
@@ -1185,6 +1184,20 @@ public:
      */
     result_t combobox(const char*        label,
                       const component_id current) const noexcept;
+
+    /**
+     * Dispay @c ImGui::ComboBox for @c component of @c type @c component_id.
+     *
+     * @param label The @a ImGui::ComboBox label.
+     * @param type The @c component_type to be displayed in the ComboBox.
+     * @param current The current @a component_id to be selected in the
+     * combobox.
+     * @return a simple structure with a valid @a component_id if the structure
+     * is valid.
+     */
+    result_t combobox(const char*          label,
+                      const component_type type,
+                      const component_id   current) const noexcept;
 
     /**
      * Display a @c ImGui::MenuItem for all @c component_id in different
@@ -1203,6 +1216,7 @@ private:
         vector<std::pair<component_id, name_str>>      by_generics;
         vector<std::pair<component_id, name_str>>      by_grids;
         vector<std::pair<component_id, name_str>>      by_graphs;
+        vector<std::pair<component_id, name_str>>      by_hsms;
     };
 
     locker_2<data_type> data;

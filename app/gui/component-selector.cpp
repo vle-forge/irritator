@@ -18,13 +18,15 @@ static void update_lists(
   vector<std::pair<component_id, file_path_str>>& by_files,
   vector<std::pair<component_id, name_str>>&      by_generics,
   vector<std::pair<component_id, name_str>>&      by_grids,
-  vector<std::pair<component_id, name_str>>&      by_graphs) noexcept
+  vector<std::pair<component_id, name_str>>&      by_graphs,
+  vector<std::pair<component_id, name_str>>&      by_hsms) noexcept
 {
     by_names.clear();
     by_files.clear();
     by_generics.clear();
     by_grids.clear();
     by_graphs.clear();
+    by_hsms.clear();
 
     for_each_component(mod,
                        mod.component_repertories,
@@ -57,8 +59,11 @@ static void update_lists(
                                by_graphs.emplace_back(id, compo.name.sv());
                                break;
 
-                           case component_type::none:
                            case component_type::hsm:
+                               by_hsms.emplace_back(id, compo.name.sv());
+                               break;
+
+                           case component_type::none:
                                break;
                            }
                        });
@@ -68,6 +73,7 @@ static void update_lists(
     std::ranges::sort(by_generics);
     std::ranges::sort(by_grids);
     std::ranges::sort(by_graphs);
+    std::ranges::sort(by_hsms);
 }
 
 void component_selector::update() noexcept
@@ -80,7 +86,8 @@ void component_selector::update() noexcept
                      data.by_files,
                      data.by_generics,
                      data.by_grids,
-                     data.by_graphs);
+                     data.by_graphs,
+                     data.by_hsms);
     });
 }
 
@@ -129,6 +136,100 @@ component_selector::result_t component_selector::combobox(
                 if (ImGui::Selectable(data.by_names[i].second.c_str(),
                                       data.by_names[i].first == current)) {
                     id      = data.by_names[i].first;
+                    is_done = true;
+                }
+                ImGui::PopID();
+            }
+
+            ImGui::EndCombo();
+        }
+    });
+
+    return component_selector::result_t{ .id = id, .is_done = is_done };
+}
+
+static auto get_span(
+  const component_type                             type,
+  const vector<std::pair<component_id, name_str>>& by_generics,
+  const vector<std::pair<component_id, name_str>>& by_grids,
+  const vector<std::pair<component_id, name_str>>& by_graphs,
+  const vector<std::pair<component_id, name_str>>& by_hsms) noexcept
+  -> std::span<const std::pair<component_id, name_str>>
+{
+    switch (type) {
+    case component_type::none:
+        return {};
+
+    case component_type::generic:
+        return { by_generics.data(), by_generics.size() };
+
+    case component_type::grid:
+        return { by_grids.data(), by_grids.size() };
+
+    case component_type::graph:
+        return { by_graphs.data(), by_graphs.size() };
+
+    case component_type::hsm:
+        return { by_hsms.data(), by_hsms.size() };
+    };
+
+    unreachable();
+}
+
+component_selector::result_t component_selector::combobox(
+  const char*          label,
+  const component_type type,
+  const component_id   old_current) const noexcept
+{
+    auto id      = undefined<component_id>();
+    auto is_done = false;
+
+    data.try_read_only([&](const auto& data) {
+        const auto& app = container_of(this, &application::component_sel);
+        const char* empty_name   = "-";
+        const char* current_name = empty_name;
+        auto        current      = old_current;
+
+        if (is_defined(current) and app.mod.components.exists(current) and
+            app.mod.components.get<component>(current).type == type) {
+            current_name =
+              app.mod.components.get<component>(current).name.c_str();
+        } else {
+            current = undefined<component_id>();
+        }
+
+        if (ImGui::BeginCombo(label, current_name)) {
+            ImGui::ColorButton(
+              "Undefined color",
+              to_ImVec4(app.config.colors[style_color::component_undefined]),
+              ImGuiColorEditFlags_NoInputs | ImGuiColorEditFlags_NoLabel);
+            ImGui::SameLine(30.f);
+
+            ImGui::PushID(-1);
+            if (ImGui::Selectable(empty_name, is_undefined(current))) {
+                id      = undefined<component_id>();
+                is_done = true;
+            }
+            ImGui::PopID();
+
+            const auto names = get_span(type,
+                                        data.by_generics,
+                                        data.by_grids,
+                                        data.by_graphs,
+                                        data.by_hsms);
+
+            for (const auto& name : names) {
+                ImGui::PushID(&name);
+                const auto col = get_component_color(app, name.first);
+                const auto im  = ImVec4{ col[0], col[1], col[2], col[3] };
+                ImGui::ColorButton("Component",
+                                   im,
+                                   ImGuiColorEditFlags_NoInputs |
+                                     ImGuiColorEditFlags_NoLabel);
+                ImGui::SameLine(30.f);
+                if (ImGui::Selectable(name.second.c_str(),
+                                      name.first == current)) {
+                    id      = name.first;
                     is_done = true;
                 }
                 ImGui::PopID();
