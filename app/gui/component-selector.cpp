@@ -72,30 +72,16 @@ static void update_lists(
 
 void component_selector::update() noexcept
 {
-    // Skip the update if a thread is currently running an update.
-    scoped_flag_run(updating, [&]() {
+    data.read_write([&](auto& data) {
         const auto& app = container_of(this, &application::component_sel);
-        const auto& mod = app.mod;
 
-        update_lists(mod,
-                     by_names_2nd,
-                     by_files_2nd,
-                     by_generics_2nd,
-                     by_grids_2nd,
-                     by_graphs_2nd);
-
-        std::unique_lock lock{ m_mutex };
-        swap_buffers();
+        update_lists(app.mod,
+                     data.by_names,
+                     data.by_files,
+                     data.by_generics,
+                     data.by_grids,
+                     data.by_graphs);
     });
-}
-
-void component_selector::swap_buffers() noexcept
-{
-    by_names.swap(by_names_2nd);
-    by_files.swap(by_files_2nd);
-    by_generics.swap(by_generics_2nd);
-    by_grids.swap(by_grids_2nd);
-    by_graphs.swap(by_graphs_2nd);
 }
 
 component_selector::result_t component_selector::combobox(
@@ -105,7 +91,7 @@ component_selector::result_t component_selector::combobox(
     auto id      = undefined<component_id>();
     auto is_done = false;
 
-    if (std::shared_lock lock(m_mutex, std::try_to_lock); lock.owns_lock()) {
+    data.try_read_only([&](const auto& data) {
         const auto& app = container_of(this, &application::component_sel);
         const char* current_name = "-";
         auto        current      = old_current;
@@ -130,18 +116,19 @@ component_selector::result_t component_selector::combobox(
             }
             ImGui::PopID();
 
-            for (auto i = 0, e = by_names.ssize(); i != e; ++i) {
+            for (auto i = 0, e = data.by_names.ssize(); i != e; ++i) {
                 ImGui::PushID(i);
-                const auto col = get_component_color(app, by_names[i].first);
-                const auto im  = ImVec4{ col[0], col[1], col[2], col[3] };
+                const auto col =
+                  get_component_color(app, data.by_names[i].first);
+                const auto im = ImVec4{ col[0], col[1], col[2], col[3] };
                 ImGui::ColorButton("Component",
                                    im,
                                    ImGuiColorEditFlags_NoInputs |
                                      ImGuiColorEditFlags_NoLabel);
                 ImGui::SameLine(50.f);
-                if (ImGui::Selectable(by_names[i].second.c_str(),
-                                      by_names[i].first == current)) {
-                    id      = by_names[i].first;
+                if (ImGui::Selectable(data.by_names[i].second.c_str(),
+                                      data.by_names[i].first == current)) {
+                    id      = data.by_names[i].first;
                     is_done = true;
                 }
                 ImGui::PopID();
@@ -149,7 +136,7 @@ component_selector::result_t component_selector::combobox(
 
             ImGui::EndCombo();
         }
-    }
+    });
 
     return component_selector::result_t{ .id = id, .is_done = is_done };
 }
@@ -181,24 +168,27 @@ component_selector::result_t component_selector::menu(
     component_selector::result_t ret{ .id      = undefined<component_id>(),
                                       .is_done = false };
 
-    if (std::shared_lock lock(m_mutex, std::try_to_lock); lock.owns_lock()) {
-        if (ImGui::BeginMenu(label)) {
-            ret = display_menu("Names", by_names);
-            if (not ret) {
-                ret = display_menu("Files", by_files);
-                if (not ret) {
-                    ret = display_menu("Generics", by_generics);
-                    if (not ret) {
-                        ret = display_menu("Graphs", by_graphs);
-                        if (not ret) {
-                            ret = display_menu("Grids", by_grids);
-                        }
-                    }
-                }
-            }
-            ImGui::EndMenu();
-        }
-    }
+    data.try_read_only(
+      [](const auto& data, auto& label, auto& ret) noexcept {
+          if (ImGui::BeginMenu(label)) {
+              ret = display_menu("Names", data.by_names);
+              if (not ret) {
+                  ret = display_menu("Files", data.by_files);
+                  if (not ret) {
+                      ret = display_menu("Generics", data.by_generics);
+                      if (not ret) {
+                          ret = display_menu("Graphs", data.by_graphs);
+                          if (not ret) {
+                              ret = display_menu("Grids", data.by_grids);
+                          }
+                      }
+                  }
+              }
+              ImGui::EndMenu();
+          }
+      },
+      label,
+      ret);
 
     return ret;
 }

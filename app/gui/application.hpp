@@ -1197,23 +1197,15 @@ public:
     result_t menu(const char* label) const noexcept;
 
 private:
-    vector<std::pair<component_id, name_str>>      by_names;
-    vector<std::pair<component_id, file_path_str>> by_files;
-    vector<std::pair<component_id, name_str>>      by_generics;
-    vector<std::pair<component_id, name_str>>      by_grids;
-    vector<std::pair<component_id, name_str>>      by_graphs;
+    struct data_type {
+        vector<std::pair<component_id, name_str>>      by_names;
+        vector<std::pair<component_id, file_path_str>> by_files;
+        vector<std::pair<component_id, name_str>>      by_generics;
+        vector<std::pair<component_id, name_str>>      by_grids;
+        vector<std::pair<component_id, name_str>>      by_graphs;
+    };
 
-    vector<std::pair<component_id, name_str>>      by_names_2nd;
-    vector<std::pair<component_id, file_path_str>> by_files_2nd;
-    vector<std::pair<component_id, name_str>>      by_generics_2nd;
-    vector<std::pair<component_id, name_str>>      by_grids_2nd;
-    vector<std::pair<component_id, name_str>>      by_graphs_2nd;
-
-    std::atomic_flag updating = ATOMIC_FLAG_INIT;
-
-    void swap_buffers() noexcept;
-
-    mutable std::shared_mutex m_mutex;
+    locker_2<data_type> data;
 };
 
 class component_model_selector
