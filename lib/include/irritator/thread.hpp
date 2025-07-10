@@ -783,7 +783,7 @@ inline task_manager<ordered, unordered>::task_manager() noexcept
         unordered_task_workers.emplace_back();
 
     for (sz i = 0; i < max_thread_unordered; ++i)
-        for (auto j = 0; j < max_thread_unordered; ++j)
+        for (sz j = 0; j < max_thread_unordered; ++j)
             unordered_task_lists[i].workers.emplace_back(
               &unordered_task_workers[j]);
 

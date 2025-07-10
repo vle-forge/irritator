@@ -1252,11 +1252,13 @@ public:
                 const model_id     mdl_id) noexcept;
 
 private:
-    vector<std::pair<tree_node_id, component_id>> components;
-    vector<std::pair<tree_node_id, component_id>> components_2nd;
-    vector<name_str>                              names;
-    vector<name_str>                              names_2nd;
-    vector<tree_node*>                            stack_tree_nodes;
+    struct data_type {
+        vector<std::pair<tree_node_id, component_id>> components;
+        vector<name_str>                              names;
+        vector<tree_node*>                            stack_tree_nodes;
+    };
+
+    locker_2<data_type> data;
 
     tree_node_id parent_id = undefined<tree_node_id>();
     tree_node_id tn_id     = undefined<tree_node_id>();
@@ -1265,19 +1267,10 @@ private:
 
     mutable int component_selected = -1;
 
-    mutable std::shared_mutex m_mutex; /**< @c update() lock the class to read
-                           modeling data and build the @c ids and @c names
-                           vectors. Other functions try to lock. */
-
-    std::atomic_flag updating = ATOMIC_FLAG_INIT; /**< A flag to indicate
-                           that an update is in progress. */
-
-    void component_comboxbox(const char* label) noexcept;
-    void observable_model_treenode(const project& pj) noexcept;
+    void component_comboxbox(const char* label, const data_type& data) noexcept;
+    void observable_model_treenode(const project&   pj,
+                                   const data_type& data) noexcept;
     void observable_model_treenode(const project& pj, tree_node& tn) noexcept;
-
-    void swap_buffers() noexcept;
-    void clear_selection() noexcept;
 };
 
 class simulation_to_cpp
