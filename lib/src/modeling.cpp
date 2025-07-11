@@ -96,7 +96,8 @@ static void prepare_component_loading(
     if (not mod.components.can_alloc(1) and mod.components.grow<3, 2>())
         return;
 
-    auto  compo_id = mod.components.alloc();
+    auto compo_id                                 = mod.components.alloc();
+    mod.components.get<component_color>(compo_id) = { 1.f, 1.f, 1.f, 1.f };
     auto& compo    = mod.components.get<component>(compo_id);
     compo.reg_path = mod.registred_paths.get_id(reg_dir);
     compo.dir      = mod.dir_paths.get_id(dir);
@@ -937,8 +938,9 @@ component& modeling::alloc_grid_component() noexcept
 {
     debug::ensure(can_alloc_grid_component());
 
-    auto  new_compo_id = components.alloc();
-    auto& new_compo    = components.get<component>(new_compo_id);
+    auto new_compo_id                             = components.alloc();
+    components.get<component_color>(new_compo_id) = { 1.f, 1.f, 1.f, 1.f };
+    auto& new_compo = components.get<component>(new_compo_id);
     format(new_compo.name, "grid {}", get_index(new_compo_id));
     new_compo.type  = component_type::grid;
     new_compo.state = component_status::modified;
@@ -954,8 +956,9 @@ component& modeling::alloc_graph_component() noexcept
 {
     debug::ensure(can_alloc_graph_component());
 
-    auto  new_compo_id = components.alloc();
-    auto& new_compo    = components.get<component>(new_compo_id);
+    auto new_compo_id                             = components.alloc();
+    components.get<component_color>(new_compo_id) = { 1.f, 1.f, 1.f, 1.f };
+    auto& new_compo = components.get<component>(new_compo_id);
     format(new_compo.name, "graph {}", get_index(new_compo_id));
     new_compo.type  = component_type::graph;
     new_compo.state = component_status::modified;
@@ -970,8 +973,9 @@ component& modeling::alloc_hsm_component() noexcept
 {
     debug::ensure(can_alloc_hsm_component());
 
-    auto  new_compo_id = components.alloc();
-    auto& new_compo    = components.get<component>(new_compo_id);
+    auto new_compo_id                             = components.alloc();
+    components.get<component_color>(new_compo_id) = { 1.f, 1.f, 1.f, 1.f };
+    auto& new_compo = components.get<component>(new_compo_id);
     format(new_compo.name, "hsm {}", get_index(new_compo_id));
     new_compo.type  = component_type::hsm;
     new_compo.state = component_status::modified;
@@ -989,8 +993,9 @@ component& modeling::alloc_generic_component() noexcept
 {
     debug::ensure(can_alloc_generic_component());
 
-    auto  new_compo_id = components.alloc();
-    auto& new_compo    = components.get<component>(new_compo_id);
+    auto new_compo_id                             = components.alloc();
+    components.get<component_color>(new_compo_id) = { 1.f, 1.f, 1.f, 1.f };
+    auto& new_compo = components.get<component>(new_compo_id);
     format(new_compo.name, "simple {}", get_index(new_compo_id));
     new_compo.type  = component_type::generic;
     new_compo.state = component_status::modified;
