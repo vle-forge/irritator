@@ -288,9 +288,7 @@ static bool show_project_simulation_settings(application&    app,
     ImGui::SameLine();
     HelpMarker("Display the simulation phase. Only for debug.");
 
-    ImGui::SeparatorText("observation");
-
-    up += show_registred_obseravation_path(app, ed);
+    ImGui::SeparatorText("Save");
 
     const auto sz = ImGui::ComputeButtonSize(2);
     ImGui::BeginDisabled(is_undefined(ed.project_file));
@@ -301,6 +299,10 @@ static bool show_project_simulation_settings(application&    app,
 
     if (ImGui::Button("Save as...", sz))
         ed.save_as_project_file = true;
+
+    ImGui::SeparatorText("Observation");
+
+    up += show_registred_obseravation_path(app, ed);
 
     static const char* raw_data_type_str[] = {
         "None",
