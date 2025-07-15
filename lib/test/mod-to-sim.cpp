@@ -647,13 +647,15 @@ int main()
                   file.path, "{}.irt", irt::internal_component_names[i]);
 
                 auto& c    = mod.alloc_generic_component();
+                auto& g    = mod.generic_components.get(c.id.generic_id);
                 auto  c_id = mod.components.get_id(c);
                 c.reg_path = reg_id;
                 c.dir      = dir_id;
                 c.file     = file_id;
 
-                expect(mod.copy(irt::enum_cast<irt::internal_component>(i), c)
-                         .has_value());
+                expect(
+                  mod.copy(irt::enum_cast<irt::internal_component>(i), c, g)
+                    .has_value());
                 ids[i] = c_id;
             }
 

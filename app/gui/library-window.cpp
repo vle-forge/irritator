@@ -55,11 +55,13 @@ static void show_component_popup_menu(application&     app,
 
         if (ImGui::MenuItem("Copy")) {
             if (app.mod.components.can_alloc(1)) {
-                auto  new_c_id = app.mod.components.alloc();
-                auto& new_c    = app.mod.components.get<component>(new_c_id);
-                new_c.type     = component_type::generic;
-                new_c.name     = sel.name;
-                new_c.state    = component_status::modified;
+                auto new_c_id = app.mod.components.alloc();
+                app.mod.components.get<component_color>(
+                  new_c_id) = { 1.f, 1.f, 1.f, 1.f };
+                auto& new_c = app.mod.components.get<component>(new_c_id);
+                new_c.type  = component_type::generic;
+                new_c.name  = sel.name;
+                new_c.state = component_status::modified;
 
                 if (auto ret = app.mod.copy(sel, new_c); !ret) {
                     app.jn.push(log_level::error,
@@ -496,15 +498,18 @@ void library_window::show() noexcept
         if (ImGui::BeginMenu("Examples")) {
             for (auto i = 0; i < internal_component_count; ++i) {
                 if (ImGui::MenuItem(internal_component_names[i])) {
-                    if (app.mod.components.can_alloc(1)) {
-                        auto  new_c_id = app.mod.components.alloc();
-                        auto& new_c =
-                          app.mod.components.get<component>(new_c_id);
-                        new_c.type  = component_type::generic;
-                        new_c.name  = internal_component_names[i];
-                        new_c.state = component_status::modified;
+                    if (app.mod.components.can_alloc(1) and
+                        app.mod.generic_components.can_alloc(1)) {
+                        auto&      compo    = app.mod.alloc_generic_component();
+                        const auto compo_id = app.mod.components.get_id(compo);
+                        const auto generic_id = compo.id.generic_id;
+                        auto& g = app.mod.generic_components.get(generic_id);
+
+                        compo.name  = internal_component_names[i];
+                        compo.state = component_status::modified;
+
                         if (auto ret = app.mod.copy(
-                              enum_cast<internal_component>(i), new_c);
+                              enum_cast<internal_component>(i), compo, g);
                             !ret) {
                             app.jn.push(log_level::error, [](auto& t, auto& m) {
                                 t = "Library: copy in generic component";
