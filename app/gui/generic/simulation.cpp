@@ -99,7 +99,7 @@ struct gport {
     int         port_index = 0;
 };
 
-gport get_in(simulation& sim, const int index) noexcept
+static gport get_in(simulation& sim, const int index) noexcept
 {
     const auto model_index_port = get_model_input_port(index);
     auto*      mdl = sim.models.try_to_get_from_pos(model_index_port.first);
@@ -107,7 +107,7 @@ gport get_in(simulation& sim, const int index) noexcept
     return { mdl, static_cast<int>(model_index_port.second) };
 }
 
-gport get_out(simulation& sim, const int index) noexcept
+static gport get_out(simulation& sim, const int index) noexcept
 {
     const auto model_index_port = get_model_output_port(index);
     auto*      mdl = sim.models.try_to_get_from_pos(model_index_port.first);
@@ -579,10 +579,10 @@ static void show_dynamics_values(application&       app,
     ImGui::LabelFormat("sigma", "{}", dyn.exec.timer);
 }
 
-status copy_port(simulation&                      sim,
-                 const table<model_id, model_id>& mapping,
-                 block_node_id&                   src,
-                 block_node_id&                   dst) noexcept
+static status copy_port(simulation&                      sim,
+                        const table<model_id, model_id>& mapping,
+                        block_node_id&                   src,
+                        block_node_id&                   dst) noexcept
 {
     if (is_undefined(src)) {
         dst = src;
@@ -602,24 +602,25 @@ status copy_port(simulation&                      sim,
     return success();
 }
 
-constexpr auto is_in_node(std::span<generic_simulation_editor::node> nodes,
-                          const model_id mdl_id) noexcept
+static constexpr auto is_in_node(
+  std::span<generic_simulation_editor::node> nodes,
+  const model_id                             mdl_id) noexcept
 {
     return std::ranges::any_of(
       nodes, [&](const auto& node) { return node.mdl == mdl_id; });
 }
 
-constexpr auto get_index_from_nodes(
+static constexpr auto get_index_from_nodes(
   std::span<generic_simulation_editor::node> nodes,
   const model_id                             mdl_id) noexcept
 {
-    return std::ranges::distance(
+    return static_cast<int>(std::ranges::distance(
       nodes.begin(), std::ranges::find_if(nodes, [&](const auto& node) {
           return node.mdl == mdl_id;
-      }));
+      })));
 }
 
-constexpr void build_links(
+static constexpr void build_links(
   const simulation&                          sim,
   const tree_node&                           tn,
   std::span<generic_simulation_editor::node> nodes,
@@ -653,7 +654,7 @@ constexpr void build_links(
     }
 }
 
-constexpr void build_nodes(
+static constexpr void build_nodes(
   const simulation&                        sim,
   const tree_node&                         tn,
   vector<generic_simulation_editor::node>& nodes) noexcept
@@ -672,7 +673,7 @@ constexpr void build_nodes(
     }
 }
 
-constexpr void build_flat_links(
+static constexpr void build_flat_links(
   const simulation&                          sim,
   std::span<generic_simulation_editor::node> nodes,
   vector<generic_simulation_editor::link>&   links) noexcept
@@ -723,11 +724,11 @@ static void build_flat_nodes(
     }
 }
 
-constexpr int copy(application&                                   app,
-                   project_editor&                                pj_ed,
-                   const vector<generic_simulation_editor::node>& nodes,
-                   const tree_node_id                             current,
-                   const vector<int>& selection) noexcept
+static constexpr int copy(application&                                   app,
+                          project_editor&                                pj_ed,
+                          const vector<generic_simulation_editor::node>& nodes,
+                          const tree_node_id current,
+                          const vector<int>& selection) noexcept
 {
     int ret = false;
 
@@ -752,11 +753,11 @@ constexpr int copy(application&                                   app,
     return ret;
 }
 
-int new_model(application&        app,
-              project_editor&     pj_ed,
-              const tree_node_id  current,
-              const dynamics_type type,
-              const ImVec2        click_pos) noexcept
+static int new_model(application&        app,
+                     project_editor&     pj_ed,
+                     const tree_node_id  current,
+                     const dynamics_type type,
+                     const ImVec2        click_pos) noexcept
 {
     if (not pj_ed.commands.push(
           command{ .type = command_type::new_model,
@@ -775,10 +776,10 @@ int new_model(application&        app,
     return true;
 }
 
-int free_model(application&       app,
-               project_editor&    pj_ed,
-               const tree_node_id current,
-               const vector<int>& selection) noexcept
+static int free_model(application&       app,
+                      project_editor&    pj_ed,
+                      const tree_node_id current,
+                      const vector<int>& selection) noexcept
 {
     int ret = false;
 
@@ -804,11 +805,11 @@ int free_model(application&       app,
     return ret;
 }
 
-int connect(application&       app,
-            project_editor&    pj_ed,
-            const tree_node_id current,
-            int                start,
-            int                end) noexcept
+static int connect(application&       app,
+                   project_editor&    pj_ed,
+                   const tree_node_id current,
+                   int                start,
+                   int                end) noexcept
 {
     const gport out = get_out(pj_ed.pj.sim, start);
     const gport in  = get_in(pj_ed.pj.sim, end);
@@ -839,11 +840,11 @@ int connect(application&       app,
     return 1;
 }
 
-int disconnect(application&                                   app,
-               project_editor&                                pj_ed,
-               const tree_node_id                             current,
-               const vector<generic_simulation_editor::link>& links,
-               const vector<int>& selection) noexcept
+static int disconnect(application&                                   app,
+                      project_editor&                                pj_ed,
+                      const tree_node_id                             current,
+                      const vector<generic_simulation_editor::link>& links,
+                      const vector<int>& selection) noexcept
 {
     int ret = false;
 
@@ -876,7 +877,7 @@ int disconnect(application&                                   app,
     return ret;
 }
 
-void compute_connection_distance(
+static void compute_connection_distance(
   const vector<generic_simulation_editor::link>& links,
   const float                                    k,
   std::span<ImVec2>                              displacements) noexcept
@@ -1025,11 +1026,11 @@ static void compute_grid_layout(
     }
 }
 
-int popup_menu(application&        app,
-               project_editor&     pj_ed,
-               const tree_node_id  current,
-               const dynamics_type type,
-               const ImVec2        click_pos) noexcept
+static int popup_menu(application&        app,
+                      project_editor&     pj_ed,
+                      const tree_node_id  current,
+                      const dynamics_type type,
+                      const ImVec2        click_pos) noexcept
 {
     if (ImGui::MenuItem(dynamics_type_names[ordinal(type)]))
         return new_model(app, pj_ed, current, type, click_pos);
@@ -1037,10 +1038,10 @@ int popup_menu(application&        app,
     return false;
 }
 
-int show_menu_edit(application&       app,
-                   project_editor&    pj_ed,
-                   const tree_node_id current,
-                   const ImVec2       click_pos) noexcept
+static int show_menu_edit(application&       app,
+                          project_editor&    pj_ed,
+                          const tree_node_id current,
+                          const ImVec2       click_pos) noexcept
 {
     int r = false;
 
