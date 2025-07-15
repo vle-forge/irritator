@@ -566,40 +566,18 @@ public:
     bool display(application& app) noexcept;
 
     struct link {
-        link() noexcept = default;
-
-        link(int out_, int in_, int mdl_out_, int mdl_in_) noexcept
-          : out(out_)
-          , in(in_)
-          , mdl_out(mdl_out_)
-          , mdl_in(mdl_in_)
-        {}
-
-        int out;     /**<  use get_model_output_port/make_output_node_id. */
-        int in;      /**< use get_model_input_port/make_input_node_id. */
-        int mdl_out; /**< output model in nodes index. */
-        int mdl_in;  /**< input model in nodes index. */
+        int out     = 0; /**<  use get_model_output_port/make_output_node_id. */
+        int in      = 0; /**< use get_model_input_port/make_input_node_id. */
+        int mdl_out = 0; /**< output model in nodes index. */
+        int mdl_in  = 0; /**< input model in nodes index. */
     };
 
     struct node {
-        node() noexcept = default;
-
-        explicit node(const model_id mdl_) noexcept
-          : mdl(mdl_)
-        {}
-
-        node(const model_id mdl_, const std::string_view name_) noexcept
-          : mdl(mdl_)
-          , name(name_)
-        {}
-
         model_id mdl = undefined<model_id>();
         name_str name;
     };
 
 private:
-    struct impl;
-
     ImNodesEditorContext* context = nullptr;
 
     tree_node_id current = undefined<tree_node_id>();
@@ -632,6 +610,10 @@ private:
                                  progress. No other rebuild can occured. */
 
     void start_rebuild_task(application& app) noexcept;
+    void show_nodes(application& app) noexcept;
+    void show_links() noexcept;
+    void compute_automatic_layout() noexcept;
+    int  show_menu(application& app, const ImVec2 click_pos) noexcept;
 
     spin_mutex mutex;
 };
