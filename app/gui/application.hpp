@@ -618,6 +618,41 @@ private:
     spin_mutex mutex;
 };
 
+class flat_simulation_editor
+{
+public:
+    enum class action { camera_center, camera_auto_fit, Count };
+
+    bool display(application& app) noexcept;
+
+    void reset() noexcept;
+
+private:
+    void center_camera(const ImVec2 canvas) noexcept;
+    void auto_fit_camera(const ImVec2 canvas) noexcept;
+    void rebuild(application& app) noexcept;
+
+    locker_2<vector<ImVec2>> positions;
+
+    ImVec2 distance{ 15.f, 15.f };      //!< distance between two nodes
+    ImVec2 tn_distance{ 100.f, 100.f }; //!< distance between two tree nodes
+    ImVec2 scrolling{ 0.f, 0.f };       //!< top left position in canvas
+    float  zoom = 1.f;
+
+    ImVec2 start_selection;
+    ImVec2 end_selection;
+
+    ImVec2 top_left;
+    ImVec2 bottom_right;
+
+    vector<model_id> selected_nodes;
+    bitflags<action> actions;
+
+    bool run_selection = false;
+
+    std::atomic_flag is_ready = ATOMIC_FLAG_INIT;
+};
+
 class grid_simulation_editor
 {
 public:
@@ -914,6 +949,7 @@ struct project_editor {
 
     plot_copy_widget plot_copy_wgt;
 
+    flat_simulation_editor    flat_sim;
     generic_simulation_editor generic_sim;
     grid_simulation_editor    grid_sim;
     graph_simulation_editor   graph_sim;

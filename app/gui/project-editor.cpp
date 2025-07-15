@@ -1198,7 +1198,7 @@ auto project_editor::show(application& app) noexcept -> show_result_t
                     }
                 } else {
                     if (ImGui::BeginTabItem("Full simulation graph")) {
-                        generic_sim.display(app);
+                        flat_sim.display(app);
                         ImGui::EndTabItem();
                     }
                 }
@@ -1257,6 +1257,318 @@ auto project_editor::show(application& app) noexcept -> show_result_t
     }
 
     return is_open ? show_result_t::success : show_result_t::request_to_close;
+}
+
+void flat_simulation_editor::center_camera(const ImVec2 canvas) noexcept
+{
+    ImVec2 distance(bottom_right[0] - top_left[0],
+                    bottom_right[1] - top_left[1]);
+    ImVec2 center((bottom_right[0] - top_left[0]) / 2.0f + top_left[0],
+                  (bottom_right[1] - top_left[1]) / 2.0f + top_left[1]);
+
+    scrolling.x = ((-center.x * zoom) + (canvas.x / 2.f));
+    scrolling.y = ((-center.y * zoom) + (canvas.y / 2.f));
+}
+
+void flat_simulation_editor::auto_fit_camera(const ImVec2 canvas) noexcept
+{
+    ImVec2 distance(bottom_right[0] - top_left[0],
+                    bottom_right[1] - top_left[1]);
+    ImVec2 center((bottom_right[0] - top_left[0]) / 2.0f + top_left[0],
+                  (bottom_right[1] - top_left[1]) / 2.0f + top_left[1]);
+
+    zoom        = std::min(canvas.x / distance.x, canvas.y / distance.y);
+    scrolling.x = ((-center.x * zoom) + (canvas.x / 2.f));
+    scrolling.y = ((-center.y * zoom) + (canvas.y / 2.f));
+}
+
+bool flat_simulation_editor::display(application& app) noexcept
+{
+    if (not is_ready.test_and_set()) {
+        rebuild(app);
+        return false;
+    }
+
+    ImVec2 canvas_p0 = ImGui::GetCursorScreenPos();
+    ImVec2 canvas_sz = ImGui::GetContentRegionAvail();
+
+    if (canvas_sz.x < 50.0f)
+        canvas_sz.x = 50.0f;
+    if (canvas_sz.y < 50.0f)
+        canvas_sz.y = 50.0f;
+
+    ImVec2 canvas_p1 =
+      ImVec2(canvas_p0.x + canvas_sz.x, canvas_p0.y + canvas_sz.y);
+
+    const ImGuiIO& io        = ImGui::GetIO();
+    ImDrawList*    draw_list = ImGui::GetWindowDrawList();
+
+    if (actions[action::camera_center])
+        center_camera(canvas_sz);
+
+    if (actions[action::camera_auto_fit])
+        auto_fit_camera(canvas_sz);
+
+    draw_list->AddRect(canvas_p0, canvas_p1, IM_COL32(255, 255, 255, 255));
+
+    ImGui::InvisibleButton("Canvas",
+                           canvas_sz,
+                           ImGuiButtonFlags_MouseButtonLeft |
+                             ImGuiButtonFlags_MouseButtonMiddle |
+                             ImGuiButtonFlags_MouseButtonRight);
+
+    const bool is_hovered = ImGui::IsItemHovered();
+    const bool is_active  = ImGui::IsItemActive();
+
+    const ImVec2 origin(canvas_p0.x + scrolling.x, canvas_p0.y + scrolling.y);
+    const ImVec2 mouse_pos_in_canvas(io.MousePos.x - origin.x,
+                                     io.MousePos.y - origin.y);
+
+    const float mouse_threshold_for_pan = -1.f;
+    if (is_active) {
+        if (ImGui::IsMouseDragging(ImGuiMouseButton_Middle,
+                                   mouse_threshold_for_pan)) {
+            scrolling.x += io.MouseDelta.x;
+            scrolling.y += io.MouseDelta.y;
+        }
+    }
+
+    if (is_hovered and io.MouseWheel != 0.f) {
+        zoom = zoom + (io.MouseWheel * zoom * 0.1f);
+        zoom = ImClamp(zoom, 0.1f, 1000.f);
+    }
+
+    // ImVec2 drag_delta = ImGui::GetMouseDragDelta(ImGuiMouseButton_Right);
+    // if (drag_delta.x == 0.0f and drag_delta.y == 0.0f and
+    //     (not selected_nodes.empty())) {
+    //     ImGui::OpenPopupOnItemClick("Canvas-Context",
+    //                                 ImGuiPopupFlags_MouseButtonRight);
+    // }
+
+    // if (ImGui::BeginPopup("Canvas-Context")) {
+    //     const auto click = ImGui::GetMousePosOnOpeningCurrentPopup();
+    //     if (ImGui::BeginMenu("Actions")) {
+    //         ImGui::EndMenu();
+    //     }
+    //     ImGui::EndPopup();
+    // }
+
+    if (is_hovered) {
+        if (not run_selection and ImGui::IsMouseDown(ImGuiMouseButton_Left)) {
+            run_selection   = true;
+            start_selection = io.MousePos;
+        }
+
+        if (run_selection and ImGui::IsMouseReleased(ImGuiMouseButton_Left)) {
+            run_selection = false;
+            end_selection = io.MousePos;
+
+            if (start_selection == end_selection) {
+                selected_nodes.clear();
+            } else {
+                ImVec2 bmin{
+                    std::min(start_selection.x, end_selection.x),
+                    std::min(start_selection.y, end_selection.y),
+                };
+
+                ImVec2 bmax{
+                    std::max(start_selection.x, end_selection.x),
+                    std::max(start_selection.y, end_selection.y),
+                };
+
+                selected_nodes.clear();
+
+                positions.try_read_only([&](const auto& positions) {
+                    auto& pj_ed = container_of(this, &project_editor::flat_sim);
+                    for (const auto& mdl : pj_ed.pj.sim.models) {
+                        const auto mdl_id = pj_ed.pj.sim.models.get_id(mdl);
+                        const auto i      = get_index(mdl_id);
+
+                        ImVec2 p_min(
+                          origin.x + ((positions[i][0] - 2.f) * zoom),
+                          origin.y + ((positions[i][1] - 2.f) * zoom));
+
+                        ImVec2 p_max(
+                          origin.x + ((positions[i][0] + 2.f) * zoom),
+                          origin.y + ((positions[i][1] + 2.f) * zoom));
+
+                        if (p_min.x >= bmin.x and p_max.x < bmax.x and
+                            p_min.y >= bmin.y and p_max.y < bmax.y) {
+                            selected_nodes.emplace_back(mdl_id);
+                        }
+                    }
+                });
+            }
+        }
+    }
+
+    draw_list->PushClipRect(canvas_p0, canvas_p1, true);
+    const float GRID_STEP = 64.0f;
+
+    for (float x = std::fmod(scrolling.x, GRID_STEP); x < canvas_sz.x;
+         x += GRID_STEP)
+        draw_list->AddLine(ImVec2(canvas_p0.x + x, canvas_p0.y),
+                           ImVec2(canvas_p0.x + x, canvas_p1.y),
+                           IM_COL32(200, 200, 200, 40));
+
+    for (float y = std::fmod(scrolling.y, GRID_STEP); y < canvas_sz.y;
+         y += GRID_STEP)
+        draw_list->AddLine(ImVec2(canvas_p0.x, canvas_p0.y + y),
+                           ImVec2(canvas_p1.x, canvas_p0.y + y),
+                           IM_COL32(200, 200, 200, 40));
+
+    positions.try_read_only([&](const auto& positions) {
+        auto& pj_ed = container_of(this, &project_editor::flat_sim);
+        for (const auto& mdl : pj_ed.pj.sim.models) {
+            const auto mdl_id = pj_ed.pj.sim.models.get_id(mdl);
+            const auto i      = get_index(mdl_id);
+
+            ImVec2 p_min(origin.x + ((positions[i][0] - 2.f) * zoom),
+                         origin.y + ((positions[i][1] - 2.f) * zoom));
+
+            ImVec2 p_max(origin.x + ((positions[i][0] + 2.f) * zoom),
+                         origin.y + ((positions[i][1] + 2.f) * zoom));
+
+            // if (canvas_p0.x <= p_min.x and p_min.x <= canvas_p1.x and
+            //     canvas_p0.y <= p_max.y and p_max.y <= canvas_p1.y)
+            draw_list->AddRectFilled(p_min, p_max, IM_COL32(255, 0, 0, 255));
+        }
+
+        for (const auto& mdl : pj_ed.pj.sim.models) {
+            dispatch(
+              mdl,
+              [&]<typename Dynamics>(
+                Dynamics& dyn, const auto& sim, const auto src_mdl_id) {
+                  if constexpr (has_output_port<Dynamics>) {
+                      for (int i = 0, e = length(dyn.y); i != e; ++i) {
+                          for (auto* block = sim.nodes.try_to_get(dyn.y[i]);
+                               block;
+                               block = sim.nodes.try_to_get(block->next)) {
+
+                              const auto src_idx = get_index(src_mdl_id);
+                              for (auto it = block->nodes.begin(),
+                                        et = block->nodes.end();
+                                   it != et;
+                                   ++it) {
+                                  if (const auto* dst =
+                                        sim.models.try_to_get(it->model)) {
+
+                                      ImVec2 from(
+                                        origin.x +
+                                          (positions[src_idx][0] * zoom),
+                                        origin.y +
+                                          (positions[src_idx][1] * zoom));
+
+                                      ImVec2 to(
+                                        origin.x +
+                                          (positions[get_index(it->model)][0] *
+                                           zoom),
+                                        origin.y +
+                                          (positions[get_index(it->model)][1] *
+                                           zoom));
+
+                                      draw_list->AddLine(
+                                        from,
+                                        to,
+                                        IM_COL32(0, 255, 0, 255),
+                                        1.0f);
+                                  }
+                              }
+                          }
+                      }
+                  }
+              },
+              pj_ed.pj.sim,
+              pj_ed.pj.sim.models.get_id(mdl));
+        }
+    });
+
+    if (run_selection) {
+        end_selection = io.MousePos;
+
+        if (start_selection == end_selection) {
+            selected_nodes.clear();
+        } else {
+            ImVec2 bmin{
+                std::min(start_selection.x, io.MousePos.x),
+                std::min(start_selection.y, io.MousePos.y),
+            };
+
+            ImVec2 bmax{
+                std::max(start_selection.x, io.MousePos.x),
+                std::max(start_selection.y, io.MousePos.y),
+            };
+
+            draw_list->AddRectFilled(bmin, bmax, IM_COL32(200, 0, 0, 127));
+        }
+    }
+
+    draw_list->PopClipRect();
+
+    return true;
+}
+
+void flat_simulation_editor::reset() noexcept
+{
+    distance        = { 15.f, 15.f };
+    scrolling       = { 0.f, 0.f };
+    zoom            = 1.f;
+    start_selection = { 0.f, 0.f };
+    end_selection   = { 0.f, 0.f };
+
+    selected_nodes.clear();
+    run_selection = false;
+}
+
+void flat_simulation_editor::rebuild(application& app) noexcept
+{
+    app.add_gui_task([&]() {
+        positions.read_write([&](auto& positions) {
+            auto& pj_ed = container_of(this, &project_editor::flat_sim);
+            positions.resize(pj_ed.pj.sim.models.size());
+
+            top_left     = ImVec2(0.f, 0.f);
+            bottom_right = ImVec2(
+              static_cast<float>(pj_ed.pj.sim.models.size()) * distance.x,
+              static_cast<float>(pj_ed.pj.sim.models.size()) * distance.y);
+
+            const auto size  = positions.ssize();
+            const auto fsize = static_cast<float>(size);
+
+            if (size == 0)
+                return;
+
+            const auto column = static_cast<int>(std::floor(std::sqrt(fsize)));
+            const auto line   = column;
+            const auto remaining = size - (column * line);
+            auto       panning   = ImNodes::EditorContextGetPanning();
+
+            const model* mdl = nullptr;
+            if (pj_ed.pj.sim.models.next(mdl)) {
+                for (auto i = 0; i < line; ++i) {
+                    for (auto j = 0; j < column; ++j) {
+                        const auto mdl_id = pj_ed.pj.sim.models.get_id(mdl);
+                        positions[mdl_id].y =
+                          panning.y + static_cast<float>(i) * distance.x;
+                        positions[mdl_id].x =
+                          panning.x + static_cast<float>(j) * distance.y;
+                        pj_ed.pj.sim.models.next(mdl);
+                    }
+                }
+            }
+
+            panning.y += static_cast<float>(column) * distance.y;
+
+            for (auto j = 0; j < remaining; ++j) {
+                const auto mdl_id = pj_ed.pj.sim.models.get_id(mdl);
+                positions[mdl_id].x =
+                  panning.x + static_cast<float>(j) * distance.x;
+                positions[mdl_id].y = panning.y;
+
+                pj_ed.pj.sim.models.next(mdl);
+            }
+        });
+    });
 }
 
 } // namesapce irt
