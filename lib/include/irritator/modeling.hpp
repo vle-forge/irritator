@@ -1511,7 +1511,6 @@ public:
 
     status copy(internal_component src, component& dst) noexcept;
     status copy(const component& src, component& dst) noexcept;
-    status copy(grid_component& grid, component& dst) noexcept;
 
     status copy(const generic_component& src, generic_component& dst) noexcept;
     status copy(grid_component& grid, generic_component& s) noexcept;

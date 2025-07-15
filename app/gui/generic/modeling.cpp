@@ -819,15 +819,14 @@ static void show_popup_menuitem(application&                   app,
                     t = "can not allocate a new grid component";
                 });
             } else {
-                auto& grid = app.mod.grid_components.alloc();
+                auto& compo    = app.mod.alloc_grid_component();
+                auto& grid     = app.mod.grid_components.get(compo.id.grid_id);
+                auto  compo_id = app.mod.components.get_id(compo);
                 grid.resize(4, 4, undefined<component_id>());
 
-                auto  grid_id    = app.mod.grid_components.get_id(grid);
-                auto  compo_id   = app.mod.components.alloc();
-                auto& compo      = app.mod.components.get<component>(compo_id);
-                compo.name       = "Grid";
-                compo.type       = component_type::grid;
-                compo.id.grid_id = grid_id;
+                app.mod.components.get<component_color>(
+                  compo_id) = { 1.f, 1.f, 1.f, 1.f };
+                app.mod.components.get<component>(compo_id).name = "Grid";
 
                 add_component_to_current(
                   app, parent, s_parent, compo, click_pos);
