@@ -17,7 +17,6 @@
 #include "editor.hpp"
 #include "internal.hpp"
 
-#define IMGUI_DEFINE_MATH_OPERATORS
 #include <imgui.h>
 #include <imgui_internal.h>
 
@@ -1201,11 +1200,11 @@ auto project_editor::show(application& app) noexcept -> show_result_t
                         show_simulation_editor_treenode(app, *this, *selected);
                         ImGui::EndTabItem();
                     }
-                } else {
-                    if (ImGui::BeginTabItem("Full simulation graph")) {
-                        generic_sim.display(app);
-                        ImGui::EndTabItem();
-                    }
+                }
+
+                if (ImGui::BeginTabItem("Full simulation graph")) {
+                    flat_sim.display(app);
+                    ImGui::EndTabItem();
                 }
 
                 if (ImGui::BeginTabItem("Input data")) {

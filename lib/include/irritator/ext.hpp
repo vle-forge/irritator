@@ -236,7 +236,9 @@ public:
 
     container_type data;
 
-    constexpr table() noexcept  = default;
+    constexpr table() noexcept = default;
+    explicit constexpr table(std::integral auto size) noexcept;
+    constexpr table(std::integral auto size, reserve_tag) noexcept;
     constexpr ~table() noexcept = default;
 
     constexpr void     set(Identifier id, const T& value) noexcept;
@@ -399,6 +401,19 @@ table<Identifier, T, A>::value_type::value_type(Identifier id_,
                                                 const T&   value_) noexcept
   : id(id_)
   , value(value_)
+{}
+
+template<typename Identifier, typename T, typename A>
+    requires(std::three_way_comparable<Identifier>)
+constexpr table<Identifier, T, A>::table(std::integral auto size) noexcept
+  : data{ size }
+{}
+
+template<typename Identifier, typename T, typename A>
+    requires(std::three_way_comparable<Identifier>)
+constexpr table<Identifier, T, A>::table(std::integral auto size,
+                                         reserve_tag) noexcept
+  : data{ size, reserve_tag{} }
 {}
 
 template<typename Identifier, typename T, typename A>

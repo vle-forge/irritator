@@ -618,6 +618,62 @@ private:
     spin_mutex mutex;
 };
 
+class flat_simulation_editor
+{
+public:
+    enum class action : u32 {
+        camera_center,
+        camera_auto_fit,
+        use_grid,
+        use_bezier,
+        Count
+    };
+
+    bool display(application& app) noexcept;
+    void display_status() noexcept;
+
+    void reset() noexcept;
+
+private:
+    struct data_type {
+        vector<ImVec2> positions; ///< @c (x,y) per simulation models
+
+        vector<ImVec2> tn_rects;   ///< @c (width,height) per tree-node
+        vector<ImVec2> tn_centers; ///< @c (x,y) center position per tree-node
+        vector<ImVec2> tn_factors; ///< @c (fx,fy) coefficient to adjust pos
+        vector<ImU32>  tn_colors;  ///< @c (color) per tree-node
+
+        vector<ImVec2> cache_positions;
+    };
+
+    void center_camera() noexcept;
+    void auto_fit_camera() noexcept;
+
+    void compute_rects(application& app, data_type& d) noexcept;
+    void rebuild(application& app) noexcept;
+
+    locker_2<data_type> data;
+
+    ImVec2 distance{ 15.f, 15.f };      /// distance between two nodes
+    ImVec2 tn_distance{ 100.f, 100.f }; /// distance between two tree nodes
+    ImVec2 scrolling{ 0.f, 0.f };       /// top left position in canvas
+    ImVec2 canvas_sz{ 0.f, 0.f };       /// canvas size
+    float  zoom = 1.f;
+
+    ImVec2 start_selection;
+    ImVec2 end_selection;
+
+    ImVec2 top_left;
+    ImVec2 bottom_right;
+
+    vector<model_id> selected_nodes;
+    bitflags<action> actions;
+
+    bool run_selection = false;
+
+    std::atomic_flag is_ready = ATOMIC_FLAG_INIT;
+};
+
 class grid_simulation_editor
 {
 public:
@@ -914,6 +970,7 @@ struct project_editor {
 
     plot_copy_widget plot_copy_wgt;
 
+    flat_simulation_editor    flat_sim;
     generic_simulation_editor generic_sim;
     grid_simulation_editor    grid_sim;
     graph_simulation_editor   graph_sim;

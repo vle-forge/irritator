@@ -806,10 +806,6 @@ public:
     data_array<connection, connection_id> cache_connections;
     vector<name_str>                      cache_names;
 
-    /// @brief Stores a @a graph_node_id per @c child. @a cache_node_ids have
-    /// the same size as @c cache data_array.
-    vector<graph_node_id> cache_node_ids;
-
     std::array<float, 2> top_left_limit{ +INFINITY, +INFINITY };
     std::array<float, 2> bottom_right_limit{ -INFINITY, -INFINITY };
 
@@ -1111,6 +1107,13 @@ struct tree_node {
         };
 
         enum class type { empty, model, tree_node } type = type::empty;
+
+        constexpr auto is_empty() const noexcept { return type == type::empty; }
+        constexpr auto is_model() const noexcept { return type == type::model; }
+        constexpr auto is_tree_node() const noexcept
+        {
+            return type == type::tree_node;
+        }
 
         void disable() noexcept
         {

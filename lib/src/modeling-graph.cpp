@@ -425,7 +425,8 @@ expected<void> graph_component::build_cache(modeling& mod) noexcept
     clear_cache();
 
     cache.reserve(g.nodes.size());
-    if (not cache.can_alloc(g.nodes.size()))
+    if (not cache.can_alloc(g.nodes.size()) and
+        not cache.can_alloc(g.nodes.size()))
         return new_error(modeling_errc::graph_children_container_full);
 
     const auto vec = build_graph_children(mod, *this);
@@ -436,7 +437,6 @@ void graph_component::clear_cache() noexcept
 {
     cache.clear();
     cache_connections.clear();
-    cache_node_ids.clear();
 }
 
 status modeling::copy(graph_component&   graph,
