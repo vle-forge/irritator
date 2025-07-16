@@ -1660,14 +1660,31 @@ static ImU32 compute_color(const float t) noexcept
     return (mh & 0xff00ff00) | ((ml & 0xff00ff00) >> 8);
 }
 
+constexpr static auto clear =
+  [](auto& data, const auto models, const auto tns) noexcept {
+      d.positions.resize(models);
+      d.tn_rects.resize(tns);
+      d.tn_center.resize(tns);
+      d.tn_colors.resize(tns);
+  };
+
+constexpr static auto compute_rects_and_colors = [](auto&      data,
+                                                    const auto distance,
+                                                    const auto tn_id,
+                                                    const auto models,
+                                                    const auto tns) noexcept {
+    data.tn_rects[tn_id] = compute_rect(distance, models);
+    data.tn_colors[tn_id] =
+      compute_color(static_cast<float>(get_index(tn_id)) /
+                    static_cast<float>(tns)) ;
+};
+
 void flat_simulation_editor::rebuild(application& app) noexcept
 {
     app.add_gui_task([&]() {
         data.read_write([&](auto& d) {
             auto& pj_ed = container_of(this, &project_editor::flat_sim);
-            d.positions.resize(pj_ed.pj.sim.models.size());
-            d.tn_rects.resize(pj_ed.pj.tree_nodes.size());
-            d.tn_colors.resize(pj_ed.pj.tree_nodes.size());
+            clear(d, pj_ed.pj.sim.models.size(), pj_ed.pj.tree_nodes.size());
 
             for (const auto& tn : pj_ed.pj.tree_nodes) {
                 const auto tn_id = pj_ed.pj.tree_nodes.get_id(tn);
@@ -1682,6 +1699,28 @@ void flat_simulation_editor::rebuild(application& app) noexcept
                 d.tn_colors[tn_id] =
                   compute_color(static_cast<float>(get_index(tn_id)) /
                                 static_cast<float>(pj_ed.pj.tree_nodes.size()));
+            }
+
+            auto& pj_ed = container_of(this, &project_editor::flat_sim);
+
+            small_vector<tree_node*, max_component_stack_size> stack;
+            stack.emplace_back(pj_ed.pj.tn_head());
+            d.tn_center[pj_ed.pj.tree_nodes.get_id(pj_ed.pj.get_tn_id())] =
+              ImVec2(0, 0);
+
+            while (!stack.empty()) {
+                auto  cur   = stack.back();
+                auto  tn_id = pj_ed.pj.tree_nodes.get_id(*cur);
+                auto& compo = app.mod.components.get(cur->id);
+                stack.pop_back();
+
+                switch (compo.type) {}
+
+                if (auto* sibling = cur->tree.get_sibling(); sibling)
+                    stack.emplace_back(sibling);
+
+                if (auto* child = cur->tree.get_child(); child)
+                    stack.emplace_back(child);
             }
 
             top_left     = ImVec2(0.f, 0.f);
