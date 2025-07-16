@@ -1628,7 +1628,7 @@ static ImVec2 compute_rect(const ImVec2 distance, const int elem) noexcept
 
 static ImU32 compute_color(const float t) noexcept
 {
-    static const ImColor const tables[] = {
+    static const ImColor tables[] = {
         IM_COL32(103, 0, 31, 255),    IM_COL32(178, 24, 43, 255),
         IM_COL32(214, 96, 77, 255),   IM_COL32(244, 165, 130, 255),
         IM_COL32(253, 219, 199, 255), IM_COL32(247, 247, 247, 255),
@@ -1697,6 +1697,27 @@ constexpr static void compute_rects_and_colors(auto&       data,
     }
 }
 
+constexpr static void dispatch_component(auto&            data,
+                                         const modeling&  mod,
+                                         const tree_node& tn,
+                                         const component& compo) noexcept
+{
+    switch (compo.type) {
+    case component_type::generic:
+        break;
+
+    case component_type::graph:
+        break;
+
+    case component_type::grid:
+        break;
+
+    case component_type::hsm:
+    case component_type::none:
+        break;
+    }
+}
+
 void flat_simulation_editor::rebuild(application& app) noexcept
 {
     app.add_gui_task([&]() {
@@ -1707,24 +1728,27 @@ void flat_simulation_editor::rebuild(application& app) noexcept
             clear(d, mdls, tns);
             compute_rects_and_colors(d, pj_ed.pj.tree_nodes, distance);
 
-            small_vector<tree_node*, max_component_stack_size> stack;
-            stack.emplace_back(pj_ed.pj.tn_head());
+            // Stores a pair @c (tree_node,level) to compute position.
+            small_vector<std::pair<tree_node*, int>, max_component_stack_size>
+              stack;
+
+            stack.emplace_back(pj_ed.pj.tn_head(), 0);
             d.tn_centers[pj_ed.pj.tree_nodes.get_id(pj_ed.pj.tn_head())] =
               ImVec2(0, 0);
 
             while (!stack.empty()) {
                 auto  cur   = stack.back();
-                auto  tn_id = pj_ed.pj.tree_nodes.get_id(*cur);
-                auto& compo = app.mod.components.get<component>(cur->id);
+                auto  tn_id = pj_ed.pj.tree_nodes.get_id(cur.first);
+                auto& compo = app.mod.components.get<component>(cur.first->id);
                 stack.pop_back();
 
-                switch (compo.type) {}
+                dispatch_component(d, app.mod, *cur.first, compo);
 
-                if (auto* sibling = cur->tree.get_sibling(); sibling)
-                    stack.emplace_back(sibling);
+                if (auto* sibling = cur.first->tree.get_sibling(); sibling)
+                    stack.emplace_back(sibling, cur.second);
 
-                if (auto* child = cur->tree.get_child(); child)
-                    stack.emplace_back(child);
+                if (auto* child = cur.first->tree.get_child(); child)
+                    stack.emplace_back(child, cur.second + 1);
             }
 
             top_left     = ImVec2(0.f, 0.f);
