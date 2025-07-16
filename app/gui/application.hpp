@@ -633,10 +633,10 @@ private:
     void rebuild(application& app) noexcept;
 
     struct data_type {
-        vector<ImVec2> positions; /// @c (x,y) per simulation models
-        vector<ImVec2> tn_rects;  /// @c (width,height) per tree-node
-        vector<ImVec2> tn_center; /// @c (x,y) center position per tree-node
-        vector<ImU32>  tn_colors; /// @c (color) per tree-node
+        vector<ImVec2> positions;  /// @c (x,y) per simulation models
+        vector<ImVec2> tn_rects;   /// @c (width,height) per tree-node
+        vector<ImVec2> tn_centers; /// @c (x,y) center position per tree-node
+        vector<ImU32>  tn_colors;  /// @c (color) per tree-node
     };
 
     locker_2<data_type> data;
