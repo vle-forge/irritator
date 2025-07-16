@@ -633,16 +633,17 @@ private:
     void rebuild(application& app) noexcept;
 
     struct data_type {
-        vector<ImVec2> positions;
-        vector<ImVec2> tn_rects;
-        vector<ImU32>  tn_colors;
+        vector<ImVec2> positions; /// @c (x,y) per simulation models
+        vector<ImVec2> tn_rects;  /// @c (width,height) per tree-node
+        vector<ImVec2> tn_center; /// @c (x,y) center position per tree-node
+        vector<ImU32>  tn_colors; /// @c (color) per tree-node
     };
 
     locker_2<data_type> data;
 
-    ImVec2 distance{ 15.f, 15.f };      //!< distance between two nodes
-    ImVec2 tn_distance{ 100.f, 100.f }; //!< distance between two tree nodes
-    ImVec2 scrolling{ 0.f, 0.f };       //!< top left position in canvas
+    ImVec2 distance{ 15.f, 15.f };      /// distance between two nodes
+    ImVec2 tn_distance{ 100.f, 100.f }; /// distance between two tree nodes
+    ImVec2 scrolling{ 0.f, 0.f };       /// top left position in canvas
     float  zoom = 1.f;
 
     ImVec2 start_selection;
