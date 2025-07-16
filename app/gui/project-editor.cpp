@@ -1660,58 +1660,62 @@ static ImU32 compute_color(const float t) noexcept
     return (mh & 0xff00ff00) | ((ml & 0xff00ff00) >> 8);
 }
 
-constexpr static auto clear =
-  [](auto& data, const auto models, const auto tns) noexcept {
-      d.positions.resize(models);
-      d.tn_rects.resize(tns);
-      d.tn_center.resize(tns);
-      d.tn_colors.resize(tns);
-  };
+constexpr static auto clear(auto&      data,
+                            const auto models,
+                            const auto tns) noexcept
+{
+    data.positions.resize(models);
 
-constexpr static auto compute_rects_and_colors = [](auto&      data,
-                                                    const auto distance,
-                                                    const auto tn_id,
-                                                    const auto models,
-                                                    const auto tns) noexcept {
-    data.tn_rects[tn_id] = compute_rect(distance, models);
-    data.tn_colors[tn_id] =
-      compute_color(static_cast<float>(get_index(tn_id)) /
-                    static_cast<float>(tns)) ;
-};
+    data.tn_rects.resize(tns);
+    data.tn_centers.resize(tns);
+    data.tn_colors.resize(tns);
+}
+
+constexpr static auto model_children(const auto& tn) noexcept
+{
+    auto elem = 0;
+    for (const auto& child : tn.children)
+        if (child.type == tree_node::child_node::type::model)
+            ++elem;
+
+    return elem;
+}
+
+constexpr static void compute_rects_and_colors(auto&       data,
+                                               const auto& tree_nodes,
+                                               const auto  distance) noexcept
+{
+    const auto tns_f = static_cast<float>(tree_nodes.size());
+
+    for (const auto& tn : tree_nodes) {
+        const auto tn_id   = tree_nodes.get_id(tn);
+        const auto tn_id_f = static_cast<float>(get_index(tn_id));
+        const auto models  = model_children(tn);
+
+        data.tn_rects[tn_id]  = compute_rect(distance, models);
+        data.tn_colors[tn_id] = compute_color(tn_id_f / tns_f);
+    }
+}
 
 void flat_simulation_editor::rebuild(application& app) noexcept
 {
     app.add_gui_task([&]() {
         data.read_write([&](auto& d) {
-            auto& pj_ed = container_of(this, &project_editor::flat_sim);
-            clear(d, pj_ed.pj.sim.models.size(), pj_ed.pj.tree_nodes.size());
-
-            for (const auto& tn : pj_ed.pj.tree_nodes) {
-                const auto tn_id = pj_ed.pj.tree_nodes.get_id(tn);
-
-                int elem = 0;
-                for (const auto& child : tn.children) {
-                    if (child.type == tree_node::child_node::type::model)
-                        ++elem;
-                }
-
-                d.tn_rects[tn_id] = compute_rect(distance, elem);
-                d.tn_colors[tn_id] =
-                  compute_color(static_cast<float>(get_index(tn_id)) /
-                                static_cast<float>(pj_ed.pj.tree_nodes.size()));
-            }
-
-            auto& pj_ed = container_of(this, &project_editor::flat_sim);
+            auto&      pj_ed = container_of(this, &project_editor::flat_sim);
+            const auto mdls  = pj_ed.pj.sim.models.size();
+            const auto tns   = pj_ed.pj.tree_nodes.size();
+            clear(d, mdls, tns);
+            compute_rects_and_colors(d, pj_ed.pj.tree_nodes, distance);
 
             small_vector<tree_node*, max_component_stack_size> stack;
             stack.emplace_back(pj_ed.pj.tn_head());
-            d.tn_center[pj_ed.pj.tree_nodes.get_id(pj_ed.pj.get_tn_id())] =
+            d.tn_centers[pj_ed.pj.tree_nodes.get_id(pj_ed.pj.tn_head())] =
               ImVec2(0, 0);
 
             while (!stack.empty()) {
                 auto  cur   = stack.back();
                 auto  tn_id = pj_ed.pj.tree_nodes.get_id(*cur);
-                auto& compo = app.mod.components.get(cur->id);
+                auto& compo = app.mod.components.get<component>(cur->id);
                 stack.pop_back();
 
                 switch (compo.type) {}
