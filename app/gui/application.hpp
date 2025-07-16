@@ -632,7 +632,13 @@ private:
     void auto_fit_camera(const ImVec2 canvas) noexcept;
     void rebuild(application& app) noexcept;
 
-    locker_2<vector<ImVec2>> positions;
+    struct data_type {
+        vector<ImVec2> positions;
+        vector<ImVec2> tn_rects;
+        vector<ImU32>  tn_colors;
+    };
+
+    locker_2<data_type> data;
 
     ImVec2 distance{ 15.f, 15.f };      //!< distance between two nodes
     ImVec2 tn_distance{ 100.f, 100.f }; //!< distance between two tree nodes

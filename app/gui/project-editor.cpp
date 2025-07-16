@@ -1378,19 +1378,19 @@ bool flat_simulation_editor::display(application& app) noexcept
 
                 selected_nodes.clear();
 
-                positions.try_read_only([&](const auto& positions) {
+                data.try_read_only([&](const auto& d) {
                     auto& pj_ed = container_of(this, &project_editor::flat_sim);
                     for (const auto& mdl : pj_ed.pj.sim.models) {
                         const auto mdl_id = pj_ed.pj.sim.models.get_id(mdl);
                         const auto i      = get_index(mdl_id);
 
                         ImVec2 p_min(
-                          origin.x + ((positions[i][0] - 2.f) * zoom),
-                          origin.y + ((positions[i][1] - 2.f) * zoom));
+                          origin.x + ((d.positions[i][0] - 2.f) * zoom),
+                          origin.y + ((d.positions[i][1] - 2.f) * zoom));
 
                         ImVec2 p_max(
-                          origin.x + ((positions[i][0] + 2.f) * zoom),
-                          origin.y + ((positions[i][1] + 2.f) * zoom));
+                          origin.x + ((d.positions[i][0] + 2.f) * zoom),
+                          origin.y + ((d.positions[i][1] + 2.f) * zoom));
 
                         if (p_min.x >= bmin.x and p_max.x < bmax.x and
                             p_min.y >= bmin.y and p_max.y < bmax.y) {
@@ -1417,21 +1417,115 @@ bool flat_simulation_editor::display(application& app) noexcept
                            ImVec2(canvas_p1.x, canvas_p0.y + y),
                            IM_COL32(200, 200, 200, 40));
 
-    positions.try_read_only([&](const auto& positions) {
+    data.try_read_only([&](const auto& d) {
         auto& pj_ed = container_of(this, &project_editor::flat_sim);
+
+        small_vector<tree_node*, max_component_stack_size> stack;
+        stack.emplace_back(pj_ed.pj.tn_head());
+
+        while (!stack.empty()) {
+            auto cur   = stack.back();
+            auto tn_id = pj_ed.pj.tree_nodes.get_id(*cur);
+            stack.pop_back();
+
+            for (const auto& ch : cur->children) {
+                if (ch.type == tree_node::child_node::type::model) {
+                    const auto  mdl_id = ch.mdl;
+                    const auto* mdl    = pj_ed.pj.sim.models.try_to_get(mdl_id);
+                    const auto  i      = get_index(mdl_id);
+
+                    if (not mdl)
+                        continue;
+
+                    ImVec2 p_min(origin.x + ((d.positions[i][0] - 2.f) * zoom),
+                                 origin.y + ((d.positions[i][1] - 2.f) * zoom));
+
+                    ImVec2 p_max(origin.x + ((d.positions[i][0] + 2.f) * zoom),
+                                 origin.y + ((d.positions[i][1] + 2.f) * zoom));
+
+                    if (canvas_p0.x <= p_min.x and p_min.x <= canvas_p1.x and
+                        canvas_p0.y <= p_max.y and p_max.y <= canvas_p1.y)
+                        draw_list->AddRectFilled(
+                          p_min, p_max, d.tn_colors[tn_id]);
+
+                    dispatch(
+                      *mdl,
+                      [&]<typename Dynamics>(
+                        Dynamics& dyn, const auto& sim, const auto src_mdl_id) {
+                          if constexpr (has_output_port<Dynamics>) {
+                              for (int i = 0, e = length(dyn.y); i != e; ++i) {
+                                  for (auto* block =
+                                         sim.nodes.try_to_get(dyn.y[i]);
+                                       block;
+                                       block =
+                                         sim.nodes.try_to_get(block->next)) {
+
+                                      const auto src_idx =
+                                        get_index(src_mdl_id);
+                                      for (auto it = block->nodes.begin(),
+                                                et = block->nodes.end();
+                                           it != et;
+                                           ++it) {
+                                          if (const auto* dst =
+                                                sim.models.try_to_get(
+                                                  it->model)) {
+
+                                              ImVec2 from(
+                                                origin.x +
+                                                  (d.positions[src_idx][0] *
+                                                   zoom),
+                                                origin.y +
+                                                  (d.positions[src_idx][1] *
+                                                   zoom));
+
+                                              ImVec2 to(
+                                                origin.x +
+                                                  (d.positions[get_index(
+                                                     it->model)][0] *
+                                                   zoom),
+                                                origin.y +
+                                                  (d.positions[get_index(
+                                                     it->model)][1] *
+                                                   zoom));
+
+                                              draw_list->AddLine(
+                                                from,
+                                                to,
+                                                IM_COL32(0, 255, 0, 255),
+                                                1.0f);
+                                          }
+                                      }
+                                  }
+                              }
+                          }
+                      },
+                      pj_ed.pj.sim,
+                      pj_ed.pj.sim.models.get_id(mdl));
+                }
+            }
+
+            if (auto* sibling = cur->tree.get_sibling(); sibling)
+                stack.emplace_back(sibling);
+
+            if (auto* child = cur->tree.get_child(); child)
+                stack.emplace_back(child);
+        }
+
+        /*
         for (const auto& mdl : pj_ed.pj.sim.models) {
             const auto mdl_id = pj_ed.pj.sim.models.get_id(mdl);
             const auto i      = get_index(mdl_id);
 
-            ImVec2 p_min(origin.x + ((positions[i][0] - 2.f) * zoom),
-                         origin.y + ((positions[i][1] - 2.f) * zoom));
+            ImVec2 p_min(origin.x + ((d.positions[i][0] - 2.f) * zoom),
+                         origin.y + ((d.positions[i][1] - 2.f) * zoom));
 
-            ImVec2 p_max(origin.x + ((positions[i][0] + 2.f) * zoom),
-                         origin.y + ((positions[i][1] + 2.f) * zoom));
+            ImVec2 p_max(origin.x + ((d.positions[i][0] + 2.f) * zoom),
+                         origin.y + ((d.positions[i][1] + 2.f) * zoom));
 
-            // if (canvas_p0.x <= p_min.x and p_min.x <= canvas_p1.x and
-            //     canvas_p0.y <= p_max.y and p_max.y <= canvas_p1.y)
-            draw_list->AddRectFilled(p_min, p_max, IM_COL32(255, 0, 0, 255));
+            if (canvas_p0.x <= p_min.x and p_min.x <= canvas_p1.x and
+                canvas_p0.y <= p_max.y and p_max.y <= canvas_p1.y)
+                draw_list->AddRectFilled(
+                  p_min, p_max, IM_COL32(255, 0, 0, 255));
         }
 
         for (const auto& mdl : pj_ed.pj.sim.models) {
@@ -1455,17 +1549,17 @@ bool flat_simulation_editor::display(application& app) noexcept
 
                                       ImVec2 from(
                                         origin.x +
-                                          (positions[src_idx][0] * zoom),
+                                          (d.positions[src_idx][0] * zoom),
                                         origin.y +
-                                          (positions[src_idx][1] * zoom));
+                                          (d.positions[src_idx][1] * zoom));
 
                                       ImVec2 to(
-                                        origin.x +
-                                          (positions[get_index(it->model)][0] *
-                                           zoom),
-                                        origin.y +
-                                          (positions[get_index(it->model)][1] *
-                                           zoom));
+                                        origin.x + (d.positions[get_index(
+                                                      it->model)][0] *
+                                                    zoom),
+                                        origin.y + (d.positions[get_index(
+                                                      it->model)][1] *
+                                                    zoom));
 
                                       draw_list->AddLine(
                                         from,
@@ -1481,6 +1575,7 @@ bool flat_simulation_editor::display(application& app) noexcept
               pj_ed.pj.sim,
               pj_ed.pj.sim.models.get_id(mdl));
         }
+        */
     });
 
     if (run_selection) {
@@ -1520,19 +1615,81 @@ void flat_simulation_editor::reset() noexcept
     run_selection = false;
 }
 
+static ImVec2 compute_rect(const ImVec2 distance, const int elem) noexcept
+{
+    const auto fsize     = static_cast<float>(elem);
+    const auto column    = static_cast<int>(std::floor(std::sqrt(fsize)));
+    const auto line      = column;
+    const auto remaining = elem - (column * line);
+    const auto one_more  = remaining > 0;
+
+    return ImVec2(column * distance.x, (line + one_more) * distance.y);
+}
+
+static ImU32 compute_color(const float t) noexcept
+{
+    static const ImColor const tables[] = {
+        IM_COL32(103, 0, 31, 255),    IM_COL32(178, 24, 43, 255),
+        IM_COL32(214, 96, 77, 255),   IM_COL32(244, 165, 130, 255),
+        IM_COL32(253, 219, 199, 255), IM_COL32(247, 247, 247, 255),
+        IM_COL32(209, 229, 240, 255), IM_COL32(146, 197, 222, 255),
+        IM_COL32(67, 147, 195, 255),  IM_COL32(33, 102, 172, 255),
+        IM_COL32(5, 48, 97, 255)
+    };
+
+    const auto i1 =
+      static_cast<int>(static_cast<float>(length(tables) - 1) * t);
+    const auto i2 = i1 + 1;
+
+    if (i2 == length(tables) || length(tables) == 1)
+        return tables[i1];
+
+    const float den = 1.0f / (length(tables) - 1);
+    const float t1  = i1 * den;
+    const float t2  = i2 * den;
+    const float tr  = (t - t1) / (t2 - t1);
+    const auto  s   = static_cast<ImU32>(tr * 256.f);
+    const ImU32 af  = 256 - s;
+    const ImU32 bf  = s;
+    const ImU32 al  = (tables[i1] & 0x00ff00ff);
+    const ImU32 ah  = (tables[i1] & 0xff00ff00) >> 8;
+    const ImU32 bl  = (tables[i2] & 0x00ff00ff);
+    const ImU32 bh  = (tables[i2] & 0xff00ff00) >> 8;
+    const ImU32 ml  = (al * af + bl * bf);
+    const ImU32 mh  = (ah * af + bh * bf);
+    return (mh & 0xff00ff00) | ((ml & 0xff00ff00) >> 8);
+}
+
 void flat_simulation_editor::rebuild(application& app) noexcept
 {
     app.add_gui_task([&]() {
-        positions.read_write([&](auto& positions) {
+        data.read_write([&](auto& d) {
             auto& pj_ed = container_of(this, &project_editor::flat_sim);
-            positions.resize(pj_ed.pj.sim.models.size());
+            d.positions.resize(pj_ed.pj.sim.models.size());
+            d.tn_rects.resize(pj_ed.pj.tree_nodes.size());
+            d.tn_colors.resize(pj_ed.pj.tree_nodes.size());
+
+            for (const auto& tn : pj_ed.pj.tree_nodes) {
+                const auto tn_id = pj_ed.pj.tree_nodes.get_id(tn);
+
+                int elem = 0;
+                for (const auto& child : tn.children) {
+                    if (child.type == tree_node::child_node::type::model)
+                        ++elem;
+                }
+
+                d.tn_rects[tn_id] = compute_rect(distance, elem);
+                d.tn_colors[tn_id] =
+                  compute_color(static_cast<float>(get_index(tn_id)) /
+                                static_cast<float>(pj_ed.pj.tree_nodes.size()));
+            }
 
             top_left     = ImVec2(0.f, 0.f);
             bottom_right = ImVec2(
               static_cast<float>(pj_ed.pj.sim.models.size()) * distance.x,
               static_cast<float>(pj_ed.pj.sim.models.size()) * distance.y);
 
-            const auto size  = positions.ssize();
+            const auto size  = d.positions.ssize();
             const auto fsize = static_cast<float>(size);
 
             if (size == 0)
@@ -1548,9 +1705,9 @@ void flat_simulation_editor::rebuild(application& app) noexcept
                 for (auto i = 0; i < line; ++i) {
                     for (auto j = 0; j < column; ++j) {
                         const auto mdl_id = pj_ed.pj.sim.models.get_id(mdl);
-                        positions[mdl_id].y =
+                        d.positions[mdl_id].y =
                           panning.y + static_cast<float>(i) * distance.x;
-                        positions[mdl_id].x =
+                        d.positions[mdl_id].x =
                           panning.x + static_cast<float>(j) * distance.y;
                         pj_ed.pj.sim.models.next(mdl);
                     }
@@ -1561,9 +1718,9 @@ void flat_simulation_editor::rebuild(application& app) noexcept
 
             for (auto j = 0; j < remaining; ++j) {
                 const auto mdl_id = pj_ed.pj.sim.models.get_id(mdl);
-                positions[mdl_id].x =
+                d.positions[mdl_id].x =
                   panning.x + static_cast<float>(j) * distance.x;
-                positions[mdl_id].y = panning.y;
+                d.positions[mdl_id].y = panning.y;
 
                 pj_ed.pj.sim.models.next(mdl);
             }
