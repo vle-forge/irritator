@@ -109,8 +109,9 @@ static auto build_graph_children(modeling& mod, graph_component& graph) noexcept
         const auto compo_id = graph.g.node_components[node_id];
 
         if (auto* c = mod.components.try_to_get<component>(compo_id); c) {
-            auto& new_ch = graph.cache.alloc(compo_id);
-            new_id       = graph.cache.get_id(new_ch);
+            auto& new_ch                 = graph.cache.alloc(compo_id);
+            new_id                       = graph.cache.get_id(new_ch);
+            graph.cache_node_ids[new_id] = node_id;
         }
 
         tr.data.emplace_back(node_id, new_id);
@@ -438,6 +439,7 @@ void graph_component::clear_cache() noexcept
 {
     cache.clear();
     cache_connections.clear();
+    cache_node_ids.clear();
 }
 
 status modeling::copy(graph_component&   graph,
