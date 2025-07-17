@@ -1420,6 +1420,9 @@ bool flat_simulation_editor::display(application& app) noexcept
     data.try_read_only([&](const auto& d) {
         auto& pj_ed = container_of(this, &project_editor::flat_sim);
 
+        if (d.positions.empty())
+            return;
+
         small_vector<tree_node*, max_component_stack_size> stack;
         stack.emplace_back(pj_ed.pj.tn_head());
 
@@ -1698,77 +1701,27 @@ constexpr static void compute_rects_and_colors(auto&       data,
 }
 
 constexpr static void move_models(auto&            data,
+                                  const project&   pj,
                                   const tree_node& tn,
-                                  const ImVec2     shift)
+                                  const float      shift_x,
+                                  const float      shift_y)
 {
     for (const auto& c : tn.children) {
         if (c.type == tree_node::child_node::type::model) {
-            data.positions[c.mdl].x += shift.x;
-            data.positions[c.mdl].y += shift.y;
+            data.positions[c.mdl].x += shift_x;
+            data.positions[c.mdl].y += shift_y;
         } else {
-            data.tn_centers[c.tn][0] += shift.x;
-            data.tn_centers[c.tn][1] += shift.y;
+            debug::ensure(c.tn);
+
+            const auto tn_id = pj.tree_nodes.get_id(*c.tn);
+            data.tn_centers[tn_id][0] += shift_x;
+            data.tn_centers[tn_id][1] += shift_y;
         }
     }
 }
 
-constexpr static void compute_generic(auto&                    data,
-                                      const modeling&          mod,
-                                      const tree_node&         tn,
-                                      const component&         compo,
-                                      const generic_component& gen,
-                                      const ImVec2 distance) noexcept
-{
-    const auto size  = tn.children.ssize();
-    const auto fsize = static_cast<float>(size);
-
-    if (size == 0)
-        return;
-
-    const auto column    = static_cast<int>(std::floor(std::sqrt(fsize)));
-    const auto line      = column;
-    const auto remaining = size - (column * line);
-    auto       panning   = ImNodes::EditorContextGetPanning();
-
-    for (const auto& c : tn.children) {
-        if (c.type == tree_node::child_node::type::model) {
-            const auto mdl_id = c.mdl;
-            const auto i      = get_index(mdl_id);
-            data.positions[mdl_id].y =
-              panning.y + static_cast<float>(i / column) * distance.x;
-            data.positions[mdl_id].x =
-              panning.x + static_cast<float>(i % column) * distance.y;
-
-        } else {
-        }
-    })
-
-    // const model* mdl = nullptr;
-    // if (pj_ed.pj.sim.models.next(mdl)) {
-    //     for (auto i = 0; i < line; ++i) {
-    //         for (auto j = 0; j < column; ++j) {
-    //             const auto mdl_id = pj_ed.pj.sim.models.get_id(mdl);
-    //             d.positions[mdl_id].y =
-    //               panning.y + static_cast<float>(i) * distance.x;
-    //             d.positions[mdl_id].x =
-    //               panning.x + static_cast<float>(j) * distance.y;
-    //             pj_ed.pj.sim.models.next(mdl);
-    //         }
-    //     }
-    // }
-
-    // panning.y += static_cast<float>(column) * distance.y;
-
-    // for (auto j = 0; j < remaining; ++j) {
-    //     const auto mdl_id     = pj_ed.pj.sim.models.get_id(mdl);
-    //     d.positions[mdl_id].x = panning.x + static_cast<float>(j) *
-    //     distance.x; d.positions[mdl_id].y = panning.y;
-
-    //     pj_ed.pj.sim.models.next(mdl);
-    // }
-}
-
 constexpr static void dispatch_component(auto&            data,
+                                         const project&   pj,
                                          const modeling&  mod,
                                          const tree_node& tn,
                                          const component& compo) noexcept
@@ -1780,11 +1733,54 @@ constexpr static void dispatch_component(auto&            data,
 
     switch (compo.type) {
     case component_type::generic:
+        if (auto* g = mod.generic_components.try_to_get(compo.id.generic_id)) {
+            position top_left{ +INFINITY, -INFINITY };
+            position bottom_right{ -INFINITY, +INFINITY };
+
+            for (const auto& c : g->children) {
+                const auto c_id = g->children.get_id(c);
+                const auto pos  = g->children_positions[c_id];
+                top_left.x      = std::min(top_left.x, pos.x);
+                top_left.y      = std::max(top_left.y, pos.y);
+                bottom_right.x  = std::max(bottom_right.x, pos.x);
+                bottom_right.y  = std::min(bottom_right.y, pos.y);
+            }
+
+            const auto fx = bottom_right.x / top_left.x;
+            const auto fy = bottom_right.y / top_left.y;
+
+            for (const auto& c : g->children) {
+                const auto c_id = g->children.get_id(c);
+                const auto pos  = g->children_positions[c_id];
+
+                switch (c.type) {
+                case child_type::model:
+                    data.positions[tn.children[c_id].mdl].x += pos.x * fx;
+                    data.positions[tn.children[c_id].mdl].y += pos.y * fy;
+                    break;
+
+                case child_type::component:
+                    move_models(data, pj, *tn.children[c_id].tn, pos.x, pos.y);
+                    break;
+                }
+            }
+        }
         break;
 
     case component_type::graph:
         if (auto* g = mod.graph_components.try_to_get(compo.id.graph_id)) {
-            for (const auto node_id : g->g.nodes) {
+            for (const auto& c : g->cache) {
+                const auto c_id = g->cache.get_id(c);
+
+                debug::ensure(c.type == child_type::component);
+                debug::ensure(tn.children[c_id].type ==
+                              tree_node::child_node::type::tree_node);
+                debug::ensure(tn.children[c_id].tn);
+
+                const auto* sub_tn = tn.children[c_id].tn;
+                const auto  pos = g->g.node_positions[g->cache_node_ids[c_id]];
+
+                move_models(data, pj, *sub_tn, pos[0], pos[1]);
             }
         }
         break;
@@ -1800,9 +1796,13 @@ constexpr static void dispatch_component(auto&            data,
                         break;
 
                     case tree_node::child_node::type::model:
+                        data.positions[child_id].x += i * 10.f;
+                        data.positions[child_id].y += j * 10.f;
                         break;
 
                     case tree_node::child_node::type::tree_node:
+                        debug::ensure(elem.tn);
+                        move_models(data, pj, *elem.tn, i * 10.f, j * 10.f);
                         break;
                     }
                 }
@@ -1833,7 +1833,7 @@ void flat_simulation_editor::rebuild(application& app) noexcept
                 bool       read_sibling = false;
             };
 
-            vector<stack_elem> stack(reserve_tag{}, max_component_stack_size);
+            vector<stack_elem> stack(max_component_stack_size, reserve_tag{});
 
             stack.emplace_back(pj_ed.pj.tn_head(), 0, false, false);
 
@@ -1843,10 +1843,8 @@ void flat_simulation_editor::rebuild(application& app) noexcept
                 if (cur.read_child) {
                     if (cur.read_sibling) {
                         stack.pop_back();
-                        // auto  tn_id = pj_ed.pj.tree_nodes.get_id(cur.tn);
-                        // auto& c =
-                        // app.mod.components.get<component>(cur.tn->id);
-                        // dispatch_component(d, app.mod, *cur.tn, c);
+                        auto& c = app.mod.components.get<component>(cur.tn->id);
+                        dispatch_component(d, pj_ed.pj, app.mod, *cur.tn, c);
                     } else {
                         stack.back().read_sibling = true;
                         if (auto* sibling = cur.tn->tree.get_sibling(); sibling)
@@ -1860,46 +1858,66 @@ void flat_simulation_editor::rebuild(application& app) noexcept
                 }
             }
 
-            top_left     = ImVec2(0.f, 0.f);
-            bottom_right = ImVec2(
-              static_cast<float>(pj_ed.pj.sim.models.size()) * distance.x,
-              static_cast<float>(pj_ed.pj.sim.models.size()) * distance.y);
+            top_left.x     = +INFINITY;
+            top_left.y     = -INFINITY;
+            bottom_right.x = -INFINITY;
+            bottom_right.y = +INFINITY;
 
-            const auto size  = d.positions.ssize();
-            const auto fsize = static_cast<float>(size);
-
-            if (size == 0)
-                return;
-
-            const auto column = static_cast<int>(std::floor(std::sqrt(fsize)));
-            const auto line   = column;
-            const auto remaining = size - (column * line);
-            auto       panning   = ImNodes::EditorContextGetPanning();
-
-            const model* mdl = nullptr;
-            if (pj_ed.pj.sim.models.next(mdl)) {
-                for (auto i = 0; i < line; ++i) {
-                    for (auto j = 0; j < column; ++j) {
-                        const auto mdl_id = pj_ed.pj.sim.models.get_id(mdl);
-                        d.positions[mdl_id].y =
-                          panning.y + static_cast<float>(i) * distance.x;
-                        d.positions[mdl_id].x =
-                          panning.x + static_cast<float>(j) * distance.y;
-                        pj_ed.pj.sim.models.next(mdl);
-                    }
-                }
-            }
-
-            panning.y += static_cast<float>(column) * distance.y;
-
-            for (auto j = 0; j < remaining; ++j) {
+            for (const auto& mdl : pj_ed.pj.sim.models) {
                 const auto mdl_id = pj_ed.pj.sim.models.get_id(mdl);
-                d.positions[mdl_id].x =
-                  panning.x + static_cast<float>(j) * distance.x;
-                d.positions[mdl_id].y = panning.y;
 
-                pj_ed.pj.sim.models.next(mdl);
-            }
+                top_left.x = std::min(d.positions[mdl_id].x, top_left.x);
+                top_left.y = std::max(d.positions[mdl_id].y, top_left.y);
+
+                bottom_right.x =
+                  std::min(d.positions[mdl_id].x, bottom_right.x);
+                bottom_right.y =
+                  std::max(d.positions[mdl_id].y, bottom_right.y);
+            };
+
+            // top_left.x = -INFINITY;
+            // top_left.y = +INFINITY;
+
+            // top_left     = ImVec2(0.f, 0.f);
+            // bottom_right = ImVec2(
+            //   static_cast<float>(pj_ed.pj.sim.models.size()) * distance.x,
+            //   static_cast<float>(pj_ed.pj.sim.models.size()) * distance.y);
+
+            // const auto size  = d.positions.ssize();
+            // const auto fsize = static_cast<float>(size);
+
+            // if (size == 0)
+            //     return;
+
+            // const auto column =
+            // static_cast<int>(std::floor(std::sqrt(fsize))); const auto line
+            // = column; const auto remaining = size - (column * line); auto
+            // panning   = ImNodes::EditorContextGetPanning();
+
+            // const model* mdl = nullptr;
+            // if (pj_ed.pj.sim.models.next(mdl)) {
+            //     for (auto i = 0; i < line; ++i) {
+            //         for (auto j = 0; j < column; ++j) {
+            //             const auto mdl_id = pj_ed.pj.sim.models.get_id(mdl);
+            //             d.positions[mdl_id].y =
+            //               panning.y + static_cast<float>(i) * distance.x;
+            //             d.positions[mdl_id].x =
+            //               panning.x + static_cast<float>(j) * distance.y;
+            //             pj_ed.pj.sim.models.next(mdl);
+            //         }
+            //     }
+            // }
+
+            // panning.y += static_cast<float>(column) * distance.y;
+
+            // for (auto j = 0; j < remaining; ++j) {
+            //     const auto mdl_id = pj_ed.pj.sim.models.get_id(mdl);
+            //     d.positions[mdl_id].x =
+            //       panning.x + static_cast<float>(j) * distance.x;
+            //     d.positions[mdl_id].y = panning.y;
+
+            //     pj_ed.pj.sim.models.next(mdl);
+            // }
         });
     });
 }
