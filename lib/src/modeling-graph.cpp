@@ -436,6 +436,7 @@ void graph_component::clear_cache() noexcept
 {
     cache.clear();
     cache_connections.clear();
+    cache_node_ids.clear();
 }
 
 status modeling::copy(graph_component&   graph,
