@@ -103,6 +103,7 @@ static auto build_graph_children(modeling& mod, graph_component& graph) noexcept
 {
     table<graph_node_id, child_id> tr;
     tr.data.reserve(graph.g.nodes.ssize());
+    graph.cache_node_ids.resize(graph.g.nodes.ssize());
 
     for (const auto node_id : graph.g.nodes) {
         const auto compo_id = graph.g.node_components[node_id];
@@ -425,7 +426,9 @@ expected<void> graph_component::build_cache(modeling& mod) noexcept
     clear_cache();
 
     cache.reserve(g.nodes.size());
-    if (not cache.can_alloc(g.nodes.size()))
+    cache_node_ids.reserve(g.nodes.size());
+    if (not cache.can_alloc(g.nodes.size()) and
+        not cache.can_alloc(g.nodes.size()))
         return new_error(modeling_errc::graph_children_container_full);
 
     const auto vec = build_graph_children(mod, *this);
