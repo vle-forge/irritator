@@ -1738,25 +1738,29 @@ constexpr static void dispatch_component(auto&            data,
             position bottom_right{ -INFINITY, +INFINITY };
 
             for (const auto& c : g->children) {
-                const auto c_id = g->children.get_id(c);
-                const auto pos  = g->children_positions[c_id];
-                top_left.x      = std::min(top_left.x, pos.x);
-                top_left.y      = std::max(top_left.y, pos.y);
-                bottom_right.x  = std::max(bottom_right.x, pos.x);
-                bottom_right.y  = std::min(bottom_right.y, pos.y);
+                const auto  c_id = g->children.get_id(c);
+                const auto& pos  = g->children_positions[c_id];
+                top_left.x       = std::min(top_left.x, pos.x);
+                top_left.y       = std::max(top_left.y, pos.y);
+                bottom_right.x   = std::max(bottom_right.x, pos.x);
+                bottom_right.y   = std::min(bottom_right.y, pos.y);
             }
 
-            const auto fx = bottom_right.x / top_left.x;
-            const auto fy = bottom_right.y / top_left.y;
+            const auto fx = static_cast<float>(tn.children.size()) /
+                            (bottom_right.x - top_left.x);
+            const auto fy = static_cast<float>(tn.children.size()) /
+                            (bottom_right.y - top_left.y);
 
             for (const auto& c : g->children) {
-                const auto c_id = g->children.get_id(c);
-                const auto pos  = g->children_positions[c_id];
+                const auto  c_id = g->children.get_id(c);
+                const auto& pos  = g->children_positions[c_id];
 
                 switch (c.type) {
                 case child_type::model:
-                    data.positions[tn.children[c_id].mdl].x += pos.x * fx;
-                    data.positions[tn.children[c_id].mdl].y += pos.y * fy;
+                    data.positions[tn.children[c_id].mdl].x +=
+                      (pos.x - top_left.x) * fx;
+                    data.positions[tn.children[c_id].mdl].y +=
+                      (pos.y - bottom_right.y) * fy;
                     break;
 
                 case child_type::component:
