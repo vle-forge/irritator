@@ -1746,10 +1746,10 @@ constexpr static void dispatch_component(auto&            data,
                 bottom_right.y   = std::min(bottom_right.y, pos.y);
             }
 
-            const auto fx = static_cast<float>(tn.children.size()) /
+            const auto fx = (static_cast<float>(tn.children.size()) * 5.f) /
                             (bottom_right.x - top_left.x);
-            const auto fy = static_cast<float>(tn.children.size()) /
-                            (bottom_right.y - top_left.y);
+            const auto fy = (static_cast<float>(tn.children.size()) * 5.f) /
+                            (top_left.y - bottom_right.y);
 
             for (const auto& c : g->children) {
                 const auto  c_id = g->children.get_id(c);
@@ -1757,9 +1757,9 @@ constexpr static void dispatch_component(auto&            data,
 
                 switch (c.type) {
                 case child_type::model:
-                    data.positions[tn.children[c_id].mdl].x +=
+                    data.positions[tn.children[c_id].mdl].x =
                       (pos.x - top_left.x) * fx;
-                    data.positions[tn.children[c_id].mdl].y +=
+                    data.positions[tn.children[c_id].mdl].y =
                       (pos.y - bottom_right.y) * fy;
                     break;
 
