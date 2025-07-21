@@ -1193,7 +1193,8 @@ struct generic_simulation_editor::impl {
                         ImGui::PopID();
                     }
 
-                    if (self.can_edit_parameters) {
+                    if (self.show_parameter_values and
+                        self.can_edit_parameters) {
                         ImGui::PushID(1);
                         ImGui::PushItemWidth(120.0f);
                         show_parameter_editor(
