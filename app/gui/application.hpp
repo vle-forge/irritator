@@ -629,9 +629,11 @@ public:
 
 private:
     struct data_type {
-        vector<ImVec2> positions;   ///< @c (x,y) per simulation models
+        vector<ImVec2> positions; ///< @c (x,y) per simulation models
+
         vector<ImVec2> tn_rects;    ///< @c (width,height) per tree-node
         vector<ImVec2> tn_centers;  ///< @c (x,y) center position per tree-node
+        vector<ImVec2> tn_factors;  ///< @c (fx,fy) to compute simulation pos.
         vector<ImU32>  tn_colors;   ///< @c (color) per tree-node
         vector<u32>    tn_children; ///< number of children per tree-node
     };
@@ -639,6 +641,7 @@ private:
     void center_camera(const ImVec2 canvas) noexcept;
     void auto_fit_camera(const ImVec2 canvas) noexcept;
 
+    void compute_children(application& app, data_type& d) noexcept;
     void compute_rects(application& app, data_type& d) noexcept;
     void compute_centers_and_positions(application& app, data_type& d) noexcept;
     void rebuild(application& app) noexcept;
