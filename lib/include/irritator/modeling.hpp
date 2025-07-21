@@ -1509,7 +1509,9 @@ public:
     child& alloc(generic_component& parent, dynamics_type type) noexcept;
     child& alloc(generic_component& parent, component_id id) noexcept;
 
-    status copy(const internal_component src, component& dst, generic_component& g) noexcept;
+    status copy(const internal_component src,
+                component&               dst,
+                generic_component&       g) noexcept;
     status copy(const component& src, component& dst) noexcept;
 
     status copy(const generic_component& src, generic_component& dst) noexcept;

@@ -614,8 +614,24 @@ struct generic_simulation_editor::impl {
 
     void build_flat_nodes(const simulation& sim) noexcept
     {
-        for (const auto& mdl : sim.models)
-            self.nodes_2nd.emplace_back(sim.get_id(mdl));
+        if (const auto* head = pj_ed.pj.tn_head()) {
+            vector<const tree_node*> stack(max_component_stack_size,
+                                           reserve_tag{});
+            stack.push_back(head);
+
+            while (not stack.empty()) {
+                const auto* top = stack.back();
+                stack.pop_back();
+
+                if (const auto* child = top->tree.get_child())
+                    stack.push_back(child);
+
+                if (const auto* sibling = top->tree.get_sibling())
+                    stack.push_back(sibling);
+
+                build_nodes(sim, *top);
+            }
+        }
     }
 
     int copy(application& app, const vector<int>& nodes) noexcept
