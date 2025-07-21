@@ -1667,11 +1667,12 @@ constexpr static auto clear(auto&      data,
                             const auto models,
                             const auto tns) noexcept
 {
-    data.positions.resize(models);
+    data.positions.resize(models, ImVec2(0.f, 0.f));
 
-    data.tn_rects.resize(tns);
-    data.tn_centers.resize(tns);
-    data.tn_colors.resize(tns);
+    data.tn_rects.resize(tns, ImVec2(0.f, 0.f));
+    data.tn_centers.resize(tns, ImVec2(0.f, 0.f));
+    data.tn_colors.resize(tns, IM_COL32(255, 255, 255, 255));
+    data.tn_children.resize(tns, 0u);
 }
 
 constexpr static auto model_children(const auto& tn) noexcept
@@ -1720,36 +1721,41 @@ constexpr static void move_models(auto&            data,
     }
 }
 
+struct rect_bound {
+
+    constexpr rect_bound() noexcept = default;
+
+    constexpr void update(const float x, const float y) noexcept
+    {
+        x_min = std::min(x_min, x);
+        x_max = std::max(x_max, x);
+        y_min = std::min(y_min, y);
+        y_max = std::max(y_max, y);
+    }
+
+    constexpr auto distance() const noexcept
+    {
+        return ImVec2(x_max - x_min, y_max - y_min);
+    }
+
+    float x_min = +INFINITY;
+    float x_max = -INFINITY;
+    float y_min = +INFINITY;
+    float y_max = -INFINITY;
+};
+
 constexpr static void dispatch_component(auto&            data,
                                          const project&   pj,
                                          const modeling&  mod,
                                          const tree_node& tn,
                                          const component& compo) noexcept
 {
-    (void)data;
-    (void)mod;
-    (void)tn;
-    (void)compo;
+    const auto tn_id = pj.tree_nodes.get_id(tn);
 
     switch (compo.type) {
     case component_type::generic:
         if (auto* g = mod.generic_components.try_to_get(compo.id.generic_id)) {
-            position top_left{ +INFINITY, -INFINITY };
-            position bottom_right{ -INFINITY, +INFINITY };
-
-            for (const auto& c : g->children) {
-                const auto  c_id = g->children.get_id(c);
-                const auto& pos  = g->children_positions[c_id];
-                top_left.x       = std::min(top_left.x, pos.x);
-                top_left.y       = std::max(top_left.y, pos.y);
-                bottom_right.x   = std::max(bottom_right.x, pos.x);
-                bottom_right.y   = std::min(bottom_right.y, pos.y);
-            }
-
-            const auto fx = (static_cast<float>(tn.children.size()) * 5.f) /
-                            (bottom_right.x - top_left.x);
-            const auto fy = (static_cast<float>(tn.children.size()) * 5.f) /
-                            (top_left.y - bottom_right.y);
+            rect_bound bound;
 
             for (const auto& c : g->children) {
                 const auto  c_id = g->children.get_id(c);
@@ -1757,17 +1763,38 @@ constexpr static void dispatch_component(auto&            data,
 
                 switch (c.type) {
                 case child_type::model:
-                    data.positions[tn.children[c_id].mdl].x =
-                      (pos.x - top_left.x) * fx;
-                    data.positions[tn.children[c_id].mdl].y =
-                      (pos.y - bottom_right.y) * fy;
+                    bound.update(pos.x - 5.f, pos.y - 5.f);
+                    bound.update(pos.x + 5.f, pos.y + 5.f);
                     break;
 
-                case child_type::component:
-                    move_models(data, pj, *tn.children[c_id].tn, pos.x, pos.y);
-                    break;
+                case child_type::component: {
+                    const auto* sub_tn    = tn.children[c_id].tn;
+                    const auto  sub_tn_id = pj.tree_nodes.get_id(*sub_tn);
+                    const auto& sub_pos   = data.tn_rects[sub_tn_id];
+                    bound.update(pos.x + sub_pos.x - 5.f,
+                                 pos.y + sub_pos.y - 5.f);
+                    bound.update(pos.x + sub_pos.x + 5.f,
+                                 pos.y + sub_pos.y + 5.f);
+                } break;
                 }
             }
+
+            const auto dist = bound.distance();
+            const auto fx   = data.tn_children[tn_id] / dist.x;
+            const auto fy   = data.tn_children[tn_id] / dist.y;
+
+            for (const auto& c : g->children) {
+                const auto  c_id = g->children.get_id(c);
+                const auto& pos  = g->children_positions[c_id];
+
+                data.positions[tn.children[c_id].mdl].x =
+                  (pos.x - bound.x_min) * fx;
+                data.positions[tn.children[c_id].mdl].y =
+                  (pos.y - bound.y_min) * fy;
+            }
+
+            data.tn_centers[tn_id] = ImVec2(0.f, 0.f);
+            data.tn_rects[tn_id]   = ImVec2(dist.x * fx, dist.y * fy);
         }
         break;
 
@@ -1820,6 +1847,30 @@ constexpr static void dispatch_component(auto&            data,
     }
 }
 
+constexpr static auto get_children_number(const tree_node& tn) noexcept -> u32
+{
+    u32 sum = 0;
+
+    for (const auto& c : tn.children)
+        if (c.type == tree_node::child_node::type::model)
+            sum += 1;
+
+    return sum;
+}
+
+template<typename T>
+    requires(std::is_same_v<tree_node, std::decay_t<T>>)
+constexpr static auto get_tn_id(const project& pj, const T tn) noexcept
+  -> tree_node_id
+{
+    if constexpr (std::is_pointer_v<T>)
+        return pj.tree_nodes.get_id(*tn);
+    else if constexpr (std::is_reference_v<T>)
+        return pj.tree_nodes.get_id(tn);
+
+    unreachable();
+}
+
 void flat_simulation_editor::rebuild(application& app) noexcept
 {
     app.add_gui_task([&]() {
@@ -1827,65 +1878,73 @@ void flat_simulation_editor::rebuild(application& app) noexcept
             auto&      pj_ed = container_of(this, &project_editor::flat_sim);
             const auto mdls  = pj_ed.pj.sim.models.size();
             const auto tns   = pj_ed.pj.tree_nodes.size();
+
             clear(d, mdls, tns);
             compute_rects_and_colors(d, pj_ed.pj.tree_nodes, distance);
 
             struct stack_elem {
                 tree_node* tn;
-                int        level;
+                i32        level        = 0;
                 bool       read_child   = false;
                 bool       read_sibling = false;
             };
 
             vector<stack_elem> stack(max_component_stack_size, reserve_tag{});
+            stack.emplace_back(pj_ed.pj.tn_head());
 
-            stack.emplace_back(pj_ed.pj.tn_head(), 0, false, false);
-
-            while (!stack.empty()) {
-                auto cur = stack.back();
+            while (not stack.empty()) {
+                const auto cur       = stack.back();
+                const auto cur_tn_id = get_tn_id(pj_ed.pj, cur.tn);
 
                 if (cur.read_child) {
                     if (cur.read_sibling) {
                         stack.pop_back();
+                        d.tn_children[cur_tn_id] = get_children_number(*cur.tn);
+
+                        if (auto* parent = cur.tn->tree.get_parent())
+                            d.tn_children[get_tn_id(pj_ed.pj, parent)] +=
+                              d.tn_centers[cur_tn_id];
+
                         auto& c = app.mod.components.get<component>(cur.tn->id);
                         dispatch_component(d, pj_ed.pj, app.mod, *cur.tn, c);
                     } else {
                         stack.back().read_sibling = true;
                         if (auto* sibling = cur.tn->tree.get_sibling(); sibling)
-                            stack.emplace_back(sibling, cur.level, false);
+                            stack.emplace_back(sibling, cur.level);
                     }
                 } else {
                     stack.back().read_child = true;
                     if (auto* child = cur.tn->tree.get_child()) {
-                        stack.emplace_back(child, cur.level + 1, false);
+                        stack.emplace_back(child, cur.level + 1);
                     }
                 }
             }
 
-            top_left.x     = +INFINITY;
-            top_left.y     = -INFINITY;
-            bottom_right.x = -INFINITY;
-            bottom_right.y = +INFINITY;
+            // top_left.x     = +INFINITY;
+            // top_left.y     = -INFINITY;
+            // bottom_right.x = -INFINITY;
+            // bottom_right.y = +INFINITY;
 
-            for (const auto& mdl : pj_ed.pj.sim.models) {
-                const auto mdl_id = pj_ed.pj.sim.models.get_id(mdl);
+            // for (const auto& mdl : pj_ed.pj.sim.models) {
+            //     const auto mdl_id = pj_ed.pj.sim.models.get_id(mdl);
 
-                top_left.x = std::min(d.positions[mdl_id].x, top_left.x);
-                top_left.y = std::max(d.positions[mdl_id].y, top_left.y);
+            //     top_left.x = std::min(d.positions[mdl_id].x, top_left.x);
+            //     top_left.y = std::max(d.positions[mdl_id].y, top_left.y);
 
-                bottom_right.x =
-                  std::min(d.positions[mdl_id].x, bottom_right.x);
-                bottom_right.y =
-                  std::max(d.positions[mdl_id].y, bottom_right.y);
-            };
+            //     bottom_right.x =
+            //       std::min(d.positions[mdl_id].x, bottom_right.x);
+            //     bottom_right.y =
+            //       std::max(d.positions[mdl_id].y, bottom_right.y);
+            // };
 
             // top_left.x = -INFINITY;
             // top_left.y = +INFINITY;
 
             // top_left     = ImVec2(0.f, 0.f);
             // bottom_right = ImVec2(
-            //   static_cast<float>(pj_ed.pj.sim.models.size()) * distance.x,
-            //   static_cast<float>(pj_ed.pj.sim.models.size()) * distance.y);
+            //   static_cast<float>(pj_ed.pj.sim.models.size()) *
+            //   distance.x, static_cast<float>(pj_ed.pj.sim.models.size())
+            //   * distance.y);
 
             // const auto size  = d.positions.ssize();
             // const auto fsize = static_cast<float>(size);
@@ -1894,15 +1953,16 @@ void flat_simulation_editor::rebuild(application& app) noexcept
             //     return;
 
             // const auto column =
-            // static_cast<int>(std::floor(std::sqrt(fsize))); const auto line
-            // = column; const auto remaining = size - (column * line); auto
-            // panning   = ImNodes::EditorContextGetPanning();
+            // static_cast<int>(std::floor(std::sqrt(fsize))); const auto
+            // line = column; const auto remaining = size - (column * line);
+            // auto panning   = ImNodes::EditorContextGetPanning();
 
             // const model* mdl = nullptr;
             // if (pj_ed.pj.sim.models.next(mdl)) {
             //     for (auto i = 0; i < line; ++i) {
             //         for (auto j = 0; j < column; ++j) {
-            //             const auto mdl_id = pj_ed.pj.sim.models.get_id(mdl);
+            //             const auto mdl_id =
+            //             pj_ed.pj.sim.models.get_id(mdl);
             //             d.positions[mdl_id].y =
             //               panning.y + static_cast<float>(i) * distance.x;
             //             d.positions[mdl_id].x =
