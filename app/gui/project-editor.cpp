@@ -1626,19 +1626,9 @@ constexpr static auto clear(auto&      data,
 
     data.tn_rects.resize(tns, ImVec2(0.f, 0.f));
     data.tn_centers.resize(tns, ImVec2(0.f, 0.f));
-    data.tn_factors.resize(tns, ImVec2(0.f, 0.f));
+    data.tn_factors.resize(tns, ImVec2(1.f, 1.f));
     data.tn_colors.resize(tns, IM_COL32(255, 255, 255, 255));
     data.tn_children.resize(tns, 0u);
-}
-
-constexpr static auto model_children(const auto& tn) noexcept
-{
-    auto elem = 0;
-    for (const auto& child : tn.children)
-        if (child.type == tree_node::child_node::type::model)
-            ++elem;
-
-    return elem;
 }
 
 static ImU32 compute_color(const float t) noexcept
@@ -1675,44 +1665,32 @@ static ImU32 compute_color(const float t) noexcept
     return (mh & 0xff00ff00) | ((ml & 0xff00ff00) >> 8);
 }
 
-constexpr static void compute_rects_and_colors(auto&       data,
-                                               const auto& tree_nodes,
-                                               const auto  distance) noexcept
-{
-    const auto tns_f = static_cast<float>(tree_nodes.size());
-
-    for (const auto& tn : tree_nodes) {
-        const auto tn_id   = tree_nodes.get_id(tn);
-        const auto tn_id_f = static_cast<float>(get_index(tn_id));
-        const auto models  = model_children(tn);
-
-        data.tn_rects[tn_id]  = compute_rect(distance, models);
-        data.tn_colors[tn_id] = compute_color(tn_id_f / tns_f);
-    }
-}
-
 constexpr static void move_tn(auto&              data,
                               const tree_node_id tn_id,
                               const float        shift_x,
-                              const float        shift_y)
+                              const float        shift_y) noexcept
 {
     data.tn_centers[tn_id].x += shift_x;
     data.tn_centers[tn_id].y += shift_y;
+
+    fmt::print(">> move tn-id {} centers {},{} shift {},{}\n",
+               ordinal(tn_id),
+               data.tn_centers[tn_id].x,
+               data.tn_centers[tn_id].y,
+               shift_x,
+               shift_y);
 }
 
 constexpr static void move_model(auto&          data,
                                  const model_id mdl_id,
                                  const float    shift_x,
-                                 const float    shift_y)
+                                 const float    shift_y) noexcept
 {
     data.positions[mdl_id][0] += shift_x;
     data.positions[mdl_id][1] += shift_y;
 }
 
 struct rect_bound {
-
-    constexpr rect_bound() noexcept = default;
-
     constexpr void update(const float x, const float y) noexcept
     {
         x_min = std::min(x_min, x);
@@ -1796,20 +1774,20 @@ static void compute_rect(auto&            data,
             for (const auto& c : g->cache) {
                 const auto c_id = g->cache.get_id(c);
 
-                debug::ensure(c.type == child_type::component);
-                debug::ensure(tn.children[c_id].type ==
-                              tree_node::child_node::type::tree_node);
-                debug::ensure(tn.children[c_id].tn);
+                if (tn.children[c_id].is_tree_node()) {
+                    debug::ensure(tn.children[c_id].tn);
 
-                const auto* sub_tn = tn.children[c_id].tn;
-                const auto  pos = g->g.node_positions[g->cache_node_ids[c_id]];
-                const auto  sub_tn_id = pj.tree_nodes.get_id(*sub_tn);
-                const auto& sub_pos   = data.tn_rects[sub_tn_id];
+                    const auto* sub_tn = tn.children[c_id].tn;
+                    const auto  pos =
+                      g->g.node_positions[g->cache_node_ids[c_id]];
+                    const auto  sub_tn_id = pj.tree_nodes.get_id(*sub_tn);
+                    const auto& sub_pos   = data.tn_rects[sub_tn_id];
 
-                bound.update(pos[0] + sub_pos[0] - 5.f,
-                             pos[1] + sub_pos.y - 5.f);
-                bound.update(pos[0] + sub_pos[0] + 5.f,
-                             pos[1] + sub_pos.y + 5.f);
+                    bound.update(pos[0] + sub_pos[0] - 5.f,
+                                 pos[1] + sub_pos.y - 5.f);
+                    bound.update(pos[0] + sub_pos[0] + 5.f,
+                                 pos[1] + sub_pos.y + 5.f);
+                }
             }
 
             const auto dist = bound.distance();
@@ -1827,31 +1805,31 @@ static void compute_rect(auto&            data,
 
             for (auto i = 0, e_i = g->column(); i != e_i; ++i) {
                 for (auto j = 0, e_j = g->row(); j != e_j; ++j) {
-                    const auto  child_id = g->children()[g->pos(i, j)];
-                    const auto& elem     = tn.children[child_id];
-                    switch (elem.type) {
-                    case tree_node::child_node::type::empty:
-                    case tree_node::child_node::type::model:
-                        break;
+                    const auto c_id = g->children()[g->pos(i, j)];
 
-                    case tree_node::child_node::type::tree_node:
-                        const auto* sub_tn    = tn.children[child_id].tn;
+                    if (tn.children[c_id].is_tree_node()) {
+                        debug::ensure(tn.children[c_id].tn);
+
+                        const auto* sub_tn    = tn.children[c_id].tn;
                         const auto  sub_tn_id = pj.tree_nodes.get_id(*sub_tn);
                         const auto& sub_pos   = data.tn_rects[sub_tn_id];
 
-                        bound.update(sub_pos[0], sub_pos[1]);
+                        bound.update(sub_pos[0] - 5.f, sub_pos[1] - 5.f);
+                        bound.update(sub_pos[0] + 5.f, sub_pos[1] + 5.f);
                         break;
                     }
                 }
             }
 
-            const auto dist = bound.distance();
-            const auto fx   = data.tn_children[tn_id] / dist.x;
-            const auto fy   = data.tn_children[tn_id] / dist.y;
+            const auto distance = bound.distance();
+            const auto dist =
+              ImVec2(distance.x * g->column(), distance.y * g->row());
+
+            const auto fx = data.tn_children[tn_id] / dist.x;
+            const auto fy = data.tn_children[tn_id] / dist.y;
 
             data.tn_factors[tn_id] = ImVec2(fx, fy);
-            data.tn_rects[tn_id] =
-              ImVec2(g->column() * dist.x * fx, g->row() * dist.y * fy);
+            data.tn_rects[tn_id]   = ImVec2(dist.x * fx, dist.y * fy);
         }
         break;
 
@@ -1889,6 +1867,7 @@ static void compute_center_and_position(auto&            data,
                 case child_type::component: {
                     const auto* sub_tn    = tn.children[c_id].tn;
                     const auto  sub_tn_id = pj.tree_nodes.get_id(*sub_tn);
+
                     move_tn(data,
                             sub_tn_id,
                             center.x + factors.x * pos.x - 5.f,
@@ -1904,19 +1883,19 @@ static void compute_center_and_position(auto&            data,
             for (const auto& c : g->cache) {
                 const auto c_id = g->cache.get_id(c);
 
-                debug::ensure(c.type == child_type::component);
-                debug::ensure(tn.children[c_id].type ==
-                              tree_node::child_node::type::tree_node);
-                debug::ensure(tn.children[c_id].tn);
+                if (tn.children[c_id].is_tree_node()) {
+                    debug::ensure(tn.children[c_id].tn);
 
-                const auto* sub_tn = tn.children[c_id].tn;
-                const auto  pos = g->g.node_positions[g->cache_node_ids[c_id]];
-                const auto  sub_tn_id = pj.tree_nodes.get_id(*sub_tn);
+                    const auto* sub_tn = tn.children[c_id].tn;
+                    const auto& pos =
+                      g->g.node_positions[g->cache_node_ids[c_id]];
+                    const auto sub_tn_id = pj.tree_nodes.get_id(*sub_tn);
 
-                move_tn(data,
-                        sub_tn_id,
-                        center.x + factors.x * pos[0],
-                        center.y + factors.y * pos[1]);
+                    move_tn(data,
+                            sub_tn_id,
+                            center.x + factors.x * pos[0],
+                            center.y + factors.y * pos[1]);
+                }
             }
         }
         break;
@@ -1925,19 +1904,19 @@ static void compute_center_and_position(auto&            data,
         if (auto* g = mod.grid_components.try_to_get(compo.id.grid_id)) {
             for (auto i = 0, e_i = g->column(); i != e_i; ++i) {
                 for (auto j = 0, e_j = g->row(); j != e_j; ++j) {
-                    const auto child_id = g->children()[g->pos(i, j)];
+                    const auto c_id = g->children()[g->pos(i, j)];
 
-                    debug::ensure(tn.children[child_id].type ==
-                                  tree_node::child_node::type::tree_node);
-                    debug::ensure(tn.children[child_id].tn);
+                    if (tn.children[c_id].is_tree_node()) {
+                        debug::ensure(tn.children[c_id].tn);
 
-                    const auto* sub_tn    = tn.children[child_id].tn;
-                    const auto  sub_tn_id = pj.tree_nodes.get_id(*sub_tn);
+                        const auto* sub_tn    = tn.children[c_id].tn;
+                        const auto  sub_tn_id = pj.tree_nodes.get_id(*sub_tn);
 
-                    move_tn(data,
-                            sub_tn_id,
-                            center.x + factors.x * i,
-                            center.y + factors.y * j);
+                        move_tn(data,
+                                sub_tn_id,
+                                center.x + factors.x * i,
+                                center.y + factors.y * j);
+                    }
                 }
             }
         }
@@ -1949,31 +1928,20 @@ static void compute_center_and_position(auto&            data,
     }
 }
 
-constexpr static auto get_children_number(const tree_node& tn) noexcept -> u32
-{
-    u32 sum = 0;
-
-    for (const auto& c : tn.children)
-        if (c.type == tree_node::child_node::type::model)
-            sum += 1;
-
-    return sum;
-}
-
 constexpr static auto update_children(vector<u32>&       children,
                                       const tree_node&   tn,
                                       const tree_node_id tn_id) noexcept
 {
-    children[tn_id] += get_children_number(tn);
+    children[tn_id] += tn.children.size();
 }
 
-constexpr static auto get_tn_id(const project& pj, const tree_node& tn) noexcept
+static auto get_tn_id(const project& pj, const tree_node& tn) noexcept
   -> tree_node_id
 {
     return pj.tree_nodes.get_id(tn);
 }
 
-constexpr static auto get_tn_id(const project& pj, const tree_node* tn) noexcept
+static auto get_tn_id(const project& pj, const tree_node* tn) noexcept
   -> tree_node_id
 {
     return pj.tree_nodes.get_id(tn);
@@ -2096,6 +2064,27 @@ void flat_simulation_editor::compute_centers_and_positions(
     }
 }
 
+static auto to_print(const std::string_view name,
+                     const auto&            d,
+                     const project&         pj) noexcept
+{
+    fmt::print("- {:{}} ", name, 20);
+    for (const auto& tn : pj.tree_nodes) {
+        const auto tn_id = pj.tree_nodes.get_id(tn);
+
+        fmt::print("rect {},{} centers {},{} factors {},{} colors {} "
+                   "children {}\n",
+                   d.tn_rects[tn_id].x,
+                   d.tn_rects[tn_id].y,
+                   d.tn_centers[tn_id].x,
+                   d.tn_centers[tn_id].y,
+                   d.tn_factors[tn_id].x,
+                   d.tn_factors[tn_id].y,
+                   d.tn_colors[tn_id],
+                   d.tn_children[tn_id]);
+    }
+}
+
 void flat_simulation_editor::rebuild(application& app) noexcept
 {
     app.add_gui_task([&]() {
@@ -2107,72 +2096,27 @@ void flat_simulation_editor::rebuild(application& app) noexcept
             clear(d, mdls, tns);
 
             compute_children(app, d);
+            to_print("   compute-children:\n", d, pj_ed.pj);
             compute_rects(app, d);
+            to_print("   compute-rects   :\n", d, pj_ed.pj);
             compute_centers_and_positions(app, d);
+            to_print("   compute-centers :\n", d, pj_ed.pj);
             compute_colors(d, pj_ed.pj.tree_nodes);
+            to_print("   compute-colors  :\n", d, pj_ed.pj);
 
-            // top_left.x     = +INFINITY;
-            // top_left.y     = -INFINITY;
-            // bottom_right.x = -INFINITY;
-            // bottom_right.y = +INFINITY;
+            const auto* head    = pj_ed.pj.tn_head();
+            const auto  head_id = get_tn_id(pj_ed.pj, head);
+
+            top_left     = ImVec2(0.f, d.tn_rects[head_id].y);
+            bottom_right = ImVec2(d.tn_rects[head_id].x, 0.f);
 
             // for (const auto& mdl : pj_ed.pj.sim.models) {
-            //     const auto mdl_id = pj_ed.pj.sim.models.get_id(mdl);
+            //     const auto mdl_id = pj_ed.pj.sim.get_id(mdl);
 
-            //     top_left.x = std::min(d.positions[mdl_id].x, top_left.x);
-            //     top_left.y = std::max(d.positions[mdl_id].y, top_left.y);
-
-            //     bottom_right.x =
-            //       std::min(d.positions[mdl_id].x, bottom_right.x);
-            //     bottom_right.y =
-            //       std::max(d.positions[mdl_id].y, bottom_right.y);
-            // };
-
-            // top_left.x = -INFINITY;
-            // top_left.y = +INFINITY;
-
-            // top_left     = ImVec2(0.f, 0.f);
-            // bottom_right = ImVec2(
-            //   static_cast<float>(pj_ed.pj.sim.models.size()) *
-            //   distance.x, static_cast<float>(pj_ed.pj.sim.models.size())
-            //   * distance.y);
-
-            // const auto size  = d.positions.ssize();
-            // const auto fsize = static_cast<float>(size);
-
-            // if (size == 0)
-            //     return;
-
-            // const auto column =
-            // static_cast<int>(std::floor(std::sqrt(fsize))); const auto
-            // line = column; const auto remaining = size - (column * line);
-            // auto panning   = ImNodes::EditorContextGetPanning();
-
-            // const model* mdl = nullptr;
-            // if (pj_ed.pj.sim.models.next(mdl)) {
-            //     for (auto i = 0; i < line; ++i) {
-            //         for (auto j = 0; j < column; ++j) {
-            //             const auto mdl_id =
-            //             pj_ed.pj.sim.models.get_id(mdl);
-            //             d.positions[mdl_id].y =
-            //               panning.y + static_cast<float>(i) * distance.x;
-            //             d.positions[mdl_id].x =
-            //               panning.x + static_cast<float>(j) * distance.y;
-            //             pj_ed.pj.sim.models.next(mdl);
-            //         }
-            //     }
-            // }
-
-            // panning.y += static_cast<float>(column) * distance.y;
-
-            // for (auto j = 0; j < remaining; ++j) {
-            //     const auto mdl_id = pj_ed.pj.sim.models.get_id(mdl);
-            //     d.positions[mdl_id].x =
-            //       panning.x + static_cast<float>(j) * distance.x;
-            //     d.positions[mdl_id].y = panning.y;
-
-            //     pj_ed.pj.sim.models.next(mdl);
-            // }
+            //    fmt::print("mdl_id: {},{}\n",
+            //               d.positions[mdl_id].x,
+            //               d.positions[mdl_id].y);
+            //}
         });
     });
 }

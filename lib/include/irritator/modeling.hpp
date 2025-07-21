@@ -1112,6 +1112,13 @@ struct tree_node {
 
         enum class type { empty, model, tree_node } type = type::empty;
 
+        constexpr auto is_empty() const noexcept { return type == type::empty; }
+        constexpr auto is_model() const noexcept { return type == type::model; }
+        constexpr auto is_tree_node() const noexcept
+        {
+            return type == type::tree_node;
+        }
+
         void disable() noexcept
         {
             mdl  = undefined<model_id>();
