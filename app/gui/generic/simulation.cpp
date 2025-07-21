@@ -115,41 +115,50 @@ gport get_out(simulation& sim, const int index) noexcept
     return { mdl, static_cast<int>(model_index_port.second) };
 }
 
-static void show_dynamics_values(project_editor& /*sim*/,
+static void show_dynamics_values(application& /*app*/,
+                                 project_editor& /*sim*/,
                                  const qss1_integrator& dyn)
 {
     ImGui::TextFormat("X {}", dyn.X);
     ImGui::TextFormat("dQ {}", dyn.dQ);
 }
 
-static void show_dynamics_values(project_editor& /*sim*/,
+static void show_dynamics_values(application& /*app*/,
+                                 project_editor& /*sim*/,
                                  const qss2_integrator& dyn)
 {
     ImGui::TextFormat("X {}", dyn.X);
     ImGui::TextFormat("dQ {}", dyn.dQ);
 }
 
-static void show_dynamics_values(project_editor& /*sim*/,
+static void show_dynamics_values(application& /*app*/,
+                                 project_editor& /*sim*/,
                                  const qss3_integrator& dyn)
 {
     ImGui::TextFormat("X {}", dyn.X);
     ImGui::TextFormat("dQ {}", dyn.dQ);
 }
 
-static void show_dynamics_values(project_editor& /*sim*/, const qss1_sum_2& dyn)
+static void show_dynamics_values(application& /*app*/,
+                                 project_editor& /*sim*/,
+                                 const qss1_sum_2& dyn)
 {
     ImGui::TextFormat("{}", dyn.values[0]);
     ImGui::TextFormat("{}", dyn.values[1]);
 }
 
-static void show_dynamics_values(project_editor& /*sim*/, const qss1_sum_3& dyn)
+static void show_dynamics_values(application& /*app*/,
+                                 project_editor& /*sim*/,
+                                 const qss1_sum_3& dyn)
 {
     ImGui::TextFormat("{}", dyn.values[0]);
     ImGui::TextFormat("{}", dyn.values[1]);
     ImGui::TextFormat("{}", dyn.values[2]);
 }
 
-static void show_dynamics_values(project_editor& /*sim*/, const qss1_sum_4& dyn)
+static void show_dynamics_values(application& /*app*/,
+                                 project_editor& /*sim*/,
+                                 const qss1_sum_4& dyn)
 {
     ImGui::TextFormat("{}", dyn.values[0]);
     ImGui::TextFormat("{}", dyn.values[1]);
@@ -157,21 +166,24 @@ static void show_dynamics_values(project_editor& /*sim*/, const qss1_sum_4& dyn)
     ImGui::TextFormat("{}", dyn.values[3]);
 }
 
-static void show_dynamics_values(project_editor& /*sim*/,
+static void show_dynamics_values(application& /*app*/,
+                                 project_editor& /*sim*/,
                                  const qss1_multiplier& dyn)
 {
     ImGui::TextFormat("{}", dyn.values[0]);
     ImGui::TextFormat("{}", dyn.values[1]);
 }
 
-static void show_dynamics_values(project_editor& /*sim*/,
+static void show_dynamics_values(application& /*app*/,
+                                 project_editor& /*sim*/,
                                  const qss1_wsum_2& dyn)
 {
     ImGui::TextFormat("{}", dyn.values[0]);
     ImGui::TextFormat("{}", dyn.values[1]);
 }
 
-static void show_dynamics_values(project_editor& /*sim*/,
+static void show_dynamics_values(application& /*app*/,
+                                 project_editor& /*sim*/,
                                  const qss1_wsum_3& dyn)
 {
     ImGui::TextFormat("{}", dyn.values[0]);
@@ -179,7 +191,8 @@ static void show_dynamics_values(project_editor& /*sim*/,
     ImGui::TextFormat("{}", dyn.values[2]);
 }
 
-static void show_dynamics_values(project_editor& /*sim*/,
+static void show_dynamics_values(application& /*app*/,
+                                 project_editor& /*sim*/,
                                  const qss1_wsum_4& dyn)
 {
     ImGui::TextFormat("{}", dyn.values[0]);
@@ -188,20 +201,26 @@ static void show_dynamics_values(project_editor& /*sim*/,
     ImGui::TextFormat("{}", dyn.values[3]);
 }
 
-static void show_dynamics_values(project_editor& /*sim*/, const qss2_sum_2& dyn)
+static void show_dynamics_values(application& /*app*/,
+                                 project_editor& /*sim*/,
+                                 const qss2_sum_2& dyn)
 {
     ImGui::TextFormat("{} {}", dyn.values[0], dyn.values[2]);
     ImGui::TextFormat("{} {}", dyn.values[1], dyn.values[3]);
 }
 
-static void show_dynamics_values(project_editor& /*sim*/, const qss2_sum_3& dyn)
+static void show_dynamics_values(application& /*app*/,
+                                 project_editor& /*sim*/,
+                                 const qss2_sum_3& dyn)
 {
     ImGui::TextFormat("{} {}", dyn.values[0], dyn.values[3]);
     ImGui::TextFormat("{} {}", dyn.values[1], dyn.values[4]);
     ImGui::TextFormat("{} {}", dyn.values[2], dyn.values[5]);
 }
 
-static void show_dynamics_values(project_editor& /*sim*/, const qss2_sum_4& dyn)
+static void show_dynamics_values(application& /*app*/,
+                                 project_editor& /*sim*/,
+                                 const qss2_sum_4& dyn)
 {
     ImGui::TextFormat("{} {}", dyn.values[0], dyn.values[4]);
     ImGui::TextFormat("{} {}", dyn.values[1], dyn.values[5]);
@@ -209,21 +228,24 @@ static void show_dynamics_values(project_editor& /*sim*/, const qss2_sum_4& dyn)
     ImGui::TextFormat("{} {}", dyn.values[3], dyn.values[7]);
 }
 
-static void show_dynamics_values(project_editor& /*sim*/,
+static void show_dynamics_values(application& /*app*/,
+                                 project_editor& /*sim*/,
                                  const qss2_multiplier& dyn)
 {
     ImGui::TextFormat("{} {}", dyn.values[0], dyn.values[2]);
     ImGui::TextFormat("{} {}", dyn.values[1], dyn.values[3]);
 }
 
-static void show_dynamics_values(project_editor& /*sim*/,
+static void show_dynamics_values(application& /*app*/,
+                                 project_editor& /*sim*/,
                                  const qss2_wsum_2& dyn)
 {
     ImGui::TextFormat("{} {}", dyn.values[0], dyn.values[2]);
     ImGui::TextFormat("{} {}", dyn.values[1], dyn.values[3]);
 }
 
-static void show_dynamics_values(project_editor& /*sim*/,
+static void show_dynamics_values(application& /*app*/,
+                                 project_editor& /*sim*/,
                                  const qss2_wsum_3& dyn)
 {
     ImGui::TextFormat("{} {}", dyn.values[0], dyn.values[3]);
@@ -231,7 +253,8 @@ static void show_dynamics_values(project_editor& /*sim*/,
     ImGui::TextFormat("{} {}", dyn.values[2], dyn.values[5]);
 }
 
-static void show_dynamics_values(project_editor& /*sim*/,
+static void show_dynamics_values(application& /*app*/,
+                                 project_editor& /*sim*/,
                                  const qss2_wsum_4& dyn)
 {
     ImGui::TextFormat("{} {}", dyn.values[0], dyn.values[4]);
@@ -240,20 +263,26 @@ static void show_dynamics_values(project_editor& /*sim*/,
     ImGui::TextFormat("{} {}", dyn.values[3], dyn.values[7]);
 }
 
-static void show_dynamics_values(project_editor& /*sim*/, const qss3_sum_2& dyn)
+static void show_dynamics_values(application& /*app*/,
+                                 project_editor& /*sim*/,
+                                 const qss3_sum_2& dyn)
 {
     ImGui::TextFormat("{} {}", dyn.values[0], dyn.values[2]);
     ImGui::TextFormat("{} {}", dyn.values[1], dyn.values[3]);
 }
 
-static void show_dynamics_values(project_editor& /*sim*/, const qss3_sum_3& dyn)
+static void show_dynamics_values(application& /*app*/,
+                                 project_editor& /*sim*/,
+                                 const qss3_sum_3& dyn)
 {
     ImGui::TextFormat("{} {}", dyn.values[0], dyn.values[3]);
     ImGui::TextFormat("{} {}", dyn.values[1], dyn.values[4]);
     ImGui::TextFormat("{} {}", dyn.values[2], dyn.values[5]);
 }
 
-static void show_dynamics_values(project_editor& /*sim*/, const qss3_sum_4& dyn)
+static void show_dynamics_values(application& /*app*/,
+                                 project_editor& /*sim*/,
+                                 const qss3_sum_4& dyn)
 {
     ImGui::TextFormat("{} {}", dyn.values[0], dyn.values[4]);
     ImGui::TextFormat("{} {}", dyn.values[1], dyn.values[5]);
@@ -261,21 +290,24 @@ static void show_dynamics_values(project_editor& /*sim*/, const qss3_sum_4& dyn)
     ImGui::TextFormat("{} {}", dyn.values[3], dyn.values[7]);
 }
 
-static void show_dynamics_values(project_editor& /*sim*/,
+static void show_dynamics_values(application& /*app*/,
+                                 project_editor& /*sim*/,
                                  const qss3_multiplier& dyn)
 {
     ImGui::TextFormat("{} {}", dyn.values[0], dyn.values[2]);
     ImGui::TextFormat("{} {}", dyn.values[1], dyn.values[3]);
 }
 
-static void show_dynamics_values(project_editor& /*sim*/,
+static void show_dynamics_values(application& /*app*/,
+                                 project_editor& /*sim*/,
                                  const qss3_wsum_2& dyn)
 {
     ImGui::TextFormat("{} {}", dyn.values[0], dyn.values[2]);
     ImGui::TextFormat("{} {}", dyn.values[1], dyn.values[3]);
 }
 
-static void show_dynamics_values(project_editor& /*sim*/,
+static void show_dynamics_values(application& /*app*/,
+                                 project_editor& /*sim*/,
                                  const qss3_wsum_3& dyn)
 {
     ImGui::TextFormat("{} {}", dyn.values[0], dyn.values[3]);
@@ -283,7 +315,8 @@ static void show_dynamics_values(project_editor& /*sim*/,
     ImGui::TextFormat("{} {}", dyn.values[2], dyn.values[5]);
 }
 
-static void show_dynamics_values(project_editor& /*sim*/,
+static void show_dynamics_values(application& /*app*/,
+                                 project_editor& /*sim*/,
                                  const qss3_wsum_4& dyn)
 {
     ImGui::TextFormat("{} {}", dyn.values[0], dyn.values[4]);
@@ -293,14 +326,16 @@ static void show_dynamics_values(project_editor& /*sim*/,
 }
 
 template<sz QssLevel>
-static void show_dynamics_values(project_editor& /*sim*/,
+static void show_dynamics_values(application& /*app*/,
+                                 project_editor& /*sim*/,
                                  const abstract_integer<QssLevel>& dyn)
 {
     ImGui::TextFormat("value {}", dyn.value[0]);
 }
 
 template<sz QssLevel>
-static void show_dynamics_values(project_editor& /*sim*/,
+static void show_dynamics_values(application& /*app*/,
+                                 project_editor& /*sim*/,
                                  const abstract_compare<QssLevel>& dyn)
 {
     ImGui::LabelFormat("a", "{}", dyn.a[0]);
@@ -309,13 +344,17 @@ static void show_dynamics_values(project_editor& /*sim*/,
     ImGui::LabelFormat("not a < b", "{}", dyn.output[1]);
 }
 
-static void show_dynamics_values(project_editor& /*sim*/, const counter& dyn)
+static void show_dynamics_values(application& /*app*/,
+                                 project_editor& /*sim*/,
+                                 const counter& dyn)
 {
     ImGui::TextFormat("number {}", dyn.number);
     ImGui::TextFormat("last-value {}", dyn.last_value);
 }
 
-static void show_dynamics_values(project_editor& sim, const queue& dyn)
+static void show_dynamics_values(application& /*app*/,
+                                 project_editor& sim,
+                                 const queue&    dyn)
 {
     auto* ar = sim.pj.sim.dated_messages.try_to_get(dyn.fifo);
 
@@ -327,7 +366,9 @@ static void show_dynamics_values(project_editor& sim, const queue& dyn)
     }
 }
 
-static void show_dynamics_values(project_editor& sim, const dynamic_queue& dyn)
+static void show_dynamics_values(application& /*app*/,
+                                 project_editor&      sim,
+                                 const dynamic_queue& dyn)
 {
     auto* ar = sim.pj.sim.dated_messages.try_to_get(dyn.fifo);
 
@@ -339,7 +380,9 @@ static void show_dynamics_values(project_editor& sim, const dynamic_queue& dyn)
     }
 }
 
-static void show_dynamics_values(project_editor& sim, const priority_queue& dyn)
+static void show_dynamics_values(application& /*app*/,
+                                 project_editor&       sim,
+                                 const priority_queue& dyn)
 {
     auto* ar = sim.pj.sim.dated_messages.try_to_get(dyn.fifo);
 
@@ -351,12 +394,16 @@ static void show_dynamics_values(project_editor& sim, const priority_queue& dyn)
     }
 }
 
-static void show_dynamics_values(project_editor& /*sim*/, const generator& dyn)
+static void show_dynamics_values(application& /*app*/,
+                                 project_editor& /*sim*/,
+                                 const generator& dyn)
 {
     ImGui::TextFormat("next {}", dyn.sigma);
 }
 
-static void show_dynamics_values(project_editor& sim, constant& dyn)
+static void show_dynamics_values(application& /*app*/,
+                                 project_editor& sim,
+                                 constant&       dyn)
 {
     ImGui::TextFormat("next ta {}", dyn.sigma);
     ImGui::InputDouble("value", &dyn.value);
@@ -372,7 +419,8 @@ static void show_dynamics_values(project_editor& sim, constant& dyn)
 }
 
 template<std::size_t QssLevel>
-static void show_dynamics_values(project_editor& /*sim*/,
+static void show_dynamics_values(application& /*app*/,
+                                 project_editor& /*sim*/,
                                  const abstract_cross<QssLevel>& dyn)
 {
     ImGui::TextFormat("threshold: {}", dyn.threshold);
@@ -387,7 +435,8 @@ static void show_dynamics_values(project_editor& /*sim*/,
 }
 
 template<std::size_t QssLevel>
-static void show_dynamics_values(project_editor& /*sim*/,
+static void show_dynamics_values(application& /*app*/,
+                                 project_editor& /*sim*/,
                                  const abstract_filter<QssLevel>& dyn)
 {
     ImGui::TextFormat("value: {}", dyn.value[0]);
@@ -395,40 +444,50 @@ static void show_dynamics_values(project_editor& /*sim*/,
     ImGui::TextFormat("upper-threshold: {}", dyn.upper_threshold);
 }
 
-static void show_dynamics_values(project_editor& /*sim*/, const qss1_power& dyn)
+static void show_dynamics_values(application& /*app*/,
+                                 project_editor& /*sim*/,
+                                 const qss1_power& dyn)
 {
     ImGui::TextFormat("{}", dyn.value[0]);
 }
 
-static void show_dynamics_values(project_editor& /*sim*/, const qss2_power& dyn)
+static void show_dynamics_values(application& /*app*/,
+                                 project_editor& /*sim*/,
+                                 const qss2_power& dyn)
 {
     ImGui::TextFormat("{} {}", dyn.value[0], dyn.value[1]);
 }
 
-static void show_dynamics_values(project_editor& /*sim*/, const qss3_power& dyn)
+static void show_dynamics_values(application& /*app*/,
+                                 project_editor& /*sim*/,
+                                 const qss3_power& dyn)
 {
     ImGui::TextFormat("{} {} {}", dyn.value[0], dyn.value[1], dyn.value[2]);
 }
 
-static void show_dynamics_values(project_editor& /*sim*/,
+static void show_dynamics_values(application& /*app*/,
+                                 project_editor& /*sim*/,
                                  const qss1_square& dyn)
 {
     ImGui::TextFormat("{}", dyn.value[0]);
 }
 
-static void show_dynamics_values(project_editor& /*sim*/,
+static void show_dynamics_values(application& /*app*/,
+                                 project_editor& /*sim*/,
                                  const qss2_square& dyn)
 {
     ImGui::TextFormat("{} {}", dyn.value[0], dyn.value[1]);
 }
 
-static void show_dynamics_values(project_editor& /*sim*/,
+static void show_dynamics_values(application& /*app*/,
+                                 project_editor& /*sim*/,
                                  const qss3_square& dyn)
 {
     ImGui::TextFormat("{} {} {}", dyn.value[0], dyn.value[1], dyn.value[2]);
 }
 
-static void show_dynamics_values(project_editor& /*sim*/,
+static void show_dynamics_values(application& /*app*/,
+                                 project_editor& /*sim*/,
                                  const accumulator_2& dyn)
 {
     ImGui::TextFormat("number {}", dyn.number);
@@ -436,12 +495,15 @@ static void show_dynamics_values(project_editor& /*sim*/,
     ImGui::TextFormat("- 1: {}", dyn.numbers[1]);
 }
 
-static void show_dynamics_values(project_editor& /*sim*/, const time_func& dyn)
+static void show_dynamics_values(application& /*app*/,
+                                 project_editor& /*sim*/,
+                                 const time_func& dyn)
 {
     ImGui::TextFormat("value {}", dyn.value);
 }
 
-static void show_dynamics_values(project_editor& /*sim*/,
+static void show_dynamics_values(application& /*app*/,
+                                 project_editor& /*sim*/,
                                  const logical_and_2& dyn)
 {
     ImGui::TextFormat("value {}", dyn.is_valid);
@@ -449,7 +511,8 @@ static void show_dynamics_values(project_editor& /*sim*/,
     ImGui::TextFormat("- 1 {}", dyn.values[1]);
 }
 
-static void show_dynamics_values(project_editor& /*sim*/,
+static void show_dynamics_values(application& /*app*/,
+                                 project_editor& /*sim*/,
                                  const logical_or_2& dyn)
 {
     ImGui::TextFormat("value {}", dyn.is_valid);
@@ -457,7 +520,8 @@ static void show_dynamics_values(project_editor& /*sim*/,
     ImGui::TextFormat("- 1 {}", dyn.values[1]);
 }
 
-static void show_dynamics_values(project_editor& /*sim*/,
+static void show_dynamics_values(application& /*app*/,
+                                 project_editor& /*sim*/,
                                  const logical_and_3& dyn)
 {
     ImGui::TextFormat("value {}", dyn.is_valid);
@@ -466,7 +530,8 @@ static void show_dynamics_values(project_editor& /*sim*/,
     ImGui::TextFormat("- 2 {}", dyn.values[2]);
 }
 
-static void show_dynamics_values(project_editor& /*sim*/,
+static void show_dynamics_values(application& /*app*/,
+                                 project_editor& /*sim*/,
                                  const logical_or_3& dyn)
 {
     ImGui::TextFormat("value {}", dyn.is_valid);
@@ -475,15 +540,34 @@ static void show_dynamics_values(project_editor& /*sim*/,
     ImGui::TextFormat("- 2 {}", dyn.values[2]);
 }
 
-static void show_dynamics_values(project_editor& /*sim*/,
+static void show_dynamics_values(application& /*app*/,
+                                 project_editor& /*sim*/,
                                  const logical_invert& dyn)
 {
     ImGui::TextFormat("value {}", dyn.value);
 }
 
-static void show_dynamics_values(project_editor& /*sim*/,
+static void show_dynamics_values(application&       app,
+                                 project_editor&    pj_ed,
                                  const hsm_wrapper& dyn)
 {
+    if (const auto* sim_hsm = pj_ed.pj.sim.hsms.try_to_get(dyn.id)) {
+        const auto mod_hsm_id = enum_cast<hsm_component_id>(sim_hsm->parent_id);
+        if (const auto* mod_hsm =
+              app.mod.hsm_components.try_to_get(mod_hsm_id)) {
+            ImGui::LabelFormat("state",
+                               "{} ({})",
+                               mod_hsm->names[dyn.exec.current_state].sv(),
+                               dyn.exec.current_state);
+            ImGui::LabelFormat("i1", "{}", dyn.exec.i1);
+            ImGui::LabelFormat("i2", "{}", dyn.exec.i2);
+            ImGui::LabelFormat("r1", "{}", dyn.exec.r1);
+            ImGui::LabelFormat("r2", "{}", dyn.exec.r2);
+            ImGui::LabelFormat("sigma", "{}", dyn.exec.timer);
+            return;
+        }
+    }
+
     ImGui::TextFormat("state={}",
                       static_cast<unsigned>(dyn.exec.current_state));
     ImGui::TextFormat("i1={}", dyn.exec.i1);
@@ -494,11 +578,13 @@ static void show_dynamics_values(project_editor& /*sim*/,
 }
 
 struct generic_simulation_editor::impl {
+    application&               app;
     generic_simulation_editor& self;
     project_editor&            pj_ed;
 
-    impl(generic_simulation_editor& ed) noexcept
-      : self(ed)
+    impl(application& app_, generic_simulation_editor& ed) noexcept
+      : app(app_)
+      , self(ed)
       , pj_ed(container_of(&self, &project_editor::generic_sim))
     {}
 
@@ -1072,16 +1158,6 @@ struct generic_simulation_editor::impl {
         }
     }
 
-    template<typename Dynamics>
-    void show_node_values(project_editor& ed, Dynamics& dyn) noexcept
-    {
-        ImGui::PushID(0);
-        ImGui::PushItemWidth(120.0f);
-        show_dynamics_values(ed, dyn);
-        ImGui::PopItemWidth();
-        ImGui::PopID();
-    }
-
     void show_nodes(
       application&                                   app,
       const vector<generic_simulation_editor::node>& nodes) noexcept
@@ -1110,7 +1186,7 @@ struct generic_simulation_editor::impl {
                     if (self.show_internal_values) {
                         ImGui::PushID(0);
                         ImGui::PushItemWidth(120.0f);
-                        show_dynamics_values(pj_ed, dyn);
+                        show_dynamics_values(app, pj_ed, dyn);
                         ImGui::PopItemWidth();
                         ImGui::PopID();
                     }
@@ -1177,7 +1253,7 @@ void generic_simulation_editor::init(application&     app,
     enable_show = false;
 
     app.add_gui_task([&]() {
-        generic_simulation_editor::impl impl(*this);
+        generic_simulation_editor::impl impl(app, *this);
         impl.self.nodes_2nd.clear();
         impl.self.links_2nd.clear();
 
@@ -1203,7 +1279,7 @@ void generic_simulation_editor::init(application& app) noexcept
     enable_show = false;
 
     app.add_gui_task([&]() {
-        generic_simulation_editor::impl impl(*this);
+        generic_simulation_editor::impl impl(app, *this);
         impl.self.nodes_2nd.clear();
         impl.self.links_2nd.clear();
 
@@ -1227,7 +1303,7 @@ void generic_simulation_editor::init(application& app) noexcept
 void generic_simulation_editor::start_rebuild_task(application& app) noexcept
 {
     app.add_gui_task([&]() {
-        generic_simulation_editor::impl impl(*this);
+        generic_simulation_editor::impl impl(app, *this);
         impl.self.nodes_2nd.clear();
         impl.self.links_2nd.clear();
 
@@ -1266,7 +1342,7 @@ void generic_simulation_editor::reinit(application& app) noexcept
 bool generic_simulation_editor::display(application& app) noexcept
 {
     int                             changes = false;
-    generic_simulation_editor::impl impl(*this);
+    generic_simulation_editor::impl impl(app, *this);
 
     if (std::unique_lock lock(mutex, std::try_to_lock); lock.owns_lock()) {
         if (enable_show) {
