@@ -256,7 +256,8 @@ struct simulation_copy {
             if (not pj.sim.hsms.can_alloc())
                 break;
 
-            auto& sim_hsm = pj.sim.hsms.alloc(modhsm.machine);
+            auto& sim_hsm     = pj.sim.hsms.alloc(modhsm.machine);
+            sim_hsm.parent_id = ordinal(mod.hsm_components.get_id(modhsm));
 
             const auto hsm_id = mod.hsm_components.get_id(modhsm);
             const auto sim_id = pj.sim.hsms.get_id(sim_hsm);

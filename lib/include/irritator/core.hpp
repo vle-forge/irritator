@@ -4133,6 +4133,10 @@ public:
      * initilization and quick test. */
     std::array<real, 8> constants;
 
+    /// The ordinal value of the hsm_component identifier. If defined,
+    /// simulation can get state names from component (in modeling layer).
+    u64 parent_id = 0;
+
     state_id         top_state = invalid_state_id;
     bitflags<option> flags;
 };
