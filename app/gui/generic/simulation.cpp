@@ -119,210 +119,210 @@ static void show_dynamics_values(application& /*app*/,
                                  project_editor& /*sim*/,
                                  const qss1_integrator& dyn)
 {
-    ImGui::TextFormat("X {}", dyn.X);
-    ImGui::TextFormat("dQ {}", dyn.dQ);
+    ImGui::LabelFormat("X", "{}", dyn.X);
+    ImGui::LabelFormat("dQ", "{}", dyn.dQ);
 }
 
 static void show_dynamics_values(application& /*app*/,
                                  project_editor& /*sim*/,
                                  const qss2_integrator& dyn)
 {
-    ImGui::TextFormat("X {}", dyn.X);
-    ImGui::TextFormat("dQ {}", dyn.dQ);
+    ImGui::LabelFormat("X", "{}", dyn.X);
+    ImGui::LabelFormat("dQ", "{}", dyn.dQ);
 }
 
 static void show_dynamics_values(application& /*app*/,
                                  project_editor& /*sim*/,
                                  const qss3_integrator& dyn)
 {
-    ImGui::TextFormat("X {}", dyn.X);
-    ImGui::TextFormat("dQ {}", dyn.dQ);
+    ImGui::LabelFormat("X", "{}", dyn.X);
+    ImGui::LabelFormat("dQ", "{}", dyn.dQ);
 }
 
 static void show_dynamics_values(application& /*app*/,
                                  project_editor& /*sim*/,
                                  const qss1_sum_2& dyn)
 {
-    ImGui::TextFormat("{}", dyn.values[0]);
-    ImGui::TextFormat("{}", dyn.values[1]);
+    ImGui::LabelFormat("value-1", "{}", dyn.values[0]);
+    ImGui::LabelFormat("value-2", "{}", dyn.values[1]);
 }
 
 static void show_dynamics_values(application& /*app*/,
                                  project_editor& /*sim*/,
                                  const qss1_sum_3& dyn)
 {
-    ImGui::TextFormat("{}", dyn.values[0]);
-    ImGui::TextFormat("{}", dyn.values[1]);
-    ImGui::TextFormat("{}", dyn.values[2]);
+    ImGui::LabelFormat("value-1", "{}", dyn.values[0]);
+    ImGui::LabelFormat("value-2", "{}", dyn.values[1]);
+    ImGui::LabelFormat("value-3", "{}", dyn.values[2]);
 }
 
 static void show_dynamics_values(application& /*app*/,
                                  project_editor& /*sim*/,
                                  const qss1_sum_4& dyn)
 {
-    ImGui::TextFormat("{}", dyn.values[0]);
-    ImGui::TextFormat("{}", dyn.values[1]);
-    ImGui::TextFormat("{}", dyn.values[2]);
-    ImGui::TextFormat("{}", dyn.values[3]);
+    ImGui::LabelFormat("value-1", "{}", dyn.values[0]);
+    ImGui::LabelFormat("value-2", "{}", dyn.values[1]);
+    ImGui::LabelFormat("value-3", "{}", dyn.values[2]);
+    ImGui::LabelFormat("value-4", "{}", dyn.values[3]);
 }
 
 static void show_dynamics_values(application& /*app*/,
                                  project_editor& /*sim*/,
                                  const qss1_multiplier& dyn)
 {
-    ImGui::TextFormat("{}", dyn.values[0]);
-    ImGui::TextFormat("{}", dyn.values[1]);
+    ImGui::LabelFormat("value-1", "{}", dyn.values[0]);
+    ImGui::LabelFormat("value-2", "{}", dyn.values[1]);
 }
 
 static void show_dynamics_values(application& /*app*/,
                                  project_editor& /*sim*/,
                                  const qss1_wsum_2& dyn)
 {
-    ImGui::TextFormat("{}", dyn.values[0]);
-    ImGui::TextFormat("{}", dyn.values[1]);
+    ImGui::LabelFormat("value-1", "{}", dyn.values[0]);
+    ImGui::LabelFormat("value-2", "{}", dyn.values[1]);
 }
 
 static void show_dynamics_values(application& /*app*/,
                                  project_editor& /*sim*/,
                                  const qss1_wsum_3& dyn)
 {
-    ImGui::TextFormat("{}", dyn.values[0]);
-    ImGui::TextFormat("{}", dyn.values[1]);
-    ImGui::TextFormat("{}", dyn.values[2]);
+    ImGui::LabelFormat("value-1", "{}", dyn.values[0]);
+    ImGui::LabelFormat("value-2", "{}", dyn.values[1]);
+    ImGui::LabelFormat("value-3", "{}", dyn.values[2]);
 }
 
 static void show_dynamics_values(application& /*app*/,
                                  project_editor& /*sim*/,
                                  const qss1_wsum_4& dyn)
 {
-    ImGui::TextFormat("{}", dyn.values[0]);
-    ImGui::TextFormat("{}", dyn.values[1]);
-    ImGui::TextFormat("{}", dyn.values[2]);
-    ImGui::TextFormat("{}", dyn.values[3]);
+    ImGui::LabelFormat("value-1", "{}", dyn.values[0]);
+    ImGui::LabelFormat("value-2", "{}", dyn.values[1]);
+    ImGui::LabelFormat("value-3", "{}", dyn.values[2]);
+    ImGui::LabelFormat("value-4", "{}", dyn.values[3]);
 }
 
 static void show_dynamics_values(application& /*app*/,
                                  project_editor& /*sim*/,
                                  const qss2_sum_2& dyn)
 {
-    ImGui::TextFormat("{} {}", dyn.values[0], dyn.values[2]);
-    ImGui::TextFormat("{} {}", dyn.values[1], dyn.values[3]);
+    ImGui::LabelFormat("value-1", "{} {}", dyn.values[0], dyn.values[2]);
+    ImGui::LabelFormat("value-2", "{} {}", dyn.values[1], dyn.values[3]);
 }
 
 static void show_dynamics_values(application& /*app*/,
                                  project_editor& /*sim*/,
                                  const qss2_sum_3& dyn)
 {
-    ImGui::TextFormat("{} {}", dyn.values[0], dyn.values[3]);
-    ImGui::TextFormat("{} {}", dyn.values[1], dyn.values[4]);
-    ImGui::TextFormat("{} {}", dyn.values[2], dyn.values[5]);
+    ImGui::LabelFormat("value-1", "{} {}", dyn.values[0], dyn.values[3]);
+    ImGui::LabelFormat("value-2", "{} {}", dyn.values[1], dyn.values[4]);
+    ImGui::LabelFormat("value-3", "{} {}", dyn.values[2], dyn.values[5]);
 }
 
 static void show_dynamics_values(application& /*app*/,
                                  project_editor& /*sim*/,
                                  const qss2_sum_4& dyn)
 {
-    ImGui::TextFormat("{} {}", dyn.values[0], dyn.values[4]);
-    ImGui::TextFormat("{} {}", dyn.values[1], dyn.values[5]);
-    ImGui::TextFormat("{} {}", dyn.values[2], dyn.values[6]);
-    ImGui::TextFormat("{} {}", dyn.values[3], dyn.values[7]);
+    ImGui::LabelFormat("value-1", "{} {}", dyn.values[0], dyn.values[4]);
+    ImGui::LabelFormat("value-2", "{} {}", dyn.values[1], dyn.values[5]);
+    ImGui::LabelFormat("value-3", "{} {}", dyn.values[2], dyn.values[6]);
+    ImGui::LabelFormat("value-4", "{} {}", dyn.values[3], dyn.values[7]);
 }
 
 static void show_dynamics_values(application& /*app*/,
                                  project_editor& /*sim*/,
                                  const qss2_multiplier& dyn)
 {
-    ImGui::TextFormat("{} {}", dyn.values[0], dyn.values[2]);
-    ImGui::TextFormat("{} {}", dyn.values[1], dyn.values[3]);
+    ImGui::LabelFormat("value-1", "{} {}", dyn.values[0], dyn.values[2]);
+    ImGui::LabelFormat("value-2", "{} {}", dyn.values[1], dyn.values[3]);
 }
 
 static void show_dynamics_values(application& /*app*/,
                                  project_editor& /*sim*/,
                                  const qss2_wsum_2& dyn)
 {
-    ImGui::TextFormat("{} {}", dyn.values[0], dyn.values[2]);
-    ImGui::TextFormat("{} {}", dyn.values[1], dyn.values[3]);
+    ImGui::LabelFormat("value-1", "{} {}", dyn.values[0], dyn.values[2]);
+    ImGui::LabelFormat("value-2", "{} {}", dyn.values[1], dyn.values[3]);
 }
 
 static void show_dynamics_values(application& /*app*/,
                                  project_editor& /*sim*/,
                                  const qss2_wsum_3& dyn)
 {
-    ImGui::TextFormat("{} {}", dyn.values[0], dyn.values[3]);
-    ImGui::TextFormat("{} {}", dyn.values[1], dyn.values[4]);
-    ImGui::TextFormat("{} {}", dyn.values[2], dyn.values[5]);
+    ImGui::LabelFormat("value-1", "{} {}", dyn.values[0], dyn.values[3]);
+    ImGui::LabelFormat("value-2", "{} {}", dyn.values[1], dyn.values[4]);
+    ImGui::LabelFormat("value-3", "{} {}", dyn.values[2], dyn.values[5]);
 }
 
 static void show_dynamics_values(application& /*app*/,
                                  project_editor& /*sim*/,
                                  const qss2_wsum_4& dyn)
 {
-    ImGui::TextFormat("{} {}", dyn.values[0], dyn.values[4]);
-    ImGui::TextFormat("{} {}", dyn.values[1], dyn.values[5]);
-    ImGui::TextFormat("{} {}", dyn.values[2], dyn.values[6]);
-    ImGui::TextFormat("{} {}", dyn.values[3], dyn.values[7]);
+    ImGui::LabelFormat("value-1", "{} {}", dyn.values[0], dyn.values[4]);
+    ImGui::LabelFormat("value-2", "{} {}", dyn.values[1], dyn.values[5]);
+    ImGui::LabelFormat("value-3", "{} {}", dyn.values[2], dyn.values[6]);
+    ImGui::LabelFormat("value-4", "{} {}", dyn.values[3], dyn.values[7]);
 }
 
 static void show_dynamics_values(application& /*app*/,
                                  project_editor& /*sim*/,
                                  const qss3_sum_2& dyn)
 {
-    ImGui::TextFormat("{} {}", dyn.values[0], dyn.values[2]);
-    ImGui::TextFormat("{} {}", dyn.values[1], dyn.values[3]);
+    ImGui::LabelFormat("value-1", "{} {}", dyn.values[0], dyn.values[2]);
+    ImGui::LabelFormat("value-2", "{} {}", dyn.values[1], dyn.values[3]);
 }
 
 static void show_dynamics_values(application& /*app*/,
                                  project_editor& /*sim*/,
                                  const qss3_sum_3& dyn)
 {
-    ImGui::TextFormat("{} {}", dyn.values[0], dyn.values[3]);
-    ImGui::TextFormat("{} {}", dyn.values[1], dyn.values[4]);
-    ImGui::TextFormat("{} {}", dyn.values[2], dyn.values[5]);
+    ImGui::LabelFormat("value-1", "{} {}", dyn.values[0], dyn.values[3]);
+    ImGui::LabelFormat("value-2", "{} {}", dyn.values[1], dyn.values[4]);
+    ImGui::LabelFormat("value-3", "{} {}", dyn.values[2], dyn.values[5]);
 }
 
 static void show_dynamics_values(application& /*app*/,
                                  project_editor& /*sim*/,
                                  const qss3_sum_4& dyn)
 {
-    ImGui::TextFormat("{} {}", dyn.values[0], dyn.values[4]);
-    ImGui::TextFormat("{} {}", dyn.values[1], dyn.values[5]);
-    ImGui::TextFormat("{} {}", dyn.values[2], dyn.values[6]);
-    ImGui::TextFormat("{} {}", dyn.values[3], dyn.values[7]);
+    ImGui::LabelFormat("value-1", "{} {}", dyn.values[0], dyn.values[4]);
+    ImGui::LabelFormat("value-2", "{} {}", dyn.values[1], dyn.values[5]);
+    ImGui::LabelFormat("value-3", "{} {}", dyn.values[2], dyn.values[6]);
+    ImGui::LabelFormat("value-4", "{} {}", dyn.values[3], dyn.values[7]);
 }
 
 static void show_dynamics_values(application& /*app*/,
                                  project_editor& /*sim*/,
                                  const qss3_multiplier& dyn)
 {
-    ImGui::TextFormat("{} {}", dyn.values[0], dyn.values[2]);
-    ImGui::TextFormat("{} {}", dyn.values[1], dyn.values[3]);
+    ImGui::LabelFormat("value-1", "{} {}", dyn.values[0], dyn.values[2]);
+    ImGui::LabelFormat("value-2", "{} {}", dyn.values[1], dyn.values[3]);
 }
 
 static void show_dynamics_values(application& /*app*/,
                                  project_editor& /*sim*/,
                                  const qss3_wsum_2& dyn)
 {
-    ImGui::TextFormat("{} {}", dyn.values[0], dyn.values[2]);
-    ImGui::TextFormat("{} {}", dyn.values[1], dyn.values[3]);
+    ImGui::LabelFormat("value-1", "{} {}", dyn.values[0], dyn.values[2]);
+    ImGui::LabelFormat("value-2", "{} {}", dyn.values[1], dyn.values[3]);
 }
 
 static void show_dynamics_values(application& /*app*/,
                                  project_editor& /*sim*/,
                                  const qss3_wsum_3& dyn)
 {
-    ImGui::TextFormat("{} {}", dyn.values[0], dyn.values[3]);
-    ImGui::TextFormat("{} {}", dyn.values[1], dyn.values[4]);
-    ImGui::TextFormat("{} {}", dyn.values[2], dyn.values[5]);
+    ImGui::LabelFormat("value-1", "{} {}", dyn.values[0], dyn.values[3]);
+    ImGui::LabelFormat("value-2", "{} {}", dyn.values[1], dyn.values[4]);
+    ImGui::LabelFormat("value-3", "{} {}", dyn.values[2], dyn.values[5]);
 }
 
 static void show_dynamics_values(application& /*app*/,
                                  project_editor& /*sim*/,
                                  const qss3_wsum_4& dyn)
 {
-    ImGui::TextFormat("{} {}", dyn.values[0], dyn.values[4]);
-    ImGui::TextFormat("{} {}", dyn.values[1], dyn.values[5]);
-    ImGui::TextFormat("{} {}", dyn.values[2], dyn.values[6]);
-    ImGui::TextFormat("{} {}", dyn.values[3], dyn.values[7]);
+    ImGui::LabelFormat("value-1", "{} {}", dyn.values[0], dyn.values[4]);
+    ImGui::LabelFormat("value-2", "{} {}", dyn.values[1], dyn.values[5]);
+    ImGui::LabelFormat("value-3", "{} {}", dyn.values[2], dyn.values[6]);
+    ImGui::LabelFormat("value-4", "{} {}", dyn.values[3], dyn.values[7]);
 }
 
 template<sz QssLevel>
@@ -330,7 +330,7 @@ static void show_dynamics_values(application& /*app*/,
                                  project_editor& /*sim*/,
                                  const abstract_integer<QssLevel>& dyn)
 {
-    ImGui::TextFormat("value {}", dyn.value[0]);
+    ImGui::LabelFormat("value", "{}", dyn.value[0]);
 }
 
 template<sz QssLevel>
@@ -348,8 +348,8 @@ static void show_dynamics_values(application& /*app*/,
                                  project_editor& /*sim*/,
                                  const counter& dyn)
 {
-    ImGui::TextFormat("number {}", dyn.number);
-    ImGui::TextFormat("last-value {}", dyn.last_value);
+    ImGui::LabelFormat("number", "{}", dyn.number);
+    ImGui::LabelFormat("last-value", "{}", dyn.last_value);
 }
 
 static void show_dynamics_values(application& /*app*/,
@@ -359,10 +359,10 @@ static void show_dynamics_values(application& /*app*/,
     auto* ar = sim.pj.sim.dated_messages.try_to_get(dyn.fifo);
 
     if (not ar) {
-        ImGui::TextFormat("empty");
+        ImGui::LabelFormat("queue", "{}", "empty");
     } else {
-        ImGui::TextFormat("next ta {}", ar->front()[0]);
-        ImGui::TextFormat("next value {}", ar->front()[1]);
+        ImGui::LabelFormat("next ta", "{}", ar->front()[0]);
+        ImGui::LabelFormat("next value", "{}", ar->front()[1]);
     }
 }
 
@@ -373,10 +373,10 @@ static void show_dynamics_values(application& /*app*/,
     auto* ar = sim.pj.sim.dated_messages.try_to_get(dyn.fifo);
 
     if (not ar) {
-        ImGui::TextFormat("empty");
+        ImGui::LabelFormat("queue", "{}", "empty");
     } else {
-        ImGui::TextFormat("next ta {}", ar->front()[0]);
-        ImGui::TextFormat("next value {}", ar->front()[1]);
+        ImGui::LabelFormat("next ta", "{}", ar->front()[0]);
+        ImGui::LabelFormat("next value", "{}", ar->front()[1]);
     }
 }
 
@@ -387,10 +387,10 @@ static void show_dynamics_values(application& /*app*/,
     auto* ar = sim.pj.sim.dated_messages.try_to_get(dyn.fifo);
 
     if (not ar) {
-        ImGui::TextFormat("empty");
+        ImGui::LabelFormat("queue", "{}", "empty");
     } else {
-        ImGui::TextFormat("next ta {}", ar->front()[0]);
-        ImGui::TextFormat("next value {}", ar->front()[1]);
+        ImGui::LabelFormat("next ta", "{}", ar->front()[0]);
+        ImGui::LabelFormat("next value", "{}", ar->front()[1]);
     }
 }
 
@@ -398,14 +398,14 @@ static void show_dynamics_values(application& /*app*/,
                                  project_editor& /*sim*/,
                                  const generator& dyn)
 {
-    ImGui::TextFormat("next {}", dyn.sigma);
+    ImGui::LabelFormat("next", "{}", dyn.sigma);
 }
 
 static void show_dynamics_values(application& /*app*/,
                                  project_editor& sim,
                                  constant&       dyn)
 {
-    ImGui::TextFormat("next ta {}", dyn.sigma);
+    ImGui::LabelFormat("next ta", "{}", dyn.sigma);
     ImGui::InputDouble("value", &dyn.value);
 
     if (ImGui::Button("Send value now")) {
@@ -423,15 +423,15 @@ static void show_dynamics_values(application& /*app*/,
                                  project_editor& /*sim*/,
                                  const abstract_cross<QssLevel>& dyn)
 {
-    ImGui::TextFormat("threshold: {}", dyn.threshold);
-    ImGui::TextFormat("value: {}", dyn.value[0]);
-    ImGui::TextFormat("if-value: {}", dyn.if_value[0]);
-    ImGui::TextFormat("else-value: {}", dyn.else_value[0]);
+    ImGui::LabelFormat("threshold", "{}", dyn.threshold);
+    ImGui::LabelFormat("value", "{}", dyn.value[0]);
+    ImGui::LabelFormat("if-value", "{}", dyn.if_value[0]);
+    ImGui::LabelFormat("else-value", "{}", dyn.else_value[0]);
 
-    if (dyn.detect_up)
-        ImGui::TextFormat("up detection");
-    else
-        ImGui::TextFormat("down detection");
+    ImGui::LabelFormat("detection",
+                       "{}",
+                       dyn.detect_up ? std::string_view("up detection")
+                                     : std::string_view("down detection"));
 }
 
 template<std::size_t QssLevel>
@@ -439,142 +439,144 @@ static void show_dynamics_values(application& /*app*/,
                                  project_editor& /*sim*/,
                                  const abstract_filter<QssLevel>& dyn)
 {
-    ImGui::TextFormat("value: {}", dyn.value[0]);
-    ImGui::TextFormat("lower-threshold: {}", dyn.lower_threshold);
-    ImGui::TextFormat("upper-threshold: {}", dyn.upper_threshold);
+    ImGui::LabelFormat("value", "{}", dyn.value[0]);
+    ImGui::LabelFormat("lower-threshold", "{}", dyn.lower_threshold);
+    ImGui::LabelFormat("upper-threshold", "{}", dyn.upper_threshold);
 }
 
 static void show_dynamics_values(application& /*app*/,
                                  project_editor& /*sim*/,
                                  const qss1_power& dyn)
 {
-    ImGui::TextFormat("{}", dyn.value[0]);
+    ImGui::LabelFormat("value", "{}", dyn.value[0]);
 }
 
 static void show_dynamics_values(application& /*app*/,
                                  project_editor& /*sim*/,
                                  const qss2_power& dyn)
 {
-    ImGui::TextFormat("{} {}", dyn.value[0], dyn.value[1]);
+    ImGui::LabelFormat("value", "{} {}", dyn.value[0], dyn.value[1]);
 }
 
 static void show_dynamics_values(application& /*app*/,
                                  project_editor& /*sim*/,
                                  const qss3_power& dyn)
 {
-    ImGui::TextFormat("{} {} {}", dyn.value[0], dyn.value[1], dyn.value[2]);
+    ImGui::LabelFormat(
+      "value", "{} {} {}", dyn.value[0], dyn.value[1], dyn.value[2]);
 }
 
 static void show_dynamics_values(application& /*app*/,
                                  project_editor& /*sim*/,
                                  const qss1_square& dyn)
 {
-    ImGui::TextFormat("{}", dyn.value[0]);
+    ImGui::LabelFormat("value", "{}", dyn.value[0]);
 }
 
 static void show_dynamics_values(application& /*app*/,
                                  project_editor& /*sim*/,
                                  const qss2_square& dyn)
 {
-    ImGui::TextFormat("{} {}", dyn.value[0], dyn.value[1]);
+    ImGui::LabelFormat("value", "{} {}", dyn.value[0], dyn.value[1]);
 }
 
 static void show_dynamics_values(application& /*app*/,
                                  project_editor& /*sim*/,
                                  const qss3_square& dyn)
 {
-    ImGui::TextFormat("{} {} {}", dyn.value[0], dyn.value[1], dyn.value[2]);
+    ImGui::LabelFormat(
+      "value", "{} {} {}", dyn.value[0], dyn.value[1], dyn.value[2]);
 }
 
 static void show_dynamics_values(application& /*app*/,
                                  project_editor& /*sim*/,
                                  const accumulator_2& dyn)
 {
-    ImGui::TextFormat("number {}", dyn.number);
-    ImGui::TextFormat("- 0: {}", dyn.numbers[0]);
-    ImGui::TextFormat("- 1: {}", dyn.numbers[1]);
+    ImGui::LabelFormat("number", "{}", dyn.number);
+    ImGui::LabelFormat("value-1", "{}", dyn.numbers[0]);
+    ImGui::LabelFormat("value-2", "{}", dyn.numbers[1]);
 }
 
 static void show_dynamics_values(application& /*app*/,
                                  project_editor& /*sim*/,
                                  const time_func& dyn)
 {
-    ImGui::TextFormat("value {}", dyn.value);
+    ImGui::LabelFormat("value", "{}", dyn.value);
 }
 
 static void show_dynamics_values(application& /*app*/,
                                  project_editor& /*sim*/,
                                  const logical_and_2& dyn)
 {
-    ImGui::TextFormat("value {}", dyn.is_valid);
-    ImGui::TextFormat("- 0 {}", dyn.values[0]);
-    ImGui::TextFormat("- 1 {}", dyn.values[1]);
+    ImGui::LabelFormat("value", "{}", dyn.is_valid);
+    ImGui::LabelFormat("value-1", "{}", dyn.values[0]);
+    ImGui::LabelFormat("value-2", "{}", dyn.values[1]);
 }
 
 static void show_dynamics_values(application& /*app*/,
                                  project_editor& /*sim*/,
                                  const logical_or_2& dyn)
 {
-    ImGui::TextFormat("value {}", dyn.is_valid);
-    ImGui::TextFormat("- 0 {}", dyn.values[0]);
-    ImGui::TextFormat("- 1 {}", dyn.values[1]);
+    ImGui::LabelFormat("value", "{}", dyn.is_valid);
+    ImGui::LabelFormat("value-1", "{}", dyn.values[0]);
+    ImGui::LabelFormat("value-2", "{}", dyn.values[1]);
 }
 
 static void show_dynamics_values(application& /*app*/,
                                  project_editor& /*sim*/,
                                  const logical_and_3& dyn)
 {
-    ImGui::TextFormat("value {}", dyn.is_valid);
-    ImGui::TextFormat("- 0 {}", dyn.values[0]);
-    ImGui::TextFormat("- 1 {}", dyn.values[1]);
-    ImGui::TextFormat("- 2 {}", dyn.values[2]);
+    ImGui::LabelFormat("value", "{}", dyn.is_valid);
+    ImGui::LabelFormat("value-1", "{}", dyn.values[0]);
+    ImGui::LabelFormat("value-2", "{}", dyn.values[1]);
+    ImGui::LabelFormat("value-3", "{}", dyn.values[2]);
 }
 
 static void show_dynamics_values(application& /*app*/,
                                  project_editor& /*sim*/,
                                  const logical_or_3& dyn)
 {
-    ImGui::TextFormat("value {}", dyn.is_valid);
-    ImGui::TextFormat("- 0 {}", dyn.values[0]);
-    ImGui::TextFormat("- 1 {}", dyn.values[1]);
-    ImGui::TextFormat("- 2 {}", dyn.values[2]);
+    ImGui::LabelFormat("value", "{}", dyn.is_valid);
+    ImGui::LabelFormat("value-1", "{}", dyn.values[0]);
+    ImGui::LabelFormat("value-2", "{}", dyn.values[1]);
+    ImGui::LabelFormat("value-3", "{}", dyn.values[2]);
 }
 
 static void show_dynamics_values(application& /*app*/,
                                  project_editor& /*sim*/,
                                  const logical_invert& dyn)
 {
-    ImGui::TextFormat("value {}", dyn.value);
+    ImGui::LabelFormat("value", "{}", dyn.value);
+}
+
+static auto get_state_name(application&       app,
+                           project_editor&    pj_ed,
+                           const hsm_wrapper& dyn) noexcept -> std::string_view
+{
+    if (const auto* sim_hsm = pj_ed.pj.sim.hsms.try_to_get(dyn.id))
+        if (const auto* mod_hsm = app.mod.hsm_components.try_to_get(
+              enum_cast<hsm_component_id>(sim_hsm->parent_id)))
+            return mod_hsm->names[dyn.exec.current_state].sv();
+
+    return std::string_view();
 }
 
 static void show_dynamics_values(application&       app,
                                  project_editor&    pj_ed,
                                  const hsm_wrapper& dyn)
 {
-    if (const auto* sim_hsm = pj_ed.pj.sim.hsms.try_to_get(dyn.id)) {
-        const auto mod_hsm_id = enum_cast<hsm_component_id>(sim_hsm->parent_id);
-        if (const auto* mod_hsm =
-              app.mod.hsm_components.try_to_get(mod_hsm_id)) {
-            ImGui::LabelFormat("state",
-                               "{} ({})",
-                               mod_hsm->names[dyn.exec.current_state].sv(),
-                               dyn.exec.current_state);
-            ImGui::LabelFormat("i1", "{}", dyn.exec.i1);
-            ImGui::LabelFormat("i2", "{}", dyn.exec.i2);
-            ImGui::LabelFormat("r1", "{}", dyn.exec.r1);
-            ImGui::LabelFormat("r2", "{}", dyn.exec.r2);
-            ImGui::LabelFormat("sigma", "{}", dyn.exec.timer);
-            return;
-        }
-    }
+    const auto name = get_state_name(app, pj_ed, dyn);
 
-    ImGui::TextFormat("state={}",
-                      static_cast<unsigned>(dyn.exec.current_state));
-    ImGui::TextFormat("i1={}", dyn.exec.i1);
-    ImGui::TextFormat("i2={}", dyn.exec.i2);
-    ImGui::TextFormat("r1={}", dyn.exec.r1);
-    ImGui::TextFormat("r2={}", dyn.exec.r2);
-    ImGui::TextFormat("sigma={}", dyn.exec.timer);
+    if (name.empty())
+        ImGui::LabelFormat("state", "{}", dyn.exec.current_state);
+    else
+        ImGui::LabelFormat("state", "{} ({})", name, dyn.exec.current_state);
+
+    ImGui::LabelFormat("i1", "{}", dyn.exec.i1);
+    ImGui::LabelFormat("i2", "{}", dyn.exec.i2);
+    ImGui::LabelFormat("r1", "{}", dyn.exec.r1);
+    ImGui::LabelFormat("r2", "{}", dyn.exec.r2);
+    ImGui::LabelFormat("sigma", "{}", dyn.exec.timer);
 }
 
 struct generic_simulation_editor::impl {
