@@ -380,10 +380,10 @@ static bool show_connection(const generic_component& compo,
     return true;
 }
 
-static bool show_node(component_editor&  ed,
-                      component&         compo,
-                      generic_component& gen,
-                      child&             c) noexcept
+static bool show_node(component_editor&         ed,
+                      component&                compo,
+                      generic_component&        gen,
+                      generic_component::child& c) noexcept
 {
     const auto id  = gen.children.get_id(c);
     const auto idx = get_index(id);
@@ -468,7 +468,7 @@ static void show_generic_node(application&     app,
                               component&       compo,
                               generic_component& /*s_compo*/,
                               const child_id c_id,
-                              child& /*c*/) noexcept
+                              generic_component::child& /*c*/) noexcept
 {
     ImNodes::PushColorStyle(ImNodesCol_TitleBar,
                             to_ImU32(app.config.colors[style_color::node]));
@@ -1245,7 +1245,8 @@ void generic_component_editor_data::show(component_editor& ed) noexcept
     }
 }
 
-static void update_unique_id(generic_component& gen, child& ch) noexcept
+static void update_unique_id(generic_component&        gen,
+                             generic_component::child& ch) noexcept
 {
     const auto configurable = ch.flags[child_flags::configurable];
     const auto observable   = ch.flags[child_flags::observable];
@@ -1257,9 +1258,9 @@ static void update_unique_id(generic_component& gen, child& ch) noexcept
         gen.children_names[ch_idx] = gen.make_unique_name_id(ch_id);
 }
 
-static bool show_selected_node(component&         compo,
-                               generic_component& gen,
-                               child&             c) noexcept
+static bool show_selected_node(component&                compo,
+                               generic_component&        gen,
+                               generic_component::child& c) noexcept
 {
     const auto id          = gen.children.get_id(c);
     const auto idx         = get_index(id);

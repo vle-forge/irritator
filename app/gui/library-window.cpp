@@ -500,8 +500,7 @@ void library_window::show() noexcept
                 if (ImGui::MenuItem(internal_component_names[i])) {
                     if (app.mod.components.can_alloc(1) and
                         app.mod.generic_components.can_alloc(1)) {
-                        auto&      compo    = app.mod.alloc_generic_component();
-                        const auto compo_id = app.mod.components.get_id(compo);
+                        auto&      compo = app.mod.alloc_generic_component();
                         const auto generic_id = compo.id.generic_id;
                         auto& g = app.mod.generic_components.get(generic_id);
 

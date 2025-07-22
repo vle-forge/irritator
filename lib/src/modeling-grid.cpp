@@ -104,24 +104,22 @@ static auto build_grid_children(modeling& mod, grid_component& grid) noexcept
 
     vector<child_id> ret;
 
-    ret.resize(children_nb);
+    ret.resize(children_nb, undefined<child_id>());
     grid.cache.reserve(children_nb);
     grid.cache_names.resize(children_nb);
 
-    for (int i = 0; i != children_nb; ++i) {
-        auto id = undefined<child_id>();
+    for (int row = 0; row < grid.row(); ++row) {
+        for (int col = 0; col < grid.column(); ++col) {
+            const auto index    = grid.pos(row, col);
+            const auto compo_id = grid.children()[index];
 
-        if (mod.components.try_to_get<component>(grid.children()[i])) {
-            auto& new_ch   = grid.cache.alloc(grid.children()[i]);
-            id             = grid.cache.get_id(new_ch);
-            const auto idx = get_index(id);
-            const auto r_c = grid.pos(i);
-
-            grid.cache_names[idx] =
-              grid.make_unique_name_id(r_c.first, r_c.second);
-        };
-
-        ret[i] = id;
+            if (mod.components.exists(compo_id)) {
+                auto& ch             = grid.cache.alloc(compo_id, row, col);
+                auto  id             = grid.cache.get_id(ch);
+                grid.cache_names[id] = grid.make_unique_name_id(row, col);
+                ret[index]           = id;
+            }
+        }
     }
 
     return ret;
@@ -159,13 +157,8 @@ static void connection_add(modeling&        mod,
     if (not child_src or not child_dst)
         return;
 
-    debug::ensure(child_src->type == child_type::component);
-    debug::ensure(child_dst->type == child_type::component);
-
-    auto* compo_src =
-      mod.components.try_to_get<component>(child_src->id.compo_id);
-    auto* compo_dst =
-      mod.components.try_to_get<component>(child_dst->id.compo_id);
+    auto* compo_src = mod.components.try_to_get<component>(child_src->compo_id);
+    auto* compo_dst = mod.components.try_to_get<component>(child_dst->compo_id);
     if (not compo_src or not compo_dst)
         return;
 
@@ -341,7 +334,7 @@ status modeling::copy(grid_component& grid, generic_component& s) noexcept
 {
     irt_check(grid.build_cache(*this));
 
-    return s.import(grid.cache, grid.cache_connections);
+    return s.import(grid);
 }
 
 name_str grid_component::make_unique_name_id(int row, int col) const noexcept

@@ -2078,7 +2078,8 @@ struct json_dearchiver::impl {
         return error("integer convertion error from {}", from);
     }
 
-    bool fix_child_name(generic_component& generic, child& c) noexcept
+    bool fix_child_name(generic_component&        generic,
+                        generic_component::child& c) noexcept
     {
         if (c.flags[child_flags::configurable] or
             c.flags[child_flags::observable]) {
@@ -2092,10 +2093,10 @@ struct json_dearchiver::impl {
         return true;
     }
 
-    bool read_child(const rapidjson::Value& val,
-                    generic_component&      generic,
-                    child&                  c,
-                    child_id                c_id) noexcept
+    bool read_child(const rapidjson::Value&   val,
+                    generic_component&        generic,
+                    generic_component::child& c,
+                    child_id                  c_id) noexcept
     {
         auto_stack a(this, "child");
 
@@ -2131,10 +2132,10 @@ struct json_dearchiver::impl {
                fix_child_name(generic, c);
     }
 
-    bool read_child_model_dynamics(const rapidjson::Value& val,
-                                   component&              compo,
-                                   generic_component&      gen,
-                                   child&                  c) noexcept
+    bool read_child_model_dynamics(const rapidjson::Value&   val,
+                                   component&                compo,
+                                   generic_component&        gen,
+                                   generic_component::child& c) noexcept
     {
         auto_stack a(this, "child model dynamics");
 
@@ -2160,11 +2161,11 @@ struct json_dearchiver::impl {
           });
     }
 
-    bool read_child_model(const rapidjson::Value& val,
-                          component&              compo,
-                          generic_component&      gen,
-                          const dynamics_type     type,
-                          child&                  c) noexcept
+    bool read_child_model(const rapidjson::Value&   val,
+                          component&                compo,
+                          generic_component&        gen,
+                          const dynamics_type       type,
+                          generic_component::child& c) noexcept
     {
         auto_stack a(this, "child model");
 
@@ -2445,11 +2446,11 @@ struct json_dearchiver::impl {
           });
     }
 
-    bool dispatch_child_component_or_model(const rapidjson::Value& val,
-                                           component&              compo,
-                                           generic_component&      generic,
-                                           dynamics_type           d_type,
-                                           child&                  c) noexcept
+    bool dispatch_child_component_or_model(const rapidjson::Value&   val,
+                                           component&                compo,
+                                           generic_component&        generic,
+                                           dynamics_type             d_type,
+                                           generic_component::child& c) noexcept
     {
         auto_stack a(this, "dispatch child component or model");
 
@@ -2458,10 +2459,10 @@ struct json_dearchiver::impl {
                  : read_child_model(val, compo, generic, d_type, c);
     }
 
-    bool read_child_component_or_model(const rapidjson::Value& val,
-                                       component&              compo,
-                                       generic_component&      generic,
-                                       child&                  c) noexcept
+    bool read_child_component_or_model(const rapidjson::Value&   val,
+                                       component&                compo,
+                                       generic_component&        generic,
+                                       generic_component::child& c) noexcept
     {
         auto_stack a(this, "child component or model");
 
@@ -2489,8 +2490,9 @@ struct json_dearchiver::impl {
                for_each_array(
                  val,
                  [&](const auto /*i*/, const auto& value) noexcept -> bool {
-                     auto& new_child    = generic.children.alloc();
-                     auto  new_child_id = generic.children.get_id(new_child);
+                     auto& new_child =
+                       generic.children.alloc(undefined<component_id>());
+                     auto new_child_id = generic.children.get_id(new_child);
                      return read_child(
                               value, generic, new_child, new_child_id) &&
                             read_child_component_or_model(
@@ -6546,11 +6548,11 @@ struct json_archiver::impl {
     }
 
     template<typename Writer>
-    void write_child(const modeling&          mod,
-                     const component&         compo,
-                     const generic_component& gen,
-                     const child&             ch,
-                     Writer&                  w) noexcept
+    void write_child(const modeling&                 mod,
+                     const component&                compo,
+                     const generic_component&        gen,
+                     const generic_component::child& ch,
+                     Writer&                         w) noexcept
     {
         const auto child_id  = gen.children.get_id(ch);
         const auto child_idx = get_index(child_id);
@@ -6665,13 +6667,13 @@ struct json_archiver::impl {
     }
 
     template<typename Writer>
-    void write_input_connection(const modeling&          mod,
-                                const component&         parent,
-                                const generic_component& gen,
-                                const port_id            x,
-                                const child&             dst,
-                                const connection::port   dst_x,
-                                Writer&                  w) noexcept
+    void write_input_connection(const modeling&                 mod,
+                                const component&                parent,
+                                const generic_component&        gen,
+                                const port_id                   x,
+                                const generic_component::child& dst,
+                                const connection::port          dst_x,
+                                Writer&                         w) noexcept
     {
         w.StartObject();
         w.Key("type");
@@ -6695,13 +6697,13 @@ struct json_archiver::impl {
     }
 
     template<typename Writer>
-    void write_output_connection(const modeling&          mod,
-                                 const component&         parent,
-                                 const generic_component& gen,
-                                 const port_id            y,
-                                 const child&             src,
-                                 const connection::port   src_y,
-                                 Writer&                  w) noexcept
+    void write_output_connection(const modeling&                 mod,
+                                 const component&                parent,
+                                 const generic_component&        gen,
+                                 const port_id                   y,
+                                 const generic_component::child& src,
+                                 const connection::port          src_y,
+                                 Writer&                         w) noexcept
     {
         w.StartObject();
         w.Key("type");
@@ -6725,13 +6727,13 @@ struct json_archiver::impl {
     }
 
     template<typename Writer>
-    void write_internal_connection(const modeling&          mod,
-                                   const generic_component& gen,
-                                   const child&             src,
-                                   const connection::port   src_y,
-                                   const child&             dst,
-                                   const connection::port   dst_x,
-                                   Writer&                  w) noexcept
+    void write_internal_connection(const modeling&                 mod,
+                                   const generic_component&        gen,
+                                   const generic_component::child& src,
+                                   const connection::port          src_y,
+                                   const generic_component::child& dst,
+                                   const connection::port          dst_x,
+                                   Writer&                         w) noexcept
     {
         const char* src_str = nullptr;
         const char* dst_str = nullptr;

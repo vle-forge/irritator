@@ -122,8 +122,10 @@ enum class modeling_status { modified, unmodified };
 
 class project;
 struct connection;
-struct child;
 class generic_component;
+class grid_component;
+class graph_component;
+struct component;
 class modeling;
 struct cache_rw;
 struct tree_node;
@@ -136,20 +138,6 @@ enum class child_flags : u8 {
     configurable = 1 << 0,
     observable   = 1 << 1,
     Count
-};
-
-struct child {
-    child() noexcept;
-    explicit child(dynamics_type type) noexcept;
-    explicit child(component_id component) noexcept;
-
-    union {
-        dynamics_type mdl_type;
-        component_id  compo_id;
-    } id;
-
-    child_type            type{ child_type::model };
-    bitflags<child_flags> flags{ child_flags::none };
 };
 
 struct position {
@@ -268,6 +256,19 @@ public:
     generic_component(const child_limiter      child_limit,
                       const connection_limiter connection_limit) noexcept;
 
+    struct child {
+        explicit child(dynamics_type type) noexcept;
+        explicit child(component_id component) noexcept;
+
+        union {
+            dynamics_type mdl_type;
+            component_id  compo_id;
+        } id;
+
+        child_type            type{ child_type::model };
+        bitflags<child_flags> flags{ child_flags::none };
+    };
+
     struct input_connection {
         input_connection(const port_id          x_,
                          const child_id         dst_,
@@ -378,11 +379,15 @@ public:
     ///
     /// @return `success()` or `modeling::connection_error`,
     /// `modeling::child_error`.
-    status import(const data_array<child, child_id>&           children,
-                  const data_array<connection, connection_id>& connections,
-                  const std::span<position>                    positions = {},
-                  const std::span<name_str>                    names     = {},
+    status import(const modeling&            mod,
+                  const component&           compo,
+                  const std::span<position>  positions  = {},
+                  const std::span<name_str>  names      = {},
                   const std::span<parameter> parameters = {}) noexcept;
+
+    status import(const graph_component& graph) noexcept;
+    status import(const grid_component& graph) noexcept;
+    status import(const generic_component& graph) noexcept;
 
     bool     exists_child(const std::string_view name) const noexcept;
     name_str make_unique_name_id(const child_id from_id) const noexcept;
@@ -401,6 +406,18 @@ private:
 
 public:
     enum class options : i8 { none = 0, row_cylinder, column_cylinder, torus };
+
+    struct child {
+        child(const component_id compo_id_,
+              const i32          r_,
+              const i32          c_) noexcept;
+
+        component_id compo_id;
+        i32          row = 0;
+        i32          col = 0;
+
+        bitflags<child_flags> flags{ child_flags::none };
+    };
 
     enum class type : i8 {
         in_out, //!< Only one port "in" or "out".
@@ -673,13 +690,11 @@ public:
 
 /// random-graph type:
 /// - scale_free: graph typically has a very skewed degree distribution,
-/// where
-///   few vertices have a very high degree and a large number of vertices
+///   where few vertices have a very high degree and a large number of vertices
 ///   have a very small degree. Many naturally evolving networks, such as
 ///   the World Wide Web, are scale-free graphs, making these graphs a good
 ///   model for certain networking problems.
-/// - small_world: consists of a ring graph (where each vertex is connected
-/// to
+/// - small_world: consists of a ring graph (where each vertex is connected to
 ///   its k nearest neighbors). Edges in the graph are randomly rewired to
 ///   different vertices with a probability p.
 class graph_component
@@ -688,6 +703,16 @@ public:
     static inline constexpr i32 children_max = 4096;
 
     enum class graph_type { dot_file, scale_free, small_world };
+
+    struct child {
+        child(const component_id  compo_id_,
+              const graph_node_id node_id_) noexcept;
+
+        component_id  compo_id;
+        graph_node_id node_id;
+
+        bitflags<child_flags> flags{ child_flags::none };
+    };
 
     struct input_connection {
         input_connection(port_id x_, graph_node_id v_, port_id id_) noexcept
@@ -1506,8 +1531,10 @@ public:
     bool can_add(const component& parent,
                  const component& other) const noexcept;
 
-    child& alloc(generic_component& parent, dynamics_type type) noexcept;
-    child& alloc(generic_component& parent, component_id id) noexcept;
+    generic_component::child& alloc(generic_component& parent,
+                                    dynamics_type      type) noexcept;
+    generic_component::child& alloc(generic_component& parent,
+                                    component_id       id) noexcept;
 
     status copy(const internal_component src,
                 component&               dst,
@@ -1973,17 +2000,26 @@ inline connection::connection(child_id src_,
   , index_dst{ .compo = {}, .model = p_dst_ }
 {}
 
-inline child::child() noexcept
-  : id{ .mdl_type = dynamics_type::constant }
-  , type{ child_type::model }
+inline grid_component::child::child(const component_id compo_id_,
+                                    const i32          r_,
+                                    const i32          c_) noexcept
+  : compo_id(compo_id_)
+  , row(r_)
+  , col(c_)
 {}
 
-inline child::child(dynamics_type type) noexcept
+inline graph_component::child::child(const component_id  compo_id_,
+                                     const graph_node_id node_id_) noexcept
+  : compo_id(compo_id_)
+  , node_id(node_id_)
+{}
+
+inline generic_component::child::child(dynamics_type type) noexcept
   : id{ .mdl_type = type }
   , type{ child_type::model }
 {}
 
-inline child::child(component_id component) noexcept
+inline generic_component::child::child(component_id component) noexcept
   : id{ .compo_id = component }
   , type{ child_type::component }
 {}

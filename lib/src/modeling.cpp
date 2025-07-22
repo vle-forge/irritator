@@ -1168,7 +1168,8 @@ void modeling::free(component& compo) noexcept
     components.free(components.get_id(compo));
 }
 
-child& modeling::alloc(generic_component& parent, component_id id) noexcept
+generic_component::child& modeling::alloc(generic_component& parent,
+                                          component_id       id) noexcept
 {
     debug::ensure(parent.children.can_alloc());
 
@@ -1186,7 +1187,8 @@ child& modeling::alloc(generic_component& parent, component_id id) noexcept
     return child;
 }
 
-child& modeling::alloc(generic_component& parent, dynamics_type type) noexcept
+generic_component::child& modeling::alloc(generic_component& parent,
+                                          dynamics_type      type) noexcept
 {
     debug::ensure(parent.children.can_alloc());
 
