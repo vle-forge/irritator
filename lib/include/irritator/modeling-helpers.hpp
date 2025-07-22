@@ -387,10 +387,11 @@ void for_each_child(modeling& mod, tree_node& tn, Function&& f) noexcept
 //! otherwise do nothing. \param f a invokable with no const \c child and \c
 //! component references.
 template<typename Function>
-void if_child_is_component_do(modeling&                    mod,
-                              data_array<child, child_id>& data,
-                              child_id                     id,
-                              Function&&                   f) noexcept
+void if_child_is_component_do(
+  modeling&                                       mod,
+  data_array<generic_component::child, child_id>& data,
+  child_id                                        id,
+  Function&&                                      f) noexcept
 {
     if_data_exists_do(data, id, [&](auto& child) noexcept {
         if (child.type == child_type::component) {
@@ -406,10 +407,10 @@ void if_child_is_component_do(modeling&                    mod,
 //! otherwise do nothing. \param f a invokable with no const \c child and \c
 //! component references.
 template<typename Function>
-void if_child_is_model_do(modeling&                    mod,
-                          data_array<child, child_id>& data,
-                          child_id                     id,
-                          Function&&                   f) noexcept
+void if_child_is_model_do(modeling&                                       mod,
+                          data_array<generic_component::child, child_id>& data,
+                          child_id                                        id,
+                          Function&& f) noexcept
 {
     if_data_exists_do(data, id, [&](auto& child) noexcept {
         if (child.type == child_type::component) {

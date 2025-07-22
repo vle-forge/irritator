@@ -501,13 +501,14 @@ static auto make_tree_constant_leaf(simulation_copy&   sc,
     return success();
 }
 
-static auto make_tree_leaf(simulation_copy&       sc,
-                           tree_node&             parent,
-                           generic_component&     gen,
-                           const std::string_view uid,
-                           dynamics_type          mdl_type,
-                           child_id               ch_id,
-                           child& ch) noexcept -> expected<model_id>
+static auto make_tree_leaf(simulation_copy&          sc,
+                           tree_node&                parent,
+                           generic_component&        gen,
+                           const std::string_view    uid,
+                           dynamics_type             mdl_type,
+                           child_id                  ch_id,
+                           generic_component::child& ch) noexcept
+  -> expected<model_id>
 {
     if (not sc.pj.sim.models.can_alloc()) {
         const auto increase =
@@ -629,21 +630,16 @@ static status make_tree_recursive(simulation_copy& sc,
     for (auto& child : src.cache) {
         const auto child_id = src.cache.get_id(child);
 
-        debug::ensure(child.type == child_type::component);
+        const auto compo_id = child.compo_id;
 
-        if (child.type == child_type::component) {
-            const auto compo_id = child.id.compo_id;
+        if (auto* compo = sc.mod.components.try_to_get<component>(compo_id);
+            compo) {
+            auto tn_id = make_tree_recursive(
+              sc, new_tree, *compo, src.cache_names[child_id].sv());
+            if (not tn_id)
+                return tn_id.error();
 
-            if (auto* compo = sc.mod.components.try_to_get<component>(compo_id);
-                compo) {
-                auto tn_id = make_tree_recursive(
-                  sc, new_tree, *compo, src.cache_names[child_id].sv());
-                if (not tn_id)
-                    return tn_id.error();
-
-                new_tree.children[child_id].set(
-                  sc.tree_nodes.try_to_get(*tn_id));
-            }
+            new_tree.children[child_id].set(sc.tree_nodes.try_to_get(*tn_id));
         }
     }
 
@@ -662,23 +658,17 @@ static status make_tree_recursive(simulation_copy& sc,
 
     for (auto& child : src.cache) {
         const auto child_id = src.cache.get_id(child);
+        const auto compo_id = child.compo_id;
 
-        debug::ensure(child.type == child_type::component);
+        if (auto* compo = sc.mod.components.try_to_get<component>(compo_id);
+            compo) {
+            auto tn_id = make_tree_recursive(
+              sc, new_tree, *compo, src.cache_names[child_id].sv());
 
-        if (child.type == child_type::component) {
-            const auto compo_id = child.id.compo_id;
+            if (not tn_id.has_value())
+                return tn_id.error();
 
-            if (auto* compo = sc.mod.components.try_to_get<component>(compo_id);
-                compo) {
-                auto tn_id = make_tree_recursive(
-                  sc, new_tree, *compo, src.cache_names[child_id].sv());
-
-                if (not tn_id.has_value())
-                    return tn_id.error();
-
-                new_tree.children[child_id].set(
-                  sc.tree_nodes.try_to_get(*tn_id));
-            }
+            new_tree.children[child_id].set(sc.tree_nodes.try_to_get(*tn_id));
         }
     }
 
@@ -923,13 +913,13 @@ static void get_input_models(vector<model_port>&   inputs,
 }
 
 static void get_input_pack_models(
-  vector<model_port>&                inputs,
-  const simulation&                  sim,
-  const modeling&                    mod,
-  const tree_node&                   tn,
-  const component&                   compo,
-  const port_id                      p,
-  const data_array<child, child_id>& children) noexcept
+  vector<model_port>&                                   inputs,
+  const simulation&                                     sim,
+  const modeling&                                       mod,
+  const tree_node&                                      tn,
+  const component&                                      compo,
+  const port_id                                         p,
+  const data_array<generic_component::child, child_id>& children) noexcept
 {
     for (const auto& con : compo.input_connection_pack) {
         if (con.parent_port != p)
@@ -938,6 +928,54 @@ static void get_input_pack_models(
         for (const auto& c : children) {
             if (c.type == child_type::component and
                 c.id.compo_id == con.child_component) {
+                const auto idx = get_index(children.get_id(c));
+                debug::ensure(tn.children[idx].tn);
+                get_input_models(
+                  inputs, sim, mod, *tn.children[idx].tn, con.child_port);
+            }
+        }
+    }
+}
+
+static void get_input_pack_models(
+  vector<model_port>&                                 inputs,
+  const simulation&                                   sim,
+  const modeling&                                     mod,
+  const tree_node&                                    tn,
+  const component&                                    compo,
+  const port_id                                       p,
+  const data_array<graph_component::child, child_id>& children) noexcept
+{
+    for (const auto& con : compo.input_connection_pack) {
+        if (con.parent_port != p)
+            continue;
+
+        for (const auto& c : children) {
+            if (c.compo_id == con.child_component) {
+                const auto idx = get_index(children.get_id(c));
+                debug::ensure(tn.children[idx].tn);
+                get_input_models(
+                  inputs, sim, mod, *tn.children[idx].tn, con.child_port);
+            }
+        }
+    }
+}
+
+static void get_input_pack_models(
+  vector<model_port>&                                inputs,
+  const simulation&                                  sim,
+  const modeling&                                    mod,
+  const tree_node&                                   tn,
+  const component&                                   compo,
+  const port_id                                      p,
+  const data_array<grid_component::child, child_id>& children) noexcept
+{
+    for (const auto& con : compo.input_connection_pack) {
+        if (con.parent_port != p)
+            continue;
+
+        for (const auto& c : children) {
+            if (c.compo_id == con.child_component) {
                 const auto idx = get_index(children.get_id(c));
                 debug::ensure(tn.children[idx].tn);
                 get_input_models(
@@ -1061,13 +1099,13 @@ static void get_output_models(vector<model_port>&   outputs,
 }
 
 static void get_output_pack_models(
-  vector<model_port>&                outputs,
-  const simulation&                  sim,
-  const modeling&                    mod,
-  const tree_node&                   tn,
-  const component&                   compo,
-  const port_id                      p,
-  const data_array<child, child_id>& children) noexcept
+  vector<model_port>&                                   outputs,
+  const simulation&                                     sim,
+  const modeling&                                       mod,
+  const tree_node&                                      tn,
+  const component&                                      compo,
+  const port_id                                         p,
+  const data_array<generic_component::child, child_id>& children) noexcept
 {
     for (const auto& con : compo.output_connection_pack) {
         if (con.parent_port != p)
@@ -1076,6 +1114,54 @@ static void get_output_pack_models(
         for (const auto& c : children) {
             if (c.type == child_type::component and
                 c.id.compo_id == con.child_component) {
+                const auto idx = get_index(children.get_id(c));
+                debug::ensure(tn.children[idx].tn);
+                get_output_models(
+                  outputs, sim, mod, *tn.children[idx].tn, con.child_port);
+            }
+        }
+    }
+}
+
+static void get_output_pack_models(
+  vector<model_port>&                                 outputs,
+  const simulation&                                   sim,
+  const modeling&                                     mod,
+  const tree_node&                                    tn,
+  const component&                                    compo,
+  const port_id                                       p,
+  const data_array<graph_component::child, child_id>& children) noexcept
+{
+    for (const auto& con : compo.output_connection_pack) {
+        if (con.parent_port != p)
+            continue;
+
+        for (const auto& c : children) {
+            if (c.compo_id == con.child_component) {
+                const auto idx = get_index(children.get_id(c));
+                debug::ensure(tn.children[idx].tn);
+                get_output_models(
+                  outputs, sim, mod, *tn.children[idx].tn, con.child_port);
+            }
+        }
+    }
+}
+
+static void get_output_pack_models(
+  vector<model_port>&                                outputs,
+  const simulation&                                  sim,
+  const modeling&                                    mod,
+  const tree_node&                                   tn,
+  const component&                                   compo,
+  const port_id                                      p,
+  const data_array<grid_component::child, child_id>& children) noexcept
+{
+    for (const auto& con : compo.output_connection_pack) {
+        if (con.parent_port != p)
+            continue;
+
+        for (const auto& c : children) {
+            if (c.compo_id == con.child_component) {
                 const auto idx = get_index(children.get_id(c));
                 debug::ensure(tn.children[idx].tn);
                 get_output_models(
@@ -1279,10 +1365,11 @@ static status simulation_copy_sum_connections(
     return success();
 }
 
+template<typename Child>
 static status simulation_copy_connections(
   simulation_copy&                             sc,
   tree_node&                                   tree,
-  const data_array<child, child_id>&           children,
+  const data_array<Child, child_id>&           children,
   const data_array<connection, connection_id>& connections) noexcept
 {
     if (auto ret = prepare_sum_connections(tree, connections, sc); not ret)

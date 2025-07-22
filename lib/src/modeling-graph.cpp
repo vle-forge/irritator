@@ -105,15 +105,15 @@ static auto build_graph_children(modeling& mod, graph_component& graph) noexcept
     tr.data.reserve(graph.g.nodes.ssize());
 
     for (const auto node_id : graph.g.nodes) {
-        child_id   new_id   = undefined<child_id>();
         const auto compo_id = graph.g.node_components[node_id];
 
-        if (auto* c = mod.components.try_to_get<component>(compo_id); c) {
-            auto& new_ch = graph.cache.alloc(compo_id);
-            new_id       = graph.cache.get_id(new_ch);
+        if (mod.components.exists(compo_id)) {
+            auto& ch = graph.cache.alloc(compo_id, node_id);
+            auto  id = graph.cache.get_id(ch);
+            tr.data.emplace_back(node_id, id);
+        } else {
+            tr.data.emplace_back(node_id, undefined<child_id>());
         }
-
-        tr.data.emplace_back(node_id, new_id);
     }
 
     tr.sort();
@@ -148,14 +148,12 @@ static auto get_edges(modeling&                             mod,
         const auto u = vertex.get(u_id);
         const auto v = vertex.get(v_id);
 
-        if (auto* src = graph.cache.try_to_get(*u);
-            src and src->type == child_type::component) {
-            if (auto* dst = graph.cache.try_to_get(*v);
-                dst and dst->type == child_type::component) {
+        if (auto* src = graph.cache.try_to_get(*u)) {
+            if (auto* dst = graph.cache.try_to_get(*v)) {
                 if (auto* c_src =
-                      mod.components.try_to_get<component>(src->id.compo_id))
-                    if (auto* c_dst = mod.components.try_to_get<component>(
-                          dst->id.compo_id))
+                      mod.components.try_to_get<component>(src->compo_id))
+                    if (auto* c_dst =
+                          mod.components.try_to_get<component>(dst->compo_id))
                         return get_edges_result{
                             .src   = *u,
                             .dst   = *v,
@@ -457,18 +455,10 @@ status modeling::copy(graph_component&   graph,
 
     for (const auto& src : graph.cache) {
         const auto src_id = graph.cache.get_id(src);
+        auto&      dst    = generic.children.alloc(src.compo_id);
+        const auto dst_id = generic.children.get_id(dst);
 
-        if (src.type == child_type::model) {
-            auto&      dst    = generic.children.alloc(src.id.mdl_type);
-            const auto dst_id = generic.children.get_id(dst);
-
-            graph_to_generic.data.emplace_back(src_id, dst_id);
-        } else {
-            auto&      dst    = generic.children.alloc(src.id.compo_id);
-            const auto dst_id = generic.children.get_id(dst);
-
-            graph_to_generic.data.emplace_back(src_id, dst_id);
-        }
+        graph_to_generic.data.emplace_back(src_id, dst_id);
     }
 
     graph_to_generic.sort();
