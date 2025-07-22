@@ -1830,9 +1830,9 @@ static void compute_center_and_position(auto&            data,
                                         const tree_node& tn,
                                         const component& compo) noexcept
 {
-    const auto  tn_id   = pj.tree_nodes.get_id(tn);
-    const auto& center  = data.tn_centers[tn_id];
-    const auto& factors = data.tn_factors[tn_id];
+    const auto tn_id  = pj.tree_nodes.get_id(tn);
+    const auto center = data.tn_centers[tn_id];
+    const auto rect   = data.tn_rects[tn_id];
 
     switch (compo.type) {
     case component_type::generic:
@@ -1845,18 +1845,20 @@ static void compute_center_and_position(auto&            data,
                 case child_type::model:
                     move_model(data,
                                tn.children[c_id].mdl,
-                               center.x + factors.x * pos.x - 5.f,
-                               center.y + factors.y * pos.y - 5.f);
+                               center.x + pos.x - MW,
+                               center.y + pos.y - MH);
                     break;
 
                 case child_type::component: {
                     const auto* sub_tn    = tn.children[c_id].tn;
                     const auto  sub_tn_id = pj.tree_nodes.get_id(*sub_tn);
 
+                    debug::ensure(sub_tn_id != tn_id);
+
                     move_tn(data,
                             sub_tn_id,
-                            center.x + factors.x * pos.x - 5.f,
-                            center.y + factors.y * pos.y - 5.f);
+                            center.x + pos.x - MW,
+                            center.y + pos.y - MH);
                 } break;
                 }
             }
@@ -1875,11 +1877,14 @@ static void compute_center_and_position(auto&            data,
                     const auto& pos =
                       g->g.node_positions[g->cache_node_ids[c_id]];
                     const auto sub_tn_id = pj.tree_nodes.get_id(*sub_tn);
+                    const auto sub_rect  = data.tn_rects[sub_tn_id];
+
+                    debug::ensure(sub_tn_id != tn_id);
 
                     move_tn(data,
                             sub_tn_id,
-                            center.x + factors.x * pos[0],
-                            center.y + factors.y * pos[1]);
+                            center.x + pos[0] + sub_rect[0] - MW,
+                            center.y + pos[1] + sub_rect[1] - MH);
                 }
             }
         }
@@ -1887,21 +1892,26 @@ static void compute_center_and_position(auto&            data,
 
     case component_type::grid:
         if (auto* g = mod.grid_components.try_to_get(compo.id.grid_id)) {
-            for (auto i = 0, e_i = g->column(); i != e_i; ++i) {
-                for (auto j = 0, e_j = g->row(); j != e_j; ++j) {
-                    const auto c_id = g->children()[g->pos(i, j)];
+            const auto sub_rect =
+              ImVec2(rect.x / g->column(), rect.y / g->row());
 
-                    if (tn.children[c_id].is_tree_node()) {
-                        debug::ensure(tn.children[c_id].tn);
+            auto index = 0;
+            for (const auto& child : g->cache) {
+                const auto child_id = g->cache.get_id(child);
+                const auto col_row  = g->pos(index++);
 
-                        const auto* sub_tn    = tn.children[c_id].tn;
-                        const auto  sub_tn_id = pj.tree_nodes.get_id(*sub_tn);
+                if (tn.children[child_id].is_tree_node()) {
+                    debug::ensure(tn.children[child_id].tn);
 
-                        move_tn(data,
-                                sub_tn_id,
-                                center.x + factors.x * i,
-                                center.y + factors.y * j);
-                    }
+                    const auto* sub_tn    = tn.children[child_id].tn;
+                    const auto  sub_tn_id = pj.tree_nodes.get_id(*sub_tn);
+
+                    move_tn(data,
+                            sub_tn_id,
+                            center.x +
+                              sub_rect.x * static_cast<float>(col_row.first),
+                            center.y +
+                              sub_rect.y * static_cast<float>(col_row.second));
                 }
             }
         }
@@ -2057,14 +2067,11 @@ static auto to_print(const std::string_view name,
     for (const auto& tn : pj.tree_nodes) {
         const auto tn_id = pj.tree_nodes.get_id(tn);
 
-        fmt::print("rect {},{} centers {},{} factors {},{} colors {} "
-                   "children {}\n",
+        fmt::print("rect {},{} centers {},{} colors {} children {}\n",
                    d.tn_rects[tn_id].x,
                    d.tn_rects[tn_id].y,
                    d.tn_centers[tn_id].x,
                    d.tn_centers[tn_id].y,
-                   d.tn_factors[tn_id].x,
-                   d.tn_factors[tn_id].y,
                    d.tn_colors[tn_id],
                    d.tn_children[tn_id]);
     }
