@@ -1282,6 +1282,11 @@ void flat_simulation_editor::auto_fit_camera(const ImVec2 canvas) noexcept
     scrolling.y = ((-center.y * zoom) + (canvas.y / 2.f));
 }
 
+constexpr float MW  = 50.f;
+constexpr float MH  = 50.f;
+constexpr float MW2 = MW / 2.f;
+constexpr float MH2 = MW / 2.f;
+
 bool flat_simulation_editor::display(application& app) noexcept
 {
     if (not is_ready.test_and_set()) {
@@ -1385,12 +1390,12 @@ bool flat_simulation_editor::display(application& app) noexcept
                         const auto i      = get_index(mdl_id);
 
                         ImVec2 p_min(
-                          origin.x + ((d.positions[i][0] - 2.f) * zoom),
-                          origin.y + ((d.positions[i][1] - 2.f) * zoom));
+                          origin.x + ((d.positions[i][0] - MW2) * zoom),
+                          origin.y + ((d.positions[i][1] - MH2) * zoom));
 
                         ImVec2 p_max(
-                          origin.x + ((d.positions[i][0] + 2.f) * zoom),
-                          origin.y + ((d.positions[i][1] + 2.f) * zoom));
+                          origin.x + ((d.positions[i][0] + MW2) * zoom),
+                          origin.y + ((d.positions[i][1] + MH2) * zoom));
 
                         if (p_min.x >= bmin.x and p_max.x < bmax.x and
                             p_min.y >= bmin.y and p_max.y < bmax.y) {
@@ -1440,11 +1445,11 @@ bool flat_simulation_editor::display(application& app) noexcept
                     if (not mdl)
                         continue;
 
-                    ImVec2 p_min(origin.x + ((d.positions[i][0] - 2.f) * zoom),
-                                 origin.y + ((d.positions[i][1] - 2.f) * zoom));
+                    ImVec2 p_min(origin.x + ((d.positions[i][0] - MW2) * zoom),
+                                 origin.y + ((d.positions[i][1] - MH2) * zoom));
 
-                    ImVec2 p_max(origin.x + ((d.positions[i][0] + 2.f) * zoom),
-                                 origin.y + ((d.positions[i][1] + 2.f) * zoom));
+                    ImVec2 p_max(origin.x + ((d.positions[i][0] + MW2) * zoom),
+                                 origin.y + ((d.positions[i][1] + MH2) * zoom));
 
                     if (canvas_p0.x <= p_min.x and p_min.x <= canvas_p1.x and
                         canvas_p0.y <= p_max.y and p_max.y <= canvas_p1.y)
@@ -1626,7 +1631,6 @@ constexpr static auto clear(auto&      data,
 
     data.tn_rects.resize(tns, ImVec2(0.f, 0.f));
     data.tn_centers.resize(tns, ImVec2(0.f, 0.f));
-    data.tn_factors.resize(tns, ImVec2(1.f, 1.f));
     data.tn_colors.resize(tns, IM_COL32(255, 255, 255, 255));
     data.tn_children.resize(tns, 0u);
 }
@@ -1672,13 +1676,6 @@ constexpr static void move_tn(auto&              data,
 {
     data.tn_centers[tn_id].x += shift_x;
     data.tn_centers[tn_id].y += shift_y;
-
-    fmt::print(">> move tn-id {} centers {},{} shift {},{}\n",
-               ordinal(tn_id),
-               data.tn_centers[tn_id].x,
-               data.tn_centers[tn_id].y,
-               shift_x,
-               shift_y);
 }
 
 constexpr static void move_model(auto&          data,
@@ -1691,6 +1688,11 @@ constexpr static void move_model(auto&          data,
 }
 
 struct rect_bound {
+    float x_min = +INFINITY;
+    float x_max = -INFINITY;
+    float y_min = +INFINITY;
+    float y_max = -INFINITY;
+
     constexpr void update(const float x, const float y) noexcept
     {
         x_min = std::min(x_min, x);
@@ -1703,11 +1705,6 @@ struct rect_bound {
     {
         return ImVec2(x_max - x_min, y_max - y_min);
     }
-
-    float x_min = +INFINITY;
-    float x_max = -INFINITY;
-    float y_min = +INFINITY;
-    float y_max = -INFINITY;
 };
 
 constexpr static void compute_colors(auto&       data,
@@ -1742,28 +1739,23 @@ static void compute_rect(auto&            data,
 
                 switch (c.type) {
                 case child_type::model:
-                    bound.update(pos.x - 5.f, pos.y - 5.f);
-                    bound.update(pos.x + 5.f, pos.y + 5.f);
+                    bound.update(pos.x - MW, pos.y - MH);
+                    bound.update(pos.x + MW, pos.y + MH);
                     break;
 
                 case child_type::component: {
                     const auto* sub_tn    = tn.children[c_id].tn;
                     const auto  sub_tn_id = pj.tree_nodes.get_id(*sub_tn);
                     const auto& sub_pos   = data.tn_rects[sub_tn_id];
-                    bound.update(pos.x + sub_pos.x - 5.f,
-                                 pos.y + sub_pos.y - 5.f);
-                    bound.update(pos.x + sub_pos.x + 5.f,
-                                 pos.y + sub_pos.y + 5.f);
+                    bound.update(pos.x + sub_pos.x - MW,
+                                 pos.y + sub_pos.y - MH);
+                    bound.update(pos.x + sub_pos.x + MW,
+                                 pos.y + sub_pos.y + MH);
                 } break;
                 }
             }
 
-            const auto dist = bound.distance();
-            const auto fx   = data.tn_children[tn_id] / dist.x;
-            const auto fy   = data.tn_children[tn_id] / dist.y;
-
-            data.tn_factors[tn_id] = ImVec2(fx, fy);
-            data.tn_rects[tn_id]   = ImVec2(dist.x * fx, dist.y * fy);
+            data.tn_rects[tn_id] = bound.distance();
         }
         break;
 
@@ -1771,65 +1763,58 @@ static void compute_rect(auto&            data,
         if (auto* g = mod.graph_components.try_to_get(compo.id.graph_id)) {
             rect_bound bound;
 
-            for (const auto& c : g->cache) {
-                const auto c_id = g->cache.get_id(c);
+            for (const auto& child : g->cache) {
+                const auto child_id      = g->cache.get_id(child);
+                const auto graph_node_id = g->cache_node_ids[child_id];
+                const auto pos           = g->g.node_positions[graph_node_id];
 
-                if (tn.children[c_id].is_tree_node()) {
-                    debug::ensure(tn.children[c_id].tn);
+                if (tn.children[child_id].is_model()) {
+                    bound.update(pos[0] - MW, pos[1] - MH);
+                    bound.update(pos[0] + MW, pos[1] + MH);
+                } else if (tn.children[child_id].is_tree_node()) {
+                    debug::ensure(tn.children[child_id].tn);
 
-                    const auto* sub_tn = tn.children[c_id].tn;
-                    const auto  pos =
-                      g->g.node_positions[g->cache_node_ids[c_id]];
+                    const auto* sub_tn    = tn.children[child_id].tn;
                     const auto  sub_tn_id = pj.tree_nodes.get_id(*sub_tn);
                     const auto& sub_pos   = data.tn_rects[sub_tn_id];
 
-                    bound.update(pos[0] + sub_pos[0] - 5.f,
-                                 pos[1] + sub_pos.y - 5.f);
-                    bound.update(pos[0] + sub_pos[0] + 5.f,
-                                 pos[1] + sub_pos.y + 5.f);
+                    bound.update(pos[0] + sub_pos[0] - MW,
+                                 pos[1] + sub_pos[1] - MH);
+                    bound.update(pos[0] + sub_pos[0] + MW,
+                                 pos[1] + sub_pos[1] + MH);
                 }
             }
 
-            const auto dist = bound.distance();
-            const auto fx   = data.tn_children[tn_id] / dist.x;
-            const auto fy   = data.tn_children[tn_id] / dist.y;
-
-            data.tn_factors[tn_id] = ImVec2(fx, fy);
-            data.tn_rects[tn_id]   = ImVec2(dist.x * fx, dist.y * fy);
+            data.tn_rects[tn_id] = bound.distance();
         }
         break;
 
     case component_type::grid:
         if (auto* g = mod.grid_components.try_to_get(compo.id.grid_id)) {
+            const auto rows    = g->row();
+            const auto columns = g->column();
             rect_bound bound;
 
-            for (auto i = 0, e_i = g->column(); i != e_i; ++i) {
-                for (auto j = 0, e_j = g->row(); j != e_j; ++j) {
-                    const auto c_id = g->children()[g->pos(i, j)];
+            debug::ensure(rows * columns == g->cache.ssize());
 
-                    if (tn.children[c_id].is_tree_node()) {
-                        debug::ensure(tn.children[c_id].tn);
+            for (const auto& child : g->cache) {
+                const auto child_id = g->cache.get_id(child);
 
-                        const auto* sub_tn    = tn.children[c_id].tn;
-                        const auto  sub_tn_id = pj.tree_nodes.get_id(*sub_tn);
-                        const auto& sub_pos   = data.tn_rects[sub_tn_id];
+                if (tn.children[child_id].is_tree_node()) {
+                    debug::ensure(tn.children[child_id].tn);
 
-                        bound.update(sub_pos[0] - 5.f, sub_pos[1] - 5.f);
-                        bound.update(sub_pos[0] + 5.f, sub_pos[1] + 5.f);
-                        break;
-                    }
+                    const auto* sub_tn    = tn.children[child_id].tn;
+                    const auto  sub_tn_id = pj.tree_nodes.get_id(*sub_tn);
+                    const auto& sub_pos   = data.tn_rects[sub_tn_id];
+
+                    bound.update(sub_pos[0] - MW, sub_pos[1] - MH);
+                    bound.update(sub_pos[0] + MW, sub_pos[1] + MH);
                 }
             }
 
-            const auto distance = bound.distance();
-            const auto dist =
-              ImVec2(distance.x * g->column(), distance.y * g->row());
+            const auto dist = bound.distance();
 
-            const auto fx = data.tn_children[tn_id] / dist.x;
-            const auto fy = data.tn_children[tn_id] / dist.y;
-
-            data.tn_factors[tn_id] = ImVec2(fx, fy);
-            data.tn_rects[tn_id]   = ImVec2(dist.x * fx, dist.y * fy);
+            data.tn_rects[tn_id] = ImVec2(dist.x * columns, dist.y * rows);
         }
         break;
 

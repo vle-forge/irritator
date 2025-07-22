@@ -633,7 +633,6 @@ private:
 
         vector<ImVec2> tn_rects;    ///< @c (width,height) per tree-node
         vector<ImVec2> tn_centers;  ///< @c (x,y) center position per tree-node
-        vector<ImVec2> tn_factors;  ///< @c (fx,fy) to compute simulation pos.
         vector<ImU32>  tn_colors;   ///< @c (color) per tree-node
         vector<u32>    tn_children; ///< number of children per tree-node
     };

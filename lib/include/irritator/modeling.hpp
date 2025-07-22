@@ -399,6 +399,16 @@ public:
     using limit  = bounded_value<i32>;
     using slimit = static_bounded_value<i32, 1, 1024>;
 
+    struct child {
+        child() noexcept;
+        explicit child(component_id component, i32 col, i32 row) noexcept;
+
+        component_id          compo_id = undefined<component_id>();
+        i32                   row      = 0;
+        i32                   col      = 0;
+        bitflags<child_flags> flags{ child_flags::none };
+    };
+
 private:
     i32                  m_row    = slimit::lower_bound();
     i32                  m_column = slimit::lower_bound();
