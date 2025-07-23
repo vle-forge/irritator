@@ -1687,18 +1687,34 @@ constexpr static void move_model(auto&          data,
     data.positions[mdl_id][1] += shift_y;
 }
 
-struct rect_bound {
+template<typename T>
+concept float_position_xy = requires(T t) {
+    { t.x } -> std::convertible_to<float>;
+    { t.y } -> std::convertible_to<float>;
+};
+
+class rect_bound
+{
     float x_min = +INFINITY;
     float x_max = -INFINITY;
     float y_min = +INFINITY;
     float y_max = -INFINITY;
 
+public:
+    constexpr void update(const float_position_xy auto pos) noexcept
+    {
+        x_min = std::min(x_min, static_cast<float>(pos.x) - MW2);
+        x_max = std::max(x_max, static_cast<float>(pos.x) + MW2);
+        y_min = std::min(y_min, static_cast<float>(pos.y) - MH2);
+        y_max = std::max(y_max, static_cast<float>(pos.y) + MH2);
+    }
+
     constexpr void update(const float x, const float y) noexcept
     {
-        x_min = std::min(x_min, x);
-        x_max = std::max(x_max, x);
-        y_min = std::min(y_min, y);
-        y_max = std::max(y_max, y);
+        x_min = std::min(x_min, x - MW2);
+        x_max = std::max(x_max, x + MW2);
+        y_min = std::min(y_min, y - MH2);
+        y_max = std::max(y_max, y + MH2);
     }
 
     constexpr auto distance() const noexcept
@@ -1720,6 +1736,24 @@ constexpr static void compute_colors(auto&       data,
     }
 }
 
+static auto compute_max_rest(auto&            data,
+                             const project&   pj,
+                             const tree_node& parent) noexcept
+{
+    auto ret = ImVec2(MW, MH);
+
+    for (const auto& child : parent.children) {
+        if (child.is_tree_node()) {
+            const auto* sub_tn    = child.tn;
+            const auto  sub_tn_id = pj.tree_nodes.get_id(sub_tn);
+
+            ret = ImMax(ret, data.tn_rects[su_tn_id]);
+        }
+    }
+
+    return ret;
+}
+
 static void compute_rect(auto&            data,
                          const project&   pj,
                          const modeling&  mod,
@@ -1739,18 +1773,14 @@ static void compute_rect(auto&            data,
 
                 switch (c.type) {
                 case child_type::model:
-                    bound.update(pos.x - MW, pos.y - MH);
-                    bound.update(pos.x + MW, pos.y + MH);
+                    bound.update(pos);
                     break;
 
                 case child_type::component: {
                     const auto* sub_tn    = tn.children[c_id].tn;
                     const auto  sub_tn_id = pj.tree_nodes.get_id(*sub_tn);
                     const auto& sub_pos   = data.tn_rects[sub_tn_id];
-                    bound.update(pos.x + sub_pos.x - MW,
-                                 pos.y + sub_pos.y - MH);
-                    bound.update(pos.x + sub_pos.x + MW,
-                                 pos.y + sub_pos.y + MH);
+                    bound.update(pos.x + sub_pos.x, pos.y + sub_pos.y);
                 } break;
                 }
             }
@@ -1765,23 +1795,18 @@ static void compute_rect(auto&            data,
 
             for (const auto& child : g->cache) {
                 const auto child_id      = g->cache.get_id(child);
-                const auto graph_node_id = g->cache_node_ids[child_id];
+                const auto graph_node_id = child.node_id;
                 const auto pos           = g->g.node_positions[graph_node_id];
 
-                if (tn.children[child_id].is_model()) {
-                    bound.update(pos[0] - MW, pos[1] - MH);
-                    bound.update(pos[0] + MW, pos[1] + MH);
-                } else if (tn.children[child_id].is_tree_node()) {
-                    debug::ensure(tn.children[child_id].tn);
+                debug::ensure(tn.children[child_id].is_tree_node());
+                debug::ensure(tn.children[child_id].tn);
 
+                if (tn.children[child_id].is_tree_node()) {
                     const auto* sub_tn    = tn.children[child_id].tn;
                     const auto  sub_tn_id = pj.tree_nodes.get_id(*sub_tn);
                     const auto& sub_pos   = data.tn_rects[sub_tn_id];
 
-                    bound.update(pos[0] + sub_pos[0] - MW,
-                                 pos[1] + sub_pos[1] - MH);
-                    bound.update(pos[0] + sub_pos[0] + MW,
-                                 pos[1] + sub_pos[1] + MH);
+                    bound.update(pos[0] + sub_pos[0], pos[1] + sub_pos[1]);
                 }
             }
 
@@ -1793,9 +1818,7 @@ static void compute_rect(auto&            data,
         if (auto* g = mod.grid_components.try_to_get(compo.id.grid_id)) {
             const auto rows    = g->row();
             const auto columns = g->column();
-            rect_bound bound;
-
-            debug::ensure(rows * columns == g->cache.ssize());
+            auto       dist    = ImVec2(MH, MH);
 
             for (const auto& child : g->cache) {
                 const auto child_id = g->cache.get_id(child);
@@ -1805,16 +1828,16 @@ static void compute_rect(auto&            data,
 
                     const auto* sub_tn    = tn.children[child_id].tn;
                     const auto  sub_tn_id = pj.tree_nodes.get_id(*sub_tn);
-                    const auto& sub_pos   = data.tn_rects[sub_tn_id];
+                    const auto& sub_rect  = data.tn_rects[sub_tn_id];
 
-                    bound.update(sub_pos[0] - MW, sub_pos[1] - MH);
-                    bound.update(sub_pos[0] + MW, sub_pos[1] + MH);
+                    dist = ImMax(dist, sub_rect);
                 }
             }
 
-            const auto dist = bound.distance();
+            dist.x *= g->column();
+            dist.y *= g->row();
 
-            data.tn_rects[tn_id] = ImVec2(dist.x * columns, dist.y * rows);
+            data.tn_rects[tn_id] = dist;
         }
         break;
 
@@ -1868,24 +1891,18 @@ static void compute_center_and_position(auto&            data,
     case component_type::graph:
         if (auto* g = mod.graph_components.try_to_get(compo.id.graph_id)) {
             for (const auto& c : g->cache) {
-                const auto c_id = g->cache.get_id(c);
+                const auto  c_id      = g->cache.get_id(c);
+                const auto* sub_tn    = tn.children[c_id].tn;
+                const auto& pos       = g->g.node_positions[c.node_id];
+                const auto  sub_tn_id = pj.tree_nodes.get_id(*sub_tn);
+                const auto  sub_rect  = data.tn_rects[sub_tn_id];
 
-                if (tn.children[c_id].is_tree_node()) {
-                    debug::ensure(tn.children[c_id].tn);
+                debug::ensure(sub_tn_id != tn_id);
 
-                    const auto* sub_tn = tn.children[c_id].tn;
-                    const auto& pos =
-                      g->g.node_positions[g->cache_node_ids[c_id]];
-                    const auto sub_tn_id = pj.tree_nodes.get_id(*sub_tn);
-                    const auto sub_rect  = data.tn_rects[sub_tn_id];
-
-                    debug::ensure(sub_tn_id != tn_id);
-
-                    move_tn(data,
-                            sub_tn_id,
-                            center.x + pos[0] + sub_rect[0] - MW,
-                            center.y + pos[1] + sub_rect[1] - MH);
-                }
+                move_tn(data,
+                        sub_tn_id,
+                        center.x + pos[0] + sub_rect[0] - MW,
+                        center.y + pos[1] + sub_rect[1] - MH);
             }
         }
         break;
@@ -1895,24 +1912,15 @@ static void compute_center_and_position(auto&            data,
             const auto sub_rect =
               ImVec2(rect.x / g->column(), rect.y / g->row());
 
-            auto index = 0;
             for (const auto& child : g->cache) {
-                const auto child_id = g->cache.get_id(child);
-                const auto col_row  = g->pos(index++);
+                const auto  child_id  = g->cache.get_id(child);
+                const auto* sub_tn    = tn.children[child_id].tn;
+                const auto  sub_tn_id = pj.tree_nodes.get_id(*sub_tn);
 
-                if (tn.children[child_id].is_tree_node()) {
-                    debug::ensure(tn.children[child_id].tn);
-
-                    const auto* sub_tn    = tn.children[child_id].tn;
-                    const auto  sub_tn_id = pj.tree_nodes.get_id(*sub_tn);
-
-                    move_tn(data,
-                            sub_tn_id,
-                            center.x +
-                              sub_rect.x * static_cast<float>(col_row.first),
-                            center.y +
-                              sub_rect.y * static_cast<float>(col_row.second));
-                }
+                move_tn(data,
+                        sub_tn_id,
+                        center.x + sub_rect.x * static_cast<float>(child.col),
+                        center.y + sub_rect.y * static_cast<float>(child.row));
             }
         }
         break;

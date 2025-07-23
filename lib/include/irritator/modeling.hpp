@@ -399,16 +399,6 @@ public:
     using limit  = bounded_value<i32>;
     using slimit = static_bounded_value<i32, 1, 1024>;
 
-    struct child {
-        child() noexcept;
-        explicit child(component_id component, i32 col, i32 row) noexcept;
-
-        component_id          compo_id = undefined<component_id>();
-        i32                   row      = 0;
-        i32                   col      = 0;
-        bitflags<child_flags> flags{ child_flags::none };
-    };
-
 private:
     i32                  m_row    = slimit::lower_bound();
     i32                  m_column = slimit::lower_bound();
@@ -815,10 +805,6 @@ public:
     data_array<child, child_id>           cache;
     data_array<connection, connection_id> cache_connections;
     vector<name_str>                      cache_names;
-
-    /// @brief Stores a @a graph_node_id per @c child. @a cache_node_ids have
-    /// the same size as @c cache data_array.
-    vector<graph_node_id> cache_node_ids;
 
     std::array<float, 2> top_left_limit{ +INFINITY, +INFINITY };
     std::array<float, 2> bottom_right_limit{ -INFINITY, -INFINITY };
