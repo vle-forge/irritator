@@ -1282,10 +1282,11 @@ void flat_simulation_editor::auto_fit_camera(const ImVec2 canvas) noexcept
     scrolling.y = ((-center.y * zoom) + (canvas.y / 2.f));
 }
 
-constexpr float MW  = 50.f;
-constexpr float MH  = 50.f;
-constexpr float MW2 = MW / 2.f;
-constexpr float MH2 = MW / 2.f;
+constexpr float  MW  = 50.f;
+constexpr float  MH  = 50.f;
+constexpr float  MW2 = MW / 2.f;
+constexpr float  MH2 = MW / 2.f;
+constexpr ImVec2 model_width_height(MW, MH);
 
 bool flat_simulation_editor::display(application& app) noexcept
 {
@@ -1631,6 +1632,7 @@ constexpr static auto clear(auto&      data,
 
     data.tn_rects.resize(tns, ImVec2(0.f, 0.f));
     data.tn_centers.resize(tns, ImVec2(0.f, 0.f));
+    data.tn_factors.resize(tns, ImVec2(1.f, 1.f));
     data.tn_colors.resize(tns, IM_COL32(255, 255, 255, 255));
     data.tn_children.resize(tns, 0u);
 }
@@ -1736,22 +1738,76 @@ constexpr static void compute_colors(auto&       data,
     }
 }
 
-static auto compute_max_rest(auto&            data,
-                             const project&   pj,
-                             const tree_node& parent) noexcept
+static auto compute_max_rect(const vector<ImVec2>& tn_rects,
+                             const project&        pj,
+                             const tree_node&      parent) noexcept
 {
-    auto ret = ImVec2(MW, MH);
+    auto ret = model_width_height;
 
     for (const auto& child : parent.children) {
         if (child.is_tree_node()) {
             const auto* sub_tn    = child.tn;
             const auto  sub_tn_id = pj.tree_nodes.get_id(sub_tn);
 
-            ret = ImMax(ret, data.tn_rects[su_tn_id]);
+            ret = ImMax(ret, tn_rects[sub_tn_id]);
         }
     }
 
     return ret;
+}
+
+struct max_point_in_vh_lines_result {
+    unsigned hpoints;
+    unsigned vpoints;
+};
+
+static auto max_point_in_vh_lines(const graph_component& g) noexcept
+  -> max_point_in_vh_lines_result
+{
+    vector<float> hlines(g.cache.size(), reserve_tag{});
+    vector<float> vlines(g.cache.size(), reserve_tag{});
+
+    for (const auto& child : g.cache) {
+        const auto  child_id      = g.cache.get_id(child);
+        const auto  graph_node_id = child.node_id;
+        const auto& pos           = g.g.node_positions[graph_node_id];
+
+        hlines.push_back(pos[0]);
+        vlines.push_back(pos[1]);
+    }
+
+    std::ranges::sort(hlines);
+    std::ranges::sort(vlines);
+
+    {
+        auto it = hlines.begin();
+        while (it != hlines.end()) {
+            auto next = it + 1;
+            if (next == hlines.end())
+                break;
+
+            if (*next - *it < .1f)
+                hlines.erase(next);
+            else
+                ++it;
+        }
+    }
+
+    {
+        auto it = vlines.begin();
+        while (it != vlines.end()) {
+            auto next = it + 1;
+            if (next == vlines.end())
+                break;
+
+            if (*next - *it < .1f)
+                vlines.erase(next);
+            else
+                ++it;
+        }
+    }
+
+    return { .hpoints = hlines.size(), .vpoints = vlines.size() };
 }
 
 static void compute_rect(auto&            data,
@@ -1791,26 +1847,33 @@ static void compute_rect(auto&            data,
 
     case component_type::graph:
         if (auto* g = mod.graph_components.try_to_get(compo.id.graph_id)) {
-            rect_bound bound;
+            const auto tn_rect_max = compute_max_rect(data.tn_rects, pj, tn);
+            const auto max_points  = max_point_in_vh_lines(*g);
+            // rect_bound bound;
 
-            for (const auto& child : g->cache) {
-                const auto child_id      = g->cache.get_id(child);
-                const auto graph_node_id = child.node_id;
-                const auto pos           = g->g.node_positions[graph_node_id];
+            // for (const auto& child : g->cache) {
+            //     const auto child_id      = g->cache.get_id(child);
+            //     const auto graph_node_id = child.node_id;
+            //     const auto pos           =
+            //     g->g.node_positions[graph_node_id];
 
-                debug::ensure(tn.children[child_id].is_tree_node());
-                debug::ensure(tn.children[child_id].tn);
+            //    debug::ensure(tn.children[child_id].is_tree_node());
+            //    debug::ensure(tn.children[child_id].tn);
 
-                if (tn.children[child_id].is_tree_node()) {
-                    const auto* sub_tn    = tn.children[child_id].tn;
-                    const auto  sub_tn_id = pj.tree_nodes.get_id(*sub_tn);
-                    const auto& sub_pos   = data.tn_rects[sub_tn_id];
+            //    if (tn.children[child_id].is_tree_node()) {
+            //        const auto* sub_tn    = tn.children[child_id].tn;
+            //        const auto  sub_tn_id = pj.tree_nodes.get_id(*sub_tn);
+            //        const auto& sub_pos   = data.tn_rects[sub_tn_id];
 
-                    bound.update(pos[0] + sub_pos[0], pos[1] + sub_pos[1]);
-                }
-            }
+            //        bound.update(pos[0] + sub_pos[0], pos[1] + sub_pos[1]);
+            //    }
+            //}
 
-            data.tn_rects[tn_id] = bound.distance();
+            data.tn_rects[tn_id] = ImVec2(max_points.hpoints * tn_rect_max.x,
+                                          max_points.vpoints * tn_rect_max.y);
+            data.tn_factors[tn_id] =
+              ImVec2(data.tn_rects[tn_id].x / max_points.hpoints,
+                     data.tn_rects[tn_id].y / max_points.vpoints);
         }
         break;
 
@@ -1856,6 +1919,7 @@ static void compute_center_and_position(auto&            data,
     const auto tn_id  = pj.tree_nodes.get_id(tn);
     const auto center = data.tn_centers[tn_id];
     const auto rect   = data.tn_rects[tn_id];
+    const auto factor = data.tn_factors[tn_id];
 
     switch (compo.type) {
     case component_type::generic:
@@ -1901,8 +1965,8 @@ static void compute_center_and_position(auto&            data,
 
                 move_tn(data,
                         sub_tn_id,
-                        center.x + pos[0] + sub_rect[0] - MW,
-                        center.y + pos[1] + sub_rect[1] - MH);
+                        center.x + (factor.x * pos[0]) + sub_rect[0] - MW,
+                        center.y + (factor.y * pos[1]) + sub_rect[1] - MH);
             }
         }
         break;
