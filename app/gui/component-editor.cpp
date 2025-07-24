@@ -1611,7 +1611,8 @@ struct component_editor::impl {
                     if (auto* sub_compo =
                           app.mod.components.try_to_get<component>(
                             sub_compo_id)) {
-                        if (sub_compo->x.exists(con.id)) {
+
+                        if (sub_compo->x.exists(con.id) and c.x.exists(con.x)) {
                             ImGui::SetNextItemAllowOverlap();
 
                             ImGui::TextFormat(
@@ -1650,7 +1651,7 @@ struct component_editor::impl {
                     if (auto* sub_compo =
                           app.mod.components.try_to_get<component>(
                             sub_compo_id)) {
-                        if (sub_compo->y.exists(con.id)) {
+                        if (sub_compo->y.exists(con.id) and c.y.exists(con.y)) {
                             ImGui::SetNextItemAllowOverlap();
 
                             ImGui::TextFormat(
