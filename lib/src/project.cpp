@@ -146,8 +146,8 @@ struct model_port {
 class sum_connection
 {
 private:
-    const tree_node* tn = nullptr;
-    port_id          id = undefined<port_id>();
+    tree_node* tn = nullptr;
+    port_id    id = undefined<port_id>();
 
     model_id output_mdl = undefined<model_id>();
     model_id mdl        = undefined<model_id>();
@@ -163,6 +163,8 @@ private:
         output_mdl = sim.models.get_id(sim.alloc(dynamics_type::qss3_sum_4));
         mdl        = output_mdl;
         port       = 0;
+
+        tn->children.emplace_back().set(output_mdl);
 
         return success();
     }
@@ -182,11 +184,13 @@ private:
         mdl                 = sim.models.get_id(new_mdl);
         port                = 0;
 
+        tn->children.emplace_back().set(mdl);
+
         return sim.connect(new_mdl, 0, old_mdl, 3);
     }
 
 public:
-    sum_connection(const tree_node* tn_, port_id id_) noexcept
+    sum_connection(tree_node* tn_, port_id id_) noexcept
       : tn{ tn_ }
       , id{ id_ }
     {}
@@ -1219,7 +1223,7 @@ static void get_output_models(vector<model_port>& outputs,
  * sum_connection struct. These structs will be fill during the
  * component connections construct. */
 static auto prepare_sum_connections(
-  const tree_node&                             tree,
+  tree_node&                                   tree,
   const data_array<connection, connection_id>& connections,
   simulation_copy&                             sc) -> status
 {
@@ -1237,7 +1241,7 @@ static auto prepare_sum_connections(
     for (const auto& cnx : connections) {
         if (tree.is_tree_node(cnx.dst)) {
             const auto  dst_idx  = get_index(cnx.dst);
-            const auto* tn       = tree.children[dst_idx].tn;
+            auto*       tn       = tree.children[dst_idx].tn;
             const auto  compo_id = tn->id;
             const auto  port_id  = cnx.index_dst.compo;
             const auto& c        = sc.mod.components.get<component>(compo_id);
@@ -1256,7 +1260,7 @@ static auto prepare_sum_connections(
 
         if (tree.is_tree_node(cnx.src)) {
             const auto  src_idx  = get_index(cnx.src);
-            const auto* tn       = tree.children[src_idx].tn;
+            auto*       tn       = tree.children[src_idx].tn;
             const auto  compo_id = tn->id;
             const auto  port_id  = cnx.index_src.compo;
             const auto& c        = sc.mod.components.get<component>(compo_id);
