@@ -6901,7 +6901,7 @@ inline status simulation::run() noexcept
         debug::ensure(sched.is_in_tree(mdl->handle));
         sched.update(*mdl, t);
 
-        if (not messages.can_alloc(1))
+        if (not messages.can_alloc(1) and not messages.grow<2, 1>())
             return new_error(simulation_errc::messages_container_full);
 
         auto  port = emitting_output_ports[i].port;
