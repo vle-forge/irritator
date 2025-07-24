@@ -1712,9 +1712,8 @@ struct component_editor::impl {
     {
         if (ImGui::TreeNodeEx("X ports", ImGuiTreeNodeFlags_DefaultOpen)) {
             std::optional<port_id> to_del;
-
-            auto& names = compo.x.get<port_str>();
-            auto& types = compo.x.get<port_option>();
+            auto&                  names = compo.x.get<port_str>();
+            auto&                  types = compo.x.get<port_option>();
 
             for (const auto id : compo.x) {
                 const auto idx = get_index(id);
@@ -1765,26 +1764,46 @@ struct component_editor::impl {
 
         if (ImGui::TreeNodeEx("Y ports", ImGuiTreeNodeFlags_DefaultOpen)) {
             std::optional<port_id> to_del;
+            auto&                  names = compo.y.get<port_str>();
+            auto&                  types = compo.y.get<port_option>();
 
-            compo.y.for_each(
-              [&](auto id, auto& /*type*/, auto& name, auto& /*pos*/) noexcept {
-                  ImGui::PushID(ordinal(id));
+            for (const auto id : compo.y) {
+                const auto idx = get_index(id);
+                ImGui::PushID(idx);
 
-                  if (ImGui::SmallButton("del"))
-                      to_del = id;
-                  ImGui::SameLine();
-                  ImGui::PushItemWidth(64.f);
-                  ImGui::InputFilteredString("##out-name", name);
-                  ImGui::PopItemWidth();
+                if (ImGui::SmallButton("del"))
+                    to_del = id;
 
-                  ImGui::PopID();
-              });
+                ImGui::SameLine();
+                ImGui::PushItemWidth(64.f);
+                ImGui::InputFilteredString("##out-name", names[idx]);
+                ImGui::PopItemWidth();
+
+                ImGui::SameLine();
+                ImGui::PushItemWidth(-1.f);
+
+                const auto* preview = port_option_names[ordinal(types[idx])];
+
+                if (ImGui::BeginCombo("##out-type", preview)) {
+                    for (auto i = 0, e = length(port_option_names); i != e;
+                         ++i) {
+                        if (ImGui::Selectable(port_option_names[i],
+                                              i == ordinal(types[idx]))) {
+                            types[idx] = enum_cast<port_option>(i);
+                        }
+                    }
+                    ImGui::EndCombo();
+                }
+                ImGui::PopItemWidth();
+
+                ImGui::PopID();
+            }
 
             if (compo.y.can_alloc(1) && ImGui::SmallButton("+##out-port")) {
                 compo.y.alloc(
                   [&](auto /*id*/, auto& type, auto& name, auto& pos) noexcept {
-                      type = port_option::classic;
                       name = "-";
+                      type = port_option::classic;
                       pos.reset();
                   });
             }
