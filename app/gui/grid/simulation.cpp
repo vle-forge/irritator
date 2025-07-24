@@ -238,15 +238,18 @@ bool show_local_observers(application&    app,
                                         ed,
                                         tn,
                                         grid)) {
-                  if (auto* mdl = ed.pj.sim.models.try_to_get(grid.mdl_id);
-                      mdl) {
+                  if (auto* mdl = ed.pj.sim.models.try_to_get(grid.mdl_id)) {
                       if (mdl->type == dynamics_type::hsm_wrapper) {
-                          if (auto* hsm = ed.pj.sim.hsms.try_to_get(
-                                get_dyn<hsm_wrapper>(*mdl).id);
+                          const auto& hw = get_dyn<hsm_wrapper>(*mdl);
+
+                          if (auto* hsm = ed.pj.sim.hsms.try_to_get(hw.id);
                               hsm) {
                               grid.scale_min = 0.f;
-                              grid.scale_max =
-                                (float)hsm->compute_max_state_used();
+                              grid.scale_max = static_cast<float>(
+                                hsm->compute_max_state_used());
+                          } else {
+                              grid.scale_min = 0.f;
+                              grid.scale_max = 255.f;
                           }
                       }
                   }
