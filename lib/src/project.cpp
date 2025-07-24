@@ -426,11 +426,14 @@ static auto make_tree_hsm_leaf(simulation_copy&   sc,
             const auto* shsm    = sc.hsm_mod_to_sim.get(hsm_id);
             const auto  shsm_id = *shsm;
             sc.pj.sim.parameters[new_mdl_id].integers[0] = ordinal(shsm_id);
+            debug::ensure(sc.pj.sim.hsms.try_to_get(shsm_id));
 
             dyn.exec.i1 = static_cast<i32>(
               gen.children_parameters[child_index].integers[1]);
             dyn.exec.i2 = static_cast<i32>(
               gen.children_parameters[child_index].integers[2]);
+            // @TODO missing external source in integers[3] and [4].
+
             dyn.exec.r1    = gen.children_parameters[child_index].reals[0];
             dyn.exec.r2    = gen.children_parameters[child_index].reals[1];
             dyn.exec.timer = gen.children_parameters[child_index].reals[2];
