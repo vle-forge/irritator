@@ -1467,4 +1467,167 @@ int main()
                       (g.g.edges.size() + 2u) * 2u));
         }
     };
+
+    "graph-dot-m-n-ports-sum-port-sum-output"_test = [] {
+        //      compo component
+        //   +----------------+
+        //   | +----+  +----+ |
+        // m | |cnt |  | cst| |m
+        // --+>|    |  |    +-+>
+        //   | +----+  +----+ |
+        //   |                |
+        // n | +----+  +----+ |n
+        // --+>|cnt |  | cst+-+>
+        //   | |    |  |    | |
+        //   | +----+  +----+ |
+        //   +----------------+
+        //
+        //
+        //  +------------------+
+        //  | +-+              |
+        //  | |A++-------+     |
+        //  | +-+|       |     |
+        //  |    |       |     |
+        //  | +-+|       |     |
+        //  | |B+++------+     |
+        //  | +-+||      |     |
+        //  |    ||      |     |
+        //  | +-+||      v+-+  |
+        //  | |C++++----->|F|  |
+        //  | +-+|||     ^+++  |
+        //  |    |||     | |   |
+        //  | +-+|||     | |   |
+        //  | |D+++++----+ |   |
+        //  | +-+||||    | |   |
+        //  |    ||||    | |   |
+        //  | +-+||||    | |   |
+        //  | |E+++++----++|   |
+        //  | +-+||||     ||   |
+        //  +----++++-----++---+
+        //       ||||     ||
+        //       vvvv     ||
+        //       +---+    ||
+        //       |sum|    ||
+        //       +--++    ||
+        //          +---> vv
+        //              +---+    +-------+
+        //              |sum+---->counter|
+        //              +---+    +-------+
+
+        {
+            irt::journal_handler jn;
+            irt::modeling        mod{ jn };
+            irt::project         pj;
+
+            auto& compo = mod.alloc_generic_component();
+            auto& gen   = mod.generic_components.get(compo.id.generic_id);
+
+            auto& ch_m_ct  = mod.alloc(gen, irt::dynamics_type::counter);
+            auto& ch_m_cst = mod.alloc(gen, irt::dynamics_type::constant);
+            auto& ch_n_ct  = mod.alloc(gen, irt::dynamics_type::counter);
+            auto& ch_n_cst = mod.alloc(gen, irt::dynamics_type::constant);
+
+            auto p_m_in  = compo.get_or_add_x("m");
+            auto p_m_out = compo.get_or_add_y("m");
+            auto p_n_in  = compo.get_or_add_x("n");
+            auto p_n_out = compo.get_or_add_y("n");
+
+            compo.x.get<irt::port_option>(p_m_in) = irt::port_option::sum;
+            compo.x.get<irt::port_option>(p_n_in) = irt::port_option::sum;
+
+            expect(gen
+                     .connect_input(
+                       p_m_in, ch_m_ct, irt::connection::port{ .model = 0 })
+                     .has_value());
+            expect(gen
+                     .connect_input(
+                       p_n_in, ch_n_ct, irt::connection::port{ .model = 0 })
+                     .has_value());
+
+            expect(gen
+                     .connect_output(
+                       p_m_out, ch_m_cst, irt::connection::port{ .model = 0 })
+                     .has_value());
+            expect(gen
+                     .connect_output(
+                       p_n_out, ch_n_cst, irt::connection::port{ .model = 0 })
+                     .has_value());
+
+            auto& cg = mod.alloc_graph_component();
+            auto& g  = mod.graph_components.get(cg.id.graph_id);
+
+            auto p_cg_m_out = cg.get_or_add_y("m");
+
+            cg.y.get<irt::port_option>(p_m_in) = irt::port_option::sum;
+
+            cg.output_connection_pack.push_back(irt::connection_pack{
+              .parent_port     = p_cg_m_out,
+              .child_port      = p_m_out,
+              .child_component = mod.components.get_id(compo) });
+
+            const std::string_view buf = R"(digraph D {
+            A
+            B
+            C
+            D
+            E
+            F
+            A -- F
+            B -- F
+            C -- F
+            D -- F
+            E -- F
+        })";
+
+            auto ret = irt::parse_dot_buffer(mod, buf);
+            expect(ret.has_value() >> fatal);
+
+            expect(eq(ret->nodes.size(), 6u));
+
+            const auto table = ret->make_toc();
+            expect(eq(table.ssize(), 6));
+
+            expect(table.get("A"sv) >> fatal);
+            expect(table.get("B"sv) >> fatal);
+            expect(table.get("C"sv) >> fatal);
+
+            g.g = *ret;
+
+            for (const auto id : g.g.nodes)
+                g.g.node_components[id] = mod.components.get_id(compo);
+
+            g.type = irt::graph_component::connection_type::name;
+
+            // Finally we build
+
+            auto& head     = mod.alloc_generic_component();
+            auto& gen_head = mod.generic_components.get(head.id.generic_id);
+            auto& ch_head_graph =
+              mod.alloc(gen_head, mod.components.get_id(cg));
+            auto& ch_head_cnt =
+              mod.alloc(gen_head, irt::dynamics_type::counter);
+
+            expect(gen_head
+                     .connect(mod,
+                              ch_head_graph,
+                              irt::connection::port{ .compo = p_cg_m_out },
+                              ch_head_cnt,
+                              irt::connection::port{ .model = 0 })
+                     .has_value());
+
+            expect(pj.set(mod, head).has_value());
+
+            // Six components plus 2 automatic 4 sum models (5 input models A,
+            // .., E for port m and 2 for port n + 2 output sum models and 1
+            // counter.
+            expect(eq(pj.sim.models.ssize(), 6 * 4 + 2 + 2 + 2 + 1));
+
+            // 5 edges + 2 edge for sum models for port m and n + 6 edges to sum
+            // models and 1 edge between sum models and finally on 1edge from
+            // sum model to counter.
+            expect(eq(get_connection_number(pj.sim.nodes),
+                      (g.g.edges.size() + 2u) * 2u) +
+                   8u);
+        }
+    };
 }
