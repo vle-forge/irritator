@@ -41,7 +41,7 @@ bool show_external_sources_combo(external_source& srcs,
                   std::cmp_less_equal(integer_1, source::source_type_count));
 
     u64                 id   = static_cast<u64>(integer_0);
-    source::source_type type = enum_cast<source::source_type>(integer_0);
+    source::source_type type = enum_cast<source::source_type>(integer_1);
 
     if (show_external_sources_combo(srcs, title, id, type)) {
         debug::ensure(is_numeric_castable<i64>(id));
@@ -131,11 +131,7 @@ bool show_external_sources_combo(external_source&     srcs,
             const auto id    = srcs.constant_sources.get_id(s);
             const auto index = get_index(id);
 
-            format(label,
-                   "{}-{} {}",
-                   ordinal(source::source_type::constant),
-                   index,
-                   s.name.c_str());
+            format(label, "{} (constant)##{}", s.name.sv(), index);
 
             bool is_selected = src_type == source::source_type::constant &&
                                src_id == ordinal(id);
@@ -143,8 +139,6 @@ bool show_external_sources_combo(external_source&     srcs,
                 src_type   = source::source_type::constant;
                 src_id     = ordinal(id);
                 is_changed = true;
-                ImGui::EndCombo();
-                break;
             }
         }
 
@@ -152,11 +146,7 @@ bool show_external_sources_combo(external_source&     srcs,
             const auto id    = srcs.binary_file_sources.get_id(s);
             const auto index = get_index(id);
 
-            format(label,
-                   "{}-{} {}",
-                   ordinal(source::source_type::binary_file),
-                   index,
-                   s.name.c_str());
+            format(label, "{} (bin)##{}", s.name.sv(), index);
 
             bool is_selected = src_type == source::source_type::binary_file &&
                                src_id == ordinal(id);
@@ -164,29 +154,6 @@ bool show_external_sources_combo(external_source&     srcs,
                 src_type   = source::source_type::binary_file;
                 src_id     = ordinal(id);
                 is_changed = true;
-                ImGui::EndCombo();
-                break;
-            }
-        }
-
-        for (const auto& s : srcs.random_sources) {
-            const auto id    = srcs.random_sources.get_id(s);
-            const auto index = get_index(id);
-
-            format(label,
-                   "{}-{} {}",
-                   ordinal(source::source_type::random),
-                   index,
-                   s.name.c_str());
-
-            bool is_selected =
-              src_type == source::source_type::random && src_id == ordinal(id);
-            if (ImGui::Selectable(label.c_str(), is_selected)) {
-                src_type   = source::source_type::random;
-                src_id     = ordinal(id);
-                is_changed = true;
-                ImGui::EndCombo();
-                break;
             }
         }
 
@@ -194,11 +161,7 @@ bool show_external_sources_combo(external_source&     srcs,
             const auto id    = srcs.text_file_sources.get_id(s);
             const auto index = get_index(id);
 
-            format(label,
-                   "{}-{} {}",
-                   ordinal(source::source_type::text_file),
-                   index,
-                   s.name.c_str());
+            format(label, "{} (text)##{}", s.name.sv(), index);
 
             bool is_selected = src_type == source::source_type::text_file &&
                                src_id == ordinal(id);
@@ -206,8 +169,21 @@ bool show_external_sources_combo(external_source&     srcs,
                 src_type   = source::source_type::text_file;
                 src_id     = ordinal(id);
                 is_changed = true;
-                ImGui::EndCombo();
-                break;
+            }
+        }
+
+        for (const auto& s : srcs.random_sources) {
+            const auto id    = srcs.random_sources.get_id(s);
+            const auto index = get_index(id);
+
+            format(label, "{} (random)##{}", s.name.sv(), index);
+
+            bool is_selected =
+              src_type == source::source_type::random && src_id == ordinal(id);
+            if (ImGui::Selectable(label.c_str(), is_selected)) {
+                src_type   = source::source_type::random;
+                src_id     = ordinal(id);
+                is_changed = true;
             }
         }
 
