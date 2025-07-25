@@ -28,3 +28,18 @@ jobs:
     - name: Test
       working-directory: ${{github.workspace}}/build
       run: ctest -VV -C ${{matrix.BUILD_TYPE}} --rerun-failed --output-on-failure
+
+    - name: Prepare archive
+      shell: cmd
+      run: |
+        mkdir archive-${{matrix.BUILD_TYPE}}
+        cd archive-${{matrix.BUILD_TYPE}}
+        copy "${{github.workspace}}\build\app\gui\${{matrix.BUILD_TYPE}}\irritator-0.1.exe" irritator.exe
+        cd ..
+
+    - name: Upload archive
+      uses: actions/upload-artifact@v4
+      with:
+        name: irritator-${{matrix.BUILD_TYPE}}
+        path: |
+          archive-${{matrix.BUILD_TYPE}}
