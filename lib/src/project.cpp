@@ -430,6 +430,7 @@ static auto make_tree_hsm_leaf(simulation_copy&   sc,
             const auto* shsm    = sc.hsm_mod_to_sim.get(hsm_id);
             const auto  shsm_id = *shsm;
             sc.pj.sim.parameters[new_mdl_id].integers[0] = ordinal(shsm_id);
+            dyn.id                                       = shsm_id;
             debug::ensure(sc.pj.sim.hsms.try_to_get(shsm_id));
 
             dyn.exec.i1 = static_cast<i32>(
