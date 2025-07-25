@@ -794,8 +794,6 @@ static bool show_project_parameters(application&    app,
 
 static void show_component_observations_actions(project_editor& sim_ed) noexcept
 {
-    ImGui::TextUnformatted("Column: ");
-    ImGui::SameLine();
     if (ImGui::Button("1"))
         sim_ed.tree_node_observation =
           project_editor::tree_node_observation_t(1);
@@ -812,11 +810,10 @@ static void show_component_observations_actions(project_editor& sim_ed) noexcept
         sim_ed.tree_node_observation =
           project_editor::tree_node_observation_t(4);
     ImGui::SameLine();
-
-    ImGui::TextUnformatted("Height in pixel: ");
+    ImGui::TextUnformatted("-");
     ImGui::SameLine();
-    if (ImGui::Button("200"))
-        sim_ed.tree_node_observation_height = 200.f;
+    if (ImGui::Button("Default"))
+        sim_ed.tree_node_observation_height = 300.f;
     ImGui::SameLine();
     if (ImGui::Button("+50"))
         sim_ed.tree_node_observation_height += 50.f;
@@ -901,102 +898,110 @@ static int show_simulation_table_file_observers(application& /*app*/,
 static bool show_project_observations(application&    app,
                                       project_editor& ed) noexcept
 {
-    constexpr static auto flags = ImGuiTreeNodeFlags_DefaultOpen;
+    ImGuiContext& g = *GImGui;
+    const auto    sub_obs_size =
+      ImVec2((ImGui::GetContentRegionAvail().x - 2.f * g.Style.IndentSpacing) /
+               *ed.tree_node_observation,
+             ed.tree_node_observation_height / *ed.tree_node_observation);
 
     auto updated = 0;
 
-    if (ImGui::CollapsingHeader("Plots", flags))
-        updated += show_simulation_table_variable_observers(app, ed);
+    if (ImGui::TreeNodeEx("All", ImGuiTreeNodeFlags_DefaultOpen)) {
+        if (ImGui::TreeNodeEx("Observers")) {
+            if (not ed.pj.variable_observers.empty())
+                updated += show_simulation_table_variable_observers(app, ed);
 
-    if (not ed.pj.grid_observers.empty() and
-        ImGui::CollapsingHeader("Grid observers", flags))
-        updated += show_simulation_table_grid_observers(app, ed);
+            if (not ed.pj.grid_observers.empty())
+                updated += show_simulation_table_grid_observers(app, ed);
 
-    if (not ed.pj.graph_observers.empty() and
-        ImGui::CollapsingHeader("Graph observers", flags))
-        updated += show_simulation_table_graph_observers(app, ed);
+            if (not ed.pj.graph_observers.empty())
+                updated += show_simulation_table_graph_observers(app, ed);
 
-    if (not ed.pj.file_obs.ids.empty() and
-        ImGui::CollapsingHeader("File observers", flags))
-        updated += show_simulation_table_file_observers(app, ed);
+            if (not ed.pj.file_obs.ids.empty())
+                updated += show_simulation_table_file_observers(app, ed);
 
-    show_component_observations_actions(ed);
+            ImGui::TreePop();
+        }
 
-    const auto sub_obs_size =
-      ImVec2(ImGui::GetContentRegionAvail().x / *ed.tree_node_observation,
-             ed.tree_node_observation_height);
+        if (ImGui::TreeNodeEx("Display", ImGuiTreeNodeFlags_DefaultOpen)) {
+            show_component_observations_actions(ed);
 
-    if (ImGui::BeginTable("##obs-table", *ed.tree_node_observation)) {
-        ImGui::TableHeadersRow();
-        ImGui::TableNextRow();
-        ImGui::TableNextColumn();
-
-        auto pos = 0;
-        for_each_data(ed.pj.grid_observers, [&](auto& grid) noexcept {
-            ed.grid_obs.show(grid, sub_obs_size);
-
-            ++pos;
-
-            if (pos >= *ed.tree_node_observation) {
-                pos = 0;
+            if (ImGui::BeginTable("##obs-table", *ed.tree_node_observation)) {
                 ImGui::TableNextRow();
-            }
-            ImGui::TableNextColumn();
-        });
+                ImGui::TableNextColumn();
 
-        for_each_data(ed.pj.graph_observers, [&](auto& graph) noexcept {
-            ed.graph_obs.show(app, ed, graph, sub_obs_size);
+                auto pos = 0;
+                for_each_data(ed.pj.grid_observers, [&](auto& grid) noexcept {
+                    ed.grid_obs.show(grid, sub_obs_size);
 
-            ++pos;
+                    ++pos;
 
-            if (pos >= *ed.tree_node_observation) {
-                pos = 0;
-                ImGui::TableNextRow();
-            }
-            ImGui::TableNextColumn();
-        });
-
-        for (auto& vobs : ed.pj.variable_observers) {
-            ImGui::PushID(&vobs);
-            if (ImPlot::BeginPlot(vobs.name.c_str(), ImVec2(-1, 200))) {
-                ImPlot::PushStyleVar(ImPlotStyleVar_LineWeight, 1.f);
-                ImPlot::PushStyleVar(ImPlotStyleVar_MarkerSize, 1.f);
-
-                ImPlot::SetupAxis(ImAxis_X1,
-                                  "t",
-                                  ImPlotAxisFlags_AutoFit |
-                                    ImPlotAxisFlags_RangeFit);
-                ImPlot::SetupAxis(ImAxis_Y1,
-                                  vobs.name.c_str(),
-                                  ImPlotAxisFlags_AutoFit |
-                                    ImPlotAxisFlags_RangeFit);
-
-                ImPlot::SetupLegend(ImPlotLocation_North);
-                ImPlot::SetupFinish();
-
-                vobs.for_each([&](const auto id) noexcept {
-                    const auto idx = get_index(id);
-                    if (const auto* obs = ed.pj.sim.observers.try_to_get(
-                          vobs.get_obs_ids()[idx]))
-                        ed.plot_obs.show_plot_line(
-                          *obs, vobs.get_options()[idx], vobs.get_names()[idx]);
+                    if (pos >= *ed.tree_node_observation) {
+                        pos = 0;
+                        ImGui::TableNextRow();
+                    }
+                    ImGui::TableNextColumn();
                 });
 
-                ImPlot::PopStyleVar(2);
-                ImPlot::EndPlot();
-            }
-            ImGui::PopID();
+                for_each_data(ed.pj.graph_observers, [&](auto& graph) noexcept {
+                    ed.graph_obs.show(app, ed, graph, sub_obs_size);
 
-            ++pos;
-            if (pos >= *ed.tree_node_observation) {
-                pos = 0;
-                ImGui::TableNextRow();
+                    ++pos;
+
+                    if (pos >= *ed.tree_node_observation) {
+                        pos = 0;
+                        ImGui::TableNextRow();
+                    }
+                    ImGui::TableNextColumn();
+                });
+
+                for (auto& vobs : ed.pj.variable_observers) {
+                    ImGui::PushID(&vobs);
+                    ImGui::BeginChild("##vobs", sub_obs_size);
+                    if (ImPlot::BeginPlot(vobs.name.c_str(), sub_obs_size)) {
+                        ImPlot::PushStyleVar(ImPlotStyleVar_LineWeight, 1.f);
+                        ImPlot::PushStyleVar(ImPlotStyleVar_MarkerSize, 1.f);
+
+                        ImPlot::SetupAxis(
+                          ImAxis_X1, "time", ImPlotAxisFlags_AutoFit);
+                        ImPlot::SetupAxis(ImAxis_Y1,
+                                          vobs.name.c_str(),
+                                          ImPlotAxisFlags_AutoFit);
+
+                        ImPlot::SetupLegend(ImPlotLocation_NorthWest);
+                        ImPlot::SetupFinish();
+
+                        vobs.for_each([&](const auto id) noexcept {
+                            const auto idx = get_index(id);
+                            if (const auto* obs =
+                                  ed.pj.sim.observers.try_to_get(
+                                    vobs.get_obs_ids()[idx]))
+                                ed.plot_obs.show_plot_line(
+                                  *obs,
+                                  vobs.get_options()[idx],
+                                  vobs.get_names()[idx]);
+                        });
+
+                        ImPlot::PopStyleVar(2);
+                        ImPlot::EndPlot();
+                    }
+                    ImGui::EndChild();
+                    ImGui::PopID();
+
+                    ++pos;
+                    if (pos >= *ed.tree_node_observation) {
+                        pos = 0;
+                        ImGui::TableNextRow();
+                    }
+                    ImGui::TableNextColumn();
+                }
+                ImGui::EndTable();
             }
-            ImGui::TableNextColumn();
+            ImGui::TreePop();
         }
-        ImGui::EndTable();
-    }
 
+        ImGui::TreePop();
+    }
     return updated;
 }
 
@@ -1063,9 +1068,9 @@ static void show_component_observations(application&    app,
                     ImPlot::SetupLegend(ImPlotLocation_North);
                     ImPlot::SetupFinish();
                     if (sim_ed.simulation_state != // TODO may be adding a
-                                                   // spin_mutex in observer and
-                                                   // lock/try_lock the linear
-                                                   // buffer?
+                                                   // spin_mutex in observer
+                                                   // and lock/try_lock the
+                                                   // linear buffer?
                         simulation_status::initializing)
                         show_local_variables_plot(sim_ed, vobs, tn_id);
                     ImPlot::PopStyleVar(2);

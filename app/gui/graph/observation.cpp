@@ -191,18 +191,23 @@ void graph_observation_widget::show(application&    app,
                                     graph_observer& graph,
                                     const ImVec2& /*size*/) noexcept
 {
-    if (auto* tn = ed.pj.tree_nodes.try_to_get(graph.parent_id)) {
-        if (auto* c = app.mod.components.try_to_get<component>(tn->id)) {
-            if (c->type == component_type::graph) {
-                if (auto* g =
-                      app.mod.graph_components.try_to_get(c->id.graph_id)) {
-                    if (not graph.values.empty())
-                        show_graph_observer(
-                          *g, zoom, scrolling, distance, graph);
+    ImGui::PushID(&graph);
+    if (ImGui::BeginChild("graph")) {
+        if (auto* tn = ed.pj.tree_nodes.try_to_get(graph.parent_id)) {
+            if (auto* c = app.mod.components.try_to_get<component>(tn->id)) {
+                if (c->type == component_type::graph) {
+                    if (auto* g =
+                          app.mod.graph_components.try_to_get(c->id.graph_id)) {
+                        if (not graph.values.empty())
+                            show_graph_observer(
+                              *g, zoom, scrolling, distance, graph);
+                    }
                 }
             }
         }
     }
+    ImGui::EndChild();
+    ImGui::PopID();
 }
 
 } // namespace irt

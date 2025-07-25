@@ -942,7 +942,7 @@ struct project_editor {
     /** Number of column in the tree node observation. */
     using tree_node_observation_t = constrained_value<int, 1, 100>;
     tree_node_observation_t tree_node_observation{ 1 };
-    float                   tree_node_observation_height = 200.f;
+    float                   tree_node_observation_height = 300.f;
 
     circular_buffer<command, 256> commands;
 

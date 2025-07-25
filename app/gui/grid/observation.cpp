@@ -14,24 +14,27 @@ void grid_observation_widget::show(grid_observer& grid,
 {
     ImGui::PushID(reinterpret_cast<void*>(&grid));
 
-    if (not grid.values.empty()) {
-        if (std::unique_lock lock(grid.mutex, std::try_to_lock);
-            lock.owns_lock()) {
-            ImPlot::PushColormap(grid.color_map);
-            if (ImPlot::BeginPlot(grid.name.c_str(),
-                                  size,
-                                  ImPlotFlags_NoLegend |
-                                    ImPlotFlags_NoMouseText)) {
-                ImPlot::PlotHeatmap(grid.name.c_str(),
-                                    grid.values.data(),
-                                    grid.rows,
-                                    grid.cols,
-                                    grid.scale_min,
-                                    grid.scale_max);
-                ImPlot::EndPlot();
+    if (ImGui::BeginChild("grid")) {
+        if (not grid.values.empty()) {
+            if (std::unique_lock lock(grid.mutex, std::try_to_lock);
+                lock.owns_lock()) {
+                ImPlot::PushColormap(grid.color_map);
+                if (ImPlot::BeginPlot(grid.name.c_str(),
+                                      size,
+                                      ImPlotFlags_NoLegend |
+                                        ImPlotFlags_NoMouseText)) {
+                    ImPlot::PlotHeatmap(grid.name.c_str(),
+                                        grid.values.data(),
+                                        grid.rows,
+                                        grid.cols,
+                                        grid.scale_min,
+                                        grid.scale_max);
+                    ImPlot::EndPlot();
+                }
             }
         }
     }
+    ImGui::EndChild();
 
     ImGui::PopID();
 }
