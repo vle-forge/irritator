@@ -4342,7 +4342,8 @@ template<typename... Args>
 inline constexpr typename vector<T, A>::reference vector<T, A>::emplace_back(
   Args&&... args) noexcept
 {
-    static_assert(std::is_constructible_v<T, Args...> ||
+    static_assert(std::is_trivially_constructible_v<T, Args...> or
+                    std::is_constructible_v<T, Args...> or
                     std::is_nothrow_constructible_v<T, Args...>,
                   "T must but trivially or nothrow constructible from this "
                   "argument(s)");

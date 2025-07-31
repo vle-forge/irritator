@@ -639,11 +639,14 @@ static constexpr void build_links(
                               dyn.y[i], [&](auto& dst, auto dst_port) {
                                   const auto dst_id = sim.get_id(dst);
                                   if (is_in_node(nodes, dst_id)) {
-                                      links.emplace_back(
-                                        make_output_node_id(src_id, i),
-                                        make_input_node_id(dst_id, dst_port),
-                                        src_idx,
-                                        get_index_from_nodes(nodes, dst_id));
+                                      links.push_back(
+                                        generic_simulation_editor::link{
+                                          .out = make_output_node_id(src_id, i),
+                                          .in  = make_input_node_id(dst_id,
+                                                                   dst_port),
+                                          .mdl_out = src_idx,
+                                          .mdl_in  = get_index_from_nodes(
+                                            nodes, dst_id) });
                                   }
                               });
                         }
@@ -686,10 +689,12 @@ static constexpr void build_flat_links(
                 for (int i = 0, e = length(dyn.y); i != e; ++i) {
                     sim.for_each(dyn.y[i], [&](auto& dst, auto dst_port) {
                         const auto dst_id = sim.get_id(dst);
-                        links.emplace_back(make_output_node_id(src_id, i),
-                                           make_input_node_id(dst_id, dst_port),
-                                           src_idx,
-                                           get_index_from_nodes(nodes, dst_id));
+
+                        links.push_back(generic_simulation_editor::link{
+                          .out     = make_output_node_id(src_id, i),
+                          .in      = make_input_node_id(dst_id, dst_port),
+                          .mdl_out = src_idx,
+                          .mdl_in  = get_index_from_nodes(nodes, dst_id) });
                     });
                 }
             }

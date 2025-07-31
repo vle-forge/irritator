@@ -545,13 +545,14 @@ static auto compute_automatic_layout(const project&        pj,
     for (const auto& c : gen.cache) {
         const auto c_id = gen.cache.get_id(c);
 
-        nodes.emplace_back(c_id,
-                           max_width_height.x,
-                           max_width_height.y,
-                           (max_width_height.x * to_float(c.col + 1)) -
-                             max_width_height_2.x - grid_width_height_2.x,
-                           (max_width_height.y * to_float(c.row + 1)) -
-                             max_width_height_2.y - grid_width_height_2.y);
+        nodes.push_back(node{ .id     = c_id,
+                              .width  = max_width_height.x,
+                              .height = max_width_height.y,
+                              .x = (max_width_height.x * to_float(c.col + 1)) -
+                                   max_width_height_2.x - grid_width_height_2.x,
+                              .y = (max_width_height.y * to_float(c.row + 1)) -
+                                   max_width_height_2.y -
+                                   grid_width_height_2.y });
 
         bound.update(nodes.back().x - max_width_height_2.x,
                      nodes.back().y - max_width_height_2.y);
@@ -648,8 +649,8 @@ static void compute_automatic_layout(const project&         pj,
         float    y;
     };
 
-    // To keep the graph position, we compute (1) the greater width,height from
-    // children and the positions factors from the underlying
+    // To keep the graph position, we compute (1) the greater width,height
+    // from children and the positions factors from the underlying
     // graph_component::graph width, height.
 
     const auto max_width_height    = compute_max_rect(data.tn_rects, pj, tn);
@@ -666,16 +667,16 @@ static void compute_automatic_layout(const project&         pj,
     for (const auto& c : gen.cache) {
         const auto c_id = gen.cache.get_id(c);
 
-        nodes.emplace_back(
-          c_id,
-          max_width_height.x,
-          max_width_height.y,
-          (h_v_lines.hpoints * center_width_height.x *
-           gen.g.node_positions[c.node_id][0] / width_height.x) -
-            graph_center.x,
-          (h_v_lines.vpoints * center_width_height.y *
-           gen.g.node_positions[c.node_id][1] / width_height.y) -
-            graph_center.y);
+        nodes.push_back(
+          node{ .id     = c_id,
+                .width  = max_width_height.x,
+                .height = max_width_height.y,
+                .x      = (h_v_lines.hpoints * center_width_height.x *
+                      gen.g.node_positions[c.node_id][0] / width_height.x) -
+                     graph_center.x,
+                .y = (h_v_lines.vpoints * center_width_height.y *
+                      gen.g.node_positions[c.node_id][1] / width_height.y) -
+                     graph_center.y });
 
         bound.update(nodes.back().x - nodes.back().width,
                      nodes.back().y - nodes.back().height);
@@ -714,22 +715,22 @@ static void compute_automatic_layout(const project&           pj,
 
         switch (c.type) {
         case child_type::model:
-            nodes.emplace_back(c_id,
-                               MW,
-                               MH,
-                               gen.children_positions[c_id].x,
-                               gen.children_positions[c_id].y);
+            nodes.push_back(node{ .id     = c_id,
+                                  .width  = MW,
+                                  .height = MH,
+                                  .x      = gen.children_positions[c_id].x,
+                                  .y      = gen.children_positions[c_id].y });
             break;
 
         case child_type::component: {
             const auto* sub_tn    = tn.children[c_id].tn;
             const auto  sub_tn_id = pj.tree_nodes.get_id(*sub_tn);
 
-            nodes.emplace_back(c_id,
-                               data.tn_rects[sub_tn_id].x,
-                               data.tn_rects[sub_tn_id].y,
-                               gen.children_positions[c_id].x,
-                               gen.children_positions[c_id].y);
+            nodes.push_back(node{ .id     = c_id,
+                                  .width  = data.tn_rects[sub_tn_id].x,
+                                  .height = data.tn_rects[sub_tn_id].y,
+                                  .x      = gen.children_positions[c_id].x,
+                                  .y      = gen.children_positions[c_id].y });
         } break;
         }
     }
@@ -842,13 +843,13 @@ void flat_simulation_editor::compute_rects(application& app,
     auto& pj_ed = container_of(this, &project_editor::flat_sim);
 
     struct stack_elem {
-        tree_node* tn;
-        bool       read_child   = false;
-        bool       read_sibling = false;
+        const tree_node* tn;
+        bool             read_child   = false;
+        bool             read_sibling = false;
     };
 
     vector<stack_elem> stack(max_component_stack_size, reserve_tag);
-    stack.emplace_back(pj_ed.pj.tn_head());
+    stack.push_back(stack_elem{ .tn = pj_ed.pj.tn_head() });
 
     while (not stack.empty()) {
         const auto cur = stack.back();
@@ -861,13 +862,13 @@ void flat_simulation_editor::compute_rects(application& app,
             } else {
                 stack.back().read_sibling = true;
                 if (auto* sibling = cur.tn->tree.get_sibling(); sibling) {
-                    stack.emplace_back(sibling);
+                    stack.push_back(stack_elem{ .tn = sibling });
                 }
             }
         } else {
             stack.back().read_child = true;
             if (auto* child = cur.tn->tree.get_child()) {
-                stack.emplace_back(child);
+                stack.push_back(stack_elem{ .tn = child });
             }
         }
     }
@@ -912,5 +913,4 @@ void flat_simulation_editor::display_status() noexcept
       bottom_right.x,
       bottom_right.y);
 }
-
 }
