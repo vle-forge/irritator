@@ -759,14 +759,15 @@ struct json_dearchiver::impl {
         return true;
     }
 
-    bool copy_i64_to(std::optional<source::source_type>& dst) const noexcept
+    bool copy_i64_to(std::optional<source::source_type>& dst) noexcept
     {
         if (0 <= temp_i64 and temp_i64 < 5) {
             dst = enum_cast<source::source_type>(temp_i64);
             return true;
         }
 
-        return false;
+        return error("fail to convert integer {} to source::source_type",
+                     temp_i64);
     }
 
     bool project_global_parameters_can_alloc(std::integral auto i) noexcept
@@ -1268,7 +1269,7 @@ struct json_dearchiver::impl {
 
                      return error("unknown element");
                  }) and
-               copy_to_source(type, id, p.integers[1], p.integers[2]);
+               copy_to_source(type, id, p.integers[2], p.integers[1]);
     }
 
     bool read_dynamics(const rapidjson::Value& val,
@@ -1300,7 +1301,26 @@ struct json_dearchiver::impl {
 
                      return error("unknown element");
                  }) and
-               copy_to_source(type, id, p.integers[1], p.integers[2]);
+               copy_to_source(type, id, p.integers[2], p.integers[1]);
+    }
+
+    bool copy_to_generator_options(bool ta_use_source,
+                                   bool value_use_source,
+                                   bool stop_on_error,
+                                   i64& options)
+    {
+        bitflags<generator::option> flags;
+
+        if (ta_use_source)
+            flags.set(generator::option::ta_use_source);
+        if (value_use_source)
+            flags.set(generator::option::value_use_source);
+        if (stop_on_error)
+            flags.set(generator::option::stop_on_error);
+
+        options = static_cast<i64>(flags.to_unsigned());
+
+        return true;
     }
 
     bool read_dynamics(const rapidjson::Value& val,
@@ -1314,6 +1334,10 @@ struct json_dearchiver::impl {
         std::optional<u64>                 id_ta;
         std::optional<u64>                 id_value;
 
+        auto ta_use_source    = false;
+        auto value_use_source = false;
+        auto stop_on_error    = false;
+
         return for_each_member(
                  val,
                  [&](const auto name, const auto& value) noexcept -> bool {
@@ -1321,6 +1345,15 @@ struct json_dearchiver::impl {
                          return read_temp_real(value) &&
                                 is_double_greater_equal_than(0.0) &&
                                 copy_real_to(p.reals[0]);
+
+                     if ("ta-is-external"sv == name)
+                         return read_bool(value, ta_use_source);
+
+                     if ("value-is-external"sv == name)
+                         return read_bool(value, value_use_source);
+
+                     if ("stop-on-error"sv == name)
+                         return read_bool(value, stop_on_error);
 
                      if ("source-ta-type"sv == name)
                          return read_temp_i64(value) && copy_i64_to(type_ta);
@@ -1334,19 +1367,13 @@ struct json_dearchiver::impl {
                      if ("source-value-id"sv == name)
                          return read_temp_u64(value) && copy_u64_to(id_value);
 
-                     if ("stop-on-error"sv == name) {
-                         if (read_temp_bool(value) &&
-                             copy_bool_to(p.integers[0])) {
-                             return true;
-                         }
-                         return false;
-                     }
-
                      return error("unknown element");
                  }) and
-               copy_to_source(type_ta, id_ta, p.integers[1], p.integers[2]) and
+               copy_to_source(type_ta, id_ta, p.integers[2], p.integers[1]) and
                copy_to_source(
-                 type_value, id_value, p.integers[3], p.integers[4]);
+                 type_value, id_value, p.integers[4], p.integers[3]) and
+               copy_to_generator_options(
+                 ta_use_source, value_use_source, stop_on_error, p.integers[0]);
     }
 
     bool read_simulation_dynamics(const rapidjson::Value& val,
@@ -5736,10 +5763,17 @@ struct json_archiver::impl {
                const generator& /*dyn*/,
                const parameter& p) noexcept
     {
+        const auto options = to_unsigned(p.integers[0]);
+        const auto flags   = bitflags<generator::option>(options);
+
         writer.StartObject();
 
         writer.Key("stop-on-error");
-        writer.Bool(p.integers[0]);
+        writer.Bool(flags[generator::option::stop_on_error]);
+        writer.Key("ta-is-external");
+        writer.Bool(flags[generator::option::ta_use_source]);
+        writer.Key("value-is-external");
+        writer.Bool(flags[generator::option::value_use_source]);
 
         writer.Key("offset");
         writer.Double(p.reals[0]);
