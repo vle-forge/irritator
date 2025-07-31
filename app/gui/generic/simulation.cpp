@@ -706,7 +706,7 @@ static void build_flat_nodes(
     nodes.reserve(sim.models.ssize());
 
     if (const auto* head = pj_ed.pj.tn_head()) {
-        vector<const tree_node*> stack(max_component_stack_size, reserve_tag{});
+        vector<const tree_node*> stack(max_component_stack_size, reserve_tag);
         stack.push_back(head);
 
         while (not stack.empty()) {

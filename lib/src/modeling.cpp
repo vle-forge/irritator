@@ -32,7 +32,7 @@ modeling::modeling(journal_handler&                   jnl,
   , file_paths(res.files.value())
   , hsms(res.hsm_compos.value())
   , graphs(res.graph_compos.value())
-  , component_repertories(res.regs.value(), reserve_tag{})
+  , component_repertories(res.regs.value(), reserve_tag)
   , journal(jnl)
 {
     if (descriptions.capacity() == 0 or generic_components.capacity() == 0 or

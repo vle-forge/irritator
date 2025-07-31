@@ -1110,7 +1110,7 @@ public:
     constexpr static inline const char* name = "Library";
 
     library_window() noexcept
-      : stack(max_component_stack_size, reserve_tag{})
+      : stack(max_component_stack_size, reserve_tag)
     {}
 
     void try_set_component_as_project(application&       app,

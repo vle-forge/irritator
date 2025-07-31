@@ -238,7 +238,7 @@ public:
 
     constexpr table() noexcept = default;
     explicit constexpr table(std::integral auto size) noexcept;
-    constexpr table(std::integral auto size, reserve_tag) noexcept;
+    constexpr table(std::integral auto size, const reserve_tag_t) noexcept;
     constexpr ~table() noexcept = default;
 
     constexpr void     set(Identifier id, const T& value) noexcept;
@@ -411,9 +411,9 @@ constexpr table<Identifier, T, A>::table(std::integral auto size) noexcept
 
 template<typename Identifier, typename T, typename A>
     requires(std::three_way_comparable<Identifier>)
-constexpr table<Identifier, T, A>::table(std::integral auto size,
-                                         reserve_tag) noexcept
-  : data{ size, reserve_tag{} }
+constexpr table<Identifier, T, A>::table(std::integral auto  size,
+                                         const reserve_tag_t tag) noexcept
+  : data{ size, tag }
 {}
 
 template<typename Identifier, typename T, typename A>

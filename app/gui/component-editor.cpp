@@ -2150,7 +2150,7 @@ component_editor::component_editor() noexcept
   , graphs(16)
   , generics(16)
   , hsms(16)
-  , tabs(32, reserve_tag{})
+  , tabs(32, reserve_tag)
 {}
 
 void component_editor::display() noexcept

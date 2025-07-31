@@ -609,7 +609,7 @@ int main()
     };
 
     "vector<T>"_test = [] {
-        irt::vector<int> v(8, irt::reserve_tag{});
+        irt::vector<int> v(8, irt::reserve_tag);
         expect(v.empty());
         expect(v.capacity() == 8);
         v.emplace_back(0);
@@ -665,7 +665,7 @@ int main()
     };
 
     "vector<T>-default_allocator"_test = [] {
-        irt::vector<int> v(8, irt::reserve_tag{});
+        irt::vector<int> v(8, irt::reserve_tag);
         expect(v.empty());
         expect(v.capacity() == 8);
         v.emplace_back(0);
@@ -709,7 +709,7 @@ int main()
         expect(v[4] == 4);
         expect(v[5] == 5);
 
-        irt::vector<int> v2(8, irt::reserve_tag{});
+        irt::vector<int> v2(8, irt::reserve_tag);
         v2 = v;
         v2[0] *= 2;
         expect(v2[0] == 14);
@@ -723,7 +723,7 @@ int main()
     "vector<T>-monotonic_allocator"_test = [] {
         using fixed_alloc = irt::allocator<irt::monotonic_small_buffer<8192u>>;
 
-        irt::vector<int, fixed_alloc> v(8, irt::reserve_tag{});
+        irt::vector<int, fixed_alloc> v(8, irt::reserve_tag);
         expect(v.empty());
         expect(v.capacity() == 8);
         v.emplace_back(0);
@@ -767,7 +767,7 @@ int main()
         expect(v[4] == 4);
         expect(v[5] == 5);
 
-        irt::vector<int, fixed_alloc> v2(8, irt::reserve_tag{});
+        irt::vector<int, fixed_alloc> v2(8, irt::reserve_tag);
         v2 = v;
         v2[0] *= 2;
         expect(v2[0] == 14);
@@ -779,7 +779,7 @@ int main()
     };
 
     "vector-iterator-valid"_test = [] {
-        irt::vector<int> vec(4, irt::reserve_tag{});
+        irt::vector<int> vec(4, irt::reserve_tag);
 
         expect(eq(vec.ssize(), 0));
         expect(eq(vec.capacity(), 4));

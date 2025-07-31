@@ -435,7 +435,7 @@ static void shift_tn_and_models(auto&            data,
     data.tn_centers[pj.tree_nodes.get_id(tn)].y += shift_y;
 
     if (tn.tree.get_child()) {
-        vector<const tree_node*> stack(max_component_stack_size, reserve_tag{});
+        vector<const tree_node*> stack(max_component_stack_size, reserve_tag);
         stack.emplace_back(tn.tree.get_child());
 
         while (not stack.empty()) {
@@ -540,7 +540,7 @@ static auto compute_automatic_layout(const project&        pj,
              max_width_height.y * to_float(gen.row()));
     const auto grid_width_height_2 = grid_width_height / 2.f;
 
-    vector<node> nodes(gen.cache.ssize(), reserve_tag{});
+    vector<node> nodes(gen.cache.ssize(), reserve_tag);
     rect_bound   bound;
     for (const auto& c : gen.cache) {
         const auto c_id = gen.cache.get_id(c);
@@ -588,8 +588,8 @@ static auto max_point_in_vh_lines(const graph_component& g,
                                   const ImVec2           dist) noexcept
   -> max_point_in_vh_lines_result
 {
-    vector<float> hlines(g.cache.size(), reserve_tag{});
-    vector<float> vlines(g.cache.size(), reserve_tag{});
+    vector<float> hlines(g.cache.size(), reserve_tag);
+    vector<float> vlines(g.cache.size(), reserve_tag);
 
     for (const auto& child : g.cache) {
         const auto  graph_node_id = child.node_id;
@@ -661,7 +661,7 @@ static void compute_automatic_layout(const project&         pj,
              h_v_lines.vpoints * max_width_height.y);
     const auto graph_center = graph_width_height / 2.f;
 
-    vector<node> nodes(gen.cache.ssize(), reserve_tag{});
+    vector<node> nodes(gen.cache.ssize(), reserve_tag);
     rect_bound   bound;
     for (const auto& c : gen.cache) {
         const auto c_id = gen.cache.get_id(c);
@@ -706,8 +706,8 @@ static void compute_automatic_layout(const project&           pj,
         float    y;
     };
 
-    vector<node>         nodes(gen.children.ssize(), reserve_tag{});
-    table<child_id, u32> map(gen.children.ssize(), reserve_tag{});
+    vector<node>         nodes(gen.children.ssize(), reserve_tag);
+    table<child_id, u32> map(gen.children.ssize(), reserve_tag);
     for (const auto& c : gen.children) {
         const auto c_id = gen.children.get_id(c);
         map.data.emplace_back(c_id, nodes.size());
@@ -847,7 +847,7 @@ void flat_simulation_editor::compute_rects(application& app,
         bool       read_sibling = false;
     };
 
-    vector<stack_elem> stack(max_component_stack_size, reserve_tag{});
+    vector<stack_elem> stack(max_component_stack_size, reserve_tag);
     stack.emplace_back(pj_ed.pj.tn_head());
 
     while (not stack.empty()) {

@@ -227,7 +227,7 @@ static void show_path(const std::filesystem::path& current,
 }
 
 file_dialog::file_dialog() noexcept
-  : buffer(512, reserve_tag{})
+  : buffer(512, reserve_tag)
   , drives{ 0 }
   , state{ status::hide }
 {

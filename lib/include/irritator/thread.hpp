@@ -564,7 +564,7 @@ inline void task_list::terminate() noexcept
 
 inline unordered_task_list::unordered_task_list(worker_stats& stats_) noexcept
   : stats(stats_)
-  , tasks(unordered_task_list_tasks_number, reserve_tag{})
+  , tasks(unordered_task_list_tasks_number, reserve_tag)
 {
     stats.start_time = std::chrono::steady_clock::now();
 }

@@ -1706,7 +1706,7 @@ expected<void> write_dot_file(const modeling&              mod,
 expected<vector<char>> write_dot_buffer(const modeling& mod,
                                         const graph&    graph) noexcept
 {
-    vector<char> buffer(4096, reserve_tag{});
+    vector<char> buffer(4096, reserve_tag);
     if (buffer.capacity() < 4096)
         return new_error(modeling_errc::dot_memory_insufficient);
 

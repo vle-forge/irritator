@@ -30,16 +30,20 @@ template<typename T>
 concept not_integral = not std::is_integral_v<T>;
 
 /**
-   tag to allow small_vector<T, S> and vector<T, A> to reserve memory without
-   resize.
-
-   @code
-   irt::vector<int> vec(10, reserve_tag{});
-   irt::debug::ensure(vec.capacity() > 10);
-   irt::debug::ensure(vec.size() == 0);
-   @endcode
+ *  tag to allow vector<T, A> and other container to reserve memory without
+ *  resize in the constructor.
+ *
+ *  @code
+ *  irt::vector<int> vec(10, irt::reserve_tag);
+ *  irt::debug::ensure(vec.capacity() >= 10);
+ *  irt::debug::ensure(vec.size() == 0u);
+ *  @endcode
  */
-struct reserve_tag {};
+struct reserve_tag_t {
+    explicit reserve_tag_t() = default;
+};
+
+constexpr inline reserve_tag_t reserve_tag;
 
 /**
    Returns true if the integer @c t is greater or equal to @c min_include and
@@ -837,7 +841,7 @@ public:
     constexpr vector() noexcept = default;
     explicit vector(std::integral auto size) noexcept;
 
-    vector(std::integral auto capacity, const reserve_tag) noexcept;
+    vector(std::integral auto capacity, const reserve_tag_t) noexcept;
 
     vector(std::integral auto size, const_reference value) noexcept;
 
@@ -3828,7 +3832,8 @@ inline vector<T, A>::vector(std::integral auto size) noexcept
 }
 
 template<typename T, typename A>
-inline vector<T, A>::vector(std::integral auto size, const reserve_tag) noexcept
+inline vector<T, A>::vector(std::integral auto size,
+                            const reserve_tag_t) noexcept
 {
     debug::ensure(std::cmp_greater(size, 0));
     debug::ensure(std::cmp_less(size, std::numeric_limits<index_type>::max()));

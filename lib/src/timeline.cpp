@@ -38,9 +38,9 @@ timeline::timeline(i32 simulation_point_number,
                    i32 timeline_point_number,
                    i32 model_number,
                    i32 message_number) noexcept
-  : sim_points(simulation_point_number, irt::reserve_tag{})
-  , model_points(model_point_number, irt::reserve_tag{})
-  , connection_points(connection_point_number, irt::reserve_tag{})
+  : sim_points(simulation_point_number, irt::reserve_tag)
+  , model_points(model_point_number, irt::reserve_tag)
+  , connection_points(connection_point_number, irt::reserve_tag)
   , points(timeline_point_number)
 {
     debug::ensure(simulation_point_number >= 0 && model_point_number >= 0 &&

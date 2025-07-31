@@ -786,7 +786,7 @@ int main()
             irt::hierarchy<data_type> d;
         };
 
-        irt::vector<data_type> data(256, irt::reserve_tag{});
+        irt::vector<data_type> data(256, irt::reserve_tag);
         data_type              parent(999);
         parent.d.set_id(&parent);
 
