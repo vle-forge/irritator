@@ -1154,12 +1154,32 @@ struct tree_node {
     /// A unique identifier provided by component parent.
     name_str unique_id;
 
-    table<name_str, tree_node_id> unique_id_to_tree_node_id;
-    table<name_str, model_id>     unique_id_to_model_id;
-    table<model_id, name_str>     model_id_to_unique_id;
+    struct name_str_compare {
+        bool operator()(const auto& left, const auto& right) const noexcept
+        {
+            if constexpr (std::is_same_v<decltype(left), name_str>) {
+                if constexpr (std::is_same_v<decltype(right), name_str>) {
+                    return left.sv() < right.sv();
+                } else {
+                    return left.sv() < right;
+                }
+            } else {
+                if constexpr (std::is_same_v<decltype(right), name_str>) {
+                    return left < right.sv();
+                } else {
+                    return left < right;
+                }
+            }
+        }
+    };
 
-    table<name_str, global_parameter_id>  parameters_ids;
-    table<name_str, variable_observer_id> variable_observer_ids;
+    table<name_str, tree_node_id, name_str_compare> unique_id_to_tree_node_id;
+    table<name_str, model_id, name_str_compare>     unique_id_to_model_id;
+    table<model_id, name_str>                       model_id_to_unique_id;
+
+    table<name_str, global_parameter_id, name_str_compare> parameters_ids;
+    table<name_str, variable_observer_id, name_str_compare>
+      variable_observer_ids;
 
     vector<graph_observer_id> graph_observer_ids;
     vector<grid_observer_id>  grid_observer_ids;
