@@ -67,8 +67,9 @@ expected<child_id> generic_component::copy_to(
 status modeling::copy(const generic_component& src,
                       generic_component&       dst) noexcept
 {
-    table<child_id, child_id> mapping; // @TODO move this mapping variable into
-                                       // the modeling or cache class.
+    table<child_id, child_id>
+      mapping; // @TODO move this mapping variable into
+               // the modeling or cache class.
 
     for (const auto& c : src.children) {
         if (auto ret = src.copy_to(c, dst); ret.has_value()) {

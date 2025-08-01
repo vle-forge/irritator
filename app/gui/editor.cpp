@@ -12,14 +12,14 @@ namespace irt {
 
 bool show_external_sources_combo(external_source&     srcs,
                                  const char*          title,
-                                 u64&                 id,
-                                 source::source_type& type) noexcept;
+                                 source::id_type&     src_id,
+                                 source::source_type& src_type) noexcept;
 
 bool show_external_sources_combo(external_source& srcs,
                                  const char*      title,
                                  source&          src) noexcept
 {
-    u64                 id   = src.id;
+    source::id_type     id   = src.id;
     source::source_type type = src.type;
 
     if (show_external_sources_combo(srcs, title, id, type)) {
@@ -40,13 +40,12 @@ bool show_external_sources_combo(external_source& srcs,
     debug::ensure(std::cmp_less_equal(0, integer_1) &&
                   std::cmp_less_equal(integer_1, source::source_type_count));
 
-    u64                 id   = static_cast<u64>(integer_0);
-    source::source_type type = enum_cast<source::source_type>(integer_1);
+    auto  src  = get_source(integer_1, integer_0);
+    auto& id   = src.id;
+    auto& type = src.type;
 
     if (show_external_sources_combo(srcs, title, id, type)) {
-        debug::ensure(is_numeric_castable<i64>(id));
-        integer_0 = static_cast<i64>(id);
-        integer_1 = ordinal(type);
+        std::tie(integer_1, integer_0) = source_to_parameters(src);
         return true;
     }
 
@@ -54,13 +53,13 @@ bool show_external_sources_combo(external_source& srcs,
 }
 
 static void build_selected_source_label(const source::source_type src_type,
-                                        const u64                 src_id,
+                                        const source::id_type     src_id,
                                         const external_source&    srcs,
                                         small_string<63>& label) noexcept
 {
     switch (src_type) {
     case source::source_type::binary_file: {
-        const auto id    = enum_cast<binary_file_source_id>(src_id);
+        const auto id    = src_id.binary_file_id;
         const auto index = get_index(id);
         if (auto* es = srcs.binary_file_sources.try_to_get(id)) {
             format(label,
@@ -72,7 +71,7 @@ static void build_selected_source_label(const source::source_type src_type,
     } break;
 
     case source::source_type::constant: {
-        const auto id    = enum_cast<constant_source_id>(src_id);
+        const auto id    = src_id.constant_id;
         const auto index = get_index(id);
         if (auto* es = srcs.constant_sources.try_to_get(id)) {
             format(label,
@@ -84,7 +83,7 @@ static void build_selected_source_label(const source::source_type src_type,
     } break;
 
     case source::source_type::random: {
-        const auto id    = enum_cast<random_source_id>(src_id);
+        const auto id    = src_id.random_id;
         const auto index = get_index(id);
         if (auto* es = srcs.random_sources.try_to_get(id)) {
             format(label,
@@ -96,7 +95,7 @@ static void build_selected_source_label(const source::source_type src_type,
     } break;
 
     case source::source_type::text_file: {
-        const auto id    = enum_cast<text_file_source_id>(src_id);
+        const auto id    = src_id.text_file_id;
         const auto index = get_index(id);
         if (auto* es = srcs.text_file_sources.try_to_get(id)) {
             format(label,
@@ -114,7 +113,7 @@ static void build_selected_source_label(const source::source_type src_type,
 
 bool show_external_sources_combo(external_source&     srcs,
                                  const char*          title,
-                                 u64&                 src_id,
+                                 source::id_type&     src_id,
                                  source::source_type& src_type) noexcept
 {
     bool             is_changed = false;
@@ -134,11 +133,11 @@ bool show_external_sources_combo(external_source&     srcs,
             format(label, "{} (constant)##{}", s.name.sv(), index);
 
             bool is_selected = src_type == source::source_type::constant &&
-                               src_id == ordinal(id);
+                               src_id.constant_id == id;
             if (ImGui::Selectable(label.c_str(), is_selected)) {
-                src_type   = source::source_type::constant;
-                src_id     = ordinal(id);
-                is_changed = true;
+                src_type           = source::source_type::constant;
+                src_id.constant_id = id;
+                is_changed         = true;
             }
         }
 
@@ -149,11 +148,11 @@ bool show_external_sources_combo(external_source&     srcs,
             format(label, "{} (bin)##{}", s.name.sv(), index);
 
             bool is_selected = src_type == source::source_type::binary_file &&
-                               src_id == ordinal(id);
+                               src_id.binary_file_id == id;
             if (ImGui::Selectable(label.c_str(), is_selected)) {
-                src_type   = source::source_type::binary_file;
-                src_id     = ordinal(id);
-                is_changed = true;
+                src_type              = source::source_type::binary_file;
+                src_id.binary_file_id = id;
+                is_changed            = true;
             }
         }
 
@@ -164,11 +163,11 @@ bool show_external_sources_combo(external_source&     srcs,
             format(label, "{} (text)##{}", s.name.sv(), index);
 
             bool is_selected = src_type == source::source_type::text_file &&
-                               src_id == ordinal(id);
+                               src_id.text_file_id == id;
             if (ImGui::Selectable(label.c_str(), is_selected)) {
-                src_type   = source::source_type::text_file;
-                src_id     = ordinal(id);
-                is_changed = true;
+                src_type            = source::source_type::text_file;
+                src_id.text_file_id = id;
+                is_changed          = true;
             }
         }
 
@@ -179,11 +178,11 @@ bool show_external_sources_combo(external_source&     srcs,
             format(label, "{} (random)##{}", s.name.sv(), index);
 
             bool is_selected =
-              src_type == source::source_type::random && src_id == ordinal(id);
+              src_type == source::source_type::random && src_id.random_id == id;
             if (ImGui::Selectable(label.c_str(), is_selected)) {
-                src_type   = source::source_type::random;
-                src_id     = ordinal(id);
-                is_changed = true;
+                src_type         = source::source_type::random;
+                src_id.random_id = id;
+                is_changed       = true;
             }
         }
 

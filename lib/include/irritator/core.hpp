@@ -308,10 +308,10 @@ enum class observer_id : u64;
 enum class block_node_id : u64;
 enum class message_id : u64;
 enum class dated_message_id : u64;
-enum class constant_source_id : u64;
-enum class binary_file_source_id : u64;
-enum class text_file_source_id : u64;
-enum class random_source_id : u64;
+enum class constant_source_id : u32;
+enum class binary_file_source_id : u32;
+enum class text_file_source_id : u32;
+enum class random_source_id : u32;
 
 /*****************************************************************************
  *
@@ -496,7 +496,7 @@ public:
 class source
 {
 public:
-    enum class source_type : i16 {
+    enum class source_type : u8 {
         binary_file, /**< Best solution to reproductible simulation. Each
                         client take a part of the stream (substream). */
         constant,    /**< Just an easy source to use mode. */
@@ -506,45 +506,103 @@ public:
 
     static inline constexpr int source_type_count = 5;
 
-    enum class operation_type {
-        initialize, /**< Use to initialize the buffer at simulation init step.
-                     */
-        update,     /**< Use to update the buffer when all values are read. */
-        restore,    /**< Use to restore the buffer when debug mode activated. */
-        finalize    /**< Use to clear the buffer at simulation finalize step. */
+    enum class operation_type : u8 {
+        initialize, /**< Initialize the buffer at simulation init step. */
+        update,     /**< Update the buffer when all values are read. */
+        restore,    /**< Restore the buffer when debug mode activated. */
+        finalize    /**< Clear the buffer at simulation finalize step. */
     };
 
-    std::span<double> buffer;
-    u64               id   = 0;
-    source_type       type = source_type::constant;
-    i16 index = 0; ///< The index of the next double to read in current chunk.
-    std::array<u64, 4>
-      chunk_id{}; ///< Current chunk. Use when restore is apply.
+    std::span<double> buffer; /**< A view on external-source buffers. */
 
-    //! Call to reset the position in the current chunk.
+    /** Stores information for text, binary and random external source to
+     * enable the restore is apply. */
+    std::array<u64, 4> chunk_id{};
+
+    /**< The identifier of the external source. */
+    union id_type {
+        constant_source_id    constant_id;
+        binary_file_source_id binary_file_id;
+        text_file_source_id   text_file_id;
+        random_source_id      random_id;
+    } id = { .constant_id = undefined<constant_source_id>() };
+
+    source_type type = source_type::constant;
+
+    i16 index = 0; /**< Index of the next double to read the @a buffer. */
+
+    source() noexcept = default;
+
+    source(const constant_source_id id_) noexcept
+      : type{ source_type::constant }
+      , id{ .constant_id = id_ }
+    {}
+
+    source(const binary_file_source_id id_) noexcept
+      : type{ source_type::binary_file }
+      , id{ .binary_file_id = id_ }
+    {}
+
+    source(const text_file_source_id id_) noexcept
+      : type{ source_type::text_file }
+      , id{ .text_file_id = id_ }
+    {}
+
+    source(const random_source_id id_) noexcept
+      : type{ source_type::random }
+      , id{ .random_id = id_ }
+    {}
+
+    source(const source_type type_, const id_type id_) noexcept
+      : type(type_)
+      , id(id_)
+    {}
+
+    source(const source& src) noexcept
+      : type(src.type)
+      , id(src.id)
+    {}
+
+    source& operator=(const source& src) noexcept
+    {
+        if (&src != this) {
+            clear();
+            type = src.type;
+            id   = src.id;
+        }
+
+        return *this;
+    }
+
+    /** Reset the position in the @a buffer. */
     void reset() noexcept { index = 0u; }
 
-    //! Clear the source (buffer and external source access)
+    /** Clear the source, buffer is released, id, type and index are zero
+     * initialized. */
     void clear() noexcept
     {
+
         buffer = std::span<double>();
-        id     = 0u;
+        id     = { .constant_id = undefined<constant_source_id>() };
         type   = source_type::constant;
         index  = 0;
         std::fill_n(chunk_id.data(), chunk_id.size(), 0);
     }
 
-    //! Check if the source is empty and required a filling.
+    /** Check if the source is empty and required a filling.
+     *
+     *  @return true if all data in the buffer are read, false otherwise.
+     */
     bool is_empty() const noexcept
     {
         return std::cmp_greater_equal(index, buffer.size());
     }
 
-    //! Get the next double in the buffer. Abort if the buffer is empty. Use
-    //! the
-    //! @c is_empty() function first.
-    //!
-    //! @return true if success, false otherwise.
+    /** Get the next double in the buffer. Abort if the buffer is empty. Use the
+     * @c is_empty() function first.
+     *
+     *  @return true if success, false otherwise.
+     */
     double next() noexcept
     {
         debug::ensure(!is_empty());
@@ -788,8 +846,7 @@ struct parameter {
                                real r1,
                                real r2,
                                real timer) noexcept;
-    parameter& set_hsm_wrapper(const u64                 id,
-                               const source::source_type type) noexcept;
+    parameter& set_hsm_wrapper(const source& src) noexcept;
 
     std::array<real, 8> reals;
     std::array<i64, 8>  integers;

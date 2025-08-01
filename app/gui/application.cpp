@@ -1001,16 +1001,16 @@ void application::start_init_source(const project_id          pj_id,
                       std::span(c->buffer.data(), c->length));
                 }
             } else {
+                const auto random_id = enum_cast<random_source_id>(id);
+
                 if (auto* c = sim_ed->pj.sim.srcs.random_sources.try_to_get(
-                      enum_cast<random_source_id>(id))) {
+                      random_id)) {
                     c->max_clients = 1;
                     (void)c->init();
 
-                    chunk_type tmp;
-                    source     src;
+                    source     src(random_id);
+                    chunk_type tmp{};
                     src.buffer = tmp;
-                    src.id     = id;
-                    src.type   = type;
                     (void)c->init(src);
 
                     sim_ed->data_ed.fill_plot(src.buffer);
