@@ -196,13 +196,32 @@ public:
     explicit operator bool() const { return callback; }
 };
 
+//! Function object for performing comparisons. The main template
+//! invokes operator< on type T. If T is an enumeration, a cast
+//! to the @c std::underlying_type_t<T> is used before the
+//! comparison.
+template<class T>
+struct table_less {
+    constexpr auto operator()(const T& lhs, const T& rhs) const noexcept -> bool
+    {
+        if constexpr (std::is_enum_v<T>) {
+            using type = std::underlying_type_t<T>;
+
+            return std::less<type>{}(static_cast<type>(lhs),
+                                     static_cast<type>(rhs));
+        } else {
+            return std::less{}(lhs, rhs);
+        }
+    }
+};
+
 //! @brief A helper container to store Identifier -> T relation.
 //! @tparam Identifier Any integer or enum type.
 //! @tparam T Any type (trivial or not).
 template<typename Identifier,
          typename T,
-         typename A = allocator<new_delete_memory_resource>>
-    requires(std::three_way_comparable<Identifier>)
+         class Compare = irt::table_less<Identifier>,
+         typename A    = allocator<new_delete_memory_resource>>
 class table
 {
 public:
@@ -219,25 +238,42 @@ public:
 
         Identifier id;
         T          value;
-
-        auto operator<=>(const value_type&) const = default;
-
-        auto operator<=>(const Identifier& other) const { return id <=> other; }
     };
 
-    using container_type  = vector<value_type, A>;
-    using size_type       = typename container_type::size_type;
-    using iterator        = typename container_type::iterator;
-    using const_iterator  = typename container_type::const_iterator;
-    using reference       = typename container_type::reference;
-    using const_reference = typename container_type::const_reference;
-    using pointer         = typename container_type::pointer;
-    using const_pointer   = typename container_type::const_pointer;
+    struct value_type_compare {
+        constexpr auto operator()(const auto& left, const auto& right) noexcept
+          -> bool
+        {
+            if constexpr (std::is_same_v<std::decay_t<decltype(left)>,
+                                         value_type>) {
+                if constexpr (std::is_same_v<std::decay_t<decltype(right)>,
+                                             value_type>)
+                    return identifier_compare{}(left.id, right.id);
+                else
+                    return identifier_compare{}(left.id, right);
+            } else {
+                if constexpr (std::is_same_v<std::decay_t<decltype(right)>,
+                                             value_type>)
+                    return identifier_compare{}(left, right.id);
+                else
+                    return identifier_compare{}(left, right);
+            }
+        }
+    };
+
+    using container_type     = vector<value_type, A>;
+    using size_type          = typename container_type::size_type;
+    using iterator           = typename container_type::iterator;
+    using const_iterator     = typename container_type::const_iterator;
+    using reference          = typename container_type::reference;
+    using const_reference    = typename container_type::const_reference;
+    using pointer            = typename container_type::pointer;
+    using const_pointer      = typename container_type::const_pointer;
+    using identifier_compare = Compare;
 
     container_type data;
 
     constexpr table() noexcept = default;
-    explicit constexpr table(std::integral auto size) noexcept;
     constexpr table(std::integral auto size, const reserve_tag_t) noexcept;
     constexpr ~table() noexcept = default;
 
@@ -297,10 +333,10 @@ private:
 /**
  * @brief Managed to stores large string buffer.
  *
- * A string_buffer stores a forward list of chunks of memory to store strings.
- * Users can allocate new strings, but the deletion of strings is forgotten.
- * Use this class when storing new allocated strings is more important than
- * replacing or deleting.
+ * A string_buffer stores a forward list of chunks of memory to store
+ * strings. Users can allocate new strings, but the deletion of strings is
+ * forgotten. Use this class when storing new allocated strings is more
+ * important than replacing or deleting.
  */
 class string_buffer
 {
@@ -324,9 +360,10 @@ public:
     void clear() noexcept;
 
     /**
-     * Appends an @a std::string_view into the underlying buffer and returns a
-     * new @a std::string_view to this new chunk of characters. If necessary, a
-     * new @a value_type or chunk is allocated to store more strings.
+     * Appends an @a std::string_view into the underlying buffer and returns
+     * a new @a std::string_view to this new chunk of characters. If
+     * necessary, a new @a value_type or chunk is allocated to store more
+     * strings.
      *
      * @param str A @a std::string_view to copy into the buffer. The @a str
      *  string must be lower than `string_buffer_node_length`.
@@ -395,31 +432,24 @@ inline void string_buffer::do_alloc() noexcept
  *
  ****************************************************************************/
 
-template<typename Identifier, typename T, typename A>
-    requires(std::three_way_comparable<Identifier>)
-table<Identifier, T, A>::value_type::value_type(Identifier id_,
-                                                const T&   value_) noexcept
+template<typename Identifier, typename T, class Compare, typename A>
+table<Identifier, T, Compare, A>::value_type::value_type(
+  Identifier id_,
+  const T&   value_) noexcept
   : id(id_)
   , value(value_)
 {}
 
-template<typename Identifier, typename T, typename A>
-    requires(std::three_way_comparable<Identifier>)
-constexpr table<Identifier, T, A>::table(std::integral auto size) noexcept
-  : data{ size }
-{}
-
-template<typename Identifier, typename T, typename A>
-    requires(std::three_way_comparable<Identifier>)
-constexpr table<Identifier, T, A>::table(std::integral auto  size,
-                                         const reserve_tag_t tag) noexcept
+template<typename Identifier, typename T, class Compare, typename A>
+constexpr table<Identifier, T, Compare, A>::table(
+  std::integral auto  size,
+  const reserve_tag_t tag) noexcept
   : data{ size, tag }
 {}
 
-template<typename Identifier, typename T, typename A>
-    requires(std::three_way_comparable<Identifier>)
-constexpr void table<Identifier, T, A>::set(const Identifier id,
-                                            const T&         value) noexcept
+template<typename Identifier, typename T, class Compare, typename A>
+constexpr void table<Identifier, T, Compare, A>::set(const Identifier id,
+                                                     const T& value) noexcept
 {
     if (auto* value_found = get(id); value_found) {
         *value_found = value;
@@ -429,108 +459,64 @@ constexpr void table<Identifier, T, A>::set(const Identifier id,
     }
 }
 
-template<typename Identifier, typename T, typename A>
-    requires(std::three_way_comparable<Identifier>)
-constexpr T* table<Identifier, T, A>::get(Identifier id) noexcept
+template<typename Identifier, typename T, class Compare, typename A>
+constexpr T* table<Identifier, T, Compare, A>::get(Identifier id) noexcept
 {
-    auto it = binary_find(
-      data.begin(), data.end(), id, [](auto left, auto right) noexcept -> bool {
-          if constexpr (std::is_same_v<decltype(left), Identifier>)
-              return left < right.id;
-          else
-              return left.id < right;
-      });
+    auto it = binary_find(data.begin(), data.end(), id, value_type_compare{});
+    return it == data.end() ? nullptr : &it->value;
+}
+
+template<typename Identifier, typename T, class Compare, typename A>
+constexpr const T* table<Identifier, T, Compare, A>::get(
+  Identifier id) const noexcept
+{
+    auto it = binary_find(data.begin(), data.end(), id, value_type_compare{});
 
     return it == data.end() ? nullptr : &it->value;
 }
 
-template<typename Identifier, typename T, typename A>
-    requires(std::three_way_comparable<Identifier>)
-constexpr const T* table<Identifier, T, A>::get(Identifier id) const noexcept
-{
-    auto it = binary_find(
-      data.begin(), data.end(), id, [](auto left, auto right) noexcept -> bool {
-          if constexpr (std::is_same_v<decltype(left), Identifier>)
-              return left < right.id;
-          else
-              return left.id < right;
-      });
-
-    return it == data.end() ? nullptr : &it->value;
-}
-
-template<typename Identifier, typename T, typename A>
-    requires(std::three_way_comparable<Identifier>)
+template<typename Identifier, typename T, class Compare, typename A>
 template<typename U>
-constexpr T* table<Identifier, T, A>::get(U id) noexcept
+constexpr T* table<Identifier, T, Compare, A>::get(U id) noexcept
 {
-    auto it = binary_find(
-      data.begin(), data.end(), id, [](auto left, auto right) noexcept -> bool {
-          if constexpr (std::is_same_v<decltype(left), value_type>)
-              return left.id < right;
-          else
-              return left < right.id.sv();
-      });
+    auto it = binary_find(data.begin(), data.end(), id, value_type_compare{});
 
     return it == data.end() ? nullptr : &it->value;
 }
 
-template<typename Identifier, typename T, typename A>
-    requires(std::three_way_comparable<Identifier>)
+template<typename Identifier, typename T, class Compare, typename A>
 template<typename U>
-constexpr const T* table<Identifier, T, A>::get(U id) const noexcept
+constexpr const T* table<Identifier, T, Compare, A>::get(U id) const noexcept
 {
-    auto it = binary_find(
-      data.begin(), data.end(), id, [](auto left, auto right) noexcept -> bool {
-          if constexpr (std::is_same_v<decltype(left), value_type>)
-              return left.id < right;
-          else
-              return left < right.id.sv();
-      });
+    auto it = binary_find(data.begin(), data.end(), id, value_type_compare{});
 
     return it == data.end() ? nullptr : &it->value;
 }
 
-template<typename Identifier, typename T, typename A>
-    requires(std::three_way_comparable<Identifier>)
-constexpr void table<Identifier, T, A>::erase(Identifier id) noexcept
+template<typename Identifier, typename T, class Compare, typename A>
+constexpr void table<Identifier, T, Compare, A>::erase(Identifier id) noexcept
 {
-    auto it = binary_find(
-      data.begin(), data.end(), id, [](auto left, auto right) noexcept -> bool {
-          if constexpr (std::is_same_v<decltype(left), Identifier>)
-              return left < right.id.sv();
-          else
-              return left.id < right;
-      });
+    auto it = binary_find(data.begin(), data.end(), id, value_type_compare{});
 
-    if (it != data.end()) {
+    if (it != data.end())
         data.erase(it);
-        sort();
-    }
 }
 
-template<typename Identifier, typename T, typename A>
-    requires(std::three_way_comparable<Identifier>)
-constexpr void table<Identifier, T, A>::sort() noexcept
+template<typename Identifier, typename T, class Compare, typename A>
+constexpr void table<Identifier, T, Compare, A>::sort() noexcept
 {
     if (data.size() > 1)
-        std::sort(data.begin(),
-                  data.end(),
-                  [](const auto& left, const auto& right) noexcept {
-                      return left.id < right.id;
-                  });
+        std::sort(data.begin(), data.end(), value_type_compare{});
 }
 
-template<typename Identifier, typename T, typename A>
-    requires(std::three_way_comparable<Identifier>)
-constexpr unsigned table<Identifier, T, A>::size() const noexcept
+template<typename Identifier, typename T, class Compare, typename A>
+constexpr unsigned table<Identifier, T, Compare, A>::size() const noexcept
 {
     return data.size();
 }
 
-template<typename Identifier, typename T, typename A>
-    requires(std::three_way_comparable<Identifier>)
-constexpr int table<Identifier, T, A>::ssize() const noexcept
+template<typename Identifier, typename T, class Compare, typename A>
+constexpr int table<Identifier, T, Compare, A>::ssize() const noexcept
 {
     return data.ssize();
 }
