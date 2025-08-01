@@ -1099,14 +1099,14 @@ int main()
 
         get_p(sim, gen).integers[0] = gen.flags.to_unsigned();
 
-        get_p(sim, gen).integers[3] =
-          irt::ordinal(sim.srcs.constant_sources.get_id(cst_value));
         get_p(sim, gen).integers[4] =
+          irt::ordinal(sim.srcs.constant_sources.get_id(cst_value));
+        get_p(sim, gen).integers[3] =
           irt::ordinal(irt::source::source_type::constant);
 
-        get_p(sim, gen).integers[1] =
-          irt::ordinal(sim.srcs.constant_sources.get_id(cst_ta));
         get_p(sim, gen).integers[2] =
+          irt::ordinal(sim.srcs.constant_sources.get_id(cst_ta));
+        get_p(sim, gen).integers[1] =
           ordinal(irt::source::source_type::constant);
 
         expect(sim.hsms.can_alloc());
@@ -1175,14 +1175,14 @@ int main()
 
         get_p(sim, gen).integers[0] = gen.flags.to_unsigned();
 
-        get_p(sim, gen).integers[3] =
-          irt::ordinal(sim.srcs.constant_sources.get_id(cst_value));
         get_p(sim, gen).integers[4] =
+          irt::ordinal(sim.srcs.constant_sources.get_id(cst_value));
+        get_p(sim, gen).integers[3] =
           irt::ordinal(irt::source::source_type::constant);
 
-        get_p(sim, gen).integers[1] =
-          irt::ordinal(sim.srcs.constant_sources.get_id(cst_ta));
         get_p(sim, gen).integers[2] =
+          irt::ordinal(sim.srcs.constant_sources.get_id(cst_ta));
+        get_p(sim, gen).integers[1] =
           ordinal(irt::source::source_type::constant);
 
         expect(sim.hsms.can_alloc());
@@ -1437,14 +1437,14 @@ int main()
 
         get_p(sim, gen).integers[0] = gen.flags.to_unsigned();
 
-        get_p(sim, gen).integers[3] =
-          irt::ordinal(sim.srcs.constant_sources.get_id(cst_value));
         get_p(sim, gen).integers[4] =
+          irt::ordinal(sim.srcs.constant_sources.get_id(cst_value));
+        get_p(sim, gen).integers[3] =
           irt::ordinal(irt::source::source_type::constant);
 
-        get_p(sim, gen).integers[1] =
-          irt::ordinal(sim.srcs.constant_sources.get_id(cst_ta));
         get_p(sim, gen).integers[2] =
+          irt::ordinal(sim.srcs.constant_sources.get_id(cst_ta));
+        get_p(sim, gen).integers[1] =
           ordinal(irt::source::source_type::constant);
 
         expect(!!sim.connect_dynamics(gen, 0, cnt, 0));
@@ -1481,14 +1481,14 @@ int main()
         auto& l_and = sim.alloc<irt::logical_and_2>();
         auto& l_or  = sim.alloc<irt::logical_or_2>();
 
-        get_p(sim, gen).integers[3] =
-          irt::ordinal(sim.srcs.constant_sources.get_id(cst_value));
         get_p(sim, gen).integers[4] =
+          irt::ordinal(sim.srcs.constant_sources.get_id(cst_value));
+        get_p(sim, gen).integers[3] =
           irt::ordinal(irt::source::source_type::constant);
 
-        get_p(sim, gen).integers[1] =
-          irt::ordinal(sim.srcs.constant_sources.get_id(cst_ta));
         get_p(sim, gen).integers[2] =
+          irt::ordinal(sim.srcs.constant_sources.get_id(cst_ta));
+        get_p(sim, gen).integers[1] =
           ordinal(irt::source::source_type::constant);
 
         expect(!!sim.connect_dynamics(gen, 0, l_and, 0));

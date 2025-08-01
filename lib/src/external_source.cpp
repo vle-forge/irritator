@@ -740,24 +740,22 @@ status external_source::dispatch(source&                      src,
 {
     switch (src.type) {
     case source::source_type::binary_file: {
-        const auto src_id = enum_cast<binary_file_source_id>(src.id);
-        if (auto* bin_src = binary_file_sources.try_to_get(src_id); bin_src)
+        if (auto* bin_src =
+              binary_file_sources.try_to_get(src.id.binary_file_id))
             return external_source_dispatch(*bin_src, src, op);
 
         return new_error(external_source_errc::binary_file_unknown);
     } break;
 
     case source::source_type::constant: {
-        const auto src_id = enum_cast<constant_source_id>(src.id);
-        if (auto* cst_src = constant_sources.try_to_get(src_id); cst_src)
+        if (auto* cst_src = constant_sources.try_to_get(src.id.constant_id))
             return external_source_dispatch(*cst_src, src, op);
 
         return new_error(external_source_errc::constant_unknown);
     } break;
 
     case source::source_type::random: {
-        const auto src_id = enum_cast<random_source_id>(src.id);
-        if (auto* rnd_src = random_sources.try_to_get(src_id); rnd_src)
+        if (auto* rnd_src = random_sources.try_to_get(src.id.random_id))
             return external_source_dispatch(*rnd_src, src, op);
 
         return new_error(external_source_errc::random_unknown);
@@ -765,8 +763,7 @@ status external_source::dispatch(source&                      src,
     } break;
 
     case source::source_type::text_file: {
-        const auto src_id = enum_cast<text_file_source_id>(src.id);
-        if (auto* txt_src = text_file_sources.try_to_get(src_id); txt_src)
+        if (auto* txt_src = text_file_sources.try_to_get(src.id.text_file_id))
             return external_source_dispatch(*txt_src, src, op);
 
         return new_error(external_source_errc::text_file_unknown);

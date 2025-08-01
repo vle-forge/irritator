@@ -723,6 +723,15 @@ struct json_dearchiver::impl {
         return true;
     }
 
+    bool copy_u64_to(std::optional<u32>& dst) noexcept
+    {
+        if (not is_numeric_castable<u32>(temp_u64))
+            return error("bad 32 bits unsigned integer: {}", temp_u64);
+
+        dst = static_cast<u32>(temp_u64);
+        return true;
+    }
+
     bool copy_u64_to(std::optional<u64>& dst) noexcept
     {
         dst = temp_u64;
@@ -1173,31 +1182,23 @@ struct json_dearchiver::impl {
 
         switch (*type) {
         case source::source_type::binary_file:
-            if (const auto* ptr = self.binary_file_mapping.get(*id)) {
-                src.type = *type;
-                src.id   = ordinal(*ptr);
-            }
+            if (const auto* ptr = self.binary_file_mapping.get(*id))
+                src = source(*ptr);
             break;
 
         case source::source_type::constant:
-            if (const auto* ptr = self.constant_mapping.get(*id)) {
-                src.type = *type;
-                src.id   = ordinal(*ptr);
-            }
+            if (const auto* ptr = self.constant_mapping.get(*id))
+                src = source(*ptr);
             break;
 
         case source::source_type::random:
-            if (const auto* ptr = self.random_mapping.get(*id)) {
-                src.type = *type;
-                src.id   = ordinal(*ptr);
-            }
+            if (const auto* ptr = self.random_mapping.get(*id))
+                src = source(*ptr);
             break;
 
         case source::source_type::text_file:
-            if (const auto* ptr = self.text_file_mapping.get(*id)) {
-                src.type = *type;
-                src.id   = ordinal(*ptr);
-            }
+            if (const auto* ptr = self.text_file_mapping.get(*id))
+                src = source(*ptr);
             break;
         }
 
@@ -2627,7 +2628,7 @@ struct json_dearchiver::impl {
                    [&](const auto /*i*/, const auto& value) noexcept -> bool {
                        auto& cst = srcs.constant_sources.alloc();
                        auto  id  = srcs.constant_sources.get_id(cst);
-                       std::optional<u64> id_in_file;
+                       std::optional<u32> id_in_file;
                        std::string        name;
 
                        return for_each_member(
@@ -7191,7 +7192,21 @@ struct json_archiver::impl {
         w.Key("source-type");
         w.Int(ordinal(hsm.src.type));
         w.Key("source-id");
-        w.Uint64(hsm.src.id);
+
+        switch (hsm.src.type) {
+        case source::source_type::binary_file:
+            w.Uint(get_index(hsm.src.id.binary_file_id));
+            break;
+        case source::source_type::text_file:
+            w.Uint(get_index(hsm.src.id.text_file_id));
+            break;
+        case source::source_type::random:
+            w.Uint(get_index(hsm.src.id.random_id));
+            break;
+        case source::source_type::constant:
+            w.Uint(get_index(hsm.src.id.constant_id));
+            break;
+        }
 
         w.Key("constants");
         w.StartArray();

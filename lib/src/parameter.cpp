@@ -7,17 +7,6 @@
 
 namespace irt {
 
-static inline source::source_type get_source_type(i64 type) noexcept
-{
-    return (0 <= type && type < 4) ? enum_cast<source::source_type>(type)
-                                   : source::source_type::constant;
-}
-
-static inline u64 get_source_id(i64 id) noexcept
-{
-    return static_cast<u64>(id);
-}
-
 template<size_t QssLevel>
 static void model_init(const parameter&               param,
                        abstract_integrator<QssLevel>& dyn) noexcept
@@ -104,32 +93,32 @@ static void parameter_init(parameter& param, const queue& dyn) noexcept
 
 static void model_init(const parameter& param, dynamic_queue& dyn) noexcept
 {
-    dyn.stop_on_error  = param.integers[0] != 0;
-    dyn.source_ta.id   = get_source_id(param.integers[1]);
-    dyn.source_ta.type = get_source_type(param.integers[2]);
+    dyn.stop_on_error = param.integers[0] != 0;
+    dyn.source_ta     = get_source(param.integers[1], param.integers[2]);
 }
 
 static void parameter_init(parameter& param, const dynamic_queue& dyn) noexcept
 {
     param.integers[0] = dyn.stop_on_error ? 1 : 0;
-    param.integers[1] = static_cast<i64>(dyn.source_ta.id);
-    param.integers[2] = ordinal(dyn.source_ta.type);
+
+    std::tie(param.integers[1], param.integers[2]) =
+      source_to_parameters(dyn.source_ta);
 }
 
 static void model_init(const parameter& param, priority_queue& dyn) noexcept
 {
-    dyn.ta             = param.reals[0];
-    dyn.stop_on_error  = param.integers[0] != 0;
-    dyn.source_ta.id   = get_source_id(param.integers[1]);
-    dyn.source_ta.type = get_source_type(param.integers[2]);
+    dyn.ta            = param.reals[0];
+    dyn.stop_on_error = param.integers[0] != 0;
+    dyn.source_ta     = get_source(param.integers[1], param.integers[2]);
 }
 
 static void parameter_init(parameter& param, const priority_queue& dyn) noexcept
 {
     param.reals[0]    = dyn.ta;
     param.integers[0] = dyn.stop_on_error ? 1 : 0;
-    param.integers[1] = static_cast<i64>(dyn.source_ta.id);
-    param.integers[2] = ordinal(dyn.source_ta.type);
+
+    std::tie(param.integers[1], param.integers[2]) =
+      source_to_parameters(dyn.source_ta);
 }
 
 static void model_init(const parameter& param, generator& dyn) noexcept
@@ -137,14 +126,12 @@ static void model_init(const parameter& param, generator& dyn) noexcept
     dyn.flags = bitflags<generator::option>(param.integers[0]);
 
     if (dyn.flags[generator::option::ta_use_source]) {
-        dyn.offset         = param.reals[0];
-        dyn.source_ta.id   = get_source_id(param.integers[1]);
-        dyn.source_ta.type = get_source_type(param.integers[2]);
+        dyn.offset    = param.reals[0];
+        dyn.source_ta = get_source(param.integers[1], param.integers[2]);
     }
 
     if (dyn.flags[generator::option::value_use_source]) {
-        dyn.source_value.id   = get_source_id(param.integers[3]);
-        dyn.source_value.type = get_source_type(param.integers[4]);
+        dyn.source_value = get_source(param.integers[3], param.integers[4]);
     }
 }
 
@@ -153,14 +140,14 @@ static void parameter_init(parameter& param, const generator& dyn) noexcept
     param.integers[0] = dyn.flags.to_unsigned();
 
     if (dyn.flags[generator::option::ta_use_source]) {
-        param.reals[0]    = dyn.offset;
-        param.integers[1] = static_cast<i64>(dyn.source_ta.id);
-        param.integers[2] = ordinal(dyn.source_ta.type);
+        param.reals[0] = dyn.offset;
+        std::tie(param.integers[1], param.integers[2]) =
+          source_to_parameters(dyn.source_ta);
     }
 
     if (dyn.flags[generator::option::value_use_source]) {
-        param.integers[3] = static_cast<i64>(dyn.source_value.id);
-        param.integers[4] = ordinal(dyn.source_value.type);
+        std::tie(param.integers[3], param.integers[4]) =
+          source_to_parameters(dyn.source_value);
     }
 }
 
@@ -402,14 +389,14 @@ static void parameter_init(parameter& param, const logical_invert& dyn) noexcept
 
 static void model_init(const parameter& param, hsm_wrapper& dyn) noexcept
 {
-    dyn.id                     = enum_cast<hsm_id>(param.integers[0]);
-    dyn.exec.i1                = static_cast<i32>(param.integers[1]);
-    dyn.exec.i2                = static_cast<i32>(param.integers[2]);
-    dyn.exec.source_value.id   = get_source_id(param.integers[3]);
-    dyn.exec.source_value.type = get_source_type(param.integers[4]);
-    dyn.exec.r1                = param.reals[0];
-    dyn.exec.r2                = param.reals[1];
-    dyn.exec.timer             = param.reals[2];
+    dyn.id                = enum_cast<hsm_id>(param.integers[0]);
+    dyn.exec.i1           = static_cast<i32>(param.integers[1]);
+    dyn.exec.i2           = static_cast<i32>(param.integers[2]);
+    dyn.exec.source_value = get_source(param.integers[3], param.integers[4]);
+
+    dyn.exec.r1    = param.reals[0];
+    dyn.exec.r2    = param.reals[1];
+    dyn.exec.timer = param.reals[2];
 }
 
 static void parameter_init(parameter& param, const hsm_wrapper& dyn) noexcept
@@ -417,11 +404,12 @@ static void parameter_init(parameter& param, const hsm_wrapper& dyn) noexcept
     param.integers[0] = ordinal(dyn.id);
     param.integers[1] = static_cast<i64>(dyn.exec.i1);
     param.integers[2] = static_cast<i64>(dyn.exec.i2);
-    param.integers[3] = static_cast<i64>(dyn.exec.source_value.id);
-    param.integers[4] = static_cast<i64>(dyn.exec.source_value.type);
-    param.reals[0]    = dyn.exec.r1;
-    param.reals[1]    = dyn.exec.r2;
-    param.reals[2]    = dyn.exec.timer;
+    std::tie(param.integers[3], param.integers[4]) =
+      source_to_parameters(dyn.exec.source_value);
+
+    param.reals[0] = dyn.exec.r1;
+    param.reals[1] = dyn.exec.r2;
+    param.reals[2] = dyn.exec.timer;
 }
 
 static void model_init(const parameter& param, time_func& dyn) noexcept
@@ -618,11 +606,9 @@ parameter& parameter::set_hsm_wrapper(i64  i1,
     return *this;
 }
 
-parameter& parameter::set_hsm_wrapper(const u64                 id,
-                                      const source::source_type type) noexcept
+parameter& parameter::set_hsm_wrapper(const source& src) noexcept
 {
-    integers[3] = static_cast<i64>(id);
-    integers[4] = static_cast<i64>(type);
+    std::tie(integers[3], integers[4]) = source_to_parameters(src);
 
     return *this;
 }

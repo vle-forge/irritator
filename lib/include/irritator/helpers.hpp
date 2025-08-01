@@ -354,6 +354,56 @@ inline void add_extension(small_string<Size>&    str,
     }
 }
 
+inline source::source_type get_source_type(i64 type) noexcept
+{
+    return (0 <= type && type < 4) ? enum_cast<source::source_type>(type)
+                                   : source::source_type::constant;
+}
+
+inline std::pair<i64, i64> source_to_parameters(const source& src) noexcept
+{
+    switch (src.type) {
+    case source::source_type::binary_file:
+        return std::make_pair(static_cast<i64>(src.type),
+                              static_cast<i64>(ordinal(src.id.binary_file_id)));
+
+    case source::source_type::constant:
+        return std::make_pair(static_cast<i64>(src.type),
+                              static_cast<i64>(ordinal(src.id.constant_id)));
+
+    case source::source_type::random:
+        return std::make_pair(static_cast<i64>(src.type),
+                              static_cast<i64>(ordinal(src.id.random_id)));
+
+    case source::source_type::text_file:
+        return std::make_pair(static_cast<i64>(src.type),
+                              static_cast<i64>(ordinal(src.id.text_file_id)));
+    }
+
+    unreachable();
+}
+
+inline source get_source(const i64 type, const i64 id) noexcept
+{
+    const auto source_type = get_source_type(type);
+
+    switch (source_type) {
+    case source::source_type::binary_file:
+        return source(enum_cast<binary_file_source_id>(id));
+
+    case source::source_type::constant:
+        return source(enum_cast<constant_source_id>(id));
+
+    case source::source_type::random:
+        return source(enum_cast<random_source_id>(id));
+
+    case source::source_type::text_file:
+        return source(enum_cast<text_file_source_id>(id));
+    }
+
+    unreachable();
+}
+
 } // namespace irt
 
 #endif

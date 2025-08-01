@@ -1760,7 +1760,7 @@ static expected<std::pair<tree_node_id, component_id>> set_project_from_hsm(
 
     sc.pj.sim.parameters[mdl_idx]
       .set_hsm_wrapper(ordinal(*sim_hsm_id))
-      .set_hsm_wrapper(com_hsm->src.id, com_hsm->src.type)
+      .set_hsm_wrapper(com_hsm->src)
       .set_hsm_wrapper(
         com_hsm->i1, com_hsm->i2, com_hsm->r1, com_hsm->r2, com_hsm->timeout);
 

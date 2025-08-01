@@ -603,8 +603,8 @@ void project_external_source_editor::show(application& app) noexcept
                     auto new_size = ptr->length;
 
                     up += ImGui::InputScalar("id",
-                                             ImGuiDataType_U32,
-                                             const_cast<uint32_t*>(&idx),
+                                             ImGuiDataType_U16,
+                                             const_cast<uint16_t*>(&idx),
                                              nullptr,
                                              nullptr,
                                              nullptr,
@@ -635,8 +635,8 @@ void project_external_source_editor::show(application& app) noexcept
                     ptr) {
 
                     ImGui::InputScalar("id",
-                                       ImGuiDataType_U32,
-                                       const_cast<uint32_t*>(&idx),
+                                       ImGuiDataType_U16,
+                                       const_cast<uint16_t*>(&idx),
                                        nullptr,
                                        nullptr,
                                        nullptr,
@@ -659,8 +659,8 @@ void project_external_source_editor::show(application& app) noexcept
                       pj.pj.sim.srcs.binary_file_sources.try_to_get(id);
                     ptr) {
                     ImGui::InputScalar("id",
-                                       ImGuiDataType_U32,
-                                       const_cast<uint32_t*>(&idx),
+                                       ImGuiDataType_U16,
+                                       const_cast<uint16_t*>(&idx),
                                        nullptr,
                                        nullptr,
                                        nullptr,
@@ -693,8 +693,8 @@ void project_external_source_editor::show(application& app) noexcept
                 if (auto* ptr = pj.pj.sim.srcs.random_sources.try_to_get(id);
                     ptr) {
                     up += ImGui::InputScalar("id",
-                                             ImGuiDataType_U32,
-                                             const_cast<uint32_t*>(&idx),
+                                             ImGuiDataType_U16,
+                                             const_cast<uint16_t*>(&idx),
                                              nullptr,
                                              nullptr,
                                              nullptr,
@@ -841,29 +841,25 @@ void show_combobox_external_sources(external_source& srcs, source& src) noexcept
                               const source& src) noexcept -> const char* {
         switch (src.type) {
         case source::source_type::binary_file:
-            if (const auto* s = srcs.binary_file_sources.try_to_get(
-                  enum_cast<binary_file_source_id>(src.id));
-                s)
+            if (const auto* s =
+                  srcs.binary_file_sources.try_to_get(src.id.binary_file_id))
                 return s->name.c_str();
             break;
 
         case source::source_type::constant:
-            if (const auto* s = srcs.constant_sources.try_to_get(
-                  enum_cast<constant_source_id>(src.id));
-                s)
+            if (const auto* s =
+                  srcs.constant_sources.try_to_get(src.id.constant_id))
                 return s->name.c_str();
             break;
         case source::source_type::text_file:
-            if (const auto* s = srcs.text_file_sources.try_to_get(
-                  enum_cast<text_file_source_id>(src.id));
-                s)
+            if (const auto* s =
+                  srcs.text_file_sources.try_to_get(src.id.text_file_id))
                 return s->name.c_str();
             break;
 
         case source::source_type::random:
-            if (const auto* s = srcs.random_sources.try_to_get(
-                  enum_cast<random_source_id>(src.id));
-                s)
+            if (const auto* s =
+                  srcs.random_sources.try_to_get(src.id.random_id))
                 return s->name.c_str();
             break;
         }
@@ -877,43 +873,45 @@ void show_combobox_external_sources(external_source& srcs, source& src) noexcept
         switch (src.type) {
         case source::source_type::binary_file:
             for (auto& s : srcs.binary_file_sources) {
-                const auto id = ordinal(srcs.binary_file_sources.get_id(s));
+                const auto id = srcs.binary_file_sources.get_id(s);
                 ImGui::PushID(&s);
-                if (ImGui::Selectable(s.name.c_str(), id == src.id))
-                    src.id = id;
+                if (ImGui::Selectable(s.name.c_str(),
+                                      id == src.id.binary_file_id))
+                    src.id.binary_file_id = id;
                 ImGui::PopID();
             }
             break;
 
         case source::source_type::constant:
             for (auto& s : srcs.constant_sources) {
-                const auto id = ordinal(srcs.constant_sources.get_id(s));
+                const auto id = srcs.constant_sources.get_id(s);
 
                 ImGui::PushID(&s);
-                if (ImGui::Selectable(s.name.c_str(), id == src.id))
-                    src.id = id;
+                if (ImGui::Selectable(s.name.c_str(), id == src.id.constant_id))
+                    src.id.constant_id = id;
                 ImGui::PopID();
             }
             break;
 
         case source::source_type::text_file:
             for (auto& s : srcs.text_file_sources) {
-                const auto id = ordinal(srcs.text_file_sources.get_id(s));
+                const auto id = srcs.text_file_sources.get_id(s);
 
                 ImGui::PushID(&s);
-                if (ImGui::Selectable(s.name.c_str(), id == src.id))
-                    src.id = id;
+                if (ImGui::Selectable(s.name.c_str(),
+                                      id == src.id.text_file_id))
+                    src.id.text_file_id = id;
                 ImGui::PopID();
             }
             break;
 
         case source::source_type::random:
             for (auto& s : srcs.random_sources) {
-                const auto id = ordinal(srcs.random_sources.get_id(s));
+                const auto id = srcs.random_sources.get_id(s);
 
                 ImGui::PushID(&s);
-                if (ImGui::Selectable(s.name.c_str(), id == src.id))
-                    src.id = id;
+                if (ImGui::Selectable(s.name.c_str(), id == src.id.random_id))
+                    src.id.random_id = id;
                 ImGui::PopID();
             }
             break;
