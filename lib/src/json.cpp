@@ -675,7 +675,7 @@ struct json_dearchiver::impl {
         if (v.has_value())
             return true;
 
-        return error("missing value");
+        return false;
     }
 
     bool copy_u64_to(u64& dst) const noexcept
@@ -1264,13 +1264,9 @@ struct json_dearchiver::impl {
                      if ("source-ta-id"sv == name)
                          return read_temp_u64(value) && copy_u64_to(id);
 
-                     if ("stop-on-error"sv == name)
-                         return read_temp_bool(value) &&
-                                copy_bool_to(p.integers[0]);
-
                      return error("unknown element");
                  }) and
-               copy_to_source(type, id, p.integers[2], p.integers[1]);
+               copy_to_source(type, id, p.integers[0], p.integers[1]);
     }
 
     bool read_dynamics(const rapidjson::Value& val,
@@ -1285,29 +1281,19 @@ struct json_dearchiver::impl {
         return for_each_member(
                  val,
                  [&](const auto name, const auto& value) noexcept -> bool {
-                     if ("ta"sv == name)
-                         return read_temp_real(value) &&
-                                is_double_greater_than(0.0) &&
-                                copy_real_to(p.reals[0]);
-
                      if ("source-ta-type"sv == name)
                          return read_temp_i64(value) && copy_i64_to(type);
 
                      if ("source-ta-id"sv == name)
                          return read_temp_u64(value) && copy_u64_to(id);
 
-                     if ("stop-on-error"sv == name)
-                         return read_temp_bool(value) &&
-                                copy_bool_to(p.integers[0]);
-
                      return error("unknown element");
                  }) and
-               copy_to_source(type, id, p.integers[2], p.integers[1]);
+               copy_to_source(type, id, p.integers[0], p.integers[1]);
     }
 
     bool copy_to_generator_options(bool ta_use_source,
                                    bool value_use_source,
-                                   bool stop_on_error,
                                    i64& options)
     {
         bitflags<generator::option> flags;
@@ -1316,8 +1302,6 @@ struct json_dearchiver::impl {
             flags.set(generator::option::ta_use_source);
         if (value_use_source)
             flags.set(generator::option::value_use_source);
-        if (stop_on_error)
-            flags.set(generator::option::stop_on_error);
 
         options = static_cast<i64>(flags.to_unsigned());
 
@@ -1337,7 +1321,6 @@ struct json_dearchiver::impl {
 
         auto ta_use_source    = false;
         auto value_use_source = false;
-        auto stop_on_error    = false;
 
         return for_each_member(
                  val,
@@ -1353,9 +1336,6 @@ struct json_dearchiver::impl {
                      if ("value-is-external"sv == name)
                          return read_bool(value, value_use_source);
 
-                     if ("stop-on-error"sv == name)
-                         return read_bool(value, stop_on_error);
-
                      if ("source-ta-type"sv == name)
                          return read_temp_i64(value) && copy_i64_to(type_ta);
 
@@ -1370,11 +1350,11 @@ struct json_dearchiver::impl {
 
                      return error("unknown element");
                  }) and
-               copy_to_source(type_ta, id_ta, p.integers[2], p.integers[1]) and
+               copy_to_source(type_ta, id_ta, p.integers[1], p.integers[2]) and
                copy_to_source(
-                 type_value, id_value, p.integers[4], p.integers[3]) and
+                 type_value, id_value, p.integers[3], p.integers[4]) and
                copy_to_generator_options(
-                 ta_use_source, value_use_source, stop_on_error, p.integers[0]);
+                 ta_use_source, value_use_source, p.integers[0]);
     }
 
     bool read_simulation_dynamics(const rapidjson::Value& val,
@@ -1906,35 +1886,53 @@ struct json_dearchiver::impl {
     {
         auto_stack a(this, "dynamics hsm");
 
-        static constexpr std::string_view n[] = { "hsm", "i1", "i2",
-                                                  "r1",  "r2", "timeout" };
+        static constexpr std::string_view n[] = {
+            "hsm", "i1", "i2", "r1", "r2", "source-id", "source-type", "timeout"
+        };
 
-        return for_members(val, n, [&](auto idx, const auto& value) noexcept {
-            switch (idx) {
-            case 0: {
-                u64    id_in_file = 0;
-                hsm_id id;
+        std::optional<source::source_type> type;
+        std::optional<u64>                 id;
 
-                return read_u64(value, id_in_file) && id_in_file == 0
-                         ? copy(0, p.integers[0])
-                         : (sim_hsms_mapping_get(id_in_file, id) &&
-                            copy(ordinal(id), p.integers[0]));
-            }
-            case 1:
-                return read_temp_i64(value) && copy_i64_to(p.integers[1]);
-            case 2:
-                return read_temp_i64(value) && copy_i64_to(p.integers[2]);
-            case 3:
-                return read_temp_real(value) && copy_real_to(p.reals[0]);
-            case 4:
-                return read_temp_real(value) && copy_real_to(p.reals[1]);
-            case 5:
-                return read_temp_real(value) && copy_real_to(p.reals[2]);
-            default:
-                return error("unknown element");
-                ;
-            }
-        });
+        return for_members(
+                 val,
+                 n,
+                 [&](auto idx, const auto& value) noexcept {
+                     switch (idx) {
+                     case 0: {
+                         u64    id_in_file = 0;
+                         hsm_id id;
+
+                         return read_u64(value, id_in_file) && id_in_file == 0
+                                  ? copy(0, p.integers[0])
+                                  : (sim_hsms_mapping_get(id_in_file, id) &&
+                                     copy(ordinal(id), p.integers[0]));
+                     }
+                     case 1:
+                         return read_temp_i64(value) &&
+                                copy_i64_to(p.integers[1]);
+                     case 2:
+                         return read_temp_i64(value) &&
+                                copy_i64_to(p.integers[2]);
+                     case 3:
+                         return read_temp_real(value) &&
+                                copy_real_to(p.reals[0]);
+                     case 4:
+                         return read_temp_real(value) &&
+                                copy_real_to(p.reals[1]);
+                     case 5:
+                         return read_temp_i64(value) && copy_i64_to(type);
+                     case 6:
+                         return read_temp_u64(value) && copy_u64_to(id);
+                     case 7:
+                         return read_temp_real(value) &&
+                                copy_real_to(p.reals[2]);
+                     default:
+                         return error("unknown element");
+                     };
+                 }) and
+               ((optional_has_value(type) and optional_has_value(id) and
+                 copy_to_source(type, id, p.integers[3], p.integers[4])) or
+                true);
     }
 
     bool try_modeling_copy_component_id(const small_string<31>&   reg,
@@ -2007,35 +2005,54 @@ struct json_dearchiver::impl {
     {
         auto_stack a(this, "dynamics hsm");
 
-        static constexpr std::string_view n[] = { "hsm", "i1", "i2",
-                                                  "r1",  "r2", "timeout" };
+        static constexpr std::string_view n[] = {
+            "hsm", "i1", "i2", "r1", "r2", "source-id", "source-type", "timeout"
+        };
 
-        return for_members(val, n, [&](auto idx, const auto& value) noexcept {
-            switch (idx) {
-            case 0: {
-                component_id c;
-                if (try_read_child_hsm_component(value, c)) {
-                    p.integers[0] = static_cast<i64>(c);
-                    return true;
-                } else {
-                    warning("HSM component not found");
-                    return true;
-                }
-            }
-            case 1:
-                return read_temp_i64(value) && copy_i64_to(p.integers[1]);
-            case 2:
-                return read_temp_i64(value) && copy_i64_to(p.integers[2]);
-            case 3:
-                return read_temp_real(value) && copy_real_to(p.reals[0]);
-            case 4:
-                return read_temp_real(value) && copy_real_to(p.reals[1]);
-            case 5:
-                return read_temp_real(value) && copy_real_to(p.reals[2]);
-            default:
-                return error("unknown element");
-            }
-        });
+        std::optional<source::source_type> type;
+        std::optional<u64>                 id;
+
+        return for_members(
+                 val,
+                 n,
+                 [&](auto idx, const auto& value) noexcept {
+                     switch (idx) {
+                     case 0: {
+                         component_id c;
+                         if (try_read_child_hsm_component(value, c)) {
+                             p.integers[0] = static_cast<i64>(c);
+                             return true;
+                         } else {
+                             warning("HSM component not found");
+                             return true;
+                         }
+                     }
+                     case 1:
+                         return read_temp_i64(value) &&
+                                copy_i64_to(p.integers[1]);
+                     case 2:
+                         return read_temp_i64(value) &&
+                                copy_i64_to(p.integers[2]);
+                     case 3:
+                         return read_temp_real(value) &&
+                                copy_real_to(p.reals[0]);
+                     case 4:
+                         return read_temp_real(value) &&
+                                copy_real_to(p.reals[1]);
+                     case 5:
+                         return read_temp_i64(value) && copy_i64_to(type);
+                     case 6:
+                         return read_temp_u64(value) && copy_u64_to(id);
+                     case 7:
+                         return read_temp_real(value) &&
+                                copy_real_to(p.reals[2]);
+                     default:
+                         return error("unknown element");
+                     }
+                 }) and
+               ((optional_has_value(type) and optional_has_value(id) and
+                 copy_to_source(type, id, p.integers[3], p.integers[4])) or
+                true);
     }
 
     ////
@@ -5734,11 +5751,9 @@ struct json_archiver::impl {
     {
         writer.StartObject();
         writer.Key("source-ta-type");
-        writer.Int64(p.integers[1]);
+        writer.Int64(p.integers[0]);
         writer.Key("source-ta-id");
-        writer.Uint64(p.integers[2]);
-        writer.Key("stop-on-error");
-        writer.Bool(p.integers[0] != 0);
+        writer.Uint64(p.integers[1]);
         writer.EndObject();
     }
 
@@ -5748,14 +5763,10 @@ struct json_archiver::impl {
                const parameter& p) noexcept
     {
         writer.StartObject();
-        writer.Key("ta");
-        writer.Double(p.reals[0]);
         writer.Key("source-ta-type");
-        writer.Int64(p.integers[1]);
+        writer.Int64(p.integers[0]);
         writer.Key("source-ta-id");
-        writer.Uint64(p.integers[2]);
-        writer.Key("stop-on-error");
-        writer.Bool(p.integers[0]);
+        writer.Uint64(p.integers[1]);
         writer.EndObject();
     }
 
@@ -5769,8 +5780,6 @@ struct json_archiver::impl {
 
         writer.StartObject();
 
-        writer.Key("stop-on-error");
-        writer.Bool(flags[generator::option::stop_on_error]);
         writer.Key("ta-is-external");
         writer.Bool(flags[generator::option::ta_use_source]);
         writer.Key("value-is-external");
@@ -5779,14 +5788,14 @@ struct json_archiver::impl {
         writer.Key("offset");
         writer.Double(p.reals[0]);
         writer.Key("source-ta-type");
-        writer.Int64(p.integers[2]);
+        writer.Int64(p.integers[1]);
         writer.Key("source-ta-id");
-        writer.Uint64(p.integers[1]);
+        writer.Uint64(p.integers[2]);
 
         writer.Key("source-value-type");
-        writer.Int64(p.integers[4]);
+        writer.Int64(p.integers[3]);
         writer.Key("source-value-id");
-        writer.Uint64(p.integers[3]);
+        writer.Uint64(p.integers[4]);
 
         writer.EndObject();
     }
@@ -6102,7 +6111,8 @@ struct json_archiver::impl {
         writer.StartObject();
 
         const auto id = enum_cast<component_id>(p.integers[0]);
-        if (auto* c = mod.components.try_to_get<component>(id))
+        auto*      c  = mod.components.try_to_get<component>(id);
+        if (c)
             write_child_component_path(mod, *c, writer);
 
         writer.EndObject();
@@ -6117,6 +6127,18 @@ struct json_archiver::impl {
         writer.Double(p.reals[1]);
         writer.Key("timeout");
         writer.Double(p.reals[2]);
+
+        if (c) {
+            if (auto* hc = mod.hsm_components.try_to_get(c->id.hsm_id)) {
+                if (hc->machine.is_using_source()) {
+                    writer.Key("source-type");
+                    writer.Int64(p.integers[3]);
+                    writer.Key("source-id");
+                    writer.Uint64(p.integers[4]);
+                }
+            }
+        }
+
         writer.EndObject();
     }
 

@@ -93,31 +93,26 @@ static void parameter_init(parameter& param, const queue& dyn) noexcept
 
 static void model_init(const parameter& param, dynamic_queue& dyn) noexcept
 {
-    dyn.stop_on_error = param.integers[0] != 0;
-    dyn.source_ta     = get_source(param.integers[1], param.integers[2]);
+    dyn.source_ta = get_source(param.integers[0], param.integers[1]);
 }
 
 static void parameter_init(parameter& param, const dynamic_queue& dyn) noexcept
 {
-    param.integers[0] = dyn.stop_on_error ? 1 : 0;
-
-    std::tie(param.integers[1], param.integers[2]) =
+    std::tie(param.integers[0], param.integers[1]) =
       source_to_parameters(dyn.source_ta);
 }
 
 static void model_init(const parameter& param, priority_queue& dyn) noexcept
 {
-    dyn.ta            = param.reals[0];
-    dyn.stop_on_error = param.integers[0] != 0;
-    dyn.source_ta     = get_source(param.integers[1], param.integers[2]);
+    dyn.ta        = param.reals[0];
+    dyn.source_ta = get_source(param.integers[0], param.integers[1]);
 }
 
 static void parameter_init(parameter& param, const priority_queue& dyn) noexcept
 {
-    param.reals[0]    = dyn.ta;
-    param.integers[0] = dyn.stop_on_error ? 1 : 0;
+    param.reals[0] = dyn.ta;
 
-    std::tie(param.integers[1], param.integers[2]) =
+    std::tie(param.integers[0], param.integers[1]) =
       source_to_parameters(dyn.source_ta);
 }
 
@@ -126,7 +121,6 @@ static void model_init(const parameter& param, generator& dyn) noexcept
     dyn.flags = bitflags<generator::option>(param.integers[0]);
 
     if (dyn.flags[generator::option::ta_use_source]) {
-        dyn.offset    = param.reals[0];
         dyn.source_ta = get_source(param.integers[1], param.integers[2]);
     }
 
@@ -140,7 +134,6 @@ static void parameter_init(parameter& param, const generator& dyn) noexcept
     param.integers[0] = dyn.flags.to_unsigned();
 
     if (dyn.flags[generator::option::ta_use_source]) {
-        param.reals[0] = dyn.offset;
         std::tie(param.integers[1], param.integers[2]) =
           source_to_parameters(dyn.source_ta);
     }
@@ -495,10 +488,12 @@ void parameter::init_from(const dynamics_type type) noexcept
     }
 };
 
-void parameter::clear() noexcept
+parameter& parameter::clear() noexcept
 {
     reals.fill(0);
     integers.fill(0);
+
+    return *this;
 }
 
 parameter& parameter::set_constant(real value, real offset) noexcept
@@ -606,11 +601,67 @@ parameter& parameter::set_hsm_wrapper(i64  i1,
     return *this;
 }
 
-parameter& parameter::set_hsm_wrapper(const source& src) noexcept
+parameter& parameter::set_hsm_wrapper_value(const source& src) noexcept
 {
     std::tie(integers[3], integers[4]) = source_to_parameters(src);
-
     return *this;
+}
+
+parameter& parameter::set_generator_ta(const source& src) noexcept
+{
+    bitflags<generator::option> flags(integers[0]);
+    flags.set(generator::option::ta_use_source, true);
+    integers[0] = static_cast<i64>(flags.to_unsigned());
+
+    std::tie(integers[1], integers[2]) = source_to_parameters(src);
+    return *this;
+}
+
+parameter& parameter::set_generator_value(const source& src) noexcept
+{
+    bitflags<generator::option> flags(integers[0]);
+    flags.set(generator::option::value_use_source, true);
+    integers[0] = static_cast<i64>(flags.to_unsigned());
+
+    std::tie(integers[3], integers[4]) = source_to_parameters(src);
+    return *this;
+}
+
+parameter& parameter::set_dynamic_queue_ta(const source& src) noexcept
+{
+    std::tie(integers[0], integers[1]) = source_to_parameters(src);
+    return *this;
+}
+
+parameter& parameter::set_priority_queue_ta(const source& src) noexcept
+{
+    std::tie(integers[0], integers[1]) = source_to_parameters(src);
+    return *this;
+}
+
+source parameter::get_hsm_wrapper_value() noexcept
+{
+    return get_source(integers[3], integers[4]);
+}
+
+source parameter::get_generator_ta() noexcept
+{
+    return get_source(integers[1], integers[2]);
+}
+
+source parameter::get_generator_value() noexcept
+{
+    return get_source(integers[3], integers[4]);
+}
+
+source parameter::get_dynamic_queue_ta() noexcept
+{
+    return get_source(integers[0], integers[1]);
+}
+
+source parameter::get_priority_queue_ta() noexcept
+{
+    return get_source(integers[0], integers[1]);
 }
 
 } // namespace irt

@@ -30,8 +30,8 @@ bool show_external_sources_combo(external_source& srcs,
 
 bool show_external_sources_combo(external_source&     srcs,
                                  const char*          title,
-                                 source::id_type&     src_id,
-                                 source::source_type& src_type) noexcept;
+                                 source::source_type& src_type,
+                                 source::id_type&     src_id) noexcept;
 
 /**
  * Display widgets to control the HSM component from modeling.

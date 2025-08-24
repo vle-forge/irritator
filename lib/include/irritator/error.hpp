@@ -89,6 +89,7 @@ enum class simulation_errc : std::int16_t {
 
     scheduler,
     external_sources,
+    ta_abnormal,
 
     models_container_full,
 

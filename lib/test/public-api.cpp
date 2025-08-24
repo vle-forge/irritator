@@ -1079,23 +1079,13 @@ int main()
 
         auto& cnt = sim.alloc<irt::counter>();
 
-        auto& gen                = sim.alloc<irt::generator>();
-        get_p(sim, gen).reals[0] = 0.0;
-
-        gen.flags.set(irt::generator::option::ta_use_source);
-        gen.flags.set(irt::generator::option::value_use_source);
-
-        get_p(sim, gen).integers[0] = gen.flags.to_unsigned();
-
-        get_p(sim, gen).integers[4] =
-          irt::ordinal(sim.srcs.constant_sources.get_id(cst_value));
-        get_p(sim, gen).integers[3] =
-          irt::ordinal(irt::source::source_type::constant);
-
-        get_p(sim, gen).integers[2] =
-          irt::ordinal(sim.srcs.constant_sources.get_id(cst_ta));
-        get_p(sim, gen).integers[1] =
-          ordinal(irt::source::source_type::constant);
+        auto& gen = sim.alloc<irt::generator>();
+        get_p(sim, gen)
+          .clear()
+          .set_generator_ta(
+            irt::source(sim.srcs.constant_sources.get_id(cst_ta)))
+          .set_generator_value(
+            irt::source(sim.srcs.constant_sources.get_id(cst_value)));
 
         expect(sim.hsms.can_alloc());
         expect(sim.models.can_alloc());
@@ -1159,20 +1149,13 @@ int main()
         auto& cnt = sim.alloc<irt::counter>();
 
         auto& gen = sim.alloc<irt::generator>();
-        gen.flags.set(irt::generator::option::ta_use_source);
-        gen.flags.set(irt::generator::option::value_use_source);
 
-        get_p(sim, gen).integers[0] = gen.flags.to_unsigned();
-
-        get_p(sim, gen).integers[4] =
-          irt::ordinal(sim.srcs.constant_sources.get_id(cst_value));
-        get_p(sim, gen).integers[3] =
-          irt::ordinal(irt::source::source_type::constant);
-
-        get_p(sim, gen).integers[2] =
-          irt::ordinal(sim.srcs.constant_sources.get_id(cst_ta));
-        get_p(sim, gen).integers[1] =
-          ordinal(irt::source::source_type::constant);
+        get_p(sim, gen)
+          .clear()
+          .set_generator_value(
+            irt::source(sim.srcs.constant_sources.get_id(cst_value)))
+          .set_generator_ta(
+            irt::source(sim.srcs.constant_sources.get_id(cst_ta)));
 
         expect(sim.hsms.can_alloc());
         expect(sim.models.can_alloc());
@@ -1420,21 +1403,12 @@ int main()
         auto& gen = sim.alloc<irt::generator>();
         auto& cnt = sim.alloc<irt::counter>();
 
-        gen.flags.set(irt::generator::option::ta_use_source);
-        gen.flags.set(irt::generator::option::value_use_source);
-        gen.flags.set(irt::generator::option::stop_on_error);
-
-        get_p(sim, gen).integers[0] = gen.flags.to_unsigned();
-
-        get_p(sim, gen).integers[4] =
-          irt::ordinal(sim.srcs.constant_sources.get_id(cst_value));
-        get_p(sim, gen).integers[3] =
-          irt::ordinal(irt::source::source_type::constant);
-
-        get_p(sim, gen).integers[2] =
-          irt::ordinal(sim.srcs.constant_sources.get_id(cst_ta));
-        get_p(sim, gen).integers[1] =
-          ordinal(irt::source::source_type::constant);
+        get_p(sim, gen)
+          .clear()
+          .set_generator_value(
+            irt::source(sim.srcs.constant_sources.get_id(cst_value)))
+          .set_generator_ta(
+            irt::source(sim.srcs.constant_sources.get_id(cst_ta)));
 
         expect(!!sim.connect_dynamics(gen, 0, cnt, 0));
 
@@ -1470,15 +1444,12 @@ int main()
         auto& l_and = sim.alloc<irt::logical_and_2>();
         auto& l_or  = sim.alloc<irt::logical_or_2>();
 
-        get_p(sim, gen).integers[4] =
-          irt::ordinal(sim.srcs.constant_sources.get_id(cst_value));
-        get_p(sim, gen).integers[3] =
-          irt::ordinal(irt::source::source_type::constant);
-
-        get_p(sim, gen).integers[2] =
-          irt::ordinal(sim.srcs.constant_sources.get_id(cst_ta));
-        get_p(sim, gen).integers[1] =
-          ordinal(irt::source::source_type::constant);
+        get_p(sim, gen)
+          .clear()
+          .set_generator_value(
+            irt::source(sim.srcs.constant_sources.get_id(cst_value)))
+          .set_generator_ta(
+            irt::source(sim.srcs.constant_sources.get_id(cst_ta)));
 
         expect(!!sim.connect_dynamics(gen, 0, l_and, 0));
         expect(!!sim.connect_dynamics(l_and, 0, l_or, 0));

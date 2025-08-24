@@ -579,29 +579,6 @@ static void show_dynamics_values(application&       app,
     ImGui::LabelFormat("sigma", "{}", dyn.exec.timer);
 }
 
-static status copy_port(simulation&                      sim,
-                        const table<model_id, model_id>& mapping,
-                        block_node_id&                   src,
-                        block_node_id&                   dst) noexcept
-{
-    if (is_undefined(src)) {
-        dst = src;
-        return success();
-    }
-
-    sim.for_each(src, [&](auto& mdl_src, int port_src) {
-        const auto mdl_src_id = sim.get_id(mdl_src);
-        if (auto* found = mapping.get(mdl_src_id); found) {
-            // TODO
-            (void)sim.connect(dst, *found, port_src);
-        } else {
-            (void)sim.connect(dst, mdl_src_id, port_src);
-        }
-    });
-
-    return success();
-}
-
 static constexpr auto is_in_node(
   std::span<generic_simulation_editor::node> nodes,
   const model_id                             mdl_id) noexcept

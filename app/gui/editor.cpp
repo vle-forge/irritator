@@ -12,8 +12,8 @@ namespace irt {
 
 bool show_external_sources_combo(external_source&     srcs,
                                  const char*          title,
-                                 source::id_type&     src_id,
-                                 source::source_type& src_type) noexcept;
+                                 source::source_type& src_type,
+                                 source::id_type&     src_id) noexcept;
 
 bool show_external_sources_combo(external_source& srcs,
                                  const char*      title,
@@ -22,7 +22,7 @@ bool show_external_sources_combo(external_source& srcs,
     source::id_type     id   = src.id;
     source::source_type type = src.type;
 
-    if (show_external_sources_combo(srcs, title, id, type)) {
+    if (show_external_sources_combo(srcs, title, type, id)) {
         src.id   = id;
         src.type = type;
         return true;
@@ -33,19 +33,19 @@ bool show_external_sources_combo(external_source& srcs,
 
 bool show_external_sources_combo(external_source& srcs,
                                  const char*      title,
-                                 i64&             integer_0,
-                                 i64&             integer_1) noexcept
+                                 i64&             integer_type,
+                                 i64&             integer_id) noexcept
 {
-    debug::ensure(is_numeric_castable<u64>(integer_0));
-    debug::ensure(std::cmp_less_equal(0, integer_1) &&
-                  std::cmp_less_equal(integer_1, source::source_type_count));
+    debug::ensure(is_numeric_castable<u64>(integer_id));
+    debug::ensure(std::cmp_less_equal(0, integer_type) &&
+                  std::cmp_less_equal(integer_type, source::source_type_count));
 
-    auto  src  = get_source(integer_1, integer_0);
+    auto  src  = get_source(integer_type, integer_id);
     auto& id   = src.id;
     auto& type = src.type;
 
-    if (show_external_sources_combo(srcs, title, id, type)) {
-        std::tie(integer_1, integer_0) = source_to_parameters(src);
+    if (show_external_sources_combo(srcs, title, type, id)) {
+        std::tie(integer_type, integer_id) = source_to_parameters(src);
         return true;
     }
 
@@ -113,8 +113,8 @@ static void build_selected_source_label(const source::source_type src_type,
 
 bool show_external_sources_combo(external_source&     srcs,
                                  const char*          title,
-                                 source::id_type&     src_id,
-                                 source::source_type& src_type) noexcept
+                                 source::source_type& src_type,
+                                 source::id_type&     src_id) noexcept
 {
     bool             is_changed = false;
     small_string<63> label("-");
@@ -328,11 +328,16 @@ static bool show_parameter(queue_tag,
                            external_source& /*srcs*/,
                            parameter& p) noexcept
 {
-    const auto b1 = ImGui::InputReal("delay", &p.reals[0]);
-    ImGui::SameLine();
-    HelpMarker("Delay to resent the first input receives (FIFO queue)");
+    auto value = p.reals[0];
 
-    return b1;
+    if (ImGui::InputReal("delay", &value)) {
+        if (not std::isnormal(value) or not std::signbit(value)) {
+            p.reals[0] = value;
+            return true;
+        }
+    }
+
+    return false;
 }
 
 static bool show_parameter(dynamic_queue_tag,
@@ -340,20 +345,8 @@ static bool show_parameter(dynamic_queue_tag,
                            external_source& srcs,
                            parameter&       p) noexcept
 {
-    auto       stop_on_error = p.integers[0] != 0;
-    const auto b1            = ImGui::Checkbox("Stop on error", &stop_on_error);
-    if (b1)
-        p.integers[0] = stop_on_error;
-
-    ImGui::SameLine();
-    HelpMarker(
-      "Unchecked, the dynamic queue stops to send data if the source are "
-      "empty or undefined. Checked, the simulation will stop.");
-
-    const auto b2 =
-      show_external_sources_combo(srcs, "time", p.integers[1], p.integers[2]);
-
-    return b1 or b2;
+    return show_external_sources_combo(
+      srcs, "time", p.integers[0], p.integers[1]);
 }
 
 static bool show_parameter(priority_queue_tag,
@@ -361,20 +354,8 @@ static bool show_parameter(priority_queue_tag,
                            external_source& srcs,
                            parameter&       p) noexcept
 {
-    bool is_changed = false;
-    bool value      = p.integers[0] != 0;
-
-    if (ImGui::Checkbox("Stop on error", &value)) {
-        p.integers[0] = value ? 1 : 0;
-        is_changed    = true;
-    }
-
-    if (show_external_sources_combo(
-          srcs, "time", p.integers[1], p.integers[2])) {
-        is_changed = true;
-    }
-
-    return is_changed;
+    return show_external_sources_combo(
+      srcs, "time", p.integers[0], p.integers[1]);
 }
 
 static bool show_parameter(generator_tag,
@@ -422,19 +403,12 @@ static bool show_parameter(generator_tag,
         p.integers[0] = flags.to_unsigned();
 
     if (flags[generator::option::ta_use_source]) {
-        auto stop_on_error = flags[generator::option::stop_on_error];
-
         if (show_external_sources_combo(
               srcs, "time", p.integers[1], p.integers[2]))
             is_changed = true;
 
         if (ImGui::InputReal("offset", &p.reals[0])) {
             p.reals[0] = p.reals[0] < 0.0 ? 0.0 : p.reals[0];
-            is_changed = true;
-        }
-
-        if (ImGui::Checkbox("Stop on error", &stop_on_error)) {
-            flags.set(generator::option::stop_on_error, stop_on_error);
             is_changed = true;
         }
 
@@ -753,8 +727,8 @@ bool show_extented_hsm_parameter(const application& app, parameter& p) noexcept
 
 static bool show_parameter(hsm_wrapper_tag,
                            application& /*app*/,
-                           external_source& /*srcs*/,
-                           parameter& p) noexcept
+                           external_source& srcs,
+                           parameter&       p) noexcept
 {
     int changed = false;
 
@@ -763,6 +737,9 @@ static bool show_parameter(hsm_wrapper_tag,
     changed += ImGui::InputDouble("r1", &p.reals[0]);
     changed += ImGui::InputDouble("r2", &p.reals[1]);
     changed += ImGui::InputDouble("timer", &p.reals[2]);
+
+    changed +=
+      show_external_sources_combo(srcs, "value", p.integers[3], p.integers[4]);
 
     return changed;
 }

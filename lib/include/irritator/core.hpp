@@ -515,8 +515,9 @@ public:
 
     std::span<double> buffer; /**< A view on external-source buffers. */
 
-    /** Stores information for text, binary and random external source to
-     * enable the restore is apply. */
+    /** Stores external data for text, binary and random external sources
+     * to enable restore operation in past (for instance position in the
+     * text or binary files and seed parameters for random source). */
     std::array<u64, 4> chunk_id{};
 
     /**< The identifier of the external source. */
@@ -533,34 +534,34 @@ public:
 
     source() noexcept = default;
 
-    source(const constant_source_id id_) noexcept
-      : type{ source_type::constant }
-      , id{ .constant_id = id_ }
+    explicit source(const constant_source_id id_) noexcept
+      : id{ .constant_id = id_ }
+      , type{ source_type::constant }
     {}
 
-    source(const binary_file_source_id id_) noexcept
-      : type{ source_type::binary_file }
-      , id{ .binary_file_id = id_ }
+    explicit source(const binary_file_source_id id_) noexcept
+      : id{ .binary_file_id = id_ }
+      , type{ source_type::binary_file }
     {}
 
-    source(const text_file_source_id id_) noexcept
-      : type{ source_type::text_file }
-      , id{ .text_file_id = id_ }
+    explicit source(const text_file_source_id id_) noexcept
+      : id{ .text_file_id = id_ }
+      , type{ source_type::text_file }
     {}
 
-    source(const random_source_id id_) noexcept
-      : type{ source_type::random }
-      , id{ .random_id = id_ }
+    explicit source(const random_source_id id_) noexcept
+      : id{ .random_id = id_ }
+      , type{ source_type::random }
     {}
 
     source(const source_type type_, const id_type id_) noexcept
-      : type(type_)
-      , id(id_)
+      : id(id_)
+      , type(type_)
     {}
 
     source(const source& src) noexcept
-      : type(src.type)
-      , id(src.id)
+      : id(src.id)
+      , type(src.type)
     {}
 
     source& operator=(const source& src) noexcept
@@ -819,7 +820,7 @@ struct parameter {
     void init_from(const dynamics_type type) noexcept;
 
     //! Assign @c 0 to reals and integers arrays.
-    void clear() noexcept;
+    parameter& clear() noexcept;
 
     parameter& set_constant(real value, real offset) noexcept;
     parameter& set_cross(real threshold, bool detect_up) noexcept;
@@ -846,7 +847,18 @@ struct parameter {
                                real r1,
                                real r2,
                                real timer) noexcept;
-    parameter& set_hsm_wrapper(const source& src) noexcept;
+
+    parameter& set_generator_ta(const source& src) noexcept;
+    parameter& set_generator_value(const source& src) noexcept;
+    parameter& set_hsm_wrapper_value(const source& src) noexcept;
+    parameter& set_dynamic_queue_ta(const source& src) noexcept;
+    parameter& set_priority_queue_ta(const source& src) noexcept;
+
+    source get_generator_ta() noexcept;
+    source get_generator_value() noexcept;
+    source get_hsm_wrapper_value() noexcept;
+    source get_dynamic_queue_ta() noexcept;
+    source get_priority_queue_ta() noexcept;
 
     std::array<real, 8> reals;
     std::array<i64, 8>  integers;
@@ -3222,11 +3234,11 @@ struct counter {
 
 struct generator {
     enum { x_value, x_t, x_add_tr, x_mult_tr };
+
     enum class option : u8 {
         none             = 0,
-        stop_on_error    = 1 << 0,
-        ta_use_source    = 1 << 1,
-        value_use_source = 1 << 2,
+        ta_use_source    = 1 << 0,
+        value_use_source = 1 << 1,
         Count
     };
 
@@ -3235,7 +3247,6 @@ struct generator {
     time          sigma;
     real          value;
 
-    real             offset;
     source           source_ta;
     source           source_value;
     bitflags<option> flags;
@@ -3245,34 +3256,26 @@ struct generator {
     generator(const generator& other) noexcept
       : sigma(other.sigma)
       , value(other.value)
-      , offset(other.offset)
       , source_ta(other.source_ta)
       , source_value(other.source_value)
-      , flags(option::stop_on_error,
-              option::ta_use_source,
-              option::value_use_source)
+      , flags(option::ta_use_source, option::value_use_source)
     {}
 
+    /// Before calling this function, the @c sigma member is initialized with
+    /// @c params.reals[0] and the @c value member is initialized with
+    /// @c params.reals[1].
     status initialize(simulation& sim) noexcept
     {
-        sigma = offset;
-
+        sigma = time_domain<time>::infinity;
         if (flags[option::ta_use_source]) {
-            if (flags[option::stop_on_error]) {
-                irt_check(initialize_source(sim, source_ta));
-            } else {
-                (void)initialize_source(sim, source_ta);
-            }
-        } else {
-            sigma = time_domain<time>::infinity;
+            irt_check(initialize_source(sim, source_ta));
+            sigma = source_ta.next();
         }
 
+        value = zero;
         if (flags[option::value_use_source]) {
-            if (flags[option::stop_on_error]) {
-                irt_check(initialize_source(sim, source_value));
-            } else {
-                (void)initialize_source(sim, source_value);
-            }
+            irt_check(initialize_source(sim, source_value));
+            value = source_value.next();
         }
 
         return success();
@@ -3291,39 +3294,54 @@ struct generator {
 
     status transition(simulation& sim, time /*t*/, time /*e*/, time r) noexcept
     {
-        sigma = time_domain<time>::infinity;
+        auto update_source_by_input_port = false;
 
-        if (not flags[option::value_use_source]) {
-            auto* lst_value = sim.messages.try_to_get(x[x_value]);
+        if (const auto* lst_value = sim.messages.try_to_get(x[x_value]);
+            lst_value and not lst_value->empty()) {
+            for (const auto& msg : *lst_value)
+                value = msg[0];
 
-            if (lst_value and not lst_value->empty()) {
-                for (const auto& msg : *lst_value) {
-                    value = msg[0];
-                    sigma = r;
-                }
+            sigma                       = r;
+            update_source_by_input_port = true;
+        }
+
+        if (is_zero(r)) {
+            if (flags[option::value_use_source] and
+                not update_source_by_input_port) {
+                if (const auto ret = update_source(sim, source_value, value);
+                    ret.has_error())
+                    return ret.error();
+            }
+
+            if (flags[option::ta_use_source]) {
+                if (const auto ret = update_source(sim, source_ta, sigma);
+                    ret.has_error())
+                    return ret.error();
+
+                if (not std::isfinite(sigma) or std::signbit(sigma))
+                    return new_error(simulation_errc::ta_abnormal);
             }
         }
 
-        if (not flags[option::ta_use_source]) {
-            auto* lst_t       = sim.messages.try_to_get(x[x_t]);
-            auto* lst_add_tr  = sim.messages.try_to_get(x[x_add_tr]);
-            auto* lst_mult_tr = sim.messages.try_to_get(x[x_mult_tr]);
+        auto* lst_t = sim.messages.try_to_get(x[x_t]);
+        real  t     = -1.0;
+        if (lst_t and not lst_t->empty())
+            for (const auto& msg : *lst_t)
+                t = std::min(msg[0], t);
 
-            real t = time_domain<time>::infinity;
-            if (lst_t and not lst_t->empty())
-                for (const auto& msg : *lst_t)
-                    t = std::min(msg[0], t);
+        auto* lst_add_tr = sim.messages.try_to_get(x[x_add_tr]);
+        real  add_tr     = time_domain<time>::infinity;
+        if (lst_add_tr and not lst_add_tr->empty())
+            for (const auto& msg : *lst_add_tr)
+                add_tr = std::min(msg[0], add_tr);
 
-            real add_tr = time_domain<time>::infinity;
-            if (lst_add_tr and not lst_add_tr->empty())
-                for (const auto& msg : *lst_add_tr)
-                    add_tr = std::min(msg[0], add_tr);
+        auto* lst_mult_tr = sim.messages.try_to_get(x[x_mult_tr]);
+        real  mult_tr     = zero;
+        if (lst_mult_tr and not lst_mult_tr->empty())
+            for (const auto& msg : *lst_mult_tr)
+                mult_tr = std::max(msg[0], mult_tr);
 
-            real mult_tr = zero;
-            if (lst_mult_tr and not lst_mult_tr->empty())
-                for (const auto& msg : *lst_mult_tr)
-                    mult_tr = std::max(msg[0], mult_tr);
-
+        if (lst_t or lst_add_tr or lst_mult_tr) {
             if (t >= zero) {
                 sigma = t;
             } else {
@@ -3333,31 +3351,10 @@ struct generator {
                 if (std::isnormal(mult_tr))
                     sigma = r * mult_tr;
             }
-
-            if (sigma < 0)
-                sigma = zero;
-        } else {
-            real local_sigma = 0;
-            real local_value = 0;
-
-            if (flags[option::stop_on_error]) {
-                irt_check(update_source(sim, source_ta, local_sigma));
-                irt_check(update_source(sim, source_value, local_value));
-                sigma = static_cast<real>(local_sigma);
-                value = static_cast<real>(local_value);
-            } else {
-                if (auto ret = update_source(sim, source_ta, local_sigma); !ret)
-                    sigma = time_domain<time>::infinity;
-                else
-                    sigma = static_cast<real>(local_sigma);
-
-                if (auto ret = update_source(sim, source_value, local_value);
-                    !ret)
-                    value = 0;
-                else
-                    value = static_cast<real>(local_value);
-            }
         }
+
+        if (sigma < 0.0)
+            sigma = 0.0;
 
         return success();
     }
@@ -4656,7 +4653,6 @@ struct dynamic_queue {
     dated_message_id fifo = undefined<dated_message_id>();
 
     source source_ta;
-    bool   stop_on_error = false;
 
     dynamic_queue() noexcept = default;
 
@@ -4664,7 +4660,6 @@ struct dynamic_queue {
       : sigma(other.sigma)
       , fifo(undefined<dated_message_id>())
       , source_ta(other.source_ta)
-      , stop_on_error(other.stop_on_error)
     {}
 
     status initialize(simulation& sim) noexcept
@@ -4672,11 +4667,7 @@ struct dynamic_queue {
         sigma = time_domain<time>::infinity;
         fifo  = undefined<dated_message_id>();
 
-        if (stop_on_error) {
-            irt_check(initialize_source(sim, source_ta));
-        } else {
-            (void)initialize_source(sim, source_ta);
-        }
+        irt_check(initialize_source(sim, source_ta));
 
         return success();
     }
@@ -4720,7 +4711,6 @@ struct priority_queue {
     real             ta   = 1.0;
 
     source source_ta;
-    bool   stop_on_error = false;
 
     priority_queue() noexcept = default;
 
@@ -4729,7 +4719,6 @@ struct priority_queue {
       , fifo(undefined<dated_message_id>())
       , ta(other.ta)
       , source_ta(other.source_ta)
-      , stop_on_error(other.stop_on_error)
     {}
 
 private:
@@ -4740,11 +4729,7 @@ private:
 public:
     status initialize(simulation& sim) noexcept
     {
-        if (stop_on_error) {
-            irt_check(initialize_source(sim, source_ta));
-        } else {
-            (void)initialize_source(sim, source_ta);
-        }
+        irt_check(initialize_source(sim, source_ta));
 
         sigma = time_domain<time>::infinity;
         fifo  = undefined<dated_message_id>();
@@ -7542,17 +7527,8 @@ inline status dynamic_queue::transition(simulation& sim,
                       simulation_errc::dated_messages_container_full);
 
                 real ta = zero;
-                if (stop_on_error) {
-                    irt_check(update_source(sim, source_ta, ta));
-                    ar->push_head(
-                      { t + static_cast<real>(ta), msg[0], msg[1], msg[2] });
-                } else {
-                    if (auto ret = update_source(sim, source_ta, ta); !ret)
-                        ar->push_head({ t + static_cast<real>(ta),
-                                        msg[0],
-                                        msg[1],
-                                        msg[2] });
-                }
+                irt_check(update_source(sim, source_ta, ta));
+                ar->push_head({ t + ta, msg[0], msg[1], msg[2] });
             }
         }
 
@@ -7602,23 +7578,13 @@ inline status priority_queue::transition(simulation& sim,
             for (const auto& msg : *lst) {
                 real value = zero;
 
-                if (stop_on_error) {
-                    irt_check(update_source(sim, source_ta, value));
+                irt_check(update_source(sim, source_ta, value));
 
-                    if (auto ret =
-                          try_to_insert(sim, static_cast<real>(value) + t, msg);
-                        !ret)
-                        return new_error(
-                          simulation_errc::dated_messages_container_full);
-                } else {
-                    if (auto ret = update_source(sim, source_ta, value); !ret) {
-                        if (auto ret2 = try_to_insert(
-                              sim, static_cast<real>(value) + t, msg);
-                            !ret2)
-                            return new_error(
-                              simulation_errc::dated_messages_container_full);
-                    }
-                }
+                if (auto ret =
+                      try_to_insert(sim, static_cast<real>(value) + t, msg);
+                    !ret)
+                    return new_error(
+                      simulation_errc::dated_messages_container_full);
             }
         }
 
