@@ -3375,51 +3375,30 @@ struct constant {
     time          sigma;
 
     enum class init_type : i8 {
-        // A constant value initialized at startup of the
-        // simulation.
-        // Use
-        // the @c default_value.
+        /// A constant value initialized at startup of the simulation. Use the
+        /// @c default_value.
         constant,
 
-        // The numbers of incoming connections on all input ports
-        // of the
-        // component. The @c default_value is filled via the
-        // component
-        // to
-        // simulation algorithm. Otherwise, the default value is
-        // unmodified.
+        /// The numbers of incoming connections on all input ports of the
+        /// component. The @c default_value is filled via the component to
+        /// simulation algorithm. Otherwise, the default value is unmodified.
         incoming_component_all,
 
-        // The number of outcoming connections on all output
-        // ports of
-        // the
-        // component. The @c default_value is filled via the
-        // component
-        // to
-        // simulation algorithm. Otherwise, the default value is
-        // unmodified.
+        /// The number of outcoming connections on all output ports of the
+        /// component. The @c default_value is filled via the component to
+        /// simulation algorithm. Otherwise, the default value is unmodified.
         outcoming_component_all,
 
-        // The number of incoming connections on the nth input
-        // port of
-        // the
-        // component. Use the @c port attribute to specify the
-        // identifier of
-        // the port. The @c default_value is filled via the
-        // component to
-        // simulation algorithm. Otherwise, the default value is
-        // unmodified.
+        /// The number of incoming connections on the nth input port of the
+        /// component. Use the @c port attribute to specify the identifier of
+        /// the port. The @c default_value is filled via the component to
+        /// simulation algorithm. Otherwise, the default value is unmodified.
         incoming_component_n,
 
-        // The number of incoming connections on the nth output
-        // ports of
-        // the
-        // component. Use the @c port attribute to specify the
-        // identifier of
-        // the port. The @c default_value is filled via the
-        // component to
-        // simulation algorithm. Otherwise, the default value is
-        // unmodified.
+        /// The number of incoming connections on the nth output ports of the
+        /// component. Use the @c port attribute to specify the identifier of
+        /// the port. The @c default_value is filled via the component to
+        /// simulation algorithm. Otherwise, the default value is unmodified.
         outcoming_component_n,
     };
 
