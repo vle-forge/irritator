@@ -22,7 +22,6 @@ private:
     table<u64, binary_file_source_id> binary_file_mapping;
     table<u64, random_source_id>      random_mapping;
     table<u64, text_file_source_id>   text_file_mapping;
-    table<u64, hsm_id>                sim_hsms_mapping;
 
     struct impl;
 
@@ -30,12 +29,6 @@ public:
     json_dearchiver() noexcept = default;
 
     status set_buffer(const u32 buffer_size) noexcept;
-
-    //! Load a simulation structure from a json memory buffer. This function is
-    //! mainly used in unit-test to check i/o functions.
-    status operator()(simulation&      sim,
-                      std::string_view path,
-                      file&            io) noexcept;
 
     //! Load a component structure from a json file.
     status operator()(modeling&        mod,
@@ -49,10 +42,6 @@ public:
                       simulation&      sim,
                       std::string_view path,
                       file&            io) noexcept;
-
-    //! Load a simulation structure from a json memory buffer. This function is
-    //! mainly used in unit-test to check i/o functions.
-    status operator()(simulation& sim, std::span<char> io) noexcept;
 
     //! Load a component structure from a json file.
     status operator()(modeling&       mod,
@@ -91,17 +80,6 @@ public:
         indent_2_one_line_array //! idem but merge simple array in one line.
     };
 
-    //! Save a component structure into a json memory buffer. This function is
-    //! mainly used in unit-test to check i/o functions.
-    status operator()(const simulation& sim,
-                      vector<char>&     out,
-                      print_option print_options = print_option::off) noexcept;
-
-    //! Save a component structure into a json file.
-    status operator()(const simulation& sim,
-                      file&             io,
-                      print_option print_options = print_option::off) noexcept;
-
     //! Save a component structure into a json file.
     status operator()(modeling&    mod,
                       component&   compo,
@@ -117,14 +95,12 @@ public:
     //! Save a project from the current modeling.
     status operator()(project&     pj,
                       modeling&    mod,
-                      simulation&  sim,
                       file&        io,
                       print_option print_options = print_option::off) noexcept;
 
     //! Save a project from the current modeling.
     status operator()(project&      pj,
                       modeling&     mod,
-                      simulation&   sim,
                       vector<char>& buffer,
                       print_option  print_options = print_option::off) noexcept;
 

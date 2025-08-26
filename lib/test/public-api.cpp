@@ -13,8 +13,6 @@
 
 #include <fmt/format.h>
 
-#include <filesystem>
-#include <fstream>
 #include <random>
 #include <sstream>
 
@@ -828,104 +826,6 @@ int main()
           mdl, []([[maybe_unused]] const auto& dyns) { return 579.0; });
 
         expect(eq(ret_2, 579.0));
-    };
-
-    "input-output"_test = [] {
-        irt::vector<char> out;
-
-        {
-            irt::simulation sim;
-            expect(sim.can_alloc(irt::dynamics_type_size()));
-
-            sim.alloc<irt::qss1_integrator>();
-            sim.alloc<irt::qss1_multiplier>();
-            sim.alloc<irt::qss1_cross>();
-            sim.alloc<irt::qss1_filter>();
-            sim.alloc<irt::qss1_power>();
-            sim.alloc<irt::qss1_square>();
-            sim.alloc<irt::qss1_sum_2>();
-            sim.alloc<irt::qss1_sum_3>();
-            sim.alloc<irt::qss1_sum_4>();
-            sim.alloc<irt::qss1_wsum_2>();
-            sim.alloc<irt::qss1_wsum_3>();
-            sim.alloc<irt::qss1_wsum_4>();
-            sim.alloc<irt::qss1_integer>();
-            sim.alloc<irt::qss1_compare>();
-            sim.alloc<irt::qss2_integrator>();
-            sim.alloc<irt::qss2_multiplier>();
-            sim.alloc<irt::qss2_cross>();
-            sim.alloc<irt::qss2_filter>();
-            sim.alloc<irt::qss2_power>();
-            sim.alloc<irt::qss2_square>();
-            sim.alloc<irt::qss2_sum_2>();
-            sim.alloc<irt::qss2_sum_3>();
-            sim.alloc<irt::qss2_sum_4>();
-            sim.alloc<irt::qss2_wsum_2>();
-            sim.alloc<irt::qss2_wsum_3>();
-            sim.alloc<irt::qss2_wsum_4>();
-            sim.alloc<irt::qss2_integer>();
-            sim.alloc<irt::qss2_compare>();
-            sim.alloc<irt::qss3_integrator>();
-            sim.alloc<irt::qss3_multiplier>();
-            sim.alloc<irt::qss3_cross>();
-            sim.alloc<irt::qss3_filter>();
-            sim.alloc<irt::qss3_power>();
-            sim.alloc<irt::qss3_square>();
-            sim.alloc<irt::qss3_sum_2>();
-            sim.alloc<irt::qss3_sum_3>();
-            sim.alloc<irt::qss3_sum_4>();
-            sim.alloc<irt::qss3_wsum_2>();
-            sim.alloc<irt::qss3_wsum_3>();
-            sim.alloc<irt::qss3_wsum_4>();
-            sim.alloc<irt::qss3_integer>();
-            sim.alloc<irt::qss3_compare>();
-            sim.alloc<irt::counter>();
-            sim.alloc<irt::queue>();
-            sim.alloc<irt::dynamic_queue>();
-            sim.alloc<irt::priority_queue>();
-            sim.alloc<irt::generator>();
-            sim.alloc<irt::constant>();
-            sim.alloc<irt::time_func>();
-            sim.alloc<irt::accumulator_2>();
-            sim.alloc<irt::logical_and_2>();
-            sim.alloc<irt::logical_and_3>();
-            sim.alloc<irt::logical_or_2>();
-            sim.alloc<irt::logical_or_3>();
-            sim.alloc<irt::logical_invert>();
-            sim.alloc<irt::hsm_wrapper>();
-
-            expect(eq(irt::dynamics_type_size(), sim.models.size()));
-
-            irt::json_archiver j;
-            expect(j(sim,
-                     out,
-                     irt::json_archiver::print_option::indent_2_one_line_array)
-                     .has_value());
-
-            expect(out.size() > 0);
-        }
-
-        try {
-            std::error_code ec;
-            auto            temp = std::filesystem::temp_directory_path(ec);
-            temp /= "unit-test.irt";
-
-            if (std::ofstream ofs(temp); ofs.is_open()) {
-                fmt::print("`{}`\n", std::string_view(out.data(), out.size()));
-                ofs << std::string_view(out.data(), out.size()) << '\n';
-            }
-        } catch (...) {
-        }
-
-        {
-            irt::simulation sim;
-
-            auto in = std::span(out.data(), out.size());
-
-            irt::json_dearchiver j;
-            expect(j(sim, in).has_value());
-            expect(eq(sim.models.size(), irt::dynamics_type_size()));
-        }
     };
 
     "constant_simulation"_test = [] {

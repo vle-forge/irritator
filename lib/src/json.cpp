@@ -1357,26 +1357,6 @@ struct json_dearchiver::impl {
                  ta_use_source, value_use_source, p.integers[0]);
     }
 
-    bool read_simulation_dynamics(const rapidjson::Value& val,
-                                  constant_tag,
-                                  parameter& p) noexcept
-    {
-        auto_stack a(this, "dynamics constant");
-
-        return for_each_member(
-          val, [&](const auto name, const auto& value) noexcept -> bool {
-              if ("value"sv == name)
-                  return read_temp_real(value) && copy_real_to(p.reals[0]);
-
-              if ("offset"sv == name)
-                  return read_temp_real(value) &&
-                         is_double_greater_equal_than(0.0) &&
-                         copy_real_to(p.reals[1]);
-
-              return error("unknown element");
-          });
-    }
-
     bool copy_string_to_constant_port(component&                compo,
                                       const constant::init_type type,
                                       parameter&                p) noexcept
@@ -1878,61 +1858,6 @@ struct json_dearchiver::impl {
           val, [&](const auto /*i*/, const auto& value) noexcept -> bool {
               return read_hsm_state(value, states);
           });
-    }
-
-    bool read_simulation_dynamics(const rapidjson::Value& val,
-                                  hsm_wrapper_tag,
-                                  parameter& p) noexcept
-    {
-        auto_stack a(this, "dynamics hsm");
-
-        static constexpr std::string_view n[] = {
-            "hsm", "i1", "i2", "r1", "r2", "source-id", "source-type", "timeout"
-        };
-
-        std::optional<source::source_type> type;
-        std::optional<u64>                 id;
-
-        return for_members(
-                 val,
-                 n,
-                 [&](auto idx, const auto& value) noexcept {
-                     switch (idx) {
-                     case 0: {
-                         u64    id_in_file = 0;
-                         hsm_id id;
-
-                         return read_u64(value, id_in_file) && id_in_file == 0
-                                  ? copy(0, p.integers[0])
-                                  : (sim_hsms_mapping_get(id_in_file, id) &&
-                                     copy(ordinal(id), p.integers[0]));
-                     }
-                     case 1:
-                         return read_temp_i64(value) &&
-                                copy_i64_to(p.integers[1]);
-                     case 2:
-                         return read_temp_i64(value) &&
-                                copy_i64_to(p.integers[2]);
-                     case 3:
-                         return read_temp_real(value) &&
-                                copy_real_to(p.reals[0]);
-                     case 4:
-                         return read_temp_real(value) &&
-                                copy_real_to(p.reals[1]);
-                     case 5:
-                         return read_temp_i64(value) && copy_i64_to(type);
-                     case 6:
-                         return read_temp_u64(value) && copy_u64_to(id);
-                     case 7:
-                         return read_temp_real(value) &&
-                                copy_real_to(p.reals[2]);
-                     default:
-                         return error("unknown element");
-                     };
-                 }) and
-               ((optional_has_value(type) and optional_has_value(id) and
-                 copy_to_source(type, id, p.integers[3], p.integers[4])) or
-                true);
     }
 
     bool try_modeling_copy_component_id(const small_string<31>&   reg,
@@ -4428,284 +4353,10 @@ struct json_dearchiver::impl {
           });
     }
 
-    bool read_simulation_model_dynamics(const rapidjson::Value& val,
-                                        model&                  mdl,
-                                        parameter&              p) noexcept
-    {
-        auto_stack s(this, "simulation model dynamics");
-
-        return for_first_member(
-          val, "dynamics"sv, [&](const auto& value) -> bool {
-              dispatch(mdl, [&]<typename Dynamics>(Dynamics& dyn) {
-                  new (&dyn) Dynamics{};
-
-                  if constexpr (has_input_port<Dynamics>)
-                      for (int i = 0, e = length(dyn.x); i != e; ++i)
-                          dyn.x[i] = undefined<message_id>();
-
-                  if constexpr (has_output_port<Dynamics>)
-                      for (int i = 0, e = length(dyn.y); i != e; ++i)
-                          dyn.y[i] = undefined<block_node_id>();
-              });
-
-              return dispatch(mdl.type, [&]<typename Tag>(Tag tag) -> bool {
-                  if constexpr (std::is_same_v<Tag, hsm_wrapper_tag>) {
-                      return read_simulation_dynamics(value, tag, p);
-                  } else if constexpr (std::is_same_v<Tag, constant_tag>) {
-                      return read_simulation_dynamics(value, tag, p);
-                  } else {
-                      return read_dynamics(value, tag, p);
-                  }
-              });
-          });
-    }
-
     bool cache_model_mapping_add(u64 id_in_file, u64 id) const noexcept
     {
         self.model_mapping.data.emplace_back(id_in_file, id);
         return true;
-    }
-
-    bool sim_hsms_mapping_clear() noexcept
-    {
-        self.sim_hsms_mapping.data.clear();
-        return true;
-    }
-
-    bool sim_hsms_mapping_add(const u64    id_in_file,
-                              const hsm_id id) const noexcept
-    {
-        self.sim_hsms_mapping.data.emplace_back(id_in_file, id);
-        return true;
-    }
-
-    bool sim_hsms_mapping_get(const u64 id_in_file, hsm_id& id) noexcept
-    {
-        if (auto* ptr = self.sim_hsms_mapping.get(id_in_file); ptr) {
-            id = *ptr;
-            return true;
-        }
-
-        return error("unknown HSM component id {}", id_in_file);
-    }
-
-    bool sim_hsms_mapping_sort() noexcept
-    {
-        self.sim_hsms_mapping.sort();
-        return true;
-    }
-
-    bool read_simulation_model(const rapidjson::Value& val,
-                               model&                  mdl,
-                               parameter&              p) noexcept
-    {
-        auto_stack s(this, "simulation model");
-
-        return for_each_member(
-          val, [&](const auto name, const auto& value) noexcept -> bool {
-              if ("type"sv == name)
-                  return read_temp_string(value) && copy_string_to(mdl.type) &&
-                         read_simulation_model_dynamics(val, mdl, p);
-
-              if ("id"sv == name) {
-                  std::optional<u64> id_in_file;
-
-                  return read_temp_u64(value) && copy_u64_to(id_in_file) &&
-                         optional_has_value(id_in_file) &&
-                         cache_model_mapping_add(
-                           *id_in_file, ordinal(sim().models.get_id(mdl)));
-              }
-
-              return true;
-          });
-    }
-
-    bool read_simulation_hsm(const rapidjson::Value&     val,
-                             hierarchical_state_machine& machine) noexcept
-    {
-        auto_stack s(this, "simulation hsm");
-
-        return for_each_member(
-          val, [&](const auto name, const auto& value) noexcept -> bool {
-              if ("id"sv == name) {
-                  const auto machine_id = sim().hsms.get_id(machine);
-                  u64        id_in_file = 0;
-
-                  return read_u64(value, id_in_file) &&
-                         sim_hsms_mapping_add(id_in_file, machine_id);
-              }
-
-              if ("states"sv == name)
-                  return read_hsm_states(value, machine.states);
-
-              if ("top"sv == name)
-                  return read_temp_u64(value) && copy_u64_to(machine.top_state);
-              return true;
-          });
-    }
-
-    bool sim_models_can_alloc(std::integral auto i) noexcept
-    {
-        if (sim().models.can_alloc(i))
-            return true;
-
-        return error("can not allocate more simulation models ({})",
-                     sim().models.capacity());
-    }
-
-    bool sim_hsms_can_alloc(std::integral auto i) noexcept
-    {
-        if (sim().hsms.can_alloc(i))
-            return true;
-
-        return error("can not allocate more HSM models ({})",
-                     sim().hsms.capacity());
-    }
-
-    bool read_simulation_hsms(const rapidjson::Value& val) noexcept
-    {
-        auto_stack s(this, "simulation hsms");
-
-        i64 len = 0;
-
-        return is_value_array(val) && copy_array_size(val, len) &&
-               sim_hsms_mapping_clear() && sim_hsms_can_alloc(len) &&
-               for_each_array(
-                 val,
-                 [&](const auto /* i */, const auto& value) noexcept -> bool {
-                     auto& hsm = sim().hsms.alloc();
-
-                     return read_simulation_hsm(value, hsm);
-                 }) &&
-               sim_hsms_mapping_sort();
-    }
-
-    bool read_simulation_models(const rapidjson::Value& val) noexcept
-    {
-        auto_stack s(this, "simulation models");
-
-        i64 len = 0;
-
-        return is_value_array(val) && copy_array_size(val, len) &&
-               sim_models_can_alloc(len) &&
-               for_each_array(
-                 val,
-                 [&](const auto /* i */, const auto& value) noexcept -> bool {
-                     auto&      mdl = sim().models.alloc();
-                     const auto id  = sim().models.get_id(mdl);
-                     const auto idx = get_index(id);
-                     mdl.handle     = invalid_heap_handle;
-
-                     return read_simulation_model(
-                       value, mdl, sim().parameters[idx]);
-                 });
-    }
-
-    bool simulation_connect(u64 src, i8 port_src, u64 dst, i8 port_dst) noexcept
-    {
-        auto_stack s(this, "simulation connect");
-
-        auto* mdl_src_id = self.model_mapping.get(src);
-        if (!mdl_src_id)
-            return error("unknown source model");
-
-        auto* mdl_dst_id = self.model_mapping.get(dst);
-        if (!mdl_dst_id)
-            return error("unknown destination model");
-
-        auto* mdl_src =
-          sim().models.try_to_get(enum_cast<model_id>(*mdl_src_id));
-        if (!mdl_src)
-            return error("unknown source model");
-
-        auto* mdl_dst =
-          sim().models.try_to_get(enum_cast<model_id>(*mdl_dst_id));
-        if (!mdl_dst)
-            return error("unknown destination model");
-
-        block_node_id* out = nullptr;
-        message_id*    in  = nullptr;
-
-        if (auto ret = get_output_port(*mdl_src, port_src, out); !ret)
-            return error("unknown source model port");
-
-        if (auto ret = get_input_port(*mdl_dst, port_dst, in); !ret)
-            return error("unknown destination model port");
-
-        if (auto ret = sim().connect(*mdl_src, port_src, *mdl_dst, port_dst);
-            !ret)
-            return error("can not connect model");
-
-        return true;
-    }
-
-    bool read_simulation_connection(const rapidjson::Value& val) noexcept
-    {
-        auto_stack s(this, "simulation connection");
-
-        std::optional<u64> src;
-        std::optional<u64> dst;
-        std::optional<i8>  port_src;
-        std::optional<i8>  port_dst;
-
-        return for_each_member(
-                 val,
-                 [&](const auto name, const auto& value) noexcept -> bool {
-                     if ("source"sv == name)
-                         return read_temp_u64(value) && copy_u64_to(src);
-
-                     if ("port-source"sv == name)
-                         return read_temp_i64(value) && copy_i64_to(port_src);
-
-                     if ("destination"sv == name)
-                         return read_temp_u64(value) && copy_u64_to(dst);
-
-                     if ("port_destination"sv == name)
-                         return read_temp_i64(value) && copy_i64_to(port_dst);
-
-                     return true;
-                 }) &&
-               optional_has_value(src) && optional_has_value(dst) &&
-               optional_has_value(port_src) && optional_has_value(port_dst) &&
-               simulation_connect(*src, *port_src, *dst, *port_dst);
-    }
-
-    bool read_simulation_connections(const rapidjson::Value& val) noexcept
-    {
-        auto_stack s(this, "simulation connections");
-
-        return is_value_array(val) &&
-               for_each_array(
-                 val,
-                 [&](const auto /*i*/, const auto& value) noexcept -> bool {
-                     return read_simulation_connection(value);
-                 });
-    }
-
-    bool read_simulation(const rapidjson::Value& val) noexcept
-    {
-        auto_stack s(this, "simulation");
-
-        return for_each_member(
-          val, [&](const auto name, const auto& value) noexcept -> bool {
-              if ("constant-sources"sv == name)
-                  return read_constant_sources(value, sim().srcs);
-              if ("binary-file-sources"sv == name)
-                  return read_binary_file_sources(value, sim().srcs);
-              if ("text-file-sources"sv == name)
-                  return read_text_file_sources(value, sim().srcs);
-              if ("random-sources"sv == name)
-                  return read_random_sources(value, sim().srcs);
-              if ("hsms"sv == name)
-                  return read_simulation_hsms(value);
-              if ("models"sv == name)
-                  return read_simulation_models(value);
-              if ("connections"sv == name)
-                  return read_simulation_connections(value);
-
-              return error("unknown element");
-              ;
-          });
     }
 
     bool project_set(component_id c_id) noexcept
@@ -5224,16 +4875,6 @@ struct json_dearchiver::impl {
                      return true;
                  }) and
                project_time_limit_affect(begin, end);
-    }
-
-    status parse_simulation(const rapidjson::Document& doc) noexcept
-    {
-        sim().clear();
-
-        if (read_simulation(doc.GetObject()))
-            return success();
-
-        return new_error(json_errc::invalid_simulation_format);
     }
 
     status parse_component(const rapidjson::Document& doc,
@@ -6075,27 +5716,6 @@ struct json_archiver::impl {
                const parameter& /*p*/) noexcept
     {
         writer.StartObject();
-        writer.EndObject();
-    }
-
-    template<typename Writer>
-    void write_simulation_dynamics(Writer& writer,
-                                   const hsm_wrapper& /*dyn*/,
-                                   const parameter& p) noexcept
-    {
-        writer.StartObject();
-        writer.Key("hsm");
-        writer.Uint64(p.integers[0]);
-        writer.Key("i1");
-        writer.Int64(p.integers[1]);
-        writer.Key("i2");
-        writer.Int64(p.integers[2]);
-        writer.Key("r1");
-        writer.Double(p.reals[0]);
-        writer.Key("r2");
-        writer.Double(p.reals[1]);
-        writer.Key("timeout");
-        writer.Double(p.reals[2]);
         writer.EndObject();
     }
 
@@ -7299,105 +6919,6 @@ struct json_archiver::impl {
 
     /*****************************************************************************
      *
-     * Simulation file read part
-     *
-     ****************************************************************************/
-
-    template<typename Writer>
-    void write_simulation_model(const simulation& sim, Writer& w) noexcept
-    {
-        w.Key("hsms");
-        w.StartArray();
-
-        for (auto& machine : sim.hsms) {
-            w.StartObject();
-            w.Key("hsm");
-            w.Uint64(ordinal(sim.hsms.get_id(machine)));
-            write_hierarchical_state_machine(
-              machine, std::span<name_str>(), std::span<position>(), w);
-            w.EndObject();
-        }
-        w.EndArray();
-
-        w.Key("models");
-        w.StartArray();
-
-        for (const auto& mdl : sim.models) {
-            const auto mdl_id  = sim.models.get_id(mdl);
-            const auto mdl_idx = get_index(mdl_id);
-
-            w.StartObject();
-            w.Key("id");
-            w.Uint64(ordinal(mdl_id));
-            w.Key("type");
-            w.String(dynamics_type_names[ordinal(mdl.type)]);
-            w.Key("dynamics");
-
-            dispatch(mdl, [&]<typename Dynamics>(const Dynamics& dyn) noexcept {
-                if constexpr (std::is_same_v<Dynamics, hsm_wrapper>)
-                    write_simulation_dynamics(w, dyn, sim.parameters[mdl_idx]);
-                else if constexpr (std::is_same_v<Dynamics, constant>)
-                    write(w, dyn, sim.parameters[mdl_idx]);
-                else
-                    write(w, dyn, sim.parameters[mdl_idx]);
-            });
-
-            w.EndObject();
-        }
-
-        w.EndArray();
-    }
-
-    template<typename Writer>
-    void write_simulation_connections(const simulation& sim, Writer& w) noexcept
-    {
-        w.Key("connections");
-        w.StartArray();
-
-        const model* mdl = nullptr;
-        while (sim.models.next(mdl)) {
-            dispatch(*mdl, [&sim, &mdl, &w]<typename Dynamics>(Dynamics& dyn) {
-                if constexpr (has_output_port<Dynamics>) {
-                    for (auto i = 0, e = length(dyn.y); i != e; ++i) {
-                        sim.for_each(
-                          dyn.y[i],
-                          [&](const auto& dst, const auto port_index) {
-                              w.StartObject();
-                              w.Key("source");
-                              w.Uint64(ordinal(sim.models.get_id(*mdl)));
-                              w.Key("port-source");
-                              w.Uint64(static_cast<u64>(i));
-                              w.Key("destination");
-                              w.Uint64(ordinal(sim.models.get_id(dst)));
-                              w.Key("port-destination");
-                              w.Uint64(static_cast<u64>(port_index));
-                              w.EndObject();
-                          });
-                    }
-                }
-            });
-        }
-
-        w.EndArray();
-    }
-
-    template<typename Writer>
-    void do_simulation_save(Writer& w, const simulation& sim) noexcept
-    {
-        w.StartObject();
-
-        write_constant_sources(sim.srcs, w);
-        write_binary_file_sources(sim.srcs, w);
-        write_text_file_sources(sim.srcs, w);
-        write_random_sources(sim.srcs, w);
-        write_simulation_model(sim, w);
-        write_simulation_connections(sim, w);
-
-        w.EndObject();
-    }
-
-    /*****************************************************************************
-     *
      * project file write part
      *
      ****************************************************************************/
@@ -7645,7 +7166,6 @@ void json_dearchiver::destroy() noexcept
     binary_file_mapping.data.destroy();
     random_mapping.data.destroy();
     text_file_mapping.data.destroy();
-    sim_hsms_mapping.data.destroy();
 }
 
 void json_dearchiver::clear() noexcept
@@ -7658,7 +7178,6 @@ void json_dearchiver::clear() noexcept
     binary_file_mapping.data.clear();
     random_mapping.data.clear();
     text_file_mapping.data.clear();
-    sim_hsms_mapping.data.clear();
 }
 
 status irt::json_dearchiver::set_buffer(const u32 buffer_size) noexcept
@@ -7671,26 +7190,6 @@ status irt::json_dearchiver::set_buffer(const u32 buffer_size) noexcept
     }
 
     return success();
-}
-
-status json_dearchiver::operator()(simulation&      sim,
-                                   std::string_view path,
-                                   file&            io) noexcept
-{
-    debug::ensure(io.is_open());
-    debug::ensure(io.get_mode() == open_mode::read);
-    clear();
-
-    rapidjson::Document doc;
-
-    return read_file_to_buffer(buffer, io)
-      .and_then([&]() {
-          return parse_json_data(std::span(buffer.data(), buffer.size()), doc);
-      })
-      .and_then([&]() {
-          json_dearchiver::impl i(*this, sim, path);
-          return i.parse_simulation(doc);
-      });
 }
 
 status json_dearchiver::operator()(modeling&        mod,
@@ -7734,17 +7233,6 @@ status json_dearchiver::operator()(project&         pj,
           json_dearchiver::impl i(*this, mod, sim, pj, path);
           return i.parse_project(doc);
       });
-}
-
-status json_dearchiver::operator()(simulation& sim, std::span<char> io) noexcept
-{
-    clear();
-    rapidjson::Document doc;
-
-    return parse_json_data(io, doc).and_then([&]() {
-        json_dearchiver::impl i(*this, sim);
-        return i.parse_simulation(doc);
-    });
 }
 
 status json_dearchiver::operator()(modeling&       mod,
@@ -7875,110 +7363,8 @@ status json_archiver::operator()(modeling&                   mod,
     return success();
 }
 
-status json_archiver::operator()(const simulation&           sim,
-                                 file&                       io,
-                                 json_archiver::print_option print) noexcept
-{
-    clear();
-
-    debug::ensure(io.is_open());
-    debug::ensure(io.get_mode() == open_mode::write);
-
-    if (not(io.is_open() and io.get_mode() == open_mode::write))
-        return new_error(file_errc::open_error);
-
-    auto fp = reinterpret_cast<FILE*>(io.get_handle());
-    buffer.resize(4096);
-
-    rapidjson::FileWriteStream os(fp, buffer.data(), buffer.size());
-    rapidjson::PrettyWriter<rapidjson::FileWriteStream,
-                            rapidjson::UTF8<>,
-                            rapidjson::UTF8<>,
-                            rapidjson::CrtAllocator,
-                            rapidjson::kWriteNanAndInfFlag>
-                        w(os);
-    json_archiver::impl i{ *this };
-
-    switch (print) {
-    case print_option::indent_2:
-        w.SetIndent(' ', 2);
-        i.do_simulation_save(w, sim);
-        break;
-
-    case print_option::indent_2_one_line_array:
-        w.SetIndent(' ', 2);
-        w.SetFormatOptions(rapidjson::kFormatSingleLineArray);
-        i.do_simulation_save(w, sim);
-        break;
-
-    default:
-        i.do_simulation_save(w, sim);
-        break;
-    }
-
-    return success();
-}
-
-status json_archiver::operator()(const simulation& sim,
-                                 vector<char>&     out,
-                                 print_option      print_options) noexcept
-{
-    clear();
-
-    rapidjson::StringBuffer buffer;
-    buffer.Reserve(4096u);
-
-    json_archiver::impl i{ *this };
-
-    switch (print_options) {
-    case print_option::indent_2: {
-        rapidjson::PrettyWriter<rapidjson::StringBuffer,
-                                rapidjson::UTF8<>,
-                                rapidjson::UTF8<>,
-                                rapidjson::CrtAllocator,
-                                rapidjson::kWriteNanAndInfFlag>
-          w(buffer);
-        w.SetIndent(' ', 2);
-        i.do_simulation_save(w, sim);
-        break;
-    }
-
-    case print_option::indent_2_one_line_array: {
-        rapidjson::PrettyWriter<rapidjson::StringBuffer,
-                                rapidjson::UTF8<>,
-                                rapidjson::UTF8<>,
-                                rapidjson::CrtAllocator,
-                                rapidjson::kWriteNanAndInfFlag>
-          w(buffer);
-        w.SetIndent(' ', 2);
-        w.SetFormatOptions(rapidjson::kFormatSingleLineArray);
-        i.do_simulation_save(w, sim);
-        break;
-    }
-
-    default: {
-        rapidjson::Writer<rapidjson::StringBuffer,
-                          rapidjson::UTF8<>,
-                          rapidjson::UTF8<>,
-                          rapidjson::CrtAllocator,
-                          rapidjson::kWriteNanAndInfFlag>
-          w(buffer);
-        i.do_simulation_save(w, sim);
-        break;
-    }
-    }
-
-    auto length = buffer.GetSize();
-    auto str    = buffer.GetString();
-    out.resize(static_cast<int>(length));
-    std::copy_n(str, length, out.data());
-
-    return success();
-}
-
-status json_archiver::operator()(project&  pj,
-                                 modeling& mod,
-                                 simulation& /* sim */,
+status json_archiver::operator()(project&     pj,
+                                 modeling&    mod,
                                  file&        io,
                                  print_option print_options) noexcept
 {
@@ -8038,9 +7424,8 @@ status json_archiver::operator()(project&  pj,
     }
 }
 
-status json_archiver::operator()(project&  pj,
-                                 modeling& mod,
-                                 simulation& /* sim */,
+status json_archiver::operator()(project&      pj,
+                                 modeling&     mod,
                                  vector<char>& out,
                                  print_option  print_options) noexcept
 {
@@ -8111,7 +7496,6 @@ void json_archiver::destroy() noexcept
     binary_file_mapping.data.destroy();
     random_mapping.data.destroy();
     text_file_mapping.data.destroy();
-    sim_hsms_mapping.data.destroy();
 }
 
 void json_archiver::clear() noexcept
@@ -8123,7 +7507,6 @@ void json_archiver::clear() noexcept
     binary_file_mapping.data.clear();
     random_mapping.data.clear();
     text_file_mapping.data.clear();
-    sim_hsms_mapping.data.clear();
 }
 
 } //  irt

@@ -912,7 +912,6 @@ void application::start_save_project(const registred_path_id id,
         if (auto ret =
               arc(sim_ed->pj,
                   mod,
-                  sim_ed->pj.sim,
                   *f_opt,
                   json_archiver::print_option::indent_2_one_line_array);
             ret) {

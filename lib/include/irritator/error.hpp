@@ -145,7 +145,6 @@ enum class json_errc : std::int16_t {
     memory_error = 1,
 
     invalid_format, /**< The JSON file is invalid. */
-    invalid_simulation_format,
     invalid_component_format,
     invalid_project_format,
     arg_error,

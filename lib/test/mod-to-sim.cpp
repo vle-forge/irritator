@@ -11,7 +11,6 @@
 #include <irritator/modeling.hpp>
 
 #include <filesystem>
-#include <fstream>
 #include <numeric>
 
 #include <boost/ut.hpp>
@@ -547,7 +546,6 @@ int main()
             irt::json_archiver j;
             expect(j(pj,
                      mod,
-                     pj.sim,
                      buffer,
                      irt::json_archiver::print_option::indent_2_one_line_array)
                      .has_value());
