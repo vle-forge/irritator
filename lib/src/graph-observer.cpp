@@ -86,7 +86,7 @@ void graph_observer::init(project& pj, modeling& mod, simulation& sim) noexcept
         }
     }
 
-    tn = sim.t;
+    tn = sim.current_time();
 }
 
 void graph_observer::clear() noexcept
@@ -106,17 +106,22 @@ void graph_observer::update(const simulation& sim) noexcept
     for (int i = 0, e = observers.ssize(); i < e; ++i) {
         if (const auto* obs = sim.observers.try_to_get(observers[i]); obs) {
             if (obs->states[observer_flags::use_linear_buffer]) {
-                values_2nd[i] = not obs->linearized_buffer.empty()
-                                  ? obs->linearized_buffer.back().y
-                                  : zero;
+                obs->linearized_buffer.try_read_only(
+                  [](const auto& buf, auto& v) {
+                      v = not buf.empty() ? buf.back().y : zero;
+                  },
+                  values_2nd[i]);
             } else {
-                values_2nd[i] =
-                  not obs->buffer.empty() ? obs->buffer.back()[1] : zero;
+                obs->buffer.try_read_only(
+                  [](const auto& buf, auto& v) {
+                      v = not buf.empty() ? buf.back()[1] : zero;
+                  },
+                  values_2nd[i]);
             }
         }
     }
 
-    tn = sim.t + time_step;
+    tn = sim.current_time() + time_step;
 
     std::unique_lock lock{ mutex };
     std::swap(values, values_2nd);

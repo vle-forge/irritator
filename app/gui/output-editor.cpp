@@ -43,10 +43,7 @@ static void show_observers_table(application& app, project_editor& ed) noexcept
                 ImGui::TextUnformatted("-");
 
             ImGui::TableNextColumn();
-            if (obs)
-                ImGui::TextFormat("{}", obs->linearized_buffer.size());
-            else
-                ImGui::TextUnformatted("-");
+            ImGui::TextUnformatted("-");
 
             ImGui::TableNextColumn();
             int plot_type = ordinal(vobs.get_options()[idx]);
@@ -77,9 +74,12 @@ static void show_observers_table(application& app, project_editor& ed) noexcept
             const auto obs_id = vobs.get_obs_ids()[get_index(*to_copy)];
             const auto obs    = ed.pj.sim.observers.try_to_get(obs_id);
 
-            auto& new_obs          = ed.copy_obs.alloc();
-            new_obs.name           = vobs.get_names()[get_index(*to_copy)].sv();
-            new_obs.linear_outputs = obs->linearized_buffer;
+            auto& new_obs = ed.copy_obs.alloc();
+            new_obs.name  = vobs.get_names()[get_index(*to_copy)].sv();
+
+            obs->linearized_buffer.read_only([&new_obs](auto& lbuf) noexcept {
+                new_obs.linear_outputs = lbuf;
+            });
         }
     }
 }
@@ -169,8 +169,11 @@ static void write(project&                 pj,
 
     ofs.imbue(std::locale::classic());
     ofs << "t," << vobs.get_names()[idx].sv() << '\n';
-    for (auto& v : obs->linearized_buffer)
-        ofs << v.x << ',' << '\n';
+
+    obs->linearized_buffer.read_only([&](const auto& lbuf) noexcept {
+        for (auto& v : lbuf)
+            ofs << v.x << ',' << '\n';
+    });
 }
 
 static void write(application&                    app,

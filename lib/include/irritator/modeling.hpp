@@ -1646,65 +1646,6 @@ inline bool file_observers::alloc(const T subobs_id, bool enable) noexcept
     return true;
 }
 
-/** Stores two simulation time values, the begin `]-oo, +oo[` and the end
- * value
- * `]begin, +oo]`. This function take care to keep @c begin less than @c end
- * value. */
-class time_limit
-{
-private:
-    time m_begin = 0;
-    time m_end   = 100;
-
-public:
-    constexpr void set_bound(const double begin_, const double end_) noexcept;
-    constexpr void set_duration(const double begin_,
-                                const double end_) noexcept;
-    constexpr void clear() noexcept;
-
-    constexpr time duration() const noexcept;
-    constexpr time begin() const noexcept;
-    constexpr time end() const noexcept;
-};
-
-inline constexpr void time_limit::set_bound(const double begin_,
-                                            const double end_) noexcept
-{
-    if (begin_ < end_) {
-        if (not std::isinf(begin_))
-            m_begin = begin_;
-
-        if (not std::isnan(end_))
-            m_end = end_;
-    }
-}
-
-inline constexpr void time_limit::set_duration(const double begin_,
-                                               const double duration_) noexcept
-{
-    if (duration_ > 0) {
-        if (not std::isinf(begin_)) {
-            m_begin = begin_;
-            m_end   = begin_ + duration_;
-        }
-    }
-}
-
-inline constexpr void time_limit::clear() noexcept
-{
-    m_begin = 0;
-    m_end   = 100;
-}
-
-inline constexpr time time_limit::duration() const noexcept
-{
-    return std::isinf(m_end) ? time_domain<time>::infinity : m_end - m_begin;
-}
-
-inline constexpr time time_limit::begin() const noexcept { return m_begin; }
-
-inline constexpr time time_limit::end() const noexcept { return m_end; }
-
 struct project_reserve_definition {
     constrained_value<int, 256, INT_MAX> nodes;
     constrained_value<int, 256, INT_MAX> grids;
@@ -1850,8 +1791,6 @@ public:
                   model_id,
                   parameter>
       parameters;
-
-    time_limit t_limit;
 
     /**
        @brief Alloc a new variable observer and assign a name.

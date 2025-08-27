@@ -260,42 +260,38 @@ public:
         for (int i = 0, e = pj.sim.immediate_observers.ssize(); i != e; ++i) {
             const auto obs_id = pj.sim.immediate_observers[i];
             if (auto* o = pj.sim.observers.try_to_get(obs_id); o)
-                while (o->buffer.ssize() > 2)
+                if (o->states[irt::observer_flags::buffer_full])
                     write_interpolate_data(*o, o->time_step);
         }
 
         for (auto& g : pj.grid_observers) {
             const auto g_id = pj.grid_observers.get_id(g);
             if (auto* g = pj.grid_observers.try_to_get(g_id); g)
-                if (g->can_update(pj.sim.t))
+                if (g->can_update(pj.sim.current_time()))
                     g->update(pj.sim);
         }
 
         for (auto& g : pj.graph_observers) {
             const auto g_id = pj.graph_observers.get_id(g);
             if (auto* g = pj.graph_observers.try_to_get(g_id); g)
-                if (g->can_update(pj.sim.t))
+                if (g->can_update(pj.sim.current_time()))
                     g->update(pj.sim);
         }
 
-        if (pj.file_obs.can_update(pj.sim.t))
+        if (pj.file_obs.can_update(pj.sim.current_time()))
             pj.file_obs.update(pj.sim, pj);
     }
 
     void observation_finalize() noexcept
     {
         for (auto& obs : pj.sim.observers)
-            while (obs.buffer.ssize() > 2)
-                flush_interpolate_data(obs, obs.time_step);
+            flush_interpolate_data(obs, obs.time_step);
 
         pj.file_obs.finalize();
     }
 
     irt::expected<void> run() noexcept
     {
-        pj.sim.t      = pj.t_limit.begin();
-        irt::real end = pj.t_limit.duration();
-
         observation_initialize();
         irt_check(pj.sim.srcs.prepare());
         irt_check(pj.sim.initialize());
@@ -312,7 +308,7 @@ public:
         do {
             irt_check(pj.sim.run());
             observation_update();
-        } while (pj.sim.t < end);
+        } while (not pj.sim.current_time_expired());
 
         irt_check(pj.sim.finalize());
         observation_finalize();
@@ -478,18 +474,18 @@ public:
     /** Parse a real, or a couple real,real or a couple real,inf. */
     bool read_time() noexcept
     {
-        auto begin    = pj.t_limit.begin();
-        auto duration = pj.t_limit.duration();
+        auto begin    = pj.sim.limits.begin();
+        auto duration = pj.sim.limits.duration();
 
         if (parse_real()) {
             if (not front.empty() and (front[0] == ',' or front[0] == ':')) {
                 front = front.substr(1);
                 if (not front.empty() and parse_real_or_infinity()) {
-                    pj.t_limit.set_duration(begin, r);
+                    pj.sim.limits.set_duration(begin, r);
                     return true;
                 }
             } else {
-                pj.t_limit.set_duration(begin, duration);
+                pj.sim.limits.set_duration(begin, duration);
                 return true;
             }
         }

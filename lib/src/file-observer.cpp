@@ -62,9 +62,9 @@ static void do_update(const simulation&        sim,
     auto       i      = 0;
 
     if (number > 0)
-        fmt::print(file, "{:e},", sim.t);
+        fmt::print(file, "{:e},", sim.current_time());
     else
-        fmt::print(file, "{:e}\n", sim.t);
+        fmt::print(file, "{:e}\n", sim.current_time());
 
     const auto values = vars.get_values();
 
@@ -94,7 +94,7 @@ static void do_update(const simulation&    sim,
                       const grid_observer& grid,
                       std::FILE*           file) noexcept
 {
-    fmt::print(file, "{},", sim.t);
+    fmt::print(file, "{},", sim.current_time());
 
     for (int row = 0; row < grid.rows; ++row) {
         for (int col = 0; col < grid.cols; ++col) {
@@ -154,7 +154,7 @@ void file_observers::initialize(const simulation&      sim,
                                 project&               pj,
                                 const std::string_view output_dir) noexcept
 {
-    tn = sim.t + time_step;
+    tn = sim.current_time() + time_step;
 
     for (const auto file_id : ids) {
         const auto idx = get_index(file_id);
@@ -201,7 +201,7 @@ bool file_observers::can_update(const time t) const noexcept { return t > tn; }
 
 void file_observers::update(const simulation& sim, const project& pj) noexcept
 {
-    tn = sim.t + time_step;
+    tn = sim.current_time() + time_step;
 
     for (auto id : ids) {
         const auto idx = get_index(id);

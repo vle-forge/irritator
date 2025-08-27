@@ -833,9 +833,10 @@ struct observer {
     /// Allocate raw and liearized buffers with default sizes.
     observer() noexcept;
 
-    /// Allocate raw and linearized buffers with specified constrained sizes.
-    observer(const buffer_size_t            buffer_size,
-             const linearized_buffer_size_t linearized_buffer_size) noexcept;
+    observer(const observer& other) noexcept            = default;
+    observer(observer&& other) noexcept                 = default;
+    observer& operator=(const observer& other) noexcept = default;
+    observer& operator=(observer&& other) noexcept      = default;
 
     /// Change the raw and linearized buffers with specified constrained sizes
     /// and change the time-step.
@@ -848,8 +849,8 @@ struct observer {
     void update(const observation_message& msg) noexcept;
     bool full() const noexcept;
 
-    ring_buffer<observation_message> buffer;
-    ring_buffer<observation>         linearized_buffer;
+    locker_2<ring_buffer<observation_message>> buffer;
+    locker_2<ring_buffer<observation>>         linearized_buffer;
 
     model_id         model     = undefined<model_id>();
     interpolate_type type      = interpolate_type::none;
@@ -1087,6 +1088,31 @@ public:
     int      ssize() const noexcept;
 };
 
+/// Stores two simulation time values, the begin `]-oo, +oo[` and the end value
+/// `]begin, +oo]`. This function take care to keep @c begin less than @c end
+/// value.
+class time_limit
+{
+private:
+    time m_begin = 0;
+    time m_end   = 100;
+
+public:
+    constexpr void set_bound(const double begin_, const double end_) noexcept;
+    constexpr void set_duration(const double begin_,
+                                const double end_) noexcept;
+
+    /// Restore @c begin and @c end to @c 0 and @c 100 as in default ctor.
+    constexpr void clear() noexcept;
+
+    /// @return true if @c value if the value exceeds the @c m_end value.
+    constexpr bool expired(const double value) const noexcept;
+
+    constexpr time duration() const noexcept;
+    constexpr time begin() const noexcept;
+    constexpr time end() const noexcept;
+};
+
 class simulation
 {
 public:
@@ -1109,14 +1135,26 @@ public:
 
     external_source srcs;
 
+    time_limit limits;
+
+private:
     time t = time_domain<time>::infinity;
 
     /**
-       The latest not infinity simulation time. At begin of the simulation, @c
-       last_valid_t equals the begin date. During simulation @c last_valid_t
-       stores the latest valid simulation time (neither infinity.
+     * The latest not infinity simulation time. At begin of the simulation, @c
+     * last_valid_t equals the begin date. During simulation @c last_valid_t
+     * stores the latest valid simulation time (neither infinity.
      */
     time last_valid_t = 0.0;
+
+public:
+    time last_time() const noexcept { return last_valid_t; }
+    time current_time() const noexcept { return t; }
+    void current_time(const time new_t) noexcept
+    {
+        if (limits.begin() <= new_t and new_t < limits.end())
+            t = new_t;
+    }
 
     model_id get_id(const model& mdl) const;
 
@@ -1305,6 +1343,8 @@ public:
 
     template<typename Dynamics>
     status make_finalize(Dynamics& dyn, observer* obs, time t) noexcept;
+
+    bool current_time_expired() const noexcept { return limits.expired(t); }
 
     /** Finalize and cleanup simulation objects.
      *
@@ -5696,13 +5736,6 @@ inline observer::observer() noexcept
   , linearized_buffer(default_linearized_buffer_size)
 {}
 
-inline observer::observer(
-  const buffer_size_t            buffer_size,
-  const linearized_buffer_size_t linearized_buffer_size) noexcept
-  : buffer(*buffer_size)
-  , linearized_buffer(*linearized_buffer_size)
-{}
-
 inline void observer::init(
   const buffer_size_t            buffer_size,
   const linearized_buffer_size_t linearized_buffer_size,
@@ -5710,17 +5743,28 @@ inline void observer::init(
 {
     debug::ensure(time_step > 0.f);
 
-    buffer.clear();
-    buffer.reserve(*buffer_size);
-    linearized_buffer.clear();
-    linearized_buffer.reserve(*linearized_buffer_size);
+    buffer.read_write(
+      [](auto& buf, const auto len) {
+          buf.clear();
+          buf.reserve(len);
+      },
+      *buffer_size);
+
+    linearized_buffer.read_write(
+      [](auto& buf, const auto len) {
+          buf.clear();
+          buf.reserve(len);
+      },
+      *linearized_buffer_size);
+
     time_step = ts <= zero ? 1e-2f : time_step;
 }
 
 inline void observer::reset() noexcept
 {
-    buffer.clear();
-    linearized_buffer.clear();
+    buffer.read_write([](auto& buf) { buf.clear(); });
+    linearized_buffer.read_write([](auto& buf) { buf.clear(); });
+
     states.reset();
 }
 
@@ -5737,12 +5781,17 @@ inline void observer::update(const observation_message& msg) noexcept
 {
     states.set(observer_flags::data_lost, states[observer_flags::buffer_full]);
 
-    if (!buffer.empty() && buffer.tail()->data()[0] == msg[0])
-        *(buffer.tail()) = msg; // overwrite value with at same date.
-    else
-        buffer.force_enqueue(msg);
+    buffer.read_write(
+      [](auto& buf, const auto& msg, auto& st) {
+          if (not buf.empty() and buf.tail()->data()[0] == msg[0])
+              *(buf.tail()) = msg; // overwrite value (at same date).
+          else
+              buf.force_enqueue(msg); // otherwise push_back new message.
 
-    states.set(observer_flags::buffer_full, buffer.available() <= 1);
+          st.set(observer_flags::buffer_full, buf.available() <= 1);
+      },
+      msg,
+      states);
 }
 
 inline bool observer::full() const noexcept
@@ -6340,6 +6389,49 @@ inline int scheduller<A>::ssize() const noexcept
 // simulation
 //
 
+inline constexpr void time_limit::set_bound(const double begin_,
+                                            const double end_) noexcept
+{
+    if (begin_ < end_) {
+        if (not std::isinf(begin_))
+            m_begin = begin_;
+
+        if (not std::isnan(end_))
+            m_end = end_;
+    }
+}
+
+inline constexpr void time_limit::set_duration(const double begin_,
+                                               const double duration_) noexcept
+{
+    if (duration_ > 0) {
+        if (not std::isinf(begin_)) {
+            m_begin = begin_;
+            m_end   = begin_ + duration_;
+        }
+    }
+}
+
+inline constexpr void time_limit::clear() noexcept
+{
+    m_begin = 0;
+    m_end   = 100;
+}
+
+inline constexpr bool time_limit::expired(const double value) const noexcept
+{
+    return not(value < m_end);
+}
+
+inline constexpr time time_limit::duration() const noexcept
+{
+    return std::isinf(m_end) ? time_domain<time>::infinity : m_end - m_begin;
+}
+
+inline constexpr time time_limit::begin() const noexcept { return m_begin; }
+
+inline constexpr time time_limit::end() const noexcept { return m_end; }
+
 inline simulation::simulation(
   const simulation_reserve_definition&      res,
   const external_source_reserve_definition& p_srcs) noexcept
@@ -6444,6 +6536,8 @@ inline void simulation::clean() noexcept
     emitting_output_ports.clear();
     immediate_models.clear();
     immediate_observers.clear();
+
+    t = limits.begin();
 }
 
 //! @brief cleanup simulation and destroy all models and
@@ -6723,9 +6817,8 @@ inline void simulation::disconnect(model& src,
 
 inline status simulation::initialize() noexcept
 {
-    debug::ensure(std::isfinite(t));
-
-    last_valid_t = t;
+    last_valid_t = limits.begin();
+    t            = limits.begin();
 
     clean();
 
@@ -6883,8 +6976,12 @@ inline status simulation::run() noexcept
     }
 
     last_valid_t = t;
-    if (t = sched.tn(); time_domain<time>::is_infinity(t))
+    t            = sched.tn();
+
+    if (limits.expired(t)) {
+        t = limits.end();
         return success();
+    }
 
     sched.pop(immediate_models);
 
@@ -6938,8 +7035,12 @@ inline status simulation::run_with_cb(Fn&& fn, Args&&... args) noexcept
     }
 
     last_valid_t = t;
-    if (t = sched.tn(); time_domain<time>::is_infinity(t))
+    t            = sched.tn();
+
+    if (limits.expired(t)) {
+        t = limits.end();
         return success();
+    }
 
     sched.pop(immediate_models);
 

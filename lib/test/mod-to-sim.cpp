@@ -600,7 +600,7 @@ int main()
 
         expect(!!pj.set(mod, compo));
 
-        pj.sim.t = 0.0;
+        pj.sim.limits.set_bound(0, 10);
         expect(!!pj.sim.srcs.prepare());
         expect(!!pj.sim.initialize());
 
@@ -609,7 +609,7 @@ int main()
         do {
             st = pj.sim.run();
             expect(!!st);
-        } while (pj.sim.t < 10);
+        } while (not pj.sim.current_time_expired());
     };
 
     "internal_component_io"_test = [] {

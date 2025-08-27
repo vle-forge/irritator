@@ -11,8 +11,6 @@
 #include <atomic>
 #include <chrono>
 #include <functional>
-#include <mutex>
-#include <shared_mutex>
 #include <thread>
 #include <type_traits>
 
@@ -31,36 +29,6 @@ class task_manager;
 
 static inline constexpr int unordered_task_list_tasks_number = 256;
 static inline constexpr int task_list_tasks_number           = 16;
-
-//! A `std::mutex` like based on `std::atomic_flag::wait` and
-//! `std::atomic_flag::notify_one` standard functions.
-class spin_mutex
-{
-    std::atomic_flag m_flag = ATOMIC_FLAG_INIT;
-
-public:
-    spin_mutex() noexcept  = default;
-    ~spin_mutex() noexcept = default;
-
-    spin_mutex(const spin_mutex& other) noexcept;
-
-    void lock() noexcept;
-    bool try_lock() noexcept;
-    void unlock() noexcept;
-};
-
-//! A `std::mutex` like based on `std::atomic_flag` and
-//! `std::thread::yied`.
-class spin_yield_mutex_lock
-{
-    std::atomic_flag m_flag = ATOMIC_FLAG_INIT;
-
-public:
-    spin_yield_mutex_lock() noexcept;
-    bool try_lock() noexcept;
-    void lock() noexcept;
-    void unlock() noexcept;
-};
 
 /** Run a function @a fn according to the test of the @a std::atomic_flag.
  * The function is called if and only if the @a std::atomic_flag is false. */
@@ -453,57 +421,6 @@ public:
  *
  ****************************************************************************/
 
-//
-// spin_lock
-//
-
-inline spin_mutex::spin_mutex(const spin_mutex& /*other*/) noexcept
-  : spin_mutex()
-{}
-
-inline void spin_mutex::lock() noexcept
-{
-    while (m_flag.test_and_set(std::memory_order_acquire))
-        m_flag.wait(true, std::memory_order_relaxed);
-}
-
-inline bool spin_mutex::try_lock() noexcept
-{
-    return not m_flag.test_and_set(std::memory_order_acquire);
-}
-
-inline void spin_mutex::unlock() noexcept
-{
-    m_flag.clear(std::memory_order_release);
-    m_flag.notify_one();
-}
-
-//
-// spin_bad_lock
-//
-
-inline spin_yield_mutex_lock::spin_yield_mutex_lock() noexcept
-{
-    m_flag.clear();
-}
-
-inline bool spin_yield_mutex_lock::try_lock() noexcept
-{
-    return !m_flag.test_and_set(std::memory_order_acquire);
-}
-
-inline void spin_yield_mutex_lock::lock() noexcept
-{
-    for (size_t i = 0; !try_lock(); ++i)
-        if ((i % 100) == 0)
-            std::this_thread::yield();
-}
-
-inline void spin_yield_mutex_lock::unlock() noexcept
-{
-    m_flag.clear(std::memory_order_release);
-}
-
 /*
     task_list
  */
@@ -877,150 +794,6 @@ inline void task_manager<ordered, unordered>::finalize() noexcept
 
     phase = ordinal(phase::done);
 }
-
-/// A class to wrap object of type @a T with a @a shared_mutex.
-///
-/// Access to the underlying object @a T is done using @a read_only and @a
-/// read_write functions with lambda function or using @a value and @a
-/// read_only_value. The read-only functions use a @a shared_lock to shared
-/// object. The read-write functions use a @a unique_lock.
-template<typename T>
-class locker
-{
-public:
-    template<typename... Args>
-    explicit locker(Args&&... args) noexcept
-      : m_mutex()
-      , m_value(std::forward<Args>(args)...)
-    {}
-
-    /// Get an access to the underlying value @c T in read-only mode.
-    template<typename Fn, typename... Args>
-    void read_only(Fn&& fn, Args&&... args) const noexcept
-    {
-        std::shared_lock lock(m_mutex);
-        std::invoke(std::forward<Fn>(fn), m_value, std::forward<Args>(args)...);
-    }
-
-    /// Try to get an access to the underlying value @c T in read-only mode.
-    template<typename Fn, typename... Args>
-    bool try_read_only(Fn&& fn, Args&&... args) const noexcept
-    {
-        if (std::shared_lock lock(m_mutex, std::try_to_lock);
-            lock.owns_lock()) {
-            std::invoke(
-              std::forward<Fn>(fn), m_value, std::forward<Args>(args)...);
-
-            return true;
-        }
-
-        return false;
-    }
-
-    /// Get an access to the underlying value @c T in read-write mode.
-    template<typename Fn, typename... Args>
-    void read_write(Fn&& fn, Args&&... args) noexcept
-    {
-        std::unique_lock lock(m_mutex);
-        std::invoke(std::forward<Fn>(fn), m_value, std::forward<Args>(args)...);
-    }
-
-private:
-    mutable std::shared_mutex m_mutex;
-    T                         m_value;
-};
-
-/// A class to wrap two objects of type @a T with two mutexes.
-///
-/// Access to the underlying object @a T is done using @a read_only and @a
-/// read_write functions with lambda function or using @a value and @a
-/// read_only_value. The read-only functions use a @a shared_lock to shared
-/// object. The read-write functions use a @a unique_lock. The read-write
-/// function copy the buffer, call the @c fn function and swap the buffer after
-/// update.
-///
-/// Use this class when you often read the value and only sometimes write it and
-/// when the cost of the copy is negligible compared to the modification time.
-template<typename T>
-class locker_2
-{
-    static_assert(std::is_default_constructible_v<T>,
-                  "T muste be default-constructible for 2nd buffer");
-
-    static_assert(std::is_nothrow_copy_assignable_v<T> or
-                    std::is_trivially_copy_assignable_v<T>,
-                  "T must be assignable");
-
-    static_assert(std::is_swappable_v<T>, "T must be swappable");
-
-public:
-    template<typename... Args>
-    explicit locker_2(Args&&... args) noexcept
-      : m_mutex()
-      , m_value(std::forward<Args>(args)...)
-      , m_value_2nd()
-    {}
-
-    /// Get an access to the underlying value @c T in read-only mode.
-    template<typename Fn, typename... Args>
-    void read_only(Fn&& fn, Args&&... args) const noexcept
-    {
-        std::shared_lock lock(m_mutex);
-        std::invoke(std::forward<Fn>(fn), m_value, std::forward<Args>(args)...);
-    }
-
-    /// Try to get an access to the underlying value @c T in read-only mode.
-    template<typename Fn, typename... Args>
-    bool try_read_only(Fn&& fn, Args&&... args) const noexcept
-    {
-        if (std::shared_lock lock(m_mutex, std::try_to_lock);
-            lock.owns_lock()) {
-            std::invoke(
-              std::forward<Fn>(fn), m_value, std::forward<Args>(args)...);
-
-            return true;
-        }
-
-        return false;
-    }
-
-    /// Get an access to the underlying value @c T in read-write mode.
-    ///
-    /// First, the function lock the mutex using a @c shared_lock to read the
-    /// value and make a copy into the 2nd buffer after the lock of the 2nd
-    /// mutex them the function unlock the first mutex. The user function @c fn
-    /// is called and finally, the function lock the mutex using a @c
-    /// unique_lock and the buffer are swapped.
-    template<typename Fn, typename... Args>
-    void read_write(Fn&& fn, Args&&... args) noexcept
-    {
-        // Lock the first mutex in read mode and the second mutex in write mode.
-        std::shared_lock lock_copy(m_mutex);
-        std::unique_lock lock_writer(m_mutex_2nd_buffer);
-        m_value_2nd = m_value;
-
-        // Unlock the first mutex to allow reader while writing into the 2nd
-        // buffer.
-        lock_copy.unlock();
-
-        std::invoke(
-          std::forward<Fn>(fn), m_value_2nd, std::forward<Args>(args)...);
-
-        // Lock the first mutex in write to perform the swap between buffers.
-        std::unique_lock lock_swap(m_mutex);
-
-        using std::swap;
-        swap(m_value, m_value_2nd);
-    }
-
-private:
-    mutable std::shared_mutex m_mutex;
-    mutable spin_mutex        m_mutex_2nd_buffer;
-
-    T m_value;
-    T m_value_2nd; //!< A second value to be used in a second thread during a
-                   //!< writing process.
-};
 
 } // namespace irt
 

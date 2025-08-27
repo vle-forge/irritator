@@ -259,8 +259,8 @@ void simulation_to_cpp::show(const project_editor& ed) noexcept
               std::cout,
               ed.pj.name.sv(),
               ed.pj.sim,
-              ed.pj.t_limit.begin(),
-              ed.pj.t_limit.end(),
+              ed.pj.sim.limits.begin(),
+              ed.pj.sim.limits.end(),
               enum_cast<write_test_simulation_options>(options));
 
             std::cout.flush();

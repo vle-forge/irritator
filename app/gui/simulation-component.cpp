@@ -114,7 +114,6 @@ static void simulation_copy(application& app, project_editor& ed) noexcept
     auto ret = [&]() noexcept -> status {
         irt_check(ed.pj.set(app.mod, *compo));
         irt_check(ed.pj.sim.srcs.prepare());
-        ed.pj.sim.t = ed.pj.t_limit.begin();
         irt_check(ed.pj.sim.initialize());
         ed.simulation_state = simulation_status::initialized;
         return success();
@@ -149,10 +148,8 @@ static void simulation_init(application& app, project_editor& ed) noexcept
     if (ed.pj.tn_head()) {
         ed.pj.sim.clean();
         ed.pj.sim.observers.clear();
-
-        ed.pj.sim.t                   = ed.pj.t_limit.begin();
-        ed.simulation_last_finite_t   = ed.pj.sim.t;
-        ed.simulation_display_current = ed.pj.sim.t;
+        ed.simulation_last_finite_t   = ed.pj.sim.limits.begin();
+        ed.simulation_display_current = ed.pj.sim.limits.begin();
 
         if (simulation_init_observation(app.mod, ed.pj) and
             ed.pj.sim.srcs.prepare() and ed.pj.sim.initialize()) {
@@ -187,7 +184,7 @@ static void simulation_init(application& app, project_editor& ed) noexcept
 
 static bool debug_run(application& app, project_editor& sim_ed) noexcept
 {
-    if (auto ret = run(sim_ed.tl, sim_ed.pj.sim, sim_ed.pj.sim.t); not ret) {
+    if (auto ret = run(sim_ed.tl, sim_ed.pj.sim); not ret) {
         sim_ed.simulation_state = simulation_status::finish_requiring;
 
         app.jn.push(log_level::error, [&](auto& t, auto& msg) noexcept {
@@ -227,7 +224,7 @@ static void finalize_raw_obs(project_editor& ed) noexcept
               },
               ed.raw_ofs,
               get_index(ed.pj.sim.get_id(mdl)),
-              ed.pj.sim.t,
+              ed.pj.sim.current_time(),
               mdl.tl);
         }
     } else {
@@ -255,7 +252,7 @@ static void finalize_raw_obs(project_editor& ed) noexcept
               },
               ed.raw_ofs,
               get_index(ed.pj.sim.get_id(mdl)),
-              ed.pj.sim.t,
+              ed.pj.sim.current_time(),
               mdl.tl);
         }
     }
@@ -292,7 +289,7 @@ static bool run_raw_obs(application& app, project_editor& ed) noexcept
                         },
                         ofs,
                         get_index(mdl_id),
-                        sim.t,
+                        sim.current_time(),
                         mdl->tl);
                   }
               }
@@ -322,7 +319,7 @@ static bool run_raw_obs(application& app, project_editor& ed) noexcept
                         },
                         ofs,
                         get_index(mdl_id),
-                        sim.t,
+                        sim.current_time(),
                         mdl->tl);
                   }
               }
@@ -385,7 +382,7 @@ static int new_model(application&                app,
         });
     } else {
         auto& mdl = pj_ed.pj.sim.alloc(data.type);
-        (void)pj_ed.pj.sim.make_initialize(mdl, pj_ed.pj.sim.t);
+        (void)pj_ed.pj.sim.make_initialize(mdl, pj_ed.pj.sim.current_time());
 
         if (auto* tn = pj_ed.pj.tree_nodes.try_to_get(data.tn_id)) {
             tn->children.push_back(tree_node::child_node{
@@ -436,7 +433,8 @@ static int copy_model(application&                 app,
 
         auto& dst_mdl = pj_ed.pj.sim.clone(*src_mdl);
 
-        if (not pj_ed.pj.sim.make_initialize(dst_mdl, pj_ed.pj.sim.t)) {
+        if (not pj_ed.pj.sim.make_initialize(dst_mdl,
+                                             pj_ed.pj.sim.current_time())) {
             app.jn.push(log_level::error, [](auto& title, auto&) noexcept {
                 title = "Internal error: fail to initialize new model.";
             });
@@ -564,9 +562,9 @@ static void send_message(application&                   app,
                          project_editor&                ed,
                          const command::send_message_t& data) noexcept
 {
-    const auto t = irt::time_domain<time>::is_infinity(ed.pj.sim.t)
-                     ? ed.pj.sim.last_valid_t
-                     : ed.pj.sim.t;
+    const auto t = irt::time_domain<time>::is_infinity(ed.pj.sim.current_time())
+                     ? ed.pj.sim.last_time()
+                     : ed.pj.sim.current_time();
 
     if (auto* mdl = ed.pj.sim.models.try_to_get(data.mdl_id)) {
         if (mdl->type == dynamics_type::constant) {
@@ -791,9 +789,8 @@ void project_editor::start_simulation_observation(application& app) noexcept
                 if_data_exists_do(pj.sim.observers,
                                   obs_id,
                                   [&](observer& obs) noexcept -> void {
-                                      while (obs.buffer.ssize() > 2)
-                                          write_interpolate_data(obs,
-                                                                 obs.time_step);
+                                      write_interpolate_data(obs,
+                                                             obs.time_step);
                                   });
             });
         }
@@ -813,7 +810,7 @@ void project_editor::start_simulation_observation(application& app) noexcept
         const auto g_id = pj.grid_observers.get_id(g);
         task_list.add([&, g_id]() noexcept {
             if (auto* g = pj.grid_observers.try_to_get(g_id); g)
-                if (g->can_update(pj.sim.t))
+                if (g->can_update(pj.sim.current_time()))
                     g->update(pj.sim);
         });
 
@@ -829,7 +826,7 @@ void project_editor::start_simulation_observation(application& app) noexcept
         const auto g_id = pj.graph_observers.get_id(g);
         task_list.add([&, g_id]() noexcept {
             if (auto* g = pj.graph_observers.try_to_get(g_id); g)
-                if (g->can_update(pj.sim.t))
+                if (g->can_update(pj.sim.current_time()))
                     g->update(pj.sim);
         });
         ++current;
@@ -845,7 +842,7 @@ void project_editor::start_simulation_observation(application& app) noexcept
         task_list.wait();
     }
 
-    if (pj.file_obs.can_update(pj.sim.t))
+    if (pj.file_obs.can_update(pj.sim.current_time()))
         pj.file_obs.update(pj.sim, pj);
 }
 
@@ -871,9 +868,8 @@ void project_editor::stop_simulation_observation(application& app) noexcept
                 if_data_exists_do(pj.sim.observers,
                                   obs_id,
                                   [&](observer& obs) noexcept -> void {
-                                      while (obs.buffer.ssize() > 2)
-                                          flush_interpolate_data(obs,
-                                                                 obs.time_step);
+                                      flush_interpolate_data(obs,
+                                                             obs.time_step);
                                   });
             });
         }
@@ -908,7 +904,7 @@ void project_editor::start_simulation_live_run(application& app) noexcept
             time sim_t;
             time sim_next_t;
 
-            sim_t      = pj.sim.t;
+            sim_t      = pj.sim.current_time();
             sim_next_t = pj.sim.sched.tn();
 
             if (time_domain<time>::is_infinity(sim_t)) {
@@ -920,7 +916,7 @@ void project_editor::start_simulation_live_run(application& app) noexcept
                 }
             }
 
-            if (pj.file_obs.can_update(pj.sim.t))
+            if (pj.file_obs.can_update(pj.sim.current_time()))
                 pj.file_obs.update(pj.sim, pj);
 
             const auto current_rt   = stdc::high_resolution_clock::now();
@@ -954,7 +950,7 @@ void project_editor::start_simulation_live_run(application& app) noexcept
                 std::this_thread::sleep_until(wakeup_rt);
 
             simulation_last_finite_t = sim_t;
-            pj.sim.t                 = sim_t;
+            pj.sim.current_time(sim_t);
 
             if (store_all_changes) {
                 if (auto ret = debug_run(app, *this); !ret) {
@@ -968,7 +964,7 @@ void project_editor::start_simulation_live_run(application& app) noexcept
                 }
             }
 
-            if (time_domain<time>::is_infinity(pj.sim.t))
+            if (time_domain<time>::is_infinity(pj.sim.current_time()))
                 simulation_last_finite_t = sim_next_t;
 
             start_simulation_observation(app);
@@ -999,28 +995,26 @@ void project_editor::start_simulation_static_run(application& app) noexcept
                 project_editor::raw_data_type::none) {
                 if (auto ret = run_raw_obs(app, *this); !ret) {
                     simulation_state = simulation_status::finish_requiring;
-                    simulation_display_current = pj.sim.t;
+                    simulation_display_current = pj.sim.current_time();
                     return;
                 }
             } else if (store_all_changes) {
                 if (auto ret = debug_run(app, *this); !ret) {
                     simulation_state = simulation_status::finish_requiring;
-                    simulation_display_current = pj.sim.t;
+                    simulation_display_current = pj.sim.current_time();
                     return;
                 }
             } else if (auto ret = run(app, *this); !ret) {
                 simulation_state = simulation_status::finish_requiring;
-                simulation_display_current = pj.sim.t;
+                simulation_display_current = pj.sim.current_time();
                 return;
             }
 
             start_simulation_observation(app);
 
-            if (not time_domain<time>::is_infinity(pj.t_limit.begin()) &&
-                pj.sim.t >= pj.t_limit.end()) {
-                pj.sim.t         = pj.t_limit.end();
+            if (pj.sim.current_time_expired()) {
                 simulation_state = simulation_status::finish_requiring;
-                simulation_display_current = pj.sim.t;
+                simulation_display_current = pj.sim.current_time();
                 return;
             }
 
@@ -1032,7 +1026,7 @@ void project_editor::start_simulation_static_run(application& app) noexcept
         } while (!stop_or_pause &&
                  duration_since_start < thread_frame_duration);
 
-        simulation_display_current = pj.sim.t;
+        simulation_display_current = pj.sim.current_time();
 
         if (force_pause) {
             force_pause      = false;
@@ -1065,12 +1059,10 @@ void project_editor::start_simulation_start_1(application& app) noexcept
                     return;
                 }
 
-                if (pj.file_obs.can_update(pj.sim.t))
+                if (pj.file_obs.can_update(pj.sim.current_time()))
                     pj.file_obs.update(pj.sim, pj);
 
-                if (not time_domain<time>::is_infinity(pj.t_limit.begin()) &&
-                    pj.sim.t >= pj.t_limit.end()) {
-                    pj.sim.t         = pj.t_limit.end();
+                if (pj.sim.current_time_expired()) {
                     simulation_state = simulation_status::finish_requiring;
                     return;
                 }
@@ -1119,23 +1111,25 @@ void project_editor::start_simulation_finish(application& app) noexcept
     app.add_simulation_task(app.pjs.get_id(*this), [&]() noexcept {
         simulation_state = simulation_status::finishing;
         pj.sim.immediate_observers.clear();
-        stop_simulation_observation(app);
 
         if (store_all_changes) {
-            if (auto ret = finalize(tl, pj.sim, pj.sim.t); !ret) {
+            if (auto ret = finalize(tl, pj.sim); !ret) {
                 app.jn.push(log_level::error, [](auto& t, auto& m) {
                     t = "Simulation finalizing fail (with store all changes "
                         "option)";
                     m = "FIXME from ret";
                 });
+            } else {
+                stop_simulation_observation(app);
             }
         } else {
-            pj.sim.t = pj.t_limit.end();
             if (auto ret = pj.sim.finalize(); !ret) {
                 app.jn.push(log_level::error, [](auto& t, auto& m) {
                     t = "Simulation finalizing fail";
                     m = "FIXME from ret";
                 });
+            } else {
+                stop_simulation_observation(app);
             }
 
             if (save_simulation_raw_data !=
@@ -1152,7 +1146,7 @@ void project_editor::start_simulation_advance(application& app) noexcept
 {
     app.add_simulation_task(app.pjs.get_id(*this), [&]() noexcept {
         if (tl.can_advance()) {
-            if (auto ret = advance(tl, pj.sim, pj.sim.t); not ret) {
+            if (auto ret = advance(tl, pj.sim); not ret) {
                 if (ret.error().cat() == category::simulation) {
                     app.jn.push(log_level::error, [](auto& t, auto& m) {
                         t = "Fail to advance the simulation";
@@ -1173,7 +1167,7 @@ void project_editor::start_simulation_back(application& app) noexcept
 {
     app.add_simulation_task(app.pjs.get_id(*this), [&]() noexcept {
         if (tl.can_back()) {
-            if (auto ret = back(tl, pj.sim, pj.sim.t); not ret) {
+            if (auto ret = back(tl, pj.sim); not ret) {
                 if (ret.error().cat() == category::simulation) {
                     app.jn.push(log_level::error, [](auto& t, auto& m) {
                         t = "Fail to advance the simulation";
@@ -1195,7 +1189,7 @@ void project_editor::start_enable_or_disable_debug(application& app) noexcept
     app.add_simulation_task(app.pjs.get_id(*this), [&]() noexcept {
         tl.reset();
 
-        if (auto ret = initialize(tl, pj.sim, pj.sim.t); not ret) {
+        if (auto ret = initialize(tl, pj.sim); not ret) {
             simulation_state = simulation_status::not_started;
 
             if (ret.error().cat() == category::simulation) {

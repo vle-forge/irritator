@@ -212,8 +212,8 @@ static bool show_project_simulation_settings(application&    app,
                                              project_editor& ed) noexcept
 {
     auto up     = 0;
-    auto begin  = ed.pj.t_limit.begin();
-    auto end    = ed.pj.t_limit.end();
+    auto begin  = ed.pj.sim.limits.begin();
+    auto end    = ed.pj.sim.limits.end();
     auto is_inf = std::isinf(end);
 
     name_str name = ed.name;
@@ -224,15 +224,15 @@ static bool show_project_simulation_settings(application&    app,
     }
 
     if (ImGui::InputReal("Begin", &begin))
-        ed.pj.t_limit.set_bound(begin, end);
+        ed.pj.sim.limits.set_bound(begin, end);
 
     if (ImGui::Checkbox("No time limit", &is_inf))
-        ed.pj.t_limit.set_bound(begin,
-                                is_inf ? time_domain<time>::infinity : 100.);
+        ed.pj.sim.limits.set_bound(begin,
+                                   is_inf ? time_domain<time>::infinity : 100.);
 
     ImGui::BeginDisabled(is_inf);
     if (ImGui::InputReal("End", &end))
-        ed.pj.t_limit.set_bound(begin, end);
+        ed.pj.sim.limits.set_bound(begin, end);
     ImGui::EndDisabled();
 
     ImGui::BeginDisabled(not ed.real_time);

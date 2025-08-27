@@ -148,8 +148,7 @@ void timeline::cleanup_after_current_bag() noexcept
 }
 
 static status build_initial_simulation_point(timeline&   tl,
-                                             simulation& sim,
-                                             time        t) noexcept
+                                             simulation& sim) noexcept
 {
     if (!tl.can_alloc(timeline_point_type::simulation,
                       static_cast<i32>(sim.models.max_used()),
@@ -157,7 +156,7 @@ static status build_initial_simulation_point(timeline&   tl,
         return new_error(timeline_errc::memory_error);
 
     auto& sim_pt = tl.alloc_simulation_point();
-    sim_pt.t     = t;
+    sim_pt.t     = sim.current_time();
     sim_pt.models.reserve(sim.models.max_size());
     sim_pt.model_ids.reserve(sim.models.max_size());
 
@@ -181,10 +180,9 @@ static status build_initial_simulation_point(timeline&   tl,
     return success();
 }
 
-static status build_simulation_point(timeline&               tl,
-                                     simulation&             sim,
-                                     const vector<model_id>& imm,
-                                     time                    t) noexcept
+static status build_simulation_point(timeline&                  tl,
+                                     const simulation&          sim,
+                                     const std::span<model_id>& imm) noexcept
 {
     // if (!tl.can_alloc(timeline_point_type::simulation,
     //                   imm.ssize(),
@@ -192,9 +190,9 @@ static status build_simulation_point(timeline&               tl,
     //     return new_error(simulation::part::messages, container_full_error{});
 
     auto& sim_pt = tl.alloc_simulation_point();
-    sim_pt.t     = t;
-    sim_pt.models.reserve(imm.ssize());
-    sim_pt.model_ids.reserve(imm.ssize());
+    sim_pt.t     = sim.current_time();
+    sim_pt.models.reserve(imm.size());
+    sim_pt.model_ids.reserve(imm.size());
 
     // if (sim.message_alloc.max_size() > 0) {
     //     irt_check(sim_pt.message_alloc.init(sim.message_alloc.max_size()));
@@ -219,11 +217,11 @@ static status build_simulation_point(timeline&               tl,
     return success();
 }
 
-status initialize(timeline& tl, simulation& sim, time t) noexcept
+status initialize(timeline& tl, simulation& sim) noexcept
 {
     tl.reset();
 
-    irt_check(build_initial_simulation_point(tl, sim, t));
+    irt_check(build_initial_simulation_point(tl, sim));
 
     return success();
 }
@@ -308,38 +306,34 @@ static status apply(simulation&                       sim,
     return success();
 }
 
-static status advance(simulation&             sim,
-                      time&                   t,
-                      const connection_point& cnt_pt) noexcept
+static status advance(simulation& sim, const connection_point& cnt_pt) noexcept
 {
     irt_check(apply(sim, cnt_pt, cnt_pt.type));
 
-    t = cnt_pt.t;
+    sim.current_time(cnt_pt.t);
 
     return success();
 }
 
-static status advance(simulation& sim, time& t, model_point& mdl_pt) noexcept
+static status advance(simulation& sim, model_point& mdl_pt) noexcept
 {
     irt_check(apply(sim, mdl_pt, mdl_pt.type));
 
-    t = mdl_pt.t;
+    sim.current_time(mdl_pt.t);
 
     return success();
 }
 
-static status advance(simulation&       sim,
-                      time&             t,
-                      simulation_point& sim_pt) noexcept
+static status advance(simulation& sim, simulation_point& sim_pt) noexcept
 {
     irt_check(apply(sim, sim_pt));
 
-    t = sim_pt.t;
+    sim.current_time(sim_pt.t);
 
     return success();
 }
 
-status advance(timeline& tl, simulation& sim, time& t) noexcept
+status advance(timeline& tl, simulation& sim) noexcept
 {
     if (tl.current_bag == tl.points.end())
         return success();
@@ -353,17 +347,17 @@ status advance(timeline& tl, simulation& sim, time& t) noexcept
 
     switch (bag.type) {
     case timeline_point_type::connection:
-        return advance(sim, t, tl.connection_points[bag.index]);
+        return advance(sim, tl.connection_points[bag.index]);
     case timeline_point_type::model:
-        return advance(sim, t, tl.model_points[bag.index]);
+        return advance(sim, tl.model_points[bag.index]);
     case timeline_point_type::simulation:
-        return advance(sim, t, tl.sim_points[bag.index]);
+        return advance(sim, tl.sim_points[bag.index]);
     }
 
     unreachable();
 }
 
-static status back(simulation& sim, time& t, connection_point& cnt_pt) noexcept
+static status back(simulation& sim, connection_point& cnt_pt) noexcept
 {
     const auto overwrite_operation =
       cnt_pt.type == connection_point::operation_type::add
@@ -372,12 +366,12 @@ static status back(simulation& sim, time& t, connection_point& cnt_pt) noexcept
 
     irt_check(apply(sim, cnt_pt, overwrite_operation));
 
-    t = cnt_pt.t;
+    sim.current_time(cnt_pt.t);
 
     return success();
 }
 
-static status back(simulation& sim, time& t, model_point& mdl_pt) noexcept
+static status back(simulation& sim, model_point& mdl_pt) noexcept
 {
     const auto overwrite_operation =
       mdl_pt.type == model_point::operation_type::add
@@ -388,21 +382,21 @@ static status back(simulation& sim, time& t, model_point& mdl_pt) noexcept
 
     irt_check(apply(sim, mdl_pt, overwrite_operation));
 
-    t = mdl_pt.t;
+    sim.current_time(mdl_pt.t);
 
     return success();
 }
 
-static status back(simulation& sim, time& t, simulation_point& sim_pt) noexcept
+static status back(simulation& sim, simulation_point& sim_pt) noexcept
 {
     irt_check(apply(sim, sim_pt));
 
-    t = sim_pt.t;
+    sim.current_time(sim_pt.t);
 
     return success();
 }
 
-status back(timeline& tl, simulation& sim, time& t) noexcept
+status back(timeline& tl, simulation& sim) noexcept
 {
     if (tl.current_bag == tl.points.end())
         return success();
@@ -416,72 +410,26 @@ status back(timeline& tl, simulation& sim, time& t) noexcept
 
     switch (bag.type) {
     case timeline_point_type::connection:
-        return back(sim, t, tl.connection_points[bag.index]);
+        return back(sim, tl.connection_points[bag.index]);
     case timeline_point_type::model:
-        return back(sim, t, tl.model_points[bag.index]);
+        return back(sim, tl.model_points[bag.index]);
     case timeline_point_type::simulation:
-        return back(sim, t, tl.sim_points[bag.index]);
+        return back(sim, tl.sim_points[bag.index]);
     }
 
     unreachable();
 }
 
-status run(timeline& tl, simulation& sim, time& t) noexcept
+status run(timeline& tl, simulation& sim) noexcept
 {
-    if (sim.sched.empty()) {
-        t = time_domain<time>::infinity;
-        return success();
-    }
-
-    if (t = sim.sched.tn(); time_domain<time>::is_infinity(t))
-        return success();
-
-    sim.immediate_models.clear();
-    sim.sched.pop(sim.immediate_models);
-
-    irt_check(build_simulation_point(tl, sim, sim.immediate_models, t));
-
-    sim.emitting_output_ports.clear();
-    for (const auto id : sim.immediate_models)
-        if (auto* mdl = sim.models.try_to_get(id); mdl)
-            irt_check(sim.make_transition(*mdl, t));
-
-    for (int i = 0, e = length(sim.emitting_output_ports); i != e; ++i) {
-        auto* mdl = sim.models.try_to_get(sim.emitting_output_ports[i].model);
-        if (!mdl)
-            continue;
-
-        sim.sched.update(*mdl, t);
-
-        if (!sim.messages.can_alloc(1))
-            return new_error(timeline_errc::memory_error);
-
-        auto  port = sim.emitting_output_ports[i].port;
-        auto& msg  = sim.emitting_output_ports[i].msg;
-
-        dispatch(*mdl, [&sim, port, &msg]<typename Dynamics>(Dynamics& dyn) {
-            if constexpr (has_input_port<Dynamics>) {
-                auto* lst = sim.messages.try_to_get(dyn.x[port]);
-                if (not lst) {
-                    auto& new_lst = sim.messages.alloc();
-                    lst           = &new_lst;
-                    dyn.x[port]   = sim.messages.get_id(new_lst);
-                }
-
-                lst->push_back(msg);
-            }
-        });
-    }
-
-    tl.current_bag = tl.points.tail();
-
-    return success();
+    return sim.run_with_cb([&](auto& sim, auto imm) noexcept {
+        build_simulation_point(tl, sim, imm);
+    });
 }
 
-status finalize(timeline& tl, simulation& sim, time t) noexcept
+status finalize(timeline& tl, simulation& sim) noexcept
 {
     tl.current_bag = tl.points.tail();
-    sim.t          = t;
     return sim.finalize();
 }
 

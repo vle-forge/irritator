@@ -19,15 +19,11 @@ static auto init_or_reuse_observer(simulation& sim,
   -> observer_id
 {
     if (auto* obs = sim.observers.try_to_get(mdl.obs_id); obs) {
-        const auto raw_buffer_size = std::max(obs->buffer.ssize(), 16);
-        const auto linerized_buffer_size =
-          std::max(obs->linearized_buffer.ssize(), 16);
-        const auto time_step = std::clamp(
-          obs->time_step, std::numeric_limits<float>::epsilon(), 0.01f);
+        obs->init(observer::buffer_size_t(16),
+                  observer::linearized_buffer_size_t(32),
+                  0.01f);
 
-        obs->init(observer::buffer_size_t(raw_buffer_size),
-                  observer::linearized_buffer_size_t(linerized_buffer_size),
-                  time_step);
+        mdl.obs_id = sim.observers.get_id(*obs);
         sim.observe(mdl, *obs);
     } else {
         auto& new_obs = sim.observers.alloc();
@@ -136,7 +132,7 @@ void grid_observer::init(project& pj, modeling& mod, simulation& sim) noexcept
         }
     }
 
-    tn = sim.t = time_step;
+    tn = sim.current_time() + time_step;
 }
 
 void grid_observer::clear() noexcept
@@ -164,21 +160,26 @@ void grid_observer::update(const simulation& sim) noexcept
             if (is_undefined(id))
                 continue;
 
-            if (const auto* obs = sim.observers.try_to_get(observers[pos]);
-                obs) {
+            if (const auto* obs = sim.observers.try_to_get(observers[pos])) {
                 if (obs->states[observer_flags::use_linear_buffer]) {
-                    values_2nd[pos] = not obs->linearized_buffer.empty()
-                                        ? obs->linearized_buffer.back().y
-                                        : zero;
+                    obs->linearized_buffer.try_read_only(
+                      [](const auto& buf, auto& v) {
+                          v = not buf.empty() ? buf.back().y : zero;
+                      },
+                      values_2nd[pos]);
+
                 } else {
-                    values_2nd[pos] =
-                      not obs->buffer.empty() ? obs->buffer.back()[1] : zero;
+                    obs->buffer.try_read_only(
+                      [](const auto& buf, auto& v) {
+                          v = not buf.empty() ? buf.back()[1] : zero;
+                      },
+                      values_2nd[pos]);
                 }
             }
         }
     }
 
-    tn = sim.t + time_step;
+    tn = sim.current_time() + time_step;
 
     // Finally, swaps the buffer under a protected write access.
     std::unique_lock lock{ mutex };

@@ -27,43 +27,35 @@ struct file_output {
 
     std::FILE*     os = nullptr;
     irt::observer& obs;
-    irt::real      time_step   = 1e-1;
-    bool           interpolate = true;
 
     file_output(irt::observer& obs_, const char* filename) noexcept
-      : os{ nullptr }
+      : os{ std::fopen(filename, "w") }
       , obs{ obs_ }
     {
-        if (os = std::fopen(filename, "w"); os)
+        if (os)
             fmt::print(os, "t,v\n");
     }
 
-    void push_back(const irt::observation& vec) noexcept
+    void push_back(const irt::observation& vec) const noexcept
     {
-        fmt::print(os, "{},{}\n", vec.x, vec.y);
+        if (os)
+            fmt::print(os, "{},{}\n", vec.x, vec.y);
     }
 
     void write() noexcept
     {
-        auto it = std::back_insert_iterator<file_output>(*this);
-
-        if (interpolate) {
-            if (obs.buffer.ssize() >= 2)
-                write_interpolate_data(obs, it, time_step);
-        } else {
-            write_raw_data(obs, it);
+        if (obs.states[irt::observer_flags::buffer_full]) {
+            irt::write_interpolate_data(obs, 0.1, [&](auto t, auto v) noexcept {
+                fmt::print(os, "{},{}\n", t, v);
+            });
         }
     }
 
     void flush() noexcept
     {
-        auto it = std::back_insert_iterator<file_output>(*this);
-
-        if (interpolate) {
-            flush_interpolate_data(obs, it, time_step);
-        } else {
-            flush_raw_data(obs, it);
-        }
+        irt::flush_interpolate_data(obs, 0.1, [&](auto t, auto v) noexcept {
+            fmt::print(os, "{},{}\n", t, v);
+        });
 
         std::fflush(os);
     }
@@ -103,14 +95,12 @@ static irt::status run_simulation(irt::simulation& sim, const double duration_p)
 {
     using namespace boost::ut;
 
-    sim.t              = 0;
-    irt::time duration = static_cast<irt::time>(duration_p);
-
-    expect(!!sim.initialize());
+    sim.limits.set_duration(0, duration_p);
+    expect(sim.initialize().has_value());
 
     do {
-        expect(!!sim.run());
-    } while (sim.t < duration);
+        expect(sim.run().has_value());
+    } while (not sim.current_time_expired());
 
     return irt::success();
 }
@@ -955,12 +945,11 @@ int main()
         expect(!!sim.connect_dynamics(c1, 0, cnt, 0));
         expect(!!sim.connect_dynamics(c2, 0, cnt, 0));
 
-        sim.t = irt::zero;
         expect(!!sim.initialize());
 
         do {
             expect(!!sim.run());
-        } while (not irt::time_domain<irt::time>::is_infinity(sim.t));
+        } while (not sim.current_time_expired());
 
         expect(eq(cnt.number, static_cast<irt::i64>(2)));
     };
@@ -983,12 +972,11 @@ int main()
         expect(!!sim.connect_dynamics(c1, 0, cross1, 2));
         expect(!!sim.connect_dynamics(cross1, 0, cnt, 0));
 
-        sim.t = 0.0;
         expect(!!sim.initialize());
 
         do {
             expect(!!sim.run());
-        } while (!irt::time_domain<irt::time>::is_infinity(sim.t));
+        } while (not sim.current_time_expired());
 
         expect(eq(cnt.number, static_cast<decltype(cnt.number)>(1)));
     };
@@ -1134,7 +1122,8 @@ int main()
         expect(!!sim.connect_dynamics(gen, 0, hsmw, 1));
         expect(!!sim.connect_dynamics(hsmw, 0, cnt, 0));
 
-        sim.t = 0.0;
+        sim.limits.set_bound(0, 10);
+
         expect(!!sim.srcs.prepare());
         expect(!!sim.initialize());
 
@@ -1143,7 +1132,7 @@ int main()
         do {
             st = sim.run();
             expect(!!st);
-        } while (sim.t < 10);
+        } while (not sim.current_time_expired());
 
         expect(eq(cnt.number, static_cast<irt::i64>(1)));
     };
@@ -1213,7 +1202,7 @@ int main()
         expect(!!sim.connect_dynamics(gen, 0, hsmw, 1));
         expect(!!sim.connect_dynamics(hsmw, 0, cnt, 0));
 
-        sim.t = 0.0;
+        sim.limits.set_bound(0, 10);
         expect(!!sim.srcs.prepare());
         expect(!!sim.initialize());
 
@@ -1222,7 +1211,7 @@ int main()
         do {
             st = sim.run();
             expect(!!st);
-        } while (sim.t < 10);
+        } while (not sim.current_time_expired());
 
         expect(eq(hsmw.exec.i1, 11));
 
@@ -1272,7 +1261,7 @@ int main()
         expect(!!sim.connect_dynamics(gen, 0, hsmw, 1));
         expect(!!sim.connect_dynamics(hsmw, 0, cnt, 0));
 
-        sim.t = 0.0;
+        sim.limits.set_bound(0, 20);
         expect(!!sim.srcs.prepare());
         expect(!!sim.initialize());
 
@@ -1281,7 +1270,7 @@ int main()
         do {
             st = sim.run();
             expect(!!st);
-        } while (sim.t < 20.);
+        } while (not sim.current_time_expired());
 
         expect(eq(cnt.number, static_cast<irt::i64>(1)));
     };
@@ -1333,7 +1322,7 @@ int main()
         expect(!!sim.connect_dynamics(gen2, 0, hsmw, 1));
         expect(!!sim.connect_dynamics(hsmw, 0, cnt, 0));
 
-        sim.t = 0.0;
+        sim.limits.set_bound(0, 20);
         expect(!!sim.srcs.prepare());
         expect(!!sim.initialize());
 
@@ -1342,7 +1331,7 @@ int main()
         do {
             st = sim.run();
             expect(!!st);
-        } while (sim.t < 20.);
+        } while (not sim.current_time_expired());
 
         expect(eq(cnt.number, static_cast<irt::i64>(1)));
     };
@@ -1397,7 +1386,7 @@ int main()
         expect(!!sim.connect_dynamics(gen2, 0, hsmw, 1));
         expect(!!sim.connect_dynamics(hsmw, 0, cnt, 0));
 
-        sim.t = 0.0;
+        sim.limits.set_bound(0, 20);
         expect(!!sim.srcs.prepare());
         expect(!!sim.initialize());
 
@@ -1406,7 +1395,7 @@ int main()
         do {
             st = sim.run();
             expect(!!st);
-        } while (sim.t < 20.);
+        } while (not sim.current_time_expired());
 
         expect(eq(cnt.number, static_cast<irt::i64>(0)));
     };
@@ -1449,7 +1438,7 @@ int main()
 
         expect(!!sim.connect_dynamics(gen, 0, cnt, 0));
 
-        sim.t = 0.0;
+        sim.limits.set_bound(0, 10);
         expect(!!sim.srcs.prepare());
         expect(!!sim.initialize());
 
@@ -1458,7 +1447,7 @@ int main()
         do {
             st = sim.run();
             expect(!!st);
-        } while (sim.t < 10.0);
+        } while (not sim.current_time_expired());
 
         expect(eq(cnt.number, static_cast<irt::i64>(10)));
     };
@@ -1500,34 +1489,23 @@ int main()
         get_p(sim, l_or).integers[0] = false;
         get_p(sim, l_or).integers[1] = false;
 
-        auto& obs = sim.observers.alloc();
+        auto&       obs = sim.observers.alloc();
+        file_output fo_a(obs, "boolean_simulation.csv");
         sim.observe(irt::get_model(l_and), obs);
 
-        sim.t           = 0;
-        irt::real value = 0.0;
+        sim.limits.set_bound(0, 10);
         expect(!!sim.srcs.prepare());
         expect(!!sim.initialize());
         do {
-            auto old_t = sim.t;
             expect(!!sim.run());
-
-            if (old_t != sim.t) {
-                expect(eq(obs.buffer.ssize(), 1)) << fatal;
-                for (auto v : obs.buffer) {
-                    expect(eq(v[0], old_t));
-                    expect(eq(v[1], value));
-                }
-                value = value == 0. ? 1.0 : 0.;
-                obs.buffer.clear();
-            }
-        } while (sim.t < 10.0);
+            fo_a.write();
+        } while (not sim.current_time_expired());
     };
 
     "time_func"_test = [] {
         fmt::print("time_func\n");
         irt::simulation sim;
 
-        constexpr irt::real duration{ 30 };
         constexpr irt::real timestep{ 0.1 };
 
         expect(sim.can_alloc(2));
@@ -1540,16 +1518,19 @@ int main()
         expect(!!sim.connect_dynamics(time_fun, 0, cnt, 0));
 
         irt::real c = 0;
-        sim.t       = 0;
+        sim.limits.set_bound(0, 30);
         expect(!!sim.initialize());
         do {
             expect(!!sim.run());
-            expect(eq(time_fun.value, sim.t * sim.t));
+            if (not sim.current_time_expired())
+                expect(
+                  eq(time_fun.value, sim.current_time() * sim.current_time()));
             c++;
-        } while (sim.t < duration);
+        } while (not sim.current_time_expired());
 
         const auto value =
-          (irt::real{ 2.0 } * duration / timestep - irt::real{ 1.0 });
+          (irt::real{ 2.0 } * sim.limits.duration() / timestep -
+           irt::real{ 1.0 });
         expect(eq(c, value));
     };
 
@@ -1558,7 +1539,6 @@ int main()
 
         constexpr irt::real pi       = 3.141592653589793238462643383279502884;
         constexpr irt::real f0       = irt::real(0.1);
-        constexpr irt::real duration = 30;
         constexpr irt::real timestep = 0.1;
 
         irt::simulation sim;
@@ -1572,17 +1552,21 @@ int main()
 
         expect(!!sim.connect_dynamics(time_fun, 0, cnt, 0));
 
-        sim.t       = 0;
+        sim.limits.set_bound(0, 30);
         irt::real c = irt::zero;
 
         expect(!!sim.initialize());
         do {
             expect(!!sim.run() >> fatal);
-            expect(time_fun.value == std::sin(irt::two * pi * f0 * sim.t));
+            if (not sim.current_time_expired())
+                expect(eq(time_fun.value,
+                          std::sin(irt::two * pi * f0 * sim.current_time())));
             c++;
-        } while (sim.t < duration);
-        expect(
-          eq(c, (irt::real{ 2.0 } * duration / timestep - irt::real{ 1.0 })));
+        } while (not sim.current_time_expired());
+
+        expect(eq(c,
+                  (irt::real{ 2.0 } * sim.limits.duration() / timestep -
+                   irt::real{ 1.0 })));
     };
 
     "lotka_volterra_simulation_qss1"_test = [] {
@@ -1626,7 +1610,7 @@ int main()
         sim.observe(irt::get_model(integrator_a), obs_a);
         sim.observe(irt::get_model(integrator_b), obs_b);
 
-        sim.t = irt::real(0);
+        sim.limits.set_bound(0, 15);
 
         expect(!!sim.initialize());
         expect((sim.sched.size() == 5_ul) >> fatal);
@@ -1637,7 +1621,7 @@ int main()
 
             fo_a.write();
             fo_b.write();
-        } while (sim.t < irt::real(15));
+        } while (not sim.current_time_expired());
 
         fo_a.flush();
         fo_b.flush();
@@ -1684,7 +1668,7 @@ int main()
         sim.observe(irt::get_model(integrator_a), obs_a);
         sim.observe(irt::get_model(integrator_b), obs_b);
 
-        sim.t = irt::real(0);
+        sim.limits.set_bound(0, 15);
 
         expect(!!sim.initialize());
         expect((sim.sched.size() == 5_ul) >> fatal);
@@ -1695,7 +1679,7 @@ int main()
 
             fo_a.write();
             fo_b.write();
-        } while (sim.t < irt::real(15));
+        } while (not sim.current_time_expired());
 
         fo_a.flush();
         fo_b.flush();
@@ -1742,8 +1726,7 @@ int main()
 
         sim.observe(irt::get_model(integrator), obs_a);
 
-        sim.t = 0.0;
-
+        sim.limits.set_bound(0, 100);
         expect(!!sim.initialize());
         expect((sim.sched.size() == 5_ul) >> fatal);
 
@@ -1752,7 +1735,7 @@ int main()
             expect(!!st);
 
             fo_a.write();
-        } while (sim.t < irt::time{ 100.0 });
+        } while (not sim.current_time_expired());
 
         fo_a.flush();
     };
@@ -1801,8 +1784,7 @@ int main()
 
         sim.observe(irt::get_model(integrator), obs_a);
 
-        sim.t = irt::time(0);
-
+        sim.limits.set_bound(0, 100);
         expect(!!sim.initialize());
         expect((sim.sched.size() == 5_ul) >> fatal);
 
@@ -1812,7 +1794,7 @@ int main()
             expect(!!st);
 
             fo_a.write();
-        } while (sim.t < irt::time(100));
+        } while (not sim.current_time_expired());
 
         fo_a.flush();
     };
@@ -1903,7 +1885,7 @@ int main()
         sim.observe(irt::get_model(integrator_a), obs_a);
         sim.observe(irt::get_model(integrator_b), obs_b);
 
-        sim.t = irt::real(0);
+        sim.limits.set_bound(0, 140);
 
         expect(!!sim.initialize());
         expect((sim.sched.size() == 12_ul) >> fatal);
@@ -1914,7 +1896,7 @@ int main()
 
             fo_a.write();
             fo_b.write();
-        } while (sim.t < irt::time(140));
+        } while (not sim.current_time_expired());
 
         fo_a.flush();
         fo_b.flush();
@@ -2006,7 +1988,7 @@ int main()
         sim.observe(irt::get_model(integrator_a), obs_a);
         sim.observe(irt::get_model(integrator_b), obs_b);
 
-        sim.t = irt::zero;
+        sim.limits.set_bound(0, 140);
 
         expect(!!sim.initialize());
         expect((sim.sched.size() == 12_ul) >> fatal);
@@ -2017,7 +1999,7 @@ int main()
 
             fo_a.write();
             fo_b.write();
-        } while (sim.t < irt::time(140));
+        } while (not sim.current_time_expired());
 
         fo_a.flush();
         fo_b.flush();
@@ -2064,7 +2046,7 @@ int main()
         sim.observe(irt::get_model(integrator_a), obs_a);
         sim.observe(irt::get_model(integrator_b), obs_b);
 
-        sim.t = irt::zero;
+        sim.limits.set_bound(0, 15);
 
         expect(!!sim.initialize());
         expect((sim.sched.size() == 5_ul) >> fatal);
@@ -2075,7 +2057,7 @@ int main()
 
             fo_a.write();
             fo_b.write();
-        } while (sim.t < irt::time(15));
+        } while (not sim.current_time_expired());
 
         fo_a.flush();
         fo_b.flush();
@@ -2125,7 +2107,7 @@ int main()
 
         sim.observe(irt::get_model(integrator), obs_a);
 
-        sim.t = irt::zero;
+        sim.limits.set_bound(0, 100);
 
         expect(!!sim.initialize());
         expect((sim.sched.size() == 5_ul) >> fatal);
@@ -2135,7 +2117,7 @@ int main()
             auto st = sim.run();
             expect(!!st);
             fo_a.write();
-        } while (sim.t < irt::time(100));
+        } while (not sim.current_time_expired());
 
         fo_a.flush();
     };
@@ -2226,7 +2208,7 @@ int main()
         sim.observe(irt::get_model(integrator_a), obs_a);
         sim.observe(irt::get_model(integrator_b), obs_b);
 
-        sim.t = irt::zero;
+        sim.limits.set_bound(0, 140);
 
         expect(!!sim.initialize());
         expect((sim.sched.size() == 12_ul) >> fatal);
@@ -2237,7 +2219,7 @@ int main()
 
             fo_a.write();
             fo_b.write();
-        } while (sim.t < irt::time(140));
+        } while (not sim.current_time_expired());
 
         fo_a.flush();
         fo_b.flush();
@@ -2286,7 +2268,7 @@ int main()
         sim.observe(irt::get_model(integrator_a), obs_a);
         sim.observe(irt::get_model(integrator_b), obs_b);
 
-        sim.t = 0.0;
+        sim.limits.set_bound(0, 1500);
         expect(!!sim.initialize());
         expect((sim.sched.size() == 5_ul) >> fatal);
 
@@ -2296,7 +2278,7 @@ int main()
 
             fo_a.write();
             fo_b.write();
-        } while (sim.t < irt::time(1500.0));
+        } while (not sim.current_time_expired());
 
         fo_a.flush();
         fo_b.flush();
@@ -2345,7 +2327,7 @@ int main()
 
         sim.observe(irt::get_model(integrator), obs_a);
 
-        sim.t = 0;
+        sim.limits.set_bound(0, 100);
 
         expect(!!sim.initialize());
         expect((sim.sched.size() == 5_ul) >> fatal);
@@ -2354,7 +2336,7 @@ int main()
             auto st = sim.run();
             expect(!!st);
             fo_a.write();
-        } while (sim.t < irt::time(100));
+        } while (not sim.current_time_expired());
 
         fo_a.flush();
     };
@@ -2402,7 +2384,7 @@ int main()
 
         sim.observe(irt::get_model(integrator), obs_a);
 
-        sim.t = 0;
+        sim.limits.set_bound(0, 100);
 
         expect(!!sim.initialize());
         expect((sim.sched.size() == 5_ul) >> fatal);
@@ -2412,7 +2394,7 @@ int main()
             expect(!!st);
 
             fo_a.write();
-        } while (sim.t < irt::time(100.0));
+        } while (not sim.current_time_expired());
 
         fo_a.flush();
     };
@@ -2460,7 +2442,7 @@ int main()
 
         sim.observe(irt::get_model(integrator), obs_a);
 
-        sim.t = 0;
+        sim.limits.set_bound(0, 100);
 
         expect(!!sim.initialize());
         expect((sim.sched.size() == 5_ul) >> fatal);
@@ -2469,7 +2451,7 @@ int main()
             auto st = sim.run();
             expect(!!st);
             fo_a.write();
-        } while (sim.t < irt::time(100.0));
+        } while (not sim.current_time_expired());
 
         fo_a.flush();
     };

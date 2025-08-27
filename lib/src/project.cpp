@@ -1832,8 +1832,6 @@ void project::clear() noexcept
     graph_observers.clear();
     file_obs.clear();
     parameters.clear();
-
-    t_limit.clear();
 }
 
 static void project_build_unique_id_path(const std::string_view uid,

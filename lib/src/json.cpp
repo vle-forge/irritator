@@ -5175,7 +5175,7 @@ struct json_dearchiver::impl {
     bool project_time_limit_affect(const double b,
                                    const double e) const noexcept
     {
-        pj().t_limit.set_bound(b, e);
+        pj().sim.limits.set_bound(b, e);
 
         return true;
     }
@@ -7585,9 +7585,9 @@ struct json_archiver::impl {
         w.StartObject();
 
         w.Key("begin");
-        w.Double(pj.t_limit.begin());
+        w.Double(pj.sim.limits.begin());
         w.Key("end");
-        w.Double(pj.t_limit.end());
+        w.Double(pj.sim.limits.end());
 
         do_project_save_component(w, compo, *reg, *dir, *file);
         do_project_save_parameters(w, pj);

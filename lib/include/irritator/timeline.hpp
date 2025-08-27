@@ -119,19 +119,19 @@ struct timeline {
 };
 
 //! @brief Initialize simulation and store first state.
-status initialize(timeline& tl, simulation&, time t) noexcept;
+status initialize(timeline& tl, simulation&) noexcept;
 
 //! @brief Run one step of simulation and store state.
-status run(timeline& tl, simulation&, time& t) noexcept;
+status run(timeline& tl, simulation&) noexcept;
 
 //! @brief Finalize the simulation.
-status finalize(timeline& tl, simulation&, time t) noexcept;
+status finalize(timeline& tl, simulation&) noexcept;
 
 //! @brief  Advance the simulation by one step.
-status advance(timeline& tl, simulation& sim, time& t) noexcept;
+status advance(timeline& tl, simulation& sim) noexcept;
 
 //! @brief  Back the simulation by one step.
-status back(timeline& tl, simulation& sim, time& t) noexcept;
+status back(timeline& tl, simulation& sim) noexcept;
 
 } // namespace irt
 

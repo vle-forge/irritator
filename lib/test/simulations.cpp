@@ -229,11 +229,11 @@ int main()
             }
         }
 
-        sim.t = irt::zero;
+        sim.limits.set_bound(0, 30);
         expect(!!sim.initialize());
 
         do {
             expect(!!sim.run());
-        } while (sim.t < 30);
+        } while (not sim.current_time_expired());
     };
 }
