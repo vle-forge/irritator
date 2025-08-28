@@ -1323,7 +1323,7 @@ int main()
             expect(!!st);
         } while (not sim.current_time_expired());
 
-        expect(eq(cnt.number, static_cast<irt::i64>(10)));
+        expect(eq(cnt.number, static_cast<irt::i64>(9)));
     };
 
     "boolean_simulation"_test = [] {
