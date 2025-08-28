@@ -218,7 +218,11 @@ int main([[maybe_unused]] int argc, [[maybe_unused]] char* argv[])
     IMGUI_CHECKVERSION();
     ImGui::CreateContext();
     ImGuiIO& io    = ImGui::GetIO();
-    io.IniFilename = irt::get_imgui_filename();
+
+    const auto init_filename       = irt::get_imgui_filename();
+    const auto init_filename_u8str = init_filename.u8string();
+    io.IniFilename = reinterpret_cast<const char*>(init_filename_u8str.c_str());
+
     io.ConfigFlags |= ImGuiConfigFlags_DockingEnable;
 
 #ifdef IRRITATOR_USE_TTF
@@ -348,12 +352,6 @@ int main([[maybe_unused]] int argc, [[maybe_unused]] char* argv[])
 
     ImGui_ImplOpenGL3_Shutdown();
     ImGui_ImplGlfw_Shutdown();
-
-    if (io.IniFilename) {
-        auto* str = const_cast<char*>(io.IniFilename);
-        std::free(str);
-        io.IniFilename = nullptr;
-    }
 
     ImGui::DestroyContext();
 

@@ -1498,7 +1498,7 @@ bool show_local_observers(application&    app,
 
 //! @brief Get the file path of the @c imgui.ini file saved in $HOME.
 //! @return A pointer to a newly allocated memory.
-char* get_imgui_filename() noexcept;
+std::filesystem::path get_imgui_filename() noexcept;
 
 template<typename Fn>
 void application::add_simulation_task(const project_id id, Fn&& fn) noexcept

@@ -191,7 +191,8 @@ expected<std::filesystem::path> get_system_component_dir() noexcept
     if (!exe)
         return exe.error();
 
-    auto install_path = exe.value().parent_path();
+    auto bin_path     = exe.value().parent_path();
+    auto install_path = bin_path.parent_path();
     install_path /= "share";
     install_path /= "irritator-" irritator_to_string(
       VERSION_MAJOR) "." irritator_to_string(VERSION_MINOR);
@@ -502,20 +503,12 @@ std::string get_config_home(bool log) noexcept
 #endif
 }
 
-char* get_imgui_filename() noexcept
+std::filesystem::path get_imgui_filename() noexcept
 {
-    char* ret = nullptr;
+    if (auto path_opt = get_home_filename("imgui.ini"); path_opt.has_value())
+        return *path_opt;
 
-    if (auto path = get_home_filename("imgui.ini"); path) {
-        auto* str = reinterpret_cast<const char*>(path->c_str());
-#if defined(_WIN32)
-        ret = _strdup(str);
-#else
-        ret = strdup(str);
-#endif
-    }
-
-    return ret;
+    return std::filesystem::current_path();
 }
 
 }
