@@ -12,11 +12,6 @@
 
 namespace irt {
 
-static ImVec4 operator*(const ImVec4& vec, float val) noexcept
-{
-    return ImVec4(vec.x * val, vec.y * val, vec.z * val, vec.w);
-}
-
 static ImVec4 alpha(const ImVec4& vec, const float f) noexcept
 {
     return ImVec4(vec.x, vec.y, vec.z, f);
