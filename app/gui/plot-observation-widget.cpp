@@ -23,29 +23,15 @@ void plot_observation_widget::show(project& pj) noexcept
             ImPlot::PushStyleVar(ImPlotStyleVar_LineWeight, 1.f);
             ImPlot::PushStyleVar(ImPlotStyleVar_MarkerSize, 1.f);
 
-            // ImPlot::SetupAxis(ImAxis_X1,
-            //                   "t",
-            //                   ImPlotAxisFlags_AutoFit |
-            //                     ImPlotAxisFlags_RangeFit);
-            ImPlot::SetupAxis(ImAxis_Y1,
-                              name.c_str(),
-                              ImPlotAxisFlags_AutoFit |
-                                ImPlotAxisFlags_RangeFit);
-
-            ImPlot::SetupLegend(ImPlotLocation_North);
+            ImPlot::SetupLegend(ImPlotLocation_NorthWest);
+            ImPlot::SetupAxisLimits(
+              ImAxis_X1, pj.sim.limits.begin(), pj.sim.limits.end());
             ImPlot::SetupFinish();
 
             v_obs.for_each([&](const auto id) noexcept {
                 const auto idx    = get_index(id);
                 const auto obs_id = v_obs.get_obs_ids()[idx];
                 auto*      obs    = pj.sim.observers.try_to_get(obs_id);
-
-                ImPlot::SetupAxis(ImAxis_Y1,
-                                  v_obs.get_names()[ordinal(id)].c_str(),
-                                  ImPlotAxisFlags_AutoFit |
-                                    ImPlotAxisFlags_RangeFit);
-                ImPlot::SetupLegend(ImPlotLocation_North);
-                ImPlot::SetupFinish();
 
                 obs->linearized_buffer.read_only([&](auto& lbuf) noexcept {
                     switch (v_obs.get_options()[idx]) {

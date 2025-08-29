@@ -961,13 +961,10 @@ static bool show_project_observations(application&    app,
                         ImPlot::PushStyleVar(ImPlotStyleVar_LineWeight, 1.f);
                         ImPlot::PushStyleVar(ImPlotStyleVar_MarkerSize, 1.f);
 
-                        ImPlot::SetupAxis(
-                          ImAxis_X1, "time", ImPlotAxisFlags_AutoFit);
-                        ImPlot::SetupAxis(ImAxis_Y1,
-                                          vobs.name.c_str(),
-                                          ImPlotAxisFlags_AutoFit);
-
                         ImPlot::SetupLegend(ImPlotLocation_NorthWest);
+                        ImPlot::SetupAxisLimits(ImAxis_X1,
+                                                ed.pj.sim.limits.begin(),
+                                                ed.pj.sim.limits.end());
                         ImPlot::SetupFinish();
 
                         vobs.for_each([&](const auto id) noexcept {
@@ -1055,17 +1052,17 @@ static void show_component_observations(application&    app,
                 if (ImPlot::BeginPlot(vobs.name.c_str(), ImVec2(-1, 200))) {
                     ImPlot::PushStyleVar(ImPlotStyleVar_LineWeight, 1.f);
                     ImPlot::PushStyleVar(ImPlotStyleVar_MarkerSize, 1.f);
-                    ImPlot::SetupAxis(ImAxis_X1,
-                                      "t",
-                                      ImPlotAxisFlags_AutoFit |
-                                        ImPlotAxisFlags_RangeFit);
+
+                    ImPlot::SetupLegend(ImPlotLocation_NorthWest);
+                    ImPlot::SetupAxisLimits(ImAxis_X1,
+                                            sim_ed.pj.sim.limits.begin(),
+                                            sim_ed.pj.sim.limits.end());
                     ImPlot::SetupAxis(ImAxis_Y1,
                                       vobs.name.c_str(),
                                       ImPlotAxisFlags_AutoFit |
                                         ImPlotAxisFlags_RangeFit);
-
-                    ImPlot::SetupLegend(ImPlotLocation_North);
                     ImPlot::SetupFinish();
+
                     if (sim_ed.simulation_state != // TODO may be adding a
                                                    // spin_mutex in observer
                                                    // and lock/try_lock the
