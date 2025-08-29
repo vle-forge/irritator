@@ -1084,6 +1084,152 @@ int main()
         expect(ring.data()[9] == 10);
     };
 
+    enum class test_id : std::uint32_t {};
+
+    struct test_data {
+        int value;
+        test_data() noexcept
+          : value(0)
+        {}
+        test_data(int v) noexcept
+          : value(v)
+        {}
+        bool operator==(const test_data& other) const
+        {
+            return value == other.value;
+        }
+    };
+
+    using test_array = irt::data_array<test_data, test_id>;
+
+    "DataArray_ConstructorDestructor"_test = [] {
+        test_array arr(10);
+        expect(eq(arr.size(), 0u));
+        expect(eq(arr.capacity(), 10));
+        expect(arr.empty());
+    };
+
+    "DataArray_ReserveAndGrow"_test = [] {
+        test_array arr(2);
+        expect(arr.reserve(5));
+        expect(eq(arr.capacity(), 5));
+        expect(arr.grow<2, 1>());
+        expect(ge(arr.capacity(), 10));
+    };
+
+    "DataArray_AllocAndTryAlloc"_test = [] {
+        test_array arr(3);
+        auto&      d1 = arr.alloc(42);
+        expect(eq(d1.value, 42));
+        auto* d2 = arr.try_alloc(7);
+        expect(neq(d2, nullptr));
+        expect(eq(d2->value, 7));
+        auto* d3 = arr.try_alloc(99);
+        expect(neq(d3, nullptr));
+        auto* d4 = arr.try_alloc(100);
+        expect(eq(d4, nullptr)); // should fail, capacity full
+        expect(eq(arr.size(), 3u));
+    };
+
+    "DataArray_FreeByRefAndById"_test = [] {
+        test_array arr(2);
+        auto&      d1  = arr.alloc(1);
+        auto&      d2  = arr.alloc(2);
+        auto       id1 = arr.get_id(d1);
+        auto       id2 = arr.get_id(d2);
+        arr.free(d1);
+        expect(eq(arr.size(), 1u));
+        arr.free(id2);
+        expect(eq(arr.size(), 0u));
+        expect(arr.empty());
+    };
+
+    "DataArray_GetIdAndGet"_test = [] {
+        test_array arr(2);
+        auto&      d1  = arr.alloc(123);
+        auto       id1 = arr.get_id(&d1);
+        expect(arr.get_id(d1) == id1);
+        expect(eq(arr.get(id1).value, 123));
+        expect(arr.get_id(&d1) == id1);
+    };
+
+    "DataArray_TryToGet"_test = [] {
+        test_array arr(2);
+        auto&      d1  = arr.alloc(55);
+        auto       id1 = arr.get_id(d1);
+        expect(eq(arr.try_to_get(id1)->value, 55));
+        expect(eq(arr.try_to_get_from_pos(0)->value, 55));
+        expect(eq(arr.try_to_get(test_id{}), nullptr));
+    };
+
+    "DataArray_NextIteration"_test = [] {
+        test_array arr(3);
+        arr.alloc(1);
+        arr.alloc(2);
+        arr.alloc(3);
+        test_data* ptr   = nullptr;
+        int        count = 0;
+        while (arr.next(ptr)) {
+            expect(ptr->value >= 1 && ptr->value <= 3);
+            ++count;
+        }
+        expect(eq(count, 3));
+    };
+
+    "DataArray_ConstNextIteration"_test = [] {
+        test_array arr(3);
+        arr.alloc(10);
+        arr.alloc(20);
+        arr.alloc(30);
+        const test_array& carr  = arr;
+        const test_data*  ptr   = nullptr;
+        int               count = 0;
+        while (carr.next(ptr)) {
+            expect(ptr->value == 10 || ptr->value == 20 || ptr->value == 30);
+            ++count;
+        }
+        expect(eq(count, 3));
+    };
+
+    "DataArray_EmptyFullSizeEtc"_test = [] {
+        test_array arr(2);
+        expect(arr.empty());
+        arr.alloc(1);
+        expect(not arr.full());
+        arr.alloc(2);
+        expect(arr.full());
+        expect(eq(arr.size(), 2u));
+        expect(eq(arr.ssize(), 2));
+        expect(eq(arr.max_size(), 2));
+        expect(eq(arr.max_used(), 2));
+        expect(eq(arr.capacity(), 2));
+        expect(arr.can_alloc() == false);
+        expect(arr.can_alloc(1) == false);
+    };
+
+    "DataArray_ClearAndDestroy"_test = [] {
+        test_array arr(2);
+        arr.alloc(1);
+        arr.alloc(2);
+        arr.clear();
+        expect(eq(arr.size(), 0u));
+        arr.alloc(3);
+        arr.destroy();
+        expect(eq(arr.size(), 0u));
+        expect(eq(arr.capacity(), 0));
+    };
+
+    "DataArray_Iterator"_test = [] {
+        test_array arr(3);
+        arr.alloc(1);
+        arr.alloc(2);
+        arr.alloc(3);
+        int sum = 0;
+        for (auto it = arr.begin(); it != arr.end(); ++it)
+            sum += it->value;
+        expect(eq(sum, 6));
+    };
+
     "data_array_api"_test = [] {
         struct position {
             position() = default;
