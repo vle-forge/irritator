@@ -489,10 +489,9 @@ public:
     status finalize(source& src) noexcept;
 };
 
-//! @brief Reference external source from a model.
-//!
-//! @details A @c source references a external source (file, PRNG, etc.).
-//! Model auses the source to get data external to the simulation.
+/**  @brief Reference external source from a model.
+ * A @c source references a external data (files, PRNG, etc.). Model uses the
+ * source to get data external to the simulation. */
 class source
 {
 public:
@@ -513,14 +512,16 @@ public:
         finalize    /**< Clear the buffer at simulation finalize step. */
     };
 
-    std::span<double> buffer; /**< A view on external-source buffers. */
+    /** A view on external-source buffers provided by binary or text files,
+     * random or constant vectors. */
+    std::span<double> buffer;
 
     /** Stores external data for text, binary and random external sources
      * to enable restore operation in past (for instance position in the
      * text or binary files and seed parameters for random source). */
     std::array<u64, 4> chunk_id{};
 
-    /**< The identifier of the external source. */
+    /** The identifier of the external source. */
     union id_type {
         constant_source_id    constant_id;
         binary_file_source_id binary_file_id;
@@ -530,87 +531,39 @@ public:
 
     source_type type = source_type::constant;
 
-    i16 index = 0; /**< Index of the next double to read the @a buffer. */
+    /** Index of the next double to read the @a buffer. */
+    u16 index = 0u;
 
     source() noexcept = default;
 
-    explicit source(const constant_source_id id_) noexcept
-      : id{ .constant_id = id_ }
-      , type{ source_type::constant }
-    {}
+    explicit source(const constant_source_id id_) noexcept;
+    explicit source(const binary_file_source_id id_) noexcept;
+    explicit source(const text_file_source_id id_) noexcept;
+    explicit source(const random_source_id id_) noexcept;
 
-    explicit source(const binary_file_source_id id_) noexcept
-      : id{ .binary_file_id = id_ }
-      , type{ source_type::binary_file }
-    {}
+    source(const source_type type_, const id_type id_) noexcept;
+    explicit source(const source& src) noexcept;
+    explicit source(source&& src) noexcept;
 
-    explicit source(const text_file_source_id id_) noexcept
-      : id{ .text_file_id = id_ }
-      , type{ source_type::text_file }
-    {}
-
-    explicit source(const random_source_id id_) noexcept
-      : id{ .random_id = id_ }
-      , type{ source_type::random }
-    {}
-
-    source(const source_type type_, const id_type id_) noexcept
-      : id(id_)
-      , type(type_)
-    {}
-
-    source(const source& src) noexcept
-      : id(src.id)
-      , type(src.type)
-    {}
-
-    source& operator=(const source& src) noexcept
-    {
-        if (&src != this) {
-            clear();
-            type = src.type;
-            id   = src.id;
-        }
-
-        return *this;
-    }
+    source& operator=(const source& src) noexcept;
+    source& operator=(source&& src) noexcept;
 
     /** Reset the position in the @a buffer. */
-    void reset() noexcept { index = 0u; }
+    void reset() noexcept;
 
     /** Clear the source, buffer is released, id, type and index are zero
      * initialized. */
-    void clear() noexcept
-    {
-
-        buffer = std::span<double>();
-        id     = { .constant_id = undefined<constant_source_id>() };
-        type   = source_type::constant;
-        index  = 0;
-        std::fill_n(chunk_id.data(), chunk_id.size(), 0);
-    }
+    void clear() noexcept;
 
     /** Check if the source is empty and required a filling.
-     *
-     *  @return true if all data in the buffer are read, false otherwise.
-     */
-    bool is_empty() const noexcept
-    {
-        return std::cmp_greater_equal(index, buffer.size());
-    }
+     *  @return true if all data in the buffer are read, false otherwise. */
+    bool is_empty() const noexcept;
 
-    /** Get the next double in the buffer. Abort if the buffer is empty. Use the
-     * @c is_empty() function first.
-     *
-     *  @return true if success, false otherwise.
-     */
-    double next() noexcept
-    {
-        debug::ensure(!is_empty());
-
-        const auto old_index = index++;
-        return buffer[static_cast<sz>(old_index)];
-    }
+    /** Get the next double in the buffer. Use the @c is_empty() function first
+     * before calling @c next() otherwise, the index returns to the initial
+     * index.
+     * @return The current chunk value or zero if buffer is empty. */
+    double next() noexcept;
 };
 
 struct external_source_reserve_definition {
@@ -7579,6 +7532,107 @@ inline status priority_queue::transition(simulation& sim,
     }
 
     return success();
+}
+
+// source implementation
+
+inline source::source(const constant_source_id id_) noexcept
+  : id{ .constant_id = id_ }
+  , type{ source_type::constant }
+{}
+
+inline source::source(const binary_file_source_id id_) noexcept
+  : id{ .binary_file_id = id_ }
+  , type{ source_type::binary_file }
+{}
+
+inline source::source(const text_file_source_id id_) noexcept
+  : id{ .text_file_id = id_ }
+  , type{ source_type::text_file }
+{}
+
+inline source::source(const random_source_id id_) noexcept
+  : id{ .random_id = id_ }
+  , type{ source_type::random }
+{}
+
+inline source::source(const source_type type_, const id_type id_) noexcept
+  : id(id_)
+  , type(type_)
+{}
+
+inline source::source(const source& src) noexcept
+  : buffer(src.buffer)
+  , chunk_id(src.chunk_id)
+  , id(src.id)
+  , type(src.type)
+  , index(src.index)
+{}
+
+inline source::source(source&& src) noexcept
+  : buffer(std::move(src.buffer))
+  , chunk_id(std::move(src.chunk_id))
+  , id(src.id)
+  , type(src.type)
+  , index(src.index)
+{
+    src.buffer = std::span<double>();
+    src.index  = 0;
+    src.type   = source_type::constant;
+    src.id     = { .constant_id = undefined<constant_source_id>() };
+    std::fill_n(src.chunk_id.data(), src.chunk_id.size(), 0);
+}
+
+inline source& source::operator=(const source& src) noexcept
+{
+    if (&src != this) {
+        clear();
+        type = src.type;
+        id   = src.id;
+    }
+
+    return *this;
+}
+
+inline source& source::operator=(source&& src) noexcept
+{
+    if (&src != this) {
+        buffer = std::exchange(src.buffer, std::span<double>());
+        std::copy_n(src.buffer.data(), src.buffer.size(), buffer.data());
+        type  = std::exchange(src.type, source_type::constant);
+        index = std::exchange(src.index, 0);
+        id    = std::exchange(
+          src.id, id_type{ .constant_id = undefined<constant_source_id>() });
+    }
+
+    return *this;
+}
+
+inline void source::reset() noexcept { index = 0; }
+
+inline void source::clear() noexcept
+{
+    buffer = std::span<double>();
+    id     = { .constant_id = undefined<constant_source_id>() };
+    type   = source_type::constant;
+    index  = 0;
+    std::fill_n(chunk_id.data(), chunk_id.size(), 0);
+}
+
+inline bool source::is_empty() const noexcept
+{
+    return std::cmp_greater_equal(index, buffer.size());
+}
+
+inline double source::next() noexcept
+{
+    debug::ensure(not is_empty());
+
+    if (std::cmp_greater_equal(index, buffer.size()))
+        return 0.0;
+
+    const auto old_index = index++;
+    return buffer[static_cast<sz>(old_index)];
 }
 
 } // namespace irt
