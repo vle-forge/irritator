@@ -2016,7 +2016,6 @@ struct component_editor::impl {
                       "state conditions and the output ports from the "
                       "state actions.");
                 } else {
-                    element.clear_selected_nodes();
                     show_input_output_ports(compo);
                     show_input_output_connections(app, compo);
                     show_connection_packs(app, compo);
