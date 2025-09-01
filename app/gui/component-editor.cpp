@@ -834,11 +834,8 @@ struct component_editor::impl {
                     ImGui::EndCombo();
                 }
             }
-        }
 
-        if (is_defined(g_port_id) and is_defined(p_selected)) {
-
-            if (ImGui::Button("+")) {
+            if (is_defined(g_port_id) and is_defined(p_selected)) {
                 const auto [row, col] = grid.pos(selected);
                 if (auto ret =
                       grid.connect_input(g_port_id, row, col, p_selected);
@@ -860,11 +857,11 @@ struct component_editor::impl {
                                   "connection.";
                       },
                       ret.error());
-                } else {
-                    g_port_id  = undefined<port_id>();
-                    selected   = 0;
-                    p_selected = undefined<port_id>();
                 }
+
+                g_port_id  = undefined<port_id>();
+                selected   = 0;
+                p_selected = undefined<port_id>();
             }
         }
     }
@@ -929,11 +926,8 @@ struct component_editor::impl {
                     ImGui::EndCombo();
                 }
             }
-        }
 
-        if (is_defined(g_port_id) and is_defined(p_selected)) {
-
-            if (ImGui::Button("+")) {
+            if (is_defined(g_port_id) and is_defined(p_selected)) {
                 const auto [row, col] = grid.pos(selected);
                 if (auto ret =
                       grid.connect_input(g_port_id, row, col, p_selected);
@@ -955,11 +949,11 @@ struct component_editor::impl {
                                   "connection.";
                       },
                       ret.error());
-                } else {
-                    g_port_id  = undefined<port_id>();
-                    selected   = 0;
-                    p_selected = undefined<port_id>();
                 }
+
+                g_port_id  = undefined<port_id>();
+                selected   = 0;
+                p_selected = undefined<port_id>();
             }
         }
     }
@@ -1044,12 +1038,10 @@ struct component_editor::impl {
                     }
                 }
             }
-        }
 
-        if (is_defined(g_port_id) and is_defined(selected) and
-            (is_defined(p_selected) or pp_selected >= 0)) {
+            if (is_defined(g_port_id) and is_defined(selected) and
+                (is_defined(p_selected) or pp_selected >= 0)) {
 
-            if (ImGui::Button("+")) {
                 auto&          child = g.children.get(selected);
                 expected<void> ret;
 
@@ -1082,12 +1074,12 @@ struct component_editor::impl {
                                   "connection.";
                       },
                       ret.error());
-                } else {
-                    g_port_id   = undefined<port_id>();
-                    selected    = undefined<child_id>();
-                    p_selected  = undefined<port_id>();
-                    pp_selected = -1;
                 }
+
+                g_port_id   = undefined<port_id>();
+                selected    = undefined<child_id>();
+                p_selected  = undefined<port_id>();
+                pp_selected = -1;
             }
         }
     }
@@ -1172,12 +1164,10 @@ struct component_editor::impl {
                     }
                 }
             }
-        }
 
-        if (is_defined(g_port_id) and is_defined(selected) and
-            (is_defined(p_selected) or pp_selected >= 0)) {
+            if (is_defined(g_port_id) and is_defined(selected) and
+                (is_defined(p_selected) or pp_selected >= 0)) {
 
-            if (ImGui::Button("+")) {
                 auto&          child = g.children.get(selected);
                 expected<void> ret;
 
@@ -1210,12 +1200,11 @@ struct component_editor::impl {
                                   "connection.";
                       },
                       ret.error());
-                } else {
-                    g_port_id   = undefined<port_id>();
-                    selected    = undefined<child_id>();
-                    p_selected  = undefined<port_id>();
-                    pp_selected = -1;
                 }
+                g_port_id   = undefined<port_id>();
+                selected    = undefined<child_id>();
+                p_selected  = undefined<port_id>();
+                pp_selected = -1;
             }
         }
     }
@@ -1268,12 +1257,10 @@ struct component_editor::impl {
                     ImGui::EndCombo();
                 }
             }
-        }
 
-        if (is_defined(g_port_id) and is_defined(selected) and
-            is_defined(p_selected)) {
+            if (is_defined(g_port_id) and is_defined(selected) and
+                is_defined(p_selected)) {
 
-            if (ImGui::Button("+")) {
                 if (auto ret =
                       graph.connect_input(g_port_id, selected, p_selected);
                     not ret) {
@@ -1294,11 +1281,11 @@ struct component_editor::impl {
                                   "connection.";
                       },
                       ret.error());
-                } else {
-                    g_port_id  = undefined<port_id>();
-                    selected   = undefined<graph_node_id>();
-                    p_selected = undefined<port_id>();
                 }
+
+                g_port_id  = undefined<port_id>();
+                selected   = undefined<graph_node_id>();
+                p_selected = undefined<port_id>();
             }
         }
     }
@@ -1351,12 +1338,10 @@ struct component_editor::impl {
                     ImGui::EndCombo();
                 }
             }
-        }
 
-        if (is_defined(g_port_id) and is_defined(selected) and
-            is_defined(p_selected)) {
+            if (is_defined(g_port_id) and is_defined(selected) and
+                is_defined(p_selected)) {
 
-            if (ImGui::Button("+")) {
                 if (auto ret =
                       graph.connect_output(g_port_id, selected, p_selected);
                     not ret) {
@@ -1377,11 +1362,11 @@ struct component_editor::impl {
                                   "connection.";
                       },
                       ret.error());
-                } else {
-                    g_port_id  = undefined<port_id>();
-                    selected   = undefined<graph_node_id>();
-                    p_selected = undefined<port_id>();
                 }
+
+                g_port_id  = undefined<port_id>();
+                selected   = undefined<graph_node_id>();
+                p_selected = undefined<port_id>();
             }
         }
     }
