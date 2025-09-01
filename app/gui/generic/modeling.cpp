@@ -690,7 +690,7 @@ static void add_popup_menuitem(application&       app,
         s_parent.children_positions[idx].x = click_pos.x;
         s_parent.children_positions[idx].y = click_pos.y;
         s_parent.children_parameters[idx].init_from(type);
-        ImNodes::SetNodeEditorSpacePos(pack_node_child(id),
+        ImNodes::SetNodeScreenSpacePos(pack_node_child(id),
                                        ImVec2(click_pos.x, click_pos.y));
 
         parent.state = component_status::modified;
