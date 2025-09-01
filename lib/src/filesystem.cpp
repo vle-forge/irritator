@@ -185,22 +185,51 @@ expected<std::filesystem::path> get_system_component_dir() noexcept
     return new_error(fs_errc::executable_access_fail, category::fs);
 }
 #elif defined(_WIN32)
+std::filesystem::path build_system_component_path(
+  const std::filesystem::path& path) noexcept
+{
+    auto component_path(path);
+
+    component_path /= "share";
+    component_path /= "irritator-" irritator_to_string(
+      VERSION_MAJOR) "." irritator_to_string(VERSION_MINOR);
+    component_path /= "components";
+
+    return component_path;
+}
+
 expected<std::filesystem::path> get_system_component_dir() noexcept
 {
     auto exe = get_executable_directory();
     if (!exe)
         return exe.error();
 
-    auto bin_path     = exe.value().parent_path();
-    auto install_path = bin_path.parent_path();
-    install_path /= "share";
-    install_path /= "irritator-" irritator_to_string(
-      VERSION_MAJOR) "." irritator_to_string(VERSION_MINOR);
-    install_path /= "components";
+    auto gui_path = exe.value().parent_path();
 
     std::error_code ec;
-    if (auto exists = std::filesystem::exists(install_path, ec); !ec && exists)
-        return install_path;
+
+    {
+        // First, we try to search the system component directory into directory
+        // where the executable is running.
+
+        const auto first = build_system_component_path(gui_path);
+
+        if (auto exists = std::filesystem::exists(first, ec); !ec && exists)
+            return first;
+    }
+
+    {
+        // If the system component directory is not found into the executable
+        // directory, we try to search it into grandparent directory.
+
+        const auto app_path     = gui_path.parent_path();
+        const auto install_path = app_path.parent_path();
+        const auto second       = build_system_component_path(install_path);
+
+        if (auto exists = std::filesystem::exists(install_path, ec);
+            !ec && exists)
+            return install_path;
+    }
 
     return new_error(fs_errc::executable_access_fail, category::fs);
 }
