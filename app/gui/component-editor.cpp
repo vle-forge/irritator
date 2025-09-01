@@ -1041,47 +1041,58 @@ struct component_editor::impl {
 
             if (is_defined(g_port_id) and is_defined(selected) and
                 (is_defined(p_selected) or pp_selected >= 0)) {
-
-                auto&          child = g.children.get(selected);
-                expected<void> ret;
-
-                if (child.type == child_type::component)
-                    ret =
-                      g.connect_input(g_port_id,
-                                      g.children.get(selected),
-                                      connection::port{ .compo = p_selected });
-                else
-                    ret =
-                      g.connect_input(g_port_id,
-                                      child,
-                                      connection::port{ .model = pp_selected });
-
-                if (not ret) {
-                    app.jn.push(
-                      log_level::error,
-                      [](auto& t, auto& m, auto ec) {
-                          t = "Fail to add input connection";
-                          if (ec.value() ==
-                              ordinal(modeling_errc::
-                                        graph_input_connection_already_exists))
-                              m = "Input connection already exists.";
-                          else if (ec.value() ==
-                                   ordinal(
-                                     modeling_errc::
-                                       graph_input_connection_container_full))
-                              m = "Not enough memory to allocate more "
-                                  "input "
-                                  "connection.";
-                      },
-                      ret.error());
+                if (connect_input(
+                      g_port_id, selected, p_selected, pp_selected, g, app)) {
+                    g_port_id   = undefined<port_id>();
+                    selected    = undefined<child_id>();
+                    p_selected  = undefined<port_id>();
+                    pp_selected = -1;
+                } else {
+                    p_selected  = undefined<port_id>();
+                    pp_selected = -1;
                 }
-
-                g_port_id   = undefined<port_id>();
-                selected    = undefined<child_id>();
-                p_selected  = undefined<port_id>();
-                pp_selected = -1;
             }
         }
+    }
+
+    static bool connect_input(const port_id      g_port_id,
+                              const child_id     selected,
+                              const port_id      p_selected,
+                              const int          pp_selected,
+                              generic_component& g,
+                              application&       app)
+    {
+        const auto& child = g.children.get(selected);
+        const auto  ret =
+          (child.type == child_type::component)
+             ? g.connect_input(g_port_id,
+                              g.children.get(selected),
+                              connection::port{ .compo = p_selected })
+             : g.connect_input(
+                g_port_id, child, connection::port{ .model = pp_selected });
+
+        if (not ret) {
+            app.jn.push(
+              log_level::error,
+              [](auto& t, auto& m, auto ec) {
+                  t = "Fail to add input connection";
+                  if (ec.value() ==
+                      ordinal(
+                        modeling_errc::graph_input_connection_already_exists))
+                      m = "Input connection already exists.";
+                  else if (ec.value() ==
+                           ordinal(modeling_errc::
+                                     graph_input_connection_container_full))
+                      m = "Not enough memory to allocate more "
+                          "input "
+                          "connection.";
+              },
+              ret.error());
+
+            return false;
+        }
+
+        return true;
     }
 
     static void show_output_connections_new(application&       app,
@@ -1167,46 +1178,61 @@ struct component_editor::impl {
 
             if (is_defined(g_port_id) and is_defined(selected) and
                 (is_defined(p_selected) or pp_selected >= 0)) {
-
-                auto&          child = g.children.get(selected);
-                expected<void> ret;
-
-                if (child.type == child_type::component)
-                    ret =
-                      g.connect_output(g_port_id,
-                                       g.children.get(selected),
-                                       connection::port{ .compo = p_selected });
-                else
-                    ret = g.connect_output(
-                      g_port_id,
-                      child,
-                      connection::port{ .model = pp_selected });
-
-                if (not ret) {
-                    app.jn.push(
-                      log_level::error,
-                      [](auto& t, auto& m, auto ec) {
-                          t = "Fail to add output connection";
-                          if (ec.value() ==
-                              ordinal(modeling_errc::
-                                        graph_output_connection_already_exists))
-                              m = "Output connection already exists.";
-                          else if (ec.value() ==
-                                   ordinal(
-                                     modeling_errc::
-                                       graph_output_connection_container_full))
-                              m = "Not enough memory to allocate more "
-                                  "output "
-                                  "connection.";
-                      },
-                      ret.error());
+                if (connect_output(
+                      g_port_id, selected, p_selected, pp_selected, g, app)) {
+                    g_port_id   = undefined<port_id>();
+                    selected    = undefined<child_id>();
+                    p_selected  = undefined<port_id>();
+                    pp_selected = -1;
+                } else {
+                    p_selected  = undefined<port_id>();
+                    pp_selected = -1;
                 }
-                g_port_id   = undefined<port_id>();
-                selected    = undefined<child_id>();
-                p_selected  = undefined<port_id>();
-                pp_selected = -1;
             }
         }
+    }
+
+    static bool connect_output(const port_id      g_port_id,
+                               const child_id     selected,
+                               const port_id      p_selected,
+                               int                pp_selected,
+                               generic_component& g,
+                               application&       app)
+    {
+
+        auto&          child = g.children.get(selected);
+        expected<void> ret;
+
+        if (child.type == child_type::component)
+            ret = g.connect_output(g_port_id,
+                                   g.children.get(selected),
+                                   connection::port{ .compo = p_selected });
+        else
+            ret = g.connect_output(
+              g_port_id, child, connection::port{ .model = pp_selected });
+
+        if (not ret) {
+            app.jn.push(
+              log_level::error,
+              [](auto& t, auto& m, auto ec) {
+                  t = "Fail to add output connection";
+                  if (ec.value() ==
+                      ordinal(
+                        modeling_errc::graph_output_connection_already_exists))
+                      m = "Output connection already exists.";
+                  else if (ec.value() ==
+                           ordinal(modeling_errc::
+                                     graph_output_connection_container_full))
+                      m = "Not enough memory to allocate more "
+                          "output "
+                          "connection.";
+              },
+              ret.error());
+
+            return false;
+        }
+
+        return true;
     }
 
     static void show_input_connections_new(application&     app,
