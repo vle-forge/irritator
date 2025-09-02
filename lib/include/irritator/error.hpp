@@ -215,6 +215,41 @@ private:
 public:
     constexpr error_code() noexcept = default;
 
+    template<typename ErrorCodeEnum>
+        requires(std::is_enum_v<ErrorCodeEnum>)
+    constexpr error_code(ErrorCodeEnum e) noexcept
+    {
+        if constexpr (std::is_same_v<simulation_errc, ErrorCodeEnum>) {
+            m_ec  = static_cast<std::int16_t>(e);
+            m_cat = category::simulation;
+        } else if constexpr (std::is_same_v<timeline_errc, ErrorCodeEnum>) {
+            m_ec  = static_cast<std::int16_t>(e);
+            m_cat = category::timeline;
+        } else if constexpr (std::is_same_v<project_errc, ErrorCodeEnum>) {
+            m_ec  = static_cast<std::int16_t>(e);
+            m_cat = category::project;
+        } else if constexpr (std::is_same_v<modeling_errc, ErrorCodeEnum>) {
+            m_ec  = static_cast<std::int16_t>(e);
+            m_cat = category::modeling;
+        } else if constexpr (std::is_same_v<json_errc, ErrorCodeEnum>) {
+            m_ec  = static_cast<std::int16_t>(e);
+            m_cat = category::json;
+        } else if constexpr (std::is_same_v<external_source_errc,
+                                            ErrorCodeEnum>) {
+            m_ec  = static_cast<std::int16_t>(e);
+            m_cat = category::external_source;
+        } else if constexpr (std::is_same_v<fs_errc, ErrorCodeEnum>) {
+            m_ec  = static_cast<std::int16_t>(e);
+            m_cat = category::fs;
+        } else if constexpr (std::is_same_v<file_errc, ErrorCodeEnum>) {
+            m_ec  = static_cast<std::int16_t>(e);
+            m_cat = category::file;
+        } else {
+            m_ec  = static_cast<std::int16_t>(e);
+            m_cat = category::generic;
+        }
+    }
+
     constexpr error_code(std::int16_t error, category cat) noexcept
       : m_ec(error)
       , m_cat(cat)
@@ -247,25 +282,7 @@ inline error_code new_error(ErrorCodeEnum e) noexcept
     if (on_error_callback)
         on_error_callback();
 
-    if constexpr (std::is_same_v<simulation_errc, ErrorCodeEnum>)
-        return error_code(static_cast<std::int16_t>(e), category::simulation);
-    else if constexpr (std::is_same_v<timeline_errc, ErrorCodeEnum>)
-        return error_code(static_cast<std::int16_t>(e), category::timeline);
-    else if constexpr (std::is_same_v<project_errc, ErrorCodeEnum>)
-        return error_code(static_cast<std::int16_t>(e), category::project);
-    else if constexpr (std::is_same_v<modeling_errc, ErrorCodeEnum>)
-        return error_code(static_cast<std::int16_t>(e), category::modeling);
-    else if constexpr (std::is_same_v<json_errc, ErrorCodeEnum>)
-        return error_code(static_cast<std::int16_t>(e), category::json);
-    else if constexpr (std::is_same_v<external_source_errc, ErrorCodeEnum>)
-        return error_code(static_cast<std::int16_t>(e),
-                          category::external_source);
-    else if constexpr (std::is_same_v<fs_errc, ErrorCodeEnum>)
-        return error_code(static_cast<std::int16_t>(e), category::fs);
-    else if constexpr (std::is_same_v<file_errc, ErrorCodeEnum>)
-        return error_code(static_cast<std::int16_t>(e), category::file);
-    else
-        return error_code(static_cast<std::int16_t>(e), category::generic);
+    return error_code(e);
 }
 
 constexpr inline error_code new_error(std::integral auto e,
