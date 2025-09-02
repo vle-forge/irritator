@@ -477,7 +477,7 @@ status modeling::load_component(component& compo) noexcept
             json_dearchiver j;
             if (not j(*this, compo, d_f.string(), *f)) {
                 compo.state = component_status::unreadable;
-                return new_error(modeling_errc::component_load_error);
+                return error_code(modeling_errc::component_load_error);
             }
 
             compo.state = component_status::unmodified;

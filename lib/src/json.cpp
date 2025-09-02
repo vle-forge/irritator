@@ -4890,7 +4890,7 @@ struct json_dearchiver::impl {
         compo.state = component_status::unreadable;
         mod().clear(compo);
 
-        return new_error(json_errc::invalid_component_format);
+        return error_code(json_errc::invalid_component_format);
     }
 
     status parse_project(const rapidjson::Document& doc) noexcept
@@ -4901,7 +4901,7 @@ struct json_dearchiver::impl {
         if (read_project(doc.GetObject()))
             return success();
 
-        return new_error(json_errc::invalid_project_format);
+        return error_code(json_errc::invalid_project_format);
     }
 };
 
@@ -4911,18 +4911,18 @@ static status read_file_to_buffer(vector<char>& buffer, file& f) noexcept
     debug::ensure(f.get_mode() == open_mode::read);
 
     if (not f.is_open() or f.get_mode() != open_mode::read)
-        return new_error(file_errc::open_error);
+        return error_code(file_errc::open_error);
 
     const auto len = f.length();
     if (std::cmp_less(len, 2))
-        return new_error(file_errc::empty);
+        return error_code(file_errc::empty);
 
     buffer.resize(len);
     if (std::cmp_less(buffer.size(), len))
-        return new_error(file_errc::memory_error);
+        return error_code(file_errc::memory_error);
 
     if (not f.read(buffer.data(), len))
-        return new_error(file_errc::memory_error);
+        return error_code(file_errc::memory_error);
 
     return success();
 }
@@ -4933,7 +4933,7 @@ static status parse_json_data(std::span<char>      buffer,
     doc.Parse<rapidjson::kParseNanAndInfFlag>(buffer.data(), buffer.size());
 
     if (doc.HasParseError())
-        return new_error(json_errc::invalid_format);
+        return error_code(json_errc::invalid_format);
 
     return success();
 }
