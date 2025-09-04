@@ -918,8 +918,8 @@ struct project_editor {
 
     raw_data_type save_simulation_raw_data = raw_data_type::none;
 
-    bool is_dock_init   = false;
-    bool disable_access = true;
+    bool             is_dock_init   = false;
+    std::atomic_bool disable_access = true;
 
     /** Return true if a simulation is currently running.
      *
