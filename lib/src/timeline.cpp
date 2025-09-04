@@ -53,6 +53,8 @@ timeline::timeline(i32 simulation_point_number,
 
 simulation_point& timeline::alloc_simulation_point() noexcept
 {
+    std::lock_guard lock(mutex);
+
     const auto nb = sim_points.ssize();
 
     auto& back = sim_points.emplace_back();
@@ -63,6 +65,8 @@ simulation_point& timeline::alloc_simulation_point() noexcept
 
 model_point& timeline::alloc_model_point() noexcept
 {
+    std::lock_guard lock(mutex);
+
     const auto nb = model_points.ssize();
 
     auto& back = model_points.emplace_back();
@@ -73,6 +77,8 @@ model_point& timeline::alloc_model_point() noexcept
 
 connection_point& timeline::alloc_connection_point() noexcept
 {
+    std::lock_guard lock(mutex);
+
     const auto nb = connection_points.ssize();
 
     auto& back = connection_points.emplace_back();
@@ -83,6 +89,8 @@ connection_point& timeline::alloc_connection_point() noexcept
 
 void timeline::reset() noexcept
 {
+    std::lock_guard lock(mutex);
+
     sim_points.clear();
     model_points.clear();
     connection_points.clear();
@@ -422,7 +430,7 @@ status back(timeline& tl, simulation& sim) noexcept
 
 status run(timeline& tl, simulation& sim) noexcept
 {
-    return sim.run_with_cb([&](auto& sim, auto imm) noexcept {
+    return sim.run_with_cb([&](const auto& sim, auto imm) noexcept {
         build_simulation_point(tl, sim, imm);
     });
 }
@@ -435,6 +443,8 @@ status finalize(timeline& tl, simulation& sim) noexcept
 
 bool timeline::can_advance() const noexcept
 {
+    std::lock_guard lock(mutex);
+
     if (current_bag == points.end())
         return false;
 
@@ -449,6 +459,8 @@ bool timeline::can_advance() const noexcept
 
 bool timeline::can_back() const noexcept
 {
+    std::lock_guard lock(mutex);
+
     if (current_bag == points.end())
         return false;
 

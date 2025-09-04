@@ -7,6 +7,7 @@
 
 #include <irritator/core.hpp>
 #include <irritator/ext.hpp>
+#include <irritator/thread.hpp>
 
 namespace irt {
 
@@ -115,7 +116,10 @@ struct timeline {
     bool can_back() const noexcept;
 
     ring_buffer<timeline_point>::iterator current_bag;
-    i32                                   bag;
+
+    i32 bag;
+
+    mutable spin_mutex mutex;
 };
 
 //! @brief Initialize simulation and store first state.
