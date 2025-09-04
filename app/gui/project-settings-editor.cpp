@@ -284,7 +284,10 @@ static bool show_project_simulation_settings(application&    app,
     HelpMarker("Display the simulation current time.");
 
     ImGui::LabelFormat(
-      "phase", "{}", simulation_status_names[ordinal(ed.simulation_state)]);
+      "phase",
+      "{}",
+      simulation_status_names[ordinal(ed.simulation_state.load())]);
+
     ImGui::SameLine();
     HelpMarker("Display the simulation phase. Only for debug.");
 

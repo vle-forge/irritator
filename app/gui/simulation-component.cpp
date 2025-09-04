@@ -659,27 +659,6 @@ void project_editor::start_simulation_update_state(application& app) noexcept
     }
 }
 
-static bool is_simulation_state_not_running(simulation_status s) noexcept
-{
-    return s != simulation_status::running;
-}
-
-static bool is_simulation_force_pause(simulation_status& s, bool pause) noexcept
-{
-    if (pause)
-        s = simulation_status::pause_forced;
-
-    return pause;
-}
-
-static bool is_simulation_force_stop(simulation_status& s, bool stop) noexcept
-{
-    if (stop)
-        s = simulation_status::finish_requiring;
-
-    return stop;
-}
-
 void project_editor::start_simulation_copy_modeling(application& app) noexcept
 {
     bool state = any_equal(simulation_state,
@@ -896,10 +875,18 @@ void project_editor::start_simulation_live_run(application& app) noexcept
         const auto end_task_rt   = start_task_rt + simulation_task_duration;
 
         for (;;) {
-            if (is_simulation_state_not_running(simulation_state) or
-                is_simulation_force_pause(simulation_state, force_pause) or
-                is_simulation_force_stop(simulation_state, force_stop))
+            if (simulation_state != simulation_status::running)
                 return;
+
+            if (force_pause) {
+                simulation_state = simulation_status::pause_forced;
+                return;
+            }
+
+            if (force_stop) {
+                simulation_state = simulation_status::finish_requiring;
+                return;
+            }
 
             time sim_t;
             time sim_next_t;

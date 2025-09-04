@@ -961,7 +961,8 @@ struct project_editor {
 
     visualization_mode mode = visualization_mode::flat;
 
-    simulation_status simulation_state = simulation_status::not_started;
+    std::atomic<simulation_status> simulation_state =
+      simulation_status::not_started;
     data_array<plot_copy, plot_copy_id> copy_obs;
 
     plot_observation_widget  plot_obs;
