@@ -901,13 +901,13 @@ struct project_editor {
     bool can_edit() const noexcept;
     bool can_display_graph_editor() const noexcept;
 
-    bool force_pause           = false;
-    bool force_stop            = false;
-    bool show_minimap          = true;
-    bool store_all_changes     = false;
-    bool real_time             = false;
-    bool have_use_back_advance = false;
-    bool display_graph         = true;
+    std::atomic_bool force_pause           = false;
+    std::atomic_bool force_stop            = false;
+    bool             show_minimap          = true;
+    bool             store_all_changes     = false;
+    bool             real_time             = false;
+    bool             have_use_back_advance = false;
+    bool             display_graph         = true;
 
     bool allow_user_changes = false;
 
