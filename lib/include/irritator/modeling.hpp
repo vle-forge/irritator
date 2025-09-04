@@ -1227,9 +1227,6 @@ struct tree_node {
 class grid_observer
 {
 public:
-    spin_mutex mutex; //!< To write-protect the swap between buffers
-                      //!< (values and values_2nd).
-
     name_str name;
 
     tree_node_id parent_id; //!< @c tree_node identifier ancestor of the
@@ -1238,9 +1235,8 @@ public:
     tree_node_id tn_id;     //!< @c tree_node identifier parent of the model.
     model_id     mdl_id;    //!< @c model to observe.
 
-    vector<observer_id> observers;
-    vector<real>        values;
-    vector<real>        values_2nd;
+    vector<observer_id>    observers;
+    locker_2<vector<real>> values;
 
     time tn = 0;
 

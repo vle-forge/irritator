@@ -15,16 +15,15 @@ void grid_observation_widget::show(grid_observer& grid,
     ImGui::PushID(reinterpret_cast<void*>(&grid));
 
     if (ImGui::BeginChild("grid")) {
-        if (not grid.values.empty()) {
-            if (std::unique_lock lock(grid.mutex, std::try_to_lock);
-                lock.owns_lock()) {
+        grid.values.try_read_only([&](const auto& v) noexcept {
+            if (not v.empty()) {
                 ImPlot::PushColormap(grid.color_map);
                 if (ImPlot::BeginPlot(grid.name.c_str(),
                                       size,
                                       ImPlotFlags_NoLegend |
                                         ImPlotFlags_NoMouseText)) {
                     ImPlot::PlotHeatmap(grid.name.c_str(),
-                                        grid.values.data(),
+                                        v.data(),
                                         grid.rows,
                                         grid.cols,
                                         grid.scale_min,
@@ -32,10 +31,10 @@ void grid_observation_widget::show(grid_observer& grid,
                     ImPlot::EndPlot();
                 }
             }
-        }
+        });
     }
-    ImGui::EndChild();
 
+    ImGui::EndChild();
     ImGui::PopID();
 }
 

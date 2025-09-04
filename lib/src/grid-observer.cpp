@@ -105,32 +105,33 @@ static void build_grid_observer(grid_observer& grid_obs,
 void grid_observer::init(project& pj, modeling& mod, simulation& sim) noexcept
 {
     observers.clear();
-    values.clear();
-    values_2nd.clear();
 
-    if (auto* tn = pj.tree_nodes.try_to_get(parent_id); tn) {
-        if (auto* compo = mod.components.try_to_get<component>(tn->id);
-            compo and compo->type == component_type::grid) {
-            if (auto* grid = mod.grid_components.try_to_get(compo->id.grid_id);
-                grid) {
+    values.read_write([&](auto& v) noexcept {
+        v.clear();
 
-                const auto len = grid->cells_number();
+        if (auto* tn = pj.tree_nodes.try_to_get(parent_id); tn) {
+            if (auto* compo = mod.components.try_to_get<component>(tn->id);
+                compo and compo->type == component_type::grid) {
+                if (auto* grid =
+                      mod.grid_components.try_to_get(compo->id.grid_id);
+                    grid) {
 
-                observers.resize(len);
-                values.resize(len);
-                values_2nd.resize(len);
+                    const auto len = grid->cells_number();
 
-                rows = grid->row();
-                cols = grid->column();
+                    observers.resize(len);
+                    std::fill_n(
+                      observers.data(), len, undefined<observer_id>());
 
-                std::fill_n(observers.data(), len, undefined<observer_id>());
-                std::fill_n(values.data(), len, zero);
-                std::fill_n(values_2nd.data(), len, zero);
+                    v.resize(len, zero);
 
-                build_grid_observer(*this, pj, mod, sim, *tn, *grid);
+                    rows = grid->row();
+                    cols = grid->column();
+
+                    build_grid_observer(*this, pj, mod, sim, *tn, *grid);
+                }
             }
         }
-    }
+    });
 
     tn = sim.current_time() + time_step;
 }
@@ -138,52 +139,49 @@ void grid_observer::init(project& pj, modeling& mod, simulation& sim) noexcept
 void grid_observer::clear() noexcept
 {
     observers.clear();
-    values.clear();
-    values_2nd.clear();
+
+    values.read_write([](auto& v) noexcept { v.clear(); });
 
     tn = 0;
 }
 
 void grid_observer::update(const simulation& sim) noexcept
 {
-    if (rows * cols != observers.ssize() or
-        values.ssize() != observers.ssize() or
-        values_2nd.ssize() != observers.ssize())
-        return;
+    values.read_write([&](auto& v) noexcept {
+        if (rows * cols != observers.ssize() or v.ssize() != observers.ssize())
+            return;
 
-    std::fill_n(values_2nd.data(), values_2nd.capacity(), 0.0);
-    for (int row = 0; row < rows; ++row) {
-        for (int col = 0; col < cols; ++col) {
-            const auto pos = col * rows + row;
-            const auto id  = observers[pos];
+        std::fill_n(v.data(), v.capacity(), 0.0);
+        for (int row = 0; row < rows; ++row) {
+            for (int col = 0; col < cols; ++col) {
+                const auto pos = col * rows + row;
+                const auto id  = observers[pos];
 
-            if (is_undefined(id))
-                continue;
+                if (is_undefined(id))
+                    continue;
 
-            if (const auto* obs = sim.observers.try_to_get(observers[pos])) {
-                if (obs->states[observer_flags::use_linear_buffer]) {
-                    obs->linearized_buffer.try_read_only(
-                      [](const auto& buf, auto& v) {
-                          v = not buf.empty() ? buf.back().y : zero;
-                      },
-                      values_2nd[pos]);
+                if (const auto* obs =
+                      sim.observers.try_to_get(observers[pos])) {
+                    if (obs->states[observer_flags::use_linear_buffer]) {
+                        obs->linearized_buffer.try_read_only(
+                          [](const auto& buf, auto& v) {
+                              v = not buf.empty() ? buf.back().y : zero;
+                          },
+                          v[pos]);
 
-                } else {
-                    obs->buffer.try_read_only(
-                      [](const auto& buf, auto& v) {
-                          v = not buf.empty() ? buf.back()[1] : zero;
-                      },
-                      values_2nd[pos]);
+                    } else {
+                        obs->buffer.try_read_only(
+                          [](const auto& buf, auto& v) {
+                              v = not buf.empty() ? buf.back()[1] : zero;
+                          },
+                          v[pos]);
+                    }
                 }
             }
         }
-    }
 
-    tn = sim.current_time() + time_step;
-
-    // Finally, swaps the buffer under a protected write access.
-    std::unique_lock lock{ mutex };
-    std::swap(values, values_2nd);
+        tn = sim.current_time() + time_step;
+    });
 }
 
 } // namespace irt
