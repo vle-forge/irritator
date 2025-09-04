@@ -8,18 +8,14 @@
 
 namespace irt {
 
-static bool check(const vector<tree_node_id>&                    tn_ids,
-                  const vector<model_id>&                        mdl_ids,
-                  const vector<observer_id>&                     obs_ids,
-                  const vector<color>&                           colors,
-                  const vector<variable_observer::type_options>& options,
-                  const vector<double>& values) noexcept
+static bool check(const int tn_ids,
+                  const int mdl_ids,
+                  const int obs_ids,
+                  const int colors,
+                  const int options) noexcept
 {
-    const auto len = tn_ids.ssize();
-
-    return len == tn_ids.ssize() and len == mdl_ids.ssize() and
-           len == obs_ids.ssize() and len == colors.ssize() and
-           len == options.ssize() and len == values.ssize();
+    return tn_ids == mdl_ids and tn_ids == obs_ids and tn_ids == colors and
+           tn_ids == options;
 }
 
 status variable_observer::init(project& pj, simulation& sim) noexcept
@@ -114,7 +110,11 @@ variable_observer::sub_id variable_observer::push_back(
   const type_options     t,
   const std::string_view name) noexcept
 {
-    check(m_tn_ids, m_mdl_ids, m_obs_ids, m_colors, m_options, m_values);
+    check(m_tn_ids.ssize(),
+          m_mdl_ids.ssize(),
+          m_obs_ids.ssize(),
+          m_colors.ssize(),
+          m_options.ssize());
 
     if (not m_ids.capacity()) {
         m_ids.reserve(max_observers.value());
@@ -124,7 +124,9 @@ variable_observer::sub_id variable_observer::push_back(
         m_colors.resize(max_observers.value());
         m_options.resize(max_observers.value());
         m_names.resize(max_observers.value());
-        m_values.resize(max_observers.value());
+
+        values.read_write(
+          [&](auto& v) noexcept { v.resize(max_observers.value(), zero); });
     }
 
     for (auto id : m_ids) {
@@ -143,7 +145,6 @@ variable_observer::sub_id variable_observer::push_back(
     m_obs_ids[idx] = undefined<observer_id>();
     m_colors[idx]  = c;
     m_options[idx] = t;
-    m_values[idx]  = 0.0;
     m_names[idx]   = name;
 
     return id;

@@ -1321,6 +1321,7 @@ public:
     time tn = 0;
 
     enum class sub_id : u32;
+    locker_2<vector<double>> values; //!< The last value of the observation.
 
 private:
     id_array<sub_id>     m_ids;
@@ -1330,8 +1331,6 @@ private:
     vector<color>        m_colors;  //!< Colors used for observers.
     vector<type_options> m_options; //!< Line, dash etc. for observers.
     vector<name_str>     m_names;   //!< Name of the observation.
-    vector<double>       m_values;  //!< The last value of the observation.
-    vector<double>       m_values_2nd;
 
 public:
     //! @brief Fill the `observer_id` vector and initialize buffers.
@@ -1402,8 +1401,6 @@ public:
     std::span<const color>        get_colors() const noexcept;
     std::span<type_options>       get_options() noexcept;
     std::span<const type_options> get_options() const noexcept;
-    std::span<double>             get_values() noexcept;
-    std::span<const double>       get_values() const noexcept;
 };
 
 struct modeling_reserve_definition {
@@ -2044,16 +2041,6 @@ inline std::span<const variable_observer::type_options>
 variable_observer::get_options() const noexcept
 {
     return m_options;
-}
-
-inline std::span<double> variable_observer::get_values() noexcept
-{
-    return m_values;
-}
-
-inline std::span<const double> variable_observer::get_values() const noexcept
-{
-    return m_values;
 }
 
 inline tree_node::tree_node(component_id           id_,

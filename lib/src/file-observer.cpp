@@ -66,13 +66,13 @@ static void do_update(const simulation&        sim,
     else
         fmt::print(file, "{:e}\n", sim.current_time());
 
-    const auto values = vars.get_values();
-
-    vars.for_each([&](const auto id) noexcept {
-        if (i + 1 < number)
-            fmt::print(file, "{:e},", values[get_index(id)]);
-        else
-            fmt::print(file, "{:e}\n", values[get_index(id)]);
+    vars.values.read_only([&](const auto& v) noexcept {
+        vars.for_each([&](const auto id) noexcept {
+            if (i + 1 < number)
+                fmt::print(file, "{:e},", v[get_index(id)]);
+            else
+                fmt::print(file, "{:e}\n", v[get_index(id)]);
+        });
     });
 }
 
