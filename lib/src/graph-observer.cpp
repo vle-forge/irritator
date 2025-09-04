@@ -62,29 +62,26 @@ static void build_graph(graph_observer&  graph_obs,
 void graph_observer::init(project& pj, modeling& mod, simulation& sim) noexcept
 {
     observers.clear();
-    values.clear();
-    values_2nd.clear();
 
-    if (auto* tn = pj.tree_nodes.try_to_get(parent_id); tn) {
-        if (auto* compo = mod.components.try_to_get<component>(tn->id);
-            compo and compo->type == component_type::graph) {
-            if (auto* graph =
-                  mod.graph_components.try_to_get(compo->id.graph_id);
-                graph) {
-                const auto len = graph->g.nodes.ssize();
+    values.read_write([&](auto& v) noexcept {
+        if (auto* tn = pj.tree_nodes.try_to_get(parent_id); tn) {
+            if (auto* compo = mod.components.try_to_get<component>(tn->id);
+                compo and compo->type == component_type::graph) {
+                if (auto* graph =
+                      mod.graph_components.try_to_get(compo->id.graph_id);
+                    graph) {
+                    const auto len = graph->g.nodes.ssize();
 
-                observers.resize(len);
-                values.resize(len);
-                values_2nd.resize(len);
+                    observers.resize(len);
+                    std::fill_n(
+                      observers.data(), len, undefined<observer_id>());
+                    v.resize(len, zero);
 
-                std::fill_n(observers.data(), len, undefined<observer_id>());
-                std::fill_n(values.data(), len, zero);
-                std::fill_n(values_2nd.data(), len, zero);
-
-                build_graph(*this, pj, sim, *tn, *graph);
+                    build_graph(*this, pj, sim, *tn, *graph);
+                }
             }
         }
-    }
+    });
 
     tn = sim.current_time();
 }
@@ -92,39 +89,40 @@ void graph_observer::init(project& pj, modeling& mod, simulation& sim) noexcept
 void graph_observer::clear() noexcept
 {
     observers.clear();
-    values.clear();
-    values_2nd.clear();
+    values.read_write([](auto& v) noexcept { v.clear(); });
 
     tn = 0;
 }
 
 void graph_observer::update(const simulation& sim) noexcept
 {
-    debug::ensure(values.ssize() == observers.ssize());
+    values.read_write([&](auto& v) noexcept {
+        debug::ensure(v.ssize() == observers.ssize());
 
-    std::fill_n(values_2nd.data(), values_2nd.capacity(), 0.0);
-    for (int i = 0, e = observers.ssize(); i < e; ++i) {
-        if (const auto* obs = sim.observers.try_to_get(observers[i]); obs) {
-            if (obs->states[observer_flags::use_linear_buffer]) {
-                obs->linearized_buffer.try_read_only(
-                  [](const auto& buf, auto& v) {
-                      v = not buf.empty() ? buf.back().y : zero;
-                  },
-                  values_2nd[i]);
-            } else {
-                obs->buffer.try_read_only(
-                  [](const auto& buf, auto& v) {
-                      v = not buf.empty() ? buf.back()[1] : zero;
-                  },
-                  values_2nd[i]);
+        if (v.ssize() != observers.ssize())
+            return;
+
+        std::fill_n(v.data(), v.capacity(), 0.0);
+        for (int i = 0, e = observers.ssize(); i < e; ++i) {
+            if (const auto* obs = sim.observers.try_to_get(observers[i]); obs) {
+                if (obs->states[observer_flags::use_linear_buffer]) {
+                    obs->linearized_buffer.try_read_only(
+                      [](const auto& buf, auto& v) {
+                          v = not buf.empty() ? buf.back().y : zero;
+                      },
+                      v[i]);
+                } else {
+                    obs->buffer.try_read_only(
+                      [](const auto& buf, auto& v) {
+                          v = not buf.empty() ? buf.back()[1] : zero;
+                      },
+                      v[i]);
+                }
             }
         }
-    }
 
-    tn = sim.current_time() + time_step;
-
-    std::unique_lock lock{ mutex };
-    std::swap(values, values_2nd);
+        tn = sim.current_time() + time_step;
+    });
 }
 
 } // namespace irt

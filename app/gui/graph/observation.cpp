@@ -122,34 +122,40 @@ static void show_graph_observer(graph_component& compo,
                            ImVec2(canvas_p1.x, canvas_p0.y + y),
                            IM_COL32(200, 200, 200, 40));
 
-    std::unique_lock lock{ obs.mutex };
+    obs.values.try_read_only([&](const auto& v) noexcept {
+        if (v.empty())
+            return;
 
-    for (const auto id : compo.g.nodes) {
-        const auto i = get_index(id);
+        for (const auto id : compo.g.nodes) {
+            const auto i = get_index(id);
 
-        const ImVec2 p_min(origin.x + (compo.g.node_positions[i][0] * zoom.x),
-                           origin.y + (compo.g.node_positions[i][1] * zoom.y));
+            const ImVec2 p_min(
+              origin.x + (compo.g.node_positions[i][0] * zoom.x),
+              origin.y + (compo.g.node_positions[i][1] * zoom.y));
 
-        const ImVec2 p_max(
-          origin.x +
-            ((compo.g.node_positions[i][0] + compo.g.node_areas[i]) * zoom.x),
-          origin.y +
-            ((compo.g.node_positions[i][1] + compo.g.node_areas[i]) * zoom.y));
+            const ImVec2 p_max(
+              origin.x +
+                ((compo.g.node_positions[i][0] + compo.g.node_areas[i]) *
+                 zoom.x),
+              origin.y +
+                ((compo.g.node_positions[i][1] + compo.g.node_areas[i]) *
+                 zoom.y));
 
-        debug::ensure(i < obs.values.size());
+            debug::ensure(i < v.size());
 
-        const auto m = static_cast<double>(obs.scale_min);
-        const auto M = static_cast<double>(obs.scale_max);
-        const auto d = std::abs(m) + std::abs(M);
-        const auto o = obs.values[i] + m;
-        const auto t = o / d;
-        debug::ensure(0.0 <= t and t <= 1.0);
+            const auto m = static_cast<double>(obs.scale_min);
+            const auto M = static_cast<double>(obs.scale_max);
+            const auto d = std::abs(m) + std::abs(M);
+            const auto o = v[i] + m;
+            const auto t = o / d;
+            debug::ensure(0.0 <= t and t <= 1.0);
 
-        draw_list->AddRectFilled(
-          p_min,
-          p_max,
-          ImPlot::SampleColormapU32(static_cast<float>(t), IMPLOT_AUTO));
-    }
+            draw_list->AddRectFilled(
+              p_min,
+              p_max,
+              ImPlot::SampleColormapU32(static_cast<float>(t), IMPLOT_AUTO));
+        }
+    });
 
     for (const auto id : compo.g.edges) {
         const auto i   = get_index(id);
@@ -198,9 +204,8 @@ void graph_observation_widget::show(application&    app,
                 if (c->type == component_type::graph) {
                     if (auto* g =
                           app.mod.graph_components.try_to_get(c->id.graph_id)) {
-                        if (not graph.values.empty())
-                            show_graph_observer(
-                              *g, zoom, scrolling, distance, graph);
+                        show_graph_observer(
+                          *g, zoom, scrolling, distance, graph);
                     }
                 }
             }
