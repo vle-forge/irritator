@@ -237,9 +237,12 @@ static bool show_parameter(qss_integrator_tag,
 static bool show_parameter(qss_multiplier_tag,
                            application& /*app*/,
                            external_source& /*srcs*/,
-                           parameter& /* p */) noexcept
+                           parameter& p) noexcept
 {
-    return false;
+    const auto b1 = ImGui::InputReal("value-0", &p.reals[0]);
+    const auto b2 = ImGui::InputReal("value-1", &p.reals[1]);
+
+    return b1 or b2;
 }
 
 static bool show_parameter(qss_sum_2_tag,

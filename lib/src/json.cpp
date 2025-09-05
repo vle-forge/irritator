@@ -934,13 +934,25 @@ struct json_dearchiver::impl {
         });
     }
 
-    bool read_dynamics(const rapidjson::Value& /*val*/,
+    bool read_dynamics(const rapidjson::Value& val,
                        qss_multiplier_tag,
-                       parameter& /*p*/) noexcept
+                       parameter& p) noexcept
     {
         auto_stack a(this, "dynamics qss multiplier");
 
-        return true;
+        static constexpr std::string_view n[] = { "value-0", "value-1" };
+
+        return for_members(
+          val, n, [&](const auto idx, const auto& value) noexcept -> bool {
+              switch (idx) {
+              case 0:
+                  return read_real(value, p.reals[0]);
+              case 1:
+                  return read_real(value, p.reals[1]);
+              default:
+                  return error("unknown element");
+              }
+          });
     }
 
     bool read_dynamics(const rapidjson::Value& val,
@@ -4964,9 +4976,13 @@ struct json_archiver::impl {
     template<typename Writer, std::size_t QssLevel>
     void write(Writer& writer,
                const abstract_multiplier<QssLevel>& /*dyn*/,
-               const parameter& /*p*/) noexcept
+               const parameter& p) noexcept
     {
         writer.StartObject();
+        writer.Key("value-0");
+        writer.Double(p.reals[0]);
+        writer.Key("value-1");
+        writer.Double(p.reals[1]);
         writer.EndObject();
     }
 

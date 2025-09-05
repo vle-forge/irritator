@@ -153,15 +153,20 @@ static void parameter_init(parameter&                           param,
 }
 
 template<size_t QssLevel>
-static void model_init(const parameter& /*param*/,
-                       abstract_multiplier<QssLevel>& /*dyn*/) noexcept
-{}
+static void model_init(const parameter&               param,
+                       abstract_multiplier<QssLevel>& dyn) noexcept
+{
+    dyn.values[0] = param.reals[0];
+    dyn.values[1] = param.reals[1];
+}
 
 template<size_t QssLevel>
-static void parameter_init(
-  parameter& /*param*/,
-  const abstract_multiplier<QssLevel>& /*dyn*/) noexcept
-{}
+static void parameter_init(parameter&                           param,
+                           const abstract_multiplier<QssLevel>& dyn) noexcept
+{
+    param.reals[0] = dyn.values[0];
+    param.reals[1] = dyn.values[1];
+}
 
 template<size_t QssLevel>
 static void model_init(const parameter&           param,
@@ -528,6 +533,13 @@ parameter& parameter::set_time_func(real offset,
     reals[0] = std::isfinite(offset) ? std::abs(offset) : 0.0;
     reals[1] = std::isfinite(timestep) ? timestep <= 0.0 ? 0.1 : timestep : 0.1;
     integers[0] = type < 0 ? 0 : type > 2 ? 2 : type;
+    return *this;
+}
+
+parameter& parameter::set_multiplier(real v1, real v2) noexcept
+{
+    reals[0] = std::isfinite(v1) ? v1 : 0.0;
+    reals[1] = std::isfinite(v2) ? v2 : 0.0;
     return *this;
 }
 

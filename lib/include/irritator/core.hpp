@@ -779,6 +779,7 @@ struct parameter {
     parameter& set_cross(real threshold, bool detect_up) noexcept;
     parameter& set_integrator(real X, real dQ) noexcept;
     parameter& set_time_func(real offset, real timestep, int type) noexcept;
+    parameter& set_multiplier(real v1, real v2) noexcept;
     parameter& set_wsum2(real v1, real coeff1, real v2, real coeff2) noexcept;
     parameter& set_wsum3(real v1,
                          real coeff1,
@@ -2724,6 +2725,8 @@ struct abstract_multiplier {
     block_node_id y[1] = {};
     time          sigma;
 
+    /** User can edit the first values for each variable (values[0] and
+     * values[1]). Other values are set to zero. */
     real values[QssLevel * 2];
 
     abstract_multiplier() noexcept = default;
