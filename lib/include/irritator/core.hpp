@@ -780,6 +780,9 @@ struct parameter {
     parameter& set_integrator(real X, real dQ) noexcept;
     parameter& set_time_func(real offset, real timestep, int type) noexcept;
     parameter& set_multiplier(real v1, real v2) noexcept;
+    parameter& set_sum2(real v1, real v2) noexcept;
+    parameter& set_sum3(real v1, real v2, real v3) noexcept;
+    parameter& set_sum4(real v1, real v2, real v3, real v4) noexcept;
     parameter& set_wsum2(real v1, real coeff1, real v2, real coeff2) noexcept;
     parameter& set_wsum3(real v1,
                          real coeff1,
@@ -1555,6 +1558,7 @@ struct abstract_integrator<1> {
       , sigma(other.sigma)
     {}
 
+    // @c X and @c dQ are initialized from @c parameters.
     status initialize(simulation& /*sim*/) noexcept
     {
         if (!std::isfinite(X))
@@ -1674,6 +1678,7 @@ struct abstract_integrator<2> {
       , sigma(other.sigma)
     {}
 
+    // @c X and @c dQ are initialized from @c parameters.
     status initialize(simulation& /*sim*/) noexcept
     {
         if (!std::isfinite(X))
@@ -1835,6 +1840,7 @@ struct abstract_integrator<3> {
       , sigma(other.sigma)
     {}
 
+    // @c X and @c dQ are initialized from @c parameters.
     status initialize(simulation& /*sim*/) noexcept
     {
         if (!std::isfinite(X))
@@ -2162,6 +2168,9 @@ struct abstract_power {
 
     status initialize(simulation& /*sim*/) noexcept
     {
+        if (not std::isfinite(n))
+            return new_error(simulation_errc::abstract_power_n_error);
+
         std::fill_n(value, QssLevel, zero);
         sigma = time_domain<time>::infinity;
 
@@ -2372,8 +2381,14 @@ struct abstract_sum {
         std::copy_n(other.values, std::size(other.values), values);
     }
 
+    /// Initialize all values to zero except the first @c PortNumber ones which
+    /// are inialized in with parameters.
     status initialize(simulation& /*sim*/) noexcept
     {
+        for (size_t i = 0; i != PortNumber; ++i)
+            if (not std::isfinite(values[i]))
+                return new_error(simulation_errc::abstract_sum_value_error);
+
         if constexpr (QssLevel >= 2) {
             std::fill_n(
               values + PortNumber, std::size(values) - PortNumber, zero);
@@ -2551,8 +2566,18 @@ struct abstract_wsum {
         std::copy_n(other.values, std::size(other.values), values);
     }
 
+    /// Initialize all values to zero except the first @c PortNumber ones which
+    /// are inialized with parameters.
     status initialize(simulation& /*sim*/) noexcept
     {
+        for (size_t i = 0; i != PortNumber; ++i)
+            if (not std::isfinite(input_coeffs[i]))
+                return new_error(simulation_errc::abstract_wsum_coeff_error);
+
+        for (size_t i = 0; i != PortNumber; ++i)
+            if (not std::isfinite(values[i]))
+                return new_error(simulation_errc::abstract_wsum_value_error);
+
         if constexpr (QssLevel >= 2) {
             std::fill_n(std::begin(values) + PortNumber,
                         std::size(values) - PortNumber,
@@ -2737,9 +2762,16 @@ struct abstract_multiplier {
         std::copy_n(other.values, QssLevel * 2, values);
     }
 
+    /// Initialize all values to zero except the first @c PortNumber ones which
+    /// are inialized with the parameters.
     status initialize(simulation& /*sim*/) noexcept
     {
-        std::fill_n(values, QssLevel * 2, zero);
+        for (size_t i = 0; i != 2; ++i)
+            if (not std::isfinite(values[i]))
+                return new_error(
+                  simulation_errc::abstract_multiplier_value_error);
+
+        std::fill_n(values + 2, QssLevel * 2 - 2, zero);
         sigma = time_domain<time>::infinity;
 
         return success();
@@ -2777,53 +2809,53 @@ struct abstract_multiplier {
                       [[maybe_unused]] time e,
                       time /*r*/) noexcept
     {
-        auto* lst_0 = sim.messages.try_to_get(x[0]);
-        auto* lst_1 = sim.messages.try_to_get(x[1]);
+        auto*      lst_0          = sim.messages.try_to_get(x[0]);
+        auto*      lst_1          = sim.messages.try_to_get(x[1]);
+        const auto message_port_0 = lst_0 and not lst_0->empty();
+        const auto message_port_1 = lst_1 and not lst_1->empty();
+        sigma                     = time_domain<time>::infinity;
 
-        if (!lst_0 or !lst_1)
-            return success();
+        if (message_port_0) {
+            for (const auto& msg : *lst_0) {
+                sigma     = time_domain<time>::zero;
+                values[0] = msg[0];
 
-        bool message_port_0 = not lst_0->empty();
-        bool message_port_1 = not lst_1->empty();
-        sigma               = time_domain<time>::infinity;
+                if constexpr (QssLevel >= 2)
+                    values[2 + 0] = msg[1];
 
-        for (const auto& msg : *lst_0) {
-            sigma     = time_domain<time>::zero;
-            values[0] = msg[0];
-
-            if constexpr (QssLevel >= 2)
-                values[2 + 0] = msg[1];
-
-            if constexpr (QssLevel == 3)
-                values[2 + 2 + 0] = msg[2];
+                if constexpr (QssLevel == 3)
+                    values[2 + 2 + 0] = msg[2];
+            }
         }
 
-        for (const auto& msg : *lst_1) {
-            sigma     = time_domain<time>::zero;
-            values[1] = msg[0];
+        if (message_port_1) {
+            for (const auto& msg : *lst_1) {
+                sigma     = time_domain<time>::zero;
+                values[1] = msg[0];
 
-            if constexpr (QssLevel >= 2)
-                values[2 + 1] = msg[1];
+                if constexpr (QssLevel >= 2)
+                    values[2 + 1] = msg[1];
 
-            if constexpr (QssLevel == 3)
-                values[2 + 2 + 1] = msg[2];
+                if constexpr (QssLevel == 3)
+                    values[2 + 2 + 1] = msg[2];
+            }
         }
 
         if constexpr (QssLevel == 2) {
-            if (!message_port_0)
+            if (not message_port_0)
                 values[0] += e * values[2 + 0];
 
-            if (!message_port_1)
+            if (not message_port_1)
                 values[1] += e * values[2 + 1];
         }
 
         if constexpr (QssLevel == 3) {
-            if (!message_port_0) {
+            if (not message_port_0) {
                 values[0] += e * values[2 + 0] + values[2 + 2 + 0] * e * e;
                 values[2 + 0] += 2 * values[2 + 2 + 0] * e;
             }
 
-            if (!message_port_1) {
+            if (not message_port_1) {
                 values[1] += e * values[2 + 1] + values[2 + 2 + 1] * e * e;
                 values[2 + 1] += 2 * values[2 + 2 + 1] * e;
             }
@@ -3018,8 +3050,20 @@ struct abstract_compare {
         std::copy_n(other.output.data(), other.output.size(), output.data());
     }
 
+    /// Initialize all values to zero except the first element in @c a and @c b
+    /// and all in @c output which are copy parameter.
     status initialize(simulation& /*sim*/) noexcept
     {
+        if (not std::isfinite(output[0]) or not std::isfinite(output[1]))
+            return new_error(
+              simulation_errc::abstract_compare_output_value_error);
+
+        if (not std::isfinite(a[0]) or not std::isfinite(b[0]))
+            return new_error(simulation_errc::abstract_compare_a_b_value_error);
+
+        std::fill_n(a.data() + 1, QssLevel - 1, zero);
+        std::fill_n(b.data() + 1, QssLevel - 1, zero);
+
         sigma       = time_domain<time>::infinity;
         is_a_less_b = false;
 
@@ -3224,13 +3268,19 @@ struct generator {
     {
         sigma = time_domain<time>::infinity;
         if (flags[option::ta_use_source]) {
-            irt_check(initialize_source(sim, source_ta));
+            if (initialize_source(sim, source_ta).has_error())
+                return new_error(
+                  simulation_errc::generator_ta_initialization_error);
+
             sigma = source_ta.next();
         }
 
         value = zero;
         if (flags[option::value_use_source]) {
-            irt_check(initialize_source(sim, source_value));
+            if (initialize_source(sim, source_value).has_error())
+                return new_error(
+                  simulation_errc::generator_source_initialization_error);
+
             value = source_value.next();
         }
 
@@ -3377,6 +3427,12 @@ struct constant {
 
     status initialize(simulation& /*sim*/) noexcept
     {
+        if (not std::isfinite(value))
+            return new_error(simulation_errc::constant_value_error);
+
+        if (not std::isfinite(offset) or offset < zero)
+            return new_error(simulation_errc::constant_offset_error);
+
         sigma = offset;
 
         return success();
@@ -4497,8 +4553,19 @@ struct time_func {
 
     status initialize(simulation& /*sim*/) noexcept
     {
+        if (not std::isfinite(offset) or offset < zero)
+            return new_error(simulation_errc::time_func_offset_error);
+
+        if (not std::isfinite(timestep) or timestep <= zero)
+            return new_error(simulation_errc::time_func_timestep_error);
+
+        if (not any_equal(
+              f, sin_time_function, square_time_function, time_function))
+            return new_error(simulation_errc::time_func_function_error);
+
         sigma = offset;
         value = 0.0;
+
         return success();
     }
 
@@ -4822,12 +4889,12 @@ concept dynamics =
   std::is_same_v<Dynamics, hsm_wrapper>;
 
 struct model {
-    real tl     = 0.0;
+    real tl     = zero;
     real tn     = time_domain<time>::infinity;
     u32  handle = invalid_heap_handle;
 
-    observer_id   obs_id = observer_id{ 0 };
     dynamics_type type;
+    observer_id   obs_id = observer_id{ 0 };
 
     alignas(8) std::byte dyn[max_size_in_bytes()];
 };
@@ -4958,22 +5025,24 @@ static constexpr dynamics_type dynamics_typeof() noexcept
     unreachable();
 }
 
-/**
-   @brief dispatch the callable @c f with @c args argument
-   according to @c type.
-
-   @param type
-   @param f
-   @param args
-
-   @verbatim
-   dispatch(mdl.type, []<typename Tag>(
-       const Tag t, const float x, const float y) -> bool {
-           if constexpr(std::is_same_v(t, hsm_wrapper_tag)) {
-               // todo
-           }
-       }));
-   @endverbatim
+/** Dispatch the callable @c f with @c args argument according to @c type.
+ *
+ * This function is useful to: (1) avoid using dynamic polymorphism (i.e.,
+ * virtual) based on the @c dynamics_type variables and to (2) provide the same
+ * source code for same dynamics type like abstract classes.
+ *
+ * @param type
+ * @param f
+ * @param args
+ *
+ * @verbatim
+ * dispatch(mdl.type, []<typename Tag>(
+ *     const Tag t, const float x, const float y) -> bool {
+ *         if constexpr(std::is_same_v(t, hsm_wrapper_tag)) {
+ *             // todo
+ *         }
+ *     }));
+ * @endverbatim
  */
 template<typename Function, typename... Args>
 constexpr auto dispatch(const dynamics_type type,
@@ -6831,6 +6900,9 @@ status simulation::make_initialize(model& mdl, Dynamics& dyn, time t) noexcept
         }
     }
 
+    // @attention Copy parameters to model before using the initialize function.
+    // Be sure to not owerrite the parameters in the @c dynamics::initialize
+    // function.
     parameters[models.get_id(mdl)].copy_to(mdl);
 
     if constexpr (has_initialize_function<Dynamics>)

@@ -543,6 +543,30 @@ parameter& parameter::set_multiplier(real v1, real v2) noexcept
     return *this;
 }
 
+parameter& parameter::set_sum2(real v1, real v2) noexcept
+{
+    reals[0] = std::isfinite(v1) ? v1 : 0.0;
+    reals[1] = std::isfinite(v2) ? v2 : 0.0;
+    return *this;
+}
+
+parameter& parameter::set_sum3(real v1, real v2, real v3) noexcept
+{
+    reals[0] = std::isfinite(v1) ? v1 : 0.0;
+    reals[1] = std::isfinite(v2) ? v2 : 0.0;
+    reals[2] = std::isfinite(v3) ? v3 : 0.0;
+    return *this;
+}
+
+parameter& parameter::set_sum4(real v1, real v2, real v3, real v4) noexcept
+{
+    reals[0] = std::isfinite(v1) ? v1 : 0.0;
+    reals[1] = std::isfinite(v2) ? v2 : 0.0;
+    reals[2] = std::isfinite(v3) ? v3 : 0.0;
+    reals[3] = std::isfinite(v4) ? v4 : 0.0;
+    return *this;
+}
+
 parameter& parameter::set_wsum2(real v1,
                                 real coeff1,
                                 real v2,
