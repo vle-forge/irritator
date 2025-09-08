@@ -799,6 +799,4 @@ void external_source::destroy() noexcept
     random_sources.destroy();
 }
 
-external_source::~external_source() noexcept { destroy(); }
-
 } // namespace irt

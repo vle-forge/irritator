@@ -597,8 +597,6 @@ public:
     external_source(const external_source_reserve_definition& res =
                       external_source_reserve_definition()) noexcept;
 
-    ~external_source() noexcept;
-
     //! Call `clear()` and release memory.
     void destroy() noexcept;
 
@@ -618,11 +616,6 @@ public:
 
     //! Call the @c data_array<T, Id>::clear() function for all sources.
     void clear() noexcept;
-
-    //! An example of error handlers to catch all error from the external
-    //! source class and friend (@c binary_file_source, @c text_file_source,
-    //! @c random_source and @c constant_source).
-    // constexpr auto make_error_handlers() const noexcept;
 };
 
 //! To be used in model declaration to initialize a source instance
