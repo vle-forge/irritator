@@ -1136,7 +1136,8 @@ int main()
         auto&      d1  = arr.alloc(1);
         auto&      d2  = arr.alloc(2);
         auto       id1 = arr.get_id(d1);
-        auto       id2 = arr.get_id(d2);
+        (void)id1;
+        auto id2 = arr.get_id(d2);
         arr.free(d1);
         expect(eq(arr.size(), 1u));
         arr.free(id2);
