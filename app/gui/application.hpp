@@ -235,6 +235,57 @@ public:
                         const name_str&                       name) noexcept;
 };
 
+/** A class to compute 3D projection of 3D points using three rotation
+ * matrix.
+ *
+ * The three rotation matrix are computed using the @c angles vector that can
+ * be changed by the user using ImGui widgets or dragging mouse with right
+ * button.
+ */
+class projection_3d
+{
+public:
+    /** Computes the new projection of the @c dots vector using the @c center
+     * vector and the three rotation maxtrix @c rot_x, @c rot_y and @c rot_z.
+     *
+     * @param x The x coordinate of the point to project.
+     * @param y The y coordinate of the point to project.
+     * @param z The z coordinate of the point to project.
+     * @return The new x, y and z coordinates of the projected point.
+     */
+    auto compute(float x, float y, float z) noexcept -> std::array<float, 3>;
+
+    /** Compute the new x, y and z rotation matrix (repectively @c rot_x, rot_y
+     * and rot_z) using the three angle parameters @c rx, @c ry and @c rz.
+     *
+     * @param angles The vector of three angles (rx, ry, rz) in radian.
+     * @param center The center of the object to display.
+     */
+    auto update_matrices(const std::array<float, 3>& angles,
+                         const std::array<float, 3>& center) noexcept -> void;
+
+    /** Get the current angles used to compute the rotation matrix. */
+    std::array<float, 3> angles() const noexcept { return m_angles; }
+
+    /** Get the current center of the object to display. */
+    std::array<float, 3> center() const noexcept { return m_center; }
+
+private:
+    /** Users can changes angles values from -M_PI to +M_PI using the ImGui
+     * widgets or dragging mouse withg right button.
+     *
+     * @attention Attributes can be removed. The angles are in radian.
+     */
+    std::array<float, 3> m_angles{ 0, 0, 0 };
+
+    /** The center of the object to display. */
+    std::array<float, 3> m_center{ 0, 0, 0 };
+
+    std::array<float, 9> m_rot_x{ 0, 0, 0 };
+    std::array<float, 9> m_rot_y{ 0, 0, 0 };
+    std::array<float, 9> m_rot_z{ 0, 0, 0 };
+};
+
 /// Use to display a grid_observation_system into ImGui widget. An instance of
 /// this class is available in @c application::simulation_editor::grid_obs.
 struct grid_observation_widget {

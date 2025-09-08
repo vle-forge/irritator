@@ -16,6 +16,157 @@
 
 namespace irt {
 
+static auto rotate_x(const float angle) noexcept -> std::array<float, 9>
+{
+    return { 1.0f,
+             0.0f,
+             0.0f,
+             0.0f,
+             +std::cos(angle),
+             -std::sin(angle),
+             0.0f,
+             +std::sin(angle),
+             +std::cos(angle) };
+}
+
+static auto rotate_y(const float angle) noexcept -> std::array<float, 9>
+{
+    return { +std::cos(angle), 0.0f, +std::sin(angle), 0.0f, 1.0f, 0.0f,
+             -std::sin(angle), 0.0f, +std::cos(angle) };
+}
+
+static auto rotate_z(const float angle) noexcept -> std::array<float, 9>
+{
+    return { +std::cos(angle),
+             -std::sin(angle),
+             0.0f,
+             +std::sin(angle),
+             +std::cos(angle),
+             0.0f,
+             0.0f,
+             0.0f,
+             0.0f };
+}
+
+constexpr auto compute_vertex(const std::array<float, 9>& rot_x,
+                              const std::array<float, 9>& rot_y,
+                              const std::array<float, 9>& rot_z,
+                              const std::array<float, 3>& center,
+                              const std::array<float, 3>& dot) noexcept
+{
+    const auto py_00 = rot_y[0] * (dot[0] - center[0]);
+    const auto py_01 = rot_y[1] * (dot[1] - center[1]);
+    const auto py_02 = rot_y[2] * (dot[2] - center[2]);
+
+    const auto py_10 = rot_y[3] * (dot[0] - center[0]);
+    const auto py_11 = rot_y[4] * (dot[1] - center[1]);
+    const auto py_12 = rot_y[5] * (dot[2] - center[2]);
+
+    const auto py_20 = rot_y[6] * (dot[0] - center[0]);
+    const auto py_21 = rot_y[7] * (dot[1] - center[1]);
+    const auto py_22 = rot_y[8] * (dot[2] - center[2]);
+
+    const std::array<float, 3> py{ py_00 + py_01 + py_02 + center[0],
+                                   py_10 + py_11 + py_12 + center[1],
+                                   py_20 + py_21 + py_22 + center[2] };
+
+    const auto px_00 = rot_x[0] * (py[0] - center[0]);
+    const auto px_01 = rot_x[1] * (py[1] - center[1]);
+    const auto px_02 = rot_x[2] * (py[2] - center[2]);
+
+    const auto px_10 = rot_x[3] * (py[0] - center[0]);
+    const auto px_11 = rot_x[4] * (py[1] - center[1]);
+    const auto px_12 = rot_x[5] * (py[2] - center[2]);
+
+    const auto px_20 = rot_x[6] * (py[0] - center[0]);
+    const auto px_21 = rot_x[7] * (py[1] - center[1]);
+    const auto px_22 = rot_x[8] * (py[2] - center[2]);
+
+    const std::array<float, 3> px{ px_00 + px_01 + px_02 + center[0],
+                                   px_10 + px_11 + px_12 + center[1],
+                                   px_20 + px_21 + px_22 + center[2] };
+
+    const auto pz_00 = rot_z[0] * (px[0] - center[0]);
+    const auto pz_01 = rot_z[1] * (px[1] - center[1]);
+    const auto pz_02 = rot_z[2] * (px[2] - center[2]);
+
+    const auto pz_10 = rot_z[3] * (px[0] - center[0]);
+    const auto pz_11 = rot_z[4] * (px[1] - center[1]);
+    const auto pz_12 = rot_z[5] * (px[2] - center[2]);
+
+    const auto pz_20 = rot_z[6] * (px[0] - center[0]);
+    const auto pz_21 = rot_z[7] * (px[1] - center[1]);
+    const auto pz_22 = rot_z[8] * (px[2] - center[2]);
+
+    return std::array<float, 3>{ pz_00 + pz_01 + pz_02 + center[0],
+                                 pz_10 + pz_11 + pz_12 + center[1],
+                                 pz_20 + pz_21 + pz_22 + center[2] };
+}
+
+auto projection_3d::update_matrices(const std::array<float, 3>& angles,
+                                    const std::array<float, 3>& center) noexcept
+  -> void
+{
+    m_angles = angles;
+    m_center = center;
+
+    m_rot_x = rotate_x(angles[0]);
+    m_rot_y = rotate_y(angles[1]);
+    m_rot_z = rotate_z(angles[2]);
+}
+
+auto projection_3d::compute(float x, float y, float z) noexcept
+  -> std::array<float, 3>
+{
+    const auto py_00 = m_rot_y[0] * (x - m_center[0]);
+    const auto py_01 = m_rot_y[1] * (y - m_center[1]);
+    const auto py_02 = m_rot_y[2] * (z - m_center[2]);
+
+    const auto py_10 = m_rot_y[3] * (x - m_center[0]);
+    const auto py_11 = m_rot_y[4] * (y - m_center[1]);
+    const auto py_12 = m_rot_y[5] * (z - m_center[2]);
+
+    const auto py_20 = m_rot_y[6] * (x - m_center[0]);
+    const auto py_21 = m_rot_y[7] * (y - m_center[1]);
+    const auto py_22 = m_rot_y[8] * (z - m_center[2]);
+
+    const std::array<float, 3> py{ py_00 + py_01 + py_02 + m_center[0],
+                                   py_10 + py_11 + py_12 + m_center[1],
+                                   py_20 + py_21 + py_22 + m_center[2] };
+
+    const auto px_00 = m_rot_x[0] * (py[0] - m_center[0]);
+    const auto px_01 = m_rot_x[1] * (py[1] - m_center[1]);
+    const auto px_02 = m_rot_x[2] * (py[2] - m_center[2]);
+
+    const auto px_10 = m_rot_x[3] * (py[0] - m_center[0]);
+    const auto px_11 = m_rot_x[4] * (py[1] - m_center[1]);
+    const auto px_12 = m_rot_x[5] * (py[2] - m_center[2]);
+
+    const auto px_20 = m_rot_x[6] * (py[0] - m_center[0]);
+    const auto px_21 = m_rot_x[7] * (py[1] - m_center[1]);
+    const auto px_22 = m_rot_x[8] * (py[2] - m_center[2]);
+
+    const std::array<float, 3> px{ px_00 + px_01 + px_02 + m_center[0],
+                                   px_10 + px_11 + px_12 + m_center[1],
+                                   px_20 + px_21 + px_22 + m_center[2] };
+
+    const auto pz_00 = m_rot_z[0] * (px[0] - m_center[0]);
+    const auto pz_01 = m_rot_z[1] * (px[1] - m_center[1]);
+    const auto pz_02 = m_rot_z[2] * (px[2] - m_center[2]);
+
+    const auto pz_10 = m_rot_z[3] * (px[0] - m_center[0]);
+    const auto pz_11 = m_rot_z[4] * (px[1] - m_center[1]);
+    const auto pz_12 = m_rot_z[5] * (px[2] - m_center[2]);
+
+    const auto pz_20 = m_rot_z[6] * (px[0] - m_center[0]);
+    const auto pz_21 = m_rot_z[7] * (px[1] - m_center[1]);
+    const auto pz_22 = m_rot_z[8] * (px[2] - m_center[2]);
+
+    return std::array<float, 3>{ pz_00 + pz_01 + pz_02 + m_center[0],
+                                 pz_10 + pz_11 + pz_12 + m_center[1],
+                                 pz_20 + pz_21 + pz_22 + m_center[2] };
+}
+
 static void show_graph_observer(graph_component& compo,
                                 ImVec2&          zoom,
                                 ImVec2&          scrolling,
