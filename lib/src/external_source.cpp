@@ -458,7 +458,6 @@ random_source::random_source(const random_source& other) noexcept
   , next_client(other.next_client)
   , ctr(other.ctr)
   , key(other.key)
-  , distribution(other.distribution)
   , a(other.a)
   , b(other.b)
   , p(other.p)
@@ -474,6 +473,7 @@ random_source::random_source(const random_source& other) noexcept
   , b32(other.b32)
   , t32(other.t32)
   , k32(other.k32)
+  , distribution(other.distribution)
 {}
 
 random_source& random_source::operator=(const random_source& other) noexcept

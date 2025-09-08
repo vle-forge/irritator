@@ -327,7 +327,7 @@ using name_str = small_string<default_name_string_size>;
 
 using chunk_type = std::array<double, external_source_chunk_size>;
 
-enum class distribution_type {
+enum class distribution_type : i8 {
     bernouilli,
     binomial,
     cauchy,
@@ -468,10 +468,10 @@ public:
     counter_type ctr{};
     key_type     key{}; // provided by @c external_source class.
 
-    distribution_type distribution = distribution_type::uniform_real;
     double a = 0, b = 1, p = 0, mean = 0, lambda = 0, alpha = 0, beta = 0,
            stddev = 0, m = 0, s = 0, n = 0;
-    int a32 = 0, b32 = 0, t32 = 0, k32 = 0;
+    int               a32 = 0, b32 = 0, t32 = 0, k32 = 0;
+    distribution_type distribution = distribution_type::uniform_real;
 
     random_source() noexcept = default;
     random_source(const random_source& other) noexcept;
