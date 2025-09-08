@@ -392,22 +392,38 @@ private:
     }
 #endif
 
-    auto to_2float(std::string_view str) noexcept -> std::array<float, 2>
+    auto to_3float(std::string_view str) noexcept -> std::array<float, 3>
     {
         if (const auto first = to_float_str(str); first.has_value()) {
-            const auto& [first_float, substr] = *first;
+            const auto& [float_1, s_str] = *first;
 
-            if (not substr.empty() or substr[0] == ',') {
+            if (not s_str.empty() and s_str[0] == ',') {
                 const auto second_str =
-                  substr.substr(1u, std::string_view::npos);
-                return std::array<float, 2>{ first_float,
-                                             to_float(second_str) };
+                  s_str.substr(1u, std::string_view::npos);
+
+                if (const auto second = to_float_str(second_str);
+                    second.has_value()) {
+                    const auto& [float_2, s_str2] = *second;
+
+                    if (not s_str2.empty() and s_str2[0] == ',') {
+                        const auto third_str =
+                          s_str2.substr(1u, std::string_view::npos);
+
+                        return std::array<float, 3>{ float_1,
+                                                     float_2,
+                                                     to_float(third_str) };
+                    }
+                }
+
+                return std::array<float, 3>{ float_1,
+                                             to_float(second_str),
+                                             0.f };
             } else {
-                warning<msg_id::missing_comma>(substr);
+                warning<msg_id::missing_comma>(s_str);
             }
         }
 
-        return std::array<float, 2>{};
+        return std::array<float, 3>{};
     }
 
 public:
@@ -941,7 +957,7 @@ private:
                 g.node_components[irt::get_index(id)] =
                   search_component(right_str);
             } else if (iequals(left_str, "pos"sv)) {
-                g.node_positions[irt::get_index(id)] = to_2float(right_str);
+                g.node_positions[irt::get_index(id)] = to_3float(right_str);
             } else {
                 warning<msg_id::unknown_attribute>(left_str, right_str, line);
             }
@@ -1536,7 +1552,7 @@ expected<graph_edge_id> graph::alloc_edge(graph_node_id src,
 expected<void> graph::reserve(int n, int e) noexcept
 {
     if (not(nodes.reserve(n) and node_names.resize(n) and node_ids.resize(n) and
-            node_positions.resize(n, std::array<float, 2>{ 0.f, 0.f }) and
+            node_positions.resize(n, std::array<float, 3>{ 0.f, 0.f, 0.f }) and
             node_components.resize(n, undefined<component_id>()) and
             node_areas.resize(n, 1.f)))
         return new_error(modeling_errc::dot_memory_insufficient);
@@ -1644,28 +1660,34 @@ expected<void> write_dot_stream(const modeling& mod,
     for (const auto id : g.nodes) {
         const auto idx = get_index(id);
 
-        auto compo = build_component_string(mod, g.node_components[idx]);
-        if (compo.has_value()) {
+        out = fmt::format_to(out,
+                             "  {} [id={}, area={}",
+                             g.node_names[idx],
+                             g.node_ids[idx],
+                             g.node_areas[idx]);
+
+        if (g.node_positions[idx][2] != 0.f) {
             out = fmt::format_to(out,
-                                 "  {} [id={}, area={},"
-                                 " pos=\"{},{}\","
-                                 " component=\"{}:{}:{}\"];\n",
-                                 g.node_names[idx],
-                                 g.node_ids[idx],
-                                 g.node_areas[idx],
+                                 ", pos=\"{},{},{}\"",
                                  g.node_positions[idx][0],
                                  g.node_positions[idx][1],
+                                 g.node_positions[idx][2]);
+        } else {
+            out = fmt::format_to(out,
+                                 ", pos=\"{},{}\"",
+                                 g.node_positions[idx][0],
+                                 g.node_positions[idx][1]);
+        }
+
+        if (auto compo = build_component_string(mod, g.node_components[idx]);
+            compo.has_value()) {
+            out = fmt::format_to(out,
+                                 ", component=\"{}:{}:{}\"];\n",
                                  compo->r,
                                  compo->d,
                                  compo->f);
         } else {
-            out = fmt::format_to(out,
-                                 "  {} [id={}, area={}, pos=\"{},{}\"];\n",
-                                 g.node_names[idx],
-                                 g.node_ids[idx],
-                                 g.node_areas[idx],
-                                 g.node_positions[idx][0],
-                                 g.node_positions[idx][1]);
+            out = fmt::format_to(out, "];\n");
         }
     }
 

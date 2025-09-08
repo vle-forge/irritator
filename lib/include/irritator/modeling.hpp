@@ -607,7 +607,7 @@ public:
 
     vector<std::string_view>     node_names;
     vector<std::string_view>     node_ids;
-    vector<std::array<float, 2>> node_positions;
+    vector<std::array<float, 3>> node_positions;
     vector<component_id>         node_components;
     vector<float>                node_areas;
     vector<std::array<edge, 2>>  edges_nodes;
