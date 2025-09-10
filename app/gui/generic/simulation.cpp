@@ -1086,8 +1086,9 @@ static int show_menu_edit(application&       app,
     return r;
 }
 
-int generic_simulation_editor::show_menu(application& app,
-                                         ImVec2       click_pos) noexcept
+int generic_simulation_editor::show_menu(application&    app,
+                                         project_editor& pj_ed,
+                                         ImVec2          click_pos) noexcept
 {
     const bool open_popup =
       ImGui::IsWindowFocused(ImGuiFocusedFlags_RootAndChildWindows) &&
@@ -1115,7 +1116,6 @@ int generic_simulation_editor::show_menu(application& app,
 
         ImGui::Separator();
 
-        auto& pj_ed = container_of(this, &project_editor::generic_sim);
         if (pj_ed.can_edit())
             r += show_menu_edit(app, pj_ed, current, click_pos);
 
@@ -1175,10 +1175,9 @@ void show_node_values(project_editor& ed, Dynamics& dyn) noexcept
     ImGui::PopID();
 }
 
-void generic_simulation_editor::show_nodes(application& app) noexcept
+void generic_simulation_editor::show_nodes(application&    app,
+                                           project_editor& pj_ed) noexcept
 {
-    auto& pj_ed = container_of(this, &project_editor::generic_sim);
-
     for (auto i = 0, e = nodes.ssize(); i != e; ++i) {
         if (auto* mdl = pj_ed.pj.sim.models.try_to_get(nodes[i].mdl)) {
             ImNodes::BeginNode(to_signed(get_index(nodes[i].mdl)));
@@ -1258,11 +1257,11 @@ generic_simulation_editor::~generic_simulation_editor() noexcept
 }
 
 void generic_simulation_editor::init(application&     app,
+                                     project_editor&  pj_ed,
                                      const tree_node& tn,
                                      component& /*compo*/,
                                      generic_component& /*gen*/) noexcept
 {
-    auto& pj_ed = container_of(this, &project_editor::generic_sim);
     enable_show = false;
 
     app.add_gui_task([&]() {
@@ -1283,13 +1282,12 @@ void generic_simulation_editor::init(application&     app,
     });
 }
 
-void generic_simulation_editor::init(application& app) noexcept
+void generic_simulation_editor::init(application&    app,
+                                     project_editor& pj_ed) noexcept
 {
     enable_show = false;
 
     app.add_gui_task([&]() {
-        const auto& pj_ed = container_of(this, &project_editor::generic_sim);
-
         nodes_2nd.clear();
         links_2nd.clear();
 
@@ -1307,11 +1305,11 @@ void generic_simulation_editor::init(application& app) noexcept
     });
 }
 
-void generic_simulation_editor::start_rebuild_task(application& app) noexcept
+void generic_simulation_editor::start_rebuild_task(
+  application&    app,
+  project_editor& pj_ed) noexcept
 {
     app.add_gui_task([&]() {
-        const auto& pj_ed = container_of(this, &project_editor::generic_sim);
-
         nodes_2nd.clear();
         links_2nd.clear();
 
@@ -1333,17 +1331,19 @@ void generic_simulation_editor::start_rebuild_task(application& app) noexcept
     });
 }
 
-void generic_simulation_editor::reinit(application& app) noexcept
+void generic_simulation_editor::reinit(application&    app,
+                                       project_editor& pj_ed) noexcept
 {
     if (rebuild_wip)
         return;
 
     rebuild_wip = true;
     enable_show = false;
-    start_rebuild_task(app);
+    start_rebuild_task(app, pj_ed);
 }
 
-bool generic_simulation_editor::display(application& app) noexcept
+bool generic_simulation_editor::display(application&    app,
+                                        project_editor& pj_ed) noexcept
 {
     int changes = false;
 
@@ -1352,18 +1352,16 @@ bool generic_simulation_editor::display(application& app) noexcept
             ImNodes::EditorContextSet(context);
             ImNodes::BeginNodeEditor();
 
-            auto& pj_ed = container_of(this, &project_editor::generic_sim);
-
             if (automatic_layout_iteration > 0) {
                 compute_automatic_layout();
                 --automatic_layout_iteration;
             }
 
-            show_nodes(app);
+            show_nodes(app, pj_ed);
             show_links();
 
             auto click_pos = ImGui::GetMousePosOnOpeningCurrentPopup();
-            changes += show_menu(app, click_pos);
+            changes += show_menu(app, pj_ed, click_pos);
 
             if (show_minimap)
                 ImNodes::MiniMap(0.2f, ImNodesMiniMapLocation_BottomLeft);

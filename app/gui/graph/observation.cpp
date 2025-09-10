@@ -192,14 +192,16 @@ static void show_graph_observer(graph_component& compo,
     ImGui::PopID();
 }
 
-void graph_observation_widget::show(application&    app,
-                                    project_editor& ed,
+void graph_observation_widget::show(project_editor& ed,
                                     graph_observer& graph,
                                     const ImVec2& /*size*/) noexcept
 {
+
     ImGui::PushID(&graph);
     if (ImGui::BeginChild("graph")) {
         if (auto* tn = ed.pj.tree_nodes.try_to_get(graph.parent_id)) {
+            auto& app = container_of(this, &application::graph_obs);
+
             if (auto* c = app.mod.components.try_to_get<component>(tn->id)) {
                 if (c->type == component_type::graph) {
                     if (auto* g =

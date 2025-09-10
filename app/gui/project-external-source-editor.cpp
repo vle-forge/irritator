@@ -393,9 +393,9 @@ project_external_source_editor::~project_external_source_editor() noexcept
         ImPlot::DestroyContext(context);
 }
 
-void project_external_source_editor::show(application& app) noexcept
+void project_external_source_editor::show(application&    app,
+                                          project_editor& pj) noexcept
 {
-    auto& pj  = container_of(this, &project_editor::data_ed);
     auto  old = sel;
 
     if (ImGui::BeginTable("All sources",

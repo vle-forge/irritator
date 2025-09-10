@@ -59,12 +59,12 @@ void project_editor::select(application& app, tree_node_id id) noexcept
                 if (compo->type == component_type::generic) {
                     if (auto* gen = app.mod.generic_components.try_to_get(
                           compo->id.generic_id)) {
-                        generic_sim.init(app, *tree, *compo, *gen);
+                        app.generic_sim.init(app, *this, *tree, *compo, *gen);
                     }
                 }
             }
         } else {
-            generic_sim.init(app);
+            app.generic_sim.init(app, *this);
         }
     }
 }
@@ -493,7 +493,8 @@ static bool show_local_simulation_specific_observers(application&    app,
     return false;
 }
 
-static void show_local_variables_plot(project_editor&    ed,
+static void show_local_variables_plot(application&       app,
+                                      project_editor&    ed,
                                       variable_observer& v_obs,
                                       tree_node_id       tn_id) noexcept
 {
@@ -502,7 +503,7 @@ static void show_local_variables_plot(project_editor&    ed,
         auto* obs = ed.pj.sim.observers.try_to_get(v_obs.get_obs_ids()[idx]);
 
         if (obs and v_obs.get_tn_ids()[idx] == tn_id)
-            ed.plot_obs.show_plot_line(
+            app.plot_obs.show_plot_line(
               *obs, v_obs.get_options()[idx], v_obs.get_names()[idx]);
     });
 }
@@ -931,7 +932,7 @@ static bool show_project_observations(application&    app,
 
                 auto pos = 0;
                 for_each_data(ed.pj.grid_observers, [&](auto& grid) noexcept {
-                    ed.grid_obs.show(grid, sub_obs_size);
+                    app.grid_obs.show(grid, sub_obs_size);
 
                     ++pos;
 
@@ -943,7 +944,7 @@ static bool show_project_observations(application&    app,
                 });
 
                 for_each_data(ed.pj.graph_observers, [&](auto& graph) noexcept {
-                    ed.graph_obs.show(app, ed, graph, sub_obs_size);
+                    app.graph_obs.show(ed, graph, sub_obs_size);
 
                     ++pos;
 
@@ -972,7 +973,7 @@ static bool show_project_observations(application&    app,
                             if (const auto* obs =
                                   ed.pj.sim.observers.try_to_get(
                                     vobs.get_obs_ids()[idx]))
-                                ed.plot_obs.show_plot_line(
+                                app.plot_obs.show_plot_line(
                                   *obs,
                                   vobs.get_options()[idx],
                                   vobs.get_names()[idx]);
@@ -1021,7 +1022,7 @@ static void show_component_observations(application&    app,
         for_specified_data(sim_ed.pj.grid_observers,
                            selected.grid_observer_ids,
                            [&](auto& grid) noexcept {
-                               sim_ed.grid_obs.show(grid, sub_obs_size);
+                               app.grid_obs.show(grid, sub_obs_size);
                                ++pos;
 
                                if (pos >= *sim_ed.tree_node_observation) {
@@ -1034,8 +1035,7 @@ static void show_component_observations(application&    app,
         for_specified_data(sim_ed.pj.graph_observers,
                            selected.graph_observer_ids,
                            [&](auto& graph) noexcept {
-                               sim_ed.graph_obs.show(
-                                 app, sim_ed, graph, sub_obs_size);
+                               app.graph_obs.show(sim_ed, graph, sub_obs_size);
                                ++pos;
 
                                if (pos >= *sim_ed.tree_node_observation) {
@@ -1068,7 +1068,7 @@ static void show_component_observations(application&    app,
                                                    // and lock/try_lock the
                                                    // linear buffer?
                         simulation_status::initializing)
-                        show_local_variables_plot(sim_ed, vobs, tn_id);
+                        show_local_variables_plot(app, sim_ed, vobs, tn_id);
                     ImPlot::PopStyleVar(2);
                     ImPlot::EndPlot();
                 }
@@ -1095,13 +1095,13 @@ static void show_simulation_editor_treenode(application&    app,
             using T = std::decay_t<decltype(c)>;
 
             if constexpr (std::is_same_v<T, grid_component>) {
-                ed.grid_sim.display(app, ed, tn, *compo, c);
+                app.grid_sim.display(app, ed, tn, *compo, c);
             } else if constexpr (std::is_same_v<T, graph_component>) {
-                ed.graph_sim.display(app, ed, tn, *compo, c);
+                app.graph_sim.display(app, ed, tn, *compo, c);
             } else if constexpr (std::is_same_v<T, generic_component>) {
-                ed.generic_sim.display(app);
+                app.generic_sim.display(app, ed);
             } else if constexpr (std::is_same_v<T, hsm_component>) {
-                ed.hsm_sim.show_observations(app, ed, tn, *compo, c);
+                app.hsm_sim.show_observations(app, ed, tn, *compo, c);
             } else
                 ImGui::TextFormatDisabled(
                   "Undefined simulation editor for this component");
@@ -1200,12 +1200,12 @@ auto project_editor::show(application& app) noexcept -> show_result_t
                 }
 
                 if (ImGui::BeginTabItem("Full simulation graph")) {
-                    flat_sim.display(app);
+                    app.flat_sim.display(app, *this);
                     ImGui::EndTabItem();
                 }
 
                 if (ImGui::BeginTabItem("Input data")) {
-                    data_ed.show(app);
+                    app.data_ed.show(app, *this);
                     ImGui::EndTabItem();
                 }
 

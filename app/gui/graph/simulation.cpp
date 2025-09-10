@@ -175,23 +175,23 @@ struct graph_simulation_editor::impl {
         ed.scrolling.y = ((-center.y * ed.zoom.y) + (canvas_sz.y / 2.f));
     }
 
-    bool static display_graph_simulation(application& /*app*/,
-                                         project_editor& ed,
+    bool static display_graph_simulation(application& app,
+                                         project_editor& /*ed*/,
                                          tree_node& /*tn*/,
                                          component& /*compo*/,
                                          graph_component& graph) noexcept
     {
-        float zoom_array[2] = { ed.graph_sim.zoom.x, ed.graph_sim.zoom.y };
+        float zoom_array[2] = { app.graph_sim.zoom.x, app.graph_sim.zoom.y };
         if (ImGui::InputFloat2("zoom x,y", zoom_array)) {
-            ed.graph_sim.zoom.x = ImClamp(zoom_array[0], 0.1f, 1000.f);
-            ed.graph_sim.zoom.y = ImClamp(zoom_array[1], 0.1f, 1000.f);
+            app.graph_sim.zoom.x = ImClamp(zoom_array[0], 0.1f, 1000.f);
+            app.graph_sim.zoom.y = ImClamp(zoom_array[1], 0.1f, 1000.f);
         }
 
-        float distance_array[2] = { ed.graph_sim.distance.x,
-                                    ed.graph_sim.distance.y };
+        float distance_array[2] = { app.graph_sim.distance.x,
+                                    app.graph_sim.distance.y };
         if (ImGui::InputFloat2("force x,y", distance_array)) {
-            ed.graph_sim.distance.x = ImClamp(distance_array[0], 0.1f, 100.f);
-            ed.graph_sim.distance.y = ImClamp(distance_array[0], 0.1f, 100.f);
+            app.graph_sim.distance.x = ImClamp(distance_array[0], 0.1f, 100.f);
+            app.graph_sim.distance.y = ImClamp(distance_array[0], 0.1f, 100.f);
         }
 
         ImVec2 canvas_p0 = ImGui::GetCursorScreenPos();
@@ -208,16 +208,16 @@ struct graph_simulation_editor::impl {
         const ImGuiIO& io        = ImGui::GetIO();
         ImDrawList*    draw_list = ImGui::GetWindowDrawList();
 
-        if (ed.graph_sim.actions[action::camera_center])
+        if (app.graph_sim.actions[action::camera_center])
             center_camera(
-              ed.graph_sim,
+              app.graph_sim,
               ImVec2(graph.top_left_limit[0], graph.top_left_limit[1]),
               ImVec2(graph.bottom_right_limit[0], graph.bottom_right_limit[1]),
               canvas_sz);
 
-        if (ed.graph_sim.actions[action::camera_auto_fit])
+        if (app.graph_sim.actions[action::camera_auto_fit])
             auto_fit_camera(
-              ed.graph_sim,
+              app.graph_sim,
               ImVec2(graph.top_left_limit[0], graph.top_left_limit[1]),
               ImVec2(graph.bottom_right_limit[0], graph.bottom_right_limit[1]),
               canvas_sz);
@@ -233,8 +233,8 @@ struct graph_simulation_editor::impl {
         const bool is_hovered = ImGui::IsItemHovered();
         const bool is_active  = ImGui::IsItemActive();
 
-        const ImVec2 origin(canvas_p0.x + ed.graph_sim.scrolling.x,
-                            canvas_p0.y + ed.graph_sim.scrolling.y);
+        const ImVec2 origin(canvas_p0.x + app.graph_sim.scrolling.x,
+                            canvas_p0.y + app.graph_sim.scrolling.y);
         const ImVec2 mouse_pos_in_canvas(io.MousePos.x - origin.x,
                                          io.MousePos.y - origin.y);
 
@@ -242,77 +242,79 @@ struct graph_simulation_editor::impl {
         if (is_active) {
             if (ImGui::IsMouseDragging(ImGuiMouseButton_Middle,
                                        mouse_threshold_for_pan)) {
-                ed.graph_sim.scrolling.x += io.MouseDelta.x;
-                ed.graph_sim.scrolling.y += io.MouseDelta.y;
+                app.graph_sim.scrolling.x += io.MouseDelta.x;
+                app.graph_sim.scrolling.y += io.MouseDelta.y;
             }
         }
 
         if (is_hovered and io.MouseWheel != 0.f) {
-            ed.graph_sim.zoom.x = ed.graph_sim.zoom.x +
-                                  (io.MouseWheel * ed.graph_sim.zoom.x * 0.1f);
-            ed.graph_sim.zoom.y = ed.graph_sim.zoom.y +
-                                  (io.MouseWheel * ed.graph_sim.zoom.y * 0.1f);
-            ed.graph_sim.zoom.x = ImClamp(ed.graph_sim.zoom.x, 0.1f, 1000.f);
-            ed.graph_sim.zoom.y = ImClamp(ed.graph_sim.zoom.y, 0.1f, 1000.f);
+            app.graph_sim.zoom.x =
+              app.graph_sim.zoom.x +
+              (io.MouseWheel * app.graph_sim.zoom.x * 0.1f);
+            app.graph_sim.zoom.y =
+              app.graph_sim.zoom.y +
+              (io.MouseWheel * app.graph_sim.zoom.y * 0.1f);
+            app.graph_sim.zoom.x = ImClamp(app.graph_sim.zoom.x, 0.1f, 1000.f);
+            app.graph_sim.zoom.y = ImClamp(app.graph_sim.zoom.y, 0.1f, 1000.f);
         }
 
         ImVec2 drag_delta = ImGui::GetMouseDragDelta(ImGuiMouseButton_Right);
         if (drag_delta.x == 0.0f and drag_delta.y == 0.0f and
-            (not ed.graph_sim.selected_nodes.empty())) {
+            (not app.graph_sim.selected_nodes.empty())) {
             ImGui::OpenPopupOnItemClick("Canvas-Context",
                                         ImGuiPopupFlags_MouseButtonRight);
         }
 
         if (is_hovered) {
-            if (not ed.graph_sim.run_selection and
+            if (not app.graph_sim.run_selection and
                 ImGui::IsMouseDown(ImGuiMouseButton_Left)) {
-                ed.graph_sim.run_selection   = true;
-                ed.graph_sim.start_selection = io.MousePos;
+                app.graph_sim.run_selection   = true;
+                app.graph_sim.start_selection = io.MousePos;
             }
 
-            if (ed.graph_sim.run_selection and
+            if (app.graph_sim.run_selection and
                 ImGui::IsMouseReleased(ImGuiMouseButton_Left)) {
-                ed.graph_sim.run_selection = false;
-                ed.graph_sim.end_selection = io.MousePos;
+                app.graph_sim.run_selection = false;
+                app.graph_sim.end_selection = io.MousePos;
 
-                if (ed.graph_sim.start_selection ==
-                    ed.graph_sim.end_selection) {
-                    ed.graph_sim.selected_nodes.clear();
+                if (app.graph_sim.start_selection ==
+                    app.graph_sim.end_selection) {
+                    app.graph_sim.selected_nodes.clear();
                 } else {
                     ImVec2 bmin{
-                        std::min(ed.graph_sim.start_selection.x,
-                                 ed.graph_sim.end_selection.x),
-                        std::min(ed.graph_sim.start_selection.y,
-                                 ed.graph_sim.end_selection.y),
+                        std::min(app.graph_sim.start_selection.x,
+                                 app.graph_sim.end_selection.x),
+                        std::min(app.graph_sim.start_selection.y,
+                                 app.graph_sim.end_selection.y),
                     };
 
                     ImVec2 bmax{
-                        std::max(ed.graph_sim.start_selection.x,
-                                 ed.graph_sim.end_selection.x),
-                        std::max(ed.graph_sim.start_selection.y,
-                                 ed.graph_sim.end_selection.y),
+                        std::max(app.graph_sim.start_selection.x,
+                                 app.graph_sim.end_selection.x),
+                        std::max(app.graph_sim.start_selection.y,
+                                 app.graph_sim.end_selection.y),
                     };
 
-                    ed.graph_sim.selected_nodes.clear();
+                    app.graph_sim.selected_nodes.clear();
 
                     for (const auto id : graph.g.nodes) {
                         const auto i = get_index(id);
 
                         ImVec2 p_min(origin.x + (graph.g.node_positions[i][0] *
-                                                 ed.graph_sim.zoom.x),
+                                                 app.graph_sim.zoom.x),
                                      origin.y + (graph.g.node_positions[i][1] *
-                                                 ed.graph_sim.zoom.y));
+                                                 app.graph_sim.zoom.y));
 
                         ImVec2 p_max(origin.x + ((graph.g.node_positions[i][0] +
                                                   graph.g.node_areas[i]) *
-                                                 ed.graph_sim.zoom.x),
+                                                 app.graph_sim.zoom.x),
                                      origin.y + ((graph.g.node_positions[i][1] +
                                                   graph.g.node_areas[i]) *
-                                                 ed.graph_sim.zoom.y));
+                                                 app.graph_sim.zoom.y));
 
                         if (p_min.x >= bmin.x and p_max.x < bmax.x and
                             p_min.y >= bmin.y and p_max.y < bmax.y) {
-                            ed.graph_sim.selected_nodes.emplace_back(id);
+                            app.graph_sim.selected_nodes.emplace_back(id);
                         }
                     }
 
@@ -328,21 +330,21 @@ struct graph_simulation_editor::impl {
                               origin.x +
                                 ((graph.g.node_positions[get_index(us)][0] +
                                   graph.g.node_areas[get_index(us)] / 2.f) *
-                                 ed.graph_sim.zoom.x),
+                                 app.graph_sim.zoom.x),
                               origin.y +
                                 ((graph.g.node_positions[get_index(us)][1] +
                                   graph.g.node_areas[get_index(vs)] / 2.f) *
-                                 ed.graph_sim.zoom.y));
+                                 app.graph_sim.zoom.y));
 
                             ImVec2 p2(
                               origin.x +
                                 ((graph.g.node_positions[get_index(vs)][0] +
                                   graph.g.node_areas[get_index(us)] / 2.f) *
-                                 ed.graph_sim.zoom.x),
+                                 app.graph_sim.zoom.x),
                               origin.y +
                                 ((graph.g.node_positions[get_index(vs)][1] +
                                   graph.g.node_areas[get_index(vs)] / 2.f) *
-                                 ed.graph_sim.zoom.y));
+                                 app.graph_sim.zoom.y));
                         }
                     }
                 }
@@ -352,14 +354,14 @@ struct graph_simulation_editor::impl {
         draw_list->PushClipRect(canvas_p0, canvas_p1, true);
         const float GRID_STEP = 64.0f;
 
-        for (float x = fmodf(ed.graph_sim.scrolling.x, GRID_STEP);
+        for (float x = fmodf(app.graph_sim.scrolling.x, GRID_STEP);
              x < canvas_sz.x;
              x += GRID_STEP)
             draw_list->AddLine(ImVec2(canvas_p0.x + x, canvas_p0.y),
                                ImVec2(canvas_p0.x + x, canvas_p1.y),
                                IM_COL32(200, 200, 200, 40));
 
-        for (float y = fmodf(ed.graph_sim.scrolling.y, GRID_STEP);
+        for (float y = fmodf(app.graph_sim.scrolling.y, GRID_STEP);
              y < canvas_sz.y;
              y += GRID_STEP)
             draw_list->AddLine(ImVec2(canvas_p0.x, canvas_p0.y + y),
@@ -370,35 +372,35 @@ struct graph_simulation_editor::impl {
             const auto i = get_index(id);
 
             const ImVec2 p_min(
-              origin.x + (graph.g.node_positions[i][0] * ed.graph_sim.zoom.x),
-              origin.y + (graph.g.node_positions[i][1] * ed.graph_sim.zoom.y));
+              origin.x + (graph.g.node_positions[i][0] * app.graph_sim.zoom.x),
+              origin.y + (graph.g.node_positions[i][1] * app.graph_sim.zoom.y));
 
             const ImVec2 p_max(
               origin.x +
                 ((graph.g.node_positions[i][0] + graph.g.node_areas[i]) *
-                 ed.graph_sim.zoom.x),
+                 app.graph_sim.zoom.x),
               origin.y +
                 ((graph.g.node_positions[i][1] + graph.g.node_areas[i]) *
-                 ed.graph_sim.zoom.y));
+                 app.graph_sim.zoom.y));
 
             draw_list->AddRectFilled(
               p_min, p_max, IM_COL32(255, 255, 255, 255));
         }
 
-        for (const auto id : ed.graph_sim.selected_nodes) {
+        for (const auto id : app.graph_sim.selected_nodes) {
             const auto i = get_index(id);
 
             ImVec2 p_min(
-              origin.x + (graph.g.node_positions[i][0] * ed.graph_sim.zoom.x),
-              origin.y + (graph.g.node_positions[i][1] * ed.graph_sim.zoom.y));
+              origin.x + (graph.g.node_positions[i][0] * app.graph_sim.zoom.x),
+              origin.y + (graph.g.node_positions[i][1] * app.graph_sim.zoom.y));
 
             ImVec2 p_max(
               origin.x +
                 ((graph.g.node_positions[i][0] + graph.g.node_areas[i]) *
-                 ed.graph_sim.zoom.x),
+                 app.graph_sim.zoom.x),
               origin.y +
                 ((graph.g.node_positions[i][1] + graph.g.node_areas[i]) *
-                 ed.graph_sim.zoom.y));
+                 app.graph_sim.zoom.y));
 
             draw_list->AddRect(
               p_min, p_max, IM_COL32(255, 255, 255, 255), 0.f, 0, 4.f);
@@ -423,33 +425,33 @@ struct graph_simulation_editor::impl {
 
             ImVec2 src(
               origin.x + ((graph.g.node_positions[p_src][0] + u_width) *
-                          ed.graph_sim.zoom.x),
+                          app.graph_sim.zoom.x),
               origin.y + ((graph.g.node_positions[p_src][1] + u_height) *
-                          ed.graph_sim.zoom.y));
+                          app.graph_sim.zoom.y));
 
             ImVec2 dst(
               origin.x + ((graph.g.node_positions[p_dst][0] + v_width) *
-                          ed.graph_sim.zoom.x),
+                          app.graph_sim.zoom.x),
               origin.y + ((graph.g.node_positions[p_dst][1] + v_height) *
-                          ed.graph_sim.zoom.y));
+                          app.graph_sim.zoom.y));
 
             draw_list->AddLine(src, dst, IM_COL32(255, 255, 0, 255), 1.f);
         }
 
-        if (ed.graph_sim.run_selection) {
-            ed.graph_sim.end_selection = io.MousePos;
+        if (app.graph_sim.run_selection) {
+            app.graph_sim.end_selection = io.MousePos;
 
-            if (ed.graph_sim.start_selection == ed.graph_sim.end_selection) {
-                ed.graph_sim.selected_nodes.clear();
+            if (app.graph_sim.start_selection == app.graph_sim.end_selection) {
+                app.graph_sim.selected_nodes.clear();
             } else {
                 ImVec2 bmin{
-                    std::min(ed.graph_sim.start_selection.x, io.MousePos.x),
-                    std::min(ed.graph_sim.start_selection.y, io.MousePos.y),
+                    std::min(app.graph_sim.start_selection.x, io.MousePos.x),
+                    std::min(app.graph_sim.start_selection.y, io.MousePos.y),
                 };
 
                 ImVec2 bmax{
-                    std::max(ed.graph_sim.start_selection.x, io.MousePos.x),
-                    std::max(ed.graph_sim.start_selection.y, io.MousePos.y),
+                    std::max(app.graph_sim.start_selection.x, io.MousePos.x),
+                    std::max(app.graph_sim.start_selection.y, io.MousePos.y),
                 };
 
                 draw_list->AddRectFilled(bmin, bmax, IM_COL32(200, 0, 0, 127));

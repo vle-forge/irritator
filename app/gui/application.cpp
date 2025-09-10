@@ -317,6 +317,11 @@ application::application(journal_handler& jn_) noexcept
   , mod{ jn_ }
   , jn{ jn_ }
   , pjs(16)
+  , grids{ 16 }
+  , graphs{ 16 }
+  , generics{ 16 }
+  , hsms{ 16 }
+  , copy_obs{ 16 }
 {
     settings_wnd.apply_style(config.theme);
 
@@ -996,8 +1001,7 @@ void application::start_init_source(const project_id          pj_id,
                 if (auto* c = sim_ed->pj.sim.srcs.constant_sources.try_to_get(
                       enum_cast<constant_source_id>(id))) {
                     (void)c->init();
-                    sim_ed->data_ed.fill_plot(
-                      std::span(c->buffer.data(), c->length));
+                    data_ed.fill_plot(std::span(c->buffer.data(), c->length));
                 }
             } else {
                 const auto random_id = enum_cast<random_source_id>(id);
@@ -1012,7 +1016,7 @@ void application::start_init_source(const project_id          pj_id,
                     src.buffer = tmp;
                     (void)c->init(src);
 
-                    sim_ed->data_ed.fill_plot(src.buffer);
+                    data_ed.fill_plot(src.buffer);
                 }
             }
         }

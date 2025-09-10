@@ -45,13 +45,14 @@ void flat_simulation_editor::auto_fit_camera() noexcept
     scrolling = -top_left * zoom + space / 2.f;
 }
 
-bool flat_simulation_editor::display(application& app) noexcept
+bool flat_simulation_editor::display(application&    app,
+                                     project_editor& pj_ed) noexcept
 {
     const auto canvas_p0 = ImGui::GetCursorScreenPos();
     canvas_sz            = ImGui::GetContentRegionAvail();
 
     if (not is_ready.test_and_set()) {
-        rebuild(app);
+        rebuild(app, pj_ed);
         return false;
     }
 
@@ -153,7 +154,6 @@ bool flat_simulation_editor::display(application& app) noexcept
                 selected_nodes.clear();
 
                 data.try_read_only([&](const auto& d) {
-                    auto& pj_ed = container_of(this, &project_editor::flat_sim);
                     for (const auto& mdl : pj_ed.pj.sim.models) {
                         const auto mdl_id = pj_ed.pj.sim.models.get_id(mdl);
                         const auto i      = get_index(mdl_id);
@@ -195,8 +195,6 @@ bool flat_simulation_editor::display(application& app) noexcept
     }
 
     data.try_read_only([&](const auto& d) {
-        auto& pj_ed = container_of(this, &project_editor::flat_sim);
-
         if (d.positions.empty())
             return;
 
@@ -837,11 +835,10 @@ static void compute_rect(auto&            data,
     }
 }
 
-void flat_simulation_editor::compute_rects(application& app,
-                                           data_type&   d) noexcept
+void flat_simulation_editor::compute_rects(application&    app,
+                                           project_editor& pj_ed,
+                                           data_type&      d) noexcept
 {
-    auto& pj_ed = container_of(this, &project_editor::flat_sim);
-
     struct stack_elem {
         const tree_node* tn;
         bool             read_child   = false;
@@ -874,17 +871,17 @@ void flat_simulation_editor::compute_rects(application& app,
     }
 }
 
-void flat_simulation_editor::rebuild(application& app) noexcept
+void flat_simulation_editor::rebuild(application&    app,
+                                     project_editor& pj_ed) noexcept
 {
     app.add_gui_task([&]() {
         data.read_write([&](auto& d) {
-            auto&      pj_ed = container_of(this, &project_editor::flat_sim);
-            const auto mdls  = pj_ed.pj.sim.models.size();
-            const auto tns   = pj_ed.pj.tree_nodes.size();
+            const auto mdls = pj_ed.pj.sim.models.size();
+            const auto tns  = pj_ed.pj.tree_nodes.size();
 
             clear(d, mdls, tns);
 
-            compute_rects(app, d);
+            compute_rects(app, pj_ed, d);
             compute_colors(d, pj_ed.pj.tree_nodes);
 
             rect_bound bound;

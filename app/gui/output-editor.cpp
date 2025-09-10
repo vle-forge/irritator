@@ -55,7 +55,7 @@ static void show_observers_table(application& app, project_editor& ed) noexcept
                   enum_cast<variable_observer::type_options>(plot_type);
 
             ImGui::TableNextColumn();
-            const bool can_copy = ed.copy_obs.can_alloc(1);
+            const bool can_copy = app.copy_obs.can_alloc(1);
             ImGui::BeginDisabled(!can_copy);
             if (ImGui::Button("copy"))
                 to_copy = id;
@@ -74,7 +74,7 @@ static void show_observers_table(application& app, project_editor& ed) noexcept
             const auto obs_id = vobs.get_obs_ids()[get_index(*to_copy)];
             const auto obs    = ed.pj.sim.observers.try_to_get(obs_id);
 
-            auto& new_obs = ed.copy_obs.alloc();
+            auto& new_obs = app.copy_obs.alloc();
             new_obs.name  = vobs.get_names()[get_index(*to_copy)].sv();
 
             obs->linearized_buffer.read_only([&new_obs](auto& lbuf) noexcept {
@@ -84,12 +84,12 @@ static void show_observers_table(application& app, project_editor& ed) noexcept
     }
 }
 
-static void show_copy_table(application& app, project_editor& ed) noexcept
+static void show_copy_table(application& app) noexcept
 {
     auto to_del = std::optional<plot_copy_id>();
 
-    for (auto& copy : ed.copy_obs) {
-        const auto id = ed.copy_obs.get_id(copy);
+    for (auto& copy : app.copy_obs) {
+        const auto id = app.copy_obs.get_id(copy);
 
         ImGui::PushID(&copy);
         ImGui::TableNextRow();
@@ -126,7 +126,7 @@ static void show_copy_table(application& app, project_editor& ed) noexcept
     }
 
     if (to_del.has_value())
-        ed.copy_obs.free(*to_del);
+        app.copy_obs.free(*to_del);
 }
 
 static void show_observation_table(application& app) noexcept
@@ -152,7 +152,7 @@ static void show_observation_table(application& app) noexcept
             const auto id = app.pjs.get_id(pj);
             ImGui::PushID(get_index(id));
             show_observers_table(app, pj);
-            show_copy_table(app, pj);
+            show_copy_table(app);
             ImGui::PopID();
         }
 
@@ -222,11 +222,10 @@ static void write(std::ofstream& ofs, const plot_copy& p) noexcept
 }
 
 static void write(application&       app,
-                  project_editor&    ed,
                   std::ofstream&     ofs,
                   const plot_copy_id id) noexcept
 {
-    if (auto* p = ed.copy_obs.try_to_get(id); p)
+    if (auto* p = app.copy_obs.try_to_get(id); p)
         write(ofs, *p);
     else
         app.jn.push(log_level::error, [](auto& title, auto& msg) noexcept {
@@ -236,12 +235,11 @@ static void write(application&       app,
 }
 
 static void write(application&                 app,
-                  project_editor&              ed,
                   const std::filesystem::path& file_path,
                   const plot_copy_id           id) noexcept
 {
     if (auto ofs = std::ofstream{ file_path }; ofs.is_open())
-        write(app, ed, ofs, id);
+        write(app, ofs, id);
     else
         app.jn.push(log_level::error, [&](auto& title, auto& msg) noexcept {
             title = "Output editor";
@@ -304,20 +302,18 @@ void output_editor::show() noexcept
 
                         if (vobs.get_options()[idx] !=
                             variable_observer::type_options::none)
-                            pj.plot_obs.show_plot_line(*obs,
-                                                       vobs.get_options()[idx],
-                                                       vobs.get_names()[idx]);
+                            app.plot_obs.show_plot_line(*obs,
+                                                        vobs.get_options()[idx],
+                                                        vobs.get_names()[idx]);
                     });
                 }
 
                 ImGui::PopID();
             }
 
-            for (auto& pj : app.pjs) {
-                for (auto& p : pj.copy_obs)
-                    if (p.plot_type != simulation_plot_type::none)
-                        pj.plot_copy_wgt.show_plot_line(p);
-            }
+            for (auto& p : app.copy_obs)
+                if (p.plot_type != simulation_plot_type::none)
+                    app.plot_copy_wgt.show_plot_line(p);
 
             ImPlot::PopStyleVar(2);
             ImPlot::EndPlot();
@@ -337,7 +333,7 @@ void output_editor::show() noexcept
                 m_file = app.f_dialog.result;
                 if (m_need_save == save_option::copy) {
                     if (auto* pj = app.pjs.try_to_get(m_pj_id); pj)
-                        write(app, *pj, m_file, m_copy_id);
+                        write(app, m_file, m_copy_id);
                 } else if (m_need_save == save_option::obs) {
                     if (auto* pj = app.pjs.try_to_get(m_pj_id); pj)
                         write(app, pj->pj, m_file, m_vobs_id, m_sub_id);

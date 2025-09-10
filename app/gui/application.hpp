@@ -244,8 +244,7 @@ class graph_observation_widget
 {
 public:
     //! Display the values vector using the ImGui::PlotHeatMap function.
-    void show(application&    app,
-              project_editor& ed,
+    void show(project_editor& ed,
               graph_observer& graph,
               const ImVec2&   size) noexcept;
 
@@ -540,6 +539,7 @@ public:
      * @param gen The generic_component in the compo.
      */
     void init(application&       app,
+              project_editor&    pj_ed,
               const tree_node&   tn,
               component&         compo,
               generic_component& gen) noexcept;
@@ -553,7 +553,7 @@ public:
      *
      *  @param app Application to use thread task manager and log.
      */
-    void init(application& app) noexcept;
+    void init(application& app, project_editor& pj_ed) noexcept;
 
     /**
      * Add a rebuild @c nodes and @c links vectors task according to the current
@@ -561,9 +561,9 @@ public:
      *
      * @param app Application to use thread task manager and log.
      */
-    void reinit(application& app) noexcept;
+    void reinit(application& app, project_editor& pj_ed) noexcept;
 
-    bool display(application& app) noexcept;
+    bool display(application& app, project_editor& pj_ed) noexcept;
 
     struct link {
         int out     = 0; /**<  use get_model_output_port/make_output_node_id. */
@@ -609,11 +609,13 @@ private:
     bool rebuild_wip = false; /**< @ true, a rebuild order is in work in
                                  progress. No other rebuild can occured. */
 
-    void start_rebuild_task(application& app) noexcept;
-    void show_nodes(application& app) noexcept;
+    void start_rebuild_task(application& app, project_editor& pj_ed) noexcept;
+    void show_nodes(application& app, project_editor& pj_ed) noexcept;
     void show_links() noexcept;
     void compute_automatic_layout() noexcept;
-    int  show_menu(application& app, const ImVec2 click_pos) noexcept;
+    int  show_menu(application&    app,
+                   project_editor& pj_ed,
+                   const ImVec2    click_pos) noexcept;
 
     spin_mutex mutex;
 };
@@ -628,7 +630,7 @@ public:
         use_bezier,
     };
 
-    bool display(application& app) noexcept;
+    bool display(application& app, project_editor& pj_ed) noexcept;
     void display_status() noexcept;
 
     void reset() noexcept;
@@ -648,8 +650,10 @@ private:
     void center_camera() noexcept;
     void auto_fit_camera() noexcept;
 
-    void compute_rects(application& app, data_type& d) noexcept;
-    void rebuild(application& app) noexcept;
+    void compute_rects(application&    app,
+                       project_editor& pj_ed,
+                       data_type&      d) noexcept;
+    void rebuild(application& app, project_editor& pj_ed) noexcept;
 
     locker_2<data_type> data;
 
@@ -745,7 +749,7 @@ public:
     project_external_source_editor() noexcept;
     ~project_external_source_editor() noexcept;
 
-    void show(application& app) noexcept;
+    void show(application& app, project_editor& pj) noexcept;
 
     struct selection {
         void clear() noexcept;
@@ -962,19 +966,6 @@ struct project_editor {
 
     std::atomic<simulation_status> simulation_state =
       simulation_status::not_started;
-    data_array<plot_copy, plot_copy_id> copy_obs;
-
-    plot_observation_widget  plot_obs;
-    grid_observation_widget  grid_obs;
-    graph_observation_widget graph_obs;
-
-    plot_copy_widget plot_copy_wgt;
-
-    flat_simulation_editor    flat_sim;
-    generic_simulation_editor generic_sim;
-    grid_simulation_editor    grid_sim;
-    graph_simulation_editor   graph_sim;
-    hsm_simulation_editor     hsm_sim;
 
     ImPlotContext* output_context = nullptr;
 
@@ -998,8 +989,6 @@ struct project_editor {
     tree_node_id selected_tn() noexcept;
 
     tree_node_id m_selected_tree_node = undefined<tree_node_id>();
-
-    project_external_source_editor data_ed;
 
     /// For each simulation, and according to the @a save_simulation_raw_data,
     /// an output stream to store all model state during simulation.
@@ -1046,30 +1035,10 @@ public:
     bool is_component_open(const component_id id) const noexcept;
 
     template<typename IdentifierType>
-    auto try_to_get(const IdentifierType id) noexcept
-    {
-        if constexpr (std::is_same_v<IdentifierType, grid_editor_data_id>)
-            return grids.try_to_get(id);
-        if constexpr (std::is_same_v<IdentifierType, graph_editor_data_id>)
-            return graphs.try_to_get(id);
-        if constexpr (std::is_same_v<IdentifierType, generic_editor_data_id>)
-            return generics.try_to_get(id);
-        if constexpr (std::is_same_v<IdentifierType, hsm_editor_data_id>)
-            return hsms.try_to_get(id);
-    }
+    auto try_to_get(const IdentifierType id) noexcept;
 
     template<typename T>
-    auto get_id(const T& elem) const noexcept
-    {
-        if constexpr (std::is_same_v<T, grid_component_editor_data>)
-            return grids.get_id(elem);
-        if constexpr (std::is_same_v<T, graph_component_editor_data>)
-            return graphs.get_id(elem);
-        if constexpr (std::is_same_v<T, generic_component_editor_data>)
-            return generics.get_id(elem);
-        if constexpr (std::is_same_v<T, hsm_component_editor_data>)
-            return hsms.get_id(elem);
-    }
+    auto get_id(const T& elem) const noexcept;
 
     struct tab {
         component_id   id;
@@ -1087,11 +1056,6 @@ private:
     struct impl;
 
     enum { tabitem_open_save, tabitem_open_in_out };
-
-    data_array<grid_component_editor_data, grid_editor_data_id>       grids;
-    data_array<graph_component_editor_data, graph_editor_data_id>     graphs;
-    data_array<generic_component_editor_data, generic_editor_data_id> generics;
-    data_array<hsm_component_editor_data, hsm_editor_data_id>         hsms;
 
     /// List of tabulation opened in the @a ImGui::BeginTabBar.
     vector<tab> tabs;
@@ -1374,6 +1338,26 @@ public:
 
     simulation_to_cpp sim_to_cpp;
 
+    data_array<grid_component_editor_data, grid_editor_data_id>       grids;
+    data_array<graph_component_editor_data, graph_editor_data_id>     graphs;
+    data_array<generic_component_editor_data, generic_editor_data_id> generics;
+    data_array<hsm_component_editor_data, hsm_editor_data_id>         hsms;
+
+    data_array<plot_copy, plot_copy_id> copy_obs;
+
+    plot_observation_widget  plot_obs;
+    grid_observation_widget  grid_obs;
+    graph_observation_widget graph_obs;
+
+    plot_copy_widget plot_copy_wgt;
+
+    flat_simulation_editor         flat_sim;
+    generic_simulation_editor      generic_sim;
+    grid_simulation_editor         grid_sim;
+    graph_simulation_editor        graph_sim;
+    hsm_simulation_editor          hsm_sim;
+    project_external_source_editor data_ed;
+
     notification_manager notifications;
 
     /**
@@ -1534,6 +1518,36 @@ inline bool project_editor::is_simulation_running() const noexcept
 inline tree_node_id project_editor::selected_tn() noexcept
 {
     return m_selected_tree_node;
+}
+
+template<typename IdentifierType>
+auto component_editor::try_to_get(const IdentifierType id) noexcept
+{
+    auto& app = container_of(this, &application::component_ed);
+
+    if constexpr (std::is_same_v<IdentifierType, grid_editor_data_id>)
+        return app.grids.try_to_get(id);
+    if constexpr (std::is_same_v<IdentifierType, graph_editor_data_id>)
+        return app.graphs.try_to_get(id);
+    if constexpr (std::is_same_v<IdentifierType, generic_editor_data_id>)
+        return app.generics.try_to_get(id);
+    if constexpr (std::is_same_v<IdentifierType, hsm_editor_data_id>)
+        return app.hsms.try_to_get(id);
+}
+
+template<typename T>
+auto component_editor::get_id(const T& elem) const noexcept
+{
+    auto& app = container_of(this, &application::component_ed);
+
+    if constexpr (std::is_same_v<T, grid_component_editor_data>)
+        return app.grids.get_id(elem);
+    if constexpr (std::is_same_v<T, graph_component_editor_data>)
+        return app.graphs.get_id(elem);
+    if constexpr (std::is_same_v<T, generic_component_editor_data>)
+        return app.generics.get_id(elem);
+    if constexpr (std::is_same_v<T, hsm_component_editor_data>)
+        return app.hsms.get_id(elem);
 }
 
 } // namespace irt

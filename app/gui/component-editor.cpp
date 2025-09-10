@@ -2132,35 +2132,33 @@ struct component_editor::impl {
 
             switch (it->type) {
             case component_type::generic:
-                if (display_component_editor(app,
-                                             app.component_ed.generics,
-                                             it->data.generic,
-                                             it->id)) {
-                    app.component_ed.generics.free(it->data.generic);
+                if (display_component_editor(
+                      app, app.generics, it->data.generic, it->id)) {
+                    app.generics.free(it->data.generic);
                     to_del = true;
                 }
                 break;
 
             case component_type::grid:
                 if (display_component_editor(
-                      app, app.component_ed.grids, it->data.grid, it->id)) {
-                    app.component_ed.grids.free(it->data.grid);
+                      app, app.grids, it->data.grid, it->id)) {
+                    app.grids.free(it->data.grid);
                     to_del = true;
                 }
                 break;
 
             case component_type::graph:
                 if (display_component_editor(
-                      app, app.component_ed.graphs, it->data.graph, it->id)) {
-                    app.component_ed.graphs.free(it->data.graph);
+                      app, app.graphs, it->data.graph, it->id)) {
+                    app.graphs.free(it->data.graph);
                     to_del = true;
                 }
                 break;
 
             case component_type::hsm:
                 if (display_component_editor(
-                      app, app.component_ed.hsms, it->data.hsm, it->id)) {
-                    app.component_ed.hsms.free(it->data.hsm);
+                      app, app.hsms, it->data.hsm, it->id)) {
+                    app.hsms.free(it->data.hsm);
                     to_del = true;
                 }
                 break;
@@ -2179,11 +2177,7 @@ struct component_editor::impl {
 };
 
 component_editor::component_editor() noexcept
-  : grids(16)
-  , graphs(16)
-  , generics(16)
-  , hsms(16)
-  , tabs(32, reserve_tag)
+  : tabs(32, reserve_tag)
 {}
 
 void component_editor::display() noexcept
@@ -2215,22 +2209,24 @@ static auto find_in_tabs(const vector<component_editor::tab>& v,
 
 void component_editor::close(const component_id id) noexcept
 {
+    auto& app = container_of(this, &application::component_ed);
+
     if (auto it = find_in_tabs(tabs, id); it != tabs.end()) {
         switch (it->type) {
         case component_type::generic:
-            generics.free(it->data.generic);
+            app.generics.free(it->data.generic);
             break;
 
         case component_type::grid:
-            grids.free(it->data.grid);
+            app.grids.free(it->data.grid);
             break;
 
         case component_type::graph:
-            graphs.free(it->data.graph);
+            app.graphs.free(it->data.graph);
             break;
 
         case component_type::hsm:
-            hsms.free(it->data.hsm);
+            app.hsms.free(it->data.hsm);
             break;
 
         default:
@@ -2254,51 +2250,51 @@ void component_editor::request_to_open(const component_id id) noexcept
 
         switch (compo.type) {
         case component_type::generic:
-            if (generics.can_alloc(1)) {
+            if (app.generics.can_alloc(1)) {
                 tabs.push_back(component_editor::tab{
                   .id   = id,
                   .type = component_type::generic,
-                  .data{ .generic = generics.get_id(
-                           generics.alloc(id,
-                                          compo,
-                                          compo.id.generic_id,
-                                          app.mod.generic_components.get(
-                                            compo.id.generic_id))) } });
+                  .data{ .generic = app.generics.get_id(
+                           app.generics.alloc(id,
+                                              compo,
+                                              compo.id.generic_id,
+                                              app.mod.generic_components.get(
+                                                compo.id.generic_id))) } });
                 m_request_to_open = id;
             } else
                 app.jn.push(log_level::error, log_not_enough_memory);
             break;
 
         case component_type::grid:
-            if (grids.can_alloc(1)) {
+            if (app.grids.can_alloc(1)) {
                 tabs.push_back(component_editor::tab{
                   .id   = id,
                   .type = component_type::grid,
-                  .data{ .grid =
-                           grids.get_id(grids.alloc(id, compo.id.grid_id)) } });
+                  .data{ .grid = app.grids.get_id(
+                           app.grids.alloc(id, compo.id.grid_id)) } });
                 m_request_to_open = id;
             } else
                 app.jn.push(log_level::error, log_not_enough_memory);
             break;
 
         case component_type::graph:
-            if (graphs.can_alloc(1)) {
+            if (app.graphs.can_alloc(1)) {
                 tabs.push_back(component_editor::tab{
                   .id   = id,
                   .type = component_type::graph,
-                  .data{ .graph = graphs.get_id(
-                           graphs.alloc(id, compo.id.graph_id)) } });
+                  .data{ .graph = app.graphs.get_id(
+                           app.graphs.alloc(id, compo.id.graph_id)) } });
                 m_request_to_open = id;
             } else
                 app.jn.push(log_level::error, log_not_enough_memory);
             break;
 
         case component_type::hsm:
-            if (hsms.can_alloc(1)) {
+            if (app.hsms.can_alloc(1)) {
                 tabs.push_back(component_editor::tab{
                   .id   = id,
                   .type = component_type::hsm,
-                  .data{ .hsm = hsms.get_id(hsms.alloc(
+                  .data{ .hsm = app.hsms.get_id(app.hsms.alloc(
                            id,
                            compo.id.hsm_id,
                            app.mod.hsm_components.get(compo.id.hsm_id))) } });

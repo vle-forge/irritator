@@ -37,7 +37,7 @@ static void plot(const plot_copy& p) noexcept
 
 void plot_copy_widget::show(const char* name) noexcept
 {
-    auto& sim_ed = container_of(this, &project_editor::plot_copy_wgt);
+    auto& app = container_of(this, &application::plot_copy_wgt);
 
     ImGui::PushID(this);
 
@@ -48,7 +48,7 @@ void plot_copy_widget::show(const char* name) noexcept
         ImPlot::SetupAxes(
           nullptr, nullptr, ImPlotAxisFlags_AutoFit, ImPlotAxisFlags_AutoFit);
 
-        for_each_data(sim_ed.copy_obs,
+        for_each_data(app.copy_obs,
                       [&](auto& plot_copy) noexcept { plot(plot_copy); });
 
         ImPlot::PopStyleVar(2);

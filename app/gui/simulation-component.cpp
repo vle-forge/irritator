@@ -631,7 +631,7 @@ void start_simulation_commands_apply(application& app, project_id id) noexcept
             }
 
             if (rebuild)
-                ed->generic_sim.reinit(app);
+                app.generic_sim.reinit(app, *ed);
         }
     });
 }
