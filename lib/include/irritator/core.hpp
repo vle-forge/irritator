@@ -825,12 +825,7 @@ struct observation {
     real y{};
 };
 
-enum class observer_flags : u8 {
-    buffer_full,
-    data_lost,
-    use_linear_buffer,
-    Count
-};
+enum class observer_flags : u8 { buffer_full, data_lost, use_linear_buffer };
 
 //! How to use @c observation_message and interpolate functions.
 enum class interpolate_type : u8 {
@@ -3228,12 +3223,7 @@ struct counter {
 struct generator {
     enum { x_value, x_t, x_add_tr, x_mult_tr };
 
-    enum class option : u8 {
-        none             = 0,
-        ta_use_source    = 1 << 0,
-        value_use_source = 1 << 1,
-        Count
-    };
+    enum class option : u8 { ta_use_source, value_use_source };
 
     message_id    x[4] = {};
     block_node_id y[1] = {};
@@ -3832,10 +3822,7 @@ public:
     constexpr static int condition_type_count = 9;
 
     enum class option : u8 {
-        none       = 0,
-        use_source = 1 << 0, /**< HSM can use external data in the
-                               action part. */
-        Count
+        use_source, /**< HSM can use external data in the action part. */
     };
 
     enum class event_type : u8 {

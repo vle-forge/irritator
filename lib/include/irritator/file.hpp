@@ -18,12 +18,11 @@ namespace irt {
  * - write, Create a file for writing, destroy contents.
  * - append, Append to a file, write to end.
  */
-enum class buffered_file_mode {
-    text_or_binary = 0,      //!< Binary or text file mode.
-    read           = 1 << 0, //!< Open a file for reading, read from start.
-    write          = 1 << 1, //!< Create a file for writing, destroy contents.
-    append         = 1 << 2, //!< Append to a file, write to end.
-    Count
+enum class buffered_file_mode : u8 {
+    text_or_binary, //!< Binary or text file mode.
+    read,           //!< Open a file for reading, read from start.
+    write,          //!< Create a file for writing, destroy contents.
+    append,         //!< Append to a file, write to end.
 };
 
 namespace details {

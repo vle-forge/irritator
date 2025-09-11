@@ -134,10 +134,8 @@ class grid_observer;
 class graph_observer;
 
 enum class child_flags : u8 {
-    none         = 0,
-    configurable = 1 << 0,
-    observable   = 1 << 1,
-    Count
+    configurable,
+    observable,
 };
 
 struct position {
@@ -266,7 +264,7 @@ public:
         } id;
 
         child_type            type{ child_type::model };
-        bitflags<child_flags> flags{ child_flags::none };
+        bitflags<child_flags> flags;
     };
 
     struct input_connection {
@@ -416,7 +414,7 @@ public:
         i32          row = 0;
         i32          col = 0;
 
-        bitflags<child_flags> flags{ child_flags::none };
+        bitflags<child_flags> flags;
     };
 
     enum class type : i8 {
@@ -592,7 +590,10 @@ class graph
 public:
     using edge = std::pair<graph_node_id, std::string_view>;
 
-    enum class option_flags { strict = 1, directed = 2, Count };
+    enum class option_flags : u8 {
+        strict,
+        directed,
+    };
 
     graph() noexcept = default;
 
@@ -711,7 +712,7 @@ public:
         component_id  compo_id;
         graph_node_id node_id;
 
-        bitflags<child_flags> flags{ child_flags::none };
+        bitflags<child_flags> flags;
     };
 
     struct input_connection {
@@ -984,10 +985,8 @@ struct registred_path {
     };
 
     enum class reg_flags : u8 {
-        none         = 0,
-        access_error = 1 << 1,
-        read_only    = 1 << 2,
-        Count,
+        access_error,
+        read_only,
     };
 
     /**
@@ -1016,7 +1015,7 @@ struct registred_path {
     vector<dir_path_id> children;
 
     state               status = state::unread;
-    bitflags<reg_flags> flags{ reg_flags::none };
+    bitflags<reg_flags> flags;
     i8                  priority = 0;
     spin_mutex          mutex;
 };
@@ -1032,11 +1031,9 @@ struct dir_path {
     };
 
     enum class dir_flags : u8 {
-        none          = 0,
-        too_many_file = 1 << 0,
-        access_error  = 1 << 1,
-        read_only     = 1 << 2,
-        Count,
+        too_many_file,
+        access_error,
+        read_only,
     };
 
     directory_path_str   path; /**< stores a directory name in utf8. */
@@ -1044,7 +1041,7 @@ struct dir_path {
     vector<file_path_id> children;
 
     state               status = state::unread;
-    bitflags<dir_flags> flags{ dir_flags::none };
+    bitflags<dir_flags> flags;
     spin_mutex          mutex;
 
     /**
@@ -1066,10 +1063,8 @@ struct file_path {
     };
 
     enum class file_flags : u8 {
-        none         = 0,
-        access_error = 1 << 1,
-        read_only    = 1 << 2,
-        Count,
+        access_error,
+        read_only,
     };
 
     enum class file_type {
@@ -1086,7 +1081,7 @@ struct file_path {
 
     file_type            type{ file_type::undefined_file };
     state                status = state::unread;
-    bitflags<file_flags> flags{ file_flags::none };
+    bitflags<file_flags> flags;
     spin_mutex           mutex;
 };
 

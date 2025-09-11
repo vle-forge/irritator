@@ -351,6 +351,27 @@ int main()
         }
     };
 
+    "bitflags"_test = [] {
+        enum class test_1 : std::uint8_t { a, b, c, d, e, f };
+
+        using flags_1 = irt::bitflags<test_1>;
+
+        flags_1 f(0b110101u);
+
+        expect(eq(f.all(), false));
+        expect(eq(f.any(), true));
+        expect(eq(f.none(), false));
+        expect(eq(f.count(), 4u));
+        expect(eq(f.size(),
+                  irt::to_unsigned(std::numeric_limits<std::uint8_t>::digits)));
+        expect(eq(f[test_1::a], true));
+        expect(eq(f[test_1::b], false));
+        expect(eq(f[test_1::c], true));
+        expect(eq(f[test_1::d], false));
+        expect(eq(f[test_1::e], true));
+        expect(eq(f[test_1::f], true));
+    };
+
     "small-function-1"_test = [] {
         double o = 15.0, p = 2.0, uu = 10.0;
 

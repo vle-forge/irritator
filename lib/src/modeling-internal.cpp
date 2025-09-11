@@ -7,11 +7,11 @@
 namespace irt {
 
 template<typename Dynamics>
-static child_id alloc(modeling&              mod,
-                      generic_component&     parent,
-                      const std::string_view name = {},
-                      bitflags<child_flags>  param =
-                        bitflags<child_flags>(child_flags::none)) noexcept
+static child_id alloc(
+  modeling&              mod,
+  generic_component&     parent,
+  const std::string_view name  = {},
+  bitflags<child_flags>  param = bitflags<child_flags>{}) noexcept
 {
     auto&      child = mod.alloc(parent, dynamics_typeof<Dynamics>());
     const auto id    = parent.children.get_id(child);
@@ -217,6 +217,7 @@ template<int QssLevel>
 status add_lif(modeling& mod, component& dst, generic_component& com) noexcept
 {
     using namespace irt::literals;
+
     static_assert(1 <= QssLevel && QssLevel <= 3, "Only for Qss1, 2 and 3");
 
     if (!com.children.can_alloc(5))

@@ -2622,10 +2622,18 @@ class bitflags
     static_assert(std::is_enum_v<EnumT>,
                   "irt::flags can only be used with enum types");
 
+    static_assert(
+      std::is_unsigned_v<std::underlying_type_t<EnumT>>,
+      "irt::flags can only be used with enum types with unsigned integer type");
+
 public:
-    using value_type      = EnumT;
+    using value_type = EnumT;
+
     using underlying_type = typename std::make_unsigned_t<
       typename std::underlying_type_t<value_type>>;
+
+    constexpr static inline std::size_t max_bits =
+      std::numeric_limits<underlying_type>::digits;
 
     constexpr bitflags() noexcept = default;
     explicit constexpr bitflags(unsigned long long val) noexcept;
@@ -2647,9 +2655,7 @@ public:
     constexpr bool operator[](value_type e) const;
 
 private:
-    static constexpr underlying_type underlying(value_type e) noexcept;
-
-    std::bitset<underlying(value_type::Count)> m_bits;
+    std::bitset<max_bits> m_bits;
 };
 
 // template<typename Identifier, typename A>
@@ -6818,7 +6824,7 @@ template<typename EnumT>
 constexpr bitflags<EnumT>& bitflags<EnumT>::set(value_type e,
                                                 bool       value) noexcept
 {
-    m_bits.set(underlying(e), value);
+    m_bits.set(static_cast<underlying_type>(e), value);
     return *this;
 }
 
@@ -6875,14 +6881,7 @@ std::size_t bitflags<EnumT>::to_unsigned() const noexcept
 template<typename EnumT>
 constexpr bool bitflags<EnumT>::operator[](value_type e) const
 {
-    return m_bits[underlying(e)];
-}
-
-template<typename EnumT>
-constexpr typename bitflags<EnumT>::underlying_type bitflags<EnumT>::underlying(
-  value_type e) noexcept
-{
-    return static_cast<typename bitflags<EnumT>::underlying_type>(e);
+    return m_bits[static_cast<underlying_type>(e)];
 }
 
 /**

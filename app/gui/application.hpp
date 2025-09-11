@@ -626,7 +626,6 @@ public:
         camera_auto_fit,
         use_grid,
         use_bezier,
-        Count
     };
 
     bool display(application& app) noexcept;
@@ -697,7 +696,7 @@ public:
 class graph_simulation_editor
 {
 public:
-    enum class action { camera_center, camera_auto_fit, Count };
+    enum class action : u8 { camera_center, camera_auto_fit };
 
     bool display(application&     app,
                  project_editor&  ed,
