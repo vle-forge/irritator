@@ -40,6 +40,8 @@ enum class graph_editor_data_id : u32;
 enum class generic_editor_data_id : u32;
 enum class hsm_editor_data_id : u32;
 
+enum class graph_editor_id : u32;
+
 enum class project_id : u32;
 
 enum class task_status { not_started, started, finished };
@@ -308,6 +310,108 @@ private:
     variable_observer::sub_id m_sub_id = undefined<variable_observer::sub_id>();
 
     enum class save_option { none, copy, obs } m_need_save = save_option::none;
+};
+
+/** A class shared between modeling, simulation and observation layer.
+ *
+ * The @c graph_editor use a ImGui::BeginChild()/ImGui::EndChild() to display to
+ * display the graph.
+ */
+class graph_editor
+{
+public:
+    constexpr static inline auto selection_buffer_size = 128u;
+
+    enum class show_result_type {
+        none,            //!< No change - No close.
+        edited,          //!< Component is changed - Update state.
+        request_to_close //!< The window must be closed.
+    };
+
+    enum class option : u16 {
+        show_grid,
+        allow_graph_edit,
+        allow_selection,
+        allow_moving,
+        allow_zooming,
+        allow_scrolling,
+        read_only,
+        auto_fit_on_update,
+        allow_new_node,
+    };
+
+    graph_editor() noexcept;
+
+    show_result_type show(application&     app,
+                          component&       c,
+                          graph_component& g) noexcept;
+
+    show_result_type show(application&    app,
+                          project_editor& ed,
+                          tree_node&      tn,
+                          graph_observer& obs) noexcept;
+
+    /** Thread-safe Copy and apply transformation of the graph @c g. A @c job
+     * performs the task in a thread-safe way. Do not delete the @c g until the
+     * job. */
+    void update(application& app, const graph& g) noexcept;
+
+private:
+    name_str name;
+
+    /**< Top left corner position in canvas. */
+    ImVec2 scrolling       = { 0, 0 };
+    ImVec2 canvas_sz       = { 0, 0 };
+    ImVec2 start_selection = { 0, 0 };
+    ImVec2 end_selection   = { 0, 0 };
+
+    struct data_type {
+        /** Each node stores the projection in 2D position @c (x,y) from the @c
+         * graph node position 3D @c (x,y,z). */
+        vector<std::array<float, 2>> nodes;
+
+        std::array<float, 3> top_left;
+        std::array<float, 3> bottom_right;
+        std::array<float, 3> center;
+    };
+
+    locker_2<data_type> nodes_locker;
+
+    vector<graph_node_id> selected_nodes;
+    vector<graph_edge_id> selected_edges;
+
+    graph_id g = undefined<graph_id>();
+
+    float zoom      = { 1 };
+    float grid_step = { 64 };
+
+    bitflags<option> flags;
+
+    bool run_selection = false;
+    bool dock_init     = false;
+
+    void auto_fit_camera() noexcept;
+    void center_camera() noexcept;
+    void reset_camera() noexcept;
+
+    void initialize_canvas(ImVec2 top_left,
+                           ImVec2 bottom_right,
+                           ImU32  color) noexcept;
+    void draw_grid(ImVec2 top_left, ImVec2 bottom_right, ImU32 color) noexcept;
+    void draw_graph(const graph&          g,
+                    ImVec2                top_left,
+                    ImU32                 color,
+                    const graph_observer& obs) noexcept;
+    void draw_graph(const graph& g,
+                    ImVec2       top_left,
+                    ImU32        color,
+                    application& app) noexcept;
+    void draw_popup(const application& app, graph& g, ImVec2 top_left) noexcept;
+    void draw_selection(const graph& g,
+                        ImVec2       top_left,
+                        ImU32        node_color,
+                        ImU32        edge_color,
+                        ImU32        background_selection_color) noexcept;
 };
 
 class grid_component_editor_data
@@ -882,6 +986,9 @@ struct project_editor {
      * try to close it. */
     show_result_t show(application& app) noexcept;
 
+    void display_subwindows(application& app) noexcept;
+    void close_subwindows(application& app) noexcept;
+
     void start_simulation_update_state(application& app) noexcept;
 
     void start_simulation_copy_modeling(application& app) noexcept;
@@ -993,6 +1100,14 @@ struct project_editor {
     /// For each simulation, and according to the @a save_simulation_raw_data,
     /// an output stream to store all model state during simulation.
     buffered_file raw_ofs;
+
+    struct visulation_editor {
+        graph_editor_id   graph_ed_id  = undefined<graph_editor_id>();
+        tree_node_id      tn_id        = undefined<tree_node_id>();
+        graph_observer_id graph_obs_id = undefined<graph_observer_id>();
+    };
+
+    vector<visulation_editor> visualisation_eds;
 };
 
 inline bool project_editor::can_edit() const noexcept
@@ -1342,6 +1457,8 @@ public:
     data_array<graph_component_editor_data, graph_editor_data_id>     graphs;
     data_array<generic_component_editor_data, generic_editor_data_id> generics;
     data_array<hsm_component_editor_data, hsm_editor_data_id>         hsms;
+
+    data_array<graph_editor, graph_editor_id> graph_eds;
 
     data_array<plot_copy, plot_copy_id> copy_obs;
 

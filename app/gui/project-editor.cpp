@@ -1260,4 +1260,38 @@ auto project_editor::show(application& app) noexcept -> show_result_t
     return is_open ? show_result_t::success : show_result_t::request_to_close;
 }
 
+void project_editor::display_subwindows(application& app) noexcept
+{
+    for (auto it = visualisation_eds.begin(); it != visualisation_eds.end();) {
+        auto del = true;
+
+        if (auto* ed = app.graph_eds.try_to_get(it->graph_ed_id)) {
+            if (auto* tn = pj.tree_nodes.try_to_get(it->tn_id)) {
+                if (auto* obs =
+                      pj.graph_observers.try_to_get(it->graph_obs_id)) {
+                    if (ed->show(app, *this, *tn, *obs) ==
+                        graph_editor::show_result_type::request_to_close) {
+                        app.graph_eds.free(*ed);
+                    } else
+                        del = false;
+                }
+            }
+        }
+
+        if (del) {
+            it = visualisation_eds.erase(it);
+        } else
+            ++it;
+    }
+}
+
+void project_editor::close_subwindows(application& app) noexcept
+{
+    for (auto it = visualisation_eds.begin(); it != visualisation_eds.end();)
+        if (auto* ed = app.graph_eds.try_to_get(it->graph_ed_id))
+            app.graph_eds.free(*ed);
+
+    visualisation_eds.clear();
+}
+
 } // namesapce irt

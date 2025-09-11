@@ -321,6 +321,7 @@ application::application(journal_handler& jn_) noexcept
   , graphs{ 16 }
   , generics{ 16 }
   , hsms{ 16 }
+  , graph_eds{ 16 }
   , copy_obs{ 16 }
 {
     settings_wnd.apply_style(config.theme);
@@ -368,9 +369,11 @@ std::optional<project_id> application::alloc_project_window() noexcept
 
 void application::free_project_window(const project_id id) noexcept
 {
-    if (auto* pj = pjs.try_to_get(id); pj) {
+    if (auto* pj = pjs.try_to_get(id)) {
         if (is_defined(pj->project_file))
             mod.registred_paths.free(pj->project_file);
+
+        pj->close_subwindows(*this);
     }
 
     pjs.free(id);
@@ -573,16 +576,27 @@ void application::show_dock() noexcept
     if (component_ed.is_open)
         component_ed.display();
 
-    project_editor* pj     = nullptr;
-    project_editor* to_del = nullptr;
-    while (pjs.next(pj)) {
-        pj->start_simulation_update_state(*this);
-        if (pj->show(*this) == project_editor::show_result_t::request_to_close)
-            to_del = pj;
-    }
+    {
+        project_editor* pj     = nullptr;
+        project_editor* to_del = nullptr;
+        while (pjs.next(pj)) {
+            if (to_del) {
+                free_project_window(pjs.get_id(*to_del));
+                to_del = nullptr;
+            }
 
-    if (to_del)
-        free_project_window(pjs.get_id(*to_del));
+            pj->start_simulation_update_state(*this);
+            if (pj->show(*this) ==
+                project_editor::show_result_t::request_to_close) {
+                to_del = pj;
+            } else {
+                pj->display_subwindows(*this);
+            }
+        }
+
+        if (to_del)
+            free_project_window(pjs.get_id(*to_del));
+    }
 
     if (output_ed.is_open)
         output_ed.show();

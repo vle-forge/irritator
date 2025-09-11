@@ -25,7 +25,7 @@ bool show_local_observers(application&    app,
                           project_editor& ed,
                           tree_node&      tn,
                           component& /*compo*/,
-                          graph_component& /*graph*/) noexcept
+                          graph_component& cgraph) noexcept
 {
     auto to_del      = std::optional<graph_observer_id>();
     bool is_modified = false;
@@ -88,6 +88,16 @@ bool show_local_observers(application&    app,
                                 graph->scale_max = 255.f;
                             }
                         }
+
+                        auto& graph_ed = app.graph_eds.alloc();
+                        ed.visualisation_eds.push_back(
+                          project_editor::visulation_editor{
+                            .graph_ed_id = app.graph_eds.get_id(graph_ed),
+                            .tn_id       = ed.pj.tree_nodes.get_id(tn),
+                            .graph_obs_id =
+                              ed.pj.graph_observers.get_id(*graph) });
+
+                        graph_ed.update(app, cgraph.g);
                     }
                 }
 
