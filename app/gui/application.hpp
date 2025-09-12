@@ -334,11 +334,13 @@ public:
 
     graph_editor() noexcept;
 
-    void show(application& app) noexcept;
+    bool show(application& app, component& c, graph_component& g) noexcept;
+    void show(application& app, project_editor& ed, tree_node& tn) noexcept;
 
-    /** Copy and apply transformation of the graph @c g. */
+    /** Thread-safe Copy and apply transformation of the graph @c g. A @c job
+     * performs the task in a thread-safe way. Do not delete the @c g until the
+     * job. */
     void update(application& app, const graph& g) noexcept;
-    void update(application& app) noexcept;
 
 private:
     /**< Top left corner position in canvas. */
@@ -351,9 +353,6 @@ private:
         /** Each node stores the position (x,y,z) and the color index in color
          * the current map. */
         vector<std::array<float, 4>> nodes;
-
-        vector<std::pair<int, int>> edges;
-        vector<graph_node_id>       ids;
     };
 
     locker_2<data_type> nodes_locker;
@@ -363,11 +362,18 @@ private:
 
     graph_id g = undefined<graph_id>();
 
-    float zoom = { 1 };
+    float zoom      = { 1 };
+    float grid_step = { 64 };
 
     bitflags<option> flags;
 
     bool run_selection = false;
+
+    void initialize_canvas(ImVec2 top_left,
+                           ImVec2 bottom_right,
+                           ImU32  color) noexcept;
+    void draw_grid(ImVec2 top_left, ImVec2 bottom_right, ImU32 color) noexcept;
+    void draw_graph(const graph& g, ImVec2 top_left) noexcept;
 };
 
 class grid_component_editor_data

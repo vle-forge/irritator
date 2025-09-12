@@ -224,24 +224,14 @@ graph_editor::graph_editor() noexcept
   , selected_edges{ 128u, reserve_tag }
 {}
 
-void graph_editor::show(application& app) noexcept
+void graph_editor::initialize_canvas(ImVec2 top_left,
+                                     ImVec2 bottom_right,
+                                     ImU32  color) noexcept
 {
-    const auto canvas_p0 = ImGui::GetCursorScreenPos();
-    canvas_sz            = ImGui::GetContentRegionAvail();
-
-    if (canvas_sz.x < 50.0f)
-        canvas_sz.x = 50.0f;
-    if (canvas_sz.y < 50.0f)
-        canvas_sz.y = 50.0f;
-
-    const auto canvas_p1 = canvas_p0 + canvas_sz;
-
     const ImGuiIO& io        = ImGui::GetIO();
     ImDrawList*    draw_list = ImGui::GetWindowDrawList();
 
-    draw_list->AddRect(canvas_p0,
-                       canvas_p1,
-                       to_ImU32(app.config.colors[style_color::outer_border]));
+    draw_list->AddRect(top_left, bottom_right, color);
 
     ImGui::InvisibleButton("Canvas",
                            canvas_sz,
@@ -249,13 +239,12 @@ void graph_editor::show(application& app) noexcept
                              ImGuiButtonFlags_MouseButtonMiddle |
                              ImGuiButtonFlags_MouseButtonRight);
 
-    const bool is_hovered = ImGui::IsItemHovered();
-    const bool is_active  = ImGui::IsItemActive();
+    draw_list->PushClipRect(top_left, bottom_right, true);
 
-    const ImVec2 origin = canvas_p0 + scrolling;
-    // const ImVec2 mouse_pos_in_canvas = io.MousePos - origin;
-
+    const bool  is_hovered              = ImGui::IsItemHovered();
+    const bool  is_active               = ImGui::IsItemActive();
     const float mouse_threshold_for_pan = -1.f;
+
     if (is_active) {
         if (ImGui::IsMouseDragging(ImGuiMouseButton_Middle,
                                    mouse_threshold_for_pan)) {
@@ -268,6 +257,122 @@ void graph_editor::show(application& app) noexcept
         zoom = zoom + (io.MouseWheel * zoom * 0.1f);
         zoom = ImClamp(zoom, 0.1f, 1000.f);
     }
+}
+
+void graph_editor::draw_graph(const graph& g, ImVec2 top_left) noexcept
+{
+    ImDrawList*  draw_list = ImGui::GetWindowDrawList();
+    const ImVec2 origin    = top_left + scrolling;
+
+    nodes_locker.try_read_only([&](const auto& d) noexcept {
+        for (const auto& node : d.nodes) {
+            const ImVec2 p_min(origin.x + (node[0] * zoom),
+                               origin.y + (node[1] * zoom));
+
+            const ImVec2 p_max(origin.x + ((node[0] + node[3]) * zoom),
+                               origin.y + ((node[1] + node[3]) * zoom));
+
+            // @todo Computes the color from color map before.
+            draw_list->AddRectFilled(p_min, p_max, IM_COL32(255, 255, 0, 255));
+        }
+
+        for (const auto& [from, to] : d.edges) {
+            ImVec2 src(
+              origin.x + ((d.nodes[from][0] + d.nodes[from][3] / 2.f) * zoom),
+              origin.y + ((d.nodes[from][1] + d.nodes[from][3] / 2.f) * zoom));
+
+            ImVec2 dst(
+              origin.x + ((d.nodes[to][0] + d.nodes[to][3] / 2.f) * zoom),
+              origin.y + ((d.nodes[to][1] + d.nodes[to][3] / 2.f) * zoom));
+
+            draw_list->AddLine(
+              src, dst, to_ImU32(app.config.colors[style_color::edge]), 1.f);
+        }
+    });
+}
+
+void graph_editor::draw_grid(ImVec2 top_left,
+                             ImVec2 bottom_right,
+                             ImU32  color) noexcept
+{
+    ImDrawList* draw_list = ImGui::GetWindowDrawList();
+
+    for (float x = fmodf(scrolling.x, grid_step); x < canvas_sz.x;
+         x += grid_step)
+        draw_list->AddLine(ImVec2(top_left.x + x, top_left.y),
+                           ImVec2(top_left.x + x, bottom_right.y),
+                           color);
+
+    for (float y = fmodf(scrolling.y, grid_step); y < canvas_sz.y;
+         y += grid_step)
+        draw_list->AddLine(ImVec2(top_left.x, top_left.y + y),
+                           ImVec2(bottom_right.x, top_left.y + y),
+                           color);
+}
+
+void graph_editor::show(application&    app,
+                        project_editor& ed,
+                        tree_node&      tn) noexcept
+{
+    debug::ensure(app.mod.components.exists(tn.id));
+    debug::ensure(app.mod.components.get<component>(tn.id).type ==
+                  component_type::graph);
+
+    if (not app.mod.components.exists(tn.id))
+        return;
+
+    auto& compo = app.mod.components.get<component>(tn.id);
+    if (compo.type != component_type::graph)
+        return;
+
+    auto&      graph     = app.mod.graph_components.get(compo.id.graph_id).g;
+    const auto canvas_p0 = ImGui::GetCursorScreenPos();
+    canvas_sz            = ImGui::GetContentRegionAvail();
+
+    if (canvas_sz.x < 50.0f)
+        canvas_sz.x = 50.0f;
+    if (canvas_sz.y < 50.0f)
+        canvas_sz.y = 50.0f;
+
+    const auto canvas_p1 = canvas_p0 + canvas_sz;
+
+    initialize_canvas(canvas_p0,
+                      canvas_p1,
+                      to_ImU32(app.config.colors[style_color::outer_border]));
+
+    if (flags[option::show_grid])
+        draw_grid(canvas_p0,
+                  canvas_p1,
+                  to_ImU32(app.config.colors[style_color::inner_border]));
+
+    draw_graph(graph, canvas_p0);
+}
+
+bool graph_editor::show(application&     app,
+                        component&       c,
+                        graph_component& g) noexcept
+{
+    auto       edited    = false;
+    const auto canvas_p0 = ImGui::GetCursorScreenPos();
+    canvas_sz            = ImGui::GetContentRegionAvail();
+
+    if (canvas_sz.x < 50.0f)
+        canvas_sz.x = 50.0f;
+    if (canvas_sz.y < 50.0f)
+        canvas_sz.y = 50.0f;
+
+    const auto canvas_p1 = canvas_p0 + canvas_sz;
+
+    initialize_canvas(canvas_p0,
+                      canvas_p1,
+                      to_ImU32(app.config.colors[style_color::outer_border]));
+
+    if (flags[option::show_grid])
+        draw_grid(canvas_p0,
+                  canvas_p1,
+                  to_ImU32(app.config.colors[style_color::inner_border]));
+
+    draw_graph(g.g, canvas_p0);
 
     // ImVec2 drag_delta = ImGui::GetMouseDragDelta(ImGuiMouseButton_Right);
     // if (drag_delta.x == 0.0f and drag_delta.y == 0.0f)
@@ -301,7 +406,8 @@ void graph_editor::show(application& app) noexcept
     //             }
     //         }
 
-    //         if (not ed.selected_nodes.empty() and ImGui::MenuItem("Connect"))
+    //         if (not ed.selected_nodes.empty() and
+    //         ImGui::MenuItem("Connect"))
     //         {
     //             const auto e = ed.selected_nodes.ssize();
     //             for (int i = 0; i < e; ++i) {
@@ -336,13 +442,15 @@ void graph_editor::show(application& app) noexcept
     // }
 
     // if (is_hovered) {
-    //     if (not run_selection and ImGui::IsMouseDown(ImGuiMouseButton_Left))
+    //     if (not run_selection and
+    //     ImGui::IsMouseDown(ImGuiMouseButton_Left))
     //     {
     //         run_selection   = true;
     //         start_selection = io.MousePos;
     //     }
 
-    //     if (run_selection and ImGui::IsMouseReleased(ImGuiMouseButton_Left))
+    //     if (run_selection and
+    //     ImGui::IsMouseReleased(ImGuiMouseButton_Left))
     //     {
     //         run_selection = false;
     //         end_selection = io.MousePos;
@@ -368,16 +476,19 @@ void graph_editor::show(application& app) noexcept
     //                 const auto i = get_index(id);
 
     //                 ImVec2 p_min(
-    //                   origin.x + (data.g.node_positions[i][0] * ed.zoom.x),
-    //                   origin.y + (data.g.node_positions[i][1] * ed.zoom.y));
+    //                   origin.x + (data.g.node_positions[i][0] *
+    //                   ed.zoom.x), origin.y + (data.g.node_positions[i][1]
+    //                   * ed.zoom.y));
 
     //                 ImVec2 p_max(
     //                   origin.x +
-    //                     ((data.g.node_positions[i][0] + data.g.node_areas[i])
+    //                     ((data.g.node_positions[i][0] +
+    //                     data.g.node_areas[i])
     //                     *
     //                      ed.zoom.x),
     //                   origin.y +
-    //                     ((data.g.node_positions[i][1] + data.g.node_areas[i])
+    //                     ((data.g.node_positions[i][1] +
+    //                     data.g.node_areas[i])
     //                     *
     //                      ed.zoom.y));
 
@@ -389,10 +500,11 @@ void graph_editor::show(application& app) noexcept
 
     //             for (const auto id : data.g.edges) {
     //                 const auto us =
-    //                 data.g.edges_nodes[get_index(id)][0].first; const auto vs
-    //                 = data.g.edges_nodes[get_index(id)][1].first;
+    //                 data.g.edges_nodes[get_index(id)][0].first; const
+    //                 auto vs = data.g.edges_nodes[get_index(id)][1].first;
 
-    //                 if (data.g.nodes.exists(us) and data.g.nodes.exists(vs))
+    //                 if (data.g.nodes.exists(us) and
+    //                 data.g.nodes.exists(vs))
     //                 {
     //                     ImVec2 p1(
     //                       origin.x +
@@ -425,23 +537,6 @@ void graph_editor::show(application& app) noexcept
     //         }
     //     }
     // }
-
-    draw_list->PushClipRect(canvas_p0, canvas_p1, true);
-    const float GRID_STEP = 64.0f;
-
-    for (float x = fmodf(scrolling.x, GRID_STEP); x < canvas_sz.x;
-         x += GRID_STEP)
-        draw_list->AddLine(
-          ImVec2(canvas_p0.x + x, canvas_p0.y),
-          ImVec2(canvas_p0.x + x, canvas_p1.y),
-          to_ImU32(app.config.colors[style_color::inner_border]));
-
-    for (float y = fmodf(scrolling.y, GRID_STEP); y < canvas_sz.y;
-         y += GRID_STEP)
-        draw_list->AddLine(
-          ImVec2(canvas_p0.x, canvas_p0.y + y),
-          ImVec2(canvas_p1.x, canvas_p0.y + y),
-          to_ImU32(app.config.colors[style_color::inner_border]));
 
     nodes_locker.try_read_only([&](const auto& d) noexcept {
         for (const auto& node : d.nodes) {
@@ -498,7 +593,8 @@ void graph_editor::show(application& app) noexcept
         //     const auto u_c = data.g.edges_nodes[idx][0].first;
         //     const auto v_c = data.g.edges_nodes[idx][1].first;
 
-        //     if (not(data.g.nodes.exists(u_c) and data.g.nodes.exists(v_c)))
+        //     if (not(data.g.nodes.exists(u_c) and
+        //     data.g.nodes.exists(v_c)))
         //         continue;
 
         //     const auto p_src = get_index(u_c);
@@ -552,20 +648,26 @@ void graph_editor::show(application& app) noexcept
     });
 
     draw_list->PopClipRect();
+
+    return edited;
 }
 
-void graph_editor::update(application& /*app*/, const graph& g) noexcept
+void graph_editor::update(application& app, const graph& g) noexcept
 {
-    nodes_locker.read_write([&](auto& d) noexcept {
-        for (const auto id : g.nodes) {
-            const auto idx = get_index(id);
+    app.add_gui_task([&]() noexcept {
+        nodes_locker.read_write([&](auto& d) noexcept {
+            d.nodes.resize(g.nodes.ssize());
 
-            d.nodes[idx][0] = g.node_positions[get_index(id)][0];
-            d.nodes[idx][1] = g.node_positions[get_index(id)][1];
-            d.nodes[idx][2] = g.node_positions[get_index(id)][2];
-            d.nodes[idx][3] = g.node_areas[get_index(id)];
-            d.nodes[idx][4] = 0.f;
-        }
+            for (const auto id : g.nodes) {
+                const auto idx = get_index(id);
+
+                d.nodes[idx][0] = g.node_positions[get_index(id)][0];
+                d.nodes[idx][1] = g.node_positions[get_index(id)][1];
+                d.nodes[idx][2] = g.node_positions[get_index(id)][2];
+                d.nodes[idx][3] = g.node_areas[get_index(id)];
+                d.nodes[idx][4] = 0.f;
+            }
+        });
     });
 }
 
