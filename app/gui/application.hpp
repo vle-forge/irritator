@@ -373,23 +373,13 @@ class graph_editor
 public:
     constexpr static inline auto selection_buffer_size = 128u;
 
-    enum class show_result_type {
+    enum class show_result_type : u8 {
         none,            //!< No change - No close.
         edited,          //!< Component is changed - Update state.
         request_to_close //!< The window must be closed.
     };
 
-    enum class option : u16 {
-        show_grid,
-        allow_graph_edit,
-        allow_selection,
-        allow_moving,
-        allow_zooming,
-        allow_scrolling,
-        read_only,
-        auto_fit_on_update,
-        allow_new_node,
-    };
+    enum class option : u8 { show_grid, show_help };
 
     graph_editor() noexcept;
 
@@ -410,7 +400,11 @@ public:
 private:
     name_str name;
 
-    /**< Top left corner position in canvas. */
+    /** A projection class to build @c data_type::nodes position in 2D from the
+     * 3D position of the graph nodes. */
+    projection_3d proj;
+
+    /** Top left corner position in canvas. */
     ImVec2 scrolling       = { 0, 0 };
     ImVec2 canvas_sz       = { 0, 0 };
     ImVec2 start_selection = { 0, 0 };
@@ -443,25 +437,27 @@ private:
 
     void auto_fit_camera() noexcept;
     void center_camera() noexcept;
-    void reset_camera() noexcept;
+    void reset_camera(application& app, graph& g) noexcept;
 
-    void initialize_canvas(ImVec2 top_left,
+    bool initialize_canvas(ImVec2 top_left,
                            ImVec2 bottom_right,
                            ImU32  color) noexcept;
     void draw_grid(ImVec2 top_left, ImVec2 bottom_right, ImU32 color) noexcept;
     void draw_graph(const graph&          g,
                     ImVec2                top_left,
                     ImU32                 color,
+                    ImU32                 node_color,
+                    ImU32                 edge_color,
                     const graph_observer& obs) noexcept;
     void draw_graph(const graph& g,
                     ImVec2       top_left,
                     ImU32        color,
+                    ImU32        node_color,
+                    ImU32        edge_color,
                     application& app) noexcept;
-    void draw_popup(const application& app, graph& g, ImVec2 top_left) noexcept;
+    void draw_popup(application& app, graph& g, ImVec2 top_left) noexcept;
     void draw_selection(const graph& g,
                         ImVec2       top_left,
-                        ImU32        node_color,
-                        ImU32        edge_color,
                         ImU32        background_selection_color) noexcept;
 };
 
@@ -1152,13 +1148,13 @@ struct project_editor {
     /// an output stream to store all model state during simulation.
     buffered_file raw_ofs;
 
-    struct visulation_editor {
+    struct visualisation_editor {
         graph_editor_id   graph_ed_id  = undefined<graph_editor_id>();
         tree_node_id      tn_id        = undefined<tree_node_id>();
         graph_observer_id graph_obs_id = undefined<graph_observer_id>();
     };
 
-    vector<visulation_editor> visualisation_eds;
+    vector<visualisation_editor> visualisation_eds;
 };
 
 inline bool project_editor::can_edit() const noexcept

@@ -91,7 +91,7 @@ bool show_local_observers(application&    app,
 
                         auto& graph_ed = app.graph_eds.alloc();
                         ed.visualisation_eds.push_back(
-                          project_editor::visulation_editor{
+                          project_editor::visualisation_editor{
                             .graph_ed_id = app.graph_eds.get_id(graph_ed),
                             .tn_id       = ed.pj.tree_nodes.get_id(tn),
                             .graph_obs_id =
