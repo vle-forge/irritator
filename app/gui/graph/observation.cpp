@@ -432,21 +432,25 @@ void graph_editor::center_camera() noexcept
     });
 }
 
-void graph_editor::reset_camera() noexcept
+void graph_editor::reset_camera(application& app, graph& g) noexcept
 {
     nodes_locker.read_only([&](auto& d) noexcept {
         scrolling.x = d.center[0];
         scrolling.y = d.center[1];
         zoom        = 1.f;
+
+        proj.update_matrices({ 0.f, 0.f, 0.f }, d.center);
+        update(app, g);
     });
 }
 
-void graph_editor::initialize_canvas(ImVec2 top_left,
+bool graph_editor::initialize_canvas(ImVec2 top_left,
                                      ImVec2 bottom_right,
                                      ImU32  color) noexcept
 {
-    const ImGuiIO& io        = ImGui::GetIO();
-    ImDrawList*    draw_list = ImGui::GetWindowDrawList();
+    const auto& io          = ImGui::GetIO();
+    auto*       draw_list   = ImGui::GetWindowDrawList();
+    auto        need_update = false;
 
     draw_list->AddRect(top_left, bottom_right, color);
 
@@ -468,10 +472,25 @@ void graph_editor::initialize_canvas(ImVec2 top_left,
             scrolling.x += io.MouseDelta.x;
             scrolling.y += io.MouseDelta.y;
         }
+
+        if (ImGui::IsMouseDragging(ImGuiMouseButton_Right,
+                                   mouse_threshold_for_pan)) {
+            auto angles = proj.angles();
+            auto center = proj.center();
+
+            angles[0] += io.MouseDelta.y * 0.001f;
+            angles[1] += io.MouseDelta.x * 0.001f;
+
+            proj.update_matrices(angles, center);
+
+            need_update = true;
+        }
     }
 
     if (is_hovered and io.MouseWheel != 0.f)
         zoom = zoom + (io.MouseWheel * zoom * 0.1f);
+
+    return need_update;
 }
 
 void graph_editor::draw_graph(const graph&          g,
@@ -605,9 +624,9 @@ void graph_editor::draw_grid(ImVec2 top_left,
                            color);
 }
 
-void graph_editor::draw_popup(const application& app,
-                              graph&             g,
-                              const ImVec2       top_left) noexcept
+void graph_editor::draw_popup(application& app,
+                              graph&       g,
+                              const ImVec2 top_left) noexcept
 {
     const auto drag_delta = ImGui::GetMouseDragDelta(ImGuiMouseButton_Right);
 
@@ -625,7 +644,7 @@ void graph_editor::draw_popup(const application& app,
             if (ImGui::MenuItem("Automatic zoom and center"))
                 auto_fit_camera();
             if (ImGui::MenuItem("Reset camera"))
-                reset_camera();
+                reset_camera(app, g);
             ImGui::Separator();
 
             {
@@ -881,9 +900,11 @@ auto graph_editor::show(application&    app,
 
     const auto canvas_p1 = canvas_p0 + canvas_sz;
 
-    initialize_canvas(canvas_p0,
-                      canvas_p1,
-                      to_ImU32(app.config.colors[style_color::outer_border]));
+    if (initialize_canvas(
+          canvas_p0,
+          canvas_p1,
+          to_ImU32(app.config.colors[style_color::outer_border])))
+        update(app, graph);
 
     if (flags[option::show_grid])
         draw_grid(canvas_p0,
@@ -937,9 +958,11 @@ auto graph_editor::show(application&     app,
 
     const auto canvas_p1 = canvas_p0 + canvas_sz;
 
-    initialize_canvas(canvas_p0,
-                      canvas_p1,
-                      to_ImU32(app.config.colors[style_color::outer_border]));
+    if (initialize_canvas(
+          canvas_p0,
+          canvas_p1,
+          to_ImU32(app.config.colors[style_color::outer_border])))
+        update(app, g.g);
 
     if (flags[option::show_grid])
         draw_grid(canvas_p0,
@@ -988,9 +1011,6 @@ void graph_editor::update(application& app, const graph& g) noexcept
                 y[1] = std::max(y[1], g.node_positions[i][1] + g.node_areas[i]);
                 z[0] = std::min(z[0], g.node_positions[i][0] - g.node_areas[i]);
                 z[1] = std::max(z[1], g.node_positions[i][1] + g.node_areas[i]);
-
-                d.nodes[i][0] = g.node_positions[id][0];
-                d.nodes[i][1] = g.node_positions[id][1];
             }
 
             if (x[0] == x[1])
@@ -1008,7 +1028,20 @@ void graph_editor::update(application& app, const graph& g) noexcept
                                (y[1] - y[0]) / 2.f + y[0],
                                (z[1] - z[0]) / 2.f + z[0] };
 
-            auto_fit_camera();
+            proj.update_matrices(proj.angles(), d.center);
+
+            for (const auto id : g.nodes) {
+                const auto i = get_index(id);
+
+                const auto ppos = proj.compute(g.node_positions[i][0],
+                                               g.node_positions[i][1],
+                                               g.node_positions[i][2]);
+
+                d.nodes[i][0] = ppos[0];
+                d.nodes[i][1] = ppos[1];
+            }
+
+            // auto_fit_camera();
         });
     });
 }

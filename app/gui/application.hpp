@@ -410,7 +410,11 @@ public:
 private:
     name_str name;
 
-    /**< Top left corner position in canvas. */
+    /** A projection class to build @c data_type::nodes position in 2D from the
+     * 3D position of the graph nodes. */
+    projection_3d proj;
+
+    /** Top left corner position in canvas. */
     ImVec2 scrolling       = { 0, 0 };
     ImVec2 canvas_sz       = { 0, 0 };
     ImVec2 start_selection = { 0, 0 };
@@ -443,9 +447,9 @@ private:
 
     void auto_fit_camera() noexcept;
     void center_camera() noexcept;
-    void reset_camera() noexcept;
+    void reset_camera(application& app, graph& g) noexcept;
 
-    void initialize_canvas(ImVec2 top_left,
+    bool initialize_canvas(ImVec2 top_left,
                            ImVec2 bottom_right,
                            ImU32  color) noexcept;
     void draw_grid(ImVec2 top_left, ImVec2 bottom_right, ImU32 color) noexcept;
@@ -457,7 +461,7 @@ private:
                     ImVec2       top_left,
                     ImU32        color,
                     application& app) noexcept;
-    void draw_popup(const application& app, graph& g, ImVec2 top_left) noexcept;
+    void draw_popup(application& app, graph& g, ImVec2 top_left) noexcept;
     void draw_selection(const graph& g,
                         ImVec2       top_left,
                         ImU32        node_color,
