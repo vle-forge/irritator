@@ -89,15 +89,24 @@ bool show_local_observers(application&    app,
                             }
                         }
 
-                        auto& graph_ed = app.graph_eds.alloc();
-                        ed.visualisation_eds.push_back(
-                          project_editor::visualisation_editor{
-                            .graph_ed_id = app.graph_eds.get_id(graph_ed),
-                            .tn_id       = ed.pj.tree_nodes.get_id(tn),
-                            .graph_obs_id =
-                              ed.pj.graph_observers.get_id(*graph) });
+                        if (ed.graph_eds.can_alloc()) {
+                            auto& g_ed = ed.graph_eds.alloc();
+                            ed.visualisation_eds.push_back(
+                              project_editor::visualisation_editor{
+                                .graph_ed_id = ed.graph_eds.get_id(g_ed),
+                                .tn_id       = ed.pj.tree_nodes.get_id(tn),
+                                .graph_obs_id =
+                                  ed.pj.graph_observers.get_id(*graph) });
 
-                        graph_ed.update(app, cgraph.g);
+                            g_ed.update(app, cgraph.g);
+                        } else {
+                            app.jn.push(
+                              log_level::error, [](auto& title, auto& msg) {
+                                  title = "Project editor";
+                                  msg   = "Too many graph editor opened. Close "
+                                          "some before to open a new one.";
+                              });
+                        }
                     }
                 }
 
@@ -120,7 +129,8 @@ bool show_local_observers(application&    app,
         ImGui::EndTable();
     }
 
-    if (ed.pj.graph_observers.can_alloc() && ImGui::Button("+##graph")) {
+    if (ed.pj.graph_observers.can_alloc() and ed.graph_eds.can_alloc() and
+        ImGui::Button("+##graph")) {
         auto&      graph    = ed.pj.alloc_graph_observer();
         const auto graph_id = ed.pj.graph_observers.get_id(graph);
 
@@ -148,6 +158,14 @@ bool show_local_observers(application&    app,
     if (to_del.has_value()) {
         is_modified = true;
         ed.pj.graph_observers.free(*to_del);
+
+        for_each_cond(ed.visualisation_eds, [&](const auto v) noexcept {
+            if (v.graph_obs_id == *to_del) {
+                ed.graph_eds.free(v.graph_ed_id);
+                return true;
+            }
+            return false;
+        });
     }
 
     return is_modified;

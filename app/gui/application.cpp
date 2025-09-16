@@ -369,12 +369,9 @@ std::optional<project_id> application::alloc_project_window() noexcept
 
 void application::free_project_window(const project_id id) noexcept
 {
-    if (auto* pj = pjs.try_to_get(id)) {
+    if (auto* pj = pjs.try_to_get(id))
         if (is_defined(pj->project_file))
             mod.registred_paths.free(pj->project_file);
-
-        pj->close_subwindows(*this);
-    }
 
     pjs.free(id);
 }
@@ -589,14 +586,37 @@ void application::show_dock() noexcept
             if (pj->show(*this) ==
                 project_editor::show_result_t::request_to_close) {
                 to_del = pj;
-            } else {
-                pj->display_subwindows(*this);
             }
         }
 
         if (to_del)
             free_project_window(pjs.get_id(*to_del));
     }
+
+    for_each_cond(sim_wnds, [&](const auto& v) noexcept {
+        if (auto* pj = pjs.try_to_get(v.pj_id)) {
+            auto* tn = pj->pj.tree_nodes.try_to_get(v.tn_id);
+            auto* go = pj->pj.graph_observers.try_to_get(v.graph_obs_id);
+            auto* ge = graph_eds.try_to_get(v.graph_ed_id);
+
+            if (not(tn and go and ge))
+                return false;
+
+            small_string<64> name;
+            format(
+              name, "{}-graph-{}", pj->name.sv(), get_index(v.graph_ed_id));
+
+            if (ge->show(name.c_str(), *this, *pj, *tn, *go) ==
+                graph_editor::show_result_type::request_to_close) {
+                graph_eds.free(*ge);
+                return false;
+            }
+        } else {
+            return false;
+        }
+
+        return true;
+    });
 
     if (output_ed.is_open)
         output_ed.show();

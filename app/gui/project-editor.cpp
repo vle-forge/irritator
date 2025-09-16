@@ -25,6 +25,8 @@ namespace irt {
 project_editor::project_editor(const std::string_view default_name) noexcept
   : tl(32768, 4096, 65536, 65536, 32768, 32768)
   , name{ default_name }
+  , graph_eds{ 16 }
+  , visualisation_eds{ 64, reserve_tag }
 {
     pj.grid_observers.reserve(8);
     pj.graph_observers.reserve(8);
@@ -895,6 +897,68 @@ static int show_simulation_table_file_observers(application& /*app*/,
     return is_modified;
 }
 
+static int show_all_visualisation_editor(application&    app,
+                                         project_editor& ed,
+                                         int             current_pos,
+                                         const int       max_column) noexcept
+{
+    for_each_cond(ed.visualisation_eds, [&](const auto v) noexcept {
+        auto* g_ed  = ed.graph_eds.try_to_get(v.graph_ed_id);
+        auto* g_obs = ed.pj.graph_observers.try_to_get(v.graph_obs_id);
+        auto* tn    = ed.pj.tree_nodes.try_to_get(v.tn_id);
+
+        if (not(g_ed and g_obs and tn))
+            return false;
+
+        ImGui::PushID(current_pos);
+        g_ed->show(app, ed, *tn, *g_obs);
+        ImGui::PopID();
+
+        ++current_pos;
+        if (current_pos >= max_column) {
+            current_pos = 0;
+            ImGui::TableNextRow();
+        }
+        ImGui::TableNextColumn();
+        return true;
+    });
+
+    return current_pos;
+}
+
+static int show_part_visualisation_editor(application&    app,
+                                          project_editor& ed,
+                                          tree_node&      tn,
+                                          int             current_pos,
+                                          const int       max_column) noexcept
+{
+    const auto parent = ed.pj.tree_nodes.get_id(tn);
+
+    for_each_cond(ed.visualisation_eds, [&](const auto v) noexcept {
+        if (v.tn_id == parent) {
+            auto* g_ed  = ed.graph_eds.try_to_get(v.graph_ed_id);
+            auto* g_obs = ed.pj.graph_observers.try_to_get(v.graph_obs_id);
+
+            if (not(g_ed and g_obs))
+                return false;
+
+            ImGui::PushID(current_pos);
+            g_ed->show(app, ed, tn, *g_obs);
+            ImGui::PopID();
+
+            ++current_pos;
+            if (current_pos >= max_column) {
+                current_pos = 0;
+                ImGui::TableNextRow();
+            }
+            ImGui::TableNextColumn();
+        }
+        return true;
+    });
+
+    return current_pos;
+}
+
 static bool show_project_observations(application&    app,
                                       project_editor& ed) noexcept
 {
@@ -943,17 +1007,8 @@ static bool show_project_observations(application&    app,
                     ImGui::TableNextColumn();
                 });
 
-                for_each_data(ed.pj.graph_observers, [&](auto& graph) noexcept {
-                    app.graph_obs.show(ed, graph, sub_obs_size);
-
-                    ++pos;
-
-                    if (pos >= *ed.tree_node_observation) {
-                        pos = 0;
-                        ImGui::TableNextRow();
-                    }
-                    ImGui::TableNextColumn();
-                });
+                pos = show_all_visualisation_editor(
+                  app, ed, pos, *ed.tree_node_observation);
 
                 for (auto& vobs : ed.pj.variable_observers) {
                     ImGui::PushID(&vobs);
@@ -1032,18 +1087,8 @@ static void show_component_observations(application&    app,
                                ImGui::TableNextColumn();
                            });
 
-        for_specified_data(sim_ed.pj.graph_observers,
-                           selected.graph_observer_ids,
-                           [&](auto& graph) noexcept {
-                               app.graph_obs.show(sim_ed, graph, sub_obs_size);
-                               ++pos;
-
-                               if (pos >= *sim_ed.tree_node_observation) {
-                                   pos = 0;
-                                   ImGui::TableNextRow();
-                               }
-                               ImGui::TableNextColumn();
-                           });
+        pos = show_part_visualisation_editor(
+          app, sim_ed, selected, pos, *sim_ed.tree_node_observation);
 
         for (auto& vobs : sim_ed.pj.variable_observers) {
             const auto tn_id = sim_ed.pj.tree_nodes.get_id(selected);
@@ -1271,40 +1316,6 @@ auto project_editor::show(application& app) noexcept -> show_result_t
     }
 
     return is_open ? show_result_t::success : show_result_t::request_to_close;
-}
-
-void project_editor::display_subwindows(application& app) noexcept
-{
-    for (auto it = visualisation_eds.begin(); it != visualisation_eds.end();) {
-        auto del = true;
-
-        if (auto* ed = app.graph_eds.try_to_get(it->graph_ed_id)) {
-            if (auto* tn = pj.tree_nodes.try_to_get(it->tn_id)) {
-                if (auto* obs =
-                      pj.graph_observers.try_to_get(it->graph_obs_id)) {
-                    if (ed->show(app, *this, *tn, *obs) ==
-                        graph_editor::show_result_type::request_to_close) {
-                        app.graph_eds.free(*ed);
-                    } else
-                        del = false;
-                }
-            }
-        }
-
-        if (del) {
-            it = visualisation_eds.erase(it);
-        } else
-            ++it;
-    }
-}
-
-void project_editor::close_subwindows(application& app) noexcept
-{
-    for (auto it = visualisation_eds.begin(); it != visualisation_eds.end();)
-        if (auto* ed = app.graph_eds.try_to_get(it->graph_ed_id))
-            app.graph_eds.free(*ed);
-
-    visualisation_eds.clear();
 }
 
 } // namesapce irt

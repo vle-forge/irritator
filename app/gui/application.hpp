@@ -293,20 +293,6 @@ struct grid_observation_widget {
     void show(grid_observer& grid, const ImVec2& size) noexcept;
 };
 
-class graph_observation_widget
-{
-public:
-    //! Display the values vector using the ImGui::PlotHeatMap function.
-    void show(project_editor& ed,
-              graph_observer& graph,
-              const ImVec2&   size) noexcept;
-
-private:
-    ImVec2 zoom{ 1.f, 1.f };
-    ImVec2 scrolling{ 0.f, 0.f };
-    ImVec2 distance{ 0.f, 0.f };
-};
-
 // Callback function use into ImPlot::Plot like functions that use ring_buffer
 // to read a large buffer instead of a vector.
 inline ImPlotPoint ring_buffer_getter(int idx, void* data)
@@ -383,16 +369,30 @@ public:
 
     graph_editor() noexcept;
 
-    show_result_type show(application&     app,
-                          component&       c,
-                          graph_component& g) noexcept;
+    /** Display the graph component directly into a @c ImGui::BeginChild. */
+    void show(application& app, component& c, graph_component& g) noexcept;
 
-    show_result_type show(application&    app,
+    /** Display the simulation @c tree-node and @c graph-observer into an
+     * @c ImGui::BeginChild window.
+     *
+     * @return A status if the user close the window, edit the simulation or
+     * keep open window.
+     */
+    show_result_type show(const char*     name,
+                          application&    app,
                           project_editor& ed,
                           tree_node&      tn,
                           graph_observer& obs) noexcept;
 
+    /** Display the simulation @c tree_node into a @c ImGui::BeginChild. */
     void show(application& app, project_editor& ed, tree_node& tn) noexcept;
+
+    /** Display the simulation @c tree_node and @c graph_observer into a @c
+     * ImGui::BeginChild. */
+    void show(application&    app,
+              project_editor& ed,
+              tree_node&      tn,
+              graph_observer& obs) noexcept;
 
     /** Thread-safe Copy and apply transformation of the graph @c g. A @c job
      * performs the task in a thread-safe way. Do not delete the @c g until the
@@ -400,8 +400,6 @@ public:
     void update(application& app, const graph& g) noexcept;
 
 private:
-    name_str name;
-
     /** A projection class to build @c data_type::nodes position in 2D from the
      * 3D position of the graph nodes. */
     projection_3d proj;
@@ -437,6 +435,11 @@ private:
     bool run_selection = false;
     bool dock_init     = false;
 
+    enum class popup_options : u8 {
+        show_graph_modication,
+        show_make_project_global_window
+    };
+
     void auto_fit_camera() noexcept;
     void center_camera() noexcept;
     void reset_camera(application& app, graph& g) noexcept;
@@ -457,7 +460,10 @@ private:
                     ImU32        node_color,
                     ImU32        edge_color,
                     application& app) noexcept;
-    void draw_popup(application& app, graph& g, ImVec2 top_left) noexcept;
+    bool draw_popup(application&                  app,
+                    graph&                        g,
+                    ImVec2                        top_left,
+                    const bitflags<popup_options> opt = {}) noexcept;
     void draw_selection(const graph& g,
                         ImVec2       top_left,
                         ImU32        background_selection_color) noexcept;
@@ -1120,14 +1126,18 @@ struct project_editor {
     /// an output stream to store all model state during simulation.
     buffered_file raw_ofs;
 
+    /** A local @c graph_editor to display the simulation graph component editor
+     * (without observation). */
+    graph_editor graph_ed;
+
     struct visualisation_editor {
         graph_editor_id   graph_ed_id  = undefined<graph_editor_id>();
         tree_node_id      tn_id        = undefined<tree_node_id>();
         graph_observer_id graph_obs_id = undefined<graph_observer_id>();
     };
 
-    graph_editor                 graph_ed;
-    vector<visualisation_editor> visualisation_eds;
+    data_array<graph_editor, graph_editor_id> graph_eds;
+    vector<visualisation_editor>              visualisation_eds;
 };
 
 inline bool project_editor::can_edit() const noexcept
@@ -1434,6 +1444,13 @@ private:
     } status = status_type::none;
 };
 
+struct global_simulation_window {
+    project_id        pj_id        = undefined<project_id>();
+    tree_node_id      tn_id        = undefined<tree_node_id>();
+    graph_editor_id   graph_ed_id  = undefined<graph_editor_id>();
+    graph_observer_id graph_obs_id = undefined<graph_observer_id>();
+};
+
 class application
 {
 public:
@@ -1482,9 +1499,11 @@ public:
 
     data_array<plot_copy, plot_copy_id> copy_obs;
 
-    plot_observation_widget  plot_obs;
-    grid_observation_widget  grid_obs;
-    graph_observation_widget graph_obs;
+    /** Stores the list of opened simulation windows. */
+    vector<global_simulation_window> sim_wnds;
+
+    plot_observation_widget plot_obs;
+    grid_observation_widget grid_obs;
 
     plot_copy_widget plot_copy_wgt;
 
