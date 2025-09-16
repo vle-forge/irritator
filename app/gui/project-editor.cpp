@@ -1097,7 +1097,7 @@ static void show_simulation_editor_treenode(application&    app,
             if constexpr (std::is_same_v<T, grid_component>) {
                 app.grid_sim.display(app, ed, tn, *compo, c);
             } else if constexpr (std::is_same_v<T, graph_component>) {
-                app.graph_sim.display(app, ed, tn, *compo, c);
+                ed.graph_ed.show(app, ed, tn);
             } else if constexpr (std::is_same_v<T, generic_component>) {
                 app.generic_sim.display(app, ed);
             } else if constexpr (std::is_same_v<T, hsm_component>) {
@@ -1155,6 +1155,8 @@ auto project_editor::show(application& app) noexcept -> show_result_t
         ImGui::TableSetupColumn(
           "Graph", ImGuiTableColumnFlags_WidthStretch, 0.8f);
 
+        const auto old_selected_tree_node = m_selected_tree_node;
+
         ImGui::TableNextRow();
         ImGui::TableSetColumnIndex(0);
         app.project_wnd.show(*this);
@@ -1183,6 +1185,17 @@ auto project_editor::show(application& app) noexcept -> show_result_t
                 }
 
                 if (selected) {
+                    if (m_selected_tree_node != old_selected_tree_node) {
+                        const auto compo_id = selected->id;
+                        if (app.mod.components.exists(compo_id)) {
+                            auto& graph_compo = app.mod.graph_components.get(
+                              app.mod.components.get<component>(compo_id)
+                                .id.graph_id);
+
+                            graph_ed.update(app, graph_compo.g);
+                        }
+                    }
+
                     if (ImGui::BeginTabItem("Component parameters")) {
                         show_local_simulation_settings(app, *this, *selected);
                         ImGui::EndTabItem();

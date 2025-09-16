@@ -392,6 +392,8 @@ public:
                           tree_node&      tn,
                           graph_observer& obs) noexcept;
 
+    void show(application& app, project_editor& ed, tree_node& tn) noexcept;
+
     /** Thread-safe Copy and apply transformation of the graph @c g. A @c job
      * performs the task in a thread-safe way. Do not delete the @c g until the
      * job. */
@@ -848,36 +850,6 @@ public:
     ImVec2 distance{ 5.f, 5.f };
 };
 
-class graph_simulation_editor
-{
-public:
-    enum class action : u8 { camera_center, camera_auto_fit };
-
-    bool display(application&     app,
-                 project_editor&  ed,
-                 tree_node&       tn,
-                 component&       compo,
-                 graph_component& grid) noexcept;
-
-    void reset() noexcept;
-
-private:
-    struct impl; /**< To access private part in implementation file. */
-
-    graph_component_id current_id = undefined<graph_component_id>();
-
-    ImVec2 distance{ 15.f, 15.f };
-    ImVec2 scrolling{ 0.f, 0.f }; //!< top left position in canvas.
-    ImVec2 zoom{ 1.f, 1.f };
-    ImVec2 start_selection;
-    ImVec2 end_selection;
-
-    vector<graph_node_id> selected_nodes;
-    bitflags<action>      actions;
-
-    bool run_selection = false;
-};
-
 struct hsm_simulation_editor {
     bool show_observations(application&    app,
                            project_editor& ed,
@@ -1154,6 +1126,7 @@ struct project_editor {
         graph_observer_id graph_obs_id = undefined<graph_observer_id>();
     };
 
+    graph_editor                 graph_ed;
     vector<visualisation_editor> visualisation_eds;
 };
 
@@ -1518,7 +1491,6 @@ public:
     flat_simulation_editor         flat_sim;
     generic_simulation_editor      generic_sim;
     grid_simulation_editor         grid_sim;
-    graph_simulation_editor        graph_sim;
     hsm_simulation_editor          hsm_sim;
     project_external_source_editor data_ed;
 

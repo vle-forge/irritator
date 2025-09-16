@@ -601,6 +601,9 @@ void graph_editor::draw_graph(const graph& g,
                               application& app) noexcept
 {
     nodes_locker.try_read_only([&](const auto& d) noexcept {
+        if (d.nodes.empty())
+            return;
+
         ImDrawList*  draw_list = ImGui::GetWindowDrawList();
         const ImVec2 origin    = top_left + scrolling;
 
@@ -953,6 +956,60 @@ auto graph_editor::show(application&    app,
 
     return is_open ? show_result_type::none
                    : show_result_type::request_to_close;
+}
+
+void graph_editor::show(application&    app,
+                        project_editor& ed,
+                        tree_node&      tn) noexcept
+{
+    debug::ensure(app.mod.components.exists(tn.id));
+    debug::ensure(app.mod.components.get<component>(tn.id).type ==
+                  component_type::graph);
+
+    if (not app.mod.components.exists(tn.id))
+        return;
+
+    auto& compo = app.mod.components.get<component>(tn.id);
+    if (compo.type != component_type::graph)
+        return;
+
+    auto&      graph     = app.mod.graph_components.get(compo.id.graph_id).g;
+    const auto canvas_p0 = ImGui::GetCursorScreenPos();
+    canvas_sz            = ImGui::GetContentRegionAvail();
+
+    if (canvas_sz.x < 50.0f)
+        canvas_sz.x = 50.0f;
+    if (canvas_sz.y < 50.0f)
+        canvas_sz.y = 50.0f;
+
+    const auto canvas_p1 = canvas_p0 + canvas_sz;
+
+    if (initialize_canvas(
+          canvas_p0,
+          canvas_p1,
+          to_ImU32(app.config.colors[style_color::outer_border])))
+        update(app, graph);
+
+    if (flags[option::show_grid])
+        draw_grid(canvas_p0,
+                  canvas_p1,
+                  to_ImU32(app.config.colors[style_color::inner_border]));
+
+    draw_graph(graph,
+               canvas_p0,
+               to_ImU32(app.config.colors[style_color::edge]),
+               to_ImU32(app.config.colors[style_color::node_active]),
+               to_ImU32(app.config.colors[style_color::edge_active]),
+               app);
+
+    draw_popup(app, graph, canvas_p0);
+
+    draw_selection(
+      graph,
+      canvas_p0,
+      to_ImU32(app.config.colors[style_color::background_selection]));
+
+    ImGui::GetWindowDrawList()->PopClipRect();
 }
 
 auto graph_editor::show(application&     app,

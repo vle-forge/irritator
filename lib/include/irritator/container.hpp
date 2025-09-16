@@ -867,6 +867,8 @@ public:
                 read_write([&](auto& dst) { dst = std::move(src); });
             });
         }
+
+        return *this;
     }
 
     /// Get an access to the underlying value @c T in read-only mode.
