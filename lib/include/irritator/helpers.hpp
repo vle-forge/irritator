@@ -121,6 +121,37 @@ struct is_expected : std::false_type {};
 template<typename T>
 struct is_expected<::irt::expected<T>> : std::true_type {};
 
+/** A for-each-condition function which reads each element of the vector @c Vec
+ * and apply the function @c Fn. If the function @c Fn returns false, the
+ * element is removed from the vector using the @c vector<T>::erase .
+ *
+ * @code
+ *   for_each_cond(ed.visualisation_eds, [&](const auto v) noexcept -> bool {
+ *       if (v.tn_id == ed.pj.tree_nodes.get_id(tn)) {
+ *           auto* ged = app.graph_eds.try_to_get(v.graph_ed_id);
+ *           auto* obs = ed.pj.graph_observers.try_to_get(v.graph_obs_id);
+ *
+ *           if (not(ged and obs))
+ *               return false;
+ *
+ *           ged->show(app, ed, tn, *obs);
+ *       }
+ *
+ *       return true;
+ *   });
+ * @endcode
+ */
+template<typename Vec, typename Fn, typename... Args>
+void for_each_cond(Vec& vec, Fn&& fn, Args&&... args) noexcept
+{
+    for (auto it = vec.begin(); it != vec.end();) {
+        if (fn(*it, args...))
+            ++it;
+        else
+            it = vec.erase(it);
+    }
+}
+
 //! @brief Apply the function @c f for all elements of the @c data_array.
 template<typename Data, typename Function>
 auto for_each_data(Data& d, Function&& f) noexcept -> void
