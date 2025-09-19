@@ -61,7 +61,9 @@ constexpr void debug_logi([[maybe_unused]] int      indent,
 //! \param fmt A format string for the fmtlib library.
 //! \param args Arguments for the fmtlib library.
 template<std::size_t N, typename S, typename... Args>
-constexpr void format(small_string<N>& str, const S& fmt, Args&&... args)
+constexpr void format(small_string<N>& str,
+                      const S&         fmt,
+                      Args&&... args) noexcept
 {
     auto ret = fmt::vformat_to_n(str.begin(),
                                  static_cast<size_t>(N - 1),
