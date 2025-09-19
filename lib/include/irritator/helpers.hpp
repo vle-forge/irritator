@@ -164,39 +164,6 @@ auto for_each_data(Data& d, Function&& f) noexcept -> void
         std::invoke(std::forward<Function>(f), data);
 }
 
-//! @brief Apply function @c f until an error occurend in @f.
-//!
-//! For all element in data_array @c d try to call the function @c f.
-//! If this function return false or return a @c is_bad status, then the
-//! function return this error.
-//!
-//! @return If @c f returns a boolean, this function return true or false if a
-//! call to @c f fail. If @c f returns a @c irt::result, this function return @c
-//! irt::result::success() or the firt error that occured in @c f.
-template<typename Data, typename Function>
-auto try_for_each_data(Data& d, Function&& f) noexcept ->
-  typename std::decay<decltype(std::declval<Function>()().value())>::type
-{
-    using return_t = std::invoke_result_t<Function, typename Data::value_type&>;
-
-    static_assert(std::is_same_v<return_t, bool> ||
-                  is_expected<return_t>::value);
-
-    if constexpr (std::is_same_v<return_t, bool>) {
-        for (auto& elem : d)
-            if (!std::invoke(std::forward<Function>(f), elem))
-                return false;
-        return true;
-    }
-
-    if constexpr (is_expected<return_t>::value) {
-        for (auto& data : d)
-            if (auto ret = std::invoke(std::forward<Function>(f), data); !ret)
-                return ret.error();
-        return success();
-    }
-}
-
 //! @brief Call function @c f if @c id exists in @c data_array.
 template<typename Data, typename Function>
 void if_data_exists_do(Data&                          d,
