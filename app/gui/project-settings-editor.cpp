@@ -16,110 +16,92 @@
 
 namespace irt {
 
-/** Show the hierarchy of @c tree_node in a @c ImGui::TreeNode and @c
- * ImGui::Selectable widgets. This function returns the selected @c
- * tree_node_id. */
-static tree_node_id show_project_hierarchy(application& app,
-                                           project&     pj,
-                                           tree_node&   parent,
-                                           tree_node_id id) noexcept;
-
-static tree_node_id show_tree_node_children(application& app,
-                                            project&     pj,
-                                            tree_node&   parent,
-                                            component&   compo,
-                                            tree_node_id id) noexcept
+static tree_node_id show_project_hierarchy(application&    app,
+                                           project_editor& pj_ed,
+                                           tree_node&      root,
+                                           tree_node_id    selection) noexcept
 {
-    debug::ensure(parent.tree.get_child() != nullptr);
+    struct elem {
+        constexpr elem(const tree_node_id id) noexcept
+          : tn(id)
+        {}
 
-    const auto parent_id      = pj.tree_nodes.get_id(parent);
-    auto       is_selected    = parent_id == id;
-    auto       next_selection = id;
-    auto       copy_selected  = is_selected;
+        tree_node_id tn;
 
-    small_string<127> str;
-    format(str, "{} ({})", compo.name.sv(), parent.unique_id.sv());
+        bool children_read = false;
+        bool sibling_read  = false;
+        bool pop_required  = false;
+    };
 
-    auto is_open = ImGui::TreeNodeExSelectableWithHint(
-      str.c_str(),
-      component_type_names[ordinal(compo.type)],
-      &is_selected,
-      ImGuiTreeNodeFlags_OpenOnArrow | ImGuiTreeNodeFlags_SpanAvailWidth);
+    small_vector<elem, max_component_stack_size> stack;
 
-    if (copy_selected != is_selected)
-        next_selection = is_selected ? parent_id : undefined<tree_node_id>();
+    auto next_selection = selection;
 
-    if (is_open) {
-        if (auto* child = parent.tree.get_child(); child) {
-            auto selection =
-              show_project_hierarchy(app, pj, *child, next_selection);
-            if (selection != next_selection)
-                next_selection = selection;
+    stack.push_back(pj_ed.pj.tree_nodes.get_id(root));
+
+    while (not stack.empty()) {
+        if (stack.back().children_read and stack.back().sibling_read) {
+            if (stack.back().pop_required)
+                ImGui::TreePop();
+            stack.pop_back();
+            continue;
         }
 
-        ImGui::TreePop();
-    }
+        const auto  tn_id         = stack.back().tn;
+        const auto& tn            = pj_ed.pj.tree_nodes.get(tn_id);
+        const auto& compo         = app.mod.components.get<component>(tn.id);
+        auto        is_selected   = tn_id == selection;
+        const auto  copy_selected = is_selected;
 
-    return next_selection;
-}
+        const auto name =
+          format_n<127>("{} ({})", compo.name.sv(), tn.unique_id.sv());
 
-static tree_node_id show_tree_node_no_children(application& /*app*/,
-                                               project&     pj,
-                                               tree_node&   parent,
-                                               component&   compo,
-                                               tree_node_id id) noexcept
-{
-    debug::ensure(parent.tree.get_child() == nullptr);
+        if (not stack.back().children_read) {
+            stack.back().children_read = true;
+            if (not tn.tree.get_child()) {
+                if (ImGui::SelectableWithHint(
+                      name.c_str(),
+                      component_type_names[ordinal(compo.type)],
+                      &is_selected)) {
+                    next_selection =
+                      is_selected ? (selection != tn_id ? tn_id : selection)
+                                  : undefined<tree_node_id>();
+                }
+            } else {
+                const auto open = ImGui::TreeNodeExSelectableWithHint(
+                  name.c_str(),
+                  component_type_names[ordinal(compo.type)],
+                  &is_selected,
+                  ImGuiTreeNodeFlags_OpenOnArrow |
+                    ImGuiTreeNodeFlags_SpanAvailWidth);
 
-    const auto parent_id      = pj.tree_nodes.get_id(parent);
-    auto       next_selection = id;
-    auto       is_selected    = parent_id == id;
+                if (copy_selected != is_selected)
+                    next_selection =
+                      is_selected ? tn_id : undefined<tree_node_id>();
 
-    small_string<127> str;
-    format(str, "{} ({})", compo.name.sv(), parent.unique_id.sv());
+                if (open) {
+                    stack.back().pop_required = true;
+                    stack.push_back(
+                      pj_ed.pj.tree_nodes.get_id(*tn.tree.get_child()));
+                }
+            }
+            continue;
+        }
 
-    if (ImGui::SelectableWithHint(str.c_str(),
-                                  component_type_names[ordinal(compo.type)],
-                                  &is_selected)) {
-        if (is_selected)
-            next_selection = id != parent_id ? parent_id : id;
-        else
-            next_selection = undefined<tree_node_id>();
-    }
+        if (not stack.back().sibling_read) {
+            stack.back().sibling_read = true;
 
-    return next_selection;
-}
+            if (stack.back().children_read and not stack.back().pop_required)
+                stack.pop_back(); // Optimization: do not let sibling into the
+                                  // stack. The stack size is now limited to the
+                                  // max component depth.
 
-static tree_node_id show_project_hierarchy(application& app,
-                                           project&     pj,
-                                           tree_node&   parent,
-                                           tree_node_id id) noexcept
-{
-    tree_node_id ret = id;
-
-    if (auto* compo = app.mod.components.try_to_get<component>(parent.id)) {
-        ImGui::PushID(&parent);
-
-        const auto have_children = parent.tree.get_child() != nullptr;
-        const auto child_selection =
-          have_children
-            ? show_tree_node_children(app, pj, parent, *compo, id)
-            : show_tree_node_no_children(app, pj, parent, *compo, id);
-
-        if (child_selection != id)
-            ret = child_selection;
-
-        ImGui::PopID();
-
-        if (auto* sibling = parent.tree.get_sibling(); sibling) {
-            const auto sibling_selection =
-              show_project_hierarchy(app, pj, *sibling, id);
-            if (id != sibling_selection)
-                ret = sibling_selection;
+            if (auto* sibling = tn.tree.get_sibling())
+                stack.push_back(pj_ed.pj.tree_nodes.get_id(*sibling));
         }
     }
 
-    return ret;
+    return next_selection;
 }
 
 static inline constexpr std::string_view simulation_status_names[] = {
@@ -362,8 +344,8 @@ void project_settings_editor::show(project_editor& ed) noexcept
             if (ImGui::BeginTabItem("Hierarchy")) {
                 if (ImGui::BeginChild("###hierarchy",
                                       ImGui::GetContentRegionAvail())) {
-                    auto selection = show_project_hierarchy(
-                      app, ed.pj, *parent, ed.m_selected_tree_node);
+                    const auto selection = show_project_hierarchy(
+                      app, ed, *parent, ed.m_selected_tree_node);
                     if (selection != ed.m_selected_tree_node)
                         next_selection = selection;
                 }
