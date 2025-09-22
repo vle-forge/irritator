@@ -1233,11 +1233,15 @@ auto project_editor::show(application& app) noexcept -> show_result_t
                     if (m_selected_tree_node != old_selected_tree_node) {
                         const auto compo_id = selected->id;
                         if (app.mod.components.exists(compo_id)) {
-                            auto& graph_compo = app.mod.graph_components.get(
-                              app.mod.components.get<component>(compo_id)
-                                .id.graph_id);
-
-                            graph_ed.update(app, graph_compo.g);
+                            const auto& c =
+                              app.mod.components.get<component>(compo_id);
+                            if (c.type == component_type::graph) {
+                                auto& graph_compo =
+                                  app.mod.graph_components.get(
+                                    app.mod.components.get<component>(compo_id)
+                                      .id.graph_id);
+                                graph_ed.update(app, graph_compo.g);
+                            }
                         }
                     }
 
