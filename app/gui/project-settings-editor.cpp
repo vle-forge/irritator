@@ -22,7 +22,7 @@ static tree_node_id show_project_hierarchy(application&    app,
                                            tree_node_id    selection) noexcept
 {
     struct elem {
-        constexpr elem(const tree_node_id id) noexcept
+        explicit constexpr elem(const tree_node_id id) noexcept
           : tn(id)
         {}
 
@@ -37,7 +37,7 @@ static tree_node_id show_project_hierarchy(application&    app,
 
     auto next_selection = selection;
 
-    stack.push_back(pj_ed.pj.tree_nodes.get_id(root));
+    stack.emplace_back(pj_ed.pj.tree_nodes.get_id(root));
 
     while (not stack.empty()) {
         if (stack.back().children_read and stack.back().sibling_read) {
@@ -81,7 +81,7 @@ static tree_node_id show_project_hierarchy(application&    app,
 
                 if (open) {
                     stack.back().pop_required = true;
-                    stack.push_back(
+                    stack.emplace_back(
                       pj_ed.pj.tree_nodes.get_id(*tn.tree.get_child()));
                 }
             }
@@ -97,7 +97,7 @@ static tree_node_id show_project_hierarchy(application&    app,
                                   // max component depth.
 
             if (auto* sibling = tn.tree.get_sibling())
-                stack.push_back(pj_ed.pj.tree_nodes.get_id(*sibling));
+                stack.emplace_back(pj_ed.pj.tree_nodes.get_id(*sibling));
         }
     }
 
@@ -142,7 +142,7 @@ static bool show_registred_obseravation_path(application&    app,
 
         for (const auto& r : app.mod.registred_paths) {
             const auto r_id = app.mod.registred_paths.get_id(r);
-            ImGui::PushID(ordinal(r_id));
+            ImGui::PushID(static_cast<int>(ordinal(r_id)));
             if (ImGui::Selectable(r.name.c_str(),
                                   ed.pj.observation_dir == r_id)) {
                 ed.pj.observation_dir = r_id;
@@ -324,18 +324,16 @@ static bool show_project_simulation_settings(application&    app,
     return up > 0;
 }
 
-void project_settings_editor::show(project_editor& ed) noexcept
+void project_editor::show_settings_and_hierarchy(application& app) noexcept
 {
-    auto& app = container_of(this, &application::project_wnd);
-
-    if (auto* parent = ed.pj.tn_head(); parent) {
-        auto next_selection = ed.m_selected_tree_node;
+    if (auto* parent = pj.tn_head(); parent) {
+        auto next_selection = m_selected_tree_node;
 
         if (ImGui::BeginTabBar("Project")) {
             if (ImGui::BeginTabItem("Settings")) {
                 if (ImGui::BeginChild("###settings",
                                       ImGui::GetContentRegionAvail()))
-                    show_project_simulation_settings(app, ed);
+                    show_project_simulation_settings(app, *this);
 
                 ImGui::EndChild();
                 ImGui::EndTabItem();
@@ -345,8 +343,8 @@ void project_settings_editor::show(project_editor& ed) noexcept
                 if (ImGui::BeginChild("###hierarchy",
                                       ImGui::GetContentRegionAvail())) {
                     const auto selection = show_project_hierarchy(
-                      app, ed, *parent, ed.m_selected_tree_node);
-                    if (selection != ed.m_selected_tree_node)
+                      app, *this, *parent, m_selected_tree_node);
+                    if (selection != m_selected_tree_node)
                         next_selection = selection;
                 }
                 ImGui::EndChild();
@@ -355,8 +353,8 @@ void project_settings_editor::show(project_editor& ed) noexcept
             ImGui::EndTabBar();
         }
 
-        if (next_selection != ed.m_selected_tree_node)
-            ed.select(app, next_selection);
+        if (next_selection != m_selected_tree_node)
+            select(app, next_selection);
     }
 }
 

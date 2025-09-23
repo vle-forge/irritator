@@ -1011,6 +1011,10 @@ struct project_editor {
      * try to close it. */
     show_result_t show(application& app) noexcept;
 
+    /** Display the settings and simulation hierarchy in a @c
+     * ImGui::BeginTabBar/End widget. */
+    void show_settings_and_hierarchy(application& app) noexcept;
+
     void display_subwindows(application& app) noexcept;
     void close_subwindows(application& app) noexcept;
 
@@ -1245,18 +1249,6 @@ private:
     vector<tree_node*> stack;
 };
 
-/** An ImGui TabBAr to display project settings, project hierarchy, simulation
- * settings etc. */
-class project_settings_editor
-{
-public:
-    project_settings_editor() noexcept = default;
-
-    void show(project_editor& ed) noexcept;
-
-private:
-};
-
 class settings_window
 {
 public:
@@ -1476,9 +1468,8 @@ public:
     component_selector       component_sel;
     component_model_selector component_model_sel;
 
-    project_settings_editor project_wnd;
-    component_editor        component_ed;
-    output_editor           output_ed;
+    component_editor component_ed;
+    output_editor    output_ed;
 
     file_dialog f_dialog;
 

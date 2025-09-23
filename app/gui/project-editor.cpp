@@ -1204,7 +1204,7 @@ auto project_editor::show(application& app) noexcept -> show_result_t
 
         ImGui::TableNextRow();
         ImGui::TableSetColumnIndex(0);
-        app.project_wnd.show(*this);
+        show_settings_and_hierarchy(app);
 
         ImGui::TableSetColumnIndex(1);
         if (ImGui::BeginChild("##ed-sim", ImGui::GetContentRegionAvail())) {
