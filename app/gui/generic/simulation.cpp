@@ -1389,12 +1389,14 @@ bool generic_simulation_editor::display(application&    app,
                 selected_nodes.resize(num_selected_nodes, -1);
                 ImNodes::GetSelectedNodes(selected_nodes.begin());
 
-                if (ImGui::IsKeyReleased(ImGuiKey_Delete)) {
+                if (ImGui::IsKeyReleased(ImGuiKey_Delete) and
+                    ImGui::IsItemHovered() and ImGui::IsItemActive()) {
                     changes += free_model(app, pj_ed, current, selected_nodes);
                     selected_nodes.clear();
                     ++changes;
                     ImNodes::ClearNodeSelection();
-                } else if (ImGui::IsKeyReleased(ImGuiKey_D)) {
+                } else if (ImGui::IsKeyReleased(ImGuiKey_D) and
+                           ImGui::IsItemHovered() and ImGui::IsItemActive()) {
                     changes += copy(app, pj_ed, nodes, current, selected_nodes);
                     selected_nodes.clear();
                     ImNodes::ClearNodeSelection();
@@ -1402,7 +1404,8 @@ bool generic_simulation_editor::display(application&    app,
             } else if (num_selected_links > 0) {
                 selected_links.resize(num_selected_links);
 
-                if (ImGui::IsKeyReleased(ImGuiKey_Delete)) {
+                if (ImGui::IsKeyReleased(ImGuiKey_Delete) and
+                    ImGui::IsItemHovered() and ImGui::IsItemActive()) {
                     std::fill_n(
                       selected_links.begin(), selected_links.size(), -1);
                     ImNodes::GetSelectedLinks(selected_links.begin());

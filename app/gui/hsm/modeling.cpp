@@ -882,7 +882,8 @@ void hsm_component_editor_data::show_graph(hsm_component& hsm) noexcept
         m_selected_nodes.resize(num_selected_nodes, 0);
         ImNodes::GetSelectedNodes(m_selected_nodes.begin());
 
-        if (ImGui::IsKeyReleased(ImGuiKey_Delete)) {
+        if (ImGui::IsKeyReleased(ImGuiKey_Delete) and ImGui::IsItemHovered() and
+            ImGui::IsItemActive()) {
             for (auto idx : m_selected_nodes) {
                 if (idx != 0)
                     remove_state(hsm, get_state(idx), m_enabled);
@@ -894,7 +895,8 @@ void hsm_component_editor_data::show_graph(hsm_component& hsm) noexcept
         m_selected_links.resize(num_selected_links, 0);
         ImNodes::GetSelectedLinks(m_selected_links.begin());
 
-        if (ImGui::IsKeyReleased(ImGuiKey_Delete)) {
+        if (ImGui::IsKeyReleased(ImGuiKey_Delete) and ImGui::IsItemHovered() and
+            ImGui::IsItemActive()) {
             auto need_clear = false;
 
             for (auto idx : m_selected_links) {

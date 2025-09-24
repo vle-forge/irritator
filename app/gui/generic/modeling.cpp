@@ -1170,7 +1170,8 @@ static void show_component_editor(component_editor&              ed,
         data.selected_links.clear();
     }
 
-    if (ImGui::IsKeyReleased(ImGuiKey_Delete)) {
+    if (ImGui::IsKeyReleased(ImGuiKey_Delete) and ImGui::IsItemHovered() and
+        ImGui::IsItemActive()) {
         if (num_selected_nodes > 0)
             remove_nodes(app.mod, data, compo);
         else if (num_selected_links > 0)
