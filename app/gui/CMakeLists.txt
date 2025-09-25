@@ -46,6 +46,7 @@ else ()
     find_package(OpenGL REQUIRED)
     find_package(glfw3 REQUIRED)
     find_package(GLEW REQUIRED)
+    find_package(X11 REQUIRED)
     list(APPEND gui_sources
         main-unix.cpp
         ${PROJECT_SOURCE_DIR}/../../external/imgui/backends/imgui_impl_glfw.cpp
@@ -73,6 +74,7 @@ target_include_directories(irritator-gui
 target_link_libraries(irritator-gui
     PRIVATE
     $<$<PLATFORM_ID:Linux>:GLEW::GLEW>
+    $<$<PLATFORM_ID:Linux>:X11::X11>
     $<$<PLATFORM_ID:Darwin>:GLEW::glew>
     $<$<AND:$<PLATFORM_ID:Linux>,$<CXX_COMPILER_ID:GNU>,$<VERSION_LESS:$<CXX_COMPILER_VERSION>,9.0>>:stdc++fs>
     $<$<AND:$<PLATFORM_ID:Linux>,$<CXX_COMPILER_ID:Clang>,$<VERSION_LESS:$<CXX_COMPILER_VERSION>,9.0>>:c++fs>
