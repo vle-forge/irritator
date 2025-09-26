@@ -1,4 +1,4 @@
-cmake_minimum_required(VERSION 3.5 FATAL_ERROR)
+cmake_minimum_required(VERSION 3.15 FATAL_ERROR)
 project(libirritator VERSION 0.1.0 LANGUAGES CXX)
 
 set(public_irritator_header
