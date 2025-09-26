@@ -1352,6 +1352,10 @@ bool generic_simulation_editor::display(application&    app,
             ImNodes::EditorContextSet(context);
             ImNodes::BeginNodeEditor();
 
+            const auto is_editor_hovered =
+              ImGui::IsWindowFocused(ImGuiFocusedFlags_RootAndChildWindows) and
+              ImNodes::IsEditorHovered();
+
             if (automatic_layout_iteration > 0) {
                 compute_automatic_layout();
                 --automatic_layout_iteration;
@@ -1385,34 +1389,35 @@ bool generic_simulation_editor::display(application&    app,
                 ImNodes::ClearLinkSelection();
             }
 
-            if (num_selected_nodes > 0) {
-                selected_nodes.resize(num_selected_nodes, -1);
-                ImNodes::GetSelectedNodes(selected_nodes.begin());
+            if (is_editor_hovered and not ImGui::IsAnyItemHovered()) {
+                if (num_selected_nodes > 0) {
+                    selected_nodes.resize(num_selected_nodes, -1);
+                    ImNodes::GetSelectedNodes(selected_nodes.begin());
 
-                if (ImGui::IsKeyReleased(ImGuiKey_Delete) and
-                    ImGui::IsItemHovered() and ImGui::IsItemActive()) {
-                    changes += free_model(app, pj_ed, current, selected_nodes);
-                    selected_nodes.clear();
-                    ++changes;
-                    ImNodes::ClearNodeSelection();
-                } else if (ImGui::IsKeyReleased(ImGuiKey_D) and
-                           ImGui::IsItemHovered() and ImGui::IsItemActive()) {
-                    changes += copy(app, pj_ed, nodes, current, selected_nodes);
-                    selected_nodes.clear();
-                    ImNodes::ClearNodeSelection();
-                }
-            } else if (num_selected_links > 0) {
-                selected_links.resize(num_selected_links);
+                    if (ImGui::IsKeyReleased(ImGuiKey_Delete)) {
+                        changes +=
+                          free_model(app, pj_ed, current, selected_nodes);
+                        selected_nodes.clear();
+                        ++changes;
+                        ImNodes::ClearNodeSelection();
+                    } else if (ImGui::IsKeyReleased(ImGuiKey_D)) {
+                        changes +=
+                          copy(app, pj_ed, nodes, current, selected_nodes);
+                        selected_nodes.clear();
+                        ImNodes::ClearNodeSelection();
+                    }
+                } else if (num_selected_links > 0) {
+                    selected_links.resize(num_selected_links);
 
-                if (ImGui::IsKeyReleased(ImGuiKey_Delete) and
-                    ImGui::IsItemHovered() and ImGui::IsItemActive()) {
-                    std::fill_n(
-                      selected_links.begin(), selected_links.size(), -1);
-                    ImNodes::GetSelectedLinks(selected_links.begin());
-                    changes +=
-                      disconnect(app, pj_ed, current, links, selected_links);
-                    selected_links.clear();
-                    ImNodes::ClearLinkSelection();
+                    if (ImGui::IsKeyReleased(ImGuiKey_Delete)) {
+                        std::fill_n(
+                          selected_links.begin(), selected_links.size(), -1);
+                        ImNodes::GetSelectedLinks(selected_links.begin());
+                        changes += disconnect(
+                          app, pj_ed, current, links, selected_links);
+                        selected_links.clear();
+                        ImNodes::ClearLinkSelection();
+                    }
                 }
             }
         }

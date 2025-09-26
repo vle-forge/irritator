@@ -1142,6 +1142,10 @@ static void show_component_editor(component_editor&              ed,
     ImNodes::EditorContextSet(data.context);
     ImNodes::BeginNodeEditor();
 
+    const auto is_editor_hovered =
+      ImGui::IsWindowFocused(ImGuiFocusedFlags_RootAndChildWindows) and
+      ImNodes::IsEditorHovered();
+
     show_popup_menuitem(app, data, compo, s_compo);
     show_graph(ed, compo, s_compo);
 
@@ -1170,8 +1174,8 @@ static void show_component_editor(component_editor&              ed,
         data.selected_links.clear();
     }
 
-    if (ImGui::IsKeyReleased(ImGuiKey_Delete) and ImGui::IsItemHovered() and
-        ImGui::IsItemActive()) {
+    if (is_editor_hovered and ImGui::IsKeyReleased(ImGuiKey_Delete) 
+        and not ImGui::IsAnyItemHovered()) {
         if (num_selected_nodes > 0)
             remove_nodes(app.mod, data, compo);
         else if (num_selected_links > 0)

@@ -859,6 +859,11 @@ void hsm_component_editor_data::show_graph(hsm_component& hsm) noexcept
 {
     ImNodes::EditorContextSet(m_context);
     ImNodes::BeginNodeEditor();
+
+    const auto is_editor_hovered =
+      ImGui::IsWindowFocused(ImGuiFocusedFlags_RootAndChildWindows) and
+      ImNodes::IsEditorHovered();
+
     show_menu(hsm);
     show_hsm(hsm);
     ImNodes::MiniMap(0.2f, ImNodesMiniMapLocation_BottomLeft);
@@ -878,37 +883,37 @@ void hsm_component_editor_data::show_graph(hsm_component& hsm) noexcept
         ImNodes::ClearLinkSelection();
     }
 
-    if (num_selected_nodes > 0) {
-        m_selected_nodes.resize(num_selected_nodes, 0);
-        ImNodes::GetSelectedNodes(m_selected_nodes.begin());
+    if (is_editor_hovered and not ImGui::IsAnyItemHovered()) {
+        if (num_selected_nodes > 0) {
+            m_selected_nodes.resize(num_selected_nodes, 0);
+            ImNodes::GetSelectedNodes(m_selected_nodes.begin());
 
-        if (ImGui::IsKeyReleased(ImGuiKey_Delete) and ImGui::IsItemHovered() and
-            ImGui::IsItemActive()) {
-            for (auto idx : m_selected_nodes) {
-                if (idx != 0)
-                    remove_state(hsm, get_state(idx), m_enabled);
-            }
-        }
-    }
-
-    if (num_selected_links > 0) {
-        m_selected_links.resize(num_selected_links, 0);
-        ImNodes::GetSelectedLinks(m_selected_links.begin());
-
-        if (ImGui::IsKeyReleased(ImGuiKey_Delete) and ImGui::IsItemHovered() and
-            ImGui::IsItemActive()) {
-            auto need_clear = false;
-
-            for (auto idx : m_selected_links) {
-                if (idx != 0) {
-                    remove_link(hsm, get_transition(idx));
-                    need_clear = true;
+            if (ImGui::IsKeyReleased(ImGuiKey_Delete)) {
+                for (auto idx : m_selected_nodes) {
+                    if (idx != 0)
+                        remove_state(hsm, get_state(idx), m_enabled);
                 }
             }
+        }
 
-            if (need_clear) {
-                m_selected_links.clear();
-                ImNodes::ClearLinkSelection();
+        if (num_selected_links > 0) {
+            m_selected_links.resize(num_selected_links, 0);
+            ImNodes::GetSelectedLinks(m_selected_links.begin());
+
+            if (ImGui::IsKeyReleased(ImGuiKey_Delete)) {
+                auto need_clear = false;
+
+                for (auto idx : m_selected_links) {
+                    if (idx != 0) {
+                        remove_link(hsm, get_transition(idx));
+                        need_clear = true;
+                    }
+                }
+
+                if (need_clear) {
+                    m_selected_links.clear();
+                    ImNodes::ClearLinkSelection();
+                }
             }
         }
     }
