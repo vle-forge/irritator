@@ -444,6 +444,14 @@ static void show_dynamics_values(application& /*app*/,
     ImGui::LabelFormat("upper-threshold", "{}", dyn.upper_threshold);
 }
 
+template<std::size_t QssLevel>
+static void show_dynamics_values(application& /*app*/,
+                                 project_editor& /*sim*/,
+                                 const abstract_invert<QssLevel>& dyn)
+{
+    ImGui::LabelFormat("value", "{}", dyn.values[0]);
+}
+
 static void show_dynamics_values(application& /*app*/,
                                  project_editor& /*sim*/,
                                  const qss1_power& dyn)
