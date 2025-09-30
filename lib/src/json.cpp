@@ -4984,7 +4984,7 @@ struct json_archiver::impl {
 
     template<typename Writer, std::size_t QssLevel>
     void write(Writer& writer,
-               const abstract_invert<QssLevel>& /*dyn*/,
+               const abstract_inverse<QssLevel>& /*dyn*/,
                const parameter& /*p*/) noexcept
     {
         writer.StartObject();

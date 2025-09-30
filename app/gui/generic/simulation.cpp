@@ -447,7 +447,7 @@ static void show_dynamics_values(application& /*app*/,
 template<std::size_t QssLevel>
 static void show_dynamics_values(application& /*app*/,
                                  project_editor& /*sim*/,
-                                 const abstract_invert<QssLevel>& dyn)
+                                 const abstract_inverse<QssLevel>& dyn)
 {
     ImGui::LabelFormat("value", "{}", dyn.values[0]);
 }

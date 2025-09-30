@@ -649,7 +649,7 @@ enum class dynamics_type : i32 {
     qss1_wsum_2,
     qss1_wsum_3,
     qss1_wsum_4,
-    qss1_invert,
+    qss1_inverse,
     qss1_integer,
     qss1_compare,
     qss2_integrator,
@@ -664,7 +664,7 @@ enum class dynamics_type : i32 {
     qss2_wsum_2,
     qss2_wsum_3,
     qss2_wsum_4,
-    qss2_invert,
+    qss2_inverse,
     qss2_integer,
     qss2_compare,
     qss3_integrator,
@@ -679,7 +679,7 @@ enum class dynamics_type : i32 {
     qss3_wsum_2,
     qss3_wsum_3,
     qss3_wsum_4,
-    qss3_invert,
+    qss3_inverse,
     qss3_integer,
     qss3_compare,
     counter,
@@ -2735,7 +2735,7 @@ using qss3_wsum_3 = abstract_wsum<3, 3>;
 using qss3_wsum_4 = abstract_wsum<3, 4>;
 
 template<std::size_t QssLevel>
-struct abstract_invert {
+struct abstract_inverse {
     static_assert(1 <= QssLevel && QssLevel <= 3, "Only for Qss1, 2 and 3");
 
     message_id                 x[1]   = {};
@@ -2743,9 +2743,9 @@ struct abstract_invert {
     time                       sigma  = {};
     std::array<real, QssLevel> values = {};
 
-    abstract_invert() noexcept = default;
+    abstract_inverse() noexcept = default;
 
-    abstract_invert(const abstract_invert& other) noexcept
+    abstract_inverse(const abstract_inverse& other) noexcept
       : sigma(other.sigma)
       , values(other.values)
     {}
@@ -2835,9 +2835,9 @@ struct abstract_invert {
     }
 };
 
-using qss1_invert = abstract_invert<1>;
-using qss2_invert = abstract_invert<2>;
-using qss3_invert = abstract_invert<3>;
+using qss1_inverse = abstract_inverse<1>;
+using qss2_inverse = abstract_inverse<2>;
+using qss3_inverse = abstract_inverse<3>;
 
 template<std::size_t QssLevel>
 struct abstract_multiplier {
@@ -4881,7 +4881,7 @@ constexpr sz max_size_in_bytes() noexcept
                sizeof(qss1_wsum_2),
                sizeof(qss1_wsum_3),
                sizeof(qss1_wsum_4),
-               sizeof(qss1_invert),
+               sizeof(qss1_inverse),
                sizeof(qss2_integrator),
                sizeof(qss2_multiplier),
                sizeof(qss2_cross),
@@ -4894,7 +4894,7 @@ constexpr sz max_size_in_bytes() noexcept
                sizeof(qss2_wsum_2),
                sizeof(qss2_wsum_3),
                sizeof(qss2_wsum_4),
-               sizeof(qss2_invert),
+               sizeof(qss2_inverse),
                sizeof(qss3_integrator),
                sizeof(qss3_multiplier),
                sizeof(qss3_cross),
@@ -4907,7 +4907,7 @@ constexpr sz max_size_in_bytes() noexcept
                sizeof(qss3_wsum_2),
                sizeof(qss3_wsum_3),
                sizeof(qss3_wsum_4),
-               sizeof(qss3_invert),
+               sizeof(qss3_inverse),
                sizeof(counter),
                sizeof(queue),
                sizeof(dynamic_queue),
@@ -4938,7 +4938,7 @@ concept dynamics =
   std::is_same_v<Dynamics, qss1_wsum_2> or
   std::is_same_v<Dynamics, qss1_wsum_3> or
   std::is_same_v<Dynamics, qss1_wsum_4> or
-  std::is_same_v<Dynamics, qss1_invert> or
+  std::is_same_v<Dynamics, qss1_inverse> or
   std::is_same_v<Dynamics, qss1_integer> or
   std::is_same_v<Dynamics, qss1_compare> or
   std::is_same_v<Dynamics, qss2_integrator> or
@@ -4953,7 +4953,7 @@ concept dynamics =
   std::is_same_v<Dynamics, qss2_wsum_2> or
   std::is_same_v<Dynamics, qss2_wsum_3> or
   std::is_same_v<Dynamics, qss2_wsum_4> or
-  std::is_same_v<Dynamics, qss2_invert> or
+  std::is_same_v<Dynamics, qss2_inverse> or
   std::is_same_v<Dynamics, qss2_integer> or
   std::is_same_v<Dynamics, qss2_compare> or
   std::is_same_v<Dynamics, qss3_integrator> or
@@ -4968,7 +4968,7 @@ concept dynamics =
   std::is_same_v<Dynamics, qss3_wsum_2> or
   std::is_same_v<Dynamics, qss3_wsum_3> or
   std::is_same_v<Dynamics, qss3_wsum_4> or
-  std::is_same_v<Dynamics, qss3_invert> or
+  std::is_same_v<Dynamics, qss3_inverse> or
   std::is_same_v<Dynamics, qss3_integer> or
   std::is_same_v<Dynamics, qss3_compare> or std::is_same_v<Dynamics, counter> or
   std::is_same_v<Dynamics, queue> or std::is_same_v<Dynamics, dynamic_queue> or
@@ -5021,8 +5021,8 @@ static constexpr dynamics_type dynamics_typeof() noexcept
         return dynamics_type::qss1_wsum_3;
     if constexpr (std::is_same_v<Dynamics, qss1_wsum_4>)
         return dynamics_type::qss1_wsum_4;
-    if constexpr (std::is_same_v<Dynamics, qss1_invert>)
-        return dynamics_type::qss1_invert;
+    if constexpr (std::is_same_v<Dynamics, qss1_inverse>)
+        return dynamics_type::qss1_inverse;
     if constexpr (std::is_same_v<Dynamics, qss1_integer>)
         return dynamics_type::qss1_integer;
     if constexpr (std::is_same_v<Dynamics, qss1_compare>)
@@ -5052,8 +5052,8 @@ static constexpr dynamics_type dynamics_typeof() noexcept
         return dynamics_type::qss2_wsum_3;
     if constexpr (std::is_same_v<Dynamics, qss2_wsum_4>)
         return dynamics_type::qss2_wsum_4;
-    if constexpr (std::is_same_v<Dynamics, qss2_invert>)
-        return dynamics_type::qss2_invert;
+    if constexpr (std::is_same_v<Dynamics, qss2_inverse>)
+        return dynamics_type::qss2_inverse;
     if constexpr (std::is_same_v<Dynamics, qss2_integer>)
         return dynamics_type::qss2_integer;
     if constexpr (std::is_same_v<Dynamics, qss2_compare>)
@@ -5083,8 +5083,8 @@ static constexpr dynamics_type dynamics_typeof() noexcept
         return dynamics_type::qss3_wsum_3;
     if constexpr (std::is_same_v<Dynamics, qss3_wsum_4>)
         return dynamics_type::qss3_wsum_4;
-    if constexpr (std::is_same_v<Dynamics, qss3_invert>)
-        return dynamics_type::qss3_invert;
+    if constexpr (std::is_same_v<Dynamics, qss3_inverse>)
+        return dynamics_type::qss3_inverse;
     if constexpr (std::is_same_v<Dynamics, qss3_integer>)
         return dynamics_type::qss3_integer;
     if constexpr (std::is_same_v<Dynamics, qss3_compare>)
@@ -5224,9 +5224,9 @@ constexpr auto dispatch(const dynamics_type type,
                            qss_wsum_4_tag{},
                            std::forward<Args>(args)...);
 
-    case dynamics_type::qss1_invert:
-    case dynamics_type::qss2_invert:
-    case dynamics_type::qss3_invert:
+    case dynamics_type::qss1_inverse:
+    case dynamics_type::qss2_inverse:
+    case dynamics_type::qss3_inverse:
         return std::invoke(std::forward<Function>(f),
                            qss_invert_tag{},
                            std::forward<Args>(args)...);
@@ -5359,9 +5359,9 @@ constexpr auto dispatch(const model& mdl, Function&& f, Args&&... args) noexcept
         return std::invoke(std::forward<Function>(f),
                            *reinterpret_cast<const qss1_wsum_4*>(&mdl.dyn),
                            std::forward<Args>(args)...);
-    case dynamics_type::qss1_invert:
+    case dynamics_type::qss1_inverse:
         return std::invoke(std::forward<Function>(f),
-                           *reinterpret_cast<const qss1_invert*>(&mdl.dyn),
+                           *reinterpret_cast<const qss1_inverse*>(&mdl.dyn),
                            std::forward<Args>(args)...);
     case dynamics_type::qss1_integer:
         return std::invoke(std::forward<Function>(f),
@@ -5420,9 +5420,9 @@ constexpr auto dispatch(const model& mdl, Function&& f, Args&&... args) noexcept
         return std::invoke(std::forward<Function>(f),
                            *reinterpret_cast<const qss2_wsum_4*>(&mdl.dyn),
                            std::forward<Args>(args)...);
-    case dynamics_type::qss2_invert:
+    case dynamics_type::qss2_inverse:
         return std::invoke(std::forward<Function>(f),
-                           *reinterpret_cast<const qss2_invert*>(&mdl.dyn),
+                           *reinterpret_cast<const qss2_inverse*>(&mdl.dyn),
                            std::forward<Args>(args)...);
     case dynamics_type::qss2_integer:
         return std::invoke(std::forward<Function>(f),
@@ -5481,9 +5481,9 @@ constexpr auto dispatch(const model& mdl, Function&& f, Args&&... args) noexcept
         return std::invoke(std::forward<Function>(f),
                            *reinterpret_cast<const qss3_wsum_4*>(&mdl.dyn),
                            std::forward<Args>(args)...);
-    case dynamics_type::qss3_invert:
+    case dynamics_type::qss3_inverse:
         return std::invoke(std::forward<Function>(f),
-                           *reinterpret_cast<const qss3_invert*>(&mdl.dyn),
+                           *reinterpret_cast<const qss3_inverse*>(&mdl.dyn),
                            std::forward<Args>(args)...);
     case dynamics_type::qss3_integer:
         return std::invoke(std::forward<Function>(f),
@@ -5585,8 +5585,8 @@ constexpr auto dispatch(model& mdl, Function&& f) noexcept
         return f(*reinterpret_cast<qss1_wsum_3*>(&mdl.dyn));
     case dynamics_type::qss1_wsum_4:
         return f(*reinterpret_cast<qss1_wsum_4*>(&mdl.dyn));
-    case dynamics_type::qss1_invert:
-        return f(*reinterpret_cast<qss1_invert*>(&mdl.dyn));
+    case dynamics_type::qss1_inverse:
+        return f(*reinterpret_cast<qss1_inverse*>(&mdl.dyn));
     case dynamics_type::qss1_integer:
         return f(*reinterpret_cast<qss1_integer*>(&mdl.dyn));
     case dynamics_type::qss1_compare:
@@ -5616,8 +5616,8 @@ constexpr auto dispatch(model& mdl, Function&& f) noexcept
         return f(*reinterpret_cast<qss2_wsum_3*>(&mdl.dyn));
     case dynamics_type::qss2_wsum_4:
         return f(*reinterpret_cast<qss2_wsum_4*>(&mdl.dyn));
-    case dynamics_type::qss2_invert:
-        return f(*reinterpret_cast<qss2_invert*>(&mdl.dyn));
+    case dynamics_type::qss2_inverse:
+        return f(*reinterpret_cast<qss2_inverse*>(&mdl.dyn));
     case dynamics_type::qss2_integer:
         return f(*reinterpret_cast<qss2_integer*>(&mdl.dyn));
     case dynamics_type::qss2_compare:
@@ -5647,8 +5647,8 @@ constexpr auto dispatch(model& mdl, Function&& f) noexcept
         return f(*reinterpret_cast<qss3_wsum_3*>(&mdl.dyn));
     case dynamics_type::qss3_wsum_4:
         return f(*reinterpret_cast<qss3_wsum_4*>(&mdl.dyn));
-    case dynamics_type::qss3_invert:
-        return f(*reinterpret_cast<qss3_invert*>(&mdl.dyn));
+    case dynamics_type::qss3_inverse:
+        return f(*reinterpret_cast<qss3_inverse*>(&mdl.dyn));
     case dynamics_type::qss3_integer:
         return f(*reinterpret_cast<qss3_integer*>(&mdl.dyn));
     case dynamics_type::qss3_compare:
@@ -5746,7 +5746,7 @@ inline bool is_ports_compatible(const dynamics_type mdl_src,
     case dynamics_type::qss1_wsum_2:
     case dynamics_type::qss1_wsum_3:
     case dynamics_type::qss1_wsum_4:
-    case dynamics_type::qss1_invert:
+    case dynamics_type::qss1_inverse:
     case dynamics_type::qss2_integrator:
     case dynamics_type::qss2_multiplier:
     case dynamics_type::qss2_power:
@@ -5757,7 +5757,7 @@ inline bool is_ports_compatible(const dynamics_type mdl_src,
     case dynamics_type::qss2_wsum_2:
     case dynamics_type::qss2_wsum_3:
     case dynamics_type::qss2_wsum_4:
-    case dynamics_type::qss2_invert:
+    case dynamics_type::qss2_inverse:
     case dynamics_type::qss3_integrator:
     case dynamics_type::qss3_multiplier:
     case dynamics_type::qss3_power:
@@ -5768,7 +5768,7 @@ inline bool is_ports_compatible(const dynamics_type mdl_src,
     case dynamics_type::qss3_wsum_2:
     case dynamics_type::qss3_wsum_3:
     case dynamics_type::qss3_wsum_4:
-    case dynamics_type::qss3_invert:
+    case dynamics_type::qss3_inverse:
         if (any_equal(mdl_dst,
                       dynamics_type::logical_and_2,
                       dynamics_type::logical_and_3,
@@ -6744,7 +6744,7 @@ constexpr inline auto get_interpolate_type(const dynamics_type type) noexcept
     case dynamics_type::qss1_wsum_2:
     case dynamics_type::qss1_wsum_3:
     case dynamics_type::qss1_wsum_4:
-    case dynamics_type::qss1_invert:
+    case dynamics_type::qss1_inverse:
     case dynamics_type::qss1_integer:
     case dynamics_type::qss1_compare:
         return interpolate_type::qss1;
@@ -6760,7 +6760,7 @@ constexpr inline auto get_interpolate_type(const dynamics_type type) noexcept
     case dynamics_type::qss2_wsum_2:
     case dynamics_type::qss2_wsum_3:
     case dynamics_type::qss2_wsum_4:
-    case dynamics_type::qss2_invert:
+    case dynamics_type::qss2_inverse:
     case dynamics_type::qss2_integer:
     case dynamics_type::qss2_compare:
         return interpolate_type::qss2;
@@ -6776,7 +6776,7 @@ constexpr inline auto get_interpolate_type(const dynamics_type type) noexcept
     case dynamics_type::qss3_wsum_2:
     case dynamics_type::qss3_wsum_3:
     case dynamics_type::qss3_wsum_4:
-    case dynamics_type::qss3_invert:
+    case dynamics_type::qss3_inverse:
     case dynamics_type::qss3_integer:
     case dynamics_type::qss3_compare:
         return interpolate_type::qss3;

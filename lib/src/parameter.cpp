@@ -73,12 +73,12 @@ static void parameter_init(parameter& param, const constant& dyn) noexcept
 
 template<size_t PortNumber>
 static void model_init(const parameter& /*param*/,
-                       abstract_invert<PortNumber>& /*dyn*/) noexcept
+                       abstract_inverse<PortNumber>& /*dyn*/) noexcept
 {}
 
 template<size_t PortNumber>
 static void parameter_init(parameter& /*param*/,
-                           const abstract_invert<PortNumber>& /*dyn*/) noexcept
+                           const abstract_inverse<PortNumber>& /*dyn*/) noexcept
 {}
 
 template<size_t PortNumber>

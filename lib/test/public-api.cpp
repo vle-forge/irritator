@@ -318,7 +318,7 @@ int main()
         fmt::print("qss1_wsum_2       {}\n", sizeof(irt::qss1_wsum_2));
         fmt::print("qss1_wsum_3       {}\n", sizeof(irt::qss1_wsum_3));
         fmt::print("qss1_wsum_4       {}\n", sizeof(irt::qss1_wsum_4));
-        fmt::print("qss1_invert       {}\n", sizeof(irt::qss1_invert));
+        fmt::print("qss1_invert       {}\n", sizeof(irt::qss1_inverse));
         fmt::print("qss1_integer      {}\n", sizeof(irt::qss1_integer));
         fmt::print("qss1_compare      {}\n", sizeof(irt::qss1_compare));
         fmt::print("qss2_integrator   {}\n", sizeof(irt::qss2_integrator));
@@ -332,7 +332,7 @@ int main()
         fmt::print("qss2_wsum_2       {}\n", sizeof(irt::qss2_wsum_2));
         fmt::print("qss2_wsum_3       {}\n", sizeof(irt::qss2_wsum_3));
         fmt::print("qss2_wsum_4       {}\n", sizeof(irt::qss2_wsum_4));
-        fmt::print("qss2_invert       {}\n", sizeof(irt::qss2_invert));
+        fmt::print("qss2_invert       {}\n", sizeof(irt::qss2_inverse));
         fmt::print("qss2_integer      {}\n", sizeof(irt::qss2_integer));
         fmt::print("qss2_compare      {}\n", sizeof(irt::qss2_compare));
         fmt::print("qss3_integrator   {}\n", sizeof(irt::qss3_integrator));
@@ -346,7 +346,7 @@ int main()
         fmt::print("qss3_wsum_2       {}\n", sizeof(irt::qss3_wsum_2));
         fmt::print("qss3_wsum_3       {}\n", sizeof(irt::qss3_wsum_3));
         fmt::print("qss3_wsum_4       {}\n", sizeof(irt::qss3_wsum_4));
-        fmt::print("qss3_invert       {}\n", sizeof(irt::qss3_invert));
+        fmt::print("qss3_invert       {}\n", sizeof(irt::qss3_inverse));
         fmt::print("qss3_integer      {}\n", sizeof(irt::qss3_integer));
         fmt::print("qss3_compare      {}\n", sizeof(irt::qss3_compare));
         fmt::print("counter           {}\n", sizeof(irt::counter));
@@ -462,12 +462,12 @@ int main()
         static_assert(irt::has_output_port<irt::qss1_wsum_4>);
         static_assert(irt::has_observation_function<irt::qss1_wsum_4>);
 
-        static_assert(irt::has_initialize_function<irt::qss1_invert>);
-        static_assert(irt::has_lambda_function<irt::qss1_invert>);
-        static_assert(irt::has_transition_function<irt::qss1_invert>);
-        static_assert(irt::has_input_port<irt::qss1_invert>);
-        static_assert(irt::has_output_port<irt::qss1_invert>);
-        static_assert(irt::has_observation_function<irt::qss1_invert>);
+        static_assert(irt::has_initialize_function<irt::qss1_inverse>);
+        static_assert(irt::has_lambda_function<irt::qss1_inverse>);
+        static_assert(irt::has_transition_function<irt::qss1_inverse>);
+        static_assert(irt::has_input_port<irt::qss1_inverse>);
+        static_assert(irt::has_output_port<irt::qss1_inverse>);
+        static_assert(irt::has_observation_function<irt::qss1_inverse>);
 
         static_assert(irt::has_initialize_function<irt::qss1_integer>);
         static_assert(irt::has_lambda_function<irt::qss1_integer>);
