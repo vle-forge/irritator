@@ -2787,24 +2787,40 @@ struct abstract_inverse {
     status lambda(simulation& sim) noexcept
     {
         if constexpr (QssLevel == 1) {
-            return send_message(sim, y[0], one / values[0]);
+            return send_message(sim,
+                                y[0],
+                                is_zero(values[0])
+                                  ? std::numeric_limits<real>::infinity()
+                                  : one / values[0]);
         }
 
         if constexpr (QssLevel == 2) {
-            return send_message(sim,
-                                y[0],
-                                one / values[0],
-                                -one / (values[0] * values[0]) * values[1]);
+            return is_zero(values[0])
+                     ? send_message(sim,
+                                    y[0],
+                                    std::numeric_limits<real>::infinity(),
+                                    std::numeric_limits<real>::infinity())
+                     : send_message(sim,
+                                    y[0],
+                                    one / values[0],
+                                    -one / (values[0] * values[0]) * values[1]);
         }
 
         if constexpr (QssLevel == 3) {
-            return send_message(sim,
-                                y[0],
-                                one / values[0],
-                                -one / (values[0] * values[0]) * values[1],
-                                one / (values[0] * values[0] * values[0]) *
-                                    values[1] * values[1] -
-                                  one / (values[0] * values[0]) * values[2]);
+            return is_zero(values[0])
+                     ? send_message(sim,
+                                    y[0],
+                                    std::numeric_limits<real>::infinity(),
+                                    std::numeric_limits<real>::infinity(),
+                                    std::numeric_limits<real>::infinity())
+                     : send_message(sim,
+                                    y[0],
+                                    one / values[0],
+                                    -one / (values[0] * values[0]) * values[1],
+                                    one / (values[0] * values[0] * values[0]) *
+                                        values[1] * values[1] -
+                                      one / (values[0] * values[0]) *
+                                        values[2]);
         }
 
         return success();
@@ -2813,24 +2829,44 @@ struct abstract_inverse {
     observation_message observation(time t, time e) const noexcept
     {
         if constexpr (QssLevel == 1) {
-            return { t, one / values[0] };
+            return { t,
+                     is_zero(values[0]) ? std::numeric_limits<real>::infinity()
+                                        : one / values[0] };
         }
 
         if constexpr (QssLevel == 2) {
-            return qss_observation(one / values[0],
-                                   -one / (values[0] * values[0]) * values[1],
-                                   t,
-                                   e);
+            return is_zero(values[0])
+                     ? observation_message{ t,
+                                            std::numeric_limits<
+                                              real>::infinity(),
+                                            std::numeric_limits<
+                                              real>::infinity(),
+                                            std::numeric_limits<
+                                              real>::infinity() }
+                     : qss_observation(one / values[0],
+                                       -one / (values[0] * values[0]) *
+                                         values[1],
+                                       t,
+                                       e);
         }
 
         if constexpr (QssLevel == 3) {
-            return qss_observation(one / values[0],
-                                   -one / (values[0] * values[0]) * values[1],
-                                   one / (values[0] * values[0] * values[0]) *
-                                       values[1] * values[1] -
-                                     one / (values[0] * values[0]) * values[2],
-                                   t,
-                                   e);
+            return is_zero(values[0])
+                     ? observation_message{ t,
+                                            std::numeric_limits<
+                                              real>::infinity(),
+                                            std::numeric_limits<
+                                              real>::infinity(),
+                                            std::numeric_limits<
+                                              real>::infinity() }
+                     : qss_observation(
+                         one / values[0],
+                         -one / (values[0] * values[0]) * values[1],
+                         one / (values[0] * values[0] * values[0]) * values[1] *
+                             values[1] -
+                           one / (values[0] * values[0]) * values[2],
+                         t,
+                         e);
         }
     }
 };
