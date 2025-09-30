@@ -376,85 +376,47 @@ static bool show_local_simulation_settings(application&    app,
     int is_modified = 0;
 
     if (ImGui::CollapsingHeader("Parameters", ImGuiTreeNodeFlags_DefaultOpen)) {
-        ImGui::BeginChild("c-p",
-                          ImVec2(ImGui::GetContentRegionAvail().x, 260.f),
-                          ImGuiChildFlags_None,
-                          ImGuiWindowFlags_HorizontalScrollbar);
+        if (ImGui::BeginChild("project-local-parameters")) {
+            constexpr auto tflags = ImGuiTableFlags_SizingStretchProp;
+            constexpr auto fflags = ImGuiTableColumnFlags_WidthFixed;
+            constexpr auto sflags = ImGuiTableColumnFlags_WidthStretch;
 
-        constexpr auto tflags = ImGuiTableFlags_SizingStretchProp;
-        constexpr auto fflags = ImGuiTableColumnFlags_WidthFixed;
-        constexpr auto sflags = ImGuiTableColumnFlags_WidthStretch;
+            if (ImGui::BeginTable("Parameter table", 3, tflags)) {
+                ImGui::TableSetupColumn("name", fflags, 100.f);
+                ImGui::TableSetupColumn("model type", fflags, 120.f);
+                ImGui::TableSetupColumn("parameter", sflags);
+                ImGui::TableHeadersRow();
 
-        if (ImGui::BeginTable("Parameter table", 5, tflags)) {
-            ImGui::TableSetupColumn("enable", fflags, 30.f);
-            ImGui::TableSetupColumn("name", fflags, 100.f);
-            ImGui::TableSetupColumn("model type", fflags, 120.f);
-            ImGui::TableSetupColumn("parameter", sflags);
-            ImGui::TableSetupColumn("action", fflags, 30.f);
-            ImGui::TableHeadersRow();
+                for (const auto& elem : tn.parameters_ids.data) {
+                    const auto mdl_id =
+                      ed.pj.parameters.get<model_id>(elem.value);
+                    const auto& mdl = ed.pj.sim.models.get(mdl_id);
 
-            auto to_del = undefined<global_parameter_id>();
+                    debug::ensure(ed.pj.parameters.get<name_str>(elem.value) ==
+                                  elem.id);
 
-            for_each_model(ed.pj.sim, tn, [&](auto uid, auto& mdl) noexcept {
-                const auto param_id  = get_global_parameter(tn, uid);
-                const auto is_enable = ed.pj.parameters.exists(param_id);
-                const auto param_idx = get_index(param_id);
+                    ImGui::PushID(get_index(elem.value));
 
-                ImGui::PushID(param_idx);
+                    ImGui::TableNextRow();
+                    ImGui::TableNextColumn();
+                    ImGui::TextUnformatted(elem.id.c_str());
 
-                ImGui::TableNextRow();
-                ImGui::TableNextColumn();
+                    ImGui::TableNextColumn();
+                    ImGui::TextUnformatted(
+                      dynamics_type_names[ordinal(mdl.type)]);
 
-                auto is_enable_copy = is_enable;
-                if (ImGui::Checkbox("##enable", &is_enable_copy)) {
-                    if (is_enable_copy) {
-                        auto new_id = ed.pj.parameters.alloc();
-                        ed.pj.parameters.get<name_str>(new_id) = "New";
-                        ed.pj.parameters.get<tree_node_id>(new_id) =
-                          ed.pj.tree_nodes.get_id(tn);
-                        ed.pj.parameters.get<model_id>(new_id) =
-                          ed.pj.sim.models.get_id(mdl);
-                        ed.pj.parameters.get<parameter>(new_id).clear();
-                        tn.parameters_ids.data.emplace_back(uid, new_id);
-                        tn.parameters_ids.sort();
-                    } else {
-                        tn.parameters_ids.erase(uid);
-                        to_del = param_id;
-                    }
-                }
-
-                ImGui::TableNextColumn();
-                if (is_enable) {
-                    ImGui::PushItemWidth(-1);
-                    ImGui::InputSmallString(
-                      "##name", ed.pj.parameters.get<name_str>(param_id));
-                    ImGui::PopItemWidth();
-                } else {
-                    ImGui::TextUnformatted("-");
-                }
-
-                ImGui::TableNextColumn();
-                ImGui::TextUnformatted(dynamics_type_names[ordinal(mdl.type)]);
-
-                ImGui::TableNextColumn();
-                if (is_enable)
+                    ImGui::TableNextColumn();
                     show_parameter_editor(
                       app,
                       ed.pj.sim.srcs,
                       mdl.type,
-                      ed.pj.parameters.get<parameter>(param_id));
+                      ed.pj.parameters.get<parameter>(elem.value));
 
-                ImGui::TableNextColumn();
-                if (ImGui::Button("del"))
-                    to_del = param_id;
+                    ImGui::PopID();
+                }
 
-                ImGui::PopID();
-            });
-
-            if (is_defined(to_del))
-                ed.pj.parameters.free(to_del);
-
-            ImGui::EndTable();
+                ImGui::EndTable();
+            }
         }
 
         ImGui::EndChild();
@@ -737,61 +699,56 @@ static bool show_project_parameters(application&    app,
     constexpr auto tflags = ImGuiTableFlags_SizingStretchProp;
     constexpr auto fflags = ImGuiTableColumnFlags_WidthFixed;
     constexpr auto sflags = ImGuiTableColumnFlags_WidthStretch;
+    auto           up     = 0;
 
-    auto to_del      = std::optional<global_parameter_id>();
-    auto is_modified = 0;
+    if (ImGui::BeginChild("project-parameters")) {
+        if (ImGui::BeginTable("Parameter table", 4, tflags)) {
+            ImGui::TableSetupColumn("uid", fflags, 100.f);
+            ImGui::TableSetupColumn("name", fflags, 100.f);
+            ImGui::TableSetupColumn("model type", fflags, 120.f);
+            ImGui::TableSetupColumn("parameters", sflags);
+            ImGui::TableHeadersRow();
 
-    if (ImGui::BeginTable("Parameter table", 5, tflags)) {
-        ImGui::TableSetupColumn("name", fflags, 100.f);
-        ImGui::TableSetupColumn("model type", fflags, 120.f);
-        ImGui::TableSetupColumn("parameters", sflags);
-        ImGui::TableSetupColumn("action", fflags, 60.f);
-        ImGui::TableHeadersRow();
+            const auto& names   = ed.pj.parameters.get<name_str>();
+            const auto& tn_ids  = ed.pj.parameters.get<tree_node_id>();
+            const auto& mdl_ids = ed.pj.parameters.get<model_id>();
+            auto&       params  = ed.pj.parameters.get<parameter>();
 
-        ed.pj.parameters.for_each([&](auto  id,
-                                      auto& name,
-                                      auto& /*tn_id*/,
-                                      auto& mdl_id,
-                                      auto& p) noexcept {
-            const auto* mdl = ed.pj.sim.models.try_to_get(mdl_id);
-            ImGui::PushID(get_index(id));
+            for (const auto id : ed.pj.parameters) {
+                const auto* mdl = ed.pj.sim.models.try_to_get(mdl_ids[id]);
+                if (not mdl)
+                    continue;
 
-            ImGui::TableNextRow();
-            ImGui::TableNextColumn();
-            ImGui::PushItemWidth(-1.f);
-            if (ImGui::InputFilteredString("name", name))
-                is_modified++;
-            ImGui::PopItemWidth();
+                const auto* tn = ed.pj.tree_nodes.try_to_get(tn_ids[id]);
+                if (not tn)
+                    continue;
 
-            if (mdl) {
+                ImGui::PushID(mdl);
+
+                ImGui::TableNextRow();
+                ImGui::TableNextColumn();
+                ImGui::TextUnformatted(tn->unique_id.c_str());
+
+                ImGui::TableNextColumn();
+                ImGui::TextUnformatted(names[id].c_str());
+
                 ImGui::TableNextColumn();
                 ImGui::TextUnformatted(dynamics_type_names[ordinal(mdl->type)]);
+
                 ImGui::TableNextColumn();
-                if (show_parameter_editor(app, ed.pj.sim.srcs, mdl->type, p))
-                    is_modified++;
-            } else {
-                ImGui::TableNextColumn();
-                ImGui::TextUnformatted("deleted model");
-                ImGui::TableNextColumn();
-                ImGui::TableNextColumn();
+                up += show_parameter_editor(
+                  app, ed.pj.sim.srcs, mdl->type, params[id]);
+
+                ImGui::PopID();
             }
 
-            ImGui::TableNextColumn();
-            if (ImGui::Button("del"))
-                to_del = id;
-
-            ImGui::PopID();
-        });
-
-        ImGui::EndTable();
+            ImGui::EndTable();
+        }
     }
 
-    if (to_del.has_value()) {
-        ed.pj.parameters.free(*to_del);
-        is_modified++;
-    }
+    ImGui::EndChild();
 
-    return is_modified;
+    return up;
 }
 
 static void show_component_observations_actions(project_editor& sim_ed) noexcept

@@ -570,12 +570,31 @@ static auto make_tree_leaf(simulation_copy&          sc,
     const auto is_public = (ch.flags[child_flags::configurable] or
                             ch.flags[child_flags::observable]);
 
+    // @TODO Add a test function in bitflags to allow:
+    // if (ch.flags.test(child_flags::configurable, child_flags::configurable);
+
     if (is_public) {
         debug::ensure(not uid.empty());
         parent.unique_id_to_model_id.data.emplace_back(name_str(uid),
                                                        new_mdl_id);
         parent.model_id_to_unique_id.data.emplace_back(new_mdl_id,
                                                        name_str(uid));
+        if (not sc.pj.parameters.can_alloc(1) and
+            not sc.pj.parameters.grow<2, 1>())
+            return new_error(project_errc::memory_error);
+
+        if (not parent.parameters_ids.data.can_alloc(1) and
+            not parent.parameters_ids.data.grow<2, 1>())
+            return new_error(project_errc::memory_error);
+
+        const auto id                      = sc.pj.parameters.alloc();
+        sc.pj.parameters.get<name_str>(id) = name_str(uid);
+        sc.pj.parameters.get<tree_node_id>(id) =
+          sc.pj.tree_nodes.get_id(parent);
+        sc.pj.parameters.get<model_id>(id) = new_mdl_id;
+
+        sc.pj.parameters.get<parameter>(id).copy_from(new_mdl);
+        parent.parameters_ids.data.emplace_back(name_str(uid), id);
     }
 
     return new_mdl_id;
