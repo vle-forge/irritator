@@ -2916,13 +2916,14 @@ struct abstract_multiplier {
         }
 
         if constexpr (QssLevel == 3) {
-            return send_message(
-              sim,
-              y[0],
-              values[0] * values[1],
-              values[2 + 0] * values[1] + values[2 + 1] * values[0],
-              values[0] * values[2 + 2 + 1] + values[2 + 0] * values[2 + 1] +
-                values[2 + 2 + 0] * values[1]);
+            return send_message(sim,
+                                y[0],
+                                values[0] * values[1],
+                                values[2 + 0] * values[1] +
+                                  values[2 + 1] * values[0],
+                                values[0] * values[2 + 2 + 1] +
+                                  two * values[2 + 0] * values[2 + 1] +
+                                  values[2 + 2 + 0] * values[1]);
         }
 
         return success();
@@ -3003,13 +3004,14 @@ struct abstract_multiplier {
         }
 
         if constexpr (QssLevel == 3) {
-            return qss_observation(
-              values[0] * values[1],
-              values[2 + 0] * values[1] + values[2 + 1] * values[0],
-              values[0] * values[2 + 2 + 1] + values[2 + 0] * values[2 + 1] +
-                values[2 + 2 + 0] * values[1],
-              t,
-              e);
+            return qss_observation(values[0] * values[1],
+                                   values[2 + 0] * values[1] +
+                                     values[2 + 1] * values[0],
+                                   values[0] * values[2 + 2 + 1] +
+                                     two * values[2 + 0] * values[2 + 1] +
+                                     values[2 + 2 + 0] * values[1],
+                                   t,
+                                   e);
         }
     }
 };
