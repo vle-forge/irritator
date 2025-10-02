@@ -113,7 +113,8 @@ enum class simulation_errc : std::int16_t {
     abstract_sum_value_error,
     abstract_wsum_coeff_error,
     abstract_wsum_value_error,
-    abstract_log_input_error,
+    abstract_inverse_input_error, // value[0] == 0
+    abstract_log_input_error,     // value[0] <= 0
 
     constant_value_error,
     constant_offset_error,

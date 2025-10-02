@@ -2794,41 +2794,26 @@ struct abstract_inverse {
 
     status lambda(simulation& sim) noexcept
     {
+        if (is_zero(values[0]))
+            return new_error(simulation_errc::abstract_log_input_error);
+
         if constexpr (QssLevel == 1) {
-            return send_message(sim,
-                                y[0],
-                                is_zero(values[0])
-                                  ? std::numeric_limits<real>::infinity()
-                                  : one / values[0]);
+            return send_message(sim, y[0], one / values[0]);
         }
 
         if constexpr (QssLevel == 2) {
-            return is_zero(values[0])
-                     ? send_message(sim,
-                                    y[0],
-                                    std::numeric_limits<real>::infinity(),
-                                    std::numeric_limits<real>::infinity())
-                     : send_message(sim,
-                                    y[0],
-                                    one / values[0],
-                                    -one / (values[0] * values[0]) * values[1]);
+            return send_message(
+              sim, y[0], one / values[0], -values[1] / (values[0] * values[0]));
         }
 
         if constexpr (QssLevel == 3) {
-            return is_zero(values[0])
-                     ? send_message(sim,
-                                    y[0],
-                                    std::numeric_limits<real>::infinity(),
-                                    std::numeric_limits<real>::infinity(),
-                                    std::numeric_limits<real>::infinity())
-                     : send_message(sim,
-                                    y[0],
-                                    one / values[0],
-                                    -one / (values[0] * values[0]) * values[1],
-                                    one / (values[0] * values[0] * values[0]) *
-                                        values[1] * values[1] -
-                                      one / (values[0] * values[0]) *
-                                        values[2]);
+            return send_message(sim,
+                                y[0],
+                                one / values[0],
+                                -values[1] / (values[0] * values[0]),
+                                -(values[2] / (values[0] * values[0])) +
+                                  ((two * values[1] * values[1]) /
+                                   (values[0] * values[0] * values[0])));
         }
 
         return success();
@@ -2852,8 +2837,7 @@ struct abstract_inverse {
                                             std::numeric_limits<
                                               real>::infinity() }
                      : qss_observation(one / values[0],
-                                       -one / (values[0] * values[0]) *
-                                         values[1],
+                                       -values[1] / (values[0] * values[0]),
                                        t,
                                        e);
         }
@@ -2867,14 +2851,13 @@ struct abstract_inverse {
                                               real>::infinity(),
                                             std::numeric_limits<
                                               real>::infinity() }
-                     : qss_observation(
-                         one / values[0],
-                         -one / (values[0] * values[0]) * values[1],
-                         one / (values[0] * values[0] * values[0]) * values[1] *
-                             values[1] -
-                           one / (values[0] * values[0]) * values[2],
-                         t,
-                         e);
+                     : qss_observation(one / values[0],
+                                       -values[1] / (values[0] * values[0]),
+                                       -(values[2] / (values[0] * values[0])) +
+                                         ((two * values[1] * values[1]) /
+                                          (values[0] * values[0] * values[0])),
+                                       t,
+                                       e);
         }
     }
 };
