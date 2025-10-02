@@ -2194,7 +2194,7 @@ struct abstract_power {
                                 std::pow(value[0], n),
                                 n * std::pow(value[0], n - 1) * value[1],
                                 n * (n - 1) * std::pow(value[0], n - 2) *
-                                    (value[1] * value[1] / two) +
+                                    (value[1] * value[1]) +
                                   n * std::pow(value[0], n - 1) * value[2]);
 
         return success();
@@ -2247,11 +2247,11 @@ struct abstract_power {
         }
 
         if constexpr (QssLevel == 3) {
-            auto X  = std::pow(value[0], n);
-            auto u  = n * std::pow(value[0], n - 1) * value[1];
-            auto mu = n * (n - 1) * std::pow(value[0], n - 2) *
-                        (value[1] * value[1] / two) +
-                      n * std::pow(value[0], n - 1) * value[2];
+            auto X = std::pow(value[0], n);
+            auto u = n * std::pow(value[0], n - 1) * value[1];
+            auto mu =
+              n * (n - 1) * std::pow(value[0], n - 2) * (value[1] * value[1]) +
+              n * std::pow(value[0], n - 1) * value[2];
 
             return qss_observation(X, u, mu, t, e);
         }
