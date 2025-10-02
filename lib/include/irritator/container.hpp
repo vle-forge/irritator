@@ -2646,15 +2646,20 @@ public:
     constexpr bitflags& reset(value_type e) noexcept;
     constexpr bitflags& reset() noexcept;
 
-    bool all() const noexcept;
-    bool any() const noexcept;
-    bool none() const noexcept;
+    constexpr bool test(value_type e) const noexcept;
+    constexpr bool operator[](value_type e) const noexcept;
+
+    constexpr bool all() const noexcept;
+    constexpr bool any() const noexcept;
+    constexpr bool none() const noexcept;
+
+    constexpr bool all_of(std::same_as<EnumT> auto... args) const noexcept;
+    constexpr bool any_of(std::same_as<EnumT> auto... args) const noexcept;
+    constexpr bool none_of(std::same_as<EnumT> auto... args) const noexcept;
 
     constexpr std::size_t size() const noexcept;
     constexpr std::size_t count() const noexcept;
     std::size_t           to_unsigned() const noexcept;
-
-    constexpr bool operator[](value_type e) const;
 
 private:
     std::bitset<max_bits> m_bits;
@@ -6845,21 +6850,48 @@ constexpr bitflags<EnumT>& bitflags<EnumT>::reset() noexcept
 }
 
 template<typename EnumT>
-bool bitflags<EnumT>::all() const noexcept
+constexpr bool bitflags<EnumT>::test(value_type e) const noexcept
+{
+    return m_bits.test(static_cast<underlying_type>(e));
+}
+
+template<typename EnumT>
+constexpr bool bitflags<EnumT>::all() const noexcept
 {
     return m_bits.all();
 }
 
 template<typename EnumT>
-bool bitflags<EnumT>::any() const noexcept
+constexpr bool bitflags<EnumT>::any() const noexcept
 {
     return m_bits.any();
 }
 
 template<typename EnumT>
-bool bitflags<EnumT>::none() const noexcept
+constexpr bool bitflags<EnumT>::none() const noexcept
 {
     return m_bits.none();
+}
+
+template<typename EnumT>
+constexpr bool bitflags<EnumT>::all_of(
+  std::same_as<EnumT> auto... args) const noexcept
+{
+    return (test(args) and ...);
+}
+
+template<typename EnumT>
+constexpr bool bitflags<EnumT>::any_of(
+  std::same_as<EnumT> auto... args) const noexcept
+{
+    return (test(args) or ...);
+}
+
+template<typename EnumT>
+constexpr bool bitflags<EnumT>::none_of(
+  std::same_as<EnumT> auto... args) const noexcept
+{
+    return (!test(args) and ...);
 }
 
 template<typename EnumT>
@@ -6881,7 +6913,7 @@ std::size_t bitflags<EnumT>::to_unsigned() const noexcept
 }
 
 template<typename EnumT>
-constexpr bool bitflags<EnumT>::operator[](value_type e) const
+constexpr bool bitflags<EnumT>::operator[](value_type e) const noexcept
 {
     return m_bits[static_cast<underlying_type>(e)];
 }

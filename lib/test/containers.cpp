@@ -356,7 +356,7 @@ int main()
 
         using flags_1 = irt::bitflags<test_1>;
 
-        flags_1 f(0b110101u);
+        constexpr flags_1 f(0b110101u);
 
         expect(eq(f.all(), false));
         expect(eq(f.any(), true));
@@ -370,6 +370,40 @@ int main()
         expect(eq(f[test_1::d], false));
         expect(eq(f[test_1::e], true));
         expect(eq(f[test_1::f], true));
+
+        expect(eq(
+          f.all_of(
+            test_1::a, test_1::b, test_1::c, test_1::d, test_1::e, test_1::f),
+          false));
+
+        expect(eq(
+          f.none_of(
+            test_1::a, test_1::b, test_1::c, test_1::d, test_1::e, test_1::f),
+          false));
+
+        expect(eq(
+          f.any_of(
+            test_1::a, test_1::b, test_1::c, test_1::d, test_1::e, test_1::f),
+          true));
+
+        expect(eq(f.all_of(), true));
+        expect(eq(f.all_of(test_1::a, test_1::b), false));
+        expect(eq(f.all_of(test_1::a, test_1::c), true));
+        expect(eq(f.all_of(test_1::a, test_1::c, test_1::e, test_1::f), true));
+        expect(eq(f.all_of(test_1::b, test_1::d), false));
+
+        expect(eq(f.any_of(), false));
+        expect(eq(f.any_of(test_1::a, test_1::b), true));
+        expect(eq(f.any_of(test_1::a, test_1::c), true));
+        expect(eq(f.any_of(test_1::a, test_1::c, test_1::e, test_1::f), true));
+        expect(eq(f.any_of(test_1::b, test_1::d), false));
+
+        expect(eq(f.none_of(), true));
+        expect(eq(f.none_of(test_1::a, test_1::b), false));
+        expect(eq(f.none_of(test_1::a, test_1::c), false));
+        expect(
+          eq(f.none_of(test_1::a, test_1::c, test_1::e, test_1::f), false));
+        expect(eq(f.none_of(test_1::b, test_1::d), true));
     };
 
     "small-function-1"_test = [] {
