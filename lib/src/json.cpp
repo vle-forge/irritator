@@ -1170,6 +1170,24 @@ struct json_dearchiver::impl {
     }
 
     bool read_dynamics(const rapidjson::Value& /*val*/,
+                       qss_sin_tag,
+                       parameter& /*p*/) noexcept
+    {
+        auto_stack a(this, "dynamics sin function");
+
+        return true;
+    }
+
+    bool read_dynamics(const rapidjson::Value& /*val*/,
+                       qss_log_tag,
+                       parameter& /*p*/) noexcept
+    {
+        auto_stack a(this, "dynamics log function");
+
+        return true;
+    }
+
+    bool read_dynamics(const rapidjson::Value& /*val*/,
                        counter_tag,
                        parameter& /*p*/) noexcept
     {
@@ -5396,6 +5414,24 @@ struct json_archiver::impl {
         writer.Double(p.reals[2]);
         writer.Key("not-a-less-b");
         writer.Double(p.reals[3]);
+        writer.EndObject();
+    }
+
+    template<typename Writer, sz QssLevel>
+    void write(Writer& writer,
+               const abstract_sin<QssLevel>& /*dyn*/,
+               const parameter& /*p*/) noexcept
+    {
+        writer.StartObject();
+        writer.EndObject();
+    }
+
+    template<typename Writer, sz QssLevel>
+    void write(Writer& writer,
+               const abstract_log<QssLevel>& /*dyn*/,
+               const parameter& /*p*/) noexcept
+    {
+        writer.StartObject();
         writer.EndObject();
     }
 

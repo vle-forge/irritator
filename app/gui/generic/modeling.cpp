@@ -856,7 +856,7 @@ static void show_popup_menuitem(application&                   app,
 
         if (ImGui::BeginMenu("QSS1")) {
             auto       i = ordinal(dynamics_type::qss1_integrator);
-            const auto e = ordinal(dynamics_type::qss1_compare) + 1;
+            const auto e = ordinal(dynamics_type::qss1_log) + 1;
             for (; i != e; ++i)
                 add_popup_menuitem(app, parent, s_parent, i, click_pos);
             ImGui::EndMenu();
@@ -864,7 +864,7 @@ static void show_popup_menuitem(application&                   app,
 
         if (ImGui::BeginMenu("QSS2")) {
             auto       i = ordinal(dynamics_type::qss2_integrator);
-            const auto e = ordinal(dynamics_type::qss2_compare) + 1;
+            const auto e = ordinal(dynamics_type::qss2_log) + 1;
 
             for (; i != e; ++i)
                 add_popup_menuitem(app, parent, s_parent, i, click_pos);
@@ -873,7 +873,7 @@ static void show_popup_menuitem(application&                   app,
 
         if (ImGui::BeginMenu("QSS3")) {
             auto       i = ordinal(dynamics_type::qss3_integrator);
-            const auto e = ordinal(dynamics_type::qss3_compare) + 1;
+            const auto e = ordinal(dynamics_type::qss3_log) + 1;
 
             for (; i != e; ++i)
                 add_popup_menuitem(app, parent, s_parent, i, click_pos);
@@ -1174,8 +1174,8 @@ static void show_component_editor(component_editor&              ed,
         data.selected_links.clear();
     }
 
-    if (is_editor_hovered and ImGui::IsKeyReleased(ImGuiKey_Delete) 
-        and not ImGui::IsAnyItemHovered()) {
+    if (is_editor_hovered and ImGui::IsKeyReleased(ImGuiKey_Delete) and
+        not ImGui::IsAnyItemHovered()) {
         if (num_selected_nodes > 0)
             remove_nodes(app.mod, data, compo);
         else if (num_selected_links > 0)

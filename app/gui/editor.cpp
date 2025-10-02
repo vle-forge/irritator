@@ -194,6 +194,22 @@ bool show_external_sources_combo(external_source&     srcs,
 
 /////////////////////////////////////////////////////////////////////
 
+static bool show_parameter(qss_log_tag,
+                           application& /*app*/,
+                           external_source& /*srcs*/,
+                           parameter& /*p*/) noexcept
+{
+    return false;
+}
+
+static bool show_parameter(qss_sin_tag,
+                           application& /*app*/,
+                           external_source& /*srcs*/,
+                           parameter& /*p*/) noexcept
+{
+    return false;
+}
+
 static bool show_parameter(qss_integer_tag,
                            application& /*app*/,
                            external_source& /*srcs*/,

@@ -452,6 +452,22 @@ static void show_dynamics_values(application& /*app*/,
     ImGui::LabelFormat("value", "{}", dyn.values[0]);
 }
 
+template<std::size_t QssLevel>
+static void show_dynamics_values(application& /*app*/,
+                                 project_editor& /*sim*/,
+                                 const abstract_sin<QssLevel>& dyn)
+{
+    ImGui::LabelFormat("value", "{}", dyn.value[0]);
+}
+
+template<std::size_t QssLevel>
+static void show_dynamics_values(application& /*app*/,
+                                 project_editor& /*sim*/,
+                                 const abstract_log<QssLevel>& dyn)
+{
+    ImGui::LabelFormat("value", "{}", dyn.value[0]);
+}
+
 static void show_dynamics_values(application& /*app*/,
                                  project_editor& /*sim*/,
                                  const qss1_power& dyn)
