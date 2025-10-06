@@ -1,0 +1,174 @@
+{
+    "name": "Pendulum",
+    "constant-sources": [],
+    "binary-file-sources": [],
+    "text-file-sources": [],
+    "random-sources": [],
+    "colors": [
+        1.0,
+        1.0,
+        1.0,
+        1.0
+    ],
+    "type": "simple",
+    "children": [
+        {
+            "id": 0,
+            "x": 788.0,
+            "y": 292.0,
+            "name": "d_w",
+            "configurable": false,
+            "observable": true,
+            "type": "qss3_integrator",
+            "dynamics": {
+                "X": 5.0,
+                "dQ": 0.001
+            }
+        },
+        {
+            "id": 1,
+            "x": 332.0,
+            "y": 292.0,
+            "name": "",
+            "configurable": false,
+            "observable": false,
+            "type": "qss3_sin",
+            "dynamics": {}
+        },
+        {
+            "id": 3,
+            "x": -4.0,
+            "y": 4.0,
+            "name": "-g",
+            "configurable": false,
+            "observable": false,
+            "type": "constant",
+            "dynamics": {
+                "value": -9.80665,
+                "offset": 0.0,
+                "type": "constant"
+            }
+        },
+        {
+            "id": 4,
+            "x": -4.0,
+            "y": 388.0,
+            "name": "L",
+            "configurable": false,
+            "observable": false,
+            "type": "constant",
+            "dynamics": {
+                "value": 0.3,
+                "offset": 0.0,
+                "type": "constant"
+            }
+        },
+        {
+            "id": 5,
+            "x": 68.0,
+            "y": 220.0,
+            "name": "",
+            "configurable": false,
+            "observable": false,
+            "type": "qss3_inverse",
+            "dynamics": {}
+        },
+        {
+            "id": 6,
+            "x": 572.0,
+            "y": 508.0,
+            "name": "d_theta",
+            "configurable": false,
+            "observable": true,
+            "type": "qss3_integrator",
+            "dynamics": {
+                "X": 5.0,
+                "dQ": 0.001
+            }
+        },
+        {
+            "id": 7,
+            "x": 236.0,
+            "y": 52.0,
+            "name": "",
+            "configurable": false,
+            "observable": false,
+            "type": "qss3_multiplier",
+            "dynamics": {
+                "value-0": 0.0,
+                "value-1": 0.0
+            }
+        },
+        {
+            "id": 8,
+            "x": 524.0,
+            "y": 220.0,
+            "name": "",
+            "configurable": false,
+            "observable": false,
+            "type": "qss3_multiplier",
+            "dynamics": {
+                "value-0": 0.0,
+                "value-1": 0.0
+            }
+        }
+    ],
+    "connections": [
+        {
+            "type": "internal",
+            "source": 1,
+            "port-source": 0,
+            "destination": 8,
+            "port-destination": 1
+        },
+        {
+            "type": "internal",
+            "source": 5,
+            "port-source": 0,
+            "destination": 7,
+            "port-destination": 1
+        },
+        {
+            "type": "internal",
+            "source": 4,
+            "port-source": 0,
+            "destination": 5,
+            "port-destination": 0
+        },
+        {
+            "type": "internal",
+            "source": 8,
+            "port-source": 0,
+            "destination": 0,
+            "port-destination": 0
+        },
+        {
+            "type": "internal",
+            "source": 0,
+            "port-source": 0,
+            "destination": 6,
+            "port-destination": 0
+        },
+        {
+            "type": "internal",
+            "source": 3,
+            "port-source": 0,
+            "destination": 7,
+            "port-destination": 0
+        },
+        {
+            "type": "internal",
+            "source": 6,
+            "port-source": 0,
+            "destination": 1,
+            "port-destination": 0
+        },
+        {
+            "type": "internal",
+            "source": 7,
+            "port-source": 0,
+            "destination": 8,
+            "port-destination": 0
+        }
+    ]
+}

@@ -1,0 +1,412 @@
+{
+    "name": "Catalyst",
+    "constant-sources": [],
+    "binary-file-sources": [],
+    "text-file-sources": [],
+    "random-sources": [],
+    "colors": [
+        1.0,
+        1.0,
+        1.0,
+        1.0
+    ],
+    "type": "simple",
+    "children": [
+        {
+            "id": 0,
+            "x": 97.797607421875,
+            "y": 315.81201171875,
+            "name": "[A]",
+            "configurable": false,
+            "observable": true,
+            "type": "qss3_integrator",
+            "dynamics": {
+                "X": 2.0,
+                "dQ": 0.01
+            }
+        },
+        {
+            "id": 1,
+            "x": 97.797607421875,
+            "y": 555.81201171875,
+            "name": "[B]",
+            "configurable": false,
+            "observable": true,
+            "type": "qss3_integrator",
+            "dynamics": {
+                "X": 0.0,
+                "dQ": 0.01
+            }
+        },
+        {
+            "id": 2,
+            "x": 745.797607421875,
+            "y": 195.81201171875,
+            "name": "-k1",
+            "configurable": false,
+            "observable": false,
+            "type": "qss3_multiplier",
+            "dynamics": {
+                "value-0": 0.0,
+                "value-1": 0.0
+            }
+        },
+        {
+            "id": 3,
+            "x": 97.797607421875,
+            "y": 795.81201171875,
+            "name": "[C]",
+            "configurable": false,
+            "observable": true,
+            "type": "qss3_integrator",
+            "dynamics": {
+                "X": 1.0,
+                "dQ": 0.01
+            }
+        },
+        {
+            "id": 4,
+            "x": 433.797607421875,
+            "y": 195.81201171875,
+            "name": "k1",
+            "configurable": false,
+            "observable": false,
+            "type": "constant",
+            "dynamics": {
+                "value": 0.1,
+                "offset": 0.0,
+                "type": "constant"
+            }
+        },
+        {
+            "id": 5,
+            "x": 433.797607421875,
+            "y": 3.81201171875,
+            "name": "",
+            "configurable": false,
+            "observable": false,
+            "type": "constant",
+            "dynamics": {
+                "value": -1.0,
+                "offset": 0.0,
+                "type": "constant"
+            }
+        },
+        {
+            "id": 6,
+            "x": 505.797607421875,
+            "y": 483.81201171875,
+            "name": "[A][C]",
+            "configurable": false,
+            "observable": false,
+            "type": "qss3_multiplier",
+            "dynamics": {
+                "value-0": 0.0,
+                "value-1": 0.0
+            }
+        },
+        {
+            "id": 7,
+            "x": 1105.797607421875,
+            "y": 363.81201171875,
+            "name": "-k1[A][C]",
+            "configurable": false,
+            "observable": false,
+            "type": "qss3_multiplier",
+            "dynamics": {
+                "value-0": 0.0,
+                "value-1": 0.0
+            }
+        },
+        {
+            "id": 8,
+            "x": 937.797607421875,
+            "y": 603.81201171875,
+            "name": "k1[A][C]",
+            "configurable": false,
+            "observable": false,
+            "type": "qss3_multiplier",
+            "dynamics": {
+                "value-0": 0.0,
+                "value-1": 0.0
+            }
+        },
+        {
+            "id": 9,
+            "x": 625.797607421875,
+            "y": 699.81201171875,
+            "name": "k2",
+            "configurable": false,
+            "observable": false,
+            "type": "constant",
+            "dynamics": {
+                "value": 0.2,
+                "offset": 0.0,
+                "type": "constant"
+            }
+        },
+        {
+            "id": 10,
+            "x": 865.797607421875,
+            "y": 891.81201171875,
+            "name": "k2[B]",
+            "configurable": false,
+            "observable": false,
+            "type": "qss3_multiplier",
+            "dynamics": {
+                "value-0": 0.0,
+                "value-1": 0.0
+            }
+        },
+        {
+            "id": 11,
+            "x": 1232.0,
+            "y": 719.0,
+            "name": "k1[A][C]-k2[B]",
+            "configurable": false,
+            "observable": false,
+            "type": "qss3_wsum_2",
+            "dynamics": {
+                "value-0": 0.0,
+                "value-1": 0.0,
+                "coeff-0": 1.0,
+                "coeff-1": -1.0
+            }
+        },
+        {
+            "id": 12,
+            "x": 1033.797607421875,
+            "y": 1371.81201171875,
+            "name": "k3log(1+[C])",
+            "configurable": false,
+            "observable": false,
+            "type": "qss3_multiplier",
+            "dynamics": {
+                "value-0": 0.0,
+                "value-1": 0.0
+            }
+        },
+        {
+            "id": 13,
+            "x": 913.797607421875,
+            "y": 1203.81201171875,
+            "name": "log(1+[C])",
+            "configurable": false,
+            "observable": false,
+            "type": "qss3_log",
+            "dynamics": {}
+        },
+        {
+            "id": 14,
+            "x": 649.797607421875,
+            "y": 1179.81201171875,
+            "name": "1+[C]",
+            "configurable": false,
+            "observable": false,
+            "type": "qss3_sum_2",
+            "dynamics": {
+                "value-0": 0.0,
+                "value-1": 0.0
+            }
+        },
+        {
+            "id": 15,
+            "x": 361.797607421875,
+            "y": 1227.81201171875,
+            "name": "1",
+            "configurable": false,
+            "observable": false,
+            "type": "constant",
+            "dynamics": {
+                "value": 0.0,
+                "offset": 0.0,
+                "type": "constant"
+            }
+        },
+        {
+            "id": 16,
+            "x": 505.797607421875,
+            "y": 1491.81201171875,
+            "name": "k3",
+            "configurable": false,
+            "observable": false,
+            "type": "constant",
+            "dynamics": {
+                "value": 0.05,
+                "offset": 0.0,
+                "type": "constant"
+            }
+        },
+        {
+            "id": 17,
+            "x": 1345.797607421875,
+            "y": 1179.81201171875,
+            "name": "k2[B]-k3log(1+[C])",
+            "configurable": false,
+            "observable": false,
+            "type": "qss3_wsum_2",
+            "dynamics": {
+                "value-0": 0.0,
+                "value-1": 0.0,
+                "coeff-0": 1.0,
+                "coeff-1": -1.0
+            }
+        }
+    ],
+    "connections": [
+        {
+            "type": "internal",
+            "source": 4,
+            "port-source": 0,
+            "destination": 2,
+            "port-destination": 1
+        },
+        {
+            "type": "internal",
+            "source": 5,
+            "port-source": 0,
+            "destination": 2,
+            "port-destination": 0
+        },
+        {
+            "type": "internal",
+            "source": 2,
+            "port-source": 0,
+            "destination": 7,
+            "port-destination": 0
+        },
+        {
+            "type": "internal",
+            "source": 0,
+            "port-source": 0,
+            "destination": 6,
+            "port-destination": 0
+        },
+        {
+            "type": "internal",
+            "source": 3,
+            "port-source": 0,
+            "destination": 6,
+            "port-destination": 1
+        },
+        {
+            "type": "internal",
+            "source": 6,
+            "port-source": 0,
+            "destination": 7,
+            "port-destination": 1
+        },
+        {
+            "type": "internal",
+            "source": 4,
+            "port-source": 0,
+            "destination": 8,
+            "port-destination": 0
+        },
+        {
+            "type": "internal",
+            "source": 6,
+            "port-source": 0,
+            "destination": 8,
+            "port-destination": 1
+        },
+        {
+            "type": "internal",
+            "source": 9,
+            "port-source": 0,
+            "destination": 10,
+            "port-destination": 0
+        },
+        {
+            "type": "internal",
+            "source": 1,
+            "port-source": 0,
+            "destination": 10,
+            "port-destination": 1
+        },
+        {
+            "type": "internal",
+            "source": 8,
+            "port-source": 0,
+            "destination": 11,
+            "port-destination": 0
+        },
+        {
+            "type": "internal",
+            "source": 10,
+            "port-source": 0,
+            "destination": 11,
+            "port-destination": 1
+        },
+        {
+            "type": "internal",
+            "source": 15,
+            "port-source": 0,
+            "destination": 14,
+            "port-destination": 0
+        },
+        {
+            "type": "internal",
+            "source": 3,
+            "port-source": 0,
+            "destination": 14,
+            "port-destination": 1
+        },
+        {
+            "type": "internal",
+            "source": 14,
+            "port-source": 0,
+            "destination": 13,
+            "port-destination": 0
+        },
+        {
+            "type": "internal",
+            "source": 16,
+            "port-source": 0,
+            "destination": 12,
+            "port-destination": 1
+        },
+        {
+            "type": "internal",
+            "source": 13,
+            "port-source": 0,
+            "destination": 12,
+            "port-destination": 0
+        },
+        {
+            "type": "internal",
+            "source": 10,
+            "port-source": 0,
+            "destination": 17,
+            "port-destination": 0
+        },
+        {
+            "type": "internal",
+            "source": 12,
+            "port-source": 0,
+            "destination": 17,
+            "port-destination": 1
+        },
+        {
+            "type": "internal",
+            "source": 17,
+            "port-source": 0,
+            "destination": 3,
+            "port-destination": 0
+        },
+        {
+            "type": "internal",
+            "source": 11,
+            "port-source": 0,
+            "destination": 1,
+            "port-destination": 0
+        },
+        {
+            "type": "internal",
+            "source": 7,
+            "port-source": 0,
+            "destination": 0,
+            "port-destination": 0
+        }
+    ]
+}
