@@ -202,7 +202,23 @@ static bool show_parameter(qss_log_tag,
     return false;
 }
 
+static bool show_parameter(qss_exp_tag,
+                           application& /*app*/,
+                           external_source& /*srcs*/,
+                           parameter& /*p*/) noexcept
+{
+    return false;
+}
+
 static bool show_parameter(qss_sin_tag,
+                           application& /*app*/,
+                           external_source& /*srcs*/,
+                           parameter& /*p*/) noexcept
+{
+    return false;
+}
+
+static bool show_parameter(qss_cos_tag,
                            application& /*app*/,
                            external_source& /*srcs*/,
                            parameter& /*p*/) noexcept

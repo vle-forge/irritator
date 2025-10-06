@@ -856,7 +856,7 @@ static void show_popup_menuitem(application&                   app,
 
         if (ImGui::BeginMenu("QSS1")) {
             auto       i = ordinal(dynamics_type::qss1_integrator);
-            const auto e = ordinal(dynamics_type::qss1_log) + 1;
+            const auto e = ordinal(dynamics_type::qss1_exp) + 1;
             for (; i != e; ++i)
                 add_popup_menuitem(app, parent, s_parent, i, click_pos);
             ImGui::EndMenu();
@@ -864,7 +864,7 @@ static void show_popup_menuitem(application&                   app,
 
         if (ImGui::BeginMenu("QSS2")) {
             auto       i = ordinal(dynamics_type::qss2_integrator);
-            const auto e = ordinal(dynamics_type::qss2_log) + 1;
+            const auto e = ordinal(dynamics_type::qss2_exp) + 1;
 
             for (; i != e; ++i)
                 add_popup_menuitem(app, parent, s_parent, i, click_pos);
@@ -873,7 +873,7 @@ static void show_popup_menuitem(application&                   app,
 
         if (ImGui::BeginMenu("QSS3")) {
             auto       i = ordinal(dynamics_type::qss3_integrator);
-            const auto e = ordinal(dynamics_type::qss3_log) + 1;
+            const auto e = ordinal(dynamics_type::qss3_exp) + 1;
 
             for (; i != e; ++i)
                 add_popup_menuitem(app, parent, s_parent, i, click_pos);

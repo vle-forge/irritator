@@ -321,6 +321,10 @@ int main()
         fmt::print("qss1_invert       {}\n", sizeof(irt::qss1_inverse));
         fmt::print("qss1_integer      {}\n", sizeof(irt::qss1_integer));
         fmt::print("qss1_compare      {}\n", sizeof(irt::qss1_compare));
+        fmt::print("qss1_sin          {}\n", sizeof(irt::qss1_sin));
+        fmt::print("qss1_cos          {}\n", sizeof(irt::qss1_cos));
+        fmt::print("qss1_log          {}\n", sizeof(irt::qss1_log));
+        fmt::print("qss1_exp          {}\n", sizeof(irt::qss1_exp));
         fmt::print("qss2_integrator   {}\n", sizeof(irt::qss2_integrator));
         fmt::print("qss2_multiplier   {}\n", sizeof(irt::qss2_multiplier));
         fmt::print("qss2_cross        {}\n", sizeof(irt::qss2_cross));
@@ -335,6 +339,10 @@ int main()
         fmt::print("qss2_invert       {}\n", sizeof(irt::qss2_inverse));
         fmt::print("qss2_integer      {}\n", sizeof(irt::qss2_integer));
         fmt::print("qss2_compare      {}\n", sizeof(irt::qss2_compare));
+        fmt::print("qss2_sin          {}\n", sizeof(irt::qss2_sin));
+        fmt::print("qss2_cos          {}\n", sizeof(irt::qss2_cos));
+        fmt::print("qss2_log          {}\n", sizeof(irt::qss2_log));
+        fmt::print("qss2_exp          {}\n", sizeof(irt::qss2_exp));
         fmt::print("qss3_integrator   {}\n", sizeof(irt::qss3_integrator));
         fmt::print("qss3_multiplier   {}\n", sizeof(irt::qss3_multiplier));
         fmt::print("qss3_power        {}\n", sizeof(irt::qss3_power));
@@ -349,6 +357,10 @@ int main()
         fmt::print("qss3_invert       {}\n", sizeof(irt::qss3_inverse));
         fmt::print("qss3_integer      {}\n", sizeof(irt::qss3_integer));
         fmt::print("qss3_compare      {}\n", sizeof(irt::qss3_compare));
+        fmt::print("qss3_sin          {}\n", sizeof(irt::qss3_sin));
+        fmt::print("qss3_cos          {}\n", sizeof(irt::qss3_cos));
+        fmt::print("qss3_log          {}\n", sizeof(irt::qss3_log));
+        fmt::print("qss3_exp          {}\n", sizeof(irt::qss3_exp));
         fmt::print("counter           {}\n", sizeof(irt::counter));
         fmt::print("queue             {}\n", sizeof(irt::queue));
         fmt::print("dynamic_queue     {}\n", sizeof(irt::dynamic_queue));

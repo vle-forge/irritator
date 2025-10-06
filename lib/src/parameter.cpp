@@ -49,17 +49,40 @@ template<size_t QssLevel>
 static void parameter_init(parameter& /*param*/,
                            const abstract_sin<QssLevel>& /*dyn*/) noexcept
 {}
+
 template<size_t QssLevel>
 static void parameter_init(parameter& /*param*/,
                            const abstract_log<QssLevel>& /*dyn*/) noexcept
 {}
+
 template<size_t QssLevel>
 static void model_init(const parameter& /*param*/,
                        abstract_sin<QssLevel>& /*dyn*/) noexcept
 {}
+
 template<size_t QssLevel>
 static void model_init(const parameter& /*param*/,
                        abstract_log<QssLevel>& /*dyn*/) noexcept
+{}
+
+template<size_t QssLevel>
+static void parameter_init(parameter& /*param*/,
+                           const abstract_cos<QssLevel>& /*dyn*/) noexcept
+{}
+
+template<size_t QssLevel>
+static void parameter_init(parameter& /*param*/,
+                           const abstract_exp<QssLevel>& /*dyn*/) noexcept
+{}
+
+template<size_t QssLevel>
+static void model_init(const parameter& /*param*/,
+                       abstract_cos<QssLevel>& /*dyn*/) noexcept
+{}
+
+template<size_t QssLevel>
+static void model_init(const parameter& /*param*/,
+                       abstract_exp<QssLevel>& /*dyn*/) noexcept
 {}
 
 static void model_init(const parameter& /*param*/, counter& /*dyn*/) noexcept {}
