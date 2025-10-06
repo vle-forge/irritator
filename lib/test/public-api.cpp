@@ -13,6 +13,7 @@
 
 #include <fmt/format.h>
 
+#include <numbers>
 #include <random>
 #include <sstream>
 
@@ -1474,6 +1475,46 @@ int main()
         expect(eq(c,
                   (irt::real{ 2.0 } * sim.limits.duration() / timestep -
                    irt::real{ 1.0 })));
+    };
+
+    "abstract_sin"_test = [] {
+        irt::simulation           sim;
+        irt::abstract_sin<1>&     d1  = sim.alloc<irt::abstract_sin<1>>();
+        irt::abstract_sin<2>&     d2  = sim.alloc<irt::abstract_sin<2>>();
+        irt::abstract_sin<3>&     d3  = sim.alloc<irt::abstract_sin<3>>();
+        irt::abstract_wsum<3, 3>& sum = sim.alloc<irt::abstract_wsum<3, 3>>();
+
+        sim.connect(d1.y[0], sim.models.get_id(irt::get_model(sum)), 0);
+        sim.connect(d2.y[0], sim.models.get_id(irt::get_model(sum)), 1);
+        sim.connect(d3.y[0], sim.models.get_id(irt::get_model(sum)), 2);
+
+        d1.value[0] = std::numbers::pi / 4.0;
+        d2.value[0] = std::numbers::pi / 4.0;
+        d2.value[1] = 0.5;
+        d3.value[0] = std::numbers::pi / 4.0;
+        d3.value[1] = 0.5;
+        d3.value[2] = 0.0;
+
+        sim.emitting_output_ports.clear();
+        d1.lambda(sim);
+        d2.lambda(sim);
+        d3.lambda(sim);
+        expect(eq(sim.emitting_output_ports.ssize(), 3));
+
+        expect(
+          irt::almost_equal(sim.emitting_output_ports[0].msg[0], .707, 1.e-2));
+
+        expect(
+          irt::almost_equal(sim.emitting_output_ports[1].msg[0], .707, 1.e-2));
+        expect(
+          irt::almost_equal(sim.emitting_output_ports[1].msg[1], .354, 1.e-2));
+
+        expect(
+          irt::almost_equal(sim.emitting_output_ports[2].msg[0], .707, 1.e-2));
+        expect(
+          irt::almost_equal(sim.emitting_output_ports[2].msg[1], .354, 1.e-2));
+        expect(
+          irt::almost_equal(sim.emitting_output_ports[2].msg[2], -.176, 1.e-2));
     };
 
     "lotka_volterra_simulation_qss1"_test = [] {

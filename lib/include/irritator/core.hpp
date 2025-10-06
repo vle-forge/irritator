@@ -212,13 +212,17 @@ constexpr bool all_same_type() noexcept
     return (std::is_same_v<T, Rest> && ...);
 }
 
-template<class T>
-typename std::enable_if<!std::numeric_limits<T>::is_integer, bool>::type
-almost_equal(T x, T y, int ulp)
+/** Checks if the given two numbers are relatively equal according to a relative
+ * epsilon. */
+template<std::floating_point Real>
+constexpr bool almost_equal(Real a, Real b, double relative_epsilon) noexcept
 {
-    return std::fabs(x - y) <=
-             std::numeric_limits<T>::epsilon() * std::fabs(x + y) * ulp ||
-           std::fabs(x - y) < std::numeric_limits<T>::min();
+    const auto diff    = std::abs(a - b);
+    const auto abs_a   = std::abs(a);
+    const auto abs_b   = std::abs(b);
+    const auto largest = abs_b > abs_a ? abs_b : abs_a;
+
+    return diff <= largest * relative_epsilon;
 }
 
 /*****************************************************************************
@@ -3633,7 +3637,6 @@ struct abstract_sin {
             const auto u  = std::cos(value[0]) * value[1];
             const auto mu = -std::sin(value[0]) * value[1] * value[1] +
                             std::cos(value[0]) * value[2];
-            ;
 
             return qss_observation(X, u, mu, t, e);
         }
