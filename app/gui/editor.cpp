@@ -573,12 +573,19 @@ static bool show_parameter(qss_cross_tag,
                            external_source& /*srcs*/,
                            parameter& p) noexcept
 {
-    bool is_changed = ImGui::InputReal("threshold", &p.reals[0]);
+    int is_changed = ImGui::InputReal("threshold", &p.reals[0]);
+    is_changed += ImGui::InputReal("if-value", &p.reals[1]);
+    is_changed += ImGui::InputReal("else-value", &p.reals[2]);
 
-    bool value = p.integers[0] != 0;
-    if (ImGui::Checkbox("up detection", &value)) {
-        p.integers[0] = value ? 1 : 0;
-        is_changed    = true;
+    int current = static_cast<int>(p.integers[0]);
+    current     = std::clamp(current, 0, 2);
+
+    if (ImGui::Combo("detection",
+                     &current,
+                     cross_detection_names,
+                     length(cross_detection_names))) {
+        p.integers[0] = current;
+        is_changed++;
     }
 
     return is_changed;

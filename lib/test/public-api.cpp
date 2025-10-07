@@ -902,7 +902,7 @@ int main()
         auto& c1     = sim.alloc<irt::constant>();
 
         get_p(sim, c1).set_constant(3.0, 0);
-        get_p(sim, cross1).set_cross(0, true);
+        get_p(sim, cross1).set_cross(0);
 
         expect(!!sim.connect_dynamics(c1, 0, cross1, 0));
         expect(!!sim.connect_dynamics(c1, 0, cross1, 1));
@@ -1652,9 +1652,9 @@ int main()
 
         get_p(sim, sum).set_wsum2(0, irt::real(-1) / tau, 0, V0 / tau);
         get_p(sim, constant).set_constant(1, 0);
-        get_p(sim, constant_cross).set_cross(Vr, true);
+        get_p(sim, constant_cross).set_cross(Vr);
         get_p(sim, integrator).set_integrator(0, 0.001);
-        get_p(sim, cross).set_cross(Vt, true);
+        get_p(sim, cross).set_cross(Vt);
 
         expect((sim.models.size() == 5_ul) >> fatal);
 
@@ -1707,9 +1707,9 @@ int main()
 
         get_p(sim, sum).set_wsum2(0, irt::real(-1) / tau, 0, V0 / tau);
         get_p(sim, constant).set_constant(1, 0);
-        get_p(sim, constant_cross).set_cross(Vr, true);
+        get_p(sim, constant_cross).set_cross(Vr);
         get_p(sim, integrator).set_integrator(0, 0.001);
-        get_p(sim, cross).set_cross(Vt, true);
+        get_p(sim, cross).set_cross(Vt);
 
         expect((sim.models.size() == 5_ul) >> fatal);
 
@@ -1777,8 +1777,8 @@ int main()
         get_p(sim, constant2).set_constant(c, 0);
         get_p(sim, constant3).set_constant(I, 0);
 
-        get_p(sim, cross).set_cross(vt, true);
-        get_p(sim, cross2).set_cross(vt, true);
+        get_p(sim, cross).set_cross(vt);
+        get_p(sim, cross2).set_cross(vt);
 
         get_p(sim, integrator_a).set_integrator(0, 0.01);
         get_p(sim, integrator_b).set_integrator(0, 0.01);
@@ -1880,8 +1880,8 @@ int main()
         get_p(sim, constant2).set_constant(c, 0);
         get_p(sim, constant3).set_constant(I, 0);
 
-        get_p(sim, cross).set_cross(vt, true);
-        get_p(sim, cross2).set_cross(vt, true);
+        get_p(sim, cross).set_cross(vt);
+        get_p(sim, cross2).set_cross(vt);
 
         get_p(sim, integrator_a).set_integrator(0, 0.01);
         get_p(sim, integrator_b).set_integrator(0, 0.01);
@@ -2030,9 +2030,9 @@ int main()
 
         get_p(sim, sum).set_wsum2(0, irt::real(-1) / tau, 0, V0 / tau);
         get_p(sim, constant).set_constant(1, 0);
-        get_p(sim, constant_cross).set_cross(Vr, true);
+        get_p(sim, constant_cross).set_cross(Vr);
         get_p(sim, integrator).set_integrator(0, 0.001);
-        get_p(sim, cross).set_cross(Vt, true);
+        get_p(sim, cross).set_cross(Vt);
 
         expect((sim.models.size() == 5_ul) >> fatal);
 
@@ -2100,8 +2100,8 @@ int main()
         get_p(sim, constant2).set_constant(c, 0);
         get_p(sim, constant3).set_constant(I, 0);
 
-        get_p(sim, cross).set_cross(vt, true);
-        get_p(sim, cross2).set_cross(vt, true);
+        get_p(sim, cross).set_cross(vt);
+        get_p(sim, cross2).set_cross(vt);
 
         get_p(sim, integrator_a).set_integrator(0, 0.01);
         get_p(sim, integrator_b).set_integrator(0, 0.01);
@@ -2253,7 +2253,7 @@ int main()
         get_p(sim, constant).set_constant(1, 0);
         get_p(sim, constant_cross).set_constant(Vr, 0);
         get_p(sim, integrator).set_integrator(0, 0.001);
-        get_p(sim, cross).set_cross(Vt, false);
+        get_p(sim, cross).set_cross(Vt);
 
         expect((sim.models.size() == 5_ul) >> fatal);
 
@@ -2310,7 +2310,7 @@ int main()
         get_p(sim, constant).set_constant(1, 0);
         get_p(sim, constant_cross).set_constant(Vr, 0);
         get_p(sim, integrator).set_integrator(0, 0.001);
-        get_p(sim, cross).set_cross(Vt, false);
+        get_p(sim, cross).set_cross(Vt);
 
         expect((sim.models.size() == 5_ul) >> fatal);
 
@@ -2368,7 +2368,7 @@ int main()
         get_p(sim, constant).set_constant(1, 0);
         get_p(sim, constant_cross).set_constant(Vr, 0);
         get_p(sim, integrator).set_integrator(0, 0.001);
-        get_p(sim, cross).set_cross(Vt, false);
+        get_p(sim, cross).set_cross(Vt);
 
         expect((sim.models.size() == 5_ul) >> fatal);
 

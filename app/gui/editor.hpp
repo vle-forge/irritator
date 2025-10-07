@@ -10,6 +10,11 @@
 
 namespace irt {
 
+static constexpr const char* cross_zone_names[] = { "undefined", "up", "down" };
+static constexpr const char* cross_detection_names[] = { "both",
+                                                         "from-bottom",
+                                                         "from-top" };
+
 class application;
 
 /**

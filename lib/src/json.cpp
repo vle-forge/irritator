@@ -1474,7 +1474,16 @@ struct json_dearchiver::impl {
               if ("threshold"sv == name)
                   return read_temp_real(value) && copy_real_to(p.reals[0]);
 
+              if ("from-bottom-value"sv == name)
+                  return read_temp_real(value) && copy_real_to(p.reals[1]);
+
+              if ("from-top-value"sv == name)
+                  return read_temp_real(value) && copy_real_to(p.reals[2]);
+
               if ("detect-up"sv == name)
+                  return read_bool(value, p.integers[0]);
+
+              if ("detection-type"sv == name)
                   return read_bool(value, p.integers[0]);
 
               return error("unknown element");
@@ -5626,7 +5635,11 @@ struct json_archiver::impl {
         writer.StartObject();
         writer.Key("threshold");
         writer.Double(p.reals[0]);
-        writer.Key("detect-up");
+        writer.Key("from-bottom-value");
+        writer.Double(p.reals[1]);
+        writer.Key("from-top-value");
+        writer.Double(p.reals[2]);
+        writer.Key("detection-type");
         writer.Bool(p.integers[0]);
         writer.EndObject();
     }
@@ -5639,7 +5652,11 @@ struct json_archiver::impl {
         writer.StartObject();
         writer.Key("threshold");
         writer.Double(p.reals[0]);
-        writer.Key("detect-up");
+        writer.Key("from-bottom-value");
+        writer.Double(p.reals[1]);
+        writer.Key("from-top-value");
+        writer.Double(p.reals[2]);
+        writer.Key("detection-type");
         writer.Bool(p.integers[0]);
         writer.EndObject();
     }
@@ -5652,7 +5669,11 @@ struct json_archiver::impl {
         writer.StartObject();
         writer.Key("threshold");
         writer.Double(p.reals[0]);
-        writer.Key("detect-up");
+        writer.Key("from-bottom-value");
+        writer.Double(p.reals[1]);
+        writer.Key("from-top-value");
+        writer.Double(p.reals[2]);
+        writer.Key("detection-type");
         writer.Bool(p.integers[0]);
         writer.EndObject();
     }

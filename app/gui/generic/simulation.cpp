@@ -423,15 +423,14 @@ static void show_dynamics_values(application& /*app*/,
                                  project_editor& /*sim*/,
                                  const abstract_cross<QssLevel>& dyn)
 {
+
     ImGui::LabelFormat("threshold", "{}", dyn.threshold);
     ImGui::LabelFormat("value", "{}", dyn.value[0]);
-    ImGui::LabelFormat("if-value", "{}", dyn.if_value[0]);
-    ImGui::LabelFormat("else-value", "{}", dyn.else_value[0]);
+    ImGui::LabelFormat("if-value", "{}", dyn.if_value);
+    ImGui::LabelFormat("else-value", "{}", dyn.else_value);
 
-    ImGui::LabelFormat("detection",
-                       "{}",
-                       dyn.detect_up ? std::string_view("up detection")
-                                     : std::string_view("down detection"));
+    ImGui::LabelFormat(
+      "detection", "{}", cross_detection_names[ordinal(dyn.detect)]);
 }
 
 template<std::size_t QssLevel>

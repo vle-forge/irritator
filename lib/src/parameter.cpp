@@ -349,8 +349,13 @@ template<size_t QssLevel>
 static void model_init(const parameter&          param,
                        abstract_cross<QssLevel>& dyn) noexcept
 {
-    dyn.threshold = param.reals[0];
-    dyn.detect_up = param.integers[0] ? true : false;
+    dyn.threshold  = param.reals[0];
+    dyn.if_value   = param.reals[1];
+    dyn.else_value = param.reals[2];
+
+    const auto detect = std::clamp(param.integers[0], i64{ 0 }, i64{ 2 });
+    dyn.detect =
+      enum_cast<typename abstract_cross<QssLevel>::detection_type>(detect);
 }
 
 template<size_t QssLevel>
@@ -358,7 +363,9 @@ static void parameter_init(parameter&                      param,
                            const abstract_cross<QssLevel>& dyn) noexcept
 {
     param.reals[0]    = dyn.threshold;
-    param.integers[0] = dyn.detect_up;
+    param.reals[1]    = dyn.if_value;
+    param.reals[2]    = dyn.else_value;
+    param.integers[0] = ordinal(dyn.detect);
 }
 
 template<size_t QssLevel>
@@ -527,7 +534,8 @@ void parameter::init_from(const dynamics_type type) noexcept
                          dynamics_type::qss1_cross,
                          dynamics_type::qss2_cross,
                          dynamics_type::qss3_cross)) {
-        integers[0] = 1;
+        reals[1] = one;
+        reals[2] = zero;
     } else if (any_equal(type,
                          dynamics_type::qss1_compare,
                          dynamics_type::qss2_compare,
@@ -560,11 +568,14 @@ parameter& parameter::set_constant(real value, real offset) noexcept
     return *this;
 }
 
-parameter& parameter::set_cross(real threshold, bool detect_up) noexcept
+parameter& parameter::set_cross(real threshold,
+                                real if_value,
+                                real else_value) noexcept
 {
-
-    reals[0]    = std::isfinite(threshold) ? threshold : 1.0;
-    integers[0] = detect_up;
+    reals[0]    = std::isfinite(threshold) ? threshold : 0.0;
+    reals[1]    = std::isfinite(if_value) ? if_value : 1.0;
+    reals[2]    = std::isfinite(else_value) ? else_value : 0.0;
+    integers[0] = 0;
 
     return *this;
 }
