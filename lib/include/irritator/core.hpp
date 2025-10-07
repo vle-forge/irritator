@@ -793,7 +793,7 @@ struct parameter {
     parameter& clear() noexcept;
 
     parameter& set_constant(real value, real offset) noexcept;
-    parameter& set_cross(real threshold, bool detect_up) noexcept;
+    parameter& set_cross(real threshold) noexcept;
     parameter& set_integrator(real X, real dQ) noexcept;
     parameter& set_time_func(real offset, real timestep, int type) noexcept;
     parameter& set_multiplier(real v1, real v2) noexcept;
@@ -1469,6 +1469,35 @@ constexpr observation_message qss_observation(real X,
              mu / two + pu * e };
 }
 
+template<std::size_t QssLevel>
+constexpr void update([[maybe_unused]] std::span<real, QssLevel> values,
+                      [[maybe_unused]] time                      e) noexcept
+{
+    if constexpr (QssLevel == 2) {
+        values[0] += values[1] * e;
+    }
+
+    if constexpr (QssLevel == 3) {
+        values[0] += values[1] * e + values[2] * e * e;
+        values[1] += two * values[2] * e;
+    }
+}
+
+template<std::size_t QssLevel>
+constexpr void update(std::span<real, QssLevel> values,
+                      std::span<const real, 3>  msg) noexcept
+{
+    values[0] = msg[0];
+
+    if constexpr (QssLevel >= 2) {
+        values[1] = msg[1];
+    }
+
+    if constexpr (QssLevel == 3) {
+        values[2] = msg[2];
+    }
+}
+
 inline time compute_wake_up(real threshold, real value_0, real value_1) noexcept
 {
     time ret = time_domain<time>::infinity;
@@ -1499,8 +1528,9 @@ inline time compute_wake_up(real threshold,
             const auto d = b * b - four * a * c;
 
             if (d > zero) {
-                const auto x1 = (-b + std::sqrt(d)) / (two * a);
-                const auto x2 = (-b - std::sqrt(d)) / (two * a);
+                const auto sqrt_d = std::sqrt(d);
+                const auto x1     = (-b + sqrt_d) / (two * a);
+                const auto x2     = (-b - sqrt_d) / (two * a);
 
                 if (x1 > zero) {
                     if (x2 > zero) {
@@ -1607,16 +1637,17 @@ struct abstract_integrator<1> {
     status reset(const message& msg) noexcept
     {
         X     = msg[0];
-        q     = X;
+        q     = std::floor(X / dQ) * dQ;
+        u     = zero;
         sigma = time_domain<time>::zero;
+
         return success();
     }
 
     status internal() noexcept
     {
         X += sigma * u;
-        q = X;
-
+        q     = X;
         sigma = is_zero(u) ? time_domain<time>::infinity : dQ / std::abs(u);
 
         return success();
@@ -1779,7 +1810,10 @@ struct abstract_integrator<2> {
     status reset(const message& msg) noexcept
     {
         X     = msg[0];
+        u     = zero;
+        mu    = zero;
         q     = X;
+        mq    = zero;
         sigma = time_domain<time>::zero;
 
         return success();
@@ -2108,10 +2142,17 @@ struct abstract_integrator<3> {
         return success();
     }
 
+    /** Reset the integrator if and only if only if the value change and all
+     * state are not zero. */
     status reset(const message& msg) noexcept
     {
         X     = msg[0];
+        u     = zero;
+        mu    = zero;
+        pu    = zero;
         q     = X;
+        mq    = zero;
+        pq    = zero;
         sigma = time_domain<time>::zero;
 
         return success();
@@ -2217,28 +2258,13 @@ struct abstract_power {
                       time /*e*/,
                       time /*r*/) noexcept
     {
-        sigma     = time_domain<time>::infinity;
-        auto* lst = sim.messages.try_to_get(x[0]);
+        const auto* lst = sim.messages.try_to_get(x[0]);
 
         if (lst and not lst->empty()) {
-            const auto& msg = lst->front();
-
-            if constexpr (QssLevel == 1) {
-                value[0] = msg[0];
-            }
-
-            if constexpr (QssLevel == 2) {
-                value[0] = msg[0];
-                value[1] = msg[1];
-            }
-
-            if constexpr (QssLevel == 3) {
-                value[0] = msg[0];
-                value[1] = msg[1];
-                value[2] = msg[2];
-            }
-
+            update<QssLevel>(value, lst->back());
             sigma = time_domain<time>::zero;
+        } else {
+            sigma = time_domain<time>::infinity;
         }
 
         return success();
@@ -2324,28 +2350,13 @@ struct abstract_square {
                       time /*e*/,
                       time /*r*/) noexcept
     {
-        sigma     = time_domain<time>::infinity;
-        auto* lst = sim.messages.try_to_get(x[0]);
+        const auto* lst = sim.messages.try_to_get(x[0]);
 
         if (lst and not lst->empty()) {
-            const auto& msg = lst->front();
-
-            if constexpr (QssLevel == 1) {
-                value[0] = msg[0];
-            }
-
-            if constexpr (QssLevel == 2) {
-                value[0] = msg[0];
-                value[1] = msg[1];
-            }
-
-            if constexpr (QssLevel == 3) {
-                value[0] = msg[0];
-                value[1] = msg[1];
-                value[2] = msg[2];
-            }
-
+            update<QssLevel>(value, lst->back());
             sigma = time_domain<time>::zero;
+        } else {
+            sigma = time_domain<time>::infinity;
         }
 
         return success();
@@ -2783,22 +2794,13 @@ struct abstract_inverse {
                       [[maybe_unused]] time e,
                       time /*r*/) noexcept
     {
-        const auto* lst          = sim.messages.try_to_get(x[0]);
-        const auto  have_message = lst and not lst->empty();
+        const auto* lst = sim.messages.try_to_get(x[0]);
 
-        sigma = time_domain<time>::infinity;
-
-        if (have_message) {
-            for (const auto& msg : *lst) {
-                sigma     = time_domain<time>::zero;
-                values[0] = msg[0];
-
-                if constexpr (QssLevel >= 2)
-                    values[1] = msg[1];
-
-                if constexpr (QssLevel == 3)
-                    values[2] = msg[2];
-            }
+        if (lst and not lst->empty()) {
+            update<QssLevel>(values, lst->back());
+            sigma = time_domain<time>::zero;
+        } else {
+            sigma = time_domain<time>::infinity;
         }
 
         return success();
@@ -3379,29 +3381,13 @@ struct abstract_log {
                       time /*e*/,
                       time /*r*/) noexcept
     {
-        sigma = time_domain<time>::infinity;
+        auto* lst = sim.messages.try_to_get(x[0]);
 
-        if (auto* lst = sim.messages.try_to_get(x[0])) {
-            if (not lst->empty()) {
-                sigma = time_domain<time>::zero;
-
-                const auto& msg = lst->front();
-
-                if constexpr (QssLevel == 1) {
-                    value[0] = msg[0];
-                }
-
-                if constexpr (QssLevel == 2) {
-                    value[0] = msg[0];
-                    value[1] = msg[1];
-                }
-
-                if constexpr (QssLevel == 3) {
-                    value[0] = msg[0];
-                    value[1] = msg[1];
-                    value[2] = msg[2];
-                }
-            }
+        if (lst and not lst->empty()) {
+            update<QssLevel>(value, lst->back());
+            sigma = time_domain<time>::zero;
+        } else {
+            sigma = time_domain<time>::infinity;
         }
 
         return success();
@@ -3485,29 +3471,13 @@ struct abstract_exp {
                       time /*e*/,
                       time /*r*/) noexcept
     {
-        sigma = time_domain<time>::infinity;
+        auto* lst = sim.messages.try_to_get(x[0]);
 
-        if (auto* lst = sim.messages.try_to_get(x[0])) {
-            if (not lst->empty()) {
-                sigma = time_domain<time>::zero;
-
-                const auto& msg = lst->front();
-
-                if constexpr (QssLevel == 1) {
-                    value[0] = msg[0];
-                }
-
-                if constexpr (QssLevel == 2) {
-                    value[0] = msg[0];
-                    value[1] = msg[1];
-                }
-
-                if constexpr (QssLevel == 3) {
-                    value[0] = msg[0];
-                    value[1] = msg[1];
-                    value[2] = msg[2];
-                }
-            }
+        if (lst and not lst->empty()) {
+            update<QssLevel>(value, lst->back());
+            sigma = time_domain<time>::zero;
+        } else {
+            sigma = time_domain<time>::infinity;
         }
 
         return success();
@@ -3591,29 +3561,13 @@ struct abstract_sin {
                       time /*e*/,
                       time /*r*/) noexcept
     {
-        sigma = time_domain<time>::infinity;
+        auto* lst = sim.messages.try_to_get(x[0]);
 
-        if (auto* lst = sim.messages.try_to_get(x[0])) {
-            if (not lst->empty()) {
-                sigma = time_domain<time>::zero;
-
-                const auto& msg = lst->front();
-
-                if constexpr (QssLevel == 1) {
-                    value[0] = msg[0];
-                }
-
-                if constexpr (QssLevel == 2) {
-                    value[0] = msg[0];
-                    value[1] = msg[1];
-                }
-
-                if constexpr (QssLevel == 3) {
-                    value[0] = msg[0];
-                    value[1] = msg[1];
-                    value[2] = msg[2];
-                }
-            }
+        if (lst and not lst->empty()) {
+            update<QssLevel>(value, lst->back());
+            sigma = time_domain<time>::zero;
+        } else {
+            sigma = time_domain<time>::infinity;
         }
 
         return success();
@@ -3697,29 +3651,13 @@ struct abstract_cos {
                       time /*e*/,
                       time /*r*/) noexcept
     {
-        sigma = time_domain<time>::infinity;
+        const auto* lst = sim.messages.try_to_get(x[0]);
 
-        if (auto* lst = sim.messages.try_to_get(x[0])) {
-            if (not lst->empty()) {
-                sigma = time_domain<time>::zero;
-
-                const auto& msg = lst->front();
-
-                if constexpr (QssLevel == 1) {
-                    value[0] = msg[0];
-                }
-
-                if constexpr (QssLevel == 2) {
-                    value[0] = msg[0];
-                    value[1] = msg[1];
-                }
-
-                if constexpr (QssLevel == 3) {
-                    value[0] = msg[0];
-                    value[1] = msg[1];
-                    value[2] = msg[2];
-                }
-            }
+        if (lst and not lst->empty()) {
+            update<QssLevel>(value, lst->back());
+            sigma = time_domain<time>::zero;
+        } else {
+            sigma = time_domain<time>::infinity;
         }
 
         return success();
@@ -4838,7 +4776,7 @@ struct accumulator {
     status transition(simulation& sim,
                       time /*t*/,
                       time /*e*/,
-                      time /*r*/) noexcept
+                      time /*r`*/) noexcept
     {
         for (size_t i = 0; i != PortNumber; ++i) {
             if (auto* lst = sim.messages.try_to_get(x[i + PortNumber]);
@@ -4868,144 +4806,72 @@ template<std::size_t QssLevel>
 struct abstract_cross {
     static_assert(1 <= QssLevel && QssLevel <= 3, "Only for Qss1, 2 and 3");
 
-    message_id    x[4] = {};
-    block_node_id y[3] = {};
+    enum class zone_type : u8 { undefined, up, down };
+
+    message_id    x[2] = {};
+    block_node_id y[2] = {};
     time          sigma;
 
-    real threshold;
-    real if_value[QssLevel];
-    real else_value[QssLevel];
+    real threshold = zero;
     real value[QssLevel];
-    real last_reset;
-    bool reach_threshold;
-    bool detect_up;
+
+    zone_type zone = zone_type::undefined;
 
     abstract_cross() noexcept = default;
 
     abstract_cross(const abstract_cross& other) noexcept
       : sigma(other.sigma)
       , threshold(other.threshold)
-      , last_reset(other.last_reset)
-      , reach_threshold(other.reach_threshold)
-      , detect_up(other.detect_up)
+      , zone(other.zone)
     {
-        std::copy_n(other.if_value, QssLevel, if_value);
-        std::copy_n(other.else_value, QssLevel, else_value);
         std::copy_n(other.value, QssLevel, value);
     }
 
-    enum port_name {
-        port_value,
-        port_if_value,
-        port_else_value,
-        port_threshold
-    };
-
-    enum out_name { o_if_value, o_else_value, o_threshold_reached };
+    enum o_port_name { port_value, port_threshold };
+    enum i_port_name { port_up, port_down };
 
     status initialize(simulation& /*sim*/) noexcept
     {
-        std::fill_n(if_value, QssLevel, zero);
-        std::fill_n(else_value, QssLevel, zero);
         std::fill_n(value, QssLevel, zero);
 
-        value[0] = threshold - one;
-
-        sigma           = time_domain<time>::infinity;
-        last_reset      = time_domain<time>::infinity;
-        reach_threshold = false;
+        sigma = time_domain<time>::infinity;
+        zone  = zone_type::undefined;
 
         return success();
     }
 
-    status transition(simulation&           sim,
-                      time                  t,
-                      [[maybe_unused]] time e,
-                      time /*r*/) noexcept
+    constexpr zone_type compute_zone(real value, real threshold) const noexcept
     {
-        const auto old_else_value = else_value[0];
+        if (value >= threshold)
+            return zone_type::up;
+        else
+            return zone_type::down;
+    }
 
-        if (is_defined(x[port_threshold])) {
-            if (auto* lst = sim.messages.try_to_get(x[port_threshold]); lst) {
-                for (const auto& msg : *lst)
-                    threshold = msg[0];
-            }
-        }
+    status transition(simulation& sim, time /*t*/, time e, time r) noexcept
+    {
+        const auto* p_threshold   = sim.messages.try_to_get(x[port_threshold]);
+        const auto* p_value       = sim.messages.try_to_get(x[port_value]);
+        const auto  msg_threshold = p_threshold and not p_threshold->empty();
+        const auto  msg_value     = p_value and not p_value->empty();
 
-        if (!is_defined(x[port_if_value])) {
-            if constexpr (QssLevel == 2)
-                if_value[0] += if_value[1] * e;
-            if constexpr (QssLevel == 3) {
-                if_value[0] += if_value[1] * e + if_value[2] * e * e;
-                if_value[1] += two * if_value[2] * e;
-            }
-        } else {
-            if (auto* lst = sim.messages.try_to_get(x[port_if_value]); lst) {
-                for (const auto& msg : *lst) {
-                    if_value[0] = msg[0];
-                    if constexpr (QssLevel >= 2)
-                        if_value[1] = msg[1];
-                    if constexpr (QssLevel == 3)
-                        if_value[2] = msg[2];
-                }
-            }
-        }
+        if (msg_threshold)
+            threshold = p_threshold->back()[0];
 
-        if (!is_defined(x[port_else_value])) {
-            if constexpr (QssLevel == 2)
-                else_value[0] += else_value[1] * e;
-            if constexpr (QssLevel == 3) {
-                else_value[0] += else_value[1] * e + else_value[2] * e * e;
-                else_value[1] += two * else_value[2] * e;
-            }
-        } else {
-            if (auto* lst = sim.messages.try_to_get(x[port_else_value]); lst) {
-                for (const auto& msg : *lst) {
-                    else_value[0] = msg[0];
-                    if constexpr (QssLevel >= 2)
-                        else_value[1] = msg[1];
-                    if constexpr (QssLevel == 3)
-                        else_value[2] = msg[2];
-                }
-            }
-        }
+        msg_value ? update<QssLevel>(value, p_value->back())
+                  : update<QssLevel>(value, e);
 
-        if (!is_defined(x[port_value])) {
-            if constexpr (QssLevel == 2)
-                value[0] += value[1] * e;
-            if constexpr (QssLevel == 3) {
-                value[0] += value[1] * e + value[2] * e * e;
-                value[1] += two * value[2] * e;
-            }
-        } else {
-            if (auto* lst = sim.messages.try_to_get(x[port_value]); lst) {
-                for (const auto& msg : *lst) {
-                    value[0] = msg[0];
-                    if constexpr (QssLevel >= 2)
-                        value[1] = msg[1];
-                    if constexpr (QssLevel == 3)
-                        value[2] = msg[2];
-                }
-            }
-        }
-
-        reach_threshold = false;
-
-        if ((detect_up && value[0] >= threshold) ||
-            (!detect_up && value[0] <= threshold)) {
-            if (t != last_reset) {
-                last_reset      = t;
-                reach_threshold = true;
-                sigma           = time_domain<time>::zero;
-            } else
-                sigma = time_domain<time>::infinity;
-        } else if (old_else_value != else_value[0]) {
+        const auto new_zone = compute_zone(value[0], threshold);
+        if (new_zone != zone) {
+            zone  = new_zone;
             sigma = time_domain<time>::zero;
         } else {
             if constexpr (QssLevel == 1)
                 sigma = time_domain<time>::infinity;
+
             if constexpr (QssLevel == 2)
                 sigma = compute_wake_up(threshold, value[0], value[1]);
+
             if constexpr (QssLevel == 3)
                 sigma =
                   compute_wake_up(threshold, value[0], value[1], value[2]);
@@ -5016,61 +4882,22 @@ struct abstract_cross {
 
     status lambda(simulation& sim) noexcept
     {
-        if constexpr (QssLevel == 1) {
-            if (reach_threshold) {
-                irt_check(send_message(sim, y[o_if_value], if_value[0]));
-
-                irt_check(send_message(sim, y[o_threshold_reached], one));
-            } else {
-                irt_check(send_message(sim, y[o_else_value], else_value[0]));
-
-                irt_check(send_message(sim, y[o_threshold_reached], zero));
-            }
-
-            return success();
-        }
-
-        if constexpr (QssLevel == 2) {
-            if (reach_threshold) {
-                irt_check(
-                  send_message(sim, y[o_if_value], if_value[0], if_value[1]));
-
-                irt_check(send_message(sim, y[o_threshold_reached], one));
-            } else {
-                irt_check(send_message(
-                  sim, y[o_else_value], else_value[0], else_value[1]));
-
-                irt_check(send_message(sim, y[o_threshold_reached], zero));
-            }
-
-            return success();
-        }
-
-        if constexpr (QssLevel == 3) {
-            if (reach_threshold) {
-                irt_check(send_message(
-                  sim, y[o_if_value], if_value[0], if_value[1], if_value[2]));
-
-                irt_check(send_message(sim, y[o_threshold_reached], one));
-            } else {
-                irt_check(send_message(sim,
-                                       y[o_else_value],
-                                       else_value[0],
-                                       else_value[1],
-                                       else_value[2]));
-
-                irt_check(send_message(sim, y[o_threshold_reached], zero));
-            }
-
-            return success();
-        }
-
-        return success();
+        return value[0] >= threshold ? send_message(sim, y[port_up], one)
+                                     : send_message(sim, y[port_down], one);
     }
 
-    observation_message observation(time t, time /*e*/) const noexcept
+    observation_message observation(time t, time e) const noexcept
     {
-        return { t, value[0], if_value[0], else_value[0] };
+        if constexpr (QssLevel == 1)
+            return { t, value[0] };
+
+        if constexpr (QssLevel == 2)
+            return qss_observation(value[0], value[1], t, e);
+
+        if constexpr (QssLevel == 3)
+            return qss_observation(value[0], value[1], value[2], t, e);
+
+        unreachable();
     }
 };
 
@@ -5647,8 +5474,8 @@ static constexpr dynamics_type dynamics_typeof() noexcept
 /** Dispatch the callable @c f with @c args argument according to @c type.
  *
  * This function is useful to: (1) avoid using dynamic polymorphism (i.e.,
- * virtual) based on the @c dynamics_type variables and to (2) provide the same
- * source code for same dynamics type like abstract classes.
+ * virtual) based on the @c dynamics_type variables and to (2) provide the
+ * same source code for same dynamics type like abstract classes.
  *
  * @param type
  * @param f
@@ -7677,9 +7504,9 @@ status simulation::make_initialize(model& mdl, Dynamics& dyn, time t) noexcept
         }
     }
 
-    // @attention Copy parameters to model before using the initialize function.
-    // Be sure to not owerrite the parameters in the @c dynamics::initialize
-    // function.
+    // @attention Copy parameters to model before using the initialize
+    // function. Be sure to not owerrite the parameters in the @c
+    // dynamics::initialize function.
     parameters[models.get_id(mdl)].copy_to(mdl);
 
     if constexpr (has_initialize_function<Dynamics>)

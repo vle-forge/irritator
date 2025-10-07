@@ -573,15 +573,7 @@ static bool show_parameter(qss_cross_tag,
                            external_source& /*srcs*/,
                            parameter& p) noexcept
 {
-    bool is_changed = ImGui::InputReal("threshold", &p.reals[0]);
-
-    bool value = p.integers[0] != 0;
-    if (ImGui::Checkbox("up detection", &value)) {
-        p.integers[0] = value ? 1 : 0;
-        is_changed    = true;
-    }
-
-    return is_changed;
+    return ImGui::InputReal("threshold", &p.reals[0]);
 }
 
 static bool show_parameter(qss_filter_tag,
@@ -589,7 +581,7 @@ static bool show_parameter(qss_filter_tag,
                            external_source& /*srcs*/,
                            parameter& p) noexcept
 {
-    const auto b1 = ImGui::InputReal("lowe threshold", &p.reals[0]);
+    const auto b1 = ImGui::InputReal("lower threshold", &p.reals[0]);
     const auto b2 = ImGui::InputReal("upper threshold", &p.reals[1]);
 
     return b1 or b2;

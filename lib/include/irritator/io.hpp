@@ -146,41 +146,19 @@ inline int generate_random_file(std::ostream&          os,
     return 0;
 }
 
-constexpr static inline auto dot_output_names =
-  std::to_array<std::string_view>({ "out",
-                                    "out_1",
-                                    "out_2",
-                                    "out_3",
-                                    "out_4",
-                                    "if_value",
-                                    "else_value",
-                                    "event",
-                                    "value",
-                                    "up",
-                                    "down" });
+constexpr static inline auto dot_output_names = std::to_array<std::string_view>(
+  { "out", "out_1", "out_2", "out_3", "out_4", "up", "down", "value" });
 
-constexpr static inline auto output_names =
-  std::to_array<std::string_view>({ "out",
-                                    "out-1",
-                                    "out-2",
-                                    "out-3",
-                                    "out-4",
-                                    "if-value",
-                                    "else-value",
-                                    "event",
-                                    "value",
-                                    "up",
-                                    "down" });
+constexpr static inline auto output_names = std::to_array<std::string_view>(
+  { "out", "out-1", "out-2", "out-3", "out-4", "up", "down", "value" });
 
 constexpr static inline auto dot_output_index =
-  std::to_array<std::pair<unsigned char, unsigned char>>(
-    { { 0, 0 },  // 0. empty
-      { 0, 1 },  // 1. out
-      { 1, 4 },  // 2. out1, out2, out3, out4
-      { 5, 3 },  // 3. ifvalue, elsevalue, event
-      { 8, 3 } } // 4. value, up, down
-
-  );
+  std::to_array<std::pair<unsigned char, unsigned char>>({
+    { 0, 0 }, // 0. empty
+    { 0, 1 }, // 1. out
+    { 1, 4 }, // 2. out1, out2, out3, out4
+    { 5, 2 }, // 3. up, down
+  });
 
 constexpr static inline auto dot_output_dyn_index =
   std::to_array<unsigned char>({
@@ -433,9 +411,7 @@ constexpr static inline auto dot_input_names =
                                     "in_2",
                                     "in_3",
                                     "in_4",
-                                    "value",
-                                    "if",
-                                    "else",
+                                    "in",
                                     "threshold",
                                     "in_1",
                                     "in_2",
@@ -444,7 +420,9 @@ constexpr static inline auto dot_input_names =
                                     "value",
                                     "set_t",
                                     "add_tr",
-                                    "mult_tr" });
+                                    "mult_tr",
+                                    "in",
+                                    "event" });
 
 constexpr static inline auto input_names =
   std::to_array<std::string_view>({ "x-dot",
@@ -454,9 +432,7 @@ constexpr static inline auto input_names =
                                     "in-2",
                                     "in-3",
                                     "in-4",
-                                    "value",
-                                    "if",
-                                    "else",
+                                    "in",
                                     "threshold",
                                     "in-1",
                                     "in-2",
@@ -465,7 +441,9 @@ constexpr static inline auto input_names =
                                     "value",
                                     "set-t",
                                     "add-tr",
-                                    "mult-tr" });
+                                    "mult-tr",
+                                    "in",
+                                    "event" });
 
 constexpr static inline auto dot_input_index =
   std::to_array<std::pair<unsigned char, unsigned char>>(
@@ -475,9 +453,10 @@ constexpr static inline auto dot_input_index =
       { 3, 2 },   // 3. in-[1,2]
       { 3, 3 },   // 4. in-[1,..,3]
       { 3, 4 },   // 5. in-[1,..,4]
-      { 7, 4 },   // 6. value..threshold
-      { 11, 4 },  // 7. in-1..nb-2
-      { 15, 4 } } // 8. value..mult-tr
+      { 7, 2 },   // 6. in..threshold
+      { 9, 4 },   // 7. in-1..nb-2
+      { 13, 4 },  // 8. value..mult-tr
+      { 17, 2 } } // 9. in..event
   );
 
 constexpr static inline auto dot_input_dyn_index =

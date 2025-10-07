@@ -1034,8 +1034,6 @@ void project_editor::start_simulation_start_1(application& app) noexcept
                            simulation_status::pause_forced,
                            simulation_status::debugged);
 
-    debug::ensure(state);
-
     if (state) {
         app.add_simulation_task(app.pjs.get_id(*this), [&]() noexcept {
             if (auto* parent = pj.tn_head(); parent) {

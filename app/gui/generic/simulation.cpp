@@ -425,13 +425,6 @@ static void show_dynamics_values(application& /*app*/,
 {
     ImGui::LabelFormat("threshold", "{}", dyn.threshold);
     ImGui::LabelFormat("value", "{}", dyn.value[0]);
-    ImGui::LabelFormat("if-value", "{}", dyn.if_value[0]);
-    ImGui::LabelFormat("else-value", "{}", dyn.else_value[0]);
-
-    ImGui::LabelFormat("detection",
-                       "{}",
-                       dyn.detect_up ? std::string_view("up detection")
-                                     : std::string_view("down detection"));
 }
 
 template<std::size_t QssLevel>

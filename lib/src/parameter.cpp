@@ -1,4 +1,4 @@
-// Copyright (c) 2023 INRA Distributed under the Boost Software License,
+ // Copyright (c) 2023 INRA Distributed under the Boost Software License,
 // Version 1.0. (See accompanying file LICENSE_1_0.txt or copy at
 // http://www.boost.org/LICENSE_1_0.txt)
 
@@ -350,15 +350,13 @@ static void model_init(const parameter&          param,
                        abstract_cross<QssLevel>& dyn) noexcept
 {
     dyn.threshold = param.reals[0];
-    dyn.detect_up = param.integers[0] ? true : false;
 }
 
 template<size_t QssLevel>
 static void parameter_init(parameter&                      param,
                            const abstract_cross<QssLevel>& dyn) noexcept
 {
-    param.reals[0]    = dyn.threshold;
-    param.integers[0] = dyn.detect_up;
+    param.reals[0] = dyn.threshold;
 }
 
 template<size_t QssLevel>
@@ -527,7 +525,8 @@ void parameter::init_from(const dynamics_type type) noexcept
                          dynamics_type::qss1_cross,
                          dynamics_type::qss2_cross,
                          dynamics_type::qss3_cross)) {
-        integers[0] = 1;
+        reals[1] = one;
+        reals[2] = zero;
     } else if (any_equal(type,
                          dynamics_type::qss1_compare,
                          dynamics_type::qss2_compare,
@@ -560,11 +559,9 @@ parameter& parameter::set_constant(real value, real offset) noexcept
     return *this;
 }
 
-parameter& parameter::set_cross(real threshold, bool detect_up) noexcept
+parameter& parameter::set_cross(real threshold) noexcept
 {
-
-    reals[0]    = std::isfinite(threshold) ? threshold : 1.0;
-    integers[0] = detect_up;
+    reals[0] = std::isfinite(threshold) ? threshold : 0.0;
 
     return *this;
 }
