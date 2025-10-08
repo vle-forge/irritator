@@ -1638,16 +1638,17 @@ struct abstract_integrator<1> {
     status reset(const message& msg) noexcept
     {
         X     = msg[0];
-        q     = X;
+        q     = std::floor(X / dQ) * dQ;
+        u     = zero;
         sigma = time_domain<time>::zero;
+
         return success();
     }
 
     status internal() noexcept
     {
         X += sigma * u;
-        q = X;
-
+        q     = X;
         sigma = is_zero(u) ? time_domain<time>::infinity : dQ / std::abs(u);
 
         return success();
@@ -1810,7 +1811,10 @@ struct abstract_integrator<2> {
     status reset(const message& msg) noexcept
     {
         X     = msg[0];
+        u     = zero;
+        mu    = zero;
         q     = X;
+        mq    = zero;
         sigma = time_domain<time>::zero;
 
         return success();
@@ -2142,7 +2146,12 @@ struct abstract_integrator<3> {
     status reset(const message& msg) noexcept
     {
         X     = msg[0];
+        u     = zero;
+        mu    = zero;
+        pu    = zero;
         q     = X;
+        mq    = zero;
+        pq    = zero;
         sigma = time_domain<time>::zero;
 
         return success();
@@ -4796,6 +4805,7 @@ template<std::size_t QssLevel>
 struct abstract_cross {
     static_assert(1 <= QssLevel && QssLevel <= 3, "Only for Qss1, 2 and 3");
 
+    enum class last_send_type : u8 { undefined, if_port, else_port };
     enum class zone_type : u8 { undefined, up, down };
 
     message_id    x[4] = {};
@@ -4807,7 +4817,8 @@ struct abstract_cross {
     real else_value = zero;
     real value[QssLevel];
 
-    zone_type zone = zone_type::undefined;
+    last_send_type last_send = last_send_type::undefined;
+    zone_type      zone      = zone_type::undefined;
 
     abstract_cross() noexcept = default;
 
@@ -4830,10 +4841,13 @@ struct abstract_cross {
 
     status initialize(simulation& /*sim*/) noexcept
     {
+        printf("cross::initialize\n");
+
         std::fill_n(value, QssLevel, zero);
 
-        sigma = time_domain<time>::infinity;
-        zone  = zone_type::undefined;
+        sigma     = time_domain<time>::infinity;
+        last_send = last_send_type::undefined;
+        zone      = zone_type::undefined;
 
         return success();
     }
@@ -4927,6 +4941,13 @@ struct abstract_cross {
 
     status transition(simulation& sim, time /*t*/, time e, time r) noexcept
     {
+        printf("cross::transition e=%f r=%f\n", e, r);
+
+        if (is_zero(r)) {
+            last_send = value[0] > threshold ? last_send_type::if_port
+                                             : last_send_type::else_port;
+        }
+
         const auto* p_if_value   = sim.messages.try_to_get(x[port_if_value]);
         const auto* p_else_value = sim.messages.try_to_get(x[port_else_value]);
         const auto* p_threshold  = sim.messages.try_to_get(x[port_threshold]);
@@ -4962,12 +4983,20 @@ struct abstract_cross {
 
     status lambda(simulation& sim) noexcept
     {
+        printf("cross::lambda\n");
+
         if (value[0] > threshold) {
-            irt_check(send_message(sim, y[0], if_value));
-            irt_check(send_message(sim, y[1], else_value));
+            if (last_send != last_send_type::if_port) {
+                printf("cross::lambda send if %f\n", if_value);
+                irt_check(send_message(sim, y[0], if_value));
+                irt_check(send_message(sim, y[1], else_value));
+            }
         } else {
-            irt_check(send_message(sim, y[0], else_value));
-            irt_check(send_message(sim, y[1], if_value));
+            if (last_send != last_send_type::else_port) {
+                printf("cross::lambda send else %f\n", else_value);
+                irt_check(send_message(sim, y[0], else_value));
+                irt_check(send_message(sim, y[1], if_value));
+            }
         }
 
         return success();

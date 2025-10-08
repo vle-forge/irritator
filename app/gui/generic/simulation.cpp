@@ -423,7 +423,6 @@ static void show_dynamics_values(application& /*app*/,
                                  project_editor& /*sim*/,
                                  const abstract_cross<QssLevel>& dyn)
 {
-
     ImGui::LabelFormat("threshold", "{}", dyn.threshold);
     ImGui::LabelFormat("value", "{}", dyn.value[0]);
     ImGui::LabelFormat("if-value", "{}", dyn.if_value);
