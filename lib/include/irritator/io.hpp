@@ -167,7 +167,6 @@ constexpr static inline auto output_names =
                                     "out-4",
                                     "if-value",
                                     "else-value",
-                                    "event",
                                     "value",
                                     "up",
                                     "down" });
@@ -177,9 +176,8 @@ constexpr static inline auto dot_output_index =
     { { 0, 0 },  // 0. empty
       { 0, 1 },  // 1. out
       { 1, 4 },  // 2. out1, out2, out3, out4
-      { 5, 3 },  // 3. ifvalue, elsevalue, event
-      { 8, 3 } } // 4. value, up, down
-
+      { 5, 2 },  // 3. ifvalue, elsevalue, event
+      { 7, 3 } } // 4. value, up, down
   );
 
 constexpr static inline auto dot_output_dyn_index =
