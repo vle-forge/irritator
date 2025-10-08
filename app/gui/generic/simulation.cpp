@@ -428,9 +428,6 @@ static void show_dynamics_values(application& /*app*/,
     ImGui::LabelFormat("value", "{}", dyn.value[0]);
     ImGui::LabelFormat("if-value", "{}", dyn.if_value);
     ImGui::LabelFormat("else-value", "{}", dyn.else_value);
-
-    ImGui::LabelFormat(
-      "detection", "{}", cross_detection_names[ordinal(dyn.detect)]);
 }
 
 template<std::size_t QssLevel>

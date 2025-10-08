@@ -352,20 +352,15 @@ static void model_init(const parameter&          param,
     dyn.threshold  = param.reals[0];
     dyn.if_value   = param.reals[1];
     dyn.else_value = param.reals[2];
-
-    const auto detect = std::clamp(param.integers[0], i64{ 0 }, i64{ 2 });
-    dyn.detect =
-      enum_cast<typename abstract_cross<QssLevel>::detection_type>(detect);
 }
 
 template<size_t QssLevel>
 static void parameter_init(parameter&                      param,
                            const abstract_cross<QssLevel>& dyn) noexcept
 {
-    param.reals[0]    = dyn.threshold;
-    param.reals[1]    = dyn.if_value;
-    param.reals[2]    = dyn.else_value;
-    param.integers[0] = ordinal(dyn.detect);
+    param.reals[0] = dyn.threshold;
+    param.reals[1] = dyn.if_value;
+    param.reals[2] = dyn.else_value;
 }
 
 template<size_t QssLevel>

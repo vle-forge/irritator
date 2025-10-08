@@ -23,8 +23,6 @@
 #include <cmath>
 #include <cstring>
 
-#include <fmt/format.h>
-
 namespace irt {
 
 //! @brief An helper function to initialize floating point number and
@@ -4799,19 +4797,17 @@ struct abstract_cross {
     static_assert(1 <= QssLevel && QssLevel <= 3, "Only for Qss1, 2 and 3");
 
     enum class zone_type : u8 { undefined, up, down };
-    enum class detection_type : u8 { both, from_bottom, from_top };
 
     message_id    x[4] = {};
     block_node_id y[2] = {};
     time          sigma;
 
-    real threshold  = 0;
-    real if_value   = 1;
-    real else_value = 0;
+    real threshold  = zero;
+    real if_value   = one;
+    real else_value = zero;
     real value[QssLevel];
 
-    zone_type      zone   = zone_type::undefined;
-    detection_type detect = detection_type::both;
+    zone_type zone = zone_type::undefined;
 
     abstract_cross() noexcept = default;
 
@@ -4821,7 +4817,6 @@ struct abstract_cross {
       , if_value(other.if_value)
       , else_value(other.else_value)
       , zone(other.zone)
-      , detect(other.detect)
     {
         std::copy_n(other.value, QssLevel, value);
     }
@@ -4967,37 +4962,13 @@ struct abstract_cross {
 
     status lambda(simulation& sim) noexcept
     {
-        // switch (detect) {
-        // case detection_type::both:
-        // if (not send) {
         if (value[0] > threshold) {
-            fmt::print("will send y[0]={} y[1]={}\n", if_value, else_value);
             irt_check(send_message(sim, y[0], if_value));
             irt_check(send_message(sim, y[1], else_value));
         } else {
-            fmt::print("will send y[0]={} y[1]={}\n", else_value, if_value);
             irt_check(send_message(sim, y[0], else_value));
             irt_check(send_message(sim, y[1], if_value));
         }
-        //}
-        //    break;
-
-        // case detection_type::from_bottom:
-        //     if (value[0] > threshold) {
-        //         irt_check(send_message(sim, y[0], if_value));
-        //     } else {
-        //         irt_check(send_message(sim, y[0], else_value));
-        //     }
-        //     break;
-
-        // case detection_type::from_top:
-        //     if (value[0] <= threshold) {
-        //         irt_check(send_message(sim, y[1], if_value));
-        //     } else {
-        //         irt_check(send_message(sim, y[1], else_value));
-        //     }
-        //     break;
-        // }
 
         return success();
     }
