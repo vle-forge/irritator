@@ -4857,83 +4857,83 @@ struct abstract_cross {
     {
         time ret = time_domain<time>::infinity;
 
-        // if (value[1] != 0) {
-        //     if (value[2] != 0) {
-        //         const auto a = value[2];
-        //         const auto b = value[1];
-        //         const auto c = value[0] - threshold;
-        //         const auto d = b * b - four * a * c;
+        if (value[1] != 0) {
+            if (value[2] != 0) {
+                const auto a = value[2];
+                const auto b = value[1];
+                const auto c = value[0] - threshold;
+                const auto d = b * b - four * a * c;
 
-        //         if (d > zero) {
-        //             const auto x1 = (-b + std::sqrt(d)) / (two * a);
-        //             const auto x2 = (-b - std::sqrt(d)) / (two * a);
+                if (d > zero) {
+                    const auto x1 = (-b + std::sqrt(d)) / (two * a);
+                    const auto x2 = (-b - std::sqrt(d)) / (two * a);
 
-        //             if (x1 > zero) {
-        //                 if (x2 > zero) {
-        //                     ret = std::min(x1, x2);
-        //                 } else {
-        //                     ret = x1;
-        //                 }
-        //             } else {
-        //                 if (x2 > 0)
-        //                     ret = x2;
-        //             }
-        //         } else if (is_zero(d)) {
-        //             const auto x = -b / (two * a);
-        //             if (x > zero)
-        //                 ret = x;
-        //         }
-        //     } else {
-        //         const auto a = value[1];
-        //         const auto b = value[0] - threshold;
-        //         const auto d = -b * a;
-
-        //         if (d > zero)
-        //             ret = d;
-        //     }
-        // }
-
-        // return ret;
-
-        // time ret = time_domain<time>::infinity;
-
-        if constexpr (QssLevel == 2) {
-            if (value[1] != 0) {
+                    if (x1 > zero) {
+                        if (x2 > zero) {
+                            ret = std::min(x1, x2);
+                        } else {
+                            ret = x1;
+                        }
+                    } else {
+                        if (x2 > 0)
+                            ret = x2;
+                    }
+                } else if (is_zero(d)) {
+                    const auto x = -b / (two * a);
+                    if (x > zero)
+                        ret = x;
+                }
+            } else {
                 const auto a = value[1];
                 const auto b = value[0] - threshold;
                 const auto d = -b * a;
 
-                ret = d > zero ? d : time_domain<time>::infinity;
+                if (d > zero)
+                    ret = d;
             }
-        }
-
-        if constexpr (QssLevel == 3) {
-            const auto a  = value[2];
-            const auto b  = value[1];
-            const auto c  = value[0] - threshold;
-            auto       s1 = time_domain<time>::infinity;
-            auto       s2 = time_domain<time>::infinity;
-
-            if (is_zero(a)) {
-                if (not is_zero(b))
-                    s1 = -c / b;
-            } else {
-                s1 = (-b + std::sqrt(b * b - 4 * a * c)) / two / a;
-                s2 = (-b - std::sqrt(b * b - 4 * a * c)) / two / a;
-            }
-
-            if (s1 > 0 and (s1 < s2 or s2 < 0))
-                ret = s1;
-            else if (s2 > 0)
-                ret = s2;
         }
 
         return ret;
+
+        // time ret = time_domain<time>::infinity;
+
+        // if constexpr (QssLevel == 2) {
+        //     if (value[1] != 0) {
+        //         const auto a = value[1];
+        //         const auto b = value[0] - threshold;
+        //         const auto d = -b * a;
+
+        //         ret = d > zero ? d : time_domain<time>::infinity;
+        //     }
+        // }
+
+        // if constexpr (QssLevel == 3) {
+        //     const auto a  = value[2];
+        //     const auto b  = value[1];
+        //     const auto c  = value[0] - threshold;
+        //     auto       s1 = time_domain<time>::infinity;
+        //     auto       s2 = time_domain<time>::infinity;
+
+        //     if (is_zero(a)) {
+        //         if (not is_zero(b))
+        //             s1 = -c / b;
+        //     } else {
+        //         s1 = (-b + std::sqrt(b * b - 4 * a * c)) / two / a;
+        //         s2 = (-b - std::sqrt(b * b - 4 * a * c)) / two / a;
+        //     }
+
+        //     if (s1 > 0 and (s1 < s2 or s2 < 0))
+        //         ret = s1;
+        //     else if (s2 > 0)
+        //         ret = s2;
+        // }
+
+        // return ret;
     }
 
     constexpr zone_type compute_zone(real value, real threshold) const noexcept
     {
-        if (value > threshold)
+        if (value >= threshold)
             return zone_type::up;
         else
             return zone_type::down;
@@ -4985,7 +4985,7 @@ struct abstract_cross {
     {
         printf("cross::lambda\n");
 
-        if (value[0] > threshold) {
+        if (value[0] >= threshold) {
             if (last_send != last_send_type::if_port) {
                 printf("cross::lambda send if %f\n", if_value);
                 irt_check(send_message(sim, y[0], if_value));
