@@ -123,6 +123,14 @@ static void show_dynamics_values(application& /*app*/,
     ImGui::LabelFormat("dQ", "{}", dyn.dQ);
 }
 
+template<size_t QssLevel>
+static void show_dynamics_values(application& /*app*/,
+                                 project_editor& /*sim*/,
+                                 const abstract_flipflop<QssLevel>& dyn)
+{
+    ImGui::LabelFormat("value", "{}", dyn.value[0]);
+}
+
 static void show_dynamics_values(application& /*app*/,
                                  project_editor& /*sim*/,
                                  const qss2_integrator& dyn)

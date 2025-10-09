@@ -1,4 +1,4 @@
- // Copyright (c) 2023 INRA Distributed under the Boost Software License,
+// Copyright (c) 2023 INRA Distributed under the Boost Software License,
 // Version 1.0. (See accompanying file LICENSE_1_0.txt or copy at
 // http://www.boost.org/LICENSE_1_0.txt)
 
@@ -358,6 +358,16 @@ static void parameter_init(parameter&                      param,
 {
     param.reals[0] = dyn.threshold;
 }
+
+template<size_t QssLevel>
+static void model_init(const parameter& /*param*/,
+                       abstract_flipflop<QssLevel>& /*dyn*/) noexcept
+{}
+
+template<size_t QssLevel>
+static void parameter_init(parameter& /*param*/,
+                           const abstract_flipflop<QssLevel>& /*dyn*/) noexcept
+{}
 
 template<size_t QssLevel>
 static void model_init(const parameter&           param,
