@@ -1489,6 +1489,14 @@ struct json_dearchiver::impl {
               return error("unknown element");
           });
     }
+    bool read_dynamics(const rapidjson::Value& /*val*/,
+                       qss_flipflop_tag,
+                       parameter& /*p*/) noexcept
+    {
+        auto_stack a(this, "dynamics qss flipflop");
+
+        return true;
+    }
 
     bool read_dynamics(const rapidjson::Value& val,
                        qss_filter_tag,
@@ -5675,6 +5683,33 @@ struct json_archiver::impl {
         writer.Double(p.reals[2]);
         writer.Key("detection-type");
         writer.Bool(p.integers[0]);
+        writer.EndObject();
+    }
+
+    template<typename Writer>
+    void write(Writer& writer,
+               const qss1_flipflop& /*dyn*/,
+               const parameter& /*p*/) noexcept
+    {
+        writer.StartObject();
+        writer.EndObject();
+    }
+
+    template<typename Writer>
+    void write(Writer& writer,
+               const qss2_flipflop& /*dyn*/,
+               const parameter& /*p*/) noexcept
+    {
+        writer.StartObject();
+        writer.EndObject();
+    }
+
+    template<typename Writer>
+    void write(Writer& writer,
+               const qss3_flipflop& /*dyn*/,
+               const parameter& /*p*/) noexcept
+    {
+        writer.StartObject();
         writer.EndObject();
     }
 

@@ -578,6 +578,14 @@ static bool show_parameter(qss_cross_tag,
            ImGui::InputReal("else-value", &p.reals[2]);
 }
 
+static bool show_parameter(qss_flipflop_tag,
+                           application& /*app*/,
+                           external_source& /*srcs*/,
+                           parameter& p) noexcept
+{
+    return false;
+}
+
 static bool show_parameter(qss_filter_tag,
                            application& /*app*/,
                            external_source& /*srcs*/,

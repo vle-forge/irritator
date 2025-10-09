@@ -644,6 +644,7 @@ enum class dynamics_type : i32 {
     qss1_integrator,
     qss1_multiplier,
     qss1_cross,
+    qss1_flipflop,
     qss1_filter,
     qss1_power,
     qss1_square,
@@ -663,6 +664,7 @@ enum class dynamics_type : i32 {
     qss2_integrator,
     qss2_multiplier,
     qss2_cross,
+    qss2_flipflop,
     qss2_filter,
     qss2_power,
     qss2_square,
@@ -682,6 +684,7 @@ enum class dynamics_type : i32 {
     qss3_integrator,
     qss3_multiplier,
     qss3_cross,
+    qss3_flipflop,
     qss3_filter,
     qss3_power,
     qss3_square,
@@ -717,6 +720,7 @@ enum class dynamics_type : i32 {
 struct qss_integrator_tag {};
 struct qss_multiplier_tag {};
 struct qss_cross_tag {};
+struct qss_flipflop_tag {};
 struct qss_filter_tag {};
 struct qss_power_tag {};
 struct qss_square_tag {};
@@ -5006,6 +5010,80 @@ using qss1_cross = abstract_cross<1>;
 using qss2_cross = abstract_cross<2>;
 using qss3_cross = abstract_cross<3>;
 
+template<std::size_t QssLevel>
+struct abstract_flipflop {
+    static_assert(1 <= QssLevel && QssLevel <= 3, "Only for Qss1, 2 and 3");
+
+    message_id    x[2] = {};
+    block_node_id y[1] = {};
+    time          sigma;
+
+    real value[QssLevel];
+
+    abstract_flipflop() noexcept = default;
+
+    abstract_flipflop(const abstract_flipflop& other) noexcept
+      : sigma(other.sigma)
+    {
+        std::copy_n(other.value, QssLevel, value);
+    }
+
+    status initialize(simulation& /*sim*/) noexcept
+    {
+        std::ranges::fill(value, zero);
+        sigma = time_domain<time>::infinity;
+
+        return success();
+    }
+
+    status lambda(simulation& sim) noexcept
+    {
+        if constexpr (QssLevel == 1)
+            return send_message(sim, y[0], value[0]);
+
+        if constexpr (QssLevel == 2)
+            return send_message(sim, y[0], value[0], value[1]);
+
+        if constexpr (QssLevel == 3)
+            return send_message(sim, y[0], value[0], value[1], value[2]);
+
+        unreachable();
+    }
+
+    status transition(simulation& sim, time /*t*/, time e, time /*r*/) noexcept
+    {
+        auto*      lst_value   = sim.messages.try_to_get(x[0]);
+        auto*      lst_event   = sim.messages.try_to_get(x[1]);
+        const auto have_values = lst_value and not lst_value->empty();
+        const auto have_event  = lst_event and not lst_event->empty();
+
+        have_values ? update<QssLevel>(value, lst_value->back())
+                    : update<QssLevel>(value, e);
+
+        sigma = have_event ? zero : time_domain<time>::infinity;
+
+        return success();
+    }
+
+    observation_message observation(time t, time e) const noexcept
+    {
+        if constexpr (QssLevel == 1)
+            return { t, value[0] };
+
+        if constexpr (QssLevel == 2)
+            return qss_observation(value[0], value[1], t, e);
+
+        if constexpr (QssLevel == 3)
+            return qss_observation(value[0], value[1], value[2], t, e);
+
+        unreachable();
+    }
+};
+
+using qss1_flipflop = abstract_flipflop<1>;
+using qss2_flipflop = abstract_flipflop<2>;
+using qss3_flipflop = abstract_flipflop<3>;
+
 inline real sin_time_function(real t) noexcept
 {
     constexpr real f0 = to_real(0.1L);
@@ -5269,6 +5347,7 @@ constexpr sz max_size_in_bytes() noexcept
     return max(sizeof(qss1_integrator),
                sizeof(qss1_multiplier),
                sizeof(qss1_cross),
+               sizeof(qss1_flipflop),
                sizeof(qss1_filter),
                sizeof(qss1_power),
                sizeof(qss1_square),
@@ -5288,6 +5367,7 @@ constexpr sz max_size_in_bytes() noexcept
                sizeof(qss2_integrator),
                sizeof(qss2_multiplier),
                sizeof(qss2_cross),
+               sizeof(qss2_flipflop),
                sizeof(qss2_filter),
                sizeof(qss2_power),
                sizeof(qss2_square),
@@ -5307,6 +5387,7 @@ constexpr sz max_size_in_bytes() noexcept
                sizeof(qss3_integrator),
                sizeof(qss3_multiplier),
                sizeof(qss3_cross),
+               sizeof(qss3_flipflop),
                sizeof(qss3_filter),
                sizeof(qss3_power),
                sizeof(qss3_square),
@@ -5344,6 +5425,7 @@ concept dynamics =
   std::is_same_v<Dynamics, qss1_integrator> or
   std::is_same_v<Dynamics, qss1_multiplier> or
   std::is_same_v<Dynamics, qss1_cross> or
+  std::is_same_v<Dynamics, qss1_flipflop> or
   std::is_same_v<Dynamics, qss1_filter> or
   std::is_same_v<Dynamics, qss1_power> or
   std::is_same_v<Dynamics, qss1_square> or
@@ -5361,6 +5443,7 @@ concept dynamics =
   std::is_same_v<Dynamics, qss2_integrator> or
   std::is_same_v<Dynamics, qss2_multiplier> or
   std::is_same_v<Dynamics, qss2_cross> or
+  std::is_same_v<Dynamics, qss2_flipflop> or
   std::is_same_v<Dynamics, qss2_filter> or
   std::is_same_v<Dynamics, qss2_power> or
   std::is_same_v<Dynamics, qss2_square> or
@@ -5378,6 +5461,7 @@ concept dynamics =
   std::is_same_v<Dynamics, qss3_integrator> or
   std::is_same_v<Dynamics, qss3_multiplier> or
   std::is_same_v<Dynamics, qss3_cross> or
+  std::is_same_v<Dynamics, qss3_flipflop> or
   std::is_same_v<Dynamics, qss3_filter> or
   std::is_same_v<Dynamics, qss3_power> or
   std::is_same_v<Dynamics, qss3_square> or
@@ -5425,6 +5509,8 @@ static constexpr dynamics_type dynamics_typeof() noexcept
         return dynamics_type::qss1_multiplier;
     if constexpr (std::is_same_v<Dynamics, qss1_cross>)
         return dynamics_type::qss1_cross;
+    if constexpr (std::is_same_v<Dynamics, qss1_flipflop>)
+        return dynamics_type::qss1_flipflop;
     if constexpr (std::is_same_v<Dynamics, qss1_filter>)
         return dynamics_type::qss1_filter;
     if constexpr (std::is_same_v<Dynamics, qss1_power>)
@@ -5464,6 +5550,8 @@ static constexpr dynamics_type dynamics_typeof() noexcept
         return dynamics_type::qss2_multiplier;
     if constexpr (std::is_same_v<Dynamics, qss2_cross>)
         return dynamics_type::qss2_cross;
+    if constexpr (std::is_same_v<Dynamics, qss2_flipflop>)
+        return dynamics_type::qss2_flipflop;
     if constexpr (std::is_same_v<Dynamics, qss2_filter>)
         return dynamics_type::qss2_filter;
     if constexpr (std::is_same_v<Dynamics, qss2_power>)
@@ -5503,6 +5591,8 @@ static constexpr dynamics_type dynamics_typeof() noexcept
         return dynamics_type::qss3_multiplier;
     if constexpr (std::is_same_v<Dynamics, qss3_cross>)
         return dynamics_type::qss3_cross;
+    if constexpr (std::is_same_v<Dynamics, qss3_flipflop>)
+        return dynamics_type::qss3_flipflop;
     if constexpr (std::is_same_v<Dynamics, qss3_filter>)
         return dynamics_type::qss3_filter;
     if constexpr (std::is_same_v<Dynamics, qss3_power>)
@@ -5614,6 +5704,12 @@ constexpr auto dispatch(const dynamics_type type,
     case dynamics_type::qss3_cross:
         return std::invoke(std::forward<Function>(f),
                            qss_cross_tag{},
+                           std::forward<Args>(args)...);
+    case dynamics_type::qss1_flipflop:
+    case dynamics_type::qss2_flipflop:
+    case dynamics_type::qss3_flipflop:
+        return std::invoke(std::forward<Function>(f),
+                           qss_flipflop_tag{},
                            std::forward<Args>(args)...);
     case dynamics_type::qss1_filter:
     case dynamics_type::qss2_filter:
@@ -5797,6 +5893,10 @@ constexpr auto dispatch(const model& mdl, Function&& f, Args&&... args) noexcept
         return std::invoke(std::forward<Function>(f),
                            *reinterpret_cast<const qss1_cross*>(&mdl.dyn),
                            std::forward<Args>(args)...);
+    case dynamics_type::qss1_flipflop:
+        return std::invoke(std::forward<Function>(f),
+                           *reinterpret_cast<const qss1_flipflop*>(&mdl.dyn),
+                           std::forward<Args>(args)...);
     case dynamics_type::qss1_filter:
         return std::invoke(std::forward<Function>(f),
                            *reinterpret_cast<const qss1_filter*>(&mdl.dyn),
@@ -5874,6 +5974,10 @@ constexpr auto dispatch(const model& mdl, Function&& f, Args&&... args) noexcept
         return std::invoke(std::forward<Function>(f),
                            *reinterpret_cast<const qss2_cross*>(&mdl.dyn),
                            std::forward<Args>(args)...);
+    case dynamics_type::qss2_flipflop:
+        return std::invoke(std::forward<Function>(f),
+                           *reinterpret_cast<const qss2_flipflop*>(&mdl.dyn),
+                           std::forward<Args>(args)...);
     case dynamics_type::qss2_filter:
         return std::invoke(std::forward<Function>(f),
                            *reinterpret_cast<const qss2_filter*>(&mdl.dyn),
@@ -5950,6 +6054,10 @@ constexpr auto dispatch(const model& mdl, Function&& f, Args&&... args) noexcept
     case dynamics_type::qss3_cross:
         return std::invoke(std::forward<Function>(f),
                            *reinterpret_cast<const qss3_cross*>(&mdl.dyn),
+                           std::forward<Args>(args)...);
+    case dynamics_type::qss3_flipflop:
+        return std::invoke(std::forward<Function>(f),
+                           *reinterpret_cast<const qss3_flipflop*>(&mdl.dyn),
                            std::forward<Args>(args)...);
     case dynamics_type::qss3_filter:
         return std::invoke(std::forward<Function>(f),
@@ -6089,6 +6197,8 @@ constexpr auto dispatch(model& mdl, Function&& f) noexcept
         return f(*reinterpret_cast<qss1_multiplier*>(&mdl.dyn));
     case dynamics_type::qss1_cross:
         return f(*reinterpret_cast<qss1_cross*>(&mdl.dyn));
+    case dynamics_type::qss1_flipflop:
+        return f(*reinterpret_cast<qss1_flipflop*>(&mdl.dyn));
     case dynamics_type::qss1_filter:
         return f(*reinterpret_cast<qss1_filter*>(&mdl.dyn));
     case dynamics_type::qss1_power:
@@ -6128,6 +6238,8 @@ constexpr auto dispatch(model& mdl, Function&& f) noexcept
         return f(*reinterpret_cast<qss2_multiplier*>(&mdl.dyn));
     case dynamics_type::qss2_cross:
         return f(*reinterpret_cast<qss2_cross*>(&mdl.dyn));
+    case dynamics_type::qss2_flipflop:
+        return f(*reinterpret_cast<qss2_flipflop*>(&mdl.dyn));
     case dynamics_type::qss2_filter:
         return f(*reinterpret_cast<qss2_filter*>(&mdl.dyn));
     case dynamics_type::qss2_power:
@@ -6167,6 +6279,8 @@ constexpr auto dispatch(model& mdl, Function&& f) noexcept
         return f(*reinterpret_cast<qss3_multiplier*>(&mdl.dyn));
     case dynamics_type::qss3_cross:
         return f(*reinterpret_cast<qss3_cross*>(&mdl.dyn));
+    case dynamics_type::qss3_flipflop:
+        return f(*reinterpret_cast<qss3_flipflop*>(&mdl.dyn));
     case dynamics_type::qss3_filter:
         return f(*reinterpret_cast<qss3_filter*>(&mdl.dyn));
     case dynamics_type::qss3_power:
@@ -6285,6 +6399,7 @@ inline bool is_ports_compatible(const dynamics_type mdl_src,
     case dynamics_type::qss1_integrator:
     case dynamics_type::qss1_multiplier:
     case dynamics_type::qss1_power:
+    case dynamics_type::qss1_flipflop:
     case dynamics_type::qss1_square:
     case dynamics_type::qss1_sum_2:
     case dynamics_type::qss1_sum_3:
@@ -6296,6 +6411,7 @@ inline bool is_ports_compatible(const dynamics_type mdl_src,
     case dynamics_type::qss2_integrator:
     case dynamics_type::qss2_multiplier:
     case dynamics_type::qss2_power:
+    case dynamics_type::qss2_flipflop:
     case dynamics_type::qss2_square:
     case dynamics_type::qss2_sum_2:
     case dynamics_type::qss2_sum_3:
@@ -6307,6 +6423,7 @@ inline bool is_ports_compatible(const dynamics_type mdl_src,
     case dynamics_type::qss3_integrator:
     case dynamics_type::qss3_multiplier:
     case dynamics_type::qss3_power:
+    case dynamics_type::qss3_flipflop:
     case dynamics_type::qss3_square:
     case dynamics_type::qss3_sum_2:
     case dynamics_type::qss3_sum_3:
@@ -7294,6 +7411,7 @@ constexpr inline auto get_interpolate_type(const dynamics_type type) noexcept
     case dynamics_type::qss1_integrator:
     case dynamics_type::qss1_multiplier:
     case dynamics_type::qss1_cross:
+    case dynamics_type::qss1_flipflop:
     case dynamics_type::qss1_power:
     case dynamics_type::qss1_square:
     case dynamics_type::qss1_sum_2:
@@ -7314,6 +7432,7 @@ constexpr inline auto get_interpolate_type(const dynamics_type type) noexcept
     case dynamics_type::qss2_integrator:
     case dynamics_type::qss2_multiplier:
     case dynamics_type::qss2_cross:
+    case dynamics_type::qss2_flipflop:
     case dynamics_type::qss2_power:
     case dynamics_type::qss2_square:
     case dynamics_type::qss2_sum_2:
@@ -7333,7 +7452,7 @@ constexpr inline auto get_interpolate_type(const dynamics_type type) noexcept
 
     case dynamics_type::qss3_integrator:
     case dynamics_type::qss3_multiplier:
-    case dynamics_type::qss3_cross:
+    case dynamics_type::qss3_flipflop:
     case dynamics_type::qss3_power:
     case dynamics_type::qss3_square:
     case dynamics_type::qss3_sum_2:
