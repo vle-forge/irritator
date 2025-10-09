@@ -2143,18 +2143,24 @@ struct abstract_integrator<3> {
         return success();
     }
 
-    status reset(const message& msg) noexcept
+    /** Reset the integrator if and only if only if the value change and all
+     * state are not zero. */
+    bool reset(const message& msg) noexcept
     {
-        X     = msg[0];
-        u     = zero;
-        mu    = zero;
-        pu    = zero;
-        q     = X;
-        mq    = zero;
-        pq    = zero;
-        sigma = time_domain<time>::zero;
+        if ((X != msg[0]) and (u != zero) and (mu != zero) and (pu != zero) and
+            (mq != zero) and (pq != zero)) {
+            X     = msg[0];
+            u     = zero;
+            mu    = zero;
+            pu    = zero;
+            q     = X;
+            mq    = zero;
+            pq    = zero;
+            sigma = time_domain<time>::zero;
+            return true;
+        }
 
-        return success();
+        return false;
     }
 
     status transition(simulation& sim, time /*t*/, time e, time /*r*/) noexcept
@@ -2166,15 +2172,17 @@ struct abstract_integrator<3> {
             (not lst_reset or lst_reset->empty())) {
             if (auto ret = internal(); !ret)
                 return ret.error();
-        } else {
-            if (lst_reset and not lst_reset->empty()) {
-                if (auto ret = reset(lst_reset->front()); !ret)
-                    return ret.error();
-            } else if (lst_x_dot and not lst_x_dot->empty()) {
-                if (auto ret = external(e, lst_x_dot->front()); !ret)
-                    return ret.error();
-            }
+
+            return success();
         }
+
+        if (lst_reset and not lst_reset->empty())
+            if (reset(lst_reset->front()))
+                return success();
+
+        if (lst_x_dot and not lst_x_dot->empty())
+            if (auto ret = external(e, lst_x_dot->front()); !ret)
+                return ret.error();
 
         return success();
     }
@@ -4989,12 +4997,12 @@ struct abstract_cross {
             if (last_send != last_send_type::if_port) {
                 printf("cross::lambda send if %f\n", if_value);
                 irt_check(send_message(sim, y[0], if_value));
-                irt_check(send_message(sim, y[1], else_value));
+                // irt_check(send_message(sim, y[1], else_value));
             }
         } else {
             if (last_send != last_send_type::else_port) {
                 printf("cross::lambda send else %f\n", else_value);
-                irt_check(send_message(sim, y[0], else_value));
+                // irt_check(send_message(sim, y[0], else_value));
                 irt_check(send_message(sim, y[1], if_value));
             }
         }
