@@ -220,43 +220,69 @@ status add_lif(modeling& mod, component& dst, generic_component& com) noexcept
 
     static_assert(1 <= QssLevel && QssLevel <= 3, "Only for Qss1, 2 and 3");
 
-    if (!com.children.can_alloc(5))
+    if (not com.children.can_alloc(6) and not com.children.grow<2, 1>())
         return new_error(modeling_errc::generic_children_container_full);
 
-    constexpr irt::real tau = 10.0_r;
-    constexpr irt::real Vt  = 1.0_r;
-    constexpr irt::real V0  = 10.0_r;
-    constexpr irt::real Vr  = -V0;
+    if (not com.connections.can_alloc(7) and not com.connections.grow<2, 1>())
+        return new_error(modeling_errc::generic_children_container_full);
 
-    auto cst = alloc<constant>(mod, com);
-    affect_abstract_constant(com, cst, 1.0, 0.0);
+    auto mdl_0                           = alloc<irt::constant>(mod, com);
+    com.children_parameters[mdl_0].reals = {
+        1.00000000000000000, 0.00000000000000000, 0.00000000000000000,
+        0.00000000000000000, 0.00000000000000000, 0.00000000000000000,
+        0.00000000000000000, 0.00000000000000000
+    };
+    com.children_parameters[mdl_0].integers = { 0, 0, 0, 0, 0, 0, 0, 0 };
 
-    auto cst_cross = alloc<constant>(mod, com);
-    affect_abstract_constant(com, cst, Vr, 0.0);
+    auto mdl_1                           = alloc<irt::constant>(mod, com);
+    com.children_parameters[mdl_1].reals = {
+        0.00000000000000000, 0.00000000000000000, 0.00000000000000000,
+        0.00000000000000000, 0.00000000000000000, 0.00000000000000000,
+        0.00000000000000000, 0.00000000000000000
+    };
+    com.children_parameters[mdl_1].integers = { 0, 0, 0, 0, 0, 0, 0, 0 };
 
-    auto sum = alloc<abstract_wsum<QssLevel, 2>>(mod, com);
-    affect_abstract_wsum(com, sum, -irt::one / tau, V0 / tau);
+    auto mdl_2                           = alloc<irt::qss3_wsum_2>(mod, com);
+    com.children_parameters[mdl_2].reals = {
+        0.00000000000000000, 0.00000000000000000, 1.00000000000000000,
+        1.00000000000000000, 0.00000000000000000, 0.00000000000000000,
+        0.00000000000000000, 0.00000000000000000
+    };
+    com.children_parameters[mdl_2].integers = { 0, 0, 0, 0, 0, 0, 0, 0 };
 
-    auto integrator = alloc<abstract_integrator<QssLevel>>(
-      mod,
-      com,
-      "lif",
-      bitflags<child_flags>(child_flags::configurable,
-                            child_flags::observable));
-    affect_abstract_integrator(com, integrator, 0._r, 0.001_r);
+    auto mdl_3 = alloc<irt::qss3_integrator>(mod, com);
+    com.children_parameters[mdl_3].reals = {
+        0.20000000000000001, 0.00100000000000000, 0.00000000000000000,
+        0.00000000000000000, 0.00000000000000000, 0.00000000000000000,
+        0.00000000000000000, 0.00000000000000000
+    };
+    com.children_parameters[mdl_3].integers = { 0, 0, 0, 0, 0, 0, 0, 0 };
 
-    auto cross = alloc<abstract_cross<QssLevel>>(mod, com);
-    affect_abstract_cross(com, cross, Vt, false);
+    auto mdl_4                           = alloc<irt::qss3_cross>(mod, com);
+    com.children_parameters[mdl_4].reals = {
+        1.00000000000000000, 0.00000000000000000, 0.00000000000000000,
+        0.00000000000000000, 0.00000000000000000, 0.00000000000000000,
+        0.00000000000000000, 0.00000000000000000
+    };
+    com.children_parameters[mdl_4].integers = { 0, 0, 0, 0, 0, 0, 0, 0 };
 
-    irt_check(connect(com, cross, 0, integrator, 1));
-    irt_check(connect(com, cross, 1, sum, 0));
-    irt_check(connect(com, integrator, 0, cross, 0));
-    irt_check(connect(com, integrator, 0, cross, 2));
-    irt_check(connect(com, cst_cross, 0, cross, 1));
-    irt_check(connect(com, cst, 0, sum, 1));
-    irt_check(connect(com, sum, 0, integrator, 0));
+    auto mdl_5                           = alloc<irt::qss3_flipflop>(mod, com);
+    com.children_parameters[mdl_5].reals = {
+        0.00000000000000000, 0.00000000000000000, 0.00000000000000000,
+        0.00000000000000000, 0.00000000000000000, 0.00000000000000000,
+        0.00000000000000000, 0.00000000000000000
+    };
+    com.children_parameters[mdl_5].integers = { 0, 0, 0, 0, 0, 0, 0, 0 };
 
-    irt_check(add_integrator_component_port(dst, com, integrator, "V"));
+    irt_check(connect(com, mdl_0, 0, mdl_2, 1));
+    irt_check(connect(com, mdl_1, 0, mdl_5, 0));
+    irt_check(connect(com, mdl_2, 0, mdl_3, 0));
+    irt_check(connect(com, mdl_3, 0, mdl_2, 0));
+    irt_check(connect(com, mdl_3, 0, mdl_4, 0));
+    irt_check(connect(com, mdl_4, 0, mdl_5, 1));
+    irt_check(connect(com, mdl_5, 0, mdl_3, 1));
+
+    irt_check(add_integrator_component_port(dst, com, mdl_0, "u"));
 
     return success();
 }
@@ -267,84 +293,162 @@ status add_izhikevich(modeling&          mod,
                       generic_component& com) noexcept
 {
     using namespace irt::literals;
-    if (!com.children.can_alloc(12))
+
+    static_assert(1 <= QssLevel && QssLevel <= 3, "Only for Qss1, 2 and 3");
+
+    if (!(com.children.can_alloc(19) && com.connections.can_alloc(22)))
         return new_error(modeling_errc::generic_children_container_full);
 
-    auto cst          = alloc<constant>(mod, com);
-    auto cst2         = alloc<constant>(mod, com);
-    auto cst3         = alloc<constant>(mod, com);
-    auto sum_a        = alloc<abstract_wsum<QssLevel, 2>>(mod, com);
-    auto sum_b        = alloc<abstract_wsum<QssLevel, 2>>(mod, com);
-    auto sum_c        = alloc<abstract_wsum<QssLevel, 4>>(mod, com);
-    auto sum_d        = alloc<abstract_wsum<QssLevel, 2>>(mod, com);
-    auto product      = alloc<abstract_multiplier<QssLevel>>(mod, com);
-    auto integrator_a = alloc<abstract_integrator<QssLevel>>(
+    auto mdl_0 = alloc<irt::abstract_integrator<QssLevel>>(
       mod,
       com,
-      "V",
+      "u",
       bitflags<child_flags>(child_flags::configurable,
                             child_flags::observable));
-    auto integrator_b = alloc<abstract_integrator<QssLevel>>(
-      mod,
-      com,
-      "U",
-      bitflags<child_flags>(child_flags::configurable,
-                            child_flags::observable));
-    auto cross  = alloc<abstract_cross<QssLevel>>(mod, com);
-    auto cross2 = alloc<abstract_cross<QssLevel>>(mod, com);
+    affect_abstract_integrator(com, mdl_0, 0, 0.01);
 
-    constexpr irt::real a  = 0.2_r;
-    constexpr irt::real b  = 2.0_r;
-    constexpr irt::real c  = -56.0_r;
-    constexpr irt::real d  = -16.0_r;
-    constexpr irt::real I  = -99.0_r;
-    constexpr irt::real vt = 30.0_r;
+    auto mdl_1 = alloc<irt::abstract_integrator<QssLevel>>(mod, com, "v");
+    affect_abstract_integrator(com, mdl_1, 0, 0.01);
 
-    affect_abstract_constant(com, cst, 1.0_r, 0.0);
-    affect_abstract_constant(com, cst2, c, 0.0);
-    affect_abstract_constant(com, cst3, I, 0.0);
+    auto mdl_2 = alloc<irt::abstract_square<QssLevel>>(mod, com);
 
-    affect_abstract_cross(com, cross, vt, true);
-    affect_abstract_cross(com, cross2, vt, true);
+    auto mdl_3 = alloc<irt::abstract_multiplier<QssLevel>>(mod, com);
+    com.children_parameters[mdl_3].reals = {
+        0.04000000000000000, 0.00000000000000000, 0.00000000000000000,
+        0.00000000000000000, 0.00000000000000000, 0.00000000000000000,
+        0.00000000000000000, 0.00000000000000000
+    };
 
-    affect_abstract_integrator(com, integrator_a, 0.0_r, 0.01_r);
-    affect_abstract_integrator(com, integrator_b, 0.0_r, 0.01_r);
+    auto mdl_4 = alloc<irt::abstract_multiplier<QssLevel>>(mod, com);
+    com.children_parameters[mdl_4].reals = {
+        5.00000000000000000, 0.00000000000000000, 0.00000000000000000,
+        0.00000000000000000, 0.00000000000000000, 0.00000000000000000,
+        0.00000000000000000, 0.00000000000000000
+    };
 
-    affect_abstract_wsum(com, sum_a, 1.0_r, -1.0_r);
-    affect_abstract_wsum(com, sum_b, -a, a * b);
-    affect_abstract_wsum(com, sum_c, 0.04_r, 5.0_r, 140.0_r, 1.0_r);
-    affect_abstract_wsum(com, sum_d, 1.0_r, d);
+    auto mdl_5 = alloc<irt::abstract_wsum<QssLevel, 2>>(mod, com);
+    com.children_parameters[mdl_5].reals = {
+        140.00000000000000000, 0.00000000000000000, 1.00000000000000000,
+        -1.00000000000000000,  0.00000000000000000, 0.00000000000000000,
+        0.00000000000000000,   0.00000000000000000
+    };
 
-    irt_check(connect(com, integrator_a, 0, cross, 0));
-    irt_check(connect(com, cst2, 0, cross, 1));
-    irt_check(connect(com, integrator_a, 0, cross, 2));
+    auto mdl_6 = alloc<irt::constant>(mod, com);
 
-    irt_check(connect(com, cross, 1, product, 0));
-    irt_check(connect(com, cross, 1, product, 1));
-    irt_check(connect(com, product, 0, sum_c, 0));
-    irt_check(connect(com, cross, 1, sum_c, 1));
-    irt_check(connect(com, cross, 1, sum_b, 1));
+    com.children_parameters[mdl_6].reals = {
+        -99.00000000000000000, 0.00000000000000000, 0.00000000000000000,
+        0.00000000000000000,   0.00000000000000000, 0.00000000000000000,
+        0.00000000000000000,   0.00000000000000000
+    };
 
-    irt_check(connect(com, cst, 0, sum_c, 2));
-    irt_check(connect(com, cst3, 0, sum_c, 3));
+    auto mdl_7 = alloc<irt::abstract_sum<QssLevel, 4>>(mod, com);
 
-    irt_check(connect(com, sum_c, 0, sum_a, 0));
-    irt_check(connect(com, cross2, 1, sum_a, 1));
-    irt_check(connect(com, sum_a, 0, integrator_a, 0));
-    irt_check(connect(com, cross, 0, integrator_a, 1));
+    auto mdl_8                           = alloc<irt::constant>(mod, com);
+    com.children_parameters[mdl_8].reals = {
+        0.20000000000000001, 0.00000000000000000, 0.00000000000000000,
+        0.00000000000000000, 0.00000000000000000, 0.00000000000000000,
+        0.00000000000000000, 0.00000000000000000
+    };
 
-    irt_check(connect(com, cross2, 1, sum_b, 0));
-    irt_check(connect(com, sum_b, 0, integrator_b, 0));
+    auto mdl_9 = alloc<irt::constant>(mod, com);
 
-    irt_check(connect(com, cross2, 0, integrator_b, 1));
-    irt_check(connect(com, integrator_a, 0, cross2, 0));
-    irt_check(connect(com, integrator_b, 0, cross2, 2));
-    irt_check(connect(com, sum_d, 0, cross2, 1));
-    irt_check(connect(com, integrator_b, 0, sum_d, 0));
-    irt_check(connect(com, cst, 0, sum_d, 1));
+    com.children_parameters[mdl_9].reals = {
+        2.00000000000000000, 0.00000000000000000, 0.00000000000000000,
+        0.00000000000000000, 0.00000000000000000, 0.00000000000000000,
+        0.00000000000000000, 0.00000000000000000
+    };
 
-    irt_check(add_integrator_component_port(dst, com, integrator_a, "V"));
-    irt_check(add_integrator_component_port(dst, com, integrator_b, "U"));
+    auto mdl_10 = alloc<irt::abstract_multiplier<QssLevel>>(mod, com);
+    com.children_parameters[mdl_10].reals = {
+        0.00000000000000000, 0.00000000000000000, 0.00000000000000000,
+        0.00000000000000000, 0.00000000000000000, 0.00000000000000000,
+        0.00000000000000000, 0.00000000000000000
+    };
+
+    auto mdl_11 = alloc<irt::abstract_wsum<QssLevel, 2>>(mod, com);
+    com.children_parameters[mdl_11].reals = {
+        0.00000000000000000,  0.00000000000000000, 1.00000000000000000,
+        -1.00000000000000000, 0.00000000000000000, 0.00000000000000000,
+        0.00000000000000000,  0.00000000000000000
+    };
+
+    auto mdl_12 = alloc<irt::abstract_multiplier<QssLevel>>(mod, com);
+    com.children_parameters[mdl_12].reals = {
+        0.00000000000000000, 0.00000000000000000, 0.00000000000000000,
+        0.00000000000000000, 0.00000000000000000, 0.00000000000000000,
+        0.00000000000000000, 0.00000000000000000
+    };
+
+    auto mdl_13 = alloc<irt::abstract_cross<QssLevel>>(mod, com);
+    com.children_parameters[mdl_13].reals = {
+        30.00000000000000000, 0.00000000000000000, 0.00000000000000000,
+        0.00000000000000000,  0.00000000000000000, 0.00000000000000000,
+        0.00000000000000000,  0.00000000000000000
+    };
+
+    auto mdl_14 = alloc<irt::abstract_flipflop<QssLevel>>(mod, com);
+    com.children_parameters[mdl_14].reals = {
+        0.00000000000000000, 0.00000000000000000, 0.00000000000000000,
+        0.00000000000000000, 0.00000000000000000, 0.00000000000000000,
+        0.00000000000000000, 0.00000000000000000
+    };
+
+    auto mdl_15                           = alloc<irt::constant>(mod, com);
+    com.children_parameters[mdl_15].reals = {
+        -65.00000000000000000, 0.00000000000000000, 0.00000000000000000,
+        0.00000000000000000,   0.00000000000000000, 0.00000000000000000,
+        0.00000000000000000,   0.00000000000000000
+    };
+
+    auto mdl_16 = alloc<irt::abstract_sum<QssLevel, 2>>(mod, com);
+    com.children_parameters[mdl_16].reals = {
+        0.00000000000000000, 0.00000000000000000, 0.00000000000000000,
+        0.00000000000000000, 0.00000000000000000, 0.00000000000000000,
+        0.00000000000000000, 0.00000000000000000
+    };
+
+    auto mdl_17                           = alloc<irt::constant>(mod, com);
+    com.children_parameters[mdl_17].reals = {
+        -16.00000000000000000, 0.00000000000000000, 0.00000000000000000,
+        0.00000000000000000,   0.00000000000000000, 0.00000000000000000,
+        0.00000000000000000,   0.00000000000000000
+    };
+
+    auto mdl_18 = alloc<irt::abstract_flipflop<QssLevel>>(mod, com);
+    com.children_parameters[mdl_18].reals = {
+        0.00000000000000000, 0.00000000000000000, 0.00000000000000000,
+        0.00000000000000000, 0.00000000000000000, 0.00000000000000000,
+        0.00000000000000000, 0.00000000000000000
+    };
+
+    irt_check(connect(com, mdl_0, 0, mdl_2, 0));
+    irt_check(connect(com, mdl_0, 0, mdl_4, 1));
+    irt_check(connect(com, mdl_0, 0, mdl_10, 1));
+    irt_check(connect(com, mdl_0, 0, mdl_13, 0));
+    irt_check(connect(com, mdl_1, 0, mdl_5, 1));
+    irt_check(connect(com, mdl_1, 0, mdl_11, 1));
+    irt_check(connect(com, mdl_1, 0, mdl_16, 0));
+    irt_check(connect(com, mdl_2, 0, mdl_3, 1));
+    irt_check(connect(com, mdl_3, 0, mdl_7, 0));
+    irt_check(connect(com, mdl_4, 0, mdl_7, 1));
+    irt_check(connect(com, mdl_5, 0, mdl_7, 2));
+    irt_check(connect(com, mdl_6, 0, mdl_7, 3));
+    irt_check(connect(com, mdl_7, 0, mdl_0, 0));
+    irt_check(connect(com, mdl_8, 0, mdl_12, 0));
+    irt_check(connect(com, mdl_9, 0, mdl_10, 0));
+    irt_check(connect(com, mdl_10, 0, mdl_11, 0));
+    irt_check(connect(com, mdl_11, 0, mdl_12, 1));
+    irt_check(connect(com, mdl_12, 0, mdl_1, 0));
+    irt_check(connect(com, mdl_13, 0, mdl_14, 1));
+    irt_check(connect(com, mdl_13, 0, mdl_18, 1));
+    irt_check(connect(com, mdl_14, 0, mdl_0, 1));
+    irt_check(connect(com, mdl_15, 0, mdl_14, 0));
+    irt_check(connect(com, mdl_16, 0, mdl_18, 0));
+    irt_check(connect(com, mdl_17, 0, mdl_16, 1));
+    irt_check(connect(com, mdl_18, 0, mdl_1, 1));
+
+    irt_check(add_integrator_component_port(dst, com, mdl_0, "u"));
+    irt_check(add_integrator_component_port(dst, com, mdl_1, "v"));
 
     return success();
 }
@@ -402,40 +506,72 @@ status add_negative_lif(modeling&          mod,
                         generic_component& com) noexcept
 {
     using namespace irt::literals;
-    if (!com.children.can_alloc(5))
+
+    static_assert(1 <= QssLevel && QssLevel <= 3, "Only for Qss1, 2 and 3");
+
+    if (not com.children.can_alloc(6) and not com.children.grow<2, 1>())
         return new_error(modeling_errc::generic_children_container_full);
 
-    auto sum        = alloc<abstract_wsum<QssLevel, 2>>(mod, com);
-    auto integrator = alloc<abstract_integrator<QssLevel>>(
-      mod,
-      com,
-      "V",
-      bitflags<child_flags>(child_flags::configurable,
-                            child_flags::observable));
-    auto cross     = alloc<abstract_cross<QssLevel>>(mod, com);
-    auto cst       = alloc<constant>(mod, com);
-    auto cst_cross = alloc<constant>(mod, com);
+    if (not com.connections.can_alloc(7) and not com.connections.grow<2, 1>())
+        return new_error(modeling_errc::generic_children_container_full);
 
-    constexpr real tau = 10.0_r;
-    constexpr real Vt  = -1.0_r;
-    constexpr real V0  = -10.0_r;
-    constexpr real Vr  = 0.0_r;
+    auto mdl_0                           = alloc<irt::constant>(mod, com);
+    com.children_parameters[mdl_0].reals = {
+        1.00000000000000000, 0.00000000000000000, 0.00000000000000000,
+        0.00000000000000000, 0.00000000000000000, 0.00000000000000000,
+        0.00000000000000000, 0.00000000000000000
+    };
+    com.children_parameters[mdl_0].integers = { 0, 0, 0, 0, 0, 0, 0, 0 };
 
-    affect_abstract_wsum(com, sum, -1.0_r / tau, V0 / tau);
-    affect_abstract_constant(com, cst, 1.0_r, 0.0_r);
-    affect_abstract_constant(com, cst_cross, Vr, 0.0_r);
-    affect_abstract_integrator(com, integrator, 0.0_r, 0.001_r);
-    affect_abstract_cross(com, cross, Vt, true);
+    auto mdl_1                           = alloc<irt::constant>(mod, com);
+    com.children_parameters[mdl_1].reals = {
+        0.00000000000000000, 0.00000000000000000, 0.00000000000000000,
+        0.00000000000000000, 0.00000000000000000, 0.00000000000000000,
+        0.00000000000000000, 0.00000000000000000
+    };
+    com.children_parameters[mdl_1].integers = { 0, 0, 0, 0, 0, 0, 0, 0 };
 
-    irt_check(connect(com, cross, 0, integrator, 1));
-    irt_check(connect(com, cross, 1, sum, 0));
-    irt_check(connect(com, integrator, 0, cross, 0));
-    irt_check(connect(com, integrator, 0, cross, 2));
-    irt_check(connect(com, cst_cross, 0, cross, 1));
-    irt_check(connect(com, cst, 0, sum, 1));
-    irt_check(connect(com, sum, 0, integrator, 0));
+    auto mdl_2                           = alloc<irt::qss3_wsum_2>(mod, com);
+    com.children_parameters[mdl_2].reals = {
+        0.00000000000000000, 0.00000000000000000, 1.00000000000000000,
+        1.00000000000000000, 0.00000000000000000, 0.00000000000000000,
+        0.00000000000000000, 0.00000000000000000
+    };
+    com.children_parameters[mdl_2].integers = { 0, 0, 0, 0, 0, 0, 0, 0 };
 
-    irt_check(add_integrator_component_port(dst, com, integrator, "V"));
+    auto mdl_3 = alloc<irt::qss3_integrator>(mod, com);
+    com.children_parameters[mdl_3].reals = {
+        0.20000000000000001, 0.00100000000000000, 0.00000000000000000,
+        0.00000000000000000, 0.00000000000000000, 0.00000000000000000,
+        0.00000000000000000, 0.00000000000000000
+    };
+    com.children_parameters[mdl_3].integers = { 0, 0, 0, 0, 0, 0, 0, 0 };
+
+    auto mdl_4                           = alloc<irt::qss3_cross>(mod, com);
+    com.children_parameters[mdl_4].reals = {
+        1.00000000000000000, 0.00000000000000000, 0.00000000000000000,
+        0.00000000000000000, 0.00000000000000000, 0.00000000000000000,
+        0.00000000000000000, 0.00000000000000000
+    };
+    com.children_parameters[mdl_4].integers = { 0, 0, 0, 0, 0, 0, 0, 0 };
+
+    auto mdl_5                           = alloc<irt::qss3_flipflop>(mod, com);
+    com.children_parameters[mdl_5].reals = {
+        0.00000000000000000, 0.00000000000000000, 0.00000000000000000,
+        0.00000000000000000, 0.00000000000000000, 0.00000000000000000,
+        0.00000000000000000, 0.00000000000000000
+    };
+    com.children_parameters[mdl_5].integers = { 0, 0, 0, 0, 0, 0, 0, 0 };
+
+    irt_check(connect(com, mdl_0, 0, mdl_2, 1));
+    irt_check(connect(com, mdl_1, 0, mdl_5, 0));
+    irt_check(connect(com, mdl_2, 0, mdl_3, 0));
+    irt_check(connect(com, mdl_3, 0, mdl_2, 0));
+    irt_check(connect(com, mdl_3, 0, mdl_4, 0));
+    irt_check(connect(com, mdl_4, 1, mdl_5, 1));
+    irt_check(connect(com, mdl_5, 0, mdl_3, 1));
+
+    irt_check(add_integrator_component_port(dst, com, mdl_0, "u"));
 
     return success();
 }

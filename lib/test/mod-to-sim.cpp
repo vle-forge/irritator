@@ -92,6 +92,47 @@ int main()
 
     using namespace boost::ut;
 
+    "internal-component"_test = [] {
+        {
+            irt::journal_handler jnl;
+            irt::modeling        mod(jnl);
+            irt::project         pj;
+
+            expect(mod.components.can_alloc(17));
+            expect(mod.generic_components.can_alloc(17));
+
+            irt::small_vector<irt::component_id, 17> components;
+
+            for (auto i = 0; i < 17; ++i) {
+                auto& c = mod.alloc_generic_component();
+                auto& g = mod.generic_components.get(c.id.generic_id);
+
+                expect(
+                  mod.copy(irt::enum_cast<irt::internal_component>(i), c, g)
+                    .has_value());
+
+                components.push_back(mod.components.get_id(c));
+            }
+
+            for (auto i = 0; i < 17; ++i) {
+                pj.clear();
+
+                auto& c = mod.components.get<irt::component>(components[i]);
+
+                expect(pj.set(mod, c).has_value());
+                pj.sim.limits.set_bound(0, 20);
+
+                expect(pj.sim.initialize().has_value());
+
+                irt::status st;
+
+                do {
+                    expect(pj.sim.run().has_value());
+                } while (not pj.sim.current_time_expired());
+            }
+        }
+    };
+
     "easy"_test = [] {
         irt::journal_handler jn;
         irt::modeling        mod{ jn };
