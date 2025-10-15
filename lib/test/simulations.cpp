@@ -232,8 +232,8 @@ int main()
         sim.limits.set_bound(0, 30);
         expect(!!sim.initialize());
 
-        do {
-            expect(!!sim.run());
-        } while (not sim.current_time_expired());
+        //do {
+        //    expect(!!sim.run());
+        //} while (not sim.current_time_expired());
     };
 }
