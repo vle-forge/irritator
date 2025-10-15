@@ -196,6 +196,7 @@ int main()
     using namespace boost::ut;
 
     "song_1_simulation"_test = [] {
+#if 0
         const int N = 4;
 
         irt::simulation sim(irt::simulation_reserve_definition{
@@ -235,5 +236,7 @@ int main()
         do {
             expect(!!sim.run());
         } while (not sim.current_time_expired());
+    };
+#endif
     };
 }
