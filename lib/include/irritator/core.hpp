@@ -4852,7 +4852,7 @@ struct abstract_cross {
             return zone_type::down;
     }
 
-    status transition(simulation& sim, time /*t*/, time e, time r) noexcept
+    status transition(simulation& sim, time /*t*/, time e, time /*r*/) noexcept
     {
         const auto* p_threshold   = sim.messages.try_to_get(x[port_threshold]);
         const auto* p_value       = sim.messages.try_to_get(x[port_value]);

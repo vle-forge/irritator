@@ -120,6 +120,7 @@ static void affect_abstract_wsum(generic_component& gen,
     gen.children_parameters[idx].reals[5] = coeff_2;
 }
 
+#if 0
 static void affect_abstract_wsum(generic_component& gen,
                                  const child_id     id,
                                  const real         coeff_0,
@@ -138,17 +139,7 @@ static void affect_abstract_wsum(generic_component& gen,
     gen.children_parameters[idx].reals[6] = coeff_2;
     gen.children_parameters[idx].reals[7] = coeff_3;
 }
-
-static void affect_abstract_cross(generic_component& gen,
-                                  const child_id     id,
-                                  const real         threshold,
-                                  const bool         detect_up) noexcept
-{
-    const auto idx = get_index(id);
-
-    gen.children_parameters[idx].reals[0]    = threshold;
-    gen.children_parameters[idx].integers[0] = detect_up ? 1 : 0;
-}
+#endif
 
 static void affect_abstract_constant(generic_component& gen,
                                      const child_id     id,

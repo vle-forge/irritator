@@ -579,7 +579,7 @@ static bool show_parameter(qss_cross_tag,
 static bool show_parameter(qss_flipflop_tag,
                            application& /*app*/,
                            external_source& /*srcs*/,
-                           parameter& p) noexcept
+                           parameter& /*p*/) noexcept
 {
     return false;
 }

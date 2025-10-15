@@ -88,22 +88,6 @@ struct function_ref_multiple_operator {
     void operator()(double) { i++; }
 };
 
-static void empty_fun(irt::model_id /*id*/) noexcept {}
-
-static irt::status run_simulation(irt::simulation& sim, const double duration_p)
-{
-    using namespace boost::ut;
-
-    sim.limits.set_duration(0, duration_p);
-    expect(sim.initialize().has_value());
-
-    do {
-        expect(sim.run().has_value());
-    } while (not sim.current_time_expired());
-
-    return irt::success();
-}
-
 struct global_allocator_t {
     size_t allocation_size   = 0;
     int    allocation_number = 0;
