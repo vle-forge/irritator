@@ -269,24 +269,18 @@ struct json_dearchiver::impl {
                                             it->name.GetStringLength() });
 
             if (x == std::end(names)) {
-                // debug_logi(stack.ssize(),
-                //            "for-member: unknown element {}\n",
-                //            std::string_view{ it->name.GetString(),
-                //                              it->name.GetStringLength()
-                //                              });
-
-                return error("unknown element {}", it->name.GetString());
-            }
-
-            if (!std::invoke(std::forward<Function>(fn),
-                             std::distance(std::begin(names), x),
-                             it->value)) {
-                // debug_logi(stack.ssize(),
-                //            "for-member: element {} return false\n",
-                //            std::string_view{ it->name.GetString(),
-                //                              it->name.GetStringLength()
-                //                              });
-                return false;
+                warning("unknown element {}", it->name.GetString());
+            } else {
+                if (not std::invoke(std::forward<Function>(fn),
+                                    std::distance(std::begin(names), x),
+                                    it->value)) {
+                    // debug_logi(stack.ssize(),
+                    //            "for-member: element {} return false\n",
+                    //            std::string_view{ it->name.GetString(),
+                    //                              it->name.GetStringLength()
+                    //                              });
+                    return false;
+                }
             }
 
             ++it;
@@ -934,98 +928,40 @@ struct json_dearchiver::impl {
         });
     }
 
-    bool read_dynamics(const rapidjson::Value& val,
+    bool read_dynamics(const rapidjson::Value& /*val*/,
                        qss_multiplier_tag,
-                       parameter& p) noexcept
+                       parameter& /*p*/) noexcept
     {
         auto_stack a(this, "dynamics qss multiplier");
 
-        static constexpr std::string_view n[] = { "value-0", "value-1" };
-
-        return for_members(
-          val, n, [&](const auto idx, const auto& value) noexcept -> bool {
-              switch (idx) {
-              case 0:
-                  return read_real(value, p.reals[0]);
-              case 1:
-                  return read_real(value, p.reals[1]);
-              default:
-                  return error("unknown element");
-              }
-          });
+        return true;
     }
 
-    bool read_dynamics(const rapidjson::Value& val,
+    bool read_dynamics(const rapidjson::Value& /*val*/,
                        qss_sum_2_tag,
-                       parameter& p) noexcept
+                       parameter& /*p*/) noexcept
     {
         auto_stack a(this, "dynamics_qss_sum");
 
-        static constexpr std::string_view n[] = { "value-0", "value-1" };
-
-        return for_members(
-          val, n, [&](const auto idx, const auto& value) noexcept -> bool {
-              switch (idx) {
-              case 0:
-                  return read_real(value, p.reals[0]);
-              case 1:
-                  return read_real(value, p.reals[1]);
-              default:
-                  return error("unknown element");
-              }
-          });
+        return true;
     }
 
-    bool read_dynamics(const rapidjson::Value& val,
+    bool read_dynamics(const rapidjson::Value& /*val*/,
                        qss_sum_3_tag,
-                       parameter& p) noexcept
+                       parameter& /*p*/) noexcept
     {
         auto_stack a(this, "dynamics qss sum");
 
-        static constexpr std::string_view n[] = { "value-0",
-                                                  "value-1",
-                                                  "value-2" };
-
-        return for_members(
-          val, n, [&](const auto idx, const auto& value) noexcept -> bool {
-              switch (idx) {
-              case 0:
-                  return read_real(value, p.reals[0]);
-              case 1:
-                  return read_real(value, p.reals[1]);
-              case 2:
-                  return read_real(value, p.reals[2]);
-              default:
-                  return error("unknown element");
-              }
-          });
+        return true;
     }
 
-    bool read_dynamics(const rapidjson::Value& val,
+    bool read_dynamics(const rapidjson::Value& /*val*/,
                        qss_sum_4_tag,
-                       parameter& p) noexcept
+                       parameter& /*p*/) noexcept
     {
         auto_stack a(this, "dynamics qss sum");
 
-        static constexpr std::string_view n[] = {
-            "value-0", "value-1", "value-2", "value-3"
-        };
-
-        return for_members(
-          val, n, [&](const auto idx, const auto& value) noexcept -> bool {
-              switch (idx) {
-              case 0:
-                  return read_real(value, p.reals[0]);
-              case 1:
-                  return read_real(value, p.reals[1]);
-              case 2:
-                  return read_real(value, p.reals[2]);
-              case 3:
-                  return read_real(value, p.reals[3]);
-              default:
-                  return error("unknown element");
-              }
-          });
+        return true;
     }
 
     bool read_dynamics(const rapidjson::Value& val,
@@ -1034,23 +970,17 @@ struct json_dearchiver::impl {
     {
         auto_stack a(this, "dynamics qss wsum 2");
 
-        static constexpr std::string_view n[] = {
-            "coeff-0", "coeff-1", "value-0", "value-1"
-        };
+        static constexpr std::string_view n[] = { "coeff-0", "coeff-1" };
 
         return for_members(
           val, n, [&](const auto idx, const auto& value) noexcept -> bool {
               switch (idx) {
               case 0:
-                  return read_real(value, p.reals[2]);
-              case 1:
-                  return read_real(value, p.reals[3]);
-              case 2:
                   return read_real(value, p.reals[0]);
-              case 3:
+              case 1:
                   return read_real(value, p.reals[1]);
               default:
-                  return error("unknown element");
+                  return true;
               }
           });
     }
@@ -1061,27 +991,21 @@ struct json_dearchiver::impl {
     {
         auto_stack a(this, "dynamics qss wsum 3");
 
-        static constexpr std::string_view n[] = { "coeff-0", "coeff-1",
-                                                  "coeff-2", "value-0",
-                                                  "value-1", "value-2" };
+        static constexpr std::string_view n[] = { "coeff-0",
+                                                  "coeff-1",
+                                                  "coeff-2" };
 
         return for_members(
           val, n, [&](const auto idx, const auto& value) noexcept -> bool {
               switch (idx) {
               case 0:
-                  return read_real(value, p.reals[3]);
-              case 1:
-                  return read_real(value, p.reals[4]);
-              case 2:
-                  return read_real(value, p.reals[5]);
-              case 3:
                   return read_real(value, p.reals[0]);
-              case 4:
+              case 1:
                   return read_real(value, p.reals[1]);
-              case 5:
+              case 2:
                   return read_real(value, p.reals[2]);
               default:
-                  return error("unknown element");
+                  return true;
               }
           });
     }
@@ -1092,32 +1016,23 @@ struct json_dearchiver::impl {
     {
         auto_stack a(this, "dynamics qss wsum 4");
 
-        static constexpr std::string_view n[] = { "coeff-0", "coeff-1",
-                                                  "coeff-2", "coeff-3",
-                                                  "value-0", "value-1",
-                                                  "value-2", "value-3" };
+        static constexpr std::string_view n[] = {
+            "coeff-0", "coeff-1", "coeff-2", "coeff-3"
+        };
 
         return for_members(
           val, n, [&](const auto idx, const auto& value) noexcept -> bool {
               switch (idx) {
               case 0:
-                  return read_real(value, p.reals[4]);
-              case 1:
-                  return read_real(value, p.reals[5]);
-              case 2:
-                  return read_real(value, p.reals[6]);
-              case 3:
-                  return read_real(value, p.reals[7]);
-              case 4:
                   return read_real(value, p.reals[0]);
-              case 5:
+              case 1:
                   return read_real(value, p.reals[1]);
-              case 6:
+              case 2:
                   return read_real(value, p.reals[2]);
-              case 7:
+              case 3:
                   return read_real(value, p.reals[3]);
               default:
-                  return error("unknown element");
+                  return true;
               }
           });
     }
@@ -4479,11 +4394,11 @@ struct json_dearchiver::impl {
     }
 
     bool read_real_parameter(const rapidjson::Value& val,
-                             std::array<real, 8>&    reals) noexcept
+                             std::array<real, 4>&    reals) noexcept
     {
         auto_stack s(this, "project real parameter");
 
-        return is_value_array(val) && is_value_array_size_equal(val, 8) &&
+        return is_value_array(val) && is_value_array_size_equal(val, 4) &&
                for_each_array(
                  val, [&](const auto i, const auto& value) noexcept -> bool {
                      return read_temp_real(value) && copy_real_to(reals[i]);
@@ -5035,64 +4950,36 @@ struct json_archiver::impl {
     template<typename Writer, std::size_t QssLevel>
     void write(Writer& writer,
                const abstract_multiplier<QssLevel>& /*dyn*/,
-               const parameter& p) noexcept
+               const parameter& /*p*/) noexcept
     {
         writer.StartObject();
-        writer.Key("value-0");
-        writer.Double(p.reals[0]);
-        writer.Key("value-1");
-        writer.Double(p.reals[1]);
         writer.EndObject();
     }
 
     template<typename Writer>
     void write(Writer& writer,
                const qss1_sum_2& /*dyn*/,
-               const parameter& p) noexcept
+               const parameter& /*p*/) noexcept
     {
         writer.StartObject();
-
-        writer.Key("value-0");
-        writer.Double(p.reals[0]);
-        writer.Key("value-1");
-        writer.Double(p.reals[1]);
-
         writer.EndObject();
     }
 
     template<typename Writer>
     void write(Writer& writer,
                const qss1_sum_3& /*dyn*/,
-               const parameter& p) noexcept
+               const parameter& /*p*/) noexcept
     {
         writer.StartObject();
-
-        writer.Key("value-0");
-        writer.Double(p.reals[0]);
-        writer.Key("value-1");
-        writer.Double(p.reals[1]);
-        writer.Key("value-2");
-        writer.Double(p.reals[2]);
-
         writer.EndObject();
     }
 
     template<typename Writer>
     void write(Writer& writer,
                const qss1_sum_4& /*dyn*/,
-               const parameter& p) noexcept
+               const parameter& /*p*/) noexcept
     {
         writer.StartObject();
-
-        writer.Key("value-0");
-        writer.Double(p.reals[0]);
-        writer.Key("value-1");
-        writer.Double(p.reals[1]);
-        writer.Key("value-2");
-        writer.Double(p.reals[2]);
-        writer.Key("value-3");
-        writer.Double(p.reals[3]);
-
         writer.EndObject();
     }
 
@@ -5103,15 +4990,10 @@ struct json_archiver::impl {
     {
         writer.StartObject();
 
-        writer.Key("value-0");
-        writer.Double(p.reals[0]);
-        writer.Key("value-1");
-        writer.Double(p.reals[1]);
-
         writer.Key("coeff-0");
-        writer.Double(p.reals[2]);
+        writer.Double(p.reals[0]);
         writer.Key("coeff-1");
-        writer.Double(p.reals[3]);
+        writer.Double(p.reals[1]);
 
         writer.EndObject();
     }
@@ -5123,19 +5005,12 @@ struct json_archiver::impl {
     {
         writer.StartObject();
 
-        writer.Key("value-0");
-        writer.Double(p.reals[0]);
-        writer.Key("value-1");
-        writer.Double(p.reals[1]);
-        writer.Key("value-2");
-        writer.Double(p.reals[2]);
-
         writer.Key("coeff-0");
-        writer.Double(p.reals[3]);
+        writer.Double(p.reals[0]);
         writer.Key("coeff-1");
-        writer.Double(p.reals[4]);
+        writer.Double(p.reals[1]);
         writer.Key("coeff-2");
-        writer.Double(p.reals[5]);
+        writer.Double(p.reals[2]);
 
         writer.EndObject();
     }
@@ -5147,23 +5022,14 @@ struct json_archiver::impl {
     {
         writer.StartObject();
 
-        writer.Key("value-0");
-        writer.Double(p.reals[0]);
-        writer.Key("value-1");
-        writer.Double(p.reals[1]);
-        writer.Key("value-2");
-        writer.Double(p.reals[2]);
-        writer.Key("value-3");
-        writer.Double(p.reals[3]);
-
         writer.Key("coeff-0");
-        writer.Double(p.reals[4]);
+        writer.Double(p.reals[0]);
         writer.Key("coeff-1");
-        writer.Double(p.reals[5]);
+        writer.Double(p.reals[1]);
         writer.Key("coeff-2");
-        writer.Double(p.reals[6]);
+        writer.Double(p.reals[2]);
         writer.Key("coeff-3");
-        writer.Double(p.reals[7]);
+        writer.Double(p.reals[3]);
 
         writer.EndObject();
     }
@@ -5171,51 +5037,27 @@ struct json_archiver::impl {
     template<typename Writer>
     void write(Writer& writer,
                const qss2_sum_2& /*dyn*/,
-               const parameter& p) noexcept
+               const parameter& /*p*/) noexcept
     {
         writer.StartObject();
-
-        writer.Key("value-0");
-        writer.Double(p.reals[0]);
-        writer.Key("value-1");
-        writer.Double(p.reals[1]);
-
         writer.EndObject();
     }
 
     template<typename Writer>
     void write(Writer& writer,
                const qss2_sum_3& /*dyn*/,
-               const parameter& p) noexcept
+               const parameter& /*p*/) noexcept
     {
         writer.StartObject();
-
-        writer.Key("value-0");
-        writer.Double(p.reals[0]);
-        writer.Key("value-1");
-        writer.Double(p.reals[1]);
-        writer.Key("value-2");
-        writer.Double(p.reals[2]);
-
         writer.EndObject();
     }
 
     template<typename Writer>
     void write(Writer& writer,
                const qss2_sum_4& /*dyn*/,
-               const parameter& p) noexcept
+               const parameter& /*p*/) noexcept
     {
         writer.StartObject();
-
-        writer.Key("value-0");
-        writer.Double(p.reals[0]);
-        writer.Key("value-1");
-        writer.Double(p.reals[1]);
-        writer.Key("value-2");
-        writer.Double(p.reals[2]);
-        writer.Key("value-3");
-        writer.Double(p.reals[3]);
-
         writer.EndObject();
     }
 
@@ -5226,15 +5068,10 @@ struct json_archiver::impl {
     {
         writer.StartObject();
 
-        writer.Key("value-0");
-        writer.Double(p.reals[0]);
-        writer.Key("value-1");
-        writer.Double(p.reals[1]);
-
         writer.Key("coeff-0");
-        writer.Double(p.reals[2]);
+        writer.Double(p.reals[0]);
         writer.Key("coeff-1");
-        writer.Double(p.reals[3]);
+        writer.Double(p.reals[1]);
 
         writer.EndObject();
     }
@@ -5246,19 +5083,12 @@ struct json_archiver::impl {
     {
         writer.StartObject();
 
-        writer.Key("value-0");
-        writer.Double(p.reals[0]);
-        writer.Key("value-1");
-        writer.Double(p.reals[1]);
-        writer.Key("value-2");
-        writer.Double(p.reals[2]);
-
         writer.Key("coeff-0");
-        writer.Double(p.reals[3]);
+        writer.Double(p.reals[0]);
         writer.Key("coeff-1");
-        writer.Double(p.reals[4]);
+        writer.Double(p.reals[1]);
         writer.Key("coeff-2");
-        writer.Double(p.reals[5]);
+        writer.Double(p.reals[2]);
 
         writer.EndObject();
     }
@@ -5270,23 +5100,14 @@ struct json_archiver::impl {
     {
         writer.StartObject();
 
-        writer.Key("value-0");
-        writer.Double(p.reals[0]);
-        writer.Key("value-1");
-        writer.Double(p.reals[1]);
-        writer.Key("value-2");
-        writer.Double(p.reals[2]);
-        writer.Key("value-3");
-        writer.Double(p.reals[3]);
-
         writer.Key("coeff-0");
-        writer.Double(p.reals[4]);
+        writer.Double(p.reals[0]);
         writer.Key("coeff-1");
-        writer.Double(p.reals[5]);
+        writer.Double(p.reals[1]);
         writer.Key("coeff-2");
-        writer.Double(p.reals[6]);
+        writer.Double(p.reals[2]);
         writer.Key("coeff-3");
-        writer.Double(p.reals[7]);
+        writer.Double(p.reals[3]);
 
         writer.EndObject();
     }
@@ -5294,51 +5115,27 @@ struct json_archiver::impl {
     template<typename Writer>
     void write(Writer& writer,
                const qss3_sum_2& /*dyn*/,
-               const parameter& p) noexcept
+               const parameter& /*p*/) noexcept
     {
         writer.StartObject();
-
-        writer.Key("value-0");
-        writer.Double(p.reals[0]);
-        writer.Key("value-1");
-        writer.Double(p.reals[1]);
-
         writer.EndObject();
     }
 
     template<typename Writer>
     void write(Writer& writer,
                const qss3_sum_3& /*dyn*/,
-               const parameter& p) noexcept
+               const parameter& /*p*/) noexcept
     {
         writer.StartObject();
-
-        writer.Key("value-0");
-        writer.Double(p.reals[0]);
-        writer.Key("value-1");
-        writer.Double(p.reals[1]);
-        writer.Key("value-2");
-        writer.Double(p.reals[2]);
-
         writer.EndObject();
     }
 
     template<typename Writer>
     void write(Writer& writer,
                const qss3_sum_4& /*dyn*/,
-               const parameter& p) noexcept
+               const parameter& /*p*/) noexcept
     {
         writer.StartObject();
-
-        writer.Key("value-0");
-        writer.Double(p.reals[0]);
-        writer.Key("value-1");
-        writer.Double(p.reals[1]);
-        writer.Key("value-2");
-        writer.Double(p.reals[2]);
-        writer.Key("value-3");
-        writer.Double(p.reals[3]);
-
         writer.EndObject();
     }
 
@@ -5349,15 +5146,10 @@ struct json_archiver::impl {
     {
         writer.StartObject();
 
-        writer.Key("value-0");
-        writer.Double(p.reals[0]);
-        writer.Key("value-1");
-        writer.Double(p.reals[1]);
-
         writer.Key("coeff-0");
-        writer.Double(p.reals[2]);
+        writer.Double(p.reals[0]);
         writer.Key("coeff-1");
-        writer.Double(p.reals[3]);
+        writer.Double(p.reals[1]);
 
         writer.EndObject();
     }
@@ -5369,19 +5161,12 @@ struct json_archiver::impl {
     {
         writer.StartObject();
 
-        writer.Key("value-0");
-        writer.Double(p.reals[0]);
-        writer.Key("value-1");
-        writer.Double(p.reals[1]);
-        writer.Key("value-2");
-        writer.Double(p.reals[2]);
-
         writer.Key("coeff-0");
-        writer.Double(p.reals[3]);
+        writer.Double(p.reals[0]);
         writer.Key("coeff-1");
-        writer.Double(p.reals[4]);
+        writer.Double(p.reals[1]);
         writer.Key("coeff-2");
-        writer.Double(p.reals[5]);
+        writer.Double(p.reals[2]);
 
         writer.EndObject();
     }
@@ -5393,23 +5178,14 @@ struct json_archiver::impl {
     {
         writer.StartObject();
 
-        writer.Key("value-0");
-        writer.Double(p.reals[0]);
-        writer.Key("value-1");
-        writer.Double(p.reals[1]);
-        writer.Key("value-2");
-        writer.Double(p.reals[2]);
-        writer.Key("value-3");
-        writer.Double(p.reals[3]);
-
         writer.Key("coeff-0");
-        writer.Double(p.reals[4]);
+        writer.Double(p.reals[0]);
         writer.Key("coeff-1");
-        writer.Double(p.reals[5]);
+        writer.Double(p.reals[1]);
         writer.Key("coeff-2");
-        writer.Double(p.reals[6]);
+        writer.Double(p.reals[2]);
         writer.Key("coeff-3");
-        writer.Double(p.reals[7]);
+        writer.Double(p.reals[3]);
 
         writer.EndObject();
     }

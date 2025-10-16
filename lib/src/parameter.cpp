@@ -203,131 +203,88 @@ static void parameter_init(parameter&                           param,
 }
 
 template<size_t QssLevel>
-static void model_init(const parameter&               param,
-                       abstract_multiplier<QssLevel>& dyn) noexcept
-{
-    dyn.values[0] = param.reals[0];
-    dyn.values[1] = param.reals[1];
-}
+static void model_init(const parameter& /*param*/,
+                       abstract_multiplier<QssLevel>& /*dyn*/) noexcept
+{}
 
 template<size_t QssLevel>
-static void parameter_init(parameter&                           param,
-                           const abstract_multiplier<QssLevel>& dyn) noexcept
-{
-    param.reals[0] = dyn.values[0];
-    param.reals[1] = dyn.values[1];
-}
+static void parameter_init(
+  parameter& /*param*/,
+  const abstract_multiplier<QssLevel>& /*dyn*/) noexcept
+{}
 
 template<size_t QssLevel>
-static void model_init(const parameter&           param,
-                       abstract_sum<QssLevel, 2>& dyn) noexcept
-{
-    dyn.values[0] = param.reals[0];
-    dyn.values[1] = param.reals[1];
-}
+static void model_init(const parameter& /*param*/,
+                       abstract_sum<QssLevel, 2>& /*dyn*/) noexcept
+{}
 
 template<size_t QssLevel>
-static void parameter_init(parameter&                       param,
-                           const abstract_sum<QssLevel, 2>& dyn) noexcept
-{
-    param.reals[0] = dyn.values[0];
-    param.reals[1] = dyn.values[1];
-}
+static void parameter_init(parameter& /*param*/,
+                           const abstract_sum<QssLevel, 2>& /*dyn*/) noexcept
+{}
 
 template<size_t QssLevel>
-static void model_init(const parameter&           param,
-                       abstract_sum<QssLevel, 3>& dyn) noexcept
-{
-    dyn.values[0] = param.reals[0];
-    dyn.values[1] = param.reals[1];
-    dyn.values[2] = param.reals[2];
-}
+static void model_init(const parameter& /*param*/,
+                       abstract_sum<QssLevel, 3>& /*dyn*/) noexcept
+{}
 
 template<size_t QssLevel>
-static void parameter_init(parameter&                       param,
-                           const abstract_sum<QssLevel, 3>& dyn) noexcept
-{
-    param.reals[0] = dyn.values[0];
-    param.reals[1] = dyn.values[1];
-    param.reals[2] = dyn.values[2];
-}
+static void parameter_init(parameter& /*param*/,
+                           const abstract_sum<QssLevel, 3>& /*dyn*/) noexcept
+{}
 
 template<size_t QssLevel>
-static void model_init(const parameter&           param,
-                       abstract_sum<QssLevel, 4>& dyn) noexcept
-{
-    dyn.values[0] = param.reals[0];
-    dyn.values[1] = param.reals[1];
-    dyn.values[2] = param.reals[2];
-    dyn.values[3] = param.reals[3];
-}
+static void model_init(const parameter& /*param*/,
+                       abstract_sum<QssLevel, 4>& /*dyn*/) noexcept
+{}
 
 template<size_t QssLevel>
-static void parameter_init(parameter&                       param,
-                           const abstract_sum<QssLevel, 4>& dyn) noexcept
-{
-    param.reals[0] = dyn.values[0];
-    param.reals[1] = dyn.values[1];
-    param.reals[2] = dyn.values[2];
-    param.reals[3] = dyn.values[3];
-}
+static void parameter_init(parameter& /*param*/,
+                           const abstract_sum<QssLevel, 4>& /*dyn*/) noexcept
+{}
 
 template<size_t QssLevel>
 static void model_init(const parameter&            param,
                        abstract_wsum<QssLevel, 2>& dyn) noexcept
 {
-    dyn.values[0]       = param.reals[0];
-    dyn.values[1]       = param.reals[1];
-    dyn.input_coeffs[0] = param.reals[2];
-    dyn.input_coeffs[1] = param.reals[3];
+    dyn.input_coeffs[0] = param.reals[0];
+    dyn.input_coeffs[1] = param.reals[1];
 }
 
 template<size_t QssLevel>
 static void parameter_init(parameter&                        param,
                            const abstract_wsum<QssLevel, 2>& dyn) noexcept
 {
-    param.reals[0] = dyn.values[0];
-    param.reals[1] = dyn.values[1];
-    param.reals[2] = dyn.input_coeffs[0];
-    param.reals[3] = dyn.input_coeffs[1];
+    param.reals[0] = dyn.input_coeffs[0];
+    param.reals[1] = dyn.input_coeffs[1];
 }
 
 template<size_t QssLevel>
 static void model_init(const parameter&            param,
                        abstract_wsum<QssLevel, 3>& dyn) noexcept
 {
-    dyn.values[0]       = param.reals[0];
-    dyn.values[1]       = param.reals[1];
-    dyn.values[2]       = param.reals[2];
-    dyn.input_coeffs[0] = param.reals[3];
-    dyn.input_coeffs[1] = param.reals[4];
-    dyn.input_coeffs[2] = param.reals[5];
+    dyn.input_coeffs[0] = param.reals[0];
+    dyn.input_coeffs[1] = param.reals[1];
+    dyn.input_coeffs[2] = param.reals[2];
 }
 
 template<size_t QssLevel>
 static void parameter_init(parameter&                        param,
                            const abstract_wsum<QssLevel, 3>& dyn) noexcept
 {
-    param.reals[0] = dyn.values[0];
-    param.reals[1] = dyn.values[1];
-    param.reals[2] = dyn.values[2];
-    param.reals[3] = dyn.input_coeffs[0];
-    param.reals[4] = dyn.input_coeffs[1];
-    param.reals[5] = dyn.input_coeffs[2];
+    param.reals[0] = dyn.input_coeffs[0];
+    param.reals[1] = dyn.input_coeffs[1];
+    param.reals[2] = dyn.input_coeffs[2];
 }
 
 template<size_t QssLevel>
 static void model_init(const parameter&            param,
                        abstract_wsum<QssLevel, 4>& dyn) noexcept
 {
-    dyn.values[0]       = param.reals[0];
-    dyn.values[1]       = param.reals[1];
-    dyn.values[2]       = param.reals[2];
-    dyn.values[3]       = param.reals[3];
-    dyn.input_coeffs[0] = param.reals[4];
-    dyn.input_coeffs[1] = param.reals[5];
-    dyn.input_coeffs[2] = param.reals[6];
-    dyn.input_coeffs[3] = param.reals[7];
+    dyn.input_coeffs[0] = param.reals[0];
+    dyn.input_coeffs[1] = param.reals[1];
+    dyn.input_coeffs[2] = param.reals[2];
+    dyn.input_coeffs[3] = param.reals[3];
 }
 
 template<size_t QssLevel, std::size_t PortNumber>
@@ -335,14 +292,10 @@ static void parameter_init(
   parameter&                                 param,
   const abstract_wsum<QssLevel, PortNumber>& dyn) noexcept
 {
-    param.reals[0] = dyn.values[0];
-    param.reals[1] = dyn.values[1];
-    param.reals[2] = dyn.values[2];
-    param.reals[3] = dyn.values[3];
-    param.reals[4] = dyn.input_coeffs[0];
-    param.reals[5] = dyn.input_coeffs[1];
-    param.reals[6] = dyn.input_coeffs[2];
-    param.reals[7] = dyn.input_coeffs[3];
+    param.reals[0] = dyn.input_coeffs[0];
+    param.reals[1] = dyn.input_coeffs[1];
+    param.reals[2] = dyn.input_coeffs[2];
+    param.reals[3] = dyn.input_coeffs[3];
 }
 
 template<size_t QssLevel>
@@ -593,82 +546,30 @@ parameter& parameter::set_time_func(real offset,
     return *this;
 }
 
-parameter& parameter::set_multiplier(real v1, real v2) noexcept
+parameter& parameter::set_wsum2(real coeff1, real coeff2) noexcept
 {
-    reals[0] = std::isfinite(v1) ? v1 : 0.0;
-    reals[1] = std::isfinite(v2) ? v2 : 0.0;
+    reals[0] = std::isfinite(coeff1) ? coeff1 : 1.0;
+    reals[1] = std::isfinite(coeff2) ? coeff2 : 1.0;
     return *this;
 }
 
-parameter& parameter::set_sum2(real v1, real v2) noexcept
+parameter& parameter::set_wsum3(real coeff1, real coeff2, real coeff3) noexcept
 {
-    reals[0] = std::isfinite(v1) ? v1 : 0.0;
-    reals[1] = std::isfinite(v2) ? v2 : 0.0;
+    reals[0] = std::isfinite(coeff1) ? coeff1 : 1.0;
+    reals[1] = std::isfinite(coeff2) ? coeff2 : 1.0;
+    reals[2] = std::isfinite(coeff3) ? coeff3 : 1.0;
     return *this;
 }
 
-parameter& parameter::set_sum3(real v1, real v2, real v3) noexcept
-{
-    reals[0] = std::isfinite(v1) ? v1 : 0.0;
-    reals[1] = std::isfinite(v2) ? v2 : 0.0;
-    reals[2] = std::isfinite(v3) ? v3 : 0.0;
-    return *this;
-}
-
-parameter& parameter::set_sum4(real v1, real v2, real v3, real v4) noexcept
-{
-    reals[0] = std::isfinite(v1) ? v1 : 0.0;
-    reals[1] = std::isfinite(v2) ? v2 : 0.0;
-    reals[2] = std::isfinite(v3) ? v3 : 0.0;
-    reals[3] = std::isfinite(v4) ? v4 : 0.0;
-    return *this;
-}
-
-parameter& parameter::set_wsum2(real v1,
-                                real coeff1,
-                                real v2,
-                                real coeff2) noexcept
-{
-    reals[0] = std::isfinite(v1) ? v1 : 0.0;
-    reals[1] = std::isfinite(v2) ? v2 : 0.0;
-    reals[2] = std::isfinite(coeff1) ? coeff1 : 1.0;
-    reals[3] = std::isfinite(coeff2) ? coeff2 : 1.0;
-    return *this;
-}
-
-parameter& parameter::set_wsum3(real v1,
-                                real coeff1,
-                                real v2,
+parameter& parameter::set_wsum4(real coeff1,
                                 real coeff2,
-                                real v3,
-                                real coeff3) noexcept
-{
-    reals[0] = std::isfinite(v1) ? v1 : 0.0;
-    reals[1] = std::isfinite(v2) ? v2 : 0.0;
-    reals[2] = std::isfinite(v3) ? v3 : 0.0;
-    reals[3] = std::isfinite(coeff1) ? coeff1 : 1.0;
-    reals[4] = std::isfinite(coeff2) ? coeff2 : 1.0;
-    reals[5] = std::isfinite(coeff3) ? coeff3 : 1.0;
-    return *this;
-}
-
-parameter& parameter::set_wsum4(real v1,
-                                real coeff1,
-                                real v2,
-                                real coeff2,
-                                real v3,
                                 real coeff3,
-                                real v4,
                                 real coeff4) noexcept
 {
-    reals[0] = std::isfinite(v1) ? v1 : 0.0;
-    reals[1] = std::isfinite(v2) ? v2 : 0.0;
-    reals[2] = std::isfinite(v3) ? v3 : 0.0;
-    reals[3] = std::isfinite(v4) ? v4 : 0.0;
-    reals[4] = std::isfinite(coeff1) ? coeff1 : 1.0;
-    reals[5] = std::isfinite(coeff2) ? coeff2 : 1.0;
-    reals[6] = std::isfinite(coeff3) ? coeff3 : 1.0;
-    reals[7] = std::isfinite(coeff4) ? coeff4 : 1.0;
+    reals[0] = std::isfinite(coeff1) ? coeff1 : 1.0;
+    reals[1] = std::isfinite(coeff2) ? coeff2 : 1.0;
+    reals[2] = std::isfinite(coeff3) ? coeff3 : 1.0;
+    reals[3] = std::isfinite(coeff4) ? coeff4 : 1.0;
     return *this;
 }
 

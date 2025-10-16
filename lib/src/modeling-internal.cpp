@@ -2,25 +2,39 @@
 // Version 1.0. (See accompanying file LICENSE_1_0.txt or copy at
 // http://www.boost.org/LICENSE_1_0.txt)
 
+#include <irritator/format.hpp>
 #include <irritator/modeling.hpp>
 
 namespace irt {
 
 template<typename Dynamics>
-static child_id alloc(
-  modeling&              mod,
-  generic_component&     parent,
-  const std::string_view name  = {},
-  bitflags<child_flags>  param = bitflags<child_flags>{}) noexcept
+static child_id alloc(modeling&              mod,
+                      generic_component&     parent,
+                      const std::string_view name = {}) noexcept
 {
     auto&      child = mod.alloc(parent, dynamics_typeof<Dynamics>());
     const auto id    = parent.children.get_id(child);
     const auto index = get_index(id);
 
-    child.flags = param;
-
     parent.children_names[index] = name;
     parent.children_parameters[index].clear();
+
+    if constexpr (std::is_same_v<Dynamics, constant>) {
+        child.flags.set(child_flags::configurable);
+
+        if (name.empty())
+            format(parent.children_names[id], "cst {}", index);
+    }
+
+    if constexpr (std::is_same_v<Dynamics, abstract_integrator<1>> or
+                  std::is_same_v<Dynamics, abstract_integrator<2>> or
+                  std::is_same_v<Dynamics, abstract_integrator<3>>) {
+        child.flags.set(child_flags::configurable);
+        child.flags.set(child_flags::observable);
+
+        if (name.empty())
+            format(parent.children_names[id], "int {}", index);
+    }
 
     return id;
 }
@@ -80,78 +94,6 @@ static status add_integrator_component_port(component&         dst,
     return success();
 }
 
-static void affect_abstract_integrator(generic_component& gen,
-                                       const child_id     id,
-                                       const real         X,
-                                       const real         dQ) noexcept
-{
-    const auto idx = get_index(id);
-
-    gen.children_parameters[idx].reals[0] = X;
-    gen.children_parameters[idx].reals[1] = dQ;
-}
-
-static void affect_abstract_wsum(generic_component& gen,
-                                 const child_id     id,
-                                 const real         coeff_0,
-                                 const real         coeff_1) noexcept
-{
-    const auto idx = get_index(id);
-
-    gen.children_parameters[idx].reals[0] = zero;
-    gen.children_parameters[idx].reals[1] = zero;
-    gen.children_parameters[idx].reals[2] = coeff_0;
-    gen.children_parameters[idx].reals[3] = coeff_1;
-}
-
-static void affect_abstract_wsum(generic_component& gen,
-                                 const child_id     id,
-                                 const real         coeff_0,
-                                 const real         coeff_1,
-                                 const real         coeff_2) noexcept
-{
-    const auto idx = get_index(id);
-
-    gen.children_parameters[idx].reals[0] = zero;
-    gen.children_parameters[idx].reals[1] = zero;
-    gen.children_parameters[idx].reals[2] = zero;
-    gen.children_parameters[idx].reals[3] = coeff_0;
-    gen.children_parameters[idx].reals[4] = coeff_1;
-    gen.children_parameters[idx].reals[5] = coeff_2;
-}
-
-#if 0
-static void affect_abstract_wsum(generic_component& gen,
-                                 const child_id     id,
-                                 const real         coeff_0,
-                                 const real         coeff_1,
-                                 const real         coeff_2,
-                                 const real         coeff_3) noexcept
-{
-    const auto idx = get_index(id);
-
-    gen.children_parameters[idx].reals[0] = zero;
-    gen.children_parameters[idx].reals[1] = zero;
-    gen.children_parameters[idx].reals[2] = zero;
-    gen.children_parameters[idx].reals[3] = zero;
-    gen.children_parameters[idx].reals[4] = coeff_0;
-    gen.children_parameters[idx].reals[5] = coeff_1;
-    gen.children_parameters[idx].reals[6] = coeff_2;
-    gen.children_parameters[idx].reals[7] = coeff_3;
-}
-#endif
-
-static void affect_abstract_constant(generic_component& gen,
-                                     const child_id     id,
-                                     const real         value,
-                                     const real         offset) noexcept
-{
-    const auto idx = get_index(id);
-
-    gen.children_parameters[idx].reals[0] = value;
-    gen.children_parameters[idx].reals[1] = offset;
-}
-
 template<int QssLevel>
 status add_lotka_volterra(modeling&          mod,
                           component&         dst,
@@ -163,31 +105,19 @@ status add_lotka_volterra(modeling&          mod,
     if (!com.children.can_alloc(5))
         return new_error(modeling_errc::generic_children_container_full);
 
-    auto integrator_a = alloc<abstract_integrator<QssLevel>>(
-      mod,
-      com,
-      "X",
-      bitflags<child_flags>(child_flags::configurable,
-                            child_flags::observable));
-    affect_abstract_integrator(com, integrator_a, 18.0_r, 0.1_r);
+    auto integrator_a = alloc<abstract_integrator<QssLevel>>(mod, com, "X");
+    com.children_parameters[integrator_a].set_integrator(18.0_r, 0.1_r);
 
-    auto integrator_b = alloc<abstract_integrator<QssLevel>>(
-      mod,
-      com,
-      "Y",
-      bitflags<child_flags>(child_flags::configurable,
-                            child_flags::observable));
-    affect_abstract_integrator(com, integrator_b, 7.0_r, 0.1_r);
+    auto integrator_b = alloc<abstract_integrator<QssLevel>>(mod, com, "Y");
+    com.children_parameters[integrator_b].set_integrator(7.0_r, 0.1_r);
 
     auto product = alloc<abstract_multiplier<QssLevel>>(mod, com);
 
-    auto sum_a = alloc<abstract_wsum<QssLevel, 2>>(
-      mod, com, "X+XY", bitflags<child_flags>(child_flags::configurable));
-    affect_abstract_wsum(com, sum_a, 2.0_r, -0.4_r);
+    auto sum_a = alloc<abstract_wsum<QssLevel, 2>>(mod, com, "X+XY");
+    com.children_parameters[sum_a].set_wsum2(2.0_r, -0.4_r);
 
-    auto sum_b = alloc<abstract_wsum<QssLevel, 2>>(
-      mod, com, "Y+XY", bitflags<child_flags>(child_flags::configurable));
-    affect_abstract_wsum(com, sum_b, -1.0_r, 0.1_r);
+    auto sum_b = alloc<abstract_wsum<QssLevel, 2>>(mod, com, "Y+XY");
+    com.children_parameters[sum_b].set_wsum2(-1.0_r, 0.1_r);
 
     irt_check(connect(com, sum_a, 0, integrator_a, 0));
     irt_check(connect(com, sum_b, 0, integrator_b, 0));
@@ -224,14 +154,9 @@ status add_lif(modeling& mod, component& dst, generic_component& com) noexcept
     com.children_parameters[mdl_1].set_constant(-10, 0);
 
     auto mdl_2 = alloc<irt::qss3_wsum_2>(mod, com);
-    com.children_parameters[mdl_2].set_wsum2(0, -0.1, 0, 1);
+    com.children_parameters[mdl_2].set_wsum2(-0.1, 1);
 
-    auto mdl_3 = alloc<irt::qss3_integrator>(
-      mod,
-      com,
-      "u",
-      bitflags<child_flags>(child_flags::configurable,
-                            child_flags::observable));
+    auto mdl_3 = alloc<irt::qss3_integrator>(mod, com, "u");
     com.children_parameters[mdl_3].set_integrator(0, 0.001);
 
     auto mdl_4 = alloc<irt::qss3_cross>(mod, com);
@@ -264,54 +189,44 @@ status add_izhikevich(modeling&          mod,
     if (!(com.children.can_alloc(19) && com.connections.can_alloc(22)))
         return new_error(modeling_errc::generic_children_container_full);
 
-    auto mdl_0 = alloc<irt::abstract_integrator<QssLevel>>(
-      mod,
-      com,
-      "u",
-      bitflags<child_flags>(child_flags::configurable,
-                            child_flags::observable));
-
-    auto mdl_1 = alloc<irt::abstract_integrator<QssLevel>>(
-      mod,
-      com,
-      "v",
-      bitflags<child_flags>(child_flags::configurable,
-                            child_flags::observable));
+    auto mdl_0 = alloc<irt::abstract_integrator<QssLevel>>(mod, com, "u");
+    auto mdl_1 = alloc<irt::abstract_integrator<QssLevel>>(mod, com, "v");
 
     com.children_parameters[mdl_0].set_integrator(0, 0.01);
     com.children_parameters[mdl_1].set_integrator(0, 0.01);
 
-    affect_abstract_integrator(com, mdl_1, 0, 0.01);
-
-    auto mdl_2 = alloc<irt::abstract_square<QssLevel>>(mod, com);
+    auto mdl_2       = alloc<irt::abstract_square<QssLevel>>(mod, com);
+    auto mdl_cst_004 = alloc<irt::constant>(mod, com, "0.04");
+    com.children_parameters[mdl_cst_004].set_constant(0.04, 0);
 
     auto mdl_3 = alloc<irt::abstract_multiplier<QssLevel>>(mod, com);
-    com.children_parameters[mdl_3].set_multiplier(0.04, 0);
 
+    auto mdl_cst_5 = alloc<irt::constant>(mod, com, "5");
+    com.children_parameters[mdl_cst_5].set_constant(5, 0);
     auto mdl_4 = alloc<irt::abstract_multiplier<QssLevel>>(mod, com);
-    com.children_parameters[mdl_4].set_multiplier(5, 0);
 
+    auto mdl_cst_140 = alloc<irt::constant>(mod, com, "140");
+    com.children_parameters[mdl_cst_140].set_constant(140, 0);
     auto mdl_5 = alloc<irt::abstract_wsum<QssLevel, 2>>(mod, com);
-    com.children_parameters[mdl_5].set_wsum2(140, 1, 0, -1);
+    com.children_parameters[mdl_5].set_wsum2(1, -1);
 
-    auto mdl_6 = alloc<irt::constant>(mod, com);
+    auto mdl_6 = alloc<irt::constant>(mod, com, "-99");
     com.children_parameters[mdl_6].set_constant(-99, 0);
 
     auto mdl_7 = alloc<irt::abstract_sum<QssLevel, 4>>(mod, com);
 
-    auto mdl_8 = alloc<irt::constant>(mod, com);
+    auto mdl_8 = alloc<irt::constant>(mod, com, "0.2");
     com.children_parameters[mdl_8].set_constant(0.2, 0);
 
-    auto mdl_9 = alloc<irt::constant>(mod, com);
+    auto mdl_9 = alloc<irt::constant>(mod, com, "2");
     com.children_parameters[mdl_9].set_constant(2, 0);
 
     auto mdl_10 = alloc<irt::abstract_multiplier<QssLevel>>(mod, com);
 
     auto mdl_11 = alloc<irt::abstract_wsum<QssLevel, 2>>(mod, com);
-    com.children_parameters[mdl_11].set_wsum2(0, 1, 0, -1);
+    com.children_parameters[mdl_11].set_wsum2(1, -1);
 
     auto mdl_12 = alloc<irt::abstract_multiplier<QssLevel>>(mod, com);
-    com.children_parameters[mdl_12].set_multiplier(0, 0);
 
     auto mdl_13 = alloc<irt::abstract_cross<QssLevel>>(mod, com);
     com.children_parameters[mdl_13].set_cross(30);
@@ -327,6 +242,10 @@ status add_izhikevich(modeling&          mod,
     com.children_parameters[mdl_17].set_constant(-16, 0);
 
     auto mdl_18 = alloc<irt::abstract_flipflop<QssLevel>>(mod, com);
+
+    irt_check(connect(com, mdl_cst_004, 0, mdl_3, 0));
+    irt_check(connect(com, mdl_cst_5, 0, mdl_4, 0));
+    irt_check(connect(com, mdl_cst_140, 0, mdl_5, 0));
 
     irt_check(connect(com, mdl_0, 0, mdl_2, 0));
     irt_check(connect(com, mdl_0, 0, mdl_4, 1));
@@ -372,24 +291,14 @@ status add_van_der_pol(modeling&          mod,
     auto sum          = alloc<abstract_wsum<QssLevel, 3>>(mod, com);
     auto product1     = alloc<abstract_multiplier<QssLevel>>(mod, com);
     auto product2     = alloc<abstract_multiplier<QssLevel>>(mod, com);
-    auto integrator_a = alloc<abstract_integrator<QssLevel>>(
-      mod,
-      com,
-      "X",
-      bitflags<child_flags>(child_flags::configurable,
-                            child_flags::observable));
-    auto integrator_b = alloc<abstract_integrator<QssLevel>>(
-      mod,
-      com,
-      "Y",
-      bitflags<child_flags>(child_flags::configurable,
-                            child_flags::observable));
+    auto integrator_a = alloc<abstract_integrator<QssLevel>>(mod, com, "X");
+    auto integrator_b = alloc<abstract_integrator<QssLevel>>(mod, com, "Y");
 
-    affect_abstract_integrator(com, integrator_a, 0.0_r, 0.001_r);
-    affect_abstract_integrator(com, integrator_b, 10.0_r, 0.001_r);
+    com.children_parameters[integrator_a].set_integrator(0.0_r, 0.001_r);
+    com.children_parameters[integrator_b].set_integrator(10.0_r, 0.001_r);
 
     constexpr double mu = 4.0_r;
-    affect_abstract_wsum(com, sum, mu, -mu, -1.0_r);
+    com.children_parameters[sum].set_wsum3(mu, -mu, -1.0_r);
 
     irt_check(connect(com, integrator_b, 0, integrator_a, 0));
     irt_check(connect(com, sum, 0, integrator_b, 0));
@@ -429,14 +338,9 @@ status add_negative_lif(modeling&          mod,
     com.children_parameters[mdl_1].set_constant(0, 0);
 
     auto mdl_2 = alloc<irt::qss3_wsum_2>(mod, com);
-    com.children_parameters[mdl_2].set_wsum2(0, -0.1, 0, -1);
+    com.children_parameters[mdl_2].set_wsum2(-0.1, -1);
 
-    auto mdl_3 = alloc<irt::qss3_integrator>(
-      mod,
-      com,
-      "u",
-      bitflags<child_flags>(child_flags::configurable,
-                            child_flags::observable));
+    auto mdl_3 = alloc<irt::qss3_integrator>(mod, com, "u");
     com.children_parameters[mdl_3].set_integrator(0, 0.001);
 
     auto mdl_4 = alloc<irt::qss3_cross>(mod, com);
@@ -464,46 +368,26 @@ status add_seirs(modeling& mod, component& dst, generic_component& com) noexcept
     if (!com.children.can_alloc(17))
         return new_error(modeling_errc::generic_children_container_full);
 
-    auto dS = alloc<abstract_integrator<QssLevel>>(
-      mod,
-      com,
-      "dS",
-      bitflags<child_flags>(child_flags::configurable,
-                            child_flags::observable));
-    affect_abstract_integrator(com, dS, 0.999_r, 0.0001_r);
+    auto dS = alloc<abstract_integrator<QssLevel>>(mod, com, "dS");
+    com.children_parameters[dS].set_integrator(0.999_r, 0.0001_r);
 
-    auto dE = alloc<abstract_integrator<QssLevel>>(
-      mod,
-      com,
-      "dE",
-      bitflags<child_flags>(child_flags::configurable,
-                            child_flags::observable));
-    affect_abstract_integrator(com, dE, 0.0_r, 0.0001_r);
+    auto dE = alloc<abstract_integrator<QssLevel>>(mod, com, "dE");
+    com.children_parameters[dE].set_integrator(0.0_r, 0.0001_r);
 
-    auto dI = alloc<abstract_integrator<QssLevel>>(
-      mod,
-      com,
-      "dI",
-      bitflags<child_flags>(child_flags::configurable,
-                            child_flags::observable));
-    affect_abstract_integrator(com, dI, 0.001_r, 0.0001_r);
+    auto dI = alloc<abstract_integrator<QssLevel>>(mod, com, "dI");
+    com.children_parameters[dI].set_integrator(0.001_r, 0.0001_r);
 
-    auto dR = alloc<abstract_integrator<QssLevel>>(
-      mod,
-      com,
-      "dR",
-      bitflags<child_flags>(child_flags::configurable,
-                            child_flags::observable));
-    affect_abstract_integrator(com, dR, 0.0_r, 0.0001_r);
+    auto dR = alloc<abstract_integrator<QssLevel>>(mod, com, "dR");
+    com.children_parameters[dR].set_integrator(0.0_r, 0.0001_r);
 
     auto beta = alloc<constant>(mod, com, "beta");
-    affect_abstract_constant(com, beta, 0.5_r, 0.0_r);
+    com.children_parameters[beta].set_constant(0.5_r, 0.0_r);
     auto rho = alloc<constant>(mod, com, "rho");
-    affect_abstract_constant(com, rho, 0.00274397_r, 0.0_r);
+    com.children_parameters[rho].set_constant(0.00274397_r, 0.0_r);
     auto sigma = alloc<constant>(mod, com, "sigma");
-    affect_abstract_constant(com, sigma, 0.33333_r, 0.0_r);
+    com.children_parameters[sigma].set_constant(0.33333_r, 0.0_r);
     auto gamma = alloc<constant>(mod, com, "gamma");
-    affect_abstract_constant(com, gamma, 0.142857_r, 0.0_r);
+    com.children_parameters[gamma].set_constant(0.142857_r, 0.0_r);
 
     auto rho_R    = alloc<abstract_multiplier<QssLevel>>(mod, com, "rho R");
     auto beta_S   = alloc<abstract_multiplier<QssLevel>>(mod, com, "beta S");
@@ -511,20 +395,20 @@ status add_seirs(modeling& mod, component& dst, generic_component& com) noexcept
 
     auto rho_R_beta_S_I =
       alloc<abstract_wsum<QssLevel, 2>>(mod, com, "rho R - beta S I");
-    affect_abstract_wsum(com, rho_R_beta_S_I, 1.0_r, -1.0_r);
+    com.children_parameters[rho_R_beta_S_I].set_wsum2(1.0_r, -1.0_r);
     auto beta_S_I_sigma_E =
       alloc<abstract_wsum<QssLevel, 2>>(mod, com, "beta S I - sigma E");
-    affect_abstract_wsum(com, beta_S_I_sigma_E, 1.0_r, -1.0_r);
+    com.children_parameters[beta_S_I_sigma_E].set_wsum2(1.0_r, -1.0_r);
 
     auto sigma_E = alloc<abstract_multiplier<QssLevel>>(mod, com, "sigma E");
     auto gamma_I = alloc<abstract_multiplier<QssLevel>>(mod, com, "gamma I");
 
     auto sigma_E_gamma_I =
       alloc<abstract_wsum<QssLevel, 2>>(mod, com, "sigma E - gamma I");
-    affect_abstract_wsum(com, sigma_E_gamma_I, 1.0_r, -1.0_r);
+    com.children_parameters[sigma_E_gamma_I].set_wsum2(1.0_r, -1.0_r);
     auto gamma_I_rho_R =
       alloc<abstract_wsum<QssLevel, 2>>(mod, com, "gamma I - rho R");
-    affect_abstract_wsum(com, gamma_I_rho_R, -1.0_r, 1.0_r);
+    com.children_parameters[gamma_I_rho_R].set_wsum2(-1.0_r, 1.0_r);
 
     irt_check(connect(com, rho, 0, rho_R, 0));
     irt_check(connect(com, beta, 0, rho_R, 1));

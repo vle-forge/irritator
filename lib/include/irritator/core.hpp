@@ -800,24 +800,11 @@ struct parameter {
     parameter& set_cross(real threshold) noexcept;
     parameter& set_integrator(real X, real dQ) noexcept;
     parameter& set_time_func(real offset, real timestep, int type) noexcept;
-    parameter& set_multiplier(real v1, real v2) noexcept;
-    parameter& set_sum2(real v1, real v2) noexcept;
-    parameter& set_sum3(real v1, real v2, real v3) noexcept;
-    parameter& set_sum4(real v1, real v2, real v3, real v4) noexcept;
-    parameter& set_wsum2(real v1, real coeff1, real v2, real coeff2) noexcept;
-    parameter& set_wsum3(real v1,
-                         real coeff1,
-                         real v2,
+    parameter& set_wsum2(real coeff1, real coeff2) noexcept;
+    parameter& set_wsum3(real coeff1, real coeff2, real coeff3) noexcept;
+    parameter& set_wsum4(real coeff1,
                          real coeff2,
-                         real v3,
-                         real coeff3) noexcept;
-    parameter& set_wsum4(real v1,
-                         real coeff1,
-                         real v2,
-                         real coeff2,
-                         real v3,
                          real coeff3,
-                         real v4,
                          real coeff4) noexcept;
     parameter& set_hsm_wrapper(const u32 id) noexcept;
     parameter& set_hsm_wrapper(i64  i1,
@@ -838,7 +825,7 @@ struct parameter {
     source get_dynamic_queue_ta() noexcept;
     source get_priority_queue_ta() noexcept;
 
-    std::array<real, 8> reals;
+    std::array<real, 4> reals;
     std::array<i64, 8>  integers;
 };
 

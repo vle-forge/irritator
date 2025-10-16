@@ -269,48 +269,33 @@ static bool show_parameter(qss_integrator_tag,
 static bool show_parameter(qss_multiplier_tag,
                            application& /*app*/,
                            external_source& /*srcs*/,
-                           parameter& p) noexcept
+                           parameter& /*p*/) noexcept
 {
-    const auto b1 = ImGui::InputReal("value-0", &p.reals[0]);
-    const auto b2 = ImGui::InputReal("value-1", &p.reals[1]);
-
-    return b1 or b2;
+    return false;
 }
 
 static bool show_parameter(qss_sum_2_tag,
                            application& /*app*/,
                            external_source& /*srcs*/,
-                           parameter& p) noexcept
+                           parameter& /*p*/) noexcept
 {
-    const auto b1 = ImGui::InputReal("value-0", &p.reals[0]);
-    const auto b2 = ImGui::InputReal("value-1", &p.reals[1]);
-
-    return b1 or b2;
+    return false;
 }
 
 static bool show_parameter(qss_sum_3_tag,
                            application& /*app*/,
                            external_source& /*srcs*/,
-                           parameter& p) noexcept
+                           parameter& /*p*/) noexcept
 {
-    const auto b1 = ImGui::InputReal("value-0", &p.reals[0]);
-    const auto b2 = ImGui::InputReal("value-1", &p.reals[1]);
-    const auto b3 = ImGui::InputReal("value-2", &p.reals[2]);
-
-    return b1 or b2 or b3;
+    return false;
 }
 
 static bool show_parameter(qss_sum_4_tag,
                            application& /*app*/,
                            external_source& /*srcs*/,
-                           parameter& p) noexcept
+                           parameter& /*p*/) noexcept
 {
-    const auto b1 = ImGui::InputReal("value-0", &p.reals[0]);
-    const auto b2 = ImGui::InputReal("value-1", &p.reals[1]);
-    const auto b3 = ImGui::InputReal("value-2", &p.reals[2]);
-    const auto b4 = ImGui::InputReal("value-3", &p.reals[3]);
-
-    return b1 or b2 or b3 or b4;
+    return false;
 }
 
 static bool show_parameter(qss_wsum_2_tag,
@@ -318,12 +303,10 @@ static bool show_parameter(qss_wsum_2_tag,
                            external_source& /*srcs*/,
                            parameter& p) noexcept
 {
-    const auto b1 = ImGui::InputReal("value-0", &p.reals[0]);
-    const auto b2 = ImGui::InputReal("value-1", &p.reals[1]);
-    const auto b3 = ImGui::InputReal("coeff-0", &p.reals[2]);
-    const auto b4 = ImGui::InputReal("coeff-1", &p.reals[3]);
+    const auto b1 = ImGui::InputReal("coeff-0", &p.reals[0]);
+    const auto b2 = ImGui::InputReal("coeff-1", &p.reals[1]);
 
-    return b1 or b2 or b3 or b4;
+    return b1 or b2;
 }
 
 static bool show_parameter(qss_wsum_3_tag,
@@ -331,14 +314,11 @@ static bool show_parameter(qss_wsum_3_tag,
                            external_source& /*srcs*/,
                            parameter& p) noexcept
 {
-    const auto b1 = ImGui::InputReal("value-0", &p.reals[0]);
-    const auto b2 = ImGui::InputReal("value-1", &p.reals[1]);
-    const auto b3 = ImGui::InputReal("value-2", &p.reals[2]);
-    const auto b4 = ImGui::InputReal("coeff-0", &p.reals[3]);
-    const auto b5 = ImGui::InputReal("coeff-1", &p.reals[4]);
-    const auto b6 = ImGui::InputReal("coeff-2", &p.reals[5]);
+    const auto b1 = ImGui::InputReal("coeff-0", &p.reals[0]);
+    const auto b2 = ImGui::InputReal("coeff-1", &p.reals[1]);
+    const auto b3 = ImGui::InputReal("coeff-2", &p.reals[2]);
 
-    return b1 or b2 or b3 or b4 or b5 or b6;
+    return b1 or b2 or b3;
 }
 
 static bool show_parameter(qss_wsum_4_tag,
@@ -346,16 +326,12 @@ static bool show_parameter(qss_wsum_4_tag,
                            external_source& /*srcs*/,
                            parameter& p) noexcept
 {
-    const auto b1 = ImGui::InputReal("value-0", &p.reals[0]);
-    const auto b2 = ImGui::InputReal("value-1", &p.reals[1]);
-    const auto b3 = ImGui::InputReal("value-2", &p.reals[2]);
-    const auto b4 = ImGui::InputReal("value-3", &p.reals[3]);
-    const auto b5 = ImGui::InputReal("coeff-0", &p.reals[4]);
-    const auto b6 = ImGui::InputReal("coeff-1", &p.reals[5]);
-    const auto b7 = ImGui::InputReal("coeff-2", &p.reals[6]);
-    const auto b8 = ImGui::InputReal("coeff-3", &p.reals[7]);
+    const auto b1 = ImGui::InputReal("coeff-0", &p.reals[0]);
+    const auto b2 = ImGui::InputReal("coeff-1", &p.reals[1]);
+    const auto b3 = ImGui::InputReal("coeff-2", &p.reals[2]);
+    const auto b4 = ImGui::InputReal("coeff-3", &p.reals[3]);
 
-    return b1 or b2 or b3 or b4 or b5 or b6 or b7 or b8;
+    return b1 or b2 or b3 or b4;
 }
 
 static bool show_parameter(queue_tag,
