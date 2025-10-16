@@ -217,53 +217,27 @@ status add_lif(modeling& mod, component& dst, generic_component& com) noexcept
     if (not com.connections.can_alloc(7) and not com.connections.grow<2, 1>())
         return new_error(modeling_errc::generic_children_container_full);
 
-    auto mdl_0                           = alloc<irt::constant>(mod, com);
-    com.children_parameters[mdl_0].reals = {
-        1.00000000000000000, 0.00000000000000000, 0.00000000000000000,
-        0.00000000000000000, 0.00000000000000000, 0.00000000000000000,
-        0.00000000000000000, 0.00000000000000000
-    };
-    com.children_parameters[mdl_0].integers = { 0, 0, 0, 0, 0, 0, 0, 0 };
+    auto mdl_0 = alloc<irt::constant>(mod, com, "1");
+    com.children_parameters[mdl_0].set_constant(1, 0);
 
-    auto mdl_1                           = alloc<irt::constant>(mod, com);
-    com.children_parameters[mdl_1].reals = {
-        0.00000000000000000, 0.00000000000000000, 0.00000000000000000,
-        0.00000000000000000, 0.00000000000000000, 0.00000000000000000,
-        0.00000000000000000, 0.00000000000000000
-    };
-    com.children_parameters[mdl_1].integers = { 0, 0, 0, 0, 0, 0, 0, 0 };
+    auto mdl_1 = alloc<irt::constant>(mod, com, "-10");
+    com.children_parameters[mdl_1].set_constant(-10, 0);
 
-    auto mdl_2                           = alloc<irt::qss3_wsum_2>(mod, com);
-    com.children_parameters[mdl_2].reals = {
-        0.00000000000000000, 0.00000000000000000, 1.00000000000000000,
-        1.00000000000000000, 0.00000000000000000, 0.00000000000000000,
-        0.00000000000000000, 0.00000000000000000
-    };
-    com.children_parameters[mdl_2].integers = { 0, 0, 0, 0, 0, 0, 0, 0 };
+    auto mdl_2 = alloc<irt::qss3_wsum_2>(mod, com);
+    com.children_parameters[mdl_2].set_wsum2(0, -0.1, 0, 1);
 
-    auto mdl_3 = alloc<irt::qss3_integrator>(mod, com);
-    com.children_parameters[mdl_3].reals = {
-        0.20000000000000001, 0.00100000000000000, 0.00000000000000000,
-        0.00000000000000000, 0.00000000000000000, 0.00000000000000000,
-        0.00000000000000000, 0.00000000000000000
-    };
-    com.children_parameters[mdl_3].integers = { 0, 0, 0, 0, 0, 0, 0, 0 };
+    auto mdl_3 = alloc<irt::qss3_integrator>(
+      mod,
+      com,
+      "u",
+      bitflags<child_flags>(child_flags::configurable,
+                            child_flags::observable));
+    com.children_parameters[mdl_3].set_integrator(0, 0.001);
 
-    auto mdl_4                           = alloc<irt::qss3_cross>(mod, com);
-    com.children_parameters[mdl_4].reals = {
-        1.00000000000000000, 0.00000000000000000, 0.00000000000000000,
-        0.00000000000000000, 0.00000000000000000, 0.00000000000000000,
-        0.00000000000000000, 0.00000000000000000
-    };
-    com.children_parameters[mdl_4].integers = { 0, 0, 0, 0, 0, 0, 0, 0 };
+    auto mdl_4 = alloc<irt::qss3_cross>(mod, com);
+    com.children_parameters[mdl_4].set_cross(1);
 
-    auto mdl_5                           = alloc<irt::qss3_flipflop>(mod, com);
-    com.children_parameters[mdl_5].reals = {
-        0.00000000000000000, 0.00000000000000000, 0.00000000000000000,
-        0.00000000000000000, 0.00000000000000000, 0.00000000000000000,
-        0.00000000000000000, 0.00000000000000000
-    };
-    com.children_parameters[mdl_5].integers = { 0, 0, 0, 0, 0, 0, 0, 0 };
+    auto mdl_5 = alloc<irt::qss3_flipflop>(mod, com);
 
     irt_check(connect(com, mdl_0, 0, mdl_2, 1));
     irt_check(connect(com, mdl_1, 0, mdl_5, 0));
@@ -273,7 +247,7 @@ status add_lif(modeling& mod, component& dst, generic_component& com) noexcept
     irt_check(connect(com, mdl_4, 0, mdl_5, 1));
     irt_check(connect(com, mdl_5, 0, mdl_3, 1));
 
-    irt_check(add_integrator_component_port(dst, com, mdl_0, "u"));
+    irt_check(add_integrator_component_port(dst, com, mdl_3, "u"));
 
     return success();
 }
@@ -296,121 +270,63 @@ status add_izhikevich(modeling&          mod,
       "u",
       bitflags<child_flags>(child_flags::configurable,
                             child_flags::observable));
-    affect_abstract_integrator(com, mdl_0, 0, 0.01);
 
-    auto mdl_1 = alloc<irt::abstract_integrator<QssLevel>>(mod, com, "v");
+    auto mdl_1 = alloc<irt::abstract_integrator<QssLevel>>(
+      mod,
+      com,
+      "v",
+      bitflags<child_flags>(child_flags::configurable,
+                            child_flags::observable));
+
+    com.children_parameters[mdl_0].set_integrator(0, 0.01);
+    com.children_parameters[mdl_1].set_integrator(0, 0.01);
+
     affect_abstract_integrator(com, mdl_1, 0, 0.01);
 
     auto mdl_2 = alloc<irt::abstract_square<QssLevel>>(mod, com);
 
     auto mdl_3 = alloc<irt::abstract_multiplier<QssLevel>>(mod, com);
-    com.children_parameters[mdl_3].reals = {
-        0.04000000000000000, 0.00000000000000000, 0.00000000000000000,
-        0.00000000000000000, 0.00000000000000000, 0.00000000000000000,
-        0.00000000000000000, 0.00000000000000000
-    };
+    com.children_parameters[mdl_3].set_multiplier(0.04, 0);
 
     auto mdl_4 = alloc<irt::abstract_multiplier<QssLevel>>(mod, com);
-    com.children_parameters[mdl_4].reals = {
-        5.00000000000000000, 0.00000000000000000, 0.00000000000000000,
-        0.00000000000000000, 0.00000000000000000, 0.00000000000000000,
-        0.00000000000000000, 0.00000000000000000
-    };
+    com.children_parameters[mdl_4].set_multiplier(5, 0);
 
     auto mdl_5 = alloc<irt::abstract_wsum<QssLevel, 2>>(mod, com);
-    com.children_parameters[mdl_5].reals = {
-        140.00000000000000000, 0.00000000000000000, 1.00000000000000000,
-        -1.00000000000000000,  0.00000000000000000, 0.00000000000000000,
-        0.00000000000000000,   0.00000000000000000
-    };
+    com.children_parameters[mdl_5].set_wsum2(140, 1, 0, -1);
 
     auto mdl_6 = alloc<irt::constant>(mod, com);
-
-    com.children_parameters[mdl_6].reals = {
-        -99.00000000000000000, 0.00000000000000000, 0.00000000000000000,
-        0.00000000000000000,   0.00000000000000000, 0.00000000000000000,
-        0.00000000000000000,   0.00000000000000000
-    };
+    com.children_parameters[mdl_6].set_constant(-99, 0);
 
     auto mdl_7 = alloc<irt::abstract_sum<QssLevel, 4>>(mod, com);
 
-    auto mdl_8                           = alloc<irt::constant>(mod, com);
-    com.children_parameters[mdl_8].reals = {
-        0.20000000000000001, 0.00000000000000000, 0.00000000000000000,
-        0.00000000000000000, 0.00000000000000000, 0.00000000000000000,
-        0.00000000000000000, 0.00000000000000000
-    };
+    auto mdl_8 = alloc<irt::constant>(mod, com);
+    com.children_parameters[mdl_8].set_constant(0.2, 0);
 
     auto mdl_9 = alloc<irt::constant>(mod, com);
-
-    com.children_parameters[mdl_9].reals = {
-        2.00000000000000000, 0.00000000000000000, 0.00000000000000000,
-        0.00000000000000000, 0.00000000000000000, 0.00000000000000000,
-        0.00000000000000000, 0.00000000000000000
-    };
+    com.children_parameters[mdl_9].set_constant(2, 0);
 
     auto mdl_10 = alloc<irt::abstract_multiplier<QssLevel>>(mod, com);
-    com.children_parameters[mdl_10].reals = {
-        0.00000000000000000, 0.00000000000000000, 0.00000000000000000,
-        0.00000000000000000, 0.00000000000000000, 0.00000000000000000,
-        0.00000000000000000, 0.00000000000000000
-    };
 
     auto mdl_11 = alloc<irt::abstract_wsum<QssLevel, 2>>(mod, com);
-    com.children_parameters[mdl_11].reals = {
-        0.00000000000000000,  0.00000000000000000, 1.00000000000000000,
-        -1.00000000000000000, 0.00000000000000000, 0.00000000000000000,
-        0.00000000000000000,  0.00000000000000000
-    };
+    com.children_parameters[mdl_11].set_wsum2(0, 1, 0, -1);
 
     auto mdl_12 = alloc<irt::abstract_multiplier<QssLevel>>(mod, com);
-    com.children_parameters[mdl_12].reals = {
-        0.00000000000000000, 0.00000000000000000, 0.00000000000000000,
-        0.00000000000000000, 0.00000000000000000, 0.00000000000000000,
-        0.00000000000000000, 0.00000000000000000
-    };
+    com.children_parameters[mdl_12].set_multiplier(0, 0);
 
     auto mdl_13 = alloc<irt::abstract_cross<QssLevel>>(mod, com);
-    com.children_parameters[mdl_13].reals = {
-        30.00000000000000000, 0.00000000000000000, 0.00000000000000000,
-        0.00000000000000000,  0.00000000000000000, 0.00000000000000000,
-        0.00000000000000000,  0.00000000000000000
-    };
+    com.children_parameters[mdl_13].set_cross(30);
 
     auto mdl_14 = alloc<irt::abstract_flipflop<QssLevel>>(mod, com);
-    com.children_parameters[mdl_14].reals = {
-        0.00000000000000000, 0.00000000000000000, 0.00000000000000000,
-        0.00000000000000000, 0.00000000000000000, 0.00000000000000000,
-        0.00000000000000000, 0.00000000000000000
-    };
 
-    auto mdl_15                           = alloc<irt::constant>(mod, com);
-    com.children_parameters[mdl_15].reals = {
-        -65.00000000000000000, 0.00000000000000000, 0.00000000000000000,
-        0.00000000000000000,   0.00000000000000000, 0.00000000000000000,
-        0.00000000000000000,   0.00000000000000000
-    };
+    auto mdl_15 = alloc<irt::constant>(mod, com);
+    com.children_parameters[mdl_15].set_constant(-65, 0);
 
     auto mdl_16 = alloc<irt::abstract_sum<QssLevel, 2>>(mod, com);
-    com.children_parameters[mdl_16].reals = {
-        0.00000000000000000, 0.00000000000000000, 0.00000000000000000,
-        0.00000000000000000, 0.00000000000000000, 0.00000000000000000,
-        0.00000000000000000, 0.00000000000000000
-    };
 
-    auto mdl_17                           = alloc<irt::constant>(mod, com);
-    com.children_parameters[mdl_17].reals = {
-        -16.00000000000000000, 0.00000000000000000, 0.00000000000000000,
-        0.00000000000000000,   0.00000000000000000, 0.00000000000000000,
-        0.00000000000000000,   0.00000000000000000
-    };
+    auto mdl_17 = alloc<irt::constant>(mod, com);
+    com.children_parameters[mdl_17].set_constant(-16, 0);
 
     auto mdl_18 = alloc<irt::abstract_flipflop<QssLevel>>(mod, com);
-    com.children_parameters[mdl_18].reals = {
-        0.00000000000000000, 0.00000000000000000, 0.00000000000000000,
-        0.00000000000000000, 0.00000000000000000, 0.00000000000000000,
-        0.00000000000000000, 0.00000000000000000
-    };
 
     irt_check(connect(com, mdl_0, 0, mdl_2, 0));
     irt_check(connect(com, mdl_0, 0, mdl_4, 1));
@@ -506,63 +422,37 @@ status add_negative_lif(modeling&          mod,
     if (not com.connections.can_alloc(7) and not com.connections.grow<2, 1>())
         return new_error(modeling_errc::generic_children_container_full);
 
-    auto mdl_0                           = alloc<irt::constant>(mod, com);
-    com.children_parameters[mdl_0].reals = {
-        1.00000000000000000, 0.00000000000000000, 0.00000000000000000,
-        0.00000000000000000, 0.00000000000000000, 0.00000000000000000,
-        0.00000000000000000, 0.00000000000000000
-    };
-    com.children_parameters[mdl_0].integers = { 0, 0, 0, 0, 0, 0, 0, 0 };
+    auto mdl_0 = alloc<irt::constant>(mod, com, "1");
+    com.children_parameters[mdl_0].set_constant(1, 0);
 
-    auto mdl_1                           = alloc<irt::constant>(mod, com);
-    com.children_parameters[mdl_1].reals = {
-        0.00000000000000000, 0.00000000000000000, 0.00000000000000000,
-        0.00000000000000000, 0.00000000000000000, 0.00000000000000000,
-        0.00000000000000000, 0.00000000000000000
-    };
-    com.children_parameters[mdl_1].integers = { 0, 0, 0, 0, 0, 0, 0, 0 };
+    auto mdl_1 = alloc<irt::constant>(mod, com, "0");
+    com.children_parameters[mdl_1].set_constant(0, 0);
 
-    auto mdl_2                           = alloc<irt::qss3_wsum_2>(mod, com);
-    com.children_parameters[mdl_2].reals = {
-        0.00000000000000000, 0.00000000000000000, 1.00000000000000000,
-        1.00000000000000000, 0.00000000000000000, 0.00000000000000000,
-        0.00000000000000000, 0.00000000000000000
-    };
-    com.children_parameters[mdl_2].integers = { 0, 0, 0, 0, 0, 0, 0, 0 };
+    auto mdl_2 = alloc<irt::qss3_wsum_2>(mod, com);
+    com.children_parameters[mdl_2].set_wsum2(0, -0.1, 0, -1);
 
-    auto mdl_3 = alloc<irt::qss3_integrator>(mod, com);
-    com.children_parameters[mdl_3].reals = {
-        0.20000000000000001, 0.00100000000000000, 0.00000000000000000,
-        0.00000000000000000, 0.00000000000000000, 0.00000000000000000,
-        0.00000000000000000, 0.00000000000000000
-    };
-    com.children_parameters[mdl_3].integers = { 0, 0, 0, 0, 0, 0, 0, 0 };
+    auto mdl_3 = alloc<irt::qss3_integrator>(
+      mod,
+      com,
+      "u",
+      bitflags<child_flags>(child_flags::configurable,
+                            child_flags::observable));
+    com.children_parameters[mdl_3].set_integrator(0, 0.001);
 
-    auto mdl_4                           = alloc<irt::qss3_cross>(mod, com);
-    com.children_parameters[mdl_4].reals = {
-        1.00000000000000000, 0.00000000000000000, 0.00000000000000000,
-        0.00000000000000000, 0.00000000000000000, 0.00000000000000000,
-        0.00000000000000000, 0.00000000000000000
-    };
-    com.children_parameters[mdl_4].integers = { 0, 0, 0, 0, 0, 0, 0, 0 };
+    auto mdl_4 = alloc<irt::qss3_cross>(mod, com);
+    com.children_parameters[mdl_4].set_cross(-1);
 
-    auto mdl_5                           = alloc<irt::qss3_flipflop>(mod, com);
-    com.children_parameters[mdl_5].reals = {
-        0.00000000000000000, 0.00000000000000000, 0.00000000000000000,
-        0.00000000000000000, 0.00000000000000000, 0.00000000000000000,
-        0.00000000000000000, 0.00000000000000000
-    };
-    com.children_parameters[mdl_5].integers = { 0, 0, 0, 0, 0, 0, 0, 0 };
+    auto mdl_5 = alloc<irt::qss3_flipflop>(mod, com);
 
     irt_check(connect(com, mdl_0, 0, mdl_2, 1));
     irt_check(connect(com, mdl_1, 0, mdl_5, 0));
     irt_check(connect(com, mdl_2, 0, mdl_3, 0));
     irt_check(connect(com, mdl_3, 0, mdl_2, 0));
     irt_check(connect(com, mdl_3, 0, mdl_4, 0));
-    irt_check(connect(com, mdl_4, 1, mdl_5, 1));
+    irt_check(connect(com, mdl_4, 0, mdl_5, 1));
     irt_check(connect(com, mdl_5, 0, mdl_3, 1));
 
-    irt_check(add_integrator_component_port(dst, com, mdl_0, "u"));
+    irt_check(add_integrator_component_port(dst, com, mdl_3, "u"));
 
     return success();
 }

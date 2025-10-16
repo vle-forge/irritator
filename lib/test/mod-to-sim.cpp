@@ -124,8 +124,6 @@ int main()
 
                 expect(pj.sim.initialize().has_value());
 
-                irt::status st;
-
                 do {
                     expect(pj.sim.run().has_value());
                 } while (not pj.sim.current_time_expired());
