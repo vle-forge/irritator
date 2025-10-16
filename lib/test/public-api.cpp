@@ -4,7 +4,6 @@
 
 #include <irritator/archiver.hpp>
 #include <irritator/core.hpp>
-#include <irritator/examples.hpp>
 #include <irritator/ext.hpp>
 #include <irritator/file.hpp>
 #include <irritator/io.hpp>
@@ -250,6 +249,13 @@ static bool check_data_array_loop(const Data& d) noexcept
     }
 
     return true;
+}
+
+template<typename Dynamics>
+inline auto get_p(irt::simulation& sim, const Dynamics& d) noexcept
+  -> irt::parameter&
+{
+    return sim.parameters[sim.get_id(d)];
 }
 
 int main()

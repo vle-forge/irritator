@@ -7,7 +7,6 @@ set(public_irritator_header
     include/irritator/core.hpp
     include/irritator/dot-parser.hpp
     include/irritator/error.hpp
-    include/irritator/examples.hpp
     include/irritator/ext.hpp
     include/irritator/file.hpp
     include/irritator/format.hpp
