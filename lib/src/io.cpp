@@ -359,7 +359,7 @@ static void write_test_simulation_model(
     fmt::print(os,
                R"(
     auto& mdl_{} = sim.alloc<irt::{}>();
-    sim.parameters[sim.get_id(mdl_{})].reals    = {{ {}, {}, {}, {}, {}, {}, {}, {} }};
+    sim.parameters[sim.get_id(mdl_{})].reals    = {{ {}, {}, {}, {} }};
     sim.parameters[sim.get_id(mdl_{})].integers = {{ {}, {}, {}, {}, {}, {}, {}, {} }};
 )",
                idx,
@@ -369,10 +369,6 @@ static void write_test_simulation_model(
                params.reals[1],
                params.reals[2],
                params.reals[3],
-               params.reals[4],
-               params.reals[5],
-               params.reals[6],
-               params.reals[7],
                idx,
                params.integers[0],
                params.integers[1],
@@ -862,19 +858,14 @@ static void write_test_simulation_loop(std::ostream& os,
 {
     fmt::print(os,
                R"(
-    sim.t = {};
+    sim.limits.set_bound({}, {});
     expect(fatal(sim.srcs.prepare().has_value()));
     expect(fatal(sim.initialize().has_value()));
 
-    irt::status st;
-
     do {{
-        st = sim.run();
-        expect(fatal(st.has_value()));
-    }} while (sim.t < {});
+        expect(sim.run().has_value());
+    }} while (not sim.current_time_expired());
 
-    expect(fatal(st.has_value()));
-}};
 )",
                begin,
                end);
@@ -906,7 +897,7 @@ auto write_test_simulation(std::ostream&                       os,
 
     if (opts == write_test_simulation_options::test_finish) {
         for (const auto& mdl : sim.models) {
-            if (mdl.type == dynamics_type::constant) {
+            if (mdl.type == dynamics_type::counter) {
                 dispatch(
                   mdl,
                   []<typename Dynamics>(
@@ -914,7 +905,7 @@ auto write_test_simulation(std::ostream&                       os,
                       if constexpr (std::is_same_v<Dynamics, irt::counter>) {
                           fmt::print(os,
                                      R"(
-    expect(eq(mdl_{}.number, static_cast<i64>({})));
+    expect(eq(mdl_{}.number, static_cast<irt::i64>({})));
     expect(eq(mdl_{}.last_value, {}));
 )",
                                      idx,
@@ -928,6 +919,8 @@ auto write_test_simulation(std::ostream&                       os,
             }
         }
     }
+
+    fmt::print(os, "}};\n");
 
     return os.good() ? write_test_simulation_result::success
                      : write_test_simulation_result::output_error;
