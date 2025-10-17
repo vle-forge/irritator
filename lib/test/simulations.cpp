@@ -239,4 +239,290 @@ int main()
     };
 #endif
     };
+
+    "bouncing-ball"_test = [] {
+        irt::simulation sim;
+
+        expect(fatal(sim.can_alloc(28)));
+        expect(fatal(sim.hsms.can_alloc(3)));
+
+        auto& mdl_0 = sim.alloc<irt::qss3_integrator>();
+        sim.parameters[sim.get_id(mdl_0)].reals = {
+            0.575, 0.00100000000000000, 0.00000000000000000, 0.00000000000000000
+        };
+        sim.parameters[sim.get_id(mdl_0)].integers = { 0, 0, 0, 0, 0, 0, 0, 0 };
+
+        auto& mdl_1 = sim.alloc<irt::qss3_integrator>();
+        sim.parameters[sim.get_id(mdl_1)].reals    = { 0.50000000000000000,
+                                                       0.01000000000000000,
+                                                       0.00000000000000000,
+                                                       0.00000000000000000 };
+        sim.parameters[sim.get_id(mdl_1)].integers = { 0, 0, 0, 0, 0, 0, 0, 0 };
+
+        auto& mdl_2                                = sim.alloc<irt::constant>();
+        sim.parameters[sim.get_id(mdl_2)].reals    = { -0.10000000000000001,
+                                                       0.00000000000000000,
+                                                       0.00000000000000000,
+                                                       0.00000000000000000 };
+        sim.parameters[sim.get_id(mdl_2)].integers = { 0, 0, 0, 0, 0, 0, 0, 0 };
+
+        auto& mdl_3 = sim.alloc<irt::qss3_multiplier>();
+        sim.parameters[sim.get_id(mdl_3)].reals    = { 0.00000000000000000,
+                                                       0.00000000000000000,
+                                                       0.00000000000000000,
+                                                       0.00000000000000000 };
+        sim.parameters[sim.get_id(mdl_3)].integers = { 0, 0, 0, 0, 0, 0, 0, 0 };
+
+        auto& mdl_4 = sim.alloc<irt::qss3_integrator>();
+        sim.parameters[sim.get_id(mdl_4)].reals    = { 0.00000000000000000,
+                                                       0.01000000000000000,
+                                                       0.00000000000000000,
+                                                       0.00000000000000000 };
+        sim.parameters[sim.get_id(mdl_4)].integers = { 0, 0, 0, 0, 0, 0, 0, 0 };
+
+        auto& mdl_5 = sim.alloc<irt::qss3_integrator>();
+        sim.parameters[sim.get_id(mdl_5)].reals    = { 10.50000000000000000,
+                                                       0.00010000000000000,
+                                                       0.00000000000000000,
+                                                       0.00000000000000000 };
+        sim.parameters[sim.get_id(mdl_5)].integers = { 0, 0, 0, 0, 0, 0, 0, 0 };
+
+        auto& mdl_6 = sim.alloc<irt::qss3_multiplier>();
+        sim.parameters[sim.get_id(mdl_6)].reals    = { 0.00000000000000000,
+                                                       0.00000000000000000,
+                                                       0.00000000000000000,
+                                                       0.00000000000000000 };
+        sim.parameters[sim.get_id(mdl_6)].integers = { 0, 0, 0, 0, 0, 0, 0, 0 };
+
+        auto& mdl_7                                = sim.alloc<irt::constant>();
+        sim.parameters[sim.get_id(mdl_7)].reals    = { 9.81000000000000050,
+                                                       0.00000000000000000,
+                                                       0.00000000000000000,
+                                                       0.00000000000000000 };
+        sim.parameters[sim.get_id(mdl_7)].integers = { 0, 0, 0, 0, 0, 0, 0, 0 };
+
+        auto& mdl_8                             = sim.alloc<irt::qss3_wsum_3>();
+        sim.parameters[sim.get_id(mdl_8)].reals = { -1.00000000000000000,
+                                                    1.00000000000000000,
+                                                    -1.00000000000000000,
+                                                    0.00000000000000000 };
+        sim.parameters[sim.get_id(mdl_8)].integers = { 0, 0, 0, 0, 0, 0, 0, 0 };
+
+        auto& mdl_9 = sim.alloc<irt::qss3_multiplier>();
+        sim.parameters[sim.get_id(mdl_9)].reals    = { 0.00000000000000000,
+                                                       0.00000000000000000,
+                                                       0.00000000000000000,
+                                                       0.00000000000000000 };
+        sim.parameters[sim.get_id(mdl_9)].integers = { 0, 0, 0, 0, 0, 0, 0, 0 };
+
+        auto& mdl_10                             = sim.alloc<irt::constant>();
+        sim.parameters[sim.get_id(mdl_10)].reals = { 30.00000000000000000,
+                                                     0.00000000000000000,
+                                                     0.00000000000000000,
+                                                     0.00000000000000000 };
+        sim.parameters[sim.get_id(mdl_10)].integers = {
+            0, 0, 0, 0, 0, 0, 0, 0
+        };
+
+        auto& mdl_11                             = sim.alloc<irt::constant>();
+        sim.parameters[sim.get_id(mdl_11)].reals = { 100000.00000000000000000,
+                                                     0.00000000000000000,
+                                                     0.00000000000000000,
+                                                     0.00000000000000000 };
+        sim.parameters[sim.get_id(mdl_11)].integers = {
+            0, 0, 0, 0, 0, 0, 0, 0
+        };
+
+        auto& mdl_12 = sim.alloc<irt::qss3_multiplier>();
+        sim.parameters[sim.get_id(mdl_12)].reals    = { 0.00000000000000000,
+                                                        0.00000000000000000,
+                                                        0.00000000000000000,
+                                                        0.00000000000000000 };
+        sim.parameters[sim.get_id(mdl_12)].integers = {
+            0, 0, 0, 0, 0, 0, 0, 0
+        };
+
+        auto& mdl_13 = sim.alloc<irt::qss3_wsum_2>();
+        sim.parameters[sim.get_id(mdl_13)].reals    = { 1.00000000000000000,
+                                                        -1.00000000000000000,
+                                                        0.00000000000000000,
+                                                        0.00000000000000000 };
+        sim.parameters[sim.get_id(mdl_13)].integers = {
+            0, 0, 0, 0, 0, 0, 0, 0
+        };
+
+        auto& mdl_14 = sim.alloc<irt::qss3_wsum_2>();
+        sim.parameters[sim.get_id(mdl_14)].reals    = { 1.00000000000000000,
+                                                        -1.00000000000000000,
+                                                        0.00000000000000000,
+                                                        0.00000000000000000 };
+        sim.parameters[sim.get_id(mdl_14)].integers = {
+            0, 0, 0, 0, 0, 0, 0, 0
+        };
+
+        auto& mdl_15                             = sim.alloc<irt::constant>();
+        sim.parameters[sim.get_id(mdl_15)].reals = { 11.00000000000000000,
+                                                     0.00000000000000000,
+                                                     0.00000000000000000,
+                                                     0.00000000000000000 };
+        sim.parameters[sim.get_id(mdl_15)].integers = {
+            0, 0, 0, 0, 0, 0, 0, 0
+        };
+
+        auto& mdl_16 = sim.alloc<irt::qss3_integer>();
+        sim.parameters[sim.get_id(mdl_16)].reals    = { 0.00000000000000000,
+                                                        0.00000000000000000,
+                                                        0.00000000000000000,
+                                                        0.00000000000000000 };
+        sim.parameters[sim.get_id(mdl_16)].integers = {
+            0, 0, 0, 0, 0, 0, 0, 0
+        };
+
+        auto& mdl_17                             = sim.alloc<irt::qss3_sum_2>();
+        sim.parameters[sim.get_id(mdl_17)].reals = { 0.00000000000000000,
+                                                     0.00000000000000000,
+                                                     0.00000000000000000,
+                                                     0.00000000000000000 };
+        sim.parameters[sim.get_id(mdl_17)].integers = {
+            0, 0, 0, 0, 0, 0, 0, 0
+        };
+
+        auto& mdl_18                             = sim.alloc<irt::qss3_cross>();
+        sim.parameters[sim.get_id(mdl_18)].reals = { 0.00000000000000000,
+                                                     0.00000000000000000,
+                                                     0.00000000000000000,
+                                                     0.00000000000000000 };
+        sim.parameters[sim.get_id(mdl_18)].integers = {
+            0, 0, 0, 0, 0, 0, 0, 0
+        };
+
+        auto& mdl_19 = sim.alloc<irt::qss3_flipflop>();
+        sim.parameters[sim.get_id(mdl_19)].reals    = { 0.00000000000000000,
+                                                        0.00000000000000000,
+                                                        0.00000000000000000,
+                                                        0.00000000000000000 };
+        sim.parameters[sim.get_id(mdl_19)].integers = {
+            0, 0, 0, 0, 0, 0, 0, 0
+        };
+
+        auto& mdl_20                             = sim.alloc<irt::constant>();
+        sim.parameters[sim.get_id(mdl_20)].reals = { 0.00000000000000000,
+                                                     0.00000000000000000,
+                                                     0.00000000000000000,
+                                                     0.00000000000000000 };
+        sim.parameters[sim.get_id(mdl_20)].integers = {
+            0, 0, 0, 0, 0, 0, 0, 0
+        };
+
+        auto& mdl_21                             = sim.alloc<irt::constant>();
+        sim.parameters[sim.get_id(mdl_21)].reals = { 1.00000000000000000,
+                                                     0.00000000000000000,
+                                                     0.00000000000000000,
+                                                     0.00000000000000000 };
+        sim.parameters[sim.get_id(mdl_21)].integers = {
+            0, 0, 0, 0, 0, 0, 0, 0
+        };
+
+        auto& mdl_22 = sim.alloc<irt::qss3_flipflop>();
+        sim.parameters[sim.get_id(mdl_22)].reals    = { 0.00000000000000000,
+                                                        0.00000000000000000,
+                                                        0.00000000000000000,
+                                                        0.00000000000000000 };
+        sim.parameters[sim.get_id(mdl_22)].integers = {
+            0, 0, 0, 0, 0, 0, 0, 0
+        };
+
+        auto& mdl_23 = sim.alloc<irt::qss3_multiplier>();
+        sim.parameters[sim.get_id(mdl_23)].reals    = { 0.00000000000000000,
+                                                        0.00000000000000000,
+                                                        0.00000000000000000,
+                                                        0.00000000000000000 };
+        sim.parameters[sim.get_id(mdl_23)].integers = {
+            0, 0, 0, 0, 0, 0, 0, 0
+        };
+
+        auto& mdl_24                             = sim.alloc<irt::constant>();
+        sim.parameters[sim.get_id(mdl_24)].reals = { 1.00000000000000000,
+                                                     0.00000000000000000,
+                                                     0.00000000000000000,
+                                                     0.00000000000000000 };
+        sim.parameters[sim.get_id(mdl_24)].integers = {
+            0, 0, 0, 0, 0, 0, 0, 0
+        };
+
+        auto& mdl_25 = sim.alloc<irt::qss3_multiplier>();
+        sim.parameters[sim.get_id(mdl_25)].reals    = { 0.00000000000000000,
+                                                        0.00000000000000000,
+                                                        0.00000000000000000,
+                                                        0.00000000000000000 };
+        sim.parameters[sim.get_id(mdl_25)].integers = {
+            0, 0, 0, 0, 0, 0, 0, 0
+        };
+
+        auto& mdl_26                                = sim.alloc<irt::counter>();
+        sim.parameters[sim.get_id(mdl_26)].reals    = { 0.00000000000000000,
+                                                        0.00000000000000000,
+                                                        0.00000000000000000,
+                                                        0.00000000000000000 };
+        sim.parameters[sim.get_id(mdl_26)].integers = {
+            0, 0, 0, 0, 0, 0, 0, 0
+        };
+
+        auto& mdl_27                                = sim.alloc<irt::counter>();
+        sim.parameters[sim.get_id(mdl_27)].reals    = { 0.00000000000000000,
+                                                        0.00000000000000000,
+                                                        0.00000000000000000,
+                                                        0.00000000000000000 };
+        sim.parameters[sim.get_id(mdl_27)].integers = {
+            0, 0, 0, 0, 0, 0, 0, 0
+        };
+
+        expect(sim.connect_dynamics(mdl_0, 0, mdl_14, 1).has_value());
+        expect(sim.connect_dynamics(mdl_1, 0, mdl_0, 0).has_value());
+        expect(sim.connect_dynamics(mdl_1, 0, mdl_3, 1).has_value());
+        expect(sim.connect_dynamics(mdl_2, 0, mdl_3, 0).has_value());
+        expect(sim.connect_dynamics(mdl_2, 0, mdl_6, 0).has_value());
+        expect(sim.connect_dynamics(mdl_3, 0, mdl_1, 0).has_value());
+        expect(sim.connect_dynamics(mdl_4, 0, mdl_5, 0).has_value());
+        expect(sim.connect_dynamics(mdl_4, 0, mdl_6, 1).has_value());
+        expect(sim.connect_dynamics(mdl_4, 0, mdl_9, 1).has_value());
+        expect(sim.connect_dynamics(mdl_5, 0, mdl_13, 0).has_value());
+        expect(sim.connect_dynamics(mdl_6, 0, mdl_8, 1).has_value());
+        expect(sim.connect_dynamics(mdl_7, 0, mdl_8, 0).has_value());
+        expect(sim.connect_dynamics(mdl_8, 0, mdl_4, 0).has_value());
+        expect(sim.connect_dynamics(mdl_9, 0, mdl_17, 0).has_value());
+        expect(sim.connect_dynamics(mdl_10, 0, mdl_9, 0).has_value());
+        expect(sim.connect_dynamics(mdl_11, 0, mdl_12, 0).has_value());
+        expect(sim.connect_dynamics(mdl_12, 0, mdl_17, 1).has_value());
+        expect(sim.connect_dynamics(mdl_13, 0, mdl_12, 1).has_value());
+        expect(sim.connect_dynamics(mdl_13, 0, mdl_18, 0).has_value());
+        expect(sim.connect_dynamics(mdl_14, 0, mdl_16, 0).has_value());
+        expect(sim.connect_dynamics(mdl_15, 0, mdl_14, 0).has_value());
+        expect(sim.connect_dynamics(mdl_16, 0, mdl_13, 1).has_value());
+        expect(sim.connect_dynamics(mdl_17, 0, mdl_25, 1).has_value());
+        expect(sim.connect_dynamics(mdl_18, 0, mdl_19, 1).has_value());
+        expect(sim.connect_dynamics(mdl_18, 1, mdl_22, 1).has_value());
+        expect(sim.connect_dynamics(mdl_19, 0, mdl_23, 0).has_value());
+        expect(sim.connect_dynamics(mdl_19, 0, mdl_26, 0).has_value());
+        expect(sim.connect_dynamics(mdl_20, 0, mdl_19, 0).has_value());
+        expect(sim.connect_dynamics(mdl_21, 0, mdl_22, 0).has_value());
+        expect(sim.connect_dynamics(mdl_22, 0, mdl_23, 0).has_value());
+        expect(sim.connect_dynamics(mdl_22, 0, mdl_27, 0).has_value());
+        expect(sim.connect_dynamics(mdl_23, 0, mdl_25, 0).has_value());
+        expect(sim.connect_dynamics(mdl_24, 0, mdl_23, 1).has_value());
+        expect(sim.connect_dynamics(mdl_25, 0, mdl_8, 2).has_value());
+        sim.limits.set_bound(0, 10);
+        expect(fatal(sim.srcs.prepare().has_value()));
+        expect(fatal(sim.initialize().has_value()));
+
+        do {
+            expect(sim.run().has_value());
+        } while (not sim.current_time_expired());
+
+        expect(ge(mdl_26.number, static_cast<irt::i64>(39))); // 46
+        expect(eq(mdl_26.last_value, 0));
+
+        expect(ge(mdl_27.number, static_cast<irt::i64>(39))); // 40
+        expect(eq(mdl_27.last_value, 1));
+    };
 }
