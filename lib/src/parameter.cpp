@@ -19,10 +19,8 @@ template<size_t QssLevel>
 static void model_init(const parameter&            param,
                        abstract_compare<QssLevel>& dyn) noexcept
 {
-    dyn.a[0]      = param.reals[0];
-    dyn.b[0]      = param.reals[1];
-    dyn.output[0] = param.reals[2];
-    dyn.output[1] = param.reals[3];
+    dyn.output[0] = param.reals[0];
+    dyn.output[1] = param.reals[1];
 }
 
 template<size_t QssLevel>
@@ -34,10 +32,8 @@ template<size_t QssLevel>
 static void parameter_init(parameter&                        param,
                            const abstract_compare<QssLevel>& dyn) noexcept
 {
-    param.reals[0] = dyn.a[0];
-    param.reals[1] = dyn.b[0];
-    param.reals[2] = dyn.output[0];
-    param.reals[3] = dyn.output[1];
+    param.reals[0] = dyn.output[0];
+    param.reals[1] = dyn.output[1];
 }
 
 template<size_t QssLevel>
@@ -488,15 +484,26 @@ void parameter::init_from(const dynamics_type type) noexcept
                          dynamics_type::qss1_cross,
                          dynamics_type::qss2_cross,
                          dynamics_type::qss3_cross)) {
+        reals[0] = zero;
         reals[1] = one;
-        reals[2] = zero;
+        reals[2] = one;
+    } else if (any_equal(type,
+                         dynamics_type::qss1_wsum_2,
+                         dynamics_type::qss1_wsum_3,
+                         dynamics_type::qss1_wsum_4,
+                         dynamics_type::qss2_wsum_2,
+                         dynamics_type::qss2_wsum_3,
+                         dynamics_type::qss2_wsum_4,
+                         dynamics_type::qss3_wsum_2,
+                         dynamics_type::qss3_wsum_3,
+                         dynamics_type::qss3_wsum_4)) {
+        reals.fill(one);
     } else if (any_equal(type,
                          dynamics_type::qss1_compare,
                          dynamics_type::qss2_compare,
                          dynamics_type::qss3_compare)) {
-        reals[0]    = std::numeric_limits<real>::epsilon();
-        integers[0] = 0; // equal_to
-        integers[1] = 1;
+        reals[0] = one; // equal
+        reals[1] = one;
     } else if (any_equal(type, dynamics_type::time_func)) {
         reals[1] = 0.01;
     } else if (any_equal(

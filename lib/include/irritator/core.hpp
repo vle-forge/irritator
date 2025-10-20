@@ -3166,9 +3166,6 @@ struct abstract_compare {
             return new_error(
               simulation_errc::abstract_compare_output_value_error);
 
-        if (not std::isfinite(a[0]) or not std::isfinite(b[0]))
-            return new_error(simulation_errc::abstract_compare_a_b_value_error);
-
         a.fill(zero);
         b.fill(zero);
 
