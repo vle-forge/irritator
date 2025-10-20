@@ -1570,16 +1570,14 @@ template<>
 struct abstract_integrator<1> {
     message_id    x[2] = {};
     block_node_id y[1] = {};
-    real          dQ;
-    real          X;
-    real          q;
-    real          u;
-    time          sigma = time_domain<time>::zero;
+
+    real dQ;
+    real X;
+    real q;
+    real u;
+    time sigma;
 
     enum port_name { port_x_dot, port_reset };
-
-    struct X_error {};
-    struct dQ_error {};
 
     abstract_integrator() = default;
 
@@ -1591,7 +1589,7 @@ struct abstract_integrator<1> {
       , sigma(other.sigma)
     {}
 
-    // @c X and @c dQ are initialized from @c parameters.
+    /** @c X and @c dQ are initialized from @c parameters. */
     status initialize(simulation& /*sim*/) noexcept
     {
         if (!std::isfinite(X))
@@ -1687,13 +1685,14 @@ template<>
 struct abstract_integrator<2> {
     message_id    x[2] = {};
     block_node_id y[1] = {};
-    real          dQ;
-    real          X;
-    real          u;
-    real          mu;
-    real          q;
-    real          mq;
-    time          sigma = time_domain<time>::zero;
+
+    real dQ;
+    real X;
+    real u;
+    real mu;
+    real q;
+    real mq;
+    time sigma;
 
     enum port_name { port_x_dot, port_reset };
 
@@ -1712,7 +1711,7 @@ struct abstract_integrator<2> {
       , sigma(other.sigma)
     {}
 
-    // @c X and @c dQ are initialized from @c parameters.
+    /** @c X and @c dQ are initialized from @c parameters. */
     status initialize(simulation& /*sim*/) noexcept
     {
         if (!std::isfinite(X))
@@ -1848,15 +1847,16 @@ template<>
 struct abstract_integrator<3> {
     message_id    x[2] = {};
     block_node_id y[1] = {};
-    real          dQ;
-    real          X;
-    real          u;
-    real          mu;
-    real          pu;
-    real          q;
-    real          mq;
-    real          pq;
-    time          sigma = time_domain<time>::zero;
+
+    real dQ;
+    real X;
+    real u;
+    real mu;
+    real pu;
+    real q;
+    real mq;
+    real pq;
+    time sigma;
 
     enum port_name { port_x_dot, port_reset };
 
@@ -1877,7 +1877,7 @@ struct abstract_integrator<3> {
       , sigma(other.sigma)
     {}
 
-    // @c X and @c dQ are initialized from @c parameters.
+    /** @c X and @c dQ are initialized from @c parameters. */
     status initialize(simulation& /*sim*/) noexcept
     {
         if (!std::isfinite(X))
@@ -2197,25 +2197,26 @@ struct abstract_power {
 
     message_id    x[1] = {};
     block_node_id y[1] = {};
-    time          sigma;
 
-    real value[QssLevel];
-    real n;
+    std::array<real, QssLevel> value;
+    real                       n;
+    time                       sigma;
 
     abstract_power() noexcept = default;
 
     abstract_power(const abstract_power& other) noexcept
-      : n(other.n)
-    {
-        std::copy_n(other.value, QssLevel, value);
-    }
+      : value(other.value)
+      , n(other.n)
+      , sigma(other.sigma)
+    {}
 
     status initialize(simulation& /*sim*/) noexcept
     {
         if (not std::isfinite(n))
             return new_error(simulation_errc::abstract_power_n_error);
 
-        std::fill_n(value, QssLevel, zero);
+        value.fill(zero);
+
         sigma = time_domain<time>::infinity;
 
         return success();
@@ -2297,20 +2298,21 @@ struct abstract_square {
 
     message_id    x[1] = {};
     block_node_id y[1] = {};
-    time          sigma;
 
-    real value[QssLevel];
+    std::array<real, QssLevel> value;
+    time                       sigma;
 
     abstract_square() noexcept = default;
 
     abstract_square(const abstract_square& other) noexcept
-    {
-        std::copy_n(other.value, QssLevel, value);
-    }
+      : value(other.value)
+      , sigma(other.sigma)
+    {}
 
     status initialize(simulation& /*sim*/) noexcept
     {
-        std::fill_n(value, QssLevel, zero);
+        value.fill(zero);
+
         sigma = time_domain<time>::infinity;
 
         return success();
@@ -2383,30 +2385,22 @@ struct abstract_sum {
 
     message_id    x[PortNumber] = {};
     block_node_id y[1]          = {};
-    time          sigma;
 
-    real values[QssLevel * PortNumber] = { 0 };
+    std::array<real, QssLevel * PortNumber> values;
+    time                                    sigma;
 
     abstract_sum() noexcept = default;
 
     abstract_sum(const abstract_sum& other) noexcept
-      : sigma(other.sigma)
-    {
-        std::copy_n(other.values, std::size(other.values), values);
-    }
+      : values(other.values)
+      , sigma(other.sigma)
+    {}
 
     /// Initialize all values to zero except the first @c PortNumber ones which
     /// are inialized in with parameters.
     status initialize(simulation& /*sim*/) noexcept
     {
-        for (size_t i = 0; i != PortNumber; ++i)
-            if (not std::isfinite(values[i]))
-                return new_error(simulation_errc::abstract_sum_value_error);
-
-        if constexpr (QssLevel >= 2) {
-            std::fill_n(
-              values + PortNumber, std::size(values) - PortNumber, zero);
-        }
+        values.fill(zero);
 
         sigma = time_domain<time>::infinity;
 
@@ -2564,39 +2558,28 @@ struct abstract_wsum {
 
     message_id    x[PortNumber] = {};
     block_node_id y[1]          = {};
-    time          sigma;
 
-    real input_coeffs[PortNumber]      = { 0 };
-    real values[QssLevel * PortNumber] = { 0 };
+    std::array<real, PortNumber>            input_coeffs;
+    std::array<real, QssLevel * PortNumber> values;
+    time                                    sigma;
 
     abstract_wsum() noexcept = default;
 
     abstract_wsum(const abstract_wsum& other) noexcept
-      : sigma(other.sigma)
-    {
-        std::copy_n(
-          other.input_coeffs, std::size(other.input_coeffs), input_coeffs);
-
-        std::copy_n(other.values, std::size(other.values), values);
-    }
+      : input_coeffs(other.input_coeffs)
+      , values(other.values)
+      , sigma(other.sigma)
+    {}
 
     /// Initialize all values to zero except the first @c PortNumber ones which
     /// are inialized with parameters.
     status initialize(simulation& /*sim*/) noexcept
     {
-        for (size_t i = 0; i != PortNumber; ++i)
-            if (not std::isfinite(input_coeffs[i]))
+        for (const auto elem : input_coeffs)
+            if (not std::isfinite(elem))
                 return new_error(simulation_errc::abstract_wsum_coeff_error);
 
-        for (size_t i = 0; i != PortNumber; ++i)
-            if (not std::isfinite(values[i]))
-                return new_error(simulation_errc::abstract_wsum_value_error);
-
-        if constexpr (QssLevel >= 2) {
-            std::fill_n(std::begin(values) + PortNumber,
-                        std::size(values) - PortNumber,
-                        zero);
-        }
+        values.fill(zero);
 
         sigma = time_domain<time>::infinity;
 
@@ -2760,21 +2743,23 @@ template<std::size_t QssLevel>
 struct abstract_inverse {
     static_assert(1 <= QssLevel && QssLevel <= 3, "Only for Qss1, 2 and 3");
 
-    message_id                 x[1]   = {};
-    block_node_id              y[1]   = {};
-    time                       sigma  = {};
-    std::array<real, QssLevel> values = {};
+    message_id    x[1] = {};
+    block_node_id y[1] = {};
+
+    std::array<real, QssLevel> values;
+    time                       sigma;
 
     abstract_inverse() noexcept = default;
 
     abstract_inverse(const abstract_inverse& other) noexcept
-      : sigma(other.sigma)
-      , values(other.values)
+      : values(other.values)
+      , sigma(other.sigma)
     {}
 
     status initialize(simulation& /*sim*/) noexcept
     {
-        std::fill_n(values.begin(), QssLevel, zero);
+        values.fill(zero);
+
         sigma = time_domain<time>::infinity;
 
         return success();
@@ -2877,30 +2862,23 @@ struct abstract_multiplier {
 
     message_id    x[2] = {};
     block_node_id y[1] = {};
-    time          sigma;
 
-    /** User can edit the first values for each variable (values[0] and
-     * values[1]). Other values are set to zero. */
-    real values[QssLevel * 2];
+    std::array<real, QssLevel * 2> values;
+    time                           sigma;
 
     abstract_multiplier() noexcept = default;
 
     abstract_multiplier(const abstract_multiplier& other) noexcept
-      : sigma(other.sigma)
-    {
-        std::copy_n(other.values, QssLevel * 2, values);
-    }
+      : values(other.values)
+      , sigma(other.sigma)
+    {}
 
     /// Initialize all values to zero except the first @c PortNumber ones which
     /// are inialized with the parameters.
     status initialize(simulation& /*sim*/) noexcept
     {
-        for (size_t i = 0; i != 2; ++i)
-            if (not std::isfinite(values[i]))
-                return new_error(
-                  simulation_errc::abstract_multiplier_value_error);
+        values.fill(0);
 
-        std::fill_n(values + 2, QssLevel * 2 - 2, zero);
         sigma = time_domain<time>::infinity;
 
         return success();
@@ -3032,12 +3010,12 @@ struct abstract_integer {
     message_id    x[1] = {};
     block_node_id y[1] = {};
 
-    time sigma           = time_domain<time>::infinity;
-    real upper           = std::numeric_limits<real>::infinity();
-    real lower           = -std::numeric_limits<real>::infinity();
-    real to_send         = zero;
-    real last_send_value = std::numeric_limits<real>::infinity();
     std::array<real, QssLevel> value;
+    time                       sigma   = time_domain<time>::infinity;
+    real                       upper   = std::numeric_limits<real>::infinity();
+    real                       lower   = -std::numeric_limits<real>::infinity();
+    real                       to_send = zero;
+    real last_send_value               = std::numeric_limits<real>::infinity();
 
     bool reach_upper = false;
     bool reach_lower = false;
@@ -3045,23 +3023,23 @@ struct abstract_integer {
     abstract_integer() noexcept = default;
 
     abstract_integer(const abstract_integer& other) noexcept
-      : sigma(other.sigma)
+      : value(other.value)
+      , sigma(other.sigma)
       , upper(other.upper)
       , lower(other.lower)
       , to_send(other.to_send)
       , last_send_value(other.last_send_value)
       , reach_upper(other.reach_upper)
       , reach_lower(other.reach_lower)
-    {
-        std::copy_n(other.value.data(), other.value.size(), value.data());
-    }
+    {}
 
     status initialize(simulation& /*sim*/) noexcept
     {
-        sigma = time_domain<time>::infinity;
-        upper = std::numeric_limits<real>::infinity();
-        lower = -std::numeric_limits<real>::infinity();
         value.fill(zero);
+
+        sigma           = time_domain<time>::infinity;
+        upper           = std::numeric_limits<real>::infinity();
+        lower           = -std::numeric_limits<real>::infinity();
         reach_upper     = false;
         reach_lower     = false;
         to_send         = zero;
@@ -3163,23 +3141,22 @@ struct abstract_compare {
     message_id    x[2] = {};
     block_node_id y[1] = {};
 
-    time                       sigma = time_domain<time>::infinity;
     std::array<real, QssLevel> a;
     std::array<real, QssLevel> b;
-    std::array<real, 2>        output; // output[0] for is_a_less_b false and
-                                       // output[1] for is_a_less_b true.
+    std::array<real, 2>        output; /**< output[0] for is_a_less_b false and
+                                        output[1] for is_a_less_b true. */
+    time sigma       = time_domain<time>::infinity;
     bool is_a_less_b = false;
 
     abstract_compare() noexcept = default;
 
     abstract_compare(const abstract_compare& other) noexcept
-      : sigma(other.sigma)
+      : a(other.a)
+      , b(other.b)
+      , output(other.output)
+      , sigma(other.sigma)
       , is_a_less_b(other.is_a_less_b)
-    {
-        std::copy_n(other.a.data(), other.a.size(), a.data());
-        std::copy_n(other.b.data(), other.b.size(), b.data());
-        std::copy_n(other.output.data(), other.output.size(), output.data());
-    }
+    {}
 
     /// Initialize all values to zero except the first element in @c a and @c b
     /// and all in @c output which are copy parameter.
@@ -3192,8 +3169,8 @@ struct abstract_compare {
         if (not std::isfinite(a[0]) or not std::isfinite(b[0]))
             return new_error(simulation_errc::abstract_compare_a_b_value_error);
 
-        std::fill_n(a.data() + 1, QssLevel - 1, zero);
-        std::fill_n(b.data() + 1, QssLevel - 1, zero);
+        a.fill(zero);
+        b.fill(zero);
 
         sigma       = time_domain<time>::infinity;
         is_a_less_b = false;
@@ -3325,20 +3302,21 @@ struct abstract_log {
 
     message_id    x[1] = {};
     block_node_id y[1] = {};
-    time          sigma;
 
-    real value[QssLevel];
+    std::array<real, QssLevel> value;
+    time                       sigma;
 
     abstract_log() noexcept = default;
 
     abstract_log(const abstract_log& other) noexcept
-    {
-        std::copy_n(other.value, QssLevel, value);
-    }
+      : value(other.value)
+      , sigma(other.sigma)
+    {}
 
     status initialize(simulation& /*sim*/) noexcept
     {
-        std::fill_n(value, QssLevel, zero);
+        value.fill(zero);
+
         sigma = time_domain<time>::infinity;
 
         return success();
@@ -3418,20 +3396,21 @@ struct abstract_exp {
 
     message_id    x[1] = {};
     block_node_id y[1] = {};
-    time          sigma;
 
-    real value[QssLevel];
+    std::array<real, QssLevel> value;
+    time                       sigma;
 
     abstract_exp() noexcept = default;
 
     abstract_exp(const abstract_exp& other) noexcept
-    {
-        std::copy_n(other.value, QssLevel, value);
-    }
+      : value(other.value)
+      , sigma(other.sigma)
+    {}
 
     status initialize(simulation& /*sim*/) noexcept
     {
-        std::fill_n(value, QssLevel, zero);
+        value.fill(zero);
+
         sigma = time_domain<time>::infinity;
 
         return success();
@@ -3508,20 +3487,21 @@ struct abstract_sin {
 
     message_id    x[1] = {};
     block_node_id y[1] = {};
-    time          sigma;
 
-    real value[QssLevel];
+    std::array<real, QssLevel> value;
+    time                       sigma;
 
     abstract_sin() noexcept = default;
 
     abstract_sin(const abstract_sin& other) noexcept
-    {
-        std::copy_n(other.value, QssLevel, value);
-    }
+      : value(other.value)
+      , sigma(other.sigma)
+    {}
 
     status initialize(simulation& /*sim*/) noexcept
     {
-        std::fill_n(value, QssLevel, zero);
+        value.fill(zero);
+
         sigma = time_domain<time>::infinity;
 
         return success();
@@ -3598,20 +3578,21 @@ struct abstract_cos {
 
     message_id    x[1] = {};
     block_node_id y[1] = {};
-    time          sigma;
 
-    real value[QssLevel];
+    std::array<real, QssLevel> value;
+    time                       sigma;
 
     abstract_cos() noexcept = default;
 
     abstract_cos(const abstract_cos& other) noexcept
-    {
-        std::copy_n(other.value, QssLevel, value);
-    }
+      : value(other.value)
+      , sigma(other.sigma)
+    {}
 
     status initialize(simulation& /*sim*/) noexcept
     {
-        std::fill_n(value, QssLevel, zero);
+        value.fill(zero);
+
         sigma = time_domain<time>::infinity;
 
         return success();
@@ -3685,16 +3666,17 @@ using qss3_cos = abstract_cos<3>;
 
 struct counter {
     message_id x[1] = {};
-    time       sigma;
-    i64        number     = 0;
-    real       last_value = 0;
+
+    i64  number     = 0;
+    real last_value = 0;
+    time sigma;
 
     counter() noexcept = default;
 
     counter(const counter& other) noexcept
-      : sigma(other.sigma)
-      , number(other.number)
+      : number(other.number)
       , last_value(other.last_value)
+      , sigma(other.sigma)
     {}
 
     status initialize(simulation& /*sim*/) noexcept
@@ -3734,8 +3716,9 @@ struct generator {
 
     message_id    x[4] = {};
     block_node_id y[1] = {};
-    time          sigma;
-    real          value;
+
+    time sigma;
+    real value;
 
     source           source_ta;
     source           source_value;
@@ -3757,6 +3740,7 @@ struct generator {
     status initialize(simulation& sim) noexcept
     {
         sigma = time_domain<time>::infinity;
+
         if (flags[option::ta_use_source]) {
             if (initialize_source(sim, source_ta).has_error())
                 return new_error(
@@ -3956,10 +3940,11 @@ struct abstract_filter {
     message_id    x[1] = {};
     block_node_id y[3] = {};
 
-    time sigma;
-    real lower_threshold;
-    real upper_threshold;
-    real value[QssLevel];
+    time                       sigma;
+    real                       lower_threshold;
+    real                       upper_threshold;
+    std::array<real, QssLevel> value;
+
     bool reach_lower_threshold = false;
     bool reach_upper_threshold = false;
 
@@ -3969,11 +3954,10 @@ struct abstract_filter {
       : sigma(other.sigma)
       , lower_threshold(other.lower_threshold)
       , upper_threshold(other.upper_threshold)
+      , value(other.value)
       , reach_lower_threshold(other.reach_lower_threshold)
       , reach_upper_threshold(other.reach_upper_threshold)
-    {
-        std::copy_n(other.value, QssLevel, value);
-    }
+    {}
 
     status initialize(simulation& /*sim*/) noexcept
     {
@@ -3983,7 +3967,8 @@ struct abstract_filter {
 
         reach_lower_threshold = false;
         reach_upper_threshold = false;
-        std::fill_n(value, QssLevel, zero);
+
+        value.fill(zero);
 
         sigma = time_domain<time>::infinity;
 
@@ -4801,29 +4786,27 @@ struct abstract_cross {
 
     message_id    x[2] = {};
     block_node_id y[2] = {};
-    time          sigma;
 
-    real threshold = zero;
-    real value[QssLevel];
-
-    zone_type zone = zone_type::undefined;
+    std::array<real, QssLevel> value;
+    real                       threshold = zero;
+    time                       sigma;
+    zone_type                  zone = zone_type::undefined;
 
     abstract_cross() noexcept = default;
 
     abstract_cross(const abstract_cross& other) noexcept
-      : sigma(other.sigma)
+      : value(other.value)
       , threshold(other.threshold)
+      , sigma(other.sigma)
       , zone(other.zone)
-    {
-        std::copy_n(other.value, QssLevel, value);
-    }
+    {}
 
     enum o_port_name { port_value, port_threshold };
     enum i_port_name { port_up, port_down };
 
     status initialize(simulation& /*sim*/) noexcept
     {
-        std::fill_n(value, QssLevel, zero);
+        value.fill(zero);
 
         sigma = time_domain<time>::infinity;
         zone  = zone_type::undefined;
@@ -4900,10 +4883,11 @@ template<std::size_t QssLevel>
 struct abstract_flipflop {
     static_assert(1 <= QssLevel && QssLevel <= 3, "Only for Qss1, 2 and 3");
 
-    message_id    x[2]            = {};
-    block_node_id y[1]            = {};
-    time          sigma           = zero;
-    real          value[QssLevel] = {};
+    message_id    x[2] = {};
+    block_node_id y[1] = {};
+
+    std::array<real, QssLevel> value;
+    time                       sigma = zero;
 
     enum o_port_name { port_in, port_event };
     enum i_port_name { port_out };
@@ -4911,16 +4895,16 @@ struct abstract_flipflop {
     abstract_flipflop() noexcept = default;
 
     abstract_flipflop(const abstract_flipflop& other) noexcept
-      : sigma(other.sigma)
-    {
-        std::copy_n(other.value, QssLevel, value);
-    }
+      : value(other.value)
+      , sigma(other.sigma)
+    {}
 
     status initialize(simulation& /*sim*/) noexcept
     {
-        std::ranges::fill(value, zero);
+        value.fill(zero);
         value[0] = std::numeric_limits<real>::infinity();
-        sigma    = time_domain<time>::infinity;
+
+        sigma = time_domain<time>::infinity;
 
         return success();
     }
@@ -4940,10 +4924,10 @@ struct abstract_flipflop {
         return success();
     }
 
+    /** flipflop send QSS value, slope and derivative if and only if a message
+     * was received on @c x[port_in] input port. */
     status lambda(simulation& sim) noexcept
     {
-        /* flipflop send QSS value, slope and derivative if and only if a
-         * message was received on @c x[port_in] input port. */
 
         if (value[0] != std::numeric_limits<real>::infinity()) {
             if constexpr (QssLevel == 1)
