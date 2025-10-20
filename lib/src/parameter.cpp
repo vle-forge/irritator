@@ -298,7 +298,9 @@ template<size_t QssLevel>
 static void model_init(const parameter&          param,
                        abstract_cross<QssLevel>& dyn) noexcept
 {
-    dyn.threshold = param.reals[0];
+    dyn.threshold        = param.reals[0];
+    dyn.output_values[0] = param.reals[1];
+    dyn.output_values[1] = param.reals[2];
 }
 
 template<size_t QssLevel>
@@ -306,6 +308,8 @@ static void parameter_init(parameter&                      param,
                            const abstract_cross<QssLevel>& dyn) noexcept
 {
     param.reals[0] = dyn.threshold;
+    param.reals[1] = dyn.output_values[0];
+    param.reals[2] = dyn.output_values[1];
 }
 
 template<size_t QssLevel>
@@ -468,6 +472,7 @@ void parameter::init_from(const dynamics_type type) noexcept
                   dynamics_type::qss1_integrator,
                   dynamics_type::qss2_integrator,
                   dynamics_type::qss3_integrator)) {
+        reals[0] = 0;    // X parameter
         reals[1] = 0.01; // dQ parameter
     } else if (any_equal(type,
                          dynamics_type::qss1_power,

@@ -547,7 +547,11 @@ static bool show_parameter(qss_cross_tag,
                            external_source& /*srcs*/,
                            parameter& p) noexcept
 {
-    return ImGui::InputReal("threshold", &p.reals[0]);
+    const auto b1 = ImGui::InputReal("threshold", &p.reals[0]);
+    const auto b2 = ImGui::InputReal("up", &p.reals[1]);
+    const auto b3 = ImGui::InputReal("bottom", &p.reals[2]);
+
+    return b1 or b2 or b3;
 }
 
 static bool show_parameter(qss_flipflop_tag,

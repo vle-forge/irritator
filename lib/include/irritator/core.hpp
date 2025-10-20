@@ -4784,6 +4784,7 @@ struct abstract_cross {
     message_id    x[2] = {};
     block_node_id y[2] = {};
 
+    std::array<real, 2>        output_values;
     std::array<real, QssLevel> value;
     real                       threshold = zero;
     time                       sigma;
@@ -4853,8 +4854,9 @@ struct abstract_cross {
 
     status lambda(simulation& sim) noexcept
     {
-        return value[0] >= threshold ? send_message(sim, y[port_up], one)
-                                     : send_message(sim, y[port_down], one);
+        return value[0] >= threshold
+                 ? send_message(sim, y[port_up], output_values[0])
+                 : send_message(sim, y[port_down], output_values[1]);
     }
 
     observation_message observation(time t, time e) const noexcept

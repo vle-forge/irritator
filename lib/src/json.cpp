@@ -1382,6 +1382,10 @@ struct json_dearchiver::impl {
           val, [&](const auto name, const auto& value) noexcept -> bool {
               if ("threshold"sv == name)
                   return read_temp_real(value) && copy_real_to(p.reals[0]);
+              if ("up"sv == name)
+                  return read_temp_real(value) && copy_real_to(p.reals[1]);
+              if ("bottom"sv == name)
+                  return read_temp_real(value) && copy_real_to(p.reals[2]);
 
               return true;
           });
@@ -5397,6 +5401,10 @@ struct json_archiver::impl {
         writer.StartObject();
         writer.Key("threshold");
         writer.Double(p.reals[0]);
+        writer.Key("up");
+        writer.Double(p.reals[1]);
+        writer.Key("bottom");
+        writer.Double(p.reals[2]);
         writer.EndObject();
     }
 
@@ -5408,6 +5416,10 @@ struct json_archiver::impl {
         writer.StartObject();
         writer.Key("threshold");
         writer.Double(p.reals[0]);
+        writer.Key("up");
+        writer.Double(p.reals[1]);
+        writer.Key("bottom");
+        writer.Double(p.reals[2]);
         writer.EndObject();
     }
 
@@ -5419,6 +5431,10 @@ struct json_archiver::impl {
         writer.StartObject();
         writer.Key("threshold");
         writer.Double(p.reals[0]);
+        writer.Key("up");
+        writer.Double(p.reals[1]);
+        writer.Key("bottom");
+        writer.Double(p.reals[2]);
         writer.EndObject();
     }
 
