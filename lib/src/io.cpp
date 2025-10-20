@@ -360,7 +360,7 @@ static void write_test_simulation_model(
                R"(
     auto& mdl_{} = sim.alloc<irt::{}>();
     sim.parameters[sim.get_id(mdl_{})].reals    = {{ {}, {}, {}, {} }};
-    sim.parameters[sim.get_id(mdl_{})].integers = {{ {}, {}, {}, {}, {}, {}, {}, {} }};
+    sim.parameters[sim.get_id(mdl_{})].integers = {{ {}, {}, {}, {} }};
 )",
                idx,
                irt::dynamics_type_names[ordinal(mdl.type)],
@@ -373,11 +373,7 @@ static void write_test_simulation_model(
                params.integers[0],
                params.integers[1],
                params.integers[2],
-               params.integers[3],
-               params.integers[4],
-               params.integers[5],
-               params.integers[6],
-               params.integers[7]);
+               params.integers[3]);
 }
 
 static void assign_constant_source(std::string&   id,

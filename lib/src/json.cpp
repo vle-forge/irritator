@@ -914,14 +914,14 @@ struct json_dearchiver::impl {
     {
         auto_stack a(this, "dynamics qss integrator");
 
-        static constexpr std::string_view n[] = { "X", "dQ" };
+        static constexpr std::string_view n[] = { "dQ", "X" };
 
         return for_members(val, n, [&](auto idx, const auto& value) noexcept {
             switch (idx) {
             case 0:
-                return read_real(value, p.reals[0]);
+                return read_real(value, p.reals[qss_integrator_tag::dQ]);
             case 1:
-                return read_real(value, p.reals[1]);
+                return read_real(value, p.reals[qss_integrator_tag::X]);
             default:
                 return error("unknown element");
             }
@@ -976,9 +976,9 @@ struct json_dearchiver::impl {
           val, n, [&](const auto idx, const auto& value) noexcept -> bool {
               switch (idx) {
               case 0:
-                  return read_real(value, p.reals[0]);
+                  return read_real(value, p.reals[qss_wsum_2_tag::coeff1]);
               case 1:
-                  return read_real(value, p.reals[1]);
+                  return read_real(value, p.reals[qss_wsum_2_tag::coeff2]);
               default:
                   return true;
               }
@@ -999,11 +999,11 @@ struct json_dearchiver::impl {
           val, n, [&](const auto idx, const auto& value) noexcept -> bool {
               switch (idx) {
               case 0:
-                  return read_real(value, p.reals[0]);
+                  return read_real(value, p.reals[qss_wsum_3_tag::coeff1]);
               case 1:
-                  return read_real(value, p.reals[1]);
+                  return read_real(value, p.reals[qss_wsum_3_tag::coeff2]);
               case 2:
-                  return read_real(value, p.reals[2]);
+                  return read_real(value, p.reals[qss_wsum_3_tag::coeff3]);
               default:
                   return true;
               }
@@ -1024,13 +1024,13 @@ struct json_dearchiver::impl {
           val, n, [&](const auto idx, const auto& value) noexcept -> bool {
               switch (idx) {
               case 0:
-                  return read_real(value, p.reals[0]);
+                  return read_real(value, p.reals[qss_wsum_4_tag::coeff1]);
               case 1:
-                  return read_real(value, p.reals[1]);
+                  return read_real(value, p.reals[qss_wsum_4_tag::coeff2]);
               case 2:
-                  return read_real(value, p.reals[2]);
+                  return read_real(value, p.reals[qss_wsum_4_tag::coeff3]);
               case 3:
-                  return read_real(value, p.reals[3]);
+                  return read_real(value, p.reals[qss_wsum_4_tag::coeff4]);
               default:
                   return true;
               }
@@ -1066,9 +1066,9 @@ struct json_dearchiver::impl {
         return for_members(val, n, [&](auto idx, const auto& value) noexcept {
             switch (idx) {
             case 0:
-                return read_real(value, p.reals[0]);
+                return read_real(value, p.reals[qss_compare_tag::equal]);
             case 1:
-                return read_real(value, p.reals[1]);
+                return read_real(value, p.reals[qss_compare_tag::not_equal]);
 
             default:
                 return true;
@@ -1133,7 +1133,7 @@ struct json_dearchiver::impl {
           val, [&](const auto name, const auto& value) noexcept -> bool {
               if ("ta"sv == name)
                   return read_temp_real(value) && is_double_greater_than(0.0) &&
-                         copy_real_to(p.reals[0]);
+                         copy_real_to(p.reals[queue_tag::sigma]);
 
               return error("unknown element");
           });
@@ -1173,39 +1173,30 @@ struct json_dearchiver::impl {
 
     bool copy_to_source(const std::optional<source::source_type> type,
                         const std::optional<u64>                 id,
-                        i64&                                     t,
-                        i64&                                     i) noexcept
+                        i64&                                     src) noexcept
     {
         if (not type.has_value() or not id.has_value())
             return true;
 
         switch (*type) {
         case source::source_type::binary_file:
-            if (const auto* ptr = self.binary_file_mapping.get(*id)) {
-                t = ordinal(*type);
-                i = ordinal(*ptr);
-            }
+            if (const auto* ptr = self.binary_file_mapping.get(*id))
+                src = from_source(source(*ptr));
             break;
 
         case source::source_type::constant:
-            if (const auto* ptr = self.constant_mapping.get(*id)) {
-                t = ordinal(*type);
-                i = ordinal(*ptr);
-            }
+            if (const auto* ptr = self.constant_mapping.get(*id))
+                src = from_source(source(*ptr));
             break;
 
         case source::source_type::random:
-            if (const auto* ptr = self.random_mapping.get(*id)) {
-                t = ordinal(*type);
-                i = ordinal(*ptr);
-            }
+            if (const auto* ptr = self.random_mapping.get(*id))
+                src = from_source(source(*ptr));
             break;
 
         case source::source_type::text_file:
-            if (const auto* ptr = self.text_file_mapping.get(*id)) {
-                t = ordinal(*type);
-                i = ordinal(*ptr);
-            }
+            if (const auto* ptr = self.text_file_mapping.get(*id))
+                src = from_source(source(*ptr));
             break;
         }
 
@@ -1232,7 +1223,8 @@ struct json_dearchiver::impl {
 
                      return error("unknown element");
                  }) and
-               copy_to_source(type, id, p.integers[0], p.integers[1]);
+               copy_to_source(
+                 type, id, p.integers[dynamic_queue_tag::source_ta]);
     }
 
     bool read_dynamics(const rapidjson::Value& val,
@@ -1255,12 +1247,13 @@ struct json_dearchiver::impl {
 
                      return error("unknown element");
                  }) and
-               copy_to_source(type, id, p.integers[0], p.integers[1]);
+               copy_to_source(
+                 type, id, p.integers[priority_queue_tag::source_ta]);
     }
 
     bool copy_to_generator_options(bool ta_use_source,
                                    bool value_use_source,
-                                   i64& options)
+                                   i64& options) noexcept
     {
         bitflags<generator::option> flags;
 
@@ -1291,11 +1284,6 @@ struct json_dearchiver::impl {
         return for_each_member(
                  val,
                  [&](const auto name, const auto& value) noexcept -> bool {
-                     if ("offset"sv == name)
-                         return read_temp_real(value) &&
-                                is_double_greater_equal_than(0.0) &&
-                                copy_real_to(p.reals[0]);
-
                      if ("ta-is-external"sv == name)
                          return read_bool(value, ta_use_source);
 
@@ -1316,16 +1304,19 @@ struct json_dearchiver::impl {
 
                      return error("unknown element");
                  }) and
-               copy_to_source(type_ta, id_ta, p.integers[1], p.integers[2]) and
                copy_to_source(
-                 type_value, id_value, p.integers[3], p.integers[4]) and
-               copy_to_generator_options(
-                 ta_use_source, value_use_source, p.integers[0]);
+                 type_ta, id_ta, p.integers[generator_tag::source_ta]) and
+               copy_to_source(type_value,
+                              id_value,
+                              p.integers[generator_tag::source_value]) and
+               copy_to_generator_options(ta_use_source,
+                                         value_use_source,
+                                         p.integers[generator_tag::i_options]);
     }
 
     bool copy_string_to_constant_port(component&                compo,
                                       const constant::init_type type,
-                                      parameter&                p) noexcept
+                                      i64&                      p) noexcept
 
     {
         if (type != constant::init_type::incoming_component_n and
@@ -1336,7 +1327,7 @@ struct json_dearchiver::impl {
                             ? compo.get_or_add_x(temp_string)
                             : compo.get_or_add_y(temp_string);
 
-        p.integers[1] = ordinal(port);
+        p = ordinal(port);
 
         return true;
     }
@@ -1353,20 +1344,22 @@ struct json_dearchiver::impl {
         return for_each_member(
           val, [&](const auto name, const auto& value) noexcept -> bool {
               if ("value"sv == name)
-                  return read_temp_real(value) && copy_real_to(p.reals[0]);
+                  return read_temp_real(value) &&
+                         copy_real_to(p.reals[constant_tag::value]);
 
               if ("offset"sv == name)
                   return read_temp_real(value) &&
                          is_double_greater_equal_than(0.0) &&
-                         copy_real_to(p.reals[1]);
+                         copy_real_to(p.reals[constant_tag::offset]);
 
               if ("type"sv == name)
                   return read_temp_string(value) && copy_string_to(type) &&
-                         copy(ordinal(*type), p.integers[0]);
+                         copy(ordinal(*type), p.integers[constant_tag::i_type]);
 
               if ("port"sv == name and type.has_value())
                   return read_temp_string(value) &&
-                         copy_string_to_constant_port(compo, *type, p);
+                         copy_string_to_constant_port(
+                           compo, *type, p.integers[constant_tag::i_port]);
 
               return true;
           });
@@ -1381,11 +1374,14 @@ struct json_dearchiver::impl {
         return for_each_member(
           val, [&](const auto name, const auto& value) noexcept -> bool {
               if ("threshold"sv == name)
-                  return read_temp_real(value) && copy_real_to(p.reals[0]);
+                  return read_temp_real(value) &&
+                         copy_real_to(p.reals[qss_cross_tag::threshold]);
               if ("up"sv == name)
-                  return read_temp_real(value) && copy_real_to(p.reals[1]);
+                  return read_temp_real(value) &&
+                         copy_real_to(p.reals[qss_cross_tag::up_value]);
               if ("bottom"sv == name)
-                  return read_temp_real(value) && copy_real_to(p.reals[2]);
+                  return read_temp_real(value) &&
+                         copy_real_to(p.reals[qss_cross_tag::bottom_value]);
 
               return true;
           });
@@ -1408,9 +1404,11 @@ struct json_dearchiver::impl {
         return for_each_member(
           val, [&](const auto name, const auto& value) noexcept -> bool {
               if ("lower-threshold"sv == name)
-                  return read_temp_real(value) && copy_real_to(p.reals[0]);
+                  return read_temp_real(value) &&
+                         copy_real_to(p.reals[qss_filter_tag::lower_bound]);
               if ("upper-threshold"sv == name)
-                  return read_temp_real(value) && copy_real_to(p.reals[1]);
+                  return read_temp_real(value) &&
+                         copy_real_to(p.reals[qss_filter_tag::upper_bound]);
 
               return error("unknown element");
           });
@@ -1425,7 +1423,8 @@ struct json_dearchiver::impl {
         return for_each_member(
           val, [&](const auto name, const auto& value) noexcept -> bool {
               if ("n"sv == name)
-                  return read_temp_real(value) && copy_real_to(p.reals[0]);
+                  return read_temp_real(value) &&
+                         copy_real_to(p.reals[qss_power_tag::exponent]);
 
               return error("unknown element");
           });
@@ -1462,21 +1461,21 @@ struct json_dearchiver::impl {
                   return read_temp_string(value);
 
               if ("offset"sv == name)
-                  return read_real(value, p.reals[0]);
+                  return read_real(value, p.reals[time_func_tag::offset]);
 
               if ("timestep"sv == name)
-                  return read_real(value, p.reals[1]);
+                  return read_real(value, p.reals[time_func_tag::timestep]);
 
               return error("unknown element");
           });
 
         if (ret) {
             if (temp_string == "time"sv)
-                p.integers[0] = 0;
+                p.integers[time_func_tag::i_type] = 0;
             else if (temp_string == "square"sv)
-                p.integers[0] = 1;
+                p.integers[time_func_tag::i_type] = 1;
             else
-                p.integers[0] = 2;
+                p.integers[time_func_tag::i_type] = 2;
         }
         return ret;
     }
@@ -1487,17 +1486,7 @@ struct json_dearchiver::impl {
     {
         auto_stack a(this, "dynamics logical and 2");
 
-        return for_each_member(
-          val, [&](const auto name, const auto& value) noexcept -> bool {
-              if ("value-0"sv == name)
-                  if ("value-0"sv == name)
-                      return read_bool(value, p.integers[0]);
-
-              if ("value-1"sv == name)
-                  return read_bool(value, p.integers[1]);
-
-              return error("unknown element");
-          });
+        return true;
     }
 
     bool read_dynamics(const rapidjson::Value& val,
@@ -1506,16 +1495,7 @@ struct json_dearchiver::impl {
     {
         auto_stack a(this, "dynamics logical or 2");
 
-        return for_each_member(
-          val, [&](const auto name, const auto& value) noexcept -> bool {
-              if ("value-0"sv == name)
-                  return read_bool(value, p.integers[0]);
-
-              if ("value-1"sv == name)
-                  return read_bool(value, p.integers[1]);
-
-              return error("unknown element");
-          });
+        return true;
     }
 
     bool read_dynamics(const rapidjson::Value& val,
@@ -1524,19 +1504,7 @@ struct json_dearchiver::impl {
     {
         auto_stack a(this, "dynamics logical and 3");
 
-        return for_each_member(
-          val, [&](const auto name, const auto& value) noexcept -> bool {
-              if ("value-0"sv == name)
-                  return read_bool(value, p.integers[0]);
-
-              if ("value-1"sv == name)
-                  return read_bool(value, p.integers[1]);
-
-              if ("value-2"sv == name)
-                  return read_bool(value, p.integers[2]);
-
-              return error("unknown element");
-          });
+        return true;
     }
 
     bool read_dynamics(const rapidjson::Value& val,
@@ -1545,19 +1513,7 @@ struct json_dearchiver::impl {
     {
         auto_stack a(this, "dynamics logical or 3");
 
-        return for_each_member(
-          val, [&](const auto name, const auto& value) noexcept -> bool {
-              if ("value-0"sv == name)
-                  return read_bool(value, p.integers[0]);
-
-              if ("value-1"sv == name)
-                  return read_bool(value, p.integers[1]);
-
-              if ("value-2"sv == name)
-                  return read_bool(value, p.integers[2]);
-
-              return error("unknown element");
-          });
+        return true;
     }
 
     bool read_dynamics(const rapidjson::Value& /*val*/,
@@ -1920,7 +1876,8 @@ struct json_dearchiver::impl {
                      case 0: {
                          component_id c;
                          if (try_read_child_hsm_component(value, c)) {
-                             p.integers[0] = static_cast<i64>(c);
+                             p.integers[hsm_wrapper_tag::id] =
+                               static_cast<i64>(c);
                              return true;
                          } else {
                              warning("HSM component not found");
@@ -1929,29 +1886,30 @@ struct json_dearchiver::impl {
                      }
                      case 1:
                          return read_temp_i64(value) &&
-                                copy_i64_to(p.integers[1]);
+                                copy_i64_to(p.integers[hsm_wrapper_tag::i1]);
                      case 2:
                          return read_temp_i64(value) &&
-                                copy_i64_to(p.integers[2]);
+                                copy_i64_to(p.integers[hsm_wrapper_tag::i2]);
                      case 3:
                          return read_temp_real(value) &&
-                                copy_real_to(p.reals[0]);
+                                copy_real_to(p.reals[hsm_wrapper_tag::r1]);
                      case 4:
                          return read_temp_real(value) &&
-                                copy_real_to(p.reals[1]);
+                                copy_real_to(p.reals[hsm_wrapper_tag::r2]);
                      case 5:
                          return read_temp_i64(value) && copy_i64_to(type);
                      case 6:
                          return read_temp_u64(value) && copy_u64_to(id);
                      case 7:
                          return read_temp_real(value) &&
-                                copy_real_to(p.reals[2]);
+                                copy_real_to(p.reals[hsm_wrapper_tag::timer]);
                      default:
                          return error("unknown element");
                      }
                  }) and
                ((optional_has_value(type) and optional_has_value(id) and
-                 copy_to_source(type, id, p.integers[3], p.integers[4])) or
+                 copy_to_source(
+                   type, id, p.integers[hsm_wrapper_tag::source_value])) or
                 true);
     }
 
@@ -4404,11 +4362,11 @@ struct json_dearchiver::impl {
     }
 
     bool read_integer_parameter(const rapidjson::Value& val,
-                                std::array<i64, 8>&     integers) noexcept
+                                std::array<i64, 4>&     integers) noexcept
     {
         auto_stack s(this, "project integer parameter");
 
-        return is_value_array(val) && is_value_array_size_equal(val, 8) &&
+        return is_value_array(val) && is_value_array_size_equal(val, 4) &&
                for_each_array(
                  val, [&](const auto i, const auto& value) noexcept -> bool {
                      return read_temp_i64(value) && copy_i64_to(integers[i]);
@@ -4930,9 +4888,9 @@ struct json_archiver::impl {
     {
         writer.StartObject();
         writer.Key("X");
-        writer.Double(p.reals[0]);
+        writer.Double(p.reals[qss_integrator_tag::X]);
         writer.Key("dQ");
-        writer.Double(p.reals[1]);
+        writer.Double(p.reals[qss_integrator_tag::dQ]);
         writer.EndObject();
     }
 
@@ -4989,9 +4947,9 @@ struct json_archiver::impl {
         writer.StartObject();
 
         writer.Key("coeff-0");
-        writer.Double(p.reals[0]);
+        writer.Double(p.reals[qss_wsum_2_tag::coeff1]);
         writer.Key("coeff-1");
-        writer.Double(p.reals[1]);
+        writer.Double(p.reals[qss_wsum_2_tag::coeff2]);
 
         writer.EndObject();
     }
@@ -5004,11 +4962,11 @@ struct json_archiver::impl {
         writer.StartObject();
 
         writer.Key("coeff-0");
-        writer.Double(p.reals[0]);
+        writer.Double(p.reals[qss_wsum_3_tag::coeff1]);
         writer.Key("coeff-1");
-        writer.Double(p.reals[1]);
+        writer.Double(p.reals[qss_wsum_3_tag::coeff2]);
         writer.Key("coeff-2");
-        writer.Double(p.reals[2]);
+        writer.Double(p.reals[qss_wsum_3_tag::coeff3]);
 
         writer.EndObject();
     }
@@ -5021,13 +4979,13 @@ struct json_archiver::impl {
         writer.StartObject();
 
         writer.Key("coeff-0");
-        writer.Double(p.reals[0]);
+        writer.Double(p.reals[qss_wsum_4_tag::coeff1]);
         writer.Key("coeff-1");
-        writer.Double(p.reals[1]);
+        writer.Double(p.reals[qss_wsum_4_tag::coeff2]);
         writer.Key("coeff-2");
-        writer.Double(p.reals[2]);
+        writer.Double(p.reals[qss_wsum_4_tag::coeff3]);
         writer.Key("coeff-3");
-        writer.Double(p.reals[3]);
+        writer.Double(p.reals[qss_wsum_4_tag::coeff4]);
 
         writer.EndObject();
     }
@@ -5067,9 +5025,9 @@ struct json_archiver::impl {
         writer.StartObject();
 
         writer.Key("coeff-0");
-        writer.Double(p.reals[0]);
+        writer.Double(p.reals[qss_wsum_2_tag::coeff1]);
         writer.Key("coeff-1");
-        writer.Double(p.reals[1]);
+        writer.Double(p.reals[qss_wsum_2_tag::coeff2]);
 
         writer.EndObject();
     }
@@ -5082,11 +5040,11 @@ struct json_archiver::impl {
         writer.StartObject();
 
         writer.Key("coeff-0");
-        writer.Double(p.reals[0]);
+        writer.Double(p.reals[qss_wsum_3_tag::coeff1]);
         writer.Key("coeff-1");
-        writer.Double(p.reals[1]);
+        writer.Double(p.reals[qss_wsum_3_tag::coeff2]);
         writer.Key("coeff-2");
-        writer.Double(p.reals[2]);
+        writer.Double(p.reals[qss_wsum_3_tag::coeff3]);
 
         writer.EndObject();
     }
@@ -5099,13 +5057,13 @@ struct json_archiver::impl {
         writer.StartObject();
 
         writer.Key("coeff-0");
-        writer.Double(p.reals[0]);
+        writer.Double(p.reals[qss_wsum_4_tag::coeff1]);
         writer.Key("coeff-1");
-        writer.Double(p.reals[1]);
+        writer.Double(p.reals[qss_wsum_4_tag::coeff2]);
         writer.Key("coeff-2");
-        writer.Double(p.reals[2]);
+        writer.Double(p.reals[qss_wsum_4_tag::coeff3]);
         writer.Key("coeff-3");
-        writer.Double(p.reals[3]);
+        writer.Double(p.reals[qss_wsum_4_tag::coeff4]);
 
         writer.EndObject();
     }
@@ -5145,9 +5103,9 @@ struct json_archiver::impl {
         writer.StartObject();
 
         writer.Key("coeff-0");
-        writer.Double(p.reals[0]);
+        writer.Double(p.reals[qss_wsum_2_tag::coeff1]);
         writer.Key("coeff-1");
-        writer.Double(p.reals[1]);
+        writer.Double(p.reals[qss_wsum_2_tag::coeff2]);
 
         writer.EndObject();
     }
@@ -5160,11 +5118,11 @@ struct json_archiver::impl {
         writer.StartObject();
 
         writer.Key("coeff-0");
-        writer.Double(p.reals[0]);
+        writer.Double(p.reals[qss_wsum_3_tag::coeff1]);
         writer.Key("coeff-1");
-        writer.Double(p.reals[1]);
+        writer.Double(p.reals[qss_wsum_3_tag::coeff2]);
         writer.Key("coeff-2");
-        writer.Double(p.reals[2]);
+        writer.Double(p.reals[qss_wsum_3_tag::coeff3]);
 
         writer.EndObject();
     }
@@ -5177,13 +5135,13 @@ struct json_archiver::impl {
         writer.StartObject();
 
         writer.Key("coeff-0");
-        writer.Double(p.reals[0]);
+        writer.Double(p.reals[qss_wsum_4_tag::coeff1]);
         writer.Key("coeff-1");
-        writer.Double(p.reals[1]);
+        writer.Double(p.reals[qss_wsum_4_tag::coeff2]);
         writer.Key("coeff-2");
-        writer.Double(p.reals[2]);
+        writer.Double(p.reals[qss_wsum_4_tag::coeff3]);
         writer.Key("coeff-3");
-        writer.Double(p.reals[3]);
+        writer.Double(p.reals[qss_wsum_4_tag::coeff4]);
 
         writer.EndObject();
     }
@@ -5204,9 +5162,9 @@ struct json_archiver::impl {
     {
         writer.StartObject();
         writer.Key("a-less-b");
-        writer.Double(p.reals[0]);
+        writer.Double(p.reals[qss_compare_tag::equal]);
         writer.Key("not-a-less-b");
-        writer.Double(p.reals[1]);
+        writer.Double(p.reals[qss_compare_tag::not_equal]);
         writer.EndObject();
     }
 
@@ -5262,7 +5220,7 @@ struct json_archiver::impl {
     {
         writer.StartObject();
         writer.Key("ta");
-        writer.Double(p.reals[0]);
+        writer.Double(p.reals[queue_tag::sigma]);
         writer.EndObject();
     }
 
@@ -5271,11 +5229,14 @@ struct json_archiver::impl {
                const dynamic_queue& /*dyn*/,
                const parameter& p) noexcept
     {
+        const auto [type, id] =
+          u64_to_u32s(p.integers[dynamic_queue_tag::source_ta]);
+
         writer.StartObject();
         writer.Key("source-ta-type");
-        writer.Int64(p.integers[0]);
+        writer.Int64(type);
         writer.Key("source-ta-id");
-        writer.Uint64(p.integers[1]);
+        writer.Uint64(id);
         writer.EndObject();
     }
 
@@ -5284,11 +5245,14 @@ struct json_archiver::impl {
                const priority_queue& /*dyn*/,
                const parameter& p) noexcept
     {
+        const auto [type, id] =
+          u64_to_u32s(p.integers[priority_queue_tag::source_ta]);
+
         writer.StartObject();
         writer.Key("source-ta-type");
-        writer.Int64(p.integers[0]);
+        writer.Int64(type);
         writer.Key("source-ta-id");
-        writer.Uint64(p.integers[1]);
+        writer.Uint64(id);
         writer.EndObject();
     }
 
@@ -5297,7 +5261,7 @@ struct json_archiver::impl {
                const generator& /*dyn*/,
                const parameter& p) noexcept
     {
-        const auto options = to_unsigned(p.integers[0]);
+        const auto options = to_unsigned(p.integers[generator_tag::i_options]);
         const auto flags   = bitflags<generator::option>(options);
 
         writer.StartObject();
@@ -5307,17 +5271,24 @@ struct json_archiver::impl {
         writer.Key("value-is-external");
         writer.Bool(flags[generator::option::value_use_source]);
 
-        writer.Key("offset");
-        writer.Double(p.reals[0]);
-        writer.Key("source-ta-type");
-        writer.Int64(p.integers[1]);
-        writer.Key("source-ta-id");
-        writer.Uint64(p.integers[2]);
+        {
+            const auto [type, id] =
+              u64_to_u32s(p.integers[generator_tag::source_ta]);
 
-        writer.Key("source-value-type");
-        writer.Int64(p.integers[3]);
-        writer.Key("source-value-id");
-        writer.Uint64(p.integers[4]);
+            writer.Key("source-ta-type");
+            writer.Int64(type);
+            writer.Key("source-ta-id");
+            writer.Uint64(id);
+        }
+
+        {
+            const auto [type, id] =
+              u64_to_u32s(p.integers[generator_tag::source_value]);
+            writer.Key("source-value-type");
+            writer.Int64(type);
+            writer.Key("source-value-id");
+            writer.Uint64(id);
+        }
 
         writer.EndObject();
     }
@@ -5330,9 +5301,9 @@ struct json_archiver::impl {
         writer.StartObject();
 
         writer.Key("value");
-        writer.Double(p.reals[0]);
+        writer.Double(p.reals[constant_tag::value]);
         writer.Key("offset");
-        writer.Double(p.reals[1]);
+        writer.Double(p.reals[constant_tag::offset]);
 
         writer.EndObject();
     }
@@ -5345,14 +5316,16 @@ struct json_archiver::impl {
     {
         writer.StartObject();
         writer.Key("value");
-        writer.Double(p.reals[0]);
+        writer.Double(p.reals[constant_tag::value]);
         writer.Key("offset");
-        writer.Double(p.reals[1]);
+        writer.Double(p.reals[constant_tag::offset]);
         writer.Key("type");
 
-        const auto type = (0 <= p.integers[0] && p.integers[0] < 5)
-                            ? enum_cast<constant::init_type>(p.integers[0])
-                            : constant::init_type::constant;
+        const auto type =
+          (0 <= p.integers[constant_tag::i_type] &&
+           p.integers[constant_tag::i_type] < 5)
+            ? enum_cast<constant::init_type>(p.integers[constant_tag::i_type])
+            : constant::init_type::constant;
 
         switch (type) {
         case constant::init_type::constant:
@@ -5368,7 +5341,8 @@ struct json_archiver::impl {
             writer.String("incoming_component_n");
             writer.Key("port");
 
-            const auto port = enum_cast<port_id>(p.integers[1]);
+            const auto port =
+              enum_cast<port_id>(p.integers[constant_tag::i_port]);
             if (c.x.exists(port)) {
                 const auto& str = c.x.get<port_str>(port);
                 writer.String(str.c_str());
@@ -5380,7 +5354,8 @@ struct json_archiver::impl {
             writer.String("outcoming_component_n");
             writer.Key("port");
 
-            const auto port = enum_cast<port_id>(p.integers[1]);
+            const auto port =
+              enum_cast<port_id>(p.integers[constant_tag::i_port]);
             if (c.y.exists(port)) {
                 const auto& str = c.y.get<port_str>(port);
                 writer.String(str.c_str());
@@ -5400,11 +5375,11 @@ struct json_archiver::impl {
     {
         writer.StartObject();
         writer.Key("threshold");
-        writer.Double(p.reals[0]);
+        writer.Double(p.reals[qss_cross_tag::threshold]);
         writer.Key("up");
-        writer.Double(p.reals[1]);
+        writer.Double(p.reals[qss_cross_tag::up_value]);
         writer.Key("bottom");
-        writer.Double(p.reals[2]);
+        writer.Double(p.reals[qss_cross_tag::bottom_value]);
         writer.EndObject();
     }
 
@@ -5415,11 +5390,11 @@ struct json_archiver::impl {
     {
         writer.StartObject();
         writer.Key("threshold");
-        writer.Double(p.reals[0]);
+        writer.Double(p.reals[qss_cross_tag::threshold]);
         writer.Key("up");
-        writer.Double(p.reals[1]);
+        writer.Double(p.reals[qss_cross_tag::up_value]);
         writer.Key("bottom");
-        writer.Double(p.reals[2]);
+        writer.Double(p.reals[qss_cross_tag::bottom_value]);
         writer.EndObject();
     }
 
@@ -5430,11 +5405,11 @@ struct json_archiver::impl {
     {
         writer.StartObject();
         writer.Key("threshold");
-        writer.Double(p.reals[0]);
+        writer.Double(p.reals[qss_cross_tag::threshold]);
         writer.Key("up");
-        writer.Double(p.reals[1]);
+        writer.Double(p.reals[qss_cross_tag::up_value]);
         writer.Key("bottom");
-        writer.Double(p.reals[2]);
+        writer.Double(p.reals[qss_cross_tag::bottom_value]);
         writer.EndObject();
     }
 
@@ -5472,9 +5447,9 @@ struct json_archiver::impl {
     {
         writer.StartObject();
         writer.Key("lower-threshold");
-        writer.Double(p.reals[0]);
+        writer.Double(p.reals[qss_filter_tag::lower_bound]);
         writer.Key("upper-threshold");
-        writer.Double(p.reals[1]);
+        writer.Double(p.reals[qss_filter_tag::upper_bound]);
         writer.EndObject();
     }
 
@@ -5485,9 +5460,9 @@ struct json_archiver::impl {
     {
         writer.StartObject();
         writer.Key("lower-threshold");
-        writer.Double(p.reals[0]);
+        writer.Double(p.reals[qss_filter_tag::lower_bound]);
         writer.Key("upper-threshold");
-        writer.Double(p.reals[1]);
+        writer.Double(p.reals[qss_filter_tag::upper_bound]);
         writer.EndObject();
     }
 
@@ -5498,9 +5473,9 @@ struct json_archiver::impl {
     {
         writer.StartObject();
         writer.Key("lower-threshold");
-        writer.Double(p.reals[0]);
+        writer.Double(p.reals[qss_filter_tag::lower_bound]);
         writer.Key("upper-threshold");
-        writer.Double(p.reals[1]);
+        writer.Double(p.reals[qss_filter_tag::upper_bound]);
         writer.EndObject();
     }
 
@@ -5511,7 +5486,7 @@ struct json_archiver::impl {
     {
         writer.StartObject();
         writer.Key("n");
-        writer.Double(p.reals[0]);
+        writer.Double(p.reals[qss_power_tag::exponent]);
         writer.EndObject();
     }
 
@@ -5522,7 +5497,7 @@ struct json_archiver::impl {
     {
         writer.StartObject();
         writer.Key("n");
-        writer.Double(p.reals[0]);
+        writer.Double(p.reals[qss_power_tag::exponent]);
         writer.EndObject();
     }
 
@@ -5533,7 +5508,7 @@ struct json_archiver::impl {
     {
         writer.StartObject();
         writer.Key("n");
-        writer.Double(p.reals[0]);
+        writer.Double(p.reals[qss_power_tag::exponent]);
         writer.EndObject();
     }
 
@@ -5562,65 +5537,49 @@ struct json_archiver::impl {
     {
         writer.StartObject();
         writer.Key("function");
-        writer.String(p.integers[0] == 0   ? "time"
-                      : p.integers[0] == 1 ? "square"
-                                           : "sin");
+        writer.String(p.integers[time_func_tag::i_type] == 0   ? "time"
+                      : p.integers[time_func_tag::i_type] == 1 ? "square"
+                                                               : "sin");
+        writer.Key("timestep");
+        writer.Double(p.reals[time_func_tag::timestep]);
+        writer.Key("offset");
+        writer.Double(p.reals[time_func_tag::offset]);
         writer.EndObject();
     }
 
     template<typename Writer>
     void write(Writer& writer,
                const logical_and_2& /*dyn*/,
-               const parameter& p) noexcept
+               const parameter& /*p*/) noexcept
     {
         writer.StartObject();
-        writer.Key("value-0");
-        writer.Bool(p.integers[0]);
-        writer.Key("value-1");
-        writer.Bool(p.integers[1]);
         writer.EndObject();
     }
 
     template<typename Writer>
     void write(Writer& writer,
                const logical_and_3& /*dyn*/,
-               const parameter& p) noexcept
+               const parameter& /*p*/) noexcept
     {
         writer.StartObject();
-        writer.Key("value-0");
-        writer.Bool(p.integers[0]);
-        writer.Key("value-1");
-        writer.Bool(p.integers[1]);
-        writer.Key("value-2");
-        writer.Bool(p.integers[2]);
         writer.EndObject();
     }
 
     template<typename Writer>
     void write(Writer& writer,
                const logical_or_2& /*dyn*/,
-               const parameter& p) noexcept
+               const parameter& /*p*/) noexcept
     {
         writer.StartObject();
-        writer.Key("value-0");
-        writer.Bool(p.integers[0]);
-        writer.Key("value-1");
-        writer.Bool(p.integers[1]);
         writer.EndObject();
     }
 
     template<typename Writer>
     void write(Writer& writer,
                const logical_or_3& /*dyn*/,
-               const parameter& p) noexcept
+               const parameter& /*p*/) noexcept
     {
         writer.StartObject();
-        writer.Key("value-0");
-        writer.Bool(p.integers[0]);
-        writer.Key("value-1");
-        writer.Bool(p.integers[1]);
-        writer.Key("value-2");
-        writer.Bool(p.integers[2]);
         writer.EndObject();
     }
 
@@ -5644,31 +5603,34 @@ struct json_archiver::impl {
         writer.Key("hsm");
         writer.StartObject();
 
-        const auto id = enum_cast<component_id>(p.integers[0]);
-        auto*      c  = mod.components.try_to_get<component>(id);
+        const auto id =
+          enum_cast<component_id>(p.integers[hsm_wrapper_tag::id]);
+        auto* c = mod.components.try_to_get<component>(id);
         if (c)
             write_child_component_path(mod, *c, writer);
 
         writer.EndObject();
 
         writer.Key("i1");
-        writer.Int64(p.integers[1]);
+        writer.Int64(p.integers[hsm_wrapper_tag::i1]);
         writer.Key("i2");
-        writer.Int64(p.integers[2]);
+        writer.Int64(p.integers[hsm_wrapper_tag::i2]);
         writer.Key("r1");
-        writer.Double(p.reals[0]);
+        writer.Double(p.reals[hsm_wrapper_tag::r1]);
         writer.Key("r2");
-        writer.Double(p.reals[1]);
+        writer.Double(p.reals[hsm_wrapper_tag::r2]);
         writer.Key("timeout");
-        writer.Double(p.reals[2]);
+        writer.Double(p.reals[hsm_wrapper_tag::timer]);
 
         if (c) {
             if (auto* hc = mod.hsm_components.try_to_get(c->id.hsm_id)) {
                 if (hc->machine.is_using_source()) {
+                    const auto [type, id] =
+                      u64_to_u32s(p.integers[hsm_wrapper_tag::source_value]);
                     writer.Key("source-type");
-                    writer.Int64(p.integers[3]);
+                    writer.Int64(type);
                     writer.Key("source-id");
-                    writer.Uint64(p.integers[4]);
+                    writer.Uint64(id);
                 }
             }
         }

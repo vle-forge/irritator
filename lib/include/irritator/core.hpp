@@ -717,40 +717,91 @@ enum class dynamics_type : i32 {
     hsm_wrapper
 };
 
-struct qss_integrator_tag {};
+struct qss_integrator_tag {
+    enum parameter_names : u8 { X = 0, dQ };
+};
+
+struct qss_cross_tag {
+    enum parameter_names : u8 { threshold, up_value, bottom_value };
+};
+
 struct qss_multiplier_tag {};
-struct qss_cross_tag {};
 struct qss_flipflop_tag {};
-struct qss_filter_tag {};
-struct qss_power_tag {};
+struct qss_filter_tag {
+    enum parameter_names : u8 { lower_bound = 0, upper_bound };
+};
+
+struct qss_power_tag {
+    enum parameter_names : u8 { exponent = 0 };
+};
+
 struct qss_square_tag {};
 struct qss_sum_2_tag {};
 struct qss_sum_3_tag {};
 struct qss_sum_4_tag {};
-struct qss_wsum_2_tag {};
-struct qss_wsum_3_tag {};
-struct qss_wsum_4_tag {};
+
+struct qss_wsum_2_tag {
+    enum parameter_names : u8 { coeff1 = 0, coeff2 };
+};
+
+struct qss_wsum_3_tag {
+    enum parameter_names : u8 { coeff1 = 0, coeff2, coeff3 };
+};
+
+struct qss_wsum_4_tag {
+    enum parameter_names : u8 { coeff1 = 0, coeff2, coeff3, coeff4 };
+};
+
 struct qss_invert_tag {};
 struct qss_integer_tag {};
-struct qss_compare_tag {};
+struct qss_compare_tag {
+    enum parameter_names : u8 { equal = 0, not_equal };
+};
 struct qss_sin_tag {};
 struct qss_cos_tag {};
 struct qss_exp_tag {};
 struct qss_log_tag {};
 struct counter_tag {};
-struct queue_tag {};
-struct dynamic_queue_tag {};
-struct priority_queue_tag {};
-struct generator_tag {};
-struct constant_tag {};
-struct time_func_tag {};
+struct queue_tag {
+    enum parameter_names : u8 { sigma = 0 };
+};
+
+struct dynamic_queue_tag {
+    enum parameter_names : u8 { source_ta = 0 };
+};
+
+struct priority_queue_tag {
+    enum parameter_names : u8 { sigma = 0, source_ta = 0 };
+};
+
+struct generator_tag {
+    enum parameter_names : u8 { i_options = 0, source_ta, source_value };
+};
+
+struct constant_tag {
+    enum parameter_names : u8 { value = 0, offset, i_type = 0, i_port };
+};
+
+struct time_func_tag {
+    enum parameter_names : u8 { offset = 0, timestep, i_type = 0 };
+};
 struct accumulator_2_tag {};
 struct logical_and_2_tag {};
 struct logical_and_3_tag {};
 struct logical_or_2_tag {};
 struct logical_or_3_tag {};
 struct logical_invert_tag {};
-struct hsm_wrapper_tag {};
+struct hsm_wrapper_tag {
+    enum parameter_names : u8 {
+        r1 = 0,
+        r2,
+        timer,
+        id = 0,
+        i1,
+        i2,
+        source_value
+    };
+};
 
 constexpr i8 dynamics_type_last() noexcept
 {
@@ -771,8 +822,8 @@ constexpr sz dynamics_type_size() noexcept
 /**
    Stores dynamics model parameters for each @c irt::dynamics.
 
-   Two vertors of real and integer are available to initialize each type of @c
-   irt::dynamics.
+   Two vertors of real and integer are available to initialize each type of
+   @c irt::dynamics.
  */
 struct parameter {
     parameter() noexcept = default;
@@ -826,7 +877,7 @@ struct parameter {
     source get_priority_queue_ta() noexcept;
 
     std::array<real, 4> reals;
-    std::array<i64, 8>  integers;
+    std::array<i64, 4>  integers;
 };
 
 struct observation {
@@ -867,8 +918,8 @@ struct observer {
     observer& operator=(const observer& other) noexcept = default;
     observer& operator=(observer&& other) noexcept      = default;
 
-    /// Change the raw and linearized buffers with specified constrained sizes
-    /// and change the time-step.
+    /// Change the raw and linearized buffers with specified constrained
+    /// sizes and change the time-step.
     void init(const buffer_size_t            buffer_size,
               const linearized_buffer_size_t linearized_buffer_size,
               const float                    ts) noexcept;
@@ -901,8 +952,8 @@ struct node {
 };
 
 /**
-   Stores a list of @c node to make connection between models. Each output port
-   of atomic model stores a @c block_node_id.
+   Stores a list of @c node to make connection between models. Each output
+   port of atomic model stores a @c block_node_id.
 
    Build a linked list of
  */
@@ -925,8 +976,9 @@ static inline constexpr u32 invalid_heap_handle = 0xffffffff;
 
 /**
    A pairing heap is a type of heap data structure with relatively simple
-   implementation and excellent practical amortized performance, introduced by
-   Michael Fredman, Robert Sedgewick, Daniel Sleator, and Robert Tarjan in 1986.
+   implementation and excellent practical amortized performance, introduced
+   by Michael Fredman, Robert Sedgewick, Daniel Sleator, and Robert Tarjan
+   in 1986.
  */
 template<typename A = allocator<new_delete_memory_resource>>
 class heap
@@ -970,8 +1022,8 @@ public:
     constexpr void clear() noexcept;
 
     /**
-       Try to allocate a new buffer, copy the old buffer into the new one assign
-       the new buffer.
+       Try to allocate a new buffer, copy the old buffer into the new one
+       assign the new buffer.
 
        This function returns false and to nothing on the buffer if the @c
        new_capacity can hold the current capacity and if a new buffer can be
@@ -980,8 +1032,8 @@ public:
     constexpr bool reserve(std::integral auto new_capacity) noexcept;
 
     /**
-       Allocate a new node into the heap and insert the @c model_id and the @c
-       time into the tree.
+       Allocate a new node into the heap and insert the @c model_id and the
+       @c time into the tree.
      */
     constexpr handle alloc(time tn, model_id id) noexcept;
 
@@ -1024,16 +1076,18 @@ private:
  ****************************************************************************/
 
 /**
-   The heap nodes are only allocated and freed using the @c heap::alloc() and @c
-   heap::destroy() functions. These functions make a link between @c model and
-   @c heap::node via the @c heap::node::id and the @c model::handle attributes.
-   Make sure you check model and node at the same time. If a model is allocate,
-   you must allocate a node before using the scheduler. If a model is delete,
-   you must free the node to free memory.
+   The heap nodes are only allocated and freed using the @c heap::alloc()
+   and @c heap::destroy() functions. These functions make a link between @c
+   model and
+   @c heap::node via the @c heap::node::id and the @c model::handle
+   attributes. Make sure you check model and node at the same time. If a
+   model is allocate, you must allocate a node before using the scheduler.
+   If a model is delete, you must free the node to free memory.
 
-   A node is detached from the heap if the handle `node::child`, `node::next`
-   and `node::prev` are null (`irt::invalid_heap_handle`). To detach a node, you
-   can use the `heap::pop()` or `heap::remove()` functions.
+   A node is detached from the heap if the handle `node::child`,
+   `node::next` and `node::prev` are null (`irt::invalid_heap_handle`). To
+   detach a node, you can use the `heap::pop()` or `heap::remove()`
+   functions.
  */
 template<typename A = allocator<new_delete_memory_resource>>
 class scheduller
@@ -1056,46 +1110,47 @@ public:
     void destroy() noexcept;
 
     /**
-       Allocate a new @c heap::node and makes a link between @c heap::node and
-       @c model (@c heap::node::id equal @c id and @c mdl.handle equal to the
-       newly @c handle.
+       Allocate a new @c heap::node and makes a link between @c heap::node
+       and
+       @c model (@c heap::node::id equal @c id and @c mdl.handle equal to
+       the newly @c handle.
 
-       This function @c abort if the scheduller fail to allocate more nodes. Use
-       the @c can_alloc() before use.
+       This function @c abort if the scheduller fail to allocate more nodes.
+       Use the @c can_alloc() before use.
      */
     void alloc(model& mdl, model_id id, time tn) noexcept;
 
     /**
-       Unlink the @c model and the @c heap::node if it exists and free memory
-       used by the @c heap::node.
+       Unlink the @c model and the @c heap::node if it exists and free
+       memory used by the @c heap::node.
      */
     void free(model& mdl) noexcept;
 
     /**
-       Insert or reinsert the node into the @c heap. Use this function only and
-       only if the node is detached via the @c remove() or the @c pop()
+       Insert or reinsert the node into the @c heap. Use this function only
+       and only if the node is detached via the @c remove() or the @c pop()
        functions.
      */
     void reintegrate(model& mdl, time tn) noexcept;
 
     /**
-       Remove the @c node from the tree of the heap. The @c node can be reuse
-       with the @c reintegrate() function.
+       Remove the @c node from the tree of the heap. The @c node can be
+       reuse with the @c reintegrate() function.
      */
     void remove(model& mdl) noexcept;
 
     /**
-       According to the @c tn parameter, @c update function call the @c increase
-       or @c decrease function. You can you this function only if the node is in
-       the tree.
+       According to the @c tn parameter, @c update function call the @c
+       increase or @c decrease function. You can you this function only if
+       the node is in the tree.
      */
     void update(model& mdl, time tn) noexcept;
     void increase(model& mdl, time tn) noexcept;
     void decrease(model& mdl, time tn) noexcept;
 
     /**
-       Remove all @c node with the same @c tn from the tree of the heap. The @c
-       node can be reuse with the @c reintegrate() function.
+       Remove all @c node with the same @c tn from the tree of the heap. The
+       @c node can be reuse with the @c reintegrate() function.
      */
     void pop(vector<model_id>& out) noexcept;
 
@@ -1106,8 +1161,9 @@ public:
     time tn(handle h) const noexcept;
 
     /**
-       Return true if the node @c h is a valid heap handle and if `h` is equal
-       to `root` or if the node prev, next or child handle are not null.
+       Return true if the node @c h is a valid heap handle and if `h` is
+       equal to `root` or if the node prev, next or child handle are not
+       null.
      */
     bool is_in_tree(handle h) const noexcept;
 
@@ -1117,9 +1173,10 @@ public:
     int      ssize() const noexcept;
 };
 
-/// Stores two simulation time values, the begin `]-oo, +oo[` and the end value
-/// `]begin, +oo]`. This function take care to keep @c begin less than @c end
-/// value.
+/// Stores two simulation time values, the begin `]-oo, +oo[` and the end
+/// value
+/// `]begin, +oo]`. This function take care to keep @c begin less than @c
+/// end value.
 class time_limit
 {
 private:
@@ -1170,9 +1227,10 @@ private:
     time t = time_domain<time>::infinity;
 
     /**
-     * The latest not infinity simulation time. At begin of the simulation, @c
-     * last_valid_t equals the begin date. During simulation @c last_valid_t
-     * stores the latest valid simulation time (neither infinity.
+     * The latest not infinity simulation time. At begin of the simulation,
+     * @c last_valid_t equals the begin date. During simulation @c
+     * last_valid_t stores the latest valid simulation time (neither
+     * infinity.
      */
     time last_valid_t = 0.0;
 
@@ -1201,14 +1259,15 @@ public:
     /** Call the @C destroy function to free allocated memory */
     ~simulation() noexcept;
 
-    /** Grow models dependant data-array and vectors according to the factor Num
-     *  Denum.
+    /** Grow models dependant data-array and vectors according to the factor
+     * Num Denum.
      * @return true if success.
      */
     template<int Num, int Denum>
     bool grow_models() noexcept;
 
-    /** Grow models dependant data-array and vectors according to @a capacity.
+    /** Grow models dependant data-array and vectors according to @a
+     * capacity.
      * @return true if success.
      */
     bool grow_models_to(std::integral auto capacity) noexcept;
@@ -2396,8 +2455,8 @@ struct abstract_sum {
       , sigma(other.sigma)
     {}
 
-    /// Initialize all values to zero except the first @c PortNumber ones which
-    /// are inialized in with parameters.
+    /// Initialize all values to zero except the first @c PortNumber ones
+    /// which are inialized in with parameters.
     status initialize(simulation& /*sim*/) noexcept
     {
         values.fill(zero);
@@ -2571,8 +2630,8 @@ struct abstract_wsum {
       , sigma(other.sigma)
     {}
 
-    /// Initialize all values to zero except the first @c PortNumber ones which
-    /// are inialized with parameters.
+    /// Initialize all values to zero except the first @c PortNumber ones
+    /// which are inialized with parameters.
     status initialize(simulation& /*sim*/) noexcept
     {
         for (const auto elem : input_coeffs)
@@ -2873,8 +2932,8 @@ struct abstract_multiplier {
       , sigma(other.sigma)
     {}
 
-    /// Initialize all values to zero except the first @c PortNumber ones which
-    /// are inialized with the parameters.
+    /// Initialize all values to zero except the first @c PortNumber ones
+    /// which are inialized with the parameters.
     status initialize(simulation& /*sim*/) noexcept
     {
         values.fill(0);
@@ -3158,8 +3217,8 @@ struct abstract_compare {
       , is_a_less_b(other.is_a_less_b)
     {}
 
-    /// Initialize all values to zero except the first element in @c a and @c b
-    /// and all in @c output which are copy parameter.
+    /// Initialize all values to zero except the first element in @c a and
+    /// @c b and all in @c output which are copy parameter.
     status initialize(simulation& /*sim*/) noexcept
     {
         if (not std::isfinite(output[0]) or not std::isfinite(output[1]))
@@ -3731,7 +3790,8 @@ struct generator {
       , flags(option::ta_use_source, option::value_use_source)
     {}
 
-    /// Before calling this function, the @c sigma member is initialized with
+    /// Before calling this function, the @c sigma member is initialized
+    /// with
     /// @c params.reals[0] and the @c value member is initialized with
     /// @c params.reals[1].
     status initialize(simulation& sim) noexcept
@@ -3852,30 +3912,38 @@ struct constant {
     time          sigma;
 
     enum class init_type : i8 {
-        /// A constant value initialized at startup of the simulation. Use the
+        /// A constant value initialized at startup of the simulation. Use
+        /// the
         /// @c default_value.
         constant,
 
         /// The numbers of incoming connections on all input ports of the
         /// component. The @c default_value is filled via the component to
-        /// simulation algorithm. Otherwise, the default value is unmodified.
+        /// simulation algorithm. Otherwise, the default value is
+        /// unmodified.
         incoming_component_all,
 
         /// The number of outcoming connections on all output ports of the
         /// component. The @c default_value is filled via the component to
-        /// simulation algorithm. Otherwise, the default value is unmodified.
+        /// simulation algorithm. Otherwise, the default value is
+        /// unmodified.
         outcoming_component_all,
 
         /// The number of incoming connections on the nth input port of the
-        /// component. Use the @c port attribute to specify the identifier of
+        /// component. Use the @c port attribute to specify the identifier
+        /// of
         /// the port. The @c default_value is filled via the component to
-        /// simulation algorithm. Otherwise, the default value is unmodified.
+        /// simulation algorithm. Otherwise, the default value is
+        /// unmodified.
         incoming_component_n,
 
-        /// The number of incoming connections on the nth output ports of the
-        /// component. Use the @c port attribute to specify the identifier of
+        /// The number of incoming connections on the nth output ports of
+        /// the
+        /// component. Use the @c port attribute to specify the identifier
+        /// of
         /// the port. The @c default_value is filled via the component to
-        /// simulation algorithm. Otherwise, the default value is unmodified.
+        /// simulation algorithm. Otherwise, the default value is
+        /// unmodified.
         outcoming_component_n,
     };
 
@@ -4157,9 +4225,9 @@ template<typename AbstractLogicalTester, std::size_t PortNumber>
 struct abstract_logical {
     message_id    x[PortNumber];
     block_node_id y[1];
-    time          sigma = time_domain<time>::infinity;
 
-    bool values[PortNumber];
+    std::array<bool, PortNumber> values;
+    time                         sigma = time_domain<time>::infinity;
 
     bool is_valid      = true;
     bool value_changed = false;
@@ -4168,11 +4236,12 @@ struct abstract_logical {
 
     status initialize(simulation& /*sim*/) noexcept
     {
+        values.fill(false);
+
         AbstractLogicalTester tester{};
-        is_valid = tester(std::begin(values), std::end(values));
-        sigma =
-          is_valid ? time_domain<time>::zero : time_domain<time>::infinity;
-        value_changed = true;
+        sigma         = time_domain<time>::infinity;
+        is_valid      = false;
+        value_changed = false;
 
         return success();
     }
@@ -4402,8 +4471,8 @@ public:
         } constant;
 
         /**
-         * Assign the @a action_type @a t to the @a this state_action and set
-         * the @a var1, @a var2 and @a constant union to the default @a
+         * Assign the @a action_type @a t to the @a this state_action and
+         * set the @a var1, @a var2 and @a constant union to the default @a
          * action_type.
          *
          * @param t The type of action to assign.
@@ -4540,9 +4609,9 @@ public:
 
         source source_value;
 
-        std::bitset<4>
-          values; //<! Bit storage message available on X port in big endian.
-                  // values[0] stores value of input port_3.
+        std::bitset<4> values; //<! Bit storage message available on X port
+                               // in big endian.
+                               // values[0] stores value of input port_3.
 
         state_id current_state        = invalid_state_id;
         state_id next_state           = invalid_state_id;
@@ -4923,8 +4992,8 @@ struct abstract_flipflop {
         return success();
     }
 
-    /** flipflop send QSS value, slope and derivative if and only if a message
-     * was received on @c x[port_in] input port. */
+    /** flipflop send QSS value, slope and derivative if and only if a
+     * message was received on @c x[port_in] input port. */
     status lambda(simulation& sim) noexcept
     {
 

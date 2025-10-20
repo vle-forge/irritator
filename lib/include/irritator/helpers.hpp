@@ -352,51 +352,50 @@ inline void add_extension(small_string<Size>&    str,
     }
 }
 
-inline source::source_type get_source_type(i64 type) noexcept
+constexpr inline source::source_type get_source_type(
+  std::integral auto type) noexcept
 {
-    return (0 <= type && type < 4) ? enum_cast<source::source_type>(type)
-                                   : source::source_type::constant;
+    return (0 <= type and type < 4) ? enum_cast<source::source_type>(type)
+                                    : source::source_type::constant;
 }
 
-inline std::pair<i64, i64> source_to_parameters(const source& src) noexcept
+constexpr inline u64 from_source(const source& src) noexcept
 {
     switch (src.type) {
     case source::source_type::binary_file:
-        return std::make_pair(static_cast<i64>(src.type),
-                              static_cast<i64>(ordinal(src.id.binary_file_id)));
+        return u32s_to_u64(ordinal(src.type), ordinal(src.id.binary_file_id));
 
     case source::source_type::constant:
-        return std::make_pair(static_cast<i64>(src.type),
-                              static_cast<i64>(ordinal(src.id.constant_id)));
+        return u32s_to_u64(ordinal(src.type), ordinal(src.id.constant_id));
 
     case source::source_type::random:
-        return std::make_pair(static_cast<i64>(src.type),
-                              static_cast<i64>(ordinal(src.id.random_id)));
+        return u32s_to_u64(ordinal(src.type), ordinal(src.id.random_id));
 
     case source::source_type::text_file:
-        return std::make_pair(static_cast<i64>(src.type),
-                              static_cast<i64>(ordinal(src.id.text_file_id)));
+        return u32s_to_u64(ordinal(src.type), ordinal(src.id.text_file_id));
     }
 
     unreachable();
 }
 
-inline source get_source(const i64 type, const i64 id) noexcept
+constexpr inline source get_source(const u64 parameter) noexcept
 {
-    const auto source_type = get_source_type(type);
+    const auto p_type = left(parameter);
+    const auto p_id   = right(parameter);
+    const auto type   = get_source_type(p_type);
 
-    switch (source_type) {
+    switch (type) {
     case source::source_type::binary_file:
-        return source(enum_cast<binary_file_source_id>(id));
+        return source(enum_cast<binary_file_source_id>(p_id));
 
     case source::source_type::constant:
-        return source(enum_cast<constant_source_id>(id));
+        return source(enum_cast<constant_source_id>(p_id));
 
     case source::source_type::random:
-        return source(enum_cast<random_source_id>(id));
+        return source(enum_cast<random_source_id>(p_id));
 
     case source::source_type::text_file:
-        return source(enum_cast<text_file_source_id>(id));
+        return source(enum_cast<text_file_source_id>(p_id));
     }
 
     unreachable();
