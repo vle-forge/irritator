@@ -248,7 +248,7 @@ int main()
 
         auto& mdl_0 = sim.alloc<irt::qss3_integrator>();
         sim.parameters[sim.get_id(mdl_0)].reals = {
-            0.575, 0.00100000000000000, 0.00000000000000000, 0.00000000000000000
+            0.575, 0.0100000000000000, 0.00000000000000000, 0.00000000000000000
         };
 
         auto& mdl_1 = sim.alloc<irt::qss3_integrator>();
@@ -455,10 +455,10 @@ int main()
             expect(sim.run().has_value());
         } while (not sim.current_time_expired());
 
-        expect(ge(mdl_26.number, static_cast<irt::i64>(39))); // 46
+        expect(ge(mdl_26.number, static_cast<irt::i64>(42))); // 39
         expect(eq(mdl_26.last_value, 0));
 
-        expect(ge(mdl_27.number, static_cast<irt::i64>(39))); // 40
+        expect(ge(mdl_27.number, static_cast<irt::i64>(40))); // 39
         expect(eq(mdl_27.last_value, 1));
     };
 }

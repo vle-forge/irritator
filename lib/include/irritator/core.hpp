@@ -1701,31 +1701,33 @@ struct abstract_integrator<1> {
         return success();
     }
 
-    status transition(simulation& sim, time /*t*/, time e, time /*r*/) noexcept
+    status transition(simulation& sim,
+                      time /*t*/,
+                      time                  e,
+                      [[maybe_unused]] time r) noexcept
     {
-        auto* lst_x_dot = sim.messages.try_to_get(x[port_x_dot]);
-        auto* lst_reset = sim.messages.try_to_get(x[port_reset]);
+        const auto* lst_x_dot      = sim.messages.try_to_get(x[port_x_dot]);
+        const auto* lst_reset      = sim.messages.try_to_get(x[port_reset]);
+        const auto  have_x_dot_msg = lst_x_dot and not lst_x_dot->empty();
+        const auto  have_reset_msg = lst_reset and not lst_reset->empty();
+        const auto  have_msg       = have_x_dot_msg or have_reset_msg;
 
-        if ((not lst_x_dot or lst_x_dot->empty()) and
-            (not lst_reset or lst_reset->empty())) {
-            if (auto ret = internal(); !ret)
-                return ret.error();
-        } else {
-            if (lst_reset and not lst_reset->empty()) {
-                if (auto ret = reset(lst_reset->front()); !ret)
-                    return ret.error();
-            } else if (lst_x_dot and not lst_x_dot->empty()) {
-                if (auto ret = external(e, lst_x_dot->front()); !ret)
-                    return ret.error();
-            }
-        }
+        if (not have_msg)
+            return internal();
+
+        if (have_reset_msg)
+            return reset(lst_reset->front());
+
+        if (have_x_dot_msg)
+            return external(e, lst_x_dot->front());
 
         return success();
     }
 
     status lambda(simulation& sim) noexcept
     {
-        return send_message(sim, y[0], X + u * sigma);
+        return send_message(
+          sim, y[0], is_zero(u) ? q : q + dQ * u / std::abs(u));
     }
 
     observation_message observation(time t, time e) const noexcept
@@ -1754,9 +1756,6 @@ struct abstract_integrator<2> {
     time sigma;
 
     enum port_name { port_x_dot, port_reset };
-
-    struct X_error {};
-    struct dQ_error {};
 
     abstract_integrator() = default;
 
@@ -1791,24 +1790,21 @@ struct abstract_integrator<2> {
 
     status external(const time e, const message& msg) noexcept
     {
-        const real value_x     = msg[0];
-        const real value_slope = msg[1];
-
         X += (u * e) + (mu / two) * (e * e);
-        u  = value_x;
-        mu = value_slope;
+        u  = msg[0];
+        mu = msg[1];
 
         if (not is_zero(sigma)) {
-            q += mq * e;
+            q            = q + mq * e;
             const real a = mu / two;
             const real b = u - mq;
-            real       c = X - q + dQ;
-            real       s;
+            auto       c = X - q + dQ;
+
             sigma = time_domain<time>::infinity;
 
             if (is_zero(a)) {
                 if (not is_zero(b)) {
-                    s = -c / b;
+                    auto s = -c / b;
                     if (s > zero)
                         sigma = s;
 
@@ -1818,20 +1814,24 @@ struct abstract_integrator<2> {
                         sigma = s;
                 }
             } else {
-                s = (-b + std::sqrt(b * b - four * a * c)) / two / a;
+                auto sq = std::sqrt(b * b - four * a * c);
+
+                auto s = (-b + sq) / two / a;
                 if (s > zero)
                     sigma = s;
 
-                s = (-b - std::sqrt(b * b - four * a * c)) / two / a;
+                s = (-b - sq) / two / a;
                 if ((s > zero) && (s < sigma))
                     sigma = s;
 
-                c = X - q - dQ;
-                s = (-b + std::sqrt(b * b - four * a * c)) / two / a;
+                c  = X - q - dQ;
+                sq = std::sqrt(b * b - four * a * c);
+
+                s = (-b + sq) / two / a;
                 if ((s > zero) && (s < sigma))
                     sigma = s;
 
-                s = (-b - std::sqrt(b * b - four * a * c)) / two / a;
+                s = (-b - sq) / two / a;
                 if ((s > zero) && (s < sigma))
                     sigma = s;
             }
@@ -1868,24 +1868,25 @@ struct abstract_integrator<2> {
         return success();
     }
 
-    status transition(simulation& sim, time /*t*/, time e, time /*r*/) noexcept
+    status transition(simulation& sim,
+                      time /*t*/,
+                      time                  e,
+                      [[maybe_unused]] time r) noexcept
     {
-        auto* lst_x_dot = sim.messages.try_to_get(x[port_x_dot]);
-        auto* lst_reset = sim.messages.try_to_get(x[port_reset]);
+        const auto* lst_x_dot      = sim.messages.try_to_get(x[port_x_dot]);
+        const auto* lst_reset      = sim.messages.try_to_get(x[port_reset]);
+        const auto  have_x_dot_msg = lst_x_dot and not lst_x_dot->empty();
+        const auto  have_reset_msg = lst_reset and not lst_reset->empty();
+        const auto  have_msg       = have_x_dot_msg or have_reset_msg;
 
-        if ((not lst_x_dot or lst_x_dot->empty()) and
-            (not lst_reset or lst_reset->empty())) {
-            if (auto ret = internal(); !ret)
-                return ret.error();
-        } else {
-            if (lst_reset and not lst_reset->empty()) {
-                if (auto ret = reset(lst_reset->front()); !ret)
-                    return ret.error();
-            } else if (lst_x_dot and not lst_x_dot->empty()) {
-                if (auto ret = external(e, lst_x_dot->front()); !ret)
-                    return ret.error();
-            }
-        }
+        if (not have_msg)
+            return internal();
+
+        if (have_reset_msg)
+            return reset(lst_reset->front());
+
+        if (have_x_dot_msg)
+            return external(e, lst_x_dot->front());
 
         return success();
     }
@@ -1918,9 +1919,6 @@ struct abstract_integrator<3> {
     time sigma;
 
     enum port_name { port_x_dot, port_reset };
-
-    struct X_error {};
-    struct dQ_error {};
 
     abstract_integrator() = default;
 
@@ -1958,28 +1956,27 @@ struct abstract_integrator<3> {
 
     status external(const time e, const message& msg) noexcept
     {
-        constexpr real pi_div_3         = 1.0471975511965976;
-        const real     value_x          = msg[0];
-        const real     value_slope      = msg[1];
-        const real     value_derivative = msg[2];
+        constexpr real pi_div_3 = 1.0471975511965976;
+        const auto     e_2      = e * e;
+        const auto     e_3      = e_2 * e;
 
-        X  = X + u * e + (mu * e * e) / two + (pu * e * e * e) / three;
-        u  = value_x;
-        mu = value_slope;
-        pu = value_derivative;
+        X += u * e + (mu * e_2) / two + (pu * e_3) / three;
+        u  = msg[0];
+        mu = msg[1];
+        pu = msg[2];
 
         if (not is_zero(sigma)) {
-            q      = q + mq * e + pq * e * e;
-            mq     = mq + two * pq * e;
+            q += mq * e + pq * e_2;
+            mq += two * pq * e;
             auto a = mu / two - pq;
             auto b = u - mq;
             auto c = X - q - dQ;
-            auto s = zero;
 
             if (not is_zero(pu)) {
                 a       = three * a / pu;
                 b       = three * b / pu;
                 c       = three * c / pu;
+                auto s  = zero;
                 auto v  = b - a * a / three;
                 auto w  = c - b * a / three + two * a * a * a / real(27);
                 auto i1 = -w / two;
@@ -2016,13 +2013,12 @@ struct abstract_integrator<3> {
                         } else {
                             s = x2;
                         }
-                    } else if (x2 < zero) {
+                    } else if (x2 < zero)
                         s = x1;
-                    } else if (x1 < x2) {
+                    else if (x1 < x2)
                         s = x1;
-                    } else {
+                    else
                         s = x2;
-                    }
                 } else {
                     auto arg = w * std::sqrt(real(27) / (-v)) / (two * v);
                     arg      = std::acos(arg) / three;
@@ -2030,17 +2026,16 @@ struct abstract_integrator<3> {
                     auto y2  = -y1 * std::cos(pi_div_3 - arg) - a / three;
                     auto y3  = -y1 * std::cos(pi_div_3 + arg) - a / three;
                     y1       = y1 * std::cos(arg) - a / three;
-                    if (y1 < zero) {
+                    if (y1 < zero)
                         s = time_domain<time>::infinity;
-                    } else if (y3 < zero) {
+                    else if (y3 < zero)
                         s = y1;
-                    } else if (y2 < zero) {
+                    else if (y2 < zero)
                         s = y3;
-                    } else {
+                    else
                         s = y2;
-                    }
                 }
-                c  = c + real(6) * dQ / pu;
+                c += real(6) * dQ / pu;
                 w  = c - b * a / three + two * a * a * a / real(27);
                 i1 = -w / two;
                 i2 = i1 * i1 + v * v * v / real(27);
@@ -2058,9 +2053,8 @@ struct abstract_integrator<3> {
                         B = -std::pow(std::abs(B), one / three);
                     sigma = A + B - a / three;
 
-                    if (s < sigma || sigma < zero) {
+                    if (s < sigma || sigma < zero)
                         sigma = s;
-                    }
                 } else if (is_zero(i2)) {
                     auto A = i1;
                     if (A > zero)
@@ -2070,21 +2064,19 @@ struct abstract_integrator<3> {
                     auto x1 = two * A - a / three;
                     auto x2 = -(A + a / three);
                     if (x1 < zero) {
-                        if (x2 < zero) {
+                        if (x2 < zero)
                             sigma = time_domain<time>::infinity;
-                        } else {
+                        else
                             sigma = x2;
-                        }
-                    } else if (x2 < zero) {
+                    } else if (x2 < zero)
                         sigma = x1;
-                    } else if (x1 < x2) {
+                    else if (x1 < x2)
                         sigma = x1;
-                    } else {
+                    else
                         sigma = x2;
-                    }
-                    if (s < sigma) {
+
+                    if (s < sigma)
                         sigma = s;
-                    }
                 } else {
                     auto arg = w * std::sqrt(real(27) / (-v)) / (two * v);
                     arg      = std::acos(arg) / three;
@@ -2092,20 +2084,21 @@ struct abstract_integrator<3> {
                     auto y2  = -y1 * std::cos(pi_div_3 - arg) - a / three;
                     auto y3  = -y1 * std::cos(pi_div_3 + arg) - a / three;
                     y1       = y1 * std::cos(arg) - a / three;
-                    if (y1 < zero) {
+                    if (y1 < zero)
                         sigma = time_domain<time>::infinity;
-                    } else if (y3 < zero) {
+                    else if (y3 < zero)
                         sigma = y1;
-                    } else if (y2 < zero) {
+                    else if (y2 < zero)
                         sigma = y3;
-                    } else {
+                    else
                         sigma = y2;
-                    }
-                    if (s < sigma) {
+
+                    if (s < sigma)
                         sigma = s;
-                    }
                 }
             } else {
+                auto s = zero;
+
                 if (not is_zero(a)) {
                     auto x1 = b * b - four * a * c;
                     if (x1 < zero) {
@@ -2115,19 +2108,18 @@ struct abstract_integrator<3> {
                         auto x2 = (-b - x1) / two / a;
                         x1      = (-b + x1) / two / a;
                         if (x1 < zero) {
-                            if (x2 < zero) {
+                            if (x2 < zero)
                                 s = time_domain<time>::infinity;
-                            } else {
+                            else
                                 s = x2;
-                            }
-                        } else if (x2 < zero) {
+                        } else if (x2 < zero)
                             s = x1;
-                        } else if (x1 < x2) {
+                        else if (x1 < x2)
                             s = x1;
-                        } else {
+                        else
                             s = x2;
-                        }
                     }
+
                     c  = c + two * dQ;
                     x1 = b * b - four * a * c;
                     if (x1 < zero) {
@@ -2137,19 +2129,18 @@ struct abstract_integrator<3> {
                         auto x2 = (-b - x1) / two / a;
                         x1      = (-b + x1) / two / a;
                         if (x1 < zero) {
-                            if (x2 < zero) {
+                            if (x2 < zero)
                                 sigma = time_domain<time>::infinity;
-                            } else {
+                            else
                                 sigma = x2;
-                            }
-                        } else if (x2 < zero) {
+                        } else if (x2 < zero)
                             sigma = x1;
-                        } else if (x1 < x2) {
+                        else if (x1 < x2)
                             sigma = x1;
-                        } else {
+                        else
                             sigma = x2;
-                        }
                     }
+
                     if (s < sigma)
                         sigma = s;
                 } else {
@@ -2160,11 +2151,10 @@ struct abstract_integrator<3> {
                             x1 = time_domain<time>::infinity;
                         if (x2 < zero)
                             x2 = time_domain<time>::infinity;
-                        if (x1 < x2) {
+                        if (x1 < x2)
                             sigma = x1;
-                        } else {
+                        else
                             sigma = x2;
-                        }
                     }
                 }
             }
@@ -2178,12 +2168,14 @@ struct abstract_integrator<3> {
 
     status internal() noexcept
     {
-        X = X + u * sigma + (mu * sigma * sigma) / two +
-            (pu * sigma * sigma * sigma) / three;
-        q  = X;
-        u  = u + mu * sigma + pu * std::pow(sigma, two);
+        const auto sigma_2 = sigma * sigma;
+        const auto sigma_3 = sigma_2 * sigma;
+
+        X += u * sigma + (mu * sigma_2) / two + (pu * sigma_3) / three;
+        q = X;
+        u += mu * sigma + pu * sigma_2;
         mq = u;
-        mu = mu + two * pu * sigma;
+        mu += two * pu * sigma;
         pq = mu / two;
 
         sigma = is_zero(pu) ? time_domain<time>::infinity
@@ -2208,35 +2200,39 @@ struct abstract_integrator<3> {
         return success();
     }
 
-    status transition(simulation& sim, time /*t*/, time e, time /*r*/) noexcept
+    status transition(simulation& sim,
+                      time /*t*/,
+                      time                  e,
+                      [[maybe_unused]] time r) noexcept
     {
-        auto* lst_x_dot = sim.messages.try_to_get(x[port_x_dot]);
-        auto* lst_reset = sim.messages.try_to_get(x[port_reset]);
+        const auto* lst_x_dot      = sim.messages.try_to_get(x[port_x_dot]);
+        const auto* lst_reset      = sim.messages.try_to_get(x[port_reset]);
+        const auto  have_x_dot_msg = lst_x_dot and not lst_x_dot->empty();
+        const auto  have_reset_msg = lst_reset and not lst_reset->empty();
+        const auto  have_msg       = have_x_dot_msg or have_reset_msg;
 
-        if ((not lst_x_dot or lst_x_dot->empty()) and
-            (not lst_reset or lst_reset->empty())) {
-            if (auto ret = internal(); !ret)
-                return ret.error();
-        } else {
-            if (lst_reset and not lst_reset->empty()) {
-                if (auto ret = reset(lst_reset->front()); !ret)
-                    return ret.error();
-            } else if (lst_x_dot and not lst_x_dot->empty()) {
-                if (auto ret = external(e, lst_x_dot->front()); !ret)
-                    return ret.error();
-            }
-        }
+        if (not have_msg)
+            return internal();
+
+        if (have_reset_msg)
+            return reset(lst_reset->front());
+
+        if (have_x_dot_msg)
+            return external(e, lst_x_dot->front());
 
         return success();
     }
 
     status lambda(simulation& sim) noexcept
     {
+        const auto sigma_2 = sigma * sigma;
+        const auto sigma_3 = sigma_2 * sigma;
+
         return send_message(sim,
                             y[0],
-                            X + u * sigma + (mu * sigma * sigma) / two +
-                              (pu * sigma * sigma * sigma) / three,
-                            u + mu * sigma + pu * sigma * sigma,
+                            X + u * sigma + (mu * sigma_2) / two +
+                              (pu * sigma_3) / three,
+                            u + mu * sigma + pu * sigma_2,
                             mu / two + pu * sigma);
     }
 
@@ -4238,7 +4234,6 @@ struct abstract_logical {
     {
         values.fill(false);
 
-        AbstractLogicalTester tester{};
         sigma         = time_domain<time>::infinity;
         is_valid      = false;
         value_changed = false;

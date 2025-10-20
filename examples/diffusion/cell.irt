@@ -96,10 +96,6 @@
             "observable": false,
             "type": "qss1_sum_4",
             "dynamics": {
-                "value-0": 0.0,
-                "value-1": 0.0,
-                "value-2": 0.0,
-                "value-3": 0.0
             }
         },
         {
@@ -112,8 +108,6 @@
             "observable": false,
             "type": "qss3_wsum_2",
             "dynamics": {
-                "value-0": 0.0,
-                "value-1": 0.0,
                 "coeff-0": -1.0,
                 "coeff-1": 1.0
             }

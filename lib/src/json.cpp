@@ -914,14 +914,14 @@ struct json_dearchiver::impl {
     {
         auto_stack a(this, "dynamics qss integrator");
 
-        static constexpr std::string_view n[] = { "dQ", "X" };
+        static constexpr std::string_view n[] = { "X", "dQ" };
 
         return for_members(val, n, [&](auto idx, const auto& value) noexcept {
             switch (idx) {
             case 0:
-                return read_real(value, p.reals[qss_integrator_tag::dQ]);
-            case 1:
                 return read_real(value, p.reals[qss_integrator_tag::X]);
+            case 1:
+                return read_real(value, p.reals[qss_integrator_tag::dQ]);
             default:
                 return error("unknown element");
             }
@@ -1480,36 +1480,36 @@ struct json_dearchiver::impl {
         return ret;
     }
 
-    bool read_dynamics(const rapidjson::Value& val,
+    bool read_dynamics(const rapidjson::Value& /*val*/,
                        logical_and_2_tag,
-                       parameter& p) noexcept
+                       parameter& /*p*/) noexcept
     {
         auto_stack a(this, "dynamics logical and 2");
 
         return true;
     }
 
-    bool read_dynamics(const rapidjson::Value& val,
+    bool read_dynamics(const rapidjson::Value& /*val*/,
                        logical_or_2_tag,
-                       parameter& p) noexcept
+                       parameter& /*p*/) noexcept
     {
         auto_stack a(this, "dynamics logical or 2");
 
         return true;
     }
 
-    bool read_dynamics(const rapidjson::Value& val,
+    bool read_dynamics(const rapidjson::Value& /*val*/,
                        logical_and_3_tag,
-                       parameter& p) noexcept
+                       parameter& /*p*/) noexcept
     {
         auto_stack a(this, "dynamics logical and 3");
 
         return true;
     }
 
-    bool read_dynamics(const rapidjson::Value& val,
+    bool read_dynamics(const rapidjson::Value& /*val*/,
                        logical_or_3_tag,
-                       parameter& p) noexcept
+                       parameter& /*p*/) noexcept
     {
         auto_stack a(this, "dynamics logical or 3");
 

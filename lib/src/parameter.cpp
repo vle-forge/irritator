@@ -372,10 +372,11 @@ static void parameter_init(
   const abstract_logical<AbstractLogicalTester, PortNumber>& /*dyn*/) noexcept
 {}
 
-static void model_init(const parameter& param, logical_invert& /*dyn*/) noexcept
+static void model_init(const parameter& /*param*/,
+                       logical_invert& /*dyn*/) noexcept
 {}
 
-static void parameter_init(parameter& param,
+static void parameter_init(parameter& /*param*/,
                            const logical_invert& /*dyn*/) noexcept
 {}
 
