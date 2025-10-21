@@ -717,8 +717,6 @@ enum class dynamics_type : i32 {
     hsm_wrapper
 };
 
-
-
 constexpr i8 dynamics_type_last() noexcept
 {
     return static_cast<i8>(dynamics_type::hsm_wrapper);
@@ -792,8 +790,8 @@ struct parameter {
     source get_dynamic_queue_ta() noexcept;
     source get_priority_queue_ta() noexcept;
 
-    std::array<real, 4> reals;
-    std::array<i64, 4>  integers;
+    std::array<real, 4> reals{};
+    std::array<i64, 4>  integers{};
 };
 
 struct observation {
@@ -4942,38 +4940,45 @@ using qss1_flipflop = abstract_flipflop<1>;
 using qss2_flipflop = abstract_flipflop<2>;
 using qss3_flipflop = abstract_flipflop<3>;
 
-inline real sin_time_function(real t) noexcept
-{
-    constexpr real f0 = to_real(0.1L);
-    constexpr real pi = 3.141592653589793238462643383279502884;
-
-    constexpr const real mult = two * pi * f0;
-
-    return std::sin(mult * t);
-}
-
-inline real square_time_function(real t) noexcept { return t * t; }
-
-inline real time_function(real t) noexcept { return t; }
-
 struct time_func {
     block_node_id y[1] = {};
-    time          sigma;
 
-    real offset   = 0;
-    real timestep = 0.01;
-    real value;
-    real (*f)(real) = nullptr;
+    enum class function_type : u8 { sine, square, linear };
+    constexpr static u8 function_type_count = ordinal(function_type::linear);
+
+    time offset   = 0;
+    time timestep = 0.01;
+    real value    = 0;
+    time sigma;
+
+    function_type function = function_type::linear;
 
     time_func() noexcept = default;
 
     time_func(const time_func& other) noexcept
-      : sigma(other.sigma)
+      : offset(other.offset)
+      , timestep(other.timestep)
       , value(other.value)
-      , f(other.f)
+      , function(other.function)
     {}
 
-    status initialize(simulation& /*sim*/) noexcept
+    real call_function(real t) const noexcept
+    {
+        constexpr real pi = 3.141592653589793238462643383279502884;
+
+        switch (function) {
+        case function_type::sine:
+            return std::sin(two * 0.1 * pi * t);
+        case function_type::square:
+            return t * t;
+        case function_type::linear:
+            return t;
+        default:
+            unreachable();
+        }
+    }
+
+    status initialize(simulation& sim) noexcept
     {
         if (not std::isfinite(offset) or offset < zero)
             return new_error(simulation_errc::time_func_offset_error);
@@ -4981,12 +4986,8 @@ struct time_func {
         if (not std::isfinite(timestep) or timestep <= zero)
             return new_error(simulation_errc::time_func_timestep_error);
 
-        if (not any_equal(
-              f, sin_time_function, square_time_function, time_function))
-            return new_error(simulation_errc::time_func_function_error);
-
         sigma = offset;
-        value = 0.0;
+        value = call_function(sim.current_time());
 
         return success();
     }
@@ -4996,7 +4997,7 @@ struct time_func {
                       time /*e*/,
                       time /*r*/) noexcept
     {
-        value = (*f)(t);
+        value = call_function(t);
         sigma = timestep;
         return success();
     }

@@ -412,25 +412,29 @@ static void model_init(const parameter& param, time_func& dyn) noexcept
 {
     dyn.offset   = param.reals[time_func_tag::offset];
     dyn.timestep = param.reals[time_func_tag::timestep];
-    dyn.f        = param.integers[time_func_tag::i_type] == 0 ? &time_function
-                   : param.integers[time_func_tag::i_type] == 1 ? &square_time_function
-                                                                : &sin_time_function;
+
+    using underlying_type = std::underlying_type_t<time_func::function_type>;
+
+    const auto raw_type = param.integers[time_func_tag::i_type];
+    const auto clamped_type =
+      raw_type < 0 ? 0
+      : raw_type > static_cast<i64>(time_func::function_type_count)
+        ? static_cast<i64>(time_func::function_type_count)
+        : raw_type;
+
+    dyn.function = enum_cast<time_func::function_type>(clamped_type);
 }
 
 static void parameter_init(parameter& param, const time_func& dyn) noexcept
 {
-    param.reals[time_func_tag::offset]   = dyn.offset;
-    param.reals[time_func_tag::timestep] = dyn.timestep;
-
-    param.integers[time_func_tag::i_type] = dyn.f == &time_function ? 0
-                                            : dyn.f == &square_time_function
-                                              ? 1
-                                              : 2;
+    param.reals[time_func_tag::offset]    = dyn.offset;
+    param.reals[time_func_tag::timestep]  = dyn.timestep;
+    param.integers[time_func_tag::i_type] = ordinal(dyn.function);
 }
 
 parameter::parameter(const model& mdl) noexcept
 {
-     (mdl, [&]<typename Dynamics>(const Dynamics& dyn) noexcept {
+    dispatch(mdl, [&]<typename Dynamics>(const Dynamics& dyn) noexcept {
         parameter_init(*this, dyn);
     });
 }

@@ -649,14 +649,14 @@ struct json_dearchiver::impl {
         return true;
     }
 
-    bool copy_string_to(real (*&dst)(real)) noexcept
+    bool copy_string_to(time_func::function_type& fn) noexcept
     {
         if (temp_string == "time"sv)
-            dst = &time_function;
+            fn = time_func::function_type::linear;
         else if (temp_string == "square"sv)
-            dst = &square_time_function;
+            fn = time_func::function_type::square;
         else if (temp_string == "sin"sv)
-            dst = &sin_time_function;
+            fn = time_func::function_type::sine;
         else
             return error("bad function type: {}", temp_string);
 

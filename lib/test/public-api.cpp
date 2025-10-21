@@ -1445,7 +1445,7 @@ int main()
         auto& time_fun = sim.alloc<irt::time_func>();
         auto& cnt      = sim.alloc<irt::counter>();
 
-        get_p(sim, time_fun).set_time_func(timestep, timestep, 2);
+        get_p(sim, time_fun).set_time_func(timestep, timestep, 0);
 
         expect(!!sim.connect_dynamics(time_fun, 0, cnt, 0));
 
