@@ -4881,9 +4881,11 @@ struct json_archiver::impl {
       : self{ self_ }
     {}
 
-    template<typename Writer, std::size_t QssLevel>
+    template<typename Writer>
     void write(Writer& writer,
-               const abstract_integrator<QssLevel>& /*dyn*/,
+               const qss_integrator_tag,
+               const modeling& /*mod*/,
+               const component& /*compo*/,
                const parameter& p) noexcept
     {
         writer.StartObject();
@@ -4894,18 +4896,11 @@ struct json_archiver::impl {
         writer.EndObject();
     }
 
-    template<typename Writer, std::size_t QssLevel>
+    template<typename Writer>
     void write(Writer& writer,
-               const abstract_inverse<QssLevel>& /*dyn*/,
-               const parameter& /*p*/) noexcept
-    {
-        writer.StartObject();
-        writer.EndObject();
-    }
-
-    template<typename Writer, std::size_t QssLevel>
-    void write(Writer& writer,
-               const abstract_multiplier<QssLevel>& /*dyn*/,
+               const qss_invert_tag,
+               const modeling& /*mod*/,
+               const component& /*compo*/,
                const parameter& /*p*/) noexcept
     {
         writer.StartObject();
@@ -4914,7 +4909,9 @@ struct json_archiver::impl {
 
     template<typename Writer>
     void write(Writer& writer,
-               const qss1_sum_2& /*dyn*/,
+               const qss_multiplier_tag,
+               const modeling& /*mod*/,
+               const component& /*compo*/,
                const parameter& /*p*/) noexcept
     {
         writer.StartObject();
@@ -4923,7 +4920,9 @@ struct json_archiver::impl {
 
     template<typename Writer>
     void write(Writer& writer,
-               const qss1_sum_3& /*dyn*/,
+               const qss_sum_2_tag,
+               const modeling& /*mod*/,
+               const component& /*compo*/,
                const parameter& /*p*/) noexcept
     {
         writer.StartObject();
@@ -4932,7 +4931,9 @@ struct json_archiver::impl {
 
     template<typename Writer>
     void write(Writer& writer,
-               const qss1_sum_4& /*dyn*/,
+               const qss_sum_3_tag,
+               const modeling& /*mod*/,
+               const component& /*compo*/,
                const parameter& /*p*/) noexcept
     {
         writer.StartObject();
@@ -4941,7 +4942,20 @@ struct json_archiver::impl {
 
     template<typename Writer>
     void write(Writer& writer,
-               const qss1_wsum_2& /*dyn*/,
+               const qss_sum_4_tag,
+               const modeling& /*mod*/,
+               const component& /*compo*/,
+               const parameter& /*p*/) noexcept
+    {
+        writer.StartObject();
+        writer.EndObject();
+    }
+
+    template<typename Writer>
+    void write(Writer& writer,
+               const qss_wsum_2_tag,
+               const modeling& /*mod*/,
+               const component& /*compo*/,
                const parameter& p) noexcept
     {
         writer.StartObject();
@@ -4956,7 +4970,9 @@ struct json_archiver::impl {
 
     template<typename Writer>
     void write(Writer& writer,
-               const qss1_wsum_3& /*dyn*/,
+               const qss_wsum_3_tag,
+               const modeling& /*mod*/,
+               const component& /*compo*/,
                const parameter& p) noexcept
     {
         writer.StartObject();
@@ -4973,7 +4989,9 @@ struct json_archiver::impl {
 
     template<typename Writer>
     void write(Writer& writer,
-               const qss1_wsum_4& /*dyn*/,
+               const qss_wsum_4_tag,
+               const modeling& /*mod*/,
+               const component& /*compo*/,
                const parameter& p) noexcept
     {
         writer.StartObject();
@@ -4992,7 +5010,9 @@ struct json_archiver::impl {
 
     template<typename Writer>
     void write(Writer& writer,
-               const qss2_sum_2& /*dyn*/,
+               const qss_integer_tag,
+               const modeling& /*mod*/,
+               const component& /*compo*/,
                const parameter& /*p*/) noexcept
     {
         writer.StartObject();
@@ -5001,163 +5021,9 @@ struct json_archiver::impl {
 
     template<typename Writer>
     void write(Writer& writer,
-               const qss2_sum_3& /*dyn*/,
-               const parameter& /*p*/) noexcept
-    {
-        writer.StartObject();
-        writer.EndObject();
-    }
-
-    template<typename Writer>
-    void write(Writer& writer,
-               const qss2_sum_4& /*dyn*/,
-               const parameter& /*p*/) noexcept
-    {
-        writer.StartObject();
-        writer.EndObject();
-    }
-
-    template<typename Writer>
-    void write(Writer& writer,
-               const qss2_wsum_2& /*dyn*/,
-               const parameter& p) noexcept
-    {
-        writer.StartObject();
-
-        writer.Key("coeff-0");
-        writer.Double(p.reals[qss_wsum_2_tag::coeff1]);
-        writer.Key("coeff-1");
-        writer.Double(p.reals[qss_wsum_2_tag::coeff2]);
-
-        writer.EndObject();
-    }
-
-    template<typename Writer>
-    void write(Writer& writer,
-               const qss2_wsum_3& /*dyn*/,
-               const parameter& p) noexcept
-    {
-        writer.StartObject();
-
-        writer.Key("coeff-0");
-        writer.Double(p.reals[qss_wsum_3_tag::coeff1]);
-        writer.Key("coeff-1");
-        writer.Double(p.reals[qss_wsum_3_tag::coeff2]);
-        writer.Key("coeff-2");
-        writer.Double(p.reals[qss_wsum_3_tag::coeff3]);
-
-        writer.EndObject();
-    }
-
-    template<typename Writer>
-    void write(Writer& writer,
-               const qss2_wsum_4& /*dyn*/,
-               const parameter& p) noexcept
-    {
-        writer.StartObject();
-
-        writer.Key("coeff-0");
-        writer.Double(p.reals[qss_wsum_4_tag::coeff1]);
-        writer.Key("coeff-1");
-        writer.Double(p.reals[qss_wsum_4_tag::coeff2]);
-        writer.Key("coeff-2");
-        writer.Double(p.reals[qss_wsum_4_tag::coeff3]);
-        writer.Key("coeff-3");
-        writer.Double(p.reals[qss_wsum_4_tag::coeff4]);
-
-        writer.EndObject();
-    }
-
-    template<typename Writer>
-    void write(Writer& writer,
-               const qss3_sum_2& /*dyn*/,
-               const parameter& /*p*/) noexcept
-    {
-        writer.StartObject();
-        writer.EndObject();
-    }
-
-    template<typename Writer>
-    void write(Writer& writer,
-               const qss3_sum_3& /*dyn*/,
-               const parameter& /*p*/) noexcept
-    {
-        writer.StartObject();
-        writer.EndObject();
-    }
-
-    template<typename Writer>
-    void write(Writer& writer,
-               const qss3_sum_4& /*dyn*/,
-               const parameter& /*p*/) noexcept
-    {
-        writer.StartObject();
-        writer.EndObject();
-    }
-
-    template<typename Writer>
-    void write(Writer& writer,
-               const qss3_wsum_2& /*dyn*/,
-               const parameter& p) noexcept
-    {
-        writer.StartObject();
-
-        writer.Key("coeff-0");
-        writer.Double(p.reals[qss_wsum_2_tag::coeff1]);
-        writer.Key("coeff-1");
-        writer.Double(p.reals[qss_wsum_2_tag::coeff2]);
-
-        writer.EndObject();
-    }
-
-    template<typename Writer>
-    void write(Writer& writer,
-               const qss3_wsum_3& /*dyn*/,
-               const parameter& p) noexcept
-    {
-        writer.StartObject();
-
-        writer.Key("coeff-0");
-        writer.Double(p.reals[qss_wsum_3_tag::coeff1]);
-        writer.Key("coeff-1");
-        writer.Double(p.reals[qss_wsum_3_tag::coeff2]);
-        writer.Key("coeff-2");
-        writer.Double(p.reals[qss_wsum_3_tag::coeff3]);
-
-        writer.EndObject();
-    }
-
-    template<typename Writer>
-    void write(Writer& writer,
-               const qss3_wsum_4& /*dyn*/,
-               const parameter& p) noexcept
-    {
-        writer.StartObject();
-
-        writer.Key("coeff-0");
-        writer.Double(p.reals[qss_wsum_4_tag::coeff1]);
-        writer.Key("coeff-1");
-        writer.Double(p.reals[qss_wsum_4_tag::coeff2]);
-        writer.Key("coeff-2");
-        writer.Double(p.reals[qss_wsum_4_tag::coeff3]);
-        writer.Key("coeff-3");
-        writer.Double(p.reals[qss_wsum_4_tag::coeff4]);
-
-        writer.EndObject();
-    }
-
-    template<typename Writer, sz QssLevel>
-    void write(Writer& writer,
-               const abstract_integer<QssLevel>& /*dyn*/,
-               const parameter& /*p*/) noexcept
-    {
-        writer.StartObject();
-        writer.EndObject();
-    }
-
-    template<typename Writer, sz QssLevel>
-    void write(Writer& writer,
-               const abstract_compare<QssLevel>& /*dyn*/,
+               const qss_compare_tag,
+               const modeling& /*mod*/,
+               const component& /*compo*/,
                const parameter& p) noexcept
     {
         writer.StartObject();
@@ -5168,36 +5034,11 @@ struct json_archiver::impl {
         writer.EndObject();
     }
 
-    template<typename Writer, sz QssLevel>
+    template<typename Writer>
     void write(Writer& writer,
-               const abstract_sin<QssLevel>& /*dyn*/,
-               const parameter& /*p*/) noexcept
-    {
-        writer.StartObject();
-        writer.EndObject();
-    }
-
-    template<typename Writer, sz QssLevel>
-    void write(Writer& writer,
-               const abstract_cos<QssLevel>& /*dyn*/,
-               const parameter& /*p*/) noexcept
-    {
-        writer.StartObject();
-        writer.EndObject();
-    }
-
-    template<typename Writer, sz QssLevel>
-    void write(Writer& writer,
-               const abstract_log<QssLevel>& /*dyn*/,
-               const parameter& /*p*/) noexcept
-    {
-        writer.StartObject();
-        writer.EndObject();
-    }
-
-    template<typename Writer, sz QssLevel>
-    void write(Writer& writer,
-               const abstract_exp<QssLevel>& /*dyn*/,
+               const qss_sin_tag,
+               const modeling& /*mod*/,
+               const component& /*compo*/,
                const parameter& /*p*/) noexcept
     {
         writer.StartObject();
@@ -5206,7 +5047,9 @@ struct json_archiver::impl {
 
     template<typename Writer>
     void write(Writer& writer,
-               const counter& /*dyn*/,
+               const qss_cos_tag,
+               const modeling& /*mod*/,
+               const component& /*compo*/,
                const parameter& /*p*/) noexcept
     {
         writer.StartObject();
@@ -5215,7 +5058,42 @@ struct json_archiver::impl {
 
     template<typename Writer>
     void write(Writer& writer,
-               const queue& /*dyn*/,
+               const qss_log_tag,
+               const modeling& /*mod*/,
+               const component& /*compo*/,
+               const parameter& /*p*/) noexcept
+    {
+        writer.StartObject();
+        writer.EndObject();
+    }
+
+    template<typename Writer>
+    void write(Writer& writer,
+               const qss_exp_tag,
+               const modeling& /*mod*/,
+               const component& /*compo*/,
+               const parameter& /*p*/) noexcept
+    {
+        writer.StartObject();
+        writer.EndObject();
+    }
+
+    template<typename Writer>
+    void write(Writer& writer,
+               const counter_tag,
+               const modeling& /*mod*/,
+               const component& /*compo*/,
+               const parameter& /*p*/) noexcept
+    {
+        writer.StartObject();
+        writer.EndObject();
+    }
+
+    template<typename Writer>
+    void write(Writer& writer,
+               const queue_tag,
+               const modeling& /*mod*/,
+               const component& /*compo*/,
                const parameter& p) noexcept
     {
         writer.StartObject();
@@ -5226,7 +5104,9 @@ struct json_archiver::impl {
 
     template<typename Writer>
     void write(Writer& writer,
-               const dynamic_queue& /*dyn*/,
+               const dynamic_queue_tag,
+               const modeling& /*mod*/,
+               const component& /*compo*/,
                const parameter& p) noexcept
     {
         const auto [type, id] =
@@ -5242,7 +5122,9 @@ struct json_archiver::impl {
 
     template<typename Writer>
     void write(Writer& writer,
-               const priority_queue& /*dyn*/,
+               const priority_queue_tag,
+               const modeling& /*mod*/,
+               const component& /*compo*/,
                const parameter& p) noexcept
     {
         const auto [type, id] =
@@ -5258,7 +5140,9 @@ struct json_archiver::impl {
 
     template<typename Writer>
     void write(Writer& writer,
-               const generator& /*dyn*/,
+               const generator_tag,
+               const modeling& /*mod*/,
+               const component& /*compo*/,
                const parameter& p) noexcept
     {
         const auto options = to_unsigned(p.integers[generator_tag::i_options]);
@@ -5295,23 +5179,9 @@ struct json_archiver::impl {
 
     template<typename Writer>
     void write(Writer& writer,
-               const constant& /*dyn*/,
-               const parameter& p) noexcept
-    {
-        writer.StartObject();
-
-        writer.Key("value");
-        writer.Double(p.reals[constant_tag::value]);
-        writer.Key("offset");
-        writer.Double(p.reals[constant_tag::offset]);
-
-        writer.EndObject();
-    }
-
-    template<typename Writer>
-    void write(Writer&          writer,
-               const component& c,
-               const constant& /*dyn*/,
+               const constant_tag,
+               const modeling& /*mod*/,
+               const component& compo,
                const parameter& p) noexcept
     {
         writer.StartObject();
@@ -5343,8 +5213,8 @@ struct json_archiver::impl {
 
             const auto port =
               enum_cast<port_id>(p.integers[constant_tag::i_port]);
-            if (c.x.exists(port)) {
-                const auto& str = c.x.get<port_str>(port);
+            if (compo.x.exists(port)) {
+                const auto& str = compo.x.get<port_str>(port);
                 writer.String(str.c_str());
             } else {
                 writer.String("");
@@ -5356,8 +5226,8 @@ struct json_archiver::impl {
 
             const auto port =
               enum_cast<port_id>(p.integers[constant_tag::i_port]);
-            if (c.y.exists(port)) {
-                const auto& str = c.y.get<port_str>(port);
+            if (compo.y.exists(port)) {
+                const auto& str = compo.y.get<port_str>(port);
                 writer.String(str.c_str());
             } else {
                 writer.String("");
@@ -5370,7 +5240,9 @@ struct json_archiver::impl {
 
     template<typename Writer>
     void write(Writer& writer,
-               const qss1_cross& /*dyn*/,
+               const qss_cross_tag,
+               const modeling& /*mod*/,
+               const component& /*compo*/,
                const parameter& p) noexcept
     {
         writer.StartObject();
@@ -5385,37 +5257,9 @@ struct json_archiver::impl {
 
     template<typename Writer>
     void write(Writer& writer,
-               const qss2_cross& /*dyn*/,
-               const parameter& p) noexcept
-    {
-        writer.StartObject();
-        writer.Key("threshold");
-        writer.Double(p.reals[qss_cross_tag::threshold]);
-        writer.Key("up");
-        writer.Double(p.reals[qss_cross_tag::up_value]);
-        writer.Key("bottom");
-        writer.Double(p.reals[qss_cross_tag::bottom_value]);
-        writer.EndObject();
-    }
-
-    template<typename Writer>
-    void write(Writer& writer,
-               const qss3_cross& /*dyn*/,
-               const parameter& p) noexcept
-    {
-        writer.StartObject();
-        writer.Key("threshold");
-        writer.Double(p.reals[qss_cross_tag::threshold]);
-        writer.Key("up");
-        writer.Double(p.reals[qss_cross_tag::up_value]);
-        writer.Key("bottom");
-        writer.Double(p.reals[qss_cross_tag::bottom_value]);
-        writer.EndObject();
-    }
-
-    template<typename Writer>
-    void write(Writer& writer,
-               const qss1_flipflop& /*dyn*/,
+               const qss_flipflop_tag,
+               const modeling& /*mod*/,
+               const component& /*compo*/,
                const parameter& /*p*/) noexcept
     {
         writer.StartObject();
@@ -5424,25 +5268,9 @@ struct json_archiver::impl {
 
     template<typename Writer>
     void write(Writer& writer,
-               const qss2_flipflop& /*dyn*/,
-               const parameter& /*p*/) noexcept
-    {
-        writer.StartObject();
-        writer.EndObject();
-    }
-
-    template<typename Writer>
-    void write(Writer& writer,
-               const qss3_flipflop& /*dyn*/,
-               const parameter& /*p*/) noexcept
-    {
-        writer.StartObject();
-        writer.EndObject();
-    }
-
-    template<typename Writer>
-    void write(Writer& writer,
-               const qss1_filter& /*dyn*/,
+               const qss_filter_tag,
+               const modeling& /*mod*/,
+               const component& /*compo*/,
                const parameter& p) noexcept
     {
         writer.StartObject();
@@ -5455,33 +5283,9 @@ struct json_archiver::impl {
 
     template<typename Writer>
     void write(Writer& writer,
-               const qss2_filter& /*dyn*/,
-               const parameter& p) noexcept
-    {
-        writer.StartObject();
-        writer.Key("lower-threshold");
-        writer.Double(p.reals[qss_filter_tag::lower_bound]);
-        writer.Key("upper-threshold");
-        writer.Double(p.reals[qss_filter_tag::upper_bound]);
-        writer.EndObject();
-    }
-
-    template<typename Writer>
-    void write(Writer& writer,
-               const qss3_filter& /*dyn*/,
-               const parameter& p) noexcept
-    {
-        writer.StartObject();
-        writer.Key("lower-threshold");
-        writer.Double(p.reals[qss_filter_tag::lower_bound]);
-        writer.Key("upper-threshold");
-        writer.Double(p.reals[qss_filter_tag::upper_bound]);
-        writer.EndObject();
-    }
-
-    template<typename Writer>
-    void write(Writer& writer,
-               const qss1_power& /*dyn*/,
+               const qss_power_tag,
+               const modeling& /*mod*/,
+               const component& /*compo*/,
                const parameter& p) noexcept
     {
         writer.StartObject();
@@ -5492,38 +5296,9 @@ struct json_archiver::impl {
 
     template<typename Writer>
     void write(Writer& writer,
-               const qss2_power& /*dyn*/,
-               const parameter& p) noexcept
-    {
-        writer.StartObject();
-        writer.Key("n");
-        writer.Double(p.reals[qss_power_tag::exponent]);
-        writer.EndObject();
-    }
-
-    template<typename Writer>
-    void write(Writer& writer,
-               const qss3_power& /*dyn*/,
-               const parameter& p) noexcept
-    {
-        writer.StartObject();
-        writer.Key("n");
-        writer.Double(p.reals[qss_power_tag::exponent]);
-        writer.EndObject();
-    }
-
-    template<typename Writer, std::size_t QssLevel>
-    void write(Writer& writer,
-               const abstract_square<QssLevel>& /*dyn*/,
-               const parameter& /*p*/) noexcept
-    {
-        writer.StartObject();
-        writer.EndObject();
-    }
-
-    template<typename Writer, std::size_t PortNumber>
-    void write(Writer& writer,
-               const accumulator<PortNumber>& /*dyn*/,
+               const qss_square_tag,
+               const modeling& /*mod*/,
+               const component& /*compo*/,
                const parameter& /*p*/) noexcept
     {
         writer.StartObject();
@@ -5532,7 +5307,20 @@ struct json_archiver::impl {
 
     template<typename Writer>
     void write(Writer& writer,
-               const time_func& /*dyn*/,
+               const accumulator_2_tag,
+               const modeling& /*mod*/,
+               const component& /*compo*/,
+               const parameter& /*p*/) noexcept
+    {
+        writer.StartObject();
+        writer.EndObject();
+    }
+
+    template<typename Writer>
+    void write(Writer& writer,
+               const time_func_tag,
+               const modeling& /*mod*/,
+               const component& /*compo*/,
                const parameter& p) noexcept
     {
         writer.StartObject();
@@ -5549,7 +5337,9 @@ struct json_archiver::impl {
 
     template<typename Writer>
     void write(Writer& writer,
-               const logical_and_2& /*dyn*/,
+               const logical_and_2_tag,
+               const modeling& /*mod*/,
+               const component& /*compo*/,
                const parameter& /*p*/) noexcept
     {
         writer.StartObject();
@@ -5558,7 +5348,9 @@ struct json_archiver::impl {
 
     template<typename Writer>
     void write(Writer& writer,
-               const logical_and_3& /*dyn*/,
+               const logical_and_3_tag,
+               const modeling& /*mod*/,
+               const component& /*compo*/,
                const parameter& /*p*/) noexcept
     {
         writer.StartObject();
@@ -5567,7 +5359,9 @@ struct json_archiver::impl {
 
     template<typename Writer>
     void write(Writer& writer,
-               const logical_or_2& /*dyn*/,
+               const logical_or_2_tag,
+               const modeling& /*mod*/,
+               const component& /*compo*/,
                const parameter& /*p*/) noexcept
     {
         writer.StartObject();
@@ -5576,7 +5370,9 @@ struct json_archiver::impl {
 
     template<typename Writer>
     void write(Writer& writer,
-               const logical_or_3& /*dyn*/,
+               const logical_or_3_tag,
+               const modeling& /*mod*/,
+               const component& /*compo*/,
                const parameter& /*p*/) noexcept
     {
         writer.StartObject();
@@ -5585,7 +5381,9 @@ struct json_archiver::impl {
 
     template<typename Writer>
     void write(Writer& writer,
-               const logical_invert& /*dyn*/,
+               const logical_invert_tag,
+               const modeling& /*mod*/,
+               const component& /*compo*/,
                const parameter& /*p*/) noexcept
     {
         writer.StartObject();
@@ -5593,10 +5391,11 @@ struct json_archiver::impl {
     }
 
     template<typename Writer>
-    void write_modeling_dynamics(const modeling& mod,
-                                 Writer&         writer,
-                                 const hsm_wrapper& /*dyn*/,
-                                 const parameter& p) noexcept
+    void write(Writer& writer,
+               const hsm_wrapper_tag,
+               const modeling& mod,
+               const component& /*compo*/,
+               const parameter& p) noexcept
     {
         writer.StartObject();
 
@@ -5605,7 +5404,8 @@ struct json_archiver::impl {
 
         const auto id =
           enum_cast<component_id>(p.integers[hsm_wrapper_tag::id]);
-        auto* c = mod.components.try_to_get<component>(id);
+        const auto* c = mod.components.try_to_get<component>(id);
+
         if (c)
             write_child_component_path(mod, *c, writer);
 
@@ -6036,25 +5836,25 @@ struct json_archiver::impl {
         }
     }
 
-    template<typename Writer>
-    void write_child_model(const modeling&  mod,
-                           const component& compo,
-                           model&           mdl,
-                           const parameter& p,
-                           Writer&          w) noexcept
-    {
-        w.Key("dynamics");
+    // template<typename Writer>
+    // void write_child_model(const modeling&  mod,
+    //                        const component& compo,
+    //                        model&           mdl,
+    //                        const parameter& p,
+    //                        Writer&          w) noexcept
+    //{
+    //     w.Key("dynamics");
 
-        dispatch(mdl, [&]<typename Dynamics>(Dynamics& dyn) noexcept {
-            if constexpr (std::is_same_v<Dynamics, hsm_wrapper>) {
-                write_modeling_dynamics(mod, w, dyn, p);
-            } else if constexpr (std::is_same_v<Dynamics, constant>) {
-                write(w, compo, dyn, p);
-            } else {
-                write(w, dyn, p);
-            }
-        });
-    }
+    //    dispatch(mdl, [&]<typename Dynamics>(Dynamics& dyn) noexcept {
+    //        if constexpr (std::is_same_v<Dynamics, hsm_wrapper>) {
+    //            write_modeling_dynamics(mod, w, dyn, p);
+    //        } else if constexpr (std::is_same_v<Dynamics, constant>) {
+    //            write(w, compo, dyn, p);
+    //        } else {
+    //            write(w, dyn, p);
+    //        }
+    //    });
+    //}
 
     template<typename Writer>
     void write_connection_packs(const modeling&  mod,
@@ -6137,18 +5937,26 @@ struct json_archiver::impl {
                 write_child_component(mod, compo_id, w);
             }
         } else {
-            model mdl;
-            mdl.type = ch.id.mdl_type;
-
-            dispatch(mdl, [&]<typename Dynamics>(Dynamics& dyn) -> void {
-                std::construct_at<Dynamics>(&dyn);
-            });
+            const auto  type  = ch.id.mdl_type;
+            const auto& param = gen.children_parameters[child_idx];
 
             w.Key("type");
-            w.String(dynamics_type_names[ordinal(ch.id.mdl_type)]);
+            w.String(dynamics_type_names[ordinal(type)]);
 
-            write_child_model(
-              mod, compo, mdl, gen.children_parameters[child_idx], w);
+            w.Key("dynamics");
+            dispatch(
+              ch.id.mdl_type,
+              [&]<typename Tag>(const Tag tag,
+                                auto&     mod,
+                                auto&     compo,
+                                auto&     param,
+                                auto&     w) noexcept {
+                  write(w, tag, mod, compo, param);
+              },
+              mod,
+              compo,
+              param,
+              w);
         }
 
         w.EndObject();

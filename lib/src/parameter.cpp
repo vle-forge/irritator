@@ -430,7 +430,7 @@ static void parameter_init(parameter& param, const time_func& dyn) noexcept
 
 parameter::parameter(const model& mdl) noexcept
 {
-    dispatch(mdl, [&]<typename Dynamics>(const Dynamics& dyn) noexcept {
+     (mdl, [&]<typename Dynamics>(const Dynamics& dyn) noexcept {
         parameter_init(*this, dyn);
     });
 }
