@@ -48,7 +48,7 @@ struct qss_wsum_4_tag {
     enum parameter_names : u8 { coeff1 = 0, coeff2, coeff3, coeff4 };
 };
 
-struct qss_invert_tag {};
+struct qss_inverse_tag {};
 struct qss_integer_tag {};
 struct qss_compare_tag {
     enum parameter_names : u8 { equal = 0, not_equal };
@@ -207,7 +207,7 @@ constexpr auto dispatch(const dynamics_type type,
     case dynamics_type::qss2_inverse:
     case dynamics_type::qss3_inverse:
         return std::invoke(std::forward<Function>(f),
-                           qss_invert_tag{},
+                           qss_inverse_tag{},
                            std::forward<Args>(args)...);
 
     case dynamics_type::qss1_integer:

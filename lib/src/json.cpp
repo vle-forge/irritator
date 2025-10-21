@@ -1038,7 +1038,7 @@ struct json_dearchiver::impl {
     }
 
     bool read_dynamics(const rapidjson::Value& /*val*/,
-                       qss_invert_tag,
+                       qss_inverse_tag,
                        parameter& /*p*/) noexcept
     {
         auto_stack a(this, "dynamics invert function");
@@ -4898,7 +4898,7 @@ struct json_archiver::impl {
 
     template<typename Writer>
     void write(Writer& writer,
-               const qss_invert_tag,
+               const qss_inverse_tag,
                const modeling& /*mod*/,
                const component& /*compo*/,
                const parameter& /*p*/) noexcept

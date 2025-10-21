@@ -524,7 +524,7 @@ bool show_extented_constant_parameter(const modeling&    mod,
     return ret;
 }
 
-static bool show_parameter(qss_invert_tag,
+static bool show_parameter(qss_inverse_tag,
                            application& /*app*/,
                            external_source& /*srcs*/,
                            parameter& /*p*/) noexcept
