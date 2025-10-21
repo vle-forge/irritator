@@ -13,6 +13,307 @@
 
 namespace irt {
 
+struct qss_integrator_tag {
+    enum parameter_names : u8 { X = 0, dQ };
+};
+
+struct qss_cross_tag {
+    enum parameter_names : u8 { threshold, up_value, bottom_value };
+};
+
+struct qss_multiplier_tag {};
+struct qss_flipflop_tag {};
+struct qss_filter_tag {
+    enum parameter_names : u8 { lower_bound = 0, upper_bound };
+};
+
+struct qss_power_tag {
+    enum parameter_names : u8 { exponent = 0 };
+};
+
+struct qss_square_tag {};
+struct qss_sum_2_tag {};
+struct qss_sum_3_tag {};
+struct qss_sum_4_tag {};
+
+struct qss_wsum_2_tag {
+    enum parameter_names : u8 { coeff1 = 0, coeff2 };
+};
+
+struct qss_wsum_3_tag {
+    enum parameter_names : u8 { coeff1 = 0, coeff2, coeff3 };
+};
+
+struct qss_wsum_4_tag {
+    enum parameter_names : u8 { coeff1 = 0, coeff2, coeff3, coeff4 };
+};
+
+struct qss_invert_tag {};
+struct qss_integer_tag {};
+struct qss_compare_tag {
+    enum parameter_names : u8 { equal = 0, not_equal };
+};
+struct qss_sin_tag {};
+struct qss_cos_tag {};
+struct qss_exp_tag {};
+struct qss_log_tag {};
+struct counter_tag {};
+struct queue_tag {
+    enum parameter_names : u8 { sigma = 0 };
+};
+
+struct dynamic_queue_tag {
+    enum parameter_names : u8 { source_ta = 0 };
+};
+
+struct priority_queue_tag {
+    enum parameter_names : u8 { sigma = 0, source_ta = 0 };
+};
+
+struct generator_tag {
+    enum parameter_names : u8 { i_options = 0, source_ta, source_value };
+};
+
+struct constant_tag {
+    enum parameter_names : u8 { value = 0, offset, i_type = 0, i_port };
+};
+
+struct time_func_tag {
+    enum parameter_names : u8 { offset = 0, timestep, i_type = 0 };
+};
+struct accumulator_2_tag {};
+struct logical_and_2_tag {};
+struct logical_and_3_tag {};
+struct logical_or_2_tag {};
+struct logical_or_3_tag {};
+struct logical_invert_tag {};
+struct hsm_wrapper_tag {
+    enum parameter_names : u8 {
+        r1 = 0,
+        r2,
+        timer,
+        id = 0,
+        i1,
+        i2,
+        source_value
+    };
+};
+
+/** Dispatch the callable @c f with @c args argument according to @c type.
+ *
+ * This function is useful to: (1) avoid using dynamic polymorphism (i.e.,
+ * virtual) based on the @c dynamics_type variables and to (2) provide the
+ * same source code for same dynamics type like abstract classes.
+ *
+ * @param type
+ * @param f
+ * @param args
+ *
+ * @verbatim
+ * dispatch(mdl.type, []<typename Tag>(
+ *     const Tag t, const float x, const float y) -> bool {
+ *         if constexpr(std::is_same_v(t, hsm_wrapper_tag)) {
+ *             // todo
+ *         }
+ *     }));
+ * @endverbatim
+ */
+template<typename Function, typename... Args>
+constexpr auto dispatch(const dynamics_type type,
+                        Function&&          f,
+                        Args&&... args) noexcept
+{
+    switch (type) {
+    case dynamics_type::qss1_integrator:
+    case dynamics_type::qss2_integrator:
+    case dynamics_type::qss3_integrator:
+        return std::invoke(std::forward<Function>(f),
+                           qss_integrator_tag{},
+                           std::forward<Args>(args)...);
+    case dynamics_type::qss1_multiplier:
+    case dynamics_type::qss2_multiplier:
+    case dynamics_type::qss3_multiplier:
+        return std::invoke(std::forward<Function>(f),
+                           qss_multiplier_tag{},
+                           std::forward<Args>(args)...);
+    case dynamics_type::qss1_cross:
+    case dynamics_type::qss2_cross:
+    case dynamics_type::qss3_cross:
+        return std::invoke(std::forward<Function>(f),
+                           qss_cross_tag{},
+                           std::forward<Args>(args)...);
+    case dynamics_type::qss1_flipflop:
+    case dynamics_type::qss2_flipflop:
+    case dynamics_type::qss3_flipflop:
+        return std::invoke(std::forward<Function>(f),
+                           qss_flipflop_tag{},
+                           std::forward<Args>(args)...);
+    case dynamics_type::qss1_filter:
+    case dynamics_type::qss2_filter:
+    case dynamics_type::qss3_filter:
+        return std::invoke(std::forward<Function>(f),
+                           qss_filter_tag{},
+                           std::forward<Args>(args)...);
+    case dynamics_type::qss1_power:
+    case dynamics_type::qss2_power:
+    case dynamics_type::qss3_power:
+        return std::invoke(std::forward<Function>(f),
+                           qss_power_tag{},
+                           std::forward<Args>(args)...);
+    case dynamics_type::qss1_square:
+    case dynamics_type::qss2_square:
+    case dynamics_type::qss3_square:
+        return std::invoke(std::forward<Function>(f),
+                           qss_square_tag{},
+                           std::forward<Args>(args)...);
+    case dynamics_type::qss1_sum_2:
+    case dynamics_type::qss2_sum_2:
+    case dynamics_type::qss3_sum_2:
+        return std::invoke(std::forward<Function>(f),
+                           qss_sum_2_tag{},
+                           std::forward<Args>(args)...);
+    case dynamics_type::qss1_sum_3:
+    case dynamics_type::qss2_sum_3:
+    case dynamics_type::qss3_sum_3:
+        return std::invoke(std::forward<Function>(f),
+                           qss_sum_3_tag{},
+                           std::forward<Args>(args)...);
+    case dynamics_type::qss1_sum_4:
+    case dynamics_type::qss2_sum_4:
+    case dynamics_type::qss3_sum_4:
+        return std::invoke(std::forward<Function>(f),
+                           qss_sum_4_tag{},
+                           std::forward<Args>(args)...);
+    case dynamics_type::qss1_wsum_2:
+    case dynamics_type::qss2_wsum_2:
+    case dynamics_type::qss3_wsum_2:
+        return std::invoke(std::forward<Function>(f),
+                           qss_wsum_2_tag{},
+                           std::forward<Args>(args)...);
+    case dynamics_type::qss1_wsum_3:
+    case dynamics_type::qss2_wsum_3:
+    case dynamics_type::qss3_wsum_3:
+        return std::invoke(std::forward<Function>(f),
+                           qss_wsum_3_tag{},
+                           std::forward<Args>(args)...);
+    case dynamics_type::qss1_wsum_4:
+    case dynamics_type::qss2_wsum_4:
+    case dynamics_type::qss3_wsum_4:
+        return std::invoke(std::forward<Function>(f),
+                           qss_wsum_4_tag{},
+                           std::forward<Args>(args)...);
+
+    case dynamics_type::qss1_inverse:
+    case dynamics_type::qss2_inverse:
+    case dynamics_type::qss3_inverse:
+        return std::invoke(std::forward<Function>(f),
+                           qss_invert_tag{},
+                           std::forward<Args>(args)...);
+
+    case dynamics_type::qss1_integer:
+    case dynamics_type::qss2_integer:
+    case dynamics_type::qss3_integer:
+        return std::invoke(std::forward<Function>(f),
+                           qss_integer_tag{},
+                           std::forward<Args>(args)...);
+
+    case dynamics_type::qss1_compare:
+    case dynamics_type::qss2_compare:
+    case dynamics_type::qss3_compare:
+        return std::invoke(std::forward<Function>(f),
+                           qss_compare_tag{},
+                           std::forward<Args>(args)...);
+
+    case dynamics_type::qss1_sin:
+    case dynamics_type::qss2_sin:
+    case dynamics_type::qss3_sin:
+        return std::invoke(std::forward<Function>(f),
+                           qss_sin_tag{},
+                           std::forward<Args>(args)...);
+
+    case dynamics_type::qss1_cos:
+    case dynamics_type::qss2_cos:
+    case dynamics_type::qss3_cos:
+        return std::invoke(std::forward<Function>(f),
+                           qss_cos_tag{},
+                           std::forward<Args>(args)...);
+
+    case dynamics_type::qss1_log:
+    case dynamics_type::qss2_log:
+    case dynamics_type::qss3_log:
+        return std::invoke(std::forward<Function>(f),
+                           qss_log_tag{},
+                           std::forward<Args>(args)...);
+
+    case dynamics_type::qss1_exp:
+    case dynamics_type::qss2_exp:
+    case dynamics_type::qss3_exp:
+        return std::invoke(std::forward<Function>(f),
+                           qss_exp_tag{},
+                           std::forward<Args>(args)...);
+
+    case dynamics_type::counter:
+        return std::invoke(std::forward<Function>(f),
+                           counter_tag{},
+                           std::forward<Args>(args)...);
+    case dynamics_type::queue:
+        return std::invoke(
+          std::forward<Function>(f), queue_tag{}, std::forward<Args>(args)...);
+    case dynamics_type::dynamic_queue:
+        return std::invoke(std::forward<Function>(f),
+                           dynamic_queue_tag{},
+                           std::forward<Args>(args)...);
+    case dynamics_type::priority_queue:
+        return std::invoke(std::forward<Function>(f),
+                           priority_queue_tag{},
+                           std::forward<Args>(args)...);
+    case dynamics_type::generator:
+        return std::invoke(std::forward<Function>(f),
+                           generator_tag{},
+                           std::forward<Args>(args)...);
+    case dynamics_type::constant:
+        return std::invoke(std::forward<Function>(f),
+                           constant_tag{},
+                           std::forward<Args>(args)...);
+    case dynamics_type::accumulator_2:
+        return std::invoke(std::forward<Function>(f),
+                           accumulator_2_tag{},
+                           std::forward<Args>(args)...);
+    case dynamics_type::time_func:
+        return std::invoke(std::forward<Function>(f),
+                           time_func_tag{},
+                           std::forward<Args>(args)...);
+
+    case dynamics_type::logical_and_2:
+        return std::invoke(std::forward<Function>(f),
+                           logical_and_2_tag{},
+                           std::forward<Args>(args)...);
+    case dynamics_type::logical_and_3:
+        return std::invoke(std::forward<Function>(f),
+                           logical_and_3_tag{},
+                           std::forward<Args>(args)...);
+    case dynamics_type::logical_or_2:
+        return std::invoke(std::forward<Function>(f),
+                           logical_or_2_tag{},
+                           std::forward<Args>(args)...);
+    case dynamics_type::logical_or_3:
+        return std::invoke(std::forward<Function>(f),
+                           logical_or_3_tag{},
+                           std::forward<Args>(args)...);
+    case dynamics_type::logical_invert:
+        return std::invoke(std::forward<Function>(f),
+                           logical_invert_tag{},
+                           std::forward<Args>(args)...);
+
+    case dynamics_type::hsm_wrapper:
+        return std::invoke(std::forward<Function>(f),
+                           hsm_wrapper_tag{},
+                           std::forward<Args>(args)...);
+    }
+
+    unreachable();
+}
+
 template<typename T>
     requires std::integral<T> or std::floating_point<T>
 class bounded_value
