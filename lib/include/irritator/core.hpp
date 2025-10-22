@@ -762,7 +762,13 @@ struct parameter {
     parameter& clear() noexcept;
 
     parameter& set_constant(real value, real offset) noexcept;
-    parameter& set_cross(real threshold) noexcept;
+    parameter& set_cross(real threshold,
+                         real up_value   = one,
+                         real down_value = one) noexcept;
+    parameter& set_filter(real lower_bound, real upper_bound) noexcept;
+    parameter& set_compare(real equal, real not_equal) noexcept;
+
+    parameter& set_power(real expoonent) noexcept;
     parameter& set_integrator(real X, real dQ) noexcept;
     parameter& set_time_func(real offset, real timestep, int type) noexcept;
     parameter& set_wsum2(real coeff1, real coeff2) noexcept;
@@ -777,6 +783,8 @@ struct parameter {
                                real r1,
                                real r2,
                                real timer) noexcept;
+    parameter& set_queue(real sigma) noexcept;
+    parameter& set_priority_queue(real sigma) noexcept;
 
     parameter& set_generator_ta(const source& src) noexcept;
     parameter& set_generator_value(const source& src) noexcept;

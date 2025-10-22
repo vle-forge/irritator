@@ -461,56 +461,55 @@ void parameter::init_from(const dynamics_type type) noexcept
 {
     clear();
 
-    if (any_equal(type,
-                  dynamics_type::qss1_integrator,
-                  dynamics_type::qss2_integrator,
-                  dynamics_type::qss3_integrator)) {
-        reals[qss_integrator_tag::X]  = zero;
-        reals[qss_integrator_tag::dQ] = 0.01;
-    } else if (any_equal(type,
-                         dynamics_type::qss1_power,
-                         dynamics_type::qss2_power,
-                         dynamics_type::qss3_power)) {
-        reals[qss_power_tag::exponent] = 1.0;
-    } else if (any_equal(type,
-                         dynamics_type::qss1_filter,
-                         dynamics_type::qss2_filter,
-                         dynamics_type::qss3_filter)) {
-        reals[qss_filter_tag::lower_bound] =
-          -std::numeric_limits<real>::infinity();
-        reals[qss_filter_tag::upper_bound] =
-          +std::numeric_limits<real>::infinity();
-    } else if (any_equal(type,
-                         dynamics_type::qss1_cross,
-                         dynamics_type::qss2_cross,
-                         dynamics_type::qss3_cross)) {
-        reals[qss_cross_tag::threshold]    = zero;
-        reals[qss_cross_tag::up_value]     = one;
-        reals[qss_cross_tag::bottom_value] = one;
-    } else if (any_equal(type,
-                         dynamics_type::qss1_wsum_2,
-                         dynamics_type::qss1_wsum_3,
-                         dynamics_type::qss1_wsum_4,
-                         dynamics_type::qss2_wsum_2,
-                         dynamics_type::qss2_wsum_3,
-                         dynamics_type::qss2_wsum_4,
-                         dynamics_type::qss3_wsum_2,
-                         dynamics_type::qss3_wsum_3,
-                         dynamics_type::qss3_wsum_4)) {
-        reals.fill(one);
-    } else if (any_equal(type,
-                         dynamics_type::qss1_compare,
-                         dynamics_type::qss2_compare,
-                         dynamics_type::qss3_compare)) {
-        reals[qss_compare_tag::equal]     = one;
-        reals[qss_compare_tag::not_equal] = one;
-    } else if (any_equal(type, dynamics_type::time_func)) {
-        reals[time_func_tag::timestep] = 0.01;
-    } else if (any_equal(type, dynamics_type::priority_queue)) {
-        reals[priority_queue_tag::sigma] = 1.0;
-    } else if (any_equal(type, dynamics_type::queue)) {
-        reals[queue_tag::sigma] = 1.0;
-    }
+    dispatch(
+      type,
+      []<typename Tag>(const Tag, [[maybe_unused]] parameter& param) noexcept {
+          if constexpr (std::is_same_v<Tag, qss_integrator_tag>) {
+              param.set_integrator(zero, 0.01);
+          }
+
+          if constexpr (std::is_same_v<Tag, qss_power_tag>) {
+              param.set_power(1.0);
+          }
+
+          if constexpr (std::is_same_v<Tag, qss_filter_tag>) {
+              param.set_filter(-std::numeric_limits<real>::infinity(),
+                               +std::numeric_limits<real>::infinity());
+          }
+
+          if constexpr (std::is_same_v<Tag, qss_cross_tag>) {
+              param.set_cross(zero, one, one);
+          }
+
+          if constexpr (std::is_same_v<Tag, qss_wsum_2_tag>) {
+              param.set_wsum2(one, one);
+          }
+
+          if constexpr (std::is_same_v<Tag, qss_wsum_3_tag>) {
+              param.set_wsum3(one, one, one);
+          }
+
+          if constexpr (std::is_same_v<Tag, qss_wsum_4_tag>) {
+              param.set_wsum4(one, one, one, one);
+          }
+
+          if constexpr (std::is_same_v<Tag, qss_compare_tag>) {
+              param.set_compare(one, one);
+          }
+
+          if constexpr (std::is_same_v<Tag, time_func_tag>) {
+              param.set_time_func(zero, 0.01, 0);
+          }
+
+          if constexpr (std::is_same_v<Tag, priority_queue_tag>) {
+              param.set_priority_queue(one);
+          }
+
+          if constexpr (std::is_same_v<Tag, queue_tag>) {
+              param.set_queue(one);
+          }
+      },
+      *this);
 };
 
 parameter& parameter::clear() noexcept
@@ -532,12 +531,46 @@ parameter& parameter::set_constant(real value, real offset) noexcept
     return *this;
 }
 
-parameter& parameter::set_cross(real threshold) noexcept
+parameter& parameter::set_cross(real threshold,
+                                real up_value,
+                                real down_value) noexcept
 {
     reals[qss_cross_tag::threshold] =
       std::isfinite(threshold) ? threshold : 0.0;
-    reals[qss_cross_tag::up_value]     = one;
-    reals[qss_cross_tag::bottom_value] = one;
+    reals[qss_cross_tag::up_value] = std::isfinite(up_value) ? up_value : one;
+    reals[qss_cross_tag::bottom_value] =
+      std::isfinite(down_value) ? down_value : one;
+
+    return *this;
+}
+
+parameter& parameter::set_power(real expoonent) noexcept
+{
+    reals[qss_power_tag::exponent] = std::isfinite(expoonent) ? expoonent : 1.0;
+    return *this;
+}
+
+parameter& parameter::set_filter(real lower_bound, real upper_bound) noexcept
+{
+    reals[qss_filter_tag::lower_bound] =
+      std::isfinite(lower_bound) ? lower_bound
+                                 : -std::numeric_limits<real>::infinity();
+    reals[qss_filter_tag::upper_bound] =
+      std::isfinite(upper_bound) ? upper_bound
+                                 : +std::numeric_limits<real>::infinity();
+
+    if (reals[qss_filter_tag::lower_bound] > reals[qss_filter_tag::upper_bound])
+        std::swap(reals[qss_filter_tag::lower_bound],
+                  reals[qss_filter_tag::upper_bound]);
+
+    return *this;
+}
+
+parameter& parameter::set_compare(real equal, real not_equal) noexcept
+{
+    reals[qss_compare_tag::equal] = std::isfinite(equal) ? equal : one;
+    reals[qss_compare_tag::not_equal] =
+      std::isfinite(not_equal) ? not_equal : one;
 
     return *this;
 }
@@ -585,6 +618,18 @@ parameter& parameter::set_wsum4(real coeff1,
     reals[qss_wsum_4_tag::coeff2] = std::isfinite(coeff2) ? coeff2 : 1.0;
     reals[qss_wsum_4_tag::coeff3] = std::isfinite(coeff3) ? coeff3 : 1.0;
     reals[qss_wsum_4_tag::coeff4] = std::isfinite(coeff4) ? coeff4 : 1.0;
+    return *this;
+}
+
+parameter& parameter::set_queue(real sigma) noexcept
+{
+    reals[queue_tag::sigma] = std::isfinite(sigma) ? sigma : 1.0;
+    return *this;
+}
+
+parameter& parameter::set_priority_queue(real sigma) noexcept
+{
+    reals[priority_queue_tag::sigma] = std::isfinite(sigma) ? sigma : 1.0;
     return *this;
 }
 
@@ -650,27 +695,29 @@ parameter& parameter::set_priority_queue_ta(const source& src) noexcept
 
 source parameter::get_hsm_wrapper_value() noexcept
 {
-    return get_source(integers[hsm_wrapper_tag::source_value]);
+    return get_source(
+      static_cast<u64>(integers[hsm_wrapper_tag::source_value]));
 }
 
 source parameter::get_generator_ta() noexcept
 {
-    return get_source(integers[generator_tag::source_ta]);
+    return get_source(static_cast<u64>(integers[generator_tag::source_ta]));
 }
 
 source parameter::get_generator_value() noexcept
 {
-    return get_source(integers[generator_tag::source_value]);
+    return get_source(static_cast<u64>(integers[generator_tag::source_value]));
 }
 
 source parameter::get_dynamic_queue_ta() noexcept
 {
-    return get_source(integers[dynamic_queue_tag::source_ta]);
+    return get_source(static_cast<u64>(integers[dynamic_queue_tag::source_ta]));
 }
 
 source parameter::get_priority_queue_ta() noexcept
 {
-    return get_source(integers[priority_queue_tag::source_ta]);
+    return get_source(
+      static_cast<u64>(integers[priority_queue_tag::source_ta]));
 }
 
 } // namespace irt
