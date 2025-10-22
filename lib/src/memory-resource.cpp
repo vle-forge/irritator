@@ -75,8 +75,10 @@ void* new_delete_memory_resource::data::debug_allocate(
                human_readable_bytes(deallocated));
 
     auto ptr = std::pmr::new_delete_resource()->allocate(bytes, alignment);
-    if (ptr)
+    if (ptr) {
+        std::fill_n(static_cast<std::byte*>(ptr), bytes, std::byte(0xCD));
         allocated += bytes;
+    }
 
     fmt::print(debug::mem_file(),
                "                       {},{} {},{} = {}\n",
@@ -104,6 +106,7 @@ void new_delete_memory_resource::data::debug_deallocate(
 
     if (ptr) {
         deallocated += bytes;
+        std::fill_n(static_cast<std::byte*>(ptr), bytes, std::byte(0xDD));
         std::pmr::new_delete_resource()->deallocate(ptr, bytes, alignment);
     }
 
