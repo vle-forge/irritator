@@ -53,6 +53,11 @@ struct qss_integer_tag {};
 struct qss_compare_tag {
     enum parameter_names : u8 { equal = 0, not_equal };
 };
+
+struct qss_gain_tag {
+    enum parameter_names : u8 { k = 0 };
+};
+
 struct qss_sin_tag {};
 struct qss_cos_tag {};
 struct qss_exp_tag {};
@@ -222,6 +227,13 @@ constexpr auto dispatch(const dynamics_type type,
     case dynamics_type::qss3_compare:
         return std::invoke(std::forward<Function>(f),
                            qss_compare_tag{},
+                           std::forward<Args>(args)...);
+
+    case dynamics_type::qss1_gain:
+    case dynamics_type::qss2_gain:
+    case dynamics_type::qss3_gain:
+        return std::invoke(std::forward<Function>(f),
+                           qss_gain_tag{},
                            std::forward<Args>(args)...);
 
     case dynamics_type::qss1_sin:

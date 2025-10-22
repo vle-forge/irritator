@@ -657,6 +657,7 @@ enum class dynamics_type : i32 {
     qss1_inverse,
     qss1_integer,
     qss1_compare,
+    qss1_gain,
     qss1_sin,
     qss1_cos,
     qss1_log,
@@ -677,6 +678,7 @@ enum class dynamics_type : i32 {
     qss2_inverse,
     qss2_integer,
     qss2_compare,
+    qss2_gain,
     qss2_sin,
     qss2_cos,
     qss2_log,
@@ -697,6 +699,7 @@ enum class dynamics_type : i32 {
     qss3_inverse,
     qss3_integer,
     qss3_compare,
+    qss3_gain,
     qss3_sin,
     qss3_cos,
     qss3_log,
@@ -767,6 +770,7 @@ struct parameter {
                          real down_value = one) noexcept;
     parameter& set_filter(real lower_bound, real upper_bound) noexcept;
     parameter& set_compare(real equal, real not_equal) noexcept;
+    parameter& set_gain(real k) noexcept;
 
     parameter& set_power(real expoonent) noexcept;
     parameter& set_integrator(real X, real dQ) noexcept;
@@ -3271,6 +3275,93 @@ using qss2_compare = abstract_compare<2>;
 using qss3_compare = abstract_compare<3>;
 
 template<std::size_t QssLevel>
+struct abstract_gain {
+    static_assert(1 <= QssLevel && QssLevel <= 3, "Only for Qss1, 2 and 3");
+
+    message_id    x[1] = {};
+    block_node_id y[1] = {};
+
+    std::array<real, QssLevel> value;
+    real                       k = one;
+    time                       sigma;
+
+    abstract_gain() noexcept = default;
+
+    abstract_gain(const abstract_gain& other) noexcept
+      : value(other.value)
+      , k(other.k)
+      , sigma(other.sigma)
+    {}
+
+    status initialize(simulation& /*sim*/) noexcept
+    {
+        value.fill(zero);
+
+        sigma = time_domain<time>::infinity;
+
+        return success();
+    }
+
+    status lambda(simulation& sim) noexcept
+    {
+        if constexpr (QssLevel == 1)
+            return send_message(sim, y[0], k * value[0]);
+
+        if constexpr (QssLevel == 2)
+            return send_message(sim, y[0], k * value[0], k * value[1]);
+
+        if constexpr (QssLevel == 3)
+            return send_message(
+              sim, y[0], k * value[0], k * value[1], k * value[2]);
+
+        return success();
+    }
+
+    status transition(simulation& sim,
+                      time /*t*/,
+                      time /*e*/,
+                      time /*r*/) noexcept
+    {
+        auto* lst = sim.messages.try_to_get(x[0]);
+
+        if (lst and not lst->empty()) {
+            update<QssLevel>(value, lst->back());
+            sigma = time_domain<time>::zero;
+        } else {
+            sigma = time_domain<time>::infinity;
+        }
+
+        return success();
+    }
+
+    observation_message observation(time t, time e) const noexcept
+    {
+        if constexpr (QssLevel == 1) {
+            return { t, k * value[0] };
+        }
+
+        if constexpr (QssLevel == 2) {
+            const auto X = k * value[0];
+            const auto u = k * value[1];
+
+            return qss_observation(X, u, t, e);
+        }
+
+        if constexpr (QssLevel == 3) {
+            const auto X  = k * value[0];
+            const auto u  = k * value[1];
+            const auto mu = k * value[2];
+
+            return qss_observation(X, u, mu, t, e);
+        }
+    }
+};
+
+using qss1_gain = abstract_gain<1>;
+using qss2_gain = abstract_gain<2>;
+using qss3_gain = abstract_gain<3>;
+
+template<std::size_t QssLevel>
 struct abstract_log {
     static_assert(1 <= QssLevel && QssLevel <= 3, "Only for Qss1, 2 and 3");
 
@@ -5227,6 +5318,7 @@ constexpr sz max_size_in_bytes() noexcept
                sizeof(qss1_inverse),
                sizeof(qss1_integer),
                sizeof(qss1_compare),
+               sizeof(qss1_gain),
                sizeof(qss1_sin),
                sizeof(qss1_cos),
                sizeof(qss1_log),
@@ -5247,6 +5339,7 @@ constexpr sz max_size_in_bytes() noexcept
                sizeof(qss2_inverse),
                sizeof(qss2_integer),
                sizeof(qss2_compare),
+               sizeof(qss2_gain),
                sizeof(qss2_sin),
                sizeof(qss2_cos),
                sizeof(qss2_log),
@@ -5267,6 +5360,7 @@ constexpr sz max_size_in_bytes() noexcept
                sizeof(qss3_inverse),
                sizeof(qss3_integer),
                sizeof(qss3_compare),
+               sizeof(qss3_gain),
                sizeof(qss3_sin),
                sizeof(qss3_cos),
                sizeof(qss3_log),
@@ -5305,8 +5399,9 @@ concept dynamics =
   std::is_same_v<Dynamics, qss1_inverse> or
   std::is_same_v<Dynamics, qss1_integer> or
   std::is_same_v<Dynamics, qss1_compare> or
-  std::is_same_v<Dynamics, qss1_sin> or std::is_same_v<Dynamics, qss1_cos> or
-  std::is_same_v<Dynamics, qss1_log> or std::is_same_v<Dynamics, qss1_exp> or
+  std::is_same_v<Dynamics, qss1_gain> or std::is_same_v<Dynamics, qss1_sin> or
+  std::is_same_v<Dynamics, qss1_cos> or std::is_same_v<Dynamics, qss1_log> or
+  std::is_same_v<Dynamics, qss1_exp> or
   std::is_same_v<Dynamics, qss2_integrator> or
   std::is_same_v<Dynamics, qss2_multiplier> or
   std::is_same_v<Dynamics, qss2_cross> or
@@ -5323,8 +5418,9 @@ concept dynamics =
   std::is_same_v<Dynamics, qss2_inverse> or
   std::is_same_v<Dynamics, qss2_integer> or
   std::is_same_v<Dynamics, qss2_compare> or
-  std::is_same_v<Dynamics, qss2_sin> or std::is_same_v<Dynamics, qss2_cos> or
-  std::is_same_v<Dynamics, qss2_log> or std::is_same_v<Dynamics, qss2_exp> or
+  std::is_same_v<Dynamics, qss2_gain> or std::is_same_v<Dynamics, qss2_sin> or
+  std::is_same_v<Dynamics, qss2_cos> or std::is_same_v<Dynamics, qss2_log> or
+  std::is_same_v<Dynamics, qss2_exp> or
   std::is_same_v<Dynamics, qss3_integrator> or
   std::is_same_v<Dynamics, qss3_multiplier> or
   std::is_same_v<Dynamics, qss3_cross> or
@@ -5341,10 +5437,10 @@ concept dynamics =
   std::is_same_v<Dynamics, qss3_inverse> or
   std::is_same_v<Dynamics, qss3_integer> or
   std::is_same_v<Dynamics, qss3_compare> or
-  std::is_same_v<Dynamics, qss3_sin> or std::is_same_v<Dynamics, qss3_cos> or
-  std::is_same_v<Dynamics, qss3_log> or std::is_same_v<Dynamics, qss3_exp> or
-  std::is_same_v<Dynamics, counter> or std::is_same_v<Dynamics, queue> or
-  std::is_same_v<Dynamics, dynamic_queue> or
+  std::is_same_v<Dynamics, qss3_gain> or std::is_same_v<Dynamics, qss3_sin> or
+  std::is_same_v<Dynamics, qss3_cos> or std::is_same_v<Dynamics, qss3_log> or
+  std::is_same_v<Dynamics, qss3_exp> or std::is_same_v<Dynamics, counter> or
+  std::is_same_v<Dynamics, queue> or std::is_same_v<Dynamics, dynamic_queue> or
   std::is_same_v<Dynamics, priority_queue> or
   std::is_same_v<Dynamics, generator> or std::is_same_v<Dynamics, constant> or
   std::is_same_v<Dynamics, accumulator_2> or
@@ -5402,6 +5498,8 @@ static constexpr dynamics_type dynamics_typeof() noexcept
         return dynamics_type::qss1_integer;
     if constexpr (std::is_same_v<Dynamics, qss1_compare>)
         return dynamics_type::qss1_compare;
+    if constexpr (std::is_same_v<Dynamics, qss1_gain>)
+        return dynamics_type::qss1_gain;
     if constexpr (std::is_same_v<Dynamics, qss1_sin>)
         return dynamics_type::qss1_sin;
     if constexpr (std::is_same_v<Dynamics, qss1_cos>)
@@ -5443,6 +5541,8 @@ static constexpr dynamics_type dynamics_typeof() noexcept
         return dynamics_type::qss2_integer;
     if constexpr (std::is_same_v<Dynamics, qss2_compare>)
         return dynamics_type::qss2_compare;
+    if constexpr (std::is_same_v<Dynamics, qss2_gain>)
+        return dynamics_type::qss2_gain;
     if constexpr (std::is_same_v<Dynamics, qss2_sin>)
         return dynamics_type::qss2_sin;
     if constexpr (std::is_same_v<Dynamics, qss2_cos>)
@@ -5484,6 +5584,8 @@ static constexpr dynamics_type dynamics_typeof() noexcept
         return dynamics_type::qss3_integer;
     if constexpr (std::is_same_v<Dynamics, qss3_compare>)
         return dynamics_type::qss3_compare;
+    if constexpr (std::is_same_v<Dynamics, qss3_gain>)
+        return dynamics_type::qss3_gain;
     if constexpr (std::is_same_v<Dynamics, qss3_sin>)
         return dynamics_type::qss3_sin;
     if constexpr (std::is_same_v<Dynamics, qss3_cos>)
@@ -5597,6 +5699,10 @@ constexpr auto dispatch(const model& mdl, Function&& f, Args&&... args) noexcept
         return std::invoke(std::forward<Function>(f),
                            *reinterpret_cast<const qss1_compare*>(&mdl.dyn),
                            std::forward<Args>(args)...);
+    case dynamics_type::qss1_gain:
+        return std::invoke(std::forward<Function>(f),
+                           *reinterpret_cast<const qss1_gain*>(&mdl.dyn),
+                           std::forward<Args>(args)...);
     case dynamics_type::qss1_sin:
         return std::invoke(std::forward<Function>(f),
                            *reinterpret_cast<const qss1_sin*>(&mdl.dyn),
@@ -5678,6 +5784,10 @@ constexpr auto dispatch(const model& mdl, Function&& f, Args&&... args) noexcept
         return std::invoke(std::forward<Function>(f),
                            *reinterpret_cast<const qss2_compare*>(&mdl.dyn),
                            std::forward<Args>(args)...);
+    case dynamics_type::qss2_gain:
+        return std::invoke(std::forward<Function>(f),
+                           *reinterpret_cast<const qss2_gain*>(&mdl.dyn),
+                           std::forward<Args>(args)...);
     case dynamics_type::qss2_sin:
         return std::invoke(std::forward<Function>(f),
                            *reinterpret_cast<const qss2_sin*>(&mdl.dyn),
@@ -5758,6 +5868,10 @@ constexpr auto dispatch(const model& mdl, Function&& f, Args&&... args) noexcept
     case dynamics_type::qss3_compare:
         return std::invoke(std::forward<Function>(f),
                            *reinterpret_cast<const qss3_compare*>(&mdl.dyn),
+                           std::forward<Args>(args)...);
+    case dynamics_type::qss3_gain:
+        return std::invoke(std::forward<Function>(f),
+                           *reinterpret_cast<const qss3_gain*>(&mdl.dyn),
                            std::forward<Args>(args)...);
     case dynamics_type::qss3_sin:
         return std::invoke(std::forward<Function>(f),
@@ -5875,6 +5989,8 @@ constexpr auto dispatch(model& mdl, Function&& f) noexcept
         return f(*reinterpret_cast<qss1_integer*>(&mdl.dyn));
     case dynamics_type::qss1_compare:
         return f(*reinterpret_cast<qss1_compare*>(&mdl.dyn));
+    case dynamics_type::qss1_gain:
+        return f(*reinterpret_cast<qss1_gain*>(&mdl.dyn));
     case dynamics_type::qss1_sin:
         return f(*reinterpret_cast<qss1_sin*>(&mdl.dyn));
     case dynamics_type::qss1_cos:
@@ -5916,6 +6032,8 @@ constexpr auto dispatch(model& mdl, Function&& f) noexcept
         return f(*reinterpret_cast<qss2_integer*>(&mdl.dyn));
     case dynamics_type::qss2_compare:
         return f(*reinterpret_cast<qss2_compare*>(&mdl.dyn));
+    case dynamics_type::qss2_gain:
+        return f(*reinterpret_cast<qss2_gain*>(&mdl.dyn));
     case dynamics_type::qss2_sin:
         return f(*reinterpret_cast<qss2_sin*>(&mdl.dyn));
     case dynamics_type::qss2_cos:
@@ -5957,6 +6075,8 @@ constexpr auto dispatch(model& mdl, Function&& f) noexcept
         return f(*reinterpret_cast<qss3_integer*>(&mdl.dyn));
     case dynamics_type::qss3_compare:
         return f(*reinterpret_cast<qss3_compare*>(&mdl.dyn));
+    case dynamics_type::qss3_gain:
+        return f(*reinterpret_cast<qss3_gain*>(&mdl.dyn));
     case dynamics_type::qss3_sin:
         return f(*reinterpret_cast<qss3_sin*>(&mdl.dyn));
     case dynamics_type::qss3_cos:
@@ -6107,6 +6227,9 @@ inline bool is_ports_compatible(const dynamics_type mdl_src,
     case dynamics_type::qss1_compare:
     case dynamics_type::qss2_compare:
     case dynamics_type::qss3_compare:
+    case dynamics_type::qss1_gain:
+    case dynamics_type::qss2_gain:
+    case dynamics_type::qss3_gain:
     case dynamics_type::qss1_sin:
     case dynamics_type::qss2_sin:
     case dynamics_type::qss3_sin:
@@ -7075,6 +7198,7 @@ constexpr inline auto get_interpolate_type(const dynamics_type type) noexcept
     case dynamics_type::qss1_inverse:
     case dynamics_type::qss1_integer:
     case dynamics_type::qss1_compare:
+    case dynamics_type::qss1_gain:
     case dynamics_type::qss1_sin:
     case dynamics_type::qss1_cos:
     case dynamics_type::qss1_log:
@@ -7096,6 +7220,7 @@ constexpr inline auto get_interpolate_type(const dynamics_type type) noexcept
     case dynamics_type::qss2_inverse:
     case dynamics_type::qss2_integer:
     case dynamics_type::qss2_compare:
+    case dynamics_type::qss2_gain:
     case dynamics_type::qss2_sin:
     case dynamics_type::qss2_cos:
     case dynamics_type::qss2_log:
@@ -7116,6 +7241,7 @@ constexpr inline auto get_interpolate_type(const dynamics_type type) noexcept
     case dynamics_type::qss3_inverse:
     case dynamics_type::qss3_integer:
     case dynamics_type::qss3_compare:
+    case dynamics_type::qss3_gain:
     case dynamics_type::qss3_sin:
     case dynamics_type::qss3_cos:
     case dynamics_type::qss3_log:

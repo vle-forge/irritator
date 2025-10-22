@@ -568,7 +568,15 @@ static bool show_parameter(qss_power_tag,
                            external_source& /*srcs*/,
                            parameter& p) noexcept
 {
-    return ImGui::InputReal("n", &p.reals[0]);
+    return ImGui::InputReal("n", &p.reals[qss_power_tag::exponent]);
+}
+
+static bool show_parameter(qss_gain_tag,
+                           application& /*app*/,
+                           external_source& /*srcs*/,
+                           parameter& p) noexcept
+{
+    return ImGui::InputReal("k", &p.reals[qss_gain_tag::k]);
 }
 
 static bool show_parameter(qss_square_tag,

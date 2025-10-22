@@ -1430,6 +1430,22 @@ struct json_dearchiver::impl {
           });
     }
 
+    bool read_dynamics(const rapidjson::Value& val,
+                       qss_gain_tag,
+                       parameter& p) noexcept
+    {
+        auto_stack a(this, "dynamics qss gain");
+
+        return for_each_member(
+          val, [&](const auto name, const auto& value) noexcept -> bool {
+              if ("k"sv == name)
+                  return read_temp_real(value) &&
+                         copy_real_to(p.reals[qss_gain_tag::k]);
+
+              return error("unknown element");
+          });
+    }
+
     bool read_dynamics(const rapidjson::Value& /*val*/,
                        qss_square_tag,
                        parameter& /*p*/) noexcept
@@ -5291,6 +5307,19 @@ struct json_archiver::impl {
         writer.StartObject();
         writer.Key("n");
         writer.Double(p.reals[qss_power_tag::exponent]);
+        writer.EndObject();
+    }
+
+    template<typename Writer>
+    void write(Writer& writer,
+               const qss_gain_tag,
+               const modeling& /*mod*/,
+               const component& /*compo*/,
+               const parameter& p) noexcept
+    {
+        writer.StartObject();
+        writer.Key("k");
+        writer.Double(p.reals[qss_gain_tag::k]);
         writer.EndObject();
     }
 

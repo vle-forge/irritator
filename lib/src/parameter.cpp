@@ -24,6 +24,13 @@ static void model_init(const parameter&            param,
 }
 
 template<size_t QssLevel>
+static void model_init(const parameter&         param,
+                       abstract_gain<QssLevel>& dyn) noexcept
+{
+    dyn.k = param.reals[qss_gain_tag::k];
+}
+
+template<size_t QssLevel>
 static void model_init(const parameter& /*param*/,
                        abstract_integer<QssLevel>& /*dyn*/) noexcept
 {}
@@ -34,6 +41,13 @@ static void parameter_init(parameter&                        param,
 {
     param.reals[qss_compare_tag::equal]     = dyn.output[0];
     param.reals[qss_compare_tag::not_equal] = dyn.output[1];
+}
+
+template<size_t QssLevel>
+static void parameter_init(parameter&                     param,
+                           const abstract_gain<QssLevel>& dyn) noexcept
+{
+    param.reals[qss_gain_tag::k] = dyn.k;
 }
 
 template<size_t QssLevel>
@@ -497,6 +511,10 @@ void parameter::init_from(const dynamics_type type) noexcept
               param.set_compare(one, one);
           }
 
+          if constexpr (std::is_same_v<Tag, qss_gain_tag>) {
+              param.set_gain(one);
+          }
+
           if constexpr (std::is_same_v<Tag, time_func_tag>) {
               param.set_time_func(zero, 0.01, 0);
           }
@@ -571,6 +589,13 @@ parameter& parameter::set_compare(real equal, real not_equal) noexcept
     reals[qss_compare_tag::equal] = std::isfinite(equal) ? equal : one;
     reals[qss_compare_tag::not_equal] =
       std::isfinite(not_equal) ? not_equal : one;
+
+    return *this;
+}
+
+parameter& parameter::set_gain(real k) noexcept
+{
+    reals[qss_gain_tag::k] = std::isfinite(k) ? k : one;
 
     return *this;
 }

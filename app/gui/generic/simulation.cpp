@@ -509,6 +509,28 @@ static void show_dynamics_values(application& /*app*/,
 
 static void show_dynamics_values(application& /*app*/,
                                  project_editor& /*sim*/,
+                                 const qss1_gain& dyn)
+{
+    ImGui::LabelFormat("value", "{}", dyn.value[0]);
+}
+
+static void show_dynamics_values(application& /*app*/,
+                                 project_editor& /*sim*/,
+                                 const qss2_gain& dyn)
+{
+    ImGui::LabelFormat("value", "{} {}", dyn.value[0], dyn.value[1]);
+}
+
+static void show_dynamics_values(application& /*app*/,
+                                 project_editor& /*sim*/,
+                                 const qss3_gain& dyn)
+{
+    ImGui::LabelFormat(
+      "value", "{} {} {}", dyn.value[0], dyn.value[1], dyn.value[2]);
+}
+
+static void show_dynamics_values(application& /*app*/,
+                                 project_editor& /*sim*/,
                                  const qss1_square& dyn)
 {
     ImGui::LabelFormat("value", "{}", dyn.value[0]);
