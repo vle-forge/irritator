@@ -1023,7 +1023,6 @@ struct project_editor {
     void start_simulation_copy_modeling(application& app) noexcept;
     void start_simulation_init(application& app) noexcept;
     void start_simulation_delete(application& app) noexcept;
-    void start_simulation_clear(application& app) noexcept;
     void start_simulation_start(application& app) noexcept;
     void start_simulation_observation(application& app) noexcept;
     void stop_simulation_observation(application& app) noexcept;
