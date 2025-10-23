@@ -467,9 +467,34 @@ static void write_test_simulation_model(
         break;
 
     case dynamics_type::queue:
+        fmt::print(os,
+                   R"(    sim.parameters[sim.get_id(mdl_{})].set_queue({});)",
+                   idx,
+                   params.reals[queue_tag::sigma]);
+        break;
+
     case dynamics_type::dynamic_queue:
+        fmt::print(
+          os,
+          R"(    sim.parameters[sim.get_id(mdl_{})].set_dynamic_queue_ta(get_source({}));)",
+          idx,
+          params.integers[dynamic_queue_tag::source_ta]);
+        break;
+
     case dynamics_type::priority_queue:
-    case dynamics_type::generator:
+        fmt::print(
+          os,
+          R"(    sim.parameters[sim.get_id(mdl_{})].set_priority_queue({});)",
+          R"(    sim.parameters[sim.get_id(mdl_{})].set_priority_queue_ta(get_source({}));)",
+          idx,
+          params.reals[priority_queue_tag::sigma],
+          params.integers[priority_queue_tag::source_ta]);
+
+        break;
+
+    case dynamics_type::generator: {
+    
+    }
         fmt::print(os,
                    R"(
     sim.parameters[sim.get_id(mdl_{})].reals    = {{ {}, {}, {}, {} }};
@@ -520,6 +545,7 @@ static void write_test_simulation_model(
                    params.reals[hsm_wrapper_tag::r1],
                    params.reals[hsm_wrapper_tag::r2],
                    params.reals[hsm_wrapper_tag::timer]);
+
         break;
 
     default:
@@ -619,13 +645,23 @@ static void write_test_simulation_models(
             break;
 
         case dynamics_type::dynamic_queue:
-            write_test_simulation_model_source(
-              os, params, sim, mdl, constant_source_sim_to_cpp, 1, -1);
+            write_test_simulation_model_source(os,
+                                               params,
+                                               sim,
+                                               mdl,
+                                               constant_source_sim_to_cpp,
+                                               dynamic_queue_tag::source_ta,
+                                               -1);
             break;
 
         case dynamics_type::priority_queue:
-            write_test_simulation_model_source(
-              os, params, sim, mdl, constant_source_sim_to_cpp, 1, -1);
+            write_test_simulation_model_source(os,
+                                               params,
+                                               sim,
+                                               mdl,
+                                               constant_source_sim_to_cpp,
+                                               priority_queue_tag::source_ta,
+                                               -1);
             break;
 
         case dynamics_type::generator: {
@@ -636,8 +672,12 @@ static void write_test_simulation_models(
               sim,
               mdl,
               constant_source_sim_to_cpp,
-              dyn.flags[generator::option::ta_use_source] ? 1 : -1,
-              dyn.flags[generator::option::value_use_source] ? 3 : -1);
+              dyn.flags[generator::option::ta_use_source]
+                ? generator_tag::source_ta
+                : -1,
+              dyn.flags[generator::option::value_use_source]
+                ? generator_tag::source_value
+                : -1);
         } break;
 
         default:
@@ -828,10 +868,9 @@ static void write_test_simulation_hsm(
             write_test_simulation_hsm_state(os, hsm_index, hsm.states[i], i);
 }
 
-static void write_test_simulation_constant_source(
-  std::ostream&          os,
-  const u64              src_index,
-  const constant_source& src) noexcept
+static void write_test_simulation_constant_source(std::ostream&          os,
+                                                  const constant_source& src,
+                                                  const u32 src_index) noexcept
 {
     fmt::print(os,
                R"(
@@ -852,6 +891,21 @@ static void write_test_simulation_constant_source(
     os << '\n';
 }
 
+static bool store_if_constant(table<constant_source_id, u64>& sim_to_cpp,
+                              u64                             param) noexcept
+{
+    const auto src = get_source(param);
+
+    if (src.type == source::source_type::constant) {
+        if (auto* ptr = sim_to_cpp.get(src.id.constant_id); ptr) {
+            *ptr++;
+            return true;
+        }
+    }
+
+    return false;
+}
+
 static bool write_test_simulation_constant_sources(
   std::ostream&                   os,
   const simulation&               sim,
@@ -859,9 +913,12 @@ static bool write_test_simulation_constant_sources(
 {
     debug::ensure(sim_to_cpp.data.empty());
 
-    // Build the list of constant source used in the simulation and
-    // prepare a new identifier for hsm_wrapper parameter[0].
-    u64 i = 0;
+    // Initialize the table with all constant source identifiers.
+    sim_to_cpp.data.reserve(sim.srcs.constant_sources.size());
+    for (const auto& cst : sim.srcs.constant_sources)
+        sim_to_cpp.set(sim.srcs.constant_sources.get_id(cst), 0);
+
+    // Build the list of constant source used in the simulation
     for (const auto& mdl : sim.models) {
         switch (mdl.type) {
         case dynamics_type::hsm_wrapper: {
@@ -869,23 +926,30 @@ static bool write_test_simulation_constant_sources(
             if (const auto* hsm = sim.hsms.try_to_get(dyn.id)) {
                 if (hsm
                       ->flags[hierarchical_state_machine::option::use_source]) {
-                    if (dyn.exec.source_value.type !=
-                        source::source_type::constant)
-                        return false;
+                    const auto& params = sim.parameters[sim.get_id(mdl)];
 
-                    sim_to_cpp.set(dyn.exec.source_value.id.constant_id, i++);
+                    if (not store_if_constant(
+                          sim_to_cpp,
+                          params.integers[hsm_wrapper_tag::source_value]))
+                        return false;
                 }
             }
         } break;
 
-        case dynamics_type::dynamic_queue:
+        case dynamics_type::dynamic_queue: {
+            const auto& params = sim.parameters[sim.get_id(mdl)];
+
+            if (not store_if_constant(
+                  sim_to_cpp, params.integers[dynamic_queue_tag::source_ta]))
+                return false;
+        } break;
+
         case dynamics_type::priority_queue: {
             const auto& params = sim.parameters[sim.get_id(mdl)];
-            if (enum_cast<source::source_type>(params.integers[2]) !=
-                source::source_type::constant)
+
+            if (not store_if_constant(
+                  sim_to_cpp, params.integers[dynamic_queue_tag::source_ta]))
                 return false;
-            sim_to_cpp.set(enum_cast<constant_source_id>(params.integers[1]),
-                           i++);
         } break;
 
         case dynamics_type::generator: {
@@ -893,19 +957,15 @@ static bool write_test_simulation_constant_sources(
             const auto  flags = bitflags<generator::option>(params.integers[0]);
 
             if (flags[generator::option::ta_use_source]) {
-                if (enum_cast<source::source_type>(params.integers[2]) !=
-                    source::source_type::constant)
+                if (not store_if_constant(
+                      sim_to_cpp, params.integers[generator_tag::source_ta]))
                     return false;
-                sim_to_cpp.set(
-                  enum_cast<constant_source_id>(params.integers[1]), i++);
             }
 
             if (flags[generator::option::value_use_source]) {
-                if (enum_cast<source::source_type>(params.integers[4]) !=
-                    source::source_type::constant)
+                if (not store_if_constant(
+                      sim_to_cpp, params.integers[generator_tag::source_value]))
                     return false;
-                sim_to_cpp.set(
-                  enum_cast<constant_source_id>(params.integers[3]), i++);
             }
         } break;
 
@@ -914,13 +974,12 @@ static bool write_test_simulation_constant_sources(
         }
     }
 
-    // Write this new list of hierarchical_state_machine with the new
-    // identifier.
+    // Write the list of constant source where the number of uses is greater
+    // than 0.
     for (const auto& pair : sim_to_cpp.data) {
-        if (const auto* src = sim.srcs.constant_sources.try_to_get(pair.id)) {
-            write_test_simulation_constant_source(os, pair.value, *src);
-        } else {
-            return false;
+        if (pair.value > 0) {
+            const auto& src = sim.srcs.constant_sources.get(pair.id);
+            write_test_simulation_constant_source(os, src, get_index(pair.id));
         }
     }
 
