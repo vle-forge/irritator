@@ -787,12 +787,12 @@ struct parameter {
                                real r1,
                                real r2,
                                real timer) noexcept;
+    parameter& set_hsm_wrapper_value(const source& src) noexcept;
     parameter& set_queue(real sigma) noexcept;
     parameter& set_priority_queue(real sigma) noexcept;
 
     parameter& set_generator_ta(const source& src) noexcept;
     parameter& set_generator_value(const source& src) noexcept;
-    parameter& set_hsm_wrapper_value(const source& src) noexcept;
     parameter& set_dynamic_queue_ta(const source& src) noexcept;
     parameter& set_priority_queue_ta(const source& src) noexcept;
 
