@@ -427,8 +427,6 @@ static void model_init(const parameter& param, time_func& dyn) noexcept
     dyn.offset   = param.reals[time_func_tag::offset];
     dyn.timestep = param.reals[time_func_tag::timestep];
 
-    using underlying_type = std::underlying_type_t<time_func::function_type>;
-
     const auto raw_type = param.integers[time_func_tag::i_type];
     const auto clamped_type =
       raw_type < 0 ? 0

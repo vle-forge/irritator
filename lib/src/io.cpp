@@ -362,21 +362,169 @@ static void write_test_simulation_model(
     fmt::print(os,
                R"(
     auto& mdl_{} = sim.alloc<irt::{}>();
+)",
+               idx,
+               irt::dynamics_type_names[ordinal(mdl.type)]);
+
+    switch (mdl.type) {
+    case dynamics_type::qss1_integrator:
+    case dynamics_type::qss2_integrator:
+    case dynamics_type::qss3_integrator:
+        fmt::print(
+          os,
+          R"(    sim.parameters[sim.get_id(mdl_{})].set_integrator({}, {});)",
+          idx,
+          params.reals[qss_integrator_tag::X],
+          params.reals[qss_integrator_tag::dQ]);
+        break;
+
+    case dynamics_type::qss1_cross:
+    case dynamics_type::qss2_cross:
+    case dynamics_type::qss3_cross:
+        fmt::print(
+          os,
+          R"(    sim.parameters[sim.get_id(mdl_{})].set_cross({}, {}, {});)",
+          idx,
+          params.reals[qss_cross_tag::threshold],
+          params.reals[qss_cross_tag::up_value],
+          params.reals[qss_cross_tag::bottom_value]);
+        break;
+
+    case dynamics_type::qss1_filter:
+    case dynamics_type::qss2_filter:
+    case dynamics_type::qss3_filter:
+        fmt::print(
+          os,
+          R"(    sim.parameters[sim.get_id(mdl_{})].set_filter({}, {});)",
+          idx,
+          params.reals[qss_filter_tag::lower_bound],
+          params.reals[qss_filter_tag::upper_bound]);
+        break;
+
+    case dynamics_type::qss1_power:
+    case dynamics_type::qss2_power:
+    case dynamics_type::qss3_power:
+        fmt::print(os,
+                   R"(    sim.parameters[sim.get_id(mdl_{})].set_power({});)",
+                   idx,
+                   params.reals[qss_power_tag::exponent]);
+        break;
+
+    case dynamics_type::qss1_wsum_2:
+    case dynamics_type::qss2_wsum_2:
+    case dynamics_type::qss3_wsum_2:
+        fmt::print(
+          os,
+          R"(    sim.parameters[sim.get_id(mdl_{})].set_wsum2({}, {});)",
+          idx,
+          params.reals[qss_wsum_2_tag::coeff1],
+          params.reals[qss_wsum_2_tag::coeff2]);
+        break;
+
+    case dynamics_type::qss1_wsum_3:
+    case dynamics_type::qss2_wsum_3:
+    case dynamics_type::qss3_wsum_3:
+        fmt::print(
+          os,
+          R"(    sim.parameters[sim.get_id(mdl_{})].set_wsum3({}, {}, {});)",
+          idx,
+          params.reals[qss_wsum_3_tag::coeff1],
+          params.reals[qss_wsum_3_tag::coeff2],
+          params.reals[qss_wsum_3_tag::coeff3]);
+        break;
+
+    case dynamics_type::qss1_wsum_4:
+    case dynamics_type::qss2_wsum_4:
+    case dynamics_type::qss3_wsum_4:
+        fmt::print(
+          os,
+          R"(    sim.parameters[sim.get_id(mdl_{})].set_wsum4({}, {}, {}, {});)",
+          idx,
+          params.reals[qss_wsum_4_tag::coeff1],
+          params.reals[qss_wsum_4_tag::coeff2],
+          params.reals[qss_wsum_4_tag::coeff3],
+          params.reals[qss_wsum_4_tag::coeff4]);
+        break;
+
+    case dynamics_type::qss1_compare:
+    case dynamics_type::qss2_compare:
+    case dynamics_type::qss3_compare:
+        fmt::print(
+          os,
+          R"(    sim.parameters[sim.get_id(mdl_{})].set_compare({}, {});)",
+          idx,
+          params.reals[qss_compare_tag::equal],
+          params.reals[qss_compare_tag::not_equal]);
+        break;
+
+    case dynamics_type::qss1_gain:
+    case dynamics_type::qss2_gain:
+    case dynamics_type::qss3_gain:
+        fmt::print(os,
+                   R"(    sim.parameters[sim.get_id(mdl_{})].set_gain({});)",
+                   idx,
+                   params.reals[qss_gain_tag::k]);
+        break;
+
+    case dynamics_type::queue:
+    case dynamics_type::dynamic_queue:
+    case dynamics_type::priority_queue:
+    case dynamics_type::generator:
+        fmt::print(os,
+                   R"(
     sim.parameters[sim.get_id(mdl_{})].reals    = {{ {}, {}, {}, {} }};
     sim.parameters[sim.get_id(mdl_{})].integers = {{ {}, {}, {}, {} }};
 )",
-               idx,
-               irt::dynamics_type_names[ordinal(mdl.type)],
-               idx,
-               params.reals[0],
-               params.reals[1],
-               params.reals[2],
-               params.reals[3],
-               idx,
-               params.integers[0],
-               params.integers[1],
-               params.integers[2],
-               params.integers[3]);
+                   idx,
+                   params.reals[0],
+                   params.reals[1],
+                   params.reals[2],
+                   params.reals[3],
+                   idx,
+                   params.integers[0],
+                   params.integers[1],
+                   params.integers[2],
+                   params.integers[3]);
+        break;
+
+    case dynamics_type::constant:
+        fmt::print(
+          os,
+          R"(    sim.parameters[sim.get_id(mdl_{})].set_constant({}, {});)",
+          idx,
+          params.reals[constant_tag::value],
+          params.reals[constant_tag::offset]);
+        break;
+
+    case dynamics_type::time_func:
+        fmt::print(
+          os,
+          R"(    sim.parameters[sim.get_id(mdl_{})].set_time_func({}, {}, {});)",
+          idx,
+          params.reals[time_func_tag::offset],
+          params.reals[time_func_tag::timestep],
+          params.integers[time_func_tag::i_type]);
+        break;
+
+    case dynamics_type::hsm_wrapper:
+        fmt::print(os,
+                   R"(
+    sim.parameters[sim.get_id(mdl_{})].set_hsm_wrapper({});
+    sim.parameters[sim.get_id(mdl_{})].set_hsm_wrapper({}, {}, {}, {}, {});
+)",
+                   idx,
+                   params.integers[hsm_wrapper_tag::id],
+                   idx,
+                   params.integers[hsm_wrapper_tag::i1],
+                   params.integers[hsm_wrapper_tag::i2],
+                   params.reals[hsm_wrapper_tag::r1],
+                   params.reals[hsm_wrapper_tag::r2],
+                   params.reals[hsm_wrapper_tag::timer]);
+        break;
+
+    default:
+        break;
+    }
 }
 
 static void assign_constant_source(std::string&   id,
