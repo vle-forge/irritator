@@ -353,14 +353,13 @@ public:
     constexpr auto integers(const parameter& p, const Enum index) noexcept
       -> std::string_view
     {
-        static_assert(std::is_convertible_v<Enun, std::integral>);
+        m_integers[ordinal(index)].clear();
 
-        m_integers[i].clear();
+        fmt::format_to(std::back_inserter(m_integers[ordinal(index)]),
+                       "{}",
+                       p.integers[ordinal(index)]);
 
-        fmt::format_to(
-          std::back_inserter(m_integers[i]), "{}", p.integers[ordinal(i)]);
-
-        return m_integers[i];
+        return m_integers[ordinal(index)];
     }
 
 private:
@@ -581,17 +580,14 @@ static void write_test_simulation_model(std::ostream&       os,
     }
 }
 
-static void write_test_simulation_models(
-  std::ostream&                         os,
-  const simulation&                     sim,
-  const table<u64, u64>&                hsm_sim_to_cpp,
-  const table<constant_source_id, u64>& constant_source_sim_to_cpp) noexcept
+static void write_test_simulation_models(std::ostream&     os,
+                                         const simulation& sim) noexcept
 {
-    override_parameter params;
+    override_parameter o_params;
 
     for (const auto& mdl : sim.models)
         write_test_simulation_model(
-          os, sim, mdl, sim.parameters[sim.get_id(mdl)], params);
+          os, sim, mdl, sim.parameters[sim.get_id(mdl)], o_params);
 }
 
 static void write_test_simulation_hsm_state(
@@ -812,12 +808,10 @@ static bool store_if_constant(table<constant_source_id, u64>& sim_to_cpp,
     return false;
 }
 
-static bool write_constant_sources(
-  std::ostream&                   os,
-  const simulation&               sim,
-  table<constant_source_id, u64>& sim_to_cpp) noexcept
+static bool write_constant_sources(std::ostream&     os,
+                                   const simulation& sim) noexcept
 {
-    debug::ensure(sim_to_cpp.data.empty());
+    table<constant_source_id, u64> sim_to_cpp;
 
     // Initialize the table with all constant source identifiers.
     sim_to_cpp.data.reserve(sim.srcs.constant_sources.size());
@@ -893,34 +887,29 @@ static bool write_constant_sources(
 }
 
 static bool write_test_simulation_hsm(std::ostream&     os,
-                                      const simulation& sim,
-                                      table<u64, u64>&  sim_to_cpp) noexcept
+                                      const simulation& sim) noexcept
 {
-    debug::ensure(sim_to_cpp.data.empty());
+    table<hsm_id, u64> sim_to_cpp;
 
-    // Build the list of hierarchical_state_machine used in the
-    // simulation and prepare a new identifier for hsm_wrapper
-    // parameter[0].
-    u64 i = 0;
     for (const auto& mdl : sim.models) {
         if (mdl.type == dynamics_type::hsm_wrapper) {
             const auto& params = sim.parameters[sim.get_id(mdl)];
-            const auto  hsm_id = to_unsigned(params.integers[0]);
-            if (sim_to_cpp.get(hsm_id) == nullptr) {
-                sim_to_cpp.set(hsm_id, i++);
+            const auto  id     = enum_cast<hsm_id>(
+              to_unsigned(params.integers[hsm_wrapper_tag::id]));
+
+            if (auto* ptr = sim_to_cpp.get(id)) {
+                *ptr++;
+            } else {
+                sim_to_cpp.set(id, 1);
             }
         }
     }
 
     // Write this new list of hierarchical_state_machine with the new
     // identifier.
-    for (const auto& pair : sim_to_cpp.data) {
-        if (const auto* hsm = sim.hsms.try_to_get(enum_cast<hsm_id>(pair.id))) {
-            write_test_simulation_hsm(os, pair.value, *hsm);
-        } else {
-            return false;
-        }
-    }
+    for (const auto& pair : sim_to_cpp.data)
+        write_test_simulation_hsm(
+          os, get_index(pair.id), sim.hsms.get(pair.id));
 
     return true;
 }
@@ -991,18 +980,14 @@ auto write_test_simulation(std::ostream&                       os,
                            const write_test_simulation_options opts) noexcept
   -> write_test_simulation_result
 {
-    table<u64, u64>                hsm_sim_to_cpp;
-    table<constant_source_id, u64> constant_sim_to_cpp;
-
-    write_test_simulation_header(os, name, sim);
-
-    if (not write_constant_sources(os, sim, constant_sim_to_cpp))
+    if (not write_constant_sources(os, sim))
         return write_test_simulation_result::external_source_error;
 
-    if (not write_test_simulation_hsm(os, sim, hsm_sim_to_cpp))
+    if (not write_test_simulation_hsm(os, sim))
         return write_test_simulation_result::hsm_error;
 
-    write_test_simulation_models(os, sim, hsm_sim_to_cpp, constant_sim_to_cpp);
+    write_test_simulation_header(os, name, sim);
+    write_test_simulation_models(os, sim);
     write_test_simulation_connections(os, sim);
     write_test_simulation_loop(os, begin, end);
 
