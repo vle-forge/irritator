@@ -322,40 +322,57 @@ static void write_test_simulation_header(std::ostream&          os,
                sim.hsms.ssize());
 }
 
-struct override_parameter {
-    override_parameter() = default;
+class override_parameter
+{
+public:
+    constexpr override_parameter() noexcept = default;
 
-    override_parameter& operator=(const parameter& p) noexcept
+    template<typename Enum>
+        requires(std::is_enum_v<Enum>)
+    constexpr auto reals(const parameter& p, const Enum index) noexcept
+      -> std::string_view
     {
-        for (sz i = 0, e = reals.size(); i != e; ++i) {
-            reals[i].clear();
+        m_reals[ordinal(index)].clear();
 
-            if (p.reals[i] == std::numeric_limits<real>::infinity())
-                reals[i] = "std::numeric_limits<real>::infinity()";
-            else if (p.reals[i] == -std::numeric_limits<real>::infinity())
-                reals[i] = "-std::numeric_limits<real>::infinity()";
-            else
-                fmt::format_to(std::back_inserter(reals[i]),
-                               "{:.{}f}",
-                               p.reals[i],
-                               std::numeric_limits<real>::max_digits10);
-        }
+        if (p.reals[ordinal(index)] == std::numeric_limits<real>::infinity())
+            m_reals[ordinal(index)] = "std::numeric_limits<real>::infinity()";
+        else if (p.reals[ordinal(index)] ==
+                 -std::numeric_limits<real>::infinity())
+            m_reals[ordinal(index)] = "-std::numeric_limits<real>::infinity()";
+        else
+            fmt::format_to(std::back_inserter(m_reals[ordinal(index)]),
+                           "{:.{}g}",
+                           p.reals[ordinal(index)],
+                           std::numeric_limits<real>::max_digits10);
 
-        for (sz i = 0, e = integers.size(); i != e; ++i)
-            integers[i] = fmt::format("{}", p.integers[i]);
-
-        return *this;
+        return m_reals[ordinal(index)];
     }
 
-    std::array<std::string, 8> reals    = {};
-    std::array<std::string, 8> integers = {};
+    template<typename Enum>
+        requires(std::is_enum_v<Enum>)
+    constexpr auto integers(const parameter& p, const Enum index) noexcept
+      -> std::string_view
+    {
+        static_assert(std::is_convertible_v<Enun, std::integral>);
+
+        m_integers[i].clear();
+
+        fmt::format_to(
+          std::back_inserter(m_integers[i]), "{}", p.integers[ordinal(i)]);
+
+        return m_integers[i];
+    }
+
+private:
+    std::array<std::string, 4> m_reals    = {};
+    std::array<std::string, 4> m_integers = {};
 };
 
-static void write_test_simulation_model(
-  std::ostream&             os,
-  const simulation&         sim,
-  const model&              mdl,
-  const override_parameter& params) noexcept
+static void write_test_simulation_model(std::ostream&       os,
+                                        const simulation&   sim,
+                                        const model&        mdl,
+                                        const parameter&    param,
+                                        override_parameter& o_param) noexcept
 {
     const auto idx = get_index(sim.models.get_id(mdl));
 
@@ -374,8 +391,8 @@ static void write_test_simulation_model(
           os,
           R"(    sim.parameters[sim.get_id(mdl_{})].set_integrator({}, {});)",
           idx,
-          params.reals[qss_integrator_tag::X],
-          params.reals[qss_integrator_tag::dQ]);
+          o_param.reals(param, qss_integrator_tag::X),
+          o_param.reals(param, qss_integrator_tag::dQ));
         break;
 
     case dynamics_type::qss1_cross:
@@ -385,9 +402,9 @@ static void write_test_simulation_model(
           os,
           R"(    sim.parameters[sim.get_id(mdl_{})].set_cross({}, {}, {});)",
           idx,
-          params.reals[qss_cross_tag::threshold],
-          params.reals[qss_cross_tag::up_value],
-          params.reals[qss_cross_tag::bottom_value]);
+          o_param.reals(param, qss_cross_tag::threshold),
+          o_param.reals(param, qss_cross_tag::up_value),
+          o_param.reals(param, qss_cross_tag::bottom_value));
         break;
 
     case dynamics_type::qss1_filter:
@@ -397,8 +414,8 @@ static void write_test_simulation_model(
           os,
           R"(    sim.parameters[sim.get_id(mdl_{})].set_filter({}, {});)",
           idx,
-          params.reals[qss_filter_tag::lower_bound],
-          params.reals[qss_filter_tag::upper_bound]);
+          o_param.reals(param, qss_filter_tag::lower_bound),
+          o_param.reals(param, qss_filter_tag::upper_bound));
         break;
 
     case dynamics_type::qss1_power:
@@ -407,7 +424,7 @@ static void write_test_simulation_model(
         fmt::print(os,
                    R"(    sim.parameters[sim.get_id(mdl_{})].set_power({});)",
                    idx,
-                   params.reals[qss_power_tag::exponent]);
+                   o_param.reals(param, qss_power_tag::exponent));
         break;
 
     case dynamics_type::qss1_wsum_2:
@@ -417,8 +434,8 @@ static void write_test_simulation_model(
           os,
           R"(    sim.parameters[sim.get_id(mdl_{})].set_wsum2({}, {});)",
           idx,
-          params.reals[qss_wsum_2_tag::coeff1],
-          params.reals[qss_wsum_2_tag::coeff2]);
+          o_param.reals(param, qss_wsum_2_tag::coeff1),
+          o_param.reals(param, qss_wsum_2_tag::coeff2));
         break;
 
     case dynamics_type::qss1_wsum_3:
@@ -428,9 +445,9 @@ static void write_test_simulation_model(
           os,
           R"(    sim.parameters[sim.get_id(mdl_{})].set_wsum3({}, {}, {});)",
           idx,
-          params.reals[qss_wsum_3_tag::coeff1],
-          params.reals[qss_wsum_3_tag::coeff2],
-          params.reals[qss_wsum_3_tag::coeff3]);
+          o_param.reals(param, qss_wsum_3_tag::coeff1),
+          o_param.reals(param, qss_wsum_3_tag::coeff2),
+          o_param.reals(param, qss_wsum_3_tag::coeff3));
         break;
 
     case dynamics_type::qss1_wsum_4:
@@ -440,10 +457,10 @@ static void write_test_simulation_model(
           os,
           R"(    sim.parameters[sim.get_id(mdl_{})].set_wsum4({}, {}, {}, {});)",
           idx,
-          params.reals[qss_wsum_4_tag::coeff1],
-          params.reals[qss_wsum_4_tag::coeff2],
-          params.reals[qss_wsum_4_tag::coeff3],
-          params.reals[qss_wsum_4_tag::coeff4]);
+          o_param.reals(param, qss_wsum_4_tag::coeff1),
+          o_param.reals(param, qss_wsum_4_tag::coeff2),
+          o_param.reals(param, qss_wsum_4_tag::coeff3),
+          o_param.reals(param, qss_wsum_4_tag::coeff4));
         break;
 
     case dynamics_type::qss1_compare:
@@ -453,8 +470,8 @@ static void write_test_simulation_model(
           os,
           R"(    sim.parameters[sim.get_id(mdl_{})].set_compare({}, {});)",
           idx,
-          params.reals[qss_compare_tag::equal],
-          params.reals[qss_compare_tag::not_equal]);
+          o_param.reals(param, qss_compare_tag::equal),
+          o_param.reals(param, qss_compare_tag::not_equal));
         break;
 
     case dynamics_type::qss1_gain:
@@ -463,14 +480,14 @@ static void write_test_simulation_model(
         fmt::print(os,
                    R"(    sim.parameters[sim.get_id(mdl_{})].set_gain({});)",
                    idx,
-                   params.reals[qss_gain_tag::k]);
+                   o_param.reals(param, qss_gain_tag::k));
         break;
 
     case dynamics_type::queue:
         fmt::print(os,
                    R"(    sim.parameters[sim.get_id(mdl_{})].set_queue({});)",
                    idx,
-                   params.reals[queue_tag::sigma]);
+                   o_param.reals(param, queue_tag::sigma));
         break;
 
     case dynamics_type::dynamic_queue:
@@ -478,7 +495,7 @@ static void write_test_simulation_model(
           os,
           R"(    sim.parameters[sim.get_id(mdl_{})].set_dynamic_queue_ta(get_source({}));)",
           idx,
-          params.integers[dynamic_queue_tag::source_ta]);
+          o_param.integers(param, dynamic_queue_tag::source_ta));
         break;
 
     case dynamics_type::priority_queue:
@@ -487,38 +504,38 @@ static void write_test_simulation_model(
           R"(    sim.parameters[sim.get_id(mdl_{})].set_priority_queue({});)",
           R"(    sim.parameters[sim.get_id(mdl_{})].set_priority_queue_ta(get_source({}));)",
           idx,
-          params.reals[priority_queue_tag::sigma],
-          params.integers[priority_queue_tag::source_ta]);
-
+          o_param.reals(param, priority_queue_tag::sigma),
+          o_param.integers(param, priority_queue_tag::source_ta));
         break;
 
     case dynamics_type::generator: {
-    
-    }
-        fmt::print(os,
-                   R"(
-    sim.parameters[sim.get_id(mdl_{})].reals    = {{ {}, {}, {}, {} }};
-    sim.parameters[sim.get_id(mdl_{})].integers = {{ {}, {}, {}, {} }};
-)",
-                   idx,
-                   params.reals[0],
-                   params.reals[1],
-                   params.reals[2],
-                   params.reals[3],
-                   idx,
-                   params.integers[0],
-                   params.integers[1],
-                   params.integers[2],
-                   params.integers[3]);
-        break;
+        const auto flags =
+          bitflags<generator::option>(param.integers[generator_tag::i_options]);
+
+        if (flags[generator::option::ta_use_source]) {
+            fmt::print(
+              os,
+              R"(    sim.parameters[sim.get_id(mdl_{})].set_generator_ta(get_source({}));)",
+              idx,
+              o_param.integers(param, generator_tag::source_ta));
+        }
+
+        if (flags[generator::option::value_use_source]) {
+            fmt::print(
+              os,
+              R"(    sim.parameters[sim.get_id(mdl_{})].set_generator_value(get_source({}));)",
+              idx,
+              o_param.integers(param, generator_tag::source_value));
+        }
+    } break;
 
     case dynamics_type::constant:
         fmt::print(
           os,
           R"(    sim.parameters[sim.get_id(mdl_{})].set_constant({}, {});)",
           idx,
-          params.reals[constant_tag::value],
-          params.reals[constant_tag::offset]);
+          o_param.reals(param, constant_tag::value),
+          o_param.reals(param, constant_tag::offset));
         break;
 
     case dynamics_type::time_func:
@@ -526,107 +543,42 @@ static void write_test_simulation_model(
           os,
           R"(    sim.parameters[sim.get_id(mdl_{})].set_time_func({}, {}, {});)",
           idx,
-          params.reals[time_func_tag::offset],
-          params.reals[time_func_tag::timestep],
-          params.integers[time_func_tag::i_type]);
+          o_param.reals(param, time_func_tag::offset),
+          o_param.reals(param, time_func_tag::timestep),
+          o_param.integers(param, time_func_tag::i_type));
         break;
 
-    case dynamics_type::hsm_wrapper:
+    case dynamics_type::hsm_wrapper: {
+        const auto& dyn = get_dyn<hsm_wrapper>(mdl);
+        if (const auto* hsm = sim.hsms.try_to_get(dyn.id)) {
+            if (hsm->flags[hierarchical_state_machine::option::use_source]) {
+                fmt::print(
+                  os,
+                  R"(    sim.parameters[sim.get_id(mdl_{})].set_hsm_wrapper_value(get_source({}));)",
+                  idx,
+                  o_param.integers(param, hsm_wrapper_tag::source_value));
+                break;
+            }
+        }
+
         fmt::print(os,
                    R"(
     sim.parameters[sim.get_id(mdl_{})].set_hsm_wrapper({});
     sim.parameters[sim.get_id(mdl_{})].set_hsm_wrapper({}, {}, {}, {}, {});
 )",
                    idx,
-                   params.integers[hsm_wrapper_tag::id],
+                   o_param.integers(param, hsm_wrapper_tag::id),
                    idx,
-                   params.integers[hsm_wrapper_tag::i1],
-                   params.integers[hsm_wrapper_tag::i2],
-                   params.reals[hsm_wrapper_tag::r1],
-                   params.reals[hsm_wrapper_tag::r2],
-                   params.reals[hsm_wrapper_tag::timer]);
-
-        break;
+                   o_param.integers(param, hsm_wrapper_tag::i1),
+                   o_param.integers(param, hsm_wrapper_tag::i2),
+                   o_param.reals(param, hsm_wrapper_tag::r1),
+                   o_param.reals(param, hsm_wrapper_tag::r2),
+                   o_param.reals(param, hsm_wrapper_tag::timer));
+    } break;
 
     default:
         break;
     }
-}
-
-static void assign_constant_source(std::string&   id,
-                                   std::string&   type,
-                                   const irt::u64 cpp) noexcept
-{
-    id.clear();
-    fmt::format_to(std::back_inserter(id),
-                   "sim.srcs.constant_sources.get_id(constant_src_{})",
-                   cpp);
-
-    type.clear();
-    fmt::format_to(
-      std::back_inserter(type), "{}", ordinal(source::source_type::constant));
-}
-
-static void write_test_simulation_model_hsm(
-  std::ostream&                         os,
-  override_parameter&                   override_param,
-  const simulation&                     sim,
-  const model&                          mdl,
-  const table<u64, u64>&                hsm_sim_to_cpp,
-  const table<constant_source_id, u64>& constant_source_sim_to_cpp) noexcept
-{
-    const auto& params     = sim.parameters[sim.models.get_id(mdl)];
-    const auto  sim_hsm_id = enum_cast<hsm_id>(params.integers[0]);
-    const auto* hsm        = sim.hsms.try_to_get(sim_hsm_id);
-    debug::ensure(hsm);
-
-    override_param = params;
-
-    if (auto* cpp = hsm_sim_to_cpp.get(to_unsigned(params.integers[0]))) {
-        override_param.integers[0].clear();
-        fmt::format_to(std::back_inserter(override_param.integers[0]),
-                       "sim.hsms.get_id(hsm_{})",
-                       *cpp);
-    }
-
-    if (hsm->flags[hierarchical_state_machine::option::use_source]) {
-        if (auto* cpp = constant_source_sim_to_cpp.get(
-              enum_cast<constant_source_id>(params.integers[3]))) {
-            assign_constant_source(
-              override_param.integers[3], override_param.integers[4], *cpp);
-        }
-    }
-
-    write_test_simulation_model(os, sim, mdl, override_param);
-}
-
-static void write_test_simulation_model_source(
-  std::ostream&                         os,
-  override_parameter&                   override_param,
-  const simulation&                     sim,
-  const model&                          mdl,
-  const table<constant_source_id, u64>& sim_to_cpp,
-  const int                             index_1,
-  const int                             index_2) noexcept
-{
-    const auto idx = get_index(sim.models.get_id(mdl));
-    override_param = sim.parameters[idx];
-
-    if (const auto* cpp_1 = sim_to_cpp.get(enum_cast<constant_source_id>(
-          sim.parameters[idx].integers[index_1]))) {
-        assign_constant_source(override_param.integers[index_1],
-                               override_param.integers[index_1 + 1],
-                               *cpp_1);
-    }
-
-    if (const auto* cpp_2 = sim_to_cpp.get(enum_cast<constant_source_id>(
-          sim.parameters[idx].integers[index_2]))) {
-        assign_constant_source(override_param.integers[index_2],
-                               override_param.integers[index_2 + 1],
-                               *cpp_2);
-    }
-
-    write_test_simulation_model(os, sim, mdl, override_param);
 }
 
 static void write_test_simulation_models(
@@ -637,55 +589,9 @@ static void write_test_simulation_models(
 {
     override_parameter params;
 
-    for (const auto& mdl : sim.models) {
-        switch (mdl.type) {
-        case dynamics_type::hsm_wrapper:
-            write_test_simulation_model_hsm(
-              os, params, sim, mdl, hsm_sim_to_cpp, constant_source_sim_to_cpp);
-            break;
-
-        case dynamics_type::dynamic_queue:
-            write_test_simulation_model_source(os,
-                                               params,
-                                               sim,
-                                               mdl,
-                                               constant_source_sim_to_cpp,
-                                               dynamic_queue_tag::source_ta,
-                                               -1);
-            break;
-
-        case dynamics_type::priority_queue:
-            write_test_simulation_model_source(os,
-                                               params,
-                                               sim,
-                                               mdl,
-                                               constant_source_sim_to_cpp,
-                                               priority_queue_tag::source_ta,
-                                               -1);
-            break;
-
-        case dynamics_type::generator: {
-            const auto& dyn = get_dyn<generator>(mdl);
-            write_test_simulation_model_source(
-              os,
-              params,
-              sim,
-              mdl,
-              constant_source_sim_to_cpp,
-              dyn.flags[generator::option::ta_use_source]
-                ? generator_tag::source_ta
-                : -1,
-              dyn.flags[generator::option::value_use_source]
-                ? generator_tag::source_value
-                : -1);
-        } break;
-
-        default:
-            params = sim.parameters[sim.get_id(mdl)];
-            write_test_simulation_model(os, sim, mdl, params);
-            break;
-        }
-    }
+    for (const auto& mdl : sim.models)
+        write_test_simulation_model(
+          os, sim, mdl, sim.parameters[sim.get_id(mdl)], params);
 }
 
 static void write_test_simulation_hsm_state(
@@ -906,7 +812,7 @@ static bool store_if_constant(table<constant_source_id, u64>& sim_to_cpp,
     return false;
 }
 
-static bool write_test_simulation_constant_sources(
+static bool write_constant_sources(
   std::ostream&                   os,
   const simulation&               sim,
   table<constant_source_id, u64>& sim_to_cpp) noexcept
@@ -1090,8 +996,7 @@ auto write_test_simulation(std::ostream&                       os,
 
     write_test_simulation_header(os, name, sim);
 
-    if (not write_test_simulation_constant_sources(
-          os, sim, constant_sim_to_cpp))
+    if (not write_constant_sources(os, sim, constant_sim_to_cpp))
         return write_test_simulation_result::external_source_error;
 
     if (not write_test_simulation_hsm(os, sim, hsm_sim_to_cpp))
