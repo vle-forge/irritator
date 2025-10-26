@@ -81,18 +81,12 @@ static void show_simulation_action_buttons(application&    app,
 {
     const auto item_x         = ImGui::GetStyle().ItemSpacing.x;
     const auto region_x       = ImGui::GetContentRegionAvail().x;
-    const auto button_x       = (region_x - item_x) / 10.f;
-    const auto small_button_x = (region_x - (button_x * 9.f) - item_x) / 3.f;
+    const auto button_x       = (region_x - item_x) / 9.f;
+    const auto small_button_x = (region_x - (button_x * 8.f) - item_x) / 3.f;
     const auto button         = ImVec2{ button_x, 0.f };
     const auto small_button   = ImVec2{ small_button_x, 0.f };
 
     auto open = false;
-
-    open = ImGui::Button("Clear", button);
-    if (ImGui::IsItemHovered(ImGuiHoveredFlags_AllowWhenDisabled))
-        ImGui::SetTooltip("Destroy all simulations and observations data.");
-    if (open)
-        ed.start_simulation_delete(app);
 
     ImGui::SameLine();
 
