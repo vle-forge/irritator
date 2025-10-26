@@ -677,7 +677,7 @@ void project_editor::start_simulation_copy_modeling(application& app) noexcept
             force_pause = false;
             force_stop  = false;
 
-            
+            pj.sim.clear();
 
             app.add_simulation_task(app.pjs.get_id(*this), [&]() noexcept {
                 simulation_copy(app, *this);
@@ -705,20 +705,6 @@ void project_editor::start_simulation_init(application& app) noexcept
         });
     }
 }
-
-void project_editor::start_simulation_delete(application& app) noexcept
-{
-    // Disable display graph node to avoid data race on @c
-    // simulation_editor::simulation data.
-    display_graph = false;
-
-    app.add_simulation_task(app.pjs.get_id(*this), [&]() noexcept {
-        pj.clear();
-        pj.sim.clear();
-    });
-}
-
-
 
 void project_editor::start_simulation_start(application& app) noexcept
 {
