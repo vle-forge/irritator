@@ -810,7 +810,7 @@ static bool store_if_constant(table<constant_source_id, u64>& sim_to_cpp,
     const auto src = get_source(param);
 
     if (src.type == source::source_type::constant) {
-        if (auto* ptr = sim_to_cpp.get(src.id.constant_id); ptr) {
+        if (auto* ptr = sim_to_cpp.get(src.id.constant_id)) {
             (*ptr)++;
             return true;
         }
@@ -914,9 +914,9 @@ static bool write_test_simulation_hsm(std::ostream&     os,
             const auto  id  = enum_cast<hsm_id>(uid);
 
             if (auto* ptr = sim_to_cpp.get(id))
-                return false;
-            else
                 (*ptr)++;
+            else
+                return false;
         }
     }
 
