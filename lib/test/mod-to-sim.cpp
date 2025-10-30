@@ -19,26 +19,41 @@
 
 using namespace std::literals;
 
-static auto get_connection_number(
-  const irt::data_array<irt::block_node, irt::block_node_id>& data) noexcept
+static auto get_connection_number(const irt::simulation& sim) noexcept
 {
-    return std::accumulate(data.begin(),
-                           data.end(),
-                           std::size_t(0u),
-                           [](std::size_t acc, const irt::block_node& elem) {
-                               return acc + elem.nodes.size();
-                           });
+    const auto block_node_number =
+      std::accumulate(sim.nodes.begin(),
+                      sim.nodes.end(),
+                      std::size_t(0u),
+                      [](std::size_t acc, const irt::block_node& elem) {
+                          return acc + elem.nodes.size();
+                      });
+
+    const auto output_port_number =
+      std::accumulate(sim.output_ports.begin(),
+                      sim.output_ports.end(),
+                      std::size_t(0u),
+                      [](std::size_t acc, const irt::output_port& port) {
+                          return acc + port.connections.size();
+                      });
+
+    return block_node_number + output_port_number;
 }
 
-static auto get_input_connection_number(
-  const irt::data_array<irt::block_node, irt::block_node_id>& data,
-  const irt::model_id                                         id,
-  const int                                                   port) noexcept
+static auto get_input_connection_number(const irt::simulation& sim,
+                                        const irt::model_id    id,
+                                        const int              port) noexcept
 {
     std::size_t sum = 0;
 
-    for (const auto& block : data) {
+    for (const auto& block : sim.nodes) {
         sum += std::ranges::count_if(block.nodes, [&](const irt::node& elem) {
+            return id == elem.model and port == elem.port_index;
+        });
+    }
+
+    for (const auto& y : sim.output_ports) {
+        sum += std::ranges::count_if(y.connections, [&](const irt::node& elem) {
             return id == elem.model and port == elem.port_index;
         });
     }
@@ -346,7 +361,7 @@ int main()
         expect(!!pj.set(mod, cg));
         expect(eq(pj.tree_nodes_size().first, g.g.nodes.ssize() + 1));
         expect(eq(pj.sim.models.ssize(), g.g.nodes.ssize()));
-        expect(eq(get_connection_number(pj.sim.nodes), g.g.edges.size()));
+        expect(eq(get_connection_number(pj.sim), g.g.edges.size()));
     };
 
     "graph-scale-free-sum-m-n"_test = [] {
@@ -385,7 +400,7 @@ int main()
         expect(!!pj.set(mod, cg));
         expect(eq(pj.tree_nodes_size().first, g.g.nodes.ssize() + 1));
         expect(eq(pj.sim.models.ssize(), g.g.nodes.ssize()));
-        expect(eq(get_connection_number(pj.sim.nodes), 2u * g.g.edges.size()));
+        expect(eq(get_connection_number(pj.sim), 2u * g.g.edges.size()));
     };
 
     "graph-scale-free-sum-m_3-n_3"_test = [] {
@@ -448,7 +463,7 @@ int main()
         expect(!!pj.set(mod, cg));
         expect(eq(pj.tree_nodes_size().first, g.g.nodes.ssize() + 1));
         expect(eq(pj.sim.models.ssize(), g.g.nodes.ssize()));
-        expect(eq(get_connection_number(pj.sim.nodes), 2 * g.g.edges.size()));
+        expect(eq(get_connection_number(pj.sim), 2 * g.g.edges.size()));
     };
 
     "grid-3x3-empty-con"_test = [] {
@@ -1210,7 +1225,7 @@ int main()
             expect(eq(nb_counter_model, 5 * 5 + 1));
             expect(eq(nb_constant_model, 5 * 5));
             expect(eq(nb_unknown_model, 0));
-            expect(eq(get_connection_number(pj.sim.nodes),
+            expect(eq(get_connection_number(pj.sim),
                       9u * 4u      // The 3x3 center models with 4 connections
                         + 4u * 2u  // The 4 corner models with 2 connections
                         + 12u * 3u // The 12 border models with 3 connections
@@ -1249,14 +1264,14 @@ int main()
             expect(eq(nb_counter_model, 5 * 5 + 1));
             expect(eq(nb_constant_model, 5 * 5));
             expect(eq(nb_unknown_model, 0));
-            expect(eq(get_connection_number(pj.sim.nodes),
+            expect(eq(get_connection_number(pj.sim),
                       9u * 4u      // The 3x3 center models with 4 connections
                         + 4u * 2u  // The 4 corner models with 2 connections
                         + 12u * 3u // The 12 border models with 3 connections
                         + 25u      // The connection-pack.
                       ));
             expect(eq(get_input_connection_number(
-                        pj.sim.nodes,
+                        pj.sim,
                         pj.tn_head()
                           ->children[root_gen.children.get_id(counter_child)]
                           .mdl,
@@ -1296,7 +1311,7 @@ int main()
             expect(eq(nb_counter_model, 5 * 5 + 1));
             expect(eq(nb_constant_model, 5 * 5));
             expect(eq(nb_unknown_model, 0));
-            expect(eq(get_connection_number(pj.sim.nodes),
+            expect(eq(get_connection_number(pj.sim),
                       9u * 4u      // The 3x3 center models with 4 connections
                         + 4u * 2u  // The 4 corner models with 2 connections
                         + 12u * 3u // The 12 border models with 3 connections
@@ -1304,7 +1319,7 @@ int main()
                         + 25u / 3u + 1u // The 9 sum models
                       ));
             expect(eq(get_input_connection_number(
-                        pj.sim.nodes,
+                        pj.sim,
                         pj.tn_head()
                           ->children[root_gen.children.get_id(counter_child)]
                           .mdl,
@@ -1397,8 +1412,8 @@ int main()
 
             expect(pj.set(mod, cg).has_value());
             expect(eq(pj.sim.models.ssize(), 3 * 4));
-            expect(eq(get_connection_number(pj.sim.nodes),
-                      g.g.edges.size() * 2u * 2u));
+            expect(
+              eq(get_connection_number(pj.sim), g.g.edges.size() * 2u * 2u));
         }
     };
 
@@ -1500,8 +1515,8 @@ int main()
 
             // 5 edges + 2 edge for sum models for port m and n.
 
-            expect(eq(get_connection_number(pj.sim.nodes),
-                      (g.g.edges.size() + 2u) * 2u));
+            expect(
+              eq(get_connection_number(pj.sim), (g.g.edges.size() + 2u) * 2u));
         }
     };
 
@@ -1662,9 +1677,9 @@ int main()
             // 5 edges + 2 edge for sum models for port m and n + 6 edges to sum
             // models and 1 edge between sum models and finally on 1edge from
             // sum model to counter.
-            expect(eq(get_connection_number(pj.sim.nodes),
-                      (g.g.edges.size() + 2u) * 2u) +
-                   8u);
+            expect(
+              eq(get_connection_number(pj.sim), (g.g.edges.size() + 2u) * 2u) +
+              8u);
         }
     };
 }

@@ -272,7 +272,29 @@ void write_dot_graph_simulation(std::ostream&     os,
             Dynamics& dyn, const auto& sim, const auto src_mdl_id, auto& os) {
               if constexpr (has_output_port<Dynamics>) {
                   for (int i = 0, e = length(dyn.y); i != e; ++i) {
-                      for (auto* block = sim.nodes.try_to_get(dyn.y[i]); block;
+                      const auto  y_id = dyn.y[i];
+                      const auto& y    = sim.output_ports.get(y_id);
+
+                      const auto src_idx = get_index(src_mdl_id);
+                      const auto port_out =
+                        get_output_port_names<Dynamics>(dot_output_names)[i];
+
+                      for (auto it = y.connections.begin(),
+                                et = y.connections.end();
+                           it != et;
+                           ++it) {
+                          if (const auto* dst =
+                                sim.models.try_to_get(it->model)) {
+                              os
+                                << " " << src_idx << ":" << port_out << " -> "
+                                << get_index(it->model) << ":"
+                                << get_input_port_names(
+                                     dst->type, dot_input_names)[it->port_index]
+                                << "\n";
+                          }
+                      }
+
+                      for (auto* block = sim.nodes.try_to_get(y.next); block;
                            block       = sim.nodes.try_to_get(block->next)) {
 
                           const auto src_idx  = get_index(src_mdl_id);
@@ -942,7 +964,27 @@ static void write_test_simulation_connections(std::ostream&     os,
             Dynamics& dyn, const auto& sim, const auto src_mdl_id, auto& os) {
               if constexpr (has_output_port<Dynamics>) {
                   for (int i = 0, e = length(dyn.y); i != e; ++i) {
-                      for (auto* block = sim.nodes.try_to_get(dyn.y[i]); block;
+                      const auto  y_id = dyn.y[i];
+                      const auto& y    = sim.output_ports.get(y_id);
+
+                      const auto src_idx = get_index(src_mdl_id);
+                      for (auto it = y.connections.begin(),
+                                et = y.connections.end();
+                           it != et;
+                           ++it) {
+                          if (const auto* dst =
+                                sim.models.try_to_get(it->model)) {
+                              fmt::print(os,
+                                         R"(
+    expect(sim.connect_dynamics(mdl_{}, {}, mdl_{}, {}).has_value());)",
+                                         src_idx,
+                                         i,
+                                         get_index(it->model),
+                                         it->port_index);
+                          }
+                      }
+
+                      for (auto* block = sim.nodes.try_to_get(y.next); block;
                            block       = sim.nodes.try_to_get(block->next)) {
 
                           const auto src_idx = get_index(src_mdl_id);

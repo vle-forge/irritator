@@ -160,7 +160,7 @@ static status build_initial_simulation_point(timeline&   tl,
 {
     if (!tl.can_alloc(timeline_point_type::simulation,
                       static_cast<i32>(sim.models.max_used()),
-                      static_cast<i32>(sim.messages.max_size())))
+                      static_cast<i32>(sim.nodes.max_size())))
         return new_error(timeline_errc::memory_error);
 
     auto& sim_pt = tl.alloc_simulation_point();

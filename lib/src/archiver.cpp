@@ -493,30 +493,30 @@ struct binary_archiver::impl {
             }
         }
 
-        {
-            for (auto& mdl : sim.models) {
-                dispatch(mdl, [&]<typename Dynamics>(Dynamics& dyn) {
-                    if constexpr (has_output_port<Dynamics>) {
-                        i8         i      = 0;
-                        const auto out_id = sim.models.get_id(mdl);
+        //{
+        //    for (auto& mdl : sim.models) {
+        //        dispatch(mdl, [&]<typename Dynamics>(Dynamics& dyn) {
+        //            if constexpr (has_output_port<Dynamics>) {
+        //                i8         i      = 0;
+        //                const auto out_id = sim.models.get_id(mdl);
 
-                        for (const auto& elem : dyn.y) {
-                            sim.for_each(
-                              elem,
-                              [&](const auto& mdl, const auto port_index) {
-                                  auto in = get_index(sim.get_id(mdl));
+        //                for (const auto& elem : dyn.y) {
+        //                    sim.for_each(
+        //                      elem,
+        //                      [&](const auto& mdl, const auto port_index) {
+        //                          auto in = get_index(sim.get_id(mdl));
 
-                                  io(out_id);
-                                  io(i);
-                                  io(in);
-                                  io(port_index);
-                                  ++i;
-                              });
-                        }
-                    }
-                });
-            }
-        }
+        //                          io(out_id);
+        //                          io(i);
+        //                          io(in);
+        //                          io(port_index);
+        //                          ++i;
+        //                      });
+        //                }
+        //            }
+        //        });
+        //    }
+        //}
 
         return true;
     }
@@ -679,16 +679,20 @@ struct binary_archiver::impl {
             if (!mdl_dst)
                 return bin.report_error(error_code::unknown_model_error);
 
-            block_node_id* pout = nullptr;
-            message_id*    pin  = nullptr;
+            // block_node_id* pout = nullptr;
+            // message_id*    pin  = nullptr;
 
-            if (auto ret = get_output_port(*mdl_src, port_out, pout); !ret)
-                return bin.report_error(error_code::unknown_model_port_error);
-            if (auto ret = get_input_port(*mdl_dst, port_in, pin); !ret)
-                return bin.report_error(error_code::unknown_model_port_error);
-            if (auto ret = sim.connect(*mdl_src, port_out, *mdl_dst, port_in);
-                !ret)
-                return bin.report_error(error_code::unknown_model_port_error);
+            // if (auto ret = get_output_port(*mdl_src, port_out, pout); !ret)
+            //     return
+            //     bin.report_error(error_code::unknown_model_port_error);
+            // if (auto ret = get_input_port(*mdl_dst, port_in, pin); !ret)
+            //     return
+            //     bin.report_error(error_code::unknown_model_port_error);
+            // if (auto ret = sim.connect(*mdl_src, port_out, *mdl_dst,
+            // port_in);
+            //     !ret)
+            //     return
+            //     bin.report_error(error_code::unknown_model_port_error);
         }
 
         return true;

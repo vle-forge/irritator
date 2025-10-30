@@ -45,6 +45,84 @@ void flat_simulation_editor::auto_fit_camera() noexcept
     scrolling = -top_left * zoom + space / 2.f;
 }
 
+static void draw_block_connections(
+  const simulation&                               sim,
+  const model_id                                  src,
+  const std::span<const ImVec2>                   positions,
+  const std::span<const node>                     block,
+  const ImVec2                                    origin,
+  const bitflags<flat_simulation_editor::action>& actions,
+  const float                                     zoom,
+  ImDrawList*                                     draw_list) noexcept
+{
+    const auto src_idx = get_index(src);
+
+    for (auto it = block.begin(), et = block.end(); it != et; ++it) {
+        if (const auto* dst = sim.models.try_to_get(it->model); dst) {
+            ImVec2 from(origin.x + (positions[src_idx][0] * zoom),
+                        origin.y + (positions[src_idx][1] * zoom));
+
+            ImVec2 to(origin.x + (positions[get_index(it->model)][0] * zoom),
+                      origin.y + (positions[get_index(it->model)][1] * zoom));
+
+            if (actions[flat_simulation_editor::action::use_bezier])
+                draw_list->AddBezierCubic(from,
+                                          from + ImVec2(+50.f, 0.f),
+                                          to + ImVec2(-50.f, 0.f),
+                                          to,
+                                          IM_COL32(0, 127, 0, 255),
+                                          1.0f);
+            else
+                draw_list->AddLine(from, to, IM_COL32(0, 127, 0, 255), 1.0f);
+        }
+    }
+}
+
+static void draw_connections(
+  const simulation&                               sim,
+  const model&                                    mdl,
+  const std::span<const ImVec2>                   positions,
+  const ImVec2                                    origin,
+  const bitflags<flat_simulation_editor::action>& actions,
+  const float                                     zoom,
+  ImDrawList*                                     draw_list) noexcept
+{
+    dispatch(
+      mdl,
+      [&]<typename Dynamics>(
+        Dynamics& dyn, const auto& sim, const auto src_mdl_id) {
+          if constexpr (has_output_port<Dynamics>) {
+              for (int i = 0, e = length(dyn.y); i != e; ++i) {
+                  if (const auto* y = sim.output_ports.try_to_get(dyn.y[i])) {
+                      draw_block_connections(sim,
+                                             src_mdl_id,
+                                             positions,
+                                             y->connections,
+                                             origin,
+                                             actions,
+                                             zoom,
+                                             draw_list);
+
+                      for (auto* block = sim.nodes.try_to_get(y->next); block;
+                           block       = sim.nodes.try_to_get(block->next)) {
+
+                          draw_block_connections(sim,
+                                                 src_mdl_id,
+                                                 positions,
+                                                 block->nodes,
+                                                 origin,
+                                                 actions,
+                                                 zoom,
+                                                 draw_list);
+                      }
+                  }
+              }
+          }
+      },
+      sim,
+      sim.models.get_id(mdl));
+}
+
 bool flat_simulation_editor::display(application&    app,
                                      project_editor& pj_ed) noexcept
 {
@@ -232,68 +310,14 @@ bool flat_simulation_editor::display(application&    app,
                               dynamics_type_names[ordinal(mdl->type)]);
                     }
 
-                    dispatch(
-                      *mdl,
-                      [&]<typename Dynamics>(
-                        Dynamics& dyn, const auto& sim, const auto src_mdl_id) {
-                          if constexpr (has_output_port<Dynamics>) {
-                              for (int i = 0, e = length(dyn.y); i != e; ++i) {
-                                  for (auto* block =
-                                         sim.nodes.try_to_get(dyn.y[i]);
-                                       block;
-                                       block =
-                                         sim.nodes.try_to_get(block->next)) {
-
-                                      const auto src_idx =
-                                        get_index(src_mdl_id);
-                                      for (auto it = block->nodes.begin(),
-                                                et = block->nodes.end();
-                                           it != et;
-                                           ++it) {
-                                          if (const auto* dst =
-                                                sim.models.try_to_get(
-                                                  it->model)) {
-
-                                              ImVec2 from(
-                                                origin.x +
-                                                  (d.positions[src_idx][0] *
-                                                   zoom),
-                                                origin.y +
-                                                  (d.positions[src_idx][1] *
-                                                   zoom));
-
-                                              ImVec2 to(
-                                                origin.x +
-                                                  (d.positions[get_index(
-                                                     it->model)][0] *
-                                                   zoom),
-                                                origin.y +
-                                                  (d.positions[get_index(
-                                                     it->model)][1] *
-                                                   zoom));
-
-                                              if (actions[action::use_bezier])
-                                                  draw_list->AddBezierCubic(
-                                                    from,
-                                                    from + ImVec2(+50.f, 0.f),
-                                                    to + ImVec2(-50.f, 0.f),
-                                                    to,
-                                                    IM_COL32(0, 127, 0, 255),
-                                                    1.0f);
-                                              else
-                                                  draw_list->AddLine(
-                                                    from,
-                                                    to,
-                                                    IM_COL32(0, 127, 0, 255),
-                                                    1.0f);
-                                          }
-                                      }
-                                  }
-                              }
-                          }
-                      },
-                      pj_ed.pj.sim,
-                      pj_ed.pj.sim.models.get_id(mdl));
+                    draw_connections(pj_ed.pj.sim,
+                                     *mdl,
+                                     std::span<const ImVec2>(
+                                       d.positions.begin(), d.positions.size()),
+                                     origin,
+                                     actions,
+                                     zoom,
+                                     draw_list);
                 }
             }
 
