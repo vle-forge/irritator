@@ -1279,11 +1279,17 @@ public:
     status connect(output_port_id port, model_id dst, int port_dst) noexcept;
 
     template<typename Function, typename... Args>
-    void for_each(block_node_id& port, Function&& fn, Args&&... args) noexcept
+    void for_each(output_port& port, Function&& fn, Args&&... args) noexcept
     {
-        block_node* prev = nullptr;
+        for (const auto& elem : port.connections)
+            if (auto* mdl = models.try_to_get(elem.model))
+                std::invoke(std::forward<Function>(fn),
+                            *mdl,
+                            elem.port_index,
+                            std::forward<Args>(args)...);
 
-        for (auto* block = nodes.try_to_get(port); block;
+        block_node* prev = nullptr;
+        for (auto* block = nodes.try_to_get(port.next); block;
              block       = nodes.try_to_get(block->next)) {
 
             for (auto it = block->nodes.begin(); it != block->nodes.end();) {
@@ -1321,22 +1327,37 @@ public:
     }
 
     template<typename Function, typename... Args>
-    void for_each(const block_node_id& port,
+    void for_each(const output_port_id port,
                   Function&&           fn,
+                  Args&&... args) noexcept
+    {
+        for_each(output_ports.get(port),
+                 std::forward<Function>(fn),
+                 std::forward<Args>(args)...);
+    }
+
+    template<typename Function, typename... Args>
+    void for_each(const output_port_id& port,
+                  Function&&            fn,
                   Args&&... args) const noexcept
     {
-        for (const auto* block = nodes.try_to_get(port); block;
-             block             = nodes.try_to_get(block->next)) {
-            for (auto it = block->nodes.begin(); it != block->nodes.end();
-                 ++it) {
-                if (auto* mdl = models.try_to_get(it->model)) {
+        auto& y = output_ports.get(port);
+
+        for (const auto& elem : y.connections)
+            if (auto* mdl = models.try_to_get(elem.model))
+                std::invoke(std::forward<Function>(fn),
+                            *mdl,
+                            elem.port_index,
+                            std::forward<Args>(args)...);
+
+        for (const auto* block = nodes.try_to_get(y.next); block;
+             block             = nodes.try_to_get(block->next))
+            for (const auto& elem : block->nodes)
+                if (auto* mdl = models.try_to_get(elem.model))
                     std::invoke(std::forward<Function>(fn),
                                 *mdl,
-                                it->port_index,
+                                elem.port_index,
                                 std::forward<Args>(args)...);
-                }
-            }
-        }
     }
 
     template<typename DynamicsSrc, typename DynamicsDst>
