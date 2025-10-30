@@ -1125,12 +1125,37 @@ public:
     constexpr time end() const noexcept;
 };
 
+enum class output_port_id : u64;
+
+struct input_port {
+    u32 position = 0; /**< The current read position in the
+                                message buffer. */
+    u16 size = 0;     /**< The current size of the message
+                                buffer. */
+    u16 capacity = 0; /**< The capacity of the message list. */
+};
+
+struct output_port {
+    message msg; /**< A single message.Multiple call to @c send_message override
+                    previous message. */
+
+    small_vector<node, 4> connections; /**< A list of connected nodes. */
+
+    block_node_id next = undefined<block_node_id>(); /**< The next block
+                                                node in the linked
+                                                list of output port
+                                                connections. */
+};
+
 class simulation
 {
 public:
     vector<output_message> emitting_output_ports;
     vector<model_id>       immediate_models;
     vector<observer_id>    immediate_observers;
+
+    vector<output_port_id> active_output_ports;
+    vector<message>        message_buffer;
 
     /** A vector of the size of @c models data_array. */
     vector<parameter> parameters;
@@ -1140,6 +1165,7 @@ public:
     data_array<observer, observer_id>                observers;
     data_array<block_node, block_node_id>            nodes;
     data_array<small_vector<message, 8>, message_id> messages;
+    data_array<output_port, output_port_id>          output_ports;
 
     data_array<ring_buffer<dated_message>, dated_message_id> dated_messages;
 
@@ -6428,59 +6454,72 @@ inline bool observer::full() const noexcept
 }
 
 inline status send_message(simulation&    sim,
-                           block_node_id& output_port,
+                           output_port_id output_port,
                            real           r1,
                            real           r2,
                            real           r3) noexcept
 {
-    block_node* prev = nullptr;
+    auto& y  = sim.output_ports.get(output_port);
+    y.msg[0] = r1;
+    y.msg[1] = r2;
+    y.msg[2] = r3;
 
-    for (auto* block = sim.nodes.try_to_get(output_port); block;
-         block       = sim.nodes.try_to_get(block->next)) {
+    if (not sim.active_output_ports.can_alloc(1) and
+        not sim.active_output_ports.grow<3, 2>())
+        return new_error(simulation_errc::emitting_output_ports_full);
 
-        for (auto it = block->nodes.begin(); it != block->nodes.end();) {
-            if (auto* mdl = sim.models.try_to_get(it->model); not mdl) {
-                block->nodes.swap_pop_back(it);
-            } else {
-                if (not sim.emitting_output_ports.can_alloc(1))
-                    return new_error(
-                      simulation_errc::emitting_output_ports_full);
-
-                auto& output_message = sim.emitting_output_ports.emplace_back();
-                output_message.msg[0] = r1;
-                output_message.msg[1] = r2;
-                output_message.msg[2] = r3;
-                output_message.model  = it->model;
-                output_message.port   = it->port_index;
-
-                ++it;
-            }
-        }
-
-        if (block->nodes.empty()) { /* If the block is empty, free the
-                                       block from the linked list. */
-
-            if (prev != nullptr) {
-                prev->next = block->next;
-                sim.nodes.free(*block);
-                block = prev;
-            } else {
-                if (auto* next_block = sim.nodes.try_to_get(block->next)) {
-                    block->nodes = next_block->nodes;
-                    block->next  = next_block->next;
-                    sim.nodes.free(*next_block);
-                } else {
-                    sim.nodes.free(*block);
-                    output_port = undefined<block_node_id>();
-                    break;
-                }
-            }
-        } else {
-            prev = block;
-        }
-    }
-
+    sim.active_output_ports.push_back(output_port);
     return success();
+
+    // block_node* prev = nullptr;
+
+    // for (auto* block = sim.nodes.try_to_get(output_port); block;
+    //      block       = sim.nodes.try_to_get(block->next)) {
+
+    //    for (auto it = block->nodes.begin(); it != block->nodes.end();) {
+    //        if (auto* mdl = sim.models.try_to_get(it->model); not mdl) {
+    //            block->nodes.swap_pop_back(it);
+    //        } else {
+    //            if (not sim.emitting_output_ports.can_alloc(1))
+    //                return new_error(
+    //                  simulation_errc::emitting_output_ports_full);
+
+    //            auto& output_message =
+    //            sim.emitting_output_ports.emplace_back();
+    //            output_message.msg[0] = r1;
+    //            output_message.msg[1] = r2;
+    //            output_message.msg[2] = r3;
+    //            output_message.model  = it->model;
+    //            output_message.port   = it->port_index;
+
+    //            ++it;
+    //        }
+    //    }
+
+    //    if (block->nodes.empty()) { /* If the block is empty, free the
+    //                                   block from the linked list. */
+
+    //        if (prev != nullptr) {
+    //            prev->next = block->next;
+    //            sim.nodes.free(*block);
+    //            block = prev;
+    //        } else {
+    //            if (auto* next_block = sim.nodes.try_to_get(block->next)) {
+    //                block->nodes = next_block->nodes;
+    //                block->next  = next_block->next;
+    //                sim.nodes.free(*next_block);
+    //            } else {
+    //                sim.nodes.free(*block);
+    //                output_port = undefined<block_node_id>();
+    //                break;
+    //            }
+    //        }
+    //    } else {
+    //        prev = block;
+    //    }
+    //}
+
+    // return success();
 }
 
 /**
@@ -7636,10 +7675,27 @@ inline status simulation::run() noexcept
 
     sched.pop(immediate_models);
 
+    active_output_ports.clear();
     emitting_output_ports.clear();
     for (const auto id : immediate_models)
         if (auto* mdl = models.try_to_get(id); mdl)
             irt_check(make_transition(*mdl, t));
+
+    for (const auto y_id : active_output_ports) {
+        auto& y = output_ports.get(y_id);
+
+        for (auto it = y.connections.begin(); it != y.connections.end();) {
+            if (auto* mdl = models.try_to_get(it->model)) {
+                dispatch(*mdl, [&]<typename Dynamics>(Dynamics& dyn) {
+                    if constexpr (has_input_port<Dynamics>) {
+                    
+                    }
+                });
+            } else {
+                y.connections.swap_pop_back(it);
+            }
+        }
+    }
 
     for (int i = 0, e = length(emitting_output_ports); i != e; ++i) {
         auto* mdl = models.try_to_get(emitting_output_ports[i].model);
