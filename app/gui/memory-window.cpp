@@ -85,13 +85,13 @@ void memory_window::show() noexcept
                                    "{}",
                                    p.pj.sim.immediate_observers.size());
                 ImGui::LabelFormat(
-                  "message alloc", "{}", p.pj.sim.messages.size());
+                  "message buffer alloc", "{}", p.pj.sim.message_buffer.size());
                 ImGui::LabelFormat("node", "{}", p.pj.sim.nodes.size());
                 ImGui::LabelFormat(
                   "dated message alloc", "{}", p.pj.sim.dated_messages.size());
-                ImGui::LabelFormat("emitting output ports",
+                ImGui::LabelFormat("active output ports",
                                    "{}",
-                                   p.pj.sim.emitting_output_ports.size());
+                                   p.pj.sim.active_output_ports.size());
 
                 ImGui::LabelFormat("contant sources",
                                    "{}",

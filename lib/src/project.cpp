@@ -540,11 +540,17 @@ static auto make_tree_leaf(simulation_copy&          sc,
 
           if constexpr (has_input_port<Dynamics>)
               for (int i = 0, e = length(dyn.x); i != e; ++i)
-                  dyn.x[i] = undefined<message_id>();
+                  dyn.x[i].reset();
 
-          if constexpr (has_output_port<Dynamics>)
+          if constexpr (has_output_port<Dynamics>) {
+              if (not sc.pj.sim.output_ports.can_alloc(length(dyn.y)) and
+                  not sc.pj.sim.output_ports.grow<2, 1>())
+                  return new_error(project_errc::memory_error);
+
               for (int i = 0, e = length(dyn.y); i != e; ++i)
-                  dyn.y[i] = undefined<block_node_id>();
+                  dyn.y[i] = sc.pj.sim.output_ports.get_id(
+                    sc.pj.sim.output_ports.alloc());
+          }
 
           sc.pj.sim.parameters[new_mdl_id] = gen.children_parameters[ch_idx];
 

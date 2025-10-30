@@ -865,39 +865,6 @@ struct observer {
     bitflags<observer_flags> states;
 };
 
-struct node {
-    node() = default;
-
-    node(const model_id model_, const i8 port_index_) noexcept
-      : model(model_)
-      , port_index(port_index_)
-    {}
-
-    model_id model      = undefined<model_id>();
-    i8       port_index = 0;
-};
-
-/**
-   Stores a list of @c node to make connection between models. Each output
-   port of atomic model stores a @c block_node_id.
-
-   Build a linked list of
- */
-struct block_node {
-    small_vector<node, 4> nodes;
-
-    block_node_id next = undefined<block_node_id>();
-};
-
-struct output_message {
-    output_message() noexcept  = default;
-    ~output_message() noexcept = default;
-
-    message  msg{};
-    model_id model = undefined<model_id>();
-    i8       port  = 0;
-};
-
 static inline constexpr u32 invalid_heap_handle = 0xffffffff;
 
 /**
@@ -1127,12 +1094,34 @@ public:
 
 enum class output_port_id : u64;
 
+struct node {
+    model_id model      = undefined<model_id>();
+    i8       port_index = 0;
+};
+
+/** Stores a list of @c node to make connection between models. Each output port
+ * of atomic models stores a static list of @c node and a linked list of @c
+ * block_node.
+ */
+struct block_node {
+    small_vector<node, 4> nodes;
+
+    block_node_id next = undefined<block_node_id>();
+};
+
 struct input_port {
     u32 position = 0; /**< The current read position in the
                                 message buffer. */
     u16 size = 0;     /**< The current size of the message
                                 buffer. */
     u16 capacity = 0; /**< The capacity of the message list. */
+
+    constexpr void reset() noexcept
+    {
+        position = 0;
+        size     = 0;
+        capacity = 0;
+    }
 };
 
 struct output_port {
@@ -1150,23 +1139,17 @@ struct output_port {
 class simulation
 {
 public:
-    vector<output_message> emitting_output_ports;
     vector<model_id>       immediate_models;
     vector<observer_id>    immediate_observers;
-
     vector<output_port_id> active_output_ports;
     vector<message>        message_buffer;
+    vector<parameter>      parameters;
 
-    /** A vector of the size of @c models data_array. */
-    vector<parameter> parameters;
-
-    data_array<model, model_id>                      models;
-    data_array<hierarchical_state_machine, hsm_id>   hsms;
-    data_array<observer, observer_id>                observers;
-    data_array<block_node, block_node_id>            nodes;
-    data_array<small_vector<message, 8>, message_id> messages;
-    data_array<output_port, output_port_id>          output_ports;
-
+    data_array<model, model_id>                              models;
+    data_array<hierarchical_state_machine, hsm_id>           hsms;
+    data_array<observer, observer_id>                        observers;
+    data_array<block_node, block_node_id>                    nodes;
+    data_array<output_port, output_port_id>                  output_ports;
     data_array<ring_buffer<dated_message>, dated_message_id> dated_messages;
 
     scheduller<allocator<new_delete_memory_resource>> sched;
@@ -1292,7 +1275,8 @@ public:
                     model& dst,
                     int    port_dst) noexcept;
 
-    status connect(block_node_id& port, model_id dst, int port_dst) noexcept;
+    status connect(output_port& port, model_id dst, int port_dst) noexcept;
+    status connect(output_port_id port, model_id dst, int port_dst) noexcept;
 
     template<typename Function, typename... Args>
     void for_each(block_node_id& port, Function&& fn, Args&&... args) noexcept
@@ -1562,8 +1546,12 @@ inline time compute_wake_up(real threshold,
     return ret;
 }
 
+inline constexpr auto get_message(simulation&       sim,
+                                  const input_port& port) noexcept
+  -> std::span<message>;
+
 inline status send_message(simulation&    sim,
-                           block_node_id& output_port,
+                           output_port_id output_port,
                            real           r1,
                            real           r2 = 0.0,
                            real           r3 = 0.0) noexcept;
@@ -1579,8 +1567,8 @@ struct abstract_integrator;
 
 template<>
 struct abstract_integrator<1> {
-    message_id    x[2] = {};
-    block_node_id y[1] = {};
+    input_port     x[2] = {};
+    output_port_id y[1] = {};
 
     real dQ;
     real X;
@@ -1658,20 +1646,20 @@ struct abstract_integrator<1> {
                       time                  e,
                       [[maybe_unused]] time r) noexcept
     {
-        const auto* lst_x_dot      = sim.messages.try_to_get(x[port_x_dot]);
-        const auto* lst_reset      = sim.messages.try_to_get(x[port_reset]);
-        const auto  have_x_dot_msg = lst_x_dot and not lst_x_dot->empty();
-        const auto  have_reset_msg = lst_reset and not lst_reset->empty();
-        const auto  have_msg       = have_x_dot_msg or have_reset_msg;
+        const auto lst_x_dot      = get_message(sim, x[port_x_dot]);
+        const auto lst_reset      = get_message(sim, x[port_reset]);
+        const auto have_x_dot_msg = not lst_x_dot.empty();
+        const auto have_reset_msg = not lst_reset.empty();
+        const auto have_msg       = have_x_dot_msg or have_reset_msg;
 
         if (not have_msg)
             return internal();
 
         if (have_reset_msg)
-            return reset(lst_reset->front());
+            return reset(lst_reset.front());
 
         if (have_x_dot_msg)
-            return external(e, lst_x_dot->front());
+            return external(e, lst_x_dot.front());
 
         return success();
     }
@@ -1696,8 +1684,8 @@ struct abstract_integrator<1> {
 
 template<>
 struct abstract_integrator<2> {
-    message_id    x[2] = {};
-    block_node_id y[1] = {};
+    input_port     x[2] = {};
+    output_port_id y[1] = {};
 
     real dQ;
     real X;
@@ -1825,20 +1813,20 @@ struct abstract_integrator<2> {
                       time                  e,
                       [[maybe_unused]] time r) noexcept
     {
-        const auto* lst_x_dot      = sim.messages.try_to_get(x[port_x_dot]);
-        const auto* lst_reset      = sim.messages.try_to_get(x[port_reset]);
-        const auto  have_x_dot_msg = lst_x_dot and not lst_x_dot->empty();
-        const auto  have_reset_msg = lst_reset and not lst_reset->empty();
-        const auto  have_msg       = have_x_dot_msg or have_reset_msg;
+        const auto lst_x_dot      = get_message(sim, x[port_x_dot]);
+        const auto lst_reset      = get_message(sim, x[port_reset]);
+        const auto have_x_dot_msg = not lst_x_dot.empty();
+        const auto have_reset_msg = not lst_reset.empty();
+        const auto have_msg       = have_x_dot_msg or have_reset_msg;
 
         if (not have_msg)
             return internal();
 
         if (have_reset_msg)
-            return reset(lst_reset->front());
+            return reset(lst_reset.front());
 
         if (have_x_dot_msg)
-            return external(e, lst_x_dot->front());
+            return external(e, lst_x_dot.front());
 
         return success();
     }
@@ -1857,8 +1845,8 @@ struct abstract_integrator<2> {
 
 template<>
 struct abstract_integrator<3> {
-    message_id    x[2] = {};
-    block_node_id y[1] = {};
+    input_port     x[2] = {};
+    output_port_id y[1] = {};
 
     real dQ;
     real X;
@@ -2157,20 +2145,20 @@ struct abstract_integrator<3> {
                       time                  e,
                       [[maybe_unused]] time r) noexcept
     {
-        const auto* lst_x_dot      = sim.messages.try_to_get(x[port_x_dot]);
-        const auto* lst_reset      = sim.messages.try_to_get(x[port_reset]);
-        const auto  have_x_dot_msg = lst_x_dot and not lst_x_dot->empty();
-        const auto  have_reset_msg = lst_reset and not lst_reset->empty();
-        const auto  have_msg       = have_x_dot_msg or have_reset_msg;
+        const auto lst_x_dot      = get_message(sim, x[port_x_dot]);
+        const auto lst_reset      = get_message(sim, x[port_reset]);
+        const auto have_x_dot_msg = not lst_x_dot.empty();
+        const auto have_reset_msg = not lst_reset.empty();
+        const auto have_msg       = have_x_dot_msg or have_reset_msg;
 
         if (not have_msg)
             return internal();
 
         if (have_reset_msg)
-            return reset(lst_reset->front());
+            return reset(lst_reset.front());
 
         if (have_x_dot_msg)
-            return external(e, lst_x_dot->front());
+            return external(e, lst_x_dot.front());
 
         return success();
     }
@@ -2202,8 +2190,8 @@ template<std::size_t QssLevel>
 struct abstract_power {
     static_assert(1 <= QssLevel && QssLevel <= 3, "Only for Qss1, 2 and 3");
 
-    message_id    x[1] = {};
-    block_node_id y[1] = {};
+    input_port     x[1] = {};
+    output_port_id y[1] = {};
 
     std::array<real, QssLevel> value;
     real                       n;
@@ -2257,10 +2245,10 @@ struct abstract_power {
                       time /*e*/,
                       time /*r*/) noexcept
     {
-        const auto* lst = sim.messages.try_to_get(x[0]);
+        const auto lst = get_message(sim, x[0]);
 
-        if (lst and not lst->empty()) {
-            update<QssLevel>(value, lst->back());
+        if (not lst.empty()) {
+            update<QssLevel>(value, lst.back());
             sigma = time_domain<time>::zero;
         } else {
             sigma = time_domain<time>::infinity;
@@ -2303,8 +2291,8 @@ template<std::size_t QssLevel>
 struct abstract_square {
     static_assert(1 <= QssLevel && QssLevel <= 3, "Only for Qss1, 2 and 3");
 
-    message_id    x[1] = {};
-    block_node_id y[1] = {};
+    input_port     x[1] = {};
+    output_port_id y[1] = {};
 
     std::array<real, QssLevel> value;
     time                       sigma;
@@ -2350,10 +2338,10 @@ struct abstract_square {
                       time /*e*/,
                       time /*r*/) noexcept
     {
-        const auto* lst = sim.messages.try_to_get(x[0]);
+        const auto lst = get_message(sim, x[0]);
 
-        if (lst and not lst->empty()) {
-            update<QssLevel>(value, lst->back());
+        if (not lst.empty()) {
+            update<QssLevel>(value, lst.back());
             sigma = time_domain<time>::zero;
         } else {
             sigma = time_domain<time>::infinity;
@@ -2390,8 +2378,8 @@ struct abstract_sum {
     static_assert(1 <= QssLevel && QssLevel <= 3, "Only for Qss1, 2 and 3");
     static_assert(PortNumber > 1, "sum model need at least two input port");
 
-    message_id    x[PortNumber] = {};
-    block_node_id y[1]          = {};
+    input_port     x[PortNumber] = {};
+    output_port_id y[1]          = {};
 
     std::array<real, QssLevel * PortNumber> values;
     time                                    sigma;
@@ -2462,8 +2450,8 @@ struct abstract_sum {
 
         if constexpr (QssLevel == 1) {
             for (size_t i = 0; i != PortNumber; ++i) {
-                if (auto* lst = sim.messages.try_to_get(x[i]); lst) {
-                    for (const auto& msg : *lst) {
+                if (const auto lst = get_message(sim, x[i]); not lst.empty()) {
+                    for (const auto& msg : lst) {
                         values[i] = msg[0];
                         message   = true;
                     }
@@ -2473,12 +2461,12 @@ struct abstract_sum {
 
         if constexpr (QssLevel == 2) {
             for (size_t i = 0; i != PortNumber; ++i) {
-                auto* lst = sim.messages.try_to_get(x[i]);
+                const auto lst = get_message(sim, x[i]);
 
-                if (!lst or lst->empty()) {
+                if (lst.empty()) {
                     values[i] += values[i + PortNumber] * e;
                 } else {
-                    for (const auto& msg : *lst) {
+                    for (const auto& msg : lst) {
                         values[i]              = msg[0];
                         values[i + PortNumber] = msg[1];
                         message                = true;
@@ -2489,15 +2477,15 @@ struct abstract_sum {
 
         if constexpr (QssLevel == 3) {
             for (size_t i = 0; i != PortNumber; ++i) {
-                auto* lst = sim.messages.try_to_get(x[i]);
+                const auto lst = get_message(sim, x[i]);
 
-                if (!lst or lst->empty()) {
+                if (lst.empty()) {
                     values[i] += values[i + PortNumber] * e +
                                  values[i + PortNumber + PortNumber] * e * e;
                     values[i + PortNumber] +=
                       2 * values[i + PortNumber + PortNumber] * e;
                 } else {
-                    for (const auto& msg : *lst) {
+                    for (const auto& msg : lst) {
                         values[i]                           = msg[0];
                         values[i + PortNumber]              = msg[1];
                         values[i + PortNumber + PortNumber] = msg[2];
@@ -2563,8 +2551,8 @@ struct abstract_wsum {
     static_assert(1 <= QssLevel && QssLevel <= 3, "Only for Qss1, 2 and 3");
     static_assert(PortNumber > 1, "sum model need at least two input port");
 
-    message_id    x[PortNumber] = {};
-    block_node_id y[1]          = {};
+    input_port     x[PortNumber] = {};
+    output_port_id y[1]          = {};
 
     std::array<real, PortNumber>            input_coeffs;
     std::array<real, QssLevel * PortNumber> values;
@@ -2643,12 +2631,11 @@ struct abstract_wsum {
 
         if constexpr (QssLevel == 1) {
             for (size_t i = 0; i != PortNumber; ++i) {
-                if (auto* lst = sim.messages.try_to_get(x[i]); lst) {
-                    if (not lst->empty()) {
-                        for (const auto& msg : *lst) {
-                            values[i] = msg[0];
-                            message   = true;
-                        }
+                const auto lst = get_message(sim, x[i]);
+                if (not lst.empty()) {
+                    for (const auto& msg : lst) {
+                        values[i] = msg[0];
+                        message   = true;
                     }
                 }
             }
@@ -2656,15 +2643,14 @@ struct abstract_wsum {
 
         if constexpr (QssLevel == 2) {
             for (size_t i = 0; i != PortNumber; ++i) {
-                if (auto* lst = sim.messages.try_to_get(x[i]); lst) {
-                    if (lst->empty()) {
-                        values[i] += values[i + PortNumber] * e;
-                    } else {
-                        for (const auto& msg : *lst) {
-                            values[i]              = msg[0];
-                            values[i + PortNumber] = msg[1];
-                            message                = true;
-                        }
+                const auto lst = get_message(sim, x[i]);
+                if (lst.empty()) {
+                    values[i] += values[i + PortNumber] * e;
+                } else {
+                    for (const auto& msg : lst) {
+                        values[i]              = msg[0];
+                        values[i + PortNumber] = msg[1];
+                        message                = true;
                     }
                 }
             }
@@ -2672,20 +2658,18 @@ struct abstract_wsum {
 
         if constexpr (QssLevel == 3) {
             for (size_t i = 0; i != PortNumber; ++i) {
-                if (auto* lst = sim.messages.try_to_get(x[i]); lst) {
-                    if (lst->empty()) {
-                        values[i] +=
-                          values[i + PortNumber] * e +
-                          values[i + PortNumber + PortNumber] * e * e;
-                        values[i + PortNumber] +=
-                          2 * values[i + PortNumber + PortNumber] * e;
-                    } else {
-                        for (const auto& msg : *lst) {
-                            values[i]                           = msg[0];
-                            values[i + PortNumber]              = msg[1];
-                            values[i + PortNumber + PortNumber] = msg[2];
-                            message                             = true;
-                        }
+                const auto lst = get_message(sim, x[i]);
+                if (lst.empty()) {
+                    values[i] += values[i + PortNumber] * e +
+                                 values[i + PortNumber + PortNumber] * e * e;
+                    values[i + PortNumber] +=
+                      2 * values[i + PortNumber + PortNumber] * e;
+                } else {
+                    for (const auto& msg : lst) {
+                        values[i]                           = msg[0];
+                        values[i + PortNumber]              = msg[1];
+                        values[i + PortNumber + PortNumber] = msg[2];
+                        message                             = true;
                     }
                 }
             }
@@ -2750,8 +2734,8 @@ template<std::size_t QssLevel>
 struct abstract_inverse {
     static_assert(1 <= QssLevel && QssLevel <= 3, "Only for Qss1, 2 and 3");
 
-    message_id    x[1] = {};
-    block_node_id y[1] = {};
+    input_port     x[1] = {};
+    output_port_id y[1] = {};
 
     std::array<real, QssLevel> values;
     time                       sigma;
@@ -2777,10 +2761,10 @@ struct abstract_inverse {
                       [[maybe_unused]] time e,
                       time /*r*/) noexcept
     {
-        const auto* lst = sim.messages.try_to_get(x[0]);
+        const auto lst = get_message(sim, x[0]);
 
-        if (lst and not lst->empty()) {
-            update<QssLevel>(values, lst->back());
+        if (not lst.empty()) {
+            update<QssLevel>(values, lst.back());
             sigma = time_domain<time>::zero;
         } else {
             sigma = time_domain<time>::infinity;
@@ -2867,8 +2851,8 @@ template<std::size_t QssLevel>
 struct abstract_multiplier {
     static_assert(1 <= QssLevel && QssLevel <= 3, "Only for Qss1, 2 and 3");
 
-    message_id    x[2] = {};
-    block_node_id y[1] = {};
+    input_port     x[2] = {};
+    output_port_id y[1] = {};
 
     std::array<real, QssLevel * 2> values;
     time                           sigma;
@@ -2924,14 +2908,14 @@ struct abstract_multiplier {
                       [[maybe_unused]] time e,
                       time /*r*/) noexcept
     {
-        auto*      lst_0          = sim.messages.try_to_get(x[0]);
-        auto*      lst_1          = sim.messages.try_to_get(x[1]);
-        const auto message_port_0 = lst_0 and not lst_0->empty();
-        const auto message_port_1 = lst_1 and not lst_1->empty();
+        const auto lst_0          = get_message(sim, x[0]);
+        const auto lst_1          = get_message(sim, x[1]);
+        const auto message_port_0 = not lst_0.empty();
+        const auto message_port_1 = not lst_1.empty();
         sigma                     = time_domain<time>::infinity;
 
         if (message_port_0) {
-            for (const auto& msg : *lst_0) {
+            for (const auto& msg : lst_0) {
                 sigma     = time_domain<time>::zero;
                 values[0] = msg[0];
 
@@ -2944,7 +2928,7 @@ struct abstract_multiplier {
         }
 
         if (message_port_1) {
-            for (const auto& msg : *lst_1) {
+            for (const auto& msg : lst_1) {
                 sigma     = time_domain<time>::zero;
                 values[1] = msg[0];
 
@@ -3014,8 +2998,8 @@ template<typename std::size_t QssLevel>
 struct abstract_integer {
     static_assert(1 <= QssLevel && QssLevel <= 3, "Only for Qss1, 2 and 3");
 
-    message_id    x[1] = {};
-    block_node_id y[1] = {};
+    input_port     x[1] = {};
+    output_port_id y[1] = {};
 
     std::array<real, QssLevel> value;
     time                       sigma   = time_domain<time>::infinity;
@@ -3068,9 +3052,9 @@ struct abstract_integer {
 
     status transition(simulation& sim, time /*t*/, time e, time /*r*/) noexcept
     {
-        const auto* lst            = sim.messages.try_to_get(x[0]);
-        const auto  have_msg       = lst and not lst->empty();
-        auto        external_cross = false;
+        const auto lst            = get_message(sim, x[0]);
+        const auto have_msg       = not lst.empty();
+        auto       external_cross = false;
 
         if (not have_msg) {
             last_send_value = to_send;
@@ -3082,7 +3066,7 @@ struct abstract_integer {
                 value[1] += two * value[2] * e;
             }
         } else {
-            const auto& msg = lst->front();
+            const auto& msg = lst.front();
 
             if (last_send_value != std::trunc(msg[0])) {
                 external_cross = true;
@@ -3145,8 +3129,8 @@ template<typename std::size_t QssLevel>
 struct abstract_compare {
     static_assert(1 <= QssLevel && QssLevel <= 3, "Only for Qss1, 2 and 3");
 
-    message_id    x[2] = {};
-    block_node_id y[1] = {};
+    input_port     x[2] = {};
+    output_port_id y[1] = {};
 
     std::array<real, QssLevel> a;
     std::array<real, QssLevel> b;
@@ -3220,10 +3204,10 @@ struct abstract_compare {
 
     status transition(simulation& sim, time /*t*/, time e, time /*r*/) noexcept
     {
-        auto*      port_a    = sim.messages.try_to_get(x[0]);
-        auto*      port_b    = sim.messages.try_to_get(x[1]);
-        const auto message_a = port_a and not port_a->empty();
-        const auto message_b = port_b and not port_b->empty();
+        const auto port_a    = get_message(sim, x[0]);
+        const auto port_b    = get_message(sim, x[1]);
+        const auto message_a = not port_a.empty();
+        const auto message_b = not port_b.empty();
 
         if (not message_a and not message_b) {
             if constexpr (QssLevel == 2) {
@@ -3237,7 +3221,7 @@ struct abstract_compare {
             }
         } else {
             if (message_a) {
-                const auto& msg = port_a->front();
+                const auto& msg = port_a.front();
 
                 a[0] = msg[0];
                 if constexpr (QssLevel >= 2)
@@ -3254,7 +3238,7 @@ struct abstract_compare {
             }
 
             if (message_b) {
-                const auto& msg = port_b->front();
+                const auto& msg = port_b.front();
 
                 b[0] = msg[0];
                 if constexpr (QssLevel >= 2)
@@ -3304,8 +3288,8 @@ template<std::size_t QssLevel>
 struct abstract_gain {
     static_assert(1 <= QssLevel && QssLevel <= 3, "Only for Qss1, 2 and 3");
 
-    message_id    x[1] = {};
-    block_node_id y[1] = {};
+    input_port     x[1] = {};
+    output_port_id y[1] = {};
 
     std::array<real, QssLevel> value;
     real                       k = one;
@@ -3348,10 +3332,10 @@ struct abstract_gain {
                       time /*e*/,
                       time /*r*/) noexcept
     {
-        auto* lst = sim.messages.try_to_get(x[0]);
+        const auto lst = get_message(sim, x[0]);
 
-        if (lst and not lst->empty()) {
-            update<QssLevel>(value, lst->back());
+        if (not lst.empty()) {
+            update<QssLevel>(value, lst.back());
             sigma = time_domain<time>::zero;
         } else {
             sigma = time_domain<time>::infinity;
@@ -3391,8 +3375,8 @@ template<std::size_t QssLevel>
 struct abstract_log {
     static_assert(1 <= QssLevel && QssLevel <= 3, "Only for Qss1, 2 and 3");
 
-    message_id    x[1] = {};
-    block_node_id y[1] = {};
+    input_port     x[1] = {};
+    output_port_id y[1] = {};
 
     std::array<real, QssLevel> value;
     time                       sigma;
@@ -3441,10 +3425,10 @@ struct abstract_log {
                       time /*e*/,
                       time /*r*/) noexcept
     {
-        auto* lst = sim.messages.try_to_get(x[0]);
+        const auto lst = get_message(sim, x[0]);
 
-        if (lst and not lst->empty()) {
-            update<QssLevel>(value, lst->back());
+        if (not lst.empty()) {
+            update<QssLevel>(value, lst.back());
             sigma = time_domain<time>::zero;
         } else {
             sigma = time_domain<time>::infinity;
@@ -3485,8 +3469,8 @@ template<std::size_t QssLevel>
 struct abstract_exp {
     static_assert(1 <= QssLevel && QssLevel <= 3, "Only for Qss1, 2 and 3");
 
-    message_id    x[1] = {};
-    block_node_id y[1] = {};
+    input_port     x[1] = {};
+    output_port_id y[1] = {};
 
     std::array<real, QssLevel> value;
     time                       sigma;
@@ -3532,10 +3516,10 @@ struct abstract_exp {
                       time /*e*/,
                       time /*r*/) noexcept
     {
-        auto* lst = sim.messages.try_to_get(x[0]);
+        const auto lst = get_message(sim, x[0]);
 
-        if (lst and not lst->empty()) {
-            update<QssLevel>(value, lst->back());
+        if (not lst.empty()) {
+            update<QssLevel>(value, lst.back());
             sigma = time_domain<time>::zero;
         } else {
             sigma = time_domain<time>::infinity;
@@ -3576,8 +3560,8 @@ template<std::size_t QssLevel>
 struct abstract_sin {
     static_assert(1 <= QssLevel && QssLevel <= 3, "Only for Qss1, 2 and 3");
 
-    message_id    x[1] = {};
-    block_node_id y[1] = {};
+    input_port     x[1] = {};
+    output_port_id y[1] = {};
 
     std::array<real, QssLevel> value;
     time                       sigma;
@@ -3623,10 +3607,10 @@ struct abstract_sin {
                       time /*e*/,
                       time /*r*/) noexcept
     {
-        auto* lst = sim.messages.try_to_get(x[0]);
+        const auto lst = get_message(sim, x[0]);
 
-        if (lst and not lst->empty()) {
-            update<QssLevel>(value, lst->back());
+        if (not lst.empty()) {
+            update<QssLevel>(value, lst.back());
             sigma = time_domain<time>::zero;
         } else {
             sigma = time_domain<time>::infinity;
@@ -3667,8 +3651,8 @@ template<std::size_t QssLevel>
 struct abstract_cos {
     static_assert(1 <= QssLevel && QssLevel <= 3, "Only for Qss1, 2 and 3");
 
-    message_id    x[1] = {};
-    block_node_id y[1] = {};
+    input_port     x[1] = {};
+    output_port_id y[1] = {};
 
     std::array<real, QssLevel> value;
     time                       sigma;
@@ -3714,10 +3698,10 @@ struct abstract_cos {
                       time /*e*/,
                       time /*r*/) noexcept
     {
-        const auto* lst = sim.messages.try_to_get(x[0]);
+        const auto lst = get_message(sim, x[0]);
 
-        if (lst and not lst->empty()) {
-            update<QssLevel>(value, lst->back());
+        if (not lst.empty()) {
+            update<QssLevel>(value, lst.back());
             sigma = time_domain<time>::zero;
         } else {
             sigma = time_domain<time>::infinity;
@@ -3756,7 +3740,7 @@ using qss2_cos = abstract_cos<2>;
 using qss3_cos = abstract_cos<3>;
 
 struct counter {
-    message_id x[1] = {};
+    input_port x[1] = {};
 
     i64  number     = 0;
     real last_value = 0;
@@ -3784,10 +3768,10 @@ struct counter {
                       time /*e*/,
                       time /*r*/) noexcept
     {
-        if (auto* lst = sim.messages.try_to_get(x[0]); lst) {
-            number += lst->ssize();
+        if (const auto lst = get_message(sim, x[0]); not lst.empty()) {
+            number += numeric_cast<i64>(lst.size());
 
-            for (const auto& elem : *lst)
+            for (const auto& elem : lst)
                 last_value = elem[0];
         }
 
@@ -3805,8 +3789,8 @@ struct generator {
 
     enum class option : u8 { ta_use_source, value_use_source };
 
-    message_id    x[4] = {};
-    block_node_id y[1] = {};
+    input_port     x[4] = {};
+    output_port_id y[1] = {};
 
     time sigma;
     real value;
@@ -3868,9 +3852,9 @@ struct generator {
     {
         auto update_source_by_input_port = false;
 
-        if (const auto* lst_value = sim.messages.try_to_get(x[x_value]);
-            lst_value and not lst_value->empty()) {
-            for (const auto& msg : *lst_value)
+        if (const auto lst_value = get_message(sim, x[x_value]);
+            not lst_value.empty()) {
+            for (const auto& msg : lst_value)
                 value = msg[0];
 
             sigma                       = r;
@@ -3895,25 +3879,25 @@ struct generator {
             }
         }
 
-        auto* lst_t = sim.messages.try_to_get(x[x_t]);
-        real  t     = -1.0;
-        if (lst_t and not lst_t->empty())
-            for (const auto& msg : *lst_t)
+        const auto lst_t = get_message(sim, x[x_t]);
+        real       t     = -1.0;
+        if (not lst_t.empty())
+            for (const auto& msg : lst_t)
                 t = std::min(msg[0], t);
 
-        auto* lst_add_tr = sim.messages.try_to_get(x[x_add_tr]);
-        real  add_tr     = time_domain<time>::infinity;
-        if (lst_add_tr and not lst_add_tr->empty())
-            for (const auto& msg : *lst_add_tr)
+        const auto lst_add_tr = get_message(sim, x[x_add_tr]);
+        real       add_tr     = time_domain<time>::infinity;
+        if (not lst_add_tr.empty())
+            for (const auto& msg : lst_add_tr)
                 add_tr = std::min(msg[0], add_tr);
 
-        auto* lst_mult_tr = sim.messages.try_to_get(x[x_mult_tr]);
-        real  mult_tr     = zero;
-        if (lst_mult_tr and not lst_mult_tr->empty())
-            for (const auto& msg : *lst_mult_tr)
+        const auto lst_mult_tr = get_message(sim, x[x_mult_tr]);
+        real       mult_tr     = zero;
+        if (not lst_mult_tr.empty())
+            for (const auto& msg : lst_mult_tr)
                 mult_tr = std::max(msg[0], mult_tr);
 
-        if (lst_t or lst_add_tr or lst_mult_tr) {
+        if (not(lst_t.empty() and lst_add_tr.empty() and lst_mult_tr.empty())) {
             if (t >= zero) {
                 sigma = t;
             } else {
@@ -3943,8 +3927,8 @@ struct generator {
 };
 
 struct constant {
-    block_node_id y[1] = {};
-    time          sigma;
+    output_port_id y[1] = {};
+    time           sigma;
 
     enum class init_type : i8 {
         /// A constant value initialized at startup of the simulation. Use
@@ -4037,8 +4021,8 @@ template<std::size_t QssLevel>
 struct abstract_filter {
     static_assert(1 <= QssLevel && QssLevel <= 3, "Only for Qss1, 2 and 3");
 
-    message_id    x[1] = {};
-    block_node_id y[3] = {};
+    input_port     x[1] = {};
+    output_port_id y[3] = {};
 
     time                       sigma;
     real                       lower_threshold;
@@ -4077,9 +4061,9 @@ struct abstract_filter {
 
     status transition(simulation& sim, time /*t*/, time e, time /*r*/) noexcept
     {
-        auto* lst = sim.messages.try_to_get(x[0]);
+        const auto lst = get_message(sim, x[0]);
 
-        if (not lst or lst->empty()) {
+        if (lst.empty()) {
             if constexpr (QssLevel == 2)
                 value[0] += value[1] * e;
             if constexpr (QssLevel == 3) {
@@ -4087,7 +4071,7 @@ struct abstract_filter {
                 value[1] += two * value[2] * e;
             }
         } else {
-            for (const auto& msg : *lst) {
+            for (const auto& msg : lst) {
                 value[0] = msg[0];
                 if constexpr (QssLevel >= 2)
                     value[1] = msg[1];
@@ -4258,8 +4242,8 @@ struct abstract_or_check {
 
 template<typename AbstractLogicalTester, std::size_t PortNumber>
 struct abstract_logical {
-    message_id    x[PortNumber];
-    block_node_id y[1];
+    input_port     x[PortNumber];
+    output_port_id y[1];
 
     std::array<bool, PortNumber> values;
     time                         sigma = time_domain<time>::infinity;
@@ -4293,9 +4277,8 @@ struct abstract_logical {
         const bool old_is_value = is_valid;
 
         for (sz i = 0; i < PortNumber; ++i) {
-            if (auto* lst = sim.messages.try_to_get(x[i]);
-                lst and not lst->empty()) {
-                if (not is_zero(lst->front()[0])) {
+            if (const auto lst = get_message(sim, x[i]); not lst.empty()) {
+                if (not is_zero(lst.front()[0])) {
                     if (values[i] == false) {
                         values[i] = true;
                     }
@@ -4333,8 +4316,8 @@ using logical_or_2  = abstract_logical<abstract_or_check, 2>;
 using logical_or_3  = abstract_logical<abstract_or_check, 3>;
 
 struct logical_invert {
-    message_id    x[1] = {};
-    block_node_id y[1] = {};
+    input_port     x[1] = {};
+    output_port_id y[1] = {};
 
     time sigma         = time_domain<time>::infinity;
     bool value         = false;
@@ -4360,11 +4343,11 @@ struct logical_invert {
 
     status transition(simulation& sim, time, time, time) noexcept
     {
-        value_changed = false;
-        auto* lst     = sim.messages.try_to_get(x[0]);
+        value_changed  = false;
+        const auto lst = get_message(sim, x[0]);
 
-        if (lst and not lst->empty()) {
-            const auto& msg = lst->front();
+        if (not lst.empty()) {
+            const auto& msg = lst.front();
 
             if ((not is_zero(msg[0]) && !value) || (is_zero(msg[0]) && value))
                 value_changed = true;
@@ -4805,8 +4788,8 @@ struct hsm_wrapper {
     using hsm      = hierarchical_state_machine;
     using state_id = hsm::state_id;
 
-    message_id    x[4] = {};
-    block_node_id y[4] = {};
+    input_port     x[4] = {};
+    output_port_id y[4] = {};
 
     hsm::execution exec;
 
@@ -4825,7 +4808,7 @@ struct hsm_wrapper {
 
 template<std::size_t PortNumber>
 struct accumulator {
-    message_id x[2u * PortNumber] = {};
+    input_port x[2u * PortNumber] = {};
     time       sigma;
     real       number;
     real       numbers[PortNumber];
@@ -4855,16 +4838,15 @@ struct accumulator {
                       time /*r`*/) noexcept
     {
         for (size_t i = 0; i != PortNumber; ++i) {
-            if (auto* lst = sim.messages.try_to_get(x[i + PortNumber]);
-                lst and not lst->empty()) {
-                numbers[i] = lst->front()[0];
+            if (const auto lst = get_message(sim, x[i + PortNumber]);
+                not lst.empty()) {
+                numbers[i] = lst.front()[0];
             }
         }
 
         for (size_t i = 0; i != PortNumber; ++i) {
-            if (auto* lst = sim.messages.try_to_get(x[i]);
-                lst and not lst->empty()) {
-                if (not is_zero(lst->front()[0]))
+            if (const auto lst = get_message(sim, x[i]); not lst.empty()) {
+                if (not is_zero(lst.front()[0]))
                     number += numbers[i];
             }
         }
@@ -4884,8 +4866,8 @@ struct abstract_cross {
 
     enum class zone_type : u8 { undefined, up, down };
 
-    message_id    x[2] = {};
-    block_node_id y[2] = {};
+    input_port     x[2] = {};
+    output_port_id y[2] = {};
 
     std::array<real, 2>        output_values;
     std::array<real, QssLevel> value;
@@ -4925,15 +4907,15 @@ struct abstract_cross {
 
     status transition(simulation& sim, time /*t*/, time e, time /*r*/) noexcept
     {
-        const auto* p_threshold   = sim.messages.try_to_get(x[port_threshold]);
-        const auto* p_value       = sim.messages.try_to_get(x[port_value]);
-        const auto  msg_threshold = p_threshold and not p_threshold->empty();
-        const auto  msg_value     = p_value and not p_value->empty();
+        const auto p_threshold   = get_message(sim, x[port_threshold]);
+        const auto p_value       = get_message(sim, x[port_value]);
+        const auto msg_threshold = not p_threshold.empty();
+        const auto msg_value     = not p_value.empty();
 
         if (msg_threshold)
-            threshold = p_threshold->back()[0];
+            threshold = p_threshold.back()[0];
 
-        msg_value ? update<QssLevel>(value, p_value->back())
+        msg_value ? update<QssLevel>(value, p_value.back())
                   : update<QssLevel>(value, e);
 
         const auto new_zone = compute_zone(value[0], threshold);
@@ -4985,8 +4967,8 @@ template<std::size_t QssLevel>
 struct abstract_flipflop {
     static_assert(1 <= QssLevel && QssLevel <= 3, "Only for Qss1, 2 and 3");
 
-    message_id    x[2] = {};
-    block_node_id y[1] = {};
+    input_port     x[2] = {};
+    output_port_id y[1] = {};
 
     std::array<real, QssLevel> value;
     time                       sigma = zero;
@@ -5013,12 +4995,12 @@ struct abstract_flipflop {
 
     status transition(simulation& sim, time /*t*/, time e, time /*r*/) noexcept
     {
-        const auto* lst_value   = sim.messages.try_to_get(x[port_in]);
-        const auto* lst_event   = sim.messages.try_to_get(x[port_event]);
-        const auto  have_values = lst_value and not lst_value->empty();
-        const auto  have_event  = lst_event and not lst_event->empty();
+        const auto lst_value   = get_message(sim, x[port_in]);
+        const auto lst_event   = get_message(sim, x[port_event]);
+        const auto have_values = not lst_value.empty();
+        const auto have_event  = not lst_event.empty();
 
-        have_values ? update<QssLevel>(value, lst_value->back())
+        have_values ? update<QssLevel>(value, lst_value.back())
                     : update<QssLevel>(value, e);
 
         sigma = have_event ? zero : time_domain<time>::infinity;
@@ -5066,7 +5048,7 @@ using qss2_flipflop = abstract_flipflop<2>;
 using qss3_flipflop = abstract_flipflop<3>;
 
 struct time_func {
-    block_node_id y[1] = {};
+    output_port_id y[1] = {};
 
     enum class function_type : u8 { sine, square, linear };
     constexpr static u8 function_type_count = ordinal(function_type::linear);
@@ -5141,9 +5123,9 @@ struct time_func {
 using accumulator_2 = accumulator<2>;
 
 struct queue {
-    message_id    x[1] = {};
-    block_node_id y[1] = {};
-    time          sigma;
+    input_port     x[1] = {};
+    output_port_id y[1] = {};
+    time           sigma;
 
     dated_message_id fifo = undefined<dated_message_id>();
 
@@ -5197,8 +5179,8 @@ struct queue {
 };
 
 struct dynamic_queue {
-    message_id       x[1] = {};
-    block_node_id    y[1] = {};
+    input_port       x[1] = {};
+    output_port_id   y[1] = {};
     time             sigma;
     dated_message_id fifo = undefined<dated_message_id>();
 
@@ -5254,8 +5236,8 @@ struct dynamic_queue {
 };
 
 struct priority_queue {
-    message_id       x[1] = {};
-    block_node_id    y[1] = {};
+    input_port       x[1] = {};
+    output_port_id   y[1] = {};
     time             sigma;
     dated_message_id fifo = undefined<dated_message_id>();
     real             ta   = 1.0;
@@ -6177,14 +6159,15 @@ constexpr model& get_model(Dynamics& d) noexcept
     return *(model*)((char*)__mptr - offsetof(model, dyn));
 }
 
-inline expected<message_id> get_input_port(model& src, int port_src) noexcept;
-
-inline status get_input_port(model& src, int port_src, message_id*& p) noexcept;
-inline expected<block_node_id> get_output_port(model& dst,
-                                               int    port_dst) noexcept;
-inline status                  get_output_port(model&          dst,
-                                               int             port_dst,
-                                               block_node_id*& p) noexcept;
+// inline expected<message_id> get_input_port(model& src, int port_src)
+// noexcept;
+//
+// inline status get_input_port(model& src, int port_src, message_id*& p)
+// noexcept; inline expected<block_node_id> get_output_port(model& dst,
+//                                                int    port_dst) noexcept;
+// inline status                  get_output_port(model&          dst,
+//                                                int             port_dst,
+//                                                block_node_id*& p) noexcept;
 
 inline bool is_ports_compatible(const dynamics_type mdl_src,
                                 const int           o_port_index,
@@ -6356,11 +6339,11 @@ inline void copy(const model& src, model& dst) noexcept
 
         if constexpr (has_input_port<Dynamics>)
             for (int i = 0, e = length(dst_dyn.x); i != e; ++i)
-                dst_dyn.x[i] = undefined<message_id>();
+                dst_dyn.x[i].reset();
 
         if constexpr (has_output_port<Dynamics>)
             for (int i = 0, e = length(dst_dyn.y); i != e; ++i)
-                dst_dyn.y[i] = undefined<block_node_id>();
+                dst_dyn.y[i] = undefined<output_port_id>();
     });
 }
 
@@ -6470,56 +6453,17 @@ inline status send_message(simulation&    sim,
 
     sim.active_output_ports.push_back(output_port);
     return success();
+}
 
-    // block_node* prev = nullptr;
+inline constexpr auto get_message(simulation&       sim,
+                                  const input_port& port) noexcept
+  -> std::span<message>
+{
+    debug::ensure(port.capacity > 0);
+    debug::ensure(port.size == port.capacity);
+    debug::ensure(port.position + port.size <= sim.message_buffer.size());
 
-    // for (auto* block = sim.nodes.try_to_get(output_port); block;
-    //      block       = sim.nodes.try_to_get(block->next)) {
-
-    //    for (auto it = block->nodes.begin(); it != block->nodes.end();) {
-    //        if (auto* mdl = sim.models.try_to_get(it->model); not mdl) {
-    //            block->nodes.swap_pop_back(it);
-    //        } else {
-    //            if (not sim.emitting_output_ports.can_alloc(1))
-    //                return new_error(
-    //                  simulation_errc::emitting_output_ports_full);
-
-    //            auto& output_message =
-    //            sim.emitting_output_ports.emplace_back();
-    //            output_message.msg[0] = r1;
-    //            output_message.msg[1] = r2;
-    //            output_message.msg[2] = r3;
-    //            output_message.model  = it->model;
-    //            output_message.port   = it->port_index;
-
-    //            ++it;
-    //        }
-    //    }
-
-    //    if (block->nodes.empty()) { /* If the block is empty, free the
-    //                                   block from the linked list. */
-
-    //        if (prev != nullptr) {
-    //            prev->next = block->next;
-    //            sim.nodes.free(*block);
-    //            block = prev;
-    //        } else {
-    //            if (auto* next_block = sim.nodes.try_to_get(block->next)) {
-    //                block->nodes = next_block->nodes;
-    //                block->next  = next_block->next;
-    //                sim.nodes.free(*next_block);
-    //            } else {
-    //                sim.nodes.free(*block);
-    //                output_port = undefined<block_node_id>();
-    //                break;
-    //            }
-    //        }
-    //    } else {
-    //        prev = block;
-    //    }
-    //}
-
-    // return success();
+    return std::span(sim.message_buffer.data() + port.position, port.size);
 }
 
 /**
@@ -7102,15 +7046,16 @@ inline constexpr time time_limit::end() const noexcept { return m_end; }
 inline simulation::simulation(
   const simulation_reserve_definition&      res,
   const external_source_reserve_definition& p_srcs) noexcept
-  : emitting_output_ports(res.connections.value())
-  , immediate_models(res.models.value())
+  : immediate_models(res.models.value())
   , immediate_observers(res.models.value())
+  , active_output_ports(res.models.value())
+  , message_buffer(res.connections.value())
   , parameters(res.models.value())
   , models(res.models.value())
   , hsms(res.hsms.value())
   , observers(res.models.value())
   , nodes(res.connections.value())
-  , messages(res.connections.value())
+  , output_ports(res.connections.value())
   , dated_messages(res.dated_messages.value())
   , sched(res.models)
   , srcs(p_srcs)
@@ -7150,8 +7095,7 @@ bool simulation::grow_connections() noexcept
     const auto req =
       std::cmp_equal(nb, nodes.capacity()) ? nodes.capacity() + 8 : nb;
 
-    return emitting_output_ports.resize(req) and nodes.reserve(req) and
-           messages.reserve(req);
+    return nodes.reserve(req) and output_ports.reserve(req);
 }
 
 inline bool simulation::grow_connections_to(
@@ -7160,23 +7104,25 @@ inline bool simulation::grow_connections_to(
     if (std::cmp_less(capacity, nodes.capacity()))
         return true;
 
-    return emitting_output_ports.resize(capacity) and
-           nodes.reserve(capacity) and messages.reserve(capacity);
+    return nodes.reserve(capacity) and output_ports.reserve(capacity);
 }
 
 inline void simulation::destroy() noexcept
 {
-    models.destroy();
-    parameters.destroy();
-    observers.destroy();
-    nodes.destroy();
-    messages.destroy();
-    dated_messages.destroy();
-    emitting_output_ports.destroy();
     immediate_models.destroy();
     immediate_observers.destroy();
-    sched.destroy();
+    active_output_ports.destroy();
+    message_buffer.destroy();
+    parameters.destroy();
+
+    models.destroy();
     hsms.destroy();
+    observers.destroy();
+    nodes.destroy();
+    output_ports.destroy();
+
+    dated_messages.destroy();
+    sched.destroy();
     srcs.destroy();
 }
 
@@ -7197,12 +7143,12 @@ inline void simulation::clean() noexcept
 {
     sched.clear();
 
-    messages.clear();
-    dated_messages.clear();
-
-    emitting_output_ports.clear();
     immediate_models.clear();
     immediate_observers.clear();
+    active_output_ports.clear();
+    message_buffer.clear();
+
+    dated_messages.clear();
 
     t = limits.begin();
 }
@@ -7213,9 +7159,12 @@ inline void simulation::clear() noexcept
 {
     clean();
 
-    nodes.clear();
     models.clear();
+    hsms.clear();
     observers.clear();
+    nodes.clear();
+    output_ports.clear();
+    dated_messages.clear();
 }
 
 constexpr inline auto get_interpolate_type(const dynamics_type type) noexcept
@@ -7331,16 +7280,27 @@ template<typename Dynamics>
 void simulation::do_deallocate(Dynamics& dyn) noexcept
 {
     if constexpr (has_output_port<Dynamics>) {
-        for (auto& elem : dyn.y) {
-            nodes.free(elem);
-            elem = undefined<block_node_id>();
+        for (const auto y_id : dyn.y) {
+            auto& y = output_ports.get(y_id);
+
+            block_node* prev = nullptr;
+            for (auto* block = nodes.try_to_get(y.next); block;
+                 block       = nodes.try_to_get(block->next)) {
+                if (prev != nullptr)
+                    nodes.free(*prev);
+                prev = block;
+            }
+
+            if (prev != nullptr)
+                nodes.free(*prev);
+
+            output_ports.free(y);
         }
     }
 
     if constexpr (has_input_port<Dynamics>) {
         for (auto& elem : dyn.x) {
-            messages.free(elem);
-            elem = undefined<message_id>();
+            elem.reset();
         }
     }
 
@@ -7386,41 +7346,69 @@ inline status simulation::connect(model&       src,
     });
 }
 
-inline status simulation::connect(block_node_id& port,
+inline status simulation::connect(output_port& port,
+                                  model_id     dst,
+                                  int          port_dst) noexcept
+{
+    // First, we try to add the node into the static node vector.
+
+    if (port.connections.can_alloc(1)) {
+        port.connections.emplace_back(dst, port_dst);
+        return success();
+    }
+
+    // If the linked list is empty, we create the first block_node and push the
+    // node.
+
+    auto* block = nodes.try_to_get(port.next);
+
+    if (not block) {
+        if (not nodes.can_alloc(1) and not nodes.grow<2, 1>())
+            return new_error(simulation_errc::connection_container_full);
+
+        auto& new_block = nodes.alloc();
+        new_block.nodes.emplace_back(dst, port_dst);
+        port.next = nodes.get_id(new_block);
+        return success();
+    }
+
+    // Otherwise, we try to found a @c block_node in the linked list with a
+    // place for a new node.
+
+    block_node* prev = nullptr;
+    for (auto* current = block; current;
+         current       = nodes.try_to_get(current->next)) {
+
+        if (current->nodes.can_alloc(1)) {
+            current->nodes.emplace_back(dst, port_dst);
+            return success();
+        }
+
+        prev = current;
+    }
+
+    // Finally, if the all the node vectors of the linked list are full, we add
+    // a new @c block_node to the linked list.
+
+    debug::ensure(prev != nullptr);
+
+    if (not nodes.can_alloc(1) and not nodes.grow<2, 1>())
+        return new_error(simulation_errc::connection_container_full);
+
+    auto& new_block = nodes.alloc();
+    new_block.nodes.emplace_back(dst, port_dst);
+    prev->next = nodes.get_id(new_block);
+    return success();
+}
+
+inline status simulation::connect(output_port_id port,
                                   model_id       dst,
                                   int            port_dst) noexcept
 {
-    if (auto* block = nodes.try_to_get(port); not block) {
-        if (not nodes.can_alloc(1) and not nodes.grow<2, 1>())
-            return new_error(simulation_errc::connection_container_full);
+    auto* y = output_ports.try_to_get(port);
 
-        auto& new_block = nodes.alloc();
-        new_block.nodes.emplace_back(dst, port_dst);
-        port = nodes.get_id(new_block);
-        return success();
-    } else {
-        block_node* prev = nullptr;
-        for (auto* current = block; current;
-             current       = nodes.try_to_get(current->next)) {
-
-            if (current->nodes.can_alloc(1)) {
-                current->nodes.emplace_back(dst, port_dst);
-                return success();
-            }
-
-            prev = current;
-        }
-
-        debug::ensure(prev != nullptr);
-
-        if (not nodes.can_alloc(1) and not nodes.grow<2, 1>())
-            return new_error(simulation_errc::connection_container_full);
-
-        auto& new_block = nodes.alloc();
-        new_block.nodes.emplace_back(dst, port_dst);
-        prev->next = nodes.get_id(new_block);
-        return success();
-    }
+    return y ? connect(*y, dst, port_dst)
+             : new_error(simulation_errc::output_port_error);
 }
 
 inline bool simulation::can_connect(const model& src,
@@ -7430,7 +7418,13 @@ inline bool simulation::can_connect(const model& src,
 {
     return dispatch(src, [&]<typename Dynamics>(Dynamics& dyn) -> bool {
         if constexpr (has_output_port<Dynamics>) {
-            for (const auto* block = nodes.try_to_get(dyn.y[port_src]); block;
+            const auto& y = output_ports.get(dyn.y[port_src]);
+
+            for (const auto& elem : y.connections)
+                if (elem.model == get_id(dst) and elem.port_index == port_dst)
+                    return false;
+
+            for (const auto* block = nodes.try_to_get(y.next); block;
                  block             = nodes.try_to_get(block->next)) {
 
                 for (const auto& elem : block->nodes)
@@ -7460,9 +7454,21 @@ inline void simulation::disconnect(model& src,
 {
     dispatch(src, [&]<typename Dynamics>(Dynamics& dyn) noexcept {
         if constexpr (has_output_port<Dynamics>) {
+            auto& y = output_ports.get(dyn.y[port_src]);
+
+            for (auto it = y.connections.begin(); it != y.connections.end();) {
+                if (it->model == models.get_id(dst) and
+                    it->port_index == port_dst) {
+                    y.connections.swap_pop_back(it);
+                    return;
+                } else {
+                    ++it;
+                }
+            }
+
             block_node* prev = nullptr;
 
-            for (auto* block = nodes.try_to_get(dyn.y[port_src]); block;
+            for (auto* block = nodes.try_to_get(y.next); block;
                  block       = nodes.try_to_get(block->next)) {
 
                 auto connection_deleted = false;
@@ -7490,7 +7496,7 @@ inline void simulation::disconnect(model& src,
                             nodes.free(*next_block);
                         } else {
                             nodes.free(*block);
-                            dyn.y[port_src] = undefined<block_node_id>();
+                            y.next = undefined<block_node_id>();
                             break;
                         }
                     }
@@ -7535,10 +7541,8 @@ template<typename Dynamics>
 status simulation::make_initialize(model& mdl, Dynamics& dyn, time t) noexcept
 {
     if constexpr (has_input_port<Dynamics>) {
-        for (int i = 0, e = length(dyn.x); i != e; ++i) {
-            if (not messages.try_to_get(dyn.x[i]))
-                dyn.x[i] = undefined<message_id>();
-        }
+        for (int i = 0, e = length(dyn.x); i != e; ++i)
+            dyn.x[i].reset();
     }
 
     // @attention Copy parameters to model before using the initialize
@@ -7592,10 +7596,8 @@ status simulation::make_transition(model& mdl, Dynamics& dyn, time t) noexcept
         irt_check(dyn.transition(*this, t, t - mdl.tl, mdl.tn - t));
 
     if constexpr (has_input_port<Dynamics>) {
-        for (auto& elem : dyn.x) {
-            if (auto* lst = messages.try_to_get(elem); lst)
-                lst->clear();
-        }
+        for (auto& elem : dyn.x)
+            elem.reset();
     }
 
     debug::ensure(mdl.tn >= t);
@@ -7676,11 +7678,13 @@ inline status simulation::run() noexcept
     sched.pop(immediate_models);
 
     active_output_ports.clear();
-    emitting_output_ports.clear();
     for (const auto id : immediate_models)
         if (auto* mdl = models.try_to_get(id); mdl)
             irt_check(make_transition(*mdl, t));
 
+    // First, we compute the input_port::capacity.
+
+    u32 global_messages_number = 0;
     for (const auto y_id : active_output_ports) {
         auto& y = output_ports.get(y_id);
 
@@ -7688,41 +7692,134 @@ inline status simulation::run() noexcept
             if (auto* mdl = models.try_to_get(it->model)) {
                 dispatch(*mdl, [&]<typename Dynamics>(Dynamics& dyn) {
                     if constexpr (has_input_port<Dynamics>) {
-                    
+                        debug::ensure(it->port_index >= 0 &&
+                                      it->port_index < length(dyn.x));
+
+                        ++dyn.x[it->port_index].capacity;
+                        ++global_messages_number;
                     }
                 });
             } else {
                 y.connections.swap_pop_back(it);
             }
         }
+
+        // If the previous loop freed the @c output_port::connections vector we
+        // need to copy the next @c block_node::nodes vector and free the @c
+        // block_node.
+
+        if (y.connections.empty()) {
+            if (auto* next = nodes.try_to_get(y.next)) {
+                y.connections = next->nodes;
+                y.next        = next->next;
+                nodes.free(*next);
+            }
+        }
+
+        // Then, we loop over all @c block_node from the linked-list which
+        // begins from the @c output_port::next element.
+
+        block_node* prev = nullptr;
+        for (auto* block = nodes.try_to_get(y.next); block;
+             block       = nodes.try_to_get(block->next)) {
+            for (auto it = block->nodes.begin(); it != block->nodes.end();) {
+                if (auto* mdl = models.try_to_get(it->model)) {
+                    dispatch(*mdl, [&]<typename Dynamics>(Dynamics& dyn) {
+                        if constexpr (has_input_port<Dynamics>) {
+                            debug::ensure(it->port_index >= 0 &&
+                                          it->port_index < length(dyn.x));
+
+                            ++dyn.x[it->port_index].capacity;
+                            ++global_messages_number;
+                        }
+                    });
+                } else {
+                    block->nodes.swap_pop_back(it);
+                }
+            }
+
+            // If the @c block_node::nodes is empty, free the block from the
+            // linked list.
+
+            if (block->nodes.empty()) {
+                if (prev != nullptr) {
+                    prev->next = block->next;
+                    nodes.free(*block);
+                    block = prev;
+                } else {
+                    if (auto* next_block = nodes.try_to_get(block->next)) {
+                        block->nodes = next_block->nodes;
+                        block->next  = next_block->next;
+                        nodes.free(*next_block);
+                    } else {
+                        nodes.free(*block);
+                        y.next = undefined<block_node_id>();
+                        break;
+                    }
+                }
+            } else {
+                prev = block;
+            }
+        }
     }
 
-    for (int i = 0, e = length(emitting_output_ports); i != e; ++i) {
-        auto* mdl = models.try_to_get(emitting_output_ports[i].model);
-        if (!mdl)
-            continue;
+    // Finally, we copy the @c output_port::msg messages on the @c
+    // message_buffer vector according to the @c input_port::capacity, index and
+    // position.
 
-        debug::ensure(sched.is_in_tree(mdl->handle));
-        sched.update(*mdl, t);
+    message_buffer.resize(global_messages_number);
+    u32 global_position = 0;
 
-        if (not messages.can_alloc(1) and not messages.grow<2, 1>())
-            return new_error(simulation_errc::messages_container_full);
+    for (const auto y_id : active_output_ports) {
+        auto& y = output_ports.get(y_id);
 
-        auto  port = emitting_output_ports[i].port;
-        auto& msg  = emitting_output_ports[i].msg;
+        for (auto it = y.connections.begin(); it != y.connections.end();) {
+            auto* mdl = models.try_to_get(it->model);
+            dispatch(*mdl, [&]<typename Dynamics>(Dynamics& dyn) {
+                if constexpr (has_input_port<Dynamics>) {
+                    debug::ensure(it->port_index >= 0 &&
+                                  it->port_index < length(dyn.x));
 
-        dispatch(*mdl, [&]<typename Dynamics>(Dynamics& dyn) {
-            if constexpr (has_input_port<Dynamics>) {
-                auto* list = messages.try_to_get(dyn.x[port]);
-                if (not list) {
-                    auto& new_list = messages.alloc();
-                    dyn.x[port]    = messages.get_id(new_list);
-                    list           = &new_list;
+                    auto& x = dyn.x[it->port_index];
+
+                    if (global_position == 0)
+                        global_position = x.capacity;
+                    else if (x.position == 0)
+                        x.position = global_position;
+
+                    const auto start_at = x.position + x.size;
+                    ++x.size;
+
+                    message_buffer[start_at] = y.msg;
                 }
+            });
+        }
 
-                list->push_back({ msg[0], msg[1], msg[2] });
+        block_node* prev = nullptr;
+        for (auto* block = nodes.try_to_get(y.next); block;
+             block       = nodes.try_to_get(block->next)) {
+            for (auto it = block->nodes.begin(); it != block->nodes.end();) {
+                auto& mdl = models.get(it->model);
+                dispatch(mdl, [&]<typename Dynamics>(Dynamics& dyn) {
+                    if constexpr (has_input_port<Dynamics>) {
+                        debug::ensure(it->port_index >= 0 &&
+                                      it->port_index < length(dyn.x));
+
+                        auto& x = dyn.x[it->port_index];
+
+                        if (global_position == 0)
+                            global_position = x.capacity;
+                        else if (x.position == 0)
+                            x.position = global_position;
+
+                        const auto start_at = x.position + x.size;
+                        ++x.size;
+
+                        message_buffer[start_at] = y.msg;
+                    }
+                });
             }
-        });
+        }
     }
 
     return success();
@@ -7751,7 +7848,7 @@ inline status simulation::run_with_cb(Fn&& fn, Args&&... args) noexcept
 
     sched.pop(immediate_models);
 
-    emitting_output_ports.clear();
+    // emitting_output_ports.clear();
     for (const auto id : immediate_models)
         if (auto* mdl = models.try_to_get(id); mdl)
             irt_check(make_transition(*mdl, t));
@@ -7760,33 +7857,33 @@ inline status simulation::run_with_cb(Fn&& fn, Args&&... args) noexcept
        std::span(immediate_models.data(), immediate_models.size()),
        std::forward<Args>(args)...);
 
-    for (int i = 0, e = length(emitting_output_ports); i != e; ++i) {
-        auto* mdl = models.try_to_get(emitting_output_ports[i].model);
-        if (!mdl)
-            continue;
+    // for (int i = 0, e = length(emitting_output_ports); i != e; ++i) {
+    //     auto* mdl = models.try_to_get(emitting_output_ports[i].model);
+    //     if (!mdl)
+    //         continue;
 
-        debug::ensure(sched.is_in_tree(mdl->handle));
-        sched.update(*mdl, t);
+    //    debug::ensure(sched.is_in_tree(mdl->handle));
+    //    sched.update(*mdl, t);
 
-        if (not messages.can_alloc(1))
-            return new_error(simulation_errc::messages_container_full);
+    //    if (not messages.can_alloc(1))
+    //        return new_error(simulation_errc::messages_container_full);
 
-        auto  port = emitting_output_ports[i].port;
-        auto& msg  = emitting_output_ports[i].msg;
+    //    auto  port = emitting_output_ports[i].port;
+    //    auto& msg  = emitting_output_ports[i].msg;
 
-        dispatch(*mdl, [&]<typename Dynamics>(Dynamics& dyn) {
-            if constexpr (has_input_port<Dynamics>) {
-                auto* list = messages.try_to_get(dyn.x[port]);
-                if (not list) {
-                    auto& new_list = messages.alloc();
-                    dyn.x[port]    = messages.get_id(new_list);
-                    list           = &new_list;
-                }
+    //    dispatch(*mdl, [&]<typename Dynamics>(Dynamics& dyn) {
+    //        if constexpr (has_input_port<Dynamics>) {
+    //            auto* list = messages.try_to_get(dyn.x[port]);
+    //            if (not list) {
+    //                auto& new_list = messages.alloc();
+    //                dyn.x[port]    = messages.get_id(new_list);
+    //                list           = &new_list;
+    //            }
 
-                list->push_back({ msg[0], msg[1], msg[2] });
-            }
-        });
-    }
+    //            list->push_back({ msg[0], msg[1], msg[2] });
+    //        }
+    //    });
+    //}
 
     return success();
 }
@@ -7851,11 +7948,11 @@ inline status hsm_wrapper::transition(simulation& sim,
         machine.has_value()) {
 
         for (int i = 0, e = length(x); i != e; ++i) {
-            auto* lst = sim.messages.try_to_get(x[i]);
-            if (lst and not lst->empty()) {
+            const auto lst = get_message(sim, x[i]);
+            if (not lst.empty()) {
                 exec.values.set(e - 1 - i, true);
 
-                for (auto& elem : *lst)
+                for (auto& elem : lst)
                     exec.ports[e - 1 - i] = elem[0];
             }
         }
@@ -7997,11 +8094,11 @@ Dynamics& simulation::alloc() noexcept
 
     if constexpr (has_input_port<Dynamics>)
         for (int i = 0, e = length(dyn.x); i != e; ++i)
-            dyn.x[i] = undefined<message_id>();
+            dyn.x[i].reset();
 
     if constexpr (has_output_port<Dynamics>)
         for (int i = 0, e = length(dyn.y); i != e; ++i)
-            dyn.y[i] = undefined<block_node_id>();
+            dyn.y[i] = undefined<output_port_id>();
 
     if constexpr (std::is_same_v<Dynamics, hsm_wrapper>)
         dyn.id = undefined<hsm_id>();
@@ -8026,11 +8123,11 @@ inline model& simulation::clone(const model& mdl) noexcept
 
         if constexpr (has_input_port<Dynamics>)
             for (int i = 0, e = length(dyn.x); i != e; ++i)
-                dyn.x[i] = undefined<message_id>();
+                dyn.x[i].reset();
 
         if constexpr (has_output_port<Dynamics>)
             for (int i = 0, e = length(dyn.y); i != e; ++i)
-                dyn.y[i] = undefined<block_node_id>();
+                dyn.y[i] = undefined<output_port_id>();
     });
 
     return new_mdl;
@@ -8050,11 +8147,11 @@ inline model& simulation::alloc(dynamics_type type) noexcept
 
         if constexpr (has_input_port<Dynamics>)
             for (int i = 0, e = length(dyn.x); i != e; ++i)
-                dyn.x[i] = undefined<message_id>();
+                dyn.x[i].reset();
 
         if constexpr (has_output_port<Dynamics>)
             for (int i = 0, e = length(dyn.y); i != e; ++i)
-                dyn.y[i] = undefined<block_node_id>();
+                dyn.y[i] = undefined<output_port_id>();
 
         if constexpr (std::is_same_v<Dynamics, hsm_wrapper>) {
             dyn.id = undefined<hsm_id>();
@@ -8076,65 +8173,68 @@ inline bool is_ports_compatible(const model& mdl_src,
       mdl_src.type, o_port_index, mdl_dst.type, i_port_index);
 }
 
-inline expected<message_id> get_input_port(model& src, int port_src) noexcept
-{
-    return dispatch(
-      src, [&]<typename Dynamics>(Dynamics& dyn) -> expected<message_id> {
-          if constexpr (has_input_port<Dynamics>) {
-              if (port_src >= 0 && port_src < length(dyn.x)) {
-                  return dyn.x[port_src];
-              }
-          }
-
-          return new_error(simulation_errc::input_port_error);
-      });
-}
-
-inline status get_input_port(model& src, int port_src, message_id*& p) noexcept
-{
-    return dispatch(src,
-                    [port_src, &p]<typename Dynamics>(Dynamics& dyn) -> status {
-                        if constexpr (has_input_port<Dynamics>) {
-                            if (port_src >= 0 && port_src < length(dyn.x)) {
-                                p = &dyn.x[port_src];
-                                return success();
-                            }
-                        }
-
-                        return new_error(simulation_errc::input_port_error);
-                    });
-}
-
-inline expected<block_node_id> get_output_port(model& dst,
-                                               int    port_dst) noexcept
-{
-    return dispatch(
-      dst, [&]<typename Dynamics>(Dynamics& dyn) -> expected<block_node_id> {
-          if constexpr (has_output_port<Dynamics>) {
-              if (port_dst >= 0 && port_dst < length(dyn.y))
-                  return dyn.y[port_dst];
-          }
-
-          return new_error(simulation_errc::output_port_error);
-      });
-}
-
-inline status get_output_port(model&          dst,
-                              int             port_dst,
-                              block_node_id*& p) noexcept
-{
-    return dispatch(dst,
-                    [port_dst, &p]<typename Dynamics>(Dynamics& dyn) -> status {
-                        if constexpr (has_output_port<Dynamics>) {
-                            if (port_dst >= 0 && port_dst < length(dyn.y)) {
-                                p = &dyn.y[port_dst];
-                                return success();
-                            }
-                        }
-
-                        return new_error(simulation_errc::output_port_error);
-                    });
-}
+// inline expected<message_id> get_input_port(model& src, int port_src) noexcept
+//{
+//     return dispatch(
+//       src, [&]<typename Dynamics>(Dynamics& dyn) -> expected<message_id> {
+//           if constexpr (has_input_port<Dynamics>) {
+//               if (port_src >= 0 && port_src < length(dyn.x)) {
+//                   return dyn.x[port_src];
+//               }
+//           }
+//
+//           return new_error(simulation_errc::input_port_error);
+//       });
+// }
+//
+// inline status get_input_port(model& src, int port_src, message_id*& p)
+// noexcept
+//{
+//     return dispatch(src,
+//                     [port_src, &p]<typename Dynamics>(Dynamics& dyn) ->
+//                     status {
+//                         if constexpr (has_input_port<Dynamics>) {
+//                             if (port_src >= 0 && port_src < length(dyn.x)) {
+//                                 p = &dyn.x[port_src];
+//                                 return success();
+//                             }
+//                         }
+//
+//                         return new_error(simulation_errc::input_port_error);
+//                     });
+// }
+//
+// inline expected<block_node_id> get_output_port(model& dst,
+//                                                int    port_dst) noexcept
+//{
+//     return dispatch(
+//       dst, [&]<typename Dynamics>(Dynamics& dyn) -> expected<block_node_id> {
+//           if constexpr (has_output_port<Dynamics>) {
+//               if (port_dst >= 0 && port_dst < length(dyn.y))
+//                   return dyn.y[port_dst];
+//           }
+//
+//           return new_error(simulation_errc::output_port_error);
+//       });
+// }
+//
+// inline status get_output_port(model&          dst,
+//                               int             port_dst,
+//                               block_node_id*& p) noexcept
+//{
+//     return dispatch(dst,
+//                     [port_dst, &p]<typename Dynamics>(Dynamics& dyn) ->
+//                     status {
+//                         if constexpr (has_output_port<Dynamics>) {
+//                             if (port_dst >= 0 && port_dst < length(dyn.y)) {
+//                                 p = &dyn.y[port_dst];
+//                                 return success();
+//                             }
+//                         }
+//
+//                         return new_error(simulation_errc::output_port_error);
+//                     });
+// }
 
 /////////////////////////////////////////////////////////////////////
 ///
@@ -8149,9 +8249,9 @@ inline status queue::transition(simulation& sim,
         while (!ar->empty() and ar->tail()->data()[0] <= t)
             ar->pop_tail();
 
-        auto* lst = sim.messages.try_to_get(x[0]);
-        if (lst) {
-            for (const auto& msg : *lst) {
+        const auto lst = get_message(sim, x[0]);
+        if (not lst.empty()) {
+            for (const auto& msg : lst) {
                 if (!sim.dated_messages.can_alloc(1))
                     return new_error(
                       simulation_errc::dated_messages_container_full);
@@ -8160,8 +8260,8 @@ inline status queue::transition(simulation& sim,
             }
         }
 
-        if (lst and not lst->empty()) {
-            sigma = lst->front()[0] - t;
+        if (not lst.empty()) {
+            sigma = lst.front()[0] - t;
             sigma = sigma <= time_domain<time>::zero ? time_domain<time>::zero
                                                      : sigma;
         } else {
@@ -8183,10 +8283,10 @@ inline status dynamic_queue::transition(simulation& sim,
         while (not ar->empty() and ar->tail()->data()[0] <= t)
             ar->pop_tail();
 
-        auto* lst = sim.messages.try_to_get(x[0]);
+        const auto lst = get_message(sim, x[0]);
 
-        if (lst) {
-            for (const auto& msg : *lst) {
+        if (not lst.empty()) {
+            for (const auto& msg : lst) {
                 if (!sim.dated_messages.can_alloc(1))
                     return new_error(
                       simulation_errc::dated_messages_container_full);
@@ -8197,8 +8297,8 @@ inline status dynamic_queue::transition(simulation& sim,
             }
         }
 
-        if (lst and not lst->empty()) {
-            sigma = lst->front().data()[0] - t;
+        if (not lst.empty()) {
+            sigma = lst.front().data()[0] - t;
             sigma = sigma <= time_domain<time>::zero ? time_domain<time>::zero
                                                      : sigma;
         } else {
@@ -8237,10 +8337,10 @@ inline status priority_queue::transition(simulation& sim,
         while (not ar->empty() and ar->tail()->data()[0] <= t)
             ar->pop_tail();
 
-        auto* lst = sim.messages.try_to_get(x[0]);
+        const auto lst = get_message(sim, x[0]);
 
-        if (lst) {
-            for (const auto& msg : *lst) {
+        if (not lst.empty()) {
+            for (const auto& msg : lst) {
                 real value = zero;
 
                 irt_check(update_source(sim, source_ta, value));
@@ -8253,8 +8353,8 @@ inline status priority_queue::transition(simulation& sim,
             }
         }
 
-        if (lst and not lst->empty()) {
-            sigma = lst->front()[0] - t;
+        if (not lst.empty()) {
+            sigma = lst.front()[0] - t;
             sigma = sigma <= time_domain<time>::zero ? time_domain<time>::zero
                                                      : sigma;
         } else {
