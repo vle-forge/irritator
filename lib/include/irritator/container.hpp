@@ -5106,6 +5106,12 @@ constexpr bool small_vector<T, length>::can_alloc(
 }
 
 template<typename T, int length>
+constexpr int small_vector<T, length>::available() const noexcept
+{
+    return length - static_cast<int>(m_size);
+}
+
+template<typename T, int length>
 template<typename... Args>
 constexpr typename small_vector<T, length>::reference
 small_vector<T, length>::emplace_back(Args&&... args) noexcept
