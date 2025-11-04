@@ -1095,6 +1095,9 @@ public:
 enum class output_port_id : u64;
 
 struct node {
+    constexpr node() noexcept = default;
+    constexpr node(const model_id id, const i8 port) noexcept;
+
     model_id model      = undefined<model_id>();
     i8       port_index = 0;
 };
@@ -8529,6 +8532,13 @@ inline double source::next() noexcept
     const auto old_index = index++;
     return buffer[static_cast<sz>(old_index)];
 }
+
+// node implementation
+
+constexpr node::node(const model_id id, const i8 port) noexcept
+  : model{ id }
+  , port_index{ port }
+{}
 
 // input-port implementation
 
