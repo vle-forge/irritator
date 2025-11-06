@@ -1705,10 +1705,10 @@ struct abstract_integrator<1> {
             return internal();
 
         if (have_reset_msg)
-            return reset(lst_reset.front());
+            return reset(get_qss_message<1>(lst_reset));
 
         if (have_x_dot_msg)
-            return external(e, lst_x_dot.front());
+            return external(e, get_qss_message<1>(lst_x_dot));
 
         return success();
     }
@@ -1872,10 +1872,10 @@ struct abstract_integrator<2> {
             return internal();
 
         if (have_reset_msg)
-            return reset(lst_reset.front());
+            return reset(get_qss_message<2>(lst_reset));
 
         if (have_x_dot_msg)
-            return external(e, lst_x_dot.front());
+            return external(e, get_qss_message<2>(lst_x_dot));
 
         return success();
     }
@@ -2204,11 +2204,10 @@ struct abstract_integrator<3> {
             return internal();
 
         if (have_reset_msg)
-            return reset(lst_reset.front());
+            return reset(get_qss_message<3>(lst_reset));
 
         if (have_x_dot_msg)
-            return external(e, lst_x_dot.front());
-
+            return external(e, get_qss_message<3>(lst_x_dot));
         return success();
     }
 
@@ -2297,7 +2296,7 @@ struct abstract_power {
         const auto lst = get_message(sim, x[0]);
 
         if (not lst.empty()) {
-            update<QssLevel>(value, lst.back());
+            update<QssLevel>(value, get_qss_message<QssLevel>(lst));
             sigma = time_domain<time>::zero;
         } else {
             sigma = time_domain<time>::infinity;
@@ -2390,7 +2389,7 @@ struct abstract_square {
         const auto lst = get_message(sim, x[0]);
 
         if (not lst.empty()) {
-            update<QssLevel>(value, lst.back());
+            update<QssLevel>(value, get_qss_message<QssLevel>(lst));
             sigma = time_domain<time>::zero;
         } else {
             sigma = time_domain<time>::infinity;
@@ -2500,10 +2499,9 @@ struct abstract_sum {
         if constexpr (QssLevel == 1) {
             for (size_t i = 0; i != PortNumber; ++i) {
                 if (const auto lst = get_message(sim, x[i]); not lst.empty()) {
-                    for (const auto& msg : lst) {
-                        values[i] = msg[0];
-                        message   = true;
-                    }
+                    const auto& msg = get_qss_message<QssLevel>(lst);
+                    values[i]       = msg[0];
+                    message         = true;
                 }
             }
         }
@@ -2515,11 +2513,10 @@ struct abstract_sum {
                 if (lst.empty()) {
                     values[i] += values[i + PortNumber] * e;
                 } else {
-                    for (const auto& msg : lst) {
-                        values[i]              = msg[0];
-                        values[i + PortNumber] = msg[1];
-                        message                = true;
-                    }
+                    const auto& msg        = get_qss_message<QssLevel>(lst);
+                    values[i]              = msg[0];
+                    values[i + PortNumber] = msg[1];
+                    message                = true;
                 }
             }
         }
@@ -2534,12 +2531,11 @@ struct abstract_sum {
                     values[i + PortNumber] +=
                       2 * values[i + PortNumber + PortNumber] * e;
                 } else {
-                    for (const auto& msg : lst) {
-                        values[i]                           = msg[0];
-                        values[i + PortNumber]              = msg[1];
-                        values[i + PortNumber + PortNumber] = msg[2];
-                        message                             = true;
-                    }
+                    const auto& msg        = get_qss_message<QssLevel>(lst);
+                    values[i]              = msg[0];
+                    values[i + PortNumber] = msg[1];
+                    values[i + PortNumber + PortNumber] = msg[2];
+                    message                             = true;
                 }
             }
         }
@@ -2682,10 +2678,9 @@ struct abstract_wsum {
             for (size_t i = 0; i != PortNumber; ++i) {
                 const auto lst = get_message(sim, x[i]);
                 if (not lst.empty()) {
-                    for (const auto& msg : lst) {
-                        values[i] = msg[0];
-                        message   = true;
-                    }
+                    const auto& msg = get_qss_message<QssLevel>(lst);
+                    values[i]       = msg[0];
+                    message         = true;
                 }
             }
         }
@@ -2696,11 +2691,10 @@ struct abstract_wsum {
                 if (lst.empty()) {
                     values[i] += values[i + PortNumber] * e;
                 } else {
-                    for (const auto& msg : lst) {
-                        values[i]              = msg[0];
-                        values[i + PortNumber] = msg[1];
-                        message                = true;
-                    }
+                    const auto& msg        = get_qss_message<QssLevel>(lst);
+                    values[i]              = msg[0];
+                    values[i + PortNumber] = msg[1];
+                    message                = true;
                 }
             }
         }
@@ -2714,12 +2708,11 @@ struct abstract_wsum {
                     values[i + PortNumber] +=
                       2 * values[i + PortNumber + PortNumber] * e;
                 } else {
-                    for (const auto& msg : lst) {
-                        values[i]                           = msg[0];
-                        values[i + PortNumber]              = msg[1];
-                        values[i + PortNumber + PortNumber] = msg[2];
-                        message                             = true;
-                    }
+                    const auto& msg        = get_qss_message<QssLevel>(lst);
+                    values[i]              = msg[0];
+                    values[i + PortNumber] = msg[1];
+                    values[i + PortNumber + PortNumber] = msg[2];
+                    message                             = true;
                 }
             }
         }
@@ -2813,7 +2806,7 @@ struct abstract_inverse {
         const auto lst = get_message(sim, x[0]);
 
         if (not lst.empty()) {
-            update<QssLevel>(values, lst.back());
+            update<QssLevel>(values, get_qss_message<QssLevel>(lst));
             sigma = time_domain<time>::zero;
         } else {
             sigma = time_domain<time>::infinity;
@@ -2964,29 +2957,27 @@ struct abstract_multiplier {
         sigma                     = time_domain<time>::infinity;
 
         if (message_port_0) {
-            for (const auto& msg : lst_0) {
-                sigma     = time_domain<time>::zero;
-                values[0] = msg[0];
+            const auto& msg = get_qss_message<QssLevel>(lst_0);
+            sigma           = time_domain<time>::zero;
+            values[0]       = msg[0];
 
-                if constexpr (QssLevel >= 2)
-                    values[2 + 0] = msg[1];
+            if constexpr (QssLevel >= 2)
+                values[2 + 0] = msg[1];
 
-                if constexpr (QssLevel == 3)
-                    values[2 + 2 + 0] = msg[2];
-            }
+            if constexpr (QssLevel == 3)
+                values[2 + 2 + 0] = msg[2];
         }
 
         if (message_port_1) {
-            for (const auto& msg : lst_1) {
-                sigma     = time_domain<time>::zero;
-                values[1] = msg[0];
+            const auto& msg = get_qss_message<QssLevel>(lst_1);
+            sigma           = time_domain<time>::zero;
+            values[1]       = msg[0];
 
-                if constexpr (QssLevel >= 2)
-                    values[2 + 1] = msg[1];
+            if constexpr (QssLevel >= 2)
+                values[2 + 1] = msg[1];
 
-                if constexpr (QssLevel == 3)
-                    values[2 + 2 + 1] = msg[2];
-            }
+            if constexpr (QssLevel == 3)
+                values[2 + 2 + 1] = msg[2];
         }
 
         if constexpr (QssLevel == 2) {
@@ -3115,7 +3106,7 @@ struct abstract_integer {
                 value[1] += two * value[2] * e;
             }
         } else {
-            const auto& msg = lst.front();
+            const auto& msg = get_qss_message<QssLevel>(lst);
 
             if (last_send_value != std::trunc(msg[0])) {
                 external_cross = true;
@@ -3253,10 +3244,10 @@ struct abstract_compare {
 
     status transition(simulation& sim, time /*t*/, time e, time /*r*/) noexcept
     {
-        const auto port_a    = get_message(sim, x[0]);
-        const auto port_b    = get_message(sim, x[1]);
-        const auto message_a = not port_a.empty();
-        const auto message_b = not port_b.empty();
+        const auto lst_a     = get_message(sim, x[0]);
+        const auto lst_b     = get_message(sim, x[1]);
+        const auto message_a = not lst_a.empty();
+        const auto message_b = not lst_b.empty();
 
         if (not message_a and not message_b) {
             if constexpr (QssLevel == 2) {
@@ -3270,7 +3261,7 @@ struct abstract_compare {
             }
         } else {
             if (message_a) {
-                const auto& msg = port_a.front();
+                const auto& msg = get_qss_message<QssLevel>(lst_a);
 
                 a[0] = msg[0];
                 if constexpr (QssLevel >= 2)
@@ -3287,7 +3278,7 @@ struct abstract_compare {
             }
 
             if (message_b) {
-                const auto& msg = port_b.front();
+                const auto& msg = get_qss_message<QssLevel>(lst_b);
 
                 b[0] = msg[0];
                 if constexpr (QssLevel >= 2)
@@ -3384,7 +3375,7 @@ struct abstract_gain {
         const auto lst = get_message(sim, x[0]);
 
         if (not lst.empty()) {
-            update<QssLevel>(value, lst.back());
+            update<QssLevel>(value, get_qss_message<QssLevel>(lst));
             sigma = time_domain<time>::zero;
         } else {
             sigma = time_domain<time>::infinity;
@@ -3477,7 +3468,7 @@ struct abstract_log {
         const auto lst = get_message(sim, x[0]);
 
         if (not lst.empty()) {
-            update<QssLevel>(value, lst.back());
+            update<QssLevel>(value, get_qss_message<QssLevel>(lst));
             sigma = time_domain<time>::zero;
         } else {
             sigma = time_domain<time>::infinity;
@@ -3568,7 +3559,7 @@ struct abstract_exp {
         const auto lst = get_message(sim, x[0]);
 
         if (not lst.empty()) {
-            update<QssLevel>(value, lst.back());
+            update<QssLevel>(value, get_qss_message<QssLevel>(lst));
             sigma = time_domain<time>::zero;
         } else {
             sigma = time_domain<time>::infinity;
@@ -3659,7 +3650,7 @@ struct abstract_sin {
         const auto lst = get_message(sim, x[0]);
 
         if (not lst.empty()) {
-            update<QssLevel>(value, lst.back());
+            update<QssLevel>(value, get_qss_message<QssLevel>(lst));
             sigma = time_domain<time>::zero;
         } else {
             sigma = time_domain<time>::infinity;
@@ -3750,7 +3741,7 @@ struct abstract_cos {
         const auto lst = get_message(sim, x[0]);
 
         if (not lst.empty()) {
-            update<QssLevel>(value, lst.back());
+            update<QssLevel>(value, get_qss_message<QssLevel>(lst));
             sigma = time_domain<time>::zero;
         } else {
             sigma = time_domain<time>::infinity;
@@ -3819,9 +3810,7 @@ struct counter {
     {
         if (const auto lst = get_message(sim, x[0]); not lst.empty()) {
             number += numeric_cast<i64>(lst.size());
-
-            for (const auto& elem : lst)
-                last_value = elem[0];
+            last_value = get_qss_message<1>(lst)[0];
         }
 
         return success();
@@ -4120,13 +4109,12 @@ struct abstract_filter {
                 value[1] += two * value[2] * e;
             }
         } else {
-            for (const auto& msg : lst) {
-                value[0] = msg[0];
-                if constexpr (QssLevel >= 2)
-                    value[1] = msg[1];
-                if constexpr (QssLevel == 3)
-                    value[2] = msg[2];
-            }
+            const auto& msg = get_qss_message<QssLevel>(lst);
+            value[0]        = msg[0];
+            if constexpr (QssLevel >= 2)
+                value[1] = msg[1];
+            if constexpr (QssLevel == 3)
+                value[2] = msg[2];
         }
 
         reach_lower_threshold = false;
@@ -4962,9 +4950,9 @@ struct abstract_cross {
         const auto msg_value     = not p_value.empty();
 
         if (msg_threshold)
-            threshold = p_threshold.back()[0];
+            threshold = get_qss_message<QssLevel>(p_threshold)[0];
 
-        msg_value ? update<QssLevel>(value, p_value.back())
+        msg_value ? update<QssLevel>(value, get_qss_message<QssLevel>(p_value))
                   : update<QssLevel>(value, e);
 
         const auto new_zone = compute_zone(value[0], threshold);
@@ -5049,8 +5037,9 @@ struct abstract_flipflop {
         const auto have_values = not lst_value.empty();
         const auto have_event  = not lst_event.empty();
 
-        have_values ? update<QssLevel>(value, lst_value.back())
-                    : update<QssLevel>(value, e);
+        have_values
+          ? update<QssLevel>(value, get_qss_message<QssLevel>(lst_value))
+          : update<QssLevel>(value, e);
 
         sigma = have_event ? zero : time_domain<time>::infinity;
 
