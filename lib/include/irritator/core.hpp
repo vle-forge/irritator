@@ -8557,17 +8557,15 @@ void output_port::for_each(const data_array<model, model_id>&           models,
                            Function&&                                   fn,
                            Args&&... args) const noexcept
 {
-    for (const auto& node : connections) {
+    for (const auto& node : connections)
         if (const auto* mdl = models.try_to_get(node.model))
-            std::invoke(fn, *mdl, node.port_index, std::forward<Args>(args)...);
+            std::invoke(fn, *mdl, node.port_index, args...);
 
-        for (const auto* block = nodes.try_to_get(next); block;
-             block             = nodes.try_to_get(block->next))
-            for (const auto& elem : block->nodes)
-                if (const auto* mdl = models.try_to_get(elem.model))
-                    std::invoke(
-                      fn, *mdl, elem.port_index, std::forward<Args>(args)...);
-    }
+    for (const auto* block = nodes.try_to_get(next); block;
+         block             = nodes.try_to_get(block->next))
+        for (const auto& elem : block->nodes)
+            if (const auto* mdl = models.try_to_get(elem.model))
+                std::invoke(fn, *mdl, elem.port_index, args...);
 }
 
 template<typename Function, typename... Args>
