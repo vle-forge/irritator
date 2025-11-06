@@ -1589,6 +1589,16 @@ inline constexpr auto get_message(simulation&       sim,
                                   const input_port& port) noexcept
   -> std::span<message>;
 
+/** Get a message from the list of messages according to the QSS level. If the
+ * lists is empty(), this function returns a message with zero values, if the
+ * list contains one value, is returns it finally, if the list contains more
+ * messages, the message with the maximum value, slope and derivative is
+ * returned.
+ */
+template<size_t QssLevel>
+inline auto get_qss_message(std::span<const message> msgs) noexcept
+  -> const message&;
+
 inline status send_message(simulation&    sim,
                            output_port_id output_port,
                            real           r1,
@@ -6581,6 +6591,63 @@ inline constexpr auto get_message(simulation&       sim,
     debug::ensure(port.position + port.size <= sim.message_buffer.size());
 
     return std::span(sim.message_buffer.data() + port.position, port.size);
+}
+
+template<size_t QssLevel>
+inline auto get_qss_message(std::span<const message> msgs) noexcept
+  -> const message&
+{
+    debug::ensure(not msgs.empty());
+
+    if (msgs.empty()) {
+        constexpr static const message msg_empty{};
+        return msg_empty;
+    }
+
+    if (msgs.size() == 1) {
+        return msgs.front();
+    }
+
+    if constexpr (QssLevel == 1)
+        return *std::max_element(
+          msgs.begin(),
+          msgs.end(),
+          [](const auto& a, const auto& b) noexcept -> bool {
+              return a[0] < b[0];
+          });
+
+    if constexpr (QssLevel == 2)
+        return *std::max_element(
+          msgs.begin(),
+          msgs.end(),
+          [](const auto& a, const auto& b) noexcept -> bool {
+              if (a[0] < b[0])
+                  return true;
+
+              if (a[0] == b[0])
+                  return a[1] < b[1];
+
+              return false;
+          });
+
+    if constexpr (QssLevel == 3)
+        return *std::max_element(
+          msgs.begin(),
+          msgs.end(),
+          [](const auto& a, const auto& b) noexcept -> bool {
+              if (a[0] < b[0])
+                  return true;
+
+              if (a[0] == b[0]) {
+                  if (a[1] < b[1])
+                      return true;
+
+                  if (a[1] == b[1])
+                      return a[2] < b[2];
+              }
+
+              return false;
+          });
 }
 
 /**
