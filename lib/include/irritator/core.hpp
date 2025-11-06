@@ -8576,7 +8576,7 @@ void output_port::for_each(data_array<model, model_id>&           models,
 {
     for (auto it = connections.begin(); it != connections.end();) {
         if (model* mdl = models.try_to_get(it->model)) {
-            std::invoke(fn, *mdl, it->port_index, std::forward<Args>(args)...);
+            std::invoke(fn, *mdl, it->port_index, args...);
             ++it;
         } else {
             connections.swap_pop_back(it);
@@ -8590,8 +8590,7 @@ void output_port::for_each(data_array<model, model_id>&           models,
 
         for (auto it = block->nodes.begin(); it != block->nodes.end();) {
             if (model* mdl = models.try_to_get(it->model)) {
-                std::invoke(
-                  fn, *mdl, it->port_index, std::forward<Args>(args)...);
+                std::invoke(fn, *mdl, it->port_index, args...);
                 ++it;
             } else {
                 block->nodes.swap_pop_back(it);
