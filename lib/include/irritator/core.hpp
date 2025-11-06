@@ -4934,12 +4934,33 @@ struct abstract_cross {
         return success();
     }
 
-    constexpr zone_type compute_zone(real value, real threshold) const noexcept
+    constexpr zone_type compute_zone(
+      [[maybe_unused]] const real old_value) noexcept
     {
-        if (value >= threshold)
-            return zone_type::up;
-        else
-            return zone_type::down;
+        // The value is too close to threshold, for QSS2 and 3 we use the slope
+        // or derivative to decide the zone_type otherwise for QSS1 we use the
+        // previous value.
+
+        if (std::abs(value[0] - threshold) < 0x1p-30) {
+            if constexpr (QssLevel == 1) {
+                if (old_value > value[0])
+                    return zone_type::down;
+                else
+                    return zone_type::up;
+            }
+
+            if constexpr (QssLevel >= 2) {
+                if (value[1] >= 0)
+                    return zone_type::up;
+                else
+                    return zone_type::down;
+            }
+        } else {
+            if (value[0] >= threshold)
+                return zone_type::up;
+            else
+                return zone_type::down;
+        }
     }
 
     status transition(simulation& sim, time /*t*/, time e, time /*r*/) noexcept
@@ -4952,10 +4973,11 @@ struct abstract_cross {
         if (msg_threshold)
             threshold = get_qss_message<QssLevel>(p_threshold)[0];
 
+        const auto old_value = value[0];
         msg_value ? update<QssLevel>(value, get_qss_message<QssLevel>(p_value))
                   : update<QssLevel>(value, e);
 
-        const auto new_zone = compute_zone(value[0], threshold);
+        const auto new_zone = compute_zone(old_value);
         if (new_zone != zone) {
             zone  = new_zone;
             sigma = time_domain<time>::zero;
@@ -4976,7 +4998,7 @@ struct abstract_cross {
 
     status lambda(simulation& sim) noexcept
     {
-        return value[0] >= threshold
+        return zone == zone_type::up
                  ? send_message(sim, y[port_up], output_values[0])
                  : send_message(sim, y[port_down], output_values[1]);
     }
