@@ -1891,8 +1891,12 @@ public:
     static constexpr index_type none = std::numeric_limits<index_type>::max();
 
     constexpr data_array() noexcept = default;
+    constexpr data_array(const data_array& other) noexcept;
+    constexpr data_array(data_array&& other) noexcept;
+    constexpr data_array& operator=(const data_array& other) noexcept;
+    constexpr data_array& operator=(data_array&& other) noexcept;
 
-    constexpr data_array(std::integral auto capacity) noexcept;
+    explicit constexpr data_array(std::integral auto capacity) noexcept;
 
     constexpr ~data_array() noexcept;
 
@@ -3554,6 +3558,76 @@ constexpr typename data_array<T, Identifier, A>::index_type
 data_array<T, Identifier, A>::get_index(Identifier id) noexcept
 {
     return g_get_index(id);
+}
+
+template<typename T, typename Identifier, typename A>
+constexpr data_array<T, Identifier, A>::data_array(
+  const data_array& other) noexcept
+{
+    if (other.m_max_used > 0) {
+        m_items =
+          reinterpret_cast<item*>(A::allocate(sizeof(item) * other.m_capacity));
+        m_capacity = other.m_capacity;
+
+        for (u32 i = 0; i < other.m_max_used; ++i) {
+            if (is_valid(other.m_items[i].id)) {
+                std::construct_at(std::addressof(m_items[i].item),
+                                  other.m_items[i].item);
+            }
+            m_items[i].id = other.m_items[i].id;
+        }
+
+        m_max_size  = other.m_max_size;
+        m_max_used  = other.m_max_used;
+        m_capacity  = other.m_capacity;
+        m_next_key  = other.m_next_key;
+        m_free_head = other.m_free_head;
+    } else {
+        m_items     = nullptr;
+        m_max_size  = 0;
+        m_max_used  = 0;
+        m_capacity  = 0;
+        m_next_key  = 1;
+        m_free_head = none;
+    }
+}
+
+template<typename T, typename Identifier, typename A>
+constexpr data_array<T, Identifier, A>::data_array(data_array&& other) noexcept
+  : m_items(std::exchange(other.m_items, nullptr))
+  , m_max_size(std::exchange(other.m_max_size, 0))
+  , m_max_used(std::exchange(other.m_max_used, 0))
+  , m_capacity(std::exchange(other.m_capacity, 0))
+  , m_next_key(std::exchange(other.m_next_key, 1))
+  , m_free_head(std::exchange(other.m_free_head, none))
+{}
+
+template<typename T, typename Identifier, typename A>
+constexpr data_array<T, Identifier, A>& data_array<T, Identifier, A>::operator=(
+  const data_array& other) noexcept
+{
+    if (this != &other) {
+        auto& copy = other;
+        std::swap(copy, *this);
+    }
+
+    return *this;
+}
+
+template<typename T, typename Identifier, typename A>
+constexpr data_array<T, Identifier, A>& data_array<T, Identifier, A>::operator=(
+  data_array&& other) noexcept
+{
+    clear();
+
+    m_items(std::exchange(other.m_items, nullptr));
+    m_max_size(std::exchange(other.m_max_size, 0));
+    m_max_used(std::exchange(other.m_max_used, 0));
+    m_capacity(std::exchange(other.m_capacity, 0));
+    m_next_key(std::exchange(other.m_next_key, 1));
+    m_free_head(std::exchange(other.m_free_head, none));
+
+    return *this;
 }
 
 template<typename T, typename Identifier, typename A>
