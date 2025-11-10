@@ -839,7 +839,7 @@ public:
     locker_2(const locker_2& other) noexcept
     {
         other.read_only(
-          [&](const auto& src) { write_only([&](auto& dst) { dst = src; }); });
+          [&](const auto& src) { read_write([&](auto& dst) { dst = src; }); });
     }
 
     locker_2(locker_2&& other) noexcept
