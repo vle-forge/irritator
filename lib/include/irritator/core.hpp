@@ -906,6 +906,11 @@ public:
     explicit constexpr heap(
       constrained_value<int, 512, INT_MAX> pcapacity) noexcept;
 
+    constexpr heap(const heap& other) noexcept;
+    constexpr heap(heap&& other) noexcept;
+    constexpr heap& operator=(const heap& other) noexcept;
+    constexpr heap& operator=(heap&& other) noexcept;
+
     constexpr ~heap() noexcept;
 
     /** Clear and free the allocated buffer. */
@@ -6689,6 +6694,60 @@ template<typename A>
 constexpr heap<A>::heap(constrained_value<int, 512, INT_MAX> pcapacity) noexcept
 {
     reserve(pcapacity.value());
+}
+
+template<typename A>
+constexpr heap<A>::heap(const heap<A>& other) noexcept
+{
+    if (other.capacity > 0) {
+        if (reserve(other.capacity)) {
+            std::uninitialized_copy_n(other.nodes, other.max_size, nodes);
+
+            m_size    = other.m_size;
+            max_size  = other.max_size;
+            capacity  = other.capacity;
+            free_list = other.free_list;
+            root      = other.root;
+        }
+    }
+}
+
+template<typename A>
+constexpr heap<A>::heap(heap<A>&& other) noexcept
+  : nodes(std::exchange(other.nodes, nullptr))
+  , m_size(std::exchange(other.m_size, 0))
+  , max_size(std::exchange(other.max_size, 0))
+  , capacity(std::exchange(other.capacity, 0))
+  , free_list(std::exchange(other.free_list, invalid_heap_handle))
+  , root(std::exchange(other.root, invalid_heap_handle))
+{}
+
+template<typename A>
+constexpr heap<A>& heap<A>::operator=(const heap<A>& other) noexcept
+{
+    if (&other != this) {
+        auto copy = other;
+        std::swap(copy, *this);
+    }
+
+    return *this;
+}
+
+template<typename A>
+constexpr heap<A>& heap<A>::operator=(heap<A>&& other) noexcept
+{
+    if (&other != this) {
+        clear();
+
+        nodes     = std::exchange(other.nodes, nullptr);
+        m_size    = std::exchange(other.m_size, 0);
+        max_size  = std::exchange(other.max_size, 0);
+        capacity  = std::exchange(other.capacity, 0);
+        free_list = std::exchange(other.free_list, invalid_heap_handle);
+        root      = std::exchange(other.root, invalid_heap_handle);
+    }
+
+    return *this;
 }
 
 template<typename A>
