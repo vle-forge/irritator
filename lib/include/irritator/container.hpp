@@ -753,6 +753,231 @@ public:
     void unlock() noexcept;
 };
 
+/** A thread-safe shared_buffer container for producer/consumer scenarios.
+ *
+ * @c shared_buffer provides a mechanism for decoupling a producer (writer
+ * thread) and a consumer (reader thread) using three internal buffers:
+ *   - Active buffer: the buffer currently visible to readers.
+ *   - Staging buffer: the buffer currently being prepared by the writer.
+ *   - Spare buffer: a free buffer available for rotation.
+ *
+ * The triple-buffer design ensures that readers never block for long and
+ * always see a consistent snapshot of the data, while writers can update
+ * their own staging buffer without interfering with readers. When a writer
+ * finishes preparing data, it publishes the staging buffer, which becomes
+ * the new active buffer. The previous active buffer is rotated into the spare
+ * slot, and the spare becomes the new staging buffer.
+ *
+ * @tparam T The type of data stored in each buffer. Typically a container
+ *           such as std::vector or a custom struct holding simulation state.
+ *
+ * - Multiple readers can safely access the active buffer concurrently.
+ * - Writers are serialized using an internal mutex to avoid collisions.
+ * - Publishing a new buffer involves only a short exclusive lock to swap
+ *   indices, minimizing contention.
+ *
+ * ```cpp
+ * using Data = std::vector<double>;
+ * shared_buffer<Data> sharedData;
+ *
+ * // First thread
+ * sharedData.write([&](Data& buf) {
+ *     buf.resize(100);
+ *     for (int i = 0; i < 100; ++i) {
+ *         buf[i] = compute_value(i);
+ *     }
+ * });
+ *
+ * // Second thread
+ * sharedData.read([&](const Data& buf) {
+ *     render(buf);
+ * });
+ * ```
+ */
+template<typename T>
+class shared_buffer
+{
+    static_assert(std::is_default_constructible_v<T>,
+                  "T must be default-constructible for inactive buffers");
+
+    static_assert(std::is_copy_constructible_v<T> ||
+                    std::is_move_constructible_v<T>,
+                  "T must be copy- or move-constructible");
+
+    static_assert(std::is_copy_assignable_v<T> || std::is_move_assignable_v<T>,
+                  "T must be copy- or move-assignable");
+
+    static_assert(std::atomic<std::size_t>::is_always_lock_free);
+
+public:
+    template<typename... Args>
+    explicit shared_buffer(Args&&... args)
+      : m_buffers{ T(std::forward<Args>(args)...), T(), T() }
+      , m_active(0)
+      , m_staging(1)
+      , m_spare(2)
+    {}
+
+    shared_buffer(const shared_buffer& other) noexcept
+    {
+        std::shared_lock lock(other.m_mutex);
+
+        const auto idx = other.m_active.load(std::memory_order_acquire);
+        m_buffers[idx] = other.m_buffers[idx];
+
+        for (std::size_t i = 0; i < 3; ++i)
+            if (i != idx)
+                m_buffers[i] = T();
+
+        m_active.store(idx, std::memory_order_release);
+        m_staging = (idx + 1) % 3;
+        m_spare   = (idx + 2) % 3;
+    }
+
+    shared_buffer(shared_buffer&& other) noexcept
+    {
+        std::unique_lock lock(other.m_mutex);
+
+        const auto idx = other.m_active.load(std::memory_order_acquire);
+        m_buffers[idx] = std::move(other.m_buffers[idx]);
+
+        for (std::size_t i = 0; i < 3; ++i)
+            if (i != idx)
+                m_buffers[i] = T();
+
+        m_active.store(idx, std::memory_order_release);
+        m_staging = (idx + 1) % 3;
+        m_spare   = (idx + 2) % 3;
+    }
+
+    shared_buffer& operator=(const shared_buffer& other) noexcept
+    {
+        if (this == &other)
+            return *this;
+
+        std::lock_guard writers(m_writer_mutex);
+        std::size_t     staging_local = m_staging;
+
+        {
+            std::shared_lock rlock(other.m_mutex);
+            const auto src_idx = other.m_active.load(std::memory_order_acquire);
+            m_buffers[staging_local] = other.m_buffers[src_idx];
+        }
+
+        publish(staging_local);
+        return *this;
+    }
+
+    shared_buffer& operator=(shared_buffer&& other) noexcept
+    {
+        if (this == &other)
+            return *this;
+
+        std::lock_guard writers(m_writer_mutex);
+        std::size_t     staging_local = m_staging;
+
+        {
+            std::unique_lock rlock(other.m_mutex);
+            const auto src_idx = other.m_active.load(std::memory_order_acquire);
+            m_buffers[staging_local] = std::move(other.m_buffers[src_idx]);
+        }
+
+        publish(staging_local);
+        return *this;
+    }
+
+    /** Get access to the staging data in write mode after copying the active
+     * data. The callback should not throw exceptions. */
+    template<typename Fn, typename... Args>
+    void write(Fn&& fn, Args&&... args) noexcept
+    {
+        std::lock_guard writers(m_writer_mutex);
+
+        std::size_t staging_local = m_staging;
+
+        {
+            std::shared_lock rlock(m_mutex);
+            auto             idx     = m_active.load(std::memory_order_acquire);
+            m_buffers[staging_local] = m_buffers[idx];
+        }
+
+        std::invoke(std::forward<Fn>(fn),
+                    m_buffers[staging_local],
+                    std::forward<Args>(args)...);
+
+        publish(staging_local);
+    }
+
+    /** Get access to the staging data in write mode without copying. The
+     * callback should not throw exceptions. */
+    template<typename Fn, typename... Args>
+    void write_only(Fn&& fn, Args&&... args) noexcept
+    {
+        std::lock_guard writers(m_writer_mutex);
+
+        std::size_t staging_local = m_staging;
+
+        std::invoke(std::forward<Fn>(fn),
+                    m_buffers[m_staging],
+                    std::forward<Args>(args)...);
+
+        publish(staging_local);
+    }
+
+    /** Try to get access to the active data in read mode. Returns true if
+     * successful, false if the lock couldn't be acquired. The callback should
+     * not throw exceptions. */
+    template<typename Fn, typename... Args>
+    bool try_read(Fn&& fn, Args&&... args) const noexcept
+    {
+        std::shared_lock lock(m_mutex, std::try_to_lock);
+        if (not lock.owns_lock())
+            return false;
+
+        auto idx = m_active.load(std::memory_order_acquire);
+
+        std::invoke(
+          std::forward<Fn>(fn), m_buffers[idx], std::forward<Args>(args)...);
+
+        return true;
+    }
+
+    /** Get access to the active data in read mode. This call blocks until the
+     * lock can be acquired. The callback should not throw exceptions. */
+    template<typename Fn, typename... Args>
+    void read(Fn&& fn, Args&&... args) const noexcept
+    {
+        std::shared_lock lock(m_mutex);
+
+        auto idx = m_active.load(std::memory_order_acquire);
+        std::invoke(
+          std::forward<Fn>(fn), m_buffers[idx], std::forward<Args>(args)...);
+    }
+
+private:
+    /** Publish the staging buffer as the new active buffer. Must be called with
+     * m_writer_mutex held. */
+    void publish(std::size_t staging_local) noexcept
+    {
+        std::unique_lock wlock(m_mutex);
+
+        const auto old_active = m_active.load(std::memory_order_acquire);
+        m_active.store(staging_local, std::memory_order_release);
+        m_spare   = old_active;
+        m_staging = m_spare;
+        std::swap(m_spare, m_staging);
+    }
+
+private:
+    mutable std::shared_mutex m_mutex;
+    std::mutex                m_writer_mutex;
+
+    std::array<T, 3>         m_buffers{};
+    std::atomic<std::size_t> m_active{ 0 };
+    std::size_t              m_staging{ 1 };
+    std::size_t              m_spare{ 2 };
+};
+
 /// A class to wrap object of type @a T with a @a shared_mutex.
 ///
 /// Access to the underlying object @a T is done using @a read_only and @a
