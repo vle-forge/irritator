@@ -596,7 +596,7 @@ void start_simulation_commands_apply(application& app, project_id id) noexcept
 
             while (not ed->commands.empty()) {
                 command c;
-                if (ed->commands.pop(c)) {
+                if (ed->commands.try_pop(c)) {
                     switch (c.type) {
                     case command_type::none:
                         break;
@@ -727,8 +727,7 @@ void project_editor::start_simulation_start(application& app) noexcept
 
 void project_editor::start_simulation_observation(application& app) noexcept
 {
-    auto& task_list =
-      app.get_unordered_task_list(get_index(app.pjs.get_id(*this)));
+    auto& task_list = app.get_unordered_task_list();
 
     debug::ensure(simulation_state != simulation_status::finished);
 
@@ -753,7 +752,7 @@ void project_editor::start_simulation_observation(application& app) noexcept
         }
 
         task_list.submit();
-        task_list.wait();
+        task_list.wait_completion();
 
         current += loop;
         if (obs_max > capacity)
@@ -774,7 +773,7 @@ void project_editor::start_simulation_observation(application& app) noexcept
         ++current;
         if (current == obs_max) {
             task_list.submit();
-            task_list.wait();
+            task_list.wait_completion();
             current = 0;
         }
     }
@@ -789,14 +788,14 @@ void project_editor::start_simulation_observation(application& app) noexcept
         ++current;
         if (current == obs_max) {
             task_list.submit();
-            task_list.wait();
+            task_list.wait_completion();
             current = 0;
         }
     }
 
     if (current > 0) {
         task_list.submit();
-        task_list.wait();
+        task_list.wait_completion();
     }
 
     if (pj.file_obs.can_update(pj.sim.current_time()))
@@ -805,8 +804,7 @@ void project_editor::start_simulation_observation(application& app) noexcept
 
 void project_editor::stop_simulation_observation(application& app) noexcept
 {
-    auto& task_list =
-      app.get_unordered_task_list(get_index(app.pjs.get_id(*this)));
+    auto& task_list = app.get_unordered_task_list();
 
     debug::ensure(simulation_state == simulation_status::finishing);
 
@@ -832,7 +830,7 @@ void project_editor::stop_simulation_observation(application& app) noexcept
         }
 
         task_list.submit();
-        task_list.wait();
+        task_list.wait_completion();
 
         if (obs_max >= capacity)
             obs_max -= capacity;

@@ -133,7 +133,7 @@ void grid_observer::init(project& pj, modeling& mod, simulation& sim) noexcept
         }
     });
 
-    tn = sim.current_time() + time_step;
+    tn = sim.current_time() + static_cast<time>(time_step);
 }
 
 void grid_observer::clear() noexcept
@@ -180,7 +180,7 @@ void grid_observer::update(const simulation& sim) noexcept
             }
         }
 
-        tn = sim.current_time() + time_step;
+        tn = sim.current_time() + static_cast<time>(time_step);
     });
 }
 

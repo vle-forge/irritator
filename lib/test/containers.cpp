@@ -472,16 +472,62 @@ int main()
 
             return x + y + array.get()[99];
         };
+    };
 
-        // small_function need to be improved for lambda move capture.
-        //
-        // auto array2 = std::make_unique<double[]>(100);
-        // f1 = [cap = std::move(array2)](double x, double y) noexcept -> double
-        // {
-        //    for (double i = 0; i != 100.0; i += 1.0)
-        //        cap.get()[static_cast<int>(i)] = i;
-        //    return x + y + cap.get()[99];
-        //};
+    "small_function_basic"_test = [] {
+        irt::small_function<32, int(int, int)> add = [](int a, int b) {
+            return a + b;
+        };
+
+        expect(eq(add(5, 3), 8));
+
+        // Copy
+        auto add2 = add;
+        expect(eq(add2(10, 20), 30));
+
+        // Move
+        auto add3 = std::move(add);
+        expect(eq(add3(1, 2), 3));
+        expect(not add);
+
+        // Reset
+        add3 = nullptr;
+        expect(not add3);
+    };
+
+    "small_function_with_capture"_test = [] {
+        int multiplier = 10;
+
+        irt::small_function<64, int(int)> multiply = [multiplier](int x) {
+            return x * multiplier;
+        };
+
+        expect(eq(multiply(5), 50));
+    };
+
+    "small_function_in_container"_test = [] {
+        std::vector<irt::small_function<32, void()>> tasks;
+
+        for (int i = 0; i < 5; ++i) {
+            tasks.emplace_back([i]() { std::cout << "Task " << i << '\n'; });
+        }
+
+        for (auto& task : tasks) {
+            task();
+        }
+    };
+
+    "small_function_return_type"_test = [] {
+        irt::small_function<32, std::string(const char*)> to_upper =
+          [](const char* str) -> std::string {
+            std::string result = str;
+            for (char& c : result) {
+                c = std::toupper(c);
+            }
+            return result;
+        };
+
+        expect(eq(to_upper("hello"), std::string("HELLO")));
     };
 
     "allocator"_test = [] {

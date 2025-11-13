@@ -1067,7 +1067,7 @@ public:
 
     bool empty() const noexcept;
 
-    unsigned size() const noexcept;
+    inline unsigned size() const noexcept;
     int      ssize() const noexcept;
 };
 
@@ -6536,7 +6536,7 @@ inline void observer::init(
       },
       *linearized_buffer_size);
 
-    time_step = ts <= zero ? 1e-2f : time_step;
+    time_step = ts <= 0.f ? 1e-2f : time_step;
 }
 
 inline void observer::reset() noexcept
@@ -7239,7 +7239,7 @@ inline bool scheduller<A>::empty() const noexcept
 }
 
 template<typename A>
-inline unsigned scheduller<A>::size() const noexcept
+ unsigned scheduller<A>::size() const noexcept
 {
     return m_heap.size();
 }
