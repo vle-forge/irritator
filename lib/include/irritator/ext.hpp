@@ -70,10 +70,8 @@ class small_function<Size, Ret(Params...)>
 public:
     static_assert(Size >= 1, "Size must be at least 1 byte");
 
-    /// Default constructor - creates empty function
     constexpr small_function() noexcept = default;
 
-    /// Copy constructor
     constexpr small_function(const small_function& other) noexcept
     {
         if (other.m_manager) {
@@ -84,7 +82,6 @@ public:
         }
     }
 
-    /// Copy assignment
     constexpr small_function& operator=(const small_function& other) noexcept
     {
         if (this != &other) {
@@ -94,10 +91,10 @@ public:
         return *this;
     }
 
-    /// Move constructor
     constexpr small_function(small_function&& other) noexcept
     {
         if (other.m_manager) {
+
             // For trivially copyable types, use memcpy
             // Note: memcpy is not constexpr, so this branch won't be taken at
             // compile time
@@ -114,7 +111,6 @@ public:
         }
     }
 
-    /// Move assignment
     constexpr small_function& operator=(small_function&& other) noexcept
     {
         if (this != &other) {
@@ -124,14 +120,12 @@ public:
         return *this;
     }
 
-    /// Assign to nullptr (clear)
     constexpr small_function& operator=(std::nullptr_t) noexcept
     {
         reset();
         return *this;
     }
 
-    /// Construct from callable
     template<typename F>
         requires(!std::same_as<std::decay_t<F>, small_function> &&
                  storable_callable<F, Size, Ret, Params...>)
@@ -144,7 +138,6 @@ public:
         m_manager = &manage<f_type>;
     }
 
-    /// Assign from callable
     template<typename F>
         requires(!std::same_as<std::decay_t<F>, small_function> &&
                  storable_callable<F, Size, Ret, Params...>)
@@ -155,7 +148,6 @@ public:
         return *this;
     }
 
-    /// Assign from reference_wrapper
     template<typename F>
     constexpr small_function& operator=(std::reference_wrapper<F> f) noexcept
     {
@@ -164,17 +156,12 @@ public:
         return *this;
     }
 
-    /// Destructor
     constexpr ~small_function() noexcept { reset(); }
 
-    /// Swap with another small_function
     constexpr void swap(small_function& other) noexcept
     {
         if (this == &other)
             return;
-
-        // We need to actually move the objects, not just swap bytes
-        // because the storage might contain self-referencing pointers
 
         storage_type storage_tmp;
         std::copy_n(m_storage, Size, storage_tmp);
@@ -190,7 +177,6 @@ public:
         other.m_manager = std::move(manager_tmp);
     }
 
-    /// Reset to empty state
     constexpr void reset() noexcept
     {
         if (m_manager) {
@@ -200,13 +186,11 @@ public:
         }
     }
 
-    /// Check if function is set
     [[nodiscard]] constexpr explicit operator bool() const noexcept
     {
         return m_manager != nullptr;
     }
 
-    /// Invoke the callable
     constexpr Ret operator()(Params... args) const
     {
         if (!m_invoker) {
@@ -225,17 +209,11 @@ public:
         return m_invoker(storage(), std::forward<Params>(args)...);
     }
 
-    // =========================================================================
-    // Queries
-    // =========================================================================
-
-    /// Get the size of the inline storage
     [[nodiscard]] static constexpr std::size_t storage_size() noexcept
     {
         return Size;
     }
 
-    /// Check if currently empty
     [[nodiscard]] constexpr bool empty() const noexcept { return !m_manager; }
 
 private:
@@ -258,11 +236,9 @@ private:
     /// Check if storage is trivially relocatable (can use memcpy)
     [[nodiscard]] static constexpr bool is_trivially_relocatable() noexcept
     {
-        // Conservative: only for truly trivial types
         return std::is_trivially_copyable_v<storage_type>;
     }
 
-    /// Invoker function template
     template<typename F>
     static constexpr Ret invoke(void* data, Params&&... args)
     {
@@ -270,7 +246,6 @@ private:
         return f(std::forward<Params>(args)...);
     }
 
-    /// Manager function template
     template<typename F>
     static constexpr void manage(void* dest, void* src, operation op)
     {
@@ -297,7 +272,6 @@ private:
         }
     }
 
-    // Storage with proper alignment
     alignas(std::max_align_t) storage_type m_storage{};
     invoker_type m_invoker = nullptr;
     manager_type m_manager = nullptr;
