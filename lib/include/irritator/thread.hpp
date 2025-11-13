@@ -140,80 +140,24 @@ public:
 
     constexpr circular_buffer() noexcept = default;
 
-    constexpr ~circular_buffer() noexcept
-    {
-        while (try_pop())
-            ;
-    }
+    constexpr ~circular_buffer() noexcept;
 
     circular_buffer(const circular_buffer&) noexcept            = delete;
     circular_buffer& operator=(const circular_buffer&) noexcept = delete;
 
-    bool try_push(const T& value) noexcept
-    {
-        const sz head      = m_head.load(std::memory_order_relaxed);
-        const sz next_head = (head + 1) & m_mask;
+    bool try_push(const T& value) noexcept;
+    bool try_push(T&& value) noexcept;
+    bool try_pop(T& value) noexcept;
+    bool try_pop() noexcept;
 
-        if (next_head == m_tail.load(std::memory_order_acquire))
-            return false; // Buffer is full.
-
-        std::construct_at(std::addressof(m_buffer[head]), value);
-        m_head.store(next_head, std::memory_order_release);
-        return true;
-    }
-
-    bool try_push(T&& value) noexcept
-    {
-        const sz head      = m_head.load(std::memory_order_relaxed);
-        const sz next_head = (head + 1) & m_mask;
-
-        if (next_head == m_tail.load(std::memory_order_acquire))
-            return false; // Buffer is full.
-
-        std::construct_at(std::addressof(m_buffer[head]), std::move(value));
-        m_head.store(next_head, std::memory_order_release);
-        return true;
-    }
-
-    bool try_pop(T& value) noexcept
-    {
-        const sz tail = m_tail.load(std::memory_order_relaxed);
-
-        if (tail == m_head.load(std::memory_order_acquire)) {
-            return false; // Buffer is empty.
-        }
-
-        value = std::move(m_buffer[tail]);
-        std::destroy_at(std::addressof(m_buffer[tail]));
-
-        m_tail.store((tail + 1) & m_mask, std::memory_order_release);
-        return true;
-    }
-
-    bool try_pop() noexcept
-    {
-        const sz tail = m_tail.load(std::memory_order_relaxed);
-
-        if (tail == m_head.load(std::memory_order_acquire))
-            return false;
-
-        std::destroy_at(std::addressof(m_buffer[tail]));
-        m_tail.store((tail + 1) & m_mask, std::memory_order_release);
-        return true;
-    }
-
-    bool empty() const noexcept
-    {
-        return m_tail.load(std::memory_order_acquire) ==
-               m_head.load(std::memory_order_acquire);
-    }
+    bool empty() const noexcept;
 
 private:
     static constexpr sz m_mask = Capacity - 1;
 
     alignas(64) std::atomic<sz> m_head{ 0 };
     alignas(64) std::atomic<sz> m_tail{ 0 };
-    alignas(64) T m_buffer[Capacity];
+    alignas(64) T m_buffer[Capacity]{};
 };
 
 /**
@@ -1089,6 +1033,81 @@ inline void task_manager<O, U>::shutdown() noexcept
     }
 
     state_.store(manager_state::stopped, std::memory_order_release);
+}
+
+//
+// circular buffer impl
+//
+
+template<typename T, std::size_t Capacity>
+constexpr circular_buffer<T, Capacity>::~circular_buffer() noexcept
+{
+    while (try_pop())
+        ;
+}
+
+template<typename T, std::size_t Capacity>
+bool circular_buffer<T, Capacity>::try_push(const T& value) noexcept
+{
+    const sz head      = m_head.load(std::memory_order_relaxed);
+    const sz next_head = (head + 1) & m_mask;
+
+    if (next_head == m_tail.load(std::memory_order_acquire))
+        return false; // Buffer is full.
+
+    std::construct_at(std::addressof(m_buffer[head]), value);
+    m_head.store(next_head, std::memory_order_release);
+    return true;
+}
+
+template<typename T, std::size_t Capacity>
+bool circular_buffer<T, Capacity>::try_push(T&& value) noexcept
+{
+    const sz head      = m_head.load(std::memory_order_relaxed);
+    const sz next_head = (head + 1) & m_mask;
+
+    if (next_head == m_tail.load(std::memory_order_acquire))
+        return false; // Buffer is full.
+
+    std::construct_at(std::addressof(m_buffer[head]), std::move(value));
+    m_head.store(next_head, std::memory_order_release);
+    return true;
+}
+
+template<typename T, std::size_t Capacity>
+bool circular_buffer<T, Capacity>::try_pop(T& value) noexcept
+{
+    const sz tail = m_tail.load(std::memory_order_relaxed);
+
+    if (tail == m_head.load(std::memory_order_acquire)) {
+        return false; // Buffer is empty.
+    }
+
+    value = std::move(m_buffer[tail]);
+    std::destroy_at(std::addressof(m_buffer[tail]));
+
+    m_tail.store((tail + 1) & m_mask, std::memory_order_release);
+    return true;
+}
+
+template<typename T, std::size_t Capacity>
+bool circular_buffer<T, Capacity>::try_pop() noexcept
+{
+    const sz tail = m_tail.load(std::memory_order_relaxed);
+
+    if (tail == m_head.load(std::memory_order_acquire))
+        return false;
+
+    std::destroy_at(std::addressof(m_buffer[tail]));
+    m_tail.store((tail + 1) & m_mask, std::memory_order_release);
+    return true;
+}
+
+template<typename T, std::size_t Capacity>
+bool circular_buffer<T, Capacity>::empty() const noexcept
+{
+    return m_tail.load(std::memory_order_acquire) ==
+           m_head.load(std::memory_order_acquire);
 }
 
 } // namespace irt
