@@ -713,7 +713,7 @@ int main()
                 while (std::chrono::steady_clock::now() - start_time <
                        duration) {
                     buffer.write([](Counter& c) { c.value++; });
-                    std::this_thread::sleep_for(std::chrono::microseconds(500));
+                    std::this_thread::sleep_for(std::chrono::microseconds(50));
                 }
             });
         }

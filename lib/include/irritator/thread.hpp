@@ -371,7 +371,7 @@ public:
         return completed_tasks_.load(std::memory_order_acquire);
     }
 
-    u32 pending_tasks() const noexcept { return pending_tasks_.size(); }
+    sz pending_tasks() const noexcept { return pending_tasks_.size(); }
 
 private:
     enum class phase : int {
@@ -646,7 +646,7 @@ inline void ordered_task_list::add(Fn&& fn) noexcept
 
         // Backoff exponentiel
         for (sz i = 0; i < backoff; ++i) {
-#if defined(__x86_64__) || defined(_M_X64)
+#if (defined(__GNUC__) && (defined(__i386__) || defined(__x86_64__)))
             __builtin_ia32_pause();
 #elif defined(__aarch64__)
             asm volatile("yield");
@@ -888,18 +888,13 @@ inline void ordered_worker::run() noexcept
         while (task_list_->try_pop(t)) {
             found_work = true;
 
-            try {
-                const auto start = std::chrono::steady_clock::now();
-                t();
-                const auto elapsed = std::chrono::steady_clock::now() - start;
-                add_execution_time(elapsed);
-                task_list_->tasks_completed_.fetch_add(
-                  1, std::memory_order_release);
-            } catch (const std::exception& e) {
-                // Log: exception dans la tâche
-            } catch (...) {
-                // Log: exception inconnue
-            }
+            const auto start = std::chrono::steady_clock::now();
+            t();
+            const auto elapsed = std::chrono::steady_clock::now() - start;
+            add_execution_time(elapsed);
+
+            task_list_->tasks_completed_.fetch_add(1,
+                                                   std::memory_order_release);
         }
 
         if (found_work) {
@@ -919,7 +914,7 @@ inline void ordered_worker::run() noexcept
  ****************************************************************************/
 
 inline unordered_worker::unordered_worker(unordered_worker&&) noexcept
-  : wake_flag_{ ATOMIC_FLAG_INIT }
+  : wake_flag_{}
 {
     std::terminate();
 }
@@ -936,30 +931,14 @@ inline void unordered_worker::run() noexcept
             while (tl->try_steal_task(j)) {
                 found_work = true;
 
-                try {
-                    const auto start = std::chrono::steady_clock::now();
-                    j.function();
-                    const auto elapsed =
-                      std::chrono::steady_clock::now() - start;
-                    add_execution_time(elapsed);
+                const auto start = std::chrono::steady_clock::now();
+                j.function();
+                const auto elapsed = std::chrono::steady_clock::now() - start;
+                add_execution_time(elapsed);
 
-                    if (j.completion_counter) {
-                        j.completion_counter->fetch_add(
-                          1, std::memory_order_release);
-                    }
-                } catch (const std::exception& e) {
-                    // Log exception
-                    if (j.completion_counter) {
-                        j.completion_counter->fetch_add(
-                          1, std::memory_order_release);
-                    }
-                } catch (...) {
-                    // Log exception inconnue
-                    if (j.completion_counter) {
-                        j.completion_counter->fetch_add(
-                          1, std::memory_order_release);
-                    }
-                }
+                if (j.completion_counter)
+                    j.completion_counter->fetch_add(1,
+                                                    std::memory_order_release);
             }
         }
 

@@ -36,9 +36,9 @@ namespace irt {
 template<std::size_t Size, typename Fn>
 class small_function;
 
-// =============================================================================
+//
 // Concepts for callable validation
-// =============================================================================
+//
 
 template<typename F, typename Ret, typename... Params>
 concept compatible_callable =
@@ -64,10 +64,6 @@ concept storable_callable =
   compatible_callable<F, Ret, Params...> && fits_in_storage<F, Size> &&
   compatible_alignment<F, Size> && nothrow_relocatable<F>;
 
-// =============================================================================
-// Main class
-// =============================================================================
-
 template<std::size_t Size, typename Ret, typename... Params>
 class small_function<Size, Ret(Params...)>
 {
@@ -80,11 +76,11 @@ public:
     /// Copy constructor
     constexpr small_function(const small_function& other) noexcept
     {
-        if (other.manager_) {
-            other.manager_(
+        if (other.m_manager) {
+            other.m_manager(
               storage(), const_cast<void*>(other.storage()), operation::clone);
-            invoker_ = other.invoker_;
-            manager_ = other.manager_;
+            m_invoker = other.m_invoker;
+            m_manager = other.m_manager;
         }
     }
 
@@ -101,20 +97,20 @@ public:
     /// Move constructor
     constexpr small_function(small_function&& other) noexcept
     {
-        if (other.manager_) {
+        if (other.m_manager) {
             // For trivially copyable types, use memcpy
             // Note: memcpy is not constexpr, so this branch won't be taken at
             // compile time
 
             if (std::is_constant_evaluated() || !is_trivially_relocatable())
-                other.manager_(storage(),
-                               const_cast<void*>(other.storage()),
-                               operation::move);
+                other.m_manager(storage(),
+                                const_cast<void*>(other.storage()),
+                                operation::move);
             else
                 std::memcpy(storage(), other.storage(), Size);
 
-            invoker_ = std::exchange(other.invoker_, nullptr);
-            manager_ = std::exchange(other.manager_, nullptr);
+            m_invoker = std::exchange(other.m_invoker, nullptr);
+            m_manager = std::exchange(other.m_manager, nullptr);
         }
     }
 
@@ -144,8 +140,8 @@ public:
         using f_type = std::decay_t<F>;
 
         new (storage()) f_type(std::forward<F>(f));
-        invoker_ = &invoke<f_type>;
-        manager_ = &manage<f_type>;
+        m_invoker = &invoke<f_type>;
+        m_manager = &manage<f_type>;
     }
 
     /// Assign from callable
@@ -180,52 +176,53 @@ public:
         // We need to actually move the objects, not just swap bytes
         // because the storage might contain self-referencing pointers
 
-        storage_type storage_tmp = std::move(storage_);
-        invoker_type invoker_tmp = std::move(invoker_);
-        manager_type manager_tmp = std::move(manager_);
+        storage_type storage_tmp;
+        std::copy_n(m_storage, Size, storage_tmp);
+        invoker_type invoker_tmp = std::move(m_invoker);
+        manager_type manager_tmp = std::move(m_manager);
 
-        storage_ = std::move(other.storage_);
-        invoker_ = std::move(other.invoker_);
-        manager_ = std::move(other.manager_);
+        std::copy_n(other.m_storage, Size, m_storage);
+        m_invoker = std::move(other.m_invoker);
+        m_manager = std::move(other.m_manager);
 
-        other.storage_ = std::move(storage_tmp);
-        other.invoker_ = std::move(invoker_tmp);
-        other.manager_ = std::move(manager_tmp);
+        std::copy_n(storage_tmp, Size, other.m_storage);
+        other.m_invoker = std::move(invoker_tmp);
+        other.m_manager = std::move(manager_tmp);
     }
 
     /// Reset to empty state
     constexpr void reset() noexcept
     {
-        if (manager_) {
-            manager_(storage(), nullptr, operation::destroy);
-            manager_ = nullptr;
-            invoker_ = nullptr;
+        if (m_manager) {
+            m_manager(storage(), nullptr, operation::destroy);
+            m_manager = nullptr;
+            m_invoker = nullptr;
         }
     }
 
     /// Check if function is set
     [[nodiscard]] constexpr explicit operator bool() const noexcept
     {
-        return manager_ != nullptr;
+        return m_manager != nullptr;
     }
 
     /// Invoke the callable
     constexpr Ret operator()(Params... args) const
     {
-        if (!invoker_) {
+        if (!m_invoker) {
             throw std::bad_function_call();
         }
 
-        return invoker_(storage(), std::forward<Params>(args)...);
+        return m_invoker(storage(), std::forward<Params>(args)...);
     }
 
     constexpr Ret operator()(Params... args)
     {
-        if (!invoker_) {
+        if (!m_invoker) {
             throw std::bad_function_call();
         }
 
-        return invoker_(storage(), std::forward<Params>(args)...);
+        return m_invoker(storage(), std::forward<Params>(args)...);
     }
 
     // =========================================================================
@@ -239,27 +236,23 @@ public:
     }
 
     /// Check if currently empty
-    [[nodiscard]] constexpr bool empty() const noexcept { return !manager_; }
+    [[nodiscard]] constexpr bool empty() const noexcept { return !m_manager; }
 
 private:
     enum class operation { clone, move, destroy };
 
     using invoker_type = Ret (*)(void*, Params&&...);
     using manager_type = void (*)(void*, void*, operation);
+    using storage_type = std::byte[Size];
 
-    // Storage with proper alignment
-    using storage_type =
-      std::aligned_storage_t<Size, alignof(std::max_align_t)>;
-
-    /// Get pointer to storage
     [[nodiscard]] constexpr void* storage() noexcept
     {
-        return static_cast<void*>(&storage_);
+        return static_cast<void*>(&m_storage);
     }
 
     [[nodiscard]] constexpr const void* storage() const noexcept
     {
-        return static_cast<const void*>(&storage_);
+        return static_cast<const void*>(&m_storage);
     }
 
     /// Check if storage is trivially relocatable (can use memcpy)
@@ -283,18 +276,15 @@ private:
     {
         switch (op) {
         case operation::clone:
-            // Copy construct
             std::construct_at(static_cast<F*>(dest),
                               *static_cast<const F*>(src));
             break;
 
         case operation::move:
-            // Move construct and destroy source
             if constexpr (std::is_nothrow_move_constructible_v<F>) {
                 std::construct_at(static_cast<F*>(dest),
                                   std::move(*static_cast<F*>(src)));
             } else {
-                // Fallback to copy if move can throw
                 std::construct_at(static_cast<F*>(dest),
                                   *static_cast<const F*>(src));
             }
@@ -302,20 +292,20 @@ private:
             break;
 
         case operation::destroy:
-            // Destruct
             std::destroy_at(static_cast<F*>(dest));
             break;
         }
     }
 
-    storage_type storage_{};
-    invoker_type invoker_ = nullptr;
-    manager_type manager_ = nullptr;
+    // Storage with proper alignment
+    alignas(std::max_align_t) storage_type m_storage{};
+    invoker_type m_invoker = nullptr;
+    manager_type m_manager = nullptr;
 };
 
-// =============================================================================
-// Non-member functions
-// =============================================================================
+//
+// small_funciton non-member functions
+//
 
 template<std::size_t Size, typename Fn>
 void swap(small_function<Size, Fn>& lhs, small_function<Size, Fn>& rhs) noexcept
