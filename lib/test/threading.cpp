@@ -492,7 +492,7 @@ int main()
                 }
 
                 for (int j = 0; j < reads_per_thread; ++j) {
-                    buffer.read([&](const Counter& c) {
+                    buffer.read([&](const Counter& c, const irt::u64 /*version*/) {
                         if (c.value != 42) {
                             errors.fetch_add(1);
                         }
@@ -537,7 +537,8 @@ int main()
             readers.emplace_back([&]() {
                 int last_value = -1;
                 while (!stop.load()) {
-                    buffer.read([&](const Counter& c) {
+                    buffer.read(
+                      [&](const Counter& c, const irt::u64 /*version*/) {
                         if (c.value < last_value) {
                             monotonic_errors.fetch_add(1);
                         }
@@ -592,7 +593,7 @@ int main()
 
         int    final_value  = 0;
         size_t history_size = 0;
-        buffer.read([&](const Counter& c) {
+        buffer.read([&](const Counter& c, const irt::u64 /*version*/) {
             final_value  = c.value;
             history_size = c.history.size();
         });
@@ -629,7 +630,8 @@ int main()
         for (int i = 0; i < 4; ++i) {
             readers.emplace_back([&]() {
                 while (!stop.load()) {
-                    buffer.read([&](const ComplexData& data) {
+                    buffer.read(
+                      [&](const ComplexData& data, const irt::u64 /*version*/) {
                         if (!data.is_valid()) {
                             integrity_errors.fetch_add(1);
                         }
@@ -670,9 +672,10 @@ int main()
                 auto start_time = std::chrono::steady_clock::now();
                 while (std::chrono::steady_clock::now() - start_time <
                        std::chrono::seconds(2)) {
-                    bool success = buffer.try_read([](const Counter& /*c*/) {
-                        // success !
-                    });
+                    bool success = buffer.try_read(
+                      [](const Counter& /*c*/, const irt::u64 /*version*/) {
+                          // success !
+                      });
 
                     if (success) {
                         successful_reads.fetch_add(1);
@@ -722,7 +725,8 @@ int main()
             threads.emplace_back([&]() {
                 while (std::chrono::steady_clock::now() - start_time <
                        duration) {
-                    buffer.read([](const Counter& c) {
+                    buffer.read(
+                      [](const Counter& c, const irt::u64 /*version*/) {
                         volatile int x = c.value;
                         (void)x;
                     });
@@ -734,7 +738,8 @@ int main()
             threads.emplace_back([&]() {
                 while (std::chrono::steady_clock::now() - start_time <
                        duration) {
-                    buffer.try_read([](const Counter& c) {
+                    buffer.try_read(
+                      [](const Counter& c, const irt::u64 /*version*/) {
                         volatile int x = c.value;
                         (void)x;
                     });
@@ -747,7 +752,9 @@ int main()
         }
 
         int final_value = 0;
-        buffer.read([&](const Counter& c) { final_value = c.value; });
+        buffer.read([&](const Counter& c, const irt::u64 /*version*/) {
+            final_value = c.value;
+        });
 
         boost::ut::log << "final value " << final_value;
     };
