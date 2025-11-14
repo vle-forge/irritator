@@ -121,7 +121,7 @@ void graph_observer::update(const simulation& sim) noexcept
             }
         }
 
-        tn = sim.current_time() + time_step;
+        tn = sim.current_time() + static_cast<time>(time_step);
     });
 }
 
