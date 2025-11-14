@@ -18,21 +18,25 @@
 
 namespace irt {
 
-struct task_list;
+/** Provides SPSC Lock-Free.
+ *
+ * @tparam T A simple type (trivially object or nothrow).
+ * @tparam Capacity A fixed size buffer.
+ */
+template<typename T, std::size_t Capacity>
+class circular_buffer;
+
+class ordered_task_list;
 class unordered_task_list;
 struct worker_stats;
 
 template<typename Derived>
 class worker_base;
-
 class ordered_worker;
 class unordered_worker;
 
 template<std::size_t ordered, std::size_t unordered>
 class task_manager;
-
-static inline constexpr int unordered_task_list_tasks_number = 256;
-static inline constexpr int task_list_tasks_number           = 16;
 
 /** Run a function @a fn according to the test of the @a std::atomic_flag.
  * The function is called if and only if the @a std::atomic_flag is false. */
@@ -1048,7 +1052,7 @@ template<std::size_t O, std::size_t U>
 inline std::span<const unordered_worker> task_manager<O, U>::unordered_workers()
   const noexcept
 {
-    return { unordered_workers_.data(), unordered_workers_.size() };
+    return { unordered_workers_.cbegin(), unordered_workers_.size() };
 }
 
 //
