@@ -288,11 +288,8 @@ public:
     unordered_task_list(unordered_task_list&&) noexcept;
     unordered_task_list& operator=(unordered_task_list&&) noexcept = delete;
 
-    void set_stats(worker_stats* stats) noexcept { stats_ = stats; }
-    void set_workers(std::span<unordered_worker> workers)
-    {
-        workers_ = workers;
-    }
+    void set_stats(worker_stats* stats) noexcept;
+    void set_workers(std::span<unordered_worker> workers) noexcept;
 
     /** Add a task in the current batch. */
     template<typename Fn>
@@ -510,48 +507,6 @@ private:
     std::vector<unordered_worker>                     unordered_workers_;
 };
 
-template<std::size_t O, std::size_t U>
-inline std::span<const worker_stats> task_manager<O, U>::ordered_stats()
-  const noexcept
-{
-    return { ordered_stats_.data(), ordered_stats_.size() };
-}
-
-template<std::size_t O, std::size_t U>
-inline std::span<const worker_stats> task_manager<O, U>::unordered_stats()
-  const noexcept
-{
-    return { unordered_stats_.data(), unordered_stats_.size() };
-}
-
-template<std::size_t O, std::size_t U>
-inline std::span<const ordered_task_list> task_manager<O, U>::ordered_lists()
-  const noexcept
-{
-    return { ordered_lists_.data(), ordered_lists_.size() };
-}
-
-template<std::size_t O, std::size_t U>
-inline std::span<const unordered_task_list>
-task_manager<O, U>::unordered_lists() const noexcept
-{
-    return { unordered_lists_.data(), unordered_lists_.size() };
-}
-
-template<std::size_t O, std::size_t U>
-inline std::span<const ordered_worker> task_manager<O, U>::ordered_workers()
-  const noexcept
-{
-    return { ordered_workers_.data(), ordered_workers_.size() };
-}
-
-template<std::size_t O, std::size_t U>
-inline std::span<const unordered_worker> task_manager<O, U>::unordered_workers()
-  const noexcept
-{
-    return { unordered_workers_.data(), unordered_workers_.size() };
-}
-
 /*****************************************************************************
  *
  * Implementation
@@ -618,7 +573,10 @@ inline void ordered_task_list::wait_completion() noexcept
     while (tasks_completed_.load(std::memory_order_acquire) < expected) {
         notify_worker();
 
-        // Attendre que le worker signale
+        if (tasks_completed_.load(std::memory_order_acquire) >= expected) {
+            break;
+        }
+
         wake_producer_.wait(false, std::memory_order_acquire);
         wake_producer_.clear(std::memory_order_relaxed);
     }
@@ -645,6 +603,11 @@ inline void ordered_task_list::worker_wait() noexcept
 
     if (shutdown_.load(std::memory_order_acquire))
         return;
+
+    if (!buffer_.empty()) {
+        worker_active_.store(true, std::memory_order_relaxed);
+        return;
+    }
 
     wake_worker_.wait(false, std::memory_order_acquire);
     wake_worker_.clear(std::memory_order_relaxed);
@@ -673,6 +636,17 @@ inline unordered_task_list::unordered_task_list(unordered_task_list&&) noexcept
   , completed_tasks_{ 0 }
 {
     std::terminate();
+}
+
+inline void unordered_task_list::set_stats(worker_stats* stats) noexcept
+{
+    stats_ = stats;
+}
+
+inline void unordered_task_list::set_workers(
+  std::span<unordered_worker> workers) noexcept
+{
+    workers_ = workers;
 }
 
 template<typename Fn>
@@ -1033,6 +1007,48 @@ inline void task_manager<O, U>::shutdown() noexcept
     }
 
     state_.store(manager_state::stopped, std::memory_order_release);
+}
+
+template<std::size_t O, std::size_t U>
+inline std::span<const worker_stats> task_manager<O, U>::ordered_stats()
+  const noexcept
+{
+    return { ordered_stats_.data(), ordered_stats_.size() };
+}
+
+template<std::size_t O, std::size_t U>
+inline std::span<const worker_stats> task_manager<O, U>::unordered_stats()
+  const noexcept
+{
+    return { unordered_stats_.data(), unordered_stats_.size() };
+}
+
+template<std::size_t O, std::size_t U>
+inline std::span<const ordered_task_list> task_manager<O, U>::ordered_lists()
+  const noexcept
+{
+    return { ordered_lists_.data(), ordered_lists_.size() };
+}
+
+template<std::size_t O, std::size_t U>
+inline std::span<const unordered_task_list>
+task_manager<O, U>::unordered_lists() const noexcept
+{
+    return { unordered_lists_.data(), unordered_lists_.size() };
+}
+
+template<std::size_t O, std::size_t U>
+inline std::span<const ordered_worker> task_manager<O, U>::ordered_workers()
+  const noexcept
+{
+    return { ordered_workers_.data(), ordered_workers_.size() };
+}
+
+template<std::size_t O, std::size_t U>
+inline std::span<const unordered_worker> task_manager<O, U>::unordered_workers()
+  const noexcept
+{
+    return { unordered_workers_.data(), unordered_workers_.size() };
 }
 
 //
