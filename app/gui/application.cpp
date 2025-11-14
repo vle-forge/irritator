@@ -330,9 +330,12 @@ application::application(journal_handler& jn_) noexcept
 
     auto& msg = log_wnd.enqueue();
     format(msg,
-           "Starting with {} main threads and {} generic workers\n",
-           task_mgr.ordered_task_workers.ssize(),
-           task_mgr.unordered_task_workers.ssize());
+           "Starting with {} ordered list {} unordered list and {} threads and "
+           "{} unordered workers\n",
+           task_mgr.ordered_list_number,
+           task_mgr.unordered_list_number,
+           task_mgr.ordered_workers_size(),
+           task_mgr.unordered_workers_size());
 }
 
 application::~application() noexcept
@@ -340,10 +343,15 @@ application::~application() noexcept
     jn.push(log_level::info,
             [](auto&, auto& msg) { msg = "Task manager shutdown\n"; });
 
-    task_mgr.finalize();
+    task_mgr.shutdown();
 
     jn.push(log_level::info,
             [](auto&, auto& msg) { msg = "Application shutdown\n"; });
+}
+
+unordered_task_list& application::get_unordered_task_list() noexcept
+{
+    return task_mgr.get_unordered_list(0);
 }
 
 std::optional<project_id> application::alloc_project_window() noexcept
@@ -828,14 +836,6 @@ bool show_select_model_box(const char*     button_label,
     }
 
     return ret;
-}
-
-unordered_task_list& application::get_unordered_task_list(int idx) noexcept
-{
-    const auto size = task_mgr.unordered_task_lists.ssize();
-    const auto mod  = ((idx % size) + size) % size;
-
-    return task_mgr.unordered_task_lists[mod];
 }
 
 std::optional<file> application::try_open_file(const char* filename,

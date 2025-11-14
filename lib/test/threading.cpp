@@ -6,6 +6,8 @@
 #include <irritator/thread.hpp>
 
 #include <mutex>
+#include <numeric>
+#include <random>
 
 #include <fmt/format.h>
 
@@ -126,56 +128,48 @@ int main()
 
     // use-case-test: checks a classic use of task and task_list.
     "task-lists"_test = [] {
-        irt::task_manager tm;
-
+        irt::task_manager<1, 1> tm;
         tm.start();
 
+        std::atomic_int counter = 0;
         for (int i = 0; i < 100; ++i) {
-            std::atomic_int counter = 0;
-
-            tm.ordered_task_lists[0].add([&counter]() { function_1(counter); });
-            tm.ordered_task_lists[0].add(
-              [&counter]() { function_100(counter); });
-            tm.ordered_task_lists[0].add([&counter]() { function_1(counter); });
-            tm.ordered_task_lists[0].add(
-              [&counter]() { function_100(counter); });
-            tm.ordered_task_lists[0].submit();
-            tm.ordered_task_lists[0].wait();
-
-            expect(counter == 202);
+            tm.get_ordered_list(0).add([&counter]() { function_1(counter); });
+            tm.get_ordered_list(0).add([&counter]() { function_100(counter); });
+            tm.get_ordered_list(0).add([&counter]() { function_1(counter); });
+            tm.get_ordered_list(0).add([&counter]() { function_100(counter); });
+            tm.get_ordered_list(0).wait_completion();
         }
 
-        tm.finalize();
+        tm.get_ordered_list(0).wait_completion();
+        expect(counter == 20200);
+
+        tm.shutdown();
     };
 
     // use-case-test: checks a classic use of task and task_list and do not use
     // wait.
     "task-lists-without-wait"_test = [] {
-        irt::task_manager tm;
-
+        irt::task_manager<1, 1> tm;
         tm.start();
 
         std::atomic_int counter = 0;
         for (int i = 0; i < 100; ++i) {
-            tm.ordered_task_lists[0].add([&counter]() { function_1(counter); });
-            tm.ordered_task_lists[0].add(
-              [&counter]() { function_100(counter); });
-            tm.ordered_task_lists[0].add([&counter]() { function_1(counter); });
-            tm.ordered_task_lists[0].add(
-              [&counter]() { function_100(counter); });
-            tm.ordered_task_lists[0].submit();
+            tm.get_ordered_list(0).add([&counter]() { function_1(counter); });
+            tm.get_ordered_list(0).add([&counter]() { function_100(counter); });
+            tm.get_ordered_list(0).add([&counter]() { function_1(counter); });
+            tm.get_ordered_list(0).add([&counter]() { function_100(counter); });
         }
-        tm.ordered_task_lists[0].wait();
+        tm.get_ordered_list(0).wait_completion();
         expect(counter == 202 * 100);
 
-        tm.finalize();
+        tm.shutdown();
     };
 
     // stress-test: checks to add 200 tasks for a task_list vector < 200.
     // task_list::add must wakeup the worker without the call to the submit
     // function to avoid dead lock.
     "large-task-lists"_test = [] {
-        irt::task_manager tm;
+        irt::task_manager<1, 1> tm;
 
         constexpr int loop = 100;
 
@@ -185,45 +179,41 @@ int main()
             std::atomic_int counter = 0;
 
             for (int i = 0; i < loop; ++i) {
-                tm.ordered_task_lists[0].add(
+                tm.get_ordered_list(0).add(
                   [&counter]() { function_1(counter); });
-                tm.ordered_task_lists[0].add(
+                tm.get_ordered_list(0).add(
                   [&counter]() { function_100(counter); });
             }
-            tm.ordered_task_lists[0].submit();
-            tm.ordered_task_lists[0].wait();
+            tm.get_ordered_list(0).wait_completion();
 
             for (int i = 0; i < loop; ++i) {
-                tm.ordered_task_lists[0].add(
+                tm.get_ordered_list(0).add(
                   [&counter]() { function_1(counter); });
-                tm.ordered_task_lists[0].add(
+                tm.get_ordered_list(0).add(
                   [&counter]() { function_100(counter); });
             }
-            tm.ordered_task_lists[0].submit();
-            tm.ordered_task_lists[0].wait();
+            tm.get_ordered_list(0).wait_completion();
 
             for (int i = 0; i < loop; ++i) {
-                tm.ordered_task_lists[0].add(
+                tm.get_ordered_list(0).add(
                   [&counter]() { function_1(counter); });
-                tm.ordered_task_lists[0].add(
+                tm.get_ordered_list(0).add(
                   [&counter]() { function_100(counter); });
             }
-            tm.ordered_task_lists[0].submit();
-            tm.ordered_task_lists[0].wait();
+            tm.get_ordered_list(0).wait_completion();
 
             for (int i = 0; i < loop; ++i) {
-                tm.ordered_task_lists[0].add(
+                tm.get_ordered_list(0).add(
                   [&counter]() { function_1(counter); });
-                tm.ordered_task_lists[0].add(
+                tm.get_ordered_list(0).add(
                   [&counter]() { function_100(counter); });
             }
-            tm.ordered_task_lists[0].submit();
-            tm.ordered_task_lists[0].wait();
+            tm.get_ordered_list(0).wait_completion();
 
             expect(counter == 101 * 100 * 4);
         }
 
-        tm.finalize();
+        tm.shutdown();
     };
 
     "n-worker-1-temp-task-lists-simple"_test = [] {
@@ -235,29 +225,29 @@ int main()
             std::atomic_int counter_1 = 0;
             std::atomic_int counter_2 = 0;
 
-            tm.unordered_task_lists[0].add(
+            tm.get_unordered_list(0).add(
               [&counter_1]() { function_1(counter_1); });
-            tm.unordered_task_lists[0].add(
+            tm.get_unordered_list(0).add(
               [&counter_2]() { function_100(counter_2); });
-            tm.unordered_task_lists[0].add(
+            tm.get_unordered_list(0).add(
               [&counter_1]() { function_1(counter_1); });
-            tm.unordered_task_lists[0].add(
+            tm.get_unordered_list(0).add(
               [&counter_2]() { function_100(counter_2); });
-            tm.unordered_task_lists[0].add(
+            tm.get_unordered_list(0).add(
               [&counter_1]() { function_1(counter_1); });
-            tm.unordered_task_lists[0].add(
+            tm.get_unordered_list(0).add(
               [&counter_2]() { function_100(counter_2); });
-            tm.unordered_task_lists[0].add(
+            tm.get_unordered_list(0).add(
               [&counter_1]() { function_1(counter_1); });
-            tm.unordered_task_lists[0].add(
+            tm.get_unordered_list(0).add(
               [&counter_2]() { function_100(counter_2); });
-            tm.unordered_task_lists[0].submit();
-            tm.unordered_task_lists[0].wait();
+            tm.get_unordered_list(0).submit();
+            tm.get_unordered_list(0).wait_completion();
             expect(counter_1 == 4);
             expect(counter_2 == 400);
         }
 
-        tm.finalize();
+        tm.shutdown();
     };
 
     "n-worker-1-temp-task-lists"_test = [] {
@@ -269,47 +259,47 @@ int main()
             std::atomic_int counter = 0;
 
             for (int i = 0; i < 100; ++i) {
-                tm.unordered_task_lists[0].add(
+                tm.get_unordered_list(0).add(
                   [&counter]() { function_1(counter); });
-                tm.unordered_task_lists[0].add(
+                tm.get_unordered_list(0).add(
                   [&counter]() { function_100(counter); });
             }
-            tm.unordered_task_lists[0].submit();
-            tm.unordered_task_lists[0].wait();
+            tm.get_unordered_list(0).submit();
+            tm.get_unordered_list(0).wait_completion();
             expect(counter == 101 * 100);
 
             for (int i = 0; i < 100; ++i) {
-                tm.unordered_task_lists[0].add(
+                tm.get_unordered_list(0).add(
                   [&counter]() { function_1(counter); });
-                tm.unordered_task_lists[0].add(
+                tm.get_unordered_list(0).add(
                   [&counter]() { function_100(counter); });
             }
-            tm.unordered_task_lists[0].submit();
-            tm.unordered_task_lists[0].wait();
+            tm.get_unordered_list(0).submit();
+            tm.get_unordered_list(0).wait_completion();
             expect(counter == 101 * 100 * 2);
 
             for (int i = 0; i < 100; ++i) {
-                tm.unordered_task_lists[0].add(
+                tm.get_unordered_list(0).add(
                   [&counter]() { function_1(counter); });
-                tm.unordered_task_lists[0].add(
+                tm.get_unordered_list(0).add(
                   [&counter]() { function_100(counter); });
             }
-            tm.unordered_task_lists[0].submit();
-            tm.unordered_task_lists[0].wait();
+            tm.get_unordered_list(0).submit();
+            tm.get_unordered_list(0).wait_completion();
             expect(counter == 101 * 100 * 3);
 
             for (int i = 0; i < 100; ++i) {
-                tm.unordered_task_lists[0].add(
+                tm.get_unordered_list(0).add(
                   [&counter]() { function_1(counter); });
-                tm.unordered_task_lists[0].add(
+                tm.get_unordered_list(0).add(
                   [&counter]() { function_100(counter); });
             }
-            tm.unordered_task_lists[0].submit();
-            tm.unordered_task_lists[0].wait();
+            tm.get_unordered_list(0).submit();
+            tm.get_unordered_list(0).wait_completion();
 
             expect(counter == 101 * 100 * 4);
         }
-        tm.finalize();
+        tm.shutdown();
 
         auto end = std::chrono::steady_clock::now();
         auto dif =
@@ -365,18 +355,17 @@ int main()
 
         for (int x = 0; x < 100; ++x) {
             for (int i = 0; i < loop; ++i) {
-                tm.ordered_task_lists[0].add([&buffer]() { buffer.push(0); });
+                tm.get_ordered_list(0).add(
+                  [&buffer]() { (void)buffer.try_push(0); });
 
-                tm.ordered_task_lists[1].add([&buffer]() {
+                tm.get_ordered_list(1).add([&buffer]() {
                     int r;
-                    buffer.pop(r);
+                    (void)buffer.try_pop(r);
                 });
             }
 
-            tm.ordered_task_lists[0].submit();
-            tm.ordered_task_lists[1].submit();
-            tm.ordered_task_lists[0].wait();
-            tm.ordered_task_lists[1].wait();
+            tm.get_ordered_list(0).wait_completion();
+            tm.get_ordered_list(1).wait_completion();
         }
     };
 
@@ -428,7 +417,7 @@ int main()
         std::atomic_int                           counter = 0;
 
         for (int i = 0; i < 16; ++i) {
-            tm.ordered_task_lists[0].add([&buffer, &counter]() {
+            tm.get_ordered_list(0).add([&buffer, &counter]() {
                 buffer.read_only([&counter](const auto& vec) {
                     if (not vec.empty())
                         counter = vec.back();
@@ -437,11 +426,11 @@ int main()
                 });
             });
 
-            tm.ordered_task_lists[1].add([&buffer]() {
+            tm.get_ordered_list(1).add([&buffer]() {
                 buffer.read_write([](auto& vec) { vec.push_back(10); });
             });
 
-            tm.ordered_task_lists[0].add([&buffer, &counter]() {
+            tm.get_ordered_list(0).add([&buffer, &counter]() {
                 buffer.read_only([&counter](const auto& vec) {
                     if (not vec.empty())
                         counter = vec.back();
@@ -449,12 +438,12 @@ int main()
                         counter = 0;
                 });
             });
-
-            tm.ordered_task_lists[0].submit();
-            tm.ordered_task_lists[1].submit();
         }
 
-        tm.ordered_task_lists[0].wait();
-        tm.ordered_task_lists[1].wait();
+        tm.get_ordered_list(0).wait_completion();
+        tm.get_ordered_list(1).wait_completion();
+    };
+        }
+
     };
 }

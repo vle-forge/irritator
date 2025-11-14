@@ -1542,14 +1542,12 @@ public:
     void add_gui_task(Fn&& fn) noexcept;
 
     /**
-     * Helpers function to get an @a unordered_task_list according to the
-     * integer modulo operation on @a idx index. This index can be produced from
-     * project identifier.
+     * Helpers function to get the current instance of the @a
+     * unordered_task_list.
      *
-     * @param idx The index in range `[0, unordered_task_worker_size - 1]`.
      * @return The reference to the @a unordered_task_list
      */
-    unordered_task_list& get_unordered_task_list(int idx) noexcept;
+    unordered_task_list& get_unordered_task_list() noexcept;
 
     void start_load_project(const registred_path_id file,
                             const project_id        pj_id) noexcept;
@@ -1633,15 +1631,15 @@ void application::add_simulation_task(const project_id id, Fn&& fn) noexcept
 {
     const auto index = get_index(id) % 3;
 
-    task_mgr.ordered_task_lists[index].add(fn);
-    task_mgr.ordered_task_lists[index].submit();
+    task_mgr.get_ordered_list(index).add(fn);
+    task_mgr.get_ordered_list(index).notify_worker();
 }
 
 template<typename Fn>
 void application::add_gui_task(Fn&& fn) noexcept
 {
-    task_mgr.ordered_task_lists[ordinal(main_task::gui)].add(fn);
-    task_mgr.ordered_task_lists[ordinal(main_task::gui)].submit();
+    task_mgr.get_ordered_list(ordinal(main_task::gui)).add(fn);
+    task_mgr.get_ordered_list(ordinal(main_task::gui)).notify_worker();
 }
 
 /* * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * */
