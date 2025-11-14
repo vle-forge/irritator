@@ -918,7 +918,7 @@ public:
         std::size_t staging_local = m_staging;
 
         std::invoke(std::forward<Fn>(fn),
-                    m_buffers[m_staging],
+                    m_buffers[staging_local],
                     std::forward<Args>(args)...);
 
         publish(staging_local);
@@ -962,10 +962,12 @@ private:
         std::unique_lock wlock(m_mutex);
 
         const auto old_active = m_active.load(std::memory_order_acquire);
+        const auto old_spare  = m_spare;
+
         m_active.store(staging_local, std::memory_order_release);
+
         m_spare   = old_active;
-        m_staging = m_spare;
-        std::swap(m_spare, m_staging);
+        m_staging = old_spare;
     }
 
 private:
