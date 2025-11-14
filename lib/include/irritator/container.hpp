@@ -753,6 +753,128 @@ public:
     void unlock() noexcept;
 };
 
+// Atomic-only triple buffer: readers never lock, writers use a short lock.
+template<typename T>
+class shared_buffer
+{
+    static_assert(std::is_default_constructible_v<T>,
+                  "T must be default-constructible for inactive buffers");
+
+    static_assert(std::is_copy_constructible_v<T> ||
+                    std::is_move_constructible_v<T>,
+                  "T must be copy- or move-constructible");
+
+    static_assert(std::is_copy_assignable_v<T> || std::is_move_assignable_v<T>,
+                  "T must be copy- or move-assignable");
+
+public:
+    shared_buffer() noexcept
+    {
+        active_.store(0, std::memory_order_relaxed);
+        staging_ = 1;
+        spare_   = 2;
+    }
+
+    template<typename... Args>
+    explicit shared_buffer(Args&&... args) noexcept
+      : buffers_{ T(std::forward<Args>(args)...), T(), T() }
+      , versions_{ 0u, 0u, 0u }
+    {
+        active_.store(0, std::memory_order_relaxed);
+        staging_ = 1;
+        spare_   = 2;
+    }
+
+    // Writer: copy-from-active, update staging, then publish.
+    template<typename Fn, typename... Args>
+    void write(Fn&& fn, Args&&... args) noexcept
+    {
+        std::lock_guard<std::mutex> wlock(writer_);
+
+        const auto a = active_.load(std::memory_order_acquire);
+
+        buffers_[staging_]  = buffers_[a];
+        versions_[staging_] = versions_[a];
+
+        std::invoke(std::forward<Fn>(fn),
+                    buffers_[staging_],
+                    std::forward<Args...>(args)...);
+
+        ++versions_[staging_];
+
+        active_.store(staging_, std::memory_order_release);
+
+        const auto old_active = a;
+        const auto old_spare  = spare_;
+        spare_                = old_active;
+        staging_              = old_spare;
+    }
+
+    // Writer: overwrite staging without copying from active.
+    template<typename Fn, typename... Args>
+    void write_only(Fn&& fn, Args&&... args) noexcept
+    {
+        std::lock_guard<std::mutex> wlock(writer_);
+
+        // Overwrite staging
+        std::invoke(std::forward<Fn>(fn),
+                    buffers_[staging_],
+                    std::forward<Args...>(args)...);
+
+        ++versions_[staging_];
+
+        // Publish and rotate
+        const auto a = active_.load(std::memory_order_acquire);
+        active_.store(staging_, std::memory_order_release);
+
+        const auto old_active = a;
+        const auto old_spare  = spare_;
+        spare_                = old_active;
+        staging_              = old_spare;
+    }
+
+    // Reader: lock-free snapshot of the current active buffer.
+    template<typename Fn, typename... Args>
+    void read(Fn&& fn, Args&&... args) const noexcept
+    {
+        const auto idx = active_.load(std::memory_order_acquire);
+
+        std::invoke(std::forward<Fn>(fn),
+                    buffers_[idx],
+                    versions_[idx],
+                    std::forward<Args...>(args)...);
+    }
+
+    // Try-read variant returns false if the active index changes mid-call
+    // (rare). Use if you need to guarantee a consistent index across long
+    // reads.
+    template<typename Fn, typename... Args>
+    bool try_read(Fn&& fn, Args&&... args) const noexcept
+    {
+        const auto idx1 = active_.load(std::memory_order_acquire);
+        std::invoke(std::forward<Fn>(fn),
+                    buffers_[idx1],
+                    versions_[idx1],
+                    std::forward<Args...>(args)...);
+
+        const auto idx2 = active_.load(std::memory_order_acquire);
+        return idx1 == idx2;
+    }
+
+private:
+    std::mutex writer_;
+
+    std::array<T, 3>   buffers_{};
+    std::array<u64, 3> versions_{};
+
+    // Atomic index of the active buffer
+    std::atomic<std::size_t> active_{ 0 };
+
+    // Non-atomic writer-managed indices
+    std::size_t staging_{ 1 };
+    std::size_t spare_{ 2 };
+};
+
 /// A class to wrap object of type @a T with a @a shared_mutex.
 ///
 /// Access to the underlying object @a T is done using @a read_only and @a

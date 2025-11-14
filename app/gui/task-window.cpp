@@ -3,6 +3,7 @@
 // http://www.boost.org/LICENSE_1_0.txt)
 
 #include "application.hpp"
+#include "imgui.h"
 #include "internal.hpp"
 
 #include <fmt/core.h>
