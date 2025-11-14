@@ -30,11 +30,6 @@ class ordered_task_list;
 class unordered_task_list;
 struct worker_stats;
 
-template<typename Derived>
-class worker_base;
-class ordered_worker;
-class unordered_worker;
-
 template<std::size_t ordered, std::size_t unordered>
 class task_manager;
 
@@ -213,6 +208,90 @@ struct job {
 };
 
 /**
+ * Worker de base avec gestion du cycle de vie
+ */
+template<typename Derived>
+class worker_base
+{
+public:
+    enum class state : int { idle, starting, running, stopping, stopped };
+
+    worker_base() noexcept = default;
+    virtual ~worker_base() noexcept;
+
+    worker_base(const worker_base&)            = delete;
+    worker_base& operator=(const worker_base&) = delete;
+    worker_base(worker_base&&) noexcept;
+    worker_base& operator=(worker_base&&) = delete;
+
+    void start() noexcept;
+    void shutdown() noexcept;
+    void join() noexcept;
+
+    state current_state() const noexcept
+    {
+        return state_.load(std::memory_order_acquire);
+    }
+
+    std::chrono::nanoseconds::rep execution_time() const noexcept
+    {
+        return exec_time_.load(std::memory_order_relaxed);
+    }
+
+protected:
+    void add_execution_time(std::chrono::nanoseconds delta) noexcept
+    {
+        exec_time_.fetch_add(delta.count(), std::memory_order_relaxed);
+    }
+
+    std::atomic<state> state_{ state::idle };
+
+private:
+    std::thread                                thread_;
+    std::atomic<std::chrono::nanoseconds::rep> exec_time_{ 0 };
+};
+
+/**
+ * Worker dédié pour les tâches ordonnées
+ */
+class ordered_worker final : public worker_base<ordered_worker>
+{
+public:
+    ordered_worker() noexcept = default;
+
+    void set_task_list(ordered_task_list* tl) noexcept { task_list_ = tl; }
+
+    void run() noexcept;
+
+private:
+    ordered_task_list* task_list_ = nullptr;
+};
+
+/**
+ * Worker générique pour les tâches non ordonnées (avec work stealing)
+ */
+class unordered_worker final : public worker_base<unordered_worker>
+{
+public:
+    unordered_worker() noexcept = default;
+
+    unordered_worker(unordered_worker&&) noexcept;
+
+    void add_task_list(unordered_task_list* tl) noexcept
+    {
+        task_lists_.push_back(tl);
+    }
+
+    void run() noexcept;
+    void wake() noexcept;
+    void wait() noexcept;
+
+private:
+    std::vector<unordered_task_list*> task_lists_;
+    std::atomic_flag                  wake_flag_ = ATOMIC_FLAG_INIT;
+};
+
+/**
  * Ordered task list with SPSC (Single Producer Single Consumer) behaviour.
  */
 class ordered_task_list
@@ -336,90 +415,6 @@ private:
     std::atomic<u32>   next_task_index_{ 0 };
     std::atomic<u32>   completed_tasks_{ 0 };
     u32                batch_size_{ 0 };
-};
-
-/**
- * Worker de base avec gestion du cycle de vie
- */
-template<typename Derived>
-class worker_base
-{
-public:
-    enum class state : int { idle, starting, running, stopping, stopped };
-
-    worker_base() noexcept = default;
-    virtual ~worker_base() noexcept;
-
-    worker_base(const worker_base&)            = delete;
-    worker_base& operator=(const worker_base&) = delete;
-    worker_base(worker_base&&) noexcept;
-    worker_base& operator=(worker_base&&) = delete;
-
-    void start() noexcept;
-    void shutdown() noexcept;
-    void join() noexcept;
-
-    state current_state() const noexcept
-    {
-        return state_.load(std::memory_order_acquire);
-    }
-
-    std::chrono::nanoseconds::rep execution_time() const noexcept
-    {
-        return exec_time_.load(std::memory_order_relaxed);
-    }
-
-protected:
-    void add_execution_time(std::chrono::nanoseconds delta) noexcept
-    {
-        exec_time_.fetch_add(delta.count(), std::memory_order_relaxed);
-    }
-
-    std::atomic<state> state_{ state::idle };
-
-private:
-    std::thread                                thread_;
-    std::atomic<std::chrono::nanoseconds::rep> exec_time_{ 0 };
-};
-
-/**
- * Worker dédié pour les tâches ordonnées
- */
-class ordered_worker final : public worker_base<ordered_worker>
-{
-public:
-    ordered_worker() noexcept = default;
-
-    void set_task_list(ordered_task_list* tl) noexcept { task_list_ = tl; }
-
-    void run() noexcept;
-
-private:
-    ordered_task_list* task_list_ = nullptr;
-};
-
-/**
- * Worker générique pour les tâches non ordonnées (avec work stealing)
- */
-class unordered_worker final : public worker_base<unordered_worker>
-{
-public:
-    unordered_worker() noexcept = default;
-
-    unordered_worker(unordered_worker&&) noexcept;
-
-    void add_task_list(unordered_task_list* tl) noexcept
-    {
-        task_lists_.push_back(tl);
-    }
-
-    void run() noexcept;
-    void wake() noexcept;
-    void wait() noexcept;
-
-private:
-    std::vector<unordered_task_list*> task_lists_;
-    std::atomic_flag                  wake_flag_ = ATOMIC_FLAG_INIT;
 };
 
 /**
