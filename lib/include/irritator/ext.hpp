@@ -15,136 +15,301 @@
 
 namespace irt {
 
-/// An efficient, type-erasing, onwning callable. This is intended for use as
-/// attribute in class or struct.
-///
-/// This class owns the callable, so it is safe to store a small_function.
-/// @c tparam Size number of bytes to be used. Requires 1 at minimum.
-template<size_t Size, typename Fn>
+/**
+ * An efficient, type-erasing, owning callable with Small Buffer Optimization.
+ *
+ * This class stores small callables (lambdas, function objects) inline without
+ * heap allocation. It is designed specifically for lambdas, not for function
+ * pointers or virtual functions.
+ *
+ * @tparam Size Number of bytes for inline storage (minimum 1).
+ * @tparam Fn Function signature (e.g., void(int, float)).
+ *
+ * Requirements:
+ * - Callable must fit in Size bytes
+ * - Callable must be nothrow copyable/movable (for noexcept guarantee)
+ *
+ * Example:
+ *   small_function<32, int(int)> f = [x = 42](int y) { return x + y; };
+ *   int result = f(10);  // returns 52
+ */
+template<std::size_t Size, typename Fn>
 class small_function;
 
-template<size_t Size, typename Ret, typename... Params>
+//
+// Concepts for callable validation
+//
+
+template<typename F, typename Ret, typename... Params>
+concept compatible_callable =
+  std::invocable<F, Params...> &&
+  (std::is_void_v<Ret> ||
+   std::convertible_to<std::invoke_result_t<F, Params...>, Ret>);
+
+template<typename F, std::size_t Size>
+concept fits_in_storage = sizeof(std::decay_t<F>) <= Size;
+
+template<typename F, std::size_t Size>
+concept compatible_alignment =
+  alignof(std::decay_t<F>) <=
+  alignof(std::aligned_storage_t<Size, alignof(std::max_align_t)>);
+
+template<typename F>
+concept nothrow_relocatable =
+  std::is_nothrow_copy_constructible_v<std::decay_t<F>> ||
+  std::is_nothrow_move_constructible_v<std::decay_t<F>>;
+
+template<typename F, std::size_t Size, typename Ret, typename... Params>
+concept storable_callable =
+  compatible_callable<F, Ret, Params...> && fits_in_storage<F, Size> &&
+  compatible_alignment<F, Size> && nothrow_relocatable<F>;
+
+template<std::size_t Size, typename Ret, typename... Params>
 class small_function<Size, Ret(Params...)>
 {
 public:
-    small_function() noexcept = default;
+    static_assert(Size >= 1, "Size must be at least 1 byte");
 
-    small_function(const small_function& other) noexcept
+    constexpr small_function() noexcept = default;
+
+    constexpr small_function(const small_function& other) noexcept
     {
-        if (other) {
-            other.manager(
-              std::data(data), std::data(other.data), Operation::Clone);
-            invoker = other.invoker;
-            manager = other.manager;
+        if (other.m_manager) {
+            other.m_manager(
+              storage(), const_cast<void*>(other.storage()), operation::clone);
+            m_invoker = other.m_invoker;
+            m_manager = other.m_manager;
         }
     }
 
-    small_function& operator=(const small_function& other) noexcept
+    constexpr small_function& operator=(const small_function& other) noexcept
     {
-        if (this != &other)
-            small_function(other).swap(*this);
-
-        return *this;
-    }
-
-    small_function(small_function&& other) noexcept { other.swap(*this); }
-
-    small_function& operator=(small_function&& other) noexcept
-    {
-        if (this != &other)
-            small_function(std::move(other)).swap(*this);
-
-        return *this;
-    }
-
-    small_function& operator=(std::nullptr_t) noexcept
-    {
-        if (manager) {
-            manager(&data, nullptr, Operation::Destroy);
-            manager = nullptr;
-            invoker = nullptr;
+        if (this != &other) {
+            small_function temp(other);
+            swap(temp);
         }
+        return *this;
+    }
+
+    constexpr small_function(small_function&& other) noexcept
+    {
+        if (other.m_manager) {
+
+            // For trivially copyable types, use memcpy
+            // Note: memcpy is not constexpr, so this branch won't be taken at
+            // compile time
+
+            if (std::is_constant_evaluated() || !is_trivially_relocatable())
+                other.m_manager(storage(),
+                                const_cast<void*>(other.storage()),
+                                operation::move);
+            else
+                std::memcpy(storage(), other.storage(), Size);
+
+            m_invoker = std::exchange(other.m_invoker, nullptr);
+            m_manager = std::exchange(other.m_manager, nullptr);
+        }
+    }
+
+    constexpr small_function& operator=(small_function&& other) noexcept
+    {
+        if (this != &other) {
+            small_function temp(std::move(other));
+            swap(temp);
+        }
+        return *this;
+    }
+
+    constexpr small_function& operator=(std::nullptr_t) noexcept
+    {
+        reset();
         return *this;
     }
 
     template<typename F>
-    small_function(F&& f) noexcept
+        requires(!std::same_as<std::decay_t<F>, small_function> &&
+                 storable_callable<F, Size, Ret, Params...>)
+    constexpr small_function(F&& f) noexcept
     {
         using f_type = std::decay_t<F>;
 
-        static_assert(sizeof(f_type) <= Size, "storage too small");
-
-        new (std::data(data)) f_type(std::forward<f_type>(f));
-        invoker = &invoke<f_type>;
-        manager = &manage<f_type>;
+        new (storage()) f_type(std::forward<F>(f));
+        m_invoker = &invoke<f_type>;
+        m_manager = &manage<f_type>;
     }
 
     template<typename F>
-    small_function& operator=(F&& f) noexcept
+        requires(!std::same_as<std::decay_t<F>, small_function> &&
+                 storable_callable<F, Size, Ret, Params...>)
+    constexpr small_function& operator=(F&& f) noexcept
     {
-        small_function(std::forward<F>(f)).swap(*this);
+        small_function temp(std::forward<F>(f));
+        swap(temp);
         return *this;
     }
 
     template<typename F>
-    small_function& operator=(std::reference_wrapper<F> f)
+    constexpr small_function& operator=(std::reference_wrapper<F> f) noexcept
     {
-        small_function(f).swap(*this);
+        small_function temp(f);
+        swap(temp);
         return *this;
     }
 
-    ~small_function() noexcept
+    constexpr ~small_function() noexcept { reset(); }
+
+    constexpr void swap(small_function& other) noexcept
     {
-        if (manager)
-            manager(&data, nullptr, Operation::Destroy);
+        if (this == &other)
+            return;
+
+        storage_type storage_tmp;
+        std::copy_n(m_storage, Size, storage_tmp);
+        invoker_type invoker_tmp = std::move(m_invoker);
+        manager_type manager_tmp = std::move(m_manager);
+
+        std::copy_n(other.m_storage, Size, m_storage);
+        m_invoker = std::move(other.m_invoker);
+        m_manager = std::move(other.m_manager);
+
+        std::copy_n(storage_tmp, Size, other.m_storage);
+        other.m_invoker = std::move(invoker_tmp);
+        other.m_manager = std::move(manager_tmp);
     }
 
-    void swap(small_function& other) noexcept
+    constexpr void reset() noexcept
     {
-        std::swap(data, other.data);
-        std::swap(manager, other.manager);
-        std::swap(invoker, other.invoker);
+        if (m_manager) {
+            m_manager(storage(), nullptr, operation::destroy);
+            m_manager = nullptr;
+            m_invoker = nullptr;
+        }
     }
 
-    explicit operator bool() const noexcept { return !!manager; }
-
-    Ret operator()(Params... args) noexcept
+    [[nodiscard]] constexpr explicit operator bool() const noexcept
     {
-        debug::ensure(invoker);
-        return invoker(&data, std::forward<Params>(args)...);
+        return m_manager != nullptr;
     }
+
+    constexpr Ret operator()(Params... args) const
+    {
+        if (!m_invoker) {
+            throw std::bad_function_call();
+        }
+
+        return m_invoker(storage(), std::forward<Params>(args)...);
+    }
+
+    constexpr Ret operator()(Params... args)
+    {
+        if (!m_invoker) {
+            throw std::bad_function_call();
+        }
+
+        return m_invoker(storage(), std::forward<Params>(args)...);
+    }
+
+    [[nodiscard]] static constexpr std::size_t storage_size() noexcept
+    {
+        return Size;
+    }
+
+    [[nodiscard]] constexpr bool empty() const noexcept { return !m_manager; }
 
 private:
-    enum class Operation { Clone, Destroy };
+    enum class operation { clone, move, destroy };
 
-    using Invoker = Ret (*)(void*, Params&&...);
-    using Manager = void (*)(void*, const void*, Operation);
-    using Storage = std::byte[Size];
+    using invoker_type = Ret (*)(void*, Params&&...);
+    using manager_type = void (*)(void*, void*, operation);
+    using storage_type = std::byte[Size];
+
+    [[nodiscard]] constexpr void* storage() noexcept
+    {
+        return static_cast<void*>(&m_storage);
+    }
+
+    [[nodiscard]] constexpr const void* storage() const noexcept
+    {
+        return static_cast<const void*>(&m_storage);
+    }
+
+    /// Check if storage is trivially relocatable (can use memcpy)
+    [[nodiscard]] static constexpr bool is_trivially_relocatable() noexcept
+    {
+        return std::is_trivially_copyable_v<storage_type>;
+    }
 
     template<typename F>
-    static Ret invoke(void* data, Params&&... args)
+    static constexpr Ret invoke(void* data, Params&&... args)
     {
         F& f = *static_cast<F*>(data);
         return f(std::forward<Params>(args)...);
     }
 
     template<typename F>
-    static void manage(void* dest, const void* src, Operation op)
+    static constexpr void manage(void* dest, void* src, operation op)
     {
         switch (op) {
-        case Operation::Clone:
-            new (dest) F(*reinterpret_cast<const F*>(src));
+        case operation::clone:
+            std::construct_at(static_cast<F*>(dest),
+                              *static_cast<const F*>(src));
             break;
-        case Operation::Destroy:
-            static_cast<F*>(dest)->~F();
+
+        case operation::move:
+            if constexpr (std::is_nothrow_move_constructible_v<F>) {
+                std::construct_at(static_cast<F*>(dest),
+                                  std::move(*static_cast<F*>(src)));
+            } else {
+                std::construct_at(static_cast<F*>(dest),
+                                  *static_cast<const F*>(src));
+            }
+            std::destroy_at(static_cast<F*>(src));
+            break;
+
+        case operation::destroy:
+            std::destroy_at(static_cast<F*>(dest));
             break;
         }
     }
 
-    Storage data{};
-    Invoker invoker = nullptr;
-    Manager manager = nullptr;
+    alignas(std::max_align_t) storage_type m_storage{};
+    invoker_type m_invoker = nullptr;
+    manager_type m_manager = nullptr;
 };
+
+//
+// small_funciton non-member functions
+//
+
+template<std::size_t Size, typename Fn>
+void swap(small_function<Size, Fn>& lhs, small_function<Size, Fn>& rhs) noexcept
+{
+    lhs.swap(rhs);
+}
+
+template<std::size_t Size, typename Fn>
+bool operator==(const small_function<Size, Fn>& f, std::nullptr_t) noexcept
+{
+    return !f;
+}
+
+template<std::size_t Size, typename Fn>
+bool operator==(std::nullptr_t, const small_function<Size, Fn>& f) noexcept
+{
+    return !f;
+}
+
+template<std::size_t Size, typename Fn>
+bool operator!=(const small_function<Size, Fn>& f, std::nullptr_t) noexcept
+{
+    return static_cast<bool>(f);
+}
+
+template<std::size_t Size, typename Fn>
+bool operator!=(std::nullptr_t, const small_function<Size, Fn>& f) noexcept
+{
+    return static_cast<bool>(f);
+}
 
 //! An efficient, type-erasing, non-owning reference to a callable. This is
 //! intended for use as the type of a function parameter that is not used
