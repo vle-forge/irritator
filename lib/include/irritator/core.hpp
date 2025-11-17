@@ -850,8 +850,8 @@ struct observer {
     void update(const observation_message& msg) noexcept;
     bool full() const noexcept;
 
-    locker_2<ring_buffer<observation_message>> buffer;
-    locker_2<ring_buffer<observation>>         linearized_buffer;
+    shared_buffer<ring_buffer<observation_message>> buffer;
+    shared_buffer<ring_buffer<observation>>         linearized_buffer;
 
     model_id         model     = undefined<model_id>();
     interpolate_type type      = interpolate_type::none;
@@ -6517,27 +6517,27 @@ inline void observer::init(
 {
     debug::ensure(time_step > 0.f);
 
-    buffer.read_write(
+    buffer.write(
       [](auto& buf, const auto len) {
           buf.clear();
           buf.reserve(len);
       },
       *buffer_size);
 
-    linearized_buffer.read_write(
+    linearized_buffer.write(
       [](auto& buf, const auto len) {
           buf.clear();
           buf.reserve(len);
       },
       *linearized_buffer_size);
 
-    time_step = ts <= zero ? 1e-2f : time_step;
+    time_step = ts <= 0.f ? 1e-2f : time_step;
 }
 
 inline void observer::reset() noexcept
 {
-    buffer.read_write([](auto& buf) { buf.clear(); });
-    linearized_buffer.read_write([](auto& buf) { buf.clear(); });
+    buffer.write([](auto& buf) { buf.clear(); });
+    linearized_buffer.write([](auto& buf) { buf.clear(); });
 
     states.reset();
 }
@@ -6555,7 +6555,7 @@ inline void observer::update(const observation_message& msg) noexcept
 {
     states.set(observer_flags::data_lost, states[observer_flags::buffer_full]);
 
-    buffer.read_write(
+    buffer.write(
       [](auto& buf, const auto& msg, auto& st) {
           if (not buf.empty() and buf.tail()->data()[0] == msg[0])
               *(buf.tail()) = msg; // overwrite value (at same date).

@@ -106,14 +106,14 @@ void graph_observer::update(const simulation& sim) noexcept
         for (int i = 0, e = observers.ssize(); i < e; ++i) {
             if (const auto* obs = sim.observers.try_to_get(observers[i]); obs) {
                 if (obs->states[observer_flags::use_linear_buffer]) {
-                    obs->linearized_buffer.try_read_only(
-                      [](const auto& buf, auto& v) {
+                    obs->linearized_buffer.read(
+                      [](const auto& buf, auto /*version*/, auto& v) {
                           v = not buf.empty() ? buf.back().y : zero;
                       },
                       v[i]);
                 } else {
-                    obs->buffer.try_read_only(
-                      [](const auto& buf, auto& v) {
+                    obs->buffer.read(
+                      [](const auto& buf, auto /*version*/, auto& v) {
                           v = not buf.empty() ? buf.back()[1] : zero;
                       },
                       v[i]);

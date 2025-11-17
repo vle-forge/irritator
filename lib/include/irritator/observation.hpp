@@ -42,11 +42,11 @@ inline auto write_raw_data(ring_buffer<observation_message>& buf,
 
 inline auto write_raw_data(observer& obs) noexcept -> void
 {
-    obs.buffer.read_write(
+    obs.buffer.write(
       [](auto& buf, observer& obs) {
           debug::ensure(buf.ssize() >= 2);
 
-          obs.linearized_buffer.read_write(
+          obs.linearized_buffer.write(
             [](auto& lbuf, auto& buf) { write_raw_data(buf, lbuf); }, buf);
           obs.states.set(observer_flags::buffer_full, false);
       },
@@ -74,9 +74,9 @@ inline auto flush_raw_data(ring_buffer<observation_message>& buf,
 
 inline auto flush_raw_data(observer& obs) noexcept -> void
 {
-    obs.buffer.read_write(
+    obs.buffer.write(
       [](auto& buf, observer& obs) {
-          obs.linearized_buffer.read_write(
+          obs.linearized_buffer.write(
             [](auto& lbuf, auto& buf) {
                 if (buf.ssize() > 2)
                     write_raw_data(buf, lbuf);
@@ -94,7 +94,7 @@ inline auto flush_raw_data(observer& obs) noexcept -> void
 template<typename Fn>
 inline auto flush_raw_data(observer& obs, Fn&& fn) noexcept -> void
 {
-    obs.buffer.read_write(
+    obs.buffer.write(
       [](auto& buf, auto& obs, auto& fn) {
           if (buf.ssize() >= 2)
               write_raw_data(buf, fn);
@@ -307,10 +307,10 @@ inline auto write_interpolate_data(ring_buffer<observation_message>& buf,
 inline auto write_interpolate_data(observer& obs, const real time_step) noexcept
   -> void
 {
-    obs.buffer.read_write(
+    obs.buffer.write(
       [](auto& buf, auto& obs, const auto time_step) {
           if (buf.ssize() > 2)
-              obs.linearized_buffer.read_write(
+              obs.linearized_buffer.write(
                 [](auto&      lbuf,
                    auto&      buf,
                    const auto time_step,
@@ -332,7 +332,7 @@ inline auto write_interpolate_data(observer&  obs,
                                    const real time_step,
                                    Fn&&       fn) noexcept -> void
 {
-    obs.buffer.read_write(
+    obs.buffer.write(
       [](auto& buf, auto& obs, const auto time_step, auto& fn) {
           if (buf.ssize() > 2)
               write_interpolate_data(buf, time_step, obs.type, fn);
@@ -346,9 +346,9 @@ inline auto write_interpolate_data(observer&  obs,
 inline auto flush_interpolate_data(observer& obs, const real time_step) noexcept
   -> void
 {
-    obs.buffer.read_write(
+    obs.buffer.write(
       [](auto& buf, auto& obs, const auto time_step) {
-          obs.linearized_buffer.read_write(
+          obs.linearized_buffer.write(
             [](auto& lbuf, auto& buf, const auto time_step, const auto type) {
                 if (buf.ssize() >= 2)
                     write_interpolate_data(buf, lbuf, time_step, type);
@@ -372,7 +372,7 @@ inline auto flush_interpolate_data(observer&  obs,
                                    const real time_step,
                                    Fn&&       fn) noexcept
 {
-    obs.buffer.read_write(
+    obs.buffer.write(
       [](auto& buf, auto& obs, const auto time_step, auto& fn) {
           if (buf.ssize() >= 2)
               write_interpolate_data(buf, time_step, obs.type, fn);

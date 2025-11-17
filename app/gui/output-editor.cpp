@@ -77,9 +77,10 @@ static void show_observers_table(application& app, project_editor& ed) noexcept
             auto& new_obs = app.copy_obs.alloc();
             new_obs.name  = vobs.get_names()[get_index(*to_copy)].sv();
 
-            obs->linearized_buffer.read_only([&new_obs](auto& lbuf) noexcept {
-                new_obs.linear_outputs = lbuf;
-            });
+            obs->linearized_buffer.read(
+              [&new_obs](auto& lbuf, const auto /*version*/) noexcept {
+                  new_obs.linear_outputs = lbuf;
+              });
         }
     }
 }
@@ -170,10 +171,11 @@ static void write(project&                 pj,
     ofs.imbue(std::locale::classic());
     ofs << "t," << vobs.get_names()[idx].sv() << '\n';
 
-    obs->linearized_buffer.read_only([&](const auto& lbuf) noexcept {
-        for (auto& v : lbuf)
-            ofs << v.x << ',' << '\n';
-    });
+    obs->linearized_buffer.read(
+      [&](const auto& lbuf, const auto /*version*/) noexcept {
+          for (auto& v : lbuf)
+              ofs << v.x << ',' << '\n';
+      });
 }
 
 static void write(application&                    app,
