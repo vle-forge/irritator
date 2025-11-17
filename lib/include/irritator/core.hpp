@@ -839,11 +839,6 @@ struct observer {
     /// Allocate raw and liearized buffers with default sizes.
     observer() noexcept;
 
-    observer(const observer& other) noexcept            = default;
-    observer(observer&& other) noexcept                 = default;
-    observer& operator=(const observer& other) noexcept = default;
-    observer& operator=(observer&& other) noexcept      = default;
-
     /// Change the raw and linearized buffers with specified constrained
     /// sizes and change the time-step.
     void init(const buffer_size_t            buffer_size,
@@ -1067,8 +1062,8 @@ public:
 
     bool empty() const noexcept;
 
-    unsigned size() const noexcept;
-    int      ssize() const noexcept;
+    inline unsigned size() const noexcept;
+    int             ssize() const noexcept;
 };
 
 /// Stores two simulation time values, the begin `]-oo, +oo[` and the end
@@ -7239,7 +7234,7 @@ inline bool scheduller<A>::empty() const noexcept
 }
 
 template<typename A>
-inline unsigned scheduller<A>::size() const noexcept
+unsigned scheduller<A>::size() const noexcept
 {
     return m_heap.size();
 }
