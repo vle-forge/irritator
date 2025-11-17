@@ -66,7 +66,7 @@ static void do_update(const simulation&        sim,
     else
         fmt::print(file, "{:e}\n", sim.current_time());
 
-    vars.values.read_only([&](const auto& v) noexcept {
+    vars.values.read([&](const auto& v, const auto /*version*/) noexcept {
         vars.for_each([&](const auto id) noexcept {
             if (i + 1 < number)
                 fmt::print(file, "{:e},", v[get_index(id)]);
@@ -96,7 +96,7 @@ static void do_update(const simulation&    sim,
 {
     fmt::print(file, "{},", sim.current_time());
 
-    grid.values.read_only([&](const auto& v) noexcept {
+    grid.values.read([&](const auto& v, const auto /*version*/) noexcept {
         for (int row = 0; row < grid.rows; ++row) {
             for (int col = 0; col < grid.cols; ++col) {
                 const auto pos = col * grid.rows + row;

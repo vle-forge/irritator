@@ -106,7 +106,7 @@ void grid_observer::init(project& pj, modeling& mod, simulation& sim) noexcept
 {
     observers.clear();
 
-    values.read_write([&](auto& v) noexcept {
+    values.write([&](auto& v) noexcept {
         v.clear();
 
         if (auto* tn = pj.tree_nodes.try_to_get(parent_id); tn) {
@@ -140,14 +140,14 @@ void grid_observer::clear() noexcept
 {
     observers.clear();
 
-    values.read_write([](auto& v) noexcept { v.clear(); });
+    values.write([](auto& v) noexcept { v.clear(); });
 
     tn = 0;
 }
 
 void grid_observer::update(const simulation& sim) noexcept
 {
-    values.read_write([&](auto& v) noexcept {
+    values.write([&](auto& v) noexcept {
         if (rows * cols != observers.ssize() or v.ssize() != observers.ssize())
             return;
 

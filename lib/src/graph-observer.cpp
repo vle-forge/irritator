@@ -63,7 +63,7 @@ void graph_observer::init(project& pj, modeling& mod, simulation& sim) noexcept
 {
     observers.clear();
 
-    values.read_write([&](auto& v) noexcept {
+    values.write([&](auto& v) noexcept {
         if (auto* tn = pj.tree_nodes.try_to_get(parent_id); tn) {
             if (auto* compo = mod.components.try_to_get<component>(tn->id);
                 compo and compo->type == component_type::graph) {
@@ -89,14 +89,14 @@ void graph_observer::init(project& pj, modeling& mod, simulation& sim) noexcept
 void graph_observer::clear() noexcept
 {
     observers.clear();
-    values.read_write([](auto& v) noexcept { v.clear(); });
+    values.write([](auto& v) noexcept { v.clear(); });
 
     tn = 0;
 }
 
 void graph_observer::update(const simulation& sim) noexcept
 {
-    values.read_write([&](auto& v) noexcept {
+    values.write([&](auto& v) noexcept {
         debug::ensure(v.ssize() == observers.ssize());
 
         if (v.ssize() != observers.ssize())

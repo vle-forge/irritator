@@ -15,7 +15,7 @@ void grid_observation_widget::show(grid_observer& grid,
     ImGui::PushID(reinterpret_cast<void*>(&grid));
 
     if (ImGui::BeginChild("grid")) {
-        grid.values.try_read_only([&](const auto& v) noexcept {
+        grid.values.read([&](const auto& v, const auto /*version*/) noexcept {
             if (not v.empty()) {
                 ImPlot::PushColormap(grid.color_map);
                 if (ImPlot::BeginPlot(grid.name.c_str(),

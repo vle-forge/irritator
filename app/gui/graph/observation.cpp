@@ -302,11 +302,11 @@ void graph_editor::draw_graph(const graph&          g,
     ImDrawList*  draw_list = ImGui::GetWindowDrawList();
     const ImVec2 origin    = top_left + scrolling;
 
-    nodes_locker.try_read_only([&](const auto& d) noexcept {
+    nodes_locker.read([&](const auto& d, const auto /*version*/) noexcept {
         if (d.nodes.empty())
             return;
 
-        obs.values.try_read_only([&](const auto& v) noexcept {
+        obs.values.read([&](const auto& v, const auto /*version*/) noexcept {
             if (d.nodes.size() != v.size())
                 return;
 

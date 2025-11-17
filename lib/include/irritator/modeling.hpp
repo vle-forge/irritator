@@ -1230,8 +1230,8 @@ public:
     tree_node_id tn_id;     //!< @c tree_node identifier parent of the model.
     model_id     mdl_id;    //!< @c model to observe.
 
-    vector<observer_id>    observers;
-    locker_2<vector<real>> values;
+    vector<observer_id>         observers;
+    shared_buffer<vector<real>> values;
 
     time tn = 0;
 
@@ -1269,8 +1269,8 @@ public:
     tree_node_id tn_id;     //< @c tree_node identifier parent of the model.
     model_id     mdl_id;    //< @c model to observe.
 
-    vector<observer_id>    observers;
-    locker_2<vector<real>> values;
+    vector<observer_id>         observers;
+    shared_buffer<vector<real>> values;
 
     time tn = 0;
 
@@ -1316,7 +1316,8 @@ public:
     time tn = 0;
 
     enum class sub_id : u32;
-    locker_2<vector<double>> values; //!< The last value of the observation.
+    shared_buffer<vector<double>>
+      values; //!< The last value of the observation.
 
 private:
     id_array<sub_id>     m_ids;
