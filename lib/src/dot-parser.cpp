@@ -88,7 +88,7 @@ struct local_rng {
 // dot-parser
 //
 
-enum class msg_id {
+enum class msg_id : u8 {
     missing_token,
     missing_strict_or_graph,
     missing_graph_type,

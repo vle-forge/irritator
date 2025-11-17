@@ -112,7 +112,7 @@ inline const char* distribution_str(const distribution_type type) noexcept
 auto get_distribution_type(std::string_view name) noexcept
   -> std::optional<distribution_type>;
 
-enum class random_file_type {
+enum class random_file_type : u8 {
     binary,
     text,
 };

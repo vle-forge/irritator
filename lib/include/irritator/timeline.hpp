@@ -11,7 +11,7 @@
 
 namespace irt {
 
-enum class timeline_point_type {
+enum class timeline_point_type : u8 {
     simulation, //! a copy of state of model (basic - deep copy for now)
     model,      //! user add, remove or change value in a model
     connection  //! user add, remove or change value in a connection

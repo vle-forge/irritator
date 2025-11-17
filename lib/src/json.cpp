@@ -36,7 +36,13 @@ using namespace std::literals;
 
 namespace irt {
 
-enum class connection_type { internal, input, output, input_pack, output_pack };
+enum class connection_type : u8 {
+    internal,
+    input,
+    output,
+    input_pack,
+    output_pack
+};
 
 struct json_dearchiver::impl {
     json_dearchiver& self;

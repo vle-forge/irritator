@@ -55,9 +55,9 @@ expected<buffered_file> open_buffered_file(
   const std::filesystem::path&       path,
   const bitflags<buffered_file_mode> mode) noexcept;
 
-enum class seek_origin { current, end, set };
+enum class seek_origin : u8 { current, end, set };
 
-enum class open_mode { read, write, append };
+enum class open_mode : u8 { read, write, append };
 
 class file
 {

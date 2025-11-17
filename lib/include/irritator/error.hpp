@@ -57,7 +57,7 @@ enum class category : std::int16_t {
     timeline,
 };
 
-enum class timeline_errc {
+enum class timeline_errc : std::int16_t {
     memory_error = 1,
     apply_change_error,
 

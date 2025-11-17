@@ -68,14 +68,14 @@ struct relative_id_path {
 
 enum class child_type : u8 { model, component };
 
-enum class description_status {
+enum class description_status : u8 {
     unread,
     read_only,
     modified,
     unmodified,
 };
 
-enum class internal_component {
+enum class internal_component : u8 {
     qss1_izhikevich,
     qss1_lif,
     qss1_lotka_volterra,
@@ -99,7 +99,7 @@ enum class internal_component {
 constexpr int internal_component_count =
   ordinal(internal_component::qss3_van_der_pol) + 1;
 
-enum class component_type {
+enum class component_type : u8 {
     none,    ///< The component does not reference any container.
     generic, ///< A classic component-model graph coupling.
     grid,    ///< Grid with 4, 8 neighbourhood.
@@ -109,7 +109,7 @@ enum class component_type {
 
 constexpr int component_type_count = ordinal(component_type::hsm) + 1;
 
-enum class component_status {
+enum class component_status : u8 {
     unread,     ///< The component is not read (It is referenced by another
                 ///< component).
     read_only,  ///< The component file is in read-only.
@@ -118,7 +118,7 @@ enum class component_status {
     unreadable  ///< When an error occurred during load-component.
 };
 
-enum class modeling_status { modified, unmodified };
+enum class modeling_status : u8 { modified, unmodified };
 
 class project;
 struct connection;
@@ -145,7 +145,7 @@ struct position {
     void reset() noexcept;
 };
 
-enum class port_option {
+enum class port_option : u8 {
     classic, /**< Classic connection between two components. */
     sum,     /**< Sum of all inputs messages (Adding @a abstract_sum models to
                 perform the sum for all input connections) between components. */
@@ -403,7 +403,7 @@ private:
     vector<component_id> m_children;
 
 public:
-    enum class options : i8 { none = 0, row_cylinder, column_cylinder, torus };
+    enum class options : u8 { none = 0, row_cylinder, column_cylinder, torus };
 
     struct child {
         child(const component_id compo_id_,
@@ -417,7 +417,7 @@ public:
         bitflags<child_flags> flags;
     };
 
-    enum class type : i8 {
+    enum class type : u8 {
         in_out, //!< Only one port "in" or "out".
         name,   //!< Cardinal points according to neighbor: "N", "S", "W", "E",
                 //!< "NE", ...
@@ -427,7 +427,7 @@ public:
                 //!< righ-cell.
     };
 
-    enum class neighborhood : i8 {
+    enum class neighborhood : u8 {
         four,
         eight,
     };
@@ -703,7 +703,7 @@ class graph_component
 public:
     static inline constexpr i32 children_max = 4096;
 
-    enum class graph_type { dot_file, scale_free, small_world };
+    enum class graph_type : u8 { dot_file, scale_free, small_world };
 
     struct child {
         child(const component_id  compo_id_,
@@ -739,7 +739,7 @@ public:
         port_id       id; // The port_id of the @c children[idx].
     };
 
-    enum class connection_type : i8 {
+    enum class connection_type : u8 {
         in_out,      //!< Connect only output port 'out' to input port 'in'.
         name,        //!< Connect output port to input port with same name.
         name_suffix, //!< Connect output port to inport port with the same
@@ -1067,7 +1067,7 @@ struct file_path {
         read_only,
     };
 
-    enum class file_type {
+    enum class file_type : u8 {
         undefined_file,
         irt_file,
         dot_file,
@@ -1101,7 +1101,7 @@ struct tree_node {
             tree_node* tn;  /* `tn_id` is valid in `data_array`. */
         };
 
-        enum class type { empty, model, tree_node } type = type::empty;
+        enum class type : u8 { empty, model, tree_node } type = type::empty;
 
         constexpr auto is_empty() const noexcept { return type == type::empty; }
         constexpr auto is_model() const noexcept { return type == type::model; }
@@ -1301,7 +1301,7 @@ public:
     spin_mutex mutex; //!< To write-protect the swap between buffers
                       //!< (values and values_2nd).
 
-    enum class type_options {
+    enum class type_options : u8 {
         none,
         line,
         dash,
@@ -1603,7 +1603,7 @@ public:
         graph_observer_id    graph;
     };
 
-    enum class type { variables, grid, graph };
+    enum class type : u8 { variables, grid, graph };
 
     id_array<file_observer_id> ids;
     vector<buffered_file>      files;

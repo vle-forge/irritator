@@ -44,11 +44,10 @@ enum class graph_editor_id : u32;
 
 enum class project_id : u32;
 
-enum class task_status { not_started, started, finished };
+enum class task_status : u8 { not_started, started, finished };
+enum class main_task : u8 { simulation_0 = 0, simulation_1, simulation_2, gui };
 
-enum class main_task : i8 { simulation_0 = 0, simulation_1, simulation_2, gui };
-
-enum class simulation_status {
+enum class simulation_status : u8 {
     not_started,
     initializing,
     initialized,
@@ -62,7 +61,7 @@ enum class simulation_status {
     debugged,
 };
 
-enum class simulation_plot_type { none, plotlines, plotscatters };
+enum class simulation_plot_type : u8 { none, plotlines, plotscatters };
 
 /**
  * @brief  Display ComboBox to select a file from a directory.
@@ -110,7 +109,7 @@ auto get_component_color(const application& app, const component_id id) noexcept
 auto get_component_u32color(const application& app,
                             const component_id id) noexcept -> ImU32;
 
-enum class file_path_selector_option {
+enum class file_path_selector_option : u8 {
     none,
     force_dot_extension,
     force_irt_extension
@@ -346,7 +345,11 @@ private:
     variable_observer_id      m_vobs_id = undefined<variable_observer_id>();
     variable_observer::sub_id m_sub_id = undefined<variable_observer::sub_id>();
 
-    enum class save_option { none, copy, obs } m_need_save = save_option::none;
+    enum class save_option : u8 {
+        none,
+        copy,
+        obs
+    } m_need_save = save_option::none;
 };
 
 /** A class shared between modeling, simulation and observation layer.

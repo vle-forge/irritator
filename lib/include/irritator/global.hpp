@@ -23,7 +23,7 @@ constexpr static const char* themes[] = {
     "Catpuccin Mocha", "Material You", "Fluent UI", "Fluent UI - Light"
 };
 
-enum class style_color {
+enum class style_color : u8 {
     background_error_notification,   /**< Background of error notification
                                         windows. */
     background_warning_notification, /**< Background of warning notification
@@ -87,7 +87,7 @@ struct variables {
 };
 
 //! Enumeration class used everywhere in irritator to produce log data.
-enum class log_level {
+enum class log_level : u8 {
     emergency,
     alert,
     critical,

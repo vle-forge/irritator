@@ -13,7 +13,7 @@
 
 namespace irt {
 
-enum class p_id {
+enum class p_id : u8 {
     in,
     out,
     N,

@@ -74,7 +74,7 @@ private:
 
 public:
     //! Control the json output stream (memory or file) pretty print.
-    enum class print_option {
+    enum class print_option : u8 {
         off,                    //! disable pretty print.
         indent_2,               //! enable pretty print, use 2 spaces as indent.
         indent_2_one_line_array //! idem but merge simple array in one line.
@@ -111,7 +111,7 @@ public:
 class binary_archiver
 {
 public:
-    enum class error_code {
+    enum class error_code : u8 {
         not_enough_memory = 1,
         write_error,
         read_error,

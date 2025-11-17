@@ -12,7 +12,7 @@
 namespace irt {
 
 struct file_dialog {
-    enum class status { show, ok, cancel, hide };
+    enum class status : u8 { show, ok, cancel, hide };
 
     vector<std::filesystem::path> paths;
     std::filesystem::path         current;

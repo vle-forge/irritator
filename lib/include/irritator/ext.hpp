@@ -217,7 +217,7 @@ public:
     [[nodiscard]] constexpr bool empty() const noexcept { return !m_manager; }
 
 private:
-    enum class operation { clone, move, destroy };
+    enum class operation : u8 { clone, move, destroy };
 
     using invoker_type = Ret (*)(void*, Params&&...);
     using manager_type = void (*)(void*, void*, operation);

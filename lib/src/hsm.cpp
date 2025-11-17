@@ -130,7 +130,7 @@ struct wrap_var {
         i32  i;
     };
 
-    enum type { real_t, integer_t } type;
+    enum type : u8 { real_t, integer_t } type;
 
     constexpr bool operator==(const wrap_var& o) const noexcept
     {

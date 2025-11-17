@@ -640,7 +640,7 @@ inline status finalize_source(simulation& sim, source& src) noexcept;
  *
  ****************************************************************************/
 
-enum class dynamics_type : i8 {
+enum class dynamics_type : u8 {
     qss1_integrator,
     qss1_multiplier,
     qss1_cross,
@@ -1625,7 +1625,7 @@ struct abstract_integrator<1> {
     real u;
     time sigma;
 
-    enum port_name { port_x_dot, port_reset };
+    enum port_name : u8 { port_x_dot, port_reset };
 
     abstract_integrator() = default;
 
@@ -1744,7 +1744,7 @@ struct abstract_integrator<2> {
     real mq;
     time sigma;
 
-    enum port_name { port_x_dot, port_reset };
+    enum port_name : u8 { port_x_dot, port_reset };
 
     abstract_integrator() = default;
 
@@ -1907,7 +1907,7 @@ struct abstract_integrator<3> {
     real pq;
     time sigma;
 
-    enum port_name { port_x_dot, port_reset };
+    enum port_name : u8 { port_x_dot, port_reset };
 
     abstract_integrator() = default;
 
@@ -3823,7 +3823,7 @@ struct counter {
 };
 
 struct generator {
-    enum { x_value, x_t, x_add_tr, x_mult_tr };
+    enum : u8 { x_value, x_t, x_add_tr, x_mult_tr };
 
     enum class option : u8 { ta_use_source, value_use_source };
 
@@ -3968,7 +3968,7 @@ struct constant {
     output_port_id y[1] = {};
     time           sigma;
 
-    enum class init_type : i8 {
+    enum class init_type : u8 {
         /// A constant value initialized at startup of the simulation. Use
         /// the
         /// @c default_value.
@@ -4921,8 +4921,8 @@ struct abstract_cross {
       , zone(other.zone)
     {}
 
-    enum o_port_name { port_value, port_threshold };
-    enum i_port_name { port_up, port_down };
+    enum o_port_name : u8 { port_value, port_threshold };
+    enum i_port_name : u8 { port_up, port_down };
 
     status initialize(simulation& /*sim*/) noexcept
     {
@@ -5032,8 +5032,8 @@ struct abstract_flipflop {
     std::array<real, QssLevel> value;
     time                       sigma = zero;
 
-    enum o_port_name { port_in, port_event };
-    enum i_port_name { port_out };
+    enum o_port_name : u8 { port_in, port_event };
+    enum i_port_name : u8 { port_out };
 
     abstract_flipflop() noexcept = default;
 

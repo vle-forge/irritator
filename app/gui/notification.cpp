@@ -26,7 +26,7 @@ constexpr ImGuiWindowFlags notification_flags =
   ImGuiWindowFlags_NoInputs | ImGuiWindowFlags_NoNav |
   ImGuiWindowFlags_NoFocusOnAppearing;
 
-enum class notification_state { fadein, wait, fadeout, expired };
+enum class notification_state : u8 { fadein, wait, fadeout, expired };
 
 static inline const char* notification_prefix[] = { "emergency error ",
                                                     "alert error ",

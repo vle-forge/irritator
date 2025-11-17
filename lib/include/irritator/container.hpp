@@ -287,7 +287,7 @@ constexpr const T& container_of(const M* ptr, const M T::* member) noexcept
    A fmt::formatter is provide in the file @c format.hpp
  */
 struct human_readable_bytes {
-    enum class display_type { B, KB, MB, GB };
+    enum class display_type : u8 { B, KB, MB, GB };
 
     explicit human_readable_bytes(std::size_t bytes) noexcept;
 
@@ -304,7 +304,7 @@ struct human_readable_bytes {
    A fmt::formatter is provide in the file @c format.hpp
 */
 struct human_readable_time {
-    enum class display_type {
+    enum class display_type : u8 {
         nanoseconds,
         microseconds,
         milliseconds,

@@ -72,7 +72,7 @@ struct report_parameter {
     int              arg;
 };
 
-enum class ec {
+enum class ec : irt::u8 {
     arg_missing,
     bad_parsing,
     registred_path_empty,
@@ -132,7 +132,7 @@ static constexpr auto error(Ret&& ret, Args&&... args) noexcept -> Ret
     return ret;
 }
 
-enum class option_id { unknown, help, memory, output, time, version };
+enum class option_id : irt::u8 { unknown, help, memory, output, time, version };
 
 struct option {
     const std::string_view short_opt;

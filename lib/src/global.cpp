@@ -128,7 +128,7 @@ static std::error_code do_save(const char*      filename,
     return do_write(vars, theme, file);
 }
 
-enum { section_colors, section_paths, section_COUNT };
+enum : u8 { section_colors, section_paths, section_COUNT };
 
 static bool do_read_section(variables& /*vars*/,
                             std::bitset<2>&  current_section,

@@ -9,7 +9,7 @@
 namespace irt {
 
 struct file_header {
-    enum class mode_type : i32 {
+    enum class mode_type : u32 {
         none = 0,
         all  = 1,
     };

@@ -251,7 +251,7 @@ static constexpr auto exists_connection(const graph_component& graph,
     return false;
 }
 
-enum connection_add_result { done, nomem, noexist };
+enum connection_add_result : u8 { done, nomem, noexist };
 
 static connection_add_result connection_add(graph_component& compo,
                                             const child_id   src,
