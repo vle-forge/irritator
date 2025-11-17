@@ -380,32 +380,32 @@ int main()
             int x = 0;
         };
 
-        irt::locker<data> safe_data(100);
+        irt::shared_buffer<data> safe_data(100);
 
         {
-            safe_data.try_read_only([](auto& x) { expect(eq(x.x, 100)); });
-            safe_data.read_only([](auto& x) { expect(eq(x.x, 100)); });
-            safe_data.read_write([](auto& x) {
+            safe_data.read([](auto& x, auto /*v*/) { expect(eq(x.x, 100)); });
+            safe_data.read([](auto& x, auto /*v*/) { expect(eq(x.x, 100)); });
+            safe_data.write([](auto& x) {
                 expect(eq(x.x, 100));
                 x.x = 103;
             });
-            safe_data.try_read_only([](auto& x) { expect(eq(x.x, 103)); });
-            safe_data.read_only([](auto& x) { expect(eq(x.x, 103)); });
-            safe_data.read_write([](auto& x) { expect(eq(x.x, 103)); });
+            safe_data.read([](auto& x, auto /*v*/) { expect(eq(x.x, 103)); });
+            safe_data.read([](auto& x, auto /*v*/) { expect(eq(x.x, 103)); });
+            safe_data.write([](auto& x) { expect(eq(x.x, 103)); });
         }
 
-        irt::locker_2<data> safe_data_2(100);
+        irt::shared_buffer<data> safe_data_2(100);
 
         {
-            safe_data_2.try_read_only([](auto& x) { expect(eq(x.x, 100)); });
-            safe_data_2.read_only([](auto& x) { expect(eq(x.x, 100)); });
-            safe_data_2.read_write([](auto& x) {
+            safe_data_2.read([](auto& x, auto /*v*/) { expect(eq(x.x, 100)); });
+            safe_data_2.read([](auto& x, auto /*v*/) { expect(eq(x.x, 100)); });
+            safe_data_2.write([](auto& x) {
                 expect(eq(x.x, 100));
                 x.x = 103;
             });
-            safe_data_2.try_read_only([](auto& x) { expect(eq(x.x, 103)); });
-            safe_data_2.read_only([](auto& x) { expect(eq(x.x, 103)); });
-            safe_data_2.read_write([](auto& x) { expect(eq(x.x, 103)); });
+            safe_data_2.read([](auto& x, auto /*v*/) { expect(eq(x.x, 103)); });
+            safe_data_2.read([](auto& x, auto /*v*/) { expect(eq(x.x, 103)); });
+            safe_data_2.write([](auto& x) { expect(eq(x.x, 103)); });
         }
     };
 
@@ -413,12 +413,12 @@ int main()
         irt::task_manager tm;
         tm.start();
 
-        irt::locker_2<irt::small_vector<int, 16>> buffer;
-        std::atomic_int                           counter = 0;
+        irt::shared_buffer<irt::small_vector<int, 16>> buffer;
+        std::atomic_int                                counter = 0;
 
         for (int i = 0; i < 16; ++i) {
             tm.get_ordered_list(0).add([&buffer, &counter]() {
-                buffer.read_only([&counter](const auto& vec) {
+                buffer.read([&counter](const auto& vec, auto /*v*/) {
                     if (not vec.empty())
                         counter = vec.back();
                     else
@@ -427,11 +427,11 @@ int main()
             });
 
             tm.get_ordered_list(1).add([&buffer]() {
-                buffer.read_write([](auto& vec) { vec.push_back(10); });
+                buffer.write([](auto& vec) { vec.push_back(10); });
             });
 
             tm.get_ordered_list(0).add([&buffer, &counter]() {
-                buffer.read_only([&counter](const auto& vec) {
+                buffer.read([&counter](const auto& vec, auto /*ver*/) {
                     if (not vec.empty())
                         counter = vec.back();
                     else
@@ -492,12 +492,13 @@ int main()
                 }
 
                 for (int j = 0; j < reads_per_thread; ++j) {
-                    buffer.read([&](const Counter& c, const irt::u64 /*version*/) {
-                        if (c.value != 42) {
-                            errors.fetch_add(1);
-                        }
-                        read_count.fetch_add(1);
-                    });
+                    buffer.read(
+                      [&](const Counter& c, const irt::u64 /*version*/) {
+                          if (c.value != 42) {
+                              errors.fetch_add(1);
+                          }
+                          read_count.fetch_add(1);
+                      });
                 }
             });
         }
@@ -539,12 +540,12 @@ int main()
                 while (!stop.load()) {
                     buffer.read(
                       [&](const Counter& c, const irt::u64 /*version*/) {
-                        if (c.value < last_value) {
-                            monotonic_errors.fetch_add(1);
-                        }
-                        last_value = c.value;
-                        read_count.fetch_add(1);
-                    });
+                          if (c.value < last_value) {
+                              monotonic_errors.fetch_add(1);
+                          }
+                          last_value = c.value;
+                          read_count.fetch_add(1);
+                      });
                 }
             });
         }
@@ -632,11 +633,11 @@ int main()
                 while (!stop.load()) {
                     buffer.read(
                       [&](const ComplexData& data, const irt::u64 /*version*/) {
-                        if (!data.is_valid()) {
-                            integrity_errors.fetch_add(1);
-                        }
-                        checks.fetch_add(1);
-                    });
+                          if (!data.is_valid()) {
+                              integrity_errors.fetch_add(1);
+                          }
+                          checks.fetch_add(1);
+                      });
                 }
             });
         }
@@ -727,9 +728,9 @@ int main()
                        duration) {
                     buffer.read(
                       [](const Counter& c, const irt::u64 /*version*/) {
-                        volatile int x = c.value;
-                        (void)x;
-                    });
+                          volatile int x = c.value;
+                          (void)x;
+                      });
                 }
             });
         }
@@ -740,9 +741,9 @@ int main()
                        duration) {
                     buffer.try_read(
                       [](const Counter& c, const irt::u64 /*version*/) {
-                        volatile int x = c.value;
-                        (void)x;
-                    });
+                          volatile int x = c.value;
+                          (void)x;
+                      });
                 }
             });
         }
