@@ -78,7 +78,7 @@ static void update_lists(
 
 void component_selector::update() noexcept
 {
-    data.read_write([&](auto& data) {
+    data.write([&](auto& data) {
         const auto& app = container_of(this, &application::component_sel);
 
         update_lists(app.mod,
@@ -98,7 +98,7 @@ component_selector::result_t component_selector::combobox(
     auto id      = undefined<component_id>();
     auto is_done = false;
 
-    data.try_read_only([&](const auto& data) {
+    data.read([&](const auto& data, const auto /*version*/) {
         const auto& app = container_of(this, &application::component_sel);
         const char* current_name = "-";
         auto        current      = old_current;
@@ -184,7 +184,7 @@ component_selector::result_t component_selector::combobox(
     auto id      = undefined<component_id>();
     auto is_done = false;
 
-    data.try_read_only([&](const auto& data) {
+    data.read([&](const auto& data, const auto /*version*/) {
         const auto& app = container_of(this, &application::component_sel);
         const char* empty_name   = "-";
         const char* current_name = empty_name;
@@ -269,8 +269,11 @@ component_selector::result_t component_selector::menu(
     component_selector::result_t ret{ .id      = undefined<component_id>(),
                                       .is_done = false };
 
-    data.try_read_only(
-      [](const auto& data, auto& label, auto& ret) noexcept {
+    data.read(
+      [](const auto& data,
+         const auto /*version*/,
+         auto& label,
+         auto& ret) noexcept {
           if (ImGui::BeginMenu(label)) {
               ret = display_menu("Names", data.by_names);
               if (not ret) {

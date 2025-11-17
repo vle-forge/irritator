@@ -420,7 +420,7 @@ private:
         std::array<float, 3> center;
     };
 
-    locker_2<data_type> nodes_locker;
+    shared_buffer<data_type> nodes_locker;
 
     vector<graph_node_id> selected_nodes;
     vector<graph_edge_id> selected_edges;
@@ -814,7 +814,7 @@ private:
                        data_type&      d) noexcept;
     void rebuild(application& app, project_editor& pj_ed) noexcept;
 
-    locker_2<data_type> data;
+    shared_buffer<data_type> data;
 
     ImVec2 distance{ 15.f, 15.f };      /// distance between two nodes
     ImVec2 tn_distance{ 100.f, 100.f }; /// distance between two tree nodes
@@ -1357,7 +1357,7 @@ private:
         vector<std::pair<component_id, name_str>>      by_hsms;
     };
 
-    locker_2<data_type> data;
+    shared_buffer<data_type> data;
 };
 
 class component_model_selector
@@ -1402,7 +1402,7 @@ private:
         vector<tree_node*>                            stack_tree_nodes;
     };
 
-    locker_2<data_type> data;
+    shared_buffer<data_type> data;
 
     tree_node_id parent_id = undefined<tree_node_id>();
     tree_node_id tn_id     = undefined<tree_node_id>();

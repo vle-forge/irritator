@@ -185,7 +185,7 @@ component_model_selector::combobox(const char*    label,
 {
     std::optional<access> ret;
 
-    data.try_read_only([&](const auto& data) noexcept {
+    data.read([&](const auto& data, const auto /*version*/) noexcept {
         debug::ensure(data.components.ssize() == data.names.ssize());
         debug::ensure(component_selected < data.names.ssize());
 
@@ -209,7 +209,7 @@ void component_model_selector::update(const project&     pj,
                                       const tree_node_id tn_id_,
                                       const model_id     mdl_id_) noexcept
 {
-    data.read_write([&](auto& data) noexcept {
+    data.write([&](auto& data) noexcept {
         auto& app = container_of(this, &application::component_model_sel);
 
         component_selected = -1;

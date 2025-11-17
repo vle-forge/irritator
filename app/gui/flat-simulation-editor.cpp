@@ -231,7 +231,7 @@ bool flat_simulation_editor::display(application&    app,
 
                 selected_nodes.clear();
 
-                data.try_read_only([&](const auto& d) {
+                data.read([&](const auto& d, const auto /*version*/) {
                     for (const auto& mdl : pj_ed.pj.sim.models) {
                         const auto mdl_id = pj_ed.pj.sim.models.get_id(mdl);
                         const auto i      = get_index(mdl_id);
@@ -272,7 +272,7 @@ bool flat_simulation_editor::display(application&    app,
                                IM_COL32(200, 200, 200, 40));
     }
 
-    data.try_read_only([&](const auto& d) {
+    data.read([&](const auto& d, const auto /*version*/) {
         if (d.positions.empty())
             return;
 
@@ -899,7 +899,7 @@ void flat_simulation_editor::rebuild(application&    app,
                                      project_editor& pj_ed) noexcept
 {
     app.add_gui_task([&]() {
-        data.read_write([&](auto& d) {
+        data.write([&](auto& d) {
             const auto mdls = pj_ed.pj.sim.models.size();
             const auto tns  = pj_ed.pj.tree_nodes.size();
 

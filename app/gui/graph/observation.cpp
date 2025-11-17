@@ -211,7 +211,7 @@ graph_editor::graph_editor() noexcept
 
 void graph_editor::auto_fit_camera() noexcept
 {
-    nodes_locker.read_only([&](auto& d) noexcept {
+    nodes_locker.read([&](auto& d, const auto /*version*/) noexcept {
         const std::array dist{ d.bottom_right[0] - d.top_left[0],
                                d.bottom_right[1] - d.top_left[1] };
 
@@ -223,7 +223,7 @@ void graph_editor::auto_fit_camera() noexcept
 
 void graph_editor::center_camera() noexcept
 {
-    nodes_locker.read_only([&](auto& d) noexcept {
+    nodes_locker.read([&](auto& d, const auto /*version*/) noexcept {
         scrolling.x = ((-d.center[0] * zoom) + (canvas_sz.x / 2.f));
         scrolling.y = ((-d.center[1] * zoom) + (canvas_sz.y / 2.f));
     });
@@ -231,7 +231,7 @@ void graph_editor::center_camera() noexcept
 
 void graph_editor::reset_camera(application& app, graph& g) noexcept
 {
-    nodes_locker.read_only([&](auto& d) noexcept {
+    nodes_locker.read([&](auto& d, const auto /*version*/) noexcept {
         scrolling.x = d.center[0];
         scrolling.y = d.center[1];
         zoom        = 1.f;
@@ -397,7 +397,7 @@ void graph_editor::draw_graph(const graph& g,
                               ImU32        edge_color,
                               application& app) noexcept
 {
-    nodes_locker.try_read_only([&](const auto& d) noexcept {
+    nodes_locker.read([&](const auto& d, const auto /*version*/) noexcept {
         if (d.nodes.empty())
             return;
 
@@ -982,7 +982,7 @@ void graph_editor::show(application&     app,
 void graph_editor::update(application& app, const graph& g) noexcept
 {
     app.add_gui_task([&]() noexcept {
-        nodes_locker.read_write([&](auto& d) noexcept {
+        nodes_locker.write([&](auto& d) noexcept {
             d.nodes.resize(g.nodes.ssize());
             std::array<float, 2> x{ std::numeric_limits<float>::max(),
                                     std::numeric_limits<float>::lowest() };
