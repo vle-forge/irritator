@@ -640,7 +640,7 @@ inline status finalize_source(simulation& sim, source& src) noexcept;
  *
  ****************************************************************************/
 
-enum class dynamics_type : i32 {
+enum class dynamics_type : i8 {
     qss1_integrator,
     qss1_multiplier,
     qss1_cross,
