@@ -215,7 +215,7 @@ constexpr bool all_same_type() noexcept
 /** Checks if the given two numbers are relatively equal according to a relative
  * epsilon. */
 template<std::floating_point Real>
-constexpr bool almost_equal(Real a, Real b, double relative_epsilon) noexcept
+constexpr bool almost_equal(Real a, Real b, Real relative_epsilon) noexcept
 {
     const auto diff    = std::abs(a - b);
     const auto abs_a   = std::abs(a);
