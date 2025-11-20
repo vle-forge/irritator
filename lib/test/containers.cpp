@@ -10,6 +10,9 @@
 #include <fmt/format.h>
 
 #include <numeric>
+#include <string_view>
+
+using namespace std::literals;
 
 struct only_copy_ctor {
     only_copy_ctor(int a_) noexcept
@@ -221,6 +224,11 @@ static bool check_data_array_loop(const Data& d) noexcept
 
     return true;
 }
+
+/// Main
+///
+/// @return
+///
 
 int main()
 {
@@ -2868,5 +2876,170 @@ int main()
         expect(not p.empty());
         expect(eq(p.size(), 1u));
         expect(eq(p.ssize(), 1));
+    };
+
+    "data_vector_array_void::test_api"_test = [] {
+        struct position {
+            position()
+              : x{ 1234 }
+              , y{ 5678 }
+            {}
+
+            position(int x_, int y_)
+              : x{ x_ }
+              , y{ y_ }
+            {}
+
+            int x, y;
+        };
+
+        enum class my_id : irt::u32;
+        using name = irt::small_string<32>;
+
+        irt::data_vector_array<void,
+                               my_id,
+                               irt::allocator<irt::new_delete_memory_resource>,
+                               position,
+                               name>
+          data(8);
+
+        expect(eq(data.size(), 0u));
+        expect(eq(data.ssize(), 0));
+
+        const auto& d0 = data.alloc();
+        const auto& d1 = data.alloc();
+        const auto& d2 = data.alloc();
+
+        expect(eq(data.size(), 3u));
+        expect(eq(data.ssize(), 3));
+
+        const auto id0 = data.get_id(d0);
+        const auto id1 = data.get_id(d1);
+        const auto id2 = data.get_id(d2);
+
+        expect(eq(data.size<position>(), 0u));
+        expect(eq(data.capacity<position>(), 0u));
+        expect(not data.can_alloc<position>(4));
+        expect(data.grow<position>());
+        expect(data.can_alloc<position>(4));
+
+        auto& pos_0 = data.alloc<position>(id0);
+        expect(eq(pos_0.x, 1234));
+        expect(eq(pos_0.y, 5678));
+        expect(eq(data.size<position>(), 1u));
+
+        auto& pos_1 = data.alloc<position>(id1);
+        expect(eq(pos_1.x, 1234));
+        expect(eq(pos_1.y, 5678));
+        expect(eq(data.size<position>(), 2u));
+
+        auto& pos_2 = data.alloc<position>(id2, 100, 101);
+        expect(eq(pos_2.x, 100));
+        expect(eq(pos_2.y, 101));
+        expect(eq(data.size<position>(), 3u));
+
+        auto& pos_2_bis = data.alloc<position>(id2, 103, 104);
+        expect(eq(pos_2_bis.x, 103));
+        expect(eq(pos_2_bis.y, 104));
+        expect(eq(pos_2.x, 103));
+        expect(eq(pos_2.y, 104));
+        expect(eq(data.size<position>(), 3u));
+
+        expect(eq(data.size<position>(), 3u));
+
+        expect(not data.can_alloc<name>(2));
+        expect(data.grow<name>());
+        expect(data.can_alloc<name>(2));
+        const auto& name_1 = data.alloc<name>(id1, "hello");
+        const auto& name_2 = data.alloc<name>(id2, "world!");
+
+        expect(eq(name_1.sv(), "hello"sv));
+        expect(eq(name_2.sv(), "world!"sv));
+    };
+
+    "data_vector_array_int::test_api"_test = [] {
+        struct position {
+            position()
+              : x{ 1234 }
+              , y{ 5678 }
+            {}
+
+            position(int x_, int y_)
+              : x{ x_ }
+              , y{ y_ }
+            {}
+
+            int x, y;
+        };
+
+        enum class my_id : irt::u32;
+        using name = irt::small_string<32>;
+
+        irt::data_vector_array<position,
+                               my_id,
+                               irt::allocator<irt::new_delete_memory_resource>,
+                               position,
+                               name>
+          data(8);
+
+        expect(eq(data.size(), 0u));
+        expect(eq(data.ssize(), 0));
+
+        const auto& d0 = data.alloc(3, 6);
+        const auto& d1 = data.alloc(4, 7);
+        const auto& d2 = data.alloc(5, 8);
+
+        expect(eq(d0.data.x, 3));
+        expect(eq(d0.data.y, 6));
+        expect(eq(d1.data.x, 4));
+        expect(eq(d1.data.y, 7));
+        expect(eq(d2.data.x, 5));
+        expect(eq(d2.data.y, 8));
+
+        expect(eq(data.size(), 3u));
+        expect(eq(data.ssize(), 3));
+
+        const auto id0 = data.get_id(d0);
+        const auto id1 = data.get_id(d1);
+        const auto id2 = data.get_id(d2);
+
+        expect(eq(data.size<position>(), 0u));
+        expect(eq(data.capacity<position>(), 0u));
+        expect(not data.can_alloc<position>(4));
+        expect(data.grow<position>());
+        expect(data.can_alloc<position>(4));
+
+        auto& pos_0 = data.alloc<position>(id0);
+        expect(eq(pos_0.x, 1234));
+        expect(eq(pos_0.y, 5678));
+        expect(eq(data.size<position>(), 1u));
+
+        auto& pos_1 = data.alloc<position>(id1);
+        expect(eq(pos_1.x, 1234));
+        expect(eq(pos_1.y, 5678));
+        expect(eq(data.size<position>(), 2u));
+
+        auto& pos_2 = data.alloc<position>(id2, 100, 101);
+        expect(eq(pos_2.x, 100));
+        expect(eq(pos_2.y, 101));
+        expect(eq(data.size<position>(), 3u));
+
+        auto& pos_2_bis = data.alloc<position>(id2, 103, 104);
+        expect(eq(pos_2_bis.x, 103));
+        expect(eq(pos_2_bis.y, 104));
+        expect(eq(pos_2.x, 103));
+        expect(eq(pos_2.y, 104));
+        expect(eq(data.size<position>(), 3u));
+
+        expect(eq(data.size<position>(), 3u));
+
+        expect(not data.can_alloc<name>(2));
+        expect(data.grow<name>());
+        expect(data.can_alloc<name>(2));
+        const auto& name_1 = data.alloc<name>(id1, "hello");
+        const auto& name_2 = data.alloc<name>(id2, "world!");
+
+        expect(eq(name_1.sv(), "hello"sv));
+        expect(eq(name_2.sv(), "world!"sv));
     };
 }
