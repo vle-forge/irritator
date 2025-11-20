@@ -2741,6 +2741,16 @@ protected:
     index_type m_free_list = free_list_end;
 };
 
+template<typename Tuple, typename T>
+constexpr std::size_t get_tuple_index() noexcept
+{
+    return []<typename... Ts>(std::type_identity<std::tuple<Ts...>> /*t*/) {
+        std::size_t index = 0;
+        (void)((++index, std::is_same_v<Ts, T>) || ...);
+        return index - 1;
+    }(std::type_identity<Tuple>{});
+}
+
 // template<typename Identifier, typename A>
 // class id_array
 
