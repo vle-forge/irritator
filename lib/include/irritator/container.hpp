@@ -2669,6 +2669,78 @@ private:
     std::bitset<max_bits> m_bits;
 };
 
+/**
+ * @brief A dynamic allocation object pool.
+ *
+ * This container manages a pool of objects of type @a T using a dynamic memory
+ * allocator @a A. Objects are constructed with @a alloc() and destroyed with @a
+ * free(). Allocation and deallocation are O(1) thanks to a free linked list.
+ *
+ * @tparam T The type of objects stored.
+ * @tparam IndexType The type used for indexing (must be uint16_t or uint32_t).
+ * @tparam A The allocator type.
+ */
+template<typename T,
+         typename IndexType = std::uint32_t,
+         typename A         = allocator<new_delete_memory_resource>>
+class pool
+{
+public:
+    using index_type      = IndexType;
+    using value_type      = T;
+    using reference       = T&;
+    using const_reference = const T&;
+
+    constexpr static inline index_type active =
+      std::numeric_limits<index_type>::max();
+    constexpr static inline index_type free_list_end = active - 1;
+    constexpr static inline index_type max_reserve   = active - 2;
+
+    constexpr pool() noexcept;
+    explicit constexpr pool(std::integral auto reserve) noexcept;
+    constexpr pool(const pool& other) noexcept;
+    constexpr pool& operator=(const pool& other) noexcept;
+    constexpr pool(pool&& other) noexcept;
+    constexpr pool& operator=(pool&& other) noexcept;
+    constexpr ~pool() noexcept;
+
+    template<typename... Args>
+    constexpr index_type alloc(Args&&... args) noexcept;
+
+    constexpr void free(std::integral auto index) noexcept;
+    constexpr void swap(pool& o) noexcept;
+
+    constexpr reference       operator[](std::integral auto i) noexcept;
+    constexpr const_reference operator[](std::integral auto i) const noexcept;
+
+    constexpr void clear() noexcept;
+    constexpr void destroy() noexcept;
+
+    constexpr bool can_alloc(std::integral auto nb = 1) const noexcept;
+    constexpr bool grow() noexcept;
+    constexpr bool is_valid(std::integral auto idx) const noexcept;
+
+    constexpr unsigned size() const noexcept;
+    constexpr int      ssize() const noexcept;
+    constexpr unsigned capacity() const noexcept;
+    constexpr bool     empty() const noexcept;
+
+protected:
+    constexpr void delete_buffer() noexcept;
+    constexpr void delete_objects() noexcept;
+
+    struct item {
+        value_type item;
+        index_type next;
+    };
+
+    item*      m_buffer    = nullptr;
+    index_type m_max_used  = 0;
+    index_type m_max_size  = 0;
+    index_type m_capacity  = 0;
+    index_type m_free_list = free_list_end;
+};
+
 // template<typename Identifier, typename A>
 // class id_array
 
@@ -7110,6 +7182,329 @@ constexpr bool operator!=(const small_vector<T, LengthLhs>& lhs,
                           const small_vector<T, LengthRhs>& rhs) noexcept
 {
     return not(lhs == rhs);
+}
+
+// template<typename T, typename IndexType, typename A>
+// pool<T, IndexType, A> impl
+
+template<typename T, typename IndexType, typename A>
+constexpr pool<T, IndexType, A>::pool() noexcept = default;
+
+template<typename T, typename IndexType, typename A>
+constexpr pool<T, IndexType, A>::~pool() noexcept
+{
+    delete_objects();
+    delete_buffer();
+}
+
+template<typename T, typename IndexType, typename A>
+constexpr pool<T, IndexType, A>::pool(std::integral auto reserve) noexcept
+{
+    debug::ensure(std::cmp_greater(reserve, 0));
+    debug::ensure(std::cmp_less(reserve, max_reserve));
+
+    if (std::cmp_greater(reserve, 0) and std::cmp_less(reserve, max_reserve)) {
+        if (auto* new_data =
+              reinterpret_cast<item*>(A::allocate(sizeof(item) * reserve))) {
+            m_buffer   = new_data;
+            m_capacity = static_cast<index_type>(reserve);
+        }
+    }
+}
+
+template<typename T, typename IndexType, typename A>
+constexpr pool<T, IndexType, A>::pool(const pool& other) noexcept
+{
+    if (other.m_buffer) {
+        if (auto* new_data = reinterpret_cast<item*>(
+              A::allocate(sizeof(item) * other.m_capacity))) {
+            m_buffer = new_data;
+            std::uninitialized_copy_n(
+              other.m_buffer, other.m_max_used, m_buffer);
+
+            m_max_used  = other.m_max_used;
+            m_max_size  = other.m_max_size;
+            m_capacity  = other.m_capacity;
+            m_free_list = other.m_free_list;
+        } else {
+            m_buffer    = nullptr;
+            m_max_used  = 0;
+            m_max_size  = 0;
+            m_capacity  = 0;
+            m_free_list = free_list_end;
+        }
+    } else {
+        m_buffer    = nullptr;
+        m_max_used  = 0;
+        m_max_size  = 0;
+        m_capacity  = 0;
+        m_free_list = free_list_end;
+    }
+}
+
+template<typename T, typename IndexType, typename A>
+constexpr pool<T, IndexType, A>& pool<T, IndexType, A>::operator=(
+  const pool& other) noexcept
+{
+    if (this != &other) {
+        delete_objects();
+        delete_buffer();
+
+        if (other.m_buffer) {
+            if (auto* new_data = reinterpret_cast<item*>(
+                  A::allocate(sizeof(item) * other.m_capacity))) {
+                m_buffer = new_data;
+                std::uninitialized_copy_n(
+                  other.m_buffer, other.m_max_used, m_buffer);
+
+                m_max_used  = other.m_max_used;
+                m_max_size  = other.m_max_size;
+                m_capacity  = other.m_capacity;
+                m_free_list = other.m_free_list;
+            } else {
+                m_buffer    = nullptr;
+                m_max_used  = 0;
+                m_max_size  = 0;
+                m_capacity  = 0;
+                m_free_list = free_list_end;
+            }
+        } else {
+            m_buffer    = nullptr;
+            m_max_used  = 0;
+            m_max_size  = 0;
+            m_capacity  = 0;
+            m_free_list = free_list_end;
+        }
+    }
+
+    return *this;
+}
+
+template<typename T, typename IndexType, typename A>
+constexpr pool<T, IndexType, A>::pool(pool&& other) noexcept
+  : m_buffer(std::exchange(other.m_buffer, nullptr))
+  , m_max_used(std::exchange(other.m_max_used, 0))
+  , m_max_size(std::exchange(other.m_max_size, 0))
+  , m_capacity(std::exchange(other.m_capacity, 0))
+  , m_free_list(std::exchange(other.m_free_list, free_list_end))
+{}
+
+template<typename T, typename IndexType, typename A>
+constexpr pool<T, IndexType, A>& pool<T, IndexType, A>::operator=(
+  pool&& other) noexcept
+{
+    if (this != &other) {
+        delete_objects();
+        delete_buffer();
+        m_buffer    = std::exchange(other.m_buffer, nullptr);
+        m_max_used  = std::exchange(other.m_max_used, 0);
+        m_max_size  = std::exchange(other.m_max_size, 0);
+        m_capacity  = std::exchange(other.m_capacity, 0);
+        m_free_list = std::exchange(other.m_free_list, free_list_end);
+    }
+    return *this;
+}
+
+template<typename T, typename IndexType, typename A>
+template<typename... Args>
+constexpr typename pool<T, IndexType, A>::index_type
+pool<T, IndexType, A>::alloc(Args&&... args) noexcept
+{
+    debug::ensure(can_alloc(1));
+
+    index_type new_index;
+
+    if (m_free_list != free_list_end) {
+        new_index   = m_free_list;
+        m_free_list = m_buffer[m_free_list].next;
+    } else {
+        new_index = m_max_used++;
+    }
+
+    std::construct_at(&m_buffer[new_index].item, std::forward<Args>(args)...);
+    m_buffer[new_index].next = active;
+
+    ++m_max_size;
+
+    return new_index;
+}
+
+template<typename T, typename IndexType, typename A>
+constexpr void pool<T, IndexType, A>::free(std::integral auto index) noexcept
+{
+    if (0 <= index and index < m_max_used) {
+        debug::ensure(is_valid(index));
+
+        std::destroy_at(std::addressof(m_buffer[index].item));
+        m_buffer[index].next = free_list_end;
+
+        if (m_max_size == 1) {
+            m_max_size  = 0;
+            m_max_used  = 0;
+            m_free_list = free_list_end;
+        } else {
+            if (m_free_list == free_list_end or index < m_free_list) {
+                m_buffer[index].next = m_free_list;
+                m_free_list          = static_cast<index_type>(index);
+            } else {
+                auto prev = m_free_list;
+                auto cur  = m_buffer[m_free_list].next;
+                do {
+                    if (index < cur) {
+                        m_buffer[prev].next  = static_cast<index_type>(index);
+                        m_buffer[index].next = cur;
+                        break;
+                    }
+                    prev = cur;
+                    cur  = m_buffer[cur].next;
+                } while (cur != free_list_end);
+
+                if (cur == free_list_end) {
+                    m_buffer[prev].next  = index;
+                    m_buffer[index].next = free_list_end;
+                }
+            }
+            --m_max_size;
+        }
+    }
+}
+
+template<typename T, typename IndexType, typename A>
+constexpr void pool<T, IndexType, A>::swap(pool& o) noexcept
+{
+    std::swap(m_buffer, o.m_buffer);
+    std::swap(m_max_used, o.m_max_used);
+    std::swap(m_max_size, o.m_max_size);
+    std::swap(m_capacity, o.m_capacity);
+    std::swap(m_free_list, o.m_free_list);
+}
+
+template<typename T, typename IndexType, typename A>
+constexpr typename pool<T, IndexType, A>::reference
+pool<T, IndexType, A>::operator[](std::integral auto i) noexcept
+{
+    debug::ensure(std::cmp_greater_equal(i, 0));
+    debug::ensure(std::cmp_less(i, m_max_used));
+
+    return m_buffer[i].item;
+}
+
+template<typename T, typename IndexType, typename A>
+constexpr typename pool<T, IndexType, A>::const_reference
+pool<T, IndexType, A>::operator[](std::integral auto i) const noexcept
+{
+    debug::ensure(std::cmp_greater_equal(i, 0));
+    debug::ensure(std::cmp_less(i, m_max_used));
+
+    return m_buffer[i].item;
+}
+
+template<typename T, typename IndexType, typename A>
+constexpr void pool<T, IndexType, A>::clear() noexcept
+{
+    delete_objects();
+
+    m_max_used  = 0;
+    m_max_size  = 0;
+    m_free_list = free_list_end;
+}
+
+template<typename T, typename IndexType, typename A>
+constexpr void pool<T, IndexType, A>::destroy() noexcept
+{
+    clear();
+
+    delete_buffer();
+
+    m_buffer   = nullptr;
+    m_capacity = 0;
+}
+
+template<typename T, typename IndexType, typename A>
+constexpr bool pool<T, IndexType, A>::can_alloc(
+  std::integral auto nb) const noexcept
+{
+    return std::cmp_greater_equal(m_capacity - m_max_size, nb);
+}
+
+template<typename T, typename IndexType, typename A>
+constexpr bool pool<T, IndexType, A>::grow() noexcept
+{
+    const auto nb      = m_capacity * 2u;
+    const auto req     = nb == m_capacity ? m_capacity + 8u : nb;
+    const auto min_req = req > std::numeric_limits<index_type>::max()
+                           ? std::numeric_limits<index_type>::max()
+                           : req;
+
+    if (item* new_data =
+          reinterpret_cast<item*>(A::allocate(sizeof(item) * min_req))) {
+
+        if constexpr (std::is_move_constructible_v<T>) {
+            std::uninitialized_move_n(m_buffer, m_max_used, new_data);
+            delete_buffer();
+        } else {
+            std::uninitialized_copy_n(m_buffer, m_max_used, new_data);
+            delete_objects();
+            delete_buffer();
+        }
+
+        m_buffer   = new_data;
+        m_capacity = static_cast<index_type>(min_req);
+
+        return true;
+    }
+
+    return false;
+}
+
+template<typename T, typename IndexType, typename A>
+constexpr bool pool<T, IndexType, A>::is_valid(
+  std::integral auto idx) const noexcept
+{
+    return std::cmp_greater_equal(idx, 0) and std::cmp_less(idx, m_max_used) and
+           m_buffer[idx].next == active;
+}
+
+template<typename T, typename IndexType, typename A>
+constexpr unsigned pool<T, IndexType, A>::size() const noexcept
+{
+    return m_max_size;
+}
+
+template<typename T, typename IndexType, typename A>
+constexpr int pool<T, IndexType, A>::ssize() const noexcept
+{
+    return static_cast<int>(m_max_size);
+}
+
+template<typename T, typename IndexType, typename A>
+constexpr unsigned pool<T, IndexType, A>::capacity() const noexcept
+{
+    return m_capacity;
+}
+
+template<typename T, typename IndexType, typename A>
+constexpr bool pool<T, IndexType, A>::empty() const noexcept
+{
+    return m_max_size == 0;
+}
+
+template<typename T, typename IndexType, typename A>
+constexpr void pool<T, IndexType, A>::delete_buffer() noexcept
+{
+    if (m_buffer)
+        A::deallocate(m_buffer, m_capacity * sizeof(item));
+}
+
+template<typename T, typename IndexType, typename A>
+constexpr void pool<T, IndexType, A>::delete_objects() noexcept
+{
+    for (index_type i = 0; i < m_max_used; ++i) {
+        if (m_buffer[i].next == active) {
+            std::destroy_at(std::addressof(m_buffer[i].item));
+            m_buffer[i].next = free_list_end;
+        }
+    }
 }
 
 } // namespace irt

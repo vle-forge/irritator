@@ -2730,4 +2730,143 @@ int main()
             expect(is_equal);
         }
     };
+
+    struct Foo {
+        int x;
+
+        Foo(int v = 0)
+          : x(v)
+        {}
+
+        bool operator==(const Foo& other) const { return x == other.x; }
+    };
+
+    using Pool = irt::pool<Foo, std::uint32_t>;
+
+    "pool_DefaultConstructor"_test = [] {
+        Pool p;
+        expect(p.empty());
+        expect(eq(p.size(), 0u));
+        expect(eq(p.capacity(), 0u));
+    };
+
+    "pool_ReserveConstructor"_test = [] {
+        Pool p(10);
+        expect(eq(p.capacity(), 10u));
+        expect(p.empty());
+    };
+
+    "pool_AllocAndAccess"_test = [] {
+        Pool p(5);
+        auto idx = p.alloc(42);
+        expect(p.is_valid(idx));
+        expect(eq(p[idx].x, 42));
+        expect(eq(p.size(), 1u));
+    };
+
+    "pool_FreeAndReuse"_test = [] {
+        Pool                  p(5);
+        auto                  idx1 = p.alloc(1);
+        [[maybe_unused]] auto idx2 = p.alloc(2);
+        expect(eq(p.size(), 2u));
+
+        p.free(idx1);
+        expect(not p.is_valid(idx1));
+        expect(eq(p.size(), 1u));
+
+        auto idx3 = p.alloc(3);
+        expect(p.is_valid(idx3));
+        expect(eq(p[idx3].x, 3));
+        expect(eq(p.size(), 2u));
+    };
+
+    "pool_CopyConstructor"_test = [] {
+        Pool p(5);
+        auto idx = p.alloc(99);
+
+        Pool q(p);
+        expect(eq(q.size(), 1u));
+        expect(eq(q[idx].x, 99));
+    };
+
+    "pool_CopyAssignment"_test = [] {
+        Pool p(5);
+        auto idx = p.alloc(77);
+
+        Pool q;
+        q = p;
+        expect(eq(q.size(), 1u));
+        expect(eq(q[idx].x, 77));
+    };
+
+    "pool_MoveConstructor"_test = [] {
+        Pool p(5);
+        auto idx = p.alloc(55);
+
+        Pool q(std::move(p));
+        expect(eq(q.size(), 1u));
+        expect(eq(q[idx].x, 55));
+        expect(p.empty());
+    };
+
+    "pool_MoveAssignment"_test = [] {
+        Pool p(5);
+        auto idx = p.alloc(66);
+
+        Pool q;
+        q = std::move(p);
+        expect(eq(q.size(), 1u));
+        expect(eq(q[idx].x, 66));
+        expect(p.empty());
+    };
+
+    "pool_Swap"_test = [] {
+        Pool p(5);
+        Pool q(5);
+        auto idx1 = p.alloc(1);
+        auto idx2 = q.alloc(2);
+
+        p.swap(q);
+        expect(eq(p[idx2].x, 2));
+        expect(eq(q[idx1].x, 1));
+    };
+
+    "pool_Clear"_test = [] {
+        Pool                  p(5);
+        [[maybe_unused]] auto idx = p.alloc(10);
+        expect(eq(p.size(), 1u));
+
+        p.clear();
+        expect(p.empty());
+        expect(eq(p.size(), 0u));
+    };
+
+    "pool_Destroy"_test = [] {
+        Pool                  p(5);
+        [[maybe_unused]] auto idx = p.alloc(10);
+        p.destroy();
+        expect(eq(p.capacity(), 0u));
+        expect(p.empty());
+    };
+
+    "pool_Grow"_test = [] {
+        Pool p(2);
+        p.alloc(1);
+        p.alloc(2);
+        expect(not p.can_alloc(1));
+
+        bool grown = p.grow();
+        expect(grown);
+        expect(ge(p.capacity(), 4u));
+        expect(eq(p.size(), 2u));
+    };
+
+    "pool_EmptyAndSizeChecks"_test = [] {
+        Pool p(5);
+        expect(p.empty());
+        [[maybe_unused]] auto idx = p.alloc(123);
+        expect(not p.empty());
+        expect(eq(p.size(), 1u));
+        expect(eq(p.ssize(), 1));
+    };
 }
