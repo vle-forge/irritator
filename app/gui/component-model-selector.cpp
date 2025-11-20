@@ -105,8 +105,7 @@ void component_model_selector::observable_model_treenode(const project& pj,
     };
 
     if (auto* compo = app.mod.components.try_to_get<component>(tn.id)) {
-        debug::ensure(0 <= ordinal(compo->type) and
-                      ordinal(compo->type) < length(compo_fmt));
+        debug::ensure(ordinal(compo->type) < length(compo_fmt));
 
         const auto* fmt = compo_fmt[ordinal(compo->type)];
 
