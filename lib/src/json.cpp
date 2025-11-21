@@ -4209,7 +4209,7 @@ struct json_dearchiver::impl {
                for_each_array(
                  val,
                  [&](const auto /*i*/, const auto& value) noexcept -> bool {
-                     return read_input_port(value, port, port.alloc());
+                     return read_input_port(value, port, port.alloc_id());
                  });
     }
 
@@ -4254,7 +4254,7 @@ struct json_dearchiver::impl {
                for_each_array(
                  val,
                  [&](const auto /*i*/, const auto& value) noexcept -> bool {
-                     return read_output_port(value, port, port.alloc());
+                     return read_output_port(value, port, port.alloc_id());
                  });
     }
 
@@ -4475,7 +4475,7 @@ struct json_dearchiver::impl {
                for_each_array(
                  val,
                  [&](const auto /*i*/, const auto& value) noexcept -> bool {
-                     const auto id = pj().parameters.alloc();
+                     const auto id = pj().parameters.alloc_id();
                      return read_global_parameter(value, id);
                  });
     }

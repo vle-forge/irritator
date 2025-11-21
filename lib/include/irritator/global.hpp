@@ -205,7 +205,7 @@ public:
         if (not m_logs.can_alloc(1))
             pop();
 
-        const auto id                = m_logs.alloc();
+        const auto id                = m_logs.alloc_id();
         const auto idx               = get_index(id);
         m_logs.get<log_level>()[idx] = level;
         m_logs.get<u64>()[idx]       = get_tick_count_in_milliseconds();
@@ -227,7 +227,7 @@ public:
             if (not m_logs.can_alloc(1))
                 pop();
 
-            const auto id                = m_logs.alloc();
+            const auto id                = m_logs.alloc_id();
             const auto idx               = get_index(id);
             m_logs.get<log_level>()[idx] = level;
             m_logs.get<u64>()[idx]       = get_tick_count_in_milliseconds();
@@ -271,7 +271,8 @@ private:
     mutable std::shared_mutex m_mutex;
     std::atomic_int           m_number;
 
-    id_data_array<entry_id,
+    id_data_array<void,
+                  entry_id,
                   allocator<new_delete_memory_resource>,
                   title,
                   descr,

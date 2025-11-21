@@ -587,7 +587,8 @@ static auto make_tree_leaf(simulation_copy&          sc,
             not parent.parameters_ids.data.grow<2, 1>())
             return new_error(project_errc::memory_error);
 
-        const auto id                      = sc.pj.parameters.alloc();
+        const auto id = sc.pj.parameters.alloc_id();
+
         sc.pj.parameters.get<name_str>(id) = name_str(uid);
         sc.pj.parameters.get<tree_node_id>(id) =
           sc.pj.tree_nodes.get_id(parent);

@@ -55,7 +55,7 @@ static void show_component_popup_menu(application&     app,
 
         if (ImGui::MenuItem("Copy")) {
             if (app.mod.components.can_alloc(1)) {
-                auto new_c_id = app.mod.components.alloc();
+                auto new_c_id = app.mod.components.alloc_id();
                 app.mod.components.get<component_color>(
                   new_c_id) = { 1.f, 1.f, 1.f, 1.f };
                 auto& new_c = app.mod.components.get<component>(new_c_id);

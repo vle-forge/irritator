@@ -1226,20 +1226,6 @@ int main()
         expect(ge(arr.capacity(), 10));
     };
 
-    "DataArray_AllocAndTryAlloc"_test = [] {
-        test_array arr(3);
-        auto&      d1 = arr.alloc(42);
-        expect(eq(d1.value, 42));
-        auto* d2 = arr.try_alloc(7);
-        expect(neq(d2, nullptr));
-        expect(eq(d2->value, 7));
-        auto* d3 = arr.try_alloc(99);
-        expect(neq(d3, nullptr));
-        auto* d4 = arr.try_alloc(100);
-        expect(eq(d4, nullptr)); // should fail, capacity full
-        expect(eq(arr.size(), 3u));
-    };
-
     "DataArray_FreeByRefAndById"_test = [] {
         test_array arr(2);
         auto&      d1  = arr.alloc(1);
@@ -1527,7 +1513,8 @@ int main()
 
         enum class ex1_id : uint32_t;
 
-        irt::id_data_array<ex1_id,
+        irt::id_data_array<void,
+                           ex1_id,
                            irt::allocator<irt::new_delete_memory_resource>,
                            pos3d,
                            color,
@@ -1537,12 +1524,10 @@ int main()
         expect(ge(d.capacity(), 1024u));
         expect(fatal(d.can_alloc(1)));
 
-        const auto id =
-          d.alloc([](const auto /*id*/, auto& p, auto& c, auto& n) noexcept {
-              p = pos3d(0.f, 0.f, 0.f);
-              c = color{ 123u };
-              n = "HelloWorld!";
-          });
+        const auto id    = d.alloc_id();
+        d.get<pos3d>(id) = pos3d(0.f, 0.f, 0.f);
+        d.get<color>(id) = color{ 123u };
+        d.get<name>(id)  = "HelloWorld!";
 
         expect(eq(d.ssize(), 1));
 
@@ -1563,19 +1548,15 @@ int main()
         d.free(id);
         expect(eq(d.ssize(), 0));
 
-        const auto id1 =
-          d.alloc([](const auto /*id*/, auto& p, auto& c, auto& n) noexcept {
-              p = pos3d(0.f, 0.f, 0.f);
-              c = color{ 123u };
-              n = "HelloWorld!";
-          });
+        const auto id1    = d.alloc_id();
+        d.get<pos3d>(id1) = pos3d(0.f, 0.f, 0.f);
+        d.get<color>(id1) = color{ 123u };
+        d.get<name>(id1)  = "HelloWorld!";
 
-        const auto id2 =
-          d.alloc([](const auto /*id*/, auto& p, auto& c, auto& n) noexcept {
-              p = pos3d(0.f, 0.f, 0.f);
-              c = color{ 123u };
-              n = "HelloWorld!";
-          });
+        const auto id2    = d.alloc_id();
+        d.get<pos3d>(id2) = pos3d(0.f, 0.f, 0.f);
+        d.get<color>(id2) = color{ 123u };
+        d.get<name>(id2)  = "HelloWorld!";
 
         const auto idx1 = irt::get_index(id1);
         expect(eq(idx1, 0));
@@ -1594,7 +1575,8 @@ int main()
             expect(n.sv() == "HelloWorld!");
         });
 
-        irt::id_data_array<ex1_id,
+        irt::id_data_array<void,
+                           ex1_id,
                            irt::allocator<irt::new_delete_memory_resource>,
                            pos3d,
                            color,
@@ -1626,7 +1608,8 @@ int main()
             expect(n.sv() == "HelloWorld!");
         });
 
-        irt::id_data_array<ex1_id,
+        irt::id_data_array<void,
+                           ex1_id,
                            irt::allocator<irt::new_delete_memory_resource>,
                            pos3d,
                            color,
@@ -1643,6 +1626,24 @@ int main()
             expect(eq(123u, c.rgba));
             expect(n.sv() == "HelloWorld!");
         });
+
+        irt::id_data_array<pos3d,
+                           ex1_id,
+                           irt::allocator<irt::new_delete_memory_resource>,
+                           pos3d,
+                           color,
+                           name>
+          g(16);
+
+        auto& p1 = g.alloc(1.f, 2.f, 3.f);
+        auto& p2 = g.alloc(4.f, 5.f, 6.f);
+        expect(eq(g.ssize(), 2));
+        expect(eq(p1.x, 1.f));
+        expect(eq(p1.y, 2.f));
+        expect(eq(p1.z, 3.f));
+        expect(eq(p2.x, 4.f));
+        expect(eq(p2.y, 5.f));
+        expect(eq(p2.z, 6.f));
     };
 
     "ring-buffer-head"_test = [] {

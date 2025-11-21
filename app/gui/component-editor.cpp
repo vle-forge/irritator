@@ -568,11 +568,11 @@ struct component_editor::impl {
                 if (not app.mod.descriptions.exists(compo.desc)) {
                     if (app.mod.descriptions.can_alloc(1) &&
                         ImGui::Button("Add description")) {
-                        compo.desc = app.mod.descriptions.alloc(
-                          [](auto /*id*/, auto& str, auto& status) noexcept {
-                              str.clear();
-                              status = description_status::modified;
-                          });
+                        compo.desc = app.mod.descriptions.alloc_id();
+                        app.mod.descriptions.get<description_str>(compo.desc)
+                          .clear();
+                        app.mod.descriptions.get<description_status>(
+                          compo.desc) = description_status::modified;
                     }
                 } else {
                     constexpr ImGuiInputTextFlags flags =
@@ -1980,26 +1980,18 @@ struct component_editor::impl {
 
                         if (compo.x.can_alloc(1) and
                             ImGui::Button("Input port", size)) {
-                            compo.x.alloc([&](auto /*id*/,
-                                              auto& type,
-                                              auto& name,
-                                              auto& pos) noexcept {
-                                name = "in";
-                                type = port_option::classic;
-                                pos.reset();
-                            });
+                            auto id                      = compo.x.alloc_id();
+                            compo.x.get<port_str>(id)    = "in";
+                            compo.x.get<port_option>(id) = port_option::classic;
+                            compo.x.get<position>(id).reset();
                         }
 
                         if (compo.y.can_alloc(1) and
                             ImGui::Button("Output port", size)) {
-                            compo.y.alloc([&](auto /*id*/,
-                                              auto& type,
-                                              auto& name,
-                                              auto& pos) noexcept {
-                                name = "out";
-                                type = port_option::classic;
-                                pos.reset();
-                            });
+                            auto id                      = compo.y.alloc_id();
+                            compo.y.get<port_str>(id)    = "out";
+                            compo.y.get<port_option>(id) = port_option::classic;
+                            compo.y.get<position>(id).reset();
                         }
 
                         if (ImGui::Button("refresh i/o", size))

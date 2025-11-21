@@ -96,7 +96,8 @@ static void prepare_component_loading(
     if (not mod.components.can_alloc(1) and mod.components.grow<3, 2>())
         return;
 
-    auto compo_id                                 = mod.components.alloc();
+    auto compo_id = mod.components.alloc_id();
+
     mod.components.get<component_color>(compo_id) = { 1.f, 1.f, 1.f, 1.f };
     auto& compo    = mod.components.get<component>(compo_id);
     compo.reg_path = mod.registred_paths.get_id(reg_dir);
@@ -114,11 +115,10 @@ static void prepare_component_loading(
         if (fs::exists(desc_file, ec)) {
             debug_logi(6, "found description file {}\n", desc_file.string());
             if (mod.descriptions.can_alloc(1)) {
-                compo.desc = mod.descriptions.alloc(
-                  [](auto /*id*/, auto& str, auto& status) noexcept {
-                      str.clear();
-                      status = description_status::unread;
-                  });
+                compo.desc = mod.descriptions.alloc_id();
+                mod.descriptions.get<description_str>(compo.desc).clear();
+                mod.descriptions.get<description_status>(compo.desc) =
+                  description_status::unread;
             } else {
                 mod.journal.push(
                   log_level::error, [&](auto& t, auto& m) noexcept {
@@ -490,11 +490,10 @@ status modeling::load_component(component& compo) noexcept
             if (auto f = file::open(str.c_str(), open_mode::read); f) {
                 if (not descriptions.exists(compo.desc))
                     if (descriptions.can_alloc(1))
-                        compo.desc = descriptions.alloc(
-                          [](auto /*id*/, auto& str, auto& status) noexcept {
-                              str.clear();
-                              status = description_status::modified;
-                          });
+                        compo.desc = descriptions.alloc_id();
+                descriptions.get<description_str>(compo.desc).clear();
+                descriptions.get<description_status>(compo.desc) =
+                  description_status::modified;
 
                 if (descriptions.exists(compo.desc)) {
                     auto& str = descriptions.get<0>(compo.desc);
@@ -938,7 +937,8 @@ component& modeling::alloc_grid_component() noexcept
 {
     debug::ensure(can_alloc_grid_component());
 
-    auto new_compo_id                             = components.alloc();
+    auto new_compo_id = components.alloc_id();
+
     components.get<component_color>(new_compo_id) = { 1.f, 1.f, 1.f, 1.f };
     auto& new_compo = components.get<component>(new_compo_id);
     format(new_compo.name, "grid {}", get_index(new_compo_id));
@@ -956,7 +956,8 @@ component& modeling::alloc_graph_component() noexcept
 {
     debug::ensure(can_alloc_graph_component());
 
-    auto new_compo_id                             = components.alloc();
+    auto new_compo_id = components.alloc_id();
+
     components.get<component_color>(new_compo_id) = { 1.f, 1.f, 1.f, 1.f };
     auto& new_compo = components.get<component>(new_compo_id);
     format(new_compo.name, "graph {}", get_index(new_compo_id));
@@ -973,7 +974,8 @@ component& modeling::alloc_hsm_component() noexcept
 {
     debug::ensure(can_alloc_hsm_component());
 
-    auto new_compo_id                             = components.alloc();
+    auto new_compo_id = components.alloc_id();
+
     components.get<component_color>(new_compo_id) = { 1.f, 1.f, 1.f, 1.f };
     auto& new_compo = components.get<component>(new_compo_id);
     format(new_compo.name, "hsm {}", get_index(new_compo_id));
@@ -993,7 +995,8 @@ component& modeling::alloc_generic_component() noexcept
 {
     debug::ensure(can_alloc_generic_component());
 
-    auto new_compo_id                             = components.alloc();
+    auto new_compo_id = components.alloc_id();
+
     components.get<component_color>(new_compo_id) = { 1.f, 1.f, 1.f, 1.f };
     auto& new_compo = components.get<component>(new_compo_id);
     format(new_compo.name, "simple {}", get_index(new_compo_id));
@@ -1223,7 +1226,7 @@ status modeling::copy(const component& src, component& dst) noexcept
                        const auto  type,
                        const auto& name,
                        const auto& pos) noexcept {
-        auto new_id                    = dst.x.alloc();
+        auto new_id                    = dst.x.alloc_id();
         dst.x.get<port_option>(new_id) = type;
         dst.x.get<port_str>(new_id)    = name;
         dst.x.get<position>(new_id)    = pos;
@@ -1233,7 +1236,7 @@ status modeling::copy(const component& src, component& dst) noexcept
                        const auto  type,
                        const auto& name,
                        const auto& pos) noexcept {
-        auto new_id                    = dst.y.alloc();
+        auto new_id                    = dst.y.alloc_id();
         dst.y.get<port_option>(new_id) = type;
         dst.y.get<port_str>(new_id)    = name;
         dst.y.get<position>(new_id)    = pos;

@@ -1005,6 +1005,24 @@ protected:
     std::byte* m_buffer = nullptr;
 };
 
+template<typename T, typename Identifier, typename A>
+class data_array;
+
+/** Specialization of data_array for void types */
+template<typename T, typename Identifier, typename A>
+    requires std::is_void_v<T>
+class data_array<T, Identifier, A>;
+
+template<typename T, typename Identifier, typename A, class... Ts>
+class id_data_array;
+
+template<typename Identifier, typename A>
+    requires(is_identifier_type<Identifier>)
+class id_array;
+
+template<typename T, typename Identifier, typename A, class... Ts>
+class data_vector_array;
+
 /**
    @brief A vector like class with dynamic allocation.
 
@@ -1467,7 +1485,8 @@ public:
    @tparam Identifier A enum class identifier to store identifier unsigned
    number.
 */
-template<typename Identifier,
+template<typename T,
+         typename Identifier,
          typename A = allocator<new_delete_memory_resource>,
          class... Ts>
 class id_data_array
@@ -1487,10 +1506,15 @@ class id_data_array
                          std::uint32_t>;
 
     using identifier_type = Identifier;
-    using value_type      = Identifier;
+    using value_type      = T;
     using allocator_type  = A;
 
-    id_array<identifier_type, A>   m_ids;
+    using identifier_container_type =
+      std::conditional_t<std::is_void_v<T>,
+                         id_array<Identifier, A>,
+                         data_array<T, Identifier, A>>;
+
+    identifier_container_type      m_ids;
     std::tuple<buffer_view<Ts>...> m_col;
 
 private:
@@ -1518,8 +1542,8 @@ private:
         std::invoke(std::forward<Function>(fn), id, std::get<Is>(m_col)[id]...);
     }
 
-    template<typename T>
-    void do_construct(buffer_view<T>&          buffer,
+    template<typename SubT>
+    void do_construct(buffer_view<SubT>&       buffer,
                       const std::integral auto len) noexcept
     {
         debug::ensure(buffer.get());
@@ -1537,14 +1561,15 @@ private:
         (do_construct(std::get<Is>(m_col), len), ...);
     }
 
-    template<typename T>
-    void do_alloc(buffer_view<T>& buffer, const std::integral auto len) noexcept
+    template<typename SubT>
+    void do_alloc(buffer_view<SubT>&       buffer,
+                  const std::integral auto len) noexcept
     {
         debug::ensure(buffer.get() == nullptr);
         debug::ensure(len > 0);
 
         buffer.reset(
-          reinterpret_cast<std::byte*>(A::allocate(sizeof(T) * len)));
+          reinterpret_cast<std::byte*>(A::allocate(sizeof(SubT) * len)));
     }
 
     /**
@@ -1560,13 +1585,13 @@ private:
         (do_alloc(std::get<Is>(m_col), len), ...);
     }
 
-    template<typename T>
+    template<typename SubT>
     void do_destroy(const std::integral auto len,
-                    buffer_view<T>&          buffer) noexcept
+                    buffer_view<SubT>&       buffer) noexcept
     {
         if (buffer.get()) {
             std::destroy_n(buffer.get(), len);
-            A::deallocate(buffer.get(), sizeof(T) * len);
+            A::deallocate(buffer.get(), sizeof(SubT) * len);
             buffer.reset(nullptr);
         }
     }
@@ -1582,10 +1607,10 @@ private:
         (do_destroy(len, std::get<Is>(m_col)), ...);
     }
 
-    template<typename T>
-    void do_uninitialised_copy(const buffer_view<T>& src,
-                               buffer_view<T>&       dst,
-                               std::integral auto    len) noexcept
+    template<typename SubT>
+    void do_uninitialised_copy(const buffer_view<SubT>& src,
+                               buffer_view<SubT>&       dst,
+                               std::integral auto       len) noexcept
     {
         debug::ensure(src.get() and dst.get());
 
@@ -1612,13 +1637,14 @@ private:
         ((std::get<Is>(other_m_col).reset(nullptr)), ...);
     }
 
-    template<typename T>
+    template<typename SubT>
     void do_resize(std::integral auto old,
                    std::integral auto req,
-                   buffer_view<T>&    buffer) noexcept
+                   buffer_view<SubT>& buffer) noexcept
     {
-        auto* ptr = reinterpret_cast<std::byte*>(A::allocate(sizeof(T) * req));
-        auto* new_ptr = reinterpret_cast<T*>(ptr);
+        auto* ptr =
+          reinterpret_cast<std::byte*>(A::allocate(sizeof(SubT) * req));
+        auto* new_ptr = reinterpret_cast<SubT*>(ptr);
 
         if (buffer.get()) {
             if constexpr (std::is_trivially_copy_constructible_v<T>) {
@@ -1628,7 +1654,7 @@ private:
             } else {
                 std::uninitialized_copy_n(buffer.get(), old, new_ptr);
             }
-            A::deallocate(buffer.get(), sizeof(T) * old);
+            A::deallocate(buffer.get(), sizeof(SubT) * old);
             buffer.reset(nullptr);
         }
 
@@ -1659,10 +1685,12 @@ public:
     id_data_array& operator=(const id_data_array& other) noexcept;
     id_data_array& operator=(id_data_array&& other) noexcept;
 
-    identifier_type alloc() noexcept;
+    auto& alloc() noexcept;
 
-    template<typename Function>
-    identifier_type alloc(Function&& fn) noexcept;
+    auto alloc_id() noexcept -> identifier_type;
+
+    template<typename... Args>
+    auto& alloc(Args&&... args) noexcept;
 
     /** Return the identifier type at index `idx` if and only if `idx`
      * is in range `[0, size()[` and if the value `is_defined` otherwise
@@ -1957,16 +1985,19 @@ public:
     template<typename... Args>
     T& alloc(Args&&... args) noexcept;
 
-    //! @brief Alloc a new element.
+    //! @brief Alloc a new element and returns its identifier.
+    //!
+    //! If m_max_size == m_capacity then this function will abort.
+    //! Before using this function, tries @c !can_alloc() for example
+    //! otherwise use the @c try_alloc function.
     //!
     //! Use @c m_free_head if not empty or use a new items from buffer
     //! (@m_item[max_used++]). The id is set to from @c next_key++ <<
     //! 32) | index to build unique identifier.
     //!
-    //! @return A pair with a boolean if the allocation success and a
-    //! pointer to the newly element.
+    //! @return The identifier to the newly allocated element.
     template<typename... Args>
-    T* try_alloc(Args&&... args) noexcept;
+    identifier_type alloc_id(Args&&... args) noexcept;
 
     //! @brief Free the element @c t.
     //!
@@ -2822,6 +2853,9 @@ public:
     template<typename... Args>
     data_type& alloc(Args&&... args) noexcept;
 
+    template<typename... Args>
+    identifier_type alloc_id(Args&&... args) noexcept;
+
     identifier_type get_id(const data_type& d) const noexcept;
 
     /** Return the identifier type at index `idx` if and only if `idx`
@@ -3134,6 +3168,12 @@ constexpr void id_array<Identifier, A>::free(const Identifier id) noexcept
                 prev = cur;
                 cur  = get_index(m_items[cur]);
             } while (prev != none);
+
+            if (cur == none) {
+                m_items[prev]  = static_cast<Identifier>(index);
+                m_items[index] = static_cast<Identifier>(none);
+            }
+
             --m_max_size;
         }
     }
@@ -3360,21 +3400,21 @@ constexpr void id_array<Identifier, A>::swap(this_container& other) noexcept
 // template<typename Identifier, typename A, class... Ts>
 // class id_data_array
 
-template<typename Identifier, typename A, class... Ts>
-id_data_array<Identifier, A, Ts...>::id_data_array(
+template<typename T, typename Identifier, typename A, class... Ts>
+id_data_array<T, Identifier, A, Ts...>::id_data_array(
   std::integral auto capacity) noexcept
 {
     reserve(capacity);
 }
 
-template<typename Identifier, typename A, class... Ts>
-id_data_array<Identifier, A, Ts...>::~id_data_array() noexcept
+template<typename T, typename Identifier, typename A, class... Ts>
+id_data_array<T, Identifier, A, Ts...>::~id_data_array() noexcept
 {
     do_destroy(capacity(), std::index_sequence_for<Ts...>());
 }
 
-template<typename Identifier, typename A, class... Ts>
-id_data_array<Identifier, A, Ts...>::id_data_array(
+template<typename T, typename Identifier, typename A, class... Ts>
+id_data_array<T, Identifier, A, Ts...>::id_data_array(
   const id_data_array& other) noexcept
   : m_ids(other.m_ids)
 {
@@ -3383,8 +3423,8 @@ id_data_array<Identifier, A, Ts...>::id_data_array(
       other.m_col, other.capacity(), std::index_sequence_for<Ts...>());
 }
 
-template<typename Identifier, typename A, class... Ts>
-id_data_array<Identifier, A, Ts...>::id_data_array(
+template<typename T, typename Identifier, typename A, class... Ts>
+id_data_array<T, Identifier, A, Ts...>::id_data_array(
   id_data_array&& other) noexcept
   : m_ids(std::move(other.m_ids))
   , m_col(std::move(other.m_col))
@@ -3392,8 +3432,8 @@ id_data_array<Identifier, A, Ts...>::id_data_array(
     do_reset(other.m_col, std::index_sequence_for<Ts...>());
 }
 
-template<typename Identifier, typename A, class... Ts>
-auto id_data_array<Identifier, A, Ts...>::operator=(
+template<typename T, typename Identifier, typename A, class... Ts>
+auto id_data_array<T, Identifier, A, Ts...>::operator=(
   const id_data_array& other) noexcept -> id_data_array&
 {
     if (this != &other) {
@@ -3406,8 +3446,8 @@ auto id_data_array<Identifier, A, Ts...>::operator=(
     return *this;
 }
 
-template<typename Identifier, typename A, class... Ts>
-auto id_data_array<Identifier, A, Ts...>::operator=(
+template<typename T, typename Identifier, typename A, class... Ts>
+auto id_data_array<T, Identifier, A, Ts...>::operator=(
   id_data_array&& other) noexcept -> id_data_array&
 {
     if (this != &other) {
@@ -3421,53 +3461,64 @@ auto id_data_array<Identifier, A, Ts...>::operator=(
     return *this;
 }
 
-template<typename Identifier, typename A, class... Ts>
-auto id_data_array<Identifier, A, Ts...>::alloc() noexcept
-  -> id_data_array<Identifier, A, Ts...>::identifier_type
+template<typename T, typename Identifier, typename A, class... Ts>
+auto id_data_array<T, Identifier, A, Ts...>::alloc_id() noexcept
+  -> id_data_array<T, Identifier, A, Ts...>::identifier_type
 {
     irt::fatal::ensure(m_ids.can_alloc(1));
 
+    if constexpr (std::is_void_v<T>)
+        return m_ids.alloc();
+    else
+        return m_ids.get_id(m_ids.alloc());
+}
+
+template<typename T, typename Identifier, typename A, class... Ts>
+auto& id_data_array<T, Identifier, A, Ts...>::alloc() noexcept
+{
+    static_assert(not std::is_void_v<T>,
+                  "id_data_array::alloc() is not available when T is void");
+
+    irt::fatal::ensure(m_ids.can_alloc(1));
     return m_ids.alloc();
 }
 
-template<typename Identifier, typename A, class... Ts>
-template<typename Function>
-auto id_data_array<Identifier, A, Ts...>::alloc(Function&& fn) noexcept
-  -> id_data_array<Identifier, A, Ts...>::identifier_type
+template<typename T, typename Identifier, typename A, class... Ts>
+template<typename... Args>
+auto& id_data_array<T, Identifier, A, Ts...>::alloc(Args&&... args) noexcept
 {
-    irt::fatal::ensure(m_ids.can_alloc(1));
+    static_assert(not std::is_void_v<T>,
+                  "id_data_array::alloc() is not available when T is void");
 
-    const auto id = m_ids.alloc();
-    do_call_alloc_fn(
-      std::forward<Function>(fn), id, std::index_sequence_for<Ts...>());
-    return id;
+    irt::fatal::ensure(m_ids.can_alloc(1));
+    return m_ids.alloc(std::forward<Args>(args)...);
 }
 
-template<typename Identifier, typename A, class... Ts>
-void id_data_array<Identifier, A, Ts...>::free(
+template<typename T, typename Identifier, typename A, class... Ts>
+void id_data_array<T, Identifier, A, Ts...>::free(
   const identifier_type id) noexcept
 {
     if (m_ids.exists(id))
         m_ids.free(id);
 }
 
-template<typename Identifier, typename A, class... Ts>
+template<typename T, typename Identifier, typename A, class... Ts>
 template<std::size_t Index>
-auto& id_data_array<Identifier, A, Ts...>::get() noexcept
+auto& id_data_array<T, Identifier, A, Ts...>::get() noexcept
 {
     return std::get<Index>(m_col);
 }
 
-template<typename Identifier, typename A, class... Ts>
+template<typename T, typename Identifier, typename A, class... Ts>
 template<typename Type>
-auto& id_data_array<Identifier, A, Ts...>::get() noexcept
+auto& id_data_array<T, Identifier, A, Ts...>::get() noexcept
 {
     return std::get<buffer_view<Type>>(m_col);
 }
 
-template<typename Identifier, typename A, class... Ts>
+template<typename T, typename Identifier, typename A, class... Ts>
 template<std::size_t Index>
-auto& id_data_array<Identifier, A, Ts...>::get(
+auto& id_data_array<T, Identifier, A, Ts...>::get(
   const identifier_type id) noexcept
 {
     debug::ensure(m_ids.exists(id));
@@ -3475,9 +3526,9 @@ auto& id_data_array<Identifier, A, Ts...>::get(
     return std::get<Index>(m_col)[get_index(id)];
 }
 
-template<typename Identifier, typename A, class... Ts>
+template<typename T, typename Identifier, typename A, class... Ts>
 template<typename Type>
-auto& id_data_array<Identifier, A, Ts...>::get(
+auto& id_data_array<T, Identifier, A, Ts...>::get(
   const identifier_type id) noexcept
 {
     debug::ensure(m_ids.exists(id));
@@ -3485,23 +3536,23 @@ auto& id_data_array<Identifier, A, Ts...>::get(
     return std::get<buffer_view<Type>>(m_col)[get_index(id)];
 }
 
-template<typename Identifier, typename A, class... Ts>
+template<typename T, typename Identifier, typename A, class... Ts>
 template<std::size_t Index>
-auto& id_data_array<Identifier, A, Ts...>::get() const noexcept
+auto& id_data_array<T, Identifier, A, Ts...>::get() const noexcept
 {
     return std::get<Index>(m_col);
 }
 
-template<typename Identifier, typename A, class... Ts>
+template<typename T, typename Identifier, typename A, class... Ts>
 template<typename Type>
-auto& id_data_array<Identifier, A, Ts...>::get() const noexcept
+auto& id_data_array<T, Identifier, A, Ts...>::get() const noexcept
 {
     return std::get<buffer_view<Type>>(m_col);
 }
 
-template<typename Identifier, typename A, class... Ts>
+template<typename T, typename Identifier, typename A, class... Ts>
 template<std::size_t Index>
-auto& id_data_array<Identifier, A, Ts...>::get(
+auto& id_data_array<T, Identifier, A, Ts...>::get(
   const identifier_type id) const noexcept
 {
     debug::ensure(m_ids.exists(id));
@@ -3509,9 +3560,9 @@ auto& id_data_array<Identifier, A, Ts...>::get(
     return std::get<Index>(m_col)[get_index(id)];
 }
 
-template<typename Identifier, typename A, class... Ts>
+template<typename T, typename Identifier, typename A, class... Ts>
 template<typename Type>
-auto& id_data_array<Identifier, A, Ts...>::get(
+auto& id_data_array<T, Identifier, A, Ts...>::get(
   const identifier_type id) const noexcept
 {
     debug::ensure(m_ids.exists(id));
@@ -3519,10 +3570,10 @@ auto& id_data_array<Identifier, A, Ts...>::get(
     return std::get<buffer_view<Type>>(m_col)[get_index(id)];
 }
 
-template<typename Identifier, typename A, class... Ts>
+template<typename T, typename Identifier, typename A, class... Ts>
 template<typename Type>
-typename id_data_array<Identifier, A, Ts...>::identifier_type
-id_data_array<Identifier, A, Ts...>::get_id(const Type& t) const noexcept
+typename id_data_array<T, Identifier, A, Ts...>::identifier_type
+id_data_array<T, Identifier, A, Ts...>::get_id(const Type& t) const noexcept
 {
     const auto* ptr   = &t;
     const auto* start = std::get<buffer_view<Type>>(m_col).get();
@@ -3535,9 +3586,9 @@ id_data_array<Identifier, A, Ts...>::get_id(const Type& t) const noexcept
     return m_ids.get_from_index(pos);
 }
 
-template<typename Identifier, typename A, class... Ts>
+template<typename T, typename Identifier, typename A, class... Ts>
 template<std::size_t Index>
-auto* id_data_array<Identifier, A, Ts...>::try_to_get(
+auto* id_data_array<T, Identifier, A, Ts...>::try_to_get(
   const identifier_type id) const noexcept
 {
     return m_ids.exists(id)
@@ -3545,9 +3596,9 @@ auto* id_data_array<Identifier, A, Ts...>::try_to_get(
              : nullptr;
 }
 
-template<typename Identifier, typename A, class... Ts>
+template<typename T, typename Identifier, typename A, class... Ts>
 template<typename Type>
-auto* id_data_array<Identifier, A, Ts...>::try_to_get(
+auto* id_data_array<T, Identifier, A, Ts...>::try_to_get(
   const identifier_type id) const noexcept
 {
     return m_ids.exists(id)
@@ -3555,9 +3606,9 @@ auto* id_data_array<Identifier, A, Ts...>::try_to_get(
              : nullptr;
 }
 
-template<typename Identifier, typename A, class... Ts>
+template<typename T, typename Identifier, typename A, class... Ts>
 template<std::size_t Index>
-auto* id_data_array<Identifier, A, Ts...>::try_to_get(
+auto* id_data_array<T, Identifier, A, Ts...>::try_to_get(
   const identifier_type id) noexcept
 {
     return m_ids.exists(id)
@@ -3565,9 +3616,9 @@ auto* id_data_array<Identifier, A, Ts...>::try_to_get(
              : nullptr;
 }
 
-template<typename Identifier, typename A, class... Ts>
+template<typename T, typename Identifier, typename A, class... Ts>
 template<typename Type>
-auto* id_data_array<Identifier, A, Ts...>::try_to_get(
+auto* id_data_array<T, Identifier, A, Ts...>::try_to_get(
   const identifier_type id) noexcept
 {
     return m_ids.exists(id)
@@ -3575,10 +3626,11 @@ auto* id_data_array<Identifier, A, Ts...>::try_to_get(
              : nullptr;
 }
 
-template<typename Identifier, typename A, class... Ts>
+template<typename T, typename Identifier, typename A, class... Ts>
 template<typename Type, typename Function>
-void id_data_array<Identifier, A, Ts...>::if_exists_do(const identifier_type id,
-                                                       Function&& fn) noexcept
+void id_data_array<T, Identifier, A, Ts...>::if_exists_do(
+  const identifier_type id,
+  Function&&            fn) noexcept
 {
     if (m_ids.exists(id))
         std::invoke(std::forward<Function>(fn),
@@ -3586,9 +3638,9 @@ void id_data_array<Identifier, A, Ts...>::if_exists_do(const identifier_type id,
                     std::get<buffer_view<Type>>(m_col)[get_index(id)]);
 }
 
-template<typename Identifier, typename A, class... Ts>
+template<typename T, typename Identifier, typename A, class... Ts>
 template<typename Type, typename Function>
-void id_data_array<Identifier, A, Ts...>::for_each(Function&& fn) noexcept
+void id_data_array<T, Identifier, A, Ts...>::for_each(Function&& fn) noexcept
 {
     for (const auto id : m_ids)
         std::invoke(std::forward<Function>(fn),
@@ -3596,18 +3648,19 @@ void id_data_array<Identifier, A, Ts...>::for_each(Function&& fn) noexcept
                     std::get<buffer_view<Type>>(m_col)[get_index(id)]);
 }
 
-template<typename Identifier, typename A, class... Ts>
+template<typename T, typename Identifier, typename A, class... Ts>
 template<typename Function>
-void id_data_array<Identifier, A, Ts...>::for_each(Function&& fn) noexcept
+void id_data_array<T, Identifier, A, Ts...>::for_each(Function&& fn) noexcept
 {
     for (const auto id : m_ids)
         do_call_fn(
           std::forward<Function>(fn), id, std::index_sequence_for<Ts...>());
 }
 
-template<typename Identifier, typename A, class... Ts>
+template<typename T, typename Identifier, typename A, class... Ts>
 template<typename Type, typename Function>
-void id_data_array<Identifier, A, Ts...>::for_each(Function&& fn) const noexcept
+void id_data_array<T, Identifier, A, Ts...>::for_each(
+  Function&& fn) const noexcept
 {
     for (const auto id : m_ids)
         std::invoke(std::forward<Function>(fn),
@@ -3615,68 +3668,69 @@ void id_data_array<Identifier, A, Ts...>::for_each(Function&& fn) const noexcept
                     std::get<buffer_view<Type>>(m_col)[get_index(id)]);
 }
 
-template<typename Identifier, typename A, class... Ts>
+template<typename T, typename Identifier, typename A, class... Ts>
 template<typename Function>
-void id_data_array<Identifier, A, Ts...>::for_each(Function&& fn) const noexcept
+void id_data_array<T, Identifier, A, Ts...>::for_each(
+  Function&& fn) const noexcept
 {
     for (const auto id : m_ids)
         do_call_fn(
           std::forward<Function>(fn), id, std::index_sequence_for<Ts...>());
 }
 
-template<typename Identifier, typename A, class... Ts>
+template<typename T, typename Identifier, typename A, class... Ts>
 template<typename Function>
-void id_data_array<Identifier, A, Ts...>::for_each_id(Function&& fn) noexcept
+void id_data_array<T, Identifier, A, Ts...>::for_each_id(Function&& fn) noexcept
 {
     for (const auto id : m_ids)
         std::invoke(std::forward<Function>(fn), id);
 }
 
-template<typename Identifier, typename A, class... Ts>
+template<typename T, typename Identifier, typename A, class... Ts>
 template<typename Function>
-void id_data_array<Identifier, A, Ts...>::for_each_id(
+void id_data_array<T, Identifier, A, Ts...>::for_each_id(
   Function&& fn) const noexcept
 {
     for (const auto id : m_ids)
         std::invoke(std::forward<Function>(fn), id);
 }
 
-template<typename Identifier, typename A, class... Ts>
-constexpr typename id_data_array<Identifier, A, Ts...>::iterator
-id_data_array<Identifier, A, Ts...>::begin() noexcept
+template<typename T, typename Identifier, typename A, class... Ts>
+constexpr typename id_data_array<T, Identifier, A, Ts...>::iterator
+id_data_array<T, Identifier, A, Ts...>::begin() noexcept
 {
     return m_ids.begin();
 }
 
-template<typename Identifier, typename A, class... Ts>
-constexpr typename id_data_array<Identifier, A, Ts...>::const_iterator
-id_data_array<Identifier, A, Ts...>::begin() const noexcept
+template<typename T, typename Identifier, typename A, class... Ts>
+constexpr typename id_data_array<T, Identifier, A, Ts...>::const_iterator
+id_data_array<T, Identifier, A, Ts...>::begin() const noexcept
 {
     return m_ids.begin();
 }
 
-template<typename Identifier, typename A, class... Ts>
-constexpr typename id_data_array<Identifier, A, Ts...>::iterator
-id_data_array<Identifier, A, Ts...>::end() noexcept
+template<typename T, typename Identifier, typename A, class... Ts>
+constexpr typename id_data_array<T, Identifier, A, Ts...>::iterator
+id_data_array<T, Identifier, A, Ts...>::end() noexcept
 {
     return m_ids.end();
 }
 
-template<typename Identifier, typename A, class... Ts>
-constexpr typename id_data_array<Identifier, A, Ts...>::const_iterator
-id_data_array<Identifier, A, Ts...>::end() const noexcept
+template<typename T, typename Identifier, typename A, class... Ts>
+constexpr typename id_data_array<T, Identifier, A, Ts...>::const_iterator
+id_data_array<T, Identifier, A, Ts...>::end() const noexcept
 {
     return m_ids.end();
 }
 
-template<typename Identifier, typename A, class... Ts>
-void id_data_array<Identifier, A, Ts...>::clear() noexcept
+template<typename T, typename Identifier, typename A, class... Ts>
+void id_data_array<T, Identifier, A, Ts...>::clear() noexcept
 {
     m_ids.clear();
 }
 
-template<typename Identifier, typename A, class... Ts>
-bool id_data_array<Identifier, A, Ts...>::reserve(
+template<typename T, typename Identifier, typename A, class... Ts>
+bool id_data_array<T, Identifier, A, Ts...>::reserve(
   std::integral auto len) noexcept
 {
     if (std::cmp_less(capacity(), len)) {
@@ -3688,9 +3742,9 @@ bool id_data_array<Identifier, A, Ts...>::reserve(
     return true;
 }
 
-template<typename Identifier, typename A, class... Ts>
+template<typename T, typename Identifier, typename A, class... Ts>
 template<int Num, int Denum>
-bool id_data_array<Identifier, A, Ts...>::grow() noexcept
+bool id_data_array<T, Identifier, A, Ts...>::grow() noexcept
 {
     static_assert(Num > 0 and Denum > 0 and Num > Denum);
 
@@ -3700,48 +3754,48 @@ bool id_data_array<Identifier, A, Ts...>::grow() noexcept
     return reserve(req);
 }
 
-template<typename Identifier, typename A, class... Ts>
-bool id_data_array<Identifier, A, Ts...>::exists(
+template<typename T, typename Identifier, typename A, class... Ts>
+bool id_data_array<T, Identifier, A, Ts...>::exists(
   const identifier_type id) const noexcept
 {
     return m_ids.exists(id);
 }
 
-template<typename Identifier, typename A, class... Ts>
-typename id_data_array<Identifier, A, Ts...>::identifier_type
-id_data_array<Identifier, A, Ts...>::get_from_index(
+template<typename T, typename Identifier, typename A, class... Ts>
+typename id_data_array<T, Identifier, A, Ts...>::identifier_type
+id_data_array<T, Identifier, A, Ts...>::get_from_index(
   std::integral auto idx) const noexcept
 {
     return m_ids.get_from_index(idx);
 }
 
-template<typename Identifier, typename A, class... Ts>
-bool id_data_array<Identifier, A, Ts...>::can_alloc(
+template<typename T, typename Identifier, typename A, class... Ts>
+bool id_data_array<T, Identifier, A, Ts...>::can_alloc(
   std::integral auto nb) const noexcept
 {
     return m_ids.can_alloc(nb);
 }
 
-template<typename Identifier, typename A, class... Ts>
-bool id_data_array<Identifier, A, Ts...>::empty() const noexcept
+template<typename T, typename Identifier, typename A, class... Ts>
+bool id_data_array<T, Identifier, A, Ts...>::empty() const noexcept
 {
     return m_ids.size() == 0;
 }
 
-template<typename Identifier, typename A, class... Ts>
-unsigned id_data_array<Identifier, A, Ts...>::size() const noexcept
+template<typename T, typename Identifier, typename A, class... Ts>
+unsigned id_data_array<T, Identifier, A, Ts...>::size() const noexcept
 {
     return m_ids.size();
 }
 
-template<typename Identifier, typename A, class... Ts>
-int id_data_array<Identifier, A, Ts...>::ssize() const noexcept
+template<typename T, typename Identifier, typename A, class... Ts>
+int id_data_array<T, Identifier, A, Ts...>::ssize() const noexcept
 {
     return m_ids.ssize();
 }
 
-template<typename Identifier, typename A, class... Ts>
-unsigned id_data_array<Identifier, A, Ts...>::capacity() const noexcept
+template<typename T, typename Identifier, typename A, class... Ts>
+unsigned id_data_array<T, Identifier, A, Ts...>::capacity() const noexcept
 {
     return m_ids.capacity();
 }
@@ -4016,31 +4070,12 @@ data_array<T, Identifier, A>::alloc(Args&&... args) noexcept
 
 template<typename T, typename Identifier, typename A>
 template<typename... Args>
-T* data_array<T, Identifier, A>::try_alloc(Args&&... args) noexcept
+typename data_array<T, Identifier, A>::identifier_type
+data_array<T, Identifier, A>::alloc_id(Args&&... args) noexcept
 {
-    if (!can_alloc(1))
-        return nullptr;
+    fatal::ensure(can_alloc(1));
 
-    index_type new_index;
-
-    if (m_free_head != none) {
-        new_index = m_free_head;
-        if (is_valid(m_items[m_free_head].id))
-            m_free_head = none;
-        else
-            m_free_head = get_index(m_items[m_free_head].id);
-    } else {
-        new_index = m_max_used++;
-    }
-
-    std::construct_at(&m_items[new_index].item, std::forward<Args>(args)...);
-
-    m_items[new_index].id = make_id(m_next_key, new_index);
-    m_next_key            = make_next_key(m_next_key);
-
-    ++m_max_size;
-
-    return &m_items[new_index].item;
+    return get_id(alloc(std::forward<Args>(args)...));
 }
 
 template<typename T, typename Identifier, typename A>
@@ -4077,6 +4112,12 @@ void data_array<T, Identifier, A>::free(Identifier id) noexcept
                         prev = cur;
                         cur  = get_index(m_items[cur].id);
                     } while (prev != none);
+
+                    if (cur == none) {
+                        m_items[prev].id  = static_cast<Identifier>(index);
+                        m_items[index].id = static_cast<Identifier>(none);
+                    }
+
                     --m_max_size;
                 }
             }
@@ -7703,29 +7744,26 @@ data_vector_array<T, Identifier, A, Ts...>::data_vector_array(
 {}
 
 template<typename T, typename Identifier, typename A, class... Ts>
-auto data_vector_array<T, Identifier, A, Ts...>::alloc() noexcept
-  -> data_vector_array<T, Identifier, A, Ts...>::data_type&
+typename data_vector_array<T, Identifier, A, Ts...>::data_type&
+data_vector_array<T, Identifier, A, Ts...>::alloc() noexcept
 {
-    irt::fatal::ensure(m_ids.can_alloc(1));
-
     return clear_index(m_ids.alloc());
 }
 
 template<typename T, typename Identifier, typename A, class... Ts>
 template<typename... Args>
-auto data_vector_array<T, Identifier, A, Ts...>::alloc(Args&&... args) noexcept
-  -> data_vector_array<T, Identifier, A, Ts...>::data_type&
+typename data_vector_array<T, Identifier, A, Ts...>::data_type&
+data_vector_array<T, Identifier, A, Ts...>::alloc(Args&&... args) noexcept
 {
-    irt::fatal::ensure(m_ids.can_alloc(1));
-
     return clear_index(m_ids.alloc(std::forward<Args>(args)...));
 }
 
 template<typename T, typename Identifier, typename A, class... Ts>
-auto data_vector_array<T, Identifier, A, Ts...>::get_id(
-  const data_type& d) const noexcept -> identifier_type
+template<typename... Args>
+typename data_vector_array<T, Identifier, A, Ts...>::identifier_type
+data_vector_array<T, Identifier, A, Ts...>::alloc_id(Args&&... args) noexcept
 {
-    return m_ids.get_id(d);
+    return get_id(alloc(std::forward<Args>(args)...));
 }
 
 template<typename T, typename Identifier, typename A, class... Ts>
@@ -7742,6 +7780,14 @@ void data_vector_array<T, Identifier, A, Ts...>::free(
 
         m_ids.free(id);
     }
+}
+
+template<typename T, typename Identifier, typename A, class... Ts>
+typename data_vector_array<T, Identifier, A, Ts...>::identifier_type
+data_vector_array<T, Identifier, A, Ts...>::get_id(
+  const data_type& t) const noexcept
+{
+    return m_ids.get_id(t);
 }
 
 template<typename T, typename Identifier, typename A, class... Ts>

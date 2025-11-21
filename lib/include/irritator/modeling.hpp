@@ -884,7 +884,8 @@ struct connection_pack {
 
 struct component {
 
-    using port_type = id_data_array<port_id,
+    using port_type = id_data_array<void,
+                                    port_id,
                                     allocator<new_delete_memory_resource>,
                                     port_option,
                                     port_str,
@@ -1418,7 +1419,8 @@ public:
      * the description is the same than the component except the extension
      * ".desc".
      * @attention The size of the buffer is static for now. */
-    id_data_array<description_id,
+    id_data_array<void,
+                  description_id,
                   allocator<new_delete_memory_resource>,
                   description_str,
                   description_status>
@@ -1429,7 +1431,8 @@ public:
     data_array<graph_component, graph_component_id>     graph_components;
     data_array<hsm_component, hsm_component_id>         hsm_components;
 
-    id_data_array<component_id,
+    id_data_array<void,
+                  component_id,
                   allocator<new_delete_memory_resource>,
                   component,
                   component_color>
@@ -1789,7 +1792,8 @@ public:
 
     file_observers file_obs;
 
-    id_data_array<global_parameter_id,
+    id_data_array<void,
+                  global_parameter_id,
                   allocator<new_delete_memory_resource>,
                   name_str,
                   tree_node_id,
@@ -1877,7 +1881,7 @@ inline port_id component::get_or_add_x(std::string_view str) noexcept
 
     if (is_undefined(port_id)) {
         if (x.can_alloc(1)) {
-            port_id                  = x.alloc();
+            port_id                  = x.alloc_id();
             x.get<port_str>(port_id) = str;
             x.get<position>(port_id).reset();
         }
@@ -1892,7 +1896,7 @@ inline port_id component::get_or_add_y(std::string_view str) noexcept
 
     if (is_undefined(port_id)) {
         if (y.can_alloc(1)) {
-            port_id                  = y.alloc();
+            port_id                  = y.alloc_id();
             y.get<port_str>(port_id) = str;
             y.get<position>(port_id).reset();
         }
