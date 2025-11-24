@@ -58,22 +58,26 @@ static void do_update(const simulation&        sim,
                       const variable_observer& vars,
                       std::FILE*               file) noexcept
 {
-    const auto number = vars.ssize();
-    auto       i      = 0;
-
-    if (number > 0)
+    if (vars.ssize() > 0)
         fmt::print(file, "{:e},", sim.current_time());
     else
         fmt::print(file, "{:e}\n", sim.current_time());
 
-    vars.values.read([&](const auto& v, const auto /*version*/) noexcept {
-        vars.for_each([&](const auto id) noexcept {
-            if (i + 1 < number)
-                fmt::print(file, "{:e},", v[get_index(id)]);
-            else
-                fmt::print(file, "{:e}\n", v[get_index(id)]);
-        });
+    vars.for_each([&](const auto id) noexcept {
+        const auto& obs_ids = vars.get_obs_ids();
+
+        if (const auto* obs =
+              sim.observers.try_to_get(obs_ids[get_index(id)])) {
+            obs->linearized_buffer.read(
+              [&](const auto& buf, const auto /*version*/) noexcept {
+                  fmt::print(file, "{:e},", buf.front().y);
+              });
+        } else {
+            fmt::print(file, "0,");
+        }
     });
+
+    fmt::print(file, "\n");
 }
 
 static void do_initialize(const grid_observer& grid, std::FILE* file) noexcept

@@ -1317,8 +1317,6 @@ public:
     time tn = 0;
 
     enum class sub_id : u32;
-    shared_buffer<vector<double>>
-      values; //!< The last value of the observation.
 
 private:
     id_array<sub_id>     m_ids;

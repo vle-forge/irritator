@@ -124,9 +124,6 @@ variable_observer::sub_id variable_observer::push_back(
         m_colors.resize(max_observers.value());
         m_options.resize(max_observers.value());
         m_names.resize(max_observers.value());
-
-        values.write(
-          [&](auto& v) noexcept { v.resize(max_observers.value(), zero); });
     }
 
     for (auto id : m_ids) {
