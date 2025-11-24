@@ -2247,7 +2247,7 @@ public:
     using const_iterator = iterator_base<true>;
 
     constexpr ring_buffer() noexcept = default;
-    constexpr ring_buffer(std::integral auto capacity) noexcept;
+    explicit constexpr ring_buffer(std::integral auto capacity) noexcept;
 
     constexpr ~ring_buffer() noexcept;
 
