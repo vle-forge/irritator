@@ -323,6 +323,7 @@ application::application(journal_handler& jn_) noexcept
   , hsms{ 16 }
   , graph_eds{ 16 }
   , copy_obs{ 16 }
+  , m_journal_timestep{ journal_handler::get_tick_count_in_milliseconds() }
 {
     settings_wnd.apply_style(config.theme);
 
@@ -641,25 +642,35 @@ auto application::show() noexcept -> show_result_t
     auto ret = show_menu();
     show_dock();
 
-    if (jn.ssize() > 0) {
-        add_gui_task([&]() {
-            jn.flush(
-              [](auto& ring,
-                 auto& ids,
-                 auto& titles,
-                 auto& descriptions,
-                 auto& notifications) noexcept {
-                  for (const auto id : ring) {
-                      if (ids.exists(id)) {
-                          notifications.enqueue(ids[id].second,
-                                                titles[id].sv(),
-                                                descriptions[id].sv(),
-                                                ids[id].first);
+    // Add a gui task to copy journal_handler entries into the log_window's
+    // buffer once a time at 1.000 ms and flush the journal_handler.
+
+    if (auto c = journal_handler::get_tick_count_in_milliseconds();
+        (c - m_journal_timestep) > 1'000u) {
+        m_journal_timestep = c;
+
+        if (not journal_displayed.test_and_set()) {
+            add_gui_task([&]() {
+                jn.flush(
+                  [](auto& ring,
+                     auto& ids,
+                     auto& titles,
+                     auto& descriptions,
+                     auto& notifications) noexcept {
+                      for (const auto id : ring) {
+                          if (ids.exists(id)) {
+                              notifications.enqueue(ids[id].second,
+                                                    titles[id].sv(),
+                                                    descriptions[id].sv(),
+                                                    ids[id].first);
+                          }
                       }
-                  }
-              },
-              notifications);
-        });
+                  },
+                  notifications);
+
+                journal_displayed.clear();
+            });
+        }
     }
 
     if (memory_wnd.is_open)
