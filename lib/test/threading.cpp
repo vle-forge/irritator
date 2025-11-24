@@ -28,6 +28,7 @@ int main()
     using namespace boost::ut;
 
     "data-task-copy-capture"_test = [] {
+        fmt::print("data-task-copy-capture\n");
         irt::data_array<data_task, data_task_id, heap_mr> d(32);
 
         int a = 16;
@@ -48,6 +49,7 @@ int main()
     };
 
     "data-task-reference-capture"_test = [] {
+        fmt::print("data-task-reference-capture\n");
         irt::data_array<data_task_ref, data_task_id, heap_mr> d(32);
 
         int a = 16;
@@ -68,6 +70,7 @@ int main()
     };
 
     "spin-lock"_test = [] {
+        fmt::print("spin-lock\n");
         int             counter = 0;
         irt::spin_mutex spin;
 
@@ -97,6 +100,7 @@ int main()
     };
 
     "scoped-lock"_test = [] {
+        fmt::print("scoped-lock\n");
         irt::spin_mutex mutex_1;
         irt::spin_mutex mutex_2;
 
@@ -128,6 +132,7 @@ int main()
 
     // use-case-test: checks a classic use of task and task_list.
     "task-lists"_test = [] {
+        fmt::print("task-lists\n");
         irt::task_manager<1, 1> tm;
         tm.start();
 
@@ -149,6 +154,7 @@ int main()
     // use-case-test: checks a classic use of task and task_list and do not use
     // wait.
     "task-lists-without-wait"_test = [] {
+        fmt::print("task-lists-without-wait\n");
         irt::task_manager<1, 1> tm;
         tm.start();
 
@@ -169,6 +175,7 @@ int main()
     // task_list::add must wakeup the worker without the call to the submit
     // function to avoid dead lock.
     "large-task-lists"_test = [] {
+        fmt::print("large-task-lists\n");
         irt::task_manager<1, 1> tm;
 
         constexpr int loop = 100;
@@ -217,6 +224,7 @@ int main()
     };
 
     "n-worker-1-temp-task-lists-simple"_test = [] {
+        fmt::print("n-worker-1-temp-task-lists-simple\n");
         irt::task_manager tm;
 
         tm.start();
@@ -251,6 +259,7 @@ int main()
     };
 
     "n-worker-1-temp-task-lists"_test = [] {
+        fmt::print("n-worker-1-temp-task-lists\n");
         auto start = std::chrono::steady_clock::now();
 
         irt::task_manager tm;
@@ -308,6 +317,7 @@ int main()
     };
 
     "n-worker-1-temp-task-lists"_test = [] {
+        fmt::print("n-worker-1-temp-task-lists\n");
         auto start = std::chrono::steady_clock::now();
 
         for (int n = 0; n < 40; ++n) {
@@ -346,6 +356,7 @@ int main()
     };
 
     "static-circular-buffer"_test = [] {
+        fmt::print("static-circular-buffer\n");
         irt::task_manager             tm;
         irt::circular_buffer<int, 16> buffer;
 
@@ -370,6 +381,7 @@ int main()
     };
 
     "single_locker"_test = [] {
+        fmt::print("single_locker\n");
         struct data {
             data() noexcept = default;
 
@@ -410,6 +422,7 @@ int main()
     };
 
     "locker-in-task-manager"_test = [] {
+        fmt::print("locker-in-task-manager\n");
         irt::task_manager tm;
         tm.start();
 
@@ -474,7 +487,7 @@ int main()
     };
 
     "test_concurrent_reads"_test = [] {
-        boost::ut::log << "test_concurrent_reads";
+        fmt::print("test_concurrent_reads\n");
 
         irt::shared_buffer<Counter> buffer(Counter(42));
         std::atomic<bool>           start{ false };
@@ -509,12 +522,12 @@ int main()
             t.join();
         }
 
-        boost::ut::log << "  read count: " << read_count.load();
-        boost::ut::log << "  errors: " << errors.load();
+        fmt::print("  read count: {}\n", read_count.load());
+        fmt::print("  errors: {}\n", errors.load());
     };
 
     "test_single_writer_multiple_readers"_test = [] {
-        boost::ut::log << "test_single_writer_multiple_readers";
+        fmt::print("test_single_writer_multiple_readers\n");
 
         irt::shared_buffer<Counter> buffer(Counter(0));
         std::atomic<bool>           stop{ false };
@@ -554,13 +567,13 @@ int main()
         for (auto& r : readers)
             r.join();
 
-        boost::ut::log << "  write count: " << write_count.load();
-        boost::ut::log << "  read count: " << read_count.load();
-        boost::ut::log << "  monotonic errors: " << monotonic_errors.load();
+        fmt::print("  write count: {}\n", write_count.load());
+        fmt::print("  read count: {}\n", read_count.load());
+        fmt::print("  monotonic errors: {}\n", monotonic_errors.load());
     };
 
     "test_multiple_writers"_test = [] {
-        boost::ut::log << "test_multiple_writers";
+        fmt::print("test_multiple_writers\n");
 
         irt::shared_buffer<Counter> buffer(Counter(0));
         std::atomic<bool>           start{ false };
@@ -599,14 +612,13 @@ int main()
             history_size = c.history.size();
         });
 
-        boost::ut::log << "  Writes required: "
-                       << num_writers * writes_per_thread;
-        boost::ut::log << "  final value: " << final_value;
-        boost::ut::log << "  history size: " << history_size;
+        fmt::print("  Writes required: {}\n", num_writers, writes_per_thread);
+        fmt::print("  final value: {}\n", final_value);
+        fmt::print("  history size: {}\n", history_size);
     };
 
     "test_data_integrity"_test = [] {
-        boost::ut::log << "test_data_integrity";
+        fmt::print("test_data_integrity\n");
 
         irt::shared_buffer<ComplexData> buffer;
         std::atomic<bool>               stop{ false };
@@ -647,12 +659,12 @@ int main()
             r.join();
         }
 
-        boost::ut::log << "  checks: " << checks.load();
-        boost::ut::log << "  integrity errors: " << integrity_errors.load();
+        fmt::print("  checks: {}\n", checks.load());
+        fmt::print("  integrity errors: {}\n", integrity_errors.load());
     };
 
     "test_try_read_under_load"_test = [] {
-        boost::ut::log << "test_try_read_under_load";
+        fmt::print("test_try_read_under_load\n");
 
         irt::shared_buffer<Counter> buffer(Counter(0));
         std::atomic<bool>           stop{ false };
@@ -696,13 +708,13 @@ int main()
         int    total        = successful_reads.load() + failed_reads.load();
         double success_rate = (100.0 * successful_reads.load()) / total;
 
-        boost::ut::log << "  successful reads: " << successful_reads.load();
-        boost::ut::log << "  failed reads: " << failed_reads.load();
-        boost::ut::log << "  success rate: " << success_rate << "%";
+        fmt::print("  successful reads: {}\n", successful_reads.load());
+        fmt::print("  failed reads: {}\n", failed_reads.load());
+        fmt::print("  success rate: {}%\n", success_rate);
     };
 
     "test_stress_mixed"_test = [] {
-        boost::ut::log << "test_stress_mixed";
+        fmt::print("test_stress_mixed\n");
 
         irt::shared_buffer<Counter> buffer(Counter(0));
         std::atomic<bool>           stop{ false };
@@ -757,6 +769,6 @@ int main()
             final_value = c.value;
         });
 
-        boost::ut::log << "final value " << final_value;
+        fmt::print("final value: {}\n", final_value);
     };
 }
