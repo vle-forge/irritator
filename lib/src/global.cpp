@@ -449,28 +449,27 @@ stdfile_journal_consumer::stdfile_journal_consumer(
 }
 
 journal_handler::journal_handler() noexcept
-  : journal_handler(constrained_value<int, 4, INT_MAX>(32))
+  : journal_handler(reserve_constraint(32u))
 {}
 
-journal_handler::journal_handler(
-  const constrained_value<int, 4, INT_MAX> len) noexcept
-  : m_ring(len.value())
+journal_handler::journal_handler(reserve_constraint len) noexcept
 {
-    m_logs.reserve(len.value());
+    m_logs.write(
+      [](auto& buffer, const auto cap) noexcept {
+          buffer.ring.reserve(cap);
+          buffer.ids.reserve(cap);
+          buffer.titles.resize(cap);
+          buffer.descriptions.resize(cap);
+      },
+      len.value());
 }
 
 void journal_handler::clear() noexcept
 {
-    std::unique_lock lock(m_mutex);
-    m_logs.clear();
-}
-
-void journal_handler::clear(std::span<entry_id> entries) noexcept
-{
-    std::unique_lock lock(m_mutex);
-    for (const auto id : entries)
-        if (m_logs.exists(id))
-            m_logs.free(id);
+    m_logs.write([](auto& buffer) noexcept {
+        buffer.ring.clear();
+        buffer.ids.clear();
+    });
 }
 
 u64 journal_handler::get_tick_count_in_milliseconds() noexcept
@@ -487,28 +486,59 @@ u64 journal_handler::get_elapsed_time(const u64 from) noexcept
     return get_tick_count_in_milliseconds() - from;
 }
 
+unsigned journal_handler::capacity() const noexcept
+{
+    auto capacity = 0u;
+
+    m_logs.read([](const auto& buffer,
+                   const auto /*version*/,
+                   auto& capacity) { capacity = buffer.ring.capacity(); },
+                capacity);
+
+    return capacity;
+}
+
+unsigned journal_handler::size() const noexcept
+{
+    auto len = 0u;
+
+    m_logs.read([](const auto& buffer,
+                   const auto /*version*/,
+                   auto& size) { size = buffer.ring.size(); },
+                len);
+
+    return len;
+}
+
+int journal_handler::ssize() const noexcept
+{
+    auto len = 0;
+
+    m_logs.read([](const auto& buffer,
+                   const auto /*version*/,
+                   auto& size) { size = buffer.ring.ssize(); },
+                len);
+
+    return len;
+}
+
 void stdfile_journal_consumer::read(journal_handler& lm) noexcept
 {
-    lm.get(
-      [](auto& logs, auto& ring, auto* out) noexcept {
-          auto& titles = logs.template get<journal_handler::title>();
-          auto& descrs = logs.template get<journal_handler::descr>();
-          auto& levels = logs.template get<log_level>();
-
+    lm.flush(
+      [](auto& ring,
+         auto& ids,
+         auto& titles,
+         auto& descriptions,
+         auto* out) noexcept {
           for (auto i : ring) {
-              if (logs.exists(i)) {
-                  const auto idx = get_index(i);
-
+              if (ids.exists(i)) {
                   fmt::print(out,
                              "- {}: {}\n  {}\n",
-                             log_level_names[ordinal(levels[idx])],
-                             titles[idx].sv(),
-                             descrs[idx].sv());
+                             log_level_names[ordinal(ids[i].second)],
+                             titles[i].sv(),
+                             descriptions[i].sv());
               }
           }
-
-          logs.clear();
-          ring.clear();
       },
       m_fp);
 }

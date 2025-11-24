@@ -431,7 +431,7 @@ int main(int, char**)
 
     ImNodes::CreateContext();
 
-    irt::journal_handler jn(irt::constrained_value<int, 4, INT_MAX>(256));
+    irt::journal_handler jn(256);
     irt::application     app(jn);
 
     if (!app.init()) {

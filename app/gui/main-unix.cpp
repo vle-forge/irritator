@@ -330,7 +330,7 @@ int main([[maybe_unused]] int argc, [[maybe_unused]] char* argv[])
     bool   show_another_window = false;
     ImVec4 clear_color         = ImVec4(0.45f, 0.55f, 0.60f, 1.00f);
 
-    irt::journal_handler jn(irt::constrained_value<int, 4, INT_MAX>(256));
+    irt::journal_handler jn(256);
     if (irt::application app(jn); app.init()) {
 #ifdef IRRITATOR_USE_TTF
         if (ttf)

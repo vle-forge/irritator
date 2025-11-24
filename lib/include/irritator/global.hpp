@@ -111,9 +111,7 @@ enum class log_level : u8 {
 class journal_handler
 {
 public:
-    enum class entry_id : u32; /**< The @a id_data_array identifier to keep in
-                                  your own container or in the @a ring_buffer.
-                                */
+    using reserve_constraint = constrained_value<u16, 4u, UINT16_MAX>;
 
     using title = small_string<127>;
     using descr = small_string<1022>;
@@ -124,8 +122,7 @@ public:
      */
     journal_handler() noexcept;
 
-    explicit journal_handler(
-      const constrained_value<int, 4, INT_MAX> len) noexcept;
+    explicit journal_handler(reserve_constraint len) noexcept;
 
     /**
      * @brief Wait lock and give access to log and ring data then clear the
@@ -136,151 +133,75 @@ public:
      * @param ...args The argument of the @a Function or nothing.
      */
     template<typename Function, typename... Args>
-    void get(Function&& fn, Args&&... args) noexcept
+    void flush(Function&& fn, Args&&... args) noexcept
     {
-        std::unique_lock<std::shared_mutex> lock(m_mutex);
-        std::invoke(std::forward<Function>(fn),
-                    m_logs,
-                    m_ring,
-                    std::forward<Args>(args)...);
-        m_logs.clear();
-        m_ring.clear();
-        m_number = 0;
-    }
-
-    /**
-     * @brief Give access to log and ring data then clear the structure if the
-     * lock successed otherwise the function do nothing.
-     * @tparam Function Any callable.
-     * @tparam ...Args Any type to argument of @a Function.
-     * @param fn The callable.
-     * @param ...args The argument of the @a Function or nothing.
-     */
-    template<typename Function, typename... Args>
-    void try_get(Function&& fn, Args&&... args) noexcept
-    {
-        if (std::unique_lock<std::shared_mutex> lock(m_mutex, std::try_to_lock);
-            lock.owns_lock()) {
+        m_logs.write([&](auto& buffer) {
             std::invoke(std::forward<Function>(fn),
-                        m_logs,
-                        m_ring,
+                        buffer.ring,
+                        buffer.ids,
+                        buffer.titles,
+                        buffer.descriptions,
                         std::forward<Args>(args)...);
-            m_logs.clear();
-            m_ring.clear();
-            m_number = 0;
-        }
+            buffer.ring.clear();
+            buffer.ids.clear();
+        });
     }
 
     template<typename Function, typename... Args>
     void read(Function&& fn, Args&&... args) const noexcept
     {
-        std::shared_lock<std::shared_mutex> lock(m_mutex);
-        std::invoke(std::forward<Function>(fn),
-                    std::as_const(m_logs),
-                    std::as_const(m_ring),
-                    std::forward<Args>(args)...);
-    }
-
-    template<typename Function, typename... Args>
-    bool try_read(Function&& fn, Args&&... args) const noexcept
-    {
-        if (std::shared_lock<std::shared_mutex> lock(m_mutex, std::try_to_lock);
-            lock.owns_lock()) {
-            if (m_ring.empty()) {
-                std::invoke(std::forward<Function>(fn),
-                            std::as_const(m_logs),
-                            std::as_const(m_ring),
-                            std::forward<Args>(args)...);
-                return true;
-            }
-        }
-
-        return false;
+        m_logs.read([&](const auto& buffer, const auto /*version*/) {
+            std::invoke(std::forward<Function>(fn),
+                        buffer.ring,
+                        buffer.ids,
+                        buffer.titles,
+                        buffer.descriptions,
+                        std::forward<Args>(args)...);
+        });
     }
 
     template<typename Function, typename... Args>
     void push(log_level level, Function&& fn, Args&&... args) noexcept
     {
-        std::unique_lock<std::shared_mutex> lock(m_mutex);
-        if (not m_logs.can_alloc(1))
-            pop();
+        m_logs.write([&](auto& buffer) {
+            if (not buffer.ids.can_alloc(1)) {
+                const auto id = buffer.ring.tail();
+                buffer.ids.free(*id);
+                buffer.ring.pop_tail();
+            }
 
-        const auto id                = m_logs.alloc_id();
-        const auto idx               = get_index(id);
-        m_logs.get<log_level>()[idx] = level;
-        m_logs.get<u64>()[idx]       = get_tick_count_in_milliseconds();
-
-        std::invoke(std::forward<Function>(fn),
-                    m_logs.get<title>()[idx],
-                    m_logs.get<descr>()[idx],
-                    std::forward<Args>(args)...);
-
-        m_ring.emplace_tail(id);
-        ++m_number;
-    }
-
-    template<typename Function, typename... Args>
-    bool try_push(log_level level, Function&& fn, Args&&... args) noexcept
-    {
-        if (std::unique_lock<std::shared_mutex> lock(m_mutex, std::try_to_lock);
-            lock.owns_lock()) {
-            if (not m_logs.can_alloc(1))
-                pop();
-
-            const auto id                = m_logs.alloc_id();
-            const auto idx               = get_index(id);
-            m_logs.get<log_level>()[idx] = level;
-            m_logs.get<u64>()[idx]       = get_tick_count_in_milliseconds();
+            const auto id =
+              buffer.ids.alloc(get_tick_count_in_milliseconds(), level);
+            buffer.titles[id].clear();
+            buffer.descriptions[id].clear();
 
             std::invoke(std::forward<Function>(fn),
-                        m_logs.get<title>()[idx],
-                        m_logs.get<descr>()[idx],
+                        buffer.titles[id],
+                        buffer.descriptions[id],
                         std::forward<Args>(args)...);
 
-            m_ring.emplace_tail(id);
-            ++m_number;
-            return true;
-        }
-
-        return false;
+            buffer.ring.push_head(id);
+        });
     }
 
     void clear() noexcept;
-    void clear(std::span<entry_id> entries) noexcept;
 
-    unsigned capacity() const noexcept
-    {
-        std::shared_lock<std::shared_mutex> lock(m_mutex);
-        return m_logs.capacity();
-    }
-
-    unsigned size() const noexcept { return static_cast<unsigned>(m_number); }
-    int      ssize() const noexcept { return m_number; }
+    unsigned capacity() const noexcept;
+    unsigned size() const noexcept;
+    int      ssize() const noexcept;
 
     static u64 get_tick_count_in_milliseconds() noexcept;
     static u64 get_elapsed_time(const u64 from) noexcept;
 
 private:
-    void pop() noexcept
-    {
-        auto old = m_ring.tail();
-        m_ring.pop_tail();
-        m_logs.free(*old);
-    }
+    struct data {
+        ring_buffer<u16>                     ring;
+        pool<std::pair<u64, log_level>, u16> ids;
+        vector<title>                        titles;
+        vector<descr>                        descriptions;
+    };
 
-    mutable std::shared_mutex m_mutex;
-    std::atomic_int           m_number;
-
-    id_data_array<void,
-                  entry_id,
-                  allocator<new_delete_memory_resource>,
-                  title,
-                  descr,
-                  u64,
-                  log_level>
-      m_logs;
-
-    ring_buffer<entry_id> m_ring;
+    shared_buffer<data> m_logs;
 };
 
 /**

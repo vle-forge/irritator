@@ -643,23 +643,22 @@ auto application::show() noexcept -> show_result_t
 
     if (jn.ssize() > 0) {
         add_gui_task([&]() {
-            jn.get([&](const auto& entries, const auto& ring) {
-                auto& titles = entries.template get<journal_handler::title>();
-                auto& descrs = entries.template get<journal_handler::descr>();
-                auto& levels = entries.template get<log_level>();
-                auto& dates  = entries.template get<u64>();
-
-                for (const auto id : ring) {
-                    if (entries.exists(id)) {
-                        const auto idx = get_index(id);
-
-                        notifications.enqueue(levels[idx],
-                                              titles[idx].sv(),
-                                              descrs[idx].sv(),
-                                              dates[idx]);
-                    }
-                }
-            });
+            jn.flush(
+              [](auto& ring,
+                 auto& ids,
+                 auto& titles,
+                 auto& descriptions,
+                 auto& notifications) noexcept {
+                  for (const auto id : ring) {
+                      if (ids.exists(id)) {
+                          notifications.enqueue(ids[id].second,
+                                                titles[id].sv(),
+                                                descriptions[id].sv(),
+                                                ids[id].first);
+                      }
+                  }
+              },
+              notifications);
         });
     }
 
