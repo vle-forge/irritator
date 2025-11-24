@@ -2744,12 +2744,14 @@ public:
     constexpr reference       operator[](std::integral auto i) noexcept;
     constexpr const_reference operator[](std::integral auto i) const noexcept;
 
+    constexpr bool reserve(std::integral auto reserve) noexcept;
     constexpr void clear() noexcept;
     constexpr void destroy() noexcept;
 
     constexpr bool can_alloc(std::integral auto nb = 1) const noexcept;
     constexpr bool grow() noexcept;
     constexpr bool is_valid(std::integral auto idx) const noexcept;
+    constexpr bool exists(std::integral auto idx) const noexcept;
 
     constexpr unsigned size() const noexcept;
     constexpr int      ssize() const noexcept;
@@ -7586,6 +7588,34 @@ pool<T, IndexType, A>::operator[](std::integral auto i) const noexcept
 }
 
 template<typename T, typename IndexType, typename A>
+constexpr bool pool<T, IndexType, A>::reserve(
+  std::integral auto reserve) noexcept
+{
+    if (std::cmp_less_equal(reserve, m_capacity))
+        return true;
+
+    if (item* new_data =
+          reinterpret_cast<item*>(A::allocate(sizeof(item) * reserve))) {
+
+        if constexpr (std::is_move_constructible_v<T>) {
+            std::uninitialized_move_n(m_buffer, m_max_used, new_data);
+            delete_buffer();
+        } else {
+            std::uninitialized_copy_n(m_buffer, m_max_used, new_data);
+            delete_objects();
+            delete_buffer();
+        }
+
+        m_buffer   = new_data;
+        m_capacity = static_cast<index_type>(reserve);
+
+        return true;
+    }
+
+    return false;
+}
+
+template<typename T, typename IndexType, typename A>
 constexpr void pool<T, IndexType, A>::clear() noexcept
 {
     delete_objects();
@@ -7645,6 +7675,14 @@ constexpr bool pool<T, IndexType, A>::grow() noexcept
 
 template<typename T, typename IndexType, typename A>
 constexpr bool pool<T, IndexType, A>::is_valid(
+  std::integral auto idx) const noexcept
+{
+    return std::cmp_greater_equal(idx, 0) and std::cmp_less(idx, m_max_used) and
+           m_buffer[idx].next == active;
+}
+
+template<typename T, typename IndexType, typename A>
+constexpr bool pool<T, IndexType, A>::exists(
   std::integral auto idx) const noexcept
 {
     return std::cmp_greater_equal(idx, 0) and std::cmp_less(idx, m_max_used) and
