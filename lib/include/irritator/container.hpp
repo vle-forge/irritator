@@ -17,6 +17,7 @@
 #include <memory_resource>
 #include <mutex>
 #include <optional>
+#include <thread>
 #include <type_traits>
 #include <utility>
 
@@ -752,6 +753,210 @@ public:
     void unlock() noexcept;
 };
 
+/** Run a function @a fn according to the test of the @a std::atomic_flag.
+ * The function is called if and only if the @a std::atomic_flag is false. */
+template<typename Fn, typename... Args>
+constexpr void scoped_flag_run(std::atomic_flag& flag,
+                               Fn&&              fn,
+                               Args&&... args) noexcept
+{
+    if (not flag.test_and_set()) { /* If the flag is false, then set to true
+                                      and call the function. */
+        std::invoke(std::forward<Fn>(fn), std::forward<Args>(args)...);
+        flag.clear();
+    }
+}
+
+template<typename T, int Size>
+class static_buffer
+{
+public:
+    static_assert(Size > 0);
+
+    using size_type  = small_storage_size_t<Size>;
+    using index_type = std::make_signed_t<size_type>;
+
+    static_buffer(const static_buffer& o) noexcept            = delete;
+    static_buffer(static_buffer&& o) noexcept                 = delete;
+    static_buffer& operator=(const static_buffer& o) noexcept = delete;
+    static_buffer& operator=(static_buffer&& o) noexcept      = delete;
+
+    T& operator[](std::integral auto position) noexcept
+    {
+        return *(static_cast<T*>(m_buffer.data()) + position);
+    }
+
+    const T& operator[](std::integral auto position) const noexcept
+    {
+        return *(static_cast<T*>(m_buffer.data()) + position);
+    }
+
+    size_type capacity() const noexcept { return Size; }
+    bool      good() const noexcept { return true; }
+
+protected:
+    std::array<std::byte, sizeof(T) * Size> m_buffer;
+};
+
+template<typename T,
+         int Size,
+         typename A = allocator<new_delete_memory_resource>>
+class dynamic_buffer
+{
+public:
+    static_assert(Size > 0);
+
+    using size_type  = small_storage_size_t<Size>;
+    using index_type = std::make_signed_t<size_type>;
+
+    dynamic_buffer() noexcept
+      : m_buffer(static_cast<std::byte*>(A::allocate(sizeof(T) * Size)))
+    {}
+
+    dynamic_buffer(const dynamic_buffer& o) noexcept            = delete;
+    dynamic_buffer(dynamic_buffer&& o) noexcept                 = delete;
+    dynamic_buffer& operator=(const dynamic_buffer& o) noexcept = delete;
+    dynamic_buffer& operator=(dynamic_buffer&& o) noexcept      = delete;
+
+    ~dynamic_buffer() noexcept
+    {
+        if (m_buffer)
+            A::deallocate(m_buffer, Size * sizeof(T));
+
+        m_buffer = nullptr;
+    }
+
+    T& operator[](std::integral auto position) noexcept
+    {
+        return *(reinterpret_cast<T*>(m_buffer) + position);
+    }
+
+    const T& operator[](std::integral auto position) const noexcept
+    {
+        return *(reinterpret_cast<T*>(m_buffer) + position);
+    }
+
+    size_type capacity() const noexcept { return Size; }
+    bool      good() const noexcept { return m_buffer != nullptr; }
+
+protected:
+    std::byte* m_buffer = nullptr;
+};
+
+/**
+ * The @c circular_buffer_base class provides a single-writer/single-reader fifo
+ * queue where pushing and popping is wait-free.
+ *
+ * @tparam T A simple type (trivially object or nothrow).
+ * @tparam Memory A fixed size buffer in heap or in stack.
+ */
+template<typename T, typename Memory>
+class circular_buffer_base
+{
+public:
+    using underlying_memory_type = Memory;
+    using size_type              = typename underlying_memory_type::size_type;
+    using index_type             = typename underlying_memory_type::index_type;
+
+    static_assert(std::is_nothrow_destructible_v<T> ||
+                  std::is_trivially_destructible_v<T> ||
+                  std::is_nothrow_copy_assignable_v<T> ||
+                  std::is_trivially_copy_assignable_v<T> ||
+                  std::is_nothrow_move_assignable_v<T> ||
+                  std::is_trivially_move_assignable_v<T>);
+
+    constexpr circular_buffer_base() noexcept = default;
+
+    constexpr ~circular_buffer_base() noexcept
+    {
+        while (not empty()) {
+            T value;
+            if (not pop(value))
+                break;
+        }
+    }
+
+    circular_buffer_base(const circular_buffer_base&) noexcept = delete;
+    circular_buffer_base& operator=(const circular_buffer_base&) noexcept =
+      delete;
+
+    bool push(const T& value) noexcept
+    {
+        int head      = m_head.load(std::memory_order_relaxed);
+        int next_head = next(head);
+        if (next_head == m_tail.load(std::memory_order_acquire))
+            return false;
+
+        std::construct_at(&m_buffer[head], value);
+        m_head.store(next_head, std::memory_order_release);
+
+        return true;
+    }
+
+    bool pop(T& value) noexcept
+    {
+        int tail = m_tail.load(std::memory_order_relaxed);
+        if (tail == m_head.load(std::memory_order_acquire))
+            return false;
+
+        if constexpr (std::is_trivially_move_assignable_v<T> or
+                      std::is_nothrow_move_assignable_v<T>) {
+            value = std::move(m_buffer[tail]);
+        } else {
+            value = m_buffer[tail];
+        }
+
+        std::destroy_at(&m_buffer[tail]);
+        m_tail.store(next(tail), std::memory_order_release);
+
+        return true;
+    }
+
+    bool empty() const noexcept
+    {
+        int tail = m_tail.load(std::memory_order_relaxed);
+        if (tail == m_head.load(std::memory_order_acquire))
+            return true;
+
+        return false;
+    }
+
+    constexpr auto capacity() noexcept { return m_buffer.capacity(); }
+
+private:
+    constexpr auto next(int current) noexcept -> int
+    {
+        return (current + 1) % capacity();
+    }
+
+private:
+    underlying_memory_type m_buffer;
+    std::atomic_int        m_head;
+    std::atomic_int        m_tail;
+};
+
+/**
+ * The @c static_circular_buffer class provides a single-writer/single-reader
+ * fifo queue where pushing and popping is wait-free and a stack allocated
+ * underlying buffer.
+ *
+ * @tparam T A simple type (trivially object or nothrow).
+ * @tparam Size The capacity of the underlying buffer.
+ */
+template<typename T, int Size>
+using static_circular_buffer = circular_buffer_base<T, static_buffer<T, Size>>;
+
+/**
+ * The @c circular_buffer class provides a single-writer/single-reader fifo
+ * queue where pushing and popping is wait-free and a heap allocated underlying
+ * buffer.
+ *
+ * @tparam T A simple type (trivially object or nothrow).
+ * @tparam Size The capacity of the underlying buffer.
+ */
+template<typename T, int Size>
+using circular_buffer = circular_buffer_base<T, dynamic_buffer<T, Size>>;
+
 // Atomic-only triple buffer: readers never lock, writers use a short lock.
 template<typename T>
 class shared_buffer
@@ -766,18 +971,9 @@ class shared_buffer
     static_assert(std::is_copy_assignable_v<T> || std::is_move_assignable_v<T>,
                   "T must be copy- or move-assignable");
 
-    constexpr T*       data() noexcept;
-    constexpr const T* cdata() const noexcept;
-    constexpr T&       buffer(std::integral auto idx) noexcept;
-    constexpr const T& cbuffer(std::integral auto idx) const noexcept;
-
 public:
     shared_buffer() noexcept
     {
-        std::construct_at(data() + 0);
-        std::construct_at(data() + 1);
-        std::construct_at(data() + 2);
-
         active_.store(0, std::memory_order_relaxed);
         staging_ = 1;
         spare_   = 2;
@@ -785,40 +981,41 @@ public:
 
     template<typename... Args>
     explicit shared_buffer(Args&&... args) noexcept
-      : versions_{ 0u, 0u, 0u }
+      : buffers_{ T{ std::forward<Args>(args)... }, T(), T() }
     {
-        std::construct_at(data() + 0, std::forward<Args>(args)...);
-        std::construct_at(data() + 1);
-        std::construct_at(data() + 2);
-
         active_.store(0, std::memory_order_relaxed);
         staging_ = 1;
         spare_   = 2;
     }
 
-    shared_buffer(const shared_buffer& /*other*/) noexcept
+    shared_buffer(const shared_buffer& other) noexcept
+      : buffers_{ T(other.buffers_[0]),
+                  T(other.buffers_[1]),
+                  T(other.buffers_[2]) }
+      , versions_{ u64(other.versions_[0]),
+                   u64(other.versions_[1]),
+                   u64(other.versions_[2]) }
     {
-        std::construct_at(data() + 0);
-        std::construct_at(data() + 1);
-        std::construct_at(data() + 2);
-
         active_.store(0, std::memory_order_relaxed);
         staging_ = 1;
         spare_   = 2;
     }
 
-    shared_buffer(shared_buffer&& /*other*/) noexcept
+    shared_buffer(shared_buffer&& other) noexcept
+      : buffers_{ T(other.buffers_[0]),
+                  T(other.buffers_[1]),
+                  T(other.buffers_[2]) }
+      , versions_{ u64(other.versions_[0]),
+                   u64(other.versions_[1]),
+                   u64(other.versions_[2]) }
     {
-        std::construct_at(data() + 0);
-        std::construct_at(data() + 1);
-        std::construct_at(data() + 2);
-
         active_.store(0, std::memory_order_relaxed);
         staging_ = 1;
         spare_   = 2;
     }
 
     // Writer: copy-from-active, update staging, then publish.
+    // Avoids slots currently pinned by readers.
     template<typename Fn, typename... Args>
     void write(Fn&& fn, Args&&... args) noexcept
     {
@@ -826,16 +1023,26 @@ public:
 
         const auto a = active_.load(std::memory_order_acquire);
 
-        buffer(staging_)    = buffer(a);
-        versions_[staging_] = versions_[a];
+        // Choose a staging slot that is not active and not being read.
+        const std::size_t s = pick_staging_slot(a);
 
+        // Safety: should never equal active
+        debug::ensure(s != a);
+
+        // Prepare staging from active (same thread, no readers on s)
+        buffers_[s] = buffers_[a];
+        versions_[s].store(versions_[a].load(std::memory_order_relaxed),
+                           std::memory_order_relaxed);
+
+        // Produce
         std::invoke(
-          std::forward<Fn>(fn), buffer(staging_), std::forward<Args>(args)...);
+          std::forward<Fn>(fn), buffers_[s], std::forward<Args>(args)...);
+        versions_[s].fetch_add(1, std::memory_order_relaxed);
 
-        ++versions_[staging_];
+        // Publish new active
+        active_.store(s, std::memory_order_release);
 
-        active_.store(staging_, std::memory_order_release);
-
+        // Rotate indices (old active becomes spare)
         const auto old_active = a;
         const auto old_spare  = spare_;
         spare_                = old_active;
@@ -848,15 +1055,19 @@ public:
     {
         std::lock_guard<std::mutex> wlock(writer_);
 
+        const auto a = active_.load(std::memory_order_acquire);
+
+        // Choose staging slot free of readers
+        const std::size_t s = pick_staging_slot(a);
+        debug::ensure(s != a);
+
         // Overwrite staging
         std::invoke(
-          std::forward<Fn>(fn), buffer(staging_), std::forward<Args>(args)...);
-
-        ++versions_[staging_];
+          std::forward<Fn>(fn), buffers_[s], std::forward<Args>(args)...);
+        versions_[s].fetch_add(1, std::memory_order_relaxed);
 
         // Publish and rotate
-        const auto a = active_.load(std::memory_order_acquire);
-        active_.store(staging_, std::memory_order_release);
+        active_.store(s, std::memory_order_release);
 
         const auto old_active = a;
         const auto old_spare  = spare_;
@@ -864,72 +1075,104 @@ public:
         staging_              = old_spare;
     }
 
-    // Reader: lock-free snapshot of the current active buffer.
+    // Reader: lock-free, no copy, with pinning to prevent writer reuse of the
+    // slot.
     template<typename Fn, typename... Args>
     void read(Fn&& fn, Args&&... args) const noexcept
     {
+        // Snapshot active
         const auto idx = active_.load(std::memory_order_acquire);
 
+        // Pin the slot while we access it
+        reader_counts_[idx].fetch_add(1, std::memory_order_acquire);
+
+        const auto ver = versions_[idx].load(std::memory_order_acquire);
+
+        // Invoke on const reference (no copy)
         std::invoke(std::forward<Fn>(fn),
-                    cbuffer(idx),
-                    versions_[idx],
+                    buffers_[idx],
+                    ver,
                     std::forward<Args>(args)...);
+
+        // Unpin
+        reader_counts_[idx].fetch_sub(1, std::memory_order_release);
     }
 
-    // Try-read variant returns false if the active index changes mid-call
-    // (rare). Use if you need to guarantee a consistent index across long
-    // reads.
+    // Try-read: guarantees the same active index before and after the callback.
+    // Still pinned to avoid reuse while reading.
     template<typename Fn, typename... Args>
     bool try_read(Fn&& fn, Args&&... args) const noexcept
     {
         const auto idx1 = active_.load(std::memory_order_acquire);
+        reader_counts_[idx1].fetch_add(1, std::memory_order_acquire);
+
+        const auto ver1 = versions_[idx1].load(std::memory_order_acquire);
+
         std::invoke(std::forward<Fn>(fn),
-                    cbuffer(idx1),
-                    versions_[idx1],
+                    buffers_[idx1],
+                    ver1,
                     std::forward<Args>(args)...);
+
+        reader_counts_[idx1].fetch_sub(1, std::memory_order_release);
 
         const auto idx2 = active_.load(std::memory_order_acquire);
         return idx1 == idx2;
     }
 
 private:
-    std::mutex writer_;
+    // Pick a staging slot that is not active and not currently read.
+    std::size_t pick_staging_slot(std::size_t a) noexcept
+    {
+        auto is_free = [&](std::size_t i) {
+            return i != a &&
+                   reader_counts_[i].load(std::memory_order_acquire) == 0;
+        };
 
-    alignas(std::max_align_t) std::byte buffers_[sizeof(T) * 3];
-    std::array<u64, 3> versions_{};
+        // Prefer current spare if free
+        if (is_free(spare_))
+            return spare_;
 
-    // Atomic index of the active buffer
+        // Otherwise, pick the remaining index (0+1+2 - a - spare_)
+        const std::size_t other = 0 + 1 + 2 - a - spare_;
+        if (is_free(other))
+            return other;
+
+        // Both non-active slots are being read: wait very briefly
+        // (with one writer and ~10 readers, this is rare and short)
+        while (reader_counts_[spare_].load(std::memory_order_acquire) != 0) {
+            // Yield to let readers complete quickly
+            std::this_thread::yield();
+        }
+        return spare_;
+    }
+
+private:
+    mutable std::mutex writer_; /**< Writer-side mutex */
+
+    /** Three real slots for T (correct alignment and stride */
+    std::array<T, 3> buffers_{};
+
+    /** Per-slot version numbers (optional but helpful) */
+    std::array<std::atomic<std::uint64_t>, 3> versions_{
+        { std::atomic<std::uint64_t>{ 0 },
+          std::atomic<std::uint64_t>{ 0 },
+          std::atomic<std::uint64_t>{ 0 } }
+    };
+
+    /** Per-slot reader counters (pinning) */
+    mutable std::array<std::atomic<unsigned>, 3> reader_counts_{
+        { std::atomic<unsigned>{ 0 },
+          std::atomic<unsigned>{ 0 },
+          std::atomic<unsigned>{ 0 } }
+    };
+
+    /** Atomic index of the active buffer */
     std::atomic<std::size_t> active_{ 0 };
 
-    // Non-atomic writer-managed indices
+    /** Non-atomic writer-managed indices (single writer under mutex) */
     std::size_t staging_{ 1 };
     std::size_t spare_{ 2 };
 };
-
-template<typename T>
-inline constexpr T* shared_buffer<T>::data() noexcept
-{
-    return reinterpret_cast<T*>(&buffers_[0]);
-}
-
-template<typename T>
-inline constexpr const T* shared_buffer<T>::cdata() const noexcept
-{
-    return reinterpret_cast<const T*>(&buffers_[0]);
-}
-
-template<typename T>
-inline constexpr const T& shared_buffer<T>::cbuffer(
-  std::integral auto idx) const noexcept
-{
-    return *(cdata() + idx);
-}
-
-template<typename T>
-inline constexpr T& shared_buffer<T>::buffer(std::integral auto idx) noexcept
-{
-    return *(data() + idx);
-}
 
 /**
  * @brief A non-owning buffer of @a std::bytes.
@@ -2285,6 +2528,7 @@ public:
 
     constexpr void force_enqueue(const T& item) noexcept;
     constexpr bool enqueue(const T& item) noexcept;
+    constexpr bool enqueue(T&& item) noexcept;
     constexpr void dequeue() noexcept;
 
     constexpr T*       data() noexcept;
@@ -4387,15 +4631,18 @@ inline void spin_mutex::unlock() noexcept
 template<typename T, typename A>
 inline vector<T, A>::vector(std::integral auto size) noexcept
 {
-    debug::ensure(std::cmp_greater(size, 0));
+    debug::ensure(std::cmp_greater_equal(size, 0));
     debug::ensure(std::cmp_less(size, std::numeric_limits<index_type>::max()));
+
+    if (size == 0)
+        return;
 
     if (T* new_data = reinterpret_cast<T*>(A::allocate(sizeof(T) * size))) {
         m_data     = new_data;
         m_size     = static_cast<index_type>(size);
         m_capacity = static_cast<index_type>(size);
 
-        std::uninitialized_fill_n(data(), m_size, T{});
+        std::uninitialized_default_construct_n(data(), m_size);
     }
 }
 
@@ -4403,8 +4650,11 @@ template<typename T, typename A>
 inline vector<T, A>::vector(std::integral auto size,
                             const reserve_tag_t) noexcept
 {
-    debug::ensure(std::cmp_greater(size, 0));
+    debug::ensure(std::cmp_greater_equal(size, 0));
     debug::ensure(std::cmp_less(size, std::numeric_limits<index_type>::max()));
+
+    if (size == 0)
+        return;
 
     if (T* new_data = reinterpret_cast<T*>(A::allocate(sizeof(T) * size))) {
         m_data     = new_data;
@@ -4417,8 +4667,11 @@ template<typename T, typename A>
 inline vector<T, A>::vector(std::integral auto size,
                             const_reference    value) noexcept
 {
-    debug::ensure(std::cmp_greater(size, 0));
+    debug::ensure(std::cmp_greater_equal(size, 0));
     debug::ensure(std::cmp_less(size, std::numeric_limits<index_type>::max()));
+
+    if (size == 0)
+        return;
 
     if (T* new_data = reinterpret_cast<T*>(A::allocate(sizeof(T) * size))) {
         m_data     = new_data;
@@ -4434,10 +4687,13 @@ inline vector<T, A>::vector(std::integral auto capacity,
                             std::integral auto size,
                             const T&           default_value) noexcept
 {
-    debug::ensure(std::cmp_greater(capacity, 0));
+    debug::ensure(std::cmp_greater_equal(capacity, 0));
     debug::ensure(
       std::cmp_less(capacity, std::numeric_limits<index_type>::max()));
     debug::ensure(std::cmp_less_equal(size, capacity));
+
+    if (capacity == 0)
+        return;
 
     if (T* new_data = reinterpret_cast<T*>(A::allocate(sizeof(T) * capacity))) {
         m_data     = new_data;
@@ -6382,6 +6638,18 @@ ring_buffer<T, A>::force_emplace_enqueue(Args&&... args) noexcept
 
 template<class T, typename A>
 constexpr bool ring_buffer<T, A>::enqueue(const T& item) noexcept
+{
+    if (full())
+        return false;
+
+    std::construct_at(&buffer[m_tail], item);
+    m_tail = advance(m_tail);
+
+    return true;
+}
+
+template<class T, typename A>
+constexpr bool ring_buffer<T, A>::enqueue(T&& item) noexcept
 {
     if (full())
         return false;

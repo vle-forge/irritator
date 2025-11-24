@@ -521,8 +521,6 @@ public:
     component_id get_id() const noexcept { return m_id; }
 
 private:
-    struct impl;
-
     graph_component::scale_free_param  psf{};
     graph_component::small_world_param psw{};
     graph_component::dot_file_param    pdf{};
@@ -568,6 +566,31 @@ private:
         build_small_world_required,
         build_dot_graph_required,
     } st = job::none;
+
+    struct scale_free_build_handler {
+        component_editor*            ed       = nullptr;
+        graph_component_editor_data* graph_ed = nullptr;
+        graph_component_id           g_id     = undefined<graph_component_id>();
+    } scale_free_builder;
+
+    void show(application& app) noexcept;
+    bool compute_automatic_layout(graph_component& graph) noexcept;
+    void update_position_to_grid(graph_component& graph) noexcept;
+    void clear_file_access() noexcept;
+    void center_camera(ImVec2 top_left,
+                       ImVec2 bottom_right,
+                       ImVec2 canvas_sz) noexcept;
+    void auto_fit_camera(ImVec2 top_left,
+                         ImVec2 bottom_right,
+                         ImVec2 canvas_sz) noexcept;
+    void show_scale_free_menu(application&     app,
+                              graph_component& graph) noexcept;
+    void show_small_world_menu(application&     app,
+                               graph_component& graph) noexcept;
+    void show_dot_file_menu(application& app, graph_component& graph) noexcept;
+    void show_graph(application&     app,
+                    component&       compo,
+                    graph_component& data) noexcept;
 };
 
 class hsm_component_editor_data
@@ -1202,7 +1225,6 @@ public:
         } data;
     };
 
-private:
     struct impl;
 
     enum { tabitem_open_save, tabitem_open_in_out };
@@ -1445,7 +1467,7 @@ public:
     ~application() noexcept;
 
 private:
-    task_manager<4, 1> task_mgr;
+    task_manager task_mgr;
 
 public:
     config_manager   config;
@@ -1630,15 +1652,13 @@ void application::add_simulation_task(const project_id id, Fn&& fn) noexcept
 {
     const auto index = get_index(id) % 3;
 
-    task_mgr.get_ordered_list(index).add(fn);
-    task_mgr.get_ordered_list(index).notify_worker();
+    task_mgr.ordered(index).add(std::forward<Fn>(fn));
 }
 
 template<typename Fn>
 void application::add_gui_task(Fn&& fn) noexcept
 {
-    task_mgr.get_ordered_list(ordinal(main_task::gui)).add(fn);
-    task_mgr.get_ordered_list(ordinal(main_task::gui)).notify_worker();
+    task_mgr.ordered(ordinal(main_task::gui)).add(std::forward<Fn>(fn));
 }
 
 /* * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * */

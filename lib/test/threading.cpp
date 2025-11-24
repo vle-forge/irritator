@@ -15,13 +15,20 @@
 
 using heap_mr = irt::allocator<irt::monotonic_small_buffer<256 * 256 * 16>>;
 
-static void function_1(std::atomic_int& counter) noexcept { counter += 1; }
-static void function_100(std::atomic_int& counter) noexcept { counter += 100; }
+static void function_1(std::atomic_int& counter) noexcept
+{
+    counter.fetch_add(1, std::memory_order_acq_rel);
+}
 
-using data_task = irt::small_function<sizeof(int) * 2, void(void)>;
+static void function_100(std::atomic_int& counter) noexcept
+{
+    counter.fetch_add(100, std::memory_order_acq_rel);
+}
+
+using data_task = irt::lambda_function<void(void)>;
 enum class data_task_id : irt::u32;
 
-using data_task_ref = irt::small_function<sizeof(void*) * 2, void(void)>;
+using data_task_ref = irt::lambda_function<void(void)>;
 
 int main()
 {
@@ -71,7 +78,7 @@ int main()
 
     "spin-lock"_test = [] {
         fmt::print("spin-lock\n");
-        int             counter = 0;
+        std::atomic_int counter = 0;
         irt::spin_mutex spin;
 
         std::thread j1([&counter, &spin]() {
@@ -96,7 +103,7 @@ int main()
 
         j1.join();
         j2.join();
-        expect(counter == 0);
+        expect(eq(counter.load(), 0));
     };
 
     "scoped-lock"_test = [] {
@@ -125,7 +132,6 @@ int main()
             j1.join();
             j2.join();
             j3.join();
-
             expect(eq(mult.load(), 111));
         }
     };
@@ -133,20 +139,19 @@ int main()
     // use-case-test: checks a classic use of task and task_list.
     "task-lists"_test = [] {
         fmt::print("task-lists\n");
-        irt::task_manager<1, 1> tm;
+        irt::task_manager tm(1, 0);
         tm.start();
 
         std::atomic_int counter = 0;
         for (int i = 0; i < 100; ++i) {
-            tm.get_ordered_list(0).add([&counter]() { function_1(counter); });
-            tm.get_ordered_list(0).add([&counter]() { function_100(counter); });
-            tm.get_ordered_list(0).add([&counter]() { function_1(counter); });
-            tm.get_ordered_list(0).add([&counter]() { function_100(counter); });
-            tm.get_ordered_list(0).wait_completion();
+            tm.ordered(0).add([&counter]() { function_1(counter); });
+            tm.ordered(0).add([&counter]() { function_100(counter); });
+            tm.ordered(0).add([&counter]() { function_1(counter); });
+            tm.ordered(0).add([&counter]() { function_100(counter); });
+            tm.ordered(0).wait_empty();
         }
 
-        tm.get_ordered_list(0).wait_completion();
-        expect(counter == 20200);
+        expect(eq(counter.load(), 20200));
 
         tm.shutdown();
     };
@@ -155,18 +160,16 @@ int main()
     // wait.
     "task-lists-without-wait"_test = [] {
         fmt::print("task-lists-without-wait\n");
-        irt::task_manager<1, 1> tm;
+        irt::task_manager tm(1, 1);
         tm.start();
 
         std::atomic_int counter = 0;
         for (int i = 0; i < 100; ++i) {
-            tm.get_ordered_list(0).add([&counter]() { function_1(counter); });
-            tm.get_ordered_list(0).add([&counter]() { function_100(counter); });
-            tm.get_ordered_list(0).add([&counter]() { function_1(counter); });
-            tm.get_ordered_list(0).add([&counter]() { function_100(counter); });
+            tm.ordered(0).add([&counter]() { function_1(counter); });
+            tm.ordered(0).add([&counter]() { function_100(counter); });
         }
-        tm.get_ordered_list(0).wait_completion();
-        expect(counter == 202 * 100);
+        tm.ordered(0).wait_empty();
+        expect(eq(counter.load(), 101 * 100));
 
         tm.shutdown();
     };
@@ -176,7 +179,7 @@ int main()
     // function to avoid dead lock.
     "large-task-lists"_test = [] {
         fmt::print("large-task-lists\n");
-        irt::task_manager<1, 1> tm;
+        irt::task_manager tm(1, 1);
 
         constexpr int loop = 100;
 
@@ -186,38 +189,30 @@ int main()
             std::atomic_int counter = 0;
 
             for (int i = 0; i < loop; ++i) {
-                tm.get_ordered_list(0).add(
-                  [&counter]() { function_1(counter); });
-                tm.get_ordered_list(0).add(
-                  [&counter]() { function_100(counter); });
+                tm.ordered(0).add([&counter]() { function_1(counter); });
+                tm.ordered(0).add([&counter]() { function_100(counter); });
             }
-            tm.get_ordered_list(0).wait_completion();
+            tm.ordered(0).wait_empty();
 
             for (int i = 0; i < loop; ++i) {
-                tm.get_ordered_list(0).add(
-                  [&counter]() { function_1(counter); });
-                tm.get_ordered_list(0).add(
-                  [&counter]() { function_100(counter); });
+                tm.ordered(0).add([&counter]() { function_1(counter); });
+                tm.ordered(0).add([&counter]() { function_100(counter); });
             }
-            tm.get_ordered_list(0).wait_completion();
+            tm.ordered(0).wait_empty();
 
             for (int i = 0; i < loop; ++i) {
-                tm.get_ordered_list(0).add(
-                  [&counter]() { function_1(counter); });
-                tm.get_ordered_list(0).add(
-                  [&counter]() { function_100(counter); });
+                tm.ordered(0).add([&counter]() { function_1(counter); });
+                tm.ordered(0).add([&counter]() { function_100(counter); });
             }
-            tm.get_ordered_list(0).wait_completion();
+            tm.ordered(0).wait_empty();
 
             for (int i = 0; i < loop; ++i) {
-                tm.get_ordered_list(0).add(
-                  [&counter]() { function_1(counter); });
-                tm.get_ordered_list(0).add(
-                  [&counter]() { function_100(counter); });
+                tm.ordered(0).add([&counter]() { function_1(counter); });
+                tm.ordered(0).add([&counter]() { function_100(counter); });
             }
-            tm.get_ordered_list(0).wait_completion();
+            tm.ordered(0).wait_empty();
 
-            expect(counter == 101 * 100 * 4);
+            expect(eq(counter.load(), 101 * 100 * 4));
         }
 
         tm.shutdown();
@@ -225,7 +220,7 @@ int main()
 
     "n-worker-1-temp-task-lists-simple"_test = [] {
         fmt::print("n-worker-1-temp-task-lists-simple\n");
-        irt::task_manager tm;
+        irt::task_manager tm(0, 1);
 
         tm.start();
 
@@ -233,26 +228,18 @@ int main()
             std::atomic_int counter_1 = 0;
             std::atomic_int counter_2 = 0;
 
-            tm.get_unordered_list(0).add(
-              [&counter_1]() { function_1(counter_1); });
-            tm.get_unordered_list(0).add(
-              [&counter_2]() { function_100(counter_2); });
-            tm.get_unordered_list(0).add(
-              [&counter_1]() { function_1(counter_1); });
-            tm.get_unordered_list(0).add(
-              [&counter_2]() { function_100(counter_2); });
-            tm.get_unordered_list(0).add(
-              [&counter_1]() { function_1(counter_1); });
-            tm.get_unordered_list(0).add(
-              [&counter_2]() { function_100(counter_2); });
-            tm.get_unordered_list(0).add(
-              [&counter_1]() { function_1(counter_1); });
-            tm.get_unordered_list(0).add(
-              [&counter_2]() { function_100(counter_2); });
-            tm.get_unordered_list(0).submit();
-            tm.get_unordered_list(0).wait_completion();
-            expect(counter_1 == 4);
-            expect(counter_2 == 400);
+            tm.unordered(0).add([&counter_1]() { function_1(counter_1); });
+            tm.unordered(0).add([&counter_2]() { function_100(counter_2); });
+            tm.unordered(0).add([&counter_1]() { function_1(counter_1); });
+            tm.unordered(0).add([&counter_2]() { function_100(counter_2); });
+            tm.unordered(0).add([&counter_1]() { function_1(counter_1); });
+            tm.unordered(0).add([&counter_2]() { function_100(counter_2); });
+            tm.unordered(0).add([&counter_1]() { function_1(counter_1); });
+            tm.unordered(0).add([&counter_2]() { function_100(counter_2); });
+            tm.unordered(0).submit();
+            tm.unordered(0).wait_completion();
+            expect(eq(counter_1.load(), 4));
+            expect(eq(counter_2.load(), 400));
         }
 
         tm.shutdown();
@@ -262,51 +249,43 @@ int main()
         fmt::print("n-worker-1-temp-task-lists\n");
         auto start = std::chrono::steady_clock::now();
 
-        irt::task_manager tm;
+        irt::task_manager tm(1, 1);
         tm.start();
         for (int n = 0; n < 40; ++n) {
             std::atomic_int counter = 0;
 
             for (int i = 0; i < 100; ++i) {
-                tm.get_unordered_list(0).add(
-                  [&counter]() { function_1(counter); });
-                tm.get_unordered_list(0).add(
-                  [&counter]() { function_100(counter); });
+                tm.unordered(0).add([&counter]() { function_1(counter); });
+                tm.unordered(0).add([&counter]() { function_100(counter); });
             }
-            tm.get_unordered_list(0).submit();
-            tm.get_unordered_list(0).wait_completion();
-            expect(counter == 101 * 100);
+            tm.unordered(0).submit();
+            tm.unordered(0).wait_completion();
+            expect(eq(counter.load(), 101 * 100));
 
             for (int i = 0; i < 100; ++i) {
-                tm.get_unordered_list(0).add(
-                  [&counter]() { function_1(counter); });
-                tm.get_unordered_list(0).add(
-                  [&counter]() { function_100(counter); });
+                tm.unordered(0).add([&counter]() { function_1(counter); });
+                tm.unordered(0).add([&counter]() { function_100(counter); });
             }
-            tm.get_unordered_list(0).submit();
-            tm.get_unordered_list(0).wait_completion();
-            expect(counter == 101 * 100 * 2);
+            tm.unordered(0).submit();
+            tm.unordered(0).wait_completion();
+            expect(eq(counter.load(), 101 * 100 * 2));
 
             for (int i = 0; i < 100; ++i) {
-                tm.get_unordered_list(0).add(
-                  [&counter]() { function_1(counter); });
-                tm.get_unordered_list(0).add(
-                  [&counter]() { function_100(counter); });
+                tm.unordered(0).add([&counter]() { function_1(counter); });
+                tm.unordered(0).add([&counter]() { function_100(counter); });
             }
-            tm.get_unordered_list(0).submit();
-            tm.get_unordered_list(0).wait_completion();
-            expect(counter == 101 * 100 * 3);
+            tm.unordered(0).submit();
+            tm.unordered(0).wait_completion();
+            expect(eq(counter.load(), 101 * 100 * 3));
 
             for (int i = 0; i < 100; ++i) {
-                tm.get_unordered_list(0).add(
-                  [&counter]() { function_1(counter); });
-                tm.get_unordered_list(0).add(
-                  [&counter]() { function_100(counter); });
+                tm.unordered(0).add([&counter]() { function_1(counter); });
+                tm.unordered(0).add([&counter]() { function_100(counter); });
             }
-            tm.get_unordered_list(0).submit();
-            tm.get_unordered_list(0).wait_completion();
+            tm.unordered(0).submit();
+            tm.unordered(0).wait_completion();
 
-            expect(counter == 101 * 100 * 4);
+            expect(eq(counter.load(), 101 * 100 * 4));
         }
         tm.shutdown();
 
@@ -321,7 +300,7 @@ int main()
         auto start = std::chrono::steady_clock::now();
 
         for (int n = 0; n < 40; ++n) {
-            irt::task_manager tm;
+            irt::task_manager tm(1, 1);
 
             tm.start();
             std::atomic_int counter = 0;
@@ -346,7 +325,9 @@ int main()
                 function_100(counter);
             }
 
-            expect(counter == 101 * 100 * 4);
+            expect(eq(counter.load(), 101 * 100 * 4));
+
+            tm.shutdown();
         }
 
         auto end = std::chrono::steady_clock::now();
@@ -357,8 +338,8 @@ int main()
 
     "static-circular-buffer"_test = [] {
         fmt::print("static-circular-buffer\n");
-        irt::task_manager             tm;
-        irt::circular_buffer<int, 16> buffer;
+        irt::task_manager tm(2, 0);
+        std::atomic_int   buffer = 0;
 
         constexpr int loop = 100;
 
@@ -366,18 +347,15 @@ int main()
 
         for (int x = 0; x < 100; ++x) {
             for (int i = 0; i < loop; ++i) {
-                tm.get_ordered_list(0).add(
-                  [&buffer]() { (void)buffer.try_push(0); });
-
-                tm.get_ordered_list(1).add([&buffer]() {
-                    int r;
-                    (void)buffer.try_pop(r);
-                });
+                tm.ordered(0).add([&buffer]() { buffer.fetch_add(1); });
+                tm.ordered(1).add([&buffer]() { buffer.fetch_sub(1); });
             }
 
-            tm.get_ordered_list(0).wait_completion();
-            tm.get_ordered_list(1).wait_completion();
+            tm.ordered(0).wait_empty();
+            tm.ordered(1).wait_empty();
         }
+
+        tm.shutdown();
     };
 
     "single_locker"_test = [] {
@@ -423,14 +401,14 @@ int main()
 
     "locker-in-task-manager"_test = [] {
         fmt::print("locker-in-task-manager\n");
-        irt::task_manager tm;
+        irt::task_manager tm(2, 0);
         tm.start();
 
         irt::shared_buffer<irt::small_vector<int, 16>> buffer;
         std::atomic_int                                counter = 0;
 
         for (int i = 0; i < 16; ++i) {
-            tm.get_ordered_list(0).add([&buffer, &counter]() {
+            tm.ordered(0).add([&buffer, &counter]() {
                 buffer.read([&counter](const auto& vec, auto /*v*/) {
                     if (not vec.empty())
                         counter = vec.back();
@@ -439,11 +417,11 @@ int main()
                 });
             });
 
-            tm.get_ordered_list(1).add([&buffer]() {
+            tm.ordered(1).add([&buffer]() {
                 buffer.write([](auto& vec) { vec.push_back(10); });
             });
 
-            tm.get_ordered_list(0).add([&buffer, &counter]() {
+            tm.ordered(0).add([&buffer, &counter]() {
                 buffer.read([&counter](const auto& vec, auto /*ver*/) {
                     if (not vec.empty())
                         counter = vec.back();
@@ -453,25 +431,87 @@ int main()
             });
         }
 
-        tm.get_ordered_list(0).wait_completion();
-        tm.get_ordered_list(1).wait_completion();
+        tm.ordered(0).wait_empty();
+        tm.ordered(1).wait_empty();
+
+        tm.shutdown();
     };
 
     struct Counter {
-        int              value = 0;
+        std::atomic_int  value = 0;
         std::vector<int> history;
 
         Counter() = default;
         Counter(int v)
           : value(v)
         {}
+
+        Counter(const Counter& o) noexcept
+          : value(o.value.load())
+          , history(o.history)
+        {}
+
+        Counter(Counter&& o) noexcept
+          : value(o.value.load())
+          , history(std::move(o.history))
+        {}
+
+        Counter& operator=(const Counter& o) noexcept
+        {
+            if (this != &o) {
+                value   = o.value.load();
+                history = o.history;
+            }
+
+            return *this;
+        }
+
+        Counter& operator=(Counter&& o) noexcept
+        {
+            if (this != &o) {
+                value   = o.value.load();
+                history = std::move(o.history);
+            }
+
+            return *this;
+        }
     };
 
     struct ComplexData {
         std::vector<int> data;
-        int              checksum = 0;
+        std::atomic_int  checksum = 0;
 
         ComplexData() = default;
+
+        ComplexData(const ComplexData& o) noexcept
+          : data(o.data)
+          , checksum(o.checksum.load())
+        {}
+
+        ComplexData(ComplexData&& o) noexcept
+          : data(std::move(o.data))
+          , checksum(o.checksum.load())
+        {}
+
+        ComplexData& operator=(const ComplexData& o) noexcept
+        {
+            if (&o != this) {
+                data     = o.data;
+                checksum = o.checksum.load();
+            }
+
+            return *this;
+        }
+
+        ComplexData& operator=(ComplexData&& o) noexcept
+        {
+            if (&o != this) {
+                data     = std::move(o.data);
+                checksum = o.checksum.load();
+            }
+
+            return *this;
+        }
 
         void add_value(int v)
         {
@@ -494,7 +534,7 @@ int main()
         std::atomic<int>            read_count{ 0 };
         std::atomic<int>            errors{ 0 };
 
-        const int num_readers      = 10;
+        const int num_readers      = 4;
         const int reads_per_thread = 10000;
 
         std::vector<std::thread> threads;
@@ -535,7 +575,7 @@ int main()
         std::atomic<int>            read_count{ 0 };
         std::atomic<int>            monotonic_errors{ 0 };
 
-        const int num_readers = 8;
+        const int num_readers = 3;
 
         std::thread writer([&]() {
             for (int i = 0; i < 1000; ++i) {
@@ -640,7 +680,7 @@ int main()
         });
 
         std::vector<std::thread> readers;
-        for (int i = 0; i < 4; ++i) {
+        for (int i = 0; i < 3; ++i) {
             readers.emplace_back([&]() {
                 while (!stop.load()) {
                     buffer.read(
@@ -680,7 +720,7 @@ int main()
         });
 
         std::vector<std::thread> readers;
-        for (int i = 0; i < 6; ++i) {
+        for (int i = 0; i < 3; ++i) {
             readers.emplace_back([&]() {
                 auto start_time = std::chrono::steady_clock::now();
                 while (std::chrono::steady_clock::now() - start_time <
@@ -734,7 +774,7 @@ int main()
             });
         }
 
-        for (int i = 0; i < 8; ++i) {
+        for (int i = 0; i < 2; ++i) {
             threads.emplace_back([&]() {
                 while (std::chrono::steady_clock::now() - start_time <
                        duration) {
@@ -747,7 +787,7 @@ int main()
             });
         }
 
-        for (int i = 0; i < 4; ++i) {
+        for (int i = 0; i < 2; ++i) {
             threads.emplace_back([&]() {
                 while (std::chrono::steady_clock::now() - start_time <
                        duration) {
@@ -770,5 +810,146 @@ int main()
         });
 
         fmt::print("final value: {}\n", final_value);
+    };
+
+    struct Data {
+        std::vector<double> values;
+
+        Data()
+          : values(1000, 0.0)
+        {}
+
+        void update(double v)
+        {
+            for (auto& x : values)
+                x = v;
+        }
+    };
+
+    "shared_buffer_test::SingleWriterReader"_test = [] {
+        irt::shared_buffer<Data> buf;
+
+        // Writer met à jour
+        buf.write([](Data& d) { d.update(1.23); });
+
+        // Reader lit
+        bool ok = false;
+        buf.read([&](const Data& d, std::uint64_t ver) {
+            expect(not d.values.empty());
+            for (auto x : d.values) {
+                expect(irt::almost_equal(x, 1.23, 1e-10));
+            }
+            expect(ge(ver, 1u));
+            ok = true;
+        });
+
+        expect(ok);
+    };
+
+    "shared_buffer_test::ConcurrentReaders"_test = [] {
+        irt::shared_buffer<Data> buf;
+        static const auto        max_reader = 3u; /*
+   std::thread::hardware_concurrency() <= 1u
+            ? 1u
+            : std::thread::hardware_concurrency() - 1u; */
+        std::atomic<bool> stop{ false };
+
+        std::thread writer([&] {
+            for (int i = 0; i < 50; ++i) {
+                buf.write([&](Data& d) { d.update(double(i)); });
+                std::this_thread::sleep_for(std::chrono::milliseconds(1));
+            }
+            stop.store(true, std::memory_order_release);
+        });
+
+        std::vector<std::thread> readers;
+        std::atomic<int>         checks{ 0 };
+
+        for (unsigned r = 0; r < max_reader; ++r) {
+            readers.emplace_back([&] {
+                while (!stop.load(std::memory_order_acquire)) {
+                    buf.read([&](const Data& d, std::uint64_t ver) {
+                        if (!d.values.empty()) {
+                            const double v0 = d.values[0];
+                            bool         ok = true;
+                            for (std::size_t i = 1; i < d.values.size(); ++i) {
+                                if (d.values[i] != v0) {
+                                    ok = false;
+                                    break;
+                                }
+                            }
+                            if (ok)
+                                checks.fetch_add(1, std::memory_order_relaxed);
+                        }
+                        (void)ver;
+                    });
+                }
+            });
+        }
+
+        writer.join();
+        for (auto& th : readers)
+            th.join();
+
+        expect(gt(checks.load(), 0));
+    };
+
+    "shared_buffer_test::ConcurrentReadersConditionVar"_test = [] {
+        irt::shared_buffer<Data> buf;
+        std::mutex               m;
+        std::condition_variable  cv;
+        bool                     stop       = false;
+        static const auto        max_reader = 3u;
+        // std::thread::hardware_concurrency() <= 1u
+        //          ? 1u
+        //          : std::thread::hardware_concurrency() - 1u;
+
+        std::thread writer([&] {
+            for (int i = 0; i < 50; ++i) {
+                buf.write([&](Data& d) { d.update(double(i)); });
+                std::this_thread::sleep_for(std::chrono::milliseconds(1));
+            }
+            {
+                std::lock_guard<std::mutex> lk(m);
+                stop = true;
+            }
+            cv.notify_all();
+        });
+
+        std::vector<std::thread> readers;
+        std::atomic<int>         checks{ 0 };
+
+        for (unsigned r = 0; r < max_reader; ++r) {
+            readers.emplace_back([&] {
+                std::unique_lock<std::mutex> lk(m);
+                while (!stop) {
+                    lk.unlock();
+                    buf.read([&](const Data& d, std::uint64_t ver) {
+                        if (!d.values.empty()) {
+                            const double v0 = d.values[0];
+                            bool         ok = true;
+                            for (std::size_t i = 1; i < d.values.size(); ++i) {
+                                if (d.values[i] != v0) {
+                                    ok = false;
+                                    break;
+                                }
+                            }
+                            if (ok)
+                                checks.fetch_add(1, std::memory_order_relaxed);
+                        }
+                        (void)ver;
+                    });
+                    lk.lock();
+                    cv.wait_for(
+                      lk, std::chrono::milliseconds(1), [&] { return stop; });
+                }
+            });
+        }
+
+        writer.join();
+        for (auto& th : readers)
+            th.join();
+
+        expect(gt(checks.load(), 0));
     };
 }

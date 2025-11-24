@@ -420,7 +420,7 @@ static void show_dynamics_values(application& /*app*/,
         auto& mdl    = get_model(dyn);
         auto  mdl_id = sim.pj.sim.models.get_id(mdl);
 
-        sim.commands.try_push(
+        sim.commands.push(
           command{ .type = command_type::send_message,
                    .data{ .send_message{ .mdl_id = mdl_id } } });
     }
@@ -779,7 +779,7 @@ static constexpr int copy(application&                                   app,
 
     for (const auto index : selection) {
         if (pj_ed.pj.sim.models.try_to_get(nodes[index].mdl)) {
-            if (not pj_ed.commands.try_push(command{
+            if (not pj_ed.commands.push(command{
                   .type = command_type::copy_model,
                   .data{ .copy_model{ .tn_id  = current,
                                       .mdl_id = nodes[index].mdl } } })) {
@@ -804,7 +804,7 @@ static int new_model(application&        app,
                      const dynamics_type type,
                      const ImVec2        click_pos) noexcept
 {
-    if (not pj_ed.commands.try_push(
+    if (not pj_ed.commands.push(
           command{ .type = command_type::new_model,
                    .data{ .new_model{ .tn_id = current,
                                       .type  = type,
@@ -830,7 +830,7 @@ static int free_model(application&       app,
 
     for (const auto index : selection) {
         if (auto* mdl = pj_ed.pj.sim.models.try_to_get_from_pos(index)) {
-            if (not pj_ed.commands.try_push(command{
+            if (not pj_ed.commands.push(command{
                   .type = command_type::free_model,
                   .data{ .free_model{
                     .tn_id  = current,
@@ -866,7 +866,7 @@ static int connect(application&       app,
           *out.model, out.port_index, *in.model, in.port_index))
         return 0;
 
-    if (not pj_ed.commands.try_push(
+    if (not pj_ed.commands.push(
           command{ .type = command_type::new_connection,
                    .data{ .new_connection{
                      .tn_id      = current,
@@ -898,7 +898,7 @@ static int disconnect(application&                                   app,
         auto in  = get_in(pj_ed.pj.sim, links[link_index].in);
 
         if (out.model and in.model) {
-            if (not pj_ed.commands.try_push(command{
+            if (not pj_ed.commands.push(command{
                   .type = command_type::free_connection,
                   .data{ .free_connection{
                     .tn_id      = current,

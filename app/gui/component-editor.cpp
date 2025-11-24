@@ -61,15 +61,13 @@ concept has_store_function = requires(T t, component_editor& ed) {
     { t.store(ed) } -> std::same_as<void>;
 };
 
-static void update_component_list(application&          app,
-                                  spin_mutex&           mutex,
-                                  vector<component_id>& component_list,
-                                  std::atomic_flag&     updating,
-                                  const component&      compo) noexcept
+static void update_component_list(application&      app,
+                                  component_editor& ed,
+                                  const component&  compo) noexcept
 {
     app.add_gui_task([&]() noexcept {
-        std::unique_lock lock(mutex);
-        component_list.clear();
+        std::unique_lock lock(ed.component_list_mutex);
+        ed.component_list.clear();
 
         auto push_back_if_not_find =
           [](auto& app, auto& vec, const auto id) noexcept {
@@ -100,14 +98,14 @@ static void update_component_list(application&          app,
                  app.mod.generic_components.get(compo.id.generic_id).children)
                 if (c.type == child_type::component)
                     if (not push_back_if_not_find(
-                          app, component_list, c.id.compo_id))
+                          app, ed.component_list, c.id.compo_id))
                         break;
             break;
 
         case component_type::grid:
             for (const auto id :
                  app.mod.grid_components.get(compo.id.grid_id).children())
-                if (not push_back_if_not_find(app, component_list, id))
+                if (not push_back_if_not_find(app, ed.component_list, id))
                     break;
             break;
 
@@ -117,7 +115,7 @@ static void update_component_list(application&          app,
                 const auto c_id =
                   app.mod.graph_components.get(compo.id.graph_id)
                     .g.node_components[id];
-                if (not push_back_if_not_find(app, component_list, c_id))
+                if (not push_back_if_not_find(app, ed.component_list, c_id))
                     break;
             }
             break;
@@ -126,7 +124,7 @@ static void update_component_list(application&          app,
             break;
         }
 
-        updating.clear();
+        ed.component_list_updating.clear();
     });
 }
 
@@ -1996,9 +1994,8 @@ struct component_editor::impl {
 
                         if (ImGui::Button("refresh i/o", size))
                             update_component_list(app,
-                                                  ed.component_list_mutex,
-                                                  ed.component_list,
-                                                  ed.component_list_updating,
+                                                  ed,
+
                                                   compo);
 
                         if (not compo.x.empty() or not compo.y.empty()) {

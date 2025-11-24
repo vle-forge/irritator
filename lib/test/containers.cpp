@@ -417,8 +417,20 @@ int main()
     "small-function-1"_test = [] {
         double o = 15.0, p = 2.0, uu = 10.0;
 
-        auto lambda_1 =
-          +[](double x, double y) noexcept -> double { return x + y; };
+        {
+            int offset = 5;
+
+            irt::lambda_function f([&](int x) { return x + offset; });
+
+            std::cout << f(10) << "\n"; // affiche 15
+
+            auto g = std::move(f);
+            std::cout << g(3) << "\n"; // affiche 8
+        }
+
+        auto lambda_1 = [](double x, double y) noexcept -> double {
+            return x + y;
+        };
 
         auto lambda_2 = [](double x, double z) noexcept -> double {
             return x * z;
@@ -433,36 +445,46 @@ int main()
         };
 
         {
-            irt::small_function<sizeof(lambda_1), double(double, double)> f1;
-
-            f1 = lambda_1;
+            irt::lambda_function<double(double, double)> f1;
+            f1.emplace(std::move(lambda_1));
             expect(eq(f1(1.0, 2.0), 3.0));
+            f1.emplace(std::move(lambda_2));
+            expect(eq(f1(1.0, 2.0), 2.0));
+            f1.emplace(std::move(lambda_3));
+            expect(eq(f1(1.0, 2.0), 303.0));
+            f1.emplace(std::move(lambda_4));
+            expect(eq(f1(1.0, 2.0), 303.0));
         }
 
         {
-            irt::small_function<sizeof(lambda_2), double(double, double)> f1;
+            irt::lambda_function<double(double, double)> f2(
+              [](double x, double y) -> double { return x * y; });
 
-            f1 = lambda_2;
-            expect(eq(f1(3.0, 2.0), 6.0));
+            expect(eq(f2(1.0, 2.0), 2.0));
+            expect(eq(f2(3.0, 2.0), 6.0));
         }
 
         {
-            irt::small_function<sizeof(lambda_3), double(double, double)> f1;
+            irt::lambda_function<double(double, double), sizeof(double) * 3> f3(
+              [o, p, uu](double x, double z) noexcept -> double {
+                  return o * p * uu + x + z;
+              });
 
-            f1 = lambda_3;
-            expect(eq(f1(1.0, 1.0), o * p * uu + 2.0));
+            expect(eq(f3(1.0, 1.0), o * p * uu + 2.0));
         }
 
         {
-            irt::small_function<sizeof(lambda_4), double(double, double)> f1;
+            auto f4 = irt::make_lambda<3 * sizeof(double)>(
+              [o, p, uu](double x, double z) noexcept -> double {
+                  return o * p * uu + x + z;
+              });
 
-            f1 = lambda_4;
-            expect(eq(f1(2.0, 2.0), o * p * uu + 4.0));
+            expect(eq(f4(2.0, 2.0), o * p * uu + 4.0));
         }
 
-        irt::small_function<sizeof(double) * 3, double(double, double)> f1;
+        irt::lambda_function<double(double, double), sizeof(double) * 3> f1;
 
-        f1 = +[](double x, double y) noexcept -> double { return x + y; };
+        f1 = [](double x, double y) noexcept -> double { return x + y; };
         expect(eq(f1(1.0, 2.0), 3.0));
 
         f1 = [](double x, double z) noexcept -> double { return x * z; };
@@ -482,39 +504,31 @@ int main()
         };
     };
 
-    "small_function_basic"_test = [] {
-        irt::small_function<32, int(int, int)> add = [](int a, int b) {
-            return a + b;
-        };
+    "lambda_function_basic"_test = [] {
+        irt::lambda_function add = [](int a, int b) { return a + b; };
 
         expect(eq(add(5, 3), 8));
 
-        // Copy
-        auto add2 = add;
-        expect(eq(add2(10, 20), 30));
-
-        // Move
         auto add3 = std::move(add);
         expect(eq(add3(1, 2), 3));
         expect(not add);
 
-        // Reset
-        add3 = nullptr;
+        add3.reset();
         expect(not add3);
     };
 
-    "small_function_with_capture"_test = [] {
+    "lambda_function_with_capture"_test = [] {
         int multiplier = 10;
 
-        irt::small_function<64, int(int)> multiply = [multiplier](int x) {
+        irt::lambda_function<int(int), 64> multiply = [multiplier](int x) {
             return x * multiplier;
         };
 
         expect(eq(multiply(5), 50));
     };
 
-    "small_function_in_container"_test = [] {
-        std::vector<irt::small_function<32, void()>> tasks;
+    "lambda_function_in_container"_test = [] {
+        std::vector<irt::lambda_function<void(), 32>> tasks;
 
         for (int i = 0; i < 5; ++i) {
             tasks.emplace_back([i]() { std::cout << "Task " << i << '\n'; });
@@ -525,8 +539,8 @@ int main()
         }
     };
 
-    "small_function_return_type"_test = [] {
-        irt::small_function<32, std::string(const char*)> to_upper =
+    "lambda_function_return_type"_test = [] {
+        irt::lambda_function<std::string(const char*), 32> to_upper =
           [](const char* str) -> std::string {
             std::string result = str;
             for (char& c : result) {

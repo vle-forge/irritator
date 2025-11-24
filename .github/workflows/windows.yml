@@ -27,7 +27,7 @@ jobs:
 
     - name: Test
       working-directory: ${{github.workspace}}/build
-      run: ctest -VV -C ${{matrix.BUILD_TYPE}} --rerun-failed --output-on-failure  --debug
+      run: ctest -VV -C ${{matrix.BUILD_TYPE}} --rerun-failed --output-on-failure --debug
 
     - name: Prepare archive
       shell: cmd

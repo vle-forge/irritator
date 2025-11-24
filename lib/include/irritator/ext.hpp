@@ -15,300 +15,285 @@
 
 namespace irt {
 
-/**
- * An efficient, type-erasing, owning callable with Small Buffer Optimization.
- *
- * This class stores small callables (lambdas, function objects) inline without
- * heap allocation. It is designed specifically for lambdas, not for function
- * pointers or virtual functions.
- *
- * @tparam Size Number of bytes for inline storage (minimum 1).
- * @tparam Fn Function signature (e.g., void(int, float)).
- *
- * Requirements:
- * - Callable must fit in Size bytes
- * - Callable must be nothrow copyable/movable (for noexcept guarantee)
- *
- * Example:
- *   small_function<32, int(int)> f = [x = 42](int y) { return x + y; };
- *   int result = f(10);  // returns 52
- */
-template<std::size_t Size, typename Fn>
-class small_function;
+/// An efficient, type-erasing, owning callable with Small Buffer Optimization.
+///
+/// This class stores small lambdas and, function objects inline without
+/// heap allocation. It is designed specifically for lambdas, not for function
+/// pointers, munber function pointer nor virtual functions.
+///
+/// @tparam Fn Function signature (e.g., void(int, float)).
+/// @tparam Size Number of bytes for inline storage (minimum 1).
+/// @tparam Align Alignment for inline storage (power of two, minimum 1).
+///
+/// Requirements:
+/// - Callable must fit in Size bytes
+/// - Callable must be nothrow movable (for noexcept guarantee)
+///
+/// Example:
+///   lambda_function f([x = 42](int y) {
+///       return x + y;
+///   });
+///
+///   int result = f(10);  // returns 52
+template<typename Sig,
+         std::size_t Size  = 64,
+         std::size_t Align = alignof(std::max_align_t)>
+class lambda_function;
 
-//
-// Concepts for callable validation
-//
+// Traits to extract R(Args...) signature from &L::operator()
+template<typename T>
+struct lambda_signature; // default is undefined
 
-template<typename F, typename Ret, typename... Params>
-concept compatible_callable =
-  std::invocable<F, Params...> &&
-  (std::is_void_v<Ret> ||
-   std::convertible_to<std::invoke_result_t<F, Params...>, Ret>);
+// no-noexcept variants
+template<typename C, typename R, typename... Args>
+struct lambda_signature<R (C::*)(Args...)> {
+    using type = R(Args...);
+};
+template<typename C, typename R, typename... Args>
+struct lambda_signature<R (C::*)(Args...) const> {
+    using type = R(Args...);
+};
+template<typename C, typename R, typename... Args>
+struct lambda_signature<R (C::*)(Args...) volatile> {
+    using type = R(Args...);
+};
+template<typename C, typename R, typename... Args>
+struct lambda_signature<R (C::*)(Args...) const volatile> {
+    using type = R(Args...);
+};
 
-template<typename F, std::size_t Size>
-concept fits_in_storage = sizeof(std::decay_t<F>) <= Size;
+// ref-qualifiers variants
+template<typename C, typename R, typename... Args>
+struct lambda_signature<R (C::*)(Args...)&> {
+    using type = R(Args...);
+};
+template<typename C, typename R, typename... Args>
+struct lambda_signature<R (C::*)(Args...) const&> {
+    using type = R(Args...);
+};
+template<typename C, typename R, typename... Args>
+struct lambda_signature<R (C::*)(Args...) volatile&> {
+    using type = R(Args...);
+};
+template<typename C, typename R, typename... Args>
+struct lambda_signature<R (C::*)(Args...) const volatile&> {
+    using type = R(Args...);
+};
+template<typename C, typename R, typename... Args>
+struct lambda_signature<R (C::*)(Args...) &&> {
+    using type = R(Args...);
+};
+template<typename C, typename R, typename... Args>
+struct lambda_signature<R (C::*)(Args...) const&&> {
+    using type = R(Args...);
+};
+template<typename C, typename R, typename... Args>
+struct lambda_signature<R (C::*)(Args...) volatile&&> {
+    using type = R(Args...);
+};
+template<typename C, typename R, typename... Args>
+struct lambda_signature<R (C::*)(Args...) const volatile&&> {
+    using type = R(Args...);
+};
 
-template<typename F, std::size_t Size>
-concept compatible_alignment =
-  alignof(std::decay_t<F>) <=
-  alignof(std::aligned_storage_t<Size, alignof(std::max_align_t)>);
+// noexcept variants
+template<typename C, typename R, typename... Args>
+struct lambda_signature<R (C::*)(Args...) noexcept> {
+    using type = R(Args...);
+};
+template<typename C, typename R, typename... Args>
+struct lambda_signature<R (C::*)(Args...) const noexcept> {
+    using type = R(Args...);
+};
+template<typename C, typename R, typename... Args>
+struct lambda_signature<R (C::*)(Args...) volatile noexcept> {
+    using type = R(Args...);
+};
+template<typename C, typename R, typename... Args>
+struct lambda_signature<R (C::*)(Args...) const volatile noexcept> {
+    using type = R(Args...);
+};
 
-template<typename F>
-concept nothrow_relocatable =
-  std::is_nothrow_copy_constructible_v<std::decay_t<F>> ||
-  std::is_nothrow_move_constructible_v<std::decay_t<F>>;
+// no-noexcept and ref-qualifiers variants
+template<typename C, typename R, typename... Args>
+struct lambda_signature<R (C::*)(Args...) & noexcept> {
+    using type = R(Args...);
+};
+template<typename C, typename R, typename... Args>
+struct lambda_signature<R (C::*)(Args...) const & noexcept> {
+    using type = R(Args...);
+};
+template<typename C, typename R, typename... Args>
+struct lambda_signature<R (C::*)(Args...) volatile & noexcept> {
+    using type = R(Args...);
+};
+template<typename C, typename R, typename... Args>
+struct lambda_signature<R (C::*)(Args...) const volatile & noexcept> {
+    using type = R(Args...);
+};
+template<typename C, typename R, typename... Args>
+struct lambda_signature<R (C::*)(Args...) && noexcept> {
+    using type = R(Args...);
+};
+template<typename C, typename R, typename... Args>
+struct lambda_signature<R (C::*)(Args...) const && noexcept> {
+    using type = R(Args...);
+};
+template<typename C, typename R, typename... Args>
+struct lambda_signature<R (C::*)(Args...) volatile && noexcept> {
+    using type = R(Args...);
+};
+template<typename C, typename R, typename... Args>
+struct lambda_signature<R (C::*)(Args...) const volatile && noexcept> {
+    using type = R(Args...);
+};
 
-template<typename F, std::size_t Size, typename Ret, typename... Params>
-concept storable_callable =
-  compatible_callable<F, Ret, Params...> && fits_in_storage<F, Size> &&
-  compatible_alignment<F, Size> && nothrow_relocatable<F>;
+template<typename L>
+using deduce_signature_t = typename lambda_signature<
+  decltype(&std::remove_reference_t<L>::operator())>::type;
 
-template<std::size_t Size, typename Ret, typename... Params>
-class small_function<Size, Ret(Params...)>
+template<typename R, typename... Args, std::size_t Size, std::size_t Align>
+class lambda_function<R(Args...), Size, Align>
 {
+    static_assert(Align != 0, "Align must be non-zero");
+    static_assert((Align & (Align - 1)) == 0, "Align must be power of two");
+
+    alignas(Align) std::byte m_storage[Size];
+
+    struct vtable_t {
+        R (*invoke)(const void*, Args&&...) noexcept;
+        void (*destroy)(void*) noexcept;
+        void (*move_construct)(void* dst, void* src) noexcept;
+    } m_vtbl{};
+
+    bool m_engaged = false;
+
+    template<typename L>
+    static R invoke_fn(const void* p, Args&&... args) noexcept
+    {
+        auto const* lp = static_cast<L const*>(p);
+
+        if constexpr (std::is_void_v<R>) {
+            (*lp)(std::forward<Args>(args)...);
+        } else {
+            return (*lp)(std::forward<Args>(args)...);
+        }
+    }
+
+    template<typename L>
+    static void destroy_fn(void* p) noexcept
+    {
+        static_cast<L*>(p)->~L();
+    }
+
+    template<typename L>
+    static void move_construct_fn(void* dst, void* src) noexcept
+    {
+        auto* s = static_cast<L*>(src);
+
+        ::new (dst) L(std::move(*s));
+        destroy_fn<L>(src);
+    }
+
+    template<typename T>
+    static constexpr bool is_lambda_like_v =
+      std::is_class_v<T> && requires { &T::operator(); };
+
 public:
-    static_assert(Size >= 1, "Size must be at least 1 byte");
+    using result_type = R;
 
-    constexpr small_function() noexcept = default;
+    constexpr lambda_function() noexcept = default;
 
-    constexpr small_function(const small_function& other) noexcept
+    lambda_function(const lambda_function&)            = delete;
+    lambda_function& operator=(const lambda_function&) = delete;
+
+    constexpr lambda_function(lambda_function&& other) noexcept
     {
-        if (other.m_manager) {
-            other.m_manager(
-              storage(), const_cast<void*>(other.storage()), operation::clone);
-            m_invoker = other.m_invoker;
-            m_manager = other.m_manager;
+        if (other.m_engaged) {
+            other.m_vtbl.move_construct(m_storage, other.m_storage);
+            m_vtbl          = other.m_vtbl;
+            m_engaged       = true;
+            other.m_engaged = false;
         }
     }
 
-    constexpr small_function& operator=(const small_function& other) noexcept
+    constexpr lambda_function& operator=(lambda_function&& other) noexcept
     {
         if (this != &other) {
-            small_function temp(other);
-            swap(temp);
+            reset();
+            if (other.m_engaged) {
+                other.m_vtbl.move_construct(m_storage, other.m_storage);
+                m_vtbl          = other.m_vtbl;
+                m_engaged       = true;
+                other.m_engaged = false;
+            }
         }
         return *this;
     }
 
-    constexpr small_function(small_function&& other) noexcept
+    ~lambda_function() { reset(); }
+
+    template<typename L,
+             typename T                                 = std::decay_t<L>,
+             std::enable_if_t<is_lambda_like_v<T>, int> = 0>
+    constexpr lambda_function(L&& l) noexcept
     {
-        if (other.m_manager) {
-
-            // For trivially copyable types, use memcpy
-            // Note: memcpy is not constexpr, so this branch won't be taken at
-            // compile time
-
-            if (std::is_constant_evaluated() || !is_trivially_relocatable())
-                other.m_manager(storage(),
-                                const_cast<void*>(other.storage()),
-                                operation::move);
-            else
-                std::memcpy(storage(), other.storage(), Size);
-
-            m_invoker = std::exchange(other.m_invoker, nullptr);
-            m_manager = std::exchange(other.m_manager, nullptr);
-        }
+        emplace(std::forward<L>(l));
     }
 
-    constexpr small_function& operator=(small_function&& other) noexcept
+    template<typename L,
+             typename T                                 = std::decay_t<L>,
+             std::enable_if_t<is_lambda_like_v<T>, int> = 0>
+    constexpr void emplace(L&& l) noexcept
     {
-        if (this != &other) {
-            small_function temp(std::move(other));
-            swap(temp);
-        }
-        return *this;
-    }
+        using U = std::decay_t<L>;
 
-    constexpr small_function& operator=(std::nullptr_t) noexcept
-    {
+        static_assert(sizeof(U) <= Size, "Too small buffer for lambda");
+        static_assert(alignof(U) <= Align, "Too large alignement for lambda");
+
         reset();
-        return *this;
+        ::new (m_storage) U(std::forward<L>(l));
+
+        m_vtbl =
+          vtable_t{ &invoke_fn<U>, &destroy_fn<U>, &move_construct_fn<U> };
+        m_engaged = true;
     }
 
-    template<typename F>
-        requires(!std::same_as<std::decay_t<F>, small_function> &&
-                 storable_callable<F, Size, Ret, Params...>)
-    constexpr small_function(F&& f) noexcept
+    constexpr R operator()(Args... args) const noexcept
     {
-        using f_type = std::decay_t<F>;
+        debug::ensure(m_engaged);
 
-        new (storage()) f_type(std::forward<F>(f));
-        m_invoker = &invoke<f_type>;
-        m_manager = &manage<f_type>;
+        return m_vtbl.invoke(m_storage, std::forward<Args>(args)...);
     }
 
-    template<typename F>
-        requires(!std::same_as<std::decay_t<F>, small_function> &&
-                 storable_callable<F, Size, Ret, Params...>)
-    constexpr small_function& operator=(F&& f) noexcept
-    {
-        small_function temp(std::forward<F>(f));
-        swap(temp);
-        return *this;
-    }
-
-    template<typename F>
-    constexpr small_function& operator=(std::reference_wrapper<F> f) noexcept
-    {
-        small_function temp(f);
-        swap(temp);
-        return *this;
-    }
-
-    constexpr ~small_function() noexcept { reset(); }
-
-    constexpr void swap(small_function& other) noexcept
-    {
-        if (this == &other)
-            return;
-
-        storage_type storage_tmp;
-        std::copy_n(m_storage, Size, storage_tmp);
-        invoker_type invoker_tmp = std::move(m_invoker);
-        manager_type manager_tmp = std::move(m_manager);
-
-        std::copy_n(other.m_storage, Size, m_storage);
-        m_invoker = std::move(other.m_invoker);
-        m_manager = std::move(other.m_manager);
-
-        std::copy_n(storage_tmp, Size, other.m_storage);
-        other.m_invoker = std::move(invoker_tmp);
-        other.m_manager = std::move(manager_tmp);
-    }
+    constexpr explicit operator bool() const noexcept { return m_engaged; }
 
     constexpr void reset() noexcept
     {
-        if (m_manager) {
-            m_manager(storage(), nullptr, operation::destroy);
-            m_manager = nullptr;
-            m_invoker = nullptr;
+        if (m_engaged) {
+            m_vtbl.destroy(m_storage);
+            m_engaged = false;
         }
     }
-
-    [[nodiscard]] constexpr explicit operator bool() const noexcept
-    {
-        return m_manager != nullptr;
-    }
-
-    constexpr Ret operator()(Params... args) const
-    {
-        if (!m_invoker) {
-            throw std::bad_function_call();
-        }
-
-        return m_invoker(storage(), std::forward<Params>(args)...);
-    }
-
-    constexpr Ret operator()(Params... args)
-    {
-        if (!m_invoker) {
-            throw std::bad_function_call();
-        }
-
-        return m_invoker(storage(), std::forward<Params>(args)...);
-    }
-
-    [[nodiscard]] static constexpr std::size_t storage_size() noexcept
-    {
-        return Size;
-    }
-
-    [[nodiscard]] constexpr bool empty() const noexcept { return !m_manager; }
-
-private:
-    enum class operation : u8 { clone, move, destroy };
-
-    using invoker_type = Ret (*)(void*, Params&&...);
-    using manager_type = void (*)(void*, void*, operation);
-    using storage_type = std::byte[Size];
-
-    [[nodiscard]] constexpr void* storage() noexcept
-    {
-        return static_cast<void*>(&m_storage);
-    }
-
-    [[nodiscard]] constexpr const void* storage() const noexcept
-    {
-        return static_cast<const void*>(&m_storage);
-    }
-
-    /// Check if storage is trivially relocatable (can use memcpy)
-    [[nodiscard]] static constexpr bool is_trivially_relocatable() noexcept
-    {
-        return std::is_trivially_copyable_v<storage_type>;
-    }
-
-    template<typename F>
-    static constexpr Ret invoke(void* data, Params&&... args)
-    {
-        F& f = *static_cast<F*>(data);
-        return f(std::forward<Params>(args)...);
-    }
-
-    template<typename F>
-    static constexpr void manage(void* dest, void* src, operation op)
-    {
-        switch (op) {
-        case operation::clone:
-            std::construct_at(static_cast<F*>(dest),
-                              *static_cast<const F*>(src));
-            break;
-
-        case operation::move:
-            if constexpr (std::is_nothrow_move_constructible_v<F>) {
-                std::construct_at(static_cast<F*>(dest),
-                                  std::move(*static_cast<F*>(src)));
-            } else {
-                std::construct_at(static_cast<F*>(dest),
-                                  *static_cast<const F*>(src));
-            }
-            std::destroy_at(static_cast<F*>(src));
-            break;
-
-        case operation::destroy:
-            std::destroy_at(static_cast<F*>(dest));
-            break;
-        }
-    }
-
-    alignas(std::max_align_t) storage_type m_storage{};
-    invoker_type m_invoker = nullptr;
-    manager_type m_manager = nullptr;
 };
 
-//
-// small_funciton non-member functions
-//
+/// Deduction guide for lambda_function
+///
+/// The buffer size is fixed a 64 bytes with maximum alignment. Use the @a
+/// make_lambda function to be able to fix the size and alignment.
+template<typename L>
+lambda_function(L)
+  -> lambda_function<deduce_signature_t<L>, 64, alignof(std::max_align_t)>;
 
-template<std::size_t Size, typename Fn>
-void swap(small_function<Size, Fn>& lhs, small_function<Size, Fn>& rhs) noexcept
+/// Helper function to create a lambda_function with custom size and alignment.
+template<std::size_t Size,
+         std::size_t Align = alignof(std::max_align_t),
+         typename L>
+auto make_lambda(L&& l) noexcept
+  -> lambda_function<deduce_signature_t<L>, Size, Align>
 {
-    lhs.swap(rhs);
-}
-
-template<std::size_t Size, typename Fn>
-bool operator==(const small_function<Size, Fn>& f, std::nullptr_t) noexcept
-{
-    return !f;
-}
-
-template<std::size_t Size, typename Fn>
-bool operator==(std::nullptr_t, const small_function<Size, Fn>& f) noexcept
-{
-    return !f;
-}
-
-template<std::size_t Size, typename Fn>
-bool operator!=(const small_function<Size, Fn>& f, std::nullptr_t) noexcept
-{
-    return static_cast<bool>(f);
-}
-
-template<std::size_t Size, typename Fn>
-bool operator!=(std::nullptr_t, const small_function<Size, Fn>& f) noexcept
-{
-    return static_cast<bool>(f);
+    lambda_function<deduce_signature_t<L>, Size, Align> f(std::forward<L>(l));
+    return f;
 }
 
 //! An efficient, type-erasing, non-owning reference to a callable. This is

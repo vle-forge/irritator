@@ -596,7 +596,7 @@ void start_simulation_commands_apply(application& app, project_id id) noexcept
 
             while (not ed->commands.empty()) {
                 command c;
-                if (ed->commands.try_pop(c)) {
+                if (ed->commands.pop(c)) {
                     switch (c.type) {
                     case command_type::none:
                         break;

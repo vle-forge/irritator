@@ -312,7 +312,7 @@ void simulation_to_cpp::show(const project_editor& ed) noexcept
 }
 
 application::application(journal_handler& jn_) noexcept
-  : task_mgr{}
+  : task_mgr{ 4, 1 }
   , config(get_config_home(true))
   , mod{ jn_ }
   , jn{ jn_ }
@@ -331,12 +331,10 @@ application::application(journal_handler& jn_) noexcept
 
     auto& msg = log_wnd.enqueue();
     format(msg,
-           "Starting with {} ordered list {} unordered list and {} threads and "
-           "{} unordered workers\n",
-           task_mgr.ordered_list_number,
-           task_mgr.unordered_list_number,
-           task_mgr.ordered_workers_size(),
-           task_mgr.unordered_workers_size());
+           "Starting with {} ordered list {} unordered list and {} threads\n",
+           task_mgr.ordered_size(),
+           task_mgr.unordered_size(),
+           task_mgr.ordered_size() + task_mgr.unordered_size());
 }
 
 application::~application() noexcept
@@ -352,7 +350,7 @@ application::~application() noexcept
 
 unordered_task_list& application::get_unordered_task_list() noexcept
 {
-    return task_mgr.get_unordered_list(0);
+    return task_mgr.unordered(0);
 }
 
 std::optional<project_id> application::alloc_project_window() noexcept
