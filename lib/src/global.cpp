@@ -42,46 +42,42 @@ constexpr Iterator sorted_vector_find(Iterator begin,
     return (begin != end && !comp(value, *begin)) ? begin : end;
 }
 
-static std::shared_ptr<variables> do_build_default() noexcept
+static void do_build_default(variables& v) noexcept
 {
-    auto v = std::make_shared<variables>();
-
-    v->rec_paths.ids.reserve(16);
-    v->rec_paths.paths.resize(16);
-    v->rec_paths.priorities.resize(16);
-    v->rec_paths.names.resize(16);
+    v.rec_paths.ids.reserve(16);
+    v.rec_paths.paths.resize(16);
+    v.rec_paths.priorities.resize(16);
+    v.rec_paths.names.resize(16);
 
     if (auto sys = get_system_component_dir(); sys.has_value()) {
         std::error_code ec;
         if (std::filesystem::exists(*sys, ec)) {
-            const auto idx               = v->rec_paths.ids.alloc();
-            v->rec_paths.paths[idx]      = (const char*)sys->u8string().c_str();
-            v->rec_paths.priorities[idx] = 20;
-            v->rec_paths.names[idx]      = "system";
+            const auto idx              = v.rec_paths.ids.alloc();
+            v.rec_paths.paths[idx]      = (const char*)sys->u8string().c_str();
+            v.rec_paths.priorities[idx] = 20;
+            v.rec_paths.names[idx]      = "system";
         }
     }
 
     if (auto sys = get_system_prefix_component_dir(); sys.has_value()) {
         std::error_code ec;
         if (std::filesystem::exists(*sys, ec)) {
-            const auto idx               = v->rec_paths.ids.alloc();
-            v->rec_paths.paths[idx]      = (const char*)sys->u8string().c_str();
-            v->rec_paths.priorities[idx] = 10;
-            v->rec_paths.names[idx]      = "p-system";
+            const auto idx              = v.rec_paths.ids.alloc();
+            v.rec_paths.paths[idx]      = (const char*)sys->u8string().c_str();
+            v.rec_paths.priorities[idx] = 10;
+            v.rec_paths.names[idx]      = "p-system";
         }
     }
 
     if (auto sys = get_default_user_component_dir(); sys.has_value()) {
         std::error_code ec;
         if (std::filesystem::exists(*sys, ec)) {
-            const auto idx               = v->rec_paths.ids.alloc();
-            v->rec_paths.paths[idx]      = (const char*)sys->u8string().c_str();
-            v->rec_paths.priorities[idx] = 0;
-            v->rec_paths.names[idx]      = "user";
+            const auto idx              = v.rec_paths.ids.alloc();
+            v.rec_paths.paths[idx]      = (const char*)sys->u8string().c_str();
+            v.rec_paths.priorities[idx] = 0;
+            v.rec_paths.names[idx]      = "user";
         }
     }
-
-    return v;
 }
 
 static std::error_code do_write(const variables& vars,
@@ -372,9 +368,9 @@ static std::error_code do_parse(variables&       v,
     return std::error_code();
 }
 
-static std::error_code do_load(const char*                 filename,
-                               std::shared_ptr<variables>& vars,
-                               int&                        theme) noexcept
+static std::error_code do_load(const char* filename,
+                               variables&  vars,
+                               int&        theme) noexcept
 {
     auto file = std::ifstream{ filename };
     if (not file.is_open())
@@ -390,7 +386,7 @@ static std::error_code do_load(const char*                 filename,
 
     file.close();
 
-    return do_parse(*vars, theme, latest);
+    return do_parse(vars, theme, latest);
 }
 
 vector<recorded_path_id> recorded_paths::sort_by_priorities() const noexcept
@@ -544,50 +540,74 @@ void stdfile_journal_consumer::read(journal_handler& lm) noexcept
 }
 
 config_manager::config_manager() noexcept
-  : m_vars{ do_build_default() }
-{}
-
-config_manager::config_manager(const std::string config_path) noexcept
-  : m_path{ config_path }
-  , m_vars{ do_build_default() }
 {
-    if (do_load(config_path.c_str(), m_vars, theme)) {
-        (void)save();
-    }
+    m_vars.write([&](auto& buffer) noexcept { do_build_default(buffer); });
+}
+
+config_manager::config_manager(const std::string& config_path) noexcept
+  : m_path{ config_path }
+{
+    m_vars.write([&](auto& buffer) noexcept {
+        do_build_default(buffer);
+        if (do_load(config_path.c_str(), buffer, theme)) {
+            if (not save()) {
+                std::fprintf(stderr,
+                             "Fail to store configuration in %s\n",
+                             config_path.c_str());
+            }
+        }
+    });
 }
 
 std::error_code config_manager::save() const noexcept
 {
-    std::shared_lock lock(m_mutex);
+    std::error_code ret;
 
-    return do_save(m_path.c_str(), *m_vars, theme);
+    m_vars.read(
+      [&](const auto& buffer, const auto version, auto& ret) noexcept {
+          if (version != m_version)
+              ret = do_save(m_path.c_str(), buffer, theme);
+      },
+      ret);
+
+    return ret;
 }
 
 std::error_code config_manager::load() noexcept
 {
-    auto ret             = std::make_shared<variables>();
-    auto is_load_success = do_load(m_path.c_str(), ret, theme);
-    if (not is_load_success)
-        return is_load_success;
+    std::error_code ret;
 
-    std::unique_lock lock(m_mutex);
-    std::swap(ret, m_vars);
+    m_vars.write(
+      [&](auto& buffer, auto& ret) noexcept {
+          variables temp;
 
-    return std::error_code();
+          if (auto is_load_success = do_load(m_path.c_str(), temp, theme);
+              not is_load_success) {
+              ret = is_load_success;
+          } else {
+              std::swap(buffer, temp);
+          }
+      },
+      ret);
+
+    return ret;
 }
 
-void config_manager::swap(std::shared_ptr<variables>& other) noexcept
+void config_manager::swap(variables& other) noexcept
 {
-    std::unique_lock lock(m_mutex);
-
-    std::swap(m_vars, other);
+    m_vars.write([&](auto& buffer) noexcept { std::swap(buffer, other); });
 }
 
-std::shared_ptr<variables> config_manager::copy() const noexcept
+variables config_manager::copy() const noexcept
 {
-    std::shared_lock lock(m_mutex);
+    variables ret;
 
-    return std::make_shared<variables>(*m_vars.get());
+    m_vars.read([&](const auto& buffer,
+                    const auto /*version*/,
+                    auto& ret) noexcept { ret = buffer; },
+                ret);
+
+    return ret;
 }
 
 } // namespace irt

@@ -17,7 +17,6 @@
 #include <memory_resource>
 #include <mutex>
 #include <optional>
-#include <shared_mutex>
 #include <type_traits>
 #include <utility>
 

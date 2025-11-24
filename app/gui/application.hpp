@@ -1301,10 +1301,7 @@ class component_selector
 public:
     component_selector() noexcept = default;
 
-    /** Update the components cache with added/renamed/removed component.
-     * This function lock the @a shared_mutex to write new data using a
-     * @a std::unique_lock.
-     */
+    /** Update the components cache with added/renamed/removed component. */
     void update() noexcept;
 
     struct result_t {
@@ -1375,8 +1372,7 @@ public:
 
     component_model_selector() noexcept = default;
 
-    /**
-     * Display a @c ImGui::ComboBox and a @c ImGui::TreeNode for the hierarchy
+    /** Display a @c ImGui::ComboBox and a @c ImGui::TreeNode for the hierarchy
      * of @c tree_node given in update function. This function can lock the
      * mutex if an update is in progress.
      *
@@ -1388,10 +1384,7 @@ public:
     std::optional<access> combobox(const char*    label,
                                    const project& pj) noexcept;
 
-    /**
-     * Update the components cache with component. This function lock the @a
-     * shared_mutex to write new data using a @a std::unique_lock.
-     */
+    /** Update the components cache with component. */
     void update(const project&     pj,
                 const tree_node_id parent_id,
                 const component_id compo_id,

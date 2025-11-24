@@ -8,10 +8,7 @@
 #include <irritator/container.hpp>
 #include <irritator/error.hpp>
 
-#include <atomic>
 #include <filesystem>
-#include <mutex>
-#include <shared_mutex>
 #include <span>
 
 namespace irt {
@@ -235,7 +232,7 @@ public:
     /** Build a @a variables object from the file @a config_path. If it
        fail, the default object from static data is build. Priority is given
        to @a config_path data. */
-    explicit config_manager(const std::string config_path) noexcept;
+    explicit config_manager(const std::string& config_path) noexcept;
 
     config_manager(config_manager&&) noexcept            = delete;
     config_manager& operator=(config_manager&&) noexcept = delete;
@@ -261,10 +258,10 @@ public:
     template<typename Function, typename... Args>
     void read(Function&& fn, Args&&... args) noexcept
     {
-        std::shared_lock<std::shared_mutex> lock(m_mutex);
-        std::invoke(std::forward<Function>(fn),
-                    std::as_const(*m_vars),
-                    std::forward<Args>(args)...);
+        m_vars.read([&](const auto& buffer, const auto /*version*/) {
+            std::invoke(
+              std::forward<Function>(fn), buffer, std::forward<Args>(args)...);
+        });
     }
 
     /**
@@ -288,69 +285,31 @@ public:
     template<typename Function, typename... Args>
     void read_write(Function&& fn, Args&&... args) noexcept
     {
-        std::unique_lock<std::shared_mutex> lock(m_mutex);
-        std::invoke(
-          std::forward<Function>(fn), *m_vars, std::forward<Args>(args)...);
-    }
-
-    /**
-     * Try to get the underlying @a variables object under @a shared_lock
-     * try-locker. The function @a fn is call if and only if the lock is
-     * acquired otherwise, the function is not call and the caller take the
-     * control.
-     *
-     * @attention Do not store pointer or reference to any members of @a
-     * variables after the destruction of the @a config object (@c
-     * use-after-free). the config.
-     *
-     * @code
-     * config_manager cfgm;
-     * ...
-     * small_string<127> name;
-     * {
-     *     read_write([&name](const auto& vars) {
-     *         name = vars.g_themes.names[0];
-     *     });
-     * }
-     * @endcode
-     */
-    template<typename Function, typename... Args>
-    void try_read(Function&& fn, Args&&... args) noexcept
-    {
-        if (std::shared_lock<std::shared_mutex> lock(m_mutex, std::try_to_lock);
-            lock.owns_lock()) {
-            std::invoke(std::forward<Function>(fn),
-                        std::as_const(*m_vars),
-                        std::forward<Args>(args)...);
-        }
+        m_vars.write([&](const auto& buffer) {
+            std::invoke(
+              std::forward<Function>(fn), buffer, std::forward<Args>(args)...);
+        });
     }
 
     std::error_code save() const noexcept;
     std::error_code load() noexcept;
 
-    void                       swap(std::shared_ptr<variables>& other) noexcept;
-    std::shared_ptr<variables> copy() const noexcept;
+    void      swap(variables& other) noexcept;
+    variables copy() const noexcept;
 
     theme_colors colors;
     int          theme = 0;
 
 private:
-    /**
-     * Stores the configuration path (@a `$XDG_RUNTIME_DIR/irritator.ini` or
-     * @a
-     *
-     * `%HOMEDIR%/%HOMEPATH&/irritator.ini`) directories. @TODO move from
+    /** Stores the configuration path (@a `$XDG_RUNTIME_DIR/irritator.ini` or
+     * @a `%HOMEDIR%/%HOMEPATH&/irritator.ini`) directories. @TODO move from
      * std::string into small_string or vector<char> with cold memory
      * allocator.
      */
     const std::string m_path;
 
-    std::shared_ptr<variables> m_vars;
-
-    /** Use a @a std::shared_mutex to permit multiple readers with @a
-     * std::shared_lock in @a config object and unique writer with @a *
-     * std::unique_lock. */
-    mutable std::shared_mutex m_mutex;
+    shared_buffer<variables> m_vars;
+    u64                      m_version = 0;
 };
 
 /** Retrieves the path of the file @a "irritator.ini" from the directoy @a
