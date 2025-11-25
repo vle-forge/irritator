@@ -831,4 +831,138 @@ int main()
 
         fmt::print("final value: {}\n", final_value);
     };
+
+    struct Data {
+        std::vector<double> values;
+
+        Data()
+          : values(1000, 0.0)
+        {}
+
+        void update(double v)
+        {
+            for (auto& x : values)
+                x = v;
+        }
+    };
+
+    "shared_buffer_test::SingleWriterReader"_test = [] {
+        irt::shared_buffer<Data> buf;
+
+        // Writer met à jour
+        buf.write([](Data& d) { d.update(1.23); });
+
+        // Reader lit
+        bool ok = false;
+        buf.read([&](const Data& d, std::uint64_t ver) {
+            expect(not d.values.empty());
+            for (auto x : d.values) {
+                expect(irt::almost_equal(x, 1.23, 1e-10));
+            }
+            expect(ge(ver, 1u));
+            ok = true;
+        });
+
+        expect(ok);
+    };
+
+    "shared_buffer_test::ConcurrentReaders"_test = [] {
+        irt::shared_buffer<Data> buf;
+
+        std::atomic<bool> stop{ false };
+
+        std::thread writer([&] {
+            for (int i = 0; i < 50; ++i) {
+                buf.write([&](Data& d) { d.update(double(i)); });
+                std::this_thread::sleep_for(std::chrono::milliseconds(1));
+            }
+            stop.store(true, std::memory_order_release);
+        });
+
+        std::vector<std::thread> readers;
+        std::atomic<int>         checks{ 0 };
+
+        for (int r = 0; r < 10; ++r) {
+            readers.emplace_back([&] {
+                while (!stop.load(std::memory_order_acquire)) {
+                    buf.read([&](const Data& d, std::uint64_t ver) {
+                        if (!d.values.empty()) {
+                            const double v0 = d.values[0];
+                            bool         ok = true;
+                            for (std::size_t i = 1; i < d.values.size(); ++i) {
+                                if (d.values[i] != v0) {
+                                    ok = false;
+                                    break;
+                                }
+                            }
+                            if (ok)
+                                checks.fetch_add(1, std::memory_order_relaxed);
+                        }
+                        (void)ver;
+                    });
+                }
+            });
+        }
+
+        writer.join();
+        for (auto& th : readers)
+            th.join();
+
+        expect(gt(checks.load(), 0));
+    };
+
+    "shared_buffer_test::ConcurrentReadersConditionVar"_test = [] {
+        irt::shared_buffer<Data> buf;
+        std::mutex               m;
+        std::condition_variable  cv;
+        bool                     stop = false;
+
+        std::thread writer([&] {
+            for (int i = 0; i < 50; ++i) {
+                buf.write([&](Data& d) { d.update(double(i)); });
+                std::this_thread::sleep_for(std::chrono::milliseconds(1));
+            }
+            {
+                std::lock_guard<std::mutex> lk(m);
+                stop = true;
+            }
+            cv.notify_all();
+        });
+
+        std::vector<std::thread> readers;
+        std::atomic<int>         checks{ 0 };
+
+        for (int r = 0; r < 10; ++r) {
+            readers.emplace_back([&] {
+                std::unique_lock<std::mutex> lk(m);
+                while (!stop) {
+                    lk.unlock();
+                    buf.read([&](const Data& d, std::uint64_t ver) {
+                        if (!d.values.empty()) {
+                            const double v0 = d.values[0];
+                            bool         ok = true;
+                            for (std::size_t i = 1; i < d.values.size(); ++i) {
+                                if (d.values[i] != v0) {
+                                    ok = false;
+                                    break;
+                                }
+                            }
+                            if (ok)
+                                checks.fetch_add(1, std::memory_order_relaxed);
+                        }
+                        (void)ver;
+                    });
+                    lk.lock();
+                    cv.wait_for(
+                      lk, std::chrono::milliseconds(1), [&] { return stop; });
+                }
+            });
+        }
+
+        writer.join();
+        for (auto& th : readers)
+            th.join();
+
+        expect(gt(checks.load(), 0));
+    };
 }
