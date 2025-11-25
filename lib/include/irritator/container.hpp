@@ -17,6 +17,7 @@
 #include <memory_resource>
 #include <mutex>
 #include <optional>
+#include <thread>
 #include <type_traits>
 #include <utility>
 
@@ -766,18 +767,9 @@ class shared_buffer
     static_assert(std::is_copy_assignable_v<T> || std::is_move_assignable_v<T>,
                   "T must be copy- or move-assignable");
 
-    constexpr T*       data() noexcept;
-    constexpr const T* cdata() const noexcept;
-    constexpr T&       buffer(std::integral auto idx) noexcept;
-    constexpr const T& cbuffer(std::integral auto idx) const noexcept;
-
 public:
     shared_buffer() noexcept
     {
-        std::construct_at(data() + 0);
-        std::construct_at(data() + 1);
-        std::construct_at(data() + 2);
-
         active_.store(0, std::memory_order_relaxed);
         staging_ = 1;
         spare_   = 2;
@@ -785,40 +777,41 @@ public:
 
     template<typename... Args>
     explicit shared_buffer(Args&&... args) noexcept
-      : versions_{ 0u, 0u, 0u }
+      : buffers_{ T{ std::forward<Args>(args)... }, T(), T() }
     {
-        std::construct_at(data() + 0, std::forward<Args>(args)...);
-        std::construct_at(data() + 1);
-        std::construct_at(data() + 2);
-
         active_.store(0, std::memory_order_relaxed);
         staging_ = 1;
         spare_   = 2;
     }
 
-    shared_buffer(const shared_buffer& /*other*/) noexcept
+    shared_buffer(const shared_buffer& other) noexcept
+      : buffers_{ T(other.buffers_[0]),
+                  T(other.buffers_[1]),
+                  T(other.buffers_[2]) }
+      , versions_{ u64(other.versions_[0]),
+                   u64(other.versions_[1]),
+                   u64(other.versions_[2]) }
     {
-        std::construct_at(data() + 0);
-        std::construct_at(data() + 1);
-        std::construct_at(data() + 2);
-
         active_.store(0, std::memory_order_relaxed);
         staging_ = 1;
         spare_   = 2;
     }
 
-    shared_buffer(shared_buffer&& /*other*/) noexcept
+    shared_buffer(shared_buffer&& other) noexcept
+      : buffers_{ T(other.buffers_[0]),
+                  T(other.buffers_[1]),
+                  T(other.buffers_[2]) }
+      , versions_{ u64(other.versions_[0]),
+                   u64(other.versions_[1]),
+                   u64(other.versions_[2]) }
     {
-        std::construct_at(data() + 0);
-        std::construct_at(data() + 1);
-        std::construct_at(data() + 2);
-
         active_.store(0, std::memory_order_relaxed);
         staging_ = 1;
         spare_   = 2;
     }
 
     // Writer: copy-from-active, update staging, then publish.
+    // Avoids slots currently pinned by readers.
     template<typename Fn, typename... Args>
     void write(Fn&& fn, Args&&... args) noexcept
     {
@@ -826,16 +819,26 @@ public:
 
         const auto a = active_.load(std::memory_order_acquire);
 
-        buffer(staging_)    = buffer(a);
-        versions_[staging_] = versions_[a];
+        // Choose a staging slot that is not active and not being read.
+        const std::size_t s = pick_staging_slot(a);
 
+        // Safety: should never equal active
+        debug::ensure(s != a);
+
+        // Prepare staging from active (same thread, no readers on s)
+        buffers_[s] = buffers_[a];
+        versions_[s].store(versions_[a].load(std::memory_order_relaxed),
+                           std::memory_order_relaxed);
+
+        // Produce
         std::invoke(
-          std::forward<Fn>(fn), buffer(staging_), std::forward<Args>(args)...);
+          std::forward<Fn>(fn), buffers_[s], std::forward<Args>(args)...);
+        versions_[s].fetch_add(1, std::memory_order_relaxed);
 
-        ++versions_[staging_];
+        // Publish new active
+        active_.store(s, std::memory_order_release);
 
-        active_.store(staging_, std::memory_order_release);
-
+        // Rotate indices (old active becomes spare)
         const auto old_active = a;
         const auto old_spare  = spare_;
         spare_                = old_active;
@@ -848,15 +851,19 @@ public:
     {
         std::lock_guard<std::mutex> wlock(writer_);
 
+        const auto a = active_.load(std::memory_order_acquire);
+
+        // Choose staging slot free of readers
+        const std::size_t s = pick_staging_slot(a);
+        debug::ensure(s != a);
+
         // Overwrite staging
         std::invoke(
-          std::forward<Fn>(fn), buffer(staging_), std::forward<Args>(args)...);
-
-        ++versions_[staging_];
+          std::forward<Fn>(fn), buffers_[s], std::forward<Args>(args)...);
+        versions_[s].fetch_add(1, std::memory_order_relaxed);
 
         // Publish and rotate
-        const auto a = active_.load(std::memory_order_acquire);
-        active_.store(staging_, std::memory_order_release);
+        active_.store(s, std::memory_order_release);
 
         const auto old_active = a;
         const auto old_spare  = spare_;
@@ -864,72 +871,104 @@ public:
         staging_              = old_spare;
     }
 
-    // Reader: lock-free snapshot of the current active buffer.
+    // Reader: lock-free, no copy, with pinning to prevent writer reuse of the
+    // slot.
     template<typename Fn, typename... Args>
     void read(Fn&& fn, Args&&... args) const noexcept
     {
+        // Snapshot active
         const auto idx = active_.load(std::memory_order_acquire);
 
+        // Pin the slot while we access it
+        reader_counts_[idx].fetch_add(1, std::memory_order_acquire);
+
+        const auto ver = versions_[idx].load(std::memory_order_acquire);
+
+        // Invoke on const reference (no copy)
         std::invoke(std::forward<Fn>(fn),
-                    cbuffer(idx),
-                    versions_[idx],
+                    buffers_[idx],
+                    ver,
                     std::forward<Args>(args)...);
+
+        // Unpin
+        reader_counts_[idx].fetch_sub(1, std::memory_order_release);
     }
 
-    // Try-read variant returns false if the active index changes mid-call
-    // (rare). Use if you need to guarantee a consistent index across long
-    // reads.
+    // Try-read: guarantees the same active index before and after the callback.
+    // Still pinned to avoid reuse while reading.
     template<typename Fn, typename... Args>
     bool try_read(Fn&& fn, Args&&... args) const noexcept
     {
         const auto idx1 = active_.load(std::memory_order_acquire);
+        reader_counts_[idx1].fetch_add(1, std::memory_order_acquire);
+
+        const auto ver1 = versions_[idx1].load(std::memory_order_acquire);
+
         std::invoke(std::forward<Fn>(fn),
-                    cbuffer(idx1),
-                    versions_[idx1],
+                    buffers_[idx1],
+                    ver1,
                     std::forward<Args>(args)...);
+
+        reader_counts_[idx1].fetch_sub(1, std::memory_order_release);
 
         const auto idx2 = active_.load(std::memory_order_acquire);
         return idx1 == idx2;
     }
 
 private:
-    std::mutex writer_;
+    // Pick a staging slot that is not active and not currently read.
+    std::size_t pick_staging_slot(std::size_t a) noexcept
+    {
+        auto is_free = [&](std::size_t i) {
+            return i != a &&
+                   reader_counts_[i].load(std::memory_order_acquire) == 0;
+        };
 
-    alignas(std::max_align_t) std::byte buffers_[sizeof(T) * 3];
-    std::array<u64, 3> versions_{};
+        // Prefer current spare if free
+        if (is_free(spare_))
+            return spare_;
 
-    // Atomic index of the active buffer
+        // Otherwise, pick the remaining index (0+1+2 - a - spare_)
+        const std::size_t other = 0 + 1 + 2 - a - spare_;
+        if (is_free(other))
+            return other;
+
+        // Both non-active slots are being read: wait very briefly
+        // (with one writer and ~10 readers, this is rare and short)
+        while (reader_counts_[spare_].load(std::memory_order_acquire) != 0) {
+            // Yield to let readers complete quickly
+            std::this_thread::yield();
+        }
+        return spare_;
+    }
+
+private:
+    mutable std::mutex writer_; /**< Writer-side mutex */
+
+    /** Three real slots for T (correct alignment and stride */
+    std::array<T, 3> buffers_{};
+
+    /** Per-slot version numbers (optional but helpful) */
+    std::array<std::atomic<std::uint64_t>, 3> versions_{
+        { std::atomic<std::uint64_t>{ 0 },
+          std::atomic<std::uint64_t>{ 0 },
+          std::atomic<std::uint64_t>{ 0 } }
+    };
+
+    /** Per-slot reader counters (pinning) */
+    mutable std::array<std::atomic<unsigned>, 3> reader_counts_{
+        { std::atomic<unsigned>{ 0 },
+          std::atomic<unsigned>{ 0 },
+          std::atomic<unsigned>{ 0 } }
+    };
+
+    /** Atomic index of the active buffer */
     std::atomic<std::size_t> active_{ 0 };
 
-    // Non-atomic writer-managed indices
+    /** Non-atomic writer-managed indices (single writer under mutex) */
     std::size_t staging_{ 1 };
     std::size_t spare_{ 2 };
 };
-
-template<typename T>
-inline constexpr T* shared_buffer<T>::data() noexcept
-{
-    return reinterpret_cast<T*>(&buffers_[0]);
-}
-
-template<typename T>
-inline constexpr const T* shared_buffer<T>::cdata() const noexcept
-{
-    return reinterpret_cast<const T*>(&buffers_[0]);
-}
-
-template<typename T>
-inline constexpr const T& shared_buffer<T>::cbuffer(
-  std::integral auto idx) const noexcept
-{
-    return *(cdata() + idx);
-}
-
-template<typename T>
-inline constexpr T& shared_buffer<T>::buffer(std::integral auto idx) noexcept
-{
-    return *(data() + idx);
-}
 
 /**
  * @brief A non-owning buffer of @a std::bytes.
