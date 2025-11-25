@@ -868,7 +868,10 @@ int main()
 
     "shared_buffer_test::ConcurrentReaders"_test = [] {
         irt::shared_buffer<Data> buf;
-
+        static const auto        max_reader =
+          std::thread::hardware_concurrency() <= 1u
+                   ? 1u
+                   : std::thread::hardware_concurrency() - 1u;
         std::atomic<bool> stop{ false };
 
         std::thread writer([&] {
@@ -882,7 +885,7 @@ int main()
         std::vector<std::thread> readers;
         std::atomic<int>         checks{ 0 };
 
-        for (int r = 0; r < 10; ++r) {
+        for (unsigned r = 0; r < max_reader; ++r) {
             readers.emplace_back([&] {
                 while (!stop.load(std::memory_order_acquire)) {
                     buf.read([&](const Data& d, std::uint64_t ver) {
@@ -916,6 +919,10 @@ int main()
         std::mutex               m;
         std::condition_variable  cv;
         bool                     stop = false;
+        static const auto        max_reader =
+          std::thread::hardware_concurrency() <= 1u
+                   ? 1u
+                   : std::thread::hardware_concurrency() - 1u;
 
         std::thread writer([&] {
             for (int i = 0; i < 50; ++i) {
@@ -932,7 +939,7 @@ int main()
         std::vector<std::thread> readers;
         std::atomic<int>         checks{ 0 };
 
-        for (int r = 0; r < 10; ++r) {
+        for (unsigned r = 0; r < max_reader; ++r) {
             readers.emplace_back([&] {
                 std::unique_lock<std::mutex> lk(m);
                 while (!stop) {
