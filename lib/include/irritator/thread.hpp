@@ -472,10 +472,7 @@ public:
     unordered_task_list& operator=(unordered_task_list&&) noexcept = delete;
 
     void set_stats(worker_stats* stats) noexcept { stats_ = stats; }
-    void set_workers(std::span<unordered_worker> workers) noexcept
-    {
-        workers_ = workers;
-    }
+    void set_workers(std::span<unordered_worker> workers) noexcept;
 
     /** Add a task in the current batch. */
     template<typename Fn>
@@ -840,6 +837,12 @@ bool circular_buffer<T, Capacity>::empty() const noexcept
 }
 
 // unordered_task_list
+
+inline void unordered_task_list::set_workers(
+  std::span<unordered_worker> workers) noexcept
+{
+    workers_ = workers;
+}
 
 inline void unordered_task_list::submit() noexcept
 {
